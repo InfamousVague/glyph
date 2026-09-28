@@ -264,8 +264,8 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
         >
           <input
             className={styles.field}
-            aria-label="New chapter's title"
-            placeholder="Chapter title"
+            aria-label="New page's title"
+            placeholder="Page title"
             value={draft}
             autoFocus
             onChange={(event) => setDraft(event.target.value)}
@@ -322,7 +322,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
       ) : (
         <div className={styles.adds}>
           <button type="button" className={styles.action} onClick={() => setAdding('new')}>
-            <Plus size={16} aria-hidden="true" /> Add a chapter
+            <Plus size={16} aria-hidden="true" /> Add a page
           </button>
           <button type="button" className={styles.action} onClick={() => setAdding('existing')}>
             <BookOpen size={16} aria-hidden="true" /> Add a note you have

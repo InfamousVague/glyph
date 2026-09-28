@@ -44,7 +44,7 @@ A book is drawn as its index, where a note's words would be. The switch in the h
 | The arrows | Move a chapter one place up or down. |
 | The grip | Drags a chapter to a new place: at once with a mouse, after a short hold on a phone. |
 | The cross | Takes a chapter out of the book. Its note is never touched. |
-| Add a chapter | Names a new one. Add and open puts it in and opens it; Add as a canvas makes it an empty canvas. |
+| Add a page | Names a new one. Add and open puts it in and opens it; Add as a canvas makes it an empty canvas. |
 | Add a note you have | Tick any of your notes; they go in in the order you ticked them. |
 | Read straight through | Every chapter on one page, with a rail of their titles to jump between them. Index goes back. |
 

@@ -57,8 +57,8 @@ describe('the index view', () => {
     const open = vi.fn();
     const openCanvas = vi.fn();
     show(<BookView body={BOOK} title="Field guide" known={() => true} open={open} titles={() => []} onChange={onChange} openCanvas={openCanvas} />);
-    act(() => button('Add a chapter').click());
-    typeInto(document.querySelector<HTMLInputElement>('input[aria-label="New chapter\'s title"]')!, 'Trail map');
+    act(() => button('Add a page').click());
+    typeInto(document.querySelector<HTMLInputElement>('input[aria-label="New page\'s title"]')!, 'Trail map');
     act(() => button('Add as a canvas').click());
     expect(chaptersOf(onChange.mock.calls[0]![0] as string).map((c) => c.title)).toEqual(['Introduction', 'Trees', 'Birds', 'Trail map']);
     expect(openCanvas).toHaveBeenCalledWith('Trail map');
@@ -69,8 +69,8 @@ describe('the index view', () => {
     const onChange = vi.fn();
     const open = vi.fn();
     show(<BookView body={BOOK} title="Field guide" known={() => true} open={open} titles={() => ['Field guide', 'Trees', 'Rivers', 'Mountains']} onChange={onChange} />);
-    act(() => button('Add a chapter').click());
-    typeInto(document.querySelector<HTMLInputElement>('input[aria-label="New chapter\'s title"]')!, 'Rivers');
+    act(() => button('Add a page').click());
+    typeInto(document.querySelector<HTMLInputElement>('input[aria-label="New page\'s title"]')!, 'Rivers');
     act(() => button('Add and open').click());
     expect(chaptersOf(onChange.mock.calls[0]![0] as string).map((c) => c.title)).toEqual(['Introduction', 'Trees', 'Birds', 'Rivers']);
     expect(open).toHaveBeenCalledWith('Rivers');
@@ -124,7 +124,7 @@ describe('the index view', () => {
     const open = vi.fn();
     show(<BookView body={BOOK} title="Field guide" known={(t) => t !== 'Birds'} open={open} titles={() => []} onChange={() => {}} readOnly />);
     expect(rows()).toEqual(['Introduction', 'Trees', 'Birds']);
-    for (const label of ['Move Birds up', 'Take Trees out of the book', 'Add a chapter', 'Add a note you have']) {
+    for (const label of ['Move Birds up', 'Take Trees out of the book', 'Add a page', 'Add a note you have']) {
       expect(document.querySelector(`button[aria-label="${label}"]`) ?? [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === label)).toBeFalsy();
     }
     expect(document.querySelector('[class*=grip]')).toBeNull();

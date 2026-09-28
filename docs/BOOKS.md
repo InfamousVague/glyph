@@ -161,6 +161,6 @@ chapter that is a canvas, and a canvas offered in the index's picker, now wear t
 the one the + sheet gives a canvas - and a reader hears "Route map, a canvas" (`src/app/book/CanvasMark.tsx`, with
 `bodyOf` from the note screen). A chapter with no note yet says nothing of what it will be.
 
-A new chapter can start as a canvas: the index's "Add a chapter" form has "Add as a canvas" beside "Add and open",
+A new chapter can start as a canvas: the index's "Add a page" form has "Add as a canvas" beside "Add and open",
 which puts the chapter in the index and makes an empty canvas by that name (App.tsx `openCanvasWithin`). The New book
 sheet marks canvases among the notes it offers, and among the pages picked.
