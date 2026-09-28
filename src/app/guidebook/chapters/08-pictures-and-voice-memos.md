@@ -1,6 +1,6 @@
 # Pictures and voice memos
 
-_How a picture gets into a note and where it is kept, the + beside the line and the places it adds, the recording behind a spoken note, and the voice memos that play from it._
+_How a picture gets into a note and where it is kept, the + beside the line and the places and films it adds, the recording behind a spoken note, and the voice memos that play from it._
 
 ## Putting a picture in
 
@@ -20,6 +20,7 @@ Tap it, or click it, and it turns into a × and a short list opens beside it. Th
 | Row | What it puts in |
 |---|---|
 | A picture | A picture from the phone's picker, on a line of its own |
+| A video | A film from the phone's Photo Picker, on a line of its own, drawn as a still you tap to play. On Android only |
 | A place | Where you are now, as a line naming the place, with its map under it |
 | The date and time | The date and time as the row shows it, such as 28 Sept 2026, 14:05, where the caret is |
 | A table | A small table, its first heading picked out to write over |
@@ -29,7 +30,7 @@ Tap it, or click it, and it turns into a × and a short list opens beside it. Th
 
 More holds a heading, a bulleted list, a numbered list, a quote, a callout, a choice, a block of code, a divider, a board, a chart, a canvas drawn in a frame, a footnote, a tag, a counter, a sum, and each effect that is switched on. Each comes with a little to write over. Back, at the top, goes to the first page.
 
-Each is one Undo, and what it puts in is there at once. A row the device cannot do is not in the list: the Mac has no place, since it cannot say where it is, and no picture yet. A row a setting holds off is greyed, with the setting named. A video is to come, once the app on the phone can pick one.
+Each is one Undo, and what it puts in is there at once. A row the device cannot do is not in the list: the Mac has no place, since it cannot say where it is, and no picture yet. Only the Android app has A video, and only once it is the newest, since the app itself picks and keeps the film. A row a setting holds off is greyed, with the setting named.
 
 ## A place
 
@@ -42,6 +43,20 @@ A place is one line, a link to where it is:
 Away from the caret the line reads as the name alone, with the map under it. Tap the map to open the place in your maps app. A note can hold as many places as you like. Where the note itself was written is another thing, kept at the top of the note with its own map.
 
 The name is asked of OpenStreetMap while the phone finds where you are, when Place names is on in Settings › Account › Location. When no name comes within a few seconds the line keeps the coordinates, and the name is written in afterwards only if you have done nothing in the note since. Under Local only the row is greyed, and a place already in a note shows its map quiet, with no tiles. A shared note leaves its places out unless you tick **Share the places in it** ([[Sharing a note or a book]]). Other apps show the line as a link.
+
+## A video
+
+**A video** opens the phone's Photo Picker. It asks for no permission: the app sees only the film you choose. The film is kept as it was filmed, with a still from near its start, and a long one takes a moment to copy, while the note says "Adding the video." The phone keeps at least 500 MB free, so a film that would fill it is refused, and says so.
+
+A film is one line, its still linked to it:
+
+```
+[![video 0:12](image/5f0c2e9a….jpg)](video/8d1e4b7c….mp4)
+```
+
+Away from the caret the line reads video 0:12, with the still under it and the length at its foot. Tap it to play, with sound, and tap again to pause. The corner opens it full screen, and the back gesture closes it. Nothing plays by itself, and one film plays at a time.
+
+The film stays on the phone you added it on. It is not synced, not shared, and not sent to Google's backup, though moving to a new phone by cable or Smart Switch carries it. The still goes wherever the note goes, as any picture does. So your other devices show the still, and say the film stays on the phone it was added on, and a shared note shows the still and says only a still is shared. On a phone where the film is not, the card says "This video isn’t on this phone." instead of offering to play. An app older than the films says to update it.
 
 ## What it is written as
 
@@ -99,7 +114,7 @@ A clip plays only while the note's tape still carries it. After the recording is
 
 ## When a note is deleted
 
-Moving a note to the Trash changes nothing about it: its words, recording and pictures wait there with it. Deleting it for good, from the Trash or by emptying the Trash, removes its file and its recording, and every picture it showed, except one another note still shows.
+Moving a note to the Trash changes nothing about it: its words, recording, pictures and films wait there with it. Deleting it for good, from the Trash or by emptying the Trash, removes its file and its recording, and every picture and film it showed, except one another note still shows. A film you take out of a note is kept for a week, in case you undo, and then goes.
 
 ## Read next
 

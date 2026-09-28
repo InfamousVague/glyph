@@ -61,6 +61,9 @@ app" goes to the download page. The share service lets the page read it from the
   at 1024 px as a reading copy, else as many as fit in the order the pages show them. A picture the sharing device
   doesn't have is left out. Names are checked on opening, so a share cannot name a picture outside the store. A share
   whose words alone pass the limit is refused with a sentence saying so.
+- **A film's poster** travels as one of those pictures, and the film never does: its line stays in the words, and the
+  reader draws the still with "A video of 0:12. Only a still from it is shared." (`src/app/editor/videos.ts`,
+  docs/DESIGN.md §141).
 
 ## Following edits
 

@@ -23,6 +23,7 @@ tree.
 | Autolinks (bare and `< >`) | yes    | yes   | GFM                                                         |
 | Images `![]()`             | yes    | yes   | Drawn under their line                                      |
 | Places `[name](geo:lat,lon)` | as a link | yes | Added 2026-09-28: a link to a `geo:` address alone on its line draws its map card under it, and reads as its name off the caret (`src/app/editor/placeCards.ts`) |
+| Films `[![video 0:12](image/…)](video/…)` | as a linked picture | yes | Added 2026-09-28: a poster picture linked to a film under `video/`, alone on its line, draws the film's card under it (`src/app/editor/videos.ts`) |
 | Hard line breaks            | yes    | yes   | Two spaces at the end of a line                             |
 | HTML blocks and tags       | yes    | as text | Never executed; a note is words                            |
 | Comments `<!-- -->`        | yes    | as text |                                                            |
@@ -169,6 +170,17 @@ from a list of ideas.
   out unless "Share the places in it" is ticked (docs/SHARING.md). Another app shows a link; Obsidian's Map View reads
   inline places only in a note whose own front matter has `locations:`, which a Ghost.md note never has, so there too
   it is a link. (`src/app/core/placeRefs.ts`, `src/app/editor/placeCards.ts`)
+- **Films — `[![video 0:12](image/<poster>.jpg)](video/<name>.mp4)`.** A poster picture linked to its film, alone on
+  its line, with or without a list's or a quote's lead: what the + beside the line writes for A video, on an Android
+  phone from native generation 21. The alt is "video" and the length, as a voice memo's is. The poster is an ordinary
+  picture under `image/`, so sync, a share and the reader's download carry it; the film is under `video/`, which no
+  picture's pattern reads, and it stays on the phone it was added on. The card under the line is the poster with the
+  length at its foot: on the note screen, on the phone that has the film, a tap plays it (a HEAD to the app's `vid`
+  scheme first says whether it is there, and "This video isn’t on this phone." when it is not); on another device, a
+  shared page or an older binary it is the still, with a sentence for that reader. The picture widget steps aside for
+  the line, so the poster is drawn once. Off the caret's line the `[![` and the `](image/…)](video/…)` fold away and
+  "video 0:12" reads alone. Another app shows the still as a link to a file it does not have: pictures live in the
+  app's own storage, outside the library. (`src/app/core/videoRefs.ts`, `src/app/editor/videos.ts`)
 
 ### Where an insert goes
 
@@ -176,11 +188,11 @@ What the app puts into a note for you (the + beside the line, press and hold's A
 picture) goes where the file still reads as meant everywhere. Checked with the app's own parser, and with plain GFM
 where it is other readers the rule is for (`src/app/editor/inserts.ts`, its tests):
 
-- **A thing drawn on a line of its own** (a picture, a place, a canvas's frame) takes the caret's line when that line
-  has no words: blank, or only a list's, a to-do's or a quote's lead. Otherwise it goes on a new line after it, and a
-  line is never split. A line that holds a bookmark or an anchor is kept, since taking it would lose them. When the
-  line above is a list item, a quote or a table row, a blank line goes first: `- [ ] ` followed by a picture was a
-  to-do whose words were the picture, and a picture on the empty line under a table was a row of it.
+- **A thing drawn on a line of its own** (a picture, a film, a place, a canvas's frame) takes the caret's line when
+  that line has no words: blank, or only a list's, a to-do's or a quote's lead. Otherwise it goes on a new line after
+  it, and a line is never split. A line that holds a bookmark or an anchor is kept, since taking it would lose them.
+  When the line above is a list item, a quote or a table row, a blank line goes first: `- [ ] ` followed by a picture
+  was a to-do whose words were the picture, and a picture on the empty line under a table was a row of it.
 - **A block** (a table, a rule, a fence, a callout, a board) is the same, with a blank line on either side where the
   line there has words. Without the one after, a table took the next line of words as a row. Without the one before,
   `Para` then `---` is a level 2 heading in Obsidian, GitHub and any CommonMark reader, though never in Ghost.md, whose
@@ -240,6 +252,8 @@ a comment and front matter are typed.
 - `src/app/editor/canvasFrames.ts` — `![[A canvas]]` on its own line, drawn as that canvas in a browsable frame.
 - `src/app/core/placeRefs.ts` — a place line read and written, and every `geo:` form taken out for a share;
   `src/app/editor/placeCards.ts` — its map card and its fold.
+- `src/app/core/videoRefs.ts` — a film's line read and written; `src/app/core/videos.ts` — its pick, where it plays
+  from, and whether it is on this phone; `src/app/editor/videos.ts` — its card, full screen, and its fold.
 - `src/app/editor/inserts.ts` — where an insert goes, above.
 - `src/app/editor/markNotes.ts` — a note in brackets after a mark, and the panel a tap opens.
 - `src/app/guide/marks.ts` — the rows of the guide's marks page and the cheat sheet, read from the same place the

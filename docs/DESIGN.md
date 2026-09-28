@@ -7663,8 +7663,9 @@ over-the-air page on an older binary shows nothing it cannot do. A row a choice 
 is drawn dimmed with the choice named, which today is Local only, for a place; a press on it adds nothing. A refusal
 found only by trying keeps the row and is said when it happens. So the Mac has no place (its WebView never answers a
 fix) and no picture until its picker has been run on a Mac (`MAC_PICKER_TRIED`), the iPhone app has no place (it
-declares no location permission, and `canLocate` now answers `ios` before anything is asked), and no binary yet has a
-video row: it waits for the bridge's `pickVideo`, which comes with native generation 21 in the second slice.
+declares no location permission, and `canLocate` now answers `ios` before anything is asked), and only an Android
+binary of native generation 21, whose bridge has `pickVideo`, has a video row: the note screen asks once as it opens
+(`core/videos.ts` `canAddVideos`).
 
 **Where each goes** (`editor/inserts.ts`, docs/MARKDOWN.md). Drawn things (a picture, a place, a canvas's frame) get a
 line of their own: they take the caret's line when it has no words, lead included, and otherwise go after it, and a
@@ -7710,14 +7711,51 @@ link hint names in one sentence what the link carries of each.
 token is told of these in one sentence, and a summary may leave one out. A model can no longer move a place's
 coordinates or describe it.
 
-**The video, to come.** The second slice is the generation 21 APK: the Photo Picker with no permission asked, the film
-kept under `video/`, out of Google's cloud backup, played from the app's own ranged scheme, never synced or shared,
-its poster an ordinary picture so the owner's other devices and a reader see a still. Its page gate here waits on the
-bridge alone, because a page that waited for a generation above the one being built is what
-`scripts/lib/otaRs.test.mjs` refuses: the generation's number arrives with the binary that provides it.
+**A video stays on its phone** (the second slice, native generation 21; `BUNDLE_REQUIRES` stays 19). The line is its
+poster linked to it, `[![video 0:12](image/<poster>.jpg)](video/<uuid>.mp4)` (`core/videoRefs.ts`), the alt its
+length as a voice memo's is. The poster is an ordinary picture, so sync, a share and the reader's download carry it
+with no word about films, and the owner's other devices and a reader see a still.
+
+- **The pick** (`media/VideoPick.kt`). The Photo Picker (`MediaStore.ACTION_PICK_IMAGES` for videos, on Android 13
+  and later and on 11 and 12 with its module), or the chooser for videos where there is none, with no permission
+  asked: the manifest still names no READ_MEDIA. The film is copied as filmed, off the UI thread, in 1MB blocks, into
+  the cache's `picked/`, with 500MB of the phone kept free, checked before a byte is copied and every 64MB after. Its
+  length, size and turn are read off the copy, and its poster is a frame a second in (half way through a shorter one),
+  turned upright only where the frame still lies as the film is stored, shrunk to 1600px and written as a JPEG beside
+  it. It is made there, not in the page, since a frame drawn from the app's own scheme would taint the page's canvas.
+  Nothing else is read from the file: no place, no date, no device. The answer is its own event, `video`, never the
+  picture's, whose one pending pick it must not answer.
+- **Keeping it** (`videos.rs`). `save_video` adopts the poster among the pictures and the film into `video/` under
+  fresh names, both or neither, each only from directly inside `picked/` and the film only when its first bytes say
+  what its extension does (`ftyp` for MP4 and QuickTime, EBML's magic for WebM). An answer the page was not waiting
+  for (a reload behind the picker) is thrown away with `discard_picked`, and a launch sweep takes whatever waits in
+  `picked/` for more than an hour, pictures included, which nothing swept before. A deleted note takes the films only
+  it named, as its pictures; a film no note names is noted by a sweep at most once a day and goes after a week unnamed,
+  time for an Undo, a note in the trash and sync. A reset takes `video/` and `picked/`.
+- **Out of the cloud.** The manifest gains `dataExtractionRules` (Android 12 and later) and `fullBackupContent`
+  (earlier), both leaving `video/` out of Google's cloud backup, where one long film would take the app past its 25MB
+  quota and stop the notes' backup with it; a move to a new phone by cable or Smart Switch still carries everything.
+  `paths.rs` and the Kotlin tests read both files. Whether notes should go to that backup at all, since `models/` and
+  `recordings/` likely stopped it for most installs already, is Matt's question, and nothing wider is decided here.
+- **Playing it** (`editor/videos.ts`, `ranged.rs`). The `vid` scheme serves a film a range at a time by seek: an open
+  range is answered 4MB at a time, a HEAD reads nothing, and a request with no range is answered whole only up to 8MB
+  and otherwise told the length. It is registered as `rec` and `img` are, since wry answers every custom scheme on
+  Android on the WebView's own thread and waits there regardless. On the note screen the card asks one HEAD before it
+  draws the paper disc; "This video isn’t on this phone." takes the disc's place where the film is not there. A tap
+  plays the film over its poster, the same size, with sound; another pauses it; a line of ink along the foot is its
+  progress. No native controls, no autoplay, no loop, one film at a time. Full screen is a layer of the page, black in
+  both themes with a white close, because the generated WebView client refuses the platform's own; the back gesture
+  closes it and hands the time back. Off the caret the line folds to "video 0:12", and the picture widget steps aside
+  so the poster is drawn once.
+- **Who is told what.** An older Android binary: "Update Ghost.md to play this video." Another device, the owner's
+  Mac or a browser: "A video of 0:12. It stays on the phone it was added on." A shared page: "A video of 0:12. Only a
+  still from it is shared." The iPhone app refuses both commands (`unsupported.rs`), and has no row.
+- **AI runs** keep a video line whole as `![video-1](video)`, as for places, above.
 
 **To try on the Fold.** Whether the gutter-wide, row-tall target is easy to hit on the cover screen at the default
 density and at compact; how One UI's back gesture treats a tap that starts at the left edge; whether 150ms feels
 right; how often a place's name comes inside three seconds; the list's room above Samsung Keyboard on the cover
-screen; and the note step's field keeping the keyboard up.
+screen; and the note step's field keeping the keyboard up. For the film: a portrait clip's poster the right way up,
+whether a `.mov` plays when served as QuickTime, a gigabyte's copy time and the room check, seeking, full screen and
+back, and, on the staging build, `bmgr backupnow` leaving `video/` out of the backup's listing.
 

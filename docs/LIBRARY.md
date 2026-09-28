@@ -36,7 +36,8 @@ own is phase 2, not built.
     config.json                 what the page chose: the model, the prompts, the piece rule, the two settings
     <id>.progress               how far it has got: the phase, the speech found, the phrases, the notes per piece
     <id>.json                   the summary it wrote, until the page takes it into the note
-  images/<name>                 the pictures notes show
+  images/<name>                 the pictures notes show, a film's poster among them
+  video/<name>                  the films notes play, on the phone they were added on (Android, DESIGN §141)
 ```
 
 Filing a note in a workspace moves its file into `workspaces/<the workspace>/`, and taking it out of one moves it
@@ -132,6 +133,9 @@ Obsidian's Properties panel can show and edit them.
 - **Pictures** are `![](image/<name>)` on a line of their own, a relative path. The file is
   `<app_data_dir>/images/<name>`, outside the library, so another app opening the folder does not find it. Pictures
   inside the library, in an attachments folder, are phase 3.
+- **Films** are their poster linked to them, `[![video 0:12](image/<poster>)](video/<name>)`, on a line of their own.
+  The poster is a picture like any other. The film is `<app_data_dir>/video/<name>`, outside the library too, and it
+  never leaves the phone it was added on: not by sync, a share, or Google's cloud backup (docs/MARKDOWN.md).
 
 Every note renders as valid Markdown on GitHub, in Obsidian, and in any CommonMark renderer that treats a front
 matter block as metadata.
@@ -164,7 +168,8 @@ A note with none of these has no sidecar. The sidecar also has room for a format
 they land in the note itself, and nothing writes those fields now; sync still carries what an older note has.
 
 A note's kept recording is `<app_data_dir>/recordings/<id>.wav`, outside the library (`src-tauri/src/recordings.rs`).
-When a note is deleted in Ghost.md, its file, its sidecar, its recording and the pictures only it used all go.
+When a note is deleted in Ghost.md, its file, its sidecar, its recording and the pictures and films only it used all
+go, and a film no note has named for a week goes at the next day's sweep (`src-tauri/src/videos.rs`).
 Nothing yet clears a sidecar or a recording whose note was deleted by another app.
 
 A recording's summary and a meeting's transcript are text: the `## Summary` and `## Transcript` sections are in the
