@@ -89,6 +89,14 @@ vi.mock('./core/location.ts', async (importOriginal) => {
   const real = await importOriginal<typeof import('./core/location.ts')>();
   return { ...real, tagEntryIfWanted: vi.fn(real.tagEntryIfWanted) };
 });
+// The Mac app, where a test says so: ⌘N is bound only there.
+const device = vi.hoisted(() => ({ mac: false }));
+vi.mock('./core/platform.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./core/platform.ts')>()),
+  get isMacApp() {
+    return device.mac;
+  },
+}));
 vi.mock('./share/share.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./share/share.ts')>()),
   readShared: vi.fn(async () => ({ v: 1, kind: 'note', title: 'Shared', pages: [{ title: 'Shared', body: '# Shared\n\nFrom a friend.' }], at: 1 })),
@@ -473,6 +481,38 @@ describe('a new note, ready to type', () => {
     act(() => button('Home').click());
     await waitUntil(() => expect(untouchedRecord(kept)).toBeNull());
     expect(await getNote(kept)).not.toBeNull();
+  });
+
+  it('makes one from ⌘N in the Mac app, never in a browser, and not while a sheet is over the page', async () => {
+    const press = () => act(() => void window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', metaKey: true, bubbles: true, cancelable: true })));
+    await seed(['a', '# Apples']);
+    await openApp();
+    press();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(noteShown()).toBeNull();
+    unmount();
+    device.mac = true;
+    try {
+      await openApp();
+      // The + sheet open: its own keys come first.
+      act(() => button('Write a note').click());
+      press();
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(noteShown()).toBeNull();
+      const { goBack } = await import('./core/back.ts');
+      act(() => void goBack());
+      await waitUntil(() => expect(document.querySelector('[aria-modal="true"]')).toBeNull());
+      press();
+      await waitUntil(() => expect(noteShown()).not.toBeNull());
+      expect(seen.note!.caret).toBe(0);
+      expect(seen.note!.note.body).toBe('');
+    } finally {
+      device.mac = false;
+    }
   });
 
   it('holds nothing where the prompt was never answered, and leaves a note opened to be read unfocused', async () => {

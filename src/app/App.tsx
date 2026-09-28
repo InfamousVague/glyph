@@ -67,6 +67,7 @@ import { useRootStamp } from './shell/useRootStamp.ts';
 import { useTrail } from './shell/useTrail.ts';
 import { useVisibleNotes } from './shell/useVisibleNotes.ts';
 import { dropLiveTitles } from './core/liveTitles.ts';
+import { isMacApp } from './core/platform.ts';
 
 /**
  * The whole app: which screen is up, and everything drawn over it.
@@ -453,6 +454,28 @@ function Shell() {
     });
     void tagNewNotesIfWanted([note.id], { reviewing: false }, { introduce: introduceLocation });
   };
+
+  /*
+   * ⌘N in the Mac app (docs/DESIGN.md §144): a new blank note, as + › Note makes one, ready to type. The palette always
+   * showed ⌘N beside New note and nothing bound it (the kit binds only ⌘K). Only in the Mac app, since in a browser ⌘N
+   * is the browser's new window; only on a place (home, All notes, a note), never over a recording or the Academy; and
+   * not while a sheet, the palette or the Guide is open over the page, each a modal dialog, whose own keys come first.
+   */
+  const newNoteByKey = useRef<() => void>(() => undefined);
+  newNoteByKey.current = () => {
+    if (!isPlace(screen) || document.querySelector('[aria-modal="true"]')) return;
+    void newNote();
+  };
+  useEffect(() => {
+    if (!isMacApp) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (!event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.repeat || event.key.toLowerCase() !== 'n') return;
+      event.preventDefault();
+      newNoteByKey.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   /*
    * What the + makes (notes/NewSheet.tsx): a note, a canvas or a book, or a copy from a shared link. The sheet is one
