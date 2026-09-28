@@ -225,6 +225,8 @@ mod tests {
         // A note an AI signed (core/authors.ts `withAuthor`): no `title:`, so its first line of words.
         assert_eq!(title_of("---\nauthors: Matt, Claude\n---\n# Weekend trip\n\nBook the cabin."), "Weekend trip");
         assert_eq!(title_of("---\ntitle: \"\"\nbook: true\n---\n# Reading list"), "Reading list", "an empty title is no title");
+        // A note tagged where it was written (core/geotag.ts `withGeoTag`), which every new note is by default.
+        assert_eq!(title_of("---\nlocation: 51.5074,-0.1278\nplace: \"Trafalgar Square, London\"\n---\n# Groceries\n\n- [ ] Oat milk\n"), "Groceries");
     }
 
     #[test]
