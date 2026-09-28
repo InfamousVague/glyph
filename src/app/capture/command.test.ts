@@ -153,6 +153,19 @@ describe('books by voice', () => {
     expect(read('add a book to work')).toMatchObject({ kind: 'place', note: at('w'), text: 'a book' });
   });
 
+  it('adds a notebook said as a thing whole, not a note and the word book (docs/DESIGN.md §142)', () => {
+    expect(read('Add a notebook to work.')).toMatchObject({ kind: 'place', note: at('w'), text: 'a notebook' });
+    expect(read('Add a bugfix for login to work.')).toMatchObject({ kind: 'place', note: at('w'), text: 'a bugfix for login' });
+    // The kind of thing is still taken off where it is the whole word.
+    expect(read('Add a note: call Sam to work.')).toMatchObject({ kind: 'place', note: at('w') });
+    expect(read('Add a note: call Sam to work.')).not.toMatchObject({ text: expect.stringMatching(/^a note/i) });
+  });
+
+  it("knows no notebook by name: a new one said is a note's words, as it would be said", () => {
+    expect(read('New notebook for school, pens and paper.')).toBeNull();
+    expect(read('Make a notebook called Field notes.')).toBeNull();
+  });
+
   it('adds a chapter to a book named: by title, this note, or the title in the next phrase', () => {
     expect(read('add a chapter called Rivers to the field guide')).toEqual({ kind: 'chapter', note: guide, title: 'Rivers' });
     expect(read('put the rivers in the field guide.')).toEqual({ kind: 'chapter', note: guide, title: 'The rivers' });

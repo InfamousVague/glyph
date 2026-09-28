@@ -167,8 +167,12 @@ export type FinalPlan<N extends Candidate = Candidate> = Extract<Plan<N>, { kind
 const LEAD = /^\s*(?:(?:please|can you|could you|would you|and|so|ok(?:ay)?|um+|uh+)[,\s]+)+/i;
 const MOVERS = /^\s*(?:switch|go|jump|change|move|carry on|continue)\b/i;
 
-/** "a list item", "a task", "a note that says" at the front of what is being added: the kind of thing, not the thing. */
-const OBJECT_NOUN = /^(?:(?:a|an|another|one more|some|new)\s+)?(?:quick\s+)?(?:(list\s+)?(items?|entry|entries|bullets?|points?)|(tasks?|to-?\s?dos?|check\s?box(?:es)?)|(notes?|lines?|reminders?|comments?|memos?)|(bugs?|issues?|defects?))(?:\s+(?:about|that\s+says|saying|which\s+says|called|:|,))?\s*/i;
+/**
+ * "a list item", "a task", "a note that says" at the front of what is being added: the kind of thing, not the thing.
+ * The noun ends at a word's end, so "a notebook" is not "a note" and the word "book" (docs/DESIGN.md §142), and "a
+ * bugfix for login" is not "a bug" and "fix for login".
+ */
+const OBJECT_NOUN = /^(?:(?:a|an|another|one more|some|new)\s+)?(?:quick\s+)?(?:(list\s+)?(items?|entry|entries|bullets?|points?)|(tasks?|to-?\s?dos?|check\s?box(?:es)?)|(notes?|lines?|reminders?|comments?|memos?)|(bugs?|issues?|defects?))\b(?:\s+(?:about|that\s+says|saying|which\s+says|called|:|,))?\s*/i;
 
 const TABLE = /^(?:add|make|create|start|put|insert|draw|build|new)\s+(?:(?:a|an|another|one)\s+)?(?:new\s+)?table\b(.*)$/i;
 const CREATE_LIST = /^(?:(?:please\s+)?(?:make|create|start)\s+(?:(?:me\s+)?(?:a|another)\s+)?(?:new\s+)?list|(?:i\s+(?:need|want|would\s+like))\s+(?:a\s+)?new\s+list)\s+(?:called|named|titled)\s+(.+)$/i;

@@ -7635,3 +7635,10 @@ Play listing, forms and features, the screenshot notes and the privacy page say 
 screenshots `04-a-book.png` (its caption, "A book, read straight through.", is drawn into the picture) and
 `09-the-tapes-shelf.png` (it shows Library) are made again in the next screenshot pass, and privacy.html and the MCP's
 words reach the world only with their own deploys, on Matt's word.
+
+**Voice.** The recorder learns no new word. "Make a book called …" is still what it knows to turn down, and "new
+notebook for school, pens and paper" stays a note's words, since a command needs no keyword now (§136) and a
+notebook is an everyday thing to say. One thing was put right on the way: the kind of thing said before a note's words
+("a note", "a bug") ended where its letters did, not where its word did, so "add a notebook to Work" put the word
+"book" in Work, and "a bugfix for login" lost "a bug". Now the kind ends at a word's end (capture/command.ts
+`OBJECT_NOUN`). The tips never teach a notebook or a journal, as they never taught a book.
