@@ -16,7 +16,7 @@ Play build, and each has a screenshot.
 | 2 | Hey Ghost, into a note you name | The words land in another note's list while you talk, with Undo. The thing people show each other. |
 | 3 | The AI on the phone: the review, and the runs | A second listen and a read-through after every recording, every change marked to keep or revert, and no cloud. |
 | 4 | Meetings, tapes and summaries | Record with the screen off, written up afterwards with a summary under the title. New in the Play build. |
-| 5 | Plain Markdown, and the marks | One .md file per note, the seven marks and five effects, boards, notebooks and canvases. |
+| 5 | Plain Markdown, and the marks | One .md file per note, the seven marks and five effects, boards, notebooks, journals and canvases. |
 | 6 | Private by design | No account needed; sync and shares sealed on the device; nothing listens in the background. |
 
 Supporting, mentioned in a line each: the side key, the Fold, the Mac app, Notion and GitHub, the Claude connector,
