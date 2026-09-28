@@ -1,10 +1,16 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { isJournalBody } from '../src/app/book/book.ts';
+import { entryBody, entryTitle, localStamp, templateOf, uniqueTitle, withEntry } from '../src/app/book/journal.ts';
+import { fillTemplate, openEnd } from '../src/app/book/template.ts';
 import { placeWords } from '../src/app/capture/listAppend.ts';
+import { placeTake } from '../src/app/capture/place.ts';
 import { aiName, authorsOf, withAuthor } from '../src/app/core/authors.ts';
 import { failureText } from '../src/app/core/failure.ts';
+import { frontMatterEnd, frontMatterValue, withFrontMatterValue } from '../src/app/core/frontMatter.ts';
 import { geoTagOf, withGeoTag } from '../src/app/core/geotag.ts';
 import { noteTitle, withoutFrontMatter } from '../src/app/core/noteTitle.ts';
+import { titleKey } from '../src/app/core/titleKey.ts';
 import { Conflict, GlyphApiError, type GlyphAccount, type NoteRecord } from './glyph.ts';
 
 /**
@@ -15,6 +21,11 @@ import { Conflict, GlyphApiError, type GlyphAccount, type NoteRecord } from './g
  * from the revision just read and is refused, never applied, when another device got there first - the tool then
  * says so and shows that device's words. "Append" places words the way a spoken "add task" does (capture/
  * listAppend.ts): into the note's own list, in its style.
+ *
+ * A journal's entries are written as the app writes them (docs/DESIGN.md §142): `add_journal_entry` makes the entry
+ * named by its minute from the journal's template, with the words on from its time, and puts its line in the journal's
+ * index, from the app's own modules (book/journal.ts, book/template.ts). `append_to_note` turns a journal down, since
+ * its words are the list of its entries, and a rewrite keeps a notebook's keys as it keeps the authors and the place.
  */
 
 export const VERSION = '1.0.0';
@@ -89,6 +100,29 @@ function keepPlace(before: string, next: string): string {
   const tag = geoTagOf(before);
   return tag && !geoTagOf(next) ? withGeoTag(next, tag) : next;
 }
+
+/** The keys a notebook, a journal and an entry are made of (book/book.ts, book/journal.ts). */
+const KEPT_KEYS = ['title', 'book', 'journal', 'template', 'entry-place', 'date'] as const;
+
+/**
+ * `next` with every key of `before`'s that it lacks entirely put back, as it was written: a rewrite that dropped the
+ * front matter would otherwise turn a notebook into a note with a list of links, and a journal's entry lose its name.
+ * A value `next` gives is kept, so Claude can still rename a note.
+ */
+export function keepKeys(before: string, next: string): string {
+  let out = next;
+  const lines = before.split('\n');
+  const keys = lines.slice(1, Math.max(1, frontMatterEnd(lines) - 1));
+  for (const key of KEPT_KEYS) {
+    const line = keys.find((each) => new RegExp(`^\\s*${key}\\s*:`, 'i').test(each));
+    if (line === undefined || frontMatterValue(before, key) === null || frontMatterValue(out, key) !== null) continue;
+    out = withFrontMatterValue(out, key, line.replace(/^\s*[\w.-]+\s*:\s*/, '').trim());
+  }
+  return out;
+}
+
+/** `YYYY-MM-DDTHH:MM`, the wall clock an entry is written at. */
+const WALL = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
 
 /** The note `id` or, failing that, the one titled `title`; a clear complaint when neither finds one. */
 async function find(account: GlyphAccount, id: string | undefined, title: string | undefined): Promise<NoteRecord> {
@@ -246,8 +280,8 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpSer
         await account.pull();
         if (!body.trim()) return failed('A note needs some words. To remove a note, archive it with set_note_flags.');
         // The authors the note had stay, whatever the new body says: a rewrite doesn't take anyone off. Nor where
-        // it was written.
-        const written = await account.edit(id, (note) => ({ ...note, body: authored(keepPlace(note.body, keepAuthors(note.body, body)), author) }));
+        // it was written, nor the keys that make it a notebook, a journal or an entry.
+        const written = await account.edit(id, (note) => ({ ...note, body: authored(keepPlace(note.body, keepAuthors(note.body, keepKeys(note.body, body))), author) }));
         return text({ updated: whole(written) });
       }),
   );
@@ -257,7 +291,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpSer
     {
       title: 'Add to a note',
       description:
-        'Words added to a note the way the app’s own "add task" does: a task or an item joins the note’s list, in the list’s own style, or starts one; a paragraph goes on the end. Safe against another device editing at the same time.',
+        'Words added to a note the way the app’s own "add task" does: a task or an item joins the note’s list, in the list’s own style, or starts one; a paragraph goes on the end. Safe against another device editing at the same time. Not for a journal: write an entry in one with add_journal_entry.',
       inputSchema: {
         id: z.string().optional().describe('The note’s id.'),
         title: z.string().optional().describe('Or its title.'),
@@ -270,6 +304,8 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpSer
       guarded(async () => {
         await account.pull();
         const target = await find(account, id, title);
+        // A journal's words are the list of its entries: an entry is a note of its own, with its line (below).
+        if (isJournalBody(target.note.body)) return failed(`“${noteTitle(target.note.body)}” is a journal: its words are the list of its entries. Use add_journal_entry to write one.`);
         const how = as === 'task' || as === 'item' ? 'item' : as === 'paragraph' ? 'paragraph' : 'leave';
         let added: string[] = [];
         const written = await account.edit(target.note.id, (note) => {
@@ -278,6 +314,42 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpSer
           return { ...note, body: authored(placed.body, author) };
         });
         return text({ added, note: summary(written) });
+      }),
+  );
+
+  server.registerTool(
+    'add_journal_entry',
+    {
+      title: 'Write a journal entry',
+      description:
+        'A new entry in a journal (a Ghost.md notebook kept as a journal, dated entries in its index): a note named by the minute, "2026-09-28 14.05", started from the journal’s own template, with `text` going on from its time line or into its to-do list, and its line added to the journal. Where it was written is never set. Safe against another device editing the journal at the same time.',
+      inputSchema: {
+        journal: z.string().min(1).describe('The journal’s id or its title.'),
+        text: z.string().min(1).describe('What the entry says, as markdown.'),
+        at: z
+          .string()
+          .regex(WALL)
+          .optional()
+          .describe('When, as YYYY-MM-DDTHH:MM: the person’s local time for the entry. Left out, the time where this server runs.'),
+        author: authorField,
+      },
+    },
+    async ({ journal, text: words, at, author }) =>
+      guarded(async () => {
+        await account.pull();
+        const target = (await account.get(journal)) ?? (await find(account, undefined, journal));
+        if (!isJournalBody(target.note.body)) return failed(`“${noteTitle(target.note.body)}” is not a journal. Use append_to_note or create_note for it.`);
+        const said = at ? WALL.exec(at) : null;
+        const when = said ? new Date(Number(said[1]), Number(said[2]) - 1, Number(said[3]), Number(said[4]), Number(said[5])) : new Date();
+        if (Number.isNaN(when.getTime())) return failed(`${at} is not a time. Give it as YYYY-MM-DDTHH:MM.`);
+        const name = noteTitle(target.note.body);
+        const taken = new Set((await account.list({ archived: true })).map((r) => titleKey(noteTitle(r.note.body))));
+        const title = uniqueTitle(entryTitle(when.getTime()), taken);
+        const { base, placing } = openEnd(fillTemplate(templateOf(target.note.body), { at: when, title, journal: name }));
+        const body = placeTake(entryBody(title, localStamp(when.getTime()), base), words.trim(), placing).body;
+        const made = await account.create(authored(body, author));
+        const listed = await account.edit(target.note.id, (note) => ({ ...note, body: withEntry(note.body, title) }));
+        return text({ created: whole(made), journal: summary(listed) });
       }),
   );
 
