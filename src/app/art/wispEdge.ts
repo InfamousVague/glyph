@@ -13,11 +13,13 @@ import { installWispMasks, type WispDraw, wispDraw, wispHead } from './wispMask.
  * Matt: "use this blur animation wisp effect behind every header on the app,
  * save it as a standard mask effect we'll use quite frequently".
  *
- * A header that sits over the scroller (the guide's, a note's) is a solid
- * pane of the page's paper (app.css `.app-headerPane`), with the wisp a
- * little way under its edge, short and tight (Matt, after glass: "do a solid
- * black background, just make the wisp effect move down a bit further and
- * condense it vertically a bit"). Pass the header as `under`, and the band
+ * A header that sits over the scroller (the guide's, a note's) is a pane of
+ * glass, the page's paper at two thirds over a blur of what runs under it
+ * (app.css `.app-headerPane`), with the wisp a little way under its edge,
+ * short and tight (Matt, when it was glass the first time: "do a solid black
+ * background, just make the wisp effect move down a bit further and condense
+ * it vertically a bit"; the solid pane then went back to glass, "it's not
+ * like a dark glass, it's solid black"). Pass the header as `under`, and the band
  * moves down below its bottom edge, with `--wisp-under` set on the scroller
  * for its own padding; the top fade (`--wisp-top-fade`) is only for a
  * scroller with no header.
@@ -45,10 +47,17 @@ import { installWispMasks, type WispDraw, wispDraw, wispHead } from './wispMask.
  * covering the overflowing content like we see with the header on the main page"). Every attribute on a filter is
  * global, so one band worn by two views under headers of different heights sits under whichever was placed last, and
  * its drift moves both while only one is scrolled. The column's is the page's band again, the same strength, under its
- * own ids, placed and drifted apart. Like the page's it is placed in user space, which WebKit starts from the
- * document's corner rather than the view's (docs/DESIGN.md §54): a view below the window's top has its band that far
- * too high there. The Mac draws the blur strip instead (`wispHead`), so only a WebKit tablet wearing the filter would
- * see it, as it would on Settings' page beside the column, which sits below the same head.
+ * own ids, placed and drifted apart. Its region is the column's own width rather than the window's, and it is held to
+ * the budget together with a page's beside it (`placeRegion`). Its lip eases down to its place over the first px of a
+ * scroll (`WISP_EDGE_EASE`), since the column's first row starts right at the field's edge.
+ *
+ * Like the page's it is placed in user space, which WebKit starts from the document's corner rather than the view's
+ * (docs/DESIGN.md §54), so in WebKit a view below the window's top has its band that far too high: the column's, 69px
+ * on the Fold's size, lands at the column's own top, where the rows under the field's glass are bent and smoke is
+ * thrown up over the bottom of Settings' head and the field's padding above its pill, while the rows at the field's
+ * edge stay crisp. Nothing that ships draws that: the Mac draws the blur strip (`wispHead`) and Android is Chromium.
+ * An iPad build would (the Apple target has the iPad in it, and a touch screen takes the filter); placing the bands in
+ * their views' own boxes, as §54 describes, settles it for the column and for Settings' page beside it alike.
  */
 
 export const WISP_EDGE_FILTER_ID = 'wispEdge';
@@ -126,8 +135,18 @@ export const WISP_EDGE_BANDS: Record<WispBand, WispBandIds> = {
  */
 export const WISP_EDGE_SOFT = 15;
 export const WISP_EDGE_BAND = 7;
-/** How far below a header's edge the band's lip sits: the smoke happens under a solid header, not hidden behind it. */
+/** How far below a header's edge the band's lip sits: the smoke happens under the header's glass, not hidden behind it. */
 const WISP_EDGE_DROP = 12;
+/**
+ * How far the column's lip comes down as its scroll begins (`band: 'column'`): from this far above its place, one px for
+ * each px scrolled, to where the page's would be. A band's whole depth - the drop, the lip, and one ramp of its blur -
+ * so the ramp starts under the field's glass. The home page's first line stands 46px under its header, and its lip
+ * reaches it over the first 27px of a scroll; the column's first row starts at the field's edge with its words 15px
+ * under it, inside the lip, so a band laid at its place when the scroll began took them from crisp to full smoke on
+ * the first 5px. Eased, the first row goes to smoke over about the first 20px, as the home page's first line does,
+ * and past it the column's smoke is the home page's exactly.
+ */
+export const WISP_EDGE_EASE = WISP_EDGE_DROP + WISP_EDGE_BAND + WISP_EDGE_SOFT;
 /** The strip starts this far above the view, so its blur never opens the top. */
 export const WISP_EDGE_ABOVE = 200;
 /**
@@ -141,7 +160,7 @@ export const WISP_EDGE_ABOVE = 200;
  * own window is 430 x 860 - so `placeRegion` sets it from the view, and a window too large even for that keeps the
  * plain fade rather than risking the black.
  */
-const WISP_EDGE_SIDE = 40;
+export const WISP_EDGE_SIDE = 40;
 const WISP_EDGE_CROWN = WISP_EDGE_ABOVE + 40;
 const WISP_EDGE_BELOW = 40;
 const WISP_EDGE_BUDGET = 2 ** 24;
@@ -329,25 +348,42 @@ function placeFoot(height: number, on: boolean): void {
 /**
  * Sizes the filter's region to the view about to wear it, and answers whether it fits the budget above.
  *
- * The window's size rather than the view's own: two views can be wearing the one filter at a time (a page with a
- * sheet over it), and a region cut to the smaller would clip the larger - what falls outside a filter's region is not
- * drawn at all, so the miss would be a page with its edges missing rather than a page without smoke.
+ * The page's is the window's size rather than the view's own: two views can be wearing the one filter at a time (a
+ * page with a sheet over it), and a region cut to the smaller would clip the larger - what falls outside a filter's
+ * region is not drawn at all, so the miss would be a page with its edges missing rather than a page without smoke.
+ * The page's top and its foot are held to the budget each on its own, as they always were.
+ *
+ * The column's is its own: only the column wears its filter, so its region is cut to the column's width, out to its
+ * right-hand edge in the window since WebKit counts user space from the document's corner (and the window's height,
+ * for the same reason). And it is held to the budget together with a page's region beside it, because in WebKit two
+ * filters worn at once drew from one budget between them: with the page's band and the column's both on at 1800 x
+ * 1100 and two device pixels to the CSS pixel, each region 0.62 of the budget alone and drawn alone, WebKit gave back
+ * an empty frame every time, with the break between 1.00 and 1.08 of the budget together; the column's region cut to
+ * its width (0.13) brought the frame back with both drawn (the review of 2026-09-28, headless). A column the pair would
+ * not fit keeps its plain edge while the page smokes. The foot's region is the page's to place, and is left alone here.
  */
-function placeRegion(el: HTMLElement, ids: WispBandIds): boolean {
-  const across = Math.max(el.offsetWidth, typeof innerWidth === 'number' ? innerWidth : 0) + WISP_EDGE_SIDE * 2;
+function placeRegion(el: HTMLElement, band: WispBand): boolean {
+  const wide = typeof innerWidth === 'number' ? innerWidth : 0;
   const down = Math.max(el.offsetHeight, typeof innerHeight === 'number' ? innerHeight : 0) + WISP_EDGE_CROWN + WISP_EDGE_BELOW;
-  if (!withinWispBudget(across, down)) return false;
-  // The view's top band's filter and the foot's, each held to the budget on its own: an engine gives every filter its
-  // own buffer, so wearing two together - the top and the foot, or the column's top beside the page's - does not pool
-  // them into one region twice the size.
-  for (const id of [ids.filter, WISP_EDGE_FOOT_FILTER_ID]) {
-    const filter = document.getElementById(id);
-    filter?.setAttribute('x', String(-WISP_EDGE_SIDE));
-    filter?.setAttribute('y', String(-WISP_EDGE_CROWN));
-    filter?.setAttribute('width', String(across));
-    filter?.setAttribute('height', String(down));
+  if (band === 'column') {
+    const across = Math.ceil(Math.max(el.offsetWidth, el.getBoundingClientRect().right)) + WISP_EDGE_SIDE * 2;
+    if (!withinWispBudget(across + wide + WISP_EDGE_SIDE * 2, down)) return false;
+    region(WISP_EDGE_COLUMN_FILTER_ID, across, down);
+    return true;
   }
+  const across = Math.max(el.offsetWidth, wide) + WISP_EDGE_SIDE * 2;
+  if (!withinWispBudget(across, down)) return false;
+  for (const id of [WISP_EDGE_FILTER_ID, WISP_EDGE_FOOT_FILTER_ID]) region(id, across, down);
   return true;
+}
+
+/** One filter's region, `across` × `down` from the room the bend and the strip need above and beside the view. */
+function region(id: string, across: number, down: number): void {
+  const filter = document.getElementById(id);
+  filter?.setAttribute('x', String(-WISP_EDGE_SIDE));
+  filter?.setAttribute('y', String(-WISP_EDGE_CROWN));
+  filter?.setAttribute('width', String(across));
+  filter?.setAttribute('height', String(down));
 }
 
 /** The phone's status bar, in px: the app sets it on the root as `--app-safe-top` (app.css). */
@@ -357,14 +393,15 @@ function safeTop(): number {
 }
 
 /**
- * Moves the band down to sit under a header `under` px tall (0: at the view's top), and the bend's reach with it.
- * Off, the strip has no height at all, so a view wearing the filter for its foot alone has nothing at its top: a
- * page at rest under the header was smoking because the strip is always there while the filter is (Matt: "when
- * scrolled to top of page content under topbar shouldn't have ghostly effect").
+ * Moves the band down to sit under a header `under` px tall (0: at the view's top), and the bend's reach with it; its
+ * lip `lift` px above that while it eases in (`WISP_EDGE_EASE`). Off, the strip has no height at all, so a view
+ * wearing the filter for its foot alone has nothing at its top: a page at rest under the header was smoking because
+ * the strip is always there while the filter is (Matt: "when scrolled to top of page content under topbar shouldn't
+ * have ghostly effect").
  */
-function placeBand(ids: WispBandIds, under: number, on = true): void {
+function placeBand(ids: WispBandIds, under: number, on = true, lift = 0): void {
   const drop = under > 0 ? WISP_EDGE_DROP : 0;
-  document.getElementById(ids.strip)?.setAttribute('height', String(on ? WISP_EDGE_ABOVE + under + drop + WISP_EDGE_BAND : 0));
+  document.getElementById(ids.strip)?.setAttribute('height', String(on ? WISP_EDGE_ABOVE + under + drop + WISP_EDGE_BAND - lift : 0));
   const reach = String(on ? 40 + under + drop + WISP_EDGE_REACH : 0);
   for (const id of [ids.noise, ids.bent, ids.near, ids.soft]) document.getElementById(id)?.setAttribute('height', reach);
 }
@@ -396,15 +433,17 @@ export function useWispEdge(
     /**
      * Which top band: the page's, left out, or the column's, for a column scrolling beside a page that smokes at its
      * own top at the same moment (Settings' sections, beside the section's page). Said on the view as
-     * `data-wisp-edge="column"` while it smokes, for the stylesheet to give it its own filter (art/wisp.css).
+     * `data-wisp-edge="column"` while it smokes, for the stylesheet to give it its own filter (art/wisp.css). A top
+     * only: the column's band has no foot, and `foot` is not heard with it - art/wisp.css chains a view's two ends as
+     * the page's top and the foot, so a column smoking at both would have worn the page's band under its field.
      */
     band?: WispBand;
   } = {},
 ): boolean {
-  const foot = options.foot ?? false;
+  const band = options.band ?? 'page';
+  const foot = (options.foot ?? false) && band === 'page';
   const footOver = options.footOver;
   const draw = options.draw;
-  const band = options.band ?? 'page';
   const [on, setOn] = useState(false);
   // Switched off under Settings › Appearance › Motion, a page slips under its header with a clean edge (core/preferences.ts).
   const wanted = usePreferences().wispEdge;
@@ -456,17 +495,25 @@ export function useWispEdge(
     let fitted = -1;
     /** What the band sits under: a header, or the phone's status bar on a view that has none. */
     let beneath = 0;
+    /** How far above its place the top band's lip is at this scroll: the page's never; the column's while it eases in. */
+    const liftNow = () => (band === 'column' ? Math.max(0, WISP_EDGE_EASE - Math.round(el.scrollTop)) : 0);
+    let lifted = liftNow();
+    /** Lays the top band where it goes now, lifted as it is: the mask's lip always, the filter's strip while worn. */
+    const layTop = () => {
+      lifted = liftNow();
+      // The mask's lip, where the filter's strip would end: the stylesheet lays the band from it.
+      if (masked) el.style.setProperty('--wisp-lip', `${beneath + (beneath > 0 ? WISP_EDGE_DROP : 0) - lifted}px`);
+      if (worn && filtered) placeBand(ids, beneath, true, lifted);
+    };
     /** Whether the filter's region can cover this view at all: a window past the budget goes without (`placeRegion`). */
     let roomy = false;
     const fit = () => {
       // A mask has no region and no budget: only the filter is held to one.
-      roomy = !filtered || placeRegion(el, ids);
+      roomy = !filtered || placeRegion(el, band);
       const height = header?.offsetHeight ?? 0;
       // With no header the status bar plays the part of one: the smoke's lip sits at its edge, so a page dissolves
       // as it reaches the clock instead of sliding under a flat scrim (app.css .app-statusScrim).
       beneath = height || safeTop();
-      // The mask's lip, where the filter's strip would end: the stylesheet lays the band from it.
-      if (masked) el.style.setProperty('--wisp-lip', `${beneath + (beneath > 0 ? WISP_EDGE_DROP : 0)}px`);
       // Only when it really changed: these set the scroller's own top padding, and writing them from a size observer
       // that then sees a new size would feed itself.
       if (height !== fitted) {
@@ -480,7 +527,7 @@ export function useWispEdge(
         // fade that ran past it hid the bend and read as a black gradient (Matt: "not the cool effect").
         el.style.setProperty('--wisp-top-fade', height ? '0px' : 'calc(var(--app-safe-top, 0px) + 8px)');
       }
-      if (worn && filtered) placeBand(ids, beneath);
+      layTop();
       if (strip && header) {
         strip.style.top = `${header.offsetTop + header.offsetHeight}px`;
         strip.style.left = `${header.offsetLeft}px`;
@@ -520,7 +567,11 @@ export function useWispEdge(
         else placeFoot(footAt(), true);
       }
       setOn(scrolled);
-      if (scrolled === worn) return;
+      if (scrolled === worn) {
+        // Smoking already: the column's lip may still be on its way down.
+        if (scrolled && liftNow() !== lifted) layTop();
+        return;
+      }
       worn = scrolled;
       if (blurHead) {
         strip?.toggleAttribute('data-on', scrolled);
@@ -528,7 +579,7 @@ export function useWispEdge(
       }
       if (scrolled) {
         el.setAttribute('data-wisp-edge', band === 'page' ? '' : band);
-        if (filtered) placeBand(ids, beneath);
+        layTop();
       } else {
         el.removeAttribute('data-wisp-edge');
         // The top band goes with it: a view still wearing the filter for its foot must be crisp at its top.
@@ -536,10 +587,12 @@ export function useWispEdge(
         holdStill(true);
       }
     };
-    // Scrolling moves the smoke; a pause in it holds the smoke where it is.
+    // Scrolling moves the smoke; a pause in it holds the smoke where it is. A desktop's plain edges have no smoke to
+    // move (the blur strip, the short fade: art/wisp.css takes the filter off them), so their scrolling starts no loop;
+    // it did, and wrote seventy-odd attributes a second to a filter nothing wore.
     const onScroll = () => {
       check();
-      if ((!worn && !footWorn) || still) return;
+      if ((!worn && !footWorn) || still || mode === 'fade') return;
       if (!moving) {
         moving = true;
         drift(band, true);

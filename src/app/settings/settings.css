@@ -90,9 +90,17 @@
  * The sections start under the field (`--wisp-under`, its height, which the hook writes), where they started below it
  * before, so nothing moves at rest. Floored at the field's own height, for the frame before it is measured and with
  * the smoke switched off, when nothing measures it.
+ *
+ * And a row brought into view is brought out from under the field: a row focused from the keyboard (the arrow keys
+ * through the results, Tab) scrolls to the field's edge, as it did when the field stood above the list. Laid over it,
+ * with no scroll padding, a row under the glass counted as already in view, and arrowing up through a search left
+ * the focused row four fifths hidden. A px more than that: the hook measures the field rounded and the floor counts
+ * the pill at its least, so either can come out a fraction short of the field (the Mac's is 59.47px).
  */
 .settingsScreen__side > .settingsScreen__list {
-  padding-block-start: max(var(--wisp-under, 0px), calc(var(--glacier-space-1) + var(--settings-find-pill) + var(--glacier-space-3)));
+  --settings-column-top: max(var(--wisp-under, 0px), calc(var(--glacier-space-1) + var(--settings-find-pill) + var(--glacier-space-3)));
+  padding-block-start: var(--settings-column-top);
+  scroll-padding-block-start: calc(var(--settings-column-top) + 1px);
 }
 
 /*

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
-import { show, unmount } from '../../test/render.tsx';
+import { rerender, show, unmount } from '../../test/render.tsx';
 import { stubResizeObserver } from '../../test/stubs.ts';
 
 /**
@@ -10,7 +10,9 @@ import { stubResizeObserver } from '../../test/stubs.ts';
  * under the search field as a page does under its header (Matt: "on the settings page when scrolling on the left
  * sidebar we should see the wisp fade effect under the search bar covering the overflowing content like we see with
  * the header on the main page"), on a band of its own beside the section's page; the phone's list stays as it was; and
- * the column goes without with "Smoke at the edges" switched off and holds still under reduced motion.
+ * the column goes without with "Smoke at the edges" switched off and holds still under reduced motion. And the
+ * stylesheet's half, read as text: the field laid over the column only, the rows starting under it at rest and
+ * brought out from under it when focused, and the column's scrollbar from the field's edge.
  *
  * jsdom lays nothing out, so the field's height and the views' sizes are set by hand; how the smoke looks is the
  * renders' to show (docs/DESIGN.md §54).
@@ -72,14 +74,26 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+const screenOf = () => (
+  <>
+    <WispEdgeFilter />
+    <SettingsScreen open onClose={() => {}} sections={sections} />
+  </>
+);
+
 function render() {
-  return show(
-    <>
-      <WispEdgeFilter />
-      <SettingsScreen open onClose={() => {}} sections={sections} />
-    </>,
-  );
+  return show(screenOf());
 }
+
+/** A stylesheet as text, comments out. */
+const sheet = (path: string) => readFileSync(join(import.meta.dirname, path), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+
+/** A sheet's innermost rules, selector and body: one inside an `@media` is read without it. */
+const rulesOf = (css: string) =>
+  [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, selector = '', body = '']) => ({ selector: selector.trim().split(/\s+/).join(' '), body }));
+
+/** The body of the rule whose whole selector is `selector`, not one of a list: `null` when there is none. */
+const ruleOf = (css: string, selector: string) => rulesOf(css).find((rule) => rule.selector === selector)?.body ?? null;
 
 function scroll(el: HTMLElement, top: number) {
   el.scrollTop = top;
@@ -117,6 +131,10 @@ describe('the split view’s left column', () => {
 
   it('hangs the blur strip under the field on a desktop, inside the column, as the home page does under its bar', () => {
     screen({ desktop: true });
+    // A desktop's plain edges have nothing for the drift to move: scrolling starts no animation loop.
+    const frames = vi.fn(() => 1);
+    vi.stubGlobal('requestAnimationFrame', frames);
+    vi.stubGlobal('cancelAnimationFrame', () => undefined);
     const host = render();
     const column = columnOf(host);
     const strip = host.querySelector<HTMLElement>('.settingsScreen__side > .settingsScreen__find + .app-headerBlur');
@@ -126,6 +144,19 @@ describe('the split view’s left column', () => {
     scroll(column, 120);
     expect(strip!.hasAttribute('data-on')).toBe(true);
     expect(column.dataset.wispDraw).toBe('fade');
+    scroll(column, 160);
+    expect(frames).not.toHaveBeenCalled();
+  });
+
+  it('gives the column its edge when the window opens out with Settings open, as the Fold does unfolding', () => {
+    wide = false;
+    render();
+    wide = true;
+    rerender(screenOf());
+    const column = columnOf(document.body);
+    expect(column).not.toBeNull();
+    scroll(column, 120);
+    expect(column.getAttribute('data-wisp-edge')).toBe('column');
   });
 
   it('leaves the phone’s list as it was: the page’s band, under no header, and nothing else wearing one', () => {
@@ -165,11 +196,45 @@ describe('the split view’s left column', () => {
     expect(columnOf(host).getAttribute('data-wisp-edge')).toBe('column');
     expect(frames).not.toHaveBeenCalled();
     // The column's filter is set at the weight of the page's, so the reduced-motion rule, later, still wins over it.
-    const css = readFileSync(join(import.meta.dirname, '../art/wisp.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-    const own = css.indexOf("[data-wisp-edge='column'] {");
+    const css = sheet('../art/wisp.css');
+    // Its own selector exactly, at the start of a line: `.settingsScreen__list[data-wisp-edge='column']` would outweigh it.
+    const own = css.search(/^\[data-wisp-edge='column'\] \{/m);
     const still = css.indexOf('@media (prefers-reduced-motion: reduce)');
     expect(own).toBeGreaterThan(-1);
     expect(still).toBeGreaterThan(own);
     expect(css.slice(still, css.indexOf('}', css.indexOf('}', still) + 1))).toMatch(/\[data-wisp-edge\],[\s\S]*filter: none/);
+  });
+});
+
+describe('the column’s stylesheet', () => {
+  const css = sheet('settings.css');
+
+  it('lays the field over the split view’s column only: the phone’s field stands above its list', () => {
+    const over = ruleOf(css, '.settingsScreen__side > .settingsScreen__find');
+    expect(over).toMatch(/position: absolute/);
+    // No other rule for the field takes it out of the flow.
+    const lifted = rulesOf(css).filter((rule) => rule.selector.includes('settingsScreen__find') && /position:\s*(absolute|fixed)/.test(rule.body));
+    expect(lifted.map((rule) => rule.selector)).toEqual(['.settingsScreen__side > .settingsScreen__find']);
+  });
+
+  it('starts the rows under the field at rest, floored at the field’s own height, and brings a focused row out from under it', () => {
+    const list = ruleOf(css, '.settingsScreen__side > .settingsScreen__list');
+    expect(list).not.toBeNull();
+    const top = /--settings-column-top: max\(var\(--wisp-under, 0px\), calc\(([^;]+)\)\);/.exec(list!);
+    expect(top).not.toBeNull();
+    // The floor is the field: its padding above and below (`.settingsScreen__find`) and its pill between them.
+    const field = ruleOf(css, '.settingsScreen__find');
+    const [above, below] = /padding-block: (var\([^)]+\)) (var\([^)]+\));/.exec(field!)!.slice(1);
+    expect(top![1]).toBe(`${above} + var(--settings-find-pill) + ${below}`);
+    expect(ruleOf(css, '.settingsScreen__findPill')).toMatch(/min-block-size: var\(--settings-find-pill\);/);
+    expect(list).toMatch(/padding-block-start: var\(--settings-column-top\);/);
+    // Focus scrolls a row clear of the field, which the hook measures rounded down.
+    expect(list).toMatch(/scroll-padding-block-start: calc\(var\(--settings-column-top\) \+ 1px\);/);
+  });
+
+  it('starts the column’s scrollbar at the field’s edge, where the rows start', () => {
+    const track = ruleOf(css, '.settingsScreen__side > .settingsScreen__list::-webkit-scrollbar-track');
+    expect(track).toMatch(/margin-block-start: var\(--wisp-under, 0px\);/);
+    expect(track).toMatch(/margin-top: var\(--wisp-under, 0px\);/);
   });
 });
