@@ -26,6 +26,7 @@ import { PaneSection, RowAction, SettingRow, SettingsFootnote } from './kit/sett
 const CANNOT: Partial<Record<LocateFailure, string>> = {
   'local-only': 'Local only is on.',
   mac: 'This Mac can’t say where it is yet.',
+  ios: 'Ghost.md can’t find where you are on this device yet.',
   none: 'This browser can’t say where you are.',
   unavailable: 'Update Ghost.md to tag notes.',
 };
@@ -61,13 +62,13 @@ export function LocationCard() {
       <PaneSection title="Location" description="A note can say where it was written. The place is kept in the note's own words, so it goes wherever the note does. A link you share leaves it out unless you say so on the note.">
         <SettingRow
           label="Map on a tagged note"
-          hint="A small map at the top of the note. Opening a tagged note fetches the tiles from openstreetmap.org, which sees your IP address, as a website would."
+          hint="A small map at the top of the note, and under each place you add. Opening one fetches the tiles from openstreetmap.org, which sees your IP address, as a website would."
           control={<Switch aria-label="Map on a tagged note" checked={prefs.mapTiles} onCheckedChange={(mapTiles) => setPreferences({ mapTiles })} />}
           disabledReason={localOnly}
         />
         <SettingRow
           label="Place names"
-          hint="The name of the place, asked of OpenStreetMap once when you add a location, and kept in the note. Never asked again."
+          hint="The name of the place, asked of OpenStreetMap once when you add a location or a place, and kept in the note. Never asked again."
           control={<Switch aria-label="Place names" checked={prefs.placeNames} onCheckedChange={(placeNames) => setPreferences({ placeNames })} />}
           disabledReason={localOnly}
         />

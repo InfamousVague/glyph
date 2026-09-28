@@ -26,6 +26,7 @@ const KEEP = String.raw`Keep, without exception:
 - Every link. You receive links as [the words](link-1) or <link-2>: keep each one exactly as written, its link-1 target included, where it belongs. Never drop a link, never change its target, and never write out an address.
 - A list item may end with a mark, a link whose words are one lowercase name, like [notion](link-1): keep it at the end of that item, exactly as it is.
 - Any line that is a table, which you receive as a picture-like line ![table-1](table): copied exactly, on its own line, where it was. Never describe it.
+- Any line that is a place or a video, which you receive as a picture-like line ![place-1](place) or ![video-1](video): copied exactly, on its own line, where it was. Never describe it.
 - Words you are not sure of, such as names, spelled as the note spells them.`;
 
 const PLAIN = String.raw`Plain markdown only: no emoji, no horizontal rules, no "*" bullets. The answer is the text and nothing else: no introduction, no explanation, no closing remark, no code fence around it.`;

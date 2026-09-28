@@ -11,6 +11,8 @@ import { setTapeId, tapeId } from '../core/clips.ts';
 import { setTopBarTools } from '../core/topBarTools.ts';
 import { bookOf } from '../book/book.ts';
 import { readBookSpot } from '../book/bookSpot.ts';
+import { insertSpots } from './inserts.ts';
+import { cancelRun, forgetAllRuns, simulateRuns, startRun } from '../ai/runs.ts';
 
 // The Glacier kit reads matchMedia as it loads, and the page's smoke watches its header's size.
 await vi.hoisted(async () => {
@@ -83,6 +85,26 @@ vi.mock('../ai/available.ts', async (importOriginal) => {
   };
 });
 
+/**
+ * Films (core/videos.ts), on a phone that adds them only where a test says so: the picker, the keeping and whether a
+ * film is here are stood in for, so the note screen's own part is what is tried.
+ */
+const films = vi.hoisted(() => ({
+  can: false,
+  pick: null as ((ways: import('../core/videos.ts').PickWays) => Promise<{ video: string; poster: string; ms: number; width: number; height: number } | null>) | null,
+  where: 'elsewhere' as 'here' | 'missing' | 'update' | 'elsewhere',
+}));
+vi.mock('../core/videos.ts', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../core/videos.ts')>();
+  return {
+    ...real,
+    canAddVideos: async () => films.can,
+    pickVideo: (ways: import('../core/videos.ts').PickWays = {}) => (films.pick ? films.pick(ways) : Promise.resolve(null)),
+    filmHere: async () => films.where,
+    filmsPlay: async () => (films.where === 'here' || films.where === 'missing' ? ('phone' as const) : films.where),
+  };
+});
+
 const { NoteScreen } = await import('./NoteScreen.tsx');
 
 const saves = vi.mocked(updateNote);
@@ -139,6 +161,7 @@ afterEach(() => {
   unmount();
   setTopBarTools(null);
   ai.ok = false;
+  Object.assign(films, { can: false, pick: null, where: 'elsewhere' });
   vi.useRealTimers();
   Reflect.deleteProperty(document, 'visibilityState');
 });
@@ -1043,5 +1066,349 @@ describe('where the note was written', () => {
     const view = editor();
     act(() => view.dispatch({ changes: { from: 0, insert: '---\nlocation: 48.8566,2.3522\n---\n' }, userEvent: 'input.type' }));
     expect(card()?.textContent).toContain('48.8566, 2.3522');
+  });
+
+  describe('a place from the + beside the line', () => {
+    /** The note focused with the caret on its last, empty line, the + come beside it, and pressed. */
+    const openPlus = async (view: EditorView) => {
+      vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+      act(() => {
+        view.dispatch({ selection: { anchor: view.state.doc.length } });
+        view.focus();
+      });
+      // CodeMirror tells its plugins of the focus 10ms on, and the + comes once the caret has rested.
+      await act(async () => vi.advanceTimersByTimeAsync(10 + 200));
+      const plus = view.scrollDOM.querySelector<HTMLButtonElement>('.cm-plus');
+      expect(plus?.dataset.state).toBe('shown');
+      act(() => plus!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })));
+    };
+    const place = () => {
+      const row = [...document.querySelectorAll<HTMLButtonElement>('#add-list button')].find((found) => found.textContent === 'A place');
+      if (!row) throw new Error(`no place row in: ${document.getElementById('add-list')?.textContent ?? 'no list'}`);
+      act(() => row.click());
+    };
+
+    it('is one line at the caret, named in the same write, one Undo, with its map card under it', async () => {
+      fixAt(51.50741, -0.12776);
+      nominatim('Trafalgar Square');
+      show(screen(await createNote('n1', '# Walk\n\n')));
+      const view = editor();
+      await openPlus(view);
+      place();
+      await settle();
+      expect(view.state.doc.toString()).toBe('# Walk\n\n[Trafalgar Square, London](geo:51.5074,-0.1278)\n');
+      // The note's own tag is left alone: a place is a line of the words.
+      expect(card()).toBeNull();
+      expect(view.dom.querySelectorAll('.cm-placeCard')).toHaveLength(1);
+      act(() => void undo(view));
+      expect(view.state.doc.toString()).toBe('# Walk\n\n');
+      vi.restoreAllMocks();
+    });
+
+    it('says so while the fix is slow', async () => {
+      Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition: () => undefined } });
+      show(screen(await createNote('n1', '# Walk\n\n')));
+      await openPlus(editor());
+      place();
+      await act(async () => vi.advanceTimersByTimeAsync(600));
+      expect(document.body.textContent).toContain('Finding where you are.');
+      vi.restoreAllMocks();
+    });
+
+    it('asks for nothing and writes nothing when the note is left before the fix', async () => {
+      let answer: ((position: GeolocationPosition) => void) | null = null;
+      Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition: (ok: PositionCallback) => void (answer = ok) } });
+      const asked = nominatim('Trafalgar Square');
+      show(screen(await createNote('n1', '# Walk\n\nwords')));
+      const view = editor();
+      act(() => view.dispatch({ changes: { from: view.state.doc.length, insert: '\n' } }));
+      await openPlus(view);
+      place();
+      await settle();
+      unmount();
+      await act(async () => answer!({ coords: { latitude: 51.5, longitude: -0.12, accuracy: 15 }, timestamp: 1 } as GeolocationPosition));
+      await settle();
+      expect(asked).toEqual([]);
+      expect(saved().some((body) => body?.includes('geo:'))).toBe(false);
+      vi.restoreAllMocks();
+    });
+
+    it('waits a few seconds for the name, so one that takes a second still lands with the place, as one Undo', async () => {
+      // A place of its own, so no name is known already.
+      fixAt(51.50135, -0.14189);
+      vi.stubGlobal(
+        'fetch',
+        () => new Promise((resolve) => window.setTimeout(() => resolve({ ok: true, json: async () => ({ name: 'Buckingham Palace', addresstype: 'square', address: { city: 'London' } }) }), 1500)),
+      );
+      show(screen(await createNote('n1', '# Walk\n\n')));
+      const view = editor();
+      await openPlus(view);
+      place();
+      await settle();
+      await act(async () => vi.advanceTimersByTimeAsync(1500));
+      await settle();
+      expect(view.state.doc.toString()).toBe('# Walk\n\n[Buckingham Palace, London](geo:51.5014,-0.1419)\n');
+      act(() => void undo(view));
+      expect(view.state.doc.toString()).toBe('# Walk\n\n');
+      vi.restoreAllMocks();
+    });
+
+    it('writes a name later than the wait as a second step, only while nothing came after it', async () => {
+      // A place of its own: a name another test asked for would be known already, and come at once.
+      fixAt(51.51009, -0.13402);
+      let named: (() => void) | null = null;
+      vi.stubGlobal('fetch', () => new Promise((resolve) => void (named = () => resolve({ ok: true, json: async () => ({ name: 'Piccadilly Circus', addresstype: 'square', address: { city: 'London' } }) }))));
+      show(screen(await createNote('n1', '# Walk\n\n')));
+      const view = editor();
+      await openPlus(view);
+      place();
+      await settle();
+      await act(async () => vi.advanceTimersByTimeAsync(3000));
+      await settle();
+      expect(view.state.doc.toString()).toBe('# Walk\n\n[51.5101, -0.1340](geo:51.5101,-0.1340)\n');
+      await act(async () => named!());
+      await settle();
+      expect(view.state.doc.toString()).toBe('# Walk\n\n[Piccadilly Circus, London](geo:51.5101,-0.1340)\n');
+      act(() => void undo(view));
+      expect(view.state.doc.toString()).toBe('# Walk\n\n[51.5101, -0.1340](geo:51.5101,-0.1340)\n');
+      act(() => void undo(view));
+      expect(view.state.doc.toString()).toBe('# Walk\n\n');
+      vi.restoreAllMocks();
+    });
+
+    it('leaves the caret where the person took it while the fix was coming', async () => {
+      let answer: ((position: GeolocationPosition) => void) | null = null;
+      Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition: (ok: PositionCallback) => void (answer = ok) } });
+      nominatim(null);
+      show(screen(await createNote('n1', '# Walk\n\n')));
+      const view = editor();
+      await openPlus(view);
+      place();
+      await settle();
+      act(() => view.dispatch({ changes: { from: 2, insert: 'Long ' }, selection: { anchor: 7 }, userEvent: 'input.type' }));
+      await act(async () => answer!({ coords: { latitude: 51.5, longitude: -0.12, accuracy: 15 }, timestamp: 1 } as GeolocationPosition));
+      await settle();
+      expect(view.state.doc.toString()).toBe('# Long Walk\n\n[51.5000, -0.1200](geo:51.5000,-0.1200)\n');
+      expect(view.state.selection.main.head).toBe(7);
+      vi.restoreAllMocks();
+    });
+  });
+});
+
+describe('the + beside the line', () => {
+  it('is drawn on the note screen, and nowhere the note is only read', async () => {
+    show(screen(await createNote('n1', '# Walk\n\n')));
+    expect(document.querySelectorAll('.cm-plus')).toHaveLength(1);
+    unmount();
+    show(screen(await createNote('b1', '---\nbook: true\n---\n# Trip\n\n1. [[Packing]]\n')));
+    // A book's index draws its chapters through read-only editors: none has a +.
+    expect(document.querySelectorAll('.cm-plus').length).toBeLessThanOrEqual(1);
+    const plus = document.querySelector<HTMLButtonElement>('.cm-plus');
+    expect(plus === null || plus.hidden).toBe(true);
+  });
+
+  /** The note focused with the caret on its last, empty line, and time for the + to come: its state then. */
+  const restOnLastLine = async (view: EditorView) => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    act(() => {
+      view.dispatch({ selection: { anchor: view.state.doc.length } });
+      view.focus();
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(10 + 200));
+    return view.scrollDOM.querySelector<HTMLButtonElement>('.cm-plus')?.dataset.state;
+  };
+  const plusState = (view: EditorView) => view.scrollDOM.querySelector<HTMLButtonElement>('.cm-plus')?.dataset.state;
+
+  it('goes while an AI run writes into the note, and comes back once it has ended', async () => {
+    show(screen(await createNote('n1', '# Walk\n\n')));
+    const view = editor();
+    expect(await restOnLastLine(view)).toBe('shown');
+    // A model that writes nothing until it is stopped.
+    simulateRuns(() => {
+      let stop: (why: Error) => void = () => undefined;
+      return { done: new Promise<never>((_resolve, reject) => void (stop = reject)), cancel: () => stop(new Error('cancelled')) };
+    });
+    try {
+      act(() => void startRun({ noteId: 'n1', kind: 'format', model: 'qwen3.5-4b', system: '', prompt: '', maxTokens: 16 }));
+      await act(async () => vi.advanceTimersByTimeAsync(1000));
+      expect(plusState(view)).toBe('off');
+      await act(async () => cancelRun('n1'));
+      act(() => view.focus());
+      await act(async () => vi.advanceTimersByTimeAsync(1000));
+      expect(plusState(view)).toBe('shown');
+    } finally {
+      simulateRuns(null);
+      forgetAllRuns();
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('never comes over a notebook’s index shown as its Markdown, which is not a note being written', async () => {
+    show(screen(await createNote('b1', '---\nbook: true\n---\n# Trip\n\n1. [[Packing]]\n'), { hasTitle: () => true, onOpenTitle: () => {} }));
+    act(() => document.querySelector<HTMLButtonElement>('header button')!.click());
+    expect(await restOnLastLine(editor())).toBe('off');
+    vi.restoreAllMocks();
+  });
+
+  it('goes while the recording plays and the transcript has the page', async () => {
+    Element.prototype.scrollIntoView = () => undefined;
+    try {
+      await createNote('n1', '# Walk\nwords\n');
+      show(screen((await setNoteRecording('n1', 4000, [{ text: 'words', startMs: 0, endMs: 4000 }]))!));
+      const view = editor();
+      expect(await restOnLastLine(view)).toBe('shown');
+      act(() => button('Play the recording').click());
+      await act(async () => vi.advanceTimersByTimeAsync(1000));
+      expect(plusState(view)).toBe('off');
+    } finally {
+      Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
+      vi.restoreAllMocks();
+    }
+  });
+});
+
+describe('a film from the + beside the line', () => {
+  /** The note focused with the caret on its last, empty line, the + come beside it, and pressed. */
+  const openPlus = async (view: EditorView) => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+    act(() => {
+      view.dispatch({ selection: { anchor: view.state.doc.length } });
+      view.focus();
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(10 + 200));
+    const plus = view.scrollDOM.querySelector<HTMLButtonElement>('.cm-plus');
+    expect(plus?.dataset.state).toBe('shown');
+    act(() => plus!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })));
+  };
+  const rows = () => [...document.querySelectorAll<HTMLButtonElement>('#add-list button')].map((row) => row.textContent);
+  const video = () => {
+    const row = [...document.querySelectorAll<HTMLButtonElement>('#add-list button')].find((found) => found.textContent === 'A video');
+    if (!row) throw new Error(`no video row in: ${rows().join(', ')}`);
+    act(() => row.click());
+  };
+  const PICKED = { video: 'f1.mp4', poster: 'p1.jpg', ms: 12_300, width: 1080, height: 1920 };
+
+  it('is offered only where the binary adds films', async () => {
+    show(screen(await createNote('n1', '# Walk\n\n')));
+    await settle();
+    await openPlus(editor());
+    expect(rows()).not.toContain('A video');
+    unmount();
+    films.can = true;
+    show(screen(await createNote('n2', '# Walk\n\n')));
+    await settle();
+    await openPlus(editor());
+    expect(rows()).toContain('A video');
+    vi.restoreAllMocks();
+  });
+
+  it('is one line at the caret, its poster linked to it, one Undo, with its card under it', async () => {
+    films.can = true;
+    films.pick = async () => PICKED;
+    show(screen(await createNote('n1', '# Walk\n\n')));
+    await settle();
+    const view = editor();
+    await openPlus(view);
+    video();
+    await settle();
+    expect(view.state.doc.toString()).toBe('# Walk\n\n[![video 0:12](image/p1.jpg)](video/f1.mp4)\n');
+    expect(view.state.selection.main.head).toBe(view.state.doc.length);
+    expect(view.dom.querySelectorAll('.cm-videoCard')).toHaveLength(1);
+    // Its card knows it was just added: as the poster arrives, the caret under it is kept in sight, once.
+    const dispatch = vi.spyOn(view, 'dispatch');
+    act(() => void view.dom.querySelector('.cm-videoCard img')!.dispatchEvent(new Event('load')));
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    dispatch.mockRestore();
+    act(() => void undo(view));
+    expect(view.state.doc.toString()).toBe('# Walk\n\n');
+    vi.restoreAllMocks();
+  });
+
+  it('says so while a long film is copied, not while the picker is up, and says what went wrong on the note’s line', async () => {
+    films.can = true;
+    let fail: ((why: Error) => void) | null = null;
+    let copying: (() => void) | undefined;
+    films.pick = (ways) => new Promise((_resolve, reject) => void ((fail = reject), (copying = ways.copying)));
+    show(screen(await createNote('n1', '# Walk\n\n')));
+    await settle();
+    const view = editor();
+    await openPlus(view);
+    video();
+    // The picker is up: nothing is being added yet.
+    await act(async () => vi.advanceTimersByTimeAsync(2000));
+    expect(document.body.textContent).not.toContain('Adding the video.');
+    act(() => copying!());
+    await act(async () => vi.advanceTimersByTimeAsync(599));
+    expect(document.body.textContent).not.toContain('Adding the video.');
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(document.body.textContent).toContain('Adding the video.');
+    await act(async () => fail!(new Error('There isn’t room on this phone for that video.')));
+    await settle();
+    expect(document.body.textContent).toContain('There isn’t room on this phone for that video.');
+    expect(view.state.doc.toString()).toBe('# Walk\n\n');
+    vi.restoreAllMocks();
+  });
+
+  it('keeps no film for a note that was left while it copied, and writes none into it', async () => {
+    films.can = true;
+    let ways: import('../core/videos.ts').PickWays = {};
+    let land: ((film: typeof PICKED) => void) | null = null;
+    films.pick = (asked) => new Promise((resolve) => void ((ways = asked), (land = resolve)));
+    show(screen(await createNote('n1', '# Walk\n\n')));
+    await settle();
+    const view = editor();
+    await openPlus(view);
+    video();
+    expect(ways.keep?.()).toBe(true);
+    unmount();
+    expect(ways.keep?.()).toBe(false);
+    // A film that was kept all the same, the moment before the note went, is not written into the note left.
+    await act(async () => land!(PICKED));
+    await settle();
+    expect(saved().some((body) => body?.includes('video/'))).toBe(false);
+    vi.restoreAllMocks();
+  });
+
+  it('lands with no caret moved or focus taken when the person went to another field meanwhile, and lets its place go', async () => {
+    films.can = true;
+    let land: ((film: typeof PICKED) => void) | null = null;
+    films.pick = () => new Promise((resolve) => void (land = resolve));
+    show(screen(await createNote('n1', '# Walk\n\n')));
+    await settle();
+    const view = editor();
+    await openPlus(view);
+    video();
+    const other = document.body.appendChild(document.createElement('input'));
+    act(() => other.focus());
+    const focus = vi.spyOn(view, 'focus');
+    await act(async () => land!(PICKED));
+    await settle();
+    expect(view.state.doc.toString()).toBe('# Walk\n\n[![video 0:12](image/p1.jpg)](video/f1.mp4)\n');
+    expect(focus).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(other);
+    expect(view.state.field(insertSpots).size).toBe(0);
+    vi.restoreAllMocks();
+  });
+
+  it('draws its card to play on a phone that plays films', async () => {
+    films.where = 'here';
+    show(screen(await createNote('n1', '# Walk\n\n[![video 0:12](image/p1.jpg)](video/f1.mp4)\n')));
+    await settle();
+    const card = editor().dom.querySelector<HTMLElement>('.cm-videoCard');
+    expect(card?.dataset.mode).toBe('play');
+    await waitUntil(() => expect(card?.querySelector('button[aria-label="Play the video, 0:12"]')).not.toBeNull());
+  });
+
+  it('writes nothing when the picker is closed with nothing chosen', async () => {
+    films.can = true;
+    films.pick = async () => null;
+    show(screen(await createNote('n1', '# Walk\n\n')));
+    await settle();
+    const view = editor();
+    await openPlus(view);
+    video();
+    await settle();
+    expect(view.state.doc.toString()).toBe('# Walk\n\n');
+    vi.restoreAllMocks();
   });
 });

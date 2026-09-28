@@ -4,6 +4,7 @@ import {
   COUNTER_IN_WORDS,
   anchorSpan,
   isDoneName,
+  lineWords,
   listLead,
   taskBox,
   withoutAnchor,
@@ -133,6 +134,33 @@ describe('what ends an item line', () => {
     const counters = (text: string) => [...text.matchAll(new RegExp(COUNTER_IN_WORDS, 'g'))].map((found) => found[0]);
     expect(counters('Water [3/8] and push-ups [0/50]')).toEqual(['[3/8]', '[0/50]']);
     expect(counters('see [3/8](https://a.b) or ![1/2] or note[1/2]')).toEqual([]);
+  });
+});
+
+describe('the words on a line', () => {
+  it('are nothing on a line that is only a lead: a bullet, a number, a box, a choice or a quote', () => {
+    for (const line of ['', '   ', '- ', '* ', '- [ ] ', '- [ ]', '- [x] ', '3. ', '12) ', '- ( ) ', '> ', '>', '> > ', '> - [ ] ', '  - [ ] ']) {
+      expect(lineWords(line), JSON.stringify(line)).toBe('');
+    }
+  });
+
+  it('are nothing on a lead that carries only the bookmark, or only an anchor', () => {
+    expect(lineWords('- §§')).toBe('');
+    expect(lineWords('- [ ] §§')).toBe('');
+    expect(lineWords('- [ ] ^anchor')).toBe('');
+  });
+
+  it('are the words, without the lead, the bookmark or the anchor', () => {
+    expect(lineWords('- [ ] Buy milk ^milk')).toBe('Buy milk');
+    expect(lineWords('> - [ ] Buy milk §§')).toBe('Buy milk');
+    expect(lineWords('Lunch at the harbour')).toBe('Lunch at the harbour');
+    expect(lineWords('3. Unplug it')).toBe('Unplug it');
+  });
+
+  it('keep what is not a lead: a heading’s mark, a dash with no space, a callout', () => {
+    expect(lineWords('# ')).toBe('#');
+    expect(lineWords('-')).toBe('-');
+    expect(lineWords('> [!NOTE]')).toBe('[!NOTE]');
   });
 });
 

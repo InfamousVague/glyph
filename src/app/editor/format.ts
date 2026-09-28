@@ -1,6 +1,8 @@
 import { EditorSelection, Transaction, type ChangeSpec, type EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
+import { isolateHistory } from '@codemirror/commands';
 import { BOX, BULLET, NUMBER } from '../core/itemSyntax.ts';
+import { blockPlan, type BlockSelect } from './inserts.ts';
 
 /**
  * What the Style page of the press-and-hold menu writes (editor/ContextMenu.tsx).
@@ -198,26 +200,34 @@ export function insertLink(view: EditorView): void {
   });
 }
 
-/** Lines of their own under the caret's line, with the caret (or a selection) placed in them. */
-function insertBelow(view: EditorView, text: string, select: { from: number; to?: number }): void {
-  const line = view.state.doc.lineAt(view.state.selection.main.head);
-  const lead = line.length ? '\n\n' : '';
-  const at = line.to + lead.length;
+/**
+ * A block at the caret's line, with the caret (or a selection) placed in it, as one Undo: editor/inserts.ts's rule for
+ * a block. It takes a line with nothing on it but a lead, and otherwise goes after the line; a blank line keeps it
+ * apart from words on either side. Without the one after, a table took the next line of words as a row; without the
+ * one before, a rule under a paragraph reads as a heading in Obsidian and on GitHub. `userEvent` is the + beside the
+ * line's own when it is the one asking (editor/addRows.ts).
+ */
+export function insertBlock(view: EditorView, text: string, select: BlockSelect, userEvent = 'input.format'): void {
+  const plan = blockPlan(view.state, view.state.selection.main.head, text, select);
   view.dispatch({
-    changes: { from: line.to, insert: `${lead}${text}` },
-    selection: { anchor: at + select.from, head: at + (select.to ?? select.from) },
-    annotations: format,
+    changes: plan.changes,
+    selection: plan.selection,
+    scrollIntoView: view.hasFocus,
+    annotations: [Transaction.userEvent.of(userEvent), isolateHistory.of('full')],
   });
 }
 
-/** A small table below the caret's line, its first heading selected to be written over. */
-export function insertTable(view: EditorView): void {
-  insertBelow(view, '| Column | Column |\n| --- | --- |\n| Cell | Cell |', { from: 2, to: 8 });
+/** The table every insert starts from: two columns, a heading row and a row of cells, "Column" selected to be written over. */
+export const TABLE_SEED = { text: '| Column | Column |\n| --- | --- |\n| Cell | Cell |', select: { from: 2, to: 8 } } as const;
+
+/** A small table at the caret's line, its first heading selected to be written over. */
+export function insertTable(view: EditorView, userEvent?: string): void {
+  insertBlock(view, TABLE_SEED.text, TABLE_SEED.select, userEvent);
 }
 
-/** A rule below the caret's line, the caret after it. */
+/** A rule at the caret's line, the caret after it. */
 export function insertRule(view: EditorView): void {
-  insertBelow(view, '---', { from: 3 });
+  insertBlock(view, '---', { from: 3 });
 }
 
 /** The selection gone, or the line the caret is on when nothing is selected. */

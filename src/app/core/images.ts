@@ -4,6 +4,7 @@ import { answerHost } from './host.ts';
 import { randomId } from './ids.ts';
 import { shrink } from './imageShrink.ts';
 import { hasNativeGeneration } from './nativeGeneration.ts';
+import { isMacApp } from './platform.ts';
 import { invoke, isTauri } from './tauri.ts';
 import { webGet, webPut } from './webImages.ts';
 
@@ -125,7 +126,14 @@ async function keepWebImage(name: string, bytes: Uint8Array<ArrayBuffer>): Promi
   window.dispatchEvent(new Event(IMAGE_READY));
 }
 
-/** A photo from the file picker, shrunk to at most 1600 px on its long side, as a JPEG. */
+/** A picture Apple's cameras write, which an older Mac's WebKit may not open. */
+const HEIC = /^image\/hei[cf]$/i;
+
+/**
+ * A photo from the file picker, shrunk to at most 1600 px on its long side, as a JPEG. On the Mac the file input is
+ * answered with the system's open panel (wry's own), which does not hold to `accept`: anything can be chosen there, so
+ * a file that is not a picture is refused before the shrink, in words, and a HEIC the Mac cannot open says so.
+ */
 async function pickWeb(): Promise<string | null> {
   const file = await new Promise<File | null>((resolve) => {
     const input = document.createElement('input');
@@ -136,14 +144,26 @@ async function pickWeb(): Promise<string | null> {
     input.click();
   });
   if (!file) return null;
-  return saveImageFile(file);
+  const heic = HEIC.test(file.type) || /\.hei[cf]$/i.test(file.name);
+  if (!file.type.startsWith('image/') && !heic) throw new Error('That isn’t a picture.');
+  try {
+    return await saveImageFile(file);
+  } catch (failure) {
+    if (!heic) throw failure;
+    throw new Error(isMacApp ? 'This Mac can’t open HEIC pictures. Save it as a JPEG first.' : 'This browser can’t open HEIC pictures. Save it as a JPEG first.', { cause: failure });
+  }
 }
 
 // ---- both ---------------------------------------------------------------------------------
 
-/** Let the person choose a picture; answers its name, or null if they chose none. */
+/**
+ * Let the person choose a picture; answers its name, or null if they chose none. The phone's own chooser through the
+ * activity; everywhere else, the Mac app included, the page's file input, which the Mac answers with its open panel
+ * and whose picture goes to Rust as bytes (`save_image_data`). The Mac has no GlyphHost, so asking it for the phone's
+ * picker only ever said "This build cannot add pictures yet".
+ */
 export function pickImage(): Promise<string | null> {
-  return isTauri() ? pickNative() : pickWeb();
+  return isTauri() && !isMacApp ? pickNative() : pickWeb();
 }
 
 /** Fires when a browser picture has been loaded from storage and `imageUrl` will now answer for it. */

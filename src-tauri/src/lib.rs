@@ -87,6 +87,13 @@ mod links;
 // header for why every name is checked before it touches a path.
 mod images;
 
+// Films in notes (native generation 21): `save_video` adopts one the Android
+// shell picked, with its poster, the `vid` scheme plays it in ranges
+// (`ranged`), and a film no note names goes. See its header for why a film
+// never leaves the phone.
+mod videos;
+mod ranged;
+
 // Starting over, from developer settings: notes, recordings, pictures, and on
 // request the models. See its header.
 mod reset;
@@ -134,7 +141,9 @@ pub fn run() {
         // A spoken note's kept recording, for its tape to play.
         .register_uri_scheme_protocol(recordings::SCHEME, |ctx, request| recordings::serve(ctx.app_handle(), &request))
         // A picture in a note, `![](image/<name>)`, for the editor to draw.
-        .register_uri_scheme_protocol(images::SCHEME, |ctx, request| images::serve(ctx.app_handle(), &request));
+        .register_uri_scheme_protocol(images::SCHEME, |ctx, request| images::serve(ctx.app_handle(), &request))
+        // A film in a note, `[![video 0:12](image/<poster>)](video/<name>)`, for its card to play, a range at a time.
+        .register_uri_scheme_protocol(videos::SCHEME, |ctx, request| videos::serve(ctx.app_handle(), &request));
 
     // decorum positions the native macOS traffic lights. There are none to
     // position on a phone, and the plugin is not built for those targets.
@@ -156,6 +165,8 @@ pub fn run() {
             ota::install(app);
             // After the plugin's own setup, which is what reads the link a launch came with.
             links::install(app);
+            // Off the main thread, after the library: what waits in picked/ and the films no note names.
+            videos::install(app);
 
             #[cfg(target_os = "ios")]
             platform::ensure_key_window(app.handle());
@@ -184,6 +195,8 @@ pub fn run() {
             links::links_take,
             images::save_image,
             images::save_image_data,
+            videos::save_video,
+            videos::discard_picked,
             capture_commands::models::capture_model_status,
             capture_commands::models::capture_fetch_model,
             capture_commands::models::capture_refine_model_status,

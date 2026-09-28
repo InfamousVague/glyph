@@ -7,8 +7,9 @@ _What Ghost.md keeps on your device, what goes out only when you ask, and what i
 - **Your voice.** In the apps, what you say is turned into words on the device, by a model downloaded once. No recording is sent anywhere to be transcribed.
 - **The AI's work.** Formatting, the runs on a note's More sheet, spoken asks and the review all use models on the device. Ghost.md has no cloud AI of its own: no note is ever sent away to be written.
 - **Every note, when you have no account.** In the apps, your notes, their recordings and their pictures are Markdown files and the files beside them, on the device. In a browser, that browser keeps them. Without an account, nothing of yours is on Ghost.md's servers.
+- **A film you add to a note.** It stays on the phone you added it on, with an account or without. It is not synced, not shared, and not sent to your other devices. They, and anyone you share the note with, see a still from it ([[Pictures and voice memos]]).
 
-Your device's own backup may include the app's files. That is between you and the device's maker.
+Your device's own backup may include the app's files. That is between you and the device's maker. The one thing the Android app keeps out of Google's backup is its films, since one long film would fill the room the backup gives the app and stop everything else being backed up. Moving to a new phone by cable is meant to carry them, though that has not yet been tried with Smart Switch.
 
 ## No microphone left on
 

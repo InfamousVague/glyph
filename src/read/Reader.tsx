@@ -219,14 +219,15 @@ function Read({
         <article className={styles.note}>
           <h1 className={styles.title}>{shared.title}</h1>
           {/* The app's own index (book/BookView.tsx), read-only: its numbers, preface, canvas marks and read-through. */}
-          <BookView body={shared.pages[0]!.body} title={shared.title} known={(t) => indexOf(t) > 0} open={open} titles={titles} bodyOf={bodyOf} onChange={readOnly} readOnly dark={dark} />
+          <BookView body={shared.pages[0]!.body} title={shared.title} known={(t) => indexOf(t) > 0} open={open} titles={titles} bodyOf={bodyOf} onChange={readOnly} readOnly dark={dark} videos="shared" />
         </article>
       ) : canvas ? (
         <>
           <h1 className={styles.title}>{current.title}</h1>
           <Byline authors={authorsOf(current.body)} />
           <div className={styles.canvas}>
-            <CanvasView canvas={canvas} dark={dark} wiki={{ known: (t) => indexOf(t) >= 0, open, body: bodyOf, titles }} />
+            {/* A card's film is its still here too: the film never leaves the phone it was added on. */}
+            <CanvasView canvas={canvas} dark={dark} wiki={{ known: (t) => indexOf(t) >= 0, open, body: bodyOf, titles }} videos="shared" />
           </div>
         </>
       ) : (
@@ -246,6 +247,10 @@ function Read({
             readOnly
             display={noteView}
             wiki={{ known: (t) => indexOf(t) >= 0, open }}
+            // A place in the words draws its map quiet, as the page's own card does, until the reader asks for it.
+            places="ask"
+            // A film in the words is its still: the film itself never leaves the phone it was added on.
+            videos="shared"
             grow
           />
         </article>

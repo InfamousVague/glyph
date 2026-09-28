@@ -249,7 +249,19 @@ impl Library {
     /// so a deleted note's pictures go only when nothing else shows them.
     /// `instr` rather than `LIKE`, where the `_` in a name would be a wildcard.
     pub fn image_in_use(&self, name: &str) -> Result<bool> {
-        let needle = format!("(image/{name})");
+        self.body_holds(&format!("(image/{name})"))
+    }
+
+    /// Whether any note still refers to the film `name` as `(video/<name>)`
+    /// (videos.rs), by the same rule as a picture: a deleted note's film goes,
+    /// and the daily sweep takes one no note has named for a week, only when
+    /// nothing else names it.
+    pub fn video_in_use(&self, name: &str) -> Result<bool> {
+        self.body_holds(&format!("(video/{name})"))
+    }
+
+    /// Whether any note's body holds `needle` as written.
+    fn body_holds(&self, needle: &str) -> Result<bool> {
         Ok(self.index.query_row("SELECT EXISTS(SELECT 1 FROM notes WHERE instr(body, ?1) > 0)", [needle], |row| row.get::<_, i64>(0))? != 0)
     }
 }

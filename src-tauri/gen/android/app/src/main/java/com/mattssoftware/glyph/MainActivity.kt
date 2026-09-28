@@ -38,6 +38,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.Lifecycle
 import com.mattssoftware.glyph.location.LocationAccess
+import com.mattssoftware.glyph.media.VideoPick
 import org.json.JSONObject
 import java.io.FileOutputStream
 import java.util.Locale
@@ -187,10 +188,12 @@ class MainActivity : TauriActivity() {
    * The picked picture, shrunk and rotated the right way up, written to
    * cacheDir/picked/ and announced to the page as `window.__glyph.image(json)`.
    * Rust then files it under the app's data (`save_image`); the cache copy is
-   * the only thing this activity ever writes.
+   * the only thing this activity ever writes. A picked film is media/VideoPick.kt's
+   * (native generation 21), and is announced as its own event, `video`.
    */
   override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
     super.onActivityResult(requestCode, resultCode, data)
+    if (VideoPick.answered(this, requestCode, resultCode, data, ::tellVideo)) return
     if (requestCode != REQUEST_PICTURE) return
     val uri = data?.data
     if (resultCode != RESULT_OK || uri == null) {
@@ -211,6 +214,17 @@ class MainActivity : TauriActivity() {
   private fun tellPage(answer: JSONObject) {
     val wv = webView ?: return
     val script = "window.__glyph && window.__glyph.image && window.__glyph.image(${JSONObject.quote(answer.toString())})"
+    runOnUiThread { wv.evaluateJavascript(script, null) }
+  }
+
+  /**
+   * A picked film's answer to the page, `window.__glyph.video(json)` (core/videos.ts). A page that is not listening
+   * (still loading after the process was recreated behind the picker) drops it, and the copies it named wait in
+   * picked/ for the launch sweep (src-tauri/src/videos.rs).
+   */
+  private fun tellVideo(json: String) {
+    val wv = webView ?: return
+    val script = "window.__glyph && window.__glyph.video && window.__glyph.video(${JSONObject.quote(json)})"
     runOnUiThread { wv.evaluateJavascript(script, null) }
   }
 
@@ -750,6 +764,14 @@ class MainActivity : TauriActivity() {
         "This phone has no picture picker."
       }
     }
+
+    /**
+     * A film for a note (native generation 21): opens the Photo Picker for a
+     * video, no permission asked. "started"; the film, copied with its poster,
+     * arrives later as a `video` event (media/VideoPick.kt).
+     */
+    @JavascriptInterface
+    fun pickVideo(): String = VideoPick.start(this@MainActivity, ::tellVideo)
 
     /**
      * What is on the clipboard, for the editor's own Paste (its press-and-hold

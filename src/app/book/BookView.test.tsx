@@ -259,3 +259,24 @@ describe('the foot a chapter wears', () => {
     expect(document.querySelector('[data-book-foot]')).toBeNull();
   });
 });
+
+describe('a film in a notebook’s own words', () => {
+  it('is drawn as the owner’s still, asking nothing of the phone, unless the page says whose it is', async () => {
+    const film = '[![video 0:12](image/p1.jpg)](video/f1.mp4)';
+    const body = `${BOOK.trimEnd()}\n\n${film}\n`;
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    try {
+      show(<BookView body={body} title="Field guide" known={() => true} open={() => {}} titles={() => []} onChange={() => {}} />);
+      const card = document.querySelector<HTMLElement>('.cm-videoCard');
+      expect(card?.dataset.mode).toBe('still');
+      await Promise.resolve();
+      expect(fetch).not.toHaveBeenCalled();
+      unmount();
+      show(<BookView body={body} title="Field guide" known={() => true} open={() => {}} titles={() => []} onChange={() => {}} videos="shared" />);
+      expect(document.querySelector<HTMLElement>('.cm-videoCard')?.dataset.mode).toBe('shared');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

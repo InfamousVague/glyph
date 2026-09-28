@@ -7602,10 +7602,197 @@ What still moves:
 The setting keeps its name. Its hint now says what it does: "Words you say arrive as smoke, and words you delete leave
 as smoke. What you type appears at once." The Guide's chapters 24 and 30 say the same.
 
+## 141. A + beside the line, and a short list of things to add (2026-09-28)
+
+Matt: "Add a + button next to the line we're typing in, in the empty gutter padding and add a menu to add things like
+geotag cards images videos and more."
+
+Then, of the four questions the design left him: a place is "a map card at the line, many per note"; the list is
+"Fuller but hide extras behind nested menu"; the + shows on "EMPTY LINES ONLY, on every platform, Mac hover included";
+and the journal's entries, which are §142's, are titled by the minute.
+
+**One +, beside the caret's empty line** (`editor/insertPlus.ts`, the rule in `editor/plusLine.ts`). It sits in the room
+every line already leaves before its first letter, the gutter (`--app-gutter`, 22.4px on the phone, 24.5 on the opened
+Fold, 26.3 on the Mac): two strokes in the third ink, 12px, no ring, since the app's ring is wider than the phone's
+gutter. Its target is that line's gutter and no more, so a tap in another line's gutter, or on this line's first letter,
+still lands where it did. An empty line is one with no words (`core/itemSyntax.ts` `lineWords`): blank, or only a
+list's, a to-do's or a quote's lead. The + comes once the caret has rested there for 150ms, so Enter, Enter in a run
+never flickers it, and the first letter typed makes the line one with words and takes it away at once. It arrives on
+typing's arc, 350ms and a 2px lift, and leaves on a deleted letter's beat, 140ms; one that had not finished arriving
+goes with no fade. It is never drawn in the front matter, in fenced code, on a selection, in a view that cannot be
+edited or has lost the focus, on a notebook's index or a canvas, over the transcript, or while an AI run writes into the
+note. Only the note screen asks for it. Nothing about it waits for the keyboard to finish composing a word: showing and
+hiding it touches no line. A change that leaves the caret on the same empty line, a space or Enter ending an empty item,
+leaves it where it is rather than blinking it out and back. It sits level with the row's words, inside the border a
+quote's last line carries below them, and it is placed before it is seen, not in the next frame, which a busy thread
+paints late. Beside a lead it is drawn smaller and at the gutter's outer edge, 10px from 2px in, or it and a list's dash
+read as one, "+-". Its line carries `cm-plusLine` while it shows, which fades the bookmark's gold edge in the same
+gutter, and the class is changed only while nothing is being composed.
+
+**The press keeps the keyboard, and the focus.** The + is a button in the scroller, outside the lines, so none of
+CodeMirror's handlers see it, and its press is the suggestion pill's rule: a pointer or mouse press has its default
+taken away, a touch is only kept from the editor (a prevented touchstart never becomes a click on Android), and a long
+press never reaches press and hold. A tap or a click turns it into a × and opens the list against its row. The editor
+keeps its focus, and the list is driven from the editor's keys at the highest precedence, as CodeMirror's completion
+list is: Up and Down move the lit row, Enter chooses, Escape closes, Left goes back from More, Right goes into it, and
+the lit row is named to a screen reader by `aria-activedescendant`. The lit row wears the kit's ring only once a key has
+moved it: lit by the pointer, or first as the list opens, it has the pressed paper alone, or the ring would follow the
+mouse. Any other key closes the list and does what it always does; so does any change or caret move. Tab reaches the +
+from the editor even while it waits, taking the focus shows it at once, and Enter on it opens the list with the focus on
+its first row.
+
+**The list** (`editor/AddList.tsx`, the rows in `editor/addRows.ts`). A short card in paper-2 with press and hold's
+hairline and shadow, rows 2.75rem tall with an icon in the third ink and the words in ink, and no hints but a dimmed
+row's reason. It opens below the +'s row, above it when the keyboard leaves no room below, and on the larger side,
+scrolling with a fade at the cut edge, when neither holds it all; never over the row, and clear of the top bar and the
+tabs. More, at the first page's foot, and Back, at the top of More and of a step, are held outside the rows that scroll:
+on the phone with the keyboard up there is room for six or seven rows, and More was the one under the fade. Its left
+edge is the text's. On a coarse pointer 600px and wider it keeps to one side of the window's middle, the Fold's crease:
+at the text when it fits before the crease (or when at least 12rem does), else 16px past it, and across it only when
+neither side has 12rem. It does not close on a scroll: the keyboard rising shortens the page and the editor scrolls the
+caret into view, so the list follows the + in one frame, and closes only once the + has left the screen. It closes on a
+row chosen, a press elsewhere, a wheel or a drag outside it, Escape, the back gesture and the ×; on More or a step, the
+back gesture goes back a page first, as Back and Left do. It is not a sheet, which takes the page and the keyboard, and
+not press and hold's sideways band, which reads as a toolbox.
+
+**Seven things, then More.** A picture, A video, A place, the time as it will be written (Matt's example was "28 Sep
+2026, 14:05"; the month is the locale's own short form, as a meeting's title's is, so a British phone writes "28 Sept
+2026, 14:05" and an American one "Sep 28 2026, 14:05"; `core/stamp.ts`, the day and the short month in the locale's
+order, the year, a 24-hour clock, the one copy §142's journal shares), A table, A note (a step inside the list: "Which
+note?", part of its title, at most twelve), A to-do, and More. More turns the list over to a second page in the same
+card, Back at its top: a heading, a bulleted list, a numbered list, a quote, a callout, a choice, a block of code, a
+divider, a board (as Make a board writes one: To do, Doing and Done, and a first card named by an anchor nothing else
+has), a chart (the canvas's own Mermaid seed), a canvas drawn in a frame (a step, "Which canvas?"), a footnote (the next
+number closing the words just above the empty line, as the Guide writes one, its line at the end of the note; alone on a
+line it was a footnote to nothing), a tag, a counter ("Count [0/8]", the name selected), a sum, and each effect that is
+switched on, named as it is said ("Heated words") with a word between its marks to write over, since its marks alone
+drew four emoji and no effect. Each comes with a seed to write over. The marks that wrap words (bold and the rest) stay
+Style's: on an empty line there are no words to wrap. A voice memo is not offered, since the recorder no longer makes
+them, nor a web link, which is pasted.
+
+**A row is there, dimmed or not there, by one rule.** A row this device or this build can never do is not drawn: an
+over-the-air page on an older binary shows nothing it cannot do. A row a choice the person made stands in the way of
+is drawn dimmed with the choice named, which today is Local only, for a place; a press on it adds nothing. A refusal
+found only by trying keeps the row and is said when it happens. So the Mac has no place (its WebView never answers a
+fix) and no picture until its picker has been run on a Mac (`MAC_PICKER_TRIED`), the iPhone app has no place (it
+declares no location permission, and `canLocate` now answers `ios` before anything is asked), and only an Android
+binary of native generation 21, whose bridge has `pickVideo`, has a video row: the note screen asks once as it opens
+(`core/videos.ts` `canAddVideos`).
+
+**Where each goes** (`editor/inserts.ts`, docs/MARKDOWN.md). Drawn things (a picture, a place, a film, a canvas's frame)
+get a line of their own: they take the caret's line when it has no words, lead included, and otherwise go after it, and
+a blank line keeps them out of a list, a quote or a table above. A place, a film and a frame are links, and keep a blank
+line from a paragraph above as well, or another reader runs them into its sentence, "Lunch at the harbour Cais do Sodré,
+Lisbon"; a picture under a paragraph stays on the next line, which every reader draws as a picture of its own. Blocks
+get a blank line on either side where words are. Words go at the caret, spaced as a sentence needs. A to-do, a list, a
+heading or a sum is a line's lead, written on the empty line, turning an empty item's lead into its own, never a second
+box. Each insert is one transaction with its history isolated, so one Undo takes back exactly it, and what the + writes
+is there at once, drawn lines whole, as typing is since §140: its user events (`input.plus`, `input.plus.drawn`) set
+nothing in motion, and the empty lead a picture takes the place of just goes.
+
+**Found on the way, and mended by the same rules.** A picture from Add image, from a paste or from the + under an empty
+to-do was the to-do's words; under a list item, a quote or on the empty line under a table it joined them. A table from
+Style took the next line of words as a row. A rule from Style under a paragraph read as a heading in Obsidian and on
+GitHub, though never in the app, whose parser has no setext headings. All now leave a blank line where it is needed. And
+Add image on the Mac asked for the phone's picker, which it has not got, and only ever said this build cannot add
+pictures: the Mac takes the page's file input now, which WebKit answers with its open panel. The panel holds to no
+filter, so a file that is not a picture is refused in words, a HEIC an older Mac cannot open says to save it as a JPEG
+first, and the shrink asks again without its turning option when an older WebKit refuses the option. A chart, one tap
+away in More now, drew in Mermaid's lavender on a light page: it draws in Mermaid's grey (`neutral`) there, the app's
+two inks, as it already did on a dark one.
+
+**A place is a line.** `[Cais do Sodré, Lisbon](geo:38.7057,-9.1446)`, a plain link to a `geo:` address, alone on its
+line (`core/placeRefs.ts`): four decimals, or two for a rough fix. It draws as the map card under it
+(`editor/placeCards.ts`), without the place chip, since the line says the name, and folds to its name off the caret.
+The note screen draws it live, a shared page quiet until the reader asks, and every other editor (a note drawn small, a
+notebook read straight through) draws no card, since nothing there may fetch. The note's own tag stays in its front
+matter with its card at the top, and a note can hold many places. The fix is found as Add my location finds it, "Finding
+where you are." after a moment. The name is asked while the fix is found, from what is known first
+(`core/location.ts` `placeName`), and waited for three seconds, so place and name land as one write and one Undo. This
+changes the letter of the location module's second rule, which asked only for a tag already in its note: a place
+pressed with the + is asked for while its note is open and its spot is kept, since the person chose these coordinates
+and this note seconds before. A note left, or a place let go, before the fix sends nothing. A name later than the wait
+is written only while the place is still the newest change the note's history holds and nothing waits to be redone,
+so an Undo never takes back a name in place of what the person just did. A write that lands after the person has gone
+to another field (the Find bar, a sheet) takes no selection, no scroll and no focus. Local only takes the fix, the name
+and the tiles.
+
+**Shares: a switch of their own.** A share leaves out every `geo:` address in its pages' words, in whatever form it is
+written, unless "Share the places in it" is ticked (`Kept.places`, docs/SHARING.md). The tag's "Share where it was
+written" keeps its row and its words exactly, so no tick anyone gave grows to cover places added later. The Copy the
+link hint names in one sentence what the link carries of each.
+
+**AI runs keep places whole.** A place's line, and a video's, goes to the model as a picture-shaped token,
+`![place-1](place)`, as a table does, and comes back verbatim (`format/embeds.ts`); every prompt that names the table's
+token is told of these in one sentence, and a summary may leave one out. A model can no longer move a place's
+coordinates or describe it.
+
+**A video stays on its phone** (the second slice, native generation 21; `BUNDLE_REQUIRES` stays 19). The line is its
+poster linked to it, `[![video 0:12](image/<poster>.jpg)](video/<uuid>.mp4)` (`core/videoRefs.ts`), the alt its
+length as a voice memo's is. The poster is an ordinary picture, so sync, a share and the reader's download carry it
+with no word about films, and the owner's other devices and a reader see a still.
+
+- **The pick** (`media/VideoPick.kt`). The Photo Picker (`MediaStore.ACTION_PICK_IMAGES` for videos, on Android 13 and
+  later and on 11 and 12 with its module), or the chooser for videos where there is none, with no permission asked: the
+  manifest still names no READ_MEDIA. The film is copied as filmed, off the UI thread, in 1MB blocks, into the cache's
+  `picked/`, with 500MB of the phone kept free, checked before a byte is copied and every 64MB after. Its length, size
+  and turn are read off the copy, and its poster is a frame a second in (half way through a shorter one), turned upright
+  only where the frame still lies as the film is stored, shrunk to 1600px and written as a JPEG beside it. It is made
+  there, not in the page, since a frame drawn from the app's own scheme would taint the page's canvas. Nothing else is
+  read from the file: no place, no date, no device. The answer is its own event, `video`, never the picture's, whose one
+  pending pick it must not answer. It says `copying` first, once a film is chosen, so "Adding the video." comes a moment
+  into the copy and not while the picker is still up. Whatever goes wrong on the copying thread is answered, never
+  thrown, since a throw there would end the app and leave the page waiting; the poster's frame is made at the poster's
+  size where the phone can (Android 8.1 on), not an 8K frame made whole first; a chooser's answer that names its film
+  only in a clip is read; and a kind that is not kept (3GP, MKV) says so, "This kind of video can’t be added. MP4, MOV
+  and WebM can.", rather than that the film cannot be read. One film is picked at a time, since the answer does not say
+  which pick it is for: a second while the first copies is refused in words. A film whose note was left, or whose place
+  went, while it copied is thrown away rather than kept.
+- **Keeping it** (`videos.rs`). `save_video` adopts the poster among the pictures and the film into `video/` under fresh
+  names, both or neither, each only from directly inside `picked/` and the film only when its first bytes say what its
+  extension does (`ftyp` for MP4 and QuickTime, or the older QuickTime atoms `wide`, `free`, `skip`, `mdat`, `moov` and
+  `pnot`, EBML's magic for WebM). An answer the page was not waiting for (a reload behind the picker) is thrown away
+  with `discard_picked`, and whatever waits in `picked/` for more than an hour goes, pictures included, which nothing
+  swept before: at launch, and each time a film is kept or thrown away, since a phone can keep the app's process for
+  days. A deleted note takes the films only it named, as its pictures; a film no note names is noted by a sweep at most
+  once a day and goes after a week unnamed, time for an Undo, a note in the trash and sync. A reset takes `video/` and
+  `picked/`.
+- **Out of the cloud.** The manifest gains `dataExtractionRules` (Android 12 and later) and `fullBackupContent`
+  (earlier), both leaving `video/` out of Google's cloud backup, where one long film would take the app past its 25MB
+  quota and stop the notes' backup with it. Nothing is named for a move to a new phone by cable, so it is meant to carry
+  everything, films included; whether Smart Switch honours the rules has not been tried. `paths.rs` and the Kotlin tests
+  read both files. Whether notes should go to that backup at all, since `models/` and `recordings/` likely stopped it
+  for most installs already, is Matt's question, and nothing wider is decided here.
+- **Playing it** (`editor/videos.ts`, `ranged.rs`). The `vid` scheme serves a film a range at a time by seek: every
+  range, open, closed or the last bytes, is answered at most 4MB at a time, a HEAD reads nothing, and a request with no
+  range is answered whole only up to 8MB and otherwise told the length. The folder it plays from is found once and kept,
+  since on Android the platform's answer is a trip to the main thread and a 4K film asks several times a second. It is
+  registered as `rec` and `img` are, since wry answers every custom scheme on Android on the WebView's own thread and
+  waits there regardless. On the note screen the card asks one HEAD before it draws the paper disc; "This video isn’t on
+  this phone." takes the disc's place where the film is not there. A tap plays the film over its poster, the same size,
+  with sound; another pauses it; a line of ink along the foot is its progress. No native controls, no autoplay, no loop,
+  one film at a time. Full screen is a layer of the page, black in both themes with a white close, because the generated
+  WebView client refuses the platform's own; the back gesture closes it and hands the time back, and the focus to the
+  card's Full screen. A film that will not play is asked about again: gone, the card says so; still here, "This video
+  can’t be played on this phone.", since a kind the WebView cannot decode is not a missing film. A film just added keeps
+  the caret under its card in sight once as its poster arrives, and never again, or a card drawn afresh as the note
+  scrolls pulled the page back under the finger. Off the caret the line folds to "video 0:12", but in fenced code, and
+  the picture widget steps aside so the poster is drawn once. A shared canvas's cards draw a film as a shared page does.
+- **Who is told what.** An older Android binary: "Update Ghost.md to play this video." Another device, the owner's
+  Mac or a browser: "A video of 0:12. It stays on the phone it was added on." A shared page: "A video of 0:12. Only a
+  still from it is shared." The iPhone app refuses both commands (`unsupported.rs`), and has no row.
+- **AI runs** keep a video line whole as `![video-1](video)`, as for places, above.
+
+**To try on the Fold.** Whether the gutter-wide, row-tall target is easy to hit on the cover screen at the default
+density and at compact; how One UI's back gesture treats a tap that starts at the left edge; whether 150ms feels right;
+how often a place's name comes inside three seconds; the list's room above Samsung Keyboard on the cover screen; and the
+note step's field keeping the keyboard up. For the film: a portrait clip's poster the right way up, whether a `.mov`
+plays when served as QuickTime, a gigabyte's copy time and the room check, seeking, full screen and back, and, on the
+staging build, `bmgr backupnow` leaving `video/` out of the backup's listing, and a move by Smart Switch keeping it.
 
 ## 143. Settings' column smokes under its search field (2026-09-28)
 
-(Numbered 142 because the + menu's branch, in flight at the same time, has 141.)
+(Numbered 143 because the + and the notebooks, in flight at the same time, have 141 and 142.)
 
 Matt: "on the settings page when scrolling on the left sidebar we should see the wisp fade effect under the search bar
 covering the overflowing content like we see with the header on the main page".

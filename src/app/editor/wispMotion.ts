@@ -14,8 +14,9 @@ import { motionScale } from '../core/preferences.ts';
  * (Settings › Appearance › Motion), until the drawing says it has settled. With reduced motion asked for, nothing is set in
  * motion at all.
  *
- * The user events are load-bearing: a board's own edits (`input.board`) are not typing, and a tapped box's letter
- * (`input.toggle`, `input.choice`) dissolves where it stands rather than arriving.
+ * The user events are load-bearing: a board's own edits (`input.board`) and what the + beside the line adds
+ * (`input.plus`) are not typing, and a tapped box's letter (`input.toggle`, `input.choice`) dissolves where it stands
+ * rather than arriving.
  */
 
 export type WispKind = 'heard' | 'rewrite';
@@ -212,6 +213,9 @@ export const wispState = StateField.define<readonly Moving[]>({
     // A board's own edits are not typing (editor/boards.ts): a card ticked, moved or added rewrites the item's box and
     // the fence under the drawing, and none of that is a letter someone wrote.
     if (tr.isUserEvent('input.board')) return next;
+    // Nor is what the + beside the line puts in (editor/inserts.ts): it is there at once, drawn lines whole, and the
+    // empty lead a picture or a table takes the place of just goes, as it would under a card arriving.
+    if (tr.isUserEvent('input.plus')) return next;
     if (tr.state.facet(typing) && (tr.isUserEvent('input') || tr.isUserEvent('delete'))) {
       const now = performance.now();
       const deleting = tr.isUserEvent('delete');

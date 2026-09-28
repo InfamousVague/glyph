@@ -2,12 +2,13 @@
 //! and the named directories under them, resolved in this one place.
 //!
 //! Under `<app_data_dir>`: `Library/` (the notes, library/), `recordings/`
-//! (`<id>.wav`, the capture seam), `images/` (images.rs), `models/` (whisper's
-//! and the formatter's alike), `ota/` (ota.rs), and two files that are not
-//! directories and so are named where they are used: `notion.json`
-//! (notion.rs) and the old `glyph.sqlite` (library/move_in.rs). Under
-//! `<app_cache_dir>`: `picked/` (a picture the Android shell shrank, adopted
-//! by images.rs) and `updates/` (the verified APK).
+//! (`<id>.wav`, the capture seam), `images/` (images.rs), `video/` (films,
+//! videos.rs), `models/` (whisper's and the formatter's alike), `ota/`
+//! (ota.rs), and two files that are not directories and so are named where
+//! they are used: `notion.json` (notion.rs) and the old `glyph.sqlite`
+//! (library/move_in.rs). Under `<app_cache_dir>`: `picked/` (a picture the
+//! Android shell shrank, or a film it copied with its poster, adopted by
+//! images.rs and videos.rs) and `updates/` (the verified APK).
 //!
 //! Resolving needs an `AppHandle` (or the `App` in setup), which is why this
 //! is on the Tauri side of the seam and the Tauri-free modules take a path
@@ -31,7 +32,10 @@
 //! twin names this file, and a test reads the Kotlin sources, so renaming one
 //! side alone fails the build's tests instead of quietly breaking the Files
 //! app, a meeting's recording or its write-up, update alerts, the picker or
-//! APK install on a phone.
+//! APK install on a phone. And one more is named by the Android manifest's
+//! backup rules, `video/`, which they keep out of Google's cloud backup: a test
+//! reads those too, so a film renamed here cannot quietly start filling a
+//! person's backup.
 
 use std::fmt::Display;
 use std::path::PathBuf;
@@ -51,6 +55,12 @@ pub const RECORDINGS: &str = "recordings";
 /// Pictures in notes, `<uuid>.<jpg|png|webp>`.
 pub const IMAGES: &str = "images";
 
+/// Films in notes, `<uuid>.<mp4|m4v|mov|webm>` (videos.rs), which stay on the
+/// phone they were added on. BACKUP TWIN: the Android manifest's
+/// `res/xml/glyph_backup_rules.xml` and `glyph_data_extraction_rules.xml`,
+/// which exclude `video/` from the cloud backup.
+pub const VIDEO: &str = "video";
+
 /// Model files and their `.part` downloads, whisper's and the formatter's in
 /// one directory, so a file name must be unique across both catalogues.
 pub const MODELS: &str = "models";
@@ -67,8 +77,9 @@ pub const JOBS: &str = "jobs";
 pub const OTA: &str = "ota";
 
 /// Under the CACHE: a picture the shell picked and shrank, until
-/// `save_image` adopts it. KOTLIN TWIN: `MainActivity.kt`'s picker,
-/// `File(cacheDir, "picked")`.
+/// `save_image` adopts it, and a film it copied with its poster, until
+/// `save_video` does. KOTLIN TWINS: `MainActivity.kt`'s picker,
+/// `File(cacheDir, "picked")`, and `media/VideoPick.kt`'s.
 pub const PICKED: &str = "picked";
 
 /// Under the CACHE: the verified APK. KOTLIN TWIN: `MainActivity.kt`'s
@@ -102,6 +113,11 @@ pub fn recordings_dir<R: Runtime>(app: &impl Manager<R>) -> Result<PathBuf, Stri
 /// `<app_data_dir>/images`.
 pub fn images_dir<R: Runtime>(app: &impl Manager<R>) -> Result<PathBuf, String> {
     Ok(data_dir(app)?.join(IMAGES))
+}
+
+/// `<app_data_dir>/video`.
+pub fn videos_dir<R: Runtime>(app: &impl Manager<R>) -> Result<PathBuf, String> {
+    Ok(data_dir(app)?.join(VIDEO))
 }
 
 /// `<app_data_dir>/models`.
@@ -158,6 +174,7 @@ mod tests {
             ("files/LibraryDocuments.kt", format!("File(context!!.dataDir, \"{LIBRARY}\")")),
             ("updates/UpdateCheckWorker.kt", format!("File(context.dataDir, \"{OTA}\")")),
             ("MainActivity.kt", format!("File(cacheDir, \"{PICKED}\")")),
+            ("media/VideoPick.kt", format!("File(cacheDir, \"{PICKED}\")")),
             ("MainActivity.kt", format!("File(cacheDir, \"{UPDATES}\")")),
             ("capture/MeetingService.kt", format!("fun recordingsDir(context: Context): File = File(context.dataDir, \"{RECORDINGS}\")")),
             ("recordings/RecordingWorker.kt", format!("File(context.dataDir, \"{JOBS}\")")),
@@ -176,5 +193,27 @@ mod tests {
         let activity = kotlin("MainActivity.kt");
         let rule = format!("id.length in 1..{}", crate::fsx::PLAIN_ID_MAX);
         assert!(activity.contains(&rule), "MainActivity.isNoteId no longer says {rule}");
+    }
+
+    /// Films stay out of Google's cloud backup: both rules files exclude this
+    /// folder under the data directory (`root` is `context.dataDir`, the
+    /// `<app_data_dir>` the folder is joined to), and the manifest names both.
+    /// Without them, one long film takes the app past its 25 MB quota and the
+    /// notes stop being backed up with it.
+    #[test]
+    fn the_backup_rules_leave_films_out_of_the_cloud() {
+        let android = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("gen/android/app/src/main");
+        let read = |file: &str| std::fs::read_to_string(android.join(file)).unwrap_or_else(|e| panic!("{file}: {e}"));
+        let exclude = format!("<exclude domain=\"root\" path=\"{VIDEO}/\" />");
+        let legacy = read("res/xml/glyph_backup_rules.xml");
+        assert!(legacy.contains(&exclude), "glyph_backup_rules.xml no longer says {exclude}");
+        let rules = read("res/xml/glyph_data_extraction_rules.xml");
+        let cloud = rules.split("<cloud-backup").nth(1).and_then(|rest| rest.split("</cloud-backup>").next()).expect("a <cloud-backup> section");
+        assert!(cloud.contains(&exclude), "the cloud backup no longer leaves out {VIDEO}/");
+        let transfer = rules.split("<device-transfer").nth(1).and_then(|rest| rest.split("</device-transfer>").next()).unwrap_or("");
+        assert!(!transfer.contains(&exclude), "a move to a new phone by cable carries the films");
+        let manifest = read("AndroidManifest.xml");
+        assert!(manifest.contains("android:fullBackupContent=\"@xml/glyph_backup_rules\""));
+        assert!(manifest.contains("android:dataExtractionRules=\"@xml/glyph_data_extraction_rules\""));
     }
 }

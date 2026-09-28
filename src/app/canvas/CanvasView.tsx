@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LocateFixed, Maximize, Plus, Spline } from '@glacier/icons';
 import { IMAGE_READY, pickImage, saveImageFile } from '../core/images.ts';
 import { useRedraw } from '../core/useRedraw.ts';
+import type { VideoMode } from '../editor/videos.ts';
 import { AddSheet, type AddStep } from './AddSheet.tsx';
 import { useCamera } from './camera.ts';
 import { Card } from './Card.tsx';
@@ -90,6 +91,8 @@ export interface CanvasViewProps {
   canvas: Canvas;
   dark: boolean;
   wiki?: CanvasWiki;
+  /** Whose film cards its cards of words draw (editor/videos.ts): a shared page's say only a still is shared. */
+  videos?: VideoMode;
   className?: string;
   /** The canvas after a change - a card moved, made, written in or taken off. Absent, the canvas cannot be changed. */
   onChange?: (canvas: Canvas) => void;
@@ -99,7 +102,7 @@ export interface CanvasViewProps {
 const DOUBLE_MS = 350;
 const DOUBLE_PX = 24;
 
-export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasViewProps) {
+export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: CanvasViewProps) {
   const host = useRef<HTMLDivElement>(null);
   /*
    * The canvas as it is being changed: the one handed in, with a card part-way through a drag on top of it. Every
@@ -359,6 +362,7 @@ export function CanvasView({ canvas, dark, wiki, className, onChange }: CanvasVi
             node={node}
             dark={dark}
             wiki={wiki}
+            videos={videos}
             root={host}
             editing={editing === node.id}
             lifted={gestures.lifted === node.id}

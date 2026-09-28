@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '@glacier/react';
 import { EditorSelection } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
+import { undoDepth } from '@codemirror/commands';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { useNotePlace } from './notePlace.ts';
 import { boardFrom } from '../core/boards.ts';
@@ -14,14 +15,40 @@ import { ContextMenu } from './ContextMenu.tsx';
 import { FindBar } from './FindBar.tsx';
 import { Editor } from './Editor.tsx';
 import { CanvasView } from '../canvas/CanvasView.tsx';
-import { canvasOf, withCanvas } from '../canvas/jsonCanvas.ts';
+import { canvasOf, isCanvasBody, withCanvas } from '../canvas/jsonCanvas.ts';
 import { BookBar, BookFoot } from '../book/BookNav.tsx';
 import { BookView } from '../book/BookView.tsx';
 import { isBookBody, type BookPlace } from '../book/book.ts';
 import { writeBookSpot } from '../book/bookSpot.ts';
 import { frontMatterOffset, withFrontMatterTitle } from '../core/frontMatter.ts';
 import { geoTagOf, sameTag, tagOf, withGeoTag, type GeoTag } from '../core/geotag.ts';
-import { canLocate, canShowTiles, forgetRefusal, landTag, locate, pendingTag, placeFor, refusedFor, rememberRefusal, setPendingTag, settleTag, wantPlace, watchTag, whyLocateFailed, type LocateFailure } from '../core/location.ts';
+import {
+  canAskPlace,
+  canLocate,
+  canShowTiles,
+  forgetRefusal,
+  landTag,
+  locate,
+  pendingTag,
+  placeFor,
+  placeName,
+  refusedFor,
+  rememberRefusal,
+  setPendingTag,
+  settleTag,
+  wantPlace,
+  watchTag,
+  whyLocateFailed,
+  type LocateFailure,
+} from '../core/location.ts';
+import { placeMarkdown } from '../core/placeRefs.ts';
+import { videoMarkdown } from '../core/videoRefs.ts';
+import { canAddVideos, pickVideo } from '../core/videos.ts';
+import { failureText } from '../core/failure.ts';
+import { filmAdded } from './videos.ts';
+import { afterComposition, focusToken, insertLineAt, nameLater, releaseSpot, reserveSpot, spotAt } from './inserts.ts';
+import { plusRecheck, type PlusHooks, type PlusKey, type PlusOpening } from './insertPlus.ts';
+import { AddList } from './AddList.tsx';
 import { REVIEW_HANDED_BACK } from '../ai/useNoteReview.ts';
 import { hasLocationBridge } from '../core/placeLink.ts';
 import { MapCard } from './MapCard.tsx';
@@ -85,6 +112,11 @@ import styles from './NoteScreen.module.css';
  * matter through the editor, as one undo step, so the words are untouched and the save is typing's; and the More
  * sheet's Add my location and Remove location. A tag waiting for a recording's better words lands here once the pass
  * has landed or the review has handed back, and a new note's once it has words.
+ *
+ * So is the + beside an empty line (editor/insertPlus.ts) and its list (editor/AddList.tsx): this screen says when a
+ * + may show, opens the list against it, and owns the rows that leave the editor, the picker for a picture, the fix
+ * and the name for a place, which lands as a line of its own with its map card under it (`addPlace`), and the Photo
+ * Picker for a film, which lands the same way with its card, played here where it is on this phone (`addVideo`).
  */
 
 interface NoteScreenProps {
@@ -128,6 +160,9 @@ interface NoteScreenProps {
   landing?: CaptureLanding & { key: number };
 }
 
+/** How long a place from the + waits for its name before it is written with its coordinates (core/location.ts rule 2). */
+const NAME_WAIT_MS = 3000;
+
 /** What the note says when a fix did not come (core/location.ts `LocateFailure`). */
 const NO_FIX: Record<LocateFailure, string> = {
   refused: 'Ghost.md wasn’t allowed to know where you are.',
@@ -136,6 +171,7 @@ const NO_FIX: Record<LocateFailure, string> = {
   timeout: 'Couldn’t find where you are. Try again with location on, or outside.',
   none: 'This browser can’t say where you are.',
   mac: 'This Mac can’t say where it is yet.',
+  ios: 'Ghost.md can’t find where you are on this device yet.',
   'local-only': 'Local only is on.',
 };
 
@@ -457,6 +493,139 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
       },
     );
   };
+  /**
+   * A place from the + beside the line (editor/AddList.tsx): a line of its own where the caret was, a link to a `geo:`
+   * address that draws its map card (core/placeRefs.ts), apart from the note's own tag above. The place is kept from
+   * the tap, the fix is found (said after a moment, as Add my location says it), and the name is asked while it is,
+   * from what is known first, and waited for a few seconds, so the place and its name land as one write and one Undo.
+   * A note left before the fix, or a place let go, asks for nothing and writes nothing. A name later than the wait is
+   * written only while the place is still the newest change (editor/inserts.ts `nameLater`); a write that lands after
+   * the person went to another field leaves the focus where they are (`focusToken`).
+   */
+  const addPlace = () => {
+    const editor = viewRef.current;
+    if (!editor) return;
+    const token = focusToken(editor);
+    const spot = reserveSpot(editor);
+    let said = false;
+    const slow = window.setTimeout(() => {
+      said = true;
+      toast({ message: 'Finding where you are.', duration: 0 });
+    }, 600);
+    const quiet = () => {
+      window.clearTimeout(slow);
+      if (said) dismiss();
+    };
+    const letGo = () => {
+      token.done();
+      if (editor.dom.isConnected) releaseSpot(editor, spot);
+    };
+    const here = () => mounted.current && editor.dom.isConnected;
+    void (async () => {
+      let tag: GeoTag;
+      try {
+        tag = tagOf(await locate());
+      } catch (failure) {
+        quiet();
+        letGo();
+        if (!mounted.current) return;
+        const why = whyLocateFailed(failure);
+        rememberRefusal(why);
+        fireNativeHaptic('warning');
+        toast({
+          message: NO_FIX[why],
+          ...(why === 'blocked' && typeof window.GlyphHost?.openLocationSettings === 'function' ? { action: { label: 'Open settings', onPress: () => void window.GlyphHost?.openLocationSettings?.() } } : {}),
+        });
+        return;
+      }
+      forgetRefusal();
+      // Left while the fix was coming, or the place was let go: nothing is asked for and nothing is written.
+      if (!here() || spotAt(editor, spot) === null) {
+        quiet();
+        letGo();
+        return;
+      }
+      let name: string | null = null;
+      let late: Promise<string | null> | null = null;
+      if (await canAskPlace()) {
+        const asked = placeName(tag);
+        const waited = await Promise.race([asked, new Promise<'waited'>((resolve) => window.setTimeout(() => resolve('waited'), NAME_WAIT_MS))]);
+        if (waited === 'waited') late = asked;
+        else name = waited;
+      }
+      if (!here()) {
+        quiet();
+        letGo();
+        return;
+      }
+      await afterComposition(editor, 300);
+      const line = placeMarkdown(tag, name);
+      const landed = insertLineAt(editor, spot, line, { userEvent: 'input.plus.drawn', token, apart: true });
+      const depth = undoDepth(editor.state);
+      quiet();
+      letGo();
+      fireNativeHaptic('light');
+      if (!late) {
+        releaseSpot(editor, landed.spot);
+        return;
+      }
+      void late.then((named) => {
+        if (named && here()) nameLater(editor, landed.spot, depth, line, placeMarkdown(tag, named));
+        if (editor.dom.isConnected) releaseSpot(editor, landed.spot);
+      });
+    })();
+  };
+  /**
+   * A film from the + beside the line (native generation 21): picked with the Photo Picker, copied with its poster
+   * (media/VideoPick.kt) and kept (`save_video`), then written as a line of its own where the caret was, its poster
+   * linked to it (core/videoRefs.ts), which draws its card (editor/videos.ts). The place is kept from the tap, since the
+   * picker leaves the app and a long film takes a while to copy; "Adding the video." says so a moment after the copy
+   * starts, and not while the picker is still up. A film copied for a note that was left, or whose place went, is
+   * thrown away rather than kept for nothing. A write that lands after the person went to another field leaves the
+   * focus where they are (`focusToken`). What goes wrong is said on the note's line, as a picture's is.
+   */
+  const addVideo = () => {
+    const editor = viewRef.current;
+    if (!editor) return;
+    const token = focusToken(editor);
+    const spot = reserveSpot(editor);
+    let said = false;
+    let slow = 0;
+    const copying = () => {
+      window.clearTimeout(slow);
+      slow = window.setTimeout(() => {
+        said = true;
+        toast({ message: 'Adding the video.', duration: 0 });
+      }, 600);
+    };
+    const quiet = () => {
+      window.clearTimeout(slow);
+      if (said) dismiss();
+    };
+    const letGo = () => {
+      token.done();
+      if (editor.dom.isConnected) releaseSpot(editor, spot);
+    };
+    const wanted = () => mounted.current && editor.dom.isConnected && spotAt(editor, spot) !== null;
+    void (async () => {
+      try {
+        const film = await pickVideo({ keep: wanted, copying });
+        quiet();
+        if (!film || !wanted()) return;
+        filmAdded(film.poster, film.width, film.height);
+        const landed = insertLineAt(editor, spot, videoMarkdown(film.poster, film.video, film.ms), { userEvent: 'input.plus.drawn', token, apart: true });
+        releaseSpot(editor, landed.spot);
+        fireNativeHaptic('light');
+      } catch (failure) {
+        quiet();
+        if (!mounted.current) return;
+        fireNativeHaptic('warning');
+        pictures.say(failureText(failure));
+      } finally {
+        letGo();
+      }
+    })();
+  };
   /** Remove location: both keys out, as one undo step; the card going, on the beat it came on, is the feedback. */
   const removeLocation = () => {
     flush();
@@ -502,6 +671,53 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
 
   // Two fingers pinch the note's text larger or smaller (editor/pinchZoom.ts).
   useNoteZoom(page, view, shown === 'raw');
+
+  /*
+   * The + beside an empty line (editor/insertPlus.ts) and its list (editor/AddList.tsx). The + is this screen's alone,
+   * and only while the note is words being written: not a notebook's index or a canvas in either view, not while the
+   * transcript plays, and not while an AI run writes into it. The editor asks through a ref, and is told to look again
+   * when any of those changes.
+   */
+  const [adding, setAdding] = useState<PlusOpening | null>(null);
+  // Whether this binary adds films (native generation 21): asked once, for the list's A video.
+  const [videosHere, setVideosHere] = useState(false);
+  useEffect(() => {
+    void canAddVideos().then((can) => {
+      if (mounted.current) setVideosHere(can);
+    });
+  }, []);
+  const addKeys = useRef<((key: PlusKey) => boolean) | null>(null);
+  const plusAllowed = !typed && shown === 'raw' && ai.runningKind === null;
+  const plusAllowedRef = useRef(plusAllowed);
+  plusAllowedRef.current = plusAllowed;
+  const plusHooks = useMemo<PlusHooks>(
+    () => ({
+      allowed: () => plusAllowedRef.current,
+      onOpen: (opening) => {
+        fireNativeHaptic('selection');
+        setAdding(opening);
+      },
+      onClose: () => setAdding(null),
+      onKey: (key) => addKeys.current?.(key) ?? false,
+    }),
+    [],
+  );
+  useEffect(() => {
+    view?.dispatch({ effects: plusRecheck.of(null) });
+    if (!plusAllowed) setAdding(null);
+  }, [view, plusAllowed]);
+  /**
+   * Where the list may go: the note's scrolling page, below the header, which clears the top bar and the tabs
+   * (`--app-safe-top`) even while the page itself runs up under them.
+   */
+  const notePane = (): DOMRect | null => {
+    const box = page.current?.getBoundingClientRect();
+    if (!box) return null;
+    const top = Math.max(box.top, header.current?.getBoundingClientRect().bottom ?? box.top);
+    return new DOMRect(box.left, top, box.width, Math.max(0, box.bottom - top));
+  };
+  /** Every canvas among the notes, for More's A canvas: a frame of it drawn in the words (editor/canvasFrames.ts). */
+  const canvasTitles = allTitles && bodyOfTitle ? () => allTitles().filter((t) => isCanvasBody(bodyOfTitle(t) ?? '')) : undefined;
 
   const speakHere = () => {
     // A new take replaces a removed recording's file, so its Undo would no longer be true.
@@ -695,6 +911,9 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
             linkMenus={{ say: (message) => editing.say(message) }}
             wiki={wiki}
             onAiMarks={ai.onAiMarks}
+            plus={plusHooks}
+            places="live"
+            videos="play"
             grow
           />
           {blank && !typed ? <Ghost scene="new-note" align="center" className={styles.blankGhost} /> : null}
@@ -712,6 +931,22 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         // The same send a swipe on the item does, where a plugin takes this note's items (a Notion board, a GitHub issue).
         send={itemSend(note.id, editing)}
       />
+      {/* The + beside the line's list: a picture, a place, the time, a table, a note, a to-do, and More. */}
+      {adding && view ? (
+        <AddList
+          view={view}
+          opening={adding}
+          pane={notePane}
+          onClose={() => setAdding(null)}
+          keys={addKeys}
+          onPicture={() => void pictures.addPhoto()}
+          onPlace={addPlace}
+          onVideo={videosHere ? addVideo : undefined}
+          titles={wiki && allTitles ? allTitles : undefined}
+          canvases={wiki ? canvasTitles : undefined}
+          own={title}
+        />
+      ) : null}
       {finding !== null && view && shown === 'raw' ? <FindBar view={view} initial={finding} onClose={() => setFinding(null)} /> : null}
       <NoteSettings
         open={settingsOpen}

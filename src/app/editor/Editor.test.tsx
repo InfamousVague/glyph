@@ -78,4 +78,26 @@ describe('the editor', () => {
     expect(view().contentDOM.textContent).toBe('**milk** and eggs');
     expect(document.querySelector('[data-view]')?.getAttribute('data-view')).toBe('mixed');
   });
+
+  it('has a + beside the line only where one is asked for, and never on a note drawn small', () => {
+    const hooks = { allowed: () => true, onOpen: vi.fn(), onClose: vi.fn(), onKey: () => false };
+    mount();
+    expect(document.querySelectorAll('.cm-plus')).toHaveLength(0);
+    unmount();
+    mount({ plus: hooks });
+    expect(document.querySelectorAll('.cm-plus')).toHaveLength(1);
+    unmount();
+    mount({ plus: hooks, peek: true, readOnly: true });
+    expect(document.querySelectorAll('.cm-plus')).toHaveLength(0);
+  });
+
+  it('draws a place’s map card only where it is asked to, and folds the line to its name everywhere', () => {
+    const value = 'Lunch\n[Cais do Sodré, Lisbon](geo:38.7057,-9.1446)';
+    mount({ value, readOnly: true });
+    expect(document.querySelectorAll('.cm-placeCard')).toHaveLength(0);
+    expect(document.querySelectorAll('.cm-line')[1]?.textContent).toBe('Cais do Sodré, Lisbon');
+    unmount();
+    mount({ value, readOnly: true, places: 'ask' });
+    expect(document.querySelectorAll('.cm-placeCard')).toHaveLength(1);
+  });
 });

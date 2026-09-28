@@ -33,8 +33,8 @@ vi.mock('../core/images.ts', async (importOriginal) => ({
   imageBytes: vi.fn(async (name: string) => onDevice.get(name) ?? null),
 }));
 
-const { linkFor, openShare, readShareLink, refreshShares, shareNote, shareWithPlace } = await import('./share.ts');
-const { preferences, setPreferences } = await import('../core/preferences.ts');
+const { linkFor, openShare, readShareLink, refreshShares, shareNote, shareWithPlace, shareWithPlaces, sharingPlaces } = await import('./share.ts');
+const { preferences, reloadPreferences, setPreferences } = await import('../core/preferences.ts');
 
 beforeEach(() => {
   localStorage.clear();
@@ -103,6 +103,40 @@ describe('a share of a note that says where it was written', () => {
     expect(puts).toHaveLength(3);
     expect(await sentBody(2, key)).toBe('# Walk\n\nThe river.');
     expect(preferences().shares.n1?.place).toBeUndefined();
+  });
+
+  it('carries the tag and never a place added later, when only the tag was ticked', async () => {
+    const note = makeNote('n3', `${TAG}# Walk\n\nThe river.`);
+    notes.push(note);
+    await shareNote(note, notes);
+    const { key } = readShareLink(linkFor('n3')!)!;
+    await shareWithPlace('n3', true);
+    // A place added with the + beside the line after the tick was given: the re-seal carries the tag, not the place.
+    notes[0] = { ...note, body: `${TAG}# Walk\n\nThe river.\n\n[Cais](geo:38.7057,-9.1446)\n\nThe bridge.` };
+    expect(await refreshShares()).toBe(1);
+    const body = await sentBody(puts.length - 1, key);
+    expect(body).toContain('location: 51.5074,-0.1278');
+    expect(body).not.toMatch(/geo:/);
+    expect(body).toContain('The bridge.');
+  });
+
+  it('carries the places once they are ticked, as a switch of their own that the settings keep', async () => {
+    const note = makeNote('n4', '# Lisbon\n\n[Cais](geo:38.7057,-9.1446)');
+    notes.push(note);
+    await shareNote(note, notes);
+    const { key } = readShareLink(linkFor('n4')!)!;
+    expect(await sentBody(0, key)).toBe('# Lisbon');
+    expect(sharingPlaces('n4')).toBe(false);
+    await shareWithPlaces('n4', true);
+    expect(await sentBody(1, key)).toBe('# Lisbon\n\n[Cais](geo:38.7057,-9.1446)');
+    expect(preferences().shares.n4?.places).toBe(true);
+    expect(preferences().shares.n4?.place).toBeUndefined();
+    // Kept through the settings being read again, as another device reads them.
+    reloadPreferences();
+    expect(sharingPlaces('n4')).toBe(true);
+    await shareWithPlaces('n4', false);
+    expect(await sentBody(2, key)).toBe('# Lisbon');
+    expect(preferences().shares.n4?.places).toBeUndefined();
   });
 
   it('follows a tag added after the share went, without publishing it', async () => {

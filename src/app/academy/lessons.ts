@@ -3,6 +3,7 @@ import { EditorState, Text, type Extension } from '@codemirror/state';
 import { boardsIn, itemsIn, refsIn } from '../core/boards.ts';
 import { shortcodesIn } from '../core/emoji.ts';
 import { BOX, BULLET, MARKER, NUMBER } from '../core/itemSyntax.ts';
+import { placeLines } from '../core/placeRefs.ts';
 import { readStored, writeStored } from '../core/stored.ts';
 import { bookmarkLineIn } from '../editor/bookmarkLine.ts';
 import { choiceOn } from '../editor/choices.ts';
@@ -567,6 +568,19 @@ export const LESSONS: Lesson[] = [
     passes: (text) => bookmarkLineIn(text) !== null,
     praise: 'The note would open here.',
     hint: 'Two section signs at the very end of the line: §§',
+  },
+  {
+    id: 'place',
+    chapter: 'Pointing somewhere',
+    symbol: '[ ](geo: )',
+    rows: ['A place'],
+    title: 'A place',
+    teach: 'A link to geo: and two numbers, alone on its line, is a place, with its map drawn under it. The + beside an empty line writes one for where you are.',
+    example: '[Cais do Sodré, Lisbon](geo:38.7057,-9.1446)',
+    task: 'Put a place of your own on a line.',
+    passes: (text) => placeLines(text).length > 0,
+    praise: 'That is a place, with its map.',
+    hint: 'Its name in square brackets, then geo: and the two numbers in round ones: [Home](geo:51.5074,-0.1278).',
   },
   {
     id: 'board',

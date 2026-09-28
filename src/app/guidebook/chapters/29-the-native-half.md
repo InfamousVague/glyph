@@ -7,9 +7,9 @@ _The Rust in `src-tauri` and the Kotlin around it: what each owns, the seam the 
 `src-tauri/src/main.rs` is six lines that call `glyph_lib::run()`. `src-tauri/src/lib.rs` declares every module with a line on why it exists, then builds the app:
 
 - four plugins: the opener, haptics and deep links, plus decorum on a desktop;
-- three URI schemes, registered on the builder rather than in `setup`, because a scheme has to exist before the webview is made;
-- five installs in `setup`: the notes, capture, the models, OTA and links;
-- 51 commands.
+- four URI schemes, registered on the builder rather than in `setup`, because a scheme has to exist before the webview is made;
+- six installs in `setup`: the notes, capture, the models, OTA, links, and the launch sweep of picked files and unnamed films;
+- 61 commands.
 
 On exit, a capture still decoding and a model still running are cancelled and joined, before whisper.cpp's static destructors run.
 
@@ -39,6 +39,7 @@ None of these holds a Tauri type. `note.rs` gives the reason: a process with no 
 | `ai_commands.rs` | The language models: the catalogue, downloads, runs, cancelling, and reading a spoken command |
 | `recordings.rs` | A note's kept tape, `recordings/<id>.wav`, played through the `rec` scheme |
 | `images.rs` | Pictures, `images/<uuid>.<ext>`, drawn through the `img` scheme |
+| `videos.rs`, `ranged.rs` | Films, `video/<uuid>.<ext>`, kept with their posters and played a range at a time through the `vid` scheme, and the sweeps that take a film no note names and what waits in `picked/` |
 | `links.rs` | `ghostmd://` links, kept until the page takes them with `links_take` |
 | `link_preview.rs` | A web page's title and summary, for the card under a link |
 | `notion.rs` | Notion calls the page cannot make cross-origin, with a token only Rust holds |
@@ -46,7 +47,7 @@ None of these holds a Tauri type. `note.rs` gives the reason: a process with no 
 | `update_alerts.rs` | The JNI entry the update worker calls, on Android only |
 | `ota.rs`, `ota/` | Over-the-air bundles, served through the `ota` scheme |
 
-A seam resolves a path, takes the lock, calls its Tauri-free half, and turns the error into a `String`, which is what `invoke()` rejects with in JavaScript. Every name that will become a path is checked first (`fsx::plain_id`, `images::valid_name`), because it came from the page. A scheme is `http://<scheme>.localhost/` on Android and Windows and `<scheme>://localhost/` everywhere else, the Apple platforms included. `platform.rs` holds the two window fixes one platform needs: the key window on iOS, and the traffic lights on macOS.
+A seam resolves a path, takes the lock, calls its Tauri-free half, and turns the error into a `String`, which is what `invoke()` rejects with in JavaScript. Every name that will become a path is checked first (`fsx::plain_id`, `images::valid_name`, `videos::valid_name`), because it came from the page. A scheme is `http://<scheme>.localhost/` on Android and Windows and `<scheme>://localhost/` everywhere else, the Apple platforms included. `platform.rs` holds the two window fixes one platform needs: the key window on iOS, and the traffic lights on macOS.
 
 From the page's side, `src/app/core/tauri.ts` is the bridge: `isTauri()` looks for `__TAURI_INTERNALS__`, and `invoke` loads `@tauri-apps/api/core` only when it is there. Tests replace that module with a factory that lists only those two names, which is why `src/app/core/events.ts` and `src/app/core/nativeGeneration.ts` are modules of their own.
 
@@ -54,8 +55,8 @@ From the page's side, `src/app/core/tauri.ts` is the bridge: `isTauri()` looks f
 
 `src-tauri/src/paths.rs` is the only place the app's directories are resolved.
 
-- Under `<app_data_dir>`: `Library/`, `recordings/`, `images/`, `models/` (whisper's and the formatter's together) and `ota/`, plus `notion.json` and the old `glyph.sqlite`, which are named where they are used.
-- Under `<app_cache_dir>`: `picked/`, where the Android shell leaves a shrunk picture, and `updates/`, where a verified APK waits.
+- Under `<app_data_dir>`: `Library/`, `recordings/`, `images/`, `video/` (films, which the Android manifest's backup rules keep out of Google's cloud backup), `models/` (whisper's and the formatter's together) and `ota/`, plus `notion.json` and the old `glyph.sqlite`, which are named where they are used.
+- Under `<app_cache_dir>`: `picked/`, where the Android shell leaves a shrunk picture or a copied film with its poster, and `updates/`, where a verified APK waits.
 
 Four of those names are written in Kotlin too, under the Kotlin root given below, which resolves them from its own `Context` and cannot ask Rust:
 
@@ -63,10 +64,10 @@ Four of those names are written in Kotlin too, under the Kotlin root given below
 |---|---|
 | `Library` | `files/LibraryDocuments.kt` |
 | `ota` | `updates/UpdateCheckWorker.kt` |
-| `picked` | `MainActivity.kt`, the picture picker |
+| `picked` | `MainActivity.kt`, the picture picker, and `media/VideoPick.kt`, the video picker |
 | `updates` | `MainActivity.kt`, `installApk` |
 
-`the_kotlin_twins_name_the_same_directories`, a test in `paths.rs`, reads the Kotlin sources. It fails if either side is renamed alone, or if a Kotlin file stops naming `paths.rs` beside its twin.
+`the_kotlin_twins_name_the_same_directories`, a test in `paths.rs`, reads the Kotlin sources. It fails if either side is renamed alone, or if a Kotlin file stops naming `paths.rs` beside its twin. `the_backup_rules_leave_films_out_of_the_cloud`, beside it, reads the two backup rules files the same way for `video/`.
 
 ## What iOS lacks, one sentence each
 
@@ -80,8 +81,8 @@ The updates sentence says over-the-air updates are "Android-only". In the code o
 
 A bundle that arrives over the air may run on a binary older than itself. The contract between them is one number.
 
-- **`NATIVE_GENERATION`**, in `src-tauri/src/ota.rs`, is what this binary provides: 20 at HEAD. The comment above it is the one complete register of which commands arrived in which generation, from 2 (signed manifests, 0.3.0) through 19 (revision-checked create and update, the guarded voice-command writes and their undo, and `ai_infer_command`) to 20 (meetings on Android, 1.9.0: the JNI door a foreground service and a WorkManager job call to write a meeting up with the app closed, `ai_unload`, `ai_keep_job_config`, `recording_result_take`, `recording_job_state`, `recording_digest`, `recording_delete`, range serving by seek, and `GlyphHost.startMeeting` and its kin).
-- **`BUNDLE_REQUIRES`**, beside it, is what the page built from this tree needs, and it stayed at 19 when the binary went to 20: every meeting call is gated on the page, so a bundle from main still runs on a generation-19 phone, without Meeting. `vite.config.ts` reads it out of the file with a regex and stamps it into `ota.json`, so both stay literals. A compile-time test keeps it at or under `NATIVE_GENERATION`.
+- **`NATIVE_GENERATION`**, in `src-tauri/src/ota.rs`, is what this binary provides: 21 at HEAD. The comment above it is the one complete register of which commands arrived in which generation, from 2 (signed manifests, 0.3.0) through 19 (revision-checked create and update, the guarded voice-command writes and their undo, and `ai_infer_command`) and 20 (meetings on Android, 1.9.0: the JNI door a foreground service and a WorkManager job call to write a meeting up with the app closed, `ai_unload`, `ai_keep_job_config`, `recording_result_take`, `recording_job_state`, `recording_digest`, `recording_delete`, range serving by seek, and `GlyphHost.startMeeting` and its kin) to 21 (a film in a note: `GlyphHost.pickVideo`, `save_video`, `discard_picked`, the `vid` scheme, the sweeps, and the backup rules that keep `video/` out of Google's cloud).
+- **`BUNDLE_REQUIRES`**, beside it, is what the page built from this tree needs, and it stayed at 19 when the binary went to 20 and to 21: every meeting call and every film is gated on the page, so a bundle from main still runs on a generation-19 phone, without Meeting and without A video. `vite.config.ts` reads it out of the file with a regex and stamps it into `ota.json`, so both stay literals. A compile-time test keeps it at or under `NATIVE_GENERATION`.
 - **A generation never goes backwards.** Generation 5 added handwriting, 0.5.2 took it out again, and the number stayed. Generation 6 was a bump for a removal, so that older phones would learn a new APK existed.
 
 On the page, each feature asks `hasNativeGeneration` in `src/app/core/nativeGeneration.ts`, with a constant of its own kept beside the command it gates. The question goes to `ota_status` once per page load, and the one answer is shared. It is 0 in a browser and 0 on failure, which hides a feature rather than calling a command that is not there.
@@ -112,11 +113,11 @@ The Kotlin lives in `src-tauri/gen/android/app/src/main/java/com/mattssoftware/g
 - **Cold**, it is recorded before `super.onCreate`, so the window can show over the lock screen, and the page collects it with `GlyphHost.takeLaunch()`.
 - **Warm**, it arrives as `onNewIntent` and is pushed in with `window.__glyph.capture()`. The WebView is resumed first, because a paused one queues scripts instead of running them.
 
-Showing over the lock screen is granted per capture and withdrawn by `endCapture`. The activity also hands the back gesture to the page, streams the Fold's hinge angle, shrinks a picked picture into `picked/`, pads the WebView above the keyboard, and passes a verified APK to the installer.
+Showing over the lock screen is granted per capture and withdrawn by `endCapture`. The activity also hands the back gesture to the page, streams the Fold's hinge angle, shrinks a picked picture into `picked/`, has a picked film copied there with its poster (`media/VideoPick.kt`, the Photo Picker, no permission asked), pads the WebView above the keyboard, and passes a verified APK to the installer.
 
 The bridge is two objects, both typed in `src/app/core/host.ts`:
 
-- **Inbound**, the activity calls `window.__glyph`: `refresh`, `capture`, `alerts`, `image`, `back`, `hinge` and `screenOff`.
+- **Inbound**, the activity calls `window.__glyph`: `refresh`, `capture`, `alerts`, `image`, `video`, `back`, `hinge` and `screenOff`.
 - **Outbound**, the page calls `window.GlyphHost`, the `JavascriptInterface` the activity registers, with fourteen methods, from `takeLaunch` to `browseFiles` in the order the type lists them.
 
 `window.__glyph` is one object shared by every module that answers the host. `answerHost` merges a registration and removes only its own key: when the store assigned the whole object for its refresh hook, a second handler would have wiped the first, and the side key would have done nothing while the app was open. Every `GlyphHost` method added after the first APK is optional in the type, because an over-the-air page can be running on an APK from before it.

@@ -3,7 +3,7 @@
 //! Cargo.toml builds none of whisper.cpp, llama.cpp, reqwest, sha2 or ring for
 //! iOS (its `cfg(not(target_os = "ios"))` table), so on-device transcription,
 //! formatting, update checks, the APK, Notion and link previews have nothing to
-//! run on there. Their commands still EXIST on iOS, with the same signatures:
+//! run on there, and the iPhone app has no video picker for a film to come from. Their commands still EXIST on iOS, with the same signatures:
 //! a page written against one surface is a page that needs no platform switch
 //! to load (capture_commands.rs's header makes the argument). Each answers
 //! with its sentence below instead of doing anything.
@@ -51,6 +51,10 @@ pub const LINK_PREVIEWS: &str = "Link previews are not available on iOS yet.";
 /// `geocode_place`.
 pub const PLACE_NAMES: &str = "Place names are not available on iOS yet.";
 
+/// `save_video` and `discard_picked`: the iPhone app has no video picker, so
+/// there is nothing picked to keep or throw away.
+pub const VIDEOS: &str = "Videos are not available on iOS yet.";
+
 /// The refusal a command gives on iOS: `message`, as the error its `invoke`
 /// rejects with. `_unused` takes the command's arguments, which iOS never reads.
 pub fn on_ios<T>(message: &str, _unused: impl Sized) -> Result<T, String> {
@@ -71,5 +75,6 @@ mod tests {
         assert_eq!(refused(NOTION), "Notion is not available on iOS yet.");
         assert_eq!(refused(LINK_PREVIEWS), "Link previews are not available on iOS yet.");
         assert_eq!(refused(PLACE_NAMES), "Place names are not available on iOS yet.");
+        assert_eq!(refused(VIDEOS), "Videos are not available on iOS yet.");
     }
 }

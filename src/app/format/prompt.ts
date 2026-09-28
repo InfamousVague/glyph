@@ -24,6 +24,7 @@ Keep, without exception:
 - Every link. You receive links as [the words](link-1) or <link-2>: keep each one exactly as written, its link-1 target included, where it belongs. Never drop a link, never change its target, and never write out an address.
 - A list item may end with a mark, a link whose words are one lowercase name, like [notion](link-1): keep it at the end of that item, exactly as it is.
 - Any line that is a table, which you receive as a picture-like line ![table-1](table): copied exactly, on its own line, where it was. Never describe it, and never write a table of your own.
+- Any line that is a place or a video, which you receive as a picture-like line ![place-1](place) or ![video-1](video): copied exactly, on its own line, where it was. Never describe it.
 - The note's size. A note of a few words stays a few words; do not write what it might have meant.
 - Words you are not sure of, such as names, spelled as the note spells them.
 
@@ -59,6 +60,7 @@ Keep, without exception:
 - A list item may end with a mark, a link whose words are one lowercase name, like [notion](link-1): if the item is in the summary, its mark stays at its end, exactly as it is.
 - Words you are not sure of, such as names, spelled as the note spells them.
 - A picture-like line ![table-1](table) is a table in the note: leave it out of the summary, or copy the line exactly if the table is the point of the note. Never describe it.
+- A picture-like line ![place-1](place) or ![video-1](video) is a place or a video in the note: leave it out of the summary, or copy the line exactly if it is the point of the note. Never describe it.
 
 Write:
 - The first line is a level 1 heading (#) that names the note in the note's own words.
@@ -91,6 +93,7 @@ Keep, without exception:
 - Every link. You receive links as [the words](link-1) or <link-2>: keep each one exactly as written, its link-1 target included, where it belongs. Never drop a link, never change its target, and never write out an address.
 - A list item may end with a mark, a link whose words are one lowercase name, like [notion](link-1): keep it at the end of that item, exactly as it is.
 - Any line that is a table, which you receive as a picture-like line ![table-1](table): copied exactly, on its own line, where it was. Never describe it, and never write a table of your own.
+- Any line that is a place or a video, which you receive as a picture-like line ![place-1](place) or ![video-1](video): copied exactly, on its own line, where it was. Never describe it.
 - Words you are not sure of, such as names, spelled as the note spells them.
 
 Enhance:

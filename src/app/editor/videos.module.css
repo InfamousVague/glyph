@@ -1,0 +1,206 @@
+/*
+ * A film's card under its line (editor/videos.ts): the poster, which is the film's own frame and so its shape, with a
+ * paper disc in the middle only where the film is on this phone, its length in a chip at the foot, a Full screen chip
+ * in the corner, and a line of ink along the foot as it plays. No native controls. Under it, in the third ink, the
+ * words for whoever is reading: the owner elsewhere, a reader of a shared page, or an older binary.
+ *
+ * The full screen layer is the one place drawn black in both themes, with its close in white: a film is watched on
+ * black whatever the page is, as every phone's player does.
+ */
+
+.card {
+  margin: var(--glacier-space-2) 0 var(--glacier-space-3);
+  padding: 0 calc(var(--app-safe-right, 0px) + var(--app-gutter)) 0 calc(var(--app-safe-left, 0px) + var(--app-gutter));
+  font-family: var(--glacier-font-sans, system-ui);
+  line-height: 1.5;
+}
+
+/* The poster sets the card's size: the film is drawn over it, the same shape, so nothing moves as it starts. */
+.frame {
+  position: relative;
+  isolation: isolate;
+  display: inline-block;
+  max-inline-size: 100%;
+  vertical-align: top;
+  border-radius: var(--glacier-radius-md);
+  overflow: hidden;
+  background: var(--app-paper-2);
+}
+
+.poster {
+  display: block;
+  max-inline-size: 100%;
+  max-block-size: 60vh;
+  min-block-size: 3rem;
+  min-inline-size: 6rem;
+}
+
+.film {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: contain;
+}
+
+/* The whole frame is the press that plays and pauses, where there is a film to play. */
+.toggle {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--app-ink);
+  cursor: pointer;
+}
+
+.toggle:focus-visible,
+.full:focus-visible,
+.close:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+.disc {
+  display: grid;
+  place-items: center;
+  inline-size: 3.25rem;
+  block-size: 3.25rem;
+  border-radius: var(--glacier-radius-full);
+  background: color-mix(in srgb, var(--app-paper) 85%, transparent);
+  color: var(--app-ink);
+  transition: opacity var(--glacier-duration-fast) var(--glacier-ease-out);
+}
+
+/* The play mark sits a little right of the middle, where a triangle looks centred. */
+.disc svg {
+  margin-inline-start: 3px;
+}
+
+.card[data-playing] .disc {
+  opacity: 0;
+}
+
+.chip {
+  position: absolute;
+  z-index: 1;
+  inset-block-end: var(--glacier-space-2);
+  padding: 0 var(--glacier-space-2);
+  border-radius: var(--glacier-radius-full);
+  background: color-mix(in srgb, var(--app-paper) 85%, transparent);
+  color: var(--app-ink-2);
+  font-size: var(--glacier-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.6;
+  pointer-events: none;
+}
+
+.length {
+  composes: chip;
+  inset-inline-start: var(--glacier-space-2);
+}
+
+.full {
+  position: absolute;
+  z-index: 3;
+  inset-block-end: var(--glacier-space-1);
+  inset-inline-end: var(--glacier-space-1);
+  display: grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--glacier-radius-full);
+  background: color-mix(in srgb, var(--app-paper) 85%, transparent);
+  color: var(--app-ink);
+  cursor: pointer;
+}
+
+/* How far it has played: a line of ink along the foot, only once it has started. */
+.progress {
+  position: absolute;
+  z-index: 3;
+  inset-inline: 0;
+  inset-block-end: 0;
+  block-size: 2px;
+  background: var(--app-ink);
+  transform-origin: left;
+  transform: scaleX(0);
+  pointer-events: none;
+}
+
+.card:not([data-started]) .progress {
+  display: none;
+}
+
+.words {
+  margin: var(--glacier-space-1) 0 0;
+  color: var(--app-ink-3);
+  font-size: var(--glacier-font-size-sm);
+}
+
+.words:empty {
+  display: none;
+}
+
+/* Full screen: a layer of the page, since the WebView's own full screen is refused by the generated client. */
+.layer {
+  --film-ground: oklch(0 0 0);
+  --film-mark: oklch(1 0 0);
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  background: var(--film-ground);
+  animation: layerIn var(--glacier-duration-fast) var(--glacier-ease-out);
+}
+
+@keyframes layerIn {
+  from {
+    opacity: 0;
+  }
+}
+
+.layer .film {
+  position: static;
+  max-inline-size: 100%;
+  max-block-size: 100%;
+}
+
+.close {
+  position: absolute;
+  inset-block-start: calc(var(--app-inset-top, 0px) + var(--glacier-space-3));
+  inset-inline-end: calc(var(--app-safe-right, 0px) + var(--glacier-space-3));
+  display: grid;
+  place-items: center;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--glacier-radius-full);
+  background: transparent;
+  color: var(--film-mark);
+  cursor: pointer;
+}
+
+.layer .progress {
+  display: block;
+  inset-block-end: var(--app-safe-bottom, 0px);
+  background: var(--film-mark);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .layer {
+    animation: none;
+  }
+
+  .disc {
+    transition: none;
+  }
+}

@@ -40,6 +40,11 @@ export interface MapCardProps {
   /** The tag was just taken off: the card leaves on the same beat, then `onLeft` lets it go. */
   leave?: boolean;
   onLeft?: () => void;
+  /**
+   * The place's chip at the top of the card: on by default. A card under a place line in the words (editor/placeCards.ts)
+   * leaves it off, because the line above it already says the name.
+   */
+  where?: boolean;
   className?: string;
 }
 
@@ -91,7 +96,7 @@ function MapMark({ rough, lat, over }: { rough: boolean; lat: number; over: bool
 
 const WHY = { 'local-only': 'Local only is on.', off: 'Map off in Settings.' } as const;
 
-export function MapCard({ tag, mode, quietWhy, dark, onShow, arrive, leave, onLeft, className }: MapCardProps) {
+export function MapCard({ tag, mode, quietWhy, dark, onShow, arrive, leave, onLeft, where = true, className }: MapCardProps) {
   const mapEl = useRef<HTMLDivElement>(null);
   const [loaded, setLoaded] = useState(false);
   const { lat, lon, rough } = tag;
@@ -203,7 +208,7 @@ export function MapCard({ tag, mode, quietWhy, dark, onShow, arrive, leave, onLe
       </div>
       {mode === 'map' ? <div ref={mapEl} className={styles.map} aria-hidden="true" /> : null}
       {mode === 'map' ? <MapMark rough={rough} lat={lat} over /> : null}
-      <span className={`${styles.chip} ${styles.where}`}>{label}</span>
+      {where ? <span className={`${styles.chip} ${styles.where}`}>{label}</span> : null}
       {asks ? (
         <span className={`${styles.chip} ${styles.why} ${styles.show}`}>
           <svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true">

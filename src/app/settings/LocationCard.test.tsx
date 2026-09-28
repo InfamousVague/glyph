@@ -125,6 +125,7 @@ describe('the Location card', () => {
   it('greys tagging where no fix can be asked for, and says why', () => {
     for (const [why, words] of [
       ['mac', 'This Mac can’t say where it is yet.'],
+      ['ios', 'Ghost.md can’t find where you are on this device yet.'],
       ['none', 'This browser can’t say where you are.'],
       ['unavailable', 'Update Ghost.md to tag notes.'],
     ] as const) {

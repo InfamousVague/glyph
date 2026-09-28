@@ -60,10 +60,11 @@ export function openOnPress(view: EditorView, element: HTMLElement, at: number):
 
 /**
  * Whether a press landed on a drawn block that answers a press itself - a board (editor/boards.ts), whose card is
- * picked up or opens its own menu, or a mermaid diagram (editor/mermaid.ts) - rather than on a line of text, which
+ * picked up or opens its own menu, a mermaid diagram (editor/mermaid.ts), a place's map card (editor/placeCards.ts),
+ * which opens the maps app, or a film's card (editor/videos.ts), which plays it - rather than on a line of text, which
  * the note's own press-and-hold menu (editor/pressAndHold.ts) is about. A table and a canvas's frame are not asked
  * about: a press on them is the note's.
  */
 export function isDrawnBlock(target: EventTarget | null): boolean {
-  return target instanceof Element && target.closest('.cm-board, .cm-boardWrap, .cm-mermaid') !== null;
+  return target instanceof Element && target.closest('.cm-board, .cm-boardWrap, .cm-mermaid, .cm-placeCard, .cm-videoCard') !== null;
 }

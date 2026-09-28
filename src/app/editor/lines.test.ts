@@ -1,6 +1,6 @@
 import { EditorSelection, EditorState, Text } from '@codemirror/state';
 import { describe, expect, it } from 'vitest';
-import { forEachLineOutsideFences, selectedLines } from './lines.ts';
+import { forEachLineOutsideFences, inFence, selectedLines } from './lines.ts';
 
 describe('the lines outside fenced code', () => {
   const read = (text: string) => {
@@ -8,6 +8,13 @@ describe('the lines outside fenced code', () => {
     forEachLineOutsideFences(Text.of(text.split('\n')), (line) => seen.push(line.text));
     return seen;
   };
+
+  it('agree with the one line asked about', () => {
+    const text = 'one\n```\n# not a heading\n```\ntwo\n~~~\n```\n~~~\nthree';
+    const doc = Text.of(text.split('\n'));
+    const outside = read(text);
+    for (let n = 1; n <= doc.lines; n += 1) expect(inFence(doc, n), `line ${n}`).toBe(!outside.includes(doc.line(n).text));
+  });
 
   it('skips a fence and everything in it, whichever marker it is written with', () => {
     expect(read('one\n```\n# not a heading\n```\ntwo\n~~~\n- [ ] not a box\n~~~\nthree')).toEqual(['one', 'two', 'three']);

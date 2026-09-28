@@ -29,6 +29,16 @@ describe('a note as the model sees it', () => {
     expect(restore(answer, true)).toBe(`${answer}\n`);
   });
 
+  it('keeps a place whole through the model, its coordinates never shown to it, and lets a summary leave it out', () => {
+    const place = '[Cais do Sodré, Lisbon](geo:38.7057,-9.1446)';
+    const { prompt, restore } = prepareNote(`# Lisbon\n\nLunch\n\n${place}\n`, 'format');
+    expect(prompt).toContain('![place-1](place)');
+    expect(prompt).not.toContain('geo:');
+    expect(restore('# Lisbon\n\nLunch by the river.\n\n![place-1](place)\n', true)).toBe(`# Lisbon\n\nLunch by the river.\n\n${place}\n`);
+    expect(restore('# Lisbon\n\nLunch by the river.\n', true)).toBe(`# Lisbon\n\nLunch by the river.\n\n${place}\n`);
+    expect(prepareNote(`# Lisbon\n\n${place}\n`, 'summarize').restore('# Lisbon\n\nA lunch.\n', true)).toBe('# Lisbon\n\nA lunch.\n');
+  });
+
   it('keeps a table whole through the model', () => {
     const table = '| a | b |\n| - | - |\n| 1 | 2 |';
     const { prompt, restore } = prepareNote(`# T\n\n${table}\n`, 'format');

@@ -41,6 +41,17 @@ export function forEachLineOutsideFences(doc: Text, visit: (line: Line) => void)
   }
 }
 
+/** Whether line `number` of `doc` is fenced code, or a fence's own line: the lines `forEachLineOutsideFences` skips. */
+export function inFence(doc: Text, number: number): boolean {
+  let fence: string | null = null;
+  for (let n = 1; n <= Math.min(number, doc.lines); n += 1) {
+    const marker = FENCE.exec(doc.line(n).text)?.[1];
+    if (n === number) return fence !== null || marker !== undefined;
+    if (marker) fence = fence === null ? marker : fence === marker ? null : fence;
+  }
+  return false;
+}
+
 /** The numbers of the lines the selection touches, every range and every line between its ends. */
 export function selectedLines(state: EditorState): Set<number> {
   const lines = new Set<number>();

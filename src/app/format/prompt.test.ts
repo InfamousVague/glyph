@@ -87,6 +87,18 @@ describe('the prompts', () => {
     expect(new Set([SYSTEM_PROMPT, SUMMARIZE_PROMPT, ENHANCE_PROMPT]).size).toBe(3);
   });
 
+  it('tells every prompt that knows the table’s token of the place’s and the video’s too', () => {
+    const told = [SYSTEM_PROMPT, SUMMARIZE_PROMPT, ENHANCE_PROMPT].filter((prompt) => prompt.includes('![table-1](table)'));
+    expect(told).toHaveLength(3);
+    for (const prompt of told) {
+      expect(prompt).toContain('![place-1](place)');
+      expect(prompt).toContain('![video-1](video)');
+    }
+    // A summary may leave one out; the others copy it where it was.
+    expect(SUMMARIZE_PROMPT).toContain('leave it out of the summary, or copy the line exactly if it is the point of the note');
+    expect(SYSTEM_PROMPT).toMatch(/!\[video-1\]\(video\): copied exactly, on its own line, where it was\. Never describe it\./);
+  });
+
   it('gives a summary less room than the note and an enhancement more', () => {
     const chars = 2000; // about 500 tokens
     expect(budgetFor('format', chars)).toBe(outputBudget(chars));

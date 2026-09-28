@@ -80,3 +80,24 @@ describe('where a shared page was written', () => {
     }
   });
 });
+
+describe('a film on a shared page', () => {
+  const FILM = '[![video 0:12](image/p1.jpg)](video/f1.mp4)';
+  const read = (body: string) => {
+    vi.mocked(readShared).mockResolvedValueOnce({ v: 1, kind: 'note', title: 'A walk', pages: [{ title: 'A walk', body }], at: 1 });
+    history.replaceState(null, '', `/read.html#${'a'.repeat(22)}.${'b'.repeat(43)}`);
+    show(<Reader />);
+  };
+
+  it('is its still, and tells the reader only a still is shared', async () => {
+    read(`# A walk\n\n${FILM}\n`);
+    await waitUntil(() => expect(document.querySelector<HTMLElement>('.cm-videoCard')?.dataset.mode).toBe('shared'));
+    expect(document.querySelector('.cm-videoCard')?.textContent).toContain('Only a still from it is shared.');
+  });
+
+  it('on a card of a shared canvas says the same', async () => {
+    const canvas = { nodes: [{ id: 'a', type: 'text', text: FILM, x: 0, y: 0, width: 320, height: 240 }], edges: [] };
+    read(`---\ntitle: "A walk"\n---\n${JSON.stringify(canvas, null, 2)}\n`);
+    await waitUntil(() => expect(document.querySelector<HTMLElement>('.cm-videoCard')?.dataset.mode).toBe('shared'));
+  });
+});

@@ -1,7 +1,10 @@
 import { RangeSetBuilder, StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet } from '@codemirror/view';
+import { isolateHistory } from '@codemirror/commands';
 import { failureText } from '../core/failure.ts';
 import { IMAGE_READY, IMAGE_REF, imageMarkdown, imageUrl, saveImageFile } from '../core/images.ts';
+import { videoOfLine } from '../core/videoRefs.ts';
+import { insertSpots, markSpot, ownLinePlan, releaseSpot, reserveSpot, spotAt } from './inserts.ts';
 import styles from './markdown.module.css';
 
 /**
@@ -56,10 +59,15 @@ class ImageWidget extends WidgetType {
 const refreshImages = StateEffect.define<null>();
 let generation = 0;
 
+/**
+ * A picture under each line that holds one. A film's line holds its poster as a picture, and its card draws that
+ * poster (editor/videos.ts), so the picture steps aside there rather than drawing it twice.
+ */
 function decorate(state: EditorState): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   for (let n = 1; n <= state.doc.lines; n += 1) {
     const line = state.doc.line(n);
+    if (videoOfLine(line.text)) continue;
     for (const match of line.text.matchAll(IMAGE_REF)) {
       const name = match[2] ?? '';
       if (!name) continue;
@@ -96,50 +104,24 @@ const imageReady = ViewPlugin.fromClass(
 );
 
 /**
- * Where pictures still being saved will go, kept in step with every edit made
- * meanwhile. Saving takes a moment (shrinking, then a trip to Rust), and on
- * Android the caret can move under it - the paste bubble closing moved it into
- * another line on the emulator - so the place is taken when the paste or the
- * pick happens, not when the picture is ready.
+ * Where pictures still being saved will go is kept by editor/inserts.ts, which keeps the place of every write that
+ * comes late (a place from the + too); these are its names as the pictures' callers know them.
  */
-const markSpot = StateEffect.define<{ id: number; pos: number }>();
-const clearSpot = StateEffect.define<number>();
-const spots = StateField.define<Map<number, number>>({
-  create: () => new Map(),
-  update(value, tr) {
-    let next = value;
-    if (tr.docChanged && value.size) {
-      next = new Map([...value].map(([id, pos]) => [id, tr.changes.mapPos(pos, 1)]));
-    }
-    for (const effect of tr.effects) {
-      if (effect.is(markSpot)) next = new Map(next).set(effect.value.id, effect.value.pos);
-      else if (effect.is(clearSpot)) {
-        next = new Map(next);
-        next.delete(effect.value);
-      }
-    }
-    return next;
-  },
-});
-let spotIds = 0;
 
 /** Remembers the caret now, for a picture that will arrive later. Answers a handle for `insertImageAt`. */
 export function reserveImageSpot(view: EditorView): number {
-  const id = (spotIds += 1);
-  view.dispatch({ effects: markSpot.of({ id, pos: view.state.selection.main.head }) });
-  return id;
+  return reserveSpot(view);
 }
 
 /** Puts a picture where `reserveImageSpot` was called, however the note changed since. */
 export function insertImageAt(view: EditorView, spot: number, name: string): void {
-  const pos = view.state.field(spots).get(spot) ?? view.state.selection.main.head;
-  insertImage(view, name, pos);
-  view.dispatch({ effects: clearSpot.of(spot) });
+  insertImage(view, name, spotAt(view, spot) ?? view.state.selection.main.head);
+  releaseSpot(view, spot);
 }
 
 /** Forgets a reserved place, when the picture never came. */
 export function releaseImageSpot(view: EditorView, spot: number): void {
-  view.dispatch({ effects: clearSpot.of(spot) });
+  releaseSpot(view, spot);
 }
 
 /**
@@ -183,25 +165,19 @@ function pasteImages(onError: (message: string) => void): Extension {
 
 /** Pictures in the editor: shown under their lines, and pasted in from the clipboard. */
 export function inlineImages(onImageError: (message: string) => void = () => undefined): Extension {
-  return [imageField, imageReady, spots, pasteImages(onImageError)];
+  return [imageField, imageReady, insertSpots, pasteImages(onImageError)];
 }
 
 /**
- * Puts a picture into the note on a line of its own, under the line holding
- * `at` (the caret by default), and leaves the caret on the line after it so
- * typing carries on below the picture. A line is never split: a caret in the
- * middle of a sentence - or of another picture's markdown - puts the picture
- * after that whole line. On an empty line it takes the line.
+ * Puts a picture into the note on a line of its own at the line holding `at` (the caret by default), and leaves the
+ * caret on the line after it so typing carries on below the picture: editor/inserts.ts's rule for a thing drawn on
+ * a line of its own. A line is never split: a caret in the middle of a sentence - or of another picture's markdown -
+ * puts the picture after that whole line. A line with nothing on it but a lead gives way, and a blank line keeps the
+ * picture out of a list, a quote or a table above it; before that rule, a picture added under an empty to-do was the
+ * to-do's words.
  */
 export function insertImage(view: EditorView, name: string, at = view.state.selection.main.head): void {
-  const line = view.state.doc.lineAt(Math.min(at, view.state.doc.length));
-  const empty = !line.text.trim();
-  const from = empty ? line.from : line.to;
-  const text = `${empty ? '' : '\n'}${imageMarkdown(name)}\n`;
-  view.dispatch({
-    changes: { from, to: empty ? line.to : line.to, insert: text },
-    selection: { anchor: from + text.length },
-    scrollIntoView: true,
-  });
+  const plan = ownLinePlan(view.state, at, imageMarkdown(name));
+  view.dispatch({ changes: plan.changes, selection: plan.selection, scrollIntoView: true, annotations: isolateHistory.of('full') });
   view.focus();
 }

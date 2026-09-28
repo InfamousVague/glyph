@@ -37,6 +37,20 @@ app" goes to the download page. The share service lets the page read it from the
   old to take the update) re-seals a tagged note's share with its whole body when the words change. So the pages that
   strip the tag go out, and every device is restarted or reloaded, before a shared note is tagged; a format gate on
   the share service (a newer page's version refusing an older page's write) is the lasting answer, not built yet.
+- **The places written in the words** (`[Cais do Sodré, Lisbon](geo:38.7057,-9.1446)`, the + beside the line's A
+  place, core/placeRefs.ts, DESIGN §141) have a switch of their own, "Share the places in it" (`places: true` on the
+  kept share), shown only when the pages hold one. Until it is ticked every `geo:` address leaves every page, however
+  it is written (`withoutPlaces`): a line whose words are only places goes whole, with one blank line kept where it
+  stood between two; a place inside other words keeps its words and loses its address; an autolink `<geo:…>` goes; a
+  reference definition `[c]: geo:…` goes and its references keep their words. In fenced and inline code too, since
+  the switch promises that none leaves. `geo:` written as plain words is words, and the tag in the front matter is the
+  other switch's. A switch of its own rather than the tag's widened, because a tick given for where a note was written
+  would otherwise seal every place added later, in every chapter of a shared book. The Copy the link hint says in one
+  sentence what the link carries of each. The synced settings keep `places`; an older device's page drops the field
+  when it rewrites the settings, which fails closed. The caveat above holds here more widely: a page from before this
+  seals inline places whatever the ticks say, because it never stripped them, so every device is updated before a
+  shared note gets a place. A share whose pages hold no `geo:` address is sent exactly as before, and its digest is
+  unchanged.
 - **A book** is its index first, then every chapter that has a note, in the index's order. A chapter with no note
   yet is left out, and the reader shows it as "not written yet".
 - **The pictures the pages show** travel in the share (`withPictures`): a reader has no account to fetch them from. A
@@ -47,6 +61,9 @@ app" goes to the download page. The share service lets the page read it from the
   at 1024 px as a reading copy, else as many as fit in the order the pages show them. A picture the sharing device
   doesn't have is left out. Names are checked on opening, so a share cannot name a picture outside the store. A share
   whose words alone pass the limit is refused with a sentence saying so.
+- **A film's poster** travels as one of those pictures, and the film never does: its line stays in the words, and the
+  reader draws the still with "A video of 0:12. Only a still from it is shared." (`src/app/editor/videos.ts`,
+  docs/DESIGN.md §141).
 
 ## Following edits
 
@@ -56,7 +73,8 @@ keeps it up to date and can stop it. A device that kept its own list in `glyph-s
 folds it in once. `followShares` listens for notes saved here and notes changed by sync, and, three seconds after the
 last save, re-seals every share whose contents changed (a book's share changes when any of its chapters does) and
 sends it again, and does the same once a few seconds after launch. The digest is of what is sent, so ticking or
-unticking "Share where it was written" changes it, and the share goes again with or without the location. A share
+unticking "Share where it was written" or "Share the places in it" changes it, and the share goes again with or
+without the location or the places. A share
 never changes its link. A share also remembers which of its pictures this device lacked when it was sent (`lacked`),
 and goes again once one of them is here - a picture that arrives by sync changes no page, so the digest alone would
 never notice. Only those names are looked for, so a picture left out for room is not. Every share sent before this

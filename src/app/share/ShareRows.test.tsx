@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createNote } from '../core/store.ts';
-import { buttonSaying, show } from '../../test/render.tsx';
+import { buttonSaying, show, unmount } from '../../test/render.tsx';
 
 /**
  * A note's sharing, in its cog: signed out, only where to sign in; signed in, a link made, copied and stopped, with
@@ -21,6 +21,9 @@ const shares = vi.hoisted(() => {
     /** The notes whose share carries where it was written, and the notes with a place to carry. */
     withPlace: new Set<string>(),
     placed: new Set<string>(),
+    /** The notes whose share carries the places in their words, and the notes whose words hold one. */
+    withPlaces: new Set<string>(),
+    inWords: new Set<string>(),
     fail: null as Error | null,
     told,
     onShares: (listener: () => void) => {
@@ -50,10 +53,17 @@ vi.mock('./share.ts', () => ({
     else shares.withPlace.delete(id);
     shares.told();
   }),
+  sharesPlaces: (note: { id: string }) => shares.inWords.has(note.id),
+  sharingPlaces: (id: string) => shares.withPlaces.has(id),
+  shareWithPlaces: vi.fn(async (id: string, on: boolean) => {
+    if (on) shares.withPlaces.add(id);
+    else shares.withPlaces.delete(id);
+    shares.told();
+  }),
 }));
 
 const { ShareRows } = await import('./ShareRows.tsx');
-const { shareNote, shareWithPlace, stopSharing } = await import('./share.ts');
+const { shareNote, shareWithPlace, shareWithPlaces, stopSharing } = await import('./share.ts');
 
 const copied: string[] = [];
 beforeEach(() => {
@@ -62,6 +72,8 @@ beforeEach(() => {
   shares.links.clear();
   shares.withPlace.clear();
   shares.placed.clear();
+  shares.withPlaces.clear();
+  shares.inWords.clear();
   shares.fail = null;
   copied.length = 0;
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text: string) => void copied.push(text) } });
@@ -135,6 +147,60 @@ describe('where a shared note was written', () => {
     await act(async () => row('Share a read-only link')!.click());
     await act(async () => Promise.resolve());
     expect(row('Share where it was written')).toBeUndefined();
+    expect(row('Share the places in it')).toBeUndefined();
     expect(row('Copy the link')?.textContent).not.toContain('stays out');
+  });
+});
+
+describe('the places written in a shared note', () => {
+  const shared = async (id: string, { tag, places }: { tag: boolean; places: boolean }) => {
+    await createNote(id, '# Lisbon');
+    if (tag) shares.placed.add(id);
+    if (places) shares.inWords.add(id);
+    shares.links.set(id, 'https://attack.fm/glyph/read.html#kept');
+    show(<ShareRows noteId={id} />);
+    await act(async () => Promise.resolve());
+    await act(async () => Promise.resolve());
+  };
+  const hint = () => row('Copy the link')!.textContent!.replace('Copy the linkShared, read-only. Your edits reach readers a few seconds after you save.', '').trim();
+
+  it('offers their own row only where the words hold one, and leaves the tag’s row word for word', async () => {
+    await shared('a', { tag: true, places: false });
+    expect(row('Share where it was written')?.textContent).toBe('Share where it was writtenThe place and the map, on the shared page.');
+    expect(row('Share the places in it')).toBeUndefined();
+    expect(hint()).toBe('Where it was written stays out of the link.');
+  });
+
+  it('ticks the places apart from the tag', async () => {
+    await shared('b', { tag: false, places: true });
+    const places = row('Share the places in it')!;
+    expect(places.textContent).toBe('Share the places in itThe places written in it, and their maps.');
+    expect(places.getAttribute('aria-pressed')).toBe('false');
+    await act(async () => places.click());
+    expect(shareWithPlaces).toHaveBeenCalledWith('b', true);
+    expect(shareWithPlace).not.toHaveBeenCalledWith('b', expect.anything());
+    expect(row('Share the places in it')?.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('says in the link’s hint exactly what the link carries, one sentence for what the pages hold', async () => {
+    const cases: [boolean, boolean, boolean, boolean, string][] = [
+      // tag held, places held, tag ticked, places ticked
+      [true, false, true, false, 'The link carries where it was written.'],
+      [true, false, false, false, 'Where it was written stays out of the link.'],
+      [false, true, false, true, 'The link carries the places in it.'],
+      [false, true, false, false, 'The places in it stay out of the link.'],
+      [true, true, true, true, 'The link carries where it was written and the places in it.'],
+      [true, true, false, true, 'The link carries the places in it. Where it was written stays out.'],
+      [true, true, true, false, 'The link carries where it was written. The places in it stay out.'],
+      [true, true, false, false, 'Where it was written and the places in it stay out of the link.'],
+    ];
+    for (const [index, [tag, places, withTag, withPlaces, words]] of cases.entries()) {
+      const id = `c${index}`;
+      if (withTag) shares.withPlace.add(id);
+      if (withPlaces) shares.withPlaces.add(id);
+      await shared(id, { tag, places });
+      expect(hint(), words).toBe(words);
+      unmount();
+    }
   });
 });

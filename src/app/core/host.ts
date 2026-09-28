@@ -23,6 +23,12 @@ interface GlyphInbound {
   alerts?: Handler;
   /** A picked picture, as JSON: `{ path }`, `{ cancelled: true }` or `{ error }` (core/images.ts). */
   image?: (json: string) => void;
+  /**
+   * A picked film, as JSON (native generation 21): `{ copying: true }` once one is chosen, then `{ path, poster, ms,
+   * width, height }`, `{ cancelled: true }` or `{ error }` (core/videos.ts). Its own event, never `image`'s, whose one
+   * pending pick it must not answer.
+   */
+  video?: (json: string) => void;
   /** The back gesture: true if the page used it, false at the root (core/back.ts). */
   back?: () => boolean;
   /** The hinge angle in degrees, 0 closed to 180 flat, as it changes on a folding phone (core/unfold.ts). */
@@ -70,6 +76,11 @@ interface GlyphHostBridge {
   // Pictures (native generation 8). Optional for the same reason.
   /** Open the phone's picture picker; "started", or why not. The picture arrives as an `image` event. */
   pickImage?(): string;
+  /**
+   * Open the Photo Picker for a film (native generation 21, docs/DESIGN.md §141, media/VideoPick.kt); "started". The
+   * film, copied with its poster, arrives as a `video` event, and so does a phone with no picker, as `{ error }`.
+   */
+  pickVideo?(): string;
   // The side key to stop (native generation 12). Optional for the same reason.
   /** A recording started or ended: keeps the screen on, and reports it going off as `screenOff`. */
   setCapturing?(on: boolean): void;

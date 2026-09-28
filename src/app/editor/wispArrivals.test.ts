@@ -106,6 +106,15 @@ describe('text arriving from smoke in the editor', () => {
     expect(moving(box.update({ changes: { from: 3, to: 4, insert: ' ' }, userEvent: 'input.board' }).state)).toEqual([]);
   });
 
+  it('sets nothing from the + beside the line in motion: what it adds is there at once, and the lead it replaces just goes', () => {
+    const item = EditorState.create({ doc: 'Lunch\n- [ ] ', extensions: [wispArrivals({ typing: true })] });
+    const replace = { from: 6, to: 12, insert: '![](image/x.jpg)\n' };
+    // The same change typed would smoke the box away; the + drawing a picture over an empty to-do does not.
+    expect(moving(item.update({ changes: replace, userEvent: 'input.type' }).state).map((m) => m.gone)).toEqual(['- [ ] ']);
+    expect(moving(item.update({ changes: replace, userEvent: 'input.plus.drawn' }).state)).toEqual([]);
+    expect(moving(item.update({ changes: { from: 12, insert: '28 Sep 2026, 14:05' }, userEvent: 'input.plus' }).state)).toEqual([]);
+  });
+
   it('reveals a note already there a few words at a time, in order, blank lines aside', () => {
     const opened = EditorState.create({ doc: '# Title\n\n  - a list item  \na paragraph long enough to break into more than one piece', extensions: [wispArrivals({ typing: true })] });
     const revealed = opened.update({ effects: revealWisp.of({ from: 0, to: opened.doc.length }) }).state;

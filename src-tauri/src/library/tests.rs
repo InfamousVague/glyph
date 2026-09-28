@@ -149,6 +149,19 @@ fn the_index_is_only_a_cache() {
     assert!(!library.image_in_use("other.jpg").unwrap());
 }
 
+#[test]
+fn a_film_is_in_use_while_a_note_names_it_and_only_as_a_film() {
+    let root = TempDir::new("library-films");
+    let mut library = Library::open_fs(&root).unwrap();
+    library.save_note("v", "# Harbour\n\n[![video 0:12](image/p1.jpg)](video/f1.mp4)\n", "editor").unwrap();
+    assert!(library.video_in_use("f1.mp4").unwrap());
+    assert!(library.image_in_use("p1.jpg").unwrap(), "the poster is an ordinary picture");
+    assert!(!library.video_in_use("p1.jpg").unwrap(), "a picture's name is not a film's");
+    assert!(!library.video_in_use("f2.mp4").unwrap());
+    // `_` and `%` are wildcards to LIKE, and nothing to instr.
+    assert!(!library.video_in_use("f_.mp4").unwrap());
+}
+
 /// Two handles are opened in one process now: the app's, and a meeting's
 /// write-up on its own thread. After a version bump both find the old number
 /// at once; `index::open` takes a process-wide lock round the rebuild so the

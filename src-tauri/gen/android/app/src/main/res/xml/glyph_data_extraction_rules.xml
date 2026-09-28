@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Google's backup and a move to a new phone, on Android 12 and later (AndroidManifest.xml,
+  android:dataExtractionRules). The cloud takes everything the app keeps as before, but for the films in notes:
+  video/ under the data directory (src-tauri/src/videos.rs), which stays on the phone it was added on, and would take
+  the app past its 25 MB quota. Nothing is named for a move by cable, so it is meant to take everything, films
+  included; whether Smart Switch honours these rules has not been tried. src-tauri/src/paths.rs reads this file, so
+  the folder cannot be renamed on one side alone.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="video/" />
+    </cloud-backup>
+    <!-- With nothing named, a move takes everything, as it did before these rules. -->
+    <device-transfer />
+</data-extraction-rules>

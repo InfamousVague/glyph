@@ -4,6 +4,7 @@ import { bodyHash } from './bodyHash.ts';
 import { protectLinks, restoreLinks } from './links.ts';
 import type { Mode } from './modes.ts';
 import { protectTables, restoreTables } from './tables.ts';
+import { protectEmbeds, restoreEmbeds } from './embeds.ts';
 
 /**
  * A note as the model should see it, and the way back.
@@ -14,9 +15,9 @@ import { protectTables, restoreTables } from './tables.ts';
  * has since chosen one pass by the chosen model, landing in the note itself
  * as it is written (ai/runs.ts, ai/useLanding.ts), and the queue went with
  * the view that showed its text. What stayed is the preparation every run
- * shares: the tidy-up before the model (clean.ts), tables and links swapped
- * for tokens it can copy and put back after (tables.ts, links.ts), and the
- * hash of the body a run was written from.
+ * shares: the tidy-up before the model (clean.ts), places and videos, tables
+ * and links swapped for tokens it can copy and put back after (embeds.ts,
+ * tables.ts, links.ts), and the hash of the body a run was written from.
  */
 
 /**
@@ -54,9 +55,12 @@ function tidy(text: string): string {
  * they land.
  */
 export function prepareNote(body: string, mode: Mode): { prompt: string; restore: (text: string, final: boolean) => string } {
-  const { text: withoutTables, tables } = protectTables(cleanNote(body));
+  // Places and videos first (embeds.ts): a line that is one is swapped whole, before a table or a link can take part of it.
+  const { text: withoutEmbeds, embeds } = protectEmbeds(cleanNote(body));
+  const { text: withoutTables, tables } = protectTables(withoutEmbeds);
   const { text: prompt, links } = protectLinks(withoutTables);
-  const put = (text: string, final: boolean) => restoreTables(restoreLinks(text, links, final), tables, final, mode !== 'summarize');
+  const keepAll = mode !== 'summarize';
+  const put = (text: string, final: boolean) => restoreEmbeds(restoreTables(restoreLinks(text, links, final), tables, final, keepAll), embeds, final, keepAll);
   return {
     prompt,
     restore: (text, final) => (final ? tidy(cleanRewrite(put(tidy(text), true))) : put(text, false)),
