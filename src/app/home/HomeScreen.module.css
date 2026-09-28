@@ -92,18 +92,13 @@
 
 /*
  * A group: its heading row, then its cards. Air between groups is the page's white space (Matt: "no solid
- * organization and use of white space"): space-8, and space-10 in the 60rem column, where the groups are wider than
- * they are tall. The first group sits under whatever the head ends with, which leaves its own space-5. Before this,
- * one space-6 stood between five groups under five whispered labels, and the eye had nowhere to start.
+ * organization and use of white space"): space-8 on a phone, and space-10 on the wider screens, where the groups are
+ * wider than they are tall ("The page laid out wide", at the end). The first group sits under whatever the head ends
+ * with, which leaves its own space-5. Before this, one space-6 stood between five groups under five whispered labels,
+ * and the eye had nowhere to start.
  */
 .section + .section {
   margin-block-start: var(--glacier-space-8);
-}
-
-@container home-page (min-width: 44rem) {
-  .section + .section {
-    margin-block-start: var(--glacier-space-10);
-  }
 }
 
 /* A digest phrase glides here: the heading lands under the glass bar, not behind it. */
@@ -126,10 +121,12 @@
  * with thirteen tapes: "See all" sat at x 334-390 under a dock at x 335-394, hidden on the first screen and whenever
  * its heading scrolled through the dock's band; at 1280 with the sidebar docked "Show all" ended 49px under it. The
  * dock reaches past the page's gutter by its ring, its two paddings and its inset less the gutter (55px at 412), and
- * crosses the 60rem column until the pane is wider than the column by twice that (~1115px), so the line is the pane's
- * width, not the column's: 70rem. Under it the row keeps that reach at its end, and a step of air.
+ * crosses the column until the pane is wider than the column by twice the dock's whole width and inset: with the
+ * column capped at 80rem (`.page`) that is a pane of ~1469px, 91.8rem, so the line is the pane's width, not the
+ * column's: 92rem (it was 70rem, over the 60rem column). Under it the row keeps that reach at its end, and a step of
+ * air.
  */
-@container home-pane (max-width: 70rem) {
+@container home-pane (max-width: 92rem) {
   .groupRow {
     padding-inline-end: calc(var(--app-ring) + var(--glacier-space-2) * 2 + var(--glacier-space-4) - var(--app-gutter) + var(--glacier-space-3));
   }
@@ -219,37 +216,6 @@
  */
 .empty > .emptyArt[data-size] {
   inline-size: min(100%, 36rem, calc(38dvh * var(--ghost-ratio, 1)));
-}
-
-/*
- * On a page wide enough, the ghost and its words sit side by side. At the ghost's full size (Matt: "the graphics are
- * too small they should take up at least 4x more space") a stack put "A blank page." at the foot of a laptop screen,
- * under the foot's smoke; beside the ghost the words are at its middle, where they are read.
- */
-@container home-page (min-width: 44rem) {
-  .empty {
-    display: grid;
-    /* Set proportions rather than an auto column: the ghost fills its column's width, and a width of 100% needs a
-       column whose size does not depend on the ghost. */
-    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-    grid-template-rows: auto auto;
-    column-gap: var(--glacier-space-6);
-    align-content: center;
-  }
-
-  .empty > .emptyArt[data-size] {
-    grid-row: 1 / span 2;
-    margin-block-end: 0;
-    inline-size: min(100%, 36rem, calc(45dvh * var(--ghost-ratio, 1)));
-  }
-
-  .emptyLead {
-    align-self: end;
-  }
-
-  .emptyHint {
-    align-self: start;
-  }
 }
 
 .emptyLead {
@@ -396,13 +362,17 @@
 
 
 /*
- * One column a reader's width, in the middle of a wide window: on a desktop the page ran the whole window across, and
- * a card or a notice two thousand pixels wide reads as a banner rather than as something to pick up.
+ * One column in the middle of a wide window: on a desktop the page ran the whole window across, and a card or a
+ * notice two thousand pixels wide reads as a banner rather than as something to pick up. 80rem, room for a main and
+ * its rail ("The page laid out wide", at the end), where it was 60rem, one phone column stretched: the cards sit on
+ * the page's units, and the notices and the head's lines are held to the first of them or to the main, so nothing is
+ * a banner at this width either. Past the desk's line (66rem), or there could be no desk.
  */
 .page {
-  max-inline-size: 60rem;
+  max-inline-size: 80rem;
   margin-inline: auto;
-  /* Measured by the empty state, which lays its ghost beside its words when the page is wide (`.empty`). */
+  /* Measured by the page's grid, which lays the groups out by the column's width (`.grid`), and by the shelf's row
+     (TapeShelf.module.css). No padding and no border, so this box is the width home/useColumnTier.ts reads as well. */
   container: home-page / inline-size;
 }
 
@@ -476,8 +446,10 @@
  * drawn small (notes/NotePeek.tsx), as the sidebar has them. One to a row on a phone held upright, where a card must
  * be big enough to read (Matt: "... on small displays like standard phone portrait view we may only see one note per
  * row while unfolded may see 3-4"): under the app's 600px line (core/useWideScreen.ts). Wider, as many as fit a card
- * 12rem across: two at 600px, three at 750, four from about 870 and in the page's 60rem column - three or four on the
- * Fold opened out.
+ * 12rem across: two at 600px, three at 750 (§121). That is All notes' grid at every width, and the home page's while
+ * its column is under 44rem; past that, the home page's groups lay their cards on the page's units instead (`.section
+ * .cards` in "The page laid out wide", at the end), two across, which Matt allowed: "the four column was a suggestion
+ * not a rule".
  */
 .cards {
   list-style: none;
@@ -503,8 +475,9 @@
  * The To do card: every open to-do in one card on the note card's ground (notes/NoteCard.module.css .card), written
  * out since this one is a column of rows and not a button. Second on the page, with the pinned cards' beats before
  * it. The rows were eight hairlined lines at the page's foot; here they are rows in a card, with air and no rules.
- * Measured in Chromium (docs/DESIGN.md §132): five two-line rows make a card 283px tall at 412px, 201px in two
- * columns at the opened Fold's 1432px pane, and the whole card is on the cover screen's first screen under a pinned card.
+ * Measured in Chromium (docs/DESIGN.md §132, §137): five two-line rows make a card 283px tall at 412px, and the whole
+ * card is on the cover screen's first screen under a pinned card; at the opened Fold's 880 it is 296px in the second
+ * unit, or 188px in two columns across the page, and in the rail of a 1280px desk eight rows make it 476px.
  * No wash on hover, unlike a note card or a tape card: nothing on it opens as a whole, only its rows.
  */
 .todo {
@@ -529,14 +502,6 @@
   padding: 0;
   display: grid;
   gap: var(--glacier-space-3);
-}
-
-/* In the 60rem column the rows lay in two columns: a card of five one-line rows across 900px is a list with a lot of nothing to its right. */
-@container home-page (min-width: 44rem) {
-  .tasks {
-    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
-    column-gap: var(--glacier-space-6);
-  }
 }
 
 .task {
@@ -638,6 +603,247 @@
   margin: 0;
   font-size: var(--glacier-font-size-md);
   color: var(--glacier-text-muted);
+}
+
+/*
+ * The page laid out wide (docs/DESIGN.md §137; Matt: "Extend the dashboard to support wide phone / tablet layouts
+ * too", and then: "It's okay if they're two across or the layout changes slightly on wide the four column was a
+ * suggestion not a rule"). The phone's column is the unit, and the page asks its own width, never the window's
+ * (home/tiers.ts, whose `LINES` are these numbers): a docked sidebar takes the first 300-380px of the window, and the
+ * one thing on the screen that reads the window is the dock (§92).
+ *
+ * - Under 44rem, the stack: nothing below applies, and a phone draws what it drew before, to the pixel. The wrappers
+ *   the page gained for this (`.grid`, `.head`, `.notices`) have no rules under the line and lay out as if absent,
+ *   since the margins collapse through them.
+ * - From 44rem, two units across (the Fold opened out, a tablet either way up, a desktop pane under ~1100px), with
+ *   space-10 between them, the gap the Fold's hinge runs down when it is flat and the sidebar is not docked beside it
+ *   ("the hinge in the gap", scene/AtWork.module.css). A single pinned card and To do side by side; every other group
+ *   across both, its cards two to a row on the units' columns.
+ * - From 66rem, a desk: a main two cards across and, beside it, a rail one card wide that holds To do.
+ *
+ * The groups keep their order, and each is placed in it, so what is seen is what is written. The rhythm is the groups'
+ * own margins, never a row gap, so an absent group leaves no gap of its own.
+ */
+@container home-page (min-width: 44rem) {
+  .grid {
+    display: grid;
+    column-gap: var(--glacier-space-10);
+    align-items: start;
+  }
+
+  /* A group is as wide as its column, whatever it holds: a sideways row of tapes scrolls inside it rather than widening it. */
+  .grid > * {
+    min-inline-size: 0;
+  }
+
+  /* Every group, the empty page and the foot space-10 under what is above them. Heavier than the phone's `.section + .section`, and after it. */
+  .grid > .section,
+  .grid > .empty,
+  .grid > .allNotes {
+    margin-block-start: var(--glacier-space-10);
+  }
+
+  /*
+   * A grid's item keeps its last piece's margin inside it, so the head ends with the space-5 its last piece leaves,
+   * and gives the first row's space-10 back: the first group sits space-5 under the head, as on the phone. Only when a
+   * group or the empty page comes next: the loading page is the head and the foot, and the foot keeps its air.
+   */
+  .grid > .head:has(+ :is(.section, .empty)) {
+    margin-block-end: calc(-1 * var(--glacier-space-10));
+  }
+
+  /*
+   * Every heading row a word's height, whether or not a word ends it, so two groups side by side start their cards on
+   * one line. The heading never breaks: where its row is too short for it and its word (a unit or a rail narrower than
+   * the lines allow, at a large interface size), the word goes under it rather than "To do" over two lines.
+   */
+  .groupRow {
+    min-block-size: var(--glacier-space-8);
+    flex-wrap: wrap;
+  }
+
+  .group {
+    white-space: nowrap;
+  }
+
+  /* The home page's cards on the page's units, `--home-units` of them across (the tiers below say how many), rather than as many as fit 12rem. */
+  .section .cards {
+    grid-template-columns: repeat(var(--home-units, 1), minmax(0, 1fr));
+  }
+
+  /*
+   * To do's rows, a column for each unit the card is across: one in a unit or in the rail, two across the page, where
+   * five one-line rows in one column were a list with a lot of nothing to its right. The gap is the page's own, so
+   * across the page the first column of rows ends where the first unit does, and the hinge runs between the two. By
+   * the units and not by as many as fit 18rem, which at the top of two across (66rem) made three columns off the
+   * units' line, and in the smallest rail overflowed the card by 23px.
+   */
+  .tasks {
+    grid-template-columns: repeat(var(--home-units, 1), minmax(0, 1fr));
+    column-gap: var(--glacier-space-10);
+  }
+
+  /*
+   * The empty page: the ghost and its words side by side, on the page's own columns (the tiers below). At the ghost's
+   * full size (Matt: "the graphics are too small they should take up at least 4x more space") a stack put "A blank
+   * page." at the foot of a laptop screen, under the foot's smoke; beside the ghost the words are at its middle, where
+   * they are read. Set proportions rather than an auto column: the ghost fills its column's width, and a width of 100%
+   * needs a column whose size does not depend on the ghost.
+   */
+  .empty {
+    display: grid;
+    grid-template-rows: auto auto;
+    column-gap: var(--glacier-space-10);
+    align-content: center;
+  }
+
+  /* Against the gap, at its column's end: the ghost stops at 45% of the height, and at its column's start it left the words 515px off on a desk. */
+  .empty > .emptyArt[data-size] {
+    grid-row: 1 / span 2;
+    justify-self: end;
+    margin-block-end: 0;
+    inline-size: min(100%, 36rem, calc(45dvh * var(--ghost-ratio, 1)));
+  }
+
+  .emptyLead {
+    align-self: end;
+  }
+
+  .emptyHint {
+    align-self: start;
+  }
+}
+
+/*
+ * Two units across (44rem to under 66rem). Every group spans both, but for the pair: one pinned card and To do side
+ * by side, To do in the second unit, while there is exactly one pinned card and To do is not opened out
+ * (HomeScreen.tsx `paired`). Two pinned cards are a row of two of their own, and Show all spreads To do across the page
+ * under them; a tick down to what the card holds puts it back (HomeScreen.tsx holds its heading where it was on the
+ * screen, both ways). With no To do, the one pinned card keeps the first unit. Each of the pair has one unit's worth:
+ * one card across, one column of rows.
+ */
+@container home-page (44rem <= width < 66rem) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    --home-units: 2;
+  }
+
+  .grid > * {
+    grid-column: 1 / -1;
+  }
+
+  .grid[data-paired] > [data-group='pinned'] {
+    grid-column: 1;
+    --home-units: 1;
+  }
+
+  .grid[data-paired] > [data-group='tasks'] {
+    grid-column: 2;
+    --home-units: 1;
+  }
+
+  /* The cards' gap is the units' gap, so across both units the hinge runs between two cards. */
+  .section .cards {
+    column-gap: var(--glacier-space-10);
+  }
+
+  /* The date, the digest and the notices in the first unit, so no line of the head crosses the hinge. The pills still span: theirs is a row that scrolls sideways. */
+  .head > :is(.today, .digest, .notices) {
+    max-inline-size: calc((100% - var(--glacier-space-10)) / 2);
+  }
+
+  /* The empty page: the ghost in the first unit, its words in the second. */
+  .empty {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+/*
+ * A desk (66rem and up): a main two cards across and, beside it, a rail one card wide (1fr of 2fr is a card and half
+ * a gap) that holds To do, the page's one list of rows and the one group that grows tall. From 66rem, where the rail
+ * is 335px and more, room for To do's heading, its count and its word beside the dock's clearance (home/tiers.ts). Named areas, a row for each
+ * group in the main and a sixth, flexible, that the rail runs down as well: an item that spans a flexible row is left
+ * out of the other rows' sizing, so a rail taller than the main (Show all's forty) grows that row alone, and the air
+ * falls under Recent rather than between the groups. An absent group is an empty row with no height. With no Pinned,
+ * To do's top is level with the Tapes', and the rail is read first at its top, as a side column is.
+ */
+@container home-page (min-width: 66rem) {
+  .grid {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'head head'
+      'pinned tasks'
+      'tapes tasks'
+      'library tasks'
+      'recent tasks'
+      '. tasks'
+      'foot foot';
+    --home-units: 2;
+    --shelf-across: 3;
+  }
+
+  .grid > .head {
+    grid-area: head;
+  }
+
+  .grid > [data-group='pinned'] {
+    grid-area: pinned;
+  }
+
+  .grid > [data-group='tasks'] {
+    grid-area: tasks;
+    --home-units: 1;
+  }
+
+  .grid > [data-group='tapes'] {
+    grid-area: tapes;
+  }
+
+  .grid > [data-group='library'] {
+    grid-area: library;
+  }
+
+  .grid > [data-group='recent'] {
+    grid-area: recent;
+  }
+
+  .grid > .allNotes {
+    grid-area: foot;
+  }
+
+  .grid > .empty {
+    grid-row: 2 / 7;
+    grid-column: 1 / -1;
+  }
+
+  /*
+   * No To do at all, in a workspace that never had a to-do (one whose last is ticked keeps the card, with its ghost):
+   * one column, the cards three across and the tapes four, so every row at the page's counts is whole.
+   */
+  .grid:not(:has(> [data-group='tasks'])) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'head'
+      'pinned'
+      'tapes'
+      'library'
+      'recent'
+      '.'
+      'foot';
+    --home-units: 3;
+    --shelf-across: 4;
+  }
+
+  /* The date, the digest and the notices held to the main's width. */
+  .head > :is(.today, .digest, .notices) {
+    max-inline-size: calc((100% - var(--glacier-space-10)) * 2 / 3);
+  }
+
+  /* The empty page: the ghost where the main is, its words where the rail is. */
+  .empty {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

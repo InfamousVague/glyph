@@ -7031,3 +7031,332 @@ guide's title is answered as it is", guidebook.ts), so Matt's phone still has "C
 move's (SHAPE_5 wants `nameable` 'name'): older than this branch, and left for its own change.
 
 Cites: §38, §50, §126, §127 (Recording on the Mac), §130.
+
+## 137. The home page laid out wide: two across, then a main and a rail (2026-09-27)
+
+Matt: "Extend the dashboard to support wide phone / tablet layouts too", and later: "It's okay if they're two across
+or the layout changes slightly on wide the four column was a suggestion not a rule"
+
+Built on branch home/wide against 891f3cd (1.8.0-20, §132), in two commits and a browser pass: the tiers and the
+page's code; the stylesheets; then the numbers, and this. Then a review's findings put right, in a third commit and
+a second browser pass ("Put right after the review", below). The text says what the page does after it.
+
+**The idea, by the page's own width.** The phone's column is the unit. Past 44rem of column the page is two of them
+across; past 66rem it is a main two cards wide beside a rail that holds To do. Under 44rem nothing changes, and a
+phone draws exactly what 1.8.0-20 drew. The page decides by its own width, never the window's: container queries on
+`home-page` (the `.page` column, already a container), and home/tiers.ts's `tierOf` for the counts, read by
+home/useColumnTier.ts off the same box. The window would be the wrong question: the pane is the window less a docked
+sidebar (`clamp(300px, 30vw, 380px)`, app.css `.app-split`), and a 1280 window with the sidebar docked is a 900px
+pane, which a window query would lay out as a desk. The one thing on the screen that reads the window is the dock
+(§92), and it still does. The lines are in rem, so Settings' interface size (`uiScale`, the root's size) moves them,
+and the hook reads the root's rem as the queries do.
+
+**The lines, and what each costs.** Both are where To do's heading row fits: "To do · 11", the gap, "Show all 11"
+and the dock's clearance at the row's end need 294px at 44rem and 305 at 1024 wide (heading 128.7, gap 15.1, word
+86.3, clearance 74.5). 44rem (704px of column; a pane of 752, or 764 with the Mac's 12px scrollbar) is where the old
+wide rules already began, and where a unit is 328, room for that row beside a pinned card; under it every phone, a
+docked Fold and a docked tablet keep the stack. A lower line was measured and left (below). 66rem (1056px; a pane of
+1108, 1120 with the scrollbar, a window of 1492-1504 with the sidebar docked) is the desk's: its rail is a third of
+the column less its share of the gap, 335px at the line, and holds the row with 30px to spare. At 60rem, the old
+cap, the rail was 304, and "To do" broke over two lines at the desk's foot. The cap rises to 80rem, past the desk's
+line, or no desk could exist. 50rem is the tapes' own line (below).
+
+**Two across (44rem to under 66rem).** Two equal units, space-10 between them, no dense packing: every group is
+placed in the order it is written, and the order seen is the order written. Every group spans both units but for the
+pair:
+
+- one pinned card and To do not opened out: Pinned in unit 1 and To do in unit 2, side by side;
+- two or more pinned cards: Pinned is a row of two, To do spans under it with its rows in two columns;
+- no Pinned: To do spans, its rows in two columns;
+- no To do: the one pinned card keeps unit 1, and the Tapes come under it;
+- To do opened out (Show all, more than five open): it spans under Pinned, with its heading held where it was on the
+  screen (below); a tick down to five puts it back beside Pinned, held the same way;
+- no notes: the ghost in unit 1, its words in unit 2.
+
+Library and Recent always span, two across, and one book or an odd last card leaves half a row of air: the board's
+grid showing. The page says whether there is a pair (HomeScreen.tsx `paired`: one pinned card, To do on the page,
+and not opened out) as `data-paired` on the grid, and the sheet places the two by `.grid[data-paired]`, each with
+one unit's worth (`--home-units: 1`: one card across, one column of rows). To do's rows are a column for each unit
+the card is across: one in a unit or in the rail, two when it spans, so across the page the first column of rows
+ends where unit 1 does. `data-group` is written only as `.grid > [data-group=…]`, since NoteTabs, the cheat sheet
+and StyleItems use an attribute of that name for other things. Past 44rem a group's heading never breaks: it keeps
+to one line, and a word that no longer fits beside it goes under it. At the kit's own size that never happens
+(measured, below); it is there for a large interface size.
+
+**The hinge.** On the Fold opened out, flat and undocked, the crease is the pane's middle, which is the column's
+middle, and it runs down the units' gap: "the hinge in the gap", as scene/AtWork.module.css has it. Recent's, the
+Library's and a two-card Pinned's gap, the tapes' middle gap and a spanning To do's row gap are all space-10 too, so
+the clearance is 24.5-24.9px either side at every width measured, and nothing on the page crosses it at rest. The
+date, the digest and the notices are held to unit 1 (`max-inline-size: calc((100% - space-10) / 2)`), so no line of
+the head crosses it either. What does cross: the rows that scroll sideways (the pills, and the tapes under 50rem)
+pass over it as they scroll, and a spanning To do card's ground runs across it, its rows either side. A horizontal
+hinge (the Fold turned) is scrolled past like any line. **Docked, the hinge is not in the gap.** With the sidebar
+docked and shown (Matt's own setting on the Fold, as §132's seed has it) the pane is 570-660, the column 521-610,
+the stack, and §121's viewport rule gives two cards of 251-295; the crease at viewport x 435-480 runs 111-155px into
+the first card column of every row (870 to 960 wide). The fix is not this page's: give `.app-split` the crease on a
+finger-driven window in the Fold's band (`@media (pointer: coarse) and (min-width: 800px) and (max-width: 1000px) {
+.app-split[data-sidebar='shown'] { grid-template-columns: minmax(300px, 50%) minmax(0, 1fr) } }`), so the sidebar
+ends at the crease and the pane (400-480) holds the phone's layout clear of it; it moves the note and All notes
+panes too, so it is its own branch. The exact hook is the Viewport Segments media feature
+(`horizontal-viewport-segments: 2`), which Chromium ships, but by Android's FoldingFeature it reports two segments
+only for a separating fold (half opened), so a Fold lying flat would read as one: measure it with
+diag/windowFacts.ts before relying on it.
+
+**The tapes on the units (50rem to under 66rem).** Half a unit each, two to a unit, four across, a spacer track
+between the pairs making the middle gap the page's space-10: a tape's outer edge is a unit's edge, and the crease
+runs between the second and the third. From TapeShelf.module.css, by `@container home-page`: the first container
+query in the tree asked from another module's sheet, which works because CSS modules localise classes and keyframes,
+never a container's name (Vite 7.3.6's postcss-modules-local-by-default 4.2.0 and scope 3.2.1, read). The placements
+live in the ranged block alone, so the desk's grid never inherits a fourth column. The row's block padding goes on
+the grid (it was room for the arrive beat in a row that clips; a grid does not). 50rem because every width the Fold
+may report opened out with its hinge down the page (870-933, §92 saw 880) is 51-55rem of column, while tablets
+upright (720-785 of column) keep the phone's 13rem row, a tape 208 with a 167px cassette. The cost is the cassette:
+measured, 142 at 870, 144 at 880, 150 at 906, 157 at 933, 163 at 960, 144 in Matt's 1280 window with the sidebar
+docked (141 with the Mac's scrollbar), 179 on a 1024 tablet turned, 197 at the tier's top (1100), against the
+phone's 170, and about 139 at the grid's foot. **The line is provisional** until the Fold's own width is read (Left
+undone): if Matt finds the cassettes small in the 880 shot, 57.5rem gives every Fold the 208 tapes back, the row
+crossing the crease as it scrolls; if the Fold reads about 800 wide with its hinge down the page, about 46rem puts
+it on the grid too, with cassettes of ~127 and two-line titles, where 50rem leaves it the row, whose second tape
+sits over the crease at rest. This closes §132's leftover (tapes not on the grid's columns) on the units; on a desk
+it stays open (below).
+
+**The desk (66rem and up).** A main (2fr: cards two across, tapes three) and a rail (1fr, one card wide) holding To
+do, on named areas: `'head head' 'pinned tasks' 'tapes tasks' 'library tasks' 'recent tasks' '. tasks' 'foot foot'`.
+
+- **Two across in the main**, not four: a card is 329 at the desk's foot and 359-397 above it, against 386-499 on
+  the units, so 66rem is a step, not a cliff (at the line, 1100 to 1120 wide, cards go 499 to 329, tapes 239 to 213,
+  To do from a unit of 499 to the rail's 339). A 1024 tablet turned (units 462) and a 1440 MacBook with the sidebar
+  docked (476) are two across, Pinned beside To do. The sidebar's toggle at 1280 changes little: docked (a 900 pane,
+  two across) cards 397, tapes 188, To do in unit 2 at 397 with five rows; undocked (a desk) cards 381, tapes 247,
+  the rail 392 with eight rows and six Recent cards, which arrive.
+- **The flexible sixth row.** An item spanning a flexible track is left out of the auto rows' sizing, so a rail
+  taller than the main (Show all's forty, 2297px) grows that row alone and the air falls under Recent; the main's
+  groups do not move, and the foot comes space-10 under the rail. An absent group is an empty row with no height.
+  The rhythm is the groups' own margins, never a row gap, or an absent group would leave a double one.
+- **Why To do alone rides the rail**: it is the one list of rows, and the one group that grows tall. Two groups in
+  one rail cell would need a wrapper, and as rows of their own they would share heights with the main's.
+- **No To do at all** (a workspace that never had one; ticking every to-do keeps the card with its ghost, so the
+  rail stays): one column, cards three across (343-412) and tapes four (252-304), so every row at the counts is
+  whole.
+- **Reading order.** What is written is what is seen, read by each group's top and then from the left. The one
+  exception: with no Pinned, To do's top is level with the Tapes', and the page reads To do before the Tapes beside
+  it, the rail read at its top as a side column is.
+- The head's lines and the notices are held to the main's width (two thirds less the gap's share); the empty page
+  puts the ghost where the main is and its words where the rail is.
+- The tapes, three across the main, do not share the cards' two columns, so §132's leftover stays open here.
+
+**The counts** (home/tiers.ts `CAPS`). Recent 4 and To do 5 before Show all in the stack and on the units (Recent
+two rows of two); a desk 6 (three rows of two, or two of three with no rail) and 8 (the rail is tall). The shelf
+stays 8 everywhere, so the same library shows the same tapes on every screen, the biggest never shows fewer than the
+cover screen, and the desk's rows at it are whole (three, three and two; two of four with no rail). `TASKS_OPEN`
+stays 40. The gist runner is asked about the two extra Recent cards on a desk, which is what is on screen. The hook
+answers in a layout effect first, so a desk never paints the phone's counts for a frame, then a size observer, whose
+answer is committed at once (`flushSync`): an update from outside React waits for a later task, and crossing the
+desk's line painted one frame of the desk's layout with the phone's counts. It starts as the stack, which is a
+phone's answer.
+
+**Show all on the units, and its held heading.** Opening To do out of the pair spreads it across the page under the
+pinned card, which moved its heading down by the card's height, away from the thumb that pressed it; and the tick
+that brings the count down to what the card holds puts it back beside the pinned card, which moved it up by as much,
+out from under the finger ticking the list off (Show fewer goes with it, since there is no more to fold). So Show
+all, Show fewer and a tick each record the heading row's top, and a layout effect after the commit scrolls the page
+by as much as the row moved. Where the row does not move (a phone, the rail, a card already spanning, most ticks) it
+moves by 0. It is a scroll set, not a glide, so reduced motion needs nothing. Chromium's scroll anchoring did not
+fight it: measured below.
+
+**The head's air.** In a grid, an item keeps its last piece's margin inside it, so the head ends with its space-5
+and gives the first row's space-10 back (`.grid > .head:has(+ :is(.section, .empty))`, a negative margin): the first
+group sits space-5 under the head, as on the phone, and rows are space-10 apart. The `:has()` keeps the loading
+page, the head and the foot alone, from pulling the foot up against the date. If Matt finds the title block close on
+the wide screens, the one number to change is the margin, to `-space-5`, for space-10 under the head.
+
+**The dock** is the floating column at the pane's bottom right at every width (Matt, §110: "this is how all ...
+devices should display it"). A heading row keeps clear of it under `@container home-pane (max-width: 92rem)`, where
+it was 70rem: with the column capped at 80rem the dock crosses it until the pane is 80rem plus twice the dock's
+whole width and inset, ~1469px (91.8rem).
+
+**The foot, and All notes as it was.** Every group, the empty page and the foot have space-10 above them on the
+wider screens. All notes keeps its 60rem column and §121's grid exactly as 1.8.0-20 had them. The first pass took
+its column to 80rem with the home page's, so the foot's "All notes · 13" opened a column of the same width; the
+review found its grid then six across of 200 at 1600 (four of 228 at 60rem) while the home page's cards are twice
+that, and Matt asked about the dashboard. So on a desk the foot now opens a column narrower than the home page's (by
+160 each side at 1600, 102 at 1600 docked), and whether All notes should follow is Left undone. The home page's wide
+rules are its sections' alone (`.section .cards` inside `@container home-page`), which cannot match there.
+
+**The empty page.** On the units the ghost is in unit 1 and its words in unit 2, the crease between; on a desk the
+ghost is where the main is and the words where the rail is. The ghost sits at its column's end, against the gap: it
+stops at 45% of the height, and from its column's start it left its words 515px off on a desk (main's 3fr/2fr left
+233-268). All notes keeps its own 3fr/2fr copy.
+
+**Motion.** Nothing new moves. A fold or an unfold re-lays the grid at once, and only the cards a bigger count adds
+arrive, on their beats. **Light and dark**: no colour was added, and the layout is the same to the tenth of a pixel
+in both at every size measured.
+
+**Measured** (Chromium 2×, Playwright 1.59.1 from the npx cache, chromium-1217 and webkit-2272, against `vite
+preview` of the branch's build and of 891f3cd's from a `git archive`; the task's seed: three tapes, Lisbon pinned,
+the Portugal book, six typed notes, eleven open to-dos, one archived; the page's clock installed at Sunday 27
+September 2026, 15:00; the Fold with touch and a 40px inset forced, §53, §66). Widths with a mouse are given as
+Chromium draws them with its scrollbars hidden, and then "with the scrollbar" as a Chromium that draws them measures
+them: the Mac draws the app's 12px one (app.css, pointer: fine), and Playwright's WebKit drew it in some contexts
+and an overlay in others, and matched Chromium to the tenth either way. Touch sizes are the same in both engines.
+
+- **The phones against main, to the pixel**, on the final build: 412 × 915 and 375 × 812, light and dark, with
+  motion and reduced, Home and All notes at rest, scrolled 0.85 of the height and at the foot. With reduced motion,
+  all 24 pairs identical. With motion the smoke under the bar drifts on requestAnimationFrame's clock while a page
+  scrolls (art/wispEdge.ts), so its phase is the machine's timing; the clock is paused before the first scroll and
+  each scroll run for a set stretch of it, and main is shot twice so the method can be seen to fail. Home was
+  identical in 11 of 12 pairs, and the twelfth (375 light, the foot) differed by 6272 pixels above y 96, the smoke's
+  band, exactly as main against itself did. All notes, scrolled and at its foot, differed in five pairs, four of
+  them only above y 150, the smoke's band (main against itself differed there too, by 3717-8714, in three pairs);
+  the fifth (375 light, the foot) also lower, 2728 pixels down to y 768, and run twice more it gave 5272 above y 146
+  and then 0, Home identical both times. The built CSS keeps the range preludes as written, `(44rem <= width <
+  66rem)` and `(50rem <= width < 66rem)`.
+- **The Fold opened out, undocked** (hinge vertical): 870 × 657, column 821, units 24.5-410.5 and 459.5-845.5, cards
+  2 × 386, tapes 183 (cassette 142), hinge at 435 with 24.5 clear; 880 × 664, column 831, cards 2 × 391, tapes 186
+  (144), 24.5 clear; 906 × 684, cards 2 × 404, tapes 192 (150); 933 × 704, cards 2 × 417, tapes 199 (157), 24.8
+  clear; 960 × 725 and 960 × 800, cards 2 × 430, tapes 205 (163), 24.9 clear. At every one: Pinned's and To do's
+  headings on one line (247.9 and 247.9 at 880) and their cards too (296.7); the head's last piece to the first
+  heading 24.5-24.9 (space-5), row to row 49.0-49.8 (space-10); the date, the digest and the notices end on unit 1's
+  edge; "Show all 11" ends 12-13px before the dock (782.9 against 795.6 at 880); nothing crosses the hinge; the
+  first screen holds the head, Pinned beside To do, and the Tapes' heading.
+- **The Fold docked and shown** (870-960): panes 570-660, the stack, cards 2 × 251-295, the tapes' row at 208; the
+  hinge crosses the first card column (above). **Turned** (657 × 870, 704 × 933): the stack, cards 2 × 296 and 3 ×
+  206 by §121; docked at 704 the pane is 404 and one card across; at 657 the sidebar does not split (under 660).
+  **Reading B** (800 × 960): two across, column 752, cards 2 × 352, the tapes' row at 208, whose second tape sits
+  over the crease at rest; docked, pane 500, the stack.
+- **Tablets.** 768 × 1024: two across, cards 2 × 336, the tapes' row at 208 (167), the first screen down to the
+  Library's heading; docked, the stack at 468 as §132 had it (2 × 200). 820 × 1180: two across, 2 × 362. 1024 × 768:
+  two across, column 974, units 462, Pinned beside To do (headings 213.2 and 213.2, cards 263.3), tapes 221 (179),
+  "Show all 11" ending at 924.3 against the dock's 937.4; docked, the stack at 717, 3 × 209. WebKit at 1024 × 768
+  the same to the tenth.
+- **Either side of the desk's line**, with a mouse. 1000 × 800 and 1010 × 800: two across, cards 2 × 450 and 455,
+  tapes 215 and 217. 1100 × 800: two across at its top, column 1049 (1037 with the scrollbar), cards 2 × 499 (493),
+  tapes 239 (197). 1120 × 800: a desk at its foot, column 1069 (1057), main 678 and rail 339 (335), cards 2 × 329
+  (325), tapes 3 × 213 (170), "To do · 11" and "Show all 11" on one row, the headings level (216.5) and the cards
+  (267.3).
+- **The desktop.** 1280 × 900 docked (pane 900): two across, cards 2 × 397 (391 with the scrollbar), tapes 188 (144;
+  185 and 141), To do in unit 2 at 397 (391); undocked: a desk, main 783 and rail 392 (388), cards 2 × 381 (377),
+  tapes 3 × 247 (203; 244 and 200), eight rows, six Recent cards; 1280 × 820 docked as 1280 × 900. 1440 × 900 docked
+  (pane 1060, the review's MacBook): two across, column 1006 (994), units 476 (470), tapes 227 (182), headings level
+  at 227.9, "Show all 11" ending at 1332.8 (1320.8) against the dock's 1347.1. 1600 × 1000 docked (pane 1220):
+  column 1165 (1153), cards 2 × 359 (355), tapes 3 × 232 (186), the rail 370 (366), "Show all 11" at 1491 (1479)
+  against the dock's 1506; undocked: the 80rem cap, column at x 160 (154), cards 2 × 397, tapes 3 × 258 (212), rail
+  408. 1812 × 1000 docked (pane 1432): the cap at x 456 (450), "Show all 11" ends at 1655, the dock at 1718;
+  undocked, the column at x 266 (260). Headings level at every one (222.2 at 1280, 231.2 at 1600 and 1812); the head
+  to the first group 26.3-27.5, rows 52.7-55.
+- **Every width, for the heading row.** From 700 to 1920 in 4px steps, with a mouse undocked and docked and with
+  touch, at rest and after Show all, in Chromium drawing its scrollbars and in WebKit: no group heading on two
+  lines, no word under its heading, and wherever Pinned and To do sit side by side their headings and cards level to
+  the pixel. The narrowest rail 334-335. Two across from a pane of 752 (764 with the scrollbar; a window of
+  1080-1096 docked), a desk from 1108 (1120; 1492-1504 docked). Against the first pass's build the same sweep found
+  "To do" on two lines at 1012 wide with touch and 1024 with a mouse, at rest, and on past them after Show all, the
+  rail at 304.
+- **The states**, one seed each, at 880 × 664 (the Fold) and 1280 × 900 undocked: two pinned, a row of two with To
+  do across under it, 831 wide and 188 tall with five rows in two columns, the card's ground over the crease and no
+  row within 24.5 of it; no Pinned, To do across first at 880, and at 1280 level with the Tapes (read first, above);
+  every to-do ticked, the ghost's card in unit 2 (391 × 337), still paired, and in the rail (392 × 436); no to-do
+  ever, the one pinned card in unit 1 at 880 and at 1024, and a desk of one column at 1120 (cards 3 × 343, tapes
+  252), 1280 (3 × 395, tapes 291), 1600 docked (3 × 374, tapes 275) and 1812 (3 × 412, tapes 304); nine tapes, two
+  rows of four on the units, the eighth's edge on unit 2's (855.5), and three, three and two at 1280, with "· 9" and
+  See all; the Academy card held to unit 1 (415.5) and to the main (809.4); a workspace chosen, the pills across; no
+  notes, the ghost's right edge 49 from its words at 880 (the crease 25 from each), 50 at 1024, 53 at 1280 and 55 at
+  1812 (515 at 1280 and 1812 before).
+- **Show all's heading**, at 880: 247.9 before and 247.5 after, the page scrolled 353 as the card spread under the
+  pinned card; Show fewer puts both back exactly; the same at 1024 (213.2, the page to 360) and at 1440 docked
+  (227.9, to 383). With forty-five to-dos, forty rows in two columns and "and 5 more in your notes". At 1280 and at
+  412 the heading does not move and neither does the page.
+- **Ticking the list off**, Show all pressed and the first box ticked six times: at 880 the heading stays at 247.5
+  through five ticks and is at 247.9 after the sixth, which puts the card back beside Pinned, the page from 353 to 0
+  (the first pass: the heading to -105 under the bar, the page left at 353); at 1024, 213.5 to 213.2 (360 to 0);
+  1280 docked, 222.3 to 222.2 (374 to 0); 1440 docked, 227.5 to 227.9 (383 to 0); WebKit at 880 and 1440 docked
+  within 0.6. At 412 the page does not move and the heading comes up 4.3 as its row loses "Show fewer", as main's
+  does.
+- **One frame of the counts.** A second size observer on the column, made after the page's, read the counts in the
+  same delivery: from 1100 to 1140 wide and back it saw 1049 with four Recent cards and five rows and 1089 with six
+  and eight, every time, in both engines; the sidebar's toggle at 1440 the same (1006 and 1280). Against the first
+  pass's build, across its own line (1000 to 1040), it saw 990 with four and five before six and eight.
+- **All notes**: at 412 as main's, to the pixel (above); at 1600 and 1812 docked its 60rem column (x 510 and 616),
+  four across of 228, as 1.8.0-20.
+- **Light and dark**: every measurement the same in both, at all 37 sizes.
+
+**Put right after the review.** Three reviewers' findings, verified in the browser before any change:
+
+- **Ticking in place broke on two columns** (found three times): the tick from six to five ended the spread, the
+  pair rule matched again and To do went back beside Pinned with nothing holding it, the heading 353px up under the
+  bar and the next tap on the Tapes. Now the pair is the page's own state, `paired`, and every press on the card
+  holds its heading (above).
+- **"To do" on two lines at the desk's foot** (found twice), and **the desk too early** (a 1024 tablet turned
+  landing on the desk at its thinnest, a 298 card, 318 of nothing and a 308 rail): the desk's line to 66rem, where
+  the rail is 335; and a heading never breaks past 44rem.
+- **One frame of the phone's counts** when the column crossed the desk's line: the observer's answer committed at
+  once.
+- **The empty page's words 515px from the ghost** on a desk: the ghost at its column's end.
+- **All notes at 80rem** made its cards smaller and more of them on a big window, a change to a page Matt did not
+  ask about: back to 60rem.
+- **The desktop numbers** were measured with Chromium's scrollbars hidden, 4-12px off the Mac's: the rows above give
+  both.
+- **Tests that could not fail**: the review broke the sheets sixty ways and fifty-one stayed green, and five breaks
+  to the page's code did too. The tests below now pin what can be pinned without a layout.
+- **Lower the wide line to about 40rem**, so docked tablets and the docked Fold leave the stack: measured, and left.
+  A docked 1024 tablet's column is 666, units of 308, and To do's row there needs 304.6: three pixels to spare in
+  the headless engines, and none where WebKit set the heading 4px wider for the reviewer. The docked Fold's columns
+  (521-610) would need 653 for units that hold the row, so no line that keeps it on one line reaches them; the
+  docked Fold needs the `.app-split` follow-up either way. Left undone, with the question of whether Matt runs the
+  Fold docked.
+- **The tapes' line not settled**: the Fold was not attached (`adb devices` listed none), so its width is still
+  unread. The line stays at 50rem, called provisional here and in TapeShelf.module.css, with both one-number
+  fallbacks.
+- **The desk's dead space** (a lone pinned card half a row wide; the rail's third empty once To do scrolls past; the
+  main beside a tall rail): a sticky To do and a lone pinned card placed otherwise are both layout choices for Matt,
+  not defects; left undone, with the shots.
+
+**Tests.** home/tiers.test.ts: `tierOf` either side of 44 and 66rem at a rem of 16 and of 20; `CAPS`; both sheets'
+`@container home-page` preludes hold only `LINES`' numbers, and each of them; the exact questions (from each line,
+and between two, never at one), and the shelf a grid only from its own line; nothing for the phone: no rule for the
+grid, the head or the notices, or naming a group's place, outside a question of the page; the column the page's
+container, its cap past the desk's line and the dock's line past the cap; the groups placed by the names
+HomeScreen.tsx writes, `[data-paired]` only on `.grid` and the page writing it there, the desk's areas in the page's
+order (and one column in it with no To do), every group in the area of its own name; the tapes' placements only in
+the 50-66rem block; `--home-units` and `--shelf-across` declared in the home page's sheet and read with fallbacks of
+1 and 3. HomeScreen.test.tsx: the sections named in the page's order with their ids; the head, the groups and the
+foot as the grid's children, the date, the digest and the notices in the head; the pair only while To do is not
+opened out, again after a tick down to five, with the ghost's card, and not with two pins, no To do or no pin; the
+held heading, with the layout told (300 beside Pinned, 520 under it), for Show all and Show fewer, for the tick that
+puts the card back in the pair, and not where nothing moves; the column read on mount at 1100 wide, before any
+report: six Recent cards, eight rows with "Show all 11" and the shelf's eight of nine with "· 9" and See all (that
+the read comes before the first paint is the hook's and the browser pass's to show: jsdom paints nothing); seven
+to-dos on a desk, all shown and no Show all; the column told 800, 1100 and 800 again, and the counts following; at
+an interface size of 125% the lines at a rem of 20 (1100 and 1300 two across, 1400 a desk); the observer let go with
+the page. Twenty of the review's breaks, re-made (the hold keyed on Show all or left off a tick, the pair blind to
+the spread, a fixed rem, Show all at five, the head's or the notices' class dropped, a phone rule for the head, the
+container renamed, the cap at 60rem, the dock's line at 70rem, the desk's areas reordered, To do's area dropped, a
+group's name misspelt in either of two places, either fallback changed, `<=` in a range, the tapes' grid from 44rem,
+the pair's attribute renamed), each fail a test. The tracks, the gaps, the head's caps and the hinge's clearance can
+only be seen laid out, and are proved by the browser pass above, not by the suite. The existing tests unchanged:
+jsdom's rect is 0, the stack. stylesheets.test.ts as it is. tsc, eslint on the touched files, vitest in full (3259
+passed, 123 skipped).
+
+**Left undone.**
+
+- The Fold's real CSS size: two readings disagree (2448 × 1848 at DPR 2.625-2.8125 is 870-933 wide with the hinge
+  down the page; the task's 1812 × 2176 is about 800 wide), and the tree declares no density. Settings › Developer ›
+  Window, or `adb shell wm size` and `wm density`, decides it, and with it the tapes' line: 50rem as it is (the 880
+  shot), 57.5rem for the phone's full-size tapes on every Fold, or about 46rem if the Fold reads 800 wide (the 800 ×
+  960 shot).
+- Whether Matt runs the Fold docked (§132's seed says so). Docked, this branch changes nothing on his Fold: the pane
+  is the stack, and the hinge runs through the first card column until the `.app-split` follow-up (above). A docked
+  tablet turned (column 666) stays the stack too, for the heading row's sake.
+- The desk's air: a lone pinned card is half a row in a main two cards wide (1280: 381 of card, then 402 of nothing
+  before the rail), and once To do scrolls past, the rail's third of the page is empty to the foot. A To do that
+  stays in view in the rail while it is not opened out (`position: sticky` under the bar) and a lone pinned card
+  across the main are both Matt's to choose, from the 1280 × 900 and the 1600 × 1000 docked shots.
+- All notes' column: 60rem while the home page's goes on to 80rem, so the foot opens a narrower column on a desk; at
+  80rem §121's grid would be six across of 200.
+- To do's tick boxes at the crease: in unit 2 they sit at x ~485 of 880, just right of it. Mirrored to the row's end
+  they would be at ~815-835, inside the dock's band (x 796-860) as the page scrolls, and away from the editor's
+  box-first line, so it is left to Matt on the device.
+- The pills row, not held to a unit: past about five pills it runs over the crease like the tapes' row.
+- The tapes in a desk's main, three across, not on the cards' two columns.
+- All notes' own empty-state tracks (3fr/2fr), and the tape's ground still written out three times (§132).
+
+Cites: §21, §29g, §53, §66, §84/§97, §92/§110, §121, §127, §132.

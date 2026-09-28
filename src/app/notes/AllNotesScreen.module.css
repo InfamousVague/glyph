@@ -133,7 +133,10 @@
   outline-offset: 2px;
 }
 
-/* One column a reader's width, in the middle of a wide window, as the home page is. */
+/*
+ * One column a reader's width, in the middle of a wide window. The home page's goes on to 80rem for its main and rail
+ * (home/HomeScreen.module.css `.page`, docs/DESIGN.md §137); this one stays at 60rem, where §121's grid is four across.
+ */
 .page {
   max-inline-size: 60rem;
   margin-inline: auto;
