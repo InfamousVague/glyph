@@ -5,8 +5,12 @@
  * across there (docs/DESIGN.md §137).
  */
 
+/* The container the width is asked of; a container query styles what is inside it, never the container itself. */
 .picker {
   container: journal-template / inline-size;
+}
+
+.layout {
   display: grid;
   grid-template-areas:
     'choice'
@@ -16,7 +20,7 @@
 }
 
 @container journal-template (min-width: 44rem) {
-  .picker {
+  .layout {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
       'choice preview'
@@ -107,10 +111,15 @@
   background: var(--glacier-bg);
 }
 
-/* The page as a note draws it, in a room with no ground, gutter or caret of its own (guide/MarkExample.module.css). */
+/*
+ * The page as a note draws it, in a room with no ground, gutter or caret of its own (guide/MarkExample.module.css),
+ * and small: the note's reading size, from which its headings take theirs, brought down to the sheet's, so an entry's
+ * date heading is a preview and not a poster.
+ */
 .page {
   composes: room from '../guide/MarkExample.module.css';
   --app-gutter: 0px;
+  --app-body: var(--glacier-font-size-sm);
   min-inline-size: 0;
 }
 

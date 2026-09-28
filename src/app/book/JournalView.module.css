@@ -122,8 +122,9 @@
 }
 
 @container journal (min-width: 44rem) {
+  /* One width for every row's time and place, so the words start in one column down the month. */
   .entry {
-    grid-template-columns: 4.6em minmax(8em, 16em) minmax(0, 1fr);
+    grid-template-columns: 4.6em 12em minmax(0, 1fr);
     grid-template-areas: 'day meta first';
     align-items: center;
   }

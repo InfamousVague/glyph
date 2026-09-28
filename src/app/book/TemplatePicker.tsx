@@ -82,58 +82,60 @@ export function TemplatePicker({ template, onTemplate, place, onPlace, name }: T
 
   return (
     <div className={styles.picker}>
-      <div className={styles.choice}>
-        <SheetHeading>Each entry starts with</SheetHeading>
-        <SheetGroup>
-          {PRESETS.map((preset) => (
-            <SheetRow key={preset.id} label={preset.name} chosen={choice === preset.id} onPress={() => pick(preset.id)} />
-          ))}
-          <SheetRow label={OWN.name} chosen={choice === OWN.id} onPress={() => pick(OWN.id)} />
-        </SheetGroup>
-        {choice === OWN.id ? (
-          <div className={styles.own}>
-            <textarea
-              ref={box}
-              className={styles.box}
-              aria-label="Your own template"
-              value={template}
-              rows={4}
-              spellCheck={false}
-              placeholder="# {{date}}"
-              onChange={(event) => onTemplate(event.target.value)}
-            />
-            <div className={styles.chips} aria-label="Placeholders">
-              {CHIPS.map((chip) => (
-                <button key={chip} type="button" className={styles.chip} onClick={() => insert(chip)}>
-                  {chip}
-                </button>
-              ))}
+      <div className={styles.layout}>
+        <div className={styles.choice}>
+          <SheetHeading>Each entry starts with</SheetHeading>
+          <SheetGroup>
+            {PRESETS.map((preset) => (
+              <SheetRow key={preset.id} label={preset.name} chosen={choice === preset.id} onPress={() => pick(preset.id)} />
+            ))}
+            <SheetRow label={OWN.name} chosen={choice === OWN.id} onPress={() => pick(OWN.id)} />
+          </SheetGroup>
+          {choice === OWN.id ? (
+            <div className={styles.own}>
+              <textarea
+                ref={box}
+                className={styles.box}
+                aria-label="Your own template"
+                value={template}
+                rows={4}
+                spellCheck={false}
+                placeholder="# {{date}}"
+                onChange={(event) => onTemplate(event.target.value)}
+              />
+              <div className={styles.chips} aria-label="Placeholders">
+                {CHIPS.map((chip) => (
+                  <button key={chip} type="button" className={styles.chip} onClick={() => insert(chip)}>
+                    {chip}
+                  </button>
+                ))}
+              </div>
+              <p className={styles.rule}>Words inside a format go in square brackets, as in {'{{date:D MMMM [at] HH:mm}}'}.</p>
             </div>
-            <p className={styles.rule}>Words inside a format go in square brackets, as in {'{{date:D MMMM [at] HH:mm}}'}.</p>
-          </div>
-        ) : null}
-      </div>
-      <div className={styles.preview} aria-label="How a new entry starts">
-        {place ? <p className={styles.where}>Where you are, with the map, at the top.</p> : null}
-        {filled.trim() ? (
-          <div className={styles.page}>
-            <Editor value={filled} onChange={keep} dark={isDarkNow(prefs.theme)} assist={false} readOnly display="formatted" grow />
-          </div>
-        ) : (
-          <p className={styles.where}>An empty page.</p>
-        )}
-      </div>
-      <div className={styles.place}>
-        <SheetGroup>
-          <div className={styles.switchRow}>
-            <SheetIcon icon={Locate} />
-            <span className={styles.label}>
-              With where you are
-              <span className={styles.hint}>{hint}</span>
-            </span>
-            <Switch aria-label="With where you are" checked={place} onCheckedChange={flipPlace} />
-          </div>
-        </SheetGroup>
+          ) : null}
+        </div>
+        <div className={styles.preview} aria-label="How a new entry starts">
+          {place ? <p className={styles.where}>Where you are, with the map, at the top.</p> : null}
+          {filled.trim() ? (
+            <div className={styles.page}>
+              <Editor value={filled} onChange={keep} dark={isDarkNow(prefs.theme)} assist={false} readOnly display="formatted" grow />
+            </div>
+          ) : (
+            <p className={styles.where}>An empty page.</p>
+          )}
+        </div>
+        <div className={styles.place}>
+          <SheetGroup>
+            <div className={styles.switchRow}>
+              <SheetIcon icon={Locate} />
+              <span className={styles.label}>
+                With where you are
+                <span className={styles.hint}>{hint}</span>
+              </span>
+              <Switch aria-label="With where you are" checked={place} onCheckedChange={flipPlace} />
+            </div>
+          </SheetGroup>
+        </div>
       </div>
     </div>
   );
