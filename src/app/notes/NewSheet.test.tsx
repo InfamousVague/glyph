@@ -35,6 +35,29 @@ describe('the + sheet', () => {
     expect(buttonSaying(sheet()!, 'From a shared link')).toBeUndefined();
   });
 
+  it('offers a notebook by that name, and makes one on a tap', () => {
+    const onBook = vi.fn();
+    show(<NewSheet open onClose={noop} onNote={noop} onCanvas={noop} onBook={onBook} onFromLink={async () => undefined} />);
+    // A journal is a kind of notebook, made from the same row (book/NewBookSheet.tsx): there is no Journal row.
+    expect(buttonSaying(sheet()!, 'Notebook')?.textContent).toContain('Notes in an order with an index, or a journal of dated entries.');
+    expect(buttonSaying(sheet()!, 'Journal')).toBeUndefined();
+    act(() => buttonSaying(sheet()!, 'Notebook')!.click());
+    expect(onBook).toHaveBeenCalledTimes(1);
+    expect(sheet()?.textContent).not.toMatch(/\bbook\b/i);
+    expect(buttonSaying(sheet()!, 'From a shared link')?.textContent).toContain('A copy of a note or notebook someone shared with you.');
+  });
+
+  it('offers a new entry in the journal written in last, right after Note, with what an entry starts with', () => {
+    const onPress = vi.fn();
+    const onClose = vi.fn();
+    show(<NewSheet open onClose={onClose} onNote={noop} onCanvas={noop} onBook={noop} entry={{ journal: 'Diary', hint: 'Starts with the date and the time.', onPress }} />);
+    const rows = [...sheet()!.querySelectorAll('button')].map((b) => b.textContent);
+    expect(rows[1]).toBe('Entry in DiaryStarts with the date and the time.');
+    act(() => buttonSaying(sheet()!, 'Entry in Diary')!.click());
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
   it('saves a copy from a pasted link, saying what went wrong in the row, and closes once it is saved', async () => {
     const onClose = vi.fn();
     const onFromLink = vi.fn(async (link: string) => {

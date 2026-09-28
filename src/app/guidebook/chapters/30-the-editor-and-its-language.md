@@ -78,7 +78,7 @@ The smoke where a page slips under its header is `art/wispEdge.ts`; the note scr
 
 ## The note screen around it
 
-`editor/NoteScreen.tsx` composes one open note: the AI's strip under the header, the tape, the link marks, a book's bar, the byline, the editor. For a canvas or a book the drawn view takes the editor's place, and the editor stays mounted under it, hidden.
+`editor/NoteScreen.tsx` composes one open note: the AI's strip under the header, the tape, the link marks, a notebook's bar, the byline, the editor. For a canvas or a notebook the drawn view takes the editor's place, and the editor stays mounted under it, hidden.
 
 Saving is `editor/useNoteSaving.ts`. The live words are a ref, `body`, and only `onChange` writes it. A save runs 400 ms after the last keystroke; a flush runs on `visibilitychange` to hidden, `pagehide`, unmount, and every way off the note, because a phone kills a background WebView with no `beforeunload`. Anything else that must change the open note asks the screen, as a rename from a tab does through the `rename` prop. A failed save stops the screen saving, so a queued write never brings a deleted note back.
 

@@ -82,7 +82,7 @@ export function SharedLinks() {
   return (
     <PaneSection
       title="Shared links"
-      footer={said ?? 'Anyone with a link can read that note or book, and nobody else, the server included. Stopping a link means it reads nothing from then on.'}
+      footer={said ?? 'Anyone with a link can read that note or notebook, and nobody else, the server included. Stopping a link means it reads nothing from then on.'}
     >
       {links.map((share) => (
         <SettingRow

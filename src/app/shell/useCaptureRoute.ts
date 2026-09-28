@@ -4,6 +4,8 @@ import { dropSummary, enqueueSummary } from '../ai/summaries.ts';
 import type { SpokenAsk } from '../capture/CaptureScreen.tsx';
 import type { CaptureLanding } from '../capture/landing.ts';
 import { afterPendingDeletes } from '../capture/launch.ts';
+import type { Placing } from '../capture/place.ts';
+import { untouchedEntry } from '../book/entryDrafts.ts';
 import { meetingTitle } from '../capture/meeting.ts';
 import { meetingStateNow, onMeetingEvent, useMeetingState, type MeetingEvent } from '../capture/meetingLive.ts';
 import { freshTapeId, setTapeId } from '../core/clips.ts';
@@ -42,9 +44,27 @@ import { captureScreen, meetingScreen, type Screen } from './screen.ts';
  * a Speak button, the boot - opens the meeting screen instead.
  */
 
+/**
+ * A capture aimed at a journal's entry (docs/DESIGN.md §142; App.tsx): where in the entry the words go, what to do
+ * about where it was written once the words are kept, and where to land when nothing was kept for it.
+ */
+export interface EntryAim {
+  /** The entry's id: the capture is aimed at it. */
+  id: string;
+  /** Where the words go: on from its time, or into its to-do list (book/template.ts `openEnd`). */
+  placing: Placing;
+  /** Asks where it was written, once the capture screen has gone, for an entry the words were kept in; null for none. */
+  tag: ((held: { reviewing: boolean }, locked: boolean) => void) | null;
+  /** Where to land when nothing was kept for the entry: the journal, or the entry as it was made. */
+  nothing: () => Promise<Screen>;
+}
+
 export interface CaptureRoute {
-  /** A capture, from the side key (`fromAssistant`) or a Speak button, into `noteId` when it was one note's. */
-  start: (fromAssistant: boolean, noteId?: string) => Promise<void>;
+  /**
+   * A capture, from the side key (`fromAssistant`) or a Speak button, into `noteId` when it was one note's; for a
+   * journal's entry, with where the words go in it and what to do after (`entry`).
+   */
+  start: (fromAssistant: boolean, noteId?: string, entry?: EntryAim) => Promise<void>;
   /**
    * A capture over: filed, and the app on whatever comes next - the note with its run or review, the note the words
    * went into (`landing`), the note spoken into, or home.
@@ -98,11 +118,14 @@ export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBo
     [setScreen],
   );
 
+  /** The entry the capture on screen is aimed at, until it is finished. */
+  const entryAim = useRef<EntryAim | null>(null);
   const start = useCallback(
-    async (fromAssistant: boolean, noteId?: string) => {
+    async (fromAssistant: boolean, noteId?: string, entry?: EntryAim) => {
       // A meeting being recorded holds the microphone: the way to it, not a second recording.
       if (showMeeting(fromAssistant)) return;
-      await afterPendingDeletes(flushDeletes, () => setScreen(captureScreen(fromAssistant, noteId)));
+      entryAim.current = entry && entry.id === noteId ? entry : null;
+      await afterPendingDeletes(flushDeletes, () => setScreen(captureScreen(fromAssistant, noteId, entry ? { placing: entry.placing } : {})));
     },
     [flushDeletes, setScreen, showMeeting],
   );
@@ -281,12 +304,32 @@ export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBo
   const finished = useCallback(
     async (note: Note | null, locked: boolean, review?: ReviewHandoff, ask?: SpokenAsk, landing?: CaptureLanding) => {
       // A spoken note lands in the workspace the list is showing, unless it is filed already; so do the notes it made.
-      // A note that was there already and only had words put into it (`landing.blocks`) stays where it was filed, or
-      // unfiled.
-      const existed = note !== null && landing !== undefined && landing.blocks.length > 0 && !landing.made.includes(note.id);
+      // A note that was there already and only had words put into it stays where it was filed, or unfiled: one a
+      // command wrote into (`landing.blocks`), or the note whose own mic this was. That one leaves no landing, and it
+      // used to be filed and tagged as though the take had made it, against docs/DESIGN.md §134's "existing notes are
+      // never tagged". Read before the first await, while the capture screen is still the one aimed.
+      const current = now.current.screen;
+      const aimedAt = current.name === 'capture' ? current.noteId : undefined;
+      const existed = note !== null && ((landing !== undefined && landing.blocks.length > 0 && !landing.made.includes(note.id)) || (note.id === aimedAt && !landing?.made.includes(note.id)));
+      // A journal's entry said into (App.tsx): words kept in it are asked where they were written once the screen has
+      // gone; nothing kept for it lands where its opener says, the journal or the entry as it was made, and the entry
+      // nobody wrote in is taken back from there.
+      const aim = entryAim.current?.id === aimedAt ? entryAim.current : null;
+      entryAim.current = null;
+      const kept = aim !== null && note !== null && note.id === aim.id && !untouchedEntry(aim.id, note.body, note);
+      if (aim && !kept && (note === null || note.id === aim.id)) {
+        const where = await aim.nothing();
+        await refresh();
+        setScreen(locked ? { name: 'list' } : where);
+        return;
+      }
       if (note && !existed) fileNewNote(note.id);
       for (const made of landing?.made ?? []) fileNewNote(made);
       await refresh();
+      if (kept && aim.tag) {
+        const tag = aim.tag;
+        tagAfter.current = () => tag({ reviewing: review?.job != null }, locked);
+      }
       // The take's own new note starts with where the phone was, once the capture screen has gone (below). Not a note
       // it only wrote into, and not the notes its spoken commands made (`landing.made`), which are the app's doing.
       const own = note && !existed && !landing?.made.includes(note.id) ? note.id : null;
@@ -322,8 +365,7 @@ export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBo
       // Otherwise the list, the new note at its top: reading it back is a tap
       // away, and a locked phone has already stepped back behind its lock
       // screen, so nothing of the note is shown to whoever is holding it.
-      const current = now.current.screen;
-      const from = current.name === 'capture' ? current.noteId : undefined;
+      const from = aimedAt;
       if (from && !locked) {
         const fresh = await getNote(note?.id ?? from).catch(() => null);
         if (fresh) {

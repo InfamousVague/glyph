@@ -39,7 +39,7 @@ It does not reach a few things you turn on or tap yourself:
 | When you choose | What goes | Who can read it |
 | --- | --- | --- |
 | An account, and sync | Notes, recordings, pictures and settings, sealed on the device first | Your devices only |
-| Sharing a note or a book | A sealed copy. Its key rides in the link after the `#`, which browsers never send to a server. | Anyone you give the link to |
+| Sharing a note or a notebook | A sealed copy. Its key rides in the link after the `#`, which browsers never send to a server. | Anyone you give the link to |
 | Live typing | What you type in a note open on two of your devices, sealed, passed through a relay that keeps nothing | Your devices only |
 | Link previews | In the apps, your device asks the linked site for the page's title. Off in Settings › Account › Privacy. | The site, which sees your IP address |
 | Notion | Only the items you send, and the reads of their tasks, from your device straight to Notion | Notion |
@@ -84,5 +84,5 @@ The privacy policy is at **ghostmarkdown.com/privacy.html**, and **Settings › 
 ## Read next
 
 - [[Accounts, sync and the key you hold]]
-- [[Sharing a note or a book]]
+- [[Sharing a note or a notebook]]
 - [[Sync and the end-to-end keys]]

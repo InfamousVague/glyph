@@ -27,6 +27,8 @@ interface NoteToolsProps {
   onBookmark: () => void;
   /** Talking into the note is here: a note with a recording has the tape's Add instead. */
   onSpeak: (() => void) | null;
+  /** What the mic says it does: a journal's makes an entry and speaks it (docs/DESIGN.md §142). */
+  speakLabel?: string;
   onMore: () => void;
 }
 
@@ -37,7 +39,7 @@ function viewSwitchWords(kind: NoteKind, page: boolean): { label: string; title:
   return page ? { label: 'Showing the formatted note. Show the marks.', title: 'Formatted' } : { label: 'Showing the marks. Show the formatted note.', title: 'Markdown' };
 }
 
-export function NoteTools({ kind, page, switchable, onSwitch, marked, onBookmark, onSpeak, onMore }: NoteToolsProps) {
+export function NoteTools({ kind, page, switchable, onSwitch, marked, onBookmark, onSpeak, speakLabel = 'Talk into this note', onMore }: NoteToolsProps) {
   const { label, title } = viewSwitchWords(kind, page);
   return (
     <div className={styles.tools}>
@@ -72,7 +74,7 @@ export function NoteTools({ kind, page, switchable, onSwitch, marked, onBookmark
       </button>
       {/* A note with no recording has no tape; talking into it is this mic. Once it has audio, the tape's Add is. */}
       {onSpeak ? (
-        <button type="button" className={styles.cog} onClick={onSpeak} aria-label="Talk into this note">
+        <button type="button" className={styles.cog} onClick={onSpeak} aria-label={speakLabel}>
           <Mic size={20} strokeWidth={2.1} aria-hidden="true" />
         </button>
       ) : null}

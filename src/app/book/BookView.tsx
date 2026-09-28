@@ -62,7 +62,7 @@ interface BookViewProps {
 }
 
 /** The book's own words around its index, drawn as a note is - read-only, formatted - so a link in them opens. */
-function BookWords({ words, known, open, dark, videos }: { words: string; known: (title: string) => boolean; open: (title: string) => void; dark: boolean; videos: VideoMode }) {
+export function BookWords({ words, known, open, dark, videos = 'still' }: { words: string; known: (title: string) => boolean; open: (title: string) => void; dark: boolean; videos?: VideoMode }) {
   return (
     <div className={styles.preface}>
       <Editor value={words} onChange={noop} dark={dark} assist={false} readOnly display="formatted" wiki={{ known, open }} videos={videos} grow />
@@ -78,8 +78,10 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
   const chapters = useMemo(() => chaptersOf(body), [body]);
   const numbers = useMemo(() => numbered(chapters), [chapters]);
   const words = useMemo(() => bookWords(body), [body]);
-  // Everyone who wrote the book: its own authors, then each chapter's, first met first (core/authors.ts).
-  const authors = authorsAcross([body, ...chapters.map((c) => bodyOf?.(c.title) ?? '')]);
+  // Everyone who wrote the book: its own authors, then each chapter's, first met first (core/authors.ts). Read again
+  // only when a body changed: `bodyOf` is a new function on every draw of App, and a journal of a year has a page a day.
+  const pageBodies = useSameList(chapters.map((c) => bodyOf?.(c.title) ?? ''));
+  const authors = useMemo(() => authorsAcross([body, ...pageBodies]), [body, pageBodies]);
   const [adding, setAdding] = useState<'new' | 'existing' | null>(null);
   /** Where the book was left, read once as it opens: reading straight through is picked up where it was. */
   const [left, setLeft] = useState(() => {
@@ -143,7 +145,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
           >
             <List size={16} aria-hidden="true" /> Index
           </button>
-          <nav className={styles.rail} aria-label="Chapters">
+          <nav className={styles.rail} aria-label="Pages">
             {chapters.map((chapter, i) => (
               <button
                 key={`${chapter.line}-${chapter.title}`}
@@ -193,9 +195,9 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
       <Byline authors={authors} />
       {words.before ? <BookWords words={words.before} known={known} open={open} dark={dark} videos={videos} /> : null}
       {chapters.length === 0 ? (
-        <p className={styles.empty}>{readOnly ? 'No chapters yet.' : 'No chapters yet. Add one below, or a note you have already written.'}</p>
+        <p className={styles.empty}>{readOnly ? 'No pages yet.' : 'No pages yet. Add one below, or a note you have already written.'}</p>
       ) : (
-        <ol className={styles.index} aria-label="Chapters">
+        <ol className={styles.index} aria-label="Pages">
           {chapters.map((chapter, i) => {
             const there = known(chapter.title);
             const canvas = there && isCanvas(chapter.title);
@@ -236,7 +238,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
                   <button type="button" className={styles.tool} aria-label={`Move ${chapter.title} down`} disabled={i === chapters.length - 1} onClick={() => onChange(withChapterMoved(body, chapter.title, 1))}>
                     <ChevronDown size={16} aria-hidden="true" />
                   </button>
-                  <button type="button" className={styles.tool} aria-label={`Take ${chapter.title} out of the book`} onClick={() => onChange(withoutChapter(body, chapter.title))}>
+                  <button type="button" className={styles.tool} aria-label={`Take ${chapter.title} out of the notebook`} onClick={() => onChange(withoutChapter(body, chapter.title))}>
                     <X size={16} aria-hidden="true" />
                   </button>
                 </span>
@@ -292,7 +294,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
         <div className={styles.add}>
           <input className={styles.field} aria-label="Find a note to add" placeholder="Find a note" value={filter} autoFocus onChange={(event) => setFilter(event.target.value)} />
           <ul className={styles.picker} aria-label="Notes to add">
-            {others.length === 0 ? <li className={styles.none}>{filter.trim() ? 'No note by that name outside the book.' : 'Every note is in the book already.'}</li> : null}
+            {others.length === 0 ? <li className={styles.none}>{filter.trim() ? 'No note by that name outside the notebook.' : 'Every note is in the notebook already.'}</li> : null}
             {others.slice(0, 40).map((name) => {
               const on = picked.some((p) => sameTitle(p, name));
               return (
@@ -343,4 +345,12 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
 
 function noop(): void {
   // Read-only: nothing typed comes back.
+}
+
+/** `list`, or the list last given when every item is the same: an identity a memo can key on. */
+function useSameList(list: readonly string[]): readonly string[] {
+  const kept = useRef(list);
+  const was = kept.current;
+  if (was.length !== list.length || was.some((item, i) => item !== list[i])) kept.current = list;
+  return kept.current;
 }

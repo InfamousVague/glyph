@@ -1,8 +1,8 @@
 import { frontMatterEnd, frontMatterValue, quotedTitle } from '../core/frontMatter.ts';
 import { BOX, MARKER } from '../core/itemSyntax.ts';
-import { noteTitle, withoutFrontMatter, type Note } from '../core/store.ts';
-import { titleKey } from '../core/titleKey.ts';
-import { sameTitle } from '../editor/wikiLinks.ts';
+import { noteTitle, withoutFrontMatter } from '../core/noteTitle.ts';
+import type { Note } from '../core/store.ts';
+import { sameTitle, titleKey } from '../core/titleKey.ts';
 
 /**
  * A book: a collection of notes in an order, with an index (Matt: "add a Book feature it should be a collection of
@@ -15,6 +15,10 @@ import { sameTitle } from '../editor/wikiLinks.ts';
  * Words that are not list items - a paragraph before the list, a heading - are the book's own and are kept where
  * they are: the index view shows them over the chapters. Nothing here touches a chapter note; a chapter is any note,
  * found by its title, and a title with no note yet is a chapter still to be written.
+ *
+ * Pure, and it imports nothing that draws or stores: the MCP server (mcp/server.ts) bundles it for Node, with a
+ * journal's rules on top of it (book/journal.ts), so Claude writes an entry and its line as the app does. So the title
+ * comes from core/noteTitle.ts, not the store, and the match from core/titleKey.ts, not the editor's links.
  */
 
 export interface Chapter {
@@ -40,9 +44,19 @@ export function isBookBody(body: string): boolean {
   return said !== null && /^(true|yes)$/i.test(said);
 }
 
+/**
+ * Whether a notebook is a journal (book/journal.ts): `journal: true` beside `book: true`, read as `book:` is. Here
+ * beside `isBookBody` so a notebook's place and a journal's rules both read it without a cycle.
+ */
+export function isJournalBody(body: string): boolean {
+  if (!isBookBody(body)) return false;
+  const said = frontMatterValue(body, 'journal');
+  return said !== null && /^(true|yes)$/i.test(said);
+}
+
 /** The body of a new book note, named, with any chapters given in order. */
 export function bookNoteBody(title: string, chapters: readonly string[] = []): string {
-  const named = quotedTitle(title, 'Book');
+  const named = quotedTitle(title, 'Notebook');
   const index = chapters.map((chapter) => `- [[${chapter.trim()}]]`).join('\n');
   // The heading is the same name, out of its quotes.
   return `---\ntitle: ${named}\nbook: true\n---\n# ${named.slice(1, -1)}\n\n${index}${index ? '\n' : ''}`;
@@ -169,6 +183,8 @@ export interface BookPlace {
   title: string;
   chapters: Chapter[];
   at: number;
+  /** The book is a journal (book/journal.ts): its pages are entries, and the bar, the foot and the mark say so. */
+  journal: boolean;
 }
 
 /**
@@ -184,7 +200,7 @@ export function bookOf(notes: readonly Note[], title: string): BookPlace | null 
     if (sameTitle(bookTitle, clean)) continue;
     const chapters = chaptersOf(note.body);
     const at = chapters.findIndex((c) => sameTitle(c.title, clean));
-    if (at >= 0) return { book: note, title: bookTitle, chapters, at };
+    if (at >= 0) return { book: note, title: bookTitle, chapters, at, journal: isJournalBody(note.body) };
   }
   return null;
 }
@@ -200,10 +216,11 @@ export function bookIndex(notes: readonly Note[]): Map<string, BookPlace> {
     if (!isBookBody(note.body)) continue;
     const title = noteTitle(note.body);
     const chapters = chaptersOf(note.body);
+    const journal = isJournalBody(note.body);
     chapters.forEach((chapter, at) => {
       const key = titleKey(chapter.title);
       if (!key || key === titleKey(title) || places.has(key)) return;
-      places.set(key, { book: note, title, chapters, at });
+      places.set(key, { book: note, title, chapters, at, journal });
     });
   }
   return places;

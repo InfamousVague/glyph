@@ -127,7 +127,7 @@ describe.skipIf(!ON || !existsSync(BUNDLE))('Claude and a phone on one Glyph acc
     });
 
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual(['account_status', 'append_to_note', 'create_note', 'list_notes', 'read_note', 'search_notes', 'set_note_flags', 'update_note']);
+    expect(tools.map((t) => t.name).sort()).toEqual(['account_status', 'add_journal_entry', 'append_to_note', 'create_note', 'list_notes', 'read_note', 'search_notes', 'set_note_flags', 'update_note']);
 
     const listed = JSON.parse(asText(await client.callTool({ name: 'list_notes', arguments: {} }))) as { count: number; notes: { id: string; title: string }[] };
     expect(listed.count).toBe(2);

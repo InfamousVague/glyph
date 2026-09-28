@@ -113,6 +113,11 @@ interface CaptureScreenProps {
   stopRequests?: number;
   /** Talking into this note (its Speak): the words go on its end. */
   noteId?: string;
+  /**
+   * Where in that note the words go, when its opener knows better than its title (place.ts `placingFor`): a journal's
+   * entry said aloud goes on from its time, or into its to-do list (book/template.ts `openEnd`). Absent, the note's own.
+   */
+  placing?: Placing;
   /** A meeting from the start: recorded, not read (the Mac; capture/meeting.ts). */
   meeting?: boolean;
   /**
@@ -178,7 +183,7 @@ async function letGo(recordedAs: string, recordedMs: number | null, ownTape: Not
   await setNoteRecording(ownTape.id, recordedMs, ownTape.segments ?? []).catch((failure: unknown) => console.warn('[glyph] recording not kept:', failure));
 }
 
-export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt, meeting: meetingFromStart = false, onMeeting, onFinish }: CaptureScreenProps) {
+export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt, placing: aimedPlacing, meeting: meetingFromStart = false, onMeeting, onFinish }: CaptureScreenProps) {
   /** The note this capture is being added to, if it continues one, as the page shows it (`writer.target` is the truth). */
   const [target, setTarget] = useState<Note | null>(null);
   /** A meeting: from the start, or turned into one from the card before the first word (the Mac). */
@@ -343,7 +348,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     void chosen.then((found) => {
       // Found after a draft was already written to a new note, or after a command switched the take: stay there.
       if (!current || !found || writer.savedDraft || finished.current || live.engaged) return;
-      const own = placingFor(found.body, { own: true });
+      const own = aimedPlacing ?? placingFor(found.body, { own: true });
       home.current = found;
       writer.aim(found, own);
       setPlacingView(own);
@@ -351,8 +356,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     return () => {
       current = false;
     };
-    // Decided once, as the capture opens: a new capture is a new mount.
-  }, [aimedAt, writer, live]);
+    // Decided once, as the capture opens: a new capture is a new mount, and its placing is the screen's, which holds still.
+  }, [aimedAt, aimedPlacing, writer, live]);
 
   // The notes "add to …" can name (candidates.ts). Read once: a capture lasts minutes, and a
   // note made meanwhile is not one someone will name mid-sentence.
@@ -577,7 +582,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   /** Not this note: back to the take's own note, a new one or the note whose Speak this is. Nothing was stored. */
   const goHome = () => {
     const own = home.current;
-    const into = own ? placingFor(own.body, { own: true }) : END;
+    const into = own ? (own.id === aimedAt && aimedPlacing ? aimedPlacing : placingFor(own.body, { own: true })) : END;
     writer.aim(own, into);
     takeTape.current = null;
     setPendingTitle(null);
@@ -1107,7 +1112,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
           promptTail: renderNote(tape.prior).plain.slice(-200),
           skip: tape.skip,
           keywordAt: tape.keywordAt,
-          ...(writer.placing.kind !== 'end' ? { placing: writer.placing } : {}),
+          // Not the end, or the end with a line the words go on from: the better words are placed the same way.
+          ...(writer.placing.kind !== 'end' || writer.placing.lead ? { placing: writer.placing } : {}),
           // The take's own phrases whenever they are not the transcript's: a command carried out, or a take-back.
           ...(live.changedWords ? { live: shifted(take.segments, tape.fromMs) } : {}),
         };

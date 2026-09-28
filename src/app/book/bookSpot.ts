@@ -3,7 +3,7 @@ import { sheetOf } from '../core/noteSheet.ts';
 import { readStored, writeStored } from '../core/stored.ts';
 import { noteTitle, type Note } from '../core/store.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
-import { chaptersOf, isBookBody } from './book.ts';
+import { chaptersOf, isBookBody, isJournalBody } from './book.ts';
 
 /**
  * Where a book was left, so it opens there again (Matt: "When opening a book re open to the same spot it was last
@@ -67,10 +67,11 @@ export function writeBookSpot(bookId: string, spot: BookSpot, now = Date.now()):
 /**
  * The note to show for `note` opened from outside its book: the chapter the book was left in, while that chapter is
  * still in the book and still a note, and not already the note on screen (where opening the book is asking for its
- * index); otherwise `note` itself. Only a book is ever swapped.
+ * index); otherwise `note` itself. Only a book is ever swapped, and never a journal: opened, a journal is where New
+ * entry is, not yesterday's entry with New entry two taps away (docs/DESIGN.md §142).
  */
 export function whereLeft(note: Note, notes: readonly Note[], showing: string | null): Note {
-  if (!isBookBody(note.body)) return note;
+  if (!isBookBody(note.body) || isJournalBody(note.body)) return note;
   const spot = readBookSpot(note.id);
   if (spot?.kind !== 'chapter') return note;
   if (!chaptersOf(note.body).some((c) => sameTitle(c.title, spot.title))) return note;

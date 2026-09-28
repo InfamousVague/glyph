@@ -127,7 +127,7 @@
 }
 
 /*
- * The heading over a group on the page - Pinned, To do, Tapes, Library, Recent - a step above a card's title, in
+ * The heading over a group on the page - Pinned, To do, Tapes, Notebooks, Recent - a step above a card's title, in
  * sentence case with the titles' tracking. It was spaced capitals a step below the titles (`.app-eyebrow`'s idiom),
  * so nothing on the page was bigger than a card's title; the caps idiom stays in sheets and cards elsewhere.
  */

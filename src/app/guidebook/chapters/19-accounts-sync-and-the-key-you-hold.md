@@ -96,7 +96,7 @@ At the top: your handle, **End-to-end encrypted**, and how sync stands.
 
 Any other failure is said in its own words. The Account row in the Settings list carries the same news in one line: your handle, then "synced 4 min ago".
 
-Below come **Shared links** ([[Sharing a note or a book]]) and **Delete account**.
+Below come **Shared links** ([[Sharing a note or a notebook]]) and **Delete account**.
 
 ## Deleting the account
 
@@ -105,5 +105,5 @@ Settings › Account › **Delete account**. The page says what goes, then asks 
 ## Read next
 
 - [[Live typing]]
-- [[Sharing a note or a book]]
+- [[Sharing a note or a notebook]]
 - [[What stays on your phone]]

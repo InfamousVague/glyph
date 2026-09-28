@@ -123,13 +123,25 @@ export function TickBox({ className }: IconProps) {
   return icon(className, 'M4.5 4.5h15v15h-15zM8.3 12.3l2.6 2.6 4.9-5.3');
 }
 
+const BOOK_PATH = 'M4.5 19.5v-15A2.5 2.5 0 0 1 7 2h12.5v20H7a2.5 2.5 0 0 1 0-5h12.5';
+
 /**
- * A book, closed, seen from its fore-edge: the spine's curve and the cover. For the Library heading on the home page,
- * drawn here rather than taken from the kit: the kit's lucide Book writes width=24 and stroke-width=2 as attributes and
- * ignores the em it is set in, which is how it drew 24px and thin beside a 15px cassette (docs/DESIGN.md §132).
+ * A book, closed, seen from its fore-edge: the spine's curve and the cover. It was the Library heading's on the home
+ * page, drawn here rather than taken from the kit: the kit's lucide Book writes width=24 and stroke-width=2 as
+ * attributes and ignores the em it is set in, which is how it drew 24px and thin beside a 15px cassette
+ * (docs/DESIGN.md §132). The heading is Notebooks now, and wears the notebook below, which is this drawing with rings.
  */
 export function Book({ className }: IconProps) {
-  return icon(className, 'M4.5 19.5v-15A2.5 2.5 0 0 1 7 2h12.5v20H7a2.5 2.5 0 0 1 0-5h12.5');
+  return icon(className, BOOK_PATH);
+}
+
+/**
+ * A notebook: the book above with three rings across its spine, for the Notebooks heading on the home page, since a
+ * book is a notebook now (Matt: "id like books to be renamed notebooks", docs/DESIGN.md §142). The rings are 4 wide
+ * and 4 apart, which at the heading's 19.4px leaves a gap between them and not a bar.
+ */
+export function Notebook({ className }: IconProps) {
+  return icon(className, `${BOOK_PATH}M2.5 6.5h4M2.5 10.5h4M2.5 14.5h4`);
 }
 
 /** A clock at twenty past two, for the Recent heading: the notes touched last. */

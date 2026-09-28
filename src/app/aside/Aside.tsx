@@ -25,10 +25,50 @@ export interface AsideProps {
 export function Aside({ content, onOpen, onOpenTitle, onClose, popup }: AsideProps) {
   return (
     <div className={styles.aside} data-kind={content.kind} data-popup={popup || undefined}>
-      {content.kind === 'book' ? (
+      {content.kind === 'book' && content.place.journal ? (
         <>
           <div className={styles.head}>
-            <button type="button" className={styles.headButton} onClick={() => onOpen(content.place.book.id)} aria-label={`Open the book ${content.place.title}`}>
+            <button type="button" className={styles.headButton} onClick={() => onOpen(content.place.book.id)} aria-label={`Open the journal ${content.place.title}`}>
+              <BookOpen size={15} aria-hidden="true" />
+              <span className={styles.headTitle}>{content.place.title}</span>
+            </button>
+            {onClose ? (
+              <button type="button" className={styles.close} onClick={onClose} aria-label="Close">
+                <X size={16} aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
+          {/* One month of a journal's entries, newest first: the open entry's, or the newest (aside.ts). */}
+          {!content.month ? (
+            <p className={styles.empty}>No entries yet.</p>
+          ) : (
+            <>
+              <p className={styles.month}>{content.month.label}</p>
+              <ol className={styles.list} aria-label="Entries">
+                {content.month.entries.map((entry) => {
+                  const current = entry.id === content.open;
+                  return (
+                    <li key={entry.id}>
+                      <button type="button" className={styles.row} aria-label={entry.label} aria-current={current ? 'page' : undefined} data-current={current || undefined} onClick={() => onOpen(entry.id)}>
+                        <span className={styles.number} aria-hidden="true">
+                          {entry.day}
+                        </span>
+                        <span className={styles.entryWords}>
+                          {entry.time}
+                          {entry.first ? ` ${entry.first}` : ''}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            </>
+          )}
+        </>
+      ) : content.kind === 'book' ? (
+        <>
+          <div className={styles.head}>
+            <button type="button" className={styles.headButton} onClick={() => onOpen(content.place.book.id)} aria-label={`Open the notebook ${content.place.title}`}>
               <BookOpen size={15} aria-hidden="true" />
               <span className={styles.headTitle}>{content.place.title}</span>
             </button>
@@ -39,9 +79,9 @@ export function Aside({ content, onOpen, onOpenTitle, onClose, popup }: AsidePro
             ) : null}
           </div>
           {content.place.chapters.length === 0 ? (
-            <p className={styles.empty}>No chapters yet.</p>
+            <p className={styles.empty}>No pages yet.</p>
           ) : (
-            <ol className={styles.list} aria-label="Chapters">
+            <ol className={styles.list} aria-label="Pages">
               {content.place.chapters.map((chapter, i) => {
                 const current = content.place.at === i;
                 return (
@@ -106,7 +146,7 @@ export function Aside({ content, onOpen, onOpenTitle, onClose, popup }: AsidePro
  */
 export function AsideCard({ onClose, onOpen, onOpenTitle, ...rest }: AsideProps & { onClose: () => void }) {
   return (
-    <FloatingCard side="end" label="Book index" toggle="[data-aside-toggle]" onClose={onClose}>
+    <FloatingCard side="end" label="Notebook index" toggle="[data-aside-toggle]" onClose={onClose}>
       <Aside
         {...rest}
         popup

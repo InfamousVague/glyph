@@ -1,0 +1,164 @@
+/*
+ * What a journal's entries start with (TemplatePicker.tsx): the choice, your own template's box and its placeholders,
+ * the page an entry would start as, and the place switch. In the sheet's own look (editor/NoteSettings.module.css).
+ * One column on a phone; from 44rem, the Fold opened out, the preview beside the choice, as the home page goes two
+ * across there (docs/DESIGN.md §137).
+ */
+
+/* The container the width is asked of; a container query styles what is inside it, never the container itself. */
+.picker {
+  container: journal-template / inline-size;
+}
+
+.layout {
+  display: grid;
+  grid-template-areas:
+    'choice'
+    'preview'
+    'place';
+  column-gap: var(--glacier-space-5);
+}
+
+@container journal-template (min-width: 44rem) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      'choice preview'
+      'place preview';
+    align-items: start;
+  }
+
+  /* Beside the choice, it stays in sight while your own template grows in the box: typing scrolled it away above. */
+  .preview {
+    position: sticky;
+    inset-block-start: 0;
+  }
+}
+
+.choice {
+  grid-area: choice;
+  min-inline-size: 0;
+}
+
+.place {
+  grid-area: place;
+  min-inline-size: 0;
+}
+
+.own {
+  display: grid;
+  gap: var(--glacier-space-2);
+  margin-block-end: var(--glacier-space-3);
+}
+
+/* Your own template, in the note's face: four lines to start, growing with what is written. */
+.box {
+  appearance: none;
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: 6.5lh;
+  field-sizing: content;
+  padding: var(--glacier-space-3) var(--glacier-space-4);
+  border: var(--app-line) solid var(--glacier-border-strong);
+  border-radius: var(--glacier-radius-lg);
+  background: var(--glacier-bg);
+  color: var(--glacier-text);
+  font-family: var(--app-note-font);
+  font-size: var(--glacier-font-size-md);
+  line-height: var(--glacier-leading-md);
+  resize: vertical;
+  outline: none;
+}
+
+.box:focus {
+  border-color: var(--glacier-text);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--glacier-space-2);
+}
+
+.chip {
+  appearance: none;
+  min-block-size: 2rem;
+  padding: 0 var(--glacier-space-3);
+  border: var(--app-line) solid var(--glacier-border-strong);
+  border-radius: var(--glacier-radius-full);
+  background: none;
+  color: var(--glacier-text);
+  font-family: var(--app-note-font);
+  font-size: var(--glacier-font-size-sm);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chip:active {
+  background: var(--app-wash);
+}
+
+.rule,
+.where,
+.note {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--glacier-text-subtle);
+}
+
+/* Under the choice, before your own template's box: what a change does. */
+.note {
+  margin-block: calc(-1 * var(--glacier-space-1)) var(--glacier-space-3);
+  padding-inline: var(--glacier-space-1);
+}
+
+.preview {
+  grid-area: preview;
+  display: grid;
+  gap: var(--glacier-space-2);
+  align-content: start;
+  min-inline-size: 0;
+  margin-block: var(--glacier-space-2) var(--glacier-space-3);
+  padding: var(--glacier-space-4);
+  border-radius: var(--glacier-radius-lg);
+  background: var(--glacier-bg);
+}
+
+/*
+ * The page as a note draws it, in the note's own face, in a room with no ground, gutter or caret of its own
+ * (guide/MarkExample.module.css), and small: the note's reading size and its headings' sizes brought down to the
+ * sheet's, so an entry's date heading is a preview and not a poster. The headings take the kit's steps rather than a
+ * step off the body (app.css): brought down alone, the body left a heading three times its size, louder than the
+ * sheet's own title.
+ */
+.page {
+  composes: room from '../guide/MarkExample.module.css';
+  --app-gutter: 0px;
+  --app-body: var(--glacier-font-size-sm);
+  --app-h1: var(--glacier-font-size-lg);
+  --app-h2: var(--glacier-font-size-md);
+  --app-h3: var(--glacier-font-size-md);
+  --app-h4: var(--glacier-font-size-sm);
+  --app-h5: var(--glacier-font-size-sm);
+  --app-h6: var(--glacier-font-size-sm);
+  min-inline-size: 0;
+  font-family: var(--app-note-font);
+}
+
+/* The place switch: a row of the sheet with its switch at the end. The switch is the press, not the row. */
+.switchRow {
+  composes: row from '../editor/NoteSettings.module.css';
+}
+
+.switchRow.switchRow {
+  cursor: default;
+}
+
+.label {
+  composes: label from '../editor/NoteSettings.module.css';
+  flex: 1;
+}
+
+.hint {
+  composes: hint from '../editor/NoteSettings.module.css';
+}

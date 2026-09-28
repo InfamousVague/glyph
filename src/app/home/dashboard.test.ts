@@ -18,6 +18,17 @@ describe('the home page', () => {
     expect(recentNotes(notes, 1, {}).map((n) => n.id)).toEqual(['c']);
   });
 
+  it('leaves a journal’s entries out of Recent, and a notebook’s pages in', () => {
+    const withJournal = [
+      ...notes,
+      makeNote('j', '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n- [[2026-09-28 14.05]]\n', { updatedAt: 60 }),
+      makeNote('e', '---\ntitle: "2026-09-28 14.05"\n---\nWalked.', { updatedAt: 70 }),
+      makeNote('g', bookNoteBody('Field guide', ['Trees']), { updatedAt: 5 }),
+      makeNote('t', '# Trees', { updatedAt: 80 }),
+    ];
+    expect(recentNotes(withJournal, 5, {}).map((n) => n.id)).toEqual(['t', 'c', 'a']);
+  });
+
   it('gathers every unticked to-do, the note touched last first', () => {
     const tasks = openTasks([
       makeNote('old', '# Old\n- [ ] Buy milk\n- [x] Done already', { updatedAt: 1 }),

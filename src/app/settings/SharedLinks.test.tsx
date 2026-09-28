@@ -47,6 +47,7 @@ describe('the list of shared links', () => {
       expect(text).toContain('A note not on this device');
       expect(text).toContain('A link no device lists');
     });
+    expect(host.textContent).toContain('Anyone with a link can read that note or notebook, and nobody else, the server included.');
     press(button('Take down', host));
     await waitUntil(() => expect(deleted).toEqual(['shares/OOOOOOOOOOOOOOOOOOOOOO']));
   });

@@ -78,7 +78,7 @@ Only the formats wait. The editor reads `formats()` once, when its view is made,
 
 - `plugins/hooks.ts`: `usePlugins()`, through `useSyncExternalStore`, and `useNoteLinks(noteId)`, read again on a storage write or a switch. It sits apart so the registry stays plain code the recorder can call.
 - `plugins/PluginsPane.tsx` is Settings > Plugins: a card per plugin with its switch, "What it may reach" with a Why that opens each permission's reason, and the way to its own page. That page is a Settings section of its own, `plugin:<id>`, while the plugin is on: off the list (`listed: false`), a sub-page of Plugins that back steps to, and searched by the list on the plugin's `settings`.
-- `plugins/kit.tsx` is the More sheet's parts (`SheetTitle`, `SheetRow`, `SheetField` and the rest), so a plugin's picker draws in the sheet's look. The book, canvas, workspace and new-note sheets are built from them too.
+- `plugins/kit.tsx` is the More sheet's parts (`SheetTitle`, `SheetRow`, `SheetField` and the rest), so a plugin's picker draws in the sheet's look. The notebook, canvas, workspace and new-note sheets are built from them too.
 - `plugins/LinkMarks.tsx` draws, at a note's top, its workspace and a mark per link a plugin reports through `NoteLink.linked`. A tap opens the More sheet.
 - `core/markDetails.ts` stands behind the pill at the end of a linked item: the mark is read back through the provider registered under its name, `peek` on every draw, `want` to read again, `actions` for the menu.
 

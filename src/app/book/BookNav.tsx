@@ -1,5 +1,6 @@
 import { BookOpen, ChevronLeft, ChevronRight } from '@glacier/icons';
 import type { BookPlace } from './book.ts';
+import { sideName } from './journalMonths.ts';
 import styles from './BookNav.module.css';
 
 /**
@@ -8,6 +9,11 @@ import styles from './BookNav.module.css';
  * disagree (docs/DESIGN.md §87), and both open a neighbour through `open`, which the note screen points at the book's
  * one tab (§77).
  */
+
+/** What a book's parts are called on the bar and the foot: pages, or a journal's entries (docs/DESIGN.md §142). */
+function wordsFor(place: BookPlace): { kind: string; part: string } {
+  return place.journal ? { kind: 'journal', part: 'entry' } : { kind: 'notebook', part: 'page' };
+}
 
 /** The chapters either side of this one: null at either end. */
 function sides(place: BookPlace): { prev: string | null; next: string | null } {
@@ -19,25 +25,30 @@ function sides(place: BookPlace): { prev: string | null; next: string | null } {
 
 /**
  * The bar a chapter wears under its header: the book it is in, its place in it, and the chapters either side
- * (`bookOf` in book/book.ts finds them). A tap on the book opens the index; the ends open the neighbours.
+ * (`bookOf` in book/book.ts finds them). A tap on the book opens the index; the ends open the neighbours. A journal's
+ * sides say an entry's time, or its day when it was written on another (book/journalMonths.ts `sideName`): its name
+ * is a date and a minute, and at a phone's width only the date's first letters, the same on every entry, had room.
  */
 export function BookBar({ place, open }: { place: BookPlace; open: (title: string) => void }) {
   const { prev, next } = sides(place);
+  const { kind, part } = wordsFor(place);
+  const here = place.chapters[place.at]?.title ?? '';
+  const said = (title: string | null) => (title !== null && place.journal ? sideName(title, here) : (title ?? ''));
   return (
-    <nav className={styles.bar} aria-label="Book">
-      <button type="button" className={styles.end} disabled={!prev} onClick={() => prev && open(prev)} aria-label={prev ? `Previous chapter: ${prev}` : 'First chapter'}>
+    <nav className={styles.bar} aria-label={place.journal ? 'Journal' : 'Notebook'}>
+      <button type="button" className={styles.end} disabled={!prev} onClick={() => prev && open(prev)} aria-label={prev ? `Previous ${part}: ${prev}` : `First ${part}`}>
         <ChevronLeft size={16} aria-hidden="true" />
-        <span className={styles.endTitle}>{prev ?? ''}</span>
+        <span className={styles.endTitle}>{said(prev)}</span>
       </button>
-      <button type="button" className={styles.middle} onClick={() => open(place.title)} aria-label={`Open the book ${place.title}`}>
+      <button type="button" className={styles.middle} onClick={() => open(place.title)} aria-label={`Open the ${kind} ${place.title}`}>
         <BookOpen size={15} aria-hidden="true" />
         <span className={styles.bookTitle}>{place.title}</span>
         <span className={styles.count}>
           {place.at + 1} of {place.chapters.length}
         </span>
       </button>
-      <button type="button" className={styles.end} data-next="" disabled={!next} onClick={() => next && open(next)} aria-label={next ? `Next chapter: ${next}` : 'Last chapter'}>
-        <span className={styles.endTitle}>{next ?? ''}</span>
+      <button type="button" className={styles.end} data-next="" disabled={!next} onClick={() => next && open(next)} aria-label={next ? `Next ${part}: ${next}` : `Last ${part}`}>
+        <span className={styles.endTitle}>{said(next)}</span>
         <ChevronRight size={16} aria-hidden="true" />
       </button>
     </nav>
@@ -54,7 +65,7 @@ export function BookFoot({ place, open }: { place: BookPlace; open: (title: stri
   const { prev, next } = sides(place);
   if (!prev && !next) return null;
   return (
-    <nav className={styles.foot} aria-label="Previous and next chapter" data-book-foot="">
+    <nav className={styles.foot} aria-label={`Previous and next ${wordsFor(place).part}`} data-book-foot="">
       {prev ? (
         <button type="button" className={styles.step} onClick={() => open(prev)} aria-label={`Previous: ${prev}`}>
           <span className={styles.stepLabel}>

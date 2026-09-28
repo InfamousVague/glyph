@@ -6,7 +6,7 @@ import { syncDevice, type SyncDevice } from '../../../test/syncDevice.ts';
 import { withSummary } from '../../ai/summaryText.ts';
 import { markShared } from '../live/shared.ts';
 import type { Note } from '../store.ts';
-import { fileId, mark, RECORDING_SYNC_LIMIT, recordingBytes, recordingStaysHere, stayedHere } from './notes.ts';
+import { fileId, mark, mergedIndex, RECORDING_SYNC_LIMIT, recordingBytes, recordingStaysHere, stayedHere } from './notes.ts';
 
 /*
  * The note sync pass (notes.ts) between two devices on the service in memory: the rules a person would feel break -
@@ -389,5 +389,76 @@ describe('a summary on both devices', () => {
     await phone.sync();
     expect(phone.notes.get('a')?.body).toBe(withSummary(note.body, theirs));
     expect(phone.notes.size).toBe(1);
+  });
+});
+
+describe('a notebook on two devices', () => {
+  const DIARY = '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n\nOn the train, mostly.\n\n- [[2026-09-27 21.40]]\n';
+
+  it('keeps one note when both added a line to its index: theirs, and this device’s line after the one it followed', async () => {
+    const { phone, mac } = await pair();
+    const note = makeNote('a', DIARY, { createdAt: 1, updatedAt: 1 });
+    phone.notes.set('a', note);
+    await phone.sync();
+    await mac.sync();
+    phone.notes.set('a', edited(note, `${DIARY}- [[2026-09-28 08.10]]\n`, 2));
+    mac.notes.set('a', edited(note, `${DIARY}- [[2026-09-28 14.05]]\n`, 3));
+    await phone.sync();
+    expect(await mac.sync()).toMatchObject({ conflicts: 0, changed: 1 });
+    expect(mac.notes.size).toBe(1);
+    // The Mac's line goes after the line it followed on the Mac; a journal's view orders by time whatever the lines say.
+    const merged = `${DIARY.replace('- [[2026-09-27 21.40]]\n', '- [[2026-09-27 21.40]]\n- [[2026-09-28 14.05]]\n')}- [[2026-09-28 08.10]]\n`;
+    expect(mac.notes.get('a')?.body).toBe(merged);
+    // What the Mac merged is what it sends next, so the phone holds it too.
+    await phone.sync();
+    expect(phone.notes.get('a')?.body).toBe(merged);
+    expect(phone.notes.size).toBe(1);
+  });
+
+  it('merges the first line two devices each added to an empty index too', async () => {
+    const { phone, mac } = await pair();
+    const empty = '---\ntitle: "Log"\nbook: true\njournal: true\n---\n# Log\n\n';
+    const note = makeNote('a', empty, { createdAt: 1, updatedAt: 1 });
+    phone.notes.set('a', note);
+    await phone.sync();
+    await mac.sync();
+    phone.notes.set('a', edited(note, `${empty}- [[One]]\n`, 2));
+    mac.notes.set('a', edited(note, `${empty}- [[Two]]\n`, 3));
+    await phone.sync();
+    expect(await mac.sync()).toMatchObject({ conflicts: 0 });
+    expect(mac.notes.get('a')?.body).toBe(`${empty}- [[One]]\n- [[Two]]\n`);
+  });
+
+  it('still keeps a copy when the words around the index changed on both sides', async () => {
+    const { phone, mac } = await pair();
+    const note = makeNote('a', DIARY, { createdAt: 1, updatedAt: 1 });
+    phone.notes.set('a', note);
+    await phone.sync();
+    await mac.sync();
+    phone.notes.set('a', edited(note, DIARY.replace('On the train, mostly.', 'On the bus.'), 2));
+    mac.notes.set('a', edited(note, `${DIARY}- [[2026-09-28 14.05]]\n`, 3));
+    await phone.sync();
+    expect(await mac.sync()).toMatchObject({ conflicts: 1 });
+  });
+
+  it('reads the blank lines round the index as one, however many a line taken out left', () => {
+    const head = '---\ntitle: "Log"\nbook: true\njournal: true\n---\n# Log\n\n';
+    // Here a line was added; there the only line was taken out by hand, and the blank lines either side of it kept.
+    const merged = mergedIndex(`${head}- [[A]]\n- [[B]]\n\nAfter the list.\n`, `${head}\n\n\nAfter the list.\n`);
+    expect(merged).not.toBeNull();
+    expect(merged).toContain('- [[B]]');
+  });
+
+  it('merges only notebooks: a note with a list of links changed on both sides is kept twice', async () => {
+    const { phone, mac } = await pair();
+    const list = '# Reading\n\n- [[One]]\n';
+    const note = makeNote('a', list, { createdAt: 1, updatedAt: 1 });
+    phone.notes.set('a', note);
+    await phone.sync();
+    await mac.sync();
+    phone.notes.set('a', edited(note, `${list}- [[Two]]\n`, 2));
+    mac.notes.set('a', edited(note, `${list}- [[Three]]\n`, 3));
+    await phone.sync();
+    expect(await mac.sync()).toMatchObject({ conflicts: 1 });
   });
 });

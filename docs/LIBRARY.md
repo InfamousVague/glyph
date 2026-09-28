@@ -53,7 +53,7 @@ A note is one `.md` file named after its title: the first heading, or the first 
 file name can't hold, or a sync service refuses (`/ \ : * ? " < > |`, and `# ^ [ ]`), are dropped with any bold
 marks, a title longer than 80 characters is cut at a word, an empty one is "Untitled", and a clash gets " 2", " 3"
 (`src-tauri/src/library/names.rs`). The name comes from the first line of the words the page sends, with the page's
-own front matter at their top skipped by the page's rule (`frontMatterEnd`), so a canvas or a book is named by that
+own front matter at their top skipped by the page's rule (`frontMatterEnd`), so a canvas or a notebook is named by that
 block's `title:`, and a note whose block has none, such as one an AI signed, by its first line under the block. Until
 2026-09-27 all of them were named from the block's opening `---`, as `---.md`, `--- 2.md` and so on; such a file takes
 its name the next time its note is saved. When the title changes, the file is renamed. The id in its front matter keeps it the same note wherever it moves.
@@ -109,10 +109,10 @@ The library writes these keys, and only these (`src-tauri/src/library/mod.rs`: a
   style.
 
 The page keeps a few keys of its own in a block at the top of the note's words (`src/app/core/frontMatter.ts`):
-`title:`, which names a canvas or a book, since neither has a first line to rename it in; `book: true`, which makes a
-note a book (docs/BOOKS.md); and `authors:`, the names a note was written by, the AI among them
-(`src/app/core/authors.ts`). The library does not merge that block into its own. A named book's file therefore opens
-with two blocks, the library's and then the page's, and an app that reads only the first shows the second as text.
+`title:`, which names a canvas or a notebook, since neither has a first line to rename it in; `book: true`, which
+makes a note a notebook (docs/BOOKS.md); and `authors:`, the names a note was written by, the AI among them
+(`src/app/core/authors.ts`). The library does not merge that block into its own. A named notebook's file therefore
+opens with two blocks, the library's and then the page's, and an app that reads only the first shows the second as text.
 
 Keys for a note's tags, its Notion board and its GitHub repo (`tags`, `notion-board`, `project`) are phase 4. The
 reader and writer take any top-level key, and a test in `src-tauri/src/library/frontmatter.rs` reads and writes

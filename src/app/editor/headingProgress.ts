@@ -1,6 +1,6 @@
 import { RangeSetBuilder, type Text, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
-import { taskBox } from '../core/itemSyntax.ts';
+import { listLead } from '../core/itemSyntax.ts';
 import { forEachLineOutsideFences } from './lines.ts';
 
 /**
@@ -13,7 +13,8 @@ import { forEachLineOutsideFences } from './lines.ts';
  *
  * Nothing is typed and nothing is written: the count is read from the boxes until the next heading of the same level
  * or higher, so a `##` counts its `###` sections too. When every box is ticked it says so. A heading with no to-dos
- * under it says nothing.
+ * under it says nothing. A box with no words is not a to-do yet, as the home page's To do card reads it
+ * (home/dashboard.ts `openTasks`): a journal's day of to-dos starts with one empty box, and its headings said "0 of 1".
  */
 
 const HEADING = /^ {0,3}(#{1,6})\s+\S/;
@@ -44,11 +45,11 @@ export function headingCounts(doc: Text): HeadingCount[] {
       open.push({ line: number, level, done: 0, total: 0 });
       return;
     }
-    const box = taskBox(text);
-    if (box) {
+    const lead = listLead(text);
+    if (lead?.done != null && text.slice(lead.wordsAt).trim()) {
       for (const h of open) {
         h.total += 1;
-        if (box.done) h.done += 1;
+        if (lead.done) h.done += 1;
       }
     }
   });

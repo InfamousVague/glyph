@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { LiveTake } from './liveTake.ts';
 import type { RefineJob } from './refine.ts';
+import { placeTake } from './place.ts';
 import { refinedBody, refinedSegments, withClips, withoutCommands } from './refineText.ts';
 
 const job = (over: Partial<RefineJob> = {}): RefineJob => ({
@@ -98,6 +99,14 @@ describe('the better words for a take the live reader read', () => {
       [seg('Call an electrician to fix the light sockets.', 0, 3000)],
     );
     expect(body).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call an electrician to fix the light sockets\n');
+  });
+
+  it('keeps a spoken entry on its time line, as the live page and Done wrote it', () => {
+    const baseBody = '---\ntitle: "2026-09-28 14.05"\n---\n# Monday 28 September\n\n';
+    const placing = { kind: 'end', lead: '**14:05** ' } as const;
+    const said = placeTake(baseBody, 'Walked along the river.', placing).body;
+    expect(said).toBe(`${baseBody}**14:05** Walked along the river.`);
+    expect(refinedBody(job({ baseBody, titled: false, placing }), [seg('Walked along the river after lunch.', 0, 2000)])).toBe(`${baseBody}**14:05** Walked along the river after lunch.`);
   });
 
   it('still lands an old job, with no placing, at the end', () => {

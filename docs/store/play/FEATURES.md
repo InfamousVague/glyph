@@ -16,7 +16,7 @@ Play build, and each has a screenshot.
 | 2 | Hey Ghost, into a note you name | The words land in another note's list while you talk, with Undo. The thing people show each other. |
 | 3 | The AI on the phone: the review, and the runs | A second listen and a read-through after every recording, every change marked to keep or revert, and no cloud. |
 | 4 | Meetings, tapes and summaries | Record with the screen off, written up afterwards with a summary under the title. New in the Play build. |
-| 5 | Plain Markdown, and the marks | One .md file per note, the seven marks and five effects, boards, books and canvases. |
+| 5 | Plain Markdown, and the marks | One .md file per note, the seven marks and five effects, boards, notebooks, journals and canvases. |
 | 6 | Private by design | No account needed; sync and shares sealed on the device; nothing listens in the background. |
 
 Supporting, mentioned in a line each: the side key, the Fold, the Mac app, Notion and GitHub, the Claude connector,
@@ -73,7 +73,7 @@ card, Add to which note?; a name that matches none keeps the words where you are
 
 In the middle of a recording, "Hey Ghost, add call Sam to House TODOs" sends just those words. "Hey Ghost, move this
 to Groceries" moves the recording. "Hey Ghost, make a new list called Packing with toothbrush, socks and charger"
-shows Create Packing at Done. A book is never written into by voice.
+shows Create Packing at Done. A notebook is never written into by voice.
 
 No microphone is left listening for the name. It is heard inside a recording you started, and nowhere else.
 
@@ -139,10 +139,10 @@ above wavers), ❄️❄️frost❄️❄️, 🌊🌊wave🌊🌊, ✨✨shimme
 
 Boards: a ```` ```board ```` fence naming columns of anchored items (`^book-cabin`). Make a board from the More
 sheet, Board from list or Add to board from the press-and-hold menu. Cards tick, drag between columns, and a Done
-column means done. Books: `book: true` and an index of links; Read straight through, Previous and Next, the Book
-index aside, the Library on the home page. Canvases: JSON Canvas 1.0 after a `title:` front matter, six card kinds
-(words, a note, a link, a picture, a chart, a table), groups, lines with words, a minimap, and `![[A canvas]]` to
-frame one inside a note.
+column means done. Notebooks: `book: true` and an index of links; Read straight through, Previous and Next, the
+Notebook index aside, Notebooks on the home page. Canvases: JSON Canvas 1.0 after a `title:` front matter, six card
+kinds (words, a note, a link, a picture, a chart, a table), groups, lines with words, a minimap, and `![[A canvas]]`
+to frame one inside a note.
 
 ## 6. Private by design
 
@@ -152,7 +152,7 @@ random ids, sizes and times, and the kind of each device, never a word. Eight re
 reset a lost password. Delete account is in Settings › Account and on the web.
 
 Sharing: a read-only link `ghostmarkdown.com/read.html#<id>.<key>`, the key after the # that a browser never sends.
-A note or a whole book; edits follow; Stop sharing takes it down; Shared links lists every one.
+A note or a whole notebook; edits follow; Stop sharing takes it down; Shared links lists every one.
 
 The microphone listens only while you record. No analytics, no crash reporting, no ads, no advertising id. The web
 version uses the browser's own speech recognition (Chrome sends voice to Google); the apps transcribe on the device.

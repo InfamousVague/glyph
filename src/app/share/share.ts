@@ -182,7 +182,7 @@ export async function withPictures(
 /** Sealed for the server, or a refusal a person can read when even the words are more than a share holds. */
 async function sealForServer(shared: Shared, key: string): Promise<string> {
   const blob = await sealShare(shared, key);
-  if (blob.length > SHARE_LIMIT) throw new Error('That is more than a share can hold, even with its pictures drawn smaller. Share a chapter, or fewer of them.');
+  if (blob.length > SHARE_LIMIT) throw new Error('That is more than a share can hold, even with its pictures drawn smaller. Share a page, or fewer of them.');
   return blob;
 }
 

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Mic } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
+import { longDay } from '../core/stamp.ts';
 import { inWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
 import { usePreferences } from '../core/preferences.ts';
 import type { VoiceModelState } from '../capture/useVoiceModel.ts';
@@ -9,7 +10,7 @@ import { useGlideToTop } from '../core/glideToTop.ts';
 import { isAndroid } from '../core/platform.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { Ghost } from '../art/Ghost.tsx';
-import { Book, Cassette, Clock, Cog, Grid, Magnifier, Pin, Plus, TickBox } from '../art/Icons.tsx';
+import { Cassette, Clock, Cog, Grid, Magnifier, Notebook, Pin, Plus, TickBox } from '../art/Icons.tsx';
 import { NoteCard } from '../notes/NoteCard.tsx';
 import { when } from '../notes/when.ts';
 import { WorkspaceBar } from '../notes/WorkspaceBar.tsx';
@@ -39,6 +40,7 @@ import { useMeetingLive } from './useMeetingLive.ts';
 import { CAPS } from './tiers.ts';
 import { useColumnTier } from './useColumnTier.ts';
 import { bookIndex, placeOf } from '../book/book.ts';
+import { journalCards } from '../book/journalMonths.ts';
 import styles from './HomeScreen.module.css';
 
 /**
@@ -54,9 +56,10 @@ import styles from './HomeScreen.module.css';
  * category above the rest"); every to-do not yet ticked, gathered from all of their notes into one card and ticked
  * here without opening the note, second because it is what is waiting, its tick is the page's one in-place action, and
  * a meeting's summary writes its actions there; the tapes the recorder made as a row of cards (home/TapeShelf.tsx;
- * Matt: "display them in a cassette shelf on the home page"), above the Library as §127 placed them; their books; and
- * the notes they were in last, four of them (six on a desk), running into "All notes" at the foot, which opens the page
- * that lists every note as a grid of the same cards (notes/AllNotesScreen.tsx).
+ * Matt: "display them in a cassette shelf on the home page"), above the notebooks as §127 placed them; the
+ * notebooks (the Library until §142); and the notes they were in last, four of them (six on a desk), running into
+ * "All notes" at the foot, which opens the page that lists every note as a grid of the same cards
+ * (notes/AllNotesScreen.tsx).
  *
  * Laid out by its own width (home/tiers.ts, docs/DESIGN.md §137; Matt: "Extend the dashboard to support wide phone /
  * tablet layouts too", and then: "It's okay if they're two across or the layout changes slightly on wide the four
@@ -159,6 +162,9 @@ export function HomeScreen({
   const books = useMemo(() => bookNotes(shown), [shown]);
   /** Every page's book, for the cards' marks (book/book.ts). */
   const inBooks = useMemo(() => bookIndex(shown), [shown]);
+  // A journal's card counts every entry in it, wherever each was filed: an entry is filed in the workspace being looked
+  // at when it is made (App.tsx `showMade`), and the + offers the journal written in last from any of them.
+  const journals = useMemo(() => journalCards(notes), [notes]);
   const tasks = useMemo(() => openTasks(shown), [shown]);
   // One quiet line under each card's title, what the note is about, written by a model on the phone (format/gist.ts).
   // Only the notes with a card or a cassette on the page: the runner asks about what is on screen, not about every
@@ -211,7 +217,8 @@ export function HomeScreen({
   // The To do card takes one beat between the pinned cards and the shelf.
   const todoBeats = open.length || allDone ? 1 : 0;
 
-  const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  // "Monday 28 September", as a journal's {{date}} writes the day (core/stamp.ts).
+  const today = longDay(new Date());
   // The digest under the date: what is waiting, from what the page already holds (dashboard.ts `digest`). The tapes'
   // queues are the shelf's own sources, read here as well; two subscribers to one store is fine.
   const summaries = useSummaries();
@@ -239,7 +246,7 @@ export function HomeScreen({
 
   /** A note's card (notes/NoteCard.tsx), at its place in the run of cards down the page. */
   const card = (note: Note, i: number) => (
-    <NoteCard key={note.id} note={note} index={i} onOpen={onOpen} gist={gists[note.id]} place={placeOf(inBooks, note)} />
+    <NoteCard key={note.id} note={note} index={i} onOpen={onOpen} gist={gists[note.id]} place={placeOf(inBooks, note)} entries={journals.get(note.id)} />
   );
 
   return (
@@ -410,8 +417,8 @@ export function HomeScreen({
               <section className={styles.section} data-group="library" aria-labelledby="home-library">
                 <div className={styles.groupRow}>
                   <h2 id="home-library" className={styles.group}>
-                    <Book className={styles.groupMark} />
-                    <span className={styles.groupName}>Library</span>
+                    <Notebook className={styles.groupMark} />
+                    <span className={styles.groupName}>Notebooks</span>
                   </h2>
                 </div>
                 <ol className={styles.cards}>{books.map((n, i) => card(n, i + pinned.length + todoBeats + shelfBeats))}</ol>

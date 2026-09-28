@@ -18,7 +18,7 @@ Characters that some computers, phones or sync services refuse are dropped from 
 
 When the first line changes, the file is renamed to match. It stays the same note: an id at the top of the file follows it through every rename and move.
 
-A canvas and a book are named by a `title:` line in a small block at the top of their text, and that is the name the app shows everywhere. Their files do not follow it yet. A file's name is taken from the first line of the text, and for them that line is the block's opening `---`, so they are written as `---.md`, then `--- 2.md` and on. The same happens to a note of words once an AI has written in it, because its `authors:` line goes in a block at the top of its text too ([[Asking the AI to work on a note]]). In the app, that note is still named by its first line of words.
+A canvas and a notebook are named by a `title:` line in a small block at the top of their text, and that is the name the app shows everywhere. Their files do not follow it yet. A file's name is taken from the first line of the text, and for them that line is the block's opening `---`, so they are written as `---.md`, then `--- 2.md` and on. The same happens to a note of words once an AI has written in it, because its `authors:` line goes in a block at the top of its text too ([[Asking the AI to work on a note]]). In the app, that note is still named by its first line of words.
 
 ## A new note has no file yet
 
@@ -46,7 +46,7 @@ Deleting `.glyph` loses no writing. The index is built again from the files. Wha
 
 The library is a folder called `Library` in Ghost.md's own storage, on each device. It cannot be moved yet: there is no setting to choose another folder, and no button to rebuild the index, because it mends itself.
 
-Pictures and recordings are kept beside the folder, in the app's storage, not inside it. A picture's line still reads as a picture in another app, but that app will not find the picture's file next to the note. A shared note's Download as Markdown carries its pictures with it ([[Sharing a note or a book]]).
+Pictures and recordings are kept beside the folder, in the app's storage, not inside it. A picture's line still reads as a picture in another app, but that app will not find the picture's file next to the note. A shared note's Download as Markdown carries its pictures with it ([[Sharing a note or a notebook]]).
 
 To see the folder, use **Browse files**, the folder button in the sidebar's top row.
 
@@ -90,8 +90,8 @@ A second, smaller block can sit at the top of the note's own text, holding what 
 
 | Key | What it says |
 |---|---|
-| `title` | The name of a canvas or a book, which the app names them by |
-| `book` | `true` on a book's index |
+| `title` | The name of a canvas or a notebook, which the app names them by |
+| `book` | `true` on a notebook's index |
 | `authors` | Who wrote it, once an AI has written in it: the account's name first, when there is one, then the AI's. The app's own model signs as Ghost, and Claude, writing through the connector, as Claude: `authors: Sam, Claude` |
 
 So a canvas's file opens with two blocks: the file's own, with its id and created time, and then the canvas's, with its title. Another Markdown app reads only the first as front matter and shows the second as words.

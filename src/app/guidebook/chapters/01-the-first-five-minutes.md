@@ -27,21 +27,21 @@ Every choice can be changed later: the theme in Settings › Appearance › Page
 
 A library with nothing in it gets one note the first time it opens: [[How to format a note]]. It is a short tutorial, one mark at a time: how to type it, how to say it, and an example, with a photograph of smoke to show a picture. Try each one, then delete it. A library that already has notes never gets it, so an update never drops a note on you.
 
-Settings › About has a row for this book, and its Examples page has one for that note and three more:
+Settings › About has a row for this Guide, and its Examples page has one for that note and three more:
 
-- **Ghost.md: The Guide** adds this book, 44 chapters and its index, and opens the index. Pressed again, it opens the book you have. Its chapters are then your newest notes, so the first six fill Recent until you write something else.
+- **Ghost.md: The Guide** adds this Guide, 44 chapters and its index, and opens the index. Pressed again, it opens the one you have. Its chapters are then your newest notes, so the first six fill Recent until you write something else.
 - **Add the sample note** makes another [[How to format a note]], every mark in it.
 - **Add the example board** makes [[Launch week]]: a working board written in Markdown, with columns, cards and the list items they stand for.
 - **Add the example canvas** makes [[Cabin weekend, laid out]]: cards on a page with lines between them, one of everything a canvas can hold.
 - **Add the “How Ghost.md works” canvas** makes [[How Ghost.md works]]: eight cards, in order, from saying a note to where it can go. Two of them stand for the example board and the sample note.
 
-Each of the other four makes a new note and opens it, and makes another copy on every press. The links above open these notes once they are in your library. Before then they are drawn dashed, and a tap on one makes a new, empty note with that name as its heading, which is what a link to a missing note does. So add the example board and the two canvases from About before you follow their links in this book. Added after a tap has made the empty note, the example board leaves you two notes called Launch week.
+Each of the other four makes a new note and opens it, and makes another copy on every press. The links above open these notes once they are in your library. Before then they are drawn dashed, and a tap on one makes a new, empty note with that name as its heading, which is what a link to a missing note does. So add the example board and the two canvases from About before you follow their links in this Guide. Added after a tap has made the empty note, the example board leaves you two notes called Launch week.
 
 ## Your first note
 
 Tap **+** and choose **Note**. A blank page opens. Write a first line: that line is the note's name, in your list and on its file. Put `#` and a space in front of it to make it a title. There is nothing to save: the note is kept as you type.
 
-The **+** sheet also offers a Canvas, a Book, and From a shared link. Each has a chapter of its own.
+The **+** sheet also offers a Canvas, a Notebook, and From a shared link. Each has a chapter of its own.
 
 ## Your first spoken note
 
@@ -63,13 +63,13 @@ Progress is kept on this device, so the Academy opens at the first lesson you ha
 
 The **cheat sheet** is every mark on one page: Settings › About › Cheat sheet, or Help › Formatting cheat sheet in any note's More sheet (the three dots). The marks come in groups: Words, Lines, Pointing somewhere, Raised and lowered, Blocks, and Ghost.md's own. Each is a card with its characters, the line to type, and that line as the note draws it. The field at the top finds a mark by its name or its characters: "bold", `||` or "board".
 
-## A map of this half of the book
+## A map of this half of the Guide
 
 - **Writing a note** is this part: [[A note is a Markdown file]], [[Finding your way around]], [[The marks you can type]], [[Effects on words]], [[Links between notes]], [[Tags, footnotes and the small marks]] and [[Pictures and voice memos]].
 - **Saying it:** [[Recording a note]], [[Saying the marks]], and [[Spoken commands]].
-- **The shapes a note can take:** [[Lists and to-dos]], [[Boards made of list items]], [[Books, and reading one through]] and [[Canvases, cards and lines]].
+- **The shapes a note can take:** [[Lists and to-dos]], [[Boards made of list items]], [[Notebooks, and reading one through]] and [[Canvases, cards and lines]].
 - **The AI:** [[The models on your phone]], [[Asking the AI to work on a note]] and [[Spoken asks and the review]].
-- **Other devices and other people:** [[Accounts, sync and the key you hold]], [[Live typing]] and [[Sharing a note or a book]].
+- **Other devices and other people:** [[Accounts, sync and the key you hold]], [[Live typing]] and [[Sharing a note or a notebook]].
 - **Plugins:** [[Notion and GitHub]] and [[Claude on your notes]].
 - **The rest:** [[Settings, one section at a time]], [[The side key, the Fold and the Mac]] and [[What stays on your phone]].
 

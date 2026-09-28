@@ -13,7 +13,7 @@ It works for any Ghost.md account, and it comes two ways:
 
 ## What it can do
 
-Once it is connected, ask Claude in words. Behind them are eight tools, and a ninth on the hosted server:
+Once it is connected, ask Claude in words. Behind them are nine tools, and a tenth on the hosted server:
 
 | Tool | What it does |
 | --- | --- |
@@ -22,7 +22,8 @@ Once it is connected, ask Claude in words. Behind them are eight tools, and a ni
 | `search_notes` | Notes whose words contain something, with a snippet around the match. |
 | `create_note` | A new note from markdown, with a title as its heading. Every mark the app draws works: headings, lists, `- [ ]` to-dos, tables, boards. |
 | `update_note` | A note's whole body replaced. |
-| `append_to_note` | Words added the way the app's own "add task" adds them: a task or an item joins the note's list, in the list's style; a paragraph goes on the end. |
+| `append_to_note` | Words added the way the app's own "add task" adds them: a task or an item joins the note's list, in the list's style; a paragraph goes on the end. Not a journal, whose words are the list of its entries: it says to use the next tool. |
+| `add_journal_entry` | An entry in a journal (a notebook kept as a journal, DESIGN §142), as the app writes one: a note named by the minute, "2026-09-28 14.05", started from the journal's template, with the words going on from its time line or into its to-do list, and its line added to the journal. `at` is the person's local time, `YYYY-MM-DDTHH:MM`; left out, the time where the server runs. Never a place. |
 | `set_note_flags` | Pin or archive a note, or undo either. |
 | `account_status` | Which account this is, where its sync service is, how many notes it holds, and how many Claude connections it has. |
 | `sign_out_everywhere` | Hosted only. Ends every Claude connection to the account - every Claude account and computer signed in to it, this one included; each signs in again on the page. |
@@ -32,8 +33,8 @@ handle: `authors: infamousvague, Claude` in the front matter (`src/app/core/auth
 `author` argument when given, else what the AI's app called itself when it connected ("claude-ai" is Claude). The
 hosted server builds a fresh server for each request, so it keeps that name on the sign-in session: the name the app
 registered with, then its `initialize` clientInfo. A rewrite never drops an author the note already had. The app
-draws the authors as a byline: on the note, gathered across a book in its index, and on a shared page. A known AI
-wears a spark, and anyone else their initial.
+draws the authors as a byline: on the note, gathered across a notebook in its index, and on a shared page. A known
+AI wears a spark, and anyone else their initial.
 
 Every tool reads the account fresh before it acts, so Claude sees what your phone last wrote. A write goes from the
 version just read: if another device changed the note in between, the service refuses the write and Claude is shown
@@ -162,7 +163,8 @@ your notes, as anyone who can unlock your phone can; keep it as you keep the pho
 The server itself runs on your computer, started by Claude, and talks to nothing but Ghost.md's sync service. Claude
 sees the words of the notes it reads, as it sees anything you paste into it, including where a tagged note was
 written (its `location:` and `place:` front matter, DESIGN §134); `update_note` keeps that across a rewrite that
-dropped it, as it keeps the authors.
+dropped it, as it keeps the authors, and the keys that make a note a notebook, a journal or an entry (`title:`,
+`book:`, `journal:`, `template:`, `entry-place:` and `date:`) unless the new body gives one of its own.
 
 ## Where the pieces are
 

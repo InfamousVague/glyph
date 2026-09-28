@@ -79,7 +79,7 @@ afterEach(() => {
 });
 
 describe('the home page', () => {
-  it('lays its groups out in their order: Pinned, To do, Tapes, Library, Recent', () => {
+  it('lays its groups out in their order: Pinned, To do, Tapes, Notebooks, Recent', () => {
     show(
       page([
         makeNote('p', '# Packing\n\n- [ ] Tent', { starred: true, updatedAt: 3 }),
@@ -88,7 +88,7 @@ describe('the home page', () => {
         makeNote('r', '# Route', { updatedAt: 1 }),
       ]),
     );
-    expect(headings()).toEqual(['Pinned', 'To do', 'Tapes', 'Library', 'Recent']);
+    expect(headings()).toEqual(['Pinned', 'To do', 'Tapes', 'Notebooks', 'Recent']);
     // The cassette mark on Tapes, the way the pin sits on Pinned.
     expect(document.querySelector('#home-tapes svg')).not.toBeNull();
     // A page of a book says which on its card.
@@ -151,6 +151,20 @@ describe('the home page', () => {
     expect(cards('home-recent')).toEqual(['Typed then spoken']);
     expect(document.querySelector('section[aria-labelledby="home-recent"] [class*=tapeLength]')?.textContent).toBe('12:40');
     expect(document.body.textContent).not.toContain('more in All notes');
+  });
+
+  it('counts every entry on a journal’s card, whichever workspace each was made in', () => {
+    const work = addWorkspace('Work')!;
+    const home = addWorkspace('Home')!;
+    const journal = makeNote('diary', '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n\n- [[2026-09-27 21.40]]\n- [[2026-09-28 14.05]]\n', { updatedAt: 3 });
+    const entry = (title: string, date: string) => makeNote(title, `---\ntitle: "${title}"\ndate: ${date}\n---\nWords.`, { updatedAt: 1 });
+    fileNote('diary', work.id);
+    fileNote('2026-09-27 21.40', work.id);
+    fileNote('2026-09-28 14.05', home.id);
+    chooseWorkspace(work.id);
+    show(page([journal, entry('2026-09-27 21.40', '2026-09-27T21:40'), entry('2026-09-28 14.05', '2026-09-28T14:05')]));
+    const diary = [...document.querySelectorAll('section[aria-labelledby="home-library"] li > button')].find((b) => b.textContent?.includes('Diary'))!;
+    expect(diary.textContent).toContain('2 entries');
   });
 
   it('shelves only the chosen workspace’s tapes, as every group shows only its notes', () => {

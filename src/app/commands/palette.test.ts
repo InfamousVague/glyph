@@ -4,6 +4,7 @@ import { MOST_NOTES, notesByName, paletteCommands, type PaletteDoing, type Palet
 const doing = (): PaletteDoing => ({
   openNote: vi.fn(),
   newNote: vi.fn(),
+  newNotebook: vi.fn(),
   speak: vi.fn(),
   speakInto: vi.fn(),
   closeTab: vi.fn(),
@@ -45,7 +46,7 @@ const run = (commands: ReturnType<typeof paletteCommands>, id: string) => comman
 describe('what the palette offers', () => {
   it('always offers the things that need nothing', () => {
     const list = paletteCommands(world(), doing());
-    expect(ids(list)).toEqual(expect.arrayContaining(['new', 'speak', 'list', 'settings', 'cheatsheet', 'academy', 'guide']));
+    expect(ids(list)).toEqual(expect.arrayContaining(['new', 'notebook', 'speak', 'list', 'settings', 'cheatsheet', 'academy', 'guide']));
     // Nothing about a note, a tab or a workspace, because there are none.
     expect(ids(list).some((id) => id.startsWith('note:') || id.startsWith('tab:') || id.startsWith('space:'))).toBe(false);
   });
@@ -138,6 +139,55 @@ describe('what the palette offers', () => {
     expect(acts.setView).toHaveBeenCalledWith('formatted');
     run(list, 'academy');
     expect(acts.academy).toHaveBeenCalled();
+    run(list, 'notebook');
+    expect(acts.newNotebook).toHaveBeenCalled();
+  });
+
+  it('names a notebook as a notebook, and still finds it by the word book', () => {
+    const made = paletteCommands(world(), doing()).find((command) => command.descriptor.id === 'notebook')!.descriptor;
+    expect(made.label).toBe('New notebook');
+    expect(made.keywords).toContain('book');
+  });
+
+  it('says Speak an entry for a journal’s mic, which is still its own Talk into this note', () => {
+    const acts = doing();
+    const on = (journal: boolean) => paletteCommands(world({ note: { id: 'j', title: 'Diary', ...(journal ? { journal: true as const } : {}) } }), acts).find((c) => c.descriptor.id === 'note:speak')!;
+    expect(on(false).descriptor.label).toBe('Talk into this note');
+    expect(on(true).descriptor.label).toBe('Speak an entry');
+    expect(on(true).descriptor.keywords).toContain('diary');
+    on(true).run();
+    expect(acts.speakInto).toHaveBeenCalledWith('j');
+  });
+
+  it('offers a new entry in each of up to three journals, the one written in last first', () => {
+    const acts = { ...doing(), newEntry: vi.fn() };
+    const journals = ['Diary', 'Dreams', 'Garden', 'Travel'].map((title, i) => ({ id: `j${i}`, title, journal: true as const }));
+    const entries = paletteCommands(world({ journals }), acts).filter((c) => c.descriptor.id.startsWith('entry:'));
+    expect(entries.map((c) => c.descriptor.label)).toEqual(['New entry in Diary', 'New entry in Dreams', 'New entry in Garden']);
+    expect(entries[0]!.descriptor.keywords).toContain('diary');
+    entries[1]!.run();
+    expect(acts.newEntry).toHaveBeenCalledWith('j1');
+    // With nowhere to make one, none.
+    expect(paletteCommands(world({ journals }), doing()).some((c) => c.descriptor.id.startsWith('entry:'))).toBe(false);
+  });
+
+  it('leaves a journal’s entries out of the notes offered before a word is typed, and finds them when typed for', () => {
+    const notes = [
+      { id: 'e1', title: '2026-09-28 14.05', entry: true as const },
+      { id: 'n1', title: 'Groceries' },
+    ];
+    expect(notesByName(notes).map((n) => n.id)).toEqual(['n1']);
+    expect(notesByName(notes, '2026-09-28').map((n) => n.id)).toEqual(['e1']);
+  });
+
+  it('opens the New notebook sheet on Journal, found by a diary’s words, where the app offers it', () => {
+    expect(paletteCommands(world(), doing()).some((command) => command.descriptor.id === 'journal')).toBe(false);
+    const acts = { ...doing(), newJournal: vi.fn() };
+    const made = paletteCommands(world(), acts).find((command) => command.descriptor.id === 'journal')!;
+    expect(made.descriptor).toMatchObject({ label: 'New journal', group: 'Notes' });
+    expect(made.descriptor.keywords).toContain('diary');
+    made.run();
+    expect(acts.newJournal).toHaveBeenCalled();
   });
 
   it('gives every command its own id, so the palette can tell them apart', () => {

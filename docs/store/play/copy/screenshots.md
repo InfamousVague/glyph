@@ -5,7 +5,7 @@ Chromium over an invented library, with the browser's clock set to Monday 28 Sep
 standup was held on a Monday and the home page's date agrees with it. Nobody in it is real: Sam, Ana and Ali are first
 names and nothing more, the call and the standup never happened, and every number is made up. The seeded notes are Weekend trip, House TODOs,
 Groceries, Flat, Reading list, Planning call with Sam, Monday standup, Ideas on the walk, Launch week, the Portugal
-book with its three pages, and the Cabin weekend canvas.
+notebook with its three pages, and the Cabin weekend canvas.
 
 Above each screen sits a kicker in the app's eyebrow style and one caption in the app's interface face (Inter, with
 the app's own cv11 and ss01), in the app's ink on the app's paper: gray-12 on gray-1 from `src/app/ink.css`, the
@@ -52,7 +52,7 @@ shows it as the app draws it.
 
 | # | File | The screen | Caption |
 |---|---|---|---|
-| 9 | `09-the-tapes-shelf.png` | The home page scrolled to the Tapes shelf: two cassettes with their titles and first lines, then the Library with the Portugal book and its three pages | Your recordings, on a shelf. |
+| 9 | `09-the-tapes-shelf.png` | The home page scrolled to the Tapes shelf: two cassettes with their titles and first lines, then the Notebooks group with the Portugal notebook and its three pages | Your recordings, on a shelf. |
 | 10 | `10-a-canvas.png` | The Cabin weekend canvas zoomed to its Before we go group and the Weekend trip file card under it, where a card's words can be read: four cards in the group, the file card, lines with words on them, the minimap | Cards on a canvas, lines between them. |
 | 11 | `11-things-to-say.png` | The recorder before the first word: Start talking, the listening ghost, and the Things to say card | Things to say, before the first word. |
 | 12 | `12-a-spoken-note.png` | Ideas on the walk: a 3:05 tape, a highlight, a to-do and a bullet said with the cues | Said on a walk. The tape stays. |
@@ -76,7 +76,7 @@ library) under the band. The same four files go into both tablet slots, the 7-in
 | 1 | `01-home.png` | The home page beside the docked sidebar: the date, the chips, Pinned, the sidebar's Work and Home notes | Your day, with the sidebar docked. |
 | 2 | `02-a-tape.png` | Planning call with Sam beside the sidebar: the tape, Play, the title, the Summary | The note, the tape, the summary. |
 | 3 | `03-a-canvas.png` | Cabin weekend, laid out: the group, the cards with their words whole, the flowchart, the lines with words on them | Cards on a canvas, lines between them. |
-| 4 | `04-a-book.png` | Portugal in Read, its Index and page chips, the Book index aside on the right | A book, read straight through. |
+| 4 | `04-a-book.png` | Portugal in Read, its Index and page chips, the Notebook index aside on the right | A notebook, read straight through. |
 
 `tablet-16x9/spares/` holds `05-a-board.png` (Launch week as a board) and `06-a-meeting.png` (Monday standup with its
 tape and Summary), swaps and not additions. `tablet-16x9-light/` is the same six in the light theme.

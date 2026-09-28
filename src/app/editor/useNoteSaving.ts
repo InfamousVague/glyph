@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { transcriptOf, withoutTranscript, withTranscript } from '../capture/markdown.ts';
 import { withFrontMatterTitle } from '../core/frontMatter.ts';
-import { getNote, noteTitle, updateNote, type Note } from '../core/store.ts';
+import { announceNotesChanged, getNote, noteTitle, updateNote, type Note } from '../core/store.ts';
 
 /**
  * Saving the open note, which is the part of the note screen with teeth (editor/NoteScreen.tsx).
@@ -28,7 +28,18 @@ import { getNote, noteTitle, updateNote, type Note } from '../core/store.ts';
  * the save made again, and the editor handed the result (`onExternalChange`). Any other conflict stops the saving as
  * it always has. And a note the write-up changed while nothing here was unsaved is simply adopted (`adopt`), so the
  * transcript is seen arriving rather than found at the next visit.
+ *
+ * A note opened again is read again too. The app opens a note with the copy its list holds, and the list is read when
+ * it is told to (core/store.ts `useNotes`), not after every save, so a note typed in and opened again - a notebook's
+ * page from its bar, a journal's entry from its row, a tab - opened without its last words, and the next keystroke's
+ * save, from the old revision, was refused and stopped the saving. So a screen, once the last screen on its note has
+ * finished saving, takes the note as the store has it while nothing is typed here yet (`adopt`), and a screen that
+ * saved anything says so as it goes, once its last save has landed, so the list, and the journal's rows and the cards
+ * drawn from it, catch up.
  */
+
+/** The saves each note's last screen made, by the note's id: what the next screen on that note waits for before it reads. */
+const lastWrites = new Map<string, Promise<void>>();
 
 /** A rename asked for from the note's tab (notes/NoteTabs.tsx); `asked` rises with each asking. */
 export interface NoteRename {
@@ -73,6 +84,8 @@ export function useNoteSaving(note: Note, rename?: NoteRename | null, { onExtern
   const written = useRef(note.body);
   const revision = useRef(note.revision ?? 1);
   const writes = useRef<Promise<void>>(Promise.resolve());
+  /** Whether this screen has saved anything: said as it goes, so the app's list reads the note again. */
+  const wrote = useRef(false);
   const writable = useRef(true);
   const timer = useRef<number | null>(null);
   const external = useRef(onExternalChange);
@@ -92,6 +105,7 @@ export function useNoteSaving(note: Note, rename?: NoteRename | null, { onExtern
     if (body.current === saved.current) return;
     const pending = body.current;
     saved.current = pending;
+    wrote.current = true;
     writes.current = writes.current.then(async () => {
       if (!writable.current) return;
       try {
@@ -128,6 +142,7 @@ export function useNoteSaving(note: Note, rename?: NoteRename | null, { onExtern
         console.warn('[glyph] editor save stopped:', failure);
       }
     });
+    lastWrites.set(note.id, writes.current);
   }, [note.id, handOver]);
 
   const [blank, setBlank] = useState(() => !note.body.trim());
@@ -174,6 +189,23 @@ export function useNoteSaving(note: Note, rename?: NoteRename | null, { onExtern
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rename?.asked]);
 
+  // The note as the store has it, once the last screen on it has finished saving (see the header): taken only while
+  // this screen has saved nothing, since its own saves are newer than any read begun before them, and only when the
+  // store's is another revision than the copy this screen was opened with. Another, not a higher one: a note a sync
+  // wrote carries the other device's count (src-tauri/src/library/mod.rs `apply_note`).
+  useEffect(() => {
+    let live = true;
+    void (lastWrites.get(note.id) ?? Promise.resolve())
+      .then(() => getNote(note.id))
+      .then((stored) => {
+        if (live && stored && !wrote.current && (stored.revision ?? 1) !== revision.current) adopt(stored);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [note.id, adopt]);
+
   useEffect(() => {
     const onHide = () => {
       if (document.visibilityState === 'hidden') flush();
@@ -184,6 +216,7 @@ export function useNoteSaving(note: Note, rename?: NoteRename | null, { onExtern
       document.removeEventListener('visibilitychange', onHide);
       window.removeEventListener('pagehide', flush);
       flush();
+      if (wrote.current) void writes.current.then(announceNotesChanged);
     };
   }, [flush]);
 

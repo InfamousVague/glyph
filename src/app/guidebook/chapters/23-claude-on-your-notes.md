@@ -72,7 +72,7 @@ authors: <your handle>, Claude
 ---
 ```
 
-The note shows its authors as a byline, a book gathers them in its index, and a shared page shows them too. A person is an initial in a ring; an AI the app knows wears a spark. A rewrite never takes anyone off. Pinning and archiving add no name.
+The note shows its authors as a byline, a notebook gathers them in its index, and a shared page shows them too. A person is an initial in a ring; an AI the app knows wears a spark. A rewrite never takes anyone off. Pinning and archiving add no name.
 
 Claude sees the words of the notes it reads, as it sees anything you paste into it, under Anthropic's own terms.
 

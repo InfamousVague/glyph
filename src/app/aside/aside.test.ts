@@ -77,3 +77,35 @@ describe('whether the aside is shown', () => {
     expect(localStorage.getItem('glyph-aside-shown')).toBe('0');
   });
 });
+
+describe('a journal’s aside', () => {
+  const entry = (id: string, title: string, date: string, words: string) => makeNote(id, `---\ntitle: "${title}"\ndate: ${date}\n---\n# Day\n\n**${date.slice(11)}** ${words}`);
+  const JOURNAL = '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n\n- [[2026-08-30 10.00]]\n- [[2026-09-28 14.05]]\n- [[2026-09-27 21.40]]\n';
+  const journalNotes = [
+    makeNote('j', JOURNAL),
+    entry('aug', '2026-08-30 10.00', '2026-08-30T10:00', 'August.'),
+    entry('late', '2026-09-28 14.05', '2026-09-28T14:05', 'Walked.'),
+    entry('early', '2026-09-27 21.40', '2026-09-27T21:40', 'Dinner.'),
+  ];
+
+  it('lists the journal’s newest month, newest first, for the journal itself', () => {
+    const shown = asideContent(journalNotes, journalNotes[0]!);
+    expect(shown?.kind === 'book' && shown.place.journal).toBe(true);
+    if (shown?.kind !== 'book') throw new Error('no journal aside');
+    expect(shown.month?.label).toBe('September 2026');
+    expect(shown.month?.entries.map((e) => e.id)).toEqual(['late', 'early']);
+  });
+
+  it('lists the open entry’s own month, the entry marked', () => {
+    const shown = asideContent(journalNotes, journalNotes[1]!);
+    if (shown?.kind !== 'book') throw new Error('no journal aside');
+    expect(shown.open).toBe('aug');
+    expect(shown.month?.entries.map((e) => e.id)).toEqual(['aug']);
+  });
+
+  it('has no month for a journal with nothing written', () => {
+    const empty = makeNote('e', '---\ntitle: "Log"\nbook: true\njournal: true\n---\n# Log\n\n');
+    const shown = asideContent([empty], empty);
+    expect(shown?.kind === 'book' && shown.month).toBeNull();
+  });
+});

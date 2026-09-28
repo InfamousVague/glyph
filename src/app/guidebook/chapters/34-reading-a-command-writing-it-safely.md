@@ -28,11 +28,11 @@ Then `LiveRoute`:
 | Missing, after the keyword | the words stay here, the command goes | the same |
 | Unsure or missing, without the keyword | words, then the reader at Done, which saves them as words | words |
 
-A book is never switched to, and over the lock screen no card is raised and no shared note is written. A card lasts eight seconds and then keeps the words here; Done, the side key, the screen going off, back and Discard all settle it at once (`close`). A name that ran to the phrase's end and scored under 1 can grow into the next phrase ("house" | "to-dos"), timed on the recording.
+A notebook is never switched to, and over the lock screen no card is raised and no shared note is written. A card lasts eight seconds and then keeps the words here; Done, the side key, the screen going off, back and Discard all settle it at once (`close`). A name that ran to the phrase's end and scored under 1 can grow into the next phrase ("house" | "to-dos"), timed on the recording.
 
 A keyworded phrase that is no route goes to the reader at Done when it opens the take ("Hey Ghost, fix the spelling"). Later, it is queued as an ask for the note that opens after Done, or left out of a take that went to another note. One that opened the take and was left for the reader at Done is taken out of the words, and queued or left out the same way, as soon as the live reader does anything, since the reader at Done then never runs (`late`). Without the keyword a phrase that is no route is words (`bare`): never a card, a hold or a chip.
 
-A card never offers a book, and a tap on one keeps the words here. It holds only its command phrase; the words it keeps land in the order they were said (`inOrder`). Only a keyworded opener is held for its name ("Hey Ghost, add a note to."). It gives up after three phrases or 4.5 s, or at once when the keyword is said again. Each phrase the live reader changed or sent elsewhere is marked for the better words (`commandSpans`), so the larger model's phrase for it is replaced by the live one, or by nothing.
+A card never offers a notebook, and a tap on one keeps the words here. It holds only its command phrase; the words it keeps land in the order they were said (`inOrder`). Only a keyworded opener is held for its name ("Hey Ghost, add a note to."). It gives up after three phrases or 4.5 s, or at once when the keyword is said again. Each phrase the live reader changed or sent elsewhere is marked for the better words (`commandSpans`), so the larger model's phrase for it is replaced by the live one, or by nothing.
 
 ## The reader at Done, in order
 
@@ -86,7 +86,7 @@ The Undo in the note that opens (`editor/useLanding.ts`) is an edit in its edito
 ## Known gaps
 
 - A take killed mid-sentence loses its words: nothing is stored before Done. Only its sound was ever kept that early, and not even that before the stop.
-- A table, a book, a chapter, a board made or a card moved are not carried out by either reader, and neither is a voice memo said aloud (DESIGN §127). Words for a lane of the board being written to are: the live reader names the lane like a heading, and `place.ts` adds the card.
+- A table, a notebook, a page, a board made or a card moved are not carried out by either reader, and neither is a voice memo said aloud (DESIGN §127). Words for a lane of the board being written to are: the live reader names the lane like a heading, and `place.ts` adds the card.
 - `instructionCorpus.test.ts` runs its cases through `interpretWakeCommand` and `placeInstruction`, which neither reader uses.
 
 ## The tests that pin it

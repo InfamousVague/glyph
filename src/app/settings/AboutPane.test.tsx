@@ -117,9 +117,16 @@ describe('Help on About', () => {
 
   it('has a row for Ghost.md: The Guide, counting its chapters, and pressing it calls the handler', () => {
     const { host, onGuideBook } = about();
-    expect(row(host, 'Ghost.md: The Guide')?.textContent).toContain('a book of 44 short chapters');
+    expect(row(host, 'Ghost.md: The Guide')?.textContent).toContain('The whole app in 44 short chapters');
     press(row(host, 'Ghost.md: The Guide'));
     expect(onGuideBook).toHaveBeenCalledOnce();
+  });
+
+  it('finds the Guide by notebook, as it is one now, and still by book', async () => {
+    const { findable } = await import('./AboutPane.findable.ts');
+    const { searchSettings } = await import('./settingsSearch.ts');
+    const about = [{ id: 'about', label: 'About', settings: findable({ whatsNew: false }) }];
+    for (const word of ['notebook', 'book']) expect(searchSettings(about, word).map((hit) => hit.setting)).toEqual(['Ghost.md: The Guide']);
   });
 
   // Changed on purpose (docs/DESIGN.md §138): eight rows, five of them "Add …", are five, two of them pages.

@@ -439,6 +439,28 @@ describe('a tag waiting for the better words', () => {
     expect(location.settleTag('n1', '# Out\n', { reviewing: false })).toBe('---\nlocation: 51.5074,-0.1278\n---\n# Out\n');
     expect(location.settleTag('n2', '# Out\n', { reviewing: false })).toBeNull();
   });
+
+  it('waits for an entry’s first own words, whichever of the note’s screen and the sweep asks first', async () => {
+    const { rememberEntry } = await import('../book/entryDrafts.ts');
+    const words = '# Monday 28 September\n\n**14:05** ';
+    const made = `---\ntitle: "2026-09-28 14.05"\n---\n${words}`;
+    rememberEntry('e1', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
+    await store.createNote('e1', made);
+    location.setPendingTag('e1', LONDON);
+    const asked = nominatim();
+    // The screen's ask, and the sweep's: nothing lands on the entry as it was made, and no name is asked.
+    expect(location.settleTag('e1', made, { reviewing: false })).toBeNull();
+    expect(await location.settleWaitingTags()).toBe(0);
+    expect((await store.getNote('e1'))?.body).toBe(made);
+    expect(location.pendingTag('e1')).not.toBeNull();
+    // Its first own words: the tag lands.
+    const note = (await store.getNote('e1'))!;
+    await store.updateNote('e1', `${made}Walked.`, note.revision ?? 1);
+    expect(location.settleTag('e1', `${made}Walked.`, { reviewing: false })).toContain('location: 51.5074,-0.1278');
+    expect(await location.settleWaitingTags()).toBe(1);
+    await settle();
+    expect(asked).toHaveLength(1);
+  });
 });
 
 describe('tagging new notes', () => {
@@ -614,6 +636,81 @@ describe('tagging new notes', () => {
     fixAt(51.5074, -0.1278);
     expect(await location.tagNewNotesIfWanted(['n1'], { reviewing: false }, { quiet: true })).toBe('unavailable');
     expect(location.autoTagRefusal()).toBeNull();
+  });
+
+  it('tags a journal’s entries whatever Tag new notes says, never under Local only or after a refusal', async () => {
+    const { calls } = fixAt(51.5074, -0.1278);
+    await store.createNote('e1', '# Said\n');
+    prefs.setPreferences({ tagNewNotes: false });
+    expect(await location.tagEntryIfWanted(['e1'], { reviewing: false })).toBeNull();
+    expect(calls).toHaveLength(1);
+    expect((await store.getNote('e1'))?.body).toBe('---\nlocation: 51.5074,-0.1278\n---\n# Said\n');
+    prefs.setPreferences({ localOnly: true });
+    expect(await location.tagEntryIfWanted(['e1'], { reviewing: false })).toBeNull();
+    expect(calls).toHaveLength(1);
+    prefs.setPreferences({ localOnly: false });
+    location.rememberRefusal('refused');
+    expect(await location.tagEntryIfWanted(['e1'], { reviewing: false })).toBe('refused');
+    expect(calls).toHaveLength(1);
+  });
+
+  it('asks for an entry quietly over a locked phone: no introduction, no prompt, and no refusal kept', async () => {
+    native = true;
+    android = true;
+    window.GlyphHost = { takeLaunch: () => '', isLocked: () => true, endCapture: () => undefined, locationAccess: () => 'ask' };
+    const { calls } = fixAt(51.5074, -0.1278);
+    const introduce = vi.fn();
+    expect(await location.tagEntryIfWanted(['e1'], { reviewing: false }, { quiet: true, introduce })).toBe('unavailable');
+    expect(introduce).not.toHaveBeenCalled();
+    expect(calls).toHaveLength(0);
+    expect(location.autoTagRefusal()).toBeNull();
+  });
+
+  it('introduces the first ask for entries on its own, whatever a new note’s introduction met', async () => {
+    const { calls } = fixAt(51.5074, -0.1278);
+    await store.createNote('n1', '# Said\n');
+    await store.createNote('e1', '# Entry\n');
+    // A note's introduction, let pass.
+    const note = vi.fn();
+    await location.tagNewNotesIfWanted(['n1'], { reviewing: false }, { introduce: note });
+    expect(note).toHaveBeenCalledTimes(1);
+    // The entry's is its own, and its press asks.
+    let allow: (() => void) | null = null;
+    await location.tagEntryIfWanted(['e1'], { reviewing: false }, { introduce: (press) => (allow = press) });
+    expect(allow).not.toBeNull();
+    expect(calls).toHaveLength(0);
+    allow!();
+    await settle();
+    expect(calls).toHaveLength(1);
+    // Once a run: a second entry's is not introduced again.
+    const again = vi.fn();
+    await location.tagEntryIfWanted(['e1'], { reviewing: false }, { introduce: again });
+    expect(again).not.toHaveBeenCalled();
+  });
+
+  it('asks from a press only where the prompt was never answered, and keeps what it met', async () => {
+    const { calls } = failWith(1);
+    // No permissions API to say: the prompt may never have been answered, so the press asks, and the refusal is kept.
+    expect(await location.askFromPress()).toBe('refused');
+    expect(calls).toHaveLength(1);
+    expect(location.autoTagRefusal()).toBe('refused');
+    // Answered already: nothing is asked.
+    Object.defineProperty(navigator, 'permissions', { configurable: true, value: { query: async () => ({ state: 'granted' }) } });
+    try {
+      const answered = fixAt(51.5074, -0.1278);
+      expect(await location.askFromPress()).toBeNull();
+      expect(answered.calls).toHaveLength(0);
+    } finally {
+      Reflect.deleteProperty(navigator, 'permissions');
+    }
+    // A fix forgets the refusal; under Local only nothing is asked at all.
+    const fixed = fixAt(51.5074, -0.1278);
+    expect(await location.askFromPress()).toBeNull();
+    expect(fixed.calls).toHaveLength(1);
+    expect(location.autoTagRefusal()).toBeNull();
+    prefs.setPreferences({ localOnly: true });
+    expect(await location.askFromPress()).toBeNull();
+    expect(fixed.calls).toHaveLength(1);
   });
 
   it('does nothing with the switch off, under Local only, or with nothing to tag', async () => {

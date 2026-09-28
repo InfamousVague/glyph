@@ -21,13 +21,13 @@ Home, All notes and a note carry the tab row at the top. A recording ([[Recordin
 From the top: today's date, then your workspaces as a row of pills once you have one, then anything waiting on you (an update, the voice model coming down, the Academy's card). Under them:
 
 - **Pinned**: the notes you pinned, newest change first.
-- **Library**: your books.
-- **Recent**: the six notes you touched last, leaving out the pinned ones and the books so nothing shows twice.
+- **Notebooks**: your notebooks.
+- **Recent**: the six notes you touched last, leaving out the pinned ones and the notebooks so nothing shows twice.
 - **To do**: every open to-do in every note, the most recently touched note's first. Tick a box here and its note is ticked without opening it. Tap the words and the note opens, on that item if it has a name ([[Boards made of list items]]). After eight, the rest are counted: "and 3 more in your notes". When every one is ticked, the ghost says "Every to-do is done."
 
 At the foot, **All notes · 42** opens the grid. Archived notes are never on the home page, and a to-do inside a code block is an example of one, so it is left out.
 
-The dock holds four buttons: **Speak** for a voice note, **+** for a note, a canvas, a book or a copy from a shared link, **Settings**, and **Search**, which opens the command palette.
+The dock holds four buttons: **Speak** for a voice note, **+** for a note, a canvas, a notebook or a copy from a shared link, **Settings**, and **Search**, which opens the command palette.
 
 ## All notes
 
@@ -37,12 +37,12 @@ The same cards as the home page, one to a row on a phone and more across on a wi
 
 Across the top of home, All notes and every note. Its first row is the controls: Home, the sidebar's icon, back and forward, the note's own tools, and at the far end the aside's icon when there is something for it to show. Its second row is the tabs, and it is not there at all when nothing is open.
 
-- A note opened any way at all gets a tab. Tap a tab to change note; its cross closes the tab, and the note carries on existing. The **+** at the end opens the same New sheet as every other **+**: a note, a canvas, a book, or a copy from a shared link.
+- A note opened any way at all gets a tab. Tap a tab to change note; its cross closes the tab, and the note carries on existing. The **+** at the end opens the same New sheet as every other **+**: a note, a canvas, a notebook, or a copy from a shared link.
 - Drag a tab to move it along the row.
-- Right-click a tab, or on a phone press and hold it and let go where it was, for its menu: Rename (a canvas or a book only, since a note is named by its first line), Add to a new group, Add to group, Remove from group, and Close tab.
+- Right-click a tab, or on a phone press and hold it and let go where it was, for its menu: Rename (a canvas or a notebook only, since a note is named by its first line), Add to a new group, Add to group, Remove from group, and Close tab.
 - **Tab groups** work as Chrome's do: a name and a colour over a run of tabs. The group's chip sits before its first tab. Tap it to fold the group shut and open it again. Right-click it, or press and hold, to Rename, choose its Colour, Ungroup, or Close group. The colours are the workspaces' seven: ink, ember, amber, moss, sea, violet and rose.
 - The open tabs and their groups are kept. They come back after a reload, and they appear on your other devices signed in to the same account. The app still opens on the home page, not on the last tab.
-- Moving between the pages of a book keeps to the book's one tab.
+- Moving between the pages of a notebook keeps to the notebook's one tab.
 - At most eight notes stay open. Opening a ninth closes the tab at the start of the row.
 
 ## Back and forward
@@ -57,7 +57,7 @@ Where it sits is Settings › Appearance › Sidebar, drawn on a wide window, th
 
 ## The aside
 
-On the right, the mirror of the sidebar, with its own icon at the far end of the tab row. It has something to show only in two places: a book, or one of its pages, where it holds the book's index with the open chapter marked; and a numbered chapter with no book, where it lists that chapter's fellows in order. Anywhere else there is no aside and no icon.
+On the right, the mirror of the sidebar, with its own icon at the far end of the tab row. It has something to show only in two places: a notebook, or one of its pages, where it holds the notebook's index with the open page marked; and a numbered chapter with no notebook, where it lists that chapter's fellows in order. Anywhere else there is no aside and no icon.
 
 ## Workspaces
 
@@ -95,5 +95,5 @@ Its groups: **This note** (talk into it, show it formatted or with its marks, pi
 ## Read next
 
 - [[The marks you can type]]
-- [[Books, and reading one through]]
+- [[Notebooks, and reading one through]]
 - [[Settings, one section at a time]]

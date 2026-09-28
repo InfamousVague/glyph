@@ -29,7 +29,7 @@ Each chapter takes a few minutes. Tap Read straight through to go from the first
 ## Part III · Notes that are something else
 
 13. [[Boards made of list items]]
-14. [[Books, and reading one through]]
+14. [[Notebooks, and reading one through]]
 15. [[Canvases, cards and lines]]
 
 ## Part IV · The AI on your phone
@@ -42,7 +42,7 @@ Each chapter takes a few minutes. Tap Read straight through to go from the first
 
 19. [[Accounts, sync and the key you hold]]
 20. [[Live typing]]
-21. [[Sharing a note or a book]]
+21. [[Sharing a note or a notebook]]
 
 ## Part VI · Making it yours
 
@@ -95,4 +95,4 @@ Each chapter takes a few minutes. Tap Read straight through to go from the first
 
 ## How this was made
 
-This book was written for Ghost.md 1.8.0-12, from the app's own source (commit `a2a12e6`), and every chapter was then read against the code by a second pass. Its voice chapters were brought up to the live reader (DESIGN §126) and to what the recorder kept after DESIGN §127. Where a doc and the code disagree, the code wins: the chapters say what the code does. [[Where the docs and the code disagree]] collects the disagreements that cut across chapters, and points to the chapters that end with their own doc's.
+This Guide was written for Ghost.md 1.8.0-12, from the app's own source (commit `a2a12e6`), and every chapter was then read against the code by a second pass. Its voice chapters were brought up to the live reader (DESIGN §126) and to what the recorder kept after DESIGN §127. Where a doc and the code disagree, the code wins: the chapters say what the code does. [[Where the docs and the code disagree]] collects the disagreements that cut across chapters, and points to the chapters that end with their own doc's.

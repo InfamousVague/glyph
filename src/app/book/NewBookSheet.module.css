@@ -116,3 +116,8 @@
 .grip {
   composes: grip from './rows.module.css';
 }
+
+/* Notebook or Journal, under the name: the More sheet's two-word choice (editor/NoteSettings.module.css `.viewChoice`). */
+.kind {
+  display: flex;
+}

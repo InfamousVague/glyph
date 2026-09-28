@@ -339,8 +339,8 @@ Then tap the card to confirm the last.
 words arriving in its list, nothing stored until Done, and the note opening afterwards with "Added to Groceries" and
 Undo. A command naming a note that does not exist keeps the words in the recording's own note and says so.
 
-Tables, books, a board made and a card moved by voice are not in this script, because a recording does not do them
-(docs/instruction-voice-commands.md, DESIGN §127).
+Tables, notebooks, a board made and a card moved by voice are not in this script, because a recording does not do
+them (docs/instruction-voice-commands.md, DESIGN §127).
 
 ## Script 6: prose that must stay prose, then silence
 

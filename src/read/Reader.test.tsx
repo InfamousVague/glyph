@@ -53,6 +53,53 @@ describe('the reader page', () => {
     expect(lent[0]?.type).toBe('image/jpeg');
     expect(document.querySelector('button[aria-label="Download as Markdown (.zip)"]')).toBeTruthy();
   });
+
+  it('says a shared notebook is one, and lists its pages as pages', async () => {
+    const index = '---\ntitle: "Field guide"\nbook: true\n---\n# Field guide\n\n- [[Trees]]\n';
+    vi.mocked(readShared).mockResolvedValueOnce({ v: 1, kind: 'book', title: 'Field guide', pages: [{ title: 'Field guide', body: index }, { title: 'Trees', body: '# Trees\n\nOaks.' }], at: 1 });
+    history.replaceState(null, '', `/read.html#${'a'.repeat(22)}.${'b'.repeat(43)}`);
+    show(<Reader />);
+    await waitUntil(() => expect(document.querySelector('ol[aria-label="Pages"]')).not.toBeNull());
+    expect(document.body.textContent).toContain('A shared notebook.');
+    expect(document.body.textContent).not.toMatch(/\bbook\b/i);
+  });
+});
+
+describe('a journal’s entry, shared', () => {
+  it('opens on its words, not on the name and the time it keeps in its front matter', async () => {
+    const entry = '---\ntitle: "2026-09-27 21.40"\ndate: 2026-09-27T21:40\n---\n# Sunday 27 September\n\n**21:40** Dinner with Sam.';
+    vi.mocked(readShared).mockResolvedValueOnce({ v: 1, kind: 'note', title: '2026-09-27 21.40', pages: [{ title: '2026-09-27 21.40', body: entry }], at: 1 });
+    history.replaceState(null, '', `/read.html#${'a'.repeat(22)}.${'b'.repeat(43)}`);
+    show(<Reader />);
+    await waitUntil(() => expect(document.querySelector('.cm-content')?.textContent).toContain('Dinner with Sam.'));
+    const drawn = document.querySelector('.cm-content')!.textContent!;
+    expect(drawn).not.toContain('title:');
+    expect(drawn).not.toContain('date:');
+    expect(drawn).not.toContain('---');
+  });
+
+  it('reads a notebook kept as a journal after it was shared as the notebook it was sent as, its bar saying pages', async () => {
+    const index = '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n\n- [[One]]\n- [[Two]]\n';
+    vi.mocked(readShared).mockResolvedValueOnce({
+      v: 1,
+      kind: 'book',
+      title: 'Diary',
+      pages: [
+        { title: 'Diary', body: index },
+        { title: 'One', body: '# One\n\nFirst.' },
+        { title: 'Two', body: '# Two\n\nSecond.' },
+      ],
+      at: 1,
+    });
+    history.replaceState(null, '', `/read.html#${'a'.repeat(22)}.${'b'.repeat(43)}`);
+    show(<Reader />);
+    await waitUntil(() => expect(document.querySelector('ol[aria-label="Pages"]')).not.toBeNull());
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('ol[aria-label="Pages"] button')].find((b) => b.textContent?.includes('One'))!.click());
+    await waitUntil(() => expect(document.querySelector('nav[aria-label="Notebook"]')).not.toBeNull());
+    expect(document.querySelector('button[aria-label="Next page: Two"]')).not.toBeNull();
+    expect(document.querySelector('button[aria-label="Open the notebook Diary"]')).not.toBeNull();
+    expect(document.body.textContent).not.toMatch(/\bentry\b/i);
+  });
 });
 
 describe('where a shared page was written', () => {

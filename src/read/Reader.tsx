@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Download, Plus } from '@glacier/icons';
 import { failureText } from '../app/core/failure.ts';
+import { withFrontMatterValue } from '../app/core/frontMatter.ts';
 import { Editor } from '../app/editor/Editor.tsx';
 import { CanvasView } from '../app/canvas/CanvasView.tsx';
 import { canvasOf, isCanvasBody } from '../app/canvas/jsonCanvas.ts';
@@ -132,10 +133,12 @@ function Read({
   };
   const current = shared.pages[page] ?? shared.pages[0]!;
   const isBook = shared.kind === 'book';
-  // A chapter with no page isn't in the share, so the bar steps only between the chapters that are.
+  // A chapter with no page isn't in the share, so the bar steps only between the chapters that are. A share is read
+  // as a notebook here, a journal's too: one kept as a journal after it was shared goes on being read as it was sent,
+  // its index numbered, so its bar says pages rather than entries (docs/DESIGN.md §142).
   const whole = isBook && page > 0 ? bookOf(notes, noteTitle(current.body) || current.title) : null;
   const readable = whole ? whole.chapters.filter((c) => indexOf(c.title) > 0) : [];
-  const place = whole ? { ...whole, chapters: readable, at: readable.findIndex((c) => sameTitle(c.title, whole.chapters[whole.at]!.title)) } : null;
+  const place = whole ? { ...whole, journal: false, chapters: readable, at: readable.findIndex((c) => sameTitle(c.title, whole.chapters[whole.at]!.title)) } : null;
   const canvas = isCanvasBody(current.body) ? canvasOf(current.body) : null;
   // Where the page was written, when its owner shared that (share/share.ts): the card, quiet until tapped.
   const tag = geoTagOf(current.body);
@@ -170,7 +173,7 @@ function Read({
         <div className={styles.bannerInner}>
           <span className={styles.brand}>Ghost.md</span>
           <span className={styles.pitch}>
-            <span className={styles.pitchMore}>{isBook ? 'A shared book.' : 'A shared note.'} </span>
+            <span className={styles.pitchMore}>{isBook ? 'A shared notebook.' : 'A shared note.'} </span>
             <a className={styles.getApp} href={INSTALL_URL}>
               Get the app
             </a>{' '}
@@ -240,7 +243,7 @@ function Read({
           ) : null}
           <Editor
             key={`${page}:${current.title}`}
-            value={current.body}
+            value={drawnBody(current.body)}
             onChange={readOnly}
             dark={dark}
             assist={false}
@@ -263,4 +266,14 @@ function Read({
 
 function readOnly(): void {
   // Nothing typed here comes back: the page is read-only.
+}
+
+/**
+ * A page as the reader draws it: without the `title:` and `date:` a journal's entry is made with (book/journal.ts
+ * `entryBody`). A note's own editor folds its front matter to one quiet line, but a read-only one draws it as it is, so
+ * every entry shared, a journal being shared an entry at a time, opened on four lines of keys above its date. The
+ * heading names the page, and the entry says its day and its time in its words. Any other key stays as it was sent.
+ */
+function drawnBody(body: string): string {
+  return ['title', 'date'].reduce((next, key) => withFrontMatterValue(next, key, null), body);
 }

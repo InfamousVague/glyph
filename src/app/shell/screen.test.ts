@@ -13,6 +13,10 @@ describe('the screens', () => {
     expect(captureScreen(true)).toStrictEqual({ name: 'capture', key: 1000, fromAssistant: true, stop: 0 });
     vi.setSystemTime(2000);
     expect(captureScreen(false, 'a')).toStrictEqual({ name: 'capture', key: 2000, fromAssistant: false, stop: 0, noteId: 'a' });
+    // Where in the note, only with a note to be in.
+    const lead = { kind: 'end', lead: '**14:05** ' } as const;
+    expect(captureScreen(false, 'a', { placing: lead })).toStrictEqual({ name: 'capture', key: 2000, fromAssistant: false, stop: 0, noteId: 'a', placing: lead });
+    expect(captureScreen(false, undefined, { placing: lead })).toStrictEqual({ name: 'capture', key: 2000, fromAssistant: false, stop: 0 });
   });
 
   it('says which screens are places, and where on the trail each is', () => {

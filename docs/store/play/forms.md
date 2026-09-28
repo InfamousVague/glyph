@@ -74,10 +74,10 @@ The form asks whether any part of the app is restricted by a login, a membership
 
 **Answer: All functionality in my app is available without special access.**
 
-Everything works signed out: notes, voice notes, transcription and the AI on the phone, the tapes, boards, books,
-canvases, the Guide. An account is optional. It adds sync between devices, live typing and read-only share links, and
-anyone can make one inside the app, free, with any handle and password (Settings › Account, then Create account).
-There is no membership, no code and no gate by place. Delete account sits in the same pane.
+Everything works signed out: notes, voice notes, transcription and the AI on the phone, the tapes, boards,
+notebooks, canvases, the Guide. An account is optional. It adds sync between devices, live typing and read-only share
+links, and anyone can make one inside the app, free, with any handle and password (Settings › Account, then Create
+account). There is no membership, no code and no gate by place. Delete account sits in the same pane.
 
 If you would rather hand reviewers an account, the other answer is "All or some functionality is restricted". Then
 add one instruction set named `Optional account`, with the handle and password of a throwaway account you make on the
@@ -86,7 +86,7 @@ word about the digital assistant role before a reviewer asks. Under the first an
 fine: if the review comes back with a question about the assistant role or the AI, the same paragraph is the reply.
 
 ```
-Ghost.md works in full without an account: notes, voice notes, transcription and the AI on the device, boards, books and canvases. An account is optional. It adds sync between devices, live typing and read-only share links, and can be made in Settings > Account with any handle and password. Delete account is in the same place. The app registers as a digital assistant (a VoiceInteractionService) only so that holding the side key starts a voice note. It listens to nothing in the background, and the microphone is open only while the recorder is on screen or a meeting the person started is being recorded, with a notification showing the whole time. The AI features run on the device with a model downloaded from Settings > Recording. Without one the app says so and everything else works.
+Ghost.md works in full without an account: notes, voice notes, transcription and the AI on the device, boards, notebooks and canvases. An account is optional. It adds sync between devices, live typing and read-only share links, and can be made in Settings > Account with any handle and password. Delete account is in the same place. The app registers as a digital assistant (a VoiceInteractionService) only so that holding the side key starts a voice note. It listens to nothing in the background, and the microphone is open only while the recorder is on screen or a meeting the person started is being recorded, with a notification showing the whole time. The AI features run on the device with a model downloaded from Settings > Recording. Without one the app says so and everything else works.
 ```
 
 ### Ads

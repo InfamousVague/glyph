@@ -87,11 +87,37 @@ describe('the More sheet', () => {
 
   it('names a canvas in its field', () => {
     const onChange = vi.fn();
-    show(<NoteSettings {...sheet({ name: { value: 'Map', onChange } })} />);
+    show(<NoteSettings {...sheet({ name: { value: 'Map', onChange, kind: 'canvas' } })} />);
     const field = document.querySelector<HTMLInputElement>('input[placeholder="What this canvas is called"]')!;
     expect(field.value).toBe('Map');
     typeInto(field, 'Trip map');
     expect(onChange).toHaveBeenCalledWith('Trip map');
+  });
+
+  it('names a notebook in its field, and says it is one', () => {
+    show(<NoteSettings {...sheet({ name: { value: 'Field guide', onChange: vi.fn(), kind: 'notebook' } })} />);
+    const field = document.querySelector<HTMLInputElement>('input[placeholder="What this notebook is called"]')!;
+    expect(field.value).toBe('Field guide');
+    expect(document.querySelector('input[placeholder="What this canvas is called"]')).toBeNull();
+    rerender(<NoteSettings {...sheet({ name: { value: 'Diary', onChange: vi.fn(), kind: 'journal' } })} />);
+    expect(document.querySelector<HTMLInputElement>('input[placeholder="What this journal is called"]')?.value).toBe('Diary');
+  });
+
+  it('keeps a notebook as a journal from a page of its own, and back comes to the sheet first', () => {
+    const journal = { on: false, template: '', place: false, keep: vi.fn(), setTemplate: vi.fn(), setPlace: vi.fn(), unkeep: vi.fn() };
+    show(<NoteSettings {...sheet({ title: 'Trip', name: { value: 'Trip', onChange: vi.fn(), kind: 'notebook' }, journal })} />);
+    act(() => buttonSaying(document.body, 'Keep it as a journal')!.click());
+    expect(document.body.textContent).toContain('Each entry starts with');
+    act(() => void goBack());
+    expect(buttonSaying(document.body, 'Keep it as a journal')).toBeDefined();
+    expect(journal.keep).not.toHaveBeenCalled();
+    act(() => buttonSaying(document.body, 'Keep it as a journal')!.click());
+    // A notebook's choice is a draft until it is kept.
+    act(() => button('A morning page').click());
+    expect(journal.setTemplate).not.toHaveBeenCalled();
+    act(() => buttonSaying(document.body, 'Make it a journal')!.click());
+    expect(journal.keep).toHaveBeenCalledWith('# {{date}}\n\n> What is on your mind this morning?\n\n', true);
+    expect(document.body.textContent).toContain('Where it sits');
   });
 
   it('closes on a tap on the dimmed note, and not on a tap inside the sheet', () => {

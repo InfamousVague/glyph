@@ -18,7 +18,11 @@ import { CanvasView } from '../canvas/CanvasView.tsx';
 import { canvasOf, isCanvasBody, withCanvas } from '../canvas/jsonCanvas.ts';
 import { BookBar, BookFoot } from '../book/BookNav.tsx';
 import { BookView } from '../book/BookView.tsx';
-import { isBookBody, type BookPlace } from '../book/book.ts';
+import { JournalView } from '../book/JournalView.tsx';
+import { isBookBody, isJournalBody, type BookPlace } from '../book/book.ts';
+import { entryPlaceOf, templateOf, withEntryPlace, withJournal, withoutJournal, withTemplate, type JournalWriter } from '../book/journal.ts';
+import { entryRecord, forgetEntry, untouchedEntry } from '../book/entryDrafts.ts';
+import { isGuideBook } from '../guidebook/guidebook.ts';
 import { writeBookSpot } from '../book/bookSpot.ts';
 import { frontMatterOffset, withFrontMatterTitle } from '../core/frontMatter.ts';
 import { geoTagOf, sameTag, tagOf, withGeoTag, type GeoTag } from '../core/geotag.ts';
@@ -141,8 +145,22 @@ interface NoteScreenProps {
   onNewCanvas?: (title: string) => void;
   /** A note's body by its title, for a canvas card that is a note to be drawn small (canvas/CanvasView.tsx). */
   bodyOfTitle?: (title: string) => string | null;
+  /** The note by its title, for a journal's entries: when each was written, where, and how it starts (book/JournalView.tsx). */
+  noteOfTitle?: (title: string) => Note | undefined;
+  /** New entry, for a journal (App.tsx `newEntry`): the journal's one action. */
+  onNewEntry?: () => void;
+  /**
+   * A journal open here hands App the way to write its index through this screen (book/journal.ts `JournalWriter`),
+   * and takes it back as it goes: an entry's line put in or taken out while the journal is open is a change the screen
+   * makes and saves, never a write under it that its next save would undo or be refused by.
+   */
+  onJournal?: (writer: JournalWriter | null) => void;
+  /** A journal's entry just made: the caret at the end of its words, and the keyboard up where the phone allows it. */
+  caretAtEnd?: boolean;
   /** Every note's title, for a canvas's + to choose a note from. */
   allTitles?: () => string[];
+  /** The titles a notebook's index offers to add as a page: every note's but a journal's entries; absent, every note's. */
+  pageTitles?: () => string[];
   /**
    * A canvas renamed from its tab (notes/NoteTabs.tsx), while this is the note being read.
    *
@@ -175,7 +193,31 @@ const NO_FIX: Record<LocateFailure, string> = {
   'local-only': 'Local only is on.',
 };
 
-export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, onOpenTitle, hasTitle, book, onOpenWithin, onNewCanvas, bodyOfTitle, allTitles, at, rename, ask, review, landing }: NoteScreenProps) {
+export function NoteScreen({
+  note,
+  onBack,
+  onDelete,
+  onSpeak,
+  onPin,
+  onArchive,
+  onOpenTitle,
+  hasTitle,
+  book,
+  onOpenWithin,
+  onNewCanvas,
+  bodyOfTitle,
+  noteOfTitle,
+  onNewEntry,
+  onJournal,
+  caretAtEnd = false,
+  allTitles,
+  pageTitles,
+  at,
+  rename,
+  ask,
+  review,
+  landing,
+}: NoteScreenProps) {
   const prefs = usePreferences();
   // The page's side, followed while the note is open: on System the phone may turn dark under it.
   const dark = useDarkNow(prefs.theme);
@@ -223,11 +265,30 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
    * redraws the card, and a tag that has not changed leaves the state as it was.
    */
   const [tag, setTag] = useState<GeoTag | null>(() => geoTagOf(note.body) ?? pendingTag(note.id));
+  /*
+   * A journal's entry this device made and nobody has written in yet (book/entryDrafts.ts; docs/DESIGN.md §142). Not
+   * `blank`, which keeps its meaning, no words at all, so the blank note's ghost never draws over an entry's date:
+   * this is its own state, read from the entry's record, and followed only for a note that has one. While it holds, a
+   * tag waits for the entry's first own words and the map fetches no tiles, since the entry is taken back if it is
+   * left as it is (App.tsx).
+   *
+   * Its first own words make it the person's there and then: the record goes on the keystroke, not when the save
+   * lands. App decides a take-back from the store, and the words reach the store 400 ms later, or on the way out a
+   * turn after App has looked, so an entry typed in and left at once for home was taken back with its words.
+   */
+  const drafted = useRef(entryRecord(note.id) !== null);
+  const [untouched, setUntouched] = useState(() => drafted.current && untouchedEntry(note.id, note.body, note));
   const onChange = useCallback(
     (next: string) => {
       keep(next);
       const now = geoTagOf(next) ?? pendingTag(note.id);
       setTag((was) => (sameTag(was, now) ? was : now));
+      if (!drafted.current) return;
+      const still = untouchedEntry(note.id, next);
+      setUntouched(still);
+      if (still) return;
+      forgetEntry(note.id);
+      drafted.current = false;
     },
     [keep, note.id],
   );
@@ -275,6 +336,33 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     onChange(named);
     if (isBook) setBookBody(named);
   };
+  /*
+   * A notebook kept as a journal, or a journal's template and place switch (docs/DESIGN.md §142): written as the
+   * notebook's own changes are, and into the editor where its Markdown is the view, so the next keystroke there does
+   * not write the old keys back. Not the Guide's: a manual is not a diary.
+   */
+  const isJournal = useMemo(() => isJournalBody(bookBody), [bookBody]);
+  const writeNotebook = (change: (was: string) => string) => {
+    const next = change(body.current);
+    if (next === body.current) return;
+    if (source && view?.dom.isConnected) {
+      const doc = view.state.doc.toString();
+      view.dispatch({ changes: { from: 0, to: doc.length, insert: change(doc) } });
+    } else onChange(next);
+    setBookBody(next);
+  };
+  const journalRows =
+    isBook && !isGuideBook({ ...note, body: bookBody })
+      ? {
+          on: isJournal,
+          template: templateOf(bookBody),
+          place: entryPlaceOf(bookBody),
+          keep: (template: string, place: boolean) => writeNotebook((was) => withJournal(was, template, place)),
+          setTemplate: (text: string) => writeNotebook((was) => withTemplate(was, text)),
+          setPlace: (on: boolean) => writeNotebook((was) => withEntryPlace(was, on)),
+          unkeep: () => writeNotebook(withoutJournal),
+        }
+      : undefined;
   const paging = isBook && !source;
   const typed = !!canvas || isBook;
   const showSource = (next: boolean) => {
@@ -434,10 +522,10 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     // The editor arriving is what this waits for; the rest is read from the refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [note.id, view]);
-  // A new note's first words: the tag waiting for them lands.
+  // A new note's first words, or an entry's first of its own: the tag waiting for them lands.
   useEffect(() => {
-    if (!blank) latest.current.settle();
-  }, [blank]);
+    if (!blank && !untouched) latest.current.settle();
+  }, [blank, untouched]);
   // A new note left without a word leaves nothing behind (docs/LIBRARY.md), its waiting tag included.
   const blankNow = useRef(blank);
   blankNow.current = blank;
@@ -647,13 +735,34 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
   // The note opens where it was left, and remembers where it is left (editor/notePlace.ts).
   // Opened at an item, the note goes to that line rather than back to where it was left last time.
   useNotePlace(note.id, page, view, shown === 'raw' && !at);
-  // A chapter open is where its book was left, so the book opens here again from outside it (book/bookSpot.ts).
-  const inBook = book?.book.id ?? null;
+  // A chapter open is where its book was left, so the book opens here again from outside it (book/bookSpot.ts). Not a
+  // journal's entry: a journal always opens on itself, where New entry is.
+  const inBook = book && !book.journal ? book.book.id : null;
   useEffect(() => {
     if (inBook) writeBookSpot(inBook, { kind: 'chapter', title });
   }, [inBook, title]);
   const { marked, bookmark } = useBookmark(note, view, page, (message) => toast({ message }));
   useLandAt(at, view, page, header);
+  // A journal's entry just made: the caret at the end of its words, once the editor is here. No new note focused itself
+  // before; whether Android raises the keyboard after the entry's write is the phone's to say.
+  const caretPlaced = useRef(!caretAtEnd);
+  useEffect(() => {
+    if (caretPlaced.current || !view) return;
+    caretPlaced.current = true;
+    view.dispatch({ selection: { anchor: view.state.doc.length }, scrollIntoView: true });
+    view.focus();
+  }, [view]);
+  // A journal open hands App the way to write its index through this screen (`onJournal`), and takes it back as it goes.
+  const writeIndex = useRef<(change: (body: string) => string) => void>(() => undefined);
+  writeIndex.current = (change) => {
+    writeNotebook(change);
+    flush();
+  };
+  useEffect(() => {
+    if (!isJournal || !onJournal) return undefined;
+    onJournal({ id: note.id, write: (change) => writeIndex.current(change) });
+    return () => onJournal(null);
+  }, [isJournal, onJournal, note.id]);
 
   /**
    * The note's list laid out as a board (core/boards.ts): each item gets a name at the end, and a fence of columns
@@ -746,6 +855,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
       marked={marked}
       onBookmark={bookmark}
       onSpeak={tape.length > 0 ? null : speakHere}
+      // A journal's mic makes an entry and speaks it (App.tsx `speakInto`), rather than words into the index.
+      speakLabel={isJournal ? 'Speak an entry' : undefined}
       onMore={() => setSettingsOpen(true)}
     />
   );
@@ -846,8 +957,9 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         {(tag ?? leaving) && shown === 'raw' && !paging && !drawing ? (
           <MapCard
             tag={(tag ?? leaving)!}
-            // A new note's tag still waiting for its first words is drawn quiet: a draft that may never be kept fetches no tiles.
-            mode={canShowTiles() && !(blank && !geoTagOf(body.current)) ? 'map' : 'quiet'}
+            // A new note's tag still waiting for its first words is drawn quiet: a draft that may never be kept fetches no
+            // tiles. So is an untouched entry's, which is taken back if it is left as it is.
+            mode={canShowTiles() && !((blank || untouched) && !geoTagOf(body.current)) ? 'map' : 'quiet'}
             quietWhy={prefs.localOnly ? 'local-only' : !prefs.mapTiles ? 'off' : undefined}
             dark={dark}
             arrive={Boolean(tag) && fresh}
@@ -874,7 +986,21 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
             />
           </div>
         ) : null}
-        {paging ? (
+        {paging && isJournal ? (
+          <div className={styles.body} hidden={shown !== 'raw'}>
+            <JournalView
+              body={bookBody}
+              onNewEntry={onNewEntry}
+              noteOf={noteOfTitle ?? (() => undefined)}
+              known={hasTitle ?? (() => false)}
+              open={(t) => (onOpenWithin ?? onOpenTitle)?.(t)}
+              onChange={(next) => {
+                setBookBody(next);
+                onChange(next);
+              }}
+            />
+          </div>
+        ) : paging ? (
           <div className={styles.body} hidden={shown !== 'raw'}>
             <BookView
               body={bookBody}
@@ -882,7 +1008,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
               known={hasTitle ?? (() => false)}
               open={(t) => (onOpenWithin ?? onOpenTitle)?.(t)}
               openCanvas={onNewCanvas}
-              titles={allTitles ?? (() => [])}
+              titles={pageTitles ?? allTitles ?? (() => [])}
               bodyOf={bodyOfTitle}
               spot={{ id: note.id, page }}
               onChange={(next) => {
@@ -955,7 +1081,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         pinned={pinned}
         editing={editing}
         onClose={() => setSettingsOpen(false)}
-        name={typed ? { value: title, onChange: renameHere } : undefined}
+        name={typed ? { value: title, onChange: renameHere, kind: canvas ? 'canvas' : isJournal ? 'journal' : 'notebook' } : undefined}
+        journal={journalRows}
         view={!wide && shown === 'raw' ? (typed ? (source ? 'mixed' : 'formatted') : prefs.noteView) : undefined}
         onView={typed ? (next) => showSource(next === 'mixed') : chooseView}
         running={ai.runningKind}

@@ -51,6 +51,12 @@ describe('opening a book from outside it', () => {
     expect(whereLeft(BOOK, NOTES, null)).toBe(BOOK);
   });
 
+  it('opens a journal on itself, where New entry is, whatever entry it was left at', () => {
+    const journal = makeNote('diary', '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n\n- [[Trees]]\n');
+    writeBookSpot('diary', { kind: 'chapter', title: 'Trees' });
+    expect(whereLeft(journal, [journal, TREES], null)).toBe(journal);
+  });
+
   it('opens the index when the chapter is already on screen, since that is asking for the book', () => {
     writeBookSpot('book', { kind: 'chapter', title: 'Trees' });
     expect(whereLeft(BOOK, NOTES, 'trees')).toBe(BOOK);

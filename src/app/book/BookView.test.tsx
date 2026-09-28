@@ -14,7 +14,7 @@ import { readBookSpot, writeBookSpot } from './bookSpot.ts';
  * written back to the body, and the two ways to add one. And the bar a chapter wears.
  */
 
-const rows = () => [...document.querySelectorAll<HTMLElement>('ol[aria-label="Chapters"] li')].map((li) => li.querySelector('[class*=chapterTitle]')?.textContent);
+const rows = () => [...document.querySelectorAll<HTMLElement>('ol[aria-label="Pages"] li')].map((li) => li.querySelector('[class*=chapterTitle]')?.textContent);
 
 const BOOK = bookNoteBody('Field guide', ['Introduction', 'Trees', 'Birds']);
 
@@ -35,7 +35,7 @@ describe('the index view', () => {
     show(<BookView body={BOOK} title="Field guide" known={() => true} open={() => {}} titles={() => []} onChange={onChange} />);
     act(() => button('Move Birds up').click());
     expect(chaptersOf(onChange.mock.calls[0]![0] as string).map((c) => c.title)).toEqual(['Introduction', 'Birds', 'Trees']);
-    act(() => button('Take Trees out of the book').click());
+    act(() => button('Take Trees out of the notebook').click());
     expect(chaptersOf(onChange.mock.calls[1]![0] as string).map((c) => c.title)).toEqual(['Introduction', 'Birds']);
     // The first cannot go up, the last cannot go down.
     expect(button('Move Introduction up').disabled).toBe(true);
@@ -45,7 +45,7 @@ describe('the index view', () => {
   it('writes a chapter dragged by its grip to where it is let go', () => {
     const onChange = vi.fn();
     show(<BookView body={BOOK} title="Field guide" known={() => true} open={() => {}} titles={() => []} onChange={onChange} />);
-    const rowEls = [...document.querySelectorAll<HTMLElement>('ol[aria-label="Chapters"] li')];
+    const rowEls = [...document.querySelectorAll<HTMLElement>('ol[aria-label="Pages"] li')];
     layRowsOut(rowEls);
     dragGrip(rowEls[0]!.querySelector('[class*=grip]')!, 20, 110);
     expect(onChange).toHaveBeenCalledTimes(1);
@@ -70,6 +70,7 @@ describe('the index view', () => {
     const open = vi.fn();
     show(<BookView body={BOOK} title="Field guide" known={() => true} open={open} titles={() => ['Field guide', 'Trees', 'Rivers', 'Mountains']} onChange={onChange} />);
     act(() => button('Add a page').click());
+    expect(document.querySelector<HTMLInputElement>('input[aria-label="New page\'s title"]')?.placeholder).toBe('Page title');
     typeInto(document.querySelector<HTMLInputElement>('input[aria-label="New page\'s title"]')!, 'Rivers');
     act(() => button('Add and open').click());
     expect(chaptersOf(onChange.mock.calls[0]![0] as string).map((c) => c.title)).toEqual(['Introduction', 'Trees', 'Birds', 'Rivers']);
@@ -84,6 +85,17 @@ describe('the index view', () => {
     expect(button('Add 2 notes')).toBeTruthy();
     act(() => button('Add 2 notes').click());
     expect(chaptersOf(onChange.mock.calls[1]![0] as string).map((c) => c.title).slice(-2)).toEqual(['Mountains', 'Rivers']);
+  });
+
+  it('says so when no note outside the notebook has that name, or every note is in it already', () => {
+    show(<BookView body={BOOK} title="Field guide" known={() => true} open={() => {}} titles={() => ['Field guide', 'Trees', 'Rivers']} onChange={() => {}} />);
+    act(() => button('Add a note you have').click());
+    typeInto(document.querySelector<HTMLInputElement>('input[aria-label="Find a note to add"]')!, 'zzz');
+    expect(document.body.textContent).toContain('No note by that name outside the notebook.');
+    unmount();
+    show(<BookView body={BOOK} title="Field guide" known={() => true} open={() => {}} titles={() => ['Field guide', 'Trees']} onChange={() => {}} />);
+    act(() => button('Add a note you have').click());
+    expect(document.body.textContent).toContain('Every note is in the notebook already.');
   });
 
   it('marks a chapter that is a canvas, and a canvas it offers to add, with the canvas mark', () => {
@@ -104,7 +116,7 @@ describe('the index view', () => {
         bodyOf={(t) => bodies[t] ?? null}
       />,
     );
-    const marked = [...document.querySelectorAll('ol[aria-label="Chapters"] li')].map((li) => [li.querySelector('[class*=chapterTitle]')?.textContent, !!li.querySelector('[class*=canvasMark]')]);
+    const marked = [...document.querySelectorAll('ol[aria-label="Pages"] li')].map((li) => [li.querySelector('[class*=chapterTitle]')?.textContent, !!li.querySelector('[class*=canvasMark]')]);
     // Introduction has no note yet, so nothing says what it is; Birds is a canvas.
     expect(marked).toEqual([
       ['Introduction', false],
@@ -124,7 +136,7 @@ describe('the index view', () => {
     const open = vi.fn();
     show(<BookView body={BOOK} title="Field guide" known={(t) => t !== 'Birds'} open={open} titles={() => []} onChange={() => {}} readOnly />);
     expect(rows()).toEqual(['Introduction', 'Trees', 'Birds']);
-    for (const label of ['Move Birds up', 'Take Trees out of the book', 'Add a page', 'Add a note you have']) {
+    for (const label of ['Move Birds up', 'Take Trees out of the notebook', 'Add a page', 'Add a note you have']) {
       expect(document.querySelector(`button[aria-label="${label}"]`) ?? [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === label)).toBeFalsy();
     }
     expect(document.querySelector('[class*=grip]')).toBeNull();
@@ -135,7 +147,7 @@ describe('the index view', () => {
 
   it('says so when the book has no chapters', () => {
     show(<BookView body={bookNoteBody('Trip')} title="Trip" known={() => true} open={() => {}} titles={() => []} onChange={() => {}} />);
-    expect(document.body.textContent).toContain('No chapters yet');
+    expect(document.body.textContent).toContain('No pages yet');
   });
 });
 
@@ -154,7 +166,7 @@ describe('reading straight through', () => {
     expect(sections[1]?.textContent).toContain('A canvas');
     expect(sections[2]?.textContent).toContain('Not written yet');
     // The rail names every chapter; Index goes back to the rows.
-    expect([...document.querySelectorAll('nav[aria-label="Chapters"] button')].map((b) => b.textContent?.trim())).toEqual(['1 Introduction', '2 Trees', '3 Birds']);
+    expect([...document.querySelectorAll('nav[aria-label="Pages"] button')].map((b) => b.textContent?.trim())).toEqual(['1 Introduction', '2 Trees', '3 Birds']);
     act(() => button('Index').click());
     expect(rows()).toEqual(['Introduction', 'Trees', 'Birds']);
   });
@@ -224,17 +236,19 @@ describe('the bar a chapter wears', () => {
     show(<BookBar place={place} open={open} />);
     expect(document.body.textContent).toContain('Field guide');
     expect(document.body.textContent).toContain('2 of 3');
-    act(() => button('Previous chapter: Introduction').click());
-    act(() => button('Next chapter: Birds').click());
-    act(() => button('Open the book Field guide').click());
+    act(() => button('Previous page: Introduction').click());
+    act(() => button('Next page: Birds').click());
+    act(() => button('Open the notebook Field guide').click());
     expect(open.mock.calls.map((c) => c[0])).toEqual(['Introduction', 'Birds', 'Field guide']);
   });
 
   it('has no way past the ends', () => {
     const place = bookOf([makeNote('b', BOOK)], 'Introduction')!;
     show(<BookBar place={place} open={() => {}} />);
-    expect(button('First chapter').disabled).toBe(true);
-    expect(button('Next chapter: Trees').disabled).toBe(false);
+    expect(button('First page').disabled).toBe(true);
+    expect(button('Next page: Trees').disabled).toBe(false);
+    show(<BookBar place={bookOf([makeNote('b', BOOK)], 'Birds')!} open={() => {}} />);
+    expect(button('Last page').disabled).toBe(true);
   });
 });
 
@@ -242,7 +256,7 @@ describe('the foot a chapter wears', () => {
   it('names the chapters either side under the page and opens them', () => {
     const open = vi.fn();
     show(<BookFoot place={bookOf([makeNote('b', BOOK)], 'Trees')!} open={open} />);
-    expect(document.querySelector('nav[aria-label="Previous and next chapter"]')?.textContent).toBe('PreviousIntroductionNextBirds');
+    expect(document.querySelector('nav[aria-label="Previous and next page"]')?.textContent).toBe('PreviousIntroductionNextBirds');
     act(() => button('Previous: Introduction').click());
     act(() => button('Next: Birds').click());
     expect(open.mock.calls.map((c) => c[0])).toEqual(['Introduction', 'Birds']);

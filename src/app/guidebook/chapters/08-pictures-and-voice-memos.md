@@ -42,7 +42,7 @@ A place is one line, a link to where it is:
 
 Under a line of words it leaves a blank line first, so no other app reads it as the end of your sentence. Away from the caret the line reads as the name alone, with the map under it. Tap the map to open the place in your maps app. A note can hold as many places as you like. Where the note itself was written is another thing, kept at the top of the note with its own map.
 
-The name is asked of OpenStreetMap while the phone finds where you are, when Place names is on in Settings › Account › Location. When no name comes within a few seconds the line keeps the coordinates, and the name is written in afterwards only if you have done nothing in the note since. Under Local only the row is greyed, and a place already in a note shows its map quiet, with no tiles. A shared note leaves its places out unless you tick **Share the places in it** ([[Sharing a note or a book]]). Other apps show the line as a link.
+The name is asked of OpenStreetMap while the phone finds where you are, when Place names is on in Settings › Account › Location. When no name comes within a few seconds the line keeps the coordinates, and the name is written in afterwards only if you have done nothing in the note since. Under Local only the row is greyed, and a place already in a note shows its map quiet, with no tiles. A shared note leaves its places out unless you tick **Share the places in it** ([[Sharing a note or a notebook]]). Other apps show the line as a link.
 
 ## A video
 
@@ -79,7 +79,7 @@ The app keeps its pictures in its own storage, beside the library of notes rathe
 ## Where pictures go with their note
 
 - **Sync.** Signed in, a note's pictures go with it to your other devices, sealed the way the note is ([[Accounts, sync and the key you hold]]). A picture that has not reached a device yet is drawn as soon as it arrives.
-- **Sharing.** A shared note or book carries the pictures its pages show, since a reader has no account to fetch them from. When they will not all fit, each is sent as a smaller reading copy, and failing that, as many as fit, in the order the pages show them ([[Sharing a note or a book]]).
+- **Sharing.** A shared note or notebook carries the pictures its pages show, since a reader has no account to fetch them from. When they will not all fit, each is sent as a smaller reading copy, and failing that, as many as fit, in the order the pages show them ([[Sharing a note or a notebook]]).
 - **Download as Markdown**, on a shared page, gives a note with pictures as a zip, with the pictures in an `image` folder beside the page, where its picture lines point.
 
 ## A spoken note's recording
@@ -119,5 +119,5 @@ Moving a note to the Trash changes nothing about it: its words, recording, pictu
 ## Read next
 
 - [[Recording a note]]
-- [[Sharing a note or a book]]
+- [[Sharing a note or a notebook]]
 - [[Canvases, cards and lines]]

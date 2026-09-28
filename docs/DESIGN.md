@@ -7790,6 +7790,128 @@ note step's field keeping the keyboard up. For the film: a portrait clip's poste
 plays when served as QuickTime, a gigabyte's copy time and the room check, seeking, full screen and back, and, on the
 staging build, `bmgr backupnow` leaving `video/` out of the backup's listing, and a move by Smart Switch keeping it.
 
+## 142. Notebooks, and journals of dated entries (2026-09-28)
+
+Matt: "id like books to be renamed notebooks and I'd like a journal function where we can just do entries into a
+book marked as a journal where we pick the template for pages (time and date prefixed, with geo location, etc etc)".
+
+**The word.** A book is a notebook now, and its parts are pages wherever a person reads them: the index, the bar, the
+foot, the aside and the add form said chapters while the cards and the New sheet said pages. The home page's Library
+is Notebooks, under a notebook's own mark (art/Icons.tsx `Notebook`: the book with three rings across its spine, 4
+wide and 4 apart, so at the heading's 19.4px they stay three rings and not a bar). As with Glyph becoming Ghost.md
+(§63), only words changed. `book: true`, `title:`, the share's `kind: 'book'` (a new kind would change the digest
+and reseal every share), `glyph-book-spots`, the element ids (`book-chapter-N`, `data-book-foot`,
+`data-group="library"`), the file names, `src/app/book/`, docs/BOOKS.md, the MCP's tool names and the entries above
+this one keep theirs, so an older app draws a notebook made now as the book it was, and the other way round. "book"
+stays a search word: the palette's New notebook and About's Guide row are found by it. Bookmarks, and "book" the
+verb, are untouched.
+
+**Where it reads.** The + and the New notebook sheet. The index, the bar and the foot a page wears. The aside and its
+toggle, "Notebook index", which it also says over a run of numbered chapters, as "Book index" did. The card's
+"Untitled notebook". The name field on a notebook's More sheet, "What this notebook is called" (it said canvas for
+both). The share row, which adds "Every page goes with it." on a notebook. The share limit's refusal, "Share a page,
+or fewer of them." The shared links' footer. The reader's banner, "A shared notebook." The recorder's chip, "“Field
+guide” is a notebook, so the words stay here." The typeface card, About's Guide row ("The whole app in 44 short
+chapters"), and the MCP's co-author words. The command palette gains New notebook, beside New note. The aside's list
+of numbered chapters with no notebook keeps "Chapters", since that is what they are.
+
+**The Guide and the docs.** Chapter 14 is "Notebooks, and reading one through" and chapter 21 "Sharing a note or a
+notebook", with every link to them, and the files keep their names. An installed Guide keeps its old titles, which
+still agree with each other, so no link breaks: only a fresh add gets the new ones. Where the Guide called itself a
+book it says this Guide, and its own parts stay chapters. docs/BOOKS.md keeps its name under the title Notebooks. The
+Play listing, forms and features, the screenshot notes and the privacy page say notebook. Two things wait: the
+screenshots `04-a-book.png` (its caption, "A book, read straight through.", is drawn into the picture) and
+`09-the-tapes-shelf.png` (it shows Library) are made again in the next screenshot pass, and privacy.html and the MCP's
+words reach the world only with their own deploys, on Matt's word.
+
+**Voice.** The recorder learns no new word. "Make a book called …" is still what it knows to turn down, and "new
+notebook for school, pens and paper" stays a note's words, since a command needs no keyword now (§136) and a
+notebook is an everyday thing to say. One thing was put right on the way: the kind of thing said before a note's words
+("a note", "a bug") ended where its letters did, not where its word did, so "add a notebook to Work" put the word
+"book" in Work, and "a bugfix for login" lost "a bug". Now the kind ends at a word's end (capture/command.ts
+`OBJECT_NOUN`). The tips never teach a notebook or a journal, as they never taught a book.
+
+**A journal** is a notebook with `journal: true`, a `template:` and, if it keeps places, `entry-place: true`, all flat
+keys in the page's own front matter beside `book: true` (book/journal.ts). The template is one double-quoted string
+with JSON's escapes, which YAML reads as the text it is. An older app draws a journal as a notebook and keeps the keys.
+It is made from the New notebook sheet's Journal choice, or a notebook is kept as one from its More sheet, every page
+where it was, and made a notebook again from there. Not the Guide: a manual is not a diary.
+
+**An entry** is a note named `2026-09-28 14.05`: ASCII digits in every language, so its key never loses the month,
+and nothing a file name drops, so its file is `2026-09-28 14.05.md` and the index's link resolves in any Markdown app.
+Matt chose any number of entries a day, each named by the minute, and a second in the same minute is ` (2)`. Its
+`date:` is the wall clock with no offset, so a shared entry does not say which time zone it was written in, and an
+entry written at 23:30 in New York stays on the 28th when it is read in London.
+
+**New entry** is one tap in the journal and two from home, through the +'s "Entry in Diary" row for the journal
+written in last, and the palette has "New entry in" for three. It keeps a record on the device first (book/entryDrafts.ts),
+puts the entry's line last in the index, through the journal's own screen when it is open so its next save cannot
+write the old index back, makes the note from the template and opens it with the caret at the end. The journal is
+drawn as its entries by month, newest first by when each was written, whatever order the lines are in, three months
+open and each older one a row. An entry nobody has written in is taken back when it is left: home, its tab closed,
+or the journal opened in its tab. Not when it is spoken into, and not when another tab is shown. A launch after the
+phone let the app go does the same, and no place lands on it first. Opening a journal from outside opens the journal,
+where New entry is, never the entry it was last read at.
+
+**The template** is one of five (the date and the time, just the time, a morning page, a day's to-dos, my own), with
+Obsidian's double-brace placeholders looked up by their own names only (format/prompt.ts's `in` would print a
+function's source for `{{constructor}}`). Words inside a format go in square brackets, as in Moment, and the sheet says
+so under the placeholders. Times are on the 24-hour clock, as meeting titles are. A change is for entries from then
+on. The day and the time come from core/stamp.ts, the module the + writes its date with. The sheet shows the page an
+entry would start as now, drawn by the note's own editor.
+
+**The place is the entry's own tag, never words.** The journal's switch is the choice, and travels with it. Local
+only, the Mac, a refusal and an introduction before any first prompt ("Diary keeps where each entry was written.")
+stay each device's. Its default is the device's Tag new notes, whatever the device can do, so a journal made on the
+Mac keeps the places of entries made on the phone, and turning it on asks from that press where the prompt has never
+been answered. The tag waits for the entry's first own words, and the map fetches no tiles until then.
+
+**Speak an entry** is the journal's mic, where it used to write into the index. The words continue the template's
+last line (capture/place.ts `lead`), so a spoken entry still starts with its time, and a day's to-dos said aloud
+become to-dos. The place is asked once the recorder has gone, never at the tap, since the microphone's prompt and a
+location prompt share one listener in the Android WebView. With a meeting recording it opens the meeting and makes
+nothing. On the way: a take aimed at an existing note is no longer filed and tagged as the take's own new note, which
+§134's "existing notes are never tagged" always said.
+
+**A journal is shared an entry at a time.** A shared notebook is sent whole after every save of a page, which a year
+of photographs cannot carry. A journal not shared says so where the share row would be.
+
+**Two devices** adding pages to one notebook between syncs merge the index lines instead of making "Diary 2"
+(core/sync/notes.ts `mergedIndex`).
+
+**Faster notebooks.** App finds a note by its title through one map, not a search per row, and the index reads its
+pages' authors again only when a page changed.
+
+**Claude** writes an entry with `add_journal_entry`, from the app's own journal modules, which import nothing that
+draws or stores so the MCP server bundles them. `append_to_note` refuses a journal's index, and `update_note` keeps a
+notebook's keys. The hosted connector is not deployed: that is Matt's word.
+
+**After review.** Words typed into a new entry and left at once for home, inside the save's 400 ms, were taken back
+with the entry: App looked at the store before the screen's last save reached it. An entry is the person's on its
+first own keystroke now, and its record goes then. A double tap on New entry made two entries of one name and one
+line, and taking back the one left took the other's line: a second press while one is made does nothing, a name is
+unique against the journal's lines too, and a line stays while another note is named by it. Back from an untouched
+entry gives its journal the tab back, and so takes the entry back. A row's words skip only what the template wrote for
+that entry, filled for its minute: a template line that was only `{{date}}` had stood for every line. The bar's sides
+say a time or a day, not the first letters of a date. A journal's card counts only entries written, across
+workspaces, and lists them by day and time with no numbers. The template's preview is drawn in the view and the face
+a new note opens in, its heading a step above its words, and a heading counts no empty to-do. A shared entry is
+read without its `title:` and `date:`, and a notebook kept as a journal after it was shared is read as the notebook
+it was sent as. Claude's `add_journal_entry` writes the line first and turns down a time that is not one, and a
+rewrite keeps `title:` only where it is a notebook's or an entry's name.
+
+Found on the way, and older than journals: a note opened again from a list read before its last save opened without
+its last words, and the next keystroke's save, from the old revision, was refused and stopped the saving. A notebook's
+page opened again from its bar did it, and so did every entry opened from its journal's row after it was written in. A
+note's screen now reads the note once the last screen on it has finished saving, and takes that copy while nothing is
+typed there yet, and a screen that saved anything says so as it goes, so the list and the journal's rows catch up
+(editor/useNoteSaving.ts).
+
+**Left undone.** One entry a day, where a second tap opens today's. A daily reminder and a launcher shortcut (native,
+generation 21). The side key starting an entry. A folder per journal on disk. Reading a month straight through.
+Sharing a whole journal, or part of one. A notebook's pages nested under it in the sidebar. The page's keys in
+Obsidian's Properties, which reads only the file's first block.
+
 ## 143. Settings' column smokes under its search field (2026-09-28)
 
 (Numbered 143 because the + and the notebooks, in flight at the same time, have 141 and 142.)

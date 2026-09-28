@@ -10,6 +10,7 @@ import { goBack } from '../core/back.ts';
 import { setTapeId, tapeId } from '../core/clips.ts';
 import { setTopBarTools } from '../core/topBarTools.ts';
 import { bookOf } from '../book/book.ts';
+import type { JournalWriter } from '../book/journal.ts';
 import { readBookSpot } from '../book/bookSpot.ts';
 import { insertSpots } from './inserts.ts';
 import { cancelRun, forgetAllRuns, simulateRuns, startRun } from '../ai/runs.ts';
@@ -255,6 +256,69 @@ describe('saving what is typed', () => {
     await settle();
     expect(saves.mock.calls.map((call) => call[2])).toEqual([1, 2]);
     expect((await getNote('n1'))?.body).toBe('# Groceries\nmilk\neggs');
+  });
+
+  it('opens on the words the store has when the copy it was given is older, and saves from their revision', async () => {
+    // The copy a list read before the last words were saved: a page opened again from its notebook's bar or its row.
+    const old = await createNote('n1', '# Lisbon\n\nTrams.');
+    await updateNote('n1', '# Lisbon\n\nTrams. And tarts.', 1);
+    saves.mockClear();
+    show(screen(old));
+    await settle();
+    expect(editor().state.doc.toString()).toBe('# Lisbon\n\nTrams. And tarts.');
+    type(' And the river.');
+    act(() => vi.advanceTimersByTime(400));
+    await settle();
+    expect(saves.mock.calls.map((call) => call[2])).toEqual([2]);
+    expect((await getNote('n1'))?.body).toBe('# Lisbon\n\nTrams. And tarts. And the river.');
+  });
+
+  it('reads the note again only once the last screen on it has saved, however soon it is opened again', async () => {
+    const note = await createNote('n1', '# Lisbon\n\nTrams.');
+    show(screen(note));
+    type(' And tarts.');
+    // The phone's store slow to answer the save on the way out, as a write across the bridge is.
+    let land: () => void = () => undefined;
+    const landed = new Promise<void>((resolve) => {
+      land = resolve;
+    });
+    const real = saves.getMockImplementation()!;
+    saves.mockImplementationOnce(async (...args: Parameters<typeof real>) => {
+      await landed;
+      return real(...args);
+    });
+    // Left, and opened again at once with the copy it was opened with first: the last save is still on its way.
+    unmount();
+    show(screen(note));
+    await settle();
+    land();
+    await settle();
+    expect(editor().state.doc.toString()).toBe('# Lisbon\n\nTrams. And tarts.');
+    type(' And the river.');
+    act(() => vi.advanceTimersByTime(400));
+    await settle();
+    expect((await getNote('n1'))?.body).toBe('# Lisbon\n\nTrams. And tarts. And the river.');
+  });
+
+  it('says the notes changed once the last save of a note left has landed, so the lists drawn from them catch up', async () => {
+    const { NOTES_CHANGED } = await import('../core/store.ts');
+    const heard = vi.fn(async () => (await getNote('n1'))?.body);
+    window.addEventListener(NOTES_CHANGED, heard);
+    try {
+      show(screen(await createNote('n1', '# Groceries')));
+      unmount();
+      await settle();
+      // Nothing written, nothing said.
+      expect(heard).not.toHaveBeenCalled();
+      show(screen((await getNote('n1'))!));
+      type('\nmilk');
+      unmount();
+      await settle();
+      expect(heard).toHaveBeenCalledTimes(1);
+      expect(await heard.mock.results[0]!.value).toBe('# Groceries\nmilk');
+    } finally {
+      window.removeEventListener(NOTES_CHANGED, heard);
+    }
   });
 
   it('stops saving after a write is refused, rather than writing over the note that won', async () => {
@@ -912,6 +976,49 @@ describe('where the note was written', () => {
     expect(editor().state.doc.toString()).toBe('---\nlocation: 51.5110,-0.1171\nplace: "Somerset House, London"\n---\nHello');
   });
 
+  it('keeps an untouched entry’s tag waiting, its card quiet and its place unnamed, until its first own words', async () => {
+    const { tagNewNotes, pendingTag } = await import('../core/location.ts');
+    const { rememberEntry } = await import('../book/entryDrafts.ts');
+    const asked = nominatim('Somerset House');
+    const words = '# Monday 28 September\n\n**14:05** ';
+    const made = `---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n${words}`;
+    rememberEntry('en1', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
+    show(screen(await createNote('en1', made)));
+    // A place no other test here has named: names already known this run are not asked again.
+    await act(async () => tagNewNotes(['en1'], Promise.resolve({ lat: 51.5033, lon: -0.1196, accuracy: 12, at: 0 }), { reviewing: false }));
+    await settle();
+    expect(card()?.getAttribute('data-mode')).toBe('quiet');
+    expect(asked).toHaveLength(0);
+    expect(pendingTag('en1')).not.toBeNull();
+    expect(editor().state.doc.toString()).toBe(made);
+    // Not the blank note's ghost: the entry has words.
+    expect(document.querySelector('[class*=blankGhost]')).toBeNull();
+    type('Walked along the river.');
+    await settle();
+    expect(card()?.getAttribute('data-mode')).toBe('map');
+    expect(editor().state.doc.toString()).toContain('location: 51.5033,-0.1196');
+    await act(async () => vi.advanceTimersByTimeAsync(1200));
+    await settle();
+    expect(asked).toHaveLength(1);
+  });
+
+  it('makes an entry the person’s on its first own word, before the save: left at once, it is not taken back', async () => {
+    const { rememberEntry, entryRecord } = await import('../book/entryDrafts.ts');
+    const words = '# Monday 28 September\n\n**14:05** ';
+    const made = `---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n${words}`;
+    rememberEntry('en2', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
+    show(screen(await createNote('en2', made)));
+    expect(entryRecord('en2')).not.toBeNull();
+    type('W');
+    // Nothing saved yet (400 ms), and the record is gone already: App's take-back reads the store and the record, and
+    // Home pressed now finds no record to act on while the save on the way out is still a turn behind.
+    expect(saves).not.toHaveBeenCalled();
+    expect(entryRecord('en2')).toBeNull();
+    unmount();
+    await settle();
+    expect((await getNote('en2'))?.body).toBe(`${made}W`);
+  });
+
   it('takes a new note’s waiting tag with it when the note is left without a word', async () => {
     const { tagNewNotes, pendingTag } = await import('../core/location.ts');
     show(screen(await createNote('w2', '')));
@@ -1410,5 +1517,122 @@ describe('a film from the + beside the line', () => {
     await settle();
     expect(view.state.doc.toString()).toBe('# Walk\n\n');
     vi.restoreAllMocks();
+  });
+});
+
+describe('a notebook kept as a journal', () => {
+  const NOTEBOOK = '---\ntitle: "Trip"\nbook: true\n---\n# Trip\n\n- [[Day one]]\n- [[Day two]]\n';
+  const more = () => act(() => button('More for this note').click());
+  const viewSwitch = () => document.querySelector<HTMLButtonElement>('header button')!;
+  const written = async () => {
+    act(() => vi.advanceTimersByTime(400));
+    await settle();
+    return saved().at(-1) ?? '';
+  };
+
+  it('is offered on a notebook’s More sheet, and keeping it writes the keys and leaves every page where it was', async () => {
+    show(screen(await createNote('b1', NOTEBOOK), { hasTitle: () => true, onOpenTitle: () => {} }));
+    more();
+    expect(buttonSaying(document.body, 'Keep it as a journal')?.textContent).toContain('New pages start dated, from a template.');
+    act(() => buttonSaying(document.body, 'Keep it as a journal')!.click());
+    expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Journal');
+    // A draft until it is kept: nothing is written yet, so nothing is said about entries already written.
+    expect(document.body.textContent).not.toContain('Entries you have written stay as they are.');
+    expect(buttonSaying(document.body, 'Make it a journal')?.textContent).toContain('Its pages stay where they are.');
+    act(() => button('Just the time').click());
+    act(() => buttonSaying(document.body, 'Make it a journal')!.click());
+    const body = await written();
+    expect(body).toBe('---\ntitle: "Trip"\nbook: true\njournal: true\ntemplate: "**{{time}}** "\nentry-place: true\n---\n# Trip\n\n- [[Day one]]\n- [[Day two]]\n');
+    // Back on the sheet, the row says what it is now; the name field says journal.
+    expect(buttonSaying(document.body, 'Journal')?.textContent).toContain('Starts with the time. Keeps where each was written.');
+    expect(document.querySelector('input[placeholder="What this journal is called"]')).not.toBeNull();
+  });
+
+  it('writes a journal’s changes as they are made, and makes it a notebook again with every page kept', async () => {
+    const journal = '---\ntitle: "Trip"\nbook: true\njournal: true\ntemplate: "**{{time}}** "\nentry-place: true\n---\n# Trip\n\n- [[Day one]]\n';
+    show(screen(await createNote('j1', journal), { hasTitle: () => true, onOpenTitle: () => {} }));
+    more();
+    act(() => buttonSaying(document.body, 'Journal')!.click());
+    // Each change is written as it is made, and is for entries from then on.
+    expect(document.body.textContent).toContain('Entries you have written stay as they are.');
+    expect(buttonSaying(document.body, 'Make it a notebook again')?.textContent).toContain('Its entries stay as pages. New pages start plain.');
+    act(() => button('A morning page').click());
+    expect(await written()).toContain('template: "# {{date}}\\n\\n> What is on your mind this morning?\\n\\n"');
+    act(() => document.querySelector<HTMLElement>('input[aria-label="With where you are"]')!.click());
+    expect(await written()).not.toContain('entry-place');
+    act(() => buttonSaying(document.body, 'Make it a notebook again')!.click());
+    expect(await written()).toBe('---\ntitle: "Trip"\nbook: true\n---\n# Trip\n\n- [[Day one]]\n');
+  });
+
+  it('writes the keys into the Markdown when that is the view, so the next keystroke keeps them', async () => {
+    show(screen(await createNote('b1', NOTEBOOK), { hasTitle: () => true, onOpenTitle: () => {} }));
+    act(() => viewSwitch().click());
+    more();
+    act(() => buttonSaying(document.body, 'Keep it as a journal')!.click());
+    act(() => buttonSaying(document.body, 'Make it a journal')!.click());
+    act(() => goBack());
+    type('- [[Day three]]\n');
+    const body = await written();
+    expect(body).toContain('journal: true');
+    expect(body).toContain('[[Day three]]');
+  });
+
+  it('puts the caret at the end of a new entry’s words, and has the editor’s focus', async () => {
+    const entry = '---\ntitle: "2026-09-28 14.05"\n---\n# Monday 28 September\n\n**14:05** ';
+    show(screen(await createNote('en1', entry), { caretAtEnd: true }));
+    await settle();
+    expect(editor().state.selection.main.head).toBe(entry.length);
+    expect(editor().hasFocus).toBe(true);
+  });
+
+  it('hands App a way to write the journal’s index through the screen, saved at once, and takes it back as it goes', async () => {
+    const writers: (JournalWriter | null)[] = [];
+    const journal = '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n\n';
+    show(screen(await createNote('j1', journal), { hasTitle: () => true, onOpenTitle: () => {}, onJournal: (writer) => writers.push(writer) }));
+    expect(writers.at(-1)?.id).toBe('j1');
+    act(() => writers.at(-1)!.write((body) => `${body}- [[2026-09-28 14.05]]\n`));
+    await settle();
+    // Saved at once, not on the typing's wait.
+    expect(saved().at(-1)).toBe(`${journal}- [[2026-09-28 14.05]]\n`);
+    // A notebook that is not a journal hands nothing over; the journal's screen gone, the way is taken back.
+    unmount();
+    expect(writers.at(-1)).toBeNull();
+    show(screen(await createNote('b1', NOTEBOOK), { hasTitle: () => true, onOpenTitle: () => {}, onJournal: (writer) => writers.push(writer) }));
+    expect(writers.at(-1)).toBeNull();
+  });
+
+  it('is not offered on the Guide, a note of words, or a canvas', async () => {
+    show(screen(await createNote('g1', '---\ntitle: "Ghost.md: The Guide"\nbook: true\n---\n# Ghost.md: The Guide\n\n1. [[Welcome]]\n'), { hasTitle: () => true, onOpenTitle: () => {} }));
+    more();
+    expect(buttonSaying(document.body, 'Keep it as a journal')).toBeUndefined();
+    unmount();
+    show(screen(await createNote('n1', '# Groceries')));
+    more();
+    expect(buttonSaying(document.body, 'Keep it as a journal')).toBeUndefined();
+    unmount();
+    show(screen(await createNote('c1', '{"nodes":[],"edges":[]}')));
+    more();
+    expect(buttonSaying(document.body, 'Keep it as a journal')).toBeUndefined();
+  });
+});
+
+describe('a journal open', () => {
+  it('is drawn as its entries by month rather than a numbered index, and keeps no spot for them', async () => {
+    const journal = '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n\n- [[2026-09-28 14.05]]\n';
+    const entry = await createNote('e1', '---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n**14:05** Walked.');
+    show(screen(await createNote('j1', journal), { hasTitle: () => true, onOpenTitle: () => {}, noteOfTitle: (title) => (title === '2026-09-28 14.05' ? entry : undefined) }));
+    expect(document.querySelector('ol[aria-label="Pages"]')).toBeNull();
+    expect(document.querySelector('h2')?.textContent).toBe('September 2026');
+    // Its mic makes an entry and speaks it.
+    expect(document.querySelector('button[aria-label="Speak an entry"]')).not.toBeNull();
+    expect(document.querySelector('button[aria-label="Talk into this note"]')).toBeNull();
+    expect(document.querySelector('[data-entries]')?.getAttribute('data-entries')).toBe('1');
+    expect(readBookSpot('j1')).toBeNull();
+    unmount();
+    // An entry open writes no spot for its journal: the journal opens on itself.
+    const place = { ...bookOf([{ ...entry, id: 'j1', body: journal }], '2026-09-28 14.05')!, journal: true };
+    show(screen(entry, { book: place, hasTitle: () => true, onOpenTitle: () => {} }));
+    expect(document.querySelector('nav[aria-label="Journal"]')).not.toBeNull();
+    expect(readBookSpot('j1')).toBeNull();
   });
 });

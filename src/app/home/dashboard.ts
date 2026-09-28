@@ -1,4 +1,5 @@
 import { isBookBody } from '../book/book.ts';
+import { entryPages } from '../book/journal.ts';
 import { itemOnLine, itemWords } from '../core/boards.ts';
 import { taskBox } from '../core/itemSyntax.ts';
 import type { SummariesState, SummaryKind } from '../ai/summaries.ts';
@@ -17,7 +18,7 @@ export function pinnedNotes(notes: readonly Note[]): Note[] {
   return notes.filter((n) => n.starred && !n.archivedAt).sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-/** The books (docs/BOOKS.md), newest change first, for the home page's Library. The archive stays out. */
+/** The notebooks (docs/BOOKS.md), newest change first, for the home page's Notebooks. The archive stays out. */
 export function bookNotes(notes: readonly Note[]): Note[] {
   return notes.filter((n) => !n.archivedAt && isBookBody(n.body)).sort((a, b) => b.updatedAt - a.updatedAt);
 }
@@ -60,12 +61,15 @@ export function tapedNotes(notes: readonly Note[], meetings: Meetings, live: str
 
 /**
  * The notes touched last: pinned ones, books and tapes left to their own rows so nothing shows twice, and the Guide's
- * pages out. What the shelf takes is exactly what this leaves out (`isTape`, and the meeting being recorded).
+ * pages and a journal's entries out. What the shelf takes is exactly what this leaves out (`isTape`, and the meeting
+ * being recorded).
  */
 export function recentNotes(notes: readonly Note[], count: number, meetings: Meetings, live: string | null = null): Note[] {
   const guide = guidePages(notes);
+  // A year of a journal's entries would fill Recent every day; the journal's card is the way to them (book/journal.ts).
+  const entries = entryPages(notes);
   return notes
-    .filter((n) => n.id !== live && !n.starred && !n.archivedAt && !isBookBody(n.body) && !guide.has(n.id) && !isTape(n, meetings))
+    .filter((n) => n.id !== live && !n.starred && !n.archivedAt && !isBookBody(n.body) && !guide.has(n.id) && !entries.has(n.id) && !isTape(n, meetings))
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, count);
 }

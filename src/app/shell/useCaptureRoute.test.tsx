@@ -446,15 +446,89 @@ describe('where a capture’s new notes were made', () => {
     expect((await getNote('said'))?.body).toBe('---\nlocation: 51.5074,-0.1278\n---\n# Said\n');
   });
 
+  it('leaves a note spoken into from its own mic as it was: untagged, and filed where it was or nowhere', async () => {
+    const calls = fixAt(51.5074, -0.1278);
+    const work = addWorkspace('Work')!;
+    chooseWorkspace(work.id);
+    const note = await createNote('n', '# Kept\n');
+    show(<Probe from={into('n')} />);
+    // The take went on its end (capture/CaptureScreen.tsx), and nothing a command made: no landing to say so.
+    const grown = await updateNote('n', '# Kept\n\nMore words.\n', note.revision ?? 1);
+    await act(async () => route.finished(grown, false));
+    await settle();
+    expect(screen).toMatchObject({ name: 'note', note: { id: 'n' } });
+    // docs/DESIGN.md §134: existing notes are never tagged.
+    expect(calls).toHaveLength(0);
+    expect(pendingTag('n')).toBeNull();
+    expect(workspaceOf('n')).toBeNull();
+    // Its review after the recording is no different.
+    show(<Probe from={into('n')} />);
+    await act(async () => route.finished(grown, false, { noteId: 'n', job: null, heard: 'more words', commands: [], touched: [] }));
+    await settle();
+    expect(calls).toHaveLength(0);
+    expect(workspaceOf('n')).toBeNull();
+  });
+
+  it('asks where a journal’s entry was written once the recorder has gone, never at its start, and quietly over a lock', async () => {
+    const { rememberEntry } = await import('../book/entryDrafts.ts');
+    const words = '# Monday 28 September\n';
+    const made = `---\ntitle: "2026-09-28 14.05"\n---\n${words}`;
+    rememberEntry('entry', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
+    await createNote('entry', made);
+    const asked: { reviewing: boolean; locked: boolean; on: string }[] = [];
+    const nothing = vi.fn(async (): Promise<Screen> => ({ name: 'list' }));
+    // What was on screen as it was asked: never the recorder, whose microphone prompt shares the one listener.
+    const aim = { id: 'entry', placing: { kind: 'end', lead: '**14:05** ' } as const, tag: (held: { reviewing: boolean }, locked: boolean) => void asked.push({ ...held, locked, on: screen.name }), nothing };
+    show(<Probe from={{ name: 'list' }} />);
+    await act(async () => route.start(false, 'entry', aim));
+    expect(screen).toMatchObject({ name: 'capture', noteId: 'entry', placing: { kind: 'end', lead: '**14:05** ' } });
+    // Nothing asked at the start: the recorder's microphone prompt comes first.
+    expect(asked).toEqual([]);
+    const said = await updateNote('entry', `${made}\n**14:05** Walked.`, 1);
+    await act(async () => route.finished(said, false));
+    await settle();
+    expect(screen).toMatchObject({ name: 'note', note: { id: 'entry' } });
+    expect(asked).toEqual([{ reviewing: false, locked: false, on: 'note' }]);
+    expect(nothing).not.toHaveBeenCalled();
+    // Over a locked phone: asked quietly, and home.
+    await act(async () => route.start(false, 'entry', aim));
+    const again = await updateNote('entry', `${said.body} Again.`, said.revision ?? 2);
+    await act(async () => route.finished(again, true));
+    await settle();
+    expect(asked.at(-1)).toEqual({ reviewing: false, locked: true, on: 'list' });
+    expect(screen).toEqual({ name: 'list' });
+  });
+
+  it('lands where a journal’s entry says when nothing was kept for it, and asks nothing', async () => {
+    const { rememberEntry } = await import('../book/entryDrafts.ts');
+    const words = '# Monday 28 September\n';
+    const made = await createNote('entry', `---\ntitle: "2026-09-28 14.05"\n---\n${words}`);
+    await createNote('diary', '---\nbook: true\njournal: true\n---\n');
+    rememberEntry('entry', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
+    const tag = vi.fn();
+    const journal = (await getNote('diary'))!;
+    const aim = { id: 'entry', placing: { kind: 'end', lead: '**14:05** ' } as const, tag, nothing: async (): Promise<Screen> => ({ name: 'note', note: journal }) };
+    show(<Probe from={{ name: 'list' }} />);
+    await act(async () => route.start(false, 'entry', aim));
+    await act(async () => route.finished(null, false));
+    expect(screen).toMatchObject({ name: 'note', note: { id: 'diary' } });
+    // The take left the entry as it was made: nothing kept for it, and nothing asked.
+    await act(async () => route.start(false, 'entry', aim));
+    await act(async () => route.finished(made, false));
+    await settle();
+    expect(screen).toMatchObject({ name: 'note', note: { id: 'diary' } });
+    expect(tag).not.toHaveBeenCalled();
+  });
+
   it('hands the tag to the note’s screen when it opens, rather than writing under its editor', async () => {
     fixAt(51.5074, -0.1278);
     const note = await createNote('n', '# Said\n');
     // The note's screen, as it watches its tag once mounted (editor/NoteScreen.tsx).
     const told: string[] = [];
     const off = watchTag('n', (event) => told.push(event.kind));
-    show(<Probe from={into('n')} />);
+    // The take's own new note: a note spoken into from its own mic is not tagged at all (the test above).
+    show(<Probe from={into()} />);
     await act(async () => route.finished(note, false));
-    expect(screen).toMatchObject({ name: 'note', note: { id: 'n' } });
     await settle();
     off();
     expect(told).toEqual(['pending']);

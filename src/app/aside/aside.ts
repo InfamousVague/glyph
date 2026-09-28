@@ -1,5 +1,6 @@
-import { bookIndex, chaptersOf, isBookBody, type BookPlace } from '../book/book.ts';
+import { bookIndex, chaptersOf, isBookBody, isJournalBody, type BookPlace } from '../book/book.ts';
 import { chapterOf } from '../book/chapterNumber.ts';
+import { asideMonth, type JournalMonth } from '../book/journalMonths.ts';
 import { readStoredText, writeStoredText } from '../core/stored.ts';
 import { noteTitle, type Note } from '../core/store.ts';
 import { titleKey } from '../core/titleKey.ts';
@@ -8,7 +9,9 @@ import { wikiLinksIn } from '../editor/wikiLinks.ts';
 /**
  * What the right-hand aside shows (Matt: "a right side aside menu that can pop out book indexes"), or nothing:
  *
- * - **A book**, while it or one of its pages is open: its index, the open chapter marked.
+ * - **A book**, while it or one of its pages is open: its index, the open chapter marked. A journal's is one month of
+ *   its entries, newest first: the open entry's month, or its newest (docs/DESIGN.md §142). A year of entries is too
+ *   long a list to find anything in, and the journal's own view has the rest.
  * - **Chapters with no book**, while a numbered chapter is open (book/chapterNumber.ts): it and its fellow chapters,
  *   in the order of their numbers (Matt: "that should let us lay out the chapters in order when there is no book").
  * - **Nothing** anywhere else, and the aside and its toggle aren't shown (Matt: "when there is no book on the page
@@ -17,7 +20,7 @@ import { wikiLinksIn } from '../editor/wikiLinks.ts';
  * Pure, so each rule is a test.
  */
 export type AsideContent =
-  | { kind: 'book'; place: BookPlace; open: string | null }
+  | { kind: 'book'; place: BookPlace; open: string | null; month?: JournalMonth | null }
   | { kind: 'chapters'; title: string; titleId: string | null; chapters: NumberedChapter[]; open: string };
 
 export interface NumberedChapter {
@@ -34,10 +37,12 @@ export interface NumberedChapter {
 export function asideContent(notes: readonly Note[], open: Note | null): AsideContent | null {
   if (!open) return null;
   if (isBookBody(open.body)) {
-    return { kind: 'book', place: { book: open, title: noteTitle(open.body), chapters: chaptersOf(open.body), at: -1 }, open: null };
+    const journal = isJournalBody(open.body);
+    const place = { book: open, title: noteTitle(open.body), chapters: chaptersOf(open.body), at: -1, journal };
+    return { kind: 'book', place, open: null, ...(journal ? { month: asideMonth(open, notes, null) } : {}) };
   }
   const place = bookIndex(notes).get(titleKey(noteTitle(open.body)));
-  if (place) return { kind: 'book', place, open: open.id };
+  if (place) return { kind: 'book', place, open: open.id, ...(place.journal ? { month: asideMonth(place.book, notes, noteTitle(open.body)) } : {}) };
   return chapterRun(notes, open);
 }
 

@@ -31,13 +31,13 @@ describe('tips in a pause', () => {
   });
 
   // Changed on purpose (docs/DESIGN.md §126, §127): a recording no longer carries out a table, a book or a chapter, so
-  // no tip teaches one. A board's lane is carried out on its own Speak but not taught yet, until Matt says whether a
+  // no tip teaches one. Nor a notebook or a journal, the book's names since §142. A board's lane is carried out on its own Speak but not taught yet, until Matt says whether a
   // tip for it should come back (§127, question 5).
   // A command needs no keyword (docs/DESIGN.md §136): every tip says it bare, in a form the bare gate takes.
   it('teach only the commands a recording carries out as they are said, without the keyword', () => {
     const said = tips({ noteTitle: 'Groceries', continuing: true }).map((tip) => tip.say);
     for (const line of ['Add … to Groceries', 'New item for Groceries, …', 'New note', 'Move this to Groceries']) expect(said).toContain(line);
-    expect(said.some((line) => /\b(?:table|chapter|book|lane)\b/i.test(line))).toBe(false);
+    expect(said.some((line) => /\b(?:table|chapter|book|notebook|journal|lane)\b/i.test(line))).toBe(false);
     expect(said.some((line) => /fix the spelling|summari[sz]e/i.test(line))).toBe(false);
     expect(said.some((line) => /Hey Ghost/i.test(line))).toBe(false);
     // A note whose title does not say it is a list: "a note" said is the evidence the gate wants.
