@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { rerender, show, typeInto, unmount } from '../../test/render.tsx';
@@ -143,6 +145,20 @@ describe('the Settings shell', () => {
     expect(display()).toBe('Animations');
     act(() => host.querySelector<HTMLButtonElement>('.settingsScreen__headWord')!.click());
     expect(display()).toBeNull();
+    rerender(<SettingsScreen open onClose={() => {}} sections={sections} goTo={{ id: 'animations', nonce: 2 }} />);
+    expect(display()).toBe('Animations');
+  });
+
+  it('lands on the list on a fresh open, not on the page the last request opened', () => {
+    const goTo = { id: 'animations', nonce: 1 };
+    host = show(<SettingsScreen open onClose={() => {}} sections={sections} goTo={goTo} />);
+    expect(display()).toBe('Animations');
+    // Closed with the request still held, as the sheet holds it (it stays mounted), and opened again.
+    rerender(<SettingsScreen open={false} onClose={() => {}} sections={sections} goTo={goTo} />);
+    rerender(<SettingsScreen open onClose={() => {}} sections={sections} goTo={goTo} />);
+    expect(display()).toBeNull();
+    // A request made while it was closed is still answered when it opens.
+    rerender(<SettingsScreen open={false} onClose={() => {}} sections={sections} goTo={{ id: 'animations', nonce: 2 }} />);
     rerender(<SettingsScreen open onClose={() => {}} sections={sections} goTo={{ id: 'animations', nonce: 2 }} />);
     expect(display()).toBe('Animations');
   });
@@ -328,6 +344,25 @@ describe('a sub-page', () => {
       wide = false;
     }
   });
+
+  it('says its parent in the head of a wide window, where the head steps back as back does, and leaves from a pane', () => {
+    const onClose = vi.fn();
+    wide = true;
+    try {
+      host = show(<SettingsScreen open onClose={onClose} sections={withSub} goTo={{ id: 'plugin:notion', nonce: 1 }} />);
+      expect(headWord()).toBe('Plugins');
+      expect(host.querySelector('.settingsScreen__headWord')?.getAttribute('aria-label')).toBeNull();
+      act(() => host.querySelector<HTMLButtonElement>('.settingsScreen__headWord')!.click());
+      expect(display()).toBe('Plugins');
+      expect(onClose).not.toHaveBeenCalled();
+      expect(headWord()).toBe('Settings');
+      expect(host.querySelector('.settingsScreen__headWord')?.getAttribute('aria-label')).toBe('Back to your notes');
+      act(() => host.querySelector<HTMLButtonElement>('.settingsScreen__headWord')!.click());
+      expect(onClose).toHaveBeenCalledOnce();
+    } finally {
+      wide = false;
+    }
+  });
 });
 
 describe('a target', () => {
@@ -343,6 +378,38 @@ describe('a target', () => {
     rerender(<SettingsScreen open onClose={() => {}} sections={sections} goTo={{ id: 'animations', setting: 'Smoke at the edges', nonce: 2 }} />);
     act(() => vi.advanceTimersToNextFrame());
     expect(host.querySelector('#smoke')?.hasAttribute('data-found')).toBe(true);
+  });
+
+  it('lights a setting once for each request: coming back to the page from the list is only opening it', () => {
+    vi.useFakeTimers();
+    host = show(<SettingsScreen open onClose={() => {}} sections={sections} goTo={{ id: 'animations', setting: 'Smoke at the edges', nonce: 1 }} />);
+    act(() => vi.advanceTimersToNextFrame());
+    act(() => vi.advanceTimersByTime(1700));
+    act(() => host.querySelector<HTMLButtonElement>('.settingsScreen__headWord')!.click());
+    act(() => rowFor('Animations').click());
+    act(() => vi.advanceTimersToNextFrame());
+    expect(host.querySelector('#smoke')?.hasAttribute('data-found')).toBe(false);
+  });
+
+  it('lights the setting on the right of a wide window too', () => {
+    vi.useFakeTimers();
+    wide = true;
+    try {
+      host = show(<SettingsScreen open onClose={() => {}} sections={sections} goTo={{ id: 'animations', setting: 'Smoke at the edges', nonce: 1 }} />);
+      act(() => vi.advanceTimersToNextFrame());
+      expect(host.querySelector('#smoke')?.hasAttribute('data-found')).toBe(true);
+    } finally {
+      wide = false;
+    }
+  });
+
+  // The tests run with CSS off, so this is read from the sheet: a card lit and let go must not run its arrival again.
+  it('keeps a lit card’s arrival beside its light, so letting the light go does not blink the card', () => {
+    const css = readFileSync(join(import.meta.dirname, 'settings.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(([, selector = '']) => selector.split(',').some((one) => one.trim() === '.settingsScreen__pane .setk[data-found]'));
+    const animations = rules.map(([, , body = '']) => /animation:([^;]*);/.exec(body)?.[1]?.replace(/\s+/g, ' ').trim());
+    // Moving: the arrival first, as the card's own rule has it, then the light. Reduced: neither.
+    expect(animations).toEqual(['settingsRise 360ms var(--glacier-ease-out) both, settingsFound 1.6s var(--glacier-ease-out)', 'none']);
   });
 
   it('opens the page alone when it names no setting', () => {

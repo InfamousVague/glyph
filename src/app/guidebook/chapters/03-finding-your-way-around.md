@@ -90,7 +90,7 @@ Open it from a note's More sheet › Find and replace, or select some words, pre
 
 One list of your notes by name and everything the app can do, searched as you type. Open it with the home page's Search, with ⌘K on a Mac, or with Search and commands in the sidebar.
 
-Its groups: **This note** (talk into it, show it formatted or with its marks, pin, archive, delete, file it in a workspace, put its tab in a group), **Notes** (New note, Speak a new note, Home, All notes), **Open tabs**, **Workspaces**, **Notes by name** (with nothing typed, the forty notes changed last, less any already open; once you type, the notes whose names match, however long ago they changed), **Look** (the themes), and **Ghost.md** (Settings, Cheat sheet, Ghost.md Academy, How to talk to Ghost.md). The back gesture closes it and leaves you where you were.
+Its groups: **This note** (talk into it, show it formatted or with its marks, pin, archive, delete, file it in a workspace, put its tab in a group), **Notes** (New note, Speak a new note, Home, All notes), **Open tabs**, **Workspaces**, **Notes by name** (with nothing typed, the forty notes changed last, less any already open; once you type, the notes whose names match, however long ago they changed), **Look** (the themes), and **Ghost.md** (Settings, Cheat sheet, Ghost.md Academy, The welcome walkthrough). The back gesture closes it and leaves you where you were.
 
 ## Read next
 

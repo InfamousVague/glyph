@@ -18,13 +18,13 @@ Some rows appear only where they mean something: Recording on Android and the Ma
 
 Who you are, and what leaves the device.
 
-Signed out, it opens on the **Privacy** card, then **Sign in**, with **Create an account** and **Lost the password**, which takes a recovery code, below it, then the **Location** card. Signed in, the **Sync** card has **Sync now**, **Sync meeting recordings** (off, so a meeting's audio stays on the device that recorded it), **Live typing (trial)** (off until you switch it on, for this device only, from the next note you open), **Password and recovery codes**, and **Sign out**, which leaves your notes on the device. Then **Shared links**, once you have shared something, with a Copy and a Stop for each note and book. Then Privacy and Location, and **Delete account** last. While Local only is on, a line at the top says nothing syncs, and its "Local only" brings the Privacy card into view. More in [[Accounts, sync and the key you hold]].
+Signed out, it opens on **Sign in**, with **Create an account** and **Lost the password**, which takes a recovery code, below it, then the **Privacy** and **Location** cards. Signed in, the **Sync** card has **Sync now**, **Sync meeting recordings** (off, so a meeting's audio stays on the device that recorded it), **Live typing (trial)** (off until you switch it on, for this device only, from the next note you open), **Password and recovery codes**, and **Sign out**, which leaves your notes on the device. Then **Shared links**, once you have shared something, with a Copy and a Stop for each note and book. Then Privacy and Location, and **Delete account** last. While Local only is on, a line at the top says nothing syncs, and its "Local only" brings the Privacy card into view. More in [[Accounts, sync and the key you hold]].
 
 ### Privacy
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| Local only | Off | No sync, updates, downloads, link previews, maps or place names, and no location for new notes. Plugins that use the internet are held off. It stays on this device. [[What stays on your phone]] has exactly what it stops. |
+| Local only | Off | No sync, updates, downloads or link titles, and plugins that use the internet are held off. The map, place names and the location for new notes are held off too, and the Location card says so under each. It stays on this device. [[What stays on your phone]] has exactly what it stops. |
 | Link previews | On | A card under a line that is only a link. The apps read the page's title from the linked site. The web version shows only the site and its path. |
 | Privacy policy | | Opens ghostmarkdown.com/privacy.html. Under the card, what it comes to in two lines. |
 
@@ -70,14 +70,14 @@ In the Android app and on the Mac.
 | --- | --- | --- |
 | Stop when I go quiet | Off | Saves after four seconds of quiet, once you have started talking. The side key and Done still work. |
 | Review after recording | On | After you stop, a slower listen and a read-through, with what it would fix for you to keep. For recordings under three minutes. |
-| Better words | On | A larger model goes over the recording and fixes the words, a few seconds of the phone per minute of speech. |
-| Summaries | **Meetings**, Meetings and long voice notes, Off | The model on the phone writes a summary under the title: what was said, what was decided, and your to-dos. A long voice note is one over three minutes. |
+| Better words | On | A larger model goes over the recording and fixes the words, a few seconds of the phone or the Mac per minute of speech. |
+| Summaries | **Meetings**, Meetings and long voice notes, Off | The model on the phone or the Mac writes a summary under the title: what was said, what was decided, and your to-dos. A long voice note is one over three minutes. |
 | Tell me when a meeting is written up | | On Android. **Allow** asks for notifications, and the row then says On. |
 | Write up straight away | Off | On Android. Off, a meeting is written up when the phone is charging or above half. On, straight away, which uses more of the battery. |
 | Remove audio older than a month | | Two taps, the first arming it. Every word and phrase stays and only the audio goes. Under the card, how much room your tapes take. |
 | The side key | Ghost.md's guess | On Android, last on the page. A Height slider moves the rings to sit beside your key. Once you have moved it, **Reset** beside Use Ghost.md's guess puts it back. |
 
-The **Model** card chooses the model that writes the summaries and the review, and Format, Summarize and Enhance on a note. Each model is listed once. **Get** downloads one, with the bytes shown as they arrive, and a model that is here can be picked, with **Remove** beside it. The one in use says In use and has no Remove: pick another first. Under the card, how much the models take. Qwen3.5 2B is quick, Qwen3.5 4B is the balance and the default, Qwen3.5 9B is the most careful and wants 12 GB of memory, and Gemma 4 E4B is a different voice. More in [[The models on your phone]].
+The **Model** card chooses the model that writes the summaries and the review, and Format, Summarize and Enhance on a note. Each model is listed once. **Get** downloads one, with the bytes shown as they arrive, and a model that is here can be picked, with **Remove** beside it, which takes two taps: Remove, then Tap again. The one in use says In use and has no Remove: pick another first. When it is the only one here there is nothing to pick, so it has Remove too. If the chosen model is not here, the one standing in for it is the one in use. Under the card, how much the models take. Qwen3.5 2B is quick, Qwen3.5 4B is the balance and the default, Qwen3.5 9B is the most careful and wants 12 GB of memory, and Gemma 4 E4B is a different voice. More in [[The models on your phone]].
 
 ## Plugins
 

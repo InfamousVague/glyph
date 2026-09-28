@@ -27,10 +27,11 @@ import { GoWord, PaneHero, PaneSection, RowAction, SettingRow, SettingsCallout, 
  *
  * Who you are, and what leaves the phone (docs/DESIGN.md §138): the Privacy card (PrivacyCard.tsx: Local only, Link
  * previews, the policy) and the Location card (LocationCard.tsx, which was a page) are here, beside sync and shared
- * links, signed in or out. Signed out, Privacy is the first thing on the page, since the form is an invitation and the
- * card is settings, and Location comes after the ways in: first as well, the two cards put Sign in a screen and a half
- * down at 412 × 915 (its title at 1476 px), where after Privacy alone it heads the second screen (948). Signed in,
- * while Local only holds the sync off, the callout's "Local only" is a word that brings its card into view.
+ * links, signed in or out, and after the account's own cards either way. Signed out that is after the ways in. The
+ * design had Privacy first there, but measured it put Sign in on the second screen at 412 × 915 (its title at 948 px)
+ * and off the Fold's opened screen too, with the ghost between the two privacy cards; someone who opens Account signed
+ * out has come to sign in. While Local only holds the sync off, a callout says so, signed in or out, and its "Local
+ * only" is a word that brings the card into view: a plain word while a form has the card off the page.
  *
  * What the search finds here is AccountPane.findable.ts.
  */
@@ -54,7 +55,19 @@ function Codes({ codes, onDone }: { codes: string[]; onDone: () => void }) {
   );
 }
 
-function SignedOut({ onCodes, said }: { onCodes: (codes: string[]) => void; said?: string | null }) {
+/** The callout while Local only holds the sync off; its words bring the Privacy card into view, where there is one. */
+function LocalOnlyCallout({ onOpen }: { onOpen?: () => void }) {
+  return (
+    <SettingsCallout>
+      <span>
+        <GoWord onPress={onOpen}>Local only</GoWord> is on, so nothing syncs until it is off.
+      </span>
+    </SettingsCallout>
+  );
+}
+
+function SignedOut({ onCodes, said, onOpen }: { onCodes: (codes: string[]) => void; said?: string | null; onOpen?: (target: SettingsTarget) => void }) {
+  const prefs = usePreferences();
   const [mode, setMode] = useState<Mode>('in');
   const [handle, setHandle] = useState('');
   const [password, setPassword] = useState('');
@@ -84,8 +97,7 @@ function SignedOut({ onCodes, said }: { onCodes: (codes: string[]) => void; said
   return (
     <>
       {said ? <SettingsCallout>{said}</SettingsCallout> : null}
-      {/* No callout for Local only here: its card is the first thing on the page, and its switch says the state. */}
-      <PrivacyCard />
+      {prefs.localOnly ? <LocalOnlyCallout onOpen={onOpen ? () => onOpen({ id: 'account', setting: 'Privacy' }) : undefined} /> : null}
       <Ghost scene="signed-out" align="center" />
       <PaneSection
         title={mode === 'up' ? 'New account' : mode === 'recover' ? 'Recover' : 'Sign in'}
@@ -122,6 +134,7 @@ function SignedOut({ onCodes, said }: { onCodes: (codes: string[]) => void; said
       <SettingsFootnote>
         Your password never leaves this device, and nobody can reset it for you. Without it or a recovery code, the notes in an account can't be opened by anyone. Notes on this device stay here either way.
       </SettingsFootnote>
+      <PrivacyCard />
       <LocationCard />
     </>
   );
@@ -244,7 +257,7 @@ export function AccountPane({ onOpen }: { onOpen?: (target: SettingsTarget) => v
   const [deleted, setDeleted] = useState(false);
 
   if (codes) return <Codes codes={codes} onDone={() => setCodes(null)} />;
-  if (!account.session) return <SignedOut onCodes={setCodes} said={deleted ? 'Your account is deleted. The notes on this device are still here.' : null} />;
+  if (!account.session) return <SignedOut onCodes={setCodes} onOpen={onOpen} said={deleted ? 'Your account is deleted. The notes on this device are still here.' : null} />;
 
   const statusText =
     status.phase === 'syncing'
@@ -271,13 +284,8 @@ export function AccountPane({ onOpen }: { onOpen?: (target: SettingsTarget) => v
           {unsentLine(status.unsent)}. {status.unsentReason ?? 'They are sent again next time.'}
         </SettingsCallout>
       ) : null}
-      {prefs.localOnly ? (
-        <SettingsCallout>
-          <span>
-            <GoWord onPress={onOpen ? () => onOpen({ id: 'account', setting: 'Privacy' }) : undefined}>Local only</GoWord> is on, so nothing syncs until it is off.
-          </span>
-        </SettingsCallout>
-      ) : null}
+      {/* The password and delete forms take the Privacy card off the page: the word has nowhere to go while one is open. */}
+      {prefs.localOnly ? <LocalOnlyCallout onOpen={onOpen && !editing && !deleting ? () => onOpen({ id: 'account', setting: 'Privacy' }) : undefined} /> : null}
       {deleting ? (
         <DeleteAccountForm
           onDeleted={() => {

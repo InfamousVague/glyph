@@ -87,15 +87,54 @@ describe('the Model card', () => {
     expect(row(host, 'Qwen3.5 4B').querySelector('.setk-row__value')?.textContent).toBe('Downloading');
   });
 
-  it('has no Remove on the model in use, and removes another that is here without changing the choice', async () => {
+  it('has no Remove on the model in use, and removes another that is here, on a second tap, without changing the choice', async () => {
     present = ['qwen3.5-2b', 'qwen3.5-9b'];
     setPreferences({ formatModel: 'qwen3.5-9b' });
     const host = show(<ModelCard />);
     expect(row(host, 'Qwen3.5 9B').querySelector('.setk-row__value')?.textContent).toBe('In use');
     expect(buttonSaying(row(host, 'Qwen3.5 9B'), 'Remove')).toBeUndefined();
-    await act(async () => button('Remove', row(host, 'Qwen3.5 2B')).click());
+    // A tap meant for the radio beside it only arms it.
+    act(() => button('Remove', row(host, 'Qwen3.5 2B')).click());
+    expect(removeModel).not.toHaveBeenCalled();
+    await act(async () => button('Tap again', row(host, 'Qwen3.5 2B')).click());
     expect(removeModel).toHaveBeenCalledWith('qwen3.5-2b');
     expect(preferences().formatModel).toBe('qwen3.5-9b');
+  });
+
+  it('lets an armed Remove go after a few seconds', () => {
+    vi.useFakeTimers();
+    try {
+      present = ['qwen3.5-2b', 'qwen3.5-4b'];
+      const host = show(<ModelCard />);
+      act(() => button('Remove', row(host, 'Qwen3.5 2B')).click());
+      expect(buttonSaying(row(host, 'Qwen3.5 2B'), 'Tap again')).toBeDefined();
+      act(() => vi.advanceTimersByTime(5000));
+      expect(buttonSaying(row(host, 'Qwen3.5 2B'), 'Tap again')).toBeUndefined();
+      expect(removeModel).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('offers Remove on the model in use when it is the only one here, since there is nothing else to pick first', async () => {
+    present = ['qwen3.5-4b'];
+    const host = show(<ModelCard />);
+    expect(row(host, 'Qwen3.5 4B').querySelector<HTMLElement>('[role="radio"]')?.getAttribute('aria-checked')).toBe('true');
+    act(() => button('Remove', row(host, 'Qwen3.5 4B')).click());
+    await act(async () => button('Tap again', row(host, 'Qwen3.5 4B')).click());
+    expect(removeModel).toHaveBeenCalledWith('qwen3.5-4b');
+  });
+
+  it('calls the one that runs in use when the chosen one is not here, and keeps Remove off it', () => {
+    // Chosen, the 9B is not here: the biggest here no bigger than it runs in its place (ai/available.ts).
+    present = ['qwen3.5-2b', 'qwen3.5-4b'];
+    setPreferences({ formatModel: 'qwen3.5-9b' });
+    const host = show(<ModelCard />);
+    expect(row(host, 'Qwen3.5 4B').querySelector('.setk-row__value')?.textContent).toBe('In use');
+    expect(buttonSaying(row(host, 'Qwen3.5 4B'), 'Remove')).toBeUndefined();
+    expect(row(host, 'Qwen3.5 4B').querySelector<HTMLElement>('[role="radio"]')?.getAttribute('aria-checked')).toBe('true');
+    expect(buttonSaying(row(host, 'Qwen3.5 2B'), 'Remove')).toBeDefined();
+    expect(buttonSaying(row(host, 'Qwen3.5 9B'), 'Get')).toBeDefined();
   });
 
   it('says there is nothing here yet, and says the Mac where it runs on the Mac', () => {

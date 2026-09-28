@@ -30,19 +30,19 @@ Settings › Recording › Model lists four, each once. The one you choose rewri
 
 | Model | Download | What Settings says |
 |---|---|---|
-| Qwen3.5 2B | 1.28 GB | Quick. Good for short notes; it can shorten long ones. |
+| Qwen3.5 2B | 1.28 GB | Quick. Good for short notes, and it can shorten long ones. |
 | Qwen3.5 4B | 2.74 GB | The balance. Careful with facts, fits most phones. |
 | Qwen3.5 9B | 5.68 GB | The most careful, and the slowest. Wants 12 GB of memory. |
-| Gemma 4 E4B | 4.98 GB | A different voice. Runs like a 4B; the file is bigger. |
+| Gemma 4 E4B | 4.98 GB | A different voice. Runs like a 4B, with a bigger file. |
 
 The 4B is the default. Settings rounds the sizes to one decimal place, so the 4B shows as 2.7 GB.
 
 The app never fetches a language model without asking you. Asking for a run with no model on the phone does not fetch one either: the note tells you it needs a model. There are two places to get one:
 
-- **Settings › Recording › Model.** You can choose any model that is on the phone, and remove one that is not in use: the one in use has no Remove, so pick another first. One that is not on the phone has **Get**. The download happens in the open, with a line such as "Getting Qwen3.5 4B, 1.2 GB of 2.7 GB. Keep Ghost.md open." Only one downloads at a time.
+- **Settings › Recording › Model.** You can choose any model that is on the phone, and remove one that is not in use: the one in use has no Remove, so pick another first, unless it is the only one on the phone. Remove takes two taps, Remove and then Tap again. One that is not on the phone has **Get**. The download happens in the open, with a line such as "Getting Qwen3.5 4B, 1.2 GB of 2.7 GB. Keep Ghost.md open." Only one downloads at a time.
 - **The welcome walkthrough's "Choose your model" page.** Picking a row sets your choice, and **get it now** under the list starts the download.
 
-If the phone stops a download partway, tap Get again. The last card on the page, **On the phone**, lists what has been downloaded, the storage it takes in all, and **Remove** beside each model. If you remove the model you had chosen, the choice moves to another one that is still on the phone, or back to the default.
+If the phone stops a download partway, tap Get again. Under the card is the storage the downloaded models take in all. If the model you chose is not on the phone, the biggest one there that is no bigger runs in its place, and the card says that one is in use. Remove the only model there and the AI has none until you get one.
 
 ## Which one runs
 

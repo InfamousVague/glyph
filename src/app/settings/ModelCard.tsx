@@ -1,6 +1,9 @@
+import { useEffect, useState } from 'react';
 import { Download } from '@glacier/icons';
 import { ProgressBar } from '@glacier/react';
+import { modelFor } from '../ai/available.ts';
 import { gb, MODELS, modelSpec, useModels } from '../core/ai.ts';
+import { fireNativeHaptic } from '../core/haptics.ts';
 import { isAndroid } from '../core/platform.ts';
 import { setPreferences, usePreferences } from '../core/preferences.ts';
 import { PaneSection, Pick, RowAction, SettingRow, SettingsCallout } from './kit/settingsKit.tsx';
@@ -14,17 +17,43 @@ import { PaneSection, Pick, RowAction, SettingRow, SettingsCallout } from './kit
  * One row a model, once. Not here: Get, which downloads it in the open with the bytes arriving in a callout above.
  * Here: a radio to choose it, and Remove beside it, so the gigabytes are never invisible; the footer adds them up.
  * The one in use has no Remove: another is picked first, so nothing switches the model behind a person's back (the
- * old page chose one for them when the chosen one went).
+ * old page chose one for them when the chosen one went). In use is the one that runs (ai/available.ts `modelFor`):
+ * the chosen one when it is here, else the one standing in for it. When it is the only one here there is nothing to
+ * pick first, so it has Remove too, or its gigabytes could not be given back.
+ *
+ * Remove asks twice, Remove and then Tap again, as the Tapes card's does: it gives back gigabytes that take minutes to
+ * get again, and it sits a thumb's width from the radio that picks the same model.
  */
+
+/** How long a Remove stays armed after its first tap, as the Tapes card's does. */
+const ARMED_MS = 5000;
+
 export function ModelCard() {
   const prefs = usePreferences();
   const { models, download, problem, fetch, remove } = useModels();
-  const chosen = prefs.formatModel;
   const present = new Set(models.filter((m) => m.present).map((m) => m.id));
+  const running = modelFor([...present], prefs.formatModel);
   const held = MODELS.filter((m) => present.has(m.id)).reduce((sum, m) => sum + m.bytes, 0);
   const downloading = download ? modelSpec(download.id) : null;
   // The Mac runs them too (§127 section 2), and a Mac is not a phone.
   const device = isAndroid ? 'the phone' : 'this Mac';
+
+  // The model whose Remove has had its first tap, for a few seconds.
+  const [armed, setArmed] = useState<string | null>(null);
+  useEffect(() => {
+    if (!armed) return undefined;
+    const id = window.setTimeout(() => setArmed(null), ARMED_MS);
+    return () => window.clearTimeout(id);
+  }, [armed]);
+  const removeTapped = (id: string) => {
+    if (armed !== id) {
+      setArmed(id);
+      fireNativeHaptic('warning');
+      return;
+    }
+    setArmed(null);
+    void remove(id);
+  };
 
   return (
     <>
@@ -45,15 +74,18 @@ export function ModelCard() {
       >
         {MODELS.map((model) => {
           const here = present.has(model.id);
-          const inUse = here && chosen === model.id;
+          const inUse = model.id === running;
+          const removable = here && (!inUse || present.size === 1);
           return (
             <SettingRow
               key={model.id}
               label={model.name}
               hint={`${model.about} ${gb(model.bytes)}.`}
               value={
-                inUse ? 'In use' : here ? (
-                  <RowAction onPress={() => void remove(model.id)}>Remove</RowAction>
+                removable ? (
+                  <RowAction onPress={() => removeTapped(model.id)}>{armed === model.id ? 'Tap again' : 'Remove'}</RowAction>
+                ) : inUse ? (
+                  'In use'
                 ) : download?.id === model.id ? (
                   'Downloading'
                 ) : undefined

@@ -34,7 +34,11 @@ import { oldTapes, tapeBytes, tapeSize, tapesHere } from './tapes.ts';
  * the phone may say when a meeting is written up, and when it is written up with the app closed. And Tapes (§127
  * section 6), on Android and the Mac: how much room the recordings take, said from their lengths (an hour is about
  * 115 MB) in the card's footer, and the way to give the room back for the old ones, keeping every word and phrase.
- * That asks twice, as emptying the trash does, and only where the binary can remove a file (generation 20).
+ * That asks twice, as emptying the trash does, and only where the binary can remove a file (generation 20). Until the
+ * binary has said which generation it is, the row offers nothing and says nothing, rather than a reason that is gone a
+ * moment later.
+ *
+ * The page's words say where the work is done: "the phone" on Android, "this Mac" on the Mac, as the Model card does.
  *
  * What the search finds here is RecordingPane.findable.ts, in this page's order.
  */
@@ -42,17 +46,24 @@ import { oldTapes, tapeBytes, tapeSize, tapesHere } from './tapes.ts';
 /** How long the remove stays armed after its first tap. */
 const ARMED_MS = 5000;
 
-/** Which recordings are summarised on their own (core/preferences.ts `Summaries`), in the choice's order, each with what it means. */
-const SUMMARY_CHOICES: { value: Summaries; label: string; hint?: string }[] = [
-  { value: 'meetings', label: 'Meetings', hint: 'Every meeting, once it is done.' },
-  // The three minutes are LONG_NOTE_MS (core/preferences.ts): one line to change, and this sentence with it.
-  { value: 'long', label: 'Meetings and long voice notes', hint: 'A long voice note is one over three minutes. A few minutes of the phone for each.' },
-  { value: 'off', label: 'Off' },
-];
+/**
+ * Which recordings are summarised on their own (core/preferences.ts `Summaries`), in the choice's order, each with what
+ * it means, and `device` the one doing the work ("the phone", "this Mac").
+ */
+function summaryChoices(device: string): { value: Summaries; label: string; hint?: string }[] {
+  return [
+    { value: 'meetings', label: 'Meetings', hint: 'Every meeting, once it is done.' },
+    // The three minutes are LONG_NOTE_MS (core/preferences.ts): one line to change, and this sentence with it.
+    { value: 'long', label: 'Meetings and long voice notes', hint: `A long voice note is one over three minutes. A few minutes of ${device} for each.` },
+    { value: 'off', label: 'Off' },
+  ];
+}
 
 export function RecordingPane() {
   const prefs = usePreferences();
   const meetings = useMeetingGeneration();
+  // Where the model does its work: the page is listed on Android and on the Mac (SettingsSheet.tsx).
+  const device = isAndroid ? 'the phone' : 'this Mac';
   return (
     <>
       <PaneSection title="While recording">
@@ -74,12 +85,12 @@ export function RecordingPane() {
       <PaneSection title="After recording">
         <SettingRow
           label="Better words"
-          hint="A larger model goes over the recording and fixes the words. A few seconds of the phone per minute of speech."
+          hint={`A larger model goes over the recording and fixes the words. A few seconds of ${device} per minute of speech.`}
           control={<Switch aria-label="Better words after recording" checked={prefs.refine} onCheckedChange={(refine) => setPreferences({ refine })} />}
         />
       </PaneSection>
-      <PaneSection title="Summaries" description="The language model on the phone writes a summary under the title. What was said, what was decided, and your to-dos.">
-        {SUMMARY_CHOICES.map((choice) => (
+      <PaneSection title="Summaries" description={`The language model on ${device} writes a summary under the title. What was said, what was decided, and your to-dos.`}>
+        {summaryChoices(device).map((choice) => (
           <SettingRow
             key={choice.value}
             label={choice.label}
@@ -89,16 +100,19 @@ export function RecordingPane() {
         ))}
       </PaneSection>
       {isTauri() ? <ModelCard /> : null}
-      {isAndroid && meetings ? <Meetings /> : null}
+      {isAndroid && meetings === true ? <Meetings /> : null}
       {isTauri() ? <Tapes canRemove={meetings} /> : null}
       {isAndroid ? <SideKeyPlace /> : null}
     </>
   );
 }
 
-/** Whether this binary has the meeting service and the recordings' commands (capture/meeting.ts). */
-function useMeetingGeneration(): boolean {
-  const [has, setHas] = useState(false);
+/**
+ * Whether this binary has the meeting service and the recordings' commands (capture/meeting.ts): null until it has
+ * answered, so nothing is said about it before it has.
+ */
+function useMeetingGeneration(): boolean | null {
+  const [has, setHas] = useState<boolean | null>(null);
   useEffect(() => {
     let live = true;
     void hasNativeGeneration(MEETING_GENERATION).then((answer) => {
@@ -152,7 +166,7 @@ function Meetings() {
  * ones take. The audio goes; the words and the phrases stay, so the note reads and the transcript plays as text. The
  * room is the card's footer, a readout under its group, and so is what a removal did.
  */
-function Tapes({ canRemove }: { canRemove: boolean }) {
+function Tapes({ canRemove }: { canRemove: boolean | null }) {
   const [notes, setNotes] = useState<Note[] | null>(null);
   const [armed, setArmed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -215,8 +229,9 @@ function Tapes({ canRemove }: { canRemove: boolean }) {
             </RowAction>
           ) : undefined
         }
-        // A binary before generation 20 cannot remove a file: the row says so rather than offering nothing.
-        disabledReason={canRemove ? undefined : 'Update Ghost.md to remove audio here.'}
+        // A binary before generation 20 cannot remove a file: the row says so rather than offering nothing. Not yet
+        // known (null), it says nothing.
+        disabledReason={canRemove === false ? 'Update Ghost.md to remove audio here.' : undefined}
       />
     </PaneSection>
   );

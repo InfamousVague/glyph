@@ -103,6 +103,22 @@ describe('the Recording page', () => {
     expect(mac.textContent).not.toContain('side key');
   });
 
+  it('says this Mac where the work is done on the Mac, as its Model card does, and the phone on a phone', () => {
+    native = true;
+    android = false;
+    const mac = show(<RecordingPane />);
+    expect(mac.textContent).toContain('The language model on this Mac writes a summary under the title.');
+    expect(mac.textContent).toContain('A few seconds of this Mac per minute of speech.');
+    expect(mac.textContent).toContain('A few minutes of this Mac for each.');
+    expect(mac.textContent).not.toContain('the phone');
+    unmount();
+    android = true;
+    const phone = show(<RecordingPane />);
+    expect(phone.textContent).toContain('The language model on the phone writes a summary under the title.');
+    expect(phone.textContent).toContain('A few seconds of the phone per minute of speech.');
+    expect(phone.textContent).not.toContain('this Mac');
+  });
+
   it('offers the summaries as three picks, meetings by default, each saying what it means, and writes the choice the queue reads', () => {
     const host = show(<RecordingPane />);
     expect(preferences().summaries).toBe('meetings');
@@ -142,6 +158,11 @@ describe('Meetings', () => {
     const host = show(<Pane />);
     await waitUntil(() => expect(titles(host)).toContain('Meetings'));
     expect(titles(host)).toEqual(['While recording', 'After recording', 'Summaries', 'Model', 'Meetings', 'Tapes', 'The side key']);
+    // Settings' contract with the meetings drawn, the one state SettingsSheet.test.tsx cannot draw (its binary answers no
+    // generation): every name the search lists for the page is on it, so a hit lights something.
+    const { findable } = await import('./RecordingPane.findable.ts');
+    const { findSetting } = await import('./settingsSearch.ts');
+    expect(findable({ android: true, app: true }).filter(({ name }) => !findSetting(host, name))).toEqual([]);
     expect(host.textContent).toContain('Off, a meeting is written up when the phone is charging or above half. On, straight away, which uses more of the battery.');
     // One switch over the two values the preference always kept: off is "charging", the default, and on is "now".
     const straight = () => host.querySelector<HTMLInputElement>('[aria-label="Write up straight away"]')!;
@@ -227,6 +248,17 @@ describe('Tapes', () => {
     expect(heads.every((head) => head.startsWith('HEAD '))).toBe(true);
     expect(button('Remove', host).disabled).toBe(true);
     fetch.mockRestore();
+  });
+
+  it('says nothing about removing until the binary has said which generation it is', async () => {
+    seed();
+    const { Pane } = await freshPage();
+    const host = show(<Pane />);
+    // Drawn before the answer: neither Remove nor the reason it is held.
+    expect(host.textContent).toContain('Remove audio older than a month');
+    expect(host.textContent).not.toContain('Update Ghost.md to remove audio here.');
+    expect(buttonSaying(host, 'Remove')).toBeUndefined();
+    await waitUntil(() => expect(host.textContent).toContain('Update Ghost.md to remove audio here.'));
   });
 
   it('only says the size on an older phone, which cannot remove a file, and says why the row is held', async () => {

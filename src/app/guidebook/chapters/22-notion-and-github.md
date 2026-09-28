@@ -80,7 +80,7 @@ On the More sheet, under **Linked to**, tap **GitHub repo**. Type the repo as `g
 
 Ghost.md reads the repo on your device: its description, the shape of its folders, and up to eight files that say what it is. Those are the README, notes written for AI tools such as `AGENTS.md`, a few docs, and a manifest such as `package.json` or `Cargo.toml`. The model on your phone then writes a short briefing of the project's names, parts and terms. Where there is no model, on the web or before one is downloaded, the README's opening stands in.
 
-Whenever the model on your phone works on the note, the briefing goes with it: every run on its More sheet, a spoken ask, and the review. So names come out spelled right. The model is told to use it and not to add it to the note. **Settings › GitHub** lists every repo read, what wrote its briefing and when, with **Forget**.
+Whenever the model on your phone works on the note, the briefing goes with it: every run on its More sheet, a spoken ask, and the review. So names come out spelled right. The model is told to use it and not to add it to the note. GitHub's page, opened from its card in **Settings › Plugins**, lists every repo read, what wrote its briefing and when, with **Forget**.
 
 ### Issues
 

@@ -60,7 +60,7 @@ Recordings travel by hash (the first 16 bytes of SHA-256) under the id `r-<note 
 
 ## When a pass runs
 
-`src/app/core/sync/engine.ts` runs a pass when the app starts signed in (after the session is renewed), when the app comes back to the front, four seconds after the last change to a note or a setting, and every five minutes. One pass runs at a time, and a request made while one is running queues exactly one more. No pass runs without the account key, or while Local only (Settings › Formatting) is on. The native side needs generation 16 (`SYNC_GENERATION`), which brought `store_apply` and `sync_put_file`. On an older binary the Account page says "Sync needs the newest Ghost.md. Install it from attack.fm/glyph."
+`src/app/core/sync/engine.ts` runs a pass when the app starts signed in (after the session is renewed), when the app comes back to the front, four seconds after the last change to a note or a setting, and every five minutes. One pass runs at a time, and a request made while one is running queues exactly one more. No pass runs without the account key, or while Local only (Settings › Account › Privacy) is on. The native side needs generation 16 (`SYNC_GENERATION`), which brought `store_apply` and `sync_put_file`. On an older binary the Account page says "Sync needs the newest Ghost.md. Install it from attack.fm/glyph."
 
 ## The server's side
 

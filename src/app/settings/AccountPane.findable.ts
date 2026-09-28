@@ -7,7 +7,8 @@ import type { SettingsFindable } from './settingsSearch.ts';
  * does not draw.
  *
  * Signed in the page is the account's, signed out it is the ways in. The Privacy card (PrivacyCard.tsx) and the
- * Location card (LocationCard.tsx) are on it either way: what leaves the phone is Account's story. In the page's order.
+ * Location card (LocationCard.tsx) are on it either way, after the account's own cards: what leaves the phone is
+ * Account's story. In the page's order, so "privacy" and Enter open the Privacy card itself.
  */
 
 /** The Privacy card's: the switch that keeps everything here, the one that reads a linked site, and the policy. */
@@ -30,7 +31,7 @@ export function findable(signedIn: boolean): SettingsFindable[] {
   return signedIn
     ? [
         { name: 'Sync now', words: 'devices' },
-        { name: 'Sync meeting recordings', words: 'audio meeting meetings tapes privacy' },
+        { name: 'Sync meeting recordings', words: 'audio meeting meetings tapes' },
         { name: 'Live typing (trial)', words: 'realtime collaborate' },
         { name: 'Password and recovery codes', words: 'change' },
         { name: 'Sign out', words: 'log out logout' },
@@ -40,10 +41,10 @@ export function findable(signedIn: boolean): SettingsFindable[] {
         { name: 'Delete account', words: 'remove close erase data' },
       ]
     : [
-        ...PRIVACY,
         { name: 'I have an account', words: 'sign in login' },
         { name: 'Create an account', words: 'sign up register' },
         { name: 'Lost the password', words: 'forgot recovery code reset' },
+        ...PRIVACY,
         ...LOCATION,
       ];
 }

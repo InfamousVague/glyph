@@ -7,7 +7,7 @@ import { findable as accountFindable } from './AccountPane.findable.ts';
 import { gb, modelName, modelSpec, useModels } from '../core/ai.ts';
 import { hapticsAvailable } from '../core/haptics.ts';
 import { isAndroid, isMobile } from '../core/platform.ts';
-import type { Updates } from '../core/ota.ts';
+import { storeOf, type Updates } from '../core/ota.ts';
 import { DEFAULT_PREFERENCES, facesOf, usePreferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
 import { useSidebar } from '../core/useWideScreen.ts';
@@ -109,14 +109,17 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
   const recording = isAndroid || (isTauri() && !isMobile);
   const chosenModel = modelSpec(prefs.formatModel);
   const modelHere = models.find((m) => m.id === prefs.formatModel)?.present ?? false;
-  const device = isAndroid ? 'the phone' : 'this Mac';
-  /** What a take becomes, then the model that writes it up and whether it is here: Formatting's reading until §138. */
-  const recordingSummary = [
-    prefs.refine ? 'Better words' : 'Words as heard',
-    isTauri() ? `${modelName(prefs.formatModel)}${modelHere ? ` on ${device}` : `, ${gb(chosenModel?.bytes ?? 0)} to get`}` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+  /**
+   * The model that writes a take up, with what it takes to get when it is not here (Formatting's reading until §138),
+   * then what a take becomes. The model first and no "on the phone": the split view's column is 20rem, and the longer
+   * line lost its end there. Where there is no model to fetch (a browser on a phone), what a take becomes alone.
+   */
+  const take = prefs.refine ? 'better words' : 'words as heard';
+  const recordingSummary = isTauri()
+    ? `${modelName(prefs.formatModel)}${modelHere ? '' : `, ${gb(chosenModel?.bytes ?? 0)} to get`} · ${take}`
+    : prefs.refine
+      ? 'Better words'
+      : 'Words as heard';
 
   const sections: SettingsSection[] = [
     // Who you are, first and on its own card (Matt: "move account to top of settings section"): it is what a person
@@ -209,18 +212,21 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       id: 'about',
       label: 'About',
       words: 'version help',
-      settings: aboutFindable,
+      // The App Store says what is new on an iPhone, so About draws no What's new there (AboutPane.tsx).
+      settings: aboutFindable({ whatsNew: storeOf(updates.status) !== 'appstore' }),
       icon: <Info size={16} />,
       content: <AboutPane updates={updates} onGuide={onGuide} onGuideBook={onGuideBook} onAcademy={onAcademy} onOpen={go} />,
       // The version and where it stands, now that updates live on this page too.
       summary: `${updates.version} · ${updatesSummary(updates)}`,
       group: 2,
     },
-    // Help, not settings: two pages behind About's Help card, still searched.
+    // Help, not settings: two pages behind About's Help card, still searched, and found by their own names alone. About
+    // does not list the rows that open them as well, or a search for either would show two rows of one name.
     {
       id: 'cheatsheet',
       label: 'Cheat sheet',
-      words: 'markdown syntax marks help',
+      // "Formatting cheat sheet" is its name in a note's More sheet, and was About's row's.
+      words: 'markdown syntax marks help formatting',
       // Every mark it shows, so looking for "bold" or "spoiler" lands on it.
       settings: cheatSheetFindable(),
       icon: <BookOpen size={16} />,
@@ -238,7 +244,8 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       settings: examplesFindable,
       icon: <Shapes size={16} />,
       content: <ExamplesPane onSample={onSample} onBoard={onBoard} onCanvas={onCanvas} onHowCanvas={onHowCanvas} />,
-      summary: 'A note, a board and two canvases',
+      // As About's row says it.
+      summary: 'A sample note, a board and two canvases',
       group: 2,
       listed: false,
       parent: 'about',

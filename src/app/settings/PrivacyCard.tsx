@@ -8,15 +8,19 @@ import { PaneSection, SettingRow } from './kit/settingsKit.tsx';
 /**
  * Privacy, a card on Account (docs/DESIGN.md §138): the switches that decide what leaves the device, and the policy
  * with what it comes to in two lines. Account is where sync and shared links already were, the other things that
- * send, so the card is there; signed out it is the first thing on the page, above the ways in.
+ * send, so the card is there, after the account's own cards (AccountPane.tsx says why, signed out too).
  *
  * Each was somewhere else before. Local only, the whole network switch, was on Formatting with two pages pointing at
  * it "in Formatting"; Link previews was on Type, though it reads a title from another site; the policy and its two
  * lines were About's foot, reachable from inside the app as the App Store asks (guideline 5.1.1). The page is
  * landing/privacy.html and the footer its short version, so the two say the same.
  *
- * Local only stays on the device (core/sync/prefs.ts), and its hint is one sentence whatever the state, since the
- * switch says the state.
+ * Local only stays on the device (core/sync/prefs.ts), and its hint is one hint whatever the state, since the switch
+ * says the state. It names what nothing else on the page says it holds off. The map, the place names and the location
+ * for new notes are greyed under their own rows on the Location card with "Local only is on.", so the hint does not
+ * list them again (it ran to five lines at 412 when it did). Link previews stays live under it: its switch also says
+ * whether a link's card is drawn at all (editor/linkCards.ts), which Local only leaves alone, and only the title's
+ * fetch is held off, so the hint says that.
  */
 
 /** The privacy policy (landing/privacy.html), on the download site. */
@@ -37,10 +41,11 @@ export function PrivacyCard() {
       <SettingRow
         label="Local only"
         hint={
-          // What it holds off, by what core/ reads it (sync/engine.ts, ota.ts, ai.ts, linkPreview.ts, location.ts, plugins/registry.ts).
+          // What it holds off, by what core/ reads it (sync/engine.ts, ota.ts, ai.ts, linkPreview.ts, plugins/registry.ts).
+          // A browser has no updates or downloads to hold, and reads no link's title.
           app
-            ? 'No sync, updates, downloads, link previews, maps or place names, and no location for new notes. Plugins that use the internet are held off. Ghost.md runs from what is on this device.'
-            : 'No sync, maps or place names, and no location for new notes. Plugins that use the internet are held off.'
+            ? 'No sync, updates, downloads or link titles, and plugins that use the internet are held off. Ghost.md runs from what is on this device.'
+            : 'No sync, and plugins that use the internet are held off.'
         }
         control={<Switch aria-label="Local only" checked={prefs.localOnly} onCheckedChange={(localOnly) => setPreferences({ localOnly })} />}
       />

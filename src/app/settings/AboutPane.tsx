@@ -83,7 +83,7 @@ export function AboutPane({ updates, onGuide, onGuideBook, onAcademy, onOpen }: 
           hint={`The whole app as a book of ${GUIDE_CHAPTERS} short chapters. Added to your notes the first time, and opened after that.`}
           onPress={onGuideBook}
         />
-        <SettingRow icon={<Shapes size={20} />} label="Examples" hint="A sample note, a board, a canvas, and one that says how Ghost.md works." onPress={() => onOpen({ id: 'examples' })} />
+        <SettingRow icon={<Shapes size={20} />} label="Examples" hint="A sample note, a board and two canvases, to add to your notes." onPress={() => onOpen({ id: 'examples' })} />
       </PaneSection>
       {/* The releases are attack.fm's over-the-air builds, which an iPhone never runs: the App Store says what's new there. */}
       {storeOf(updates.status) === 'appstore' ? null : <ReleasesSection updates={updates} />}

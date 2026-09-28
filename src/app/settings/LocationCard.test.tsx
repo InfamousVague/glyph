@@ -58,6 +58,21 @@ describe('the Location card', () => {
     expect(device.asked).toBe(0);
   });
 
+  // The geotag review's promise (docs/DESIGN.md §134): one device's choice never makes another ask for its position.
+  it('says the tagging switch stays on this device', () => {
+    const host = show(<LocationCard />);
+    const row = [...host.querySelectorAll('.setk-row')].find((r) => r.querySelector('.setk-row__label')?.textContent === 'Tag new notes with my location');
+    expect(row?.querySelector('.setk-row__hint')?.textContent).toContain('This switch stays on this device.');
+  });
+
+  it('says nothing of a refusal under Local only, which takes no location anyway', () => {
+    localStorage.setItem('glyph-geotag-refused', JSON.stringify({ why: 'refused', at: Date.now() }));
+    setPreferences({ localOnly: true });
+    const host = show(<LocationCard />);
+    expect(host.textContent).not.toContain('not tagged');
+    expect(host.textContent).toContain('no new location is taken');
+  });
+
   it('greys all three under Local only, and says a tagged note still shows where it was written', () => {
     setPreferences({ localOnly: true });
     const host = show(<LocationCard />);

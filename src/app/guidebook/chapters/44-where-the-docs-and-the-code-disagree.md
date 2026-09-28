@@ -6,7 +6,7 @@ Each entry gives the claim and then what the code does, both with paths. This ch
 
 ## What the app tells you to say
 
-- **The model's download.** The welcome guide's Choose your model page (`src/app/guide/pages/Model.tsx`) says the chosen model downloads the first time you ask the robot on a note. Nothing fetches it then. With no model on the phone, a run or a spoken ask shows the reason `availability()` gives (`src/app/ai/available.ts`, shown by `src/app/editor/useNoteAi.ts`), and no caller reads the `get` it answers. Only “get it now” on that page and Get in Settings › Formatting › Model download a model.
+- **The model's download.** The welcome guide's Choose your model page (`src/app/guide/pages/Model.tsx`) says the chosen model downloads the first time you ask the robot on a note. Nothing fetches it then. With no model on the phone, a run or a spoken ask shows the reason `availability()` gives (`src/app/ai/available.ts`, shown by `src/app/editor/useNoteAi.ts`), and no caller reads the `get` it answers. Only “get it now” on that page and Get in Settings › Recording › Model download a model.
 
 The voice memo cue, tables, books and boards by voice, and Notion by voice were listed here until DESIGN §127 cut what the recorder could no longer do and put right every line that taught it. The canvas's cue words were put right before that.
 

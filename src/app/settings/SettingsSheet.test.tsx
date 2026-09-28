@@ -9,13 +9,16 @@ await vi.hoisted(async () => (await import('../../test/stubs.ts')).stubMatchMedi
 // The side key's rings on Recording watch their box; jsdom has no observer.
 stubResizeObserver();
 
-// In the app or in a browser, on Android or not, as each test says. The binary has no models, and answers nothing
-// else: every other native read falls back to what a page shows before it has heard.
+// In the app or in a browser, on Android, an iPhone or neither, as each test says. The binary has the models a test
+// puts in its catalogue (none unless it says), and answers nothing else: every other native read falls back to what a
+// page shows before it has heard.
 let native = false;
 let android = false;
+let iphone = false;
+let catalogue: { id: string; file: string; bytes: number; present: boolean; path: string }[] = [];
 vi.mock('../core/tauri.ts', () => ({
   isTauri: () => native,
-  invoke: (command: string) => (command === 'ai_models' ? Promise.resolve([]) : Promise.reject(new Error('no binary in a test'))),
+  invoke: (command: string) => (command === 'ai_models' ? Promise.resolve(catalogue) : Promise.reject(new Error('no binary in a test'))),
 }));
 vi.mock('../core/platform.ts', async (importOriginal) => {
   const real = await importOriginal<typeof import('../core/platform.ts')>();
@@ -24,8 +27,14 @@ vi.mock('../core/platform.ts', async (importOriginal) => {
     get isAndroid() {
       return android;
     },
+    get isIOS() {
+      return iphone;
+    },
+    get isMobile() {
+      return android || iphone;
+    },
     get isNativeMobile() {
-      return android && native;
+      return (android || iphone) && native;
     },
   };
 });
@@ -93,13 +102,35 @@ const updates: Updates = {
   installApk: () => undefined,
 };
 
-function settings(toCheatSheet = 0, toModel = 0): HTMLDivElement {
+/** What the examples' rows were asked to add, by the handler each called. */
+const added: string[] = [];
+
+/** The sheet as App.tsx hands it over, open unless a test closes it. */
+function sheet(toCheatSheet = 0, toModel = 0, open = true) {
   const noop = () => undefined;
-  return show(
+  const add = (what: string) => () => void added.push(what);
+  return (
     <ToastProvider>
-      <SettingsSheet open onClose={noop} updates={updates} onGuide={noop} onSample={noop} onGuideBook={noop} onBoard={noop} onCanvas={noop} onHowCanvas={noop} onAcademy={noop} toCheatSheet={toCheatSheet} toModel={toModel} />
-    </ToastProvider>,
+      <SettingsSheet
+        open={open}
+        onClose={noop}
+        updates={updates}
+        onGuide={noop}
+        onSample={add('sample')}
+        onGuideBook={noop}
+        onBoard={add('board')}
+        onCanvas={add('canvas')}
+        onHowCanvas={add('how')}
+        onAcademy={noop}
+        toCheatSheet={toCheatSheet}
+        toModel={toModel}
+      />
+    </ToastProvider>
   );
+}
+
+function settings(toCheatSheet = 0, toModel = 0): HTMLDivElement {
+  return show(sheet(toCheatSheet, toModel));
 }
 
 const rows = (host: HTMLElement) => [...host.querySelectorAll<HTMLButtonElement>('.settingsScreen__row')];
@@ -111,6 +142,9 @@ const names = (id: string) => section(id)?.settings?.map((s) => s.name);
 beforeEach(() => {
   native = false;
   android = false;
+  iphone = false;
+  catalogue = [];
+  added.length = 0;
   wide = false;
   session = null;
   localStorage.clear();
@@ -162,6 +196,19 @@ describe('the list of sections', () => {
       'Remove audio older than a month',
       'The side key',
     ]);
+  });
+
+  it('in a browser on an Android phone, has Recording for the side key and the words, without the model, the meetings or the tapes', () => {
+    android = true;
+    const host = settings();
+    expect(labels(host)).toEqual(['Account', 'Appearance', 'Recording', 'Plugins', 'About']);
+    expect(names('recording')).toEqual(['Stop when I go quiet', 'Review after recording', 'Better words', 'Summaries', 'The side key']);
+  });
+
+  it('on an iPhone, is the four a browser has: no Recording, where no model runs', () => {
+    native = true;
+    iphone = true;
+    expect(labels(settings())).toEqual(['Account', 'Appearance', 'Plugins', 'About']);
   });
 
   it('on the Mac, has Recording too, for the better words, the summaries and the model, without the side key', () => {
@@ -220,6 +267,33 @@ describe('the sub-pages', () => {
     expect(host.querySelector('.settingsScreen__headWord')?.textContent?.trim()).toBe('About');
   });
 
+  it('open on the list the next time, not on the page the last link opened', async () => {
+    const { rerender } = await import('../../test/render.tsx');
+    const asked = Date.now();
+    const host = settings(asked);
+    expect(host.querySelector('.settingsScreen__display')?.textContent).toBe('Cheat sheet');
+    rerender(sheet(asked, 0, false));
+    rerender(sheet(asked, 0, true));
+    expect(host.querySelector('.settingsScreen__display')).toBeNull();
+    expect(labels(host)).toContain('About');
+  });
+
+  it('open Examples from About’s Help in yellow, each row adding its own example, and step back to About', async () => {
+    const host = settings();
+    const { act } = await import('react');
+    const pressRow = (label: string) =>
+      act(() => [...host.querySelectorAll<HTMLButtonElement>('button.setk-row--press')].find((b) => b.querySelector('.setk-row__label')?.textContent === label)!.click());
+    act(() => rows(host).find((row) => row.textContent?.includes('About'))!.click());
+    pressRow('Examples');
+    expect(host.querySelector('.settingsScreen__display')?.textContent).toBe('Examples');
+    expect(host.querySelector('.settingsScreen__headWord')?.textContent?.trim()).toBe('About');
+    expect(host.querySelector('.settingsScreen__pane')?.getAttribute('data-hue')).toBe('yellow');
+    for (const label of ['Add the sample note', 'Add the example board', 'Add the example canvas', 'Add the “How Ghost.md works” canvas']) pressRow(label);
+    expect(added).toEqual(['sample', 'board', 'canvas', 'how']);
+    act(() => host.querySelector<HTMLButtonElement>('.settingsScreen__headWord')!.click());
+    expect(host.querySelector('.settingsScreen__display')?.textContent).toBe('About');
+  });
+
   it('open on a plugin’s page from its card on Plugins, and step back to Plugins', async () => {
     const host = settings();
     const { act } = await import('react');
@@ -241,6 +315,16 @@ describe('the targets', () => {
     const host = settings(0, Date.now());
     expect(host.querySelector('.settingsScreen__display')?.textContent).toBe('Recording');
     await waitUntil(() => expect(host.querySelector('[data-found] .setk__title')?.textContent).toBe('Model'));
+  });
+
+  it('light the Privacy card from the words “Local only” in Account’s own callout', async () => {
+    session = { handle: 'sam', token: 't', accountId: 1 };
+    setPreferences({ localOnly: true });
+    const host = settings();
+    const { act } = await import('react');
+    act(() => rows(host).find((row) => row.textContent?.includes('Account'))!.click());
+    act(() => host.querySelector<HTMLButtonElement>('.setk-callout .setk-go')!.click());
+    await waitUntil(() => expect(host.querySelector('[data-found] .setk__title')?.textContent).toBe('Privacy'));
   });
 
   it('open Account at the Privacy card from the words “Local only” on Plugins', async () => {
@@ -266,15 +350,25 @@ describe('the readings', () => {
     expect(reading(settings(), 'Appearance')).toBe('Dark · Fira Code · Larger · Plex · Tight · Square');
   });
 
-  // Changed on purpose (docs/DESIGN.md §138): the model's line was Formatting's, and Formatting is Recording's card.
-  it('say what a take becomes and the model that writes it up under Recording', () => {
+  // Changed on purpose (docs/DESIGN.md §138): the model's line was Formatting's, and Formatting is Recording's card. The
+  // model comes first and says no "on the phone", so the line fits the split view's column.
+  it('say the model that writes a take up, and what it takes to get, then what a take becomes, under Recording', async () => {
     native = true;
     android = true;
     setPreferences({ refine: true });
-    expect(reading(settings(), 'Recording')).toBe('Better words · Qwen3.5 4B, 2.7 GB to get');
+    expect(reading(settings(), 'Recording')).toBe('Qwen3.5 4B, 2.7 GB to get · better words');
     unmount();
     setPreferences({ refine: false });
-    expect(reading(settings(), 'Recording')).toBe('Words as heard · Qwen3.5 4B, 2.7 GB to get');
+    expect(reading(settings(), 'Recording')).toBe('Qwen3.5 4B, 2.7 GB to get · words as heard');
+    unmount();
+    catalogue = [{ id: 'qwen3.5-4b', file: 'qwen3.5-4b.gguf', bytes: 2_740_937_888, present: true, path: '/models/qwen3.5-4b.gguf' }];
+    const host = settings();
+    await waitUntil(() => expect(reading(host, 'Recording')).toBe('Qwen3.5 4B · words as heard'));
+    unmount();
+    // A browser on an Android phone has no model to fetch: what a take becomes, alone.
+    native = false;
+    setPreferences({ refine: true });
+    expect(reading(settings(), 'Recording')).toBe('Better words');
   });
 
   it('say Local only after the account under Account while it holds the sync off', () => {
@@ -343,6 +437,18 @@ describe('the search', () => {
     expect(missingFromTheirPages()).toEqual([]);
   });
 
+  it('finds every setting it lists on its page, in a browser on an Android phone, signed out', () => {
+    android = true;
+    expect(missingFromTheirPages()).toEqual([]);
+  });
+
+  it('finds every setting it lists on its page, on an iPhone, signed in', () => {
+    native = true;
+    iphone = true;
+    session = { handle: 'sam', token: 't', accountId: 1 };
+    expect(missingFromTheirPages()).toEqual([]);
+  });
+
   it('finds every setting it lists on its page, on the Mac on a wide window, signed in', () => {
     native = true;
     wide = true;
@@ -361,10 +467,28 @@ describe('the search', () => {
     }
   });
 
-  /** Every section an Android phone in developer mode has, signed out and in, on a phone's window and a wide one. */
-  function everySection(): SettingsSection[] {
-    native = true;
-    android = true;
+  /** Each kind of device, as the app tells them apart (core/platform.ts, core/tauri.ts). */
+  const DEVICES: Record<string, () => void> = {
+    'the Android app': () => {
+      native = true;
+      android = true;
+    },
+    'the Mac app': () => {
+      native = true;
+    },
+    'the iPhone app': () => {
+      native = true;
+      iphone = true;
+    },
+    'a browser on an Android phone': () => {
+      android = true;
+    },
+    'a browser': () => undefined,
+  };
+
+  /** Every section a device in developer mode has (an Android phone unless one is named), signed out and in, on a phone's window and a wide one. */
+  function everySection(device: () => void = DEVICES['the Android app']!): SettingsSection[] {
+    device();
     setDeveloperMode(true);
     const all: SettingsSection[] = [];
     for (const signedIn of [false, true]) {
@@ -410,6 +534,51 @@ describe('the search', () => {
     expect(lost).toEqual([]);
   });
 
+  /*
+   * The words above that find nothing on a device, each for a setting that device does not have. Most found nothing
+   * there before §138 either (a browser never had a recorder). Those that did are said by name: they were a page's own
+   * words on a device where the page had nothing of theirs to show.
+   */
+  /** Recording's: no recorder in a browser on a computer, or on an iPhone. */
+  const RECORDER = 'microphone mic dictate Stop go quiet silence stop Review after transcript Better refine clean Summaries summary write-up minutes';
+  /** The side key's, Android's alone. */
+  const SIDE_KEY = 'button height hardware';
+  /**
+   * The meetings', the Android app's with the service. A browser on an Android phone listed them before and never drew
+   * them: there is no meeting service in a page.
+   */
+  const MEETINGS = 'battery charging Tell written';
+  /** The tapes', in the app. A browser on an Android phone listed "Your tapes" before and had no file to count. */
+  const TAPES = 'storage space';
+  /**
+   * The model's, where a model runs (the Android app and the Mac). Formatting was listed everywhere before, with only an
+   * empty state off Android, and Developer's "Choose your model" with it.
+   */
+  const MODEL = 'ai download llm Choose';
+  /** The haptics', where there is a motor. Feel's own word "vibration" found Feel before on a device with no motor. */
+  const MOTOR = 'vibration Haptics vibrate buzz touch';
+  /** What's new's, which About does not draw on an iPhone, where the App Store says it. Listed before, it lit nothing. */
+  const RELEASES = "What's changelog releases";
+  const LOSSES: Record<string, string> = {
+    'the Android app': '',
+    'the Mac app': [SIDE_KEY, MEETINGS, MOTOR].join(' '),
+    'the iPhone app': [RECORDER, SIDE_KEY, MEETINGS, TAPES, MODEL, RELEASES].join(' '),
+    'a browser on an Android phone': [MEETINGS, TAPES, MODEL, MOTOR].join(' '),
+    'a browser': [RECORDER, SIDE_KEY, MEETINGS, TAPES, MODEL, MOTOR].join(' '),
+  };
+
+  it('on each device, finds nothing only for a setting that device does not have', () => {
+    const words = [...new Set(BEFORE.split(/\s+/).filter(Boolean))];
+    const sorted = (list: string) => list.split(/\s+/).filter(Boolean).sort();
+    for (const [name, device] of Object.entries(DEVICES)) {
+      const all = everySection(device);
+      native = false;
+      android = false;
+      iphone = false;
+      expect(words.filter((word) => searchSettings(all, word).length === 0).sort(), name).toEqual(sorted(LOSSES[name]!));
+    }
+  });
+
   /** Where a search for what was there before lands now, section/setting (a section alone when its name is found). */
   const MOVED: [string, string][] = [
     ['formatting', 'recording/Model'],
@@ -425,6 +594,7 @@ describe('the search', () => {
     ['size', 'theme/Scale'],
     ['haptics', 'theme/Haptics'],
     ['where the side key', 'recording/The side key'],
+    ['where the side key is', 'recording/The side key'],
     ['write up', 'recording/Write up straight away'],
     ['your tapes', 'recording/Tapes'],
     ['how to talk to ghost.md', 'about/The welcome walkthrough'],
@@ -439,6 +609,27 @@ describe('the search', () => {
     ['tools', 'plugin:claude/What Claude can do'],
     ['token', 'plugin:github/Token'],
   ];
+
+  it('opens the Privacy card first for “privacy”, signed in or out', () => {
+    for (const signedIn of [false, true]) {
+      session = signedIn ? { handle: 'sam', token: 't', accountId: 1 } : null;
+      settings();
+      const first = searchSettings(handed, 'privacy')[0];
+      expect(first && `${first.section.id}/${first.setting}`, String(signedIn)).toBe('account/Privacy');
+      unmount();
+    }
+  });
+
+  it('shows a sub-page once, by its own name, and not About’s row that opens it as well', () => {
+    settings();
+    for (const [query, label] of [
+      ['examples', 'Examples'],
+      ['cheat sheet', 'Cheat sheet'],
+    ]) {
+      const hits = searchSettings(handed, query!).map((hit) => hit.setting ?? hit.section.label);
+      expect(hits.filter((hit) => hit === label), query).toHaveLength(1);
+    }
+  });
 
   it('lands what was there before on its new place', () => {
     const all = everySection();

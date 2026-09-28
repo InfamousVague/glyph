@@ -35,12 +35,11 @@ const hint = (host: HTMLElement, label: string) =>
   [...host.querySelectorAll('.setk-row')].find((row) => row.querySelector('.setk-row__label')?.textContent === label)?.querySelector('.setk-row__hint')?.textContent;
 
 describe('the Privacy card', () => {
+  // Changed on purpose: it listed the Location card's three as well, five lines at 412, and they say it under their own rows.
   it('switches Local only, with one hint whatever the state, saying the sync stops too', () => {
     const host = show(<PrivacyCard />);
     const before = hint(host, 'Local only');
-    expect(before).toBe(
-      'No sync, updates, downloads, link previews, maps or place names, and no location for new notes. Plugins that use the internet are held off. Ghost.md runs from what is on this device.',
-    );
+    expect(before).toBe('No sync, updates, downloads or link titles, and plugins that use the internet are held off. Ghost.md runs from what is on this device.');
     act(() => host.querySelector<HTMLElement>('[aria-label="Local only"]')!.click());
     expect(preferences().localOnly).toBe(true);
     expect(hint(host, 'Local only')).toBe(before);
@@ -49,15 +48,17 @@ describe('the Privacy card', () => {
   it('says in a browser only what a browser does', () => {
     native = false;
     const host = show(<PrivacyCard />);
-    expect(hint(host, 'Local only')).toBe('No sync, maps or place names, and no location for new notes. Plugins that use the internet are held off.');
+    expect(hint(host, 'Local only')).toBe('No sync, and plugins that use the internet are held off.');
     expect(host.querySelector('.setk__footer')?.textContent).toContain('Your notes stay in this browser.');
   });
 
-  it('switches link previews', () => {
+  it('switches link previews, under Local only too, since the switch also says whether a link’s card is drawn at all', () => {
     const host = show(<PrivacyCard />);
     expect(preferences().linkPreviews).toBe(true);
     act(() => host.querySelector<HTMLElement>('[aria-label="Link previews"]')!.click());
     expect(preferences().linkPreviews).toBe(false);
+    act(() => setPreferences({ localOnly: true }));
+    expect(host.querySelector('[data-disabled]')).toBeNull();
   });
 
   it('opens the policy, and says what it comes to in its footer', () => {

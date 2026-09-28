@@ -1,4 +1,5 @@
 import { gb, MODELS, modelName, modelSpec, useModels } from '../../core/ai.ts';
+import { isIOS } from '../../core/platform.ts';
 import { setPreferences, usePreferences } from '../../core/preferences.ts';
 import { isTauri } from '../../core/tauri.ts';
 import { Choice } from './parts.tsx';
@@ -15,8 +16,10 @@ import styles from '../Guide.module.css';
  * (settings/ModelCard.tsx, which was the Formatting page until
  * docs/DESIGN.md §138).
  *
- * The line under the rows reads the download only in the app: in a browser
- * there is nothing to fetch, and a row still sets the preference.
+ * The line under the rows reads the download only in the app, and not on an
+ * iPhone: in a browser there is nothing to fetch, an iPhone runs no model
+ * (ai/available.ts) and has no Recording page to send anyone to, and a row
+ * still sets the preference either way.
  */
 export function Model() {
   const { formatModel } = usePreferences();
@@ -40,7 +43,7 @@ export function Model() {
           />
         ))}
       </div>
-      {isTauri() && chosen ? (
+      {isTauri() && !isIOS && chosen ? (
         <p className={styles.fine}>
           {download?.id === formatModel
             ? `Getting ${modelName(formatModel)}, ${gb(download.received)} of ${gb(download.total)}. Keep Ghost.md open.`

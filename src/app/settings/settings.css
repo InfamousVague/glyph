@@ -612,6 +612,19 @@
   padding-inline: var(--glacier-space-1);
 }
 
+/*
+ * An action in a row's value slot, beside its control (the Model card's Remove beside the radio that picks the same
+ * model): the row's size, as every other action on the page has, rather than the value's small text, and held off the
+ * control, whose hit area reaches past its ring.
+ */
+.setk-row__value:has(> .setk-action) {
+  font-size: inherit;
+}
+
+.setk-row__value > .setk-action {
+  margin-inline-end: var(--glacier-space-2);
+}
+
 .setk-footnote {
   margin: 0;
   font-size: var(--glacier-font-size-sm);
@@ -809,6 +822,18 @@
   animation: settingsFound 1.6s var(--glacier-ease-out);
 }
 
+/*
+ * A card lit keeps its arrival in the list beside the light. Swapped out for the light alone, the arrival came back when
+ * the light went and ran again: the card dropped to nothing and rose 1.6 s after it was found, a blink on every card a
+ * link or a result lands on.
+ */
+.settingsScreen__pane .setk[data-found] {
+  animation:
+    settingsRise 360ms var(--glacier-ease-out) both,
+    settingsFound 1.6s var(--glacier-ease-out);
+  animation-delay: calc(40ms * var(--i, 0)), 0s;
+}
+
 @keyframes settingsFound {
   0%,
   35% {
@@ -817,7 +842,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .settingsScreen__pane [data-found] {
+  .settingsScreen__pane [data-found],
+  .settingsScreen__pane .setk[data-found] {
     animation: none;
     background: color-mix(in srgb, var(--hue, var(--glacier-text)) 12%, transparent);
   }

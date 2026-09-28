@@ -10,6 +10,14 @@ const phone = vi.hoisted(() => ({
   fetch: vi.fn(async (_id: string) => undefined),
 }));
 vi.mock('../../core/tauri.ts', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../core/tauri.ts')>()), isTauri: () => phone.app }));
+// An Android phone or the Mac, unless a test says an iPhone.
+let iphone = false;
+vi.mock('../../core/platform.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../core/platform.ts')>()),
+  get isIOS() {
+    return iphone;
+  },
+}));
 vi.mock('../../core/ai.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../core/ai.ts')>()),
   useModels: () => ({ models: phone.models, download: phone.download, problem: phone.problem, fetch: phone.fetch, remove: async () => undefined, refresh: async () => undefined }),
@@ -27,6 +35,7 @@ const checked = (el: HTMLElement) => rows(el).filter((b) => b.getAttribute('aria
 const fine = (el: HTMLElement) => el.querySelector('[role="radiogroup"] + p')?.textContent ?? null;
 
 beforeEach(() => {
+  iphone = false;
   phone.app = true;
   phone.models = [];
   phone.download = null;
@@ -59,6 +68,14 @@ describe('the guide’s model page', () => {
     expect(fine(el)).toBe('Qwen3.5 4B is not on the phone yet. Get it later in Settings › Recording, or get it now');
     press(buttonSaying(el, 'get it now'));
     expect(phone.fetch).toHaveBeenCalledWith('qwen3.5-4b');
+  });
+
+  it('offers nothing to get on an iPhone, which runs no model and has no Recording page to point at', () => {
+    iphone = true;
+    const el = show(<Model />);
+    expect(rows(el)).toHaveLength(MODELS.length);
+    expect(fine(el)).toBeNull();
+    expect(buttonSaying(el, 'get it now')).toBeUndefined();
   });
 
   it('says how far a download has got, and that the model is here once it is', () => {
