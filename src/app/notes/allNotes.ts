@@ -1,3 +1,4 @@
+import { plainFills } from '../core/blanks.ts';
 import { readStoredText, writeStoredText } from '../core/stored.ts';
 import { noteTitle, type Note } from '../core/store.ts';
 
@@ -48,7 +49,8 @@ const untitled = (note: Note) => noteTitle(note.body).trim() === '';
 export function matches(note: Note, query: string): boolean {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return true;
-  const text = note.body.toLowerCase();
+  // A filled blank's hidden bracket (core/blanks.ts) is not the note's words: "memory" or "Asked" finds no note for it.
+  const text = plainFills(note.body).toLowerCase();
   return words.every((word) => text.includes(word));
 }
 

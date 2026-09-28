@@ -240,3 +240,9 @@ describe('Ghost.md: The Guide on the home page', () => {
   });
 });
 
+describe('a to-do the AI filled (docs/DESIGN.md §145)', () => {
+  it('is its answer’s words on home’s To do, and a to-do holding a blank is its question’s', () => {
+    const note = makeNote('tap', '# Kitchen tap\n- [x] Found the leak\n- [ ] ??Turn off the water and fit the new washer??(Qwen3.5 4B from memory, 2026-09-28. Asked: the next step)\n- [ ] {?what to buy}');
+    expect(openTasks([note]).map((t) => t.text)).toEqual(['Turn off the water and fit the new washer', 'what to buy']);
+  });
+});

@@ -12,6 +12,16 @@ describe('what the search finds', () => {
     expect(matches(packing, 'tent kettle')).toBe(false);
   });
 
+  it('finds a filled answer by its words and a blank by its question, never by the hidden bracket (docs/DESIGN.md §145)', () => {
+    const filled = makeNote('a', '# Tokyo trip\n\nFlights are cheapest on ??midweek??(Qwen3.5 4B from memory, 2026-09-28. Asked: what day / time?)\n\nWeather: {?weather today}');
+    expect(matches(filled, 'midweek')).toBe(true);
+    expect(matches(filled, 'weather today')).toBe(true);
+    expect(matches(filled, 'memory')).toBe(false);
+    expect(matches(filled, 'asked')).toBe(false);
+    expect(matches(filled, 'qwen3.5')).toBe(false);
+    expect(matches(makeNote('b', 'A ??doubt??(check with Sam)'), 'sam')).toBe(true);
+  });
+
   it('shows every note for a blank search', () => {
     expect(matches(makeNote('a', '# Trip'), '')).toBe(true);
     expect(matches(makeNote('a', '# Trip'), '   ')).toBe(true);

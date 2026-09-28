@@ -85,4 +85,17 @@ describe('the runner', () => {
     expect(gistFor('n1', words)).toBe('A walk to the square');
     unmount();
   });
+
+  it('gives the model a note’s blanks taken out and its fills as words (docs/DESIGN.md §145)', async () => {
+    const body = '# Tokyo\n\nCheapest on ??midweek??(Qwen3.5 4B from memory, 2026-09-28. Asked: what day) and {?which airport} too.\n';
+    const Probe = () => {
+      useGists([makeNote('n2', body, { updatedAt: 1 })]);
+      return null;
+    };
+    show(<Probe />);
+    await runGists();
+    await waitUntil(() => expect(phone.runs).toHaveLength(1));
+    expect(phone.runs[0]!.prompt).toBe('# Tokyo\n\nCheapest on midweek and too.\n');
+    unmount();
+  });
 });
