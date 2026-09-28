@@ -113,6 +113,56 @@ describe('an entry’s first line', () => {
     expect(first('# Monday 28 September\n\n## Lunch\n\nSoup.', DEFAULT_TEMPLATE)).toBe('Soup.');
   });
 
+  describe('when the + beside the line wrote the first thing in it', () => {
+    // The default template, then Enter, Enter, and the insert on the empty line, as the + writes each (editor/addRows.ts).
+    const OPENING = '# Monday 28 September\n\n**14:05** \n\n';
+    const after = (insert: string) => first(`${OPENING}${insert}\n\nWalked along the river.`, DEFAULT_TEMPLATE);
+    const alone = (insert: string) => first(`${OPENING}${insert}\n`, DEFAULT_TEMPLATE);
+
+    it.each([
+      ['a place', '[Cais do Sodré, Lisbon](geo:38.7057,-9.1446)'],
+      ['a place with no name yet', '[38.7057, -9.1446](geo:38.7057,-9.1446)'],
+      ['a film', '[![video 0:12](image/p1.jpg)](video/f1.mp4)'],
+      ['a picture', '![](image/pic1.jpg)'],
+      ['a canvas in a frame', '![[Plan]]'],
+      ['a table', '| Column | Column |\n| --- | --- |\n| Cell | Cell |'],
+      ['a divider', '---'],
+      ['a block of code', '```\nconst a = 1;\n```'],
+      ['a board', '```board\n## To do\n- first-card\n## Doing\n## Done\n```'],
+      ['a chart', '```mermaid\nflowchart LR\n  A[Start] --> B[Then]\n```'],
+      ['a callout', '> [!NOTE]\n> '],
+      ['a footnote', '[^1]\n\n[^1]: '],
+      ['a heading', '## '],
+      ['a bulleted list', '- '],
+      ['a numbered list', '1. '],
+      ['a choice', '- ( ) '],
+      ['a sum', '= '],
+    ])('skips %s: the row starts with the words after it, and has none where it is all there is', (_what, insert) => {
+      expect(after(insert)).toBe('Walked along the river.');
+      expect(alone(insert)).toBe('');
+    });
+
+    it('reads what it wrote as words when it is words: a callout’s title, a link, a card, a footnote, a sum', () => {
+      expect(alone('> [!NOTE] Pack the charger')).toBe('Pack the charger');
+      expect(alone('Lunch at [Cais do Sodré, Lisbon](geo:38.7057,-9.1446) with Sam')).toBe('Lunch at Cais do Sodré, Lisbon with Sam');
+      expect(alone('See [[Lisbon]] and [[Porto|the north]]')).toBe('See Lisbon and the north');
+      expect(alone('```board\n## To do\n- first-card\n```\n\n- [ ] First card ^first-card')).toBe('First card');
+      expect(alone('Four hundred[^1]\n\n[^1]: Counted twice.')).toBe('Four hundred');
+      expect(alone('= 12 * 3')).toBe('12 * 3');
+      expect(alone('Before ![](image/pic1.jpg) after')).toBe('Before  after');
+      // The time the + writes is the person's own words.
+      expect(alone('28 Sep 2026, 14:05')).toBe('28 Sep 2026, 14:05');
+    });
+
+    it('never says a place’s coordinates in the row, nor in what it says to a screen reader', () => {
+      const made = entry('2026-09-28 14.05', '2026-09-28T14:05', `${OPENING}[38.7057, -9.1446](geo:38.7057,-9.1446)\n`);
+      const { months } = inLocale('en-GB', () => monthsOf(pages(made), DEFAULT_TEMPLATE));
+      const [row] = months[0]!.entries;
+      expect(row!.first).toBe('');
+      expect(row!.label).toBe('Monday 28 September, 14:05.');
+    });
+  });
+
   it('draws a row’s words for a template of your own, filled for each entry’s own minute', () => {
     const one = entry('2026-09-28 20.58', '2026-09-28T20:58', '# Monday 28 September\nMonday at 20:58. Walked along the river after lunch.');
     const two = entry('2026-09-27 07.30', '2026-09-27T07:30', '# Sunday 27 September\nSunday at 07:30. ');

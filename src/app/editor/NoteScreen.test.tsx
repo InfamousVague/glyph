@@ -1283,6 +1283,95 @@ describe('where the note was written', () => {
       vi.restoreAllMocks();
     });
 
+    it('writes a late name all the same in an untouched entry, whose waiting tag lands after the place', async () => {
+      const { tagNewNotes } = await import('../core/location.ts');
+      const { rememberEntry } = await import('../book/entryDrafts.ts');
+      const words = '# Monday 28 September\n\n**14:05** \n\n';
+      const made = `---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n${words}`;
+      rememberEntry('en9', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
+      // Places of their own, so no name is known already: the entry's tag is named at once, the + place's late.
+      fixAt(51.51383, -0.09837);
+      let named: (() => void) | null = null;
+      vi.stubGlobal('fetch', (url: string) =>
+        String(url).includes('lat=51.514')
+          ? new Promise((resolve) => void (named = () => resolve({ ok: true, json: async () => ({ name: 'St Paul’s', addresstype: 'square', address: { city: 'London' } }) })))
+          : Promise.resolve({ ok: true, json: async () => ({ name: 'Parliament Square', addresstype: 'square', address: { city: 'London' } }) }),
+      );
+      show(screen(await createNote('en9', made)));
+      await act(async () => tagNewNotes(['en9'], Promise.resolve({ lat: 51.49929, lon: -0.12729, accuracy: 12, at: 0 }), { reviewing: false }));
+      await settle();
+      const view = editor();
+      await openPlus(view);
+      place();
+      await settle();
+      await act(async () => vi.advanceTimersByTimeAsync(3000));
+      await settle();
+      // The place, then the tag that waited for the entry's first words, and the tag's name, each a step of its own.
+      await act(async () => vi.advanceTimersByTimeAsync(2000));
+      await settle();
+      const coords = '[51.5138, -0.0984](geo:51.5138,-0.0984)';
+      expect(view.state.doc.toString()).toBe(`---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\nlocation: 51.4993,-0.1273\nplace: "Parliament Square, London"\n---\n${words}${coords}\n`);
+      await act(async () => named!());
+      await settle();
+      expect(view.state.doc.toString()).toContain(`${words}[St Paul’s, London](geo:51.5138,-0.0984)\n`);
+      // The name is the newest step: the first Undo gives the coordinates back.
+      act(() => void undo(view));
+      expect(view.state.doc.toString()).toContain(`${words}${coords}\n`);
+      vi.restoreAllMocks();
+    });
+
+    it('keeps the coordinates when the person did something after the place, the tag landing or not', async () => {
+      const { tagNewNotes } = await import('../core/location.ts');
+      const { rememberEntry } = await import('../book/entryDrafts.ts');
+      const words = '# Monday 28 September\n\n**14:05** \n\n';
+      const made = `---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n${words}`;
+      rememberEntry('en10', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
+      fixAt(51.50332, -0.11951);
+      let named: (() => void) | null = null;
+      vi.stubGlobal('fetch', (url: string) =>
+        String(url).includes('lat=51.503')
+          ? new Promise((resolve) => void (named = () => resolve({ ok: true, json: async () => ({ name: 'Waterloo', addresstype: 'square', address: { city: 'London' } }) })))
+          : Promise.resolve({ ok: true, json: async () => ({ name: 'Bankside', addresstype: 'square', address: { city: 'London' } }) }),
+      );
+      show(screen(await createNote('en10', made)));
+      await act(async () => tagNewNotes(['en10'], Promise.resolve({ lat: 51.50759, lon: -0.09935, accuracy: 12, at: 0 }), { reviewing: false }));
+      await settle();
+      const view = editor();
+      await openPlus(view);
+      place();
+      await settle();
+      await act(async () => vi.advanceTimersByTimeAsync(5000));
+      await settle();
+      expect(view.state.doc.toString()).toContain('place: "Bankside, London"');
+      type('Lunch.');
+      await act(async () => named!());
+      await settle();
+      expect(view.state.doc.toString()).toContain(`${words}[51.5033, -0.1195](geo:51.5033,-0.1195)\nLunch.`);
+      vi.restoreAllMocks();
+    });
+
+    it('keeps the coordinates when the person took the note’s location off while the name was coming', async () => {
+      fixAt(51.50451, -0.08649);
+      let named: (() => void) | null = null;
+      vi.stubGlobal('fetch', () => new Promise((resolve) => void (named = () => resolve({ ok: true, json: async () => ({ name: 'London Bridge', addresstype: 'square', address: { city: 'London' } }) }))));
+      show(screen(await createNote('n1', '---\nlocation: 51.5074,-0.1278\nplace: "London"\n---\n# Walk\n\n')));
+      const view = editor();
+      await openPlus(view);
+      place();
+      await settle();
+      await act(async () => vi.advanceTimersByTimeAsync(3000));
+      await settle();
+      act(() => button('More for this note').click());
+      act(() => buttonSaying(document.body, 'Remove location')!.click());
+      await act(async () => named!());
+      await settle();
+      expect(view.state.doc.toString()).toBe('# Walk\n\n[51.5045, -0.0865](geo:51.5045,-0.0865)\n');
+      // The person's last step is the first Undo takes back.
+      act(() => void undo(view));
+      expect(view.state.doc.toString()).toContain('location: 51.5074,-0.1278');
+      vi.restoreAllMocks();
+    });
+
     it('leaves the caret where the person took it while the fix was coming', async () => {
       let answer: ((position: GeolocationPosition) => void) | null = null;
       Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition: (ok: PositionCallback) => void (answer = ok) } });

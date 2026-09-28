@@ -334,7 +334,11 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpSer
           .string()
           .regex(WALL)
           .optional()
-          .describe('When, as YYYY-MM-DDTHH:MM: the person’s local time for the entry. Left out, the time where this server runs.'),
+          .describe(
+            hosted
+              ? 'When, as YYYY-MM-DDTHH:MM: the person’s local time for the entry. Needed: this server’s clock is not the person’s, and an entry is named and filed by its time.'
+              : 'When, as YYYY-MM-DDTHH:MM: the person’s local time for the entry. Left out, the time where this server runs.',
+          ),
         author: authorField,
       },
     },
@@ -343,6 +347,9 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpSer
         await account.pull();
         const target = (await account.get(journal)) ?? (await find(account, undefined, journal));
         if (!isJournalBody(target.note.body)) return failed(`“${noteTitle(target.note.body)}” is not a journal. Use append_to_note or create_note for it.`);
+        // The hosted server's clock is the box's, not the person's: an entry named and filed by it would be an hour or a
+        // day out. The local one (`npm run mcp`) runs on the person's own computer.
+        if (!at && hosted) return failed('Say when, as `at`: the person’s local time, YYYY-MM-DDTHH:MM. This server’s clock is not theirs.');
         const said = at ? WALL.exec(at) : null;
         const [year, month, day, hour, minute] = said ? said.slice(1).map(Number) : [];
         const when = said ? new Date(year!, month! - 1, day!, hour!, minute!) : new Date();

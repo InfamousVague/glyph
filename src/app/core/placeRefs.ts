@@ -18,7 +18,8 @@ import { lineWords } from './itemSyntax.ts';
  * A share leaves every `geo:` address out unless "Share the places in it" is ticked (share/share.ts), so
  * `withoutPlaces` takes every form one can be written in, not only the line the + writes: a place line goes whole,
  * a link inside other words keeps its words, an autolink and a reference definition go. In fenced and inline code
- * too, since the switch promises that none leaves.
+ * too, since the switch promises that none leaves; and whatever form is left, a link over two lines, a picture's
+ * source, raw HTML, loses its address last of all.
  *
  * Only the words, and nothing that reaches a device, as core/imageRefs.ts is: its two imports are pure as well, so
  * the MCP server's Node bundle can read a body's places with the same code.
@@ -32,6 +33,16 @@ export const GEO_LINK = new RegExp(String.raw`(?<!!)\[((?:[^\[\]\n]|\[[^\]\n]*\]
 export const GEO_AUTOLINK = /<geo:[^>\s]*>/gi;
 /** A reference definition whose address is a `geo:` one, `[c]: geo:38.7,-9.1`: its label as group 1. */
 export const GEO_DEFINITION = /^ {0,3}\[([^\]\n]+)\]:\s*<?geo:\S*>?.*$/gim;
+/** A picture whose source is a `geo:` address, `![map](geo:38.7,-9.1)`: its words as group 1. Global. */
+const GEO_PICTURE = new RegExp(String.raw`!\[((?:[^\[\]\n]|\[[^\]\n]*\])*)\]${DESTINATION}`, 'gi');
+/**
+ * A link or a picture to a `geo:` address written over more than one line: its words broken across two, `[Cais
+ * do Sodré](geo:…)`, or its address with a break inside the brackets. Never across a blank line, which no link spans.
+ * A picture's mark and the words as groups 1 and 2. Global.
+ */
+const GEO_LINK_LINES = new RegExp(String.raw`(!?)\[((?:[^\[\]]|\[[^\]]*\])*)\]${DESTINATION}`, 'gi');
+/** A `geo:` address anywhere at all, as plain words, in raw HTML or in a URL: `geo:` and coordinates after it. Global. */
+const GEO_ADDRESS = /\bgeo:(?=[-+.\d])[^\s<>"'()[\]`]*/gi;
 
 /** The one form a place line takes: the words, then the latitude and the longitude as groups 2 and 3. */
 const PLACE = /^\[([^[\]\n]*)\]\(geo:(-?\d{1,3}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)\)$/i;
@@ -104,22 +115,25 @@ export function placeLines(body: string): (PlaceLine & { line: number })[] {
   return found;
 }
 
-/** Whether a line's words are only links to `geo:` addresses: the line goes whole. */
+/** Whether a line's words are only links (or pictures) to `geo:` addresses: the line goes whole. */
 function onlyPlaces(text: string): boolean {
   const words = lineWords(text);
   if (!words) return false;
-  const links = [...words.matchAll(GEO_LINK)].length + [...words.matchAll(GEO_AUTOLINK)].length;
-  return links > 0 && words.replace(GEO_LINK, '').replace(GEO_AUTOLINK, '').trim() === '';
+  const links = [...words.matchAll(GEO_PICTURE)].length + [...words.matchAll(GEO_LINK)].length + [...words.matchAll(GEO_AUTOLINK)].length;
+  return links > 0 && words.replace(GEO_PICTURE, '').replace(GEO_LINK, '').replace(GEO_AUTOLINK, '').trim() === '';
 }
 
 /**
  * The body with every `geo:` address taken out, wherever it is written: a line of nothing but places goes whole (one
- * blank line kept where it stood between two), a link inside other words keeps its words, an autolink goes, and a
- * reference definition goes while its references keep their words. `geo:` written as words is words, and the tag in
- * the front matter is the tag's own switch (core/geotag.ts `withGeoTag`).
+ * blank line kept where it stood between two), a link or a picture inside other words keeps its words, one written
+ * over two lines keeps its words too, an autolink goes, and a reference definition goes while its references keep
+ * their words. Then any address still there, in raw HTML, a URL or plain words, goes on its own, and what is round it
+ * stays. `geo:` as a word with no coordinates after it is words, and the tag in the front matter is the tag's own
+ * switch (core/geotag.ts `withGeoTag`).
  */
 export function withoutPlaces(body: string): string {
-  const lines = body.split('\n');
+  const joined = body.replace(GEO_LINK_LINES, (whole, _mark: string, words: string) => (whole.includes('\n') && !/\n[ \t]*\n/.test(whole) ? words : whole));
+  const lines = joined.split('\n');
   const labels = new Set<string>();
   for (const line of lines) for (const found of line.matchAll(GEO_DEFINITION)) labels.add((found[1] ?? '').toLowerCase());
   const out: string[] = [];
@@ -131,11 +145,14 @@ export function withoutPlaces(body: string): string {
       if (out.length && out[out.length - 1]!.trim() === '' && (next === undefined || next.trim() === '')) out.pop();
       return;
     }
-    let kept = line.replace(GEO_LINK, (_whole, words: string) => words).replace(GEO_AUTOLINK, '');
+    let kept = line
+      .replace(GEO_PICTURE, (_whole, words: string) => words)
+      .replace(GEO_LINK, (_whole, words: string) => words)
+      .replace(GEO_AUTOLINK, '');
     if (labels.size) kept = kept.replace(/(?<!!)\[([^\]\n]+)\]\[([^\]\n]*)\]/g, (whole, words: string, label: string) => (labels.has((label || words).toLowerCase()) ? words : whole));
     out.push(kept);
   });
-  return out.join('\n');
+  return out.join('\n').replace(GEO_ADDRESS, '');
 }
 
 /** Whether a body holds a `geo:` address in any form a share would take out. */

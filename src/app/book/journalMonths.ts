@@ -1,8 +1,11 @@
 import { frontMatterEnd } from '../core/frontMatter.ts';
 import { geoTagOf, tagLabel } from '../core/geotag.ts';
+import { lineWords } from '../core/itemSyntax.ts';
 import { noteTitle } from '../core/noteTitle.ts';
+import { placeOfLine } from '../core/placeRefs.ts';
 import type { Note } from '../core/store.ts';
 import { titleKey } from '../core/titleKey.ts';
+import { videoOfLine } from '../core/videoRefs.ts';
 import { chaptersOf, isJournalBody, type BookPlace } from './book.ts';
 import { isEntryTitle, stampOf, templateOf } from './journal.ts';
 import { fillTemplate } from './template.ts';
@@ -95,30 +98,82 @@ function templateFor(template: string, journal: string, formats: ReturnType<type
 /** A time the template put at the start of a line, bold or not: "**14:05** ". */
 const LEADING_TIME = /^(?:\*\*|__)?\d{1,2}[:.]\d{2}(?:\*\*|__)?\s*/;
 
+/** A heading, `## ` with no words yet as well. */
+const HEADING = /^#{1,6}(?:\s|$)/;
+/** What opens or closes fenced code: its run of backticks or tildes. */
+const FENCE = /^(`{3,}|~{3,})/;
+/** A picture alone, or a canvas or a note drawn in a frame: `![](image/a.jpg)`, `![[Plan]]`. */
+const PICTURE = /^!(?:\[[^\]]*\]\([^)]*\)|\[\[[^\]]*\]\])$/;
+/** A table's row, in a quote or not. */
+const TABLE_ROW = /^\s*(?:>\s*)*\|/;
+/** A rule: three or more dashes, stars or underscores, spaced or not. */
+const RULE = /^(?:(?:-[ \t]*){3,}|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})$/;
+/** A callout's kind, `[!NOTE]`, and its fold sign, before its title. */
+const CALLOUT = /^\[![A-Za-z][\w-]*\][+-]?\s*/;
+/** A sum's lead, `= ` (editor/sums.ts). */
+const SUM = /^=(?:\s+|$)/;
+/** A footnote's line, `[^1]: `, and its marker in words. */
+const FOOTNOTE_LINE = /^\[\^[^\]\s]+\]:\s*/;
+const FOOTNOTE_REF = /\[\^[^\]\s]+\]/g;
+/** A link to a note, `[[Title]]` or `[[Title|words]]`: its words. */
+const NOTE_LINK = /\[\[([^\]|]*)(?:\|([^\]]*))?\]\]/g;
+/** A link inside the words, a place's among them: its words, and not where it goes. */
+const LINK = /(?<!!)\[((?:[^[\]]|\[[^\]]*\])*)\]\([^)]*\)/g;
+/** A picture inside the words, a film's poster among them: not words. */
+const INLINE_PICTURE = /!\[[^\]]*\]\([^)]*\)/g;
+
 /**
- * The first line of an entry's own words, as plain text: past its front matter, its headings, a picture alone on its
- * line, and `filled`, the template as it was filled for this entry: a line that is only the template's (its question,
- * its empty to-do) is skipped, and a line the template left open for the words to go on ("**14:05** ") comes off the
- * front of the line that goes on from it. Its own lines as they were filled, never a pattern of them: a template line
- * that is only a placeholder, `{{date}}`, read as a pattern stood for every line there is, and the row had no words.
- * A time that leads a line comes off too, for an entry made before its journal's template changed. A list's or a
- * quote's mark, and bold, taken off.
+ * A line the + beside the line draws as something other than words (editor/AddList.tsx; docs/DESIGN.md §141): a
+ * picture, a film, a place, a canvas's frame, a table's row, a rule. Its Markdown is not how an entry starts: the row
+ * read `[Cais do Sodré, Lisbon](geo:38.7057,-9.1446)` when a place was the first thing written. The row says where
+ * the entry was written on its own, from its tag.
+ */
+function drawnLine(raw: string): boolean {
+  const said = lineWords(raw);
+  return PICTURE.test(said) || TABLE_ROW.test(raw) || RULE.test(raw.trim()) || placeOfLine(raw) !== null || videoOfLine(raw) !== null;
+}
+
+/**
+ * The first line of an entry's own words, as plain text: past its front matter, its headings, what draws as something
+ * other than words (a picture, a film, a place, a canvas's frame, a table, a rule, and fenced code, a chart or a
+ * board, whole), and `filled`, the template as it was filled for this entry: a line that is only the template's (its
+ * question, its empty to-do) is skipped, and a line the template left open for the words to go on ("**14:05** ")
+ * comes off the front of the line that goes on from it. Its own lines as they were filled, never a pattern of them: a
+ * template line that is only a placeholder, `{{date}}`, read as a pattern stood for every line there is, and the row
+ * had no words. A time that leads a line comes off too, for an entry made before its journal's template changed. A
+ * list's or a quote's lead, a callout's kind, a sum's `=`, a footnote's marker, a card's anchor and bold come off,
+ * and a link is its words: whatever the + beside the line writes first, the row reads as words or not at all.
  */
 export function firstWords(body: string, filled = ''): string {
   const template = filled.split('\n').filter((line) => line.trim());
   const only = new Set(template.map((line) => line.trim()));
   const open = template.filter((line) => /\s$/.test(line)).map((line) => line.trimStart());
   const lines = body.split('\n');
+  let fence: string | null = null;
   for (const raw of lines.slice(frontMatterEnd(lines))) {
     const line = raw.trim();
-    if (!line || /^#{1,6}\s/.test(line) || /^!\[[^\]]*\]\([^)]*\)$/.test(line) || only.has(line)) continue;
+    const mark = FENCE.exec(line)?.[1];
+    if (fence) {
+      if (mark && mark[0] === fence[0] && mark.length >= fence.length && !line.slice(mark.length).trim()) fence = null;
+      continue;
+    }
+    if (mark) {
+      fence = mark;
+      continue;
+    }
+    if (!line || HEADING.test(line) || only.has(line) || drawnLine(raw)) continue;
     const from = raw.trimStart();
     const lead = open.find((each) => from.startsWith(each));
-    const words = (lead ? from.slice(lead.length) : line)
-      .trim()
-      .replace(/^(?:>\s*)+/, '')
-      .replace(/^(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?/, '')
+    // A space kept at the end, so an item's lead with nothing after it, `- `, is still a lead.
+    const words = lineWords(`${(lead ? from.slice(lead.length) : from).trimEnd()} `)
+      .replace(CALLOUT, '')
+      .replace(SUM, '')
+      .replace(FOOTNOTE_LINE, '')
       .replace(LEADING_TIME, '')
+      .replace(FOOTNOTE_REF, '')
+      .replace(NOTE_LINK, (_whole, title: string, said?: string) => said ?? title)
+      .replace(LINK, (_whole, said: string) => said)
+      .replace(INLINE_PICTURE, '')
       .replace(/\*\*|__/g, '')
       .trim();
     if (words) return words;

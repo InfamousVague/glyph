@@ -7712,10 +7712,14 @@ where you are." after a moment. The name is asked while the fix is found, from w
 changes the letter of the location module's second rule, which asked only for a tag already in its note: a place
 pressed with the + is asked for while its note is open and its spot is kept, since the person chose these coordinates
 and this note seconds before. A note left, or a place let go, before the fix sends nothing. A name later than the wait
-is written only while the place is still the newest change the note's history holds and nothing waits to be redone,
-so an Undo never takes back a name in place of what the person just did. A write that lands after the person has gone
-to another field (the Find bar, a sheet) takes no selection, no scroll and no focus. Local only takes the fix, the name
-and the tiles.
+is written only while the place is still the newest change the note's history holds and nothing waits to be redone, so
+an Undo never takes back a name in place of what the person just did. The note's own tag is not the person's doing. In
+a new note under Tag new notes, or an entry whose journal keeps where it was written, the tag waiting for the first
+words lands just after a first insert from the +, as it does after typing's first letter (§134), a step of its own and
+its name another: there the first Undo takes back the tag's name, not the insert, and a late name is still written,
+since the steps the tag took are counted apart (`tagSteps`). Add my location and Remove location from the sheet are
+the person's, and keep the coordinates. A write that lands after the person has gone to another field (the Find bar, a
+sheet) takes no selection, no scroll and no focus. Local only takes the fix, the name and the tiles.
 
 **Shares: a switch of their own.** A share leaves out every `geo:` address in its pages' words, in whatever form it is
 written, unless "Share the places in it" is ticked (`Kept.places`, docs/SHARING.md). The tag's "Share where it was
@@ -7758,11 +7762,12 @@ with no word about films, and the owner's other devices and a reader see a still
   once a day and goes after a week unnamed, time for an Undo, a note in the trash and sync. A reset takes `video/` and
   `picked/`.
 - **Out of the cloud.** The manifest gains `dataExtractionRules` (Android 12 and later) and `fullBackupContent`
-  (earlier), both leaving `video/` out of Google's cloud backup, where one long film would take the app past its 25MB
-  quota and stop the notes' backup with it. Nothing is named for a move to a new phone by cable, so it is meant to carry
-  everything, films included; whether Smart Switch honours the rules has not been tried. `paths.rs` and the Kotlin tests
-  read both files. Whether notes should go to that backup at all, since `models/` and `recordings/` likely stopped it
-  for most installs already, is Matt's question, and nothing wider is decided here.
+  (earlier), both leaving `video/` out of Google's cloud backup, so a film never goes to the person's Drive. Nothing is
+  named for a move to a new phone by cable, so it is meant to carry everything, films included; whether Smart Switch
+  honours the rules has not been tried. `paths.rs` and the Kotlin tests read both files. Leaving films out does not
+  bring the notes' backup back: past Auto Backup's 25MB quota nothing of the app is backed up, and a speech model under
+  `models/` (60MB, or 190) is past it on its own, and a few long recordings can be. Whether notes should go to that
+  backup at all is Matt's question, and nothing wider is decided here.
 - **Playing it** (`editor/videos.ts`, `ranged.rs`). The `vid` scheme serves a film a range at a time by seek: every
   range, open, closed or the last bytes, is answered at most 4MB at a time, a HEAD reads nothing, and a request with no
   range is answered whole only up to 8MB and otherwise told the length. The folder it plays from is found once and kept,
@@ -7884,7 +7889,11 @@ pages' authors again only when a page changed.
 
 **Claude** writes an entry with `add_journal_entry`, from the app's own journal modules, which import nothing that
 draws or stores so the MCP server bundles them. `append_to_note` refuses a journal's index, and `update_note` keeps a
-notebook's keys. The hosted connector is not deployed: that is Matt's word.
+notebook's keys. An entry is named and filed by its time, so the hosted server asks for `at`, the person's own clock,
+where the local one (`npm run mcp`) takes the computer's: the box's clock would put an entry written at half past
+midnight on the day before. The hosted connector is not deployed: that is Matt's word. Until it is, the one on the box
+is older than `keepKeys`, and an `update_note` through it that leaves out an entry's front matter takes its `title:`,
+and with it the entry's row in its journal (the note stays, under its heading).
 
 **After review.** Words typed into a new entry and left at once for home, inside the save's 400 ms, were taken back
 with the entry: App looked at the store before the screen's last save reached it. An entry is the person's on its
@@ -7906,6 +7915,13 @@ page opened again from its bar did it, and so did every entry opened from its jo
 note's screen now reads the note once the last screen on it has finished saving, and takes that copy while nothing is
 typed there yet, and a screen that saved anything says so as it goes, so the list and the journal's rows catch up
 (editor/useNoteSaving.ts).
+
+**Where the two meet.** A row's words, in the journal and in the aside, skip what the + beside the line draws as
+something other than words (`firstWords`): a place, a film, a picture, a canvas's frame, a table, a rule, and fenced
+code, a chart or a board, whole. A callout's kind, the lead of an empty heading, list or sum, and a footnote's marker
+come off, and a link is its words. An entry whose first thing was a place had read
+`[Cais do Sodré, Lisbon](geo:38.7057,-9.1446)` in its row, coordinates and all, and said them to a screen reader; now
+its row is its day and its time until words come.
 
 **Left undone.** One entry a day, where a second tap opens today's. A daily reminder and a launcher shortcut (native,
 generation 21). The side key starting an entry. A folder per journal on disk. Reading a month straight through.

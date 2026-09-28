@@ -198,8 +198,8 @@ mod tests {
     /// Films stay out of Google's cloud backup: both rules files exclude this
     /// folder under the data directory (`root` is `context.dataDir`, the
     /// `<app_data_dir>` the folder is joined to), and the manifest names both.
-    /// Without them, one long film takes the app past its 25 MB quota and the
-    /// notes stop being backed up with it.
+    /// Without them, a film, which stays on the phone it was added on, would go
+    /// to the person's Drive.
     #[test]
     fn the_backup_rules_leave_films_out_of_the_cloud() {
         let android = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("gen/android/app/src/main");

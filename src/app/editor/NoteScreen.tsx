@@ -420,11 +420,21 @@ export function NoteScreen({
    */
   const reviewing = useRef(Boolean(review && review.noteId === note.id && review.job));
   /**
+   * How many undo steps the tag has written through the editor that the person did not take: a tag that waited for the
+   * note's first words landing, and its name coming. A place's name that comes late is written only while the place is
+   * still the newest change the person made (editor/inserts.ts `nameLater`), and in a new note under Tag new notes, or
+   * an entry whose journal keeps where it was written, the waiting tag lands just after a first insert from the +, as a
+   * step of its own and its name another. Counted, they are not taken for something the person did, and the name is
+   * still written. Add my location and Remove location are the person's, and not counted.
+   */
+  const tagSteps = useRef(0);
+  /**
    * The tag written into the note, or taken out: through the editor where it holds the words, as one change to the
    * front matter alone (one undo step, the caret kept in view, saved like typing); through `onChange` where the
    * editor is hidden behind a canvas or a book's index, as a rename is (`renameHere`). Null takes both keys out.
+   * `mine` for a write the person asked for from the sheet.
    */
-  const writeTag = (next: GeoTag | null): boolean => {
+  const writeTag = (next: GeoTag | null, mine = false): boolean => {
     if (typed && !source) {
       const after = withGeoTag(body.current, next);
       if (after !== body.current) {
@@ -450,6 +460,7 @@ export function NoteScreen({
           view.state.selection.mainIndex,
         );
         view.dispatch({ changes: { from: 0, to: was, insert: after.slice(0, now) }, selection, scrollIntoView: true, userEvent: 'input.location' });
+        if (!mine) tagSteps.current += 1;
       }
     } else {
       // No editor (not here yet, or the note was left): the next look, or the note's own store (`landTag`).
@@ -463,14 +474,14 @@ export function NoteScreen({
    * A tag waiting for this note lands once it may (core/location.ts `settleTag`): the better words in, the note with
    * words. Until then the card is drawn from it. A note that says where it was written already keeps what it says.
    */
-  const settle = () => {
+  const settle = (mine = false) => {
     const waiting = pendingTag(note.id);
     if (!waiting) return;
     if (geoTagOf(body.current)) {
       setPendingTag(note.id, null);
       return;
     }
-    if (settleTag(note.id, body.current, { reviewing: reviewing.current }) !== null && writeTag(waiting)) {
+    if (settleTag(note.id, body.current, { reviewing: reviewing.current }) !== null && writeTag(waiting, mine)) {
       // In the note now, so its name may be asked (this device made it; core/location.ts decides whether it may).
       wantPlace(note.id, waiting);
       return;
@@ -564,7 +575,7 @@ export function NoteScreen({
         setFresh(true);
         setLeaving(null);
         // Into the note now (and its name asked), or waiting for the better words with the card drawn from it meanwhile.
-        latest.current.settle();
+        latest.current.settle(true);
       },
       (failure: unknown) => {
         window.clearTimeout(slow);
@@ -650,6 +661,7 @@ export function NoteScreen({
       const line = placeMarkdown(tag, name);
       const landed = insertLineAt(editor, spot, line, { userEvent: 'input.plus.drawn', token, apart: true });
       const depth = undoDepth(editor.state);
+      const tagged = tagSteps.current;
       quiet();
       letGo();
       fireNativeHaptic('light');
@@ -658,7 +670,8 @@ export function NoteScreen({
         return;
       }
       void late.then((named) => {
-        if (named && here()) nameLater(editor, landed.spot, depth, line, placeMarkdown(tag, named));
+        // The note's own tag landing meanwhile is not the person's doing (`tagSteps`).
+        if (named && here()) nameLater(editor, landed.spot, depth + tagSteps.current - tagged, line, placeMarkdown(tag, named));
         if (editor.dom.isConnected) releaseSpot(editor, landed.spot);
       });
     })();
@@ -720,7 +733,7 @@ export function NoteScreen({
     setSettingsOpen(false);
     setFresh(false);
     setLeaving(tag);
-    writeTag(null);
+    writeTag(null, true);
     setPendingTag(note.id, null);
     setTag(null);
   };

@@ -378,8 +378,10 @@ export function insertLineAt(
  * A place's name that came after its line was written with the coordinates: written over them only while that line
  * is still the newest change the note's history holds and nothing waits to be redone, so the first Undo gives back the
  * coordinates and the second takes the line. Anything the person did since - typing, an Undo - keeps the coordinates,
- * or the next Undo would take back a name instead of what they just did. A note live on two devices undoes with Yjs
- * (editor/undoSlot.ts), and there nothing is written. Answers whether it was.
+ * or the next Undo would take back a name instead of what they just did. `depth` is the history's depth just after
+ * the line, and steps the person did not take (the note's own tag landing meanwhile, editor/NoteScreen.tsx
+ * `tagSteps`) are the caller's to count into it. A note live on two devices undoes with Yjs (editor/undoSlot.ts), and
+ * there nothing is written. Answers whether it was.
  */
 export function nameLater(view: EditorView, spot: number, depth: number, was: string, named: string): boolean {
   const state = view.state;

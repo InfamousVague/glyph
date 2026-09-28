@@ -13,10 +13,11 @@
 //! picture pipeline carries it: sync, a share, a deleted note's clean-up. The
 //! film is `<app_data_dir>/video/<uuid>.<mp4|m4v|mov|webm>`, and it stays on
 //! the phone it was added on: it is never synced or shared, and the Android
-//! manifest's backup rules keep `video/` out of Google's cloud backup, where a
-//! long film would take the app past its quota and stop the notes' backup with
-//! it. A move to a new phone by cable is meant to carry it; whether Smart
-//! Switch honours the rules has not been tried.
+//! manifest's backup rules keep `video/` out of Google's cloud backup, so it
+//! never goes to the person's Drive. (That does not keep the notes' backup
+//! under its 25 MB quota, which a speech model in `models/` is past on its
+//! own; the manifest says more.) A move to a new phone by cable is meant to
+//! carry it; whether Smart Switch honours the rules has not been tried.
 //!
 //! The Android shell picks a film with the Photo Picker, copies it into
 //! `<app_cache_dir>/picked/` and makes its poster there

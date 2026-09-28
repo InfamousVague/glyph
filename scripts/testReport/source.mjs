@@ -4,15 +4,19 @@ import { join, relative, sep } from 'node:path';
 
 /**
  * A fingerprint of the code the tests test: every file under src/, the Rust
- * crates' src/, and the scripts, in a stable order, except the report itself.
- * The report records it when the tests run, and the build (vite.config.ts)
- * stamps it into the page, so the test results page can say whether the build
- * in your hand is the code those results are for. Commits would do, but Glyph
- * ships far more often than it commits.
+ * crates' src/, the scripts, and the MCP server's own modules (mcp/, whose
+ * tests run with the page's; not its bundle in mcp/dist), in a stable order,
+ * except the report itself. The report records it when the tests run, and the
+ * build (vite.config.ts) stamps it into the page, so the test results page can
+ * say whether the build in your hand is the code those results are for.
+ * Commits would do, but Glyph ships far more often than it commits.
+ *
+ * The Kotlin under src-tauri/gen/android is not here: the report runs no
+ * Gradle suite, so its tests are not among these results to be told apart.
  */
 
 export const REPORT_PATH = 'src/app/diag/testReport.generated.json';
-const ROOTS = ['src', 'src-tauri/src', 'server/src', 'scripts'];
+const ROOTS = ['src', 'src-tauri/src', 'server/src', 'scripts', 'mcp'];
 const SKIP = /(^|\/)(node_modules|target|dist|\.DS_Store)(\/|$)/;
 
 function* walk(dir) {

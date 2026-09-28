@@ -41,16 +41,18 @@ app" goes to the download page. The share service lets the page read it from the
   place, core/placeRefs.ts, DESIGN §141) have a switch of their own, "Share the places in it" (`places: true` on the
   kept share), shown only when the pages hold one. Until it is ticked every `geo:` address leaves every page, however
   it is written (`withoutPlaces`): a line whose words are only places goes whole, with one blank line kept where it
-  stood between two; a place inside other words keeps its words and loses its address; an autolink `<geo:…>` goes; a
-  reference definition `[c]: geo:…` goes and its references keep their words. In fenced and inline code too, since
-  the switch promises that none leaves. `geo:` written as plain words is words, and the tag in the front matter is the
-  other switch's. A switch of its own rather than the tag's widened, because a tick given for where a note was written
-  would otherwise seal every place added later, in every page of a shared notebook. The Copy the link hint says in one
-  sentence what the link carries of each. The synced settings keep `places`; an older device's page drops the field
-  when it rewrites the settings, which fails closed. The caveat above holds here more widely: a page from before this
-  seals inline places whatever the ticks say, because it never stripped them, so every device is updated before a
-  shared note gets a place. A share whose pages hold no `geo:` address is sent exactly as before, and its digest is
-  unchanged.
+  stood between two; a place inside other words keeps its words and loses its address, as does a link written over two
+  lines or a picture whose source is a place; an autolink `<geo:…>` goes; a reference definition `[c]: geo:…` goes and
+  its references keep their words. In fenced and inline code too, since the switch promises that none leaves. Any
+  address still left after those, in raw HTML, inside a web address or typed as plain words (`geo:38.7,-9.1`), goes on
+  its own and what is round it stays. `geo:` as a word with no coordinates after it is words, and the tag in the front
+  matter is the other switch's. A switch of its own rather than the tag's widened, because a tick given for where a
+  note was written would otherwise seal every place added later, in every page of a shared notebook. The Copy the link
+  hint says in one sentence what the link carries of each. The synced settings keep `places`; an older device's page
+  drops the field when it rewrites the settings, which fails closed. The caveat above holds here more widely: a page
+  from before this seals inline places whatever the ticks say, because it never stripped them, so every device is
+  updated before a shared note gets a place. A share whose pages hold no `geo:` address is sent exactly as before, and
+  its digest is unchanged.
 - **A notebook** is its index first, then every page that has a note, in the index's order. A page with no note
   yet is left out, and the reader shows it as "not written yet".
 - **A journal is shared an entry at a time** (DESIGN §142). A shared notebook is sent whole again a few seconds after

@@ -206,7 +206,9 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
     if (chosen.id === 'picture') onPicture?.();
     else if (chosen.id === 'video') onVideo?.();
     else if (chosen.id === 'place') onPlace?.();
-    else if (writeRow(view, chosen.id) && !view.hasFocus) view.focus();
+    // The time the row says, not the clock's: pressed just past the minute, before the row has turned, it wrote 14:06
+    // under a row that said 14:05.
+    else if (writeRow(view, chosen.id, now) && !view.hasFocus) view.focus();
   };
 
   /** A note or a canvas chosen in a step: written where the caret was, and the note has the focus back. */

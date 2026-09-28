@@ -275,6 +275,26 @@ describe('the account', () => {
     expect(tools.map((t) => t.name)).toEqual(['list_notes', 'read_note', 'search_notes', 'create_note', 'update_note', 'append_to_note', 'add_journal_entry', 'set_note_flags', 'account_status']);
   });
 
+  it('asks the hosted server’s caller when an entry was written, since its clock is not the person’s', async () => {
+    const { service, client, call } = await connected({ hosted: { connections: () => 1, signOutEverywhere: () => 0 } });
+    await service.deviceWrites(aNote('j', '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n'));
+    expect(await call('add_journal_entry', { journal: 'Diary', text: 'Walked.' })).toEqual({
+      isError: true,
+      text: 'Say when, as `at`: the person’s local time, YYYY-MM-DDTHH:MM. This server’s clock is not theirs.',
+    });
+    // Nothing was made, and the journal is as it was.
+    expect((await service.stored('j'))?.note.body).toBe('---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n');
+    const tool = (await client.listTools()).tools.find((t) => t.name === 'add_journal_entry')!;
+    expect(JSON.stringify(tool.inputSchema)).toContain('Needed: this server’s clock is not the person’s');
+    const made = JSON.parse((await call('add_journal_entry', { journal: 'Diary', text: 'Walked.', at: '2026-09-28T14:05' })).text) as { created: { title: string } };
+    expect(made.created.title).toBe('2026-09-28 14.05');
+    // The local server runs on the person's own computer, and takes its clock.
+    const local = await connected();
+    await local.service.deviceWrites(aNote('j', '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n'));
+    const now = JSON.parse((await local.call('add_journal_entry', { journal: 'Diary', text: 'Walked.' })).text) as { created: { title: string } };
+    expect(now.created.title).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}\.\d{2}$/);
+  });
+
   it('counts and ends the hosted server’s connections through its hooks', async () => {
     let ended = 0;
     const { client, call } = await connected({ hosted: { connections: () => 3, signOutEverywhere: () => (ended += 3) } });

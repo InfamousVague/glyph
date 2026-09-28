@@ -98,8 +98,21 @@ describe('a note without its places', () => {
     expect(clean('see `[Cais](geo:38.7,-9.1)` here')).toBe('see `Cais` here');
   });
 
+  it('takes the forms only a hand types: a link over two lines, a break inside its brackets, a picture, raw HTML', () => {
+    expect(clean('Met at [Cais do\nSodré](geo:38.7057,-9.1446) for lunch')).toBe('Met at Cais do\nSodré for lunch');
+    expect(clean('[Cais](geo:38.7057,-9.1446\n)')).toBe('Cais');
+    expect(clean('[Cais](\ngeo:38.7057,-9.1446 "Lisbon")')).toBe('Cais');
+    expect(clean('![map](geo:38.7057,-9.1446)')).toBe('');
+    expect(clean('The ![map](geo:38.7057,-9.1446) of it')).toBe('The map of it');
+    expect(clean('A <a href="geo:38.7057,-9.1446">harbour</a>.')).toBe('A <a href="">harbour</a>.');
+    expect(clean('Meet at geo:38.7057,-9.1446;u=35 at noon')).toBe('Meet at  at noon');
+    expect(clean('[Maps](https://maps.example/?to=geo:38.7057,-9.1446)')).toBe('[Maps](https://maps.example/?to=)');
+    // A blank line is two paragraphs, never one link: the address still goes.
+    expect(clean('[Cais\n\nSodré](geo:38.7057,-9.1446)')).toBe('[Cais\n\nSodré]()');
+  });
+
   it('leaves pictures, web links, the words geo: and the tag in the front matter alone', () => {
-    for (const body of ['![](image/x.jpg)', '[site](https://example.com)', 'the geo: scheme', '---\nlocation: 51.5074,-0.1278\n---\n\nWords']) {
+    for (const body of ['![](image/x.jpg)', '[site](https://example.com)', 'the geo: scheme', 'geo:', 'a geology:1 class', '---\nlocation: 51.5074,-0.1278\n---\n\nWords']) {
       expect(withoutPlaces(body)).toBe(body);
       expect(hasPlaces(body)).toBe(false);
     }

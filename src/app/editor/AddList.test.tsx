@@ -49,6 +49,8 @@ function open(over: Partial<AddListProps> = {}, by: PlusOpening['by'] = 'touch')
 
 const words = () => [...document.querySelectorAll('#add-list [role=menuitem]')].map((row) => row.textContent);
 const rowSaying = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('#add-list button')].find((row) => row.textContent?.startsWith(text));
+/** The time row, in whatever order the locale puts the day and the month. */
+const timeRow = () => [...document.querySelectorAll<HTMLButtonElement>('#add-list button')].find((row) => row.textContent?.includes('2026'))!;
 
 /** How much of the card is not the rows that scroll: More held at its foot, and the padding round it. */
 const HELD = 44 + 4;
@@ -140,6 +142,38 @@ describe('the list', () => {
   it('holds no row the screen cannot do', () => {
     open({ onPicture: undefined, onPlace: undefined, titles: undefined });
     expect(words().filter((row) => !/\d/.test(row ?? ''))).toEqual(['A table', 'A to-do', 'More']);
+  });
+
+  it('writes the time its row says, even pressed after the minute has turned and before the row has', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    try {
+      vi.setSystemTime(new Date(2026, 8, 28, 14, 5, 59, 900));
+      open();
+      const time = timeRow();
+      const says = time.textContent!;
+      expect(says).toMatch(/14:05$/);
+      // The clock moves on; the row's minute timer has not fired yet.
+      vi.setSystemTime(new Date(2026, 8, 28, 14, 6, 0, 50));
+      press(time);
+      expect(view.state.doc.toString()).toBe(`Lunch\n${says}`);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('turns the time row at the minute, and writes what it turns to', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    try {
+      vi.setSystemTime(new Date(2026, 8, 28, 14, 5, 59, 900));
+      open();
+      act(() => void vi.advanceTimersByTime(200));
+      const time = timeRow();
+      expect(time.textContent).toMatch(/14:06$/);
+      press(time);
+      expect(view.state.doc.toString()).toMatch(/^Lunch\n.*14:06$/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('dims the place under Local only, says why, and adds nothing when it is pressed', () => {
