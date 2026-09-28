@@ -64,7 +64,7 @@ A page wears its notebook. Under the note's header, a bar gives the notebook's t
 
 ## Notebooks in the library
 
-- The home page's **Notebooks** sit above Recent: a card per notebook, with its name, how many pages it has and the first four of them. A notebook is not also a Recent card.
+- The home page's **Notebooks** sit above Recent: a card per notebook, with its name, how many pages it has and the first four of them. A journal's card counts its entries and lists the four newest. A notebook is not also a Recent card, and neither is a journal's entry.
 - A note that is a page wears a small mark and the notebook's name, in the sidebar and on its card.
 - The **Notebook index** button at the right end of the top bar shows the notebook's index at the side of the page, the open page marked.
 
@@ -84,11 +84,36 @@ Chapter 13: Boards made of list items
 
 When the open note has a number and no notebook names it, the **Notebook index** button shows its run: the numbered chapters that belong with it, in order. They belong together when each page's first link, other than to another numbered chapter, goes to the same note; with no such link, when they share a folder. A chapter alone is no run, and with nothing to show there is no button.
 
+## Journals
+
+A journal is a notebook of dated entries, each started from a template the journal keeps: the date and the time, the place you were, a question for the morning, a to-do list.
+
+**Making one.** In the New notebook sheet, choose Journal under the name. Instead of pages you choose what each entry starts with, see the page an entry would start as now, and decide whether entries keep where you were. **New journal** in the command palette opens the sheet on Journal. A notebook you have already can be kept as one from its More sheet, **Keep it as a journal**: its pages stay where they are, and Make it a notebook again takes that back.
+
+| Each entry starts with | What it writes |
+| --- | --- |
+| The date and the time | The day as a heading, then the time in bold, ready for your words. |
+| Just the time | The time in bold. |
+| A morning page | The day, then a question for the morning. |
+| A day's to-dos | The day, then a to-do list with its first box. |
+| My own | Whatever you write, with placeholders to tap in. |
+
+Your own template takes the placeholders Obsidian's templates use: `{{date}}` (Monday 28 September), `{{time}}` (14:05, always on a 24-hour clock), `{{weekday}}`, `{{title}}` and `{{journal}}`, and `{{date:YYYY-MM-DD}}` or `{{time:HH.mm}}` for a format of your own. Words inside a format go in square brackets, as in `{{date:D MMMM [at] HH:mm}}`, or their letters are read as the date's. Obsidian's `{{date}}` is `2026-09-28`, and here it is the long day, so write `{{date:YYYY-MM-DD}}` where the two should match. A changed template is for entries from then on.
+
+**New entry.** A journal is drawn as its entries, by the month each was written in, newest first, with **New entry** at the top. A tap makes a note named by the minute, such as `2026-09-28 14.05`, starts it from the template, adds its line to the journal and opens it with the caret at the end. The name sorts in time order wherever notes are sorted, reads the same in every language and makes a whole file name, so the journal's links work in any Markdown app. The friendly date is the entry's heading. Two entries in one minute are `2026-09-28 14.05` and `2026-09-28 14.05 (2)`.
+
+- **An entry you do not write in is taken back** when you leave it: go home, close its tab, or open the journal in its tab, and the entry and its line are gone, as a new note left without a word leaves nothing behind. Switching tabs, or recording something else, is not leaving it.
+- **Speak an entry.** A journal's mic makes an entry and records into it. The words go on from its time, so a spoken entry still starts with it, and a day's to-dos said aloud become to-dos. Say nothing and you are back on the journal, with no entry left.
+- **Where it was written** is the entry's own tag, with the map at its top, when the journal keeps places. It is asked once you write, never for an entry you leave untouched. Local only, a Mac and a phone that was not allowed to say where it is keep no place, whatever the journal says.
+- **The months.** The three newest are open, and each older month is a row that opens it. A row gives the day, the time, where, and how the entry starts. The entries are in the order they were written, whatever order their lines are in.
+- **An entry's bar** walks the entries in the order they were written, so Previous is the entry before. Opening a journal from outside always opens the journal, where New entry is, not the entry you last read.
+- **From home** a new entry is two taps: the + and then Entry in, for the journal you wrote in last. The command palette has New entry in for up to three journals.
+
 ## Sharing, and by voice
 
-A whole notebook can be shared as one read-only link, its index and every written page: see [[Sharing a note or a notebook]].
+A whole notebook can be shared as one read-only link, its index and every written page: see [[Sharing a note or a notebook]]. A journal is shared an entry at a time: open the entry and share it from its More sheet.
 
-Notebooks are not made or filled by voice. A notebook is never written into by voice either: words said for one stay where you are, and after "Hey Ghost" the chip says why ("“Field guide” is a notebook, so the words stay here"). "Make a notebook called Field guide" and "add a page to the field guide" change no notebook, with or without the keyword. Said after "Hey Ghost" into a note's own Speak, words like these go to the AI as a spoken ask about that note instead ([[Spoken asks and the review]]); without it, they are the note's words. Use the + and the index.
+Notebooks are not made or filled by voice. A notebook is never written into by voice either: words said for one stay where you are, and after "Hey Ghost" the chip says why ("“Field guide” is a notebook, so the words stay here", or "“Diary” is a journal"). A journal's entries are made by a tap on New entry or its mic. "Make a notebook called Field guide" and "add a page to the field guide" change no notebook, with or without the keyword. Said after "Hey Ghost" into a note's own Speak, words like these go to the AI as a spoken ask about that note instead ([[Spoken asks and the review]]); without it, they are the note's words. Use the + and the index.
 
 ## Read next
 

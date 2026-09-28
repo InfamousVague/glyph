@@ -112,6 +112,63 @@ the words; said as a fresh recording, or without the keyword, they are saved as 
 (docs/instruction-voice-commands.md). "Notebook" is not one of the words those rules know: "new notebook for school"
 is a note's words, as it would be said.
 
+## Journals
+
+Matt (2026-09-28): "I'd like a journal function where we can just do entries into a book marked as a journal where we
+pick the template for pages (time and date prefixed, with geo location, etc etc)". A journal is a notebook whose pages
+are dated entries, each started from a template the journal keeps (docs/DESIGN.md §142).
+
+```markdown
+---
+title: "Diary"
+book: true
+journal: true
+template: "# {{date}}\n\n**{{time}}** "
+entry-place: true
+---
+# Diary
+
+- [[2026-09-27 21.40]]
+- [[2026-09-28 14.05]]
+```
+
+- **Three keys beside `book: true`.** `journal: true` marks it. `template:` is the Markdown each entry starts as,
+  written as one JSON string, which YAML reads as the text it is, so the front matter stays flat and any Markdown app
+  reads it back. `entry-place: true` says entries keep where they were written (not `place:`, which is a geotag's).
+  An older app draws a journal as the notebook it is and keeps every key.
+- **An entry is a note named by the minute,** `2026-09-28 14.05`, in ASCII digits whatever the language, so its key
+  keeps its month (`titleKey` keeps only a-z and 0-9) and its file is `2026-09-28 14.05.md`, which the index's link
+  resolves to in any app. A second in the same minute is ` (2)`. Its `date:` is the wall clock with no offset, so a
+  shared entry does not say which time zone it was written in, and the journal groups it by the day its clock said.
+  `title:` is its name, so its heading and words can change and it keeps its line.
+- **The templates:** the date and the time (the default), just the time, a morning page, a day's to-dos, and your
+  own. Placeholders are Obsidian's: `{{date}}` (the home page's long day, "Monday 28 September"), `{{time}}` (a
+  24-hour clock, as meeting titles have), `{{weekday}}`, `{{title}}`, `{{journal}}`, and Moment's tokens after a colon,
+  words in square brackets. Looked up by their own names only, so `{{constructor}}` is left as typed. The day and the
+  time come from `src/app/core/stamp.ts`, which the + writes its date with.
+- **Making one:** the New notebook sheet's Journal choice, with the template, a preview of an entry made now, and
+  the place switch, whose default is this device's Tag new notes. Or a notebook kept as a journal from its More
+  sheet, every page where it was; and made a notebook again from there. Not the Guide.
+- **New entry** (`App.tsx` `newEntry`): the record first (`src/app/book/entryDrafts.ts`), then the line last in the
+  index, through the journal's own screen when it is open, then the note, opened with the caret at the end.
+- **Taken back when untouched.** An entry this device made and nobody wrote in is deleted, with its line and its
+  waiting tag, when it is left: home, its tab closed, or the journal opened in its tab. Not when another tab is shown
+  or a capture is aimed at it, and never on the screen's unmount. A launch does the same for an entry the phone let
+  go of. No place lands on one first (`hasOwnWords` in `src/app/core/location.ts`).
+- **Speak an entry** is the journal's mic: an entry made and recorded into, the words going on from the template's
+  last line (`openEnd`, and `lead` in `src/app/capture/place.ts`), so it still starts with its time and a day's
+  to-dos said aloud are to-dos. The place is asked once the recorder has gone. Said nothing, it lands on the journal
+  and the entry is taken back.
+- **The view** (`src/app/book/JournalView.tsx`): New entry, the journal's own words, then the entries by month,
+  newest first by when each was written, whatever order the index is in. Three months open, older ones a row each. A
+  page planned before a notebook was kept as a journal is under Not written yet; an entry's line with no note is not
+  drawn. The bar and the foot walk entries in the order written. Opening a journal from outside always opens the
+  journal (`whereLeft`).
+- **Elsewhere:** two taps from home, the +'s "Entry in" row for the journal written in last, and "New entry in" in
+  the palette for three. Recent and the palette's first forty leave entries out. A journal is shared an entry at a
+  time (docs/SHARING.md). Two devices adding lines between syncs merge (docs/SYNC.md). Claude writes an entry with
+  `add_journal_entry` (docs/MCP.md).
+
 ## Chapter numbers
 
 A chapter can carry its number in its title. Without a notebook, the numbers put the chapters in order.
@@ -156,6 +213,12 @@ toggle aren't drawn. It no longer lists the workspace's other notes.
 | `src/app/book/rowDrag.ts` | `useRowDrag`: rows lifted by a grip, in the index and the sheet |
 | `src/app/aside/aside.ts` | the right-hand aside's content: a notebook's index on its pages, a numbered chapter's run with no notebook, else nothing |
 | `src/app/book/chapterNumber.ts` | a chapter's number read from its title |
+| `src/app/book/journal.ts` | a journal's keys, its presets, an entry's name, `date:` and body, `stampOf`, and which notes are entries (`entryPages`); pure, so the MCP server bundles it |
+| `src/app/book/template.ts` | a template filled (`fillTemplate`, `formatStamp`), and where a spoken entry's words go (`openEnd`) |
+| `src/app/book/journalMonths.ts` | the entries by month, a row's words, the bar's time order, a journal's card and the aside's month |
+| `src/app/book/entryDrafts.ts` | the record of an entry nobody has written in yet, on this device |
+| `src/app/book/JournalView.tsx`, `src/app/book/TemplatePicker.tsx` | a journal drawn, and the template's choice with its preview and the place switch |
+| `src/app/core/stamp.ts` | a moment as words: `stamp`, `clockTime`, `longDay` |
 | `src/app/capture/command.ts` | "make a book called …" and a page for a notebook named, read so the reader at Done turns them down (`forBook`) |
 | `src/app/core/frontMatter.ts` | where a note's front matter ends, and `book:` and `title:` read and written (`frontMatterValue`, `withFrontMatterTitle`) |
 | `src/app/editor/NoteScreen.tsx` | a notebook note drawn as its index, with the Markdown a toggle away; a page's bar |

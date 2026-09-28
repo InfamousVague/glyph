@@ -39,6 +39,11 @@ app" goes to the download page. The share service lets the page read it from the
   the share service (a newer page's version refusing an older page's write) is the lasting answer, not built yet.
 - **A notebook** is its index first, then every page that has a note, in the index's order. A page with no note
   yet is left out, and the reader shows it as "not written yet".
+- **A journal is shared an entry at a time** (DESIGN §142). A shared notebook is sent whole again a few seconds after
+  any save of any of its pages, every picture read again each time, and a year of entries with photographs passes
+  `SHARE_BYTES` and would lose pictures without a word. So a journal not shared says so on its More sheet, "A
+  journal is shared an entry at a time. Open one to share it.", and an entry is shared as any note is, its place
+  left out unless ticked. A notebook shared before it was kept as a journal goes on being shared as it was.
 - **The pictures the pages show** travel in the share (`withPictures`): a reader has no account to fetch them from. A
   share with pictures is sealed as `GSP1`, four bytes giving the length of the JSON, the JSON with each picture's name
   and size, then the pictures' bytes; one without is its JSON alone, as before. Base64 inside the JSON would be

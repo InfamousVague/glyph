@@ -7642,3 +7642,63 @@ notebook is an everyday thing to say. One thing was put right on the way: the ki
 ("a note", "a bug") ended where its letters did, not where its word did, so "add a notebook to Work" put the word
 "book" in Work, and "a bugfix for login" lost "a bug". Now the kind ends at a word's end (capture/command.ts
 `OBJECT_NOUN`). The tips never teach a notebook or a journal, as they never taught a book.
+
+**A journal** is a notebook with `journal: true`, a `template:` and, if it keeps places, `entry-place: true`, all flat
+keys in the page's own front matter beside `book: true` (book/journal.ts). The template is one double-quoted string
+with JSON's escapes, which YAML reads as the text it is. An older app draws a journal as a notebook and keeps the keys.
+It is made from the New notebook sheet's Journal choice, or a notebook is kept as one from its More sheet, every page
+where it was, and made a notebook again from there. Not the Guide: a manual is not a diary.
+
+**An entry** is a note named `2026-09-28 14.05`: ASCII digits in every language, so its key never loses the month,
+and nothing a file name drops, so its file is `2026-09-28 14.05.md` and the index's link resolves in any Markdown app.
+Matt chose any number of entries a day, each named by the minute, and a second in the same minute is ` (2)`. Its
+`date:` is the wall clock with no offset, so a shared entry does not say which time zone it was written in, and an
+entry written at 23:30 in New York stays on the 28th when it is read in London.
+
+**New entry** is one tap in the journal and two from home, through the +'s "Entry in Diary" row for the journal
+written in last, and the palette has "New entry in" for three. It keeps a record on the device first (book/entryDrafts.ts),
+puts the entry's line last in the index, through the journal's own screen when it is open so its next save cannot
+write the old index back, makes the note from the template and opens it with the caret at the end. The journal is
+drawn as its entries by month, newest first by when each was written, whatever order the lines are in, three months
+open and each older one a row. An entry nobody has written in is taken back when it is left: home, its tab closed,
+or the journal opened in its tab. Not when it is spoken into, and not when another tab is shown. A launch after the
+phone let the app go does the same, and no place lands on it first. Opening a journal from outside opens the journal,
+where New entry is, never the entry it was last read at.
+
+**The template** is one of five (the date and the time, just the time, a morning page, a day's to-dos, my own), with
+Obsidian's double-brace placeholders looked up by their own names only (format/prompt.ts's `in` would print a
+function's source for `{{constructor}}`). Words inside a format go in square brackets, as in Moment, and the sheet says
+so under the placeholders. Times are on the 24-hour clock, as meeting titles are. A change is for entries from then
+on. The day and the time come from core/stamp.ts, the module the + writes its date with. The sheet shows the page an
+entry would start as now, drawn by the note's own editor.
+
+**The place is the entry's own tag, never words.** The journal's switch is the choice, and travels with it. Local
+only, the Mac, a refusal and an introduction before any first prompt ("Diary keeps where each entry was written.")
+stay each device's. Its default is the device's Tag new notes, whatever the device can do, so a journal made on the
+Mac keeps the places of entries made on the phone, and turning it on asks from that press where the prompt has never
+been answered. The tag waits for the entry's first own words, and the map fetches no tiles until then.
+
+**Speak an entry** is the journal's mic, where it used to write into the index. The words continue the template's
+last line (capture/place.ts `lead`), so a spoken entry still starts with its time, and a day's to-dos said aloud
+become to-dos. The place is asked once the recorder has gone, never at the tap, since the microphone's prompt and a
+location prompt share one listener in the Android WebView. With a meeting recording it opens the meeting and makes
+nothing. On the way: a take aimed at an existing note is no longer filed and tagged as the take's own new note, which
+§134's "existing notes are never tagged" always said.
+
+**A journal is shared an entry at a time.** A shared notebook is sent whole after every save of a page, which a year
+of photographs cannot carry. A journal not shared says so where the share row would be.
+
+**Two devices** adding pages to one notebook between syncs merge the index lines instead of making "Diary 2"
+(core/sync/notes.ts `mergedIndex`).
+
+**Faster notebooks.** App finds a note by its title through one map, not a search per row, and the index reads its
+pages' authors again only when a page changed.
+
+**Claude** writes an entry with `add_journal_entry`, from the app's own journal modules, which import nothing that
+draws or stores so the MCP server bundles them. `append_to_note` refuses a journal's index, and `update_note` keeps a
+notebook's keys. The hosted connector is not deployed: that is Matt's word.
+
+**Left undone.** One entry a day, where a second tap opens today's. A daily reminder and a launcher shortcut (native,
+generation 21). The side key starting an entry. A folder per journal on disk. Reading a month straight through.
+Sharing a whole journal, or part of one. A notebook's pages nested under it in the sidebar. The page's keys in
+Obsidian's Properties, which reads only the file's first block.

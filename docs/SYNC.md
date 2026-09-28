@@ -121,6 +121,12 @@ minute per address and 10 per handle.
 - **A conflict makes a copy, never a loss.** A note changed on both sides keeps the other device's version under its
   id, and this device's version becomes a new note beside it (the file gets a number, `Title 2.md`). A note deleted
   on one device and changed on another comes back. A push that loses a race is merged the same way and sent again.
+- **Two cases merge without a copy.** Two bodies that differ only by the app's summary section keep the other
+  device's words with this device's section. And two copies of a notebook that are the same once their index's lines
+  are taken out keep the other device's, with each line only this device has put after the line it followed here
+  (`mergedIndex`, DESIGN §142): a journal written in on the phone and on the Mac between two syncs stays one "Diary",
+  not "Diary" and "Diary 2". A line taken out on one side and kept on the other comes back; a journal draws an
+  entry's line whose note is gone as nothing.
 - **Files follow their notes:** a recording is sent when its hash changes and fetched when a note arrives with a hash
   this device doesn't have; a picture is sent with the note that first names it. A browser syncs pictures but keeps
   no recordings.
