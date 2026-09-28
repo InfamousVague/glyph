@@ -178,7 +178,7 @@ describe('a fix', () => {
     expect(requested).toEqual([1]);
     // A quiet ask, over a locked phone, never raises the prompt.
     access = 'ask';
-    await expect(location.locate({ quiet: true })).rejects.toMatchObject({ why: 'refused' });
+    await expect(location.locate({ quiet: true })).rejects.toMatchObject({ why: 'unavailable' });
     expect(requested).toEqual([1]);
   });
 });
@@ -370,6 +370,35 @@ describe('tagging new notes', () => {
     expect(location.autoTagRefusal()).toBeNull();
   });
 
+  it('says why only on notes made since the refusal, and forgets it once the phone allows location', async () => {
+    failWith(1);
+    await store.createNote('n1', '# Said\n');
+    expect(await location.tagNewNotesIfWanted(['n1'], { reviewing: false })).toBe('refused');
+    // A note from before the refusal was never going to be tagged; one made since was not, for this reason.
+    expect(location.refusedFor(1_000 * DAY - 60 * 60_000)).toBeNull();
+    expect(location.refusedFor(1_000 * DAY)).toBe('refused');
+    // Not allowed yet: still refused, and nothing is asked.
+    const { calls } = fixAt(51.5074, -0.1278);
+    expect(await location.tagNewNotesIfWanted(['n1'], { reviewing: false })).toBe('refused');
+    expect(calls).toHaveLength(0);
+    // Allowed since, in the phone's settings: the refusal is forgotten and the next new note is asked for again.
+    native = true;
+    android = true;
+    window.GlyphHost = { takeLaunch: () => '', isLocked: () => false, endCapture: () => undefined, locationAccess: () => 'granted' };
+    await location.tagNewNotesIfWanted(['n1'], { reviewing: false });
+    expect(calls).toHaveLength(1);
+    expect(location.autoTagRefusal()).toBeNull();
+  });
+
+  it('never counts a quiet ask over a locked phone as a refusal', async () => {
+    native = true;
+    android = true;
+    window.GlyphHost = { takeLaunch: () => '', isLocked: () => true, endCapture: () => undefined, locationAccess: () => 'ask' };
+    fixAt(51.5074, -0.1278);
+    expect(await location.tagNewNotesIfWanted(['n1'], { reviewing: false }, { quiet: true })).toBe('unavailable');
+    expect(location.autoTagRefusal()).toBeNull();
+  });
+
   it('does nothing with the switch off, under Local only, or with nothing to tag', async () => {
     const { calls } = fixAt(1, 1);
     expect(await location.tagNewNotesIfWanted([], { reviewing: false })).toBeNull();
@@ -383,19 +412,21 @@ describe('tagging new notes', () => {
 
 describe('where a tapped map goes', () => {
   it('opens the maps app on Android, Apple Maps on the Mac, and openstreetmap.org elsewhere, never with the title', async () => {
-    expect(location.placeUrl(LONDON)).toBe('https://www.openstreetmap.org/?mlat=51.5074&mlon=-0.1278#map=15/51.5074/-0.1278');
-    expect(location.placeUrl({ ...LONDON, lat: 51.51, lon: -0.13, rough: true })).toBe('https://www.openstreetmap.org/?mlat=51.51&mlon=-0.13#map=12/51.51/-0.13');
+    // Its own module (placeLink.ts), since the shared page draws the card and must not load the rest of this one.
+    const link = await import('./placeLink.ts');
+    expect(link.placeUrl(LONDON)).toBe('https://www.openstreetmap.org/?mlat=51.5074&mlon=-0.1278#map=15/51.5074/-0.1278');
+    expect(link.placeUrl({ ...LONDON, lat: 51.51, lon: -0.13, rough: true })).toBe('https://www.openstreetmap.org/?mlat=51.51&mlon=-0.13#map=12/51.51/-0.13');
     mac = true;
     native = true;
-    expect(location.placeUrl({ ...LONDON, place: 'Trafalgar Square, London' })).toBe('https://maps.apple.com/?ll=51.5074,-0.1278&q=Trafalgar%20Square%2C%20London');
-    expect(location.placeUrl(LONDON)).toBe('https://maps.apple.com/?ll=51.5074,-0.1278&q=51.5074%2C%20-0.1278');
+    expect(link.placeUrl({ ...LONDON, place: 'Trafalgar Square, London' })).toBe('https://maps.apple.com/?ll=51.5074,-0.1278&q=Trafalgar%20Square%2C%20London');
+    expect(link.placeUrl(LONDON)).toBe('https://maps.apple.com/?ll=51.5074,-0.1278&q=51.5074%2C%20-0.1278');
     mac = false;
     android = true;
     // An older Android binary has no `geo:` scope: the site instead.
-    expect(location.placeUrl(LONDON)).toContain('openstreetmap.org');
+    expect(link.placeUrl(LONDON)).toContain('openstreetmap.org');
     window.GlyphHost = { takeLaunch: () => '', isLocked: () => false, endCapture: () => undefined, locationAccess: () => 'granted' };
-    expect(location.placeUrl({ ...LONDON, place: 'Trafalgar Square' })).toBe('geo:51.5074,-0.1278?q=51.5074,-0.1278(Trafalgar%20Square)');
-    await location.openPlace(LONDON);
+    expect(link.placeUrl({ ...LONDON, place: 'Trafalgar Square' })).toBe('geo:51.5074,-0.1278?q=51.5074,-0.1278(Trafalgar%20Square)');
+    await link.openPlace(LONDON);
     expect(openUrl).toHaveBeenCalledWith('geo:51.5074,-0.1278?q=51.5074,-0.1278');
   });
 });

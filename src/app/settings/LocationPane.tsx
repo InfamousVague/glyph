@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Switch } from '@glacier/react';
-import { canLocate, forgetRefusal, locate, whyLocateFailed, type LocateFailure } from '../core/location.ts';
+import { autoTagRefusal, canLocate, forgetRefusal, locate, rememberRefusal, whyLocateFailed, type LocateFailure } from '../core/location.ts';
 import { setPreferences, usePreferences } from '../core/preferences.ts';
 import { PaneSection, RowAction, SettingRow, SettingsFootnote } from './kit/settingsKit.tsx';
 
@@ -27,7 +27,9 @@ const CANNOT: Partial<Record<LocateFailure, string>> = {
 
 export function LocationPane() {
   const prefs = usePreferences();
-  const [refused, setRefused] = useState<LocateFailure | null>(null);
+  // A refusal met here, or the one an automatic ask met and kept (core/location.ts): the footnote says it either way.
+  const [refusedHere, setRefused] = useState<LocateFailure | null>(null);
+  const refused = prefs.tagNewNotes && !prefs.localOnly ? (refusedHere ?? autoTagRefusal()) : null;
   const can = canLocate();
   const localOnly = prefs.localOnly ? 'Local only is on.' : undefined;
   const tagWhy = can.ok ? undefined : CANNOT[can.why];
@@ -42,6 +44,8 @@ export function LocationPane() {
       () => forgetRefusal(),
       (failure: unknown) => {
         const why = whyLocateFailed(failure);
+        // Asked once: refused, the switch stays on and new notes are simply not tagged, nor asked for again.
+        rememberRefusal(why);
         if (why === 'refused' || why === 'blocked') setRefused(why);
       },
     );

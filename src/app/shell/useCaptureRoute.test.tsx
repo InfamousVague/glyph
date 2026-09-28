@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, useState } from 'react';
 import { createNote, getNote, updateNote } from '../core/store.ts';
-import { autoTagRefusal, pendingTag } from '../core/location.ts';
+import { autoTagRefusal, pendingTag, watchTag } from '../core/location.ts';
 import { reloadPreferences, setPreferences } from '../core/preferences.ts';
 import { addWorkspace, chooseWorkspace, workspaceOf } from '../core/workspaces.ts';
 import { show } from '../../test/render.tsx';
@@ -163,7 +163,7 @@ describe('where a capture’s new notes were made', () => {
   });
   afterEach(() => Reflect.deleteProperty(navigator, 'geolocation'));
 
-  it('tags the note a take made and the notes it made, after the screen has changed, and not a note it only wrote into', async () => {
+  it('tags the take’s own new note after the screen has changed, and not a note it only wrote into nor one a command made', async () => {
     const calls = fixAt(51.50741, -0.12776);
     const house = await createNote('house', '# House TODOs\n\n- [ ] Fix the gutter\n');
     await createNote('made', '# Eggs\n');
@@ -173,14 +173,37 @@ describe('where a capture’s new notes were made', () => {
     await act(async () => route.finished(house, false, undefined, undefined, landing));
     expect(screen).toMatchObject({ name: 'note', note: { id: 'house' } });
     await settle();
-    expect(calls).toHaveLength(1);
-    expect((await getNote('made'))?.body).toBe('---\nlocation: 51.5074,-0.1278\n---\n# Eggs\n');
+    // Nothing of the take's own was new: the device is not asked.
+    expect(calls).toHaveLength(0);
+    expect((await getNote('made'))?.body).toBe('# Eggs\n');
     expect((await getNote('house'))?.body).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n');
-    // A new note of the take's own, with nothing else made: tagged once the list is showing.
+    // A list a command made, opened on its card: the app's doing, so not tagged either.
+    const list = await createNote('list', '# Groceries\n');
+    await act(async () => route.finished(list, false, undefined, undefined, { noteId: 'list', title: 'Groceries', blocks: [], others: [], made: ['list'] }));
+    await settle();
+    expect(calls).toHaveLength(0);
+    // A new note of the take's own: tagged once the list is showing.
     const said = await createNote('said', '# Said\n');
     await act(async () => route.finished(said, false));
     await settle();
+    expect(calls).toHaveLength(1);
     expect((await getNote('said'))?.body).toBe('---\nlocation: 51.5074,-0.1278\n---\n# Said\n');
+  });
+
+  it('hands the tag to the note’s screen when it opens, rather than writing under its editor', async () => {
+    fixAt(51.5074, -0.1278);
+    const note = await createNote('n', '# Said\n');
+    // The note's screen, as it watches its tag once mounted (editor/NoteScreen.tsx).
+    const told: string[] = [];
+    const off = watchTag('n', (event) => told.push(event.kind));
+    show(<Probe from={into('n')} />);
+    await act(async () => route.finished(note, false));
+    expect(screen).toMatchObject({ name: 'note', note: { id: 'n' } });
+    await settle();
+    off();
+    expect(told).toEqual(['pending']);
+    expect((await getNote('n'))?.body).toBe('# Said\n');
+    expect(pendingTag('n')).toEqual({ lat: 51.5074, lon: -0.1278, place: null, rough: false });
   });
 
   it('keeps the tag aside while a review with a job is live for the note, and never asks at start', async () => {

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Map as LeafletMap } from 'leaflet';
 import { PLACE_PATH, Place } from '../art/Icons.tsx';
 import { tagLabel, type GeoTag } from '../core/geotag.ts';
-import { openPlace } from '../core/location.ts';
+import { openPlace } from '../core/placeLink.ts';
 import styles from './MapCard.module.css';
 
 /**
@@ -19,8 +19,8 @@ import styles from './MapCard.module.css';
  * imported only here and only for a map, so it arrives as its own chunk and never in the page's entry.
  *
  * In `ask` mode (the reader) the quiet card carries "Show the map" and a tap fetches nothing until then. Otherwise a
- * tap opens the place in the device's maps app (core/location.ts `openPlace`), with the place or the coordinates and
- * never the note's title.
+ * tap opens the place in the device's maps app (core/placeLink.ts `openPlace`), with the place or the coordinates and
+ * never the note's title. That module is kept apart from core/location.ts so a shared page loads none of the rest.
  */
 
 export interface MapCardProps {
@@ -87,8 +87,14 @@ export function MapCard({ tag, mode, quietWhy, dark, onShow, arrive, className }
         });
         map.setView([lat, lon], zoom);
         const tiles = L.tileLayer(OSM_TILES, { maxZoom: 19, detectRetina: false });
+        // The map shows once its tiles are in, whatever a failed one said on the way: a failed tile is the map's
+        // paper. Only a map with no tile at all (offline, every one refused) stays the quiet card.
+        let drawn = false;
+        tiles.on('tileload', () => {
+          drawn = true;
+        });
         tiles.on('load', () => {
-          if (live) setLoaded(true);
+          if (live && drawn) setLoaded(true);
         });
         tiles.addTo(map);
         // Never Leaflet's own marker image, whose path detection 404s under a bundler: the app's pin, as a div icon.
@@ -120,7 +126,7 @@ export function MapCard({ tag, mode, quietWhy, dark, onShow, arrive, className }
 
   const label = tagLabel(tag);
   // OSM's data is credited where it is shown: the tiles, or the name it gave. The coordinates are the phone's.
-  const credit = (mode === 'map') || tag.place !== null;
+  const credit = (mode === 'map' && loaded) || tag.place !== null;
   const asks = mode === 'ask';
   const press = () => {
     if (asks) onShow?.();

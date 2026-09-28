@@ -98,7 +98,8 @@
   filter: grayscale(1) invert(1) brightness(0.8);
 }
 
-.map :global(.leaflet-container) {
+/* The map's box is Leaflet's container, and leaflet.css arrives after this sheet: the compound selector outweighs it. */
+.map:global(.leaflet-container) {
   background: var(--app-paper-2);
   font: inherit;
   outline: none;

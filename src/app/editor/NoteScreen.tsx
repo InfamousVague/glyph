@@ -20,8 +20,7 @@ import { isBookBody, type BookPlace } from '../book/book.ts';
 import { writeBookSpot } from '../book/bookSpot.ts';
 import { frontMatterOffset, withFrontMatterTitle } from '../core/frontMatter.ts';
 import { geoTagOf, sameTag, tagOf, withGeoTag, type GeoTag } from '../core/geotag.ts';
-import { autoTagRefusal, canLocate, canShowTiles, forgetRefusal, locate, pendingTag, placeFor, setPendingTag, settleTag, wantPlace, watchTag, whyLocateFailed, type LocateFailure } from '../core/location.ts';
-import { refinePending } from '../capture/refine.ts';
+import { canLocate, canShowTiles, forgetRefusal, locate, pendingTag, placeFor, refusedFor, rememberRefusal, setPendingTag, settleTag, wantPlace, watchTag, whyLocateFailed, type LocateFailure } from '../core/location.ts';
 import { REVIEW_HANDED_BACK } from '../ai/useNoteReview.ts';
 import { MapCard } from './MapCard.tsx';
 import { authorsOf } from '../core/authors.ts';
@@ -282,11 +281,19 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
     setPendingTag(note.id, null);
     return true;
   };
-  /** A tag waiting for this note lands once it may (core/location.ts `settleTag`): the better words in, the note with words. */
+  /**
+   * A tag waiting for this note lands once it may (core/location.ts `settleTag`): the better words in, the note with
+   * words. Until then the card is drawn from it. A note that says where it was written already keeps what it says.
+   */
   const settle = () => {
     const waiting = pendingTag(note.id);
     if (!waiting) return;
-    if (settleTag(note.id, body.current, { reviewing: reviewing.current }) !== null) writeTag(waiting);
+    if (geoTagOf(body.current)) {
+      setPendingTag(note.id, null);
+      return;
+    }
+    if (settleTag(note.id, body.current, { reviewing: reviewing.current }) !== null && writeTag(waiting)) return;
+    setTag((was) => (sameTag(was, waiting) ? was : waiting));
   };
   /** A name that came for the note's tag: written into the note, or onto the tag still waiting. */
   const namePlace = (place: string, lat: number, lon: number) => {
@@ -356,7 +363,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         setPendingTag(note.id, next);
         setTag(next);
         setFresh(true);
-        if (!refinePending(note.id) && !reviewing.current) settle();
+        // Into the note now, or waiting for the better words with the card drawn from it meanwhile.
+        latest.current.settle();
         // This device made the tag, so its name may be asked (core/location.ts decides whether it may).
         wantPlace(note.id, next);
       },
@@ -364,6 +372,8 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
         window.clearTimeout(slow);
         if (said) dismiss();
         const why = whyLocateFailed(failure);
+        // Refused here is refused: new notes are not asked for again until location is allowed.
+        rememberRefusal(why);
         fireNativeHaptic('warning');
         toast({
           message: NO_FIX[why],
@@ -637,7 +647,7 @@ export function NoteScreen({ note, onBack, onDelete, onSpeak, onPin, onArchive, 
             : undefined
         }
         onMakeBoard={shown === 'raw' && settingsOpen && boardFrom(view?.state.doc.toString() ?? body.current) ? makeBoard : undefined}
-        location={{ tag, can: canLocate(), asksName: prefs.placeNames && !prefs.localOnly, refused: tag ? null : autoTagRefusal(), onAdd: addLocation, onRemove: removeLocation }}
+        location={{ tag, can: canLocate(), asksName: prefs.placeNames && !prefs.localOnly, refused: tag ? null : refusedFor(note.createdAt), onAdd: addLocation, onRemove: removeLocation }}
         onPin={() => {
           flush();
           onPin({ ...note, starred: pinned });

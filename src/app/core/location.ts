@@ -1,9 +1,9 @@
 import { refinePending } from '../capture/refine.ts';
 import { frontMatterOffset } from './frontMatter.ts';
-import { coordsText, geoTagOf, shortPlace, tagOf, withGeoTag, type Fix, type GeoTag, type PlaceAnswer } from './geotag.ts';
+import { geoTagOf, shortPlace, tagOf, withGeoTag, type Fix, type GeoTag, type PlaceAnswer } from './geotag.ts';
 import { answerHost } from './host.ts';
-import { openLink } from './linkPreview.ts';
 import { hasNativeGeneration } from './nativeGeneration.ts';
+import { hasLocationBridge } from './placeLink.ts';
 import { isAndroid, isMacApp } from './platform.ts';
 import { preferences } from './preferences.ts';
 import { readStored, writeStored } from './stored.ts';
@@ -13,8 +13,8 @@ import { invoke, isTauri } from './tauri.ts';
 /**
  * Where the device is, and what becomes of that (Matt: "Add the ability to geotag notes and show a map card embedded
  * on the note"; then "Add a setting to geotag notes by default and turn it on"): the position fix, the place's name
- * asked of OpenStreetMap, the tag that waits for a recording's better words, and the way a tapped map opens the
- * phone's maps app. The tag itself, as the note carries it, is core/geotag.ts. Gated the way core/linkPreview.ts is:
+ * asked of OpenStreetMap, and the tag that waits for a recording's better words. The tag itself, as the note carries
+ * it, is core/geotag.ts, and where a tapped map goes is core/placeLink.ts (the shared page draws the card too). Gated the way core/linkPreview.ts is:
  * nothing leaves the device unless the person chose it. Four rules, each with its reason:
  *
  * 1. THE FIX IS A NETWORK CALL, so Local only turns it off too. On Android and the web `getCurrentPosition` with
@@ -87,9 +87,7 @@ const REFUSED_KEY = 'glyph-geotag-refused';
 type Access = 'granted' | 'approximate' | 'ask' | 'blocked';
 
 /** Whether this Android binary has the bridge that declares the permission (native generation 20). */
-function androidBridge(): boolean {
-  return isAndroid && isTauri() && typeof window.GlyphHost?.locationAccess === 'function';
-}
+const androidBridge = hasLocationBridge;
 
 function readAccess(): Access {
   try {
@@ -137,7 +135,8 @@ function askAndroid(): Promise<void> {
 
 /**
  * Where the device is now. `quiet` never raises a prompt: on a locked phone a recording's tag is taken only where the
- * permission is already held, since a dialog over the lock screen is nobody's choice.
+ * permission is already held, since a dialog over the lock screen is nobody's choice. A quiet ask that would have
+ * needed the prompt answers `unavailable`, not `refused`: nobody refused anything, and the next new note may ask.
  */
 export async function locate({ quiet = false }: { quiet?: boolean } = {}): Promise<Fix> {
   const can = canLocate();
@@ -146,7 +145,7 @@ export async function locate({ quiet = false }: { quiet?: boolean } = {}): Promi
     let state = readAccess();
     if (state === 'blocked') throw new LocateError('blocked');
     if (state === 'ask') {
-      if (quiet) throw new LocateError('refused');
+      if (quiet) throw new LocateError('unavailable');
       await askAndroid();
       state = readAccess();
     }
@@ -347,15 +346,58 @@ interface Refusal {
   at: number;
 }
 
-/** The refusal the last automatic ask met, if any: the note's More sheet says why the note was not tagged. */
+/** A refusal is about the notes made from a little before it (the one whose ask it answered) onwards. */
+const REFUSAL_REACH_MS = 5 * 60_000;
+
+function readRefusal(): Refusal | null {
+  return readStored<Refusal | null>(REFUSED_KEY, null, (raw) => (raw && typeof raw === 'object' && typeof (raw as Refusal).why === 'string' && typeof (raw as Refusal).at === 'number' ? (raw as Refusal) : null));
+}
+
+/** The refusal the last automatic ask met, if any. */
 export function autoTagRefusal(): LocateFailure | null {
-  const kept = readStored<Refusal | null>(REFUSED_KEY, null, (raw) => (raw && typeof raw === 'object' && typeof (raw as Refusal).why === 'string' ? (raw as Refusal) : null));
-  return kept?.why ?? null;
+  return readRefusal()?.why ?? null;
+}
+
+/**
+ * Why a note made at `createdAt` was not tagged on its own, if a refusal explains it: the note's More sheet says so.
+ * A note older than the refusal was never going to be tagged (existing notes are left as they are), so it is told
+ * nothing.
+ */
+export function refusedFor(createdAt: number): LocateFailure | null {
+  const kept = readRefusal();
+  return kept && createdAt >= kept.at - REFUSAL_REACH_MS ? kept.why : null;
+}
+
+/** An automatic ask was refused, or the phone blocks location: no automatic ask is made again until it is allowed. */
+export function rememberRefusal(why: LocateFailure): void {
+  if (why === 'refused' || why === 'blocked') writeStored(REFUSED_KEY, { why, at: Date.now() } satisfies Refusal);
 }
 
 /** A fix came, or the person allowed location: the automatic ask may be made again. */
 export function forgetRefusal(): void {
   writeStored(REFUSED_KEY, null);
+}
+
+/**
+ * Whether a kept refusal still stands. Allowing location in the phone's settings is a choice too: where the device
+ * can say it is allowed now (Android's bridge, the browser's permissions), the refusal is forgotten and the ask made.
+ */
+async function stillRefused(): Promise<LocateFailure | null> {
+  const why = autoTagRefusal();
+  if (!why) return null;
+  let allowed = false;
+  if (androidBridge()) {
+    const state = readAccess();
+    allowed = state === 'granted' || state === 'approximate';
+  } else if (typeof navigator !== 'undefined' && typeof navigator.permissions?.query === 'function') {
+    allowed = await navigator.permissions
+      .query({ name: 'geolocation' })
+      .then((status) => status.state === 'granted')
+      .catch(() => false);
+  }
+  if (!allowed) return why;
+  forgetRefusal();
+  return null;
 }
 
 /**
@@ -371,7 +413,7 @@ export async function tagNewNotes(ids: readonly string[], fix: Promise<Fix>, hel
     position = await fix;
   } catch (failure) {
     const why = whyLocateFailed(failure);
-    if (why === 'refused' || why === 'blocked') writeStored(REFUSED_KEY, { why, at: Date.now() } satisfies Refusal);
+    rememberRefusal(why);
     return why;
   }
   forgetRefusal();
@@ -406,31 +448,10 @@ export async function tagNewNotes(ids: readonly string[], fix: Promise<Fix>, hel
  * after a refusal until the person allows location (the note's sheet says why the note was not tagged). `quiet`
  * never raises a prompt (a locked phone).
  */
-export function tagNewNotesIfWanted(ids: readonly string[], held: { reviewing: boolean }, { quiet = false }: { quiet?: boolean } = {}): Promise<LocateFailure | null> {
+export async function tagNewNotesIfWanted(ids: readonly string[], held: { reviewing: boolean }, { quiet = false }: { quiet?: boolean } = {}): Promise<LocateFailure | null> {
   const prefs = preferences();
-  if (!ids.length || !prefs.tagNewNotes || prefs.localOnly) return Promise.resolve(null);
-  const refused = autoTagRefusal();
-  if (refused) return Promise.resolve(refused);
+  if (!ids.length || !prefs.tagNewNotes || prefs.localOnly) return null;
+  const refused = await stillRefused();
+  if (refused) return refused;
   return tagNewNotes(ids, locate({ quiet }), held);
-}
-
-// ---- opening the place ---------------------------------------------------------------------------
-
-/**
- * Where a tap on the card goes, per platform, carrying the place name or the coordinates and never the note's title
- * (a title goes to whichever app takes the intent, and a maps app keeps its searches): the phone's maps chooser on an
- * Android binary that has the opener's `geo:` scope (the one whose bridge declares the permission), Apple Maps on the
- * Mac, and openstreetmap.org everywhere else, which carries no label.
- */
-export function placeUrl(tag: GeoTag): string {
-  const { lat, lon } = tag;
-  if (androidBridge()) return `geo:${lat},${lon}?q=${lat},${lon}${tag.place ? `(${encodeURIComponent(tag.place)})` : ''}`;
-  if (isMacApp) return `https://maps.apple.com/?ll=${lat},${lon}&q=${encodeURIComponent(tag.place ?? coordsText(tag))}`;
-  const zoom = tag.rough ? 12 : 15;
-  return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=${zoom}/${lat}/${lon}`;
-}
-
-/** Opens the place in the device's maps app, or the browser. */
-export async function openPlace(tag: GeoTag): Promise<void> {
-  await openLink(placeUrl(tag));
 }

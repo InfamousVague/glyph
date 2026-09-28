@@ -94,6 +94,15 @@ describe('the Location page', () => {
     expect(opened).toHaveBeenCalledTimes(1);
   });
 
+  it('says so when a new note’s own ask was refused, and forgets it once the switch is turned off', () => {
+    localStorage.setItem('glyph-geotag-refused', JSON.stringify({ why: 'refused', at: Date.now() }));
+    const host = show(<LocationPane />);
+    expect(host.textContent).toContain('Ghost.md wasn’t allowed to know where you are, so new notes are not tagged.');
+    expect(preferences().tagNewNotes).toBe(true);
+    flip(host, 'Tag new notes with my location');
+    expect(host.textContent).not.toContain('not tagged');
+  });
+
   it('greys tagging where no fix can be asked for, and says why', () => {
     for (const [why, words] of [
       ['mac', 'This Mac can’t say where it is yet.'],

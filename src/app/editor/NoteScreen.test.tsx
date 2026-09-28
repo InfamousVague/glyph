@@ -793,6 +793,40 @@ describe('where the note was written', () => {
     expect(saved()).toEqual(['---\nlocation: 52.5200,13.4050\n---\n{"nodes":[],"edges":[]}']);
   });
 
+  it('draws a new note’s tag the moment it comes, and never writes one over a tag the note already has', async () => {
+    const { tagNewNotes, pendingTag } = await import('../core/location.ts');
+    const { setPreferences } = await import('../core/preferences.ts');
+    setPreferences({ placeNames: false });
+    show(screen(await createNote('n1', '')));
+    expect(card()).toBeNull();
+    // The shell's new-note tag, arriving while the note is open and still blank (App.tsx `newNote`).
+    await act(async () => tagNewNotes(['n1'], Promise.resolve({ lat: 35.6762, lon: 139.6503, accuracy: 12, at: 0 }), { reviewing: false }));
+    await settle();
+    expect(card()?.textContent).toContain('35.6762, 139.6503');
+    expect(editor().state.doc.toString()).toBe('');
+    unmount();
+    const here = '---\nlocation: 10.0000,20.0000\n---\n# Here\n';
+    show(screen(await createNote('n2', here)));
+    await act(async () => tagNewNotes(['n2'], Promise.resolve({ lat: 1, lon: 2, accuracy: 12, at: 0 }), { reviewing: false }));
+    await settle();
+    expect(editor().state.doc.toString()).toBe(here);
+    expect(pendingTag('n2')).toBeNull();
+  });
+
+  it('says on the sheet why a note made since a refusal was not tagged, and nothing of it on an older note', async () => {
+    const { rememberRefusal } = await import('../core/location.ts');
+    fixAt(51.5074, -0.1278);
+    const old = { ...(await createNote('old', '# Last year\n')), createdAt: Date.now() - 60 * 60_000 };
+    rememberRefusal('refused');
+    show(screen(await createNote('new', '# Today\n')));
+    act(() => button('More for this note').click());
+    expect(buttonSaying(document.body, 'Add my location')?.textContent).toContain('so this note wasn’t tagged');
+    unmount();
+    show(screen(old));
+    act(() => button('More for this note').click());
+    expect(buttonSaying(document.body, 'Add my location')?.textContent).not.toContain('wasn’t tagged');
+  });
+
   it('follows a location typed by hand into the front matter', async () => {
     show(screen(await createNote('n1', '# Groceries')));
     expect(card()).toBeNull();

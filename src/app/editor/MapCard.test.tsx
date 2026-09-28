@@ -62,8 +62,8 @@ vi.mock('leaflet', () => {
 });
 vi.mock('leaflet/dist/leaflet.css', () => ({}));
 const opened: GeoTag[] = [];
-vi.mock('../core/location.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../core/location.ts')>()),
+vi.mock('../core/placeLink.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../core/placeLink.ts')>()),
   openPlace: async (tag: GeoTag) => {
     opened.push(tag);
   },
@@ -157,12 +157,24 @@ describe('the map', () => {
     expect(leaflet.iconImages).toBe(0);
     expect(leaflet.markers[0]).toMatchObject({ at: [51.5074, -0.1278], options: { interactive: false, keyboard: false } });
     expect(String(leaflet.icons[0]!.html)).toContain('<path');
-    expect(chips()).toEqual(['51.5074, -0.1278', '© OpenStreetMap contributors']);
-    // A failed tile says nothing; the layer's load is what fades the map in.
+    // Nothing of OSM's is shown yet, so nobody is credited.
+    expect(chips()).toEqual(['51.5074, -0.1278']);
+    // A failed tile says nothing; the layer's load, once any tile has come, is what fades the map in.
     expect(card().hasAttribute('data-loaded')).toBe(false);
     act(() => leaflet.tiles[0]!.on.tileerror?.());
+    act(() => leaflet.tiles[0]!.on.tileload!());
     act(() => leaflet.tiles[0]!.on.load!());
     expect(card().hasAttribute('data-loaded')).toBe(true);
+    expect(chips()).toEqual(['51.5074, -0.1278', '© OpenStreetMap contributors']);
+  });
+
+  it('stays the quiet card when no tile came at all', async () => {
+    show(<MapCard tag={LONDON} mode="map" dark={false} />);
+    await waitUntil(() => expect(leaflet.maps).toHaveLength(1));
+    // Offline: every tile failed, and Leaflet still says the layer has loaded.
+    act(() => leaflet.tiles[0]!.on.load!());
+    expect(card().hasAttribute('data-loaded')).toBe(false);
+    expect(chips()).toEqual(['51.5074, -0.1278']);
   });
 
   it('draws a rough tag at zoom 12 with a ring', async () => {
