@@ -19,7 +19,7 @@ import { forEachLineOutsideFences } from './lines.ts';
  * reads (a Notion task, a GitHub issue) has its own row, and a link in the middle of words stays a link.
  *
  * The title comes from core/linkPreview.ts, and only for a card on screen; until then, or without it, the card
- * says the site and the path. Link previews off (Settings > Type) draws no cards at all.
+ * says the site and the path. Link previews off (Settings › Account › Privacy) draws no cards at all.
  */
 
 /** The whole line is a link: bare, `<bare>`, or `[words](address)`, optionally as a list item or a to-do. */

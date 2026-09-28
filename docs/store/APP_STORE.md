@@ -7,7 +7,7 @@ Everything else Apple asks for is fixed or listed below (DESIGN §113).
 ## Already done
 
 - **Delete account** in the app (guideline 5.1.1(v)), and the server endpoint behind it. The same work as Play's.
-- **Privacy policy** at `landing/privacy.html`, linked from Settings › About.
+- **Privacy policy** at `landing/privacy.html`, linked from Settings › Account › Privacy.
 - **Privacy manifest:** `src-tauri/gen/apple/glyph_iOS/PrivacyInfo.xcprivacy`.
   - No tracking.
   - Collected, only with an account: User ID, User Content, Photos, Audio, linked to the user, for app function.

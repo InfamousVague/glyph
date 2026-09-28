@@ -1,5 +1,5 @@
 /*
- * The coding faces (Settings > Type; Matt: "a monospace capable coding font ... with some cool serifs on things like &
+ * The coding faces (Settings › Appearance › Type; Matt: "a monospace capable coding font ... with some cool serifs on things like &
  * and other symbols ... like fira code also support decorators ... where multiple symbols can combine", then "add fira
  * code and maple mono"). Two monospace families beside the kit's three sans (tokens.css `[data-font]`), chosen for
  * their symbols as much as their letters: Maple Mono's looped ampersand and cursive at-sign and cursive italic, and
@@ -29,7 +29,7 @@
 }
 
 /*
- * Two faces (Settings > Type; Matt: "font pairs, for the note body I want to use the maple mono font and for the
+ * Two faces (Settings › Appearance › Type; Matt: "font pairs, for the note body I want to use the maple mono font and for the
  * interface I want to use inter by default"). The interface's is the kit's `data-font` (tokens.css), one of the sans.
  * The note's is `data-note-font`, which core/preferences.ts always stamps, and which sets the words of a note and, for
  * a coding face, its code. With nothing stamped - the reader's page, which has no settings - the note is in the

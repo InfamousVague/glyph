@@ -60,6 +60,11 @@ export const githubPlugin: GlyphPlugin = {
   settings: {
     Pane: GitHubPane,
     hue: 'graphite',
+    // What Settings' search finds on the page (docs/DESIGN.md §138): its cards, by their titles.
+    settings: [
+      { name: 'Repos', words: 'repositories briefing context' },
+      { name: 'Token', words: 'private issues' },
+    ],
     summary: () => {
       const count = projects().length;
       return count ? `${count} ${count === 1 ? 'repo' : 'repos'}${canWriteIssues() ? ', issues on' : ''}` : 'Repos, issues and context';

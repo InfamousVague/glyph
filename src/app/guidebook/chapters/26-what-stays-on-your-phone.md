@@ -16,7 +16,7 @@ The microphone listens only while you record. A spoken command, with Hey Ghost o
 
 ## Local only
 
-**Settings › Formatting › Local only**, in the app, keeps Ghost.md to what is already on the device. With it on:
+**Settings › Account › Privacy › Local only**, in the app, keeps Ghost.md to what is already on the device. With it on:
 
 | It stops | So |
 | --- | --- |
@@ -40,7 +40,7 @@ It does not reach a few things you turn on or tap yourself:
 | An account, and sync | Notes, recordings, pictures and settings, sealed on the device first | Your devices only |
 | Sharing a note or a book | A sealed copy. Its key rides in the link after the `#`, which browsers never send to a server. | Anyone you give the link to |
 | Live typing | What you type in a note open on two of your devices, sealed, passed through a relay that keeps nothing | Your devices only |
-| Link previews | In the apps, your device asks the linked site for the page's title. Off in Settings › Type. | The site, which sees your IP address |
+| Link previews | In the apps, your device asks the linked site for the page's title. Off in Settings › Account › Privacy. | The site, which sees your IP address |
 | Notion | Only the items you send, and the reads of their tasks, from your device straight to Notion | Notion |
 | GitHub | The repo read, and the issues you make, from your device straight to GitHub with your token | GitHub |
 | Claude, hosted | While connected, Ghost.md's server holds your notes' key in memory | The server, for Claude, and Claude |
@@ -78,7 +78,7 @@ Lost the password? Sign in with a recovery code under **Lost the password**, the
 
 ## The whole policy
 
-The privacy policy is at **ghostmarkdown.com/privacy.html**, and **Settings › About › Privacy policy** opens it.
+The privacy policy is at **ghostmarkdown.com/privacy.html**, and **Settings › Account › Privacy policy** opens it.
 
 ## Read next
 

@@ -286,7 +286,7 @@ export function NoteSettings({
       {/* Matt: "i want the glossary / lexicon / cheat sheet added for all formatting rules in the help section of the more menu". */}
       <SheetHeading>Help</SheetHeading>
       <SheetGroup>
-        <SheetRow icon={CheatSheetIcon} label="Formatting cheat sheet" hint="Every mark you can type, and every cue you can say." onPress={() => setPage('cheatsheet')} />
+        <SheetRow icon={CheatSheetIcon} label="Formatting cheat sheet" hint="Every mark you can type, and what it looks like, on one page." onPress={() => setPage('cheatsheet')} />
       </SheetGroup>
 
       {/* Into the trash, from where it is brought back or deleted for good (core/trash.ts). */}

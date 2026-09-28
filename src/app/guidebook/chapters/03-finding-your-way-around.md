@@ -53,7 +53,7 @@ The arrows beside the sidebar's icon go back to where you were, and forward agai
 
 A tree of your notes, shaped like Obsidian's file explorer. Its top row of tools: New note, New workspace, Search and commands, Show names only (or Show each note drawn small), Browse files ([[A note is a Markdown file]]), Fold every folder or Open every folder once there are folders, and, where the sidebar floats as a card, Close. Below them, your workspaces as folders that fold shut, each with a button to rename, recolour or remove it; then the notes filed in no workspace; then the **Archive** folder, which starts shut; then the **Trash**. At its foot, Speak and Settings. Names only, and which folders are shut, are kept on this device.
 
-Where it sits is Settings › Appearance › Sidebar. **Popover**, the choice it starts with, opens it as a card floating over the note when you tap the sidebar's icon. **Docked** puts it in a column beside the note on a wide window. On a phone the sidebar always floats as a card, which closes when you open a note.
+Where it sits is Settings › Appearance › Sidebar, drawn on a wide window, the only place it changes anything. **Popover**, the choice it starts with, opens it as a card floating over the note when you tap the sidebar's icon. **Docked** puts it in a column beside the note on a wide window. On a phone the sidebar always floats as a card, which closes when you open a note.
 
 ## The aside
 
@@ -80,7 +80,7 @@ The trash syncs: a note put in the trash on the phone is in the trash on the Mac
 ## Where a note opens, and how big
 
 - **A note opens where you left it.** Scroll down a note, leave it, and it opens on the same words next time, even if lines were added above them since. This device remembers the place in the two hundred notes you read last. A bookmark wins over it: a note with one opens at the bookmark ([[Tags, footnotes and the small marks]]).
-- **Pinch to change the size of the words.** Two fingers on a note make its text larger or smaller, from seven tenths of its size to twice it, on top of Settings › Type › Text size. The words under your fingers stay under them. The size is kept on this device, and every note opens at the size you last pinched.
+- **Pinch to change the size of the words.** Two fingers on a note make its text larger or smaller, from seven tenths of its size to twice it, on top of Settings › Appearance › Text size. The words under your fingers stay under them. The size is kept on this device, and every note opens at the size you last pinched.
 
 ## Find and replace
 
@@ -90,7 +90,7 @@ Open it from a note's More sheet › Find and replace, or select some words, pre
 
 One list of your notes by name and everything the app can do, searched as you type. Open it with the home page's Search, with ⌘K on a Mac, or with Search and commands in the sidebar.
 
-Its groups: **This note** (talk into it, show it formatted or with its marks, pin, archive, delete, file it in a workspace, put its tab in a group), **Notes** (New note, Speak a new note, Home, All notes), **Open tabs**, **Workspaces**, **Notes by name** (with nothing typed, the forty notes changed last, less any already open; once you type, the notes whose names match, however long ago they changed), **Look** (the themes), and **Ghost.md** (Settings, Cheat sheet, Ghost.md Academy, How to talk to Ghost.md). The back gesture closes it and leaves you where you were.
+Its groups: **This note** (talk into it, show it formatted or with its marks, pin, archive, delete, file it in a workspace, put its tab in a group), **Notes** (New note, Speak a new note, Home, All notes), **Open tabs**, **Workspaces**, **Notes by name** (with nothing typed, the forty notes changed last, less any already open; once you type, the notes whose names match, however long ago they changed), **Look** (the themes), and **Ghost.md** (Settings, Cheat sheet, Ghost.md Academy, The welcome walkthrough). The back gesture closes it and leaves you where you were.
 
 ## Read next
 

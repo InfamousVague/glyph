@@ -31,10 +31,10 @@ export interface ModelChoice {
 
 /** In the order Settings shows them. Ids match `llm::model::CATALOGUE`. */
 export const MODELS: readonly ModelChoice[] = [
-  { id: 'qwen3.5-2b', name: 'Qwen3.5 2B', about: 'Quick. Good for short notes; it can shorten long ones.', bytes: 1_280_835_840 },
+  { id: 'qwen3.5-2b', name: 'Qwen3.5 2B', about: 'Quick. Good for short notes, and it can shorten long ones.', bytes: 1_280_835_840 },
   { id: 'qwen3.5-4b', name: 'Qwen3.5 4B', about: 'The balance. Careful with facts, fits most phones.', bytes: 2_740_937_888 },
   { id: 'qwen3.5-9b', name: 'Qwen3.5 9B', about: 'The most careful, and the slowest. Wants 12 GB of memory.', bytes: 5_680_522_464 },
-  { id: 'gemma-4-e4b', name: 'Gemma 4 E4B', about: 'A different voice. Runs like a 4B; the file is bigger.', bytes: 4_977_171_584 },
+  { id: 'gemma-4-e4b', name: 'Gemma 4 E4B', about: 'A different voice. Runs like a 4B, with a bigger file.', bytes: 4_977_171_584 },
 ];
 
 export const DEFAULT_MODEL = 'qwen3.5-4b';

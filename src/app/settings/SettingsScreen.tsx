@@ -5,6 +5,7 @@ import { onBack } from '../core/back.ts';
 import { useSwipeNav } from '../core/swipe.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { useSidebar } from '../core/useWideScreen.ts';
+import { backWord, clustersOf, currentRow, listedOf, stepBack, stepForward } from './sectionSteps.ts';
 import { findSetting, searchSettings, type SettingsFindable, type SettingsHit } from './settingsSearch.ts';
 import './settings.css';
 
@@ -22,7 +23,15 @@ import './settings.css';
  * or a swipe to the right across it, steps out of a pane and then closes the
  * page; a swipe to the left goes forward again, back into the pane just left.
  * One handler, registered while the page is open, answers by depth. Every
- * fresh open lands on the list, and the rows arrive one after another.
+ * fresh open lands on the list, and the rows arrive one after another: a
+ * request to land somewhere is answered once, by its nonce, so the last one
+ * kept while the page was closed does not land it there again.
+ *
+ * Two depths since docs/DESIGN.md §138 (Matt: "also see if you can clean up / streamline settings a bit"): five panes
+ * on the list, and sub-pages that are not on it (a plugin's own page, the cheat sheet, the examples), each opened from
+ * a row on its parent's page. Over a sub-page the head says its parent ("← Plugins"), and back steps there first.
+ * Where it goes is settings/sectionSteps.ts. A page can be opened at one of its settings, scrolled to and lit as a
+ * search hit is: `goTo.setting`, which the home page's "Get a model" and the "Local only" words use.
  */
 
 export interface SettingsSection {
@@ -40,14 +49,27 @@ export interface SettingsSection {
   words?: string;
   /** The settings on its page, by the names the page gives them, for the search to find and open onto. */
   settings?: SettingsFindable[];
+  /** False keeps it off the list: a sub-page, opened from a row on its parent's page, or found by the search. */
+  listed?: boolean;
+  /** The section a sub-page steps back to, and whose row is current in the split view while it shows. */
+  parent?: string;
+}
+
+/** Where to land: a section, and a setting on its page to bring into view and light, by its row's or card's name. */
+export interface SettingsTarget {
+  id: string;
+  setting?: string;
 }
 
 interface SettingsScreenProps {
   open: boolean;
   onClose: () => void;
   sections: SettingsSection[];
-  /** Asked from inside a pane: land on another one (About's knock opens Developer). */
-  goTo?: { id: string; nonce: number } | null;
+  /**
+   * Asked from outside or from inside a pane: land on a section, and on a setting there when one is named (About's
+   * knock opens Developer; "Local only" opens Account at the Privacy card). A new nonce asks again.
+   */
+  goTo?: (SettingsTarget & { nonce: number }) | null;
 }
 
 /**
@@ -59,19 +81,15 @@ interface SettingsScreenProps {
  */
 const HUES: Record<string, string> = {
   account: 'blue',
-  type: 'indigo',
   theme: 'purple',
   recording: 'red',
-  // Its own: coral is the Claude plugin's (plugins/claude), on the same list.
-  location: 'lime',
-  formatting: 'orange',
-  feel: 'teal',
   plugins: 'green',
-  animations: 'pink',
-  cheatsheet: 'yellow',
   about: 'grey',
   developer: 'brown',
   'test-results': 'mint',
+  // The sub-pages About opens keep the cheat sheet's yellow; a plugin's brings its own.
+  cheatsheet: 'yellow',
+  examples: 'yellow',
 };
 
 /** A section's colour: its own, or its id's, or grey for a section added later without one. */
@@ -145,11 +163,17 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
     }
   }, [open]);
 
+  // Each request once, by its nonce. The sheet keeps its last one while the page is closed (it stays mounted), and
+  // answering it again on the next open would land on the last page a link opened rather than on the list.
+  const answered = useRef<number | null>(null);
   useEffect(() => {
-    if (open && goTo) {
-      setDirection('in');
-      setActiveId(goTo.id);
-    }
+    if (!open || !goTo || answered.current === goTo.nonce) return;
+    answered.current = goTo.nonce;
+    setDirection('in');
+    setLeft(null);
+    setActiveId(goTo.id);
+    // A setting named with it is looked for on the page as a search hit is, below.
+    setTarget(goTo.setting ? { id: goTo.id, setting: goTo.setting, nonce: goTo.nonce } : null);
   }, [open, goTo]);
 
   // A section that left the array (developer mode switched off inside it)
@@ -169,29 +193,31 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
    * On a window with room for the sidebar - a desktop, a large tablet, the Fold opened - Settings is a split view
    * (Matt: "on full screen and desktop and larger tablets show a split view for settings with the sidebar on the left
    * and the settings sections on the right"): the sections down the left, the chosen one's page on the right, and
-   * the first section's page until one is chosen. There is no list page to go back to, so back leaves Settings.
-   * Exactly the sidebar's line (core/useWideScreen.ts `useSidebar`), so the app changes shape once.
+   * the first section's page until one is chosen. There is no list page to go back to, so back leaves Settings, from
+   * anywhere but a sub-page, which steps to its parent first, and the head says so there ("← Plugins"), as it does on a
+   * phone. A sub-page is never a row in the column: its parent's row is the current one while it shows. Exactly the
+   * sidebar's line (core/useWideScreen.ts `useSidebar`), so the app changes shape once.
    */
   const split = useSidebar();
 
   const back = useCallback(() => {
-    if (split) {
+    const to = stepBack(sections, activeId);
+    // In the split view there is no list page to step back to: a sub-page steps to its parent, anything else leaves.
+    if (to === 'close' || (split && to === null)) {
       onClose();
       return;
     }
-    if (activeId !== null) {
-      setDirection('out');
-      setLeft(activeId);
-      setActiveId(null);
-    } else {
-      onClose();
-    }
-  }, [activeId, onClose, split]);
+    setDirection('out');
+    setLeft(activeId);
+    setActiveId(to);
+  }, [activeId, onClose, sections, split]);
 
   const forward = useCallback(() => {
-    if (activeId === null && left && sections.some((s) => s.id === left)) {
+    const to = stepForward(sections, activeId, left);
+    if (to) {
       setDirection('in');
-      setActiveId(left);
+      setLeft(null);
+      setActiveId(to);
     }
   }, [activeId, left, sections]);
 
@@ -263,12 +289,7 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
 
   if (!open) return null;
 
-  const clusters = sections.reduce<SettingsSection[][]>((groups, section) => {
-    const last = groups[groups.length - 1];
-    if (last && last[0]!.group === section.group) last.push(section);
-    else groups.push([section]);
-    return groups;
-  }, []);
+  const clusters = clustersOf(sections);
 
   let row = 0;
   /** The sections, clustered into cards: the list page on a phone, the left column of the split view. */
@@ -397,19 +418,28 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
     );
 
   if (split) {
-    const shown = active ?? sections[0] ?? null;
+    const shown = active ?? listedOf(sections)[0] ?? null;
+    const current = currentRow(sections, shown);
+    // Over a sub-page the head names its parent and steps there, as back and Escape do; anywhere else it leaves.
+    const sub = shown !== null && current !== shown.id;
     return (
       <div ref={root} className="settingsScreen" role="dialog" aria-modal="true" aria-label="Settings" data-layout="split" data-view="pane" data-direction={direction}>
         <header className="settingsScreen__head">
-          <button type="button" className="app-word settingsScreen__headWord" onClick={onClose} aria-label="Back to your notes">
-            <ArrowLeft /> Settings
-          </button>
+          {sub ? (
+            <button type="button" className="app-word settingsScreen__headWord" onClick={back}>
+              <ArrowLeft /> {backWord(sections, shown)}
+            </button>
+          ) : (
+            <button type="button" className="app-word settingsScreen__headWord" onClick={onClose} aria-label="Back to your notes">
+              <ArrowLeft /> Settings
+            </button>
+          )}
         </header>
         <div className="settingsScreen__split">
           <div className="settingsScreen__side">
             {search}
             <nav className="settingsScreen__list" aria-label={looking ? 'Settings found' : 'Settings sections'}>
-              {looking ? found(shown?.id ?? null) : list(shown?.id ?? null)}
+              {looking ? found(current) : list(current)}
             </nav>
           </div>
           {shown ? (
@@ -427,9 +457,10 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
     <div ref={root} className="settingsScreen" role="dialog" aria-modal="true" aria-label="Settings" data-view={active ? 'pane' : 'list'} data-direction={direction}>
       {active ? (
         <>
+          {/* The way back names where it goes: "Settings" over a pane, its parent's name over a sub-page. */}
           <header className="settingsScreen__head">
             <button type="button" className="app-word settingsScreen__headWord" onClick={back}>
-              <ArrowLeft /> Settings
+              <ArrowLeft /> {backWord(sections, active)}
             </button>
           </header>
           <div ref={scroller} className="settingsScreen__pane" key={active.id} data-hue={hueOf(active)}>
@@ -452,9 +483,9 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
             </button>
           </header>
           {search}
+          {/* The list ends in air: a left swipe still goes back into the page just left, without a line saying so. */}
           <nav ref={scroller} className="settingsScreen__list" key="list" aria-label={looking ? 'Settings found' : 'Settings sections'}>
             {looking ? found(null) : list(null)}
-            {left && !looking ? <p className="settingsScreen__hint">Swipe left to go back into {sections.find((s) => s.id === left)?.label ?? 'the page'}.</p> : null}
           </nav>
         </>
       )}

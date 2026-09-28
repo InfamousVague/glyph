@@ -247,7 +247,7 @@ export function WispBench({ open, onClose, limits = { quick: QUICK_LIMITS, long:
           page&apos;s, so measuring is done on one surface; side by side is for looking.
         </p>
         {!smokeOn && (
-          <SettingsCallout>The smoke is switched off under Feel, so every surface here wears nothing. Turn it on to compare.</SettingsCallout>
+          <SettingsCallout>The smoke is switched off under Appearance › Motion, so every surface here wears nothing. Turn it on to compare.</SettingsCallout>
         )}
         <div className={styles.controls}>
           <div className={styles.choice}>

@@ -79,7 +79,7 @@ interface HomeScreenProps {
   onNew: () => void;
   onCapture: () => void;
   onSettings: () => void;
-  /** Settings open at Formatting, where a language model is fetched: the shelf's "Get a model". Plain Settings when absent. */
+  /** Settings open at Recording's Model card, where a language model is fetched: the shelf's "Get a model". Plain Settings when absent. */
   onGetModel?: () => void;
   /**
    * The command palette (commands/CommandBar.tsx): search the notes and everything Glyph can do. Absent until the
@@ -221,10 +221,11 @@ export function HomeScreen({
   const phrases = useMemo(() => digest({ open: open.length, waiting, touched }), [open.length, waiting, touched]);
   const hasNotes = shown.some((n) => !n.archivedAt);
   /**
-   * A phrase tapped: the page glides to its group, or Settings opens at Formatting for a missing model. A group that is
-   * not on the page: nothing. The glide's target is fixed when it starts, so what is above the group must hold its
-   * height while the page moves: a pinned card's peek lets its editor go as the card leaves the scroller, and the blank
-   * that stands in is held at the editor's height (notes/NotePeek.tsx), or the heading landed 69px behind the bar.
+   * A phrase tapped: the page glides to its group, or Settings opens at Recording's Model card for a missing model. A
+   * group that is not on the page: nothing. The glide's target is fixed when it starts, so what is above the group must
+   * hold its height while the page moves: a pinned card's peek lets its editor go as the card leaves the scroller, and
+   * the blank that stands in is held at the editor's height (notes/NotePeek.tsx), or the heading landed 69px behind the
+   * bar.
    */
   const glide = (go: DigestGo) => {
     if (go === 'model') return (onGetModel ?? onSettings)();

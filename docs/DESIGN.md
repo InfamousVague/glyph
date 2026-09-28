@@ -955,7 +955,7 @@ Escape does the same on a desktop.
 | Formatted columns | `store.rs` (`set_formatted`), `commands.rs` (`set_note_formatted`) |
 | The prompt, the run, the view | `src/app/format/{prompt,formatter,FormattedView}.ts(x)` (formatter.ts is now `src/app/format/bodyHash.ts` and `src/app/format/pipeline.ts`; FormattedView.tsx went with §114) |
 | Models on the page | `src/app/core/ai.ts` |
-| Settings | `src/app/settings/{SettingsSheet,SettingsScreen,FormattingPane,panes,developerMode}.ts(x)`, `kit/` |
+| Settings | `src/app/settings/{SettingsSheet,SettingsScreen,FormattingPane,panes,developerMode}.ts(x)`, `kit/` (FormattingPane.tsx is ModelCard.tsx on Recording since §138) |
 | Back | `src/app/core/back.ts`, `MainActivity.kt` |
 | ggml, once | `src-tauri/vendor/whisper-rs-sys`, `Cargo.toml` patch, `.cargo/config.toml` |
 
@@ -1277,7 +1277,7 @@ like having a pin on each note".
   phone's, its share of the cores, threads of cores, the hottest thermal zone). What nothing
   reports is left out rather than guessed. "Nothing leaves the phone." closes it, with Stop.
 - **Local only** (`localOnly` in preferences, a switch in Settings > Formatting under "On the
-  phone"). While it is on: the update check never asks the box (`core/ota.ts`), a model download
+  phone"; on Account's Privacy card since §138). While it is on: the update check never asks the box (`core/ota.ts`), a model download
   is refused with a sentence (`core/ai.ts`), the voice model is not fetched and the recorder says
   why, the larger voice model is not fetched and the better words wait (`capture/engine.ts`,
   `capture/refine.ts`), and every plugin that declares the network permission is off
@@ -1655,7 +1655,8 @@ two phrases that were each plain words.
   command words back into notes. A job now carries `skip` (the command stretches) and `keywordAt` (phrases cut at
   "Glyph"), and `withoutCommands` drops and cuts the better phrases by overlap.
 - **Settings › Recording › Commands start with “Glyph”**, on by default. Off, a phrase that reads as a command
-  still counts without the keyword, and still asks. The tips in a pause teach the keyword form.
+  still counts without the keyword, and still asks. The tips in a pause teach the keyword form. (The row went with its
+  preference in §136, voice/no-keyword: a command needs no keyword now. §138 streamlined the page it was on.)
 
 ## 39. Tables, said a piece at a time (2026-09-14)
 
@@ -3575,7 +3576,8 @@ answers I can click on"), built together.
 - **"Hey Ghost".** The rename made the spoken word "Ghost" (§63), and "ghost" is a common word: a note that begins
   "Ghost stories…" was a command with no command in it. Matt chose "require hey Ghost for the new word": the
   recogniser (capture/command.ts) takes the new word only after "hey", "hi", "OK" or "so", and "Glyph" with or
-  without them, as it always did. The copy that says the word says "Hey Ghost".
+  without them, as it always did. The copy that says the word says "Hey Ghost". (§136 made the word optional and
+  took away its Settings row, "Commands start with “hey Ghost”".)
 - **Memo mode is gone.** The memos screen went on the 20th; Matt chose "remove it" for the capture side. Out: the
   memo flow that asked which note first and answered trigger words, the `memo` preference and its synced entry and
   its row, continuation of the last spoken note, the scratch page and the memo-sorting screen, the waiting-memo card
@@ -4095,9 +4097,10 @@ Matt: "Add colors to the icons throughout the settings page make the icon backgr
 the icon full opacity on the same color", then "Also on full screen and desktop and larger tablets show a split view
 for settings with the sidebar on the left and the settings sections on the right".
 
-- **Colour:** each section has a hue (SettingsScreen.tsx `hueOf`). Account is blue, Type indigo, Appearance purple,
-  Recording red, Formatting orange, Feel teal, Notion and GitHub graphite, Claude coral, Plugins green, Animations
-  pink, Cheat sheet yellow, About grey, Developer brown and Test results mint. Its chip in the list is that colour at
+- **Colour:** each section has a hue (SettingsScreen.tsx `hueOf`). Account is blue, Appearance purple, Recording red,
+  Plugins green, About grey, Developer brown and Test results mint, and the sub-pages keep their own: Notion and
+  GitHub graphite, Claude coral, the cheat sheet and Examples yellow (§138; until then Type was indigo, Formatting
+  orange, Feel teal, Animations pink and Location lime, each a row of its own). Its chip in the list is that colour at
   16% under the glyph in the same colour at full strength, where it was ink with the glyph in paper. Its own page wears
   it too: every row's icon in the same chip, and the hero's glyph and the callouts' icons. Each hue is a shade deeper
   on the light page than on the dark (settings.css), written as flat selectors rather than nested ones, which the
@@ -7360,6 +7363,181 @@ passed, 123 skipped).
 - All notes' own empty-state tracks (3fr/2fr), and the tape's ground still written out three times (§132).
 
 Cites: §21, §29g, §53, §66, §84/§97, §92/§110, §121, §127, §132.
+
+## 138. Settings, streamlined: five rows on one screen (2026-09-28)
+
+Matt, with the "hey Ghost" removal: "also see if you can clean up / streamline settings a bit". Designed read-only
+against 891f3cd (1.8.0-20) from an inventory of every row (36 shots at 412 × 915), two proposals and a judged pick,
+then built on branch settings/tidy against 60716fa (1.9.0-1), after meetings/page (§127), notes/geotag (§134) and
+voice/no-keyword (§136) had put their rows on these pages. Where the design and the tree differed, the tree won
+(below). Numbered 138, the next free number at the end: §133 is taken, and §135 is a gap left as it is.
+
+**What was wrong.** Twelve rows on a phone, two screens tall, fourteen in developer mode, three of them plugins with
+their own pages. Type and Appearance each held a size dial, one described only by how it differed from the other.
+Location was a page of three switches (lime), Feel a page that had just taken in Animations (§136). Local only, the
+whole network switch, was filed under Formatting, and two pages sent people there "in Formatting". Each downloaded
+model was listed twice, in two cards with one title. Two rows opened the same walkthrough, one named for voice cues it
+did not show. The Summaries segment's middle label did not fit at 412. About's Help card was eight rows, five of them
+"Add …". Sidebar, a choice App.tsx reads only on a wide window, was drawn on a phone too. Every search list was kept by
+hand in SettingsSheet.tsx, away from the rows it named.
+
+**The shape.** Five rows on a phone: Account · Appearance · Recording · Plugins · About, in cards [Account] ·
+[Appearance, Recording, Plugins] · [About], with Developer and Test results on a card of their own in developer mode.
+Recording is listed where it was (Android, and the Mac app), so the web and iOS see four. Every row keeps its live
+line. The pages that went are cards: Type (with the "Aa" sample in its head, in the note's own face), Motion and
+Touch on Appearance, which is the one page a person enters to fiddle with looks; the model on Recording, beside the
+summaries and the review it writes; Privacy (Local only, Link previews, the policy and its two lines) and Location on
+Account, beside sync and shared links, the other things that send. Notion, GitHub and Claude are sub-pages behind
+their Plugins cards, the cheat sheet and a new Examples page (the four Adds) behind About's Help. A sub-page is off
+the list, still searched, wears its parent's name in the head ("← Plugins", "← About"), and back steps there first;
+in the split view its parent's row stays current, the head names the parent there too, and back steps to the parent
+before it leaves. Hues: Account blue,
+Appearance purple, Recording red, Plugins green, About grey, Developer brown, Test results mint; the sub-pages keep
+graphite, coral and yellow. Indigo, orange, teal, pink and lime went with their pages.
+
+**Reconciled with the tree.** *Location* is one card on Account after Privacy, the page's three switches, its
+refusal footnote and its platform words as they were. "Tag new notes with my location" stays on the device and out of
+the sync list (the geotag review's call, §134: one device's choice must not make another ask for its position), where
+the design had it as a synced row in Privacy. It follows Privacy, and both follow the account's own cards, signed in
+or out (below, "After the review"). *Feel* was already
+one page (§136): Appearance's Motion and Touch are FeelPane as merged. *Meetings*: "Tell me when a meeting is written
+up" is the row as built (Allow, then On: the permission is the host's, not a preference), and Write up is the switch
+"Write up straight away" over the same two stored values, off "charging" (the default) and on "now", synced as
+before, so nothing migrates. *Tapes*: the room the tapes take is the card's footer, a readout under its group, and the
+row is "Remove audio older than a month" with Remove, then Tap again; on a binary before generation 20 it is held
+with "Update Ghost.md to remove audio here.", once the binary has said which generation it is. *The hey-Ghost row* had already gone (§136). *Link previews* moved from
+the Type page to Privacy.
+
+**What went.** Developer's Set-up card: "Choose your model" was the walkthrough's model page alone, the Model card's
+choice, and "Welcome guide" exactly About's welcome walkthrough (`GUIDE_MODEL_PAGE` went with them). Formatting's
+second "On the phone" card, and Remove on the model in use: the one in use has no Remove, so nothing switches the model
+behind a person's back (`fallback()` went), unless it is the only one here, where there is nothing to pick first. Formatting's web and iOS invitation to another store. Sidebar on a phone.
+Size's paragraph about Text size. Local only's second hint. The three Play the scene rows, now a Readings choice and
+one row. The "Swipe left to go back into …" line: the swipe stays, the sentence goes. About's Privacy card and footnote
+(a move). The hand-kept search lists (a move, below).
+
+**Renamed.** Recording's "The side key" over quiet and the review → "While recording"; "Where the side key is" →
+"The side key", last on the page. "How to talk to Ghost.md" → "The welcome walkthrough", with a hint that names what
+guide/pages.ts shows (the palette's command too). "Formatting cheat sheet" (About) → "Cheat sheet"; "Add Ghost.md:
+The Guide" → "Ghost.md: The Guide". Appearance's "Size" → "Scale", beside "Text size". The Summaries segment → three
+picks with a hint each. "Write up" → "Write up straight away". "Your tapes" → the card "Tapes". Developer's line
+"Set-up, reset" → "Benches, reset". Plugins' hero loses its dashes ("not its rows, its commands or its page").
+
+**The readings.** Account: the sync line, and " · Local only" while it is on. Appearance: the page and the note's
+face, then only what has moved off its default (text size, interface face, accent, spacing, corners): "Dark · Maple
+Mono". Recording: the model that writes a take up, then what a take becomes: "Qwen3.5 4B · better words", or "Qwen3.5 4B,
+2.7 GB to get · words as heard" where it is not here, which is Formatting's line until now. It was §136's "Review ·
+better words · meeting summaries". It was built as "Better words · Qwen3.5 4B on the phone" and lost its end in the
+split view's 20rem column at 1280 and 880, so the model comes first and "on the phone" went. The cheat sheet's line is "Every mark you can type": it promised
+every cue, and the sheet shows none.
+
+**The mechanism.** `SettingsSection` gained `listed` and `parent`, and where a step goes is settings/sectionSteps.ts,
+pure and tested alone. `goTo` gained `setting`, looked for on the page as a search hit is, scrolled to and lit: the
+home page's "Get a model" and the digest's phrase open Recording at the Model card (App.tsx `toFormatting` is
+`toModel`), and "Local only" in the Plugins callout, a held plugin's row and the signed-in Account callout is a word
+(settingsKit `GoWord`) that opens Account at the Privacy card. Each page's search list is a `findable` in a `.ts`
+beside it (`AccountPane.findable.ts` and the rest: the lint's `react-refresh/only-export-components` keeps a list
+out of a component file), a plugin's on its `settings.settings`, so Notion's, GitHub's and Claude's pages are
+searched for the first time. settingsSearch.ts did not change. No preference key, default or sync entry changed.
+
+**Every search word kept.** SettingsSheet.test.tsx renders every page, hidden ones and plugin pages too, in a browser
+signed out, on Android in developer mode signed out, on Android signed in, and on the Mac on a wide window signed in,
+and fails on a name its page does not draw unless ELSEWHERE says why (a shared link, the form's own mode, update
+alerts, the meeting service, Notion in the app or signed in). It searches every word main's 58 entries had (their
+names and words, on Android in developer mode, signed in and out, narrow and wide) and fails on one that finds
+nothing, and lands 26 old names on their new places ("formatting" and "choose your model" on Recording › Model,
+"location" on Account › Location, "animations" on Appearance › Motion, "hey ghost" and "welcome guide" on The welcome
+walkthrough, "boards" on Notion's page, and so on). That is the claim on Android, where every setting is. Each other
+device is searched on its own too, and finds nothing only for a setting it does not have, each named in the test:
+Recording's words where there is no recorder (a browser on a computer, an iPhone), the side key's off Android, the
+meetings' outside the Android app, the tapes' and the model's where there are none, the haptics' where there is no
+motor, and What's new's on an iPhone, where the App Store says it. A few of those found a page before that had nothing
+of theirs on it, and find nothing now: Formatting's "ai", "download" and "llm" and Developer's "Choose your model" in a
+browser and on an iPhone, Feel's "vibration" in a browser and on the Mac, and in a browser on an Android phone the
+meetings' and the tapes' rows, listed there and never drawn. The contract runs in a browser on an Android phone and
+on an iPhone as well, and the meetings' and Notion's pages, which the sheet's test cannot draw whole, are checked
+against their lists in their own tests.
+
+**Measured** (the built page in headless Chromium, 412 × 915 at 2.625, the Android app and the Mac app stubbed
+through `__TAURI_INTERNALS__` with native generation 20, no network; scratchpad/settings/after, shot again after the
+review, and after/fixes for what the review changed). The list ends at 627 px on Android in developer mode and 479
+without (seven and five rows), 562 and 414 on the web (six and four), 671 and 523 in a narrow Mac window under its
+title bar: one screen with air under it, where it was two. Account signed out is 1991 px: the ghost at 123, Sign in's
+title at 467 and the form at 579, all on the first screen; Privacy at 1017, Location at 1479. On the Fold opened out
+(880 × 790, the split view) Sign in is at 471 and the form at 567. It was built with Privacy first, 2011 px with Sign
+in at 948, below the fold. Signed in, 1857 px, Privacy at 776. Local only's hint is four lines at 412, five before.
+Appearance is 3473 px on Android, eight cards. Recording on Android is 2163 px (While recording 123, After recording
+384, Summaries 535, Model 860, Meetings 1380, Tapes 1621, The side key 1781), 1511 on the Mac, which says "this Mac"
+five times and "the phone" none. The Model card's Remove is 16 px, as Get is, and 13 px clear of the radio (it was
+13.4 px text, 4 px away), "Tap again" after the first tap. Recording's line in the split view's column, "Qwen3.5 4B ·
+better words", is whole at 1280 and at 880. In the split view GitHub's page draws on the right with Plugins current on
+the left, "← Plugins" in the head, and the head steps to Plugins, then says "← Settings". A card a link lands on, read
+every 40 ms for 2.6 s: lit until about 1.6 s, and its opacity never under 1 once it has risen, where it fell to 0 at
+1.64 s before. Searched at 412: "haptics" finds Appearance › Haptics, "location" Account's Location card and its tag
+row, "model" Recording's Model card (and Reset everything, by its word "models"), "cheat" the sheet alone, "tapes"
+Recording's Tapes card, "examples" one row, "privacy" the Privacy card first; each hit opens the page with the card or
+row lit. With Local only on, its word on Plugins lands on Account with the Privacy card lit, signed in or out. About ›
+Examples, back three times to close, and Settings opens again on the list.
+
+**After the review.** A look pass and a code pass, each on its own build, found three things to put right before it
+shipped and a list of smaller ones. Signed out, Privacy first put Sign in on the second screen at 412 × 915 and off
+the Fold's opened screen, with the ghost between the two privacy cards: Account is now the ghost and the way in first,
+then Privacy and Location, signed in or out, and the Local only callout is back signed out (main had one), its word
+lighting the card below. The Model card's Remove sat 4 px from the radio that picks the same model and deleted a
+gigabyte file in one tap: it asks twice now, Remove and then Tap again, as the Tapes card's does, at the row's size
+rather than the value's small text, and held off the radio. Every card a link or a search landed on blinked 1.6 s
+later: `[data-found]` had swapped the card's arrival animation for the light, so the arrival ran again when the light
+went. A lit card keeps its arrival in its list now (settings.css, read by SettingsScreen.test.tsx since the tests run
+with CSS off). And a fresh open landed on the last page a link had opened, a bug main had for the cheat sheet and the
+plugin pages that this change had widened to every sub-page and every "Local only": the screen answers each request
+once, by its nonce. Smaller, each with a test where one could say it. The model in use has Remove when it is the only
+one here, or its gigabytes could only be freed by getting a second model or resetting everything, and In use is the
+model that runs (`modelFor`), not only the chosen one. The split view's head over a sub-page says its parent and steps
+there, as back already did. Recording says "this Mac" on the Mac, as its Model card does. The model hints lost their
+semicolons. The search shows a sub-page once, by its own name, not About's row for it as well; "privacy" opens the
+Privacy card first ("Sync meeting recordings" lost the word); What's new and the meetings' rows are listed only where
+they are drawn; "where the side key is" finds the side key again. Local only's hint no longer lists the Location card's
+three, which say it under their own rows. The Tapes row says nothing until the binary has answered. The callout's
+"Local only" is a plain word while a password or delete form has the card off the page. The walkthrough's model page
+offers nothing to get on an iPhone, which runs no model and has no Recording page to point at. The stale page names
+left in chapters 03, 04, 05, 09, 16, 22, 37, 41 and 44, the smoke bench's callout and the More sheet's cheat sheet hint
+are put right. A browser can switch Local only now, where Formatting drew only its empty state: a new switch for the
+web, and its hint says what a browser holds off. Not taken: the cheat sheet opened from a note still says "← About"
+and steps there, and "Local only" from Plugins lands on Account, whose back is the list, since back goes to a page's
+parent and the head says so (§2 of the design); Link previews stays live under Local only, since its switch also says
+whether a link's card is drawn at all (editor/linkCards.ts) and only the title's fetch is held; and the Examples rows
+keep their "Add the" labels, the longest wrapping to two lines at 412.
+
+**Left for Matt.** Privacy as a card on Account after the ways in (the look pass's call), before them (the design's),
+or a sixth listed row (the design's fallback), decided on the Fold with the after/ shots. "Write up straight away"
+inverts the meetings spec's wording. The More sheet's
+"Formatting cheat sheet" (editor/NoteSettings.tsx, core/sampleNote.ts line 203, chapter 01) could say "Cheat sheet" as
+the palette, the Academy and About do: not done without a yes. "Summarize" stays as the strip spells it. Older than
+this and seen in the pass: the chosen Scale card's "Default" is drawn in the card's own ground, invisible in both
+themes (ScaleCards.module.css); "Settings > Updates" in Notion's and the reset's messages names a page that became
+About's card long ago. landing/privacy.html now says Settings › Account for link previews and location, and needs a
+landing deploy to go live; the manifest's comment (src-tauri) still says Settings › Location and was left, since only
+the page's code changed.
+
+**Tests.** sectionSteps.test.ts; SettingsScreen.test.tsx (a sub-page off the list, found by the search, opened from
+its parent, back and the swipes by depth, the split view's current row and back, a target lit and lit again, the
+freed hues); SettingsSheet.test.tsx (the lists, the sub-pages, the targets, the readings, the contract in four states,
+every old word, the landings); AppearancePane.test.tsx (was FeelPane's), ModelCard.test.tsx (was FormattingPane's),
+PrivacyCard.test.tsx, LocationCard.test.tsx (was LocationPane's), RecordingPane.test.tsx (the cards in order, the
+picks, the switch over `writeUp`, the Tapes footer and the held row), AccountPane.test.tsx, AboutPane.test.tsx,
+DeveloperPane.test.tsx, PluginsPane.test.tsx, settingsSearch.test.ts's fixture, App.test.tsx, Model.test.tsx. The
+guidebook's chapter 24 is rewritten, and chapters 01, 03, 04, 05, 06, 09, 13, 15, 16, 18, 19, 22, 23, 25, 26, 30, 32,
+37, 41 and 44 say where each setting is now. After the review: a fresh open lands on the list, the split view's head
+over a sub-page, a target lit once per request and in the split view, the lit card's arrival read from settings.css
+(SettingsScreen.test.tsx); an Android browser and an iPhone, the contract in both, each device's search losses by
+name, "privacy" first, a sub-page found once, the Account callout's word, Examples in yellow with its four handlers
+(SettingsSheet.test.tsx); the order signed out and in, the callout signed out, the word held while a form is open
+(AccountPane.test.tsx); two taps, the only model, the model that runs (ModelCard.test.tsx); the Mac's words, the
+unknown generation, the meetings drawn against their list (RecordingPane.test.tsx); Notion's page against its list
+(NotionPane.test.tsx); the device-only line and no refusal under Local only (LocationCard.test.tsx); the iPhone's
+model page (Model.test.tsx).
+
+Cites: §21, §29g, §101, §103, §106, §127, §132, §134, §136.
 
 ## 139. The page spans the window: two more desks past the cap (2026-09-28)
 

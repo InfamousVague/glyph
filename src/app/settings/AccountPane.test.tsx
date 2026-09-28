@@ -64,17 +64,70 @@ describe('Delete account', () => {
   });
 });
 
+/** The cards' titles on the page, in its order. */
+const titles = (host: HTMLElement) => [...host.querySelectorAll('.setk__title')].map((title) => title.textContent);
+
+/** Where each of `things` first shows in the page's text, in order: -1 for one that is not there. */
+const placesOf = (host: HTMLElement, things: string[]) => things.map((thing) => host.textContent!.indexOf(thing));
+
 describe('Signed out', () => {
-  it('says where Local only is when it is holding the sync off', async () => {
-    const { setPreferences } = await import('../core/preferences.ts');
+  // Changed on purpose (docs/DESIGN.md §138): Privacy and Location are Account's cards, after the ways in. Privacy first
+  // put Sign in on the second screen at 412 × 915, and off the Fold's opened screen.
+  it('opens on the ghost and the way in, then Privacy and Location', () => {
+    session = null;
+    const host = show(<AccountPane />);
+    expect(titles(host)).toEqual(['Sign in', 'Privacy', 'Location']);
+    // The ghost heads the page, and the form comes before either privacy card, ways in and footnote with it.
+    const ghost = host.querySelector('[data-scene="signed-out"]');
+    expect(ghost).not.toBeNull();
+    expect(ghost!.compareDocumentPosition(host.querySelector('form')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const places = placesOf(host, ['Sign in', 'Create an account', 'Your password never leaves this device', 'Privacy', 'Location']);
+    expect(places.every((place) => place >= 0)).toBe(true);
+    expect([...places].sort((a, b) => a - b)).toEqual(places);
+  });
+
+  it('says Local only holds the sync off, and the words go to its card on this page', () => {
     session = null;
     setPreferences({ localOnly: true });
-    try {
-      const host = show(<AccountPane />);
-      // The switch is under Formatting: the page used to send people to a Developer page that has none.
-      expect(host.textContent).toContain('“Local only” is on in Formatting, so nothing syncs until it is off.');
-    } finally {
-      setPreferences({ localOnly: false });
+    const onOpen = vi.fn();
+    const host = show(<AccountPane onOpen={onOpen} />);
+    expect(host.querySelector('.setk-callout')?.textContent).toBe('Local only is on, so nothing syncs until it is off.');
+    expect(host.querySelector<HTMLInputElement>('[aria-label="Local only"]')?.checked).toBe(true);
+    act(() => host.querySelector<HTMLButtonElement>('.setk-callout .setk-go')!.click());
+    expect(onOpen).toHaveBeenCalledWith({ id: 'account', setting: 'Privacy' });
+  });
+});
+
+describe('Signed in', () => {
+  it('has Sync, then Privacy and Location, then Delete account', () => {
+    const host = show(<AccountPane />);
+    expect(titles(host)).toEqual(['Sync', 'Privacy', 'Location']);
+    const places = placesOf(host, ['Sync now', 'Local only', 'Map on a tagged note', 'Delete account']);
+    expect(places.every((place) => place >= 0)).toBe(true);
+    expect([...places].sort((a, b) => a - b)).toEqual(places);
+  });
+
+  it('says Local only holds the sync off, and the words go to its card', () => {
+    setPreferences({ localOnly: true });
+    const onOpen = vi.fn();
+    const host = show(<AccountPane onOpen={onOpen} />);
+    expect(host.querySelector('.setk-callout')?.textContent).toBe('Local only is on, so nothing syncs until it is off.');
+    act(() => host.querySelector<HTMLButtonElement>('.setk-callout .setk-go')!.click());
+    expect(onOpen).toHaveBeenCalledWith({ id: 'account', setting: 'Privacy' });
+  });
+
+  it('keeps the words Local only as a plain word while a form has the Privacy card off the page', () => {
+    setPreferences({ localOnly: true });
+    const onOpen = vi.fn();
+    for (const form of ['Delete account', 'Password and recovery codes']) {
+      const host = show(<AccountPane onOpen={onOpen} />);
+      act(() => buttonSaying(host, form)!.click());
+      expect(titles(host)).not.toContain('Privacy');
+      expect(host.querySelector('.setk-callout')?.textContent).toBe('Local only is on, so nothing syncs until it is off.');
+      expect(host.querySelector('.setk-callout .setk-go')).toBeNull();
+      act(() => buttonSaying(host, 'Cancel')!.click());
+      expect(host.querySelector('.setk-callout .setk-go')).not.toBeNull();
+      host.remove();
     }
   });
 });

@@ -5,12 +5,15 @@ import { Input, Switch } from '@glacier/react';
 import { changePassword, handleProblem, newRecoveryCodes, passwordProblem, recover, signIn, signUp, useAccount } from '../core/account/account.ts';
 import { failureText } from '../core/failure.ts';
 import { setLiveEnabled, useLiveEnabled } from '../core/live/enabled.ts';
-import { preferences, setPreferences, usePreferences } from '../core/preferences.ts';
+import { setPreferences, usePreferences } from '../core/preferences.ts';
 import { listNotes } from '../core/store.ts';
 import { deleteAccountHere, signOutHere, syncNow, syncedWhen, unsentLine, useSyncStatus } from '../core/sync/engine.ts';
 import { stayedHere } from '../core/sync/notes.ts';
+import { LocationCard } from './LocationCard.tsx';
+import { PrivacyCard } from './PrivacyCard.tsx';
+import type { SettingsTarget } from './SettingsScreen.tsx';
 import { SharedLinks } from './SharedLinks.tsx';
-import { PaneHero, PaneSection, RowAction, SettingRow, SettingsCallout, SettingsFootnote } from './kit/settingsKit.tsx';
+import { GoWord, PaneHero, PaneSection, RowAction, SettingRow, SettingsCallout, SettingsFootnote } from './kit/settingsKit.tsx';
 
 /**
  * Account: a Glyph account keeps notes, their recordings and pictures, and settings the same on every device
@@ -21,6 +24,16 @@ import { PaneHero, PaneSection, RowAction, SettingRow, SettingsCallout, Settings
  * which stays where it was made unless "Sync meeting recordings" is on, and a recording too big for the service,
  * counted under Sync as "3 recordings stayed on this phone". And the notes the last sync could not send, with why,
  * since one bad note no longer stops the rest.
+ *
+ * Who you are, and what leaves the phone (docs/DESIGN.md §138): the Privacy card (PrivacyCard.tsx: Local only, Link
+ * previews, the policy) and the Location card (LocationCard.tsx, which was a page) are here, beside sync and shared
+ * links, signed in or out, and after the account's own cards either way. Signed out that is after the ways in. The
+ * design had Privacy first there, but measured it put Sign in on the second screen at 412 × 915 (its title at 948 px)
+ * and off the Fold's opened screen too, with the ghost between the two privacy cards; someone who opens Account signed
+ * out has come to sign in. While Local only holds the sync off, a callout says so, signed in or out, and its "Local
+ * only" is a word that brings the card into view: a plain word while a form has the card off the page.
+ *
+ * What the search finds here is AccountPane.findable.ts.
  */
 
 type Mode = 'in' | 'up' | 'recover';
@@ -42,14 +55,25 @@ function Codes({ codes, onDone }: { codes: string[]; onDone: () => void }) {
   );
 }
 
-function SignedOut({ onCodes, said }: { onCodes: (codes: string[]) => void; said?: string | null }) {
+/** The callout while Local only holds the sync off; its words bring the Privacy card into view, where there is one. */
+function LocalOnlyCallout({ onOpen }: { onOpen?: () => void }) {
+  return (
+    <SettingsCallout>
+      <span>
+        <GoWord onPress={onOpen}>Local only</GoWord> is on, so nothing syncs until it is off.
+      </span>
+    </SettingsCallout>
+  );
+}
+
+function SignedOut({ onCodes, said, onOpen }: { onCodes: (codes: string[]) => void; said?: string | null; onOpen?: (target: SettingsTarget) => void }) {
+  const prefs = usePreferences();
   const [mode, setMode] = useState<Mode>('in');
   const [handle, setHandle] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const offline = preferences().localOnly;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -73,11 +97,11 @@ function SignedOut({ onCodes, said }: { onCodes: (codes: string[]) => void; said
   return (
     <>
       {said ? <SettingsCallout>{said}</SettingsCallout> : null}
-      {offline ? <SettingsCallout>“Local only” is on in Formatting, so nothing syncs until it is off.</SettingsCallout> : null}
+      {prefs.localOnly ? <LocalOnlyCallout onOpen={onOpen ? () => onOpen({ id: 'account', setting: 'Privacy' }) : undefined} /> : null}
       <Ghost scene="signed-out" align="center" />
       <PaneSection
         title={mode === 'up' ? 'New account' : mode === 'recover' ? 'Recover' : 'Sign in'}
-        description="Keep your notes, recordings and settings the same on your phone and computer. They are encrypted on the device first: the service stores only what it cannot read."
+        description="Keep your notes, recordings and settings the same on your phone and computer. They are encrypted on the device first. The service stores only what it cannot read."
       >
         <form className="setk-form" onSubmit={(e) => void submit(e)}>
           <Input aria-label="Handle" placeholder="Handle" autoComplete="username" autoCapitalize="none" spellCheck={false} value={handle} onChange={(e) => setHandle(e.target.value)} />
@@ -108,9 +132,10 @@ function SignedOut({ onCodes, said }: { onCodes: (codes: string[]) => void; said
         {mode !== 'recover' ? <SettingRow label="Lost the password" hint="Use one of your recovery codes." onPress={() => setMode('recover')} /> : null}
       </PaneSection>
       <SettingsFootnote>
-        Your password never leaves this device, and nobody can reset it for you: without it or a recovery code, the notes in an account can't be opened by anyone. Notes on this device stay here either
-        way.
+        Your password never leaves this device, and nobody can reset it for you. Without it or a recovery code, the notes in an account can't be opened by anyone. Notes on this device stay here either way.
       </SettingsFootnote>
+      <PrivacyCard />
+      <LocationCard />
     </>
   );
 }
@@ -207,7 +232,7 @@ function DeleteAccountForm({ onDeleted, onDone }: { onDeleted: () => void; onDon
   );
 }
 
-export function AccountPane() {
+export function AccountPane({ onOpen }: { onOpen?: (target: SettingsTarget) => void }) {
   const account = useAccount();
   const status = useSyncStatus();
   const live = useLiveEnabled();
@@ -232,7 +257,7 @@ export function AccountPane() {
   const [deleted, setDeleted] = useState(false);
 
   if (codes) return <Codes codes={codes} onDone={() => setCodes(null)} />;
-  if (!account.session) return <SignedOut onCodes={setCodes} said={deleted ? 'Your account is deleted. The notes on this device are still here.' : null} />;
+  if (!account.session) return <SignedOut onCodes={setCodes} onOpen={onOpen} said={deleted ? 'Your account is deleted. The notes on this device are still here.' : null} />;
 
   const statusText =
     status.phase === 'syncing'
@@ -259,6 +284,8 @@ export function AccountPane() {
           {unsentLine(status.unsent)}. {status.unsentReason ?? 'They are sent again next time.'}
         </SettingsCallout>
       ) : null}
+      {/* The password and delete forms take the Privacy card off the page: the word has nowhere to go while one is open. */}
+      {prefs.localOnly ? <LocalOnlyCallout onOpen={onOpen && !editing && !deleting ? () => onOpen({ id: 'account', setting: 'Privacy' }) : undefined} /> : null}
       {deleting ? (
         <DeleteAccountForm
           onDeleted={() => {
@@ -296,11 +323,15 @@ export function AccountPane() {
           <SettingRow icon={<LogOut size={20} />} label="Sign out" hint="Your notes stay on this device." onPress={() => void signOutHere()} />
         </PaneSection>
       )}
-      {editing || deleting ? null : <SharedLinks />}
       {editing || deleting ? null : (
-        <PaneSection>
-          <SettingRow icon={<Trash2 size={20} />} label="Delete account" hint="Your account and everything synced to it. The notes on this device stay." onPress={() => setDeleting(true)} />
-        </PaneSection>
+        <>
+          <SharedLinks />
+          <PrivacyCard />
+          <LocationCard />
+          <PaneSection>
+            <SettingRow icon={<Trash2 size={20} />} label="Delete account" hint="Your account and everything synced to it. The notes on this device stay." onPress={() => setDeleting(true)} />
+          </PaneSection>
+        </>
       )}
     </>
   );

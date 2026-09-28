@@ -208,7 +208,7 @@ export function paletteCommands(world: PaletteWorld, doing: PaletteDoing, query 
   add({ id: 'settings', label: 'Settings', group: 'Ghost.md', keywords: 'preferences options account sync type animations' }, () => doing.settings());
   add({ id: 'cheatsheet', label: 'Cheat sheet', group: 'Ghost.md', keywords: 'marks markdown reference help' }, () => doing.cheatSheet());
   add({ id: 'academy', label: 'Ghost.md Academy', group: 'Ghost.md', keywords: 'learn lessons markdown teach' }, () => doing.academy());
-  add({ id: 'guide', label: 'How to talk to Ghost.md', group: 'Ghost.md', keywords: 'guide walkthrough voice help' }, () => doing.guide());
+  add({ id: 'guide', label: 'The welcome walkthrough', group: 'Ghost.md', keywords: 'guide walkthrough voice help onboarding how to talk' }, () => doing.guide());
 
   return out;
 }

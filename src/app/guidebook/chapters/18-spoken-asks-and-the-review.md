@@ -51,7 +51,7 @@ A note that already has a recording keeps it as one tape, and each new take is a
 
 ## Better words
 
-Settings › Recording › Better words (on Android) is on by default. After you tap Done, the larger speech model goes over the recording in the background and fixes words the live model misheard. Settings puts its cost at a few seconds of the phone's time for each minute of speech.
+Settings › Recording › Better words (on Android and the Mac) is on by default. After you tap Done, the larger speech model goes over the recording in the background and fixes words the live model misheard. Settings puts its cost at a few seconds of the phone's time for each minute of speech.
 
 - It waits while the recorder is on screen, because both models need the same cores.
 - It only replaces the note's words if the note still reads exactly as Done saved it. If you have edited the note since, your edit wins.

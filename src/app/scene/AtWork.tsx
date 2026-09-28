@@ -70,8 +70,8 @@ import styles from './AtWork.module.css';
  * The one looped motion is the haze on the words: the app's heat filter idea
  * (editor/textEffects.ts `heat`) at the words' own share, stepped in the
  * same commit as each report rather than animated on its own clock, so the
- * model keeps its cores. It is worn only with Settings › Feel's smoke at
- * the edges on, the switch that already means "SVG turbulence costs frames
+ * model keeps its cores. It is worn only with Settings › Appearance's smoke
+ * at the edges on, the switch that already means "SVG turbulence costs frames
  * here", and never under reduced motion.
  */
 

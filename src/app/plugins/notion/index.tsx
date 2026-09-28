@@ -48,7 +48,16 @@ async function sendItems(board: Board, items: readonly { text: string; line?: nu
 export const notionPlugin: GlyphPlugin = {
   manifest,
   icon: SquareKanban,
-  settings: { Pane: NotionPane, summary: () => 'Boards for your lists', hue: 'graphite' },
+  settings: {
+    Pane: NotionPane,
+    summary: () => 'Boards for your lists',
+    hue: 'graphite',
+    // What Settings' search finds on the page (docs/DESIGN.md §138): its cards, by their titles. Drawn in the app only.
+    settings: [
+      { name: 'Account', words: 'sign in connect oauth workspace' },
+      { name: 'Boards', words: 'databases lists' },
+    ],
+  },
   noteLinks: [
     {
       id: 'notion-board',

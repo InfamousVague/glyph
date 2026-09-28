@@ -437,7 +437,7 @@ describe('the home page', () => {
     expect(document.querySelector('ul[aria-label="Today"]')).toBeNull();
   });
 
-  it('glides to a phrase’s group when it is tapped, opens Settings at Formatting for a missing model, and only says the day’s count', () => {
+  it('glides to a phrase’s group when it is tapped, opens Settings at the model for a missing model, and only says the day’s count', () => {
     const glided: Element[] = [];
     const scrollIntoView = Element.prototype.scrollIntoView;
     Element.prototype.scrollIntoView = function (this: Element) {

@@ -44,7 +44,7 @@ So any host may serve updates, a redirect cannot inject one, and a domain that l
 
 `src-tauri/ota-sources.txt` is compiled in and published. Today it has one line, `https://attack.fm/glyph`. The deploy stamps it into the signed `ota.json` as `sources`, and an app that verifies that manifest remembers the list (`ota/sources.rs`) and tries it first, with the compiled list always after it. An older signed manifest can never roll the list back. So moving to a new domain is a publish, not a new APK; the README's "Moving to another domain" is the procedure.
 
-Android and the Mac app take updates over the air. iOS takes none: the fetch and the install are not built there, `ota_check` refuses, and `core/ota.ts` never asks. Neither does a staging build, a dev build, or a phone with Settings › Formatting › Local only on.
+Android and the Mac app take updates over the air. iOS takes none: the fetch and the install are not built there, `ota_check` refuses, and `core/ota.ts` never asks. Neither does a staging build, a dev build, or a phone with Settings › Account › Privacy › Local only on.
 
 ## When the app looks
 

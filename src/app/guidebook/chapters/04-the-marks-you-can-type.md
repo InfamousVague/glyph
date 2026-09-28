@@ -129,7 +129,7 @@ Press and hold on some words, or right-click on a Mac, and choose **Style**. The
 
 ## And the rest
 
-The five moving effects are [[Effects on words]]. Tags, footnotes, counters, sums, choices, hidden lines, the bookmark and progress under a heading are [[Tags, footnotes and the small marks]]. How to say every mark while recording is [[Saying the marks]]. Every mark is on the cheat sheet, in Settings › Cheat sheet.
+The five moving effects are [[Effects on words]]. Tags, footnotes, counters, sums, choices, hidden lines, the bookmark and progress under a heading are [[Tags, footnotes and the small marks]]. How to say every mark while recording is [[Saying the marks]]. Every mark is on the cheat sheet, in Settings › About › Cheat sheet.
 
 ## Read next
 

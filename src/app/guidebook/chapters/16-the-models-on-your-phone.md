@@ -26,23 +26,23 @@ In a browser tab there are no speech models. Recording there uses the browser's 
 
 ## The language models
 
-Settings › Formatting › Model lists four. The one you choose rewrites your notes. Bigger is more careful, and slower.
+Settings › Recording › Model lists four, each once. The one you choose rewrites your notes, and writes the summaries and the review. Bigger is more careful, and slower.
 
 | Model | Download | What Settings says |
 |---|---|---|
-| Qwen3.5 2B | 1.28 GB | Quick. Good for short notes; it can shorten long ones. |
+| Qwen3.5 2B | 1.28 GB | Quick. Good for short notes, and it can shorten long ones. |
 | Qwen3.5 4B | 2.74 GB | The balance. Careful with facts, fits most phones. |
 | Qwen3.5 9B | 5.68 GB | The most careful, and the slowest. Wants 12 GB of memory. |
-| Gemma 4 E4B | 4.98 GB | A different voice. Runs like a 4B; the file is bigger. |
+| Gemma 4 E4B | 4.98 GB | A different voice. Runs like a 4B, with a bigger file. |
 
 The 4B is the default. Settings rounds the sizes to one decimal place, so the 4B shows as 2.7 GB.
 
 The app never fetches a language model without asking you. Asking for a run with no model on the phone does not fetch one either: the note tells you it needs a model. There are two places to get one:
 
-- **Settings › Formatting › Model.** You can choose any model that is on the phone. One that is not has **Get**. The download happens in the open, with a line such as "Getting Qwen3.5 4B, 1.2 GB of 2.7 GB. Keep Ghost.md open." Only one downloads at a time.
-- **The welcome guide's "Choose your model" page.** Picking a row sets your choice, and **get it now** under the list starts the download.
+- **Settings › Recording › Model.** You can choose any model that is on the phone, and remove one that is not in use: the one in use has no Remove, so pick another first, unless it is the only one on the phone. Remove takes two taps, Remove and then Tap again. One that is not on the phone has **Get**. The download happens in the open, with a line such as "Getting Qwen3.5 4B, 1.2 GB of 2.7 GB. Keep Ghost.md open." Only one downloads at a time.
+- **The welcome walkthrough's "Choose your model" page.** Picking a row sets your choice, and **get it now** under the list starts the download.
 
-If the phone stops a download partway, tap Get again. The last card on the page, **On the phone**, lists what has been downloaded, the storage it takes in all, and **Remove** beside each model. If you remove the model you had chosen, the choice moves to another one that is still on the phone, or back to the default.
+If the phone stops a download partway, tap Get again. Under the card is the storage the downloaded models take in all. If the model you chose is not on the phone, the biggest one there that is no bigger runs in its place, and the card says that one is in use. Remove the only model there and the AI has none until you get one.
 
 ## Which one runs
 
@@ -66,7 +66,7 @@ If the connection drops partway, the download asks for the rest and carries on f
 
 ## Local only
 
-Settings › Formatting › Local only turns off update checks, downloads, link previews and every plugin that uses the network, and sync waits too. Ghost.md then runs from what is already on the phone. Models you have already downloaded keep working, because they need nothing from outside.
+Settings › Account › Privacy › Local only turns off update checks, downloads, link previews and every plugin that uses the network, and sync waits too. Ghost.md then runs from what is already on the phone. Models you have already downloaded keep working, because they need nothing from outside.
 
 With Local only on, nothing is fetched, and the app tells you why:
 

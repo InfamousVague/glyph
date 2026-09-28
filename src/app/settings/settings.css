@@ -78,9 +78,14 @@
 }
 
 /* A pane drilled into slides in from the right; coming back, the list slides
-   in from the left, so the motion says which way the page went. */
+   in from the left, so the motion says which way the page went. A sub-page
+   stepping back to its parent is a pane coming back: from the left too. */
 .settingsScreen[data-view='pane'] .settingsScreen__pane {
   animation: settingsPush var(--glacier-duration-normal) var(--glacier-ease-out);
+}
+
+.settingsScreen[data-view='pane'][data-direction='out'] .settingsScreen__pane {
+  animation-name: settingsPop;
 }
 
 .settingsScreen[data-view='list'][data-direction='out'] .settingsScreen__list {
@@ -123,14 +128,6 @@
     opacity: 0;
     transform: translateY(8px);
   }
-}
-
-/* A word under the list after a back step: the way forward. */
-.settingsScreen__hint {
-  margin: var(--glacier-space-2) 0 0;
-  padding-inline: var(--glacier-space-2);
-  font-size: var(--glacier-font-size-sm);
-  color: var(--app-ink-4);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -313,20 +310,15 @@
  * on a dark phone, which leaves `data-theme` off (core/preferences.ts) and so needs the media query's twin.
  */
 [data-hue='blue']     { --hue: #0a6fe0; --hue-dark: #4ea1ff; }
-[data-hue='indigo']   { --hue: #5552d4; --hue-dark: #8583ff; }
 [data-hue='purple']   { --hue: #9a45c9; --hue-dark: #c77dff; }
 [data-hue='red']      { --hue: #dd3a30; --hue-dark: #ff6b61; }
-[data-hue='orange']   { --hue: #d97706; --hue-dark: #ffa53a; }
-[data-hue='teal']     { --hue: #1b92a8; --hue-dark: #5ccfe6; }
 [data-hue='graphite'] { --hue: #5f6368; --hue-dark: #aeb2b8; }
 [data-hue='coral']    { --hue: #c8643f; --hue-dark: #f0906b; }
 [data-hue='green']    { --hue: #2a9d4b; --hue-dark: #4cd571; }
-[data-hue='pink']     { --hue: #d9315a; --hue-dark: #ff6b8d; }
 [data-hue='yellow']   { --hue: #b58400; --hue-dark: #ffd43b; }
 [data-hue='grey']     { --hue: #7c7c82; --hue-dark: #a1a1a8; }
 [data-hue='brown']    { --hue: #93724e; --hue-dark: #c7a57f; }
 [data-hue='mint']     { --hue: #1f9e8f; --hue-dark: #5fe0cf; }
-[data-hue='lime']     { --hue: #5f8f0a; --hue-dark: #a3d63f; }
 
 :root[data-theme='dark'] [data-hue] {
   --hue: var(--hue-dark);
@@ -620,6 +612,19 @@
   padding-inline: var(--glacier-space-1);
 }
 
+/*
+ * An action in a row's value slot, beside its control (the Model card's Remove beside the radio that picks the same
+ * model): the row's size, as every other action on the page has, rather than the value's small text, and held off the
+ * control, whose hit area reaches past its ring.
+ */
+.setk-row__value:has(> .setk-action) {
+  font-size: inherit;
+}
+
+.setk-row__value > .setk-action {
+  margin-inline-end: var(--glacier-space-2);
+}
+
 .setk-footnote {
   margin: 0;
   font-size: var(--glacier-font-size-sm);
@@ -655,6 +660,22 @@
   font-size: var(--glacier-font-size-md);
   letter-spacing: 0.04em;
   user-select: all;
+}
+
+/* ── a word that goes somewhere ───────────────────────────────────────────── */
+
+/*
+ * "Local only" in a sentence (settingsKit.tsx `GoWord`): set in the line as a word of it, in ink and underlined, since
+ * a word that goes somewhere has to look it. The app's quiet button, without its row's height.
+ */
+.setk-go {
+  display: inline;
+  min-block-size: 0;
+  padding: 0;
+  color: var(--app-ink);
+  text-decoration: underline;
+  text-decoration-thickness: var(--glacier-hairline);
+  text-underline-offset: 0.2em;
 }
 
 /* ── pick one: a ring, an ink dot when chosen ─────────────────────────────── */
@@ -700,11 +721,15 @@
   border-radius: 999px;
 }
 
-/* ── Type's sample: the size shown rather than described ──────────────────── */
+/* ── the Type card's sample: the size shown rather than described ─────────── */
 
+/*
+ * "Aa" in the Type card's head on Appearance (AppearancePane.tsx), in the note's own face at the headings' size, so it
+ * changes with the choice under it. It was the top of a Type page of its own until docs/DESIGN.md §138.
+ */
 .settingsScreen__sample {
-  margin: 0 0 var(--glacier-space-2);
-  padding-inline: var(--glacier-space-2);
+  display: block;
+  font-family: var(--app-note-font);
   font-size: var(--app-h1);
   line-height: 1;
   letter-spacing: var(--app-tracking-display);
@@ -797,6 +822,18 @@
   animation: settingsFound 1.6s var(--glacier-ease-out);
 }
 
+/*
+ * A card lit keeps its arrival in the list beside the light. Swapped out for the light alone, the arrival came back when
+ * the light went and ran again: the card dropped to nothing and rose 1.6 s after it was found, a blink on every card a
+ * link or a result lands on.
+ */
+.settingsScreen__pane .setk[data-found] {
+  animation:
+    settingsRise 360ms var(--glacier-ease-out) both,
+    settingsFound 1.6s var(--glacier-ease-out);
+  animation-delay: calc(40ms * var(--i, 0)), 0s;
+}
+
 @keyframes settingsFound {
   0%,
   35% {
@@ -805,7 +842,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .settingsScreen__pane [data-found] {
+  .settingsScreen__pane [data-found],
+  .settingsScreen__pane .setk[data-found] {
     animation: none;
     background: color-mix(in srgb, var(--hue, var(--glacier-text)) 12%, transparent);
   }

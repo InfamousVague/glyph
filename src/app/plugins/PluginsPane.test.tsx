@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setPreferences } from '../core/preferences.ts';
 import { button, press, show } from '../../test/render.tsx';
+import type { SettingsTarget } from '../settings/SettingsScreen.tsx';
 import { PluginsPane } from './PluginsPane.tsx';
 import { reachLine } from './reach.ts';
 import { manifest as claude } from './claude/index.tsx';
@@ -37,22 +38,30 @@ describe('Settings › Plugins', () => {
   });
 
   it('opens a plugin’s own page from its card', () => {
-    const opened: string[] = [];
-    const pane = show(<PluginsPane onOpen={(id) => opened.push(id)} />);
+    const opened: SettingsTarget[] = [];
+    const pane = show(<PluginsPane onOpen={(target) => opened.push(target)} />);
     const card = cardOf(pane, 'Claude')!;
     press(Array.from(card.querySelectorAll('button.setk-row--press')).find((b) => b.textContent?.includes('Read and write your notes from Claude')));
-    expect(opened).toEqual(['plugin:claude']);
+    expect(opened).toEqual([{ id: 'plugin:claude' }]);
   });
 
-  it('holds every plugin that uses the internet off under Local only, and says where the switch is', () => {
+  // Changed on purpose (docs/DESIGN.md §138): "in Formatting" named a page; "Local only" is now a word that goes there.
+  it('holds every plugin that uses the internet off under Local only, and its words open the switch', () => {
     setPreferences({ localOnly: true });
-    const pane = show(<PluginsPane />);
-    // The switch is Local only, under Formatting: the page used to send people to a Developer page that has none.
-    expect(pane.querySelector('.setk-callout')?.textContent).toBe('“Local only” is on in Formatting: plugins that use the internet are held off until it is off.');
+    const opened: SettingsTarget[] = [];
+    const pane = show(<PluginsPane onOpen={(target) => opened.push(target)} />);
+    expect(pane.querySelector('.setk-callout')?.textContent).toBe('Local only is on, so plugins that use the internet are held off until it is off.');
+    press(pane.querySelector('.setk-callout .setk-go'));
     const notionCard = cardOf(pane, 'Notion')!;
     expect(notionCard.querySelector<HTMLButtonElement>('[aria-label="Notion plugin"]')?.disabled).toBe(true);
     expect(notionCard.textContent).toContain('Off while Local only is on');
-    expect(notionCard.textContent).toContain('Switch “Local only” off in Formatting to use it.');
+    expect(notionCard.textContent).toContain('It uses the internet. Switch Local only off to use it.');
+    press(notionCard.querySelector('.setk-go'));
+    // Both land on Account, at the Privacy card, lit.
+    expect(opened).toEqual([
+      { id: 'account', setting: 'Privacy' },
+      { id: 'account', setting: 'Privacy' },
+    ]);
     // Marks reaches nothing past the phone, so it is not held.
     expect(cardOf(pane, 'Marks')!.textContent).not.toContain('Off while Local only is on');
   });

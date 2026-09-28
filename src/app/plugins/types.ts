@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import type { StrokeIcon } from '../art/Icons.tsx';
 import type { MarkDetailsProvider } from '../core/markDetails.ts';
 import type { TextEffectName } from '../editor/textEffects.ts';
+import type { SettingsFindable } from '../settings/settingsSearch.ts';
 
 /**
  * What a plugin is, and every place it can reach into Glyph.
@@ -230,9 +231,11 @@ export interface GlyphPlugin {
   icon: StrokeIcon;
   /**
    * Its page in Settings, the page's one-line reading, and its colour there: one of the hues settings.css draws
-   * (`[data-hue]`), or grey without one.
+   * (`[data-hue]`), or grey without one. The page is a sub-page of Plugins, opened from the plugin's card and not
+   * listed (docs/DESIGN.md §138), and `settings` is what the search finds on it: its cards' titles and rows' labels,
+   * which SettingsSheet.test.tsx holds to the page as drawn.
    */
-  settings?: { Pane: ComponentType; summary(): string; hue?: string };
+  settings?: { Pane: ComponentType; summary(): string; hue?: string; settings?: SettingsFindable[] };
   noteLinks?: readonly NoteLink[];
   noteActions?: readonly NoteAction[];
   itemAction?: ItemAction;

@@ -110,7 +110,7 @@ plugin, and the `voice` and `itemTargets` extension points went with the phrase-
 and with no such note the chip says so; without the keyword it is the recording's words. `tips` and a format's `cue` still reach the recorder. The `voice` permission
 kind is still in `src/app/plugins/types.ts`, declared by no plugin.
 
-**Local only.** While the person has Local only on (Settings › Formatting), every plugin whose manifest
+**Local only.** While the person has Local only on (Settings › Account › Privacy), every plugin whose manifest
 declares the `network` permission is off, whatever its switch says, and the registry tells its listeners
 when that changes. A plugin that can do part of its work without the network should split that part
 into a plugin without the permission, or it goes dark with the rest.

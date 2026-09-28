@@ -152,7 +152,7 @@
    * used: a card or a chip popping in (the confirm card, Things to say, the recorder's chip once the words have
    * moved); a round button's glyph turning when it is pressed (the home dock, the note's tools); and a line settling
    * into place (the update and Academy cards, the recorder's landing). Fixed, as they always were: unlike the kit's
-   * durations they do not follow Settings > Feel > speed.
+   * durations they do not follow Settings › Appearance › Motion.
    */
   --app-pop: 420ms cubic-bezier(0.3, 1.5, 0.5, 1);
   --app-turn: 420ms cubic-bezier(0.3, 1.4, 0.5, 1);

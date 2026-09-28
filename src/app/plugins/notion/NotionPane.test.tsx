@@ -86,12 +86,25 @@ describe('Settings > Notion', () => {
     expect(disconnectNotion).toHaveBeenCalledOnce();
   });
 
+  // Settings' contract, in the one state that draws the whole page (SettingsSheet.test.tsx draws it signed out of
+  // Notion): each name the search lists for it is a card on it, so a hit lights something (docs/DESIGN.md §138).
+  it('signed in, draws every card the search lists for the page', async () => {
+    const { findSetting } = await import('../../settings/settingsSearch.ts');
+    const { notionPlugin } = await import('./index.tsx');
+    account = { connected: true, workspaceName: 'Studio' };
+    const host = show(<NotionPane />);
+    await waitUntil(() => expect(host.textContent).toContain('Home'));
+    const names = notionPlugin.settings?.settings?.map((setting) => setting.name) ?? [];
+    expect(names).toEqual(['Account', 'Boards']);
+    expect(names.filter((name) => !findSetting(host, name))).toEqual([]);
+  });
+
   it('says when no boards were shared, and why they could not be read', async () => {
     account = { connected: true };
     boards = [];
     let host = show(<NotionPane />);
     await waitUntil(() => expect(host.textContent).toContain('No boards shared yet'));
-    boards = new Error('Notion signed Ghost.md out. Sign in again in Settings > Notion.');
+    boards = new Error('Notion signed Ghost.md out. Sign in again in Settings › Plugins › Notion.');
     host = show(<NotionPane />);
     await waitUntil(() => expect(host.textContent).toContain('Notion signed Ghost.md out.'));
   });

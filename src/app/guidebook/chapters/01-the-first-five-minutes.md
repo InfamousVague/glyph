@@ -17,19 +17,19 @@ The first time Ghost.md opens, the welcome guide comes up over it. If the side k
 
 Anywhere but Android, the fourth page says instead: "Start a voice note with Speak."
 
-The chosen model is not downloaded yet. Tap "get it now" under the list to fetch it, or fetch it later with Get beside it in Settings › Formatting › Model. Until then, asking the AI for something on a note only says "The AI needs a model on the phone." The page says the model downloads the first time you ask; it does not ([[The models on your phone]]).
+The chosen model is not downloaded yet. Tap "get it now" under the list to fetch it, or fetch it later with Get beside it in Settings › Recording › Model. Until then, asking the AI for something on a note only says "The AI needs a model on the phone." The page says the model downloads the first time you ask; it does not ([[The models on your phone]]).
 
 Hold the side key before you reach its page and the welcome guide comes back with one line at the top: "Not yet, finish reading." Nothing records. From the side-key page on, a held key records as it always does.
 
-Every choice can be changed later: the theme in Settings › Appearance › Page, the model in Settings › Formatting. The whole welcome guide opens again from Settings › About › How to talk to Ghost.md, starting at its first page.
+Every choice can be changed later: the theme in Settings › Appearance › Page, the model in Settings › Recording › Model. The whole welcome guide opens again from Settings › About › The welcome walkthrough, starting at its first page.
 
 ## The notes it gives you
 
 A library with nothing in it gets one note the first time it opens: [[How to format a note]]. It is a short tutorial, one mark at a time: how to type it, how to say it, and an example, with a photograph of smoke to show a picture. Try each one, then delete it. A library that already has notes never gets it, so an update never drops a note on you.
 
-Settings › About has a row for it, and four more:
+Settings › About has a row for this book, and its Examples page has one for that note and three more:
 
-- **Add Ghost.md: The Guide** adds this book, 44 chapters and its index, and opens the index. Pressed again, it opens the book you have. Its chapters are then your newest notes, so the first six fill Recent until you write something else.
+- **Ghost.md: The Guide** adds this book, 44 chapters and its index, and opens the index. Pressed again, it opens the book you have. Its chapters are then your newest notes, so the first six fill Recent until you write something else.
 - **Add the sample note** makes another [[How to format a note]], every mark in it.
 - **Add the example board** makes [[Launch week]]: a working board written in Markdown, with columns, cards and the list items they stand for.
 - **Add the example canvas** makes [[Cabin weekend, laid out]]: cards on a page with lines between them, one of everything a canvas can hold.
@@ -61,7 +61,7 @@ There are thirteen lessons: a title, a heading, bold, italic, struck through, co
 
 Progress is kept on this device, so the Academy opens at the first lesson you have not passed. At the end, any lesson can be taken again, Start again clears the ticks, and Cheat sheet opens the rest.
 
-The **cheat sheet** is every mark on one page: Settings › Cheat sheet, or Help › Formatting cheat sheet in any note's More sheet (the three dots). The marks come in groups: Words, Lines, Pointing somewhere, Raised and lowered, Blocks, and Ghost.md's own. Each is a card with its characters, the line to type, and that line as the note draws it. The field at the top finds a mark by its name or its characters: "bold", `||` or "board".
+The **cheat sheet** is every mark on one page: Settings › About › Cheat sheet, or Help › Formatting cheat sheet in any note's More sheet (the three dots). The marks come in groups: Words, Lines, Pointing somewhere, Raised and lowered, Blocks, and Ghost.md's own. Each is a card with its characters, the line to type, and that line as the note draws it. The field at the top finds a mark by its name or its characters: "bold", `||` or "board".
 
 ## A map of this half of the book
 

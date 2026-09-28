@@ -8,7 +8,7 @@ code-side blockers found in the audit are fixed (DESIGN §113).
 - **Delete account**, in the app (Settings › Account › Delete account, with the password) and on the web
   (`landing/delete-account.html`, the URL Play asks for). The server deletes the account and everything it keeps:
   notes, recordings, pictures, settings, shared links, devices, recovery codes (`DELETE /glyph/api/v1/account`).
-- **Privacy policy** at `landing/privacy.html`, linked from Settings › About › Privacy policy.
+- **Privacy policy** at `landing/privacy.html`, linked from Settings › Account › Privacy policy.
 - **A Play build** (`GLYPH_STORE=play`): no APK self-update and no `REQUEST_INSTALL_PACKAGES` (Play forbids both). The
   web bundle still updates over the air. That is JavaScript in the WebView, which Play allows.
 - **16 KB pages.** The C++ runtime is linked statically, so there is no `libc++_shared.so`, and `libglyph_lib.so` is
@@ -70,7 +70,7 @@ GLYPH_STORE=play npm run android:build -- --aab --target aarch64
 | Device or other IDs (a device's public key and kind, e.g. "Android") | Yes, optional, not shared | Account management |
 | Notes, audio, photos | **No** | End-to-end encrypted, so we can't read them. Play counts that as not collected. |
 | A meeting's audio | **No** | Recorded, transcribed and summarised on the phone. It is not synced at all unless Settings › Account › Sync meeting recordings is on, and then end-to-end encrypted like the rest. |
-| Location (approximate and precise) | Yes, optional: only once the person allows the location permission, then on for new notes by default and switched off in Settings › Location on each device; a note's own Add my location. Not shared with us. Sent to OpenStreetMap, each switchable: the map tiles around a tagged note's place (about a kilometre across, with the device's IP address) each time the note is opened, and the place's coordinates rounded to about 100 m, once, for its name | App functionality: a note says where it was written. End-to-end encrypted in sync, so not readable by us. DESIGN §134. |
+| Location (approximate and precise) | Yes, optional: only once the person allows the location permission, then on for new notes by default and switched off in Settings › Account › Location on each device; a note's own Add my location. Not shared with us. Sent to OpenStreetMap, each switchable: the map tiles around a tagged note's place (about a kilometre across, with the device's IP address) each time the note is opened, and the place's coordinates rounded to about 100 m, once, for its name | App functionality: a note says where it was written. End-to-end encrypted in sync, so not readable by us. DESIGN §134. |
 | Anything else (contacts, analytics, crash logs) | No | |
 
 Also answer:

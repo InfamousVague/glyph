@@ -452,7 +452,7 @@ describe('the shelf of tapes', () => {
     expect(document.querySelector('button[aria-pressed="true"]')?.textContent).toContain('Tapes · 9');
   });
 
-  it('opens Settings at Formatting from Get a model', async () => {
+  it('opens Settings at Recording’s Model card from Get a model', async () => {
     needsModel.add('take1');
     await record(1);
     await openApp();
@@ -460,7 +460,7 @@ describe('the shelf of tapes', () => {
     expect(seen.settings?.open).toBe(false);
     act(() => button('Get a model').click());
     expect(seen.settings?.open).toBe(true);
-    expect(seen.settings?.toFormatting).toBeGreaterThan(0);
+    expect(seen.settings?.toModel).toBeGreaterThan(0);
   });
 });
 

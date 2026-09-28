@@ -60,7 +60,7 @@ Recordings travel by hash (the first 16 bytes of SHA-256) under the id `r-<note 
 
 ## When a pass runs
 
-`src/app/core/sync/engine.ts` runs a pass when the app starts signed in (after the session is renewed), when the app comes back to the front, four seconds after the last change to a note or a setting, and every five minutes. One pass runs at a time, and a request made while one is running queues exactly one more. No pass runs without the account key, or while Local only (Settings › Formatting) is on. The native side needs generation 16 (`SYNC_GENERATION`), which brought `store_apply` and `sync_put_file`. On an older binary the Account page says "Sync needs the newest Ghost.md. Install it from attack.fm/glyph."
+`src/app/core/sync/engine.ts` runs a pass when the app starts signed in (after the session is renewed), when the app comes back to the front, four seconds after the last change to a note or a setting, and every five minutes. One pass runs at a time, and a request made while one is running queues exactly one more. No pass runs without the account key, or while Local only (Settings › Account › Privacy) is on. The native side needs generation 16 (`SYNC_GENERATION`), which brought `store_apply` and `sync_put_file`. On an older binary the Account page says "Sync needs the newest Ghost.md. Install it from attack.fm/glyph."
 
 ## The server's side
 
@@ -100,7 +100,7 @@ The one exception is the hosted Claude connector, which runs on the same machine
 - Its wire list leaves out `DELETE account`, which takes the login half and answers `{ deleted: true }`. It also leaves out the `HEAD` on a file, which only its prose mentions.
 - It says `POST device`, `PUT password` and `POST recovery` answer `{}`. They answer `{ ok: true }`, `{ ok: true }` and `{ left: 8 }`.
 - It says the settings that travel are the look, the type, recording behaviour, code colours, the view and animations. The typing aids, the review, the tabs, tab groups, workspaces, trash, shares and link previews travel too. The accent colour, the rounding, the interface size and the sidebar's style do not.
-- It calls the switch that stops sync "Nothing leaves the phone", as `engine.ts`'s comments do. In Settings it is Local only, under Formatting.
+- It calls the switch that stops sync "Nothing leaves the phone", as `engine.ts`'s comments do. In Settings it is Local only, on Account's Privacy card.
 - It says a conflict copy's file "gets a number, `Title 2.md`". The copy is applied with no path, so it lands in `Inbox/`, and gets a number only if that title is already taken there.
 
 ## Read next

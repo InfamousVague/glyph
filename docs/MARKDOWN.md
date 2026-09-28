@@ -153,8 +153,8 @@ from a list of ideas.
   counting its subsections too. (`src/app/editor/headingProgress.ts`)
 - **Link cards.** A line that is only a link (bare, `<bare>`, or `[words](address)`, in a list or not) gets a card
   under it with the page's title, site and summary; a tap opens it. The title is read by the app (`link_preview`,
-  native generation 17) for a card on screen, cached for a week, and never with Link previews off (Settings › Type) or
-  Local only on (Settings › Formatting). Links a plugin reads keep their own rows. (`src/app/editor/linkCards.ts`)
+  native generation 17) for a card on screen, cached for a week, and never with Link previews off (Settings › Account › Privacy) or
+  Local only on (the same card). Links a plugin reads keep their own rows. (`src/app/editor/linkCards.ts`)
 - **The bookmark — `§§`.** Two section signs at the end of the bookmarked line's words (before a list item's mark,
   counters and anchor), one per note. The note opens there; the header's bookmark button moves it to the line being
   read, or takes it off that line. Drawn as a small ribbon. (`src/app/editor/bookmarkLine.ts`)

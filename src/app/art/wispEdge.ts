@@ -319,7 +319,7 @@ export function useWispEdge(
   const footOver = options.footOver;
   const draw = options.draw;
   const [on, setOn] = useState(false);
-  // Switched off under Settings > Feel, a page slips under its header with a clean edge (core/preferences.ts).
+  // Switched off under Settings › Appearance › Motion, a page slips under its header with a clean edge (core/preferences.ts).
   const wanted = usePreferences().wispEdge;
   useEffect(() => {
     const el = scroller.current;

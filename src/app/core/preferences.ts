@@ -161,7 +161,7 @@ export function facesOf(prefs: Pick<Preferences, 'typeface' | 'noteFace'>): { ui
   return { ui, note };
 }
 
-/** How quickly things move (Settings > Feel; Matt: "add controls to animation speeds"). */
+/** How quickly things move (Settings › Appearance › Motion; Matt: "add controls to animation speeds"). */
 export type MotionSpeed = 'relaxed' | 'normal' | 'brisk';
 
 /**
@@ -248,6 +248,7 @@ export interface Preferences {
    * Nothing leaves the phone and nothing arrives: no update checks, no model
    * downloads, and plugins that use the network are off. Glyph runs from what
    * is on the phone. Matt: "the app can be run totally without a server if desired".
+   * Switched in Settings › Account › Privacy (settings/PrivacyCard.tsx).
    */
   localOnly: boolean;
   /** Which model formats notes on the phone, by its id in core/ai.ts. */
@@ -297,7 +298,7 @@ export interface Preferences {
    */
   shares: Record<string, { id: string; key: string; sent: string; lacked?: string[]; place?: true }>;
   /**
-   * The app's movement, three switches under Settings > Feel (Matt: "add animations section to settings").
+   * The app's movement, three switches under Settings › Appearance › Motion (Matt: "add animations section to settings").
    * On by default, every one of them: they are what Glyph looks like. A phone asking for less motion is obeyed
    * whatever these say (app.css `prefers-reduced-motion`).
    *

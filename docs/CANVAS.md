@@ -91,7 +91,7 @@ title: "Cabin weekend, laid out"
 }
 ```
 
-Everything after the front matter is the `.canvas` file, character for character. Settings › About adds an example
+Everything after the front matter is the `.canvas` file, character for character. Settings › About › Examples adds an example
 one (`src/app/canvas/sampleCanvas.ts`), the way it adds the example board: one of everything a canvas holds - a group, cards
 of words, cards that are the example board and the sample note, a link, a chart drawn from Mermaid, a table, a
 picture (the sample note's drawing, kept by the picture store as it is made), and lines with words on joining them.

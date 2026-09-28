@@ -206,6 +206,22 @@ export function RowAction({ children, onPress, disabled }: { children: ReactNode
   );
 }
 
+// --- a word that goes somewhere --------------------------------------------
+
+/**
+ * A word in a sentence that opens the setting it names: "Local only" in a callout lands on Account's Privacy card,
+ * scrolled to and lit, where the sentence used to say which page to look on and leave the person to find it
+ * (docs/DESIGN.md §138). Without somewhere to go, as on a page drawn outside Settings, it is the word alone.
+ */
+export function GoWord({ children, onPress }: { children: ReactNode; onPress?: () => void }) {
+  if (!onPress) return <>{children}</>;
+  return (
+    <button type="button" className="app-word setk-go" onClick={onPress}>
+      {children}
+    </button>
+  );
+}
+
 // --- pick one ---------------------------------------------------------------
 
 /** A radio drawn as a ring with an ink dot when chosen; the row's control. */

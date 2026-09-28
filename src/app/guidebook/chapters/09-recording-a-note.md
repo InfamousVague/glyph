@@ -29,7 +29,7 @@ Until you speak, the page shows:
 
 ## While you talk
 
-Words appear as they are heard, on the note's own page, set as they will read: a heading as a heading, a bullet as a bullet. The phrase still being guessed is written at the end as it is heard, and it can change while the recogniser makes up its mind. With **Ghostly typing** on (Settings › Feel), new letters come in out of smoke and replaced ones go back into it. Once the recogniser settles on a phrase, it takes its marks: “Bullet point, the heating” lands as a bullet. [[Saying the marks]] has every cue.
+Words appear as they are heard, on the note's own page, set as they will read: a heading as a heading, a bullet as a bullet. The phrase still being guessed is written at the end as it is heard, and it can change while the recogniser makes up its mind. With **Ghostly typing** on (Settings › Appearance › Motion), new letters come in out of smoke and replaced ones go back into it. Once the recogniser settles on a phrase, it takes its marks: “Bullet point, the heating” lands as a bullet. [[Saying the marks]] has every cue.
 
 On a note's own Speak, the note's text is above and the new words are written onto its end, or into its list when its title says it is one (House TODOs, Groceries). Name another note, as in “Add a note to Groceries, …”, and the words go into its list as you say them, with or without “Hey Ghost” first: [[Spoken commands]].
 
@@ -57,7 +57,7 @@ The phone's back gesture saves, the way Done does.
 - **The screen going off.** On Android the recorder keeps the screen on while it runs. If the screen goes off anyway, a press of the side key for instance, the recording is saved as Done would save it.
 - **Stop when I go quiet**, in Settings › Recording. Off by default. When it is on, four seconds of quiet saves the recording, but only once you have started talking: opening the recorder to think never ends a note.
 
-Settings › Recording is on Android, the phone with a side key to record from.
+Settings › Recording is on Android, the phone with a side key to record from, and on the Mac.
 
 ## What Done does
 
@@ -97,7 +97,7 @@ Every engine listens for English.
 
 The first time Ghost.md opens on a phone or a Mac, it fetches the voice model, about 60 MB, so the first press of the side key never waits for it. The home page says **Downloading the voice model, 12 of 60 MB. Keep Ghost.md open.** A download the phone stopped starts again the next time you come back to the app. One that failed says **The voice model didn’t download.** with **Try again**.
 
-With **Local only** on (Settings › Formatting), nothing is downloaded, and the recorder says so: “Local only is on, so the voice model was not downloaded. Turn it off in Settings to get it.”
+With **Local only** on (Settings › Account › Privacy), nothing is downloaded, and the recorder says so: “Local only is on, so the voice model was not downloaded. Turn it off in Settings to get it.”
 
 ## Read next
 

@@ -40,7 +40,7 @@ interface TapeShelfProps {
   /** What each note is about in a line (format/gist.ts), by id, when there is one. */
   gists: Readonly<Record<string, string>>;
   onOpen: (id: string) => void;
-  /** "Get a model": Settings › Formatting, where a language model is fetched. */
+  /** "Get a model": Settings › Recording › Model, where a language model is fetched. */
   onGetModel: () => void;
   /** "Summarize": the queue asked for this tape's write-up (ai/summaries.ts), by the page that knows its kind. */
   onSummarize: (note: Note) => void;
