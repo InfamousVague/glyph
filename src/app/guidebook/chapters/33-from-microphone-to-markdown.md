@@ -51,7 +51,7 @@ The loaded model stays in `CaptureState` for the life of the process, about 60 M
 
 ## A phrase is read, and shows
 
-Every committed phrase goes to the live reader, `liveRoute.ts`, whose steps `CaptureScreen.tsx` applies at once, with nothing awaited. Most phrases are words, and go to `take.listen` in `take.ts`, which joins them to the take's segments and draws them. A phrase that names a note after "hey Ghost" switches the page to that note, or sends its words there ([[Reading a command, writing it safely]]). Nothing is stored, and no model is asked. Partials are only drawn: in the chip, while a command is being said.
+Every committed phrase goes to the live reader, `liveRoute.ts`, whose steps `CaptureScreen.tsx` applies at once, with nothing awaited. Most phrases are words, and go to `take.listen` in `take.ts`, which joins them to the take's segments and draws them. A phrase that names a note, plainly or after "hey Ghost", switches the page to that note, or sends its words there ([[Reading a command, writing it safely]]). Nothing is stored, and no model is asked. Partials are only drawn: in the chip, while a command is being said.
 
 The page is `takeMarkdown`, which runs `renderNote` in `markdown.ts` over every phrase so far, on every event, and `LivePage.tsx` writes it into the note shown with `placeTake` (`place.ts`): on its end, or into the list it fits. What the page shows and what Done saves are the same functions, so they cannot disagree.
 

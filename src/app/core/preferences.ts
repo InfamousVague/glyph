@@ -161,7 +161,7 @@ export function facesOf(prefs: Pick<Preferences, 'typeface' | 'noteFace'>): { ui
   return { ui, note };
 }
 
-/** How quickly things move (Settings > Animations; Matt: "add controls to animation speeds"). */
+/** How quickly things move (Settings > Feel; Matt: "add controls to animation speeds"). */
 export type MotionSpeed = 'relaxed' | 'normal' | 'brisk';
 
 /**
@@ -228,14 +228,6 @@ export interface Preferences {
    * think should not end a note unless someone asked for that.
    */
   quietStop: boolean;
-  /**
-   * Commands while recording ("add buy milk to HelloTrade") only count after
-   * "hey Ghost" is said (capture/liveRoute.ts). On by default: Matt, after a
-   * command became a note, "not do anything until it hears the keyword". Off,
-   * a few plain shapes ("add a note to House TODOs, …") are read at the very
-   * start of a recording without it.
-   */
-  commandWord: boolean;
   /**
    * After Stop, the review (review/): the slower speech model listens again and
    * the language model, thinking out loud, checks the note; the person keeps
@@ -305,7 +297,7 @@ export interface Preferences {
    */
   shares: Record<string, { id: string; key: string; sent: string; lacked?: string[]; place?: true }>;
   /**
-   * The app's movement, three switches under Settings > Animations (Matt: "add animations section to settings").
+   * The app's movement, three switches under Settings > Feel (Matt: "add animations section to settings").
    * On by default, every one of them: they are what Glyph looks like. A phone asking for less motion is obeyed
    * whatever these say (app.css `prefers-reduced-motion`).
    *
@@ -356,7 +348,6 @@ export const DEFAULT_PREFERENCES: Preferences = {
   noteFace: 'maple',
   refine: true,
   quietStop: false,
-  commandWord: true,
   review: true,
   summaries: 'meetings',
   writeUp: 'charging',

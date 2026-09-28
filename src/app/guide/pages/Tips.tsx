@@ -1,5 +1,5 @@
 import { Tips as TipsArt } from '../../art/Shapes.tsx';
-import { ASK, COMMAND } from '../phrases.ts';
+import { ASK, COMMAND, NOTE_COMMAND } from '../phrases.ts';
 import { Step } from './parts.tsx';
 import styles from '../Guide.module.css';
 
@@ -9,9 +9,10 @@ import styles from '../Guide.module.css';
  * guide/guide.test.ts holds the rules to them through the spoken examples in guide/phrases.ts. The cues' own words
  * are on the marks page, beside each mark (guide/marks.ts `say`).
  *
- * One habit is not a cue: "Hey Ghost" first, for a command or an ask. Its two examples are guide/phrases.ts
- * `COMMAND` and `ASK`, which guide/guide.test.ts runs through the recorder's own readers (capture/liveRoute.ts,
- * ai/instruction.ts), so the page never teaches a command the recorder would write down as words.
+ * One habit is not a cue: naming a note to send words to it, or asking the AI, with "Hey Ghost" first optional
+ * (docs/DESIGN.md §136). Its examples are guide/phrases.ts `COMMAND`, `NOTE_COMMAND` and `ASK`, which guide/guide.test.ts runs
+ * through the recorder's own readers (capture/liveRoute.ts, ai/instruction.ts), bare and keyed, so the page never
+ * teaches a command the recorder would write down as words.
  */
 export function Tips() {
   return (
@@ -24,8 +25,8 @@ export function Tips() {
         <Step title="Stop for two seconds to start a paragraph." note="You don’t have to say it. The pause does it." />
         <Step title="Talk normally." note="Ghost.md picks lists and to-dos out of normal speech. The cues change how your words are laid out, never the words." />
         <Step
-          title="Start with “Hey Ghost” to give a command."
-          note={`“${COMMAND.say}” puts it in your ${COMMAND.note} note as you say it, and the note opens when you’re done, with an Undo. Said into a note’s own mic, “${ASK.say}” asks the AI.`}
+          title="Name a note to send words to it."
+          note={`“${COMMAND.say}” puts it in your ${COMMAND.note} note as you say it, and the note opens when you’re done, with an Undo. For a note whose title does not say it is a list, say “${NOTE_COMMAND.say}”. Said alone into a note’s own mic, “${ASK.say}” asks the AI. “Hey Ghost” first is optional.`}
         />
         <Step title="Fix it after." note="A voice note lands at the top of your notes. Open it to fix anything. The markdown is all there." />
       </ol>

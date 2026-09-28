@@ -8,7 +8,7 @@ Settings opens on a list of sections. On a phone, each opens as a page of its ow
 
 **Search settings**, at the top of the list, finds a section or a single setting inside one. Every word you type has to start a word of what it finds, in any order, so "sm ed" finds Smoke at the edges. A result opens its page and lights the setting for a moment. Enter opens the first result, and on a keyboard ⌘F or Ctrl+F goes to the field.
 
-Some sections appear only where they mean something: Recording on Android, Feel where there is a motor, and a plugin's page while the plugin is on.
+Some sections, and one switch, appear only where they mean something: Recording on Android, the Touch switch where there is a motor, and a plugin's page while the plugin is on.
 
 ## Account
 
@@ -42,12 +42,9 @@ On Android only.
 | Setting | Default | What it does |
 | --- | --- | --- |
 | Stop when I go quiet | Off | Saves the recording after four seconds of quiet, once you have started talking. The side key and Done still work. |
-| Commands start with “hey Ghost” | On | Whether a command needs Hey Ghost to be heard as you speak: see below. |
 | Review after recording | On | When you stop, a slower speech model listens again and the language model thinks the note through out loud, then shows what it would fix, for you to keep or commit. |
 | Where the side key is | Ghost.md's guess | A Height slider that moves the rings to sit beside your key. Once you have moved it, **Reset** beside Use Ghost.md's guess puts it back. |
 | Better words | On | After you finish, a larger model goes over the recording and fixes the words: a few seconds of the phone per minute of speech. |
-
-Its line says: “Say “Hey Ghost, add call Sam to House TODOs” and the words go into that note as you say them. Not this note, Discard or Undo takes them back. Off, “Add a note to House TODOs…” at the very start of a recording works without it.” On, a phrase is read as you speak only when it opens with Hey Ghost; a recording that opens plainly with "add eggs to Groceries" is still read once when you stop, and asks on a card. Off, the plainest shapes at the very start of a recording work without the keyword, and anything later still needs it. A free ask of the AI counts only after Hey Ghost, whichever way it is set; the named runs, such as “Fix the spelling” said first into a note, need no keyword ([[Spoken asks and the review]]).
 
 ## Formatting
 
@@ -57,13 +54,7 @@ Its line says: “Say “Hey Ghost, add call Sam to House TODOs” and the words
 
 ## Feel
 
-**Haptics**, on by default: a small tap when a style or a cue kicks in. Only in the phone app, where there is a motor.
-
-## The plugins' pages, then Plugins
-
-Each plugin that is on and has a page of its own is listed next. **Notion** holds its sign-in and the boards Notion shared, **GitHub** the repos read and the token, and **Claude** the way to connect. Then **Plugins**, with a card and a switch for each of the four. See [[Notion and GitHub]].
-
-## Animations
+How the app moves, and how it answers a touch.
 
 | Setting | Default | What it does |
 | --- | --- | --- |
@@ -71,8 +62,13 @@ Each plugin that is on and has a page of its own is listed next. **Notion** hold
 | Ghostly typing | On | Letters arrive as smoke and gather into words as you talk or type, and dissolve where they are deleted. |
 | Smoke at the edges | On | A page going under the header or the dock turns to smoke as it passes. |
 | Ripples while recording | On | The newest words move with your voice as the phone hears it. |
+| Haptics | On | A small tap when a style or a cue kicks in. Only in the phone app, where there is a motor. |
 
 Your device's own reduce motion setting comes first: with it on, Ghost.md holds still whatever these say. Switching one off leaves the thing itself working, only still.
+
+## The plugins' pages, then Plugins
+
+Each plugin that is on and has a page of its own is listed next. **Notion** holds its sign-in and the boards Notion shared, **GitHub** the repos read and the token, and **Claude** the way to connect. Then **Plugins**, with a card and a switch for each of the four. See [[Notion and GitHub]].
 
 ## Cheat sheet
 
@@ -94,7 +90,7 @@ Signed in, the settings about you are the same on every device. The ones about t
 | Travels with your account | Stays on this device |
 | --- | --- |
 | Page, Spacing, Text size, both fonts, Link previews, Code colours | Accent, Size, Sidebar, Corners |
-| Stop when I go quiet, “hey Ghost”, Review after recording, Better words | Local only, the chosen model and the models downloaded |
+| Stop when I go quiet, Review after recording, Better words | Local only, the chosen model and the models downloaded |
 | Animation speed, Ghostly typing, Smoke at the edges, Ripples while recording | Haptics, Where the side key is, Live typing, Update alerts |
 | How notes are shown, your open tabs and their groups, workspaces, the trash, your shared links | Each plugin's switch, and what it keeps: boards, repos, tokens, the Notion sign-in |
 

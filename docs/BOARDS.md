@@ -180,7 +180,8 @@ The live reader (`src/app/capture/liveRoute.ts`) finds the lane as it finds a he
 (`src/app/capture/noteFind.ts`), and the recorder's placing (`src/app/capture/place.ts`) adds the card with `lanesOf`
 and `addToLane` from `src/app/core/boards/lanes.ts`: a new to-do under the board's last item, named after its words,
 with its card at the top of the lane, as the **+** field does. Voice test 069 holds it. No tip or Things to say line
-teaches it yet.
+teaches it yet. It keeps its keyword where other commands need none (DESIGN §136): a lane is a heading of the note being
+written to, the least distinctive name there is, so without "Hey Ghost", "add call Sam to Doing" is the note's words.
 
 A card is not moved by voice and a board is not made by voice (DESIGN §127): drag the card, and use More → **Make a
 board**. "Hey Ghost, move the pricing page to Done" and "Hey Ghost, make this a board", said into a note's own Speak,
@@ -242,6 +243,6 @@ mobile". What that means on the page:
 - **A lane with more below goes to smoke at its foot** (Matt: "the blur at the bottom of the swimlanes should be the
   wisp effect we use on text"). Only while there are cards under the lane's foot: the app's wisp edge, the words and
   cards bending and softening into the lane's ground as they go, over a short fade (`src/app/art/wispFoot.ts`, one
-  filter made for the lanes' height). With Settings › Animations › Smoke at the edges switched off, with reduced
+  filter made for the lanes' height). With Settings › Feel › Smoke at the edges switched off, with reduced
   motion, or on a lane so large that the filter would not fit the engine's budget of 2^24 device pixels (over it
   WebKit paints the filter solid black), the lane keeps the plain fade.

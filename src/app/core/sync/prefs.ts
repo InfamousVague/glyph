@@ -21,7 +21,6 @@ const SYNCED_PREFS = [
   'noteFace',
   'refine',
   'quietStop',
-  'commandWord',
   'review',
   'summaries',
   // When a meeting is written up, and whether its audio syncs: the person's choices, whichever device made the meeting.

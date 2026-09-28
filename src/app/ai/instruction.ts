@@ -1,22 +1,24 @@
 import { isBookBody } from '../book/book.ts';
 import { findKeyword, findMisheard, isStandaloneCommandLike, LEAD_INS, onlyFiller, type FinalPlan } from '../capture/command.ts';
 import { classifyFinalTranscript } from '../capture/finalInstruction.ts';
-import { misheardShape } from '../capture/liveCommand.ts';
-import { FIND, findNote } from '../capture/noteFind.ts';
+import { bareCommand, bareShape, misheardShape, readRoute } from '../capture/liveCommand.ts';
+import { findNote } from '../capture/noteFind.ts';
 import type { Candidate } from '../capture/route.ts';
 import type { RunKind } from './kinds.ts';
 
 /**
- * One reader for an instruction spoken after "hey Ghost": what the person
- * wants done, and to which note. (The note's AI bar took typed ones too
- * until it was removed, docs/DESIGN.md §122.)
+ * One reader for a spoken instruction, with "hey Ghost" before it or without
+ * (docs/DESIGN.md §136): what the person wants done, and to which note. (The
+ * note's AI bar took typed ones too until it was removed, docs/DESIGN.md §122.)
  *
  * The rules are here, once, in the order they bite:
  *
  * 1. The runs, said in words - "fix the spelling", "make this a list",
  *    "summarise it", "carry on" - are those runs on the note on screen.
  *    Specific phrasings, read before anything else, so a model is never
- *    asked what a run's own words already say.
+ *    asked what a run's own words already say. Without the keyword a run is
+ *    the whole phrase and nothing more but its object: "fix the spelling of
+ *    Kowalski on the sign" is a sentence, which the keyword makes the run.
  * 2. A command that names another note - "add eggs to Groceries", "make a
  *    new list called Comic books" - is read by the voice commands' reader
  *    (capture/finalInstruction.ts): its rules first and the on-device model
@@ -24,7 +26,9 @@ import type { RunKind } from './kinds.ts';
  *    title is what the model is for). What comes back is offered on the
  *    confirm card before anything is written, as it always was for a
  *    recording. A command that named a note there is no note for is
- *    refused, with its reason, rather than written into the note as words.
+ *    refused, with its reason, after the keyword, since the person said it
+ *    was a command; without it, the words are the note's, and the reason is
+ *    the chip's.
  * 3. Anything else is an ask about the note on screen, but only after the
  *    keyword; without it, speech is the note's words.
  */
@@ -38,7 +42,10 @@ export type Read<N extends Candidate> =
   | { kind: 'reject'; reason: string }
   /** Free words about the note on screen. */
   | { kind: 'ask'; instruction: string }
-  /** Not an instruction at all: spoken words with no keyword. `notice` says when the model could not be asked. */
+  /**
+   * Not an instruction at all: spoken words with no keyword. `notice` says when the model could not be asked, or why a
+   * command said without the keyword was not carried out.
+   */
   | { kind: 'words'; notice?: string };
 
 /** The lead-ins a person says before the thing itself. */
@@ -84,9 +91,51 @@ const RUN_RULES: readonly [RunKind, RegExp][] = [
   ['shape', /^(?:make|turn)\s+(?:this|it|the note|these|this note|everything)\s+(?:into\s+)?(?:a\s+|an\s+)?(?:list|to-?\s?do(?: list)?|task list|tasks|check\s?list|table|numbered list|bullet(?:ed)? list|bullets)\b/i],
 ];
 
-/** The run a phrasing means, or null. */
-export function runOf(words: string): RunKind | null {
-  return RUN_RULES.find(([, rule]) => rule.test(words))?.[0] ?? null;
+/** What may follow a run's words and leave it the run alone: its object ("summarise it for me", "tidy this up"). */
+const RUN_REST = /^(?:\s+(?:it|this|that|the note|this note|everything|up|please|for me|now))*\s*$/i;
+
+/**
+ * The run a phrasing means, or null. With `whole`, the run and nothing more: without the keyword, "fix the spelling of
+ * Kowalski on the sign" is a sentence, not a run on the note, since the rules are anchored at the front and would take
+ * any sentence that opens with one of them.
+ */
+export function runOf(words: string, { whole = false }: { whole?: boolean } = {}): RunKind | null {
+  for (const [kind, rule] of RUN_RULES) {
+    const found = rule.exec(words);
+    if (!found) continue;
+    if (!whole || RUN_REST.test(words.slice(found[0].length))) return kind;
+  }
+  return null;
+}
+
+/**
+ * Whether the live reader's gate turned `words` down as a command for `note` (capture/liveCommand.ts `bareCommand`):
+ * they have a bare command's shape for that note, and not one such reading passes the rest of the gate, the note
+ * named clearly and the name saying it is a list where the shape needs one. Then a transcript with no keyword is the
+ * note's words at Done too, and no card offers to send it there: "Add the flour to the bowl", "Put this in the car,
+ * then drive" and "Add call the plumber to work" were cards here after the live reader had kept them as words, and
+ * the card's Cancel lets the recording go. Words with no bare shape for the note ("add to the note labeled Go pack
+ * sunscreen", a name only the model matches) were never the live gate's to judge, and are offered as they always were.
+ */
+function turnedDown<N extends Candidate & { note?: { body: string } }>(words: string, note: N, notes: readonly N[]): boolean {
+  const body = note.note?.body ?? '';
+  const judged = readRoute(words).flatMap((reading) => {
+    if (!bareShape(reading)) return [];
+    const found = findNote(reading.name, notes);
+    return found.status === 'resolved' && found.note.id === note.id ? [{ reading, score: found.score }] : [];
+  });
+  return judged.length > 0 && !judged.some(({ reading, score }) => bareCommand(reading, { title: note.title, body }, score, { atStart: true }));
+}
+
+/**
+ * The reason a command said without the keyword was not carried out, for the words saved in its place: the name as
+ * said, up to its first comma ("No note called “shopping”"), where the rules' reason carries the words after it too.
+ */
+function savedAsWords(reason: string): string {
+  const unmatched = /^No unambiguous note matches “(.+?)”\./.exec(reason);
+  const name = unmatched?.[1]?.split(/\s*[,;:]\s*/)[0]?.trim();
+  if (name) return `No note called “${name}”, so the words are saved as a note.`;
+  return reason.replace(/\.\s*Nothing changed\.$/, ', so the words are saved as a note.');
 }
 
 /** Reads a spoken instruction. `notes` are the person's notes, for a command that names one. */
@@ -95,23 +144,30 @@ export async function readInstruction<N extends Candidate & { note?: { body: str
   if (!bare || !bare.words) return { kind: 'words' };
   if (bare.misheard && !bare.keyed) {
     // "Hey, like, make sure the door is locked" is how people talk: after a mishearing of the keyword only a command
-    // for a note named clearly counts, as it does for the live reader (capture/liveCommand.ts `misheardShape`), which
-    // its card asks about; anything else is the note's words, never a run, an ask or a refusal.
+    // that passes the gate every bare phrase passes counts (capture/liveCommand.ts `bareCommand`), as it does for the
+    // live reader, which its card asks about; anything else is the note's words, never a run, an ask or a refusal.
     const clear = misheardShape(bare.words, (reading) => {
       const found = findNote(reading.name, notes);
-      return found.status === 'resolved' && found.score >= FIND.clear && !isBookBody(found.note.note?.body ?? '');
+      if (found.status !== 'resolved') return false;
+      const body = found.note.note?.body ?? '';
+      return !isBookBody(body) && bareCommand(reading, { title: found.note.title, body }, found.score, { atStart: true });
     });
     if (!clear) return { kind: 'words' };
     const decision = await classifyFinalTranscript(bare.words, notes);
     return decision.kind === 'offer' ? { kind: 'command', plan: decision.plan } : { kind: 'words' };
   }
-  const run = runOf(bare.words);
+  const run = runOf(bare.words, { whole: !bare.keyed });
   if (run) return { kind: 'run', run };
   const decision = await classifyFinalTranscript(bare.words, notes);
-  if (decision.kind === 'offer') return { kind: 'command', plan: decision.plan };
-  // A command that named a note fails closed, with its reason; one the reader could make nothing of is an ask.
+  if (decision.kind === 'offer') {
+    // Without the keyword, what the live reader's gate kept as words is words here too, not a card.
+    if (!bare.keyed && decision.plan.kind === 'place' && turnedDown(bare.words, decision.plan.note, notes)) return { kind: 'words' };
+    return { kind: 'command', plan: decision.plan };
+  }
+  // A command that named a note fails closed after the keyword, with its reason; without it the words are the note's,
+  // and the reason is the chip's. One the reader could make nothing of is an ask.
   const named = decision.kind === 'rejected' && /\bnote\b/i.test(decision.reason) && /called|matches|No unambiguous/i.test(decision.reason);
-  if (named) return { kind: 'reject', reason: decision.reason };
+  if (named) return bare.keyed ? { kind: 'reject', reason: decision.reason } : { kind: 'words', notice: savedAsWords(decision.reason) };
   if (!bare.keyed) return { kind: 'words', ...(decision.kind === 'ordinary' && decision.notice ? { notice: decision.notice } : {}) };
   return { kind: 'ask', instruction: bare.words };
 }

@@ -4,9 +4,9 @@ _Talk to the AI about a note instead of into it, and let the slower models check
 
 ## Asking by voice
 
-Open a note and talk into it. Use the microphone in its tools (**Talk into this note**), or **Add** on its tape if it already has a recording. Start with the keyword, say what you want done, and tap Done:
+Open a note and talk into it. Use the microphone in its tools (**Talk into this note**), or **Add** on its tape if it already has a recording. Say what you want done, and tap Done:
 
-> "Hey Ghost, fix the spelling."
+> "Fix the spelling."
 
 The words are read as an instruction, not written into the note. The note opens with the run on it: the strip under the header, the model's lines landing as they finish, and every change marked for Keep or Revert, just as in [[Asking the AI to work on a note]].
 
@@ -16,12 +16,12 @@ Before you say anything, the recorder's card shows two of these under "To ask th
 
 | Say | The run | What it does |
 |---|---|---|
-| "Hey Ghost, fix the spelling" | Fix spelling | Spelling, grammar and punctuation, and not a word more. The note comes back line for line. |
-| "Hey Ghost, summarise this" | Summarize | The point of the note and its tasks, in far fewer words, above the note. |
-| "Hey Ghost, make this a list" | Make a list | Tasks, a list or a table out of what is there. |
-| "Hey Ghost, tidy this up" | Format | Tidy and organise, keeping every word that matters. |
-| "Hey Ghost, flesh it out" | Enhance | Every thought finished and the note made fuller, without inventing. |
-| "Hey Ghost, carry on" | Continue | Carries on from the last line in the note's own voice, under it. |
+| "Fix the spelling" | Fix spelling | Spelling, grammar and punctuation, and not a word more. The note comes back line for line. |
+| "Summarise this" | Summarize | The point of the note and its tasks, in far fewer words, above the note. |
+| "Make this a list" | Make a list | Tasks, a list or a table out of what is there. |
+| "Tidy this up" | Format | Tidy and organise, keeping every word that matters. |
+| "Flesh it out" | Enhance | Every thought finished and the note made fuller, without inventing. |
+| "Carry on" | Continue | Carries on from the last line in the note's own voice, under it. |
 | "Hey Ghost, make it sound friendlier" | Ask | Anything else is a free ask. The model does what you said to the note's words. |
 
 Each run answers to more than one phrasing:
@@ -33,11 +33,11 @@ Each run answers to more than one phrasing:
 - **Continue**: "keep going", "keep writing", "write more", "go on".
 - **Make a list**: "turn this into a table", "make this a checklist", "turn these into tasks".
 
-"Glyph" works in place of "Hey Ghost", and so do "OK Ghost" and "Hi Ghost", but "Ghost" on its own does not. A "please" or "can you" after the keyword makes no difference.
+"Hey Ghost", "OK Ghost", "Hi Ghost" or "Glyph" first are all fine and never needed for these, said alone; a free ask, or a run with more words after it, needs one. "Ghost" on its own is not the keyword. A "please" or "can you" after the keyword makes no difference.
 
-A free ask only counts when the keyword opens the take. The strip then shows your own words in quotes: "“make it sound friendlier” with Qwen3.5 4B, 9.4 tokens a second, 0:12." The named phrasings above are read as runs even without the keyword, and only the start of the take is read. So a take into a note that begins "Continue", "Format" or even "Go on" is taken as that run, and none of it is written into the note.
+A free ask only counts when the keyword opens the take. The strip then shows your own words in quotes: "“make it sound friendlier” with Qwen3.5 4B, 9.4 tokens a second, 0:12." The named runs, such as "Fix the spelling" said first into a note, need no keyword, but without it a run is the whole of what you said: "Carry on" is the run, and "Continue the discussion with Sam tomorrow" or "Fix the spelling of the name on the sign" is a sentence, written into the note. After the keyword only the start of the take is read, so a take into a note that begins "Hey Ghost, continue", "Hey Ghost, format" or even "Hey Ghost, go on" is taken as that run, and none of it is written into the note.
 
-An ask said first is the whole take: say it on its own, then tap Done. Nothing else you say in that take is written into the note. An ask said in the middle of a recording runs on the note that opens after Done, and the chip says so. Words that name another note, such as "Hey Ghost, add eggs to Groceries", are a command rather than an ask: they go into that note as you say them. See [[Commands after Hey Ghost]].
+An ask said first is the whole take: say it on its own, then tap Done. Nothing else you say in that take is written into the note. An ask said in the middle of a recording runs on the note that opens after Done, and the chip says so. Words that name another note, such as "Add eggs to Groceries", are a command rather than an ask: they go into that note as you say them. See [[Spoken commands]].
 
 ## Where an ask runs
 
@@ -78,7 +78,7 @@ It checks four things:
 |---|---|
 | Words | Where the two transcripts disagree, and which one is right. |
 | Structure | Whether each list, heading, to-do and table is what you meant. |
-| Commands | Whether each "Hey Ghost" command did what you said, with nothing lost and no command words left behind in the note. |
+| Commands | Whether each spoken command did what you said, with nothing lost and no command words left behind in the note. |
 | Names | People, projects and features spelled the way your note titles spell them. |
 
 A finding has to quote text that is really in the note, or it is dropped, so a model that imagines a mistake cannot change words that are not there. A finding can instead add a line, and one that adds a line the note already has is dropped too. At the end, a message counts what was found, such as "Qwen3.5 4B found 2 things to look at. Each is marked in the note.", or "Qwen3.5 4B found nothing to change."
@@ -97,6 +97,6 @@ Listening again also needs Better words on and the larger speech model, which is
 
 ## Read next
 
-- [[Commands after Hey Ghost]]
+- [[Spoken commands]]
 - [[Recording a note]]
 - [[What stays on your phone]]

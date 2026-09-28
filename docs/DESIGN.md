@@ -6774,3 +6774,260 @@ rows are to be answered if this is in the bundle: its "The app never reads locat
 reading again against this section when it merges.
 
 Cites: §21, §29g, §95, §126, §127, §132, docs/LIBRARY.md "Front matter", docs/SHARING.md, docs/MCP.md
+
+## 136. A command needs no keyword: "hey Ghost" is optional, and the setting is gone (2026-09-27)
+
+Matt: "Remove the function which expects hey ghost before commands and the associated setting also see if you can
+clean up / streamline settings a bit".
+
+Built on branch voice/no-keyword against HEAD 891f3cd (1.8.0-20), from a design that a review replayed sentence by
+sentence through both readers before anything was built; each finding it made is a rule below and a test on the
+reviewer's own sentence. Numbered 136 because 133 to 135 are being taken by branches in flight (meetings/page,
+notes/geotag and one more); it is the next free number at merge, and nothing was renumbered.
+
+**What went.** `Preferences.commandWord` (§38; kept in §50 for its second job; the live reader's gate in §126), its
+sync entry (an older blob's key is dropped by `known()`), the Recording row "Commands start with “hey Ghost”", its
+hint and its search entry, `commandWordOn()` and its reads in the recorder, `LiveContext.keywordOn`,
+`LiveTakeOptions.keywordOn`, the suite's `prefs.commandWord`, the `keyword` flag on `tips`, `tipInPause` and
+`starters`, and the dead `!keyed` branches of `act` and `command` (every caller passed `true`; `readNameFirst` is
+read unconditionally there, since only a keyed phrase reaches `command`). Nothing in Rust: Whisper's cue vocabulary
+keeps "hey Ghost", since the word still works.
+
+**The flow now.** "Add call the plumber to House TODOs", said at any point in a recording, puts it there as "Hey
+Ghost, add call the plumber to House TODOs" did: at the start of a fresh recording the take goes to the note,
+mid-take the words do and the take carries on, "move this to X" moves it, "new note" alone starts one, and
+"Actually, add …" is the command as people say it (`bare` reads `commandAfterOpener`, and `takeBack` lets such a
+phrase through when its words pass the gate). One gate decides, liveCommand.ts `bareCommand`, the one a mishearing
+of the keyword already had to pass (§126, "Mishearings"), now one function for the live reader's bare and misheard
+phrases (`clear`, `bareReading`, `readsAsRoute`) and the reader at Done's mishearing card, so a mishearing means the
+same to each, which `misheardShape`'s doc promised and the first draft broke. It asks four things:
+
+- *The shape* (`bareShape`). "Add a note to X, …" or "new item for X, …" with the name run to a comma, a colon, a
+  stop or the phrase's end, never to a split the grammar chose (`!split`: "Another item on the agenda is the budget"
+  read as name "agenda" and wrote "- Is the budget" into Agenda). "Put this in X, …" stopped at a separator. "Add X
+  to Y" and "add X under H in Y". "Move this to X" or "switch this to X" (`Reading.plainMove`: the verb is move or
+  switch and "this" was said), to a note rather than a day (`WHEN`: "move this to Tuesday" moves a meeting, even
+  beside a note called Tuesday); "go to work", "continue in the garage" and "move it to X" each moved a whole
+  recording, sticky, and "it" is a send's word (§130), and in the review of the build so did "move everything to the
+  garage" and "move these to the kitchen", which is how people talk about boxes. "New note" alone, never "another
+  note" (how people introduce their next point). Never a to-do for here, a name said first, a name that starts with
+  a verb, or `current` (a heading, a lane, "the list", "here": the least distinctive names there are), and never a
+  card, a hold or a chip.
+- *The note*: resolved at `FIND.clear`, which rose from 0.85 to 0.9, the whole of a title's distinctive words. 0.85
+  is the floor `covered()` gives any name that is the start of a title, so one common word cleared it ("bank" is
+  Bank statements, "weekend" Weekend trip, "car" Car insurance, all 0.85); "house" is House TODOs at 0.9 and "the
+  work list" Work at 0.9. And one the recorder may write to (`refusal`: no book, no shared note over the lock
+  screen). `LIVE_TIMING.bareScore` stays as its alias.
+- *The evidence* (`bareEvidence`): for "put this in", "add X to Y" and a heading, the name says what kind of list it
+  is (`saysList`: a kind word, "house to-dos", "the work list", "packing list", or a shopping word, "groceries"). A
+  title that says so is not enough on its own: the first build took `titleKind(title)` too, and "house" is House
+  TODOs and "garden" Garden jobs at 0.9, so "Put the washing in the house." wrote the whole recording into House
+  TODOs as to-dos and "Put the bags in the house and lock the car." made two of them. For "add a note to X" and "new
+  item for X" the noun is the evidence only when it is filed (`Reading.filed`: added, put, stuck, popped, appended,
+  saved or filed; a note, an item, an entry, a bullet, a to-do, a task, a reminder, a bug or an issue): "Leave a note
+  for Mum, dinner is in the oven." sent a whole recording into Mum, and "send a note to Sam", "drop a line to the
+  team", "jot down a note for the kids", "another point for the agenda" and "another thing for the kitchen" are
+  messages and meeting talk, which need the name to say it is a list, as the other shapes do. The heading is one the
+  note has (`headingIn`, at `FIND.resolved`). "Move this" is its own evidence. A list in the body is no evidence any
+  more: nearly every note has one bullet, and "Send this to Sam, the deposit is due" wrote into a note called Sam.
+- *The words*: in the same phrase, unless the take is at the start of a fresh recording (not a note's own Speak),
+  where a route may wait for them in the open (the page switches, the chip says waiting, Not this note is there), or
+  the command moves the take. A bare command with nothing said for it opened a one-shot that took the next three
+  phrases of dictation. A mishearing mid-take is held to this too.
+
+Anything short of that is words, untouched: no card, no hold, no chip. "Okay." | "Add a note to House TODOs, call
+Sam." starts the take there, and "Um." | "New note." makes no note of "Um": the filler is marked with the command
+rather than written (`readHeld`, decided after the read, since `record` places by time, by whether the phrase's
+first step is a command's mark; "Okay." before words is still words). `choose` prefers the heading reading when one
+name is read two ways and the note has that heading ("add fix the tap under Kitchen in home jobs"), and otherwise the
+reading that keeps "under …" in the thing: the first build preferred the heading always, so "Hey Ghost, add clean
+under the sofa in house to-dos." wrote "- [ ] Clean", where main had kept it whole by accident (its comparator
+answered -1 both ways for one name).
+
+**What the keyword still does**, all of it already in code: a phrase that is no route after it is an ask or a run;
+an unsure or missing name gets a card; an opener is held for its name (chip "Hey Ghost, listening for a command");
+the name-first shapes ("For Groceries, …"); a heading or lane of the note being written to ("add call Sam to
+Doing"); a name and its words with no comma between them; "go to X", "carry on in X", "move it to X", "another
+note", "a new note"; a command whose words are still to come, mid-take; a to-do for here ("make a note to …", "add
+a to-do: …"); it interrupts a held command, an open one-shot or a note waiting for its words; it is stripped along
+with more of the lead-ins (`LEAD_INS` after it, `PLAIN_LEAD` without); its partial goes to the chip. The take-backs
+(§130) never read the setting and are unchanged: after "Hey Ghost" a whole new sentence counts as a correction, a
+keyed send that finds nothing is refused with a chip, a bare one is words; the one rule added mirrors the keyed one,
+a risky opener before words that pass the gate is the command, not a correction. A phrase with words before its
+opener ("Buy milk. Actually, add call the plumber to House TODOs.") is read as two first and its rest meets the rule
+alone (`!read.head`): the first build kept all of it as words, where the keyed form acted.
+
+**Asks at Done.** The named runs were already read without the keyword at the start of a note's own Speak (`runOf`
+before `keyed`), and the rules are prefix-anchored, so "Fix the spelling of Kowalski on the sign before Friday",
+"Tidy up the garage before the weekend", "Summarise the call with Jo" and "Continue the discussion with Sam
+tomorrow" were each a run that let the recording go and rewrote the note. Without the keyword a run is now the whole
+phrase and nothing more but its object (`runOf(words, { whole: true })`, `RUN_REST`: "it", "this", "that", "the
+note", "this note", "everything", "up", "please", "for me", "now"); with more words after it, it is the note's
+words, and the keyword forces the run. Each of the five asks on the say-card passes. A free ask without the keyword
+stays words, even alone in a fresh take into an open note: the reader cannot tell the first sentence of dictation
+from an instruction, and the wrong call rewrites the note ("A free ask only counts when the keyword opens the take",
+chapter 18, stands). A bare command at the start of a fresh recording whose name resolves nothing is words live,
+and the reader at Done, which reads the whole transcript through `finalCommandWords` as it always did, now saves it
+as the note with the reason as its notice ("No note called “shopping”, so the words are saved as a note.", the name
+as said up to its comma, `savedAsWords`, where the rules' reason carried "shopping, oat milk"), `{ kind: 'words',
+notice }`, no longer refused with nothing saved: a person who did not say the keyword did not say it was a command. A
+keyed one is refused as before (at Done), or kept by the live reader with its own chip ("No note called “shopping”,
+so the words stay here."), as before.
+
+The reader at Done reads a fresh recording's, or a note's own Speak's, whole transcript when the live reader did
+nothing, and `planCommand` is loose, "since the keyword already says it is one" (command.ts): a plain note, a prefix
+at 0.85, a heading that is not there. So on main, and on the first build of this branch, what the live gate kept as
+words came back at Done as a card: "Add the flour to the bowl." | "Then stir it for a minute." offered Add to Bowl
+with both sentences, "Put this in the car, then drive." Car insurance, "Add call the plumber to work." Work, and into
+Garage's own Speak "Add the flour to the bowl." offered to move it out. The card writes nothing until Add, but its
+Cancel lets the recording go, so the dictation was lost on a tap that meant "not that note". Now a place offer for a
+transcript with no keyword is words when the live gate turned it down (ai/instruction.ts `turnedDown`: the words
+have a bare shape for that note, and no such reading passes `bareCommand`), whether the rules or the model made the
+offer. What the live gate had no reading of for that note is offered as ever: a title that starts with a verb ("add
+to the note labeled Go pack sunscreen", the stop-transcript test), a name only the model matches, a new list by
+name, and, into a note's own Speak, a command whose words came in the next breath ("Add a note to weekend trip." |
+"Book the ferry."), since the transcript at Done has no phrase breaks to tell it from one breath. Those cards keep
+the Cancel that lets the recording go (question 11).
+
+**Teaching.** Every example says the command bare, in a form the gate takes: "Add … to Groceries" for a note whose
+title says it is a list (said whole, its last word is the kind or shopping word the gate wants), "Add a note to Work,
+…" for one that does not (tips.ts `addTo` chooses by `titleKind`), "New item for X, …" with the item in the same
+breath (the first build said "and then the item", a second breath, which mid-take is words: "- For Groceries" was
+written into the note being recorded), "Move this to X" and "New note"; one line says "Hey Ghost" first is optional
+(the Guide's habits page, chapter 11). The note a tip names is one the gate can name bare: never a book (the pause's
+tip skipped none before) and never a title that starts with a verb (Call log, Book club, Set list), which is read as
+what to do, keyed or not for a move; the tip names the next note, and the say-card offers the new list instead. The
+say-card's ask reads "Summarise this", as chapters 11 and 18 do. The habits page's three phrases are "Add bread to
+Groceries", "Add a note to Work, call Sam" (guide/phrases.ts `NOTE_COMMAND`, where the first build only matched its
+string) and "Fix the spelling"; guide.test.ts runs each through the readers bare and keyed. A heading or lane of the note you are in keeps the
+keyword in every example, and chapter 11, chapter 13 and BOARDS.md say why. The chapter "Commands after Hey Ghost"
+is "Spoken commands" (11-spoken-commands.md), its links and libraryTitles.ts with it; it gains "What is read without
+it" and "Saying “Hey Ghost” first". Chapter 18's table says the runs bare; chapter 24 loses the row and its hint;
+chapter 34 describes `bareCommand` and gains a row for an unsure or missing name without the keyword. The model's
+command prompt (understand.ts, which src-tauri's `understands_spoken_commands` reads by name) says the person "may
+have said" the keyword; the review's prompt and its simulations say "each spoken command".
+
+**Voice suite.** The 22 recorded scripts stand (the keyword is stripped as before). 066 kept its lines and its
+recording and now expects the Glyph note written to ("the Glyph note" is a name, said bare). 059's wording changed,
+not its expectation. 112 to 118 are text-only until their audio is made: "add oat milk to groceries" at the start;
+"add call the plumber to House TODOs" as a one-shot mid-take; "move this to weekend trip"; Matt's sentence in two
+phrases without "Hey Ghost" (093 bare); "put the parcel in the post" and a note there is none of, words; "go to
+work", words; "fix the spelling of Kowalski on the sign" into a note's own Speak, words. The suite plays the live
+reader only, so 116 and 118 now say they check what is written as it is said; the reader at Done's side of them is
+instruction.test.ts's and CaptureScreen.test.tsx's.
+
+**Settings, streamlined.** Recording's reading was "A note a take", memo mode's, which went on 2026-09-22; it now
+reads what is on: "Review · better words · meeting summaries" by default, "Stops when quiet · …" with quiet stop,
+"Nothing after recording" with none. Feel, a page of one switch listed only where there is a motor, absorbs
+Animations, which the sheet's own comment said sat with the "how it works" pages though it was listed after the
+plugins: one page in Feel's place, icon Waves, sections Speed, Movement and, only where `hapticsAvailable()`, Touch;
+its reading is the Animations one plus "haptics" where there is a motor, first word capitalised as Recording's is,
+or "All still". AnimationsPane.tsx went into FeelPane.tsx; chapter 24 has one Feel section; every "Settings ›
+Animations" in the guidebook, the docs, the code's comments and the smoke bench's one line says Feel. Recording's
+sections are not regrouped (meetings/page is adding rows there), so "Review after recording" still sits under "The
+side key" on Android; Type and Appearance are not merged (question 1). Settings search finds "How to talk to
+Ghost.md" (About) by "hey ghost" and "keyword", so someone looking for the switch that went is led to the Guide.
+
+**In the browser**, a build previewed with a library of House TODOs (a to-do list), Groceries, Sam (one bullet),
+Launch board (Doing a lane), Work, Weekend trip, Porch light, Car insurance, Garage and Agenda, driven through
+`?simulate=say`, the bodies read back from localStorage: "Add call the plumber to House TODOs." alone switched to
+House TODOs and wrote "- [ ] Call the plumber", no note made; "Kevin owns the release." | "Add a note to house
+to-dos, call Sam." | "The cabin has two bedrooms." wrote "- [ ] Call Sam" there and the note kept both sentences;
+"Buy milk." | "Go to work." | "Ring the plumber." was one note and Work untouched; the agenda, Sam, porch and car
+sentences in one take were one note and no note changed; "Move this to the garage." took "Kevin owns the release."
+and "Ring the plumber." into Garage; "Actually, add call the plumber to House TODOs." then "Add oat milk to
+groceries." after a sentence wrote into both and the note kept its sentence; "Okay." | "Add a note to weekend trip,
+book the ferry." | "Pack the tent." started the take in Weekend trip with no "Okay."; "Make a new list called Comic
+books with Batman and Superman." showed Create at Done and made the list; "Scratch that, add it to groceries
+instead" sent "Oat milk" as before; into Garage's own Speak, "Fix the spelling of Kowalski on the sign." was
+appended as words. The say-card read "“Add … to House TODOs”", "“Move this to House TODOs”", "“Fix the spelling”"
+and "“Summarize this”", and the pause tip "Say “Add … to House TODOs” …", nothing keyed. Settings in the browser:
+Feel with Speed and Movement, reading "Ghostly typing · smoke · ripples"; with an Android user agent, Recording
+reading "Review · better words · meeting summaries", its rows Stop when I go quiet, Review after recording, Height,
+Better words, Summaries, and no "hey Ghost" on the page.
+
+**In the browser again**, after the review of the build, the same way with Bowl, Mum, Tuesday, Garden jobs and Call
+log added: "Put the washing in the house." | "The rest of the note.", "We talked." | "Move everything to the
+garage." | "More.", "Leave a note for Mum, dinner is in the oven." | "The rest." and "Add the flour to the bowl." |
+"Then stir it for a minute." were each one note, no note changed and no card at Done; "Hey Ghost, add clean under the
+sofa in house to-dos." wrote "- [ ] Clean under the sofa"; "Buy milk. Actually, add call the plumber to House TODOs."
+in one phrase wrote "- [ ] Call the plumber" and made "# Buy milk"; "Add call the plumber to House TODOs." alone
+still switched there; "New item for groceries, oat milk." mid-take wrote "- Oat milk"; "Add to shopping, oat milk."
+made its note, and the notice was not seen (question 8); into Garage's own Speak "Add call the plumber to work." was
+appended, with no card. With Call log the most recent note the say-card offered "Make a list called … with …" and the
+pause tip "Say “Add … to House TODOs” …"; the ask read "“Summarise this”". Settings search for "hey ghost" found How
+to talk to Ghost.md under About.
+
+**Changed on purpose.** A bare command routes at any point, not only at the start with the setting off. "Add a note
+to Weekend trip, …" routes when Weekend trip has no list: "a note" was said. "OK like move this to the Galaxy Fold"
+moves the take. "New note." alone works bare. A mishearing mid-take with no words in the phrase is words, where it
+opened a one-shot. `FIND.clear` is 0.9, so a mishearing before a name that is only the start of a title is words. A
+bare run with more words after it is words into the note. A bare command refused at Done is saved as words with the
+reason. 066's expectation. Tests: liveRoute.test.ts "the keyword" became "without the keyword" and "the guards" was
+rewritten, the mishearing list lost its move line; tips.test.ts strings and its `keywordOn` loop; guide.test.ts and
+Tips.test.tsx on the bare phrases plus a keyed variant; SettingsSheet.test.tsx labels, rows and readings;
+settingsSearch.test.ts's fixture row; CaptureScreen.test.tsx's refusal test, now a bare command saved as words with
+the reason beside a keyed one kept with the live reader's chip, "stays on a continued note's tape" now said with the
+keyword (a bare "add to the camping list …" is the note's words), and the New note test's command at Done now a new
+list by name (a bare "add oat milk to groceries" is carried out live). After the review of the build: "move
+everything", "move these" and a move to a day are words bare; a note or item left, sent or raised for someone, and
+"put … in the house" beside House TODOs, are words bare; "Hey Ghost, add clean under the sofa in house to-dos" keeps
+"under the sofa"; "Buy milk. Actually, add …" in one phrase carries the command out; "Um." | "New note." makes no
+note of "Um"; a place offer at Done that the live gate turned down is words, not a card; the bare notice names the
+note as said ("No note called “shopping”"); the tips' "New item for X, …", their skipping of books and of titles
+that start with a verb, and "Summarise this"; Settings search finds "How to talk to Ghost.md" by "hey ghost" and
+"keyword". Tests: liveCommand.test.ts's `switch everything to work` row is now false, and its evidence rows say the
+name, not the title; instruction.test.ts's notice strings; CaptureScreen.test.tsx's notice string; tips.test.ts's
+new-item tip, with the `', oat milk'` special case gone.
+
+**Questions for Matt.** 1. Type and Appearance overlap (Text size beside Size, two font rows): merge Type into
+Appearance as a section? 2. A bare opener alone ("Add a note to." then a pause) is words; hold it for its name as
+after the keyword? 3. A bare command's partial draws on the page until it commits; the keyword's goes to the chip.
+Worth a partial-time guess against the note titles? 4. While a note waits for its words, "Add call Sam to Work." is
+the words (only the keyword interrupts). Keep? 5. Mid-take a bare command needs its words in the same breath; "Add a
+note to house to-dos." | "Call Sam." is two sentences of dictation. Keep, or let a bare route wait one phrase with
+the chip showing? 6. "Add call the plumber to Work" is words beside a note called Work, since neither the name nor
+the title says it is a list; "the work list", "a note" or "a task" routes. Widen shape 4 to any note whose body
+holds a list, or (the review's suggestion, since a body with a list is what caught Sam) only to a name that is the
+whole title? 7. Answered in the review of the build, for Matt to overturn: "Send a note to Sam, the deposit is due"
+beside a note called Sam is words, as are "leave a note for Mum", "drop a line to the team" and "another point for
+the agenda"; "send a note to the house list, …" routes. Keep? 8. The reason a bare command was saved as words is set on the recorder's line as it saves, and a new
+recording's recorder closes at once, so in the app it is not seen; the same is true of "… isn't something a
+recording can do, so the words are saved as a note", which is older. Hold the recorder for `SAID_MS` when a notice
+is set, as `finish` already does for "Nothing was said for …"? (CaptureScreen.tsx's `finish` was left alone here, for
+the branches merging before this one.) 9. A take-back's send needs no gate: "Leave the bike by the door." | "No, put
+it in the garage." sends the sentence to Garage, and "Actually, it goes in the garage." does too, on main as here.
+Now that commands are taught bare, should a send after a risky opener with no keyword need the bare gate's evidence
+(a name that says it is a list)? 10. "Make a list called Comic books" is made bare only when it opens a recording;
+in the middle of one it is words, where after the keyword it is queued for the reader at Done. Queue it bare too?
+11. A card at Done for a transcript with no keyword (a verb-named note, a name only the model matched, a two-breath
+command into a note's own Speak) keeps the Cancel that lets the recording go. Should its Cancel keep the words as a
+note instead, since nobody said it was a command? (A change to CaptureScreen.tsx's `finish`, for after meetings/page
+merges.) 12. The Play listing on main (docs/store/play, since d69aa6f, after this branch's base) leads with "HEY
+GHOST" and 'Say "Hey Ghost, add a note to House TODOs"', and What's new says the same. Both still work; keep "Hey
+Ghost" as the listing's hook, or say the command bare and the keyword optional? The copy is not on this branch, so
+it is unchanged here.
+
+**Tests.** liveCommand.test.ts (`bareShape`, `bareEvidence`, `plainMove`, `filed`, `split`, the heading reading),
+noteFind.test.ts (the prefix scores, `FIND.clear`, `headingIn`), liveRoute.test.ts ("without the keyword", "the
+guards", "stays words without the keyword" at the start and mid-take, now with the review of the build's sentences
+and no chip; filler before a bare command or "New note"; "Buy milk. Actually, add …"; the name-first shapes after
+the keyword only; a book and a shared note over the lock screen; a note's own Speak waiting for no words; "under
+the sofa"), instruction.test.ts (runs as whole phrases, a bare refusal saved with the name as said, the shared
+mishearing gate, "the reader at Done, without the keyword": the turned-down sentences as words and keyed as cards),
+tips.test.ts (bare tips carried out, "Add a note to Work, …", "New item for Groceries, …" and its two breaths as
+words, a book or a verb title never named, the asks as whole runs), guide.test.ts (all three habits), Tips.test.tsx,
+CaptureScreen.test.tsx (a bare command at the start, live; a bare refusal at Done and its keyed variant; a run
+sentence and a turned-down command into a note's own Speak; a fresh recording that opens with a turned-down
+sentence, no card), FeelPane.test.tsx (Touch only where there is a motor), SettingsSheet.test.tsx (and the search
+for the switch that went), settingsSearch.test.ts, the suite's 066 and 112 to 118.
+
+**Not done.** The seven scripts' audio; a partial-time guess for bare commands; Type and Appearance; a bare route
+that waits one phrase; the notice held on screen (question 8); Cancel keeping the words (question 11); the Play copy
+(question 12). A Guide already added to a library keeps its chapters as they were ("a book already there by the
+guide's title is answered as it is", guidebook.ts), so Matt's phone still has "Commands after Hey Ghost" and chapter
+24's row for the switch until the Guide is removed and added again (Settings › About). The keyed
+"Hey Ghost, move this to Call log." is queued as an ask mid-take, since a name that starts with a verb is never a
+move's (SHAPE_5 wants `nameable` 'name'): older than this branch, and left for its own change.
+
+Cites: §38, §50, §126, §127 (Recording on the Mac), §130.

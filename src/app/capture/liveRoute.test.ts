@@ -105,6 +105,21 @@ describe('where the words go in the note found', () => {
     expect(take.body('groceries')).toBe('# Groceries\n\n- Eggs\n- Milk\n- Eggs\n- Bread\n');
   });
 
+  // "Under the sofa" is where the cleaning is, not a heading House TODOs has: the thing keeps it. Kitchen is one.
+  it('keeps “under …” in the thing when the note has no such heading, and goes under the heading when it has', () => {
+    const sofa = record();
+    sofa.say('First words.');
+    sofa.say('Hey Ghost, add clean under the sofa in house to-dos.');
+    sofa.done();
+    expect(sofa.take.body('house')).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Clean under the sofa\n');
+
+    const tap = record();
+    tap.say('First words.');
+    tap.say('Hey Ghost, add fix the tap under Kitchen in home jobs.');
+    tap.done();
+    expect(tap.take.body('jobs')).toBe('# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n- [ ] Fix the tap\n\n## Electrical\n- [ ] Rewire porch light\n');
+  });
+
   it('takes the words after a name and “and” as more of the thing', () => {
     const { take, say, done } = record();
     say('Hey Ghost, add milk to groceries and bread.');
@@ -350,28 +365,369 @@ describe('what is never switched to', () => {
   });
 });
 
-describe('the keyword', () => {
-  it('reads nothing said without it while the setting is on', () => {
-    const { take, say, done } = record();
+/**
+ * A command needs no keyword (docs/DESIGN.md §136): a phrase said without it is a command only through the bare gate
+ * (liveCommand.ts `bareCommand`), and anything short of that is words, untouched. Each sentence here was a mis-fire the
+ * review of the design found, or a command Matt would say, and each is the rule that answers it.
+ */
+describe('without the keyword', () => {
+  const more = (): MemoryNote[] => [
+    ...library(),
+    { id: 'trip', body: '# Weekend trip\n\nCabin.\n' },
+    { id: 'work', body: '# Work\n\nNotes.\n' },
+    { id: 'garage', body: '# Garage\n' },
+    { id: 'agenda', body: '# Agenda\n\n- Budget\n' },
+    { id: 'team', body: '# Team\n' },
+    { id: 'roadmap', body: '# Roadmap\n' },
+    { id: 'sam', body: '# Sam\n\n- Owes me a tenner\n' },
+    { id: 'porch', body: '# Porch light\n\nFlickers.\n' },
+    { id: 'moon', body: '# Moon landing\n' },
+  ];
+  const untouched = (take: LiveTake, ids: string[]) => {
+    for (const id of ids) expect(take.body(id), id).toBe(more().find((n) => n.id === id)!.body);
+  };
+
+  it('routes a note said plainly at the start, and writes what is said next into it', () => {
+    const { take, say, done } = record({ notes: more() });
     say('Add a note to house to-dos, call Sam.');
+    say('Also the gutter bolts.');
     done();
-    expect(take.live.engaged).toBe(false);
-    expect(take.result().made).toEqual(['Add a note to house to-dos, call Sam.']);
-    expect(take.body('house')).toBe(HOUSE);
+    expect(take.body('house')).toContain('- [ ] Call Sam\n- [ ] The gutter bolts\n');
+    expect(take.result().made).toEqual([]);
   });
 
-  it('with the setting off, routes the plainest shapes at the very start only', () => {
-    const one = record({ keywordOn: false });
-    one.say('Add a note to house to-dos, call Sam.');
-    one.say('Also the gutter bolts.');
-    one.done();
-    expect(one.take.body('house')).toContain('- [ ] Call Sam\n- [ ] The gutter bolts\n');
+  it('is a one-shot mid-take, the take carrying on where it was', () => {
+    const { take, say, done } = record({ notes: more() });
+    say('Put the parcel in the post.');
+    say('Add a note to house to-dos, call Sam.');
+    say('Then the budget.');
+    done();
+    expect(take.live.engaged).toBe(true);
+    expect(take.body('house')).toContain('- [ ] Call Sam\n');
+    expect(take.result().made).toEqual(['# Put the parcel in the post\n\nThen the budget.']);
+  });
 
-    const words = record({ keywordOn: false });
-    words.say('Put the parcel in the post.');
-    words.say('Add a note to house to-dos, call Sam.');
+  it('leaves a sentence that runs on past the name, or names nothing, or is only an opener, as words: no card, no hold', () => {
+    const { take, say, done } = record({ notes: more() });
+    say('Add oat milk to groceries before the weekend.');
+    say('Add a note to the moon base, pack the tent.');
+    say('Add a note to.');
+    say('Call Sam.');
+    done();
+    expect(take.live.engaged).toBe(false);
+    expect(take.card).toBeNull();
+    expect(take.live.holding).toBe(false);
+    expect(take.chips).toEqual([]);
+    untouched(take, ['groceries', 'moon']);
+    expect(take.result().made).toEqual(['Add oat milk to groceries before the weekend. Add a note to the moon base, pack the tent. Add a note to. Call Sam.']);
+  });
+
+  it('starts a new note on “New note” alone, and not on “Another note”', () => {
+    const one = record({ notes: more() });
+    one.say('Kevin owns the release.');
+    one.say('New note.');
+    one.say('The budget is fine.');
+    one.done();
+    expect(one.take.parts).toHaveLength(1);
+    expect(one.take.result().made).toEqual(['# Kevin owns the release', '# The budget is fine']);
+
+    const two = record({ notes: more() });
+    two.say('Kevin owns the release.');
+    two.say('Another note.');
+    two.say('The budget is fine.');
+    two.done();
+    expect(two.take.live.engaged).toBe(false);
+    expect(two.take.result().made).toEqual(['# Kevin owns the release\n\nAnother note. The budget is fine.']);
+  });
+
+  it('starts the take at a bare command said after filler, with no note of the filler', () => {
+    for (const filler of ['Okay.', 'Um.']) {
+      const { take, say, done } = record({ notes: more() });
+      say(filler);
+      say('Add a note to house to-dos, call Sam.');
+      done();
+      expect(take.body('house'), filler).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call Sam\n');
+      expect(take.result().made, filler).toEqual([]);
+    }
+    // "New note" said first is already one: the filler before it is no note's title.
+    const fresh = record({ notes: more() });
+    fresh.say('Okay.');
+    fresh.say('New note.');
+    fresh.say('Hello there.');
+    fresh.done();
+    expect(fresh.take.result().made).toEqual(['# Hello there']);
+    // Filler before words is words, as before: "Okay." is the take's own when no command came of it.
+    const words = record({ notes: more() });
+    words.say('Okay.');
+    words.say('The budget is fine.');
     words.done();
-    expect(words.take.live.engaged).toBe(false);
+    expect(words.take.result().made).toEqual(['# Okay\n\nThe budget is fine.']);
+  });
+
+  it('mid-take, needs the words in the same breath; at the start, a route may wait for them', () => {
+    const swallow = record({ notes: more() });
+    swallow.say('Kevin owns the release.');
+    swallow.say('Add a note to weekend trip.');
+    swallow.say('The cabin has two bedrooms.');
+    swallow.done();
+    expect(swallow.take.live.engaged).toBe(false);
+    untouched(swallow.take, ['trip']);
+    expect(swallow.take.result().made).toEqual(['# Kevin owns the release\n\nAdd a note to weekend trip. The cabin has two bedrooms.']);
+
+    const breath = record({ notes: more() });
+    breath.say('Kevin owns the release.');
+    breath.say('Add a note to weekend trip, book the ferry.');
+    breath.done();
+    expect(breath.take.body('trip')).toBe('# Weekend trip\n\nCabin.\n\nBook the ferry.');
+    expect(breath.take.result().made).toEqual(['# Kevin owns the release']);
+
+    const first = record({ notes: more() });
+    first.say('Add a note to weekend trip.');
+    expect(first.take.live.awaitingPayload).toBe(true);
+    expect(lastChip(first.take)).toEqual({ phase: 'waiting', title: 'Weekend trip' });
+    first.say('Book the ferry.');
+    first.done();
+    expect(first.take.body('trip')).toBe('# Weekend trip\n\nCabin.\n\nBook the ferry.');
+
+    // A note's own Speak is never a fresh recording: its first phrase is in the middle of that note.
+    const garage = more().find((n) => n.id === 'garage')!;
+    const own = record({ notes: more(), own: garage });
+    own.say('Add a note to weekend trip.');
+    own.say('Book the ferry.');
+    own.done();
+    expect(own.take.live.engaged).toBe(false);
+    untouched(own.take, ['trip']);
+    expect(own.take.body('garage')).toContain('Add a note to weekend trip. Book the ferry.');
+  });
+
+  it('moves the take only for “move this” or “switch this”, never for “go to”, “continue in” or “move it to”', () => {
+    const go = record({ notes: more() });
+    go.say('Buy milk.');
+    go.say('Go to work.');
+    go.say('Ring the plumber.');
+    go.done();
+    expect(go.take.live.engaged).toBe(false);
+    untouched(go.take, ['work']);
+    expect(go.take.result().made).toEqual(['# Buy milk\n\nGo to work. Ring the plumber.']);
+
+    for (const said of ['Continue in the garage.', 'Move it to the garage.']) {
+      const words = record({ notes: more() });
+      words.say('Buy milk.');
+      words.say(said);
+      words.done();
+      expect(words.take.live.engaged, said).toBe(false);
+      expect(words.take.aim, said).toBeNull();
+    }
+
+    const move = record({ notes: more() });
+    move.say('Buy milk.');
+    move.say('Move this to the garage.');
+    move.done();
+    expect(move.take.aim?.id).toBe('garage');
+    expect(move.take.body('garage')).toContain('Buy milk.');
+
+    // "Move everything to the garage" is about boxes; "move this to Tuesday" moves a meeting, even beside a Tuesday note.
+    const days = [...more(), { id: 'tuesday', body: '# Tuesday\n' }];
+    for (const said of ['Move everything to the garage.', 'Move these to the garage.', 'Move this to Tuesday.']) {
+      const words = record({ notes: days });
+      words.say('We talked about the weekend.');
+      words.say(said);
+      words.say('The rest of the note.');
+      words.done();
+      expect(words.take.live.engaged, said).toBe(false);
+      expect(words.take.aim, said).toBeNull();
+    }
+  });
+
+  it('never takes a name from a split the grammar chose: meeting talk stays words', () => {
+    const { take, say, done } = record({ notes: more() });
+    say('Another item on the agenda is the budget.');
+    say('A new task for the team is to ship it.');
+    say('Another point on the roadmap is billing.');
+    done();
+    expect(take.live.engaged).toBe(false);
+    untouched(take, ['agenda', 'team', 'roadmap']);
+
+    const item = record({ notes: more() });
+    item.say('New item for groceries, eggs.');
+    item.done();
+    expect(item.take.body('groceries')).toBe('# Groceries\n\n- Eggs\n- Eggs\n');
+  });
+
+  it('needs the name or the title to say it is a list for “put this in”: a bullet in the body is no evidence', () => {
+    const sam = record({ notes: more() });
+    sam.say('Send this to Sam, the deposit is due.');
+    sam.done();
+    expect(sam.take.live.engaged).toBe(false);
+    untouched(sam.take, ['sam']);
+
+    const list = record({ notes: more() });
+    list.say('Put this in the house list, call Sam.');
+    list.done();
+    expect(list.take.body('house')).toContain('- [ ] Call Sam\n');
+
+    // Nor is a title that says it is a list, when the name does not: "the house" is a place, not House TODOs.
+    const place = record({ notes: more() });
+    place.say('Put the washing in the house.');
+    place.say('The rest of the note.');
+    place.done();
+    expect(place.take.live.engaged).toBe(false);
+    untouched(place.take, ['house']);
+    const todos = record({ notes: more() });
+    todos.say('Kevin owns the release.');
+    todos.say('Add call the plumber to House TODOs and book the MOT.');
+    todos.done();
+    expect(todos.take.body('house')).toContain('- [ ] Call the plumber\n');
+  });
+
+  it('takes a heading only when the note has it', () => {
+    const porch = record({ notes: more() });
+    porch.say('Put the spare key under the mat on the porch.');
+    porch.done();
+    expect(porch.take.live.engaged).toBe(false);
+    untouched(porch.take, ['porch']);
+
+    const jobs = record({ notes: more() });
+    jobs.say('Add fix the tap under Kitchen in home jobs.');
+    jobs.done();
+    expect(jobs.take.body('jobs')).toBe('# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n- [ ] Fix the tap\n\n## Electrical\n- [ ] Rewire porch light\n');
+  });
+
+  it('reads “actually, add …” as the command after words in the same phrase', () => {
+    const { take, say, done } = record({ notes: more() });
+    say('Buy milk. Actually, add call the plumber to House TODOs.');
+    done();
+    expect(take.body('house')).toBe('# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call the plumber\n');
+    expect(take.result().made).toEqual(['# Buy milk']);
+  });
+
+  it('reads the name-first shapes after the keyword, never without it', () => {
+    for (const said of ['Hey Ghost, for groceries, eggs.', 'Hey Ghost, groceries: eggs.']) {
+      const { take, say, done } = record({ notes: more() });
+      say('Kevin owns the release.');
+      say(said);
+      done();
+      expect(take.body('groceries'), said).toBe('# Groceries\n\n- Eggs\n- Eggs\n');
+    }
+    const bare = record({ notes: more() });
+    bare.say('Kevin owns the release.');
+    bare.say('Groceries: eggs.');
+    bare.done();
+    expect(bare.take.live.engaged).toBe(false);
+    untouched(bare.take, ['groceries']);
+  });
+
+  it('never writes into a book, or a shared note over the lock screen, and says nothing of it', () => {
+    const book = record({ notes: more() });
+    book.say('Kevin owns the release.');
+    book.say('Add a note to Field guide, call Sam.');
+    book.done();
+    expect(book.take.live.engaged).toBe(false);
+    expect(book.take.chips).toEqual([]);
+    expect(book.take.result().made).toEqual(['# Kevin owns the release\n\nAdd a note to Field guide, call Sam.']);
+
+    const shared = record({ notes: more(), locked: true, published: (id) => id === 'house' });
+    shared.say('Kevin owns the release.');
+    shared.say('Add a note to house to-dos, call Sam.');
+    shared.done();
+    expect(shared.take.live.engaged).toBe(false);
+    expect(shared.take.chips).toEqual([]);
+    expect(shared.take.body('house')).toBe(HOUSE);
+  });
+
+  it('reads “actually, add …” as the command, and never as a correction of what came before', () => {
+    const one = record({ notes: more() });
+    one.say('Kevin owns the release.');
+    one.say('Actually, add call the plumber to House TODOs.');
+    one.done();
+    expect(one.take.body('house')).toContain('- [ ] Call the plumber\n');
+    expect(one.take.result().made).toEqual(['# Kevin owns the release']);
+
+    const talk = record({ notes: more() });
+    talk.say('Kevin owns the release.');
+    talk.say('Actually I think we should go.');
+    talk.done();
+    expect(talk.take.live.engaged).toBe(false);
+    expect(talk.take.result().made).toEqual(['# Kevin owns the release\n\nActually I think we should go.']);
+
+    // The sentence before shares its words with the command, which `corrects` would take for the sentence said again.
+    const shared = record({ notes: more() });
+    shared.say('Call the plumber about the house.');
+    shared.say('Actually, add call the plumber to House TODOs.');
+    shared.done();
+    expect(shared.take.body('house')).toContain('- [ ] Call the plumber\n');
+    expect(shared.take.result().made).toEqual(['# Call the plumber about the house']);
+  });
+
+  it('never names a lane or a heading of the note being written to without the keyword', () => {
+    const board = { id: 'board', body: '# Launch\n\n```board\nTo do: write-copy\nDoing: pricing-page\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n' };
+    const bare = record({ notes: [...more(), board], own: board });
+    bare.say('Put this in doing, it is underway.');
+    bare.done();
+    expect(bare.take.live.engaged).toBe(false);
+    expect(bare.take.body('board')).toContain('Put this in doing, it is underway.');
+    expect(bare.take.body('board')).toContain('Doing: pricing-page\n');
+
+    const keyed = record({ notes: [...more(), board], own: board });
+    keyed.say('Hey Ghost, put this in doing, it is underway.');
+    keyed.done();
+    expect(keyed.take.body('board')).toMatch(/Doing: \S+, pricing-page\n/);
+    expect(keyed.take.body('board')).toContain('- [ ] It is underway');
+  });
+
+  it.each([
+    ['Add the flour to the bowl.', 'the flour to the bowl'],
+    ['Put the kettle on.', 'the kettle on'],
+    ['Move the meeting to Tuesday.', 'the meeting to Tuesday'],
+    ['Move this to Tuesday.', 'this to Tuesday'],
+    ['Make a list of things to pack.', 'things to pack'],
+    ['Send the deposit to Sam.', 'the deposit to Sam'],
+    ['Scratch that itch.', 'that itch'],
+    ['Add call the plumber to work.', 'the plumber to work'],
+    ['Add a note to house to-dos call Sam.', 'house to-dos call Sam'],
+    ['Remind me to book the MOT.', 'ook the MOT'],
+    ['For groceries, eggs.', 'groceries, eggs'],
+    // A move of boxes, not of the recording.
+    ['Move everything to the garage.', 'everything to the garage'],
+    ['Move these to the garage.', 'these to the garage'],
+    ['Continue this in Work.', 'this in Work'],
+    // A place, which a list-titled note begins with: "house" is House TODOs and "garden" is Garden jobs, at 0.9.
+    ['Put the washing in the house.', 'the washing in the house'],
+    ['Put the new plants in the garden.', 'plants in the garden'],
+    ['Put this in the garden, next to the shed.', 'next to the shed'],
+    ['Put the bags in the house and lock the car.', 'lock the car'],
+    // A message or a point for someone, not a note filed.
+    ['Leave a note for Mum, dinner is in the oven.', 'dinner is in the oven'],
+    ['Send a note to Sam, the deposit is due Friday.', 'the deposit is due Friday'],
+    ['Drop a line to the team, the office is shut on Monday.', 'the office is shut on Monday'],
+    ['Jot down a note for the kids, pizza is in the freezer.', 'pizza is in the freezer'],
+    ['Write a note to Sam, thanks for the flowers.', 'thanks for the flowers'],
+    ['Another point for the agenda, we need to hire.', 'we need to hire'],
+    ['Another thing for the kitchen, we need new tiles.', 'we need new tiles'],
+    ['Add a comment to the work, it needs another pass.', 'it needs another pass'],
+  ])('stays words without the keyword, at the start and mid-take: %s', (said, kept) => {
+    const notes = [
+      ...more(),
+      { id: 'bowl', body: '# Bowl\n' },
+      { id: 'tuesday', body: '# Tuesday\n' },
+      { id: 'kitchen', body: '# Kitchen\n\n- Tiles\n' },
+      { id: 'garden', body: '# Garden jobs\n\n- Weed\n' },
+      { id: 'mum', body: '# Mum\n\nBirthday in May.\n' },
+      { id: 'kids', body: '# Kids\n\n- School run\n' },
+    ];
+    for (const before of [[], ['Kevin owns the release.']]) {
+      const { take, say, done } = record({ notes });
+      for (const line of before) say(line);
+      say(said);
+      done();
+      expect(take.live.engaged, `${before.join(' ')} | ${said}`).toBe(false);
+      expect(take.aim).toBeNull();
+      expect(take.card).toBeNull();
+      expect(take.chips).toEqual([]);
+      for (const note of notes) expect(take.body(note.id), note.id).toBe(note.body);
+      expect(take.result().made).toHaveLength(1);
+      expect(take.result().made[0]).toContain(kept);
+    }
   });
 });
 
@@ -515,11 +871,9 @@ describe('a mishearing of the keyword', () => {
   it.each([
     'Hey, like, put the parcel in the post.',
     'Okay, like, add some salt to the questions.',
-    'OK like move this to the Galaxy Fold.',
     'Hey, like, I need to call my mum.',
     'Okay, like, I have to get this finished by Friday.',
     'Hey, go add some colour to the living room walls, it would look nice.',
-    'Hey, like, new note.',
   ])('is how people talk, not a command: %s', (said) => {
     const { take, say, done } = record({ notes: talk() });
     say(said);
@@ -544,6 +898,34 @@ describe('a mishearing of the keyword', () => {
     say('Hey, like, add call an electrician to house to-dos.');
     done();
     expect(take.body('house')).toContain('- [ ] Call an electrician\n');
+  });
+
+  // Changed on purpose (docs/DESIGN.md §136): "move this to X" is a command with no keyword at all, so the lead-in
+  // before it no longer matters, and a mishearing mid-take with nothing said for the note is words, as a bare one is.
+  it('moves the take for “move this to” after any lead-in, and mid-take is words with nothing said for the note', () => {
+    const move = record({ notes: talk() });
+    move.say('OK like move this to the Galaxy Fold.');
+    move.say('Then I went home.');
+    move.done();
+    expect(move.take.aim?.id).toBe('fold');
+    expect(move.take.body('fold')).toContain('Then I went home.');
+
+    const words = record({ notes: [...talk(), { id: 'trip', body: '# Weekend trip\n\nCabin.\n' }] });
+    words.say('Kevin owns the release.');
+    words.say('Hey, like, add a note to weekend trip.');
+    words.say('The cabin has two bedrooms.');
+    words.done();
+    expect(words.take.live.engaged).toBe(false);
+    expect(words.take.body('trip')).toBe('# Weekend trip\n\nCabin.\n');
+
+    // "New note" needs no keyword either, so a mishearing before it is a lead-in: at the start, a new note already.
+    const fresh = record({ notes: talk() });
+    fresh.say('Hey, like, new note.');
+    fresh.say('Then I went home.');
+    fresh.done();
+    expect(fresh.take.live.engaged).toBe(false);
+    expect(fresh.take.chips).toContainEqual({ phase: 'said', text: 'This is a new note already.' });
+    expect(fresh.take.result().made).toEqual(['# Then I went home']);
   });
 });
 
@@ -589,19 +971,26 @@ describe('one command after another', () => {
 });
 
 describe('the guards', () => {
-  it('with the setting off, routes only a name that is clear and a note that says it holds a list', () => {
-    const notes = [...library(), { id: 'hg', body: '# House and garden jobs\n\n- [ ] Mow\n' }, { id: 'trip', body: '# Weekend trip\n\nCabin.\n' }];
-    const weak = record({ keywordOn: false, notes });
-    weak.say('Add a note to garden, trim the hedge.');
-    weak.done();
-    expect(weak.take.live.engaged).toBe(false);
-    expect(weak.take.body('hg')).toBe('# House and garden jobs\n\n- [ ] Mow\n');
-
-    const plain = record({ keywordOn: false, notes });
-    plain.say('Add a note to weekend trip, book the ferry.');
-    plain.done();
-    expect(plain.take.live.engaged).toBe(false);
-    expect(plain.take.body('trip')).toBe('# Weekend trip\n\nCabin.\n');
+  it('without the keyword, routes only a name that is clear, and a kind said or in the title but for “a note”', () => {
+    const notes = [...library(), { id: 'hg', body: '# House and garden jobs\n\n- [ ] Mow\n' }, { id: 'trip', body: '# Weekend trip\n\nCabin.\n' }, { id: 'car', body: '# Car insurance\n' }];
+    const still = (said: string) => {
+      const { take, say, done } = record({ notes });
+      say(said);
+      done();
+      expect(take.live.engaged, said).toBe(false);
+      for (const note of notes) expect(take.body(note.id), `${said}: ${note.id}`).toBe(note.body);
+    };
+    // "garden" is the start of the title, not the whole of it; so are "the weekend" and "the car" (0.85, not clear).
+    still('Add a note to garden, trim the hedge.');
+    still('Add a note to the weekend, book the ferry.');
+    still('Put this in the car, then drive.');
+    // Weekend trip's title does not say it is a list, so "put this in" and "add X to" want the keyword; "a note" is its own evidence.
+    still('Put this in the weekend trip, book the ferry.');
+    still('Add book the ferry to the weekend trip.');
+    const note = record({ notes });
+    note.say('Add a note to weekend trip, book the ferry.');
+    note.done();
+    expect(note.take.body('trip')).toBe('# Weekend trip\n\nCabin.\n\nBook the ferry.');
   });
 
   it('never sends a name declined in this take to that note again', () => {

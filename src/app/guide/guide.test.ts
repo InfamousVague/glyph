@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readInstruction } from '../ai/instruction.ts';
-import { ASK, COMMAND, CUE_ALONE, PHRASES, renderExample } from './phrases.ts';
+import { ASK, COMMAND, CUE_ALONE, NOTE_COMMAND, PHRASES, renderExample } from './phrases.ts';
 import { LiveTake } from '../capture/liveTake.ts';
 
 /**
@@ -35,29 +35,46 @@ describe('the spoken-markdown guide', () => {
   });
 });
 
-describe('what the habits page says to say after “Hey Ghost”', () => {
+/** The habits page's two phrases, bare as the page says them, and with "Hey Ghost" first, which is optional (docs/DESIGN.md §136). */
+describe('what the habits page says to say, with or without “Hey Ghost” first', () => {
   const groceries = { id: 'g1', title: 'Groceries', note: { body: '# Groceries\n\n- Eggs\n' } };
   const library = [groceries, { id: 'w1', title: 'Work', note: { body: '# Work\n' } }];
+  const keyed = (say: string) => `Hey Ghost, ${say.charAt(0).toLowerCase()}${say.slice(1)}`;
+  const ways = (say: string) => [say, keyed(say)];
 
   it('is a command the recorder carries out as it is said, putting the words in the note it names', () => {
-    const take = new LiveTake(library.map((c) => ({ id: c.id, body: c.note.body })));
-    take.phrase({ text: `${COMMAND.say}.`, startMs: 0, endMs: 1500 }, 0);
-    take.close(2000);
-    expect(take.body('g1')).toBe(`# Groceries\n\n- Eggs\n- ${COMMAND.words.charAt(0).toUpperCase()}${COMMAND.words.slice(1)}\n`);
-    expect(take.result().made).toEqual([]);
+    for (const said of ways(COMMAND.say)) {
+      const take = new LiveTake(library.map((c) => ({ id: c.id, body: c.note.body })));
+      take.phrase({ text: `${said}.`, startMs: 0, endMs: 1500 }, 0);
+      take.close(2000);
+      expect(take.body('g1'), said).toBe(`# Groceries\n\n- Eggs\n- ${COMMAND.words.charAt(0).toUpperCase()}${COMMAND.words.slice(1)}\n`);
+      expect(take.result().made, said).toEqual([]);
+    }
+  });
+
+  it('is a command for a note whose title does not say it is a list, with “a note” said, carried out as it is said', () => {
+    for (const said of ways(NOTE_COMMAND.say)) {
+      const take = new LiveTake(library.map((c) => ({ id: c.id, body: c.note.body })));
+      take.phrase({ text: 'First words.', startMs: 0, endMs: 900 }, 0);
+      take.phrase({ text: `${said}.`, startMs: 1000, endMs: 2500 }, 1000);
+      take.close(3000);
+      expect(take.body('w1'), said).toBe(`# ${NOTE_COMMAND.note}\n\n${NOTE_COMMAND.words}`);
+    }
   });
 
   it('is read the same by the reader at Done, putting the words in the note it names', async () => {
-    const read = await readInstruction(COMMAND.say, library);
-    expect(read.kind).toBe('command');
-    if (read.kind !== 'command' || read.plan.kind !== 'place') throw new Error(`not a command to place words: ${read.kind}`);
-    expect(read.plan.note.title).toBe(COMMAND.note);
-    expect(read.plan.text).toBe(COMMAND.words);
-    // One thing, not a list of them.
-    expect(read.plan.items).toBeUndefined();
+    for (const said of ways(COMMAND.say)) {
+      const read = await readInstruction(said, library);
+      expect(read.kind, said).toBe('command');
+      if (read.kind !== 'command' || read.plan.kind !== 'place') throw new Error(`not a command to place words: ${read.kind}`);
+      expect(read.plan.note.title).toBe(COMMAND.note);
+      expect(read.plan.text).toBe(COMMAND.words);
+      // One thing, not a list of them.
+      expect(read.plan.items).toBeUndefined();
+    }
   });
 
   it('is an ask the AI runs on the note, not words written into it', async () => {
-    expect(await readInstruction(ASK.say, library)).toEqual({ kind: 'run', run: ASK.run });
+    for (const said of ways(ASK.say)) expect(await readInstruction(said, library), said).toEqual({ kind: 'run', run: ASK.run });
   });
 });

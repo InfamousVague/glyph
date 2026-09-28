@@ -107,7 +107,7 @@ change is one undo step and saves like typing.
 **No voice commands.** A plugin adds nothing a recording carries out: the live reader and the reader at Done ask no
 plugin, and the `voice` and `itemTargets` extension points went with the phrase-by-phrase reader that heard them
 (DESIGN §127). "Hey Ghost, send that to Notion", said while recording, is read as words for a note called Notion,
-and with no such note the chip says so. `tips` and a format's `cue` still reach the recorder. The `voice` permission
+and with no such note the chip says so; without the keyword it is the recording's words. `tips` and a format's `cue` still reach the recorder. The `voice` permission
 kind is still in `src/app/plugins/types.ts`, declared by no plugin.
 
 **Local only.** While the person has Local only on (Settings › Formatting), every plugin whose manifest

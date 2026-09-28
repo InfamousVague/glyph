@@ -3,10 +3,10 @@ import type { RunKind } from '../ai/kinds.ts';
 import { isBookBody } from '../book/book.ts';
 import { capitalise } from '../core/text.ts';
 import { findKeyword, onlyFiller, PAYLOAD_LEAD } from './command.ts';
-import { commandWords, hearKeyword, isOpener, misheardShape, namedAs, onlyFillerPhrase, onlyLead, payloadOf, readNameFirst, readRoute, silenceLine, withoutFinalStop, type Reading } from './liveCommand.ts';
+import { bareCommand, bareShape, commandWords, hearKeyword, isOpener, misheardShape, namedAs, onlyFillerPhrase, onlyLead, payloadOf, readNameFirst, readRoute, silenceLine, withoutFinalStop, type Reading } from './liveCommand.ts';
 import { runsOf, semanticListKind } from './listAppend.ts';
 import { renderNote, splitSentences, type Segment } from './markdown.ts';
-import { FIND, findNote, nameWords, titleKind, type Found } from './noteFind.ts';
+import { FIND, findNote, headingIn, nameWords, titleKind, type Found } from './noteFind.ts';
 import { placeTake, placingFor, type Placing } from './place.ts';
 import { commandAfterOpener, contentWords, corrects, cuePrefixOf, opensSend, quoted, readSend, readTakeBack, swapWord, type TakeBack } from './takeBack.ts';
 import type { RouteView } from './takeHost.ts';
@@ -24,7 +24,8 @@ import type { Span } from './takeTypes.ts';
  * - "Hey Ghost, add a note to House TODOs. Call an electrician." At the start of a fresh recording the recorder
  *   switches to that note, for good (`route`): its page shows the note, and what is said is written into its list.
  * - Mid-take, or on a note's own Speak, "add call Sam to House TODOs" puts those words there (`insert`) and the take
- *   carries on where it was. "Move this to …" is the one command that moves the take.
+ *   carries on where it was. "Move this to …" is the one command that moves the take. "Add call the plumber to House
+ *   TODOs", with no keyword at all, does the same (`bare`).
  * - "Remind me to…", "add a to-do: …": a to-do in the note being written to (`self`). "New note": a fresh one.
  * - "Scratch that", "actually, …", "no wait, four" and "scratch that, add it to X instead" take back the last thing
  *   said in this take: gone, replaced, one word changed, or sent to a note named (`takeBack`, docs/DESIGN.md §130).
@@ -37,10 +38,14 @@ import type { Span } from './takeTypes.ts';
  * engages the reader, and stores nothing, since nothing is stored before Done; it never runs a table, a board, a book,
  * a plugin or an AI run; a run or an ask said mid-take is queued for after Done.
  *
- * With "Commands start with hey Ghost" on (the default), only a phrase that opens with the keyword, or a known mishearing
- * of it followed by a command, is read. With it off, a few plain shapes can route at the very start of a recording.
- * An unsure name, or one that matches nothing but comes near a title, gets a card; no card blocks anything, since each
- * takes Keep here after a while, and at once when the recording ends (`close`).
+ * A phrase is read whether or not it opens with the keyword (docs/DESIGN.md §136). Without it, only a command plainly
+ * about a note it names clearly, with its words in the same breath, is one, through one gate (liveCommand.ts
+ * `bareCommand`, asked by `clear`); anything short of that is words, untouched. The keyword adds what a bare phrase
+ * never gets: a card for an unsure or missing name, a hold for an opener waiting for its name, an ask or a run, the
+ * name-first shapes ("For Groceries, …"), a heading or lane of the note being written to, a command said in pieces,
+ * and the take-back waiver of §130. An unsure name, or one that matches nothing but comes near a title, gets a card
+ * after the keyword; no card blocks anything, since each takes Keep here after a while, and at once when the recording
+ * ends (`close`).
  *
  * A state machine with its own clock handed in, and no screen: the recorder applies its steps. Pure, so every rule is
  * a test.
@@ -65,7 +70,7 @@ export const LIVE_TIMING = {
    * words. Longer than the chip's four seconds (chip.ts), so a button drawn is a button that works.
    */
   takeBackMs: 5000,
-  /** A resolved name must score this well to route with no keyword said, or after a mishearing of it. */
+  /** A resolved name must score this well to route with no keyword said, or after a mishearing of it: the alias of FIND.clear. */
   bareScore: FIND.clear,
   /**
    * A name that ran to the end of what was said, and is longer than this many words, is more than a title: Keep here
@@ -92,7 +97,6 @@ export interface LiveContext<N extends LiveNote> {
   aim: N | null;
   /** The take is a note's own Speak, and `aim` is that note. */
   own: boolean;
-  keywordOn: boolean;
   /** Over the lock screen: no card, no title said, and no shared note is written to. */
   locked: boolean;
   /** Whether a note is shared, or is a chapter of a shared book (share/share.ts). */
@@ -455,7 +459,7 @@ export class LiveRoute<N extends LiveNote> {
       if (grown) return [...steps, ...grown];
     }
 
-    const keyed = ctx.keywordOn && hearKeyword(text, (words) => this.readsAsRoute(words, ctx)) !== null;
+    const keyed = hearKeyword(text, (words) => this.readsAsRoute(words, ctx)) !== null;
     // A command held for its name: read again, joined. Unless the keyword is said again: then the held command got no
     // name, and this phrase is a command of its own ("Hey Ghost, add to signing." | "Hey Ghost, add milk to groceries.").
     if (this.held) {
@@ -641,6 +645,9 @@ export class LiveRoute<N extends LiveNote> {
     // "Hey Ghost, actually, add a note to House TODOs": the command, said as people say it, and read as that command
     // by `command`, the words before the keyword the take's own as ever.
     if (read.risky && (read.keyed || keyedByHold) && !read.send && commandAfterOpener(read.said) !== read.said) return null;
+    // "Actually, add call the plumber to House TODOs" with no keyword: the command, when its words pass the bare gate.
+    // A phrase with words before it ("Buy milk. Actually, add …") is read as two first, and its rest meets this alone.
+    if (read.risky && !read.head && !read.keyed && !keyedByHold && !read.send && this.bareReading(commandAfterOpener(commandWords(read.said)), ctx) !== null) return null;
     if (read.head) {
       const head = this.heard({ ...segment, text: sentence(read.head) }, ctx, now);
       const rest = this.heard({ ...segment, text: read.said }, ctx, now, { keyed: read.keyed, headBeforeKeyword: read.headBeforeKeyword });
@@ -1001,14 +1008,32 @@ export class LiveRoute<N extends LiveNote> {
   }
 
   /**
-   * Whether `words` after a mishearing of the keyword are a command for a note named clearly (liveCommand.ts
-   * `misheardShape`): a note it can write to, never the one being written to.
+   * Whether `words` after a mishearing of the keyword are a command for a note named clearly: the gate every bare
+   * phrase passes (liveCommand.ts `misheardShape`, `clear`), since a mishearing is exactly as trustworthy as no
+   * keyword.
    */
   private readsAsRoute(words: string, ctx: LiveContext<N>): boolean {
-    return misheardShape(commandWords(words), (reading) => {
-      const found = this.find(reading, ctx);
-      return found.status === 'resolved' && found.score >= LIVE_TIMING.bareScore && this.refusal(found.note, ctx) === null;
-    });
+    return misheardShape(commandWords(words), (reading) => this.clear(reading, this.find(reading, ctx), ctx));
+  }
+
+  /**
+   * The gate a phrase passes with no trustworthy keyword, with what only the live reader knows: the note found is one
+   * it may write to (`refusal`), and whether the take is at the start of a fresh recording, where a route may wait for
+   * its words (liveCommand.ts `bareCommand`).
+   */
+  private clear(reading: Reading, found: Found<LiveCandidate<N>>, ctx: LiveContext<N>): boolean {
+    return found.status === 'resolved' && this.refusal(found.note, ctx) === null && bareCommand(reading, { title: found.note.title, body: found.note.note.body }, found.score, { atStart: this.atStart && !ctx.own });
+  }
+
+  /**
+   * What `bare` carries out, and what a risky opener before it is not a correction of: the readings of `words` that
+   * pass the bare gate, the best of them chosen as a keyed command's is (`choose`). Null when none does.
+   */
+  private bareReading(words: string, ctx: LiveContext<N>): { reading: Reading; note: LiveCandidate<N>; score: number } | null {
+    const passing = readRoute(words).filter((reading) => bareShape(reading) && this.clear(reading, this.find(reading, ctx), ctx));
+    const chosen = this.choose(passing, ctx);
+    if (!chosen || chosen.found.status !== 'resolved') return null;
+    return { reading: chosen.reading, note: chosen.found.note, score: chosen.found.score };
   }
 
   /** Why a note is never written to from here, or null: it is a book, or it is shared and the phone is locked. */
@@ -1048,15 +1073,14 @@ export class LiveRoute<N extends LiveNote> {
   private read(segment: Segment, ctx: LiveContext<N>, now: number): LiveStep<N>[] {
     const text = segment.text;
     const atStart = this.atStart;
-    const heard = ctx.keywordOn ? hearKeyword(text, (words) => this.readsAsRoute(words, ctx)) : null;
+    const heard = hearKeyword(text, (words) => this.readsAsRoute(words, ctx));
     if (!heard) {
       // "Okay." or "Hey." before the command, or Whisper's "Thank you." on a silence: held for the next phrase.
-      if (atStart && ((ctx.keywordOn && onlyLead(text)) || onlyFillerPhrase(text) || silenceLine(text))) {
+      if (atStart && (onlyLead(text) || onlyFillerPhrase(text) || silenceLine(text))) {
         this.held = { segments: [segment], why: onlyLead(text) ? 'lead' : 'filler', lastAt: now };
         return [];
       }
-      if (!ctx.keywordOn && atStart) return this.bare(segment, ctx, now);
-      return [this.words(segment)];
+      return this.bare(segment, ctx, now);
     }
     const before = heard.before.trim();
     const words = before && !onlyFiller(before);
@@ -1064,7 +1088,7 @@ export class LiveRoute<N extends LiveNote> {
     const kept: LiveStep<N>[] = words ? [this.words({ ...segment, text: /[.!?…]$/.test(before) ? before : `${before}.` })] : [];
     const mark: LiveStep<N> = words ? { kind: 'keyword', span: spanOf(segment) } : { kind: 'command', span: spanOf(segment) };
     const said = commandWords(heard.after);
-    const outcome = this.command(said, segment, ctx, now, { keyed: true, atStart: atStart && !words });
+    const outcome = this.command(said, segment, ctx, now, { atStart: atStart && !words });
     if (outcome === DONE_READER) return this.leftForDone([segment], said);
     if (outcome === HELD) return [...kept, ...this.heldChip()];
     return [...kept, mark, ...outcome];
@@ -1086,18 +1110,23 @@ export class LiveRoute<N extends LiveNote> {
     const joined = segments.map((s, i) => (i < segments.length - 1 ? withoutFinalStop(s.text) : s.text)).join(' ');
     const whole = { text: joined, startMs: segments[0]!.startMs, endMs: segment.endMs };
     const spans: LiveStep<N>[] = segments.map((s) => ({ kind: 'command', span: spanOf(s) }));
-    const heard = ctx.keywordOn ? hearKeyword(joined, (words) => this.readsAsRoute(words, ctx)) : null;
+    const heard = hearKeyword(joined, (words) => this.readsAsRoute(words, ctx));
     if (held.why === 'lead' || held.why === 'filler') {
       // "Hey." | "Ghost, add…", "Okay." | "Hey Ghost, add…": one command, or the held phrase given back.
       if (heard && onlyFiller(heard.before)) {
         const said = commandWords(heard.after);
-        const outcome = this.command(said, whole, ctx, now, { keyed: true, atStart: true });
+        const outcome = this.command(said, whole, ctx, now, { atStart: true });
         if (outcome === DONE_READER) return this.leftForDone(segments, said);
         if (outcome === HELD) return this.heldChip();
         return [...spans, ...outcome];
       }
-      // No command came of it: the held phrase is words after all.
-      return [this.words(held.segments[0]!), ...this.read(segment, ctx, now)];
+      // No keyed command came of it: this phrase is read on its own, and the held one is words after all, unless the
+      // phrase was a bare command ("Okay." | "Add a note to House TODOs, call Sam.", "Um." | "New note."), which the
+      // filler was said before: then it is marked with the command, as after the keyword, and makes no note of "Okay.".
+      // Decided after the read, since `record` places by time; a phrase read as a command starts with its mark.
+      const rest = this.read(segment, ctx, now);
+      const commanded = rest[0]?.kind === 'command';
+      return commanded ? [...held.segments.map((s) => spanStep<N>(s)), ...rest] : [this.words(held.segments[0]!), ...rest];
     }
     const words = commandWords(heard ? heard.after : joined);
     if (isOpener(words) && held.why === 'keyword') {
@@ -1106,7 +1135,7 @@ export class LiveRoute<N extends LiveNote> {
       // This many phrases and still no name: it gives up, as it does after a quiet.
       return this.letGoHeld(ctx, now);
     }
-    const outcome = this.command(words, whole, ctx, now, { keyed: true, atStart: this.atStart, fromHold: true });
+    const outcome = this.command(words, whole, ctx, now, { atStart: this.atStart, fromHold: true });
     if (outcome === DONE_READER) return this.leftForDone(segments, words);
     if (outcome === HELD) return this.heldChip();
     return [...spans, ...outcome];
@@ -1122,7 +1151,7 @@ export class LiveRoute<N extends LiveNote> {
       // An unsure name that did not grow: its card now.
       const first = held.segments[0]!;
       const heard = hearKeyword(first.text, () => true);
-      const outcome = this.command(commandWords(heard?.after ?? first.text), first, ctx, now, { keyed: true, atStart: this.atStart, fromHold: true });
+      const outcome = this.command(commandWords(heard?.after ?? first.text), first, ctx, now, { atStart: this.atStart, fromHold: true });
       if (outcome === DONE_READER || outcome === HELD) return [this.words(first)];
       return [{ kind: 'command', span: spanOf(first) }, ...outcome];
     }
@@ -1140,7 +1169,7 @@ export class LiveRoute<N extends LiveNote> {
    * A command's words after the keyword: a route, a to-do for here, a new note; held for its name; or no route at all.
    * `whole` is the stretch of the recording it was said over.
    */
-  private command(said: string, whole: Segment, ctx: LiveContext<N>, now: number, { keyed, atStart, fromHold = false }: { keyed: boolean; atStart: boolean; fromHold?: boolean }): LiveStep<N>[] | typeof HELD | typeof DONE_READER {
+  private command(said: string, whole: Segment, ctx: LiveContext<N>, now: number, { atStart, fromHold = false }: { atStart: boolean; fromHold?: boolean }): LiveStep<N>[] | typeof HELD | typeof DONE_READER {
     // "Actually, add a note to House TODOs": the command, said as people say it (takeBack.ts).
     const words = commandAfterOpener(said);
     if (!words || isOpener(words)) {
@@ -1149,7 +1178,7 @@ export class LiveRoute<N extends LiveNote> {
     }
     // A command said while a note switched to waits for its words: they are not what comes next.
     if (this.routed) this.routed.awaiting = false;
-    const readings = [...readRoute(words), ...(keyed ? readNameFirst(words) : [])];
+    const readings = [...readRoute(words), ...readNameFirst(words)];
     const chosen = this.choose(readings, ctx);
     if (!chosen) return this.notRoute(words, ctx, { atStart });
     const { found } = chosen;
@@ -1161,7 +1190,7 @@ export class LiveRoute<N extends LiveNote> {
       this.held = { segments: [whole], why: 'unsure', lastAt: now, name: reading.name };
       return HELD;
     }
-    return this.act(reading, found, whole, ctx, now, { keyed, atStart });
+    return this.act(reading, found, whole, ctx, now, { atStart });
   }
 
   /**
@@ -1190,6 +1219,14 @@ export class LiveRoute<N extends LiveNote> {
       const lead = (r: Reading) => (PAYLOAD_LEAD.test(r.payload) ? 1 : 0);
       if (lead(a.reading) !== lead(b.reading)) return lead(b.reading) - lead(a.reading);
       if (a.reading.stopped !== b.reading.stopped) return a.reading.stopped ? -1 : 1;
+      // The same name read two ways: "add fix the tap under Kitchen in home jobs" is under a heading the note has, and
+      // "add clean under the sofa in house to-dos" is one to-do, since House TODOs has no heading "the sofa".
+      if (a.reading.name.toLowerCase() === b.reading.name.toLowerCase()) {
+        const placed = (x: (typeof scored)[number]) => x.reading.heading !== null && x.found.status === 'resolved' && headingIn(x.found.note.note.body, x.reading.heading);
+        if (placed(a) !== placed(b)) return placed(a) ? -1 : 1;
+        if ((a.reading.heading !== null) !== (b.reading.heading !== null)) return a.reading.heading !== null ? 1 : -1;
+        return 0;
+      }
       // One name the start of the other: the longer when what it adds is kind words ("house chores"), else the shorter.
       const [short, long] = a.reading.name.length <= b.reading.name.length ? [a, b] : [b, a];
       if (long.reading.name.toLowerCase().startsWith(short.reading.name.toLowerCase())) {
@@ -1208,20 +1245,20 @@ export class LiveRoute<N extends LiveNote> {
     return real ?? bestFound;
   }
 
-  /** What a chosen reading does, by how sure the name is. */
-  private act(reading: Reading, found: Found<LiveCandidate<N>>, whole: Segment, ctx: LiveContext<N>, now: number, { keyed, atStart }: { keyed: boolean; atStart: boolean }): LiveStep<N>[] {
+  /** What a chosen reading of a keyed command does, by how sure the name is. */
+  private act(reading: Reading, found: Found<LiveCandidate<N>>, whole: Segment, ctx: LiveContext<N>, now: number, { atStart }: { atStart: boolean }): LiveStep<N>[] {
     const payload = payloadOf(reading.payload);
     if (found.status === 'current') return this.here(reading, payload, whole, ctx, found.heading);
     if (found.status === 'resolved') return this.resolved(reading, found.note, found.score, payload, whole, ctx, now, { atStart });
     if (found.status === 'unsure') {
-      if (!keyed || ctx.locked) return this.keep(keptWords(reading, payload), whole, ctx.locked ? 'Not sure which note, so the words stay here.' : null);
+      if (ctx.locked) return this.keep(keptWords(reading, payload), whole, 'Not sure which note, so the words stay here.');
       // A card never offers a note the words can't go into: "hello trade the book" between two books is no choice.
       const choices = found.candidates.filter((candidate) => this.refusal(candidate, ctx) === null);
       if (!choices.length) return this.keep(payload, whole, this.refusal(found.candidates[0]!, ctx), reading.trailing);
       return this.raise({ form: 'unsure', heading: 'Add to which note?', candidates: choices.slice(0, 3), reading, payload, whole, atStart, now }, ctx);
     }
     const near = found.near.filter((candidate) => this.refusal(candidate, ctx) === null);
-    if (keyed && !ctx.locked && (near.length || reading.noun)) {
+    if (!ctx.locked && (near.length || reading.noun)) {
       return this.raise({ form: 'missing', heading: `No note called “${reading.name}”`, candidates: near.slice(0, 2), reading, payload, whole, atStart, now }, ctx);
     }
     return this.keep(keptWords(reading, payload), whole, ctx.locked ? 'No note by that name, so the words stay here.' : `No note called “${reading.name}”, so the words stay here.`, reading.trailing);
@@ -1494,19 +1531,21 @@ export class LiveRoute<N extends LiveNote> {
     return [{ kind: 'chip', view: { phase: 'said', text: "That can't run in the middle of a recording, so it was left out." } }, { kind: 'log', line: `Left out “${withoutFinalStop(words)}”: it can't run mid-recording` }];
   }
 
-  /** With the keyword off, at the very start: only the plainest shapes, a clear name, and a note that holds lists. */
+  /**
+   * A phrase with no keyword: a command only when it passes the bare gate (`bareReading`), carried out as a keyed
+   * clear name is: sticky at the start of a fresh recording, a one-shot mid-take, "move this to X" moving the take.
+   * Else words, untouched. No card, no hold, no chip: what the keyword adds is `command`, and a "No note called…"
+   * card mid-dictation for a sentence that was never a command is the failure that asked for the keyword in the first
+   * place (§38). "New note" alone starts one; "another note" does not, since "Another note:" is how people introduce
+   * their next point. "Actually, add …" is the command, as after the keyword.
+   */
   private bare(segment: Segment, ctx: LiveContext<N>, now: number): LiveStep<N>[] {
-    const words = commandWords(segment.text);
-    const readings = readRoute(words).filter((r) => !r.self && !r.newNote && !r.verb && (r.shape === 1 || r.shape === 2 || (r.shape === 3 && r.stopped) || nameWords(r.name).generic.length + nameWords(r.name).specific.length > 0));
-    const chosen = this.choose(readings, ctx);
-    if (!chosen || chosen.found.status !== 'resolved' || chosen.found.score < LIVE_TIMING.bareScore) return [this.words(segment)];
-    const note = chosen.found.note;
+    const words = commandAfterOpener(commandWords(segment.text));
+    if (/^new\s+note$/i.test(withoutFinalStop(words))) return [spanStep(segment), ...this.newNote(ctx, { atStart: this.atStart })];
+    const chosen = this.bareReading(words, ctx);
+    if (!chosen) return [this.words(segment)];
     const reading = endedAs(chosen.reading, segment.text);
-    // A kind word in its title ("House TODOs", "Task Management"), or a list in it.
-    const kinds = nameWords(note.title);
-    const evidence = kinds.specific.length + kinds.generic.length > 0 || runsOf(note.note.body.split('\n')).length > 0;
-    if (!evidence) return [this.words(segment)];
-    return [{ kind: 'command', span: spanOf(segment) }, ...this.resolved(reading, note, chosen.found.score, payloadOf(reading.payload), segment, ctx, now, { atStart: true })];
+    return [spanStep(segment), ...this.resolved(reading, chosen.note, chosen.score, payloadOf(reading.payload), segment, ctx, now, { atStart: this.atStart })];
   }
 }
 

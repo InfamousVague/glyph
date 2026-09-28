@@ -23,7 +23,7 @@ Each chapter takes a few minutes. Tap Read straight through to go from the first
 
 9. [[Recording a note]]
 10. [[Saying the marks]]
-11. [[Commands after Hey Ghost]] — words for a note you name, written as you say them
+11. [[Spoken commands]] — words for a note you name, written as you say them
 12. [[Lists and to-dos]]
 
 ## Part III · Notes that are something else
@@ -87,7 +87,7 @@ Each chapter takes a few minutes. Tap Read straight through to go from the first
 
 ## Five things worth knowing before you start
 
-- **A spoken command writes as you say it, and nothing is stored until Done.** “Hey Ghost, add … to House TODOs” puts the words into that note as you talk, and at Done the note is written once and opens with an Undo. A command that opens a recording and is not carried out as you speak, such as “add eggs to Groceries” without the keyword or “Hey Ghost, make a new list called Packing”, is read once after you tap Done, and a card shows exactly what will be written before anything is ([[Commands after Hey Ghost]]).
+- **A spoken command writes as you say it, and nothing is stored until Done.** “Add … to House TODOs” puts the words into that note as you talk, with or without “Hey Ghost” first, and at Done the note is written once and opens with an Undo. A command that opens a recording and is not carried out as you speak, such as “make a new list called Packing”, is read once after you tap Done, and a card shows exactly what will be written before anything is ([[Spoken commands]]).
 - **The side key starts a note over the lock screen**, because Ghost.md takes the phone's digital-assistant role, and at Done a locked phone goes back behind its lock without showing the note to whoever is holding it ([[The side key, the Fold and the Mac]]).
 - **Your password never leaves the phone as itself.** It becomes two keys and only one is sent. Notes, pictures, recordings, settings and live keystrokes are sealed on the device before they go, and a share link carries its own key after the #, which a browser never sends, so the server keeps only what it cannot read ([[Accounts, sync and the key you hold]]).
 - **The AI signs its work.** A finished run adds "Ghost" to the note's authors, and every change it made stays marked in the note until you keep it, revert it or type over it ([[Asking the AI to work on a note]]).

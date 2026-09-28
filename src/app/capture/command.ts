@@ -10,11 +10,15 @@ import { spokenListItems } from './spokenList.ts';
  * words make, for the reader at Done (finalInstruction.ts).
  *
  * Matt, after "add a note to hello trade" became a new note called "To the
- * hello trade": "have it listen for keywords and not do anything until it
- * hears the keyword and confirms the action". So:
+ * hello trade" (docs/DESIGN.md §38): "have it listen for keywords and not do
+ * anything until it hears the keyword and confirms the action". The keyword
+ * has been optional since §136 (Matt: "Remove the function which expects hey
+ * ghost before commands"); the reader at Done still reads the recording's
+ * whole transcript through `finalCommandWords`, which never needed one, and a
+ * bare command it cannot carry out is the note's words. So:
  *
- * - Nothing is a command until "Glyph" or "hey Ghost" is heard (`findKeyword`),
- *   or a mishearing of it followed by a command (`findMisheard`). What comes
+ * - "Glyph" or "hey Ghost" is heard anywhere in a phrase (`findKeyword`), or
+ *   a mishearing of it followed by a command (`findMisheard`). What comes
  *   before it in the phrase stays in the note.
  * - The command is read loosely (`planCommand`), since the keyword already says
  *   it is one: "add buy milk to hello trade", "add a list item to HelloTrade",

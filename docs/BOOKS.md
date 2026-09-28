@@ -94,8 +94,9 @@ What to know before the walk.
 
 A book is not made or filled by voice (DESIGN §127): make one with the **+** and add its chapters from its index.
 
-A book is never written into by voice either. Told to add words to one, the live reader
-(`src/app/capture/liveRoute.ts`) keeps them where the recording is and says why ("“Field guide” is a book, so the
+A book is never written into by voice either. Told to add words to one after "Hey Ghost", the live reader
+(`src/app/capture/liveRoute.ts`) keeps them where the recording is and says why; without the keyword they are the
+recording's words, since a book is never a note the bare gate names ("“Field guide” is a book, so the
 words stay here"), and no card offers a book. "Make a book called …" and "add a chapter to …" are read at Done by the
 rules in `src/app/capture/command.ts`, which take words said for a book as a chapter (`forBook`), only so that the
 reader can turn them down: after "Hey Ghost", said into an open note, they open that note with an AI ask

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, CircleUser, FlaskConical, Info, MapPin, Mic, Puzzle, Sparkles, SunMoon, Terminal, Type, Vibrate, Waves } from '@glacier/icons';
+import { BookOpen, CircleUser, FlaskConical, Info, MapPin, Mic, Puzzle, Sparkles, SunMoon, Terminal, Type, Waves } from '@glacier/icons';
 import { useAccount } from '../core/account/account.ts';
 import { syncSummary, useSyncStatus } from '../core/sync/engine.ts';
 import { AccountPane } from './AccountPane.tsx';
@@ -8,6 +8,7 @@ import { hapticsAvailable, useHapticsPref } from '../core/haptics.ts';
 import { isAndroid, isMobile } from '../core/platform.ts';
 import type { Updates } from '../core/ota.ts';
 import { facesOf, usePreferences } from '../core/preferences.ts';
+import { capitalise } from '../core/text.ts';
 import { isTauri } from '../core/tauri.ts';
 import { useDeveloperMode } from './developerMode.ts';
 import { CheatSheet } from '../guide/CheatSheet.tsx';
@@ -18,7 +19,6 @@ import { LocationPane } from './LocationPane.tsx';
 import { PluginsPane } from '../plugins/PluginsPane.tsx';
 import { usePlugins } from '../plugins/hooks.ts';
 import { AboutPane } from './AboutPane.tsx';
-import { AnimationsPane } from './AnimationsPane.tsx';
 import { AppearancePane } from './AppearancePane.tsx';
 import { DeveloperPane } from './DeveloperPane.tsx';
 import { FeelPane } from './FeelPane.tsx';
@@ -36,15 +36,16 @@ import { reportSummary } from '../diag/testReport.ts';
  * stores the panes edit, so a row can never disagree with its pane.
  *
  * Six clusters, in the list's order: who you are (Account); how it looks
- * (Type, Appearance); how it works (Recording, Location, Formatting, Feel, and
- * Animations, which sits with them though it is listed after the plugins);
+ * (Type, Appearance); how it works (Recording, Location, Formatting, Feel, which holds
+ * the animations and, where there is a motor, the haptics: one page since
+ * docs/DESIGN.md §136, Matt: "clean up / streamline settings a bit");
  * the plugins (each switched-on plugin's own page, then Plugins to switch
  * them); help and the app itself (the Cheat sheet, and About, which holds the
  * updates and what's new); and the hidden pages (Developer, Test results).
  * Recording on Android, where there is a side key, and on the Mac, which
  * records through Speak and runs the better words and the summaries
- * (docs/DESIGN.md §127 section 2); Feel only where there is a motor, the
- * hidden pages only once unlocked. Each pane is a file of its
+ * (docs/DESIGN.md §127 section 2); Feel's Touch only where there is a
+ * motor, the hidden pages only once unlocked. Each pane is a file of its
  * own; the words for a preference's values are words.ts, shared with the
  * panes, so a reading here says what the pane's control says.
  */
@@ -182,7 +183,6 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
             words: 'voice microphone mic dictate',
             settings: [
               { name: 'Stop when I go quiet', words: 'silence auto stop' },
-              { name: 'Commands start with “hey Ghost”', words: 'wake word voice cues' },
               { name: 'Review after recording', words: 'check transcript' },
               { name: 'Better words', words: 'refine clean up transcript' },
               { name: 'Summaries', words: 'summary meeting write-up minutes' },
@@ -198,7 +198,12 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
             ],
             icon: <Mic size={16} />,
             content: <RecordingPane />,
-            summary: prefs.refine ? 'A note a take · better words' : 'A note a take',
+            // What is switched on. It said "A note a take", memo mode's reading, until §136: memo mode went on 2026-09-22.
+            summary: capitalise(
+              [prefs.quietStop ? 'stops when quiet' : null, prefs.review ? 'review' : null, prefs.refine ? 'better words' : null, prefs.summaries === 'off' ? null : prefs.summaries === 'meetings' ? 'meeting summaries' : 'summaries']
+                .filter(Boolean)
+                .join(' · ') || 'nothing after recording',
+            ),
             group: 1,
           },
         ]
@@ -231,20 +236,34 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       summary: formattingSummary,
       group: 1,
     },
-    ...(hapticsAvailable()
-      ? [
-          {
-            id: 'feel',
-            label: 'Feel',
-            words: 'vibration',
-            settings: [{ name: 'Haptics', words: 'vibrate vibration buzz touch' }],
-            icon: <Vibrate size={16} />,
-            content: <FeelPane />,
-            summary: haptics ? 'Haptics on' : 'Haptics off',
-            group: 1,
-          },
+    // Animations and the haptics, one page since §136: how the app moves, and how it answers a touch where there is a
+    // motor to answer with (FeelPane.tsx).
+    {
+      id: 'feel',
+      label: 'Feel',
+      words: 'motion movement vibration',
+      settings: [
+        { name: 'Animation speed', words: 'motion fast slow' },
+        { name: 'Ghostly typing', words: 'wisp letters' },
+        { name: 'Smoke at the edges', words: 'wisp fade scroll' },
+        { name: 'Ripples while recording', words: 'waves voice' },
+        ...(hapticsAvailable() ? [{ name: 'Haptics', words: 'vibrate vibration buzz touch' }] : []),
+      ],
+      icon: <Waves size={16} />,
+      content: <FeelPane />,
+      summary: capitalise(
+        [
+          prefs.wisp ? 'Ghostly typing' : null,
+          prefs.wispEdge ? 'smoke' : null,
+          prefs.ripples ? 'ripples' : null,
+          prefs.motionSpeed !== 'normal' ? prefs.motionSpeed : null,
+          hapticsAvailable() && haptics ? 'haptics' : null,
         ]
-      : []),
+          .filter(Boolean)
+          .join(' · ') || 'all still',
+      ),
+      group: 1,
+    },
     ...plugins.flatMap((plugin) => {
       const settings = plugin.settings;
       if (!settings) return [];
@@ -275,24 +294,6 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       group: 2,
     },
     {
-      id: 'animations',
-      label: 'Animations',
-      words: 'motion movement',
-      settings: [
-        { name: 'Animation speed', words: 'motion fast slow' },
-        { name: 'Ghostly typing', words: 'wisp letters' },
-        { name: 'Smoke at the edges', words: 'wisp fade scroll' },
-        { name: 'Ripples while recording', words: 'waves voice' },
-      ],
-      icon: <Waves size={16} />,
-      content: <AnimationsPane />,
-      summary:
-        [prefs.wisp ? 'Ghostly typing' : null, prefs.wispEdge ? 'smoke' : null, prefs.ripples ? 'ripples' : null, prefs.motionSpeed !== 'normal' ? prefs.motionSpeed : null]
-          .filter(Boolean)
-          .join(' · ') || 'All still',
-      group: 1,
-    },
-    {
       id: 'cheatsheet',
       label: 'Cheat sheet',
       words: 'markdown syntax marks help',
@@ -314,7 +315,8 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
         { name: 'Update alerts', words: 'notifications notify' },
         { name: "What's new", words: 'changelog releases' },
         { name: 'Ghost.md Academy', words: 'learn tutorial lessons' },
-        { name: 'How to talk to Ghost.md', words: 'voice commands cues' },
+        // The switch "Commands start with hey Ghost" went (docs/DESIGN.md §136): someone looking for it finds the Guide.
+        { name: 'How to talk to Ghost.md', words: 'voice commands cues hey ghost keyword' },
         { name: `Add ${GUIDE_TITLE}`, words: 'guide manual help book' },
         { name: 'Add the sample note', words: 'example' },
         { name: 'Add the example board', words: 'kanban' },

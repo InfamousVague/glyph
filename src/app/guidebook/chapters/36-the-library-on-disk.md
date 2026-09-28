@@ -56,7 +56,7 @@ Every row carries a `revision`, and the page writes against it. `create_note` re
 
 ## Voice commands' guarded writes
 
-`mutations.rs` is what a confirmed Hey Ghost command writes through. `apply_command` applies the previewed Markdown only while the note's revision and body are exactly what the preview was made from, and records the change in the index's `command_mutations` table. `undo_command` reverses it only while the note is exactly what the command left. Anything else is a conflict, answered with the note as it now is. `commands.rs` checks the request whole before anything is written: plain bounded ids, a source of `editor` or `capture`, a kind of `append` or `create`, and no field it does not name. `latest_command_mutation` offers again the newest command from the last ten minutes that still stands, for an app that was stopped mid-undo.
+`mutations.rs` is what a confirmed spoken command writes through. `apply_command` applies the previewed Markdown only while the note's revision and body are exactly what the preview was made from, and records the change in the index's `command_mutations` table. `undo_command` reverses it only while the note is exactly what the command left. Anything else is a conflict, answered with the note as it now is. `commands.rs` checks the request whole before anything is written: plain bounded ids, a source of `editor` or `capture`, a kind of `append` or `create`, and no field it does not name. `latest_command_mutation` offers again the newest command from the last ten minutes that still stands, for an app that was stopped mid-undo.
 
 ## The one move from SQLite
 

@@ -1315,7 +1315,7 @@
     {
       "file": "059-no-keyword-no-command",
       "group": "Commands",
-      "tests": "Without “Glyph” it is just words.",
+      "tests": "A sentence that starts with add but names no note is words.",
       "setup": "fixtures",
       "prefs": {},
       "lines": [
@@ -1421,7 +1421,7 @@
     {
       "file": "066-glyph-as-a-note-name",
       "group": "Commands",
-      "tests": "“The Glyph note” is a name, not the keyword.",
+      "tests": "“The Glyph note” is a name, said without the keyword: a command into that note.",
       "setup": "fixtures",
       "prefs": {},
       "lines": [
@@ -1431,9 +1431,9 @@
         ]
       ],
       "expect": {
-        "match": "^Add a note to the [Gg]lyph note saying testing if this works\\.$",
+        "note": "",
         "notes": {
-          "Glyph": "# Glyph\n\nIdeas.\n"
+          "Glyph": "# Glyph\n\nIdeas.\n\nTesting if this works."
         }
       },
       "id": "066"
@@ -2484,6 +2484,202 @@
         }
       },
       "id": "111"
+    },
+    {
+      "file": "112-bare-add-to-groceries",
+      "group": "Commands",
+      "tests": "A command said without the keyword, for a note whose title says it is a list: carried out as it is said.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Add oat milk to groceries.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "",
+        "notes": {
+          "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n- Oat milk\n"
+        }
+      },
+      "id": "112"
+    },
+    {
+      "file": "113-bare-one-shot-mid-take",
+      "group": "Commands",
+      "tests": "A command said without the keyword in the middle of a recording: its words go there, and the recording carries on where it was.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Our budget for the trip is four hundred.",
+          1
+        ],
+        [
+          "Add call the plumber to House TODOs.",
+          1
+        ],
+        [
+          "The cabin has two bedrooms.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "budget for the trip is four hundred",
+          "two bedrooms"
+        ],
+        "lacks": [
+          "plumber",
+          "House"
+        ],
+        "notes": {
+          "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call the plumber\n"
+        }
+      },
+      "id": "113"
+    },
+    {
+      "file": "114-bare-move-this-to",
+      "group": "Commands",
+      "tests": "“Move this to <note>” without the keyword takes the recording there, what was said before it and all.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "The ferry leaves at nine.",
+          1
+        ],
+        [
+          "Move this to weekend trip.",
+          1
+        ],
+        [
+          "Pack the tent.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "",
+        "notesContain": {
+          "Weekend trip": [
+            "We leave Friday.",
+            "ferry leaves at nine",
+            "Pack the tent"
+          ]
+        }
+      },
+      "id": "114"
+    },
+    {
+      "file": "115-house-todos-in-two-phrases-bare",
+      "group": "Commands",
+      "tests": "Matt’s sentence in two phrases, without “Hey Ghost”: House TODOs is found, and the to-do goes into its list.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Add a note to house to do's.",
+          1.2
+        ],
+        [
+          "The note is call an electrician to fix the light sockets.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "note": "",
+        "notes": {
+          "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call an electrician to fix the light sockets\n"
+        }
+      },
+      "id": "115"
+    },
+    {
+      "file": "116-bare-names-no-note",
+      "group": "Commands",
+      "tests": "Without the keyword, a sentence that sounds like a command and a command for a note there is none of are words as they are said: no card, nothing held. (The reader at Done, which this suite does not play, saves them as the note too: instruction.test.ts.)",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Put the parcel in the post.",
+          1
+        ],
+        [
+          "Add a note to the moon base, pack the tent.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "Put the parcel in the post",
+          "Add a note to the moon base, pack the tent"
+        ],
+        "notes": {
+          "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+          "Work": "# Work\n\n- [ ] Email Jo\n",
+          "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+          "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+          "Glyph": "# Glyph\n\nIdeas.\n",
+          "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+          "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+          "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+        }
+      },
+      "id": "116"
+    },
+    {
+      "file": "117-go-to-work-is-words",
+      "group": "Commands",
+      "tests": "“Go to work” without the keyword is words: it never moves the recording.",
+      "setup": "fixtures",
+      "prefs": {},
+      "lines": [
+        [
+          "Buy milk.",
+          1
+        ],
+        [
+          "Go to work.",
+          1
+        ],
+        [
+          "Ring the plumber.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "contains": [
+          "Buy milk",
+          "Go to work",
+          "Ring the plumber"
+        ],
+        "notes": {
+          "Work": "# Work\n\n- [ ] Email Jo\n"
+        }
+      },
+      "id": "117"
+    },
+    {
+      "file": "118-a-sentence-that-opens-with-a-run",
+      "group": "Commands",
+      "tests": "Into a note’s own Speak, without the keyword, a sentence that opens with a run’s words is written into the note as it is said. (That the reader at Done runs nothing on it is instruction.test.ts’s and CaptureScreen.test.tsx’s: this suite plays the live reader.)",
+      "setup": "continue:Weekend trip",
+      "prefs": {},
+      "lines": [
+        [
+          "Fix the spelling of Kowalski on the sign.",
+          1.5
+        ]
+      ],
+      "expect": {
+        "notes": {
+          "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n\nFix the spelling of Kowalski on the sign."
+        }
+      },
+      "id": "118"
     }
   ]
 }

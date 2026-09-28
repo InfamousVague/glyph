@@ -55,7 +55,7 @@ const THOUGHT = [
   '',
   '1. Words. The two transcripts disagree in a few places. The slower model heard "seek bar" where the fast one heard "seat bar"; a seek bar is the scrubber in a player, so "seek" is right, and the task says the same words.',
   '2. Structure. The heading names the note, the to-do is a thing to do, and nothing else looks like a list. The groceries could be one, but they were said as a sentence.',
-  '3. Commands. The one "hey Ghost" command landed where its words said, as a task under the line about the player.',
+  '3. Commands. The one spoken command landed where its words said, as a task under the line about the player.',
   '4. Names. HelloTrade is written as one word in the note titles, and the note has it that way.',
 ].join('\n');
 

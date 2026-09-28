@@ -56,7 +56,7 @@ _The standing rules of working on the code, each with its reason. Most of them w
 - **British spelling, plain declarative sentences.** Colour, organise, capitalise. Identifiers keep the spelling of their API.
 - **A module opens with a header that says what it owns and why.** In code comments the dash is a spaced hyphen, and a number says how it was measured.
 - **Every relative import names its file, extension and all:** `./app/App.tsx`, never `./app/App`. `eslint.config.js` enforces it.
-- **The name is Ghost.md, and the ids stay glyph.** Everything a person sees says Ghost.md. Nothing a machine relies on moved: the package id `com.mattssoftware.glyph`, the `glyph-` storage keys, the sync salt that accounts' keys are derived from, the token prefix, the attack.fm/glyph paths, the file and script names, and the repository. The spoken word is “Hey Ghost”, and “Glyph” still works.
+- **The name is Ghost.md, and the ids stay glyph.** Everything a person sees says Ghost.md. Nothing a machine relies on moved: the package id `com.mattssoftware.glyph`, the `glyph-` storage keys, the sync salt that accounts' keys are derived from, the token prefix, the attack.fm/glyph paths, the file and script names, and the repository. The spoken word is “Hey Ghost”, and “Glyph” still works, and neither is needed before a command.
 
 ## Read next
 

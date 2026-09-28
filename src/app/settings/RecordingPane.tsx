@@ -18,8 +18,8 @@ import { PaneSection, RowAction, SettingRow } from './kit/settingsKit.tsx';
 import { oldTapes, tapeBytes, tapeSize, tapesHere } from './tapes.ts';
 
 /**
- * Recording: how a take ends, whether a command needs its word first, what happens to the words afterwards, and - on
- * Android, where there is a side key - where that key is. Listed on Android and on the Mac (SettingsSheet.tsx): the
+ * Recording: how a take ends, what happens to the words afterwards, and - on Android, where there is a side key -
+ * where that key is. Listed on Android and on the Mac (SettingsSheet.tsx): the
  * Mac records through Speak, runs the better words and the summaries, and its rows had no home there before
  * (docs/DESIGN.md §127 section 2). The side key's own section is Android's alone.
  *
@@ -56,13 +56,6 @@ export function RecordingPane() {
           label="Stop when I go quiet"
           hint="Saves the recording after four seconds of quiet, once you've started talking. You can still press the side key or tap Done."
           control={<Switch aria-label="Stop when I go quiet" checked={prefs.quietStop} onCheckedChange={(quietStop) => setPreferences({ quietStop })} />}
-        />
-        <SettingRow
-          label="Commands start with “hey Ghost”"
-          hint="Say “Hey Ghost, add call Sam to House TODOs” and the words go into that note as you say them. Not this note, Discard or Undo takes them back. Off, “Add a note to House TODOs…” at the very start of a recording works without it."
-          control={
-            <Switch aria-label="Commands start with hey Ghost" checked={prefs.commandWord} onCheckedChange={(commandWord) => setPreferences({ commandWord })} />
-          }
         />
         <SettingRow
           label="Review after recording"

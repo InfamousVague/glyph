@@ -94,7 +94,7 @@ export const GUIDE_CHAPTER_TITLES: readonly string[] = [
   'Pictures and voice memos',
   'Recording a note',
   'Saying the marks',
-  'Commands after Hey Ghost',
+  'Spoken commands',
   'Lists and to-dos',
   'Boards made of list items',
   'Books, and reading one through',

@@ -116,7 +116,7 @@ export interface MarkRow {
   /** How it is drawn, where a page needs the plugin's own CSS. */
   css?: string;
   /**
-   * Said while recording, where there is a way to say it: a cue (capture/markdown.ts), never a "Hey Ghost" command,
+   * Said while recording, where there is a way to say it: a cue (capture/markdown.ts), never a spoken command,
    * since a command puts words into a note or makes a list, and none makes a mark. guide/marks.test.ts says each
    * phrase to the recorder and holds it to the mark it writes.
    */

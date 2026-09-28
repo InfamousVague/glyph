@@ -331,7 +331,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
    * (`sealAndFork`): through refs, so the handlers registered once reach the newest render's code.
    */
   const applyRef = useRef<(steps: readonly LiveStep<Note>[]) => void>(() => undefined);
-  const liveRef = useRef<() => LiveContext<Note>>(() => ({ notes: [], aim: null, own: false, keywordOn: true, locked: false }));
+  const liveRef = useRef<() => LiveContext<Note>>(() => ({ notes: [], aim: null, own: false, locked: false }));
   const sealAndForkRef = useRef<() => void>(() => undefined);
   const cancelRef = useRef<() => void>(() => undefined);
 
@@ -422,7 +422,7 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         // it, wherever it starts in the phrase (the words before it stay on the page), and nor does the send a bare
         // drop is waiting for.
         const takeBack = takeBackAt(text);
-        const commanding = live.hearingCommand || takeBack === 0 || (live.sendOpen && opensSend(text)) || (commandWordOn() && text !== '' && (findKeyword(text) !== null || findMisheard(text, () => true) !== null));
+        const commanding = live.hearingCommand || takeBack === 0 || (live.sendOpen && opensSend(text)) || (text !== '' && (findKeyword(text) !== null || findMisheard(text, () => true) !== null));
         setItemWords(commanding ? text : takeBack > 0 ? text.slice(takeBack) : '');
         setPartial(commanding ? '' : takeBack > 0 ? text.slice(0, takeBack).trim() : text);
       },
@@ -459,8 +459,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   });
 
   // ---- the card after Done: words for a note, once tapped (capture/take.ts) ------------
-
-  const commandWordOn = () => preferences().commandWord;
 
   /**
    * Add, tapped on the card after Done: the words go into the note they were
@@ -543,7 +541,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     notes: candidates.current,
     aim: writer.target,
     own: home.current !== null,
-    keywordOn: commandWordOn(),
     locked: isLocked(),
     published,
   });
@@ -793,7 +790,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
               notes: candidates.current,
               own: writer.noteId,
               target: writer.target,
-              keyword: commandWordOn(),
               pluginTips: (recent) => plugins.tips(recent),
               turn: tipTurn.current,
             }),
@@ -1231,7 +1227,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
     const others = locked || !notesRead ? [] : candidates.current.filter((c) => c.id !== own);
     return starters({
       noteTitle: others.find((c) => !isBookBody(c.note.body))?.title ?? null,
-      keyword: commandWordOn(),
       asking: target !== null && !locked,
     });
     // `candidates` is a ref and `writer.noteId` a field: `notesRead` says when the first was filled, `moves` when the second changed.

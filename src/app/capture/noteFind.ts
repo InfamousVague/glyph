@@ -41,8 +41,12 @@ export const FIND = {
   within: 0.15,
   /** A title this near a name that matched nothing is offered beside it. */
   near: 0.4,
-  /** A note this sure is the one meant with no keyword said, or after a mishearing of it (liveCommand.ts `misheardShape`). */
-  clear: 0.85,
+  /**
+   * A note this sure is the one meant with no keyword said, or after a mishearing of it (liveCommand.ts `bareCommand`):
+   * the whole of the title's distinctive words. A name that is only the start of a title scores 0.85 (`covered`),
+   * which is not clear: "bank" is not Bank statements, "weekend" is not Weekend trip.
+   */
+  clear: 0.9,
 } as const;
 
 /** Kind words that name a kind of list: a to-do list and a chore list are both lists of things to do. */
@@ -223,6 +227,15 @@ export function headingsOf(body: string): string[] {
     titled = true;
   }
   return [...out, ...lanesOf(body).map((lane) => lane.name)];
+}
+
+/**
+ * Whether `body` has a heading, a "Label:" line or a lane that `heading` names (`headingsOf`), as surely as a note is
+ * found (`FIND.resolved`): "under the sofa" in House TODOs names none, so it is words of the thing, not a place.
+ */
+export function headingIn(body: string, heading: string): boolean {
+  const said = nameWords(heading);
+  return headingsOf(body).some((text) => nameScore(said, nameWords(text)) >= FIND.resolved);
 }
 
 export type Found<N> =

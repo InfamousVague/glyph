@@ -28,7 +28,7 @@ Heat's haze reaches over one blank line, since most paragraphs have one between 
 - **Two on each side.** One emoji is just an emoji, and three in a row are three emoji. A flame in a sentence stays a flame.
 - **They nest.** `🔥🔥a hot ✨✨glinting✨✨ one🔥🔥` heats the whole stretch and makes one word glint as well.
 - **They lift for editing.** Put the caret in the words and the effect stops, so you edit plain text; move the caret away and it starts again. A note that cannot be edited never lifts them.
-- **They hold still when asked.** When the phone or the Mac is set to reduce motion, each effect is drawn and holds still: the heat haze and the frost at rest, the haunting half there, the wave and the shimmer plain. Settings › Animations does not change them. Its Animation speed and its three switches are for the app's other movement, and the device's own setting comes first.
+- **They hold still when asked.** When the phone or the Mac is set to reduce motion, each effect is drawn and holds still: the heat haze and the frost at rest, the haunting half there, the wave and the shimmer plain. Settings › Feel does not change them. Its Animation speed and its three movement switches are for the app's other movement, and the device's own setting comes first.
 - **They are on the Style page and the cheat sheet** with the other marks: press and hold on words, choose Style, and each effect has a word of its own.
 
 ## Saying them

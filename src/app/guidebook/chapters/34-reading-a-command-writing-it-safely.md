@@ -12,7 +12,7 @@ The live reader switches the page; it stores nothing. `CaptureScreen.tsx` applie
 
 ## The live reader
 
-`liveCommand.ts` is its grammar. `hearKeyword` finds the keyword anywhere in the phrase (`findKeyword`, `KEYWORD` in `capture/command.ts`), or a mishearing of it at the very start (`MISHEARD`: "hey, like", "hey goes"), which counts only before a command for a note named clearly (`misheardShape`: a note or item said, a name with a kind word in it, "add this to X, …", a heading, or "move this to", and the name resolved at 0.85 or more). Both readers ask `misheardShape`, so a mishearing means the same to each. `commandWords` takes off the lead-ins (`LEAD_INS`). A phrase-final full stop is never a separator: Whisper cuts a phrase about 300 ms into a quiet and nearly always ends it with a stop. `readRoute` returns every reading of the shapes: a verb, a noun and a name ("add a note to …"), "new item for …", "add to …", a thing then a name at every preposition, "move this to …", the name first after the keyword ("for Groceries, …"), "new note", a heading ("… under Kitchen in Home jobs"), and a to-do for here ("remind me to …").
+`liveCommand.ts` is its grammar. `hearKeyword` finds the keyword anywhere in the phrase (`findKeyword`, `KEYWORD` in `capture/command.ts`), or a mishearing of it at the very start (`MISHEARD`: "hey, like", "hey goes"), which counts only before a command that would be read without it (`misheardShape`). A phrase with no keyword is read too, and is a command only through one gate, `bareCommand`: the shape (`bareShape`: "add a note to X, …" or "new item for X, …" with the name run to a separator or the phrase's end, never to a split the grammar chose; "put this in X, …" stopped at a separator; "add X to Y"; "add X under H in Y"; and "move this to" or "switch this to", `plainMove`, never "move everything" or a day), the name resolved at 0.9 or more (`FIND.clear`, the whole of a title's distinctive words), the evidence (`bareEvidence`: for "put this in", "add X to Y", a heading, and a note or item sent or raised rather than filed (`filed`: "leave a note for", "send a note to", "another point for"), a kind word or a shopping word in the name, since a title that says it is a list is not enough ("the house" is a place); and a heading the note has, `headingIn`), and its words in the same phrase unless the take is at its start or the command moves it. Both readers ask it, for a mishearing and for no keyword alike, so each means the same to both. `commandWords` takes off the lead-ins (`LEAD_INS`). A phrase-final full stop is never a separator: Whisper cuts a phrase about 300 ms into a quiet and nearly always ends it with a stop. `readRoute` returns every reading of the shapes: a verb, a noun and a name ("add a note to …"), "new item for …", "add to …", a thing then a name at every preposition, "move this to …", the name first after the keyword ("for Groceries, …"), "new note", a heading ("… under Kitchen in Home jobs"), and a to-do for here ("remind me to …").
 
 `noteFind.ts` finds each name. Distinctive words must all be in the title, kind words (to-do, task, chore, job, list, item, …) only back a match up, and one spelling of to-do is used on both sides. It answers `resolved` (at 0.72 or more, clear of the next by 0.08), `current` (the note being written to, or one of its headings or lanes), `unsure` (0.6 or more) or `missing` (with titles near it). The Guide's chapters and canvases are never candidates (`capture/candidates.ts`).
 
@@ -20,35 +20,38 @@ Then `LiveRoute`:
 
 | Found | At the start of a new recording | Mid-take, or a note's own Speak |
 |---|---|---|
-| Resolved | `route`: the take goes there, for good | `insert`: those words go there, the take carries on |
+| Resolved, after the keyword or through `bareCommand` | `route`: the take goes there, for good | `insert`: those words go there, the take carries on |
 | Resolved, with "move this to" | `route`, words so far and all | the same |
-| The note being written to | only how the words go changes | the same |
+| The note being written to, after the keyword | only how the words go changes | the same |
 | Unsure, after the keyword | a card | a card |
-| Missing, near a title or with a note noun | a card | a card |
-| Missing | the words stay here, the command goes | the same |
+| Missing, after the keyword, near a title or with a note noun | a card | a card |
+| Missing, after the keyword | the words stay here, the command goes | the same |
+| Unsure or missing, without the keyword | words, then the reader at Done, which saves them as words | words |
 
 A book is never switched to, and over the lock screen no card is raised and no shared note is written. A card lasts eight seconds and then keeps the words here; Done, the side key, the screen going off, back and Discard all settle it at once (`close`). A name that ran to the phrase's end and scored under 1 can grow into the next phrase ("house" | "to-dos"), timed on the recording.
 
-A keyworded phrase that is no route goes to the reader at Done when it opens the take ("Hey Ghost, fix the spelling"). Later, it is queued as an ask for the note that opens after Done, or left out of a take that went to another note. One that opened the take and was left for the reader at Done is taken out of the words, and queued or left out the same way, as soon as the live reader does anything, since the reader at Done then never runs (`late`).
+A keyworded phrase that is no route goes to the reader at Done when it opens the take ("Hey Ghost, fix the spelling"). Later, it is queued as an ask for the note that opens after Done, or left out of a take that went to another note. One that opened the take and was left for the reader at Done is taken out of the words, and queued or left out the same way, as soon as the live reader does anything, since the reader at Done then never runs (`late`). Without the keyword a phrase that is no route is words (`bare`): never a card, a hold or a chip.
 
-A card never offers a book, and a tap on one keeps the words here. It holds only its command phrase; the words it keeps land in the order they were said (`inOrder`). A command held for its name gives up after three phrases or 4.5 s, or at once when the keyword is said again. Each phrase the live reader changed or sent elsewhere is marked for the better words (`commandSpans`), so the larger model's phrase for it is replaced by the live one, or by nothing.
+A card never offers a book, and a tap on one keeps the words here. It holds only its command phrase; the words it keeps land in the order they were said (`inOrder`). Only a keyworded opener is held for its name ("Hey Ghost, add a note to."). It gives up after three phrases or 4.5 s, or at once when the keyword is said again. Each phrase the live reader changed or sent elsewhere is marked for the better words (`commandSpans`), so the larger model's phrase for it is replaced by the live one, or by nothing.
 
 ## The reader at Done, in order
 
-`bareWords` takes off a leading keyword, filler before it, a mishearing of it followed by a command, and the lead-ins; the lead-ins a command starts with ("like", "I want to") only after the keyword. If the keyword comes after other words, the whole take is words. After a mishearing, only a command for a note named clearly counts, and then only as a card: never a run, an ask or a refusal. After "New note", it reads only what was said after it, and what was said before it is written first. Then:
+`bareWords` takes off a leading keyword, filler before it, a mishearing of it followed by a command, and the lead-ins; the lead-ins a command starts with ("like", "I want to") only after the keyword. If the keyword comes after other words, the whole take is words. After a mishearing, only a command that passes `bareCommand` counts, and then only as a card: never a run, an ask or a refusal. After "New note", it reads only what was said after it, and what was said before it is written first. Then:
 
-1. **A run, said in words** (`runOf`): "fix the spelling", "summarise it", "tidy this up", "make this a list", "carry on".
-2. **A command**, read by `classifyFinalTranscript` in `capture/finalInstruction.ts`: the rules first, then at most one pass of the model.
+1. **A run, said in words** (`runOf`): "fix the spelling", "summarise it", "tidy this up", "make this a list", "carry on". Without the keyword only as the whole phrase (`whole`): "fix the spelling of the name on the sign" is words.
+2. **A command**, read by `classifyFinalTranscript` in `capture/finalInstruction.ts`: the rules first, then at most one pass of the model. Without the keyword, a place the live reader's gate turned down is words, not a card (`turnedDown` in `ai/instruction.ts`: the words have a bare shape for that note, and no such reading passes `bareCommand`). Words with no bare shape for the note, such as a title that starts with a verb or a name only the model matches, are offered as before.
 3. **An ask**: anything else, but only when the keyword opened the take.
 4. **Words**: everything left.
 
 | Read | What happens |
 |---|---|
 | `command` | The confirm card shows the plan. A tap writes it, and the note opens with an Undo. |
-| `reject` | A note was named that no note, or more than one, matches. The reason goes on the chip and no note is saved. |
+| `reject` | After the keyword, a note was named that no note, or more than one, matches. The reason goes on the chip and no note is saved. Without the keyword the same is `words`, with the reason as its notice. |
 | `run` or `ask`, into a note, unlocked | The note opens with the run on it. |
 | `ask`, in a new recording | The words are saved as a note without the keyword, and the chip says the recording could not do it. |
-| `words` | The take is saved as a note, with a notice when the model could not be asked. |
+| `words` | The take is saved as a note, with a notice when the model could not be asked, or why a command said without the keyword was not carried out. |
+
+A notice, and a `reject`'s reason, is set on the recorder's top line as the take is saved or let go, and a new recording's recorder closes straight after, so it is not yet held long enough to read (DESIGN §136, question 8).
 
 `planCommand` reads the rules' plan; its names go through `noteFind.ts`. What was introduced by "the note is" is left out (`PAYLOAD_LEAD`), a title's own "to-dos" never asks for a list, and one thing is never split word by word. Only `place` and `create-list` may leave a finished recording (`permitted()`).
 
@@ -102,5 +105,5 @@ The Undo in the note that opens (`editor/useLanding.ts`) is an edit in its edito
 ## Read next
 
 - [[The engines on the device]]
-- [[Commands after Hey Ghost]]
+- [[Spoken commands]]
 - [[The library on disk]]

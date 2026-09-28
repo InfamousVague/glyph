@@ -66,7 +66,7 @@ The **cheat sheet** is every mark on one page: Settings › Cheat sheet, or Help
 ## A map of this half of the book
 
 - **Writing a note** is this part: [[A note is a Markdown file]], [[Finding your way around]], [[The marks you can type]], [[Effects on words]], [[Links between notes]], [[Tags, footnotes and the small marks]] and [[Pictures and voice memos]].
-- **Saying it:** [[Recording a note]], [[Saying the marks]], and [[Commands after Hey Ghost]].
+- **Saying it:** [[Recording a note]], [[Saying the marks]], and [[Spoken commands]].
 - **The shapes a note can take:** [[Lists and to-dos]], [[Boards made of list items]], [[Books, and reading one through]] and [[Canvases, cards and lines]].
 - **The AI:** [[The models on your phone]], [[Asking the AI to work on a note]] and [[Spoken asks and the review]].
 - **Other devices and other people:** [[Accounts, sync and the key you hold]], [[Live typing]] and [[Sharing a note or a book]].
