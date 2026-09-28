@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { bookNoteBody } from '../book/book.ts';
 import { makeNote } from '../../test/notes.ts';
 import { bareWords, readInstruction, runOf } from './instruction.ts';
 
@@ -35,7 +36,7 @@ describe('a run said in words', () => {
 
   // The rules are anchored at the front, so without the keyword a run is the whole phrase and its object, and nothing more (docs/DESIGN.md §136).
   it('is the whole phrase, with `whole`, so a sentence that opens with a run’s words is not the run', () => {
-    for (const said of ['fix the spelling', 'tidy it up', 'carry on', 'summarise it for me', 'summarize this', 'make this a list', 'tidy this up', 'flesh it out please']) {
+    for (const said of ['fix the spelling', 'tidy it up', 'carry on', 'summarise it for me', 'summarize this', 'make this a list', 'tidy this up', 'flesh it out please', 'summarise that', 'summarise the note', 'summarise this note', 'tidy up everything', 'carry on now']) {
       expect(runOf(said, { whole: true }), said).not.toBeNull();
     }
     for (const said of SENTENCES) {
@@ -77,9 +78,9 @@ describe('reading an instruction', () => {
     expect(keyed).toEqual({ kind: 'reject', reason: 'No unambiguous note matches “camping”. Nothing changed.' });
     // Without the keyword, the person never said it was a command: the words are the note's, and the chip says why.
     const bare = await readInstruction('add to the camping list eggs and milk', notes);
-    expect(bare).toEqual({ kind: 'words', notice: 'No unambiguous note matches “camping”, so the words are saved as a note.' });
-    // The name as the rules at Done read it, which is what their card would have said.
-    expect(await readInstruction('Add to shopping, oat milk.', notes)).toEqual({ kind: 'words', notice: 'No unambiguous note matches “shopping, oat milk”, so the words are saved as a note.' });
+    expect(bare).toEqual({ kind: 'words', notice: 'No note called “camping”, so the words are saved as a note.' });
+    // The name as said, up to its comma, where the rules at Done carried the words after it too.
+    expect(await readInstruction('Add to shopping, oat milk.', notes)).toEqual({ kind: 'words', notice: 'No note called “shopping”, so the words are saved as a note.' });
     expect(await readInstruction('Hey Ghost, add to shopping, oat milk.', notes)).toMatchObject({ kind: 'reject' });
     // A name the rules cannot read at all is an ask after the keyword, not a refusal.
     expect(await readInstruction('hey ghost, add eggs to the camping list', notes)).toEqual({ kind: 'ask', instruction: 'add eggs to the camping list' });
@@ -100,6 +101,47 @@ describe('reading an instruction', () => {
     expect(await readInstruction('hey ghost, shorten the second paragraph', notes)).toEqual({ kind: 'ask', instruction: 'shorten the second paragraph' });
     expect(await readInstruction('shorten the second paragraph', notes)).toMatchObject({ kind: 'words' });
     expect(await readInstruction('we should shorten the second paragraph', notes)).toEqual({ kind: 'words' });
+  });
+});
+
+/**
+ * What the live reader's gate kept as words, read again at Done from a transcript with no keyword (docs/DESIGN.md
+ * §136): words here too, never a card whose Cancel lets the recording go. The keyword still makes each a card.
+ */
+describe('the reader at Done, without the keyword', () => {
+  const library = [
+    ...notes,
+    { id: 'h', title: 'House TODOs', note: makeNote('h', '# House TODOs\n\n- [ ] Fix the gutter\n') },
+    { id: 'b', title: 'Bowl', note: makeNote('b', '# Bowl\n\nBlue.\n') },
+    { id: 'c', title: 'Car insurance', note: makeNote('c', '# Car insurance\n\n- Renew\n') },
+    { id: 't', title: 'Weekend trip', note: makeNote('t', '# Weekend trip\n\nThe cabin.\n') },
+    { id: 'p', title: 'Porch light', note: makeNote('p', '# Porch light\n\n- Bulb\n') },
+    { id: 'o', title: 'Post', note: makeNote('o', '# Post\n\nLetters.\n') },
+    { id: 'm', title: 'Team', note: makeNote('m', '# Team\n\n- Kevin\n') },
+    { id: 'go', title: 'Go', note: makeNote('go', '# Go\n') },
+  ];
+
+  it.each([
+    'Add call the plumber to work.',
+    'Add the flour to the bowl. Then stir it for a minute.',
+    'Put this in the car, then drive.',
+    'Put the spare key under the mat on the porch. Then lock up.',
+    'Add a note to the weekend, book the ferry.',
+    'Put this in the weekend trip, book the ferry.',
+    'Put the parcel in the post.',
+    'Add Kevin to the team.',
+    'Put the washing in the house.',
+  ])('keeps what the live reader kept as words: %s', async (said) => {
+    expect(await readInstruction(said, library)).toEqual({ kind: 'words' });
+    expect((await readInstruction(`Hey Ghost, ${said.charAt(0).toLowerCase()}${said.slice(1)}`, library)).kind, said).toBe('command');
+  });
+
+  it('still offers what the live reader carries out, a note labelled by name, and a new list', async () => {
+    expect(await readInstruction('Add oat milk to groceries.', library)).toMatchObject({ kind: 'command', plan: { kind: 'place', note: { id: 'g' } } });
+    expect(await readInstruction('Add call Sam to House TODOs.', library)).toMatchObject({ kind: 'command', plan: { kind: 'place', note: { id: 'h' } } });
+    // "Go" starts with a verb, so the live reader has no bare reading of it to turn down: the card is the second chance.
+    expect(await readInstruction('add to the note labeled Go pack sunscreen', library)).toMatchObject({ kind: 'command', plan: { kind: 'place', note: { id: 'go' } } });
+    expect(await readInstruction('Make a list called Comic books.', library)).toMatchObject({ kind: 'command', plan: { kind: 'create-list', title: 'Comic books' } });
   });
 });
 
@@ -125,8 +167,10 @@ describe('the keyword as Whisper hears it', () => {
     'Hey goes, add a bit more salt next time.',
     // The gate is the bare gate, shared with the live reader: a note called Sam with a bullet is no evidence.
     'Hey, like, put this in Sam, the deposit is due.',
+    // A book is never written into by voice, so a mishearing before its name is words, never a card.
+    'Hey, like, add a note to field guide, call Sam.',
   ])('keeps how people talk as words, never an ask or a run: %s', async (said) => {
-    const sam = [...house, { id: 's', title: 'Sam', note: makeNote('s', '# Sam\n\n- Owes me a tenner\n') }];
+    const sam = [...house, { id: 's', title: 'Sam', note: makeNote('s', '# Sam\n\n- Owes me a tenner\n') }, { id: 'f', title: 'Field guide', note: makeNote('f', bookNoteBody('Field guide', ['Trees'])) }];
     expect(await readInstruction(said, sam)).toMatchObject({ kind: 'words' });
   });
 

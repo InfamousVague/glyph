@@ -202,4 +202,6 @@ export function renderExample(example: Example): string {
  * Done, each bare and after the keyword, so a change to either that stops it working fails a test rather than the page.
  */
 export const COMMAND = { say: 'Add bread to Groceries', note: 'Groceries', words: 'bread' } as const;
+/** The same for a note whose title does not say it is a list: "a note" said is the gate's evidence, and the words follow a comma. */
+export const NOTE_COMMAND = { say: 'Add a note to Work, call Sam', note: 'Work', words: 'Call Sam.' } as const;
 export const ASK = { say: 'Fix the spelling', run: 'fix' } as const;

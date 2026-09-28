@@ -229,6 +229,15 @@ export function headingsOf(body: string): string[] {
   return [...out, ...lanesOf(body).map((lane) => lane.name)];
 }
 
+/**
+ * Whether `body` has a heading, a "Label:" line or a lane that `heading` names (`headingsOf`), as surely as a note is
+ * found (`FIND.resolved`): "under the sofa" in House TODOs names none, so it is words of the thing, not a place.
+ */
+export function headingIn(body: string, heading: string): boolean {
+  const said = nameWords(heading);
+  return headingsOf(body).some((text) => nameScore(said, nameWords(text)) >= FIND.resolved);
+}
+
 export type Found<N> =
   /** One clear note. */
   | { status: 'resolved'; note: N; score: number }

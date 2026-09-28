@@ -1,5 +1,5 @@
 import { findKeyword, findMisheard, LEAD_INS, onlyFiller, withoutPayloadLead } from './command.ts';
-import { FIND, headingsOf, nameScore, nameWords, titleKind } from './noteFind.ts';
+import { FIND, headingIn, nameWords } from './noteFind.ts';
 
 /**
  * Hearing a command in one committed phrase, as it is said: the keyword, and the shapes of "words for a note you name".
@@ -96,7 +96,8 @@ export interface Reading {
   /**
    * "Move this to …" or "switch this to …" as said: the move said plainly, which a phrase with no keyword must be. "Go
    * to work", "carry on in the garage" and "move it to …" are `move` but not this: bare, they are words ("it" is a
-   * send's word, takeBack.ts).
+   * send's word, takeBack.ts). Nor are "move everything to the garage" and "move these to the kitchen", which is how
+   * people talk about boxes.
    */
   plainMove: boolean;
   /** "For Groceries, …", "House TODOs: …": the name came first. */
@@ -109,6 +110,13 @@ export interface Reading {
   stopped: boolean;
   /** A note or item noun was said ("a note", "a to-do"): it was plainly about a note. */
   noun: boolean;
+  /**
+   * "Add a note to …", "put an item in …", "new item for …": a verb and a noun for filing words in a note. "Leave a
+   * note for Mum", "send a note to Sam", "drop a line to the team" and "another point for the agenda" are messages
+   * and meeting talk: with no keyword said, such a phrase is a command only when its name says it is a list
+   * (`bareEvidence`).
+   */
+  filed: boolean;
   /** The name ends at a split point the grammar chose, not at a separator or the phrase's end. */
   split: boolean;
   /**
@@ -124,6 +132,9 @@ const ITEM_NOUN = String.raw`(?:items?|entry|entries|bullets?|points?|things?|bu
 const NOTE_NOUN = String.raw`(?:note|line|comment|memo)`;
 const NOUN = String.raw`(?:(?:list\s+)?${ITEM_NOUN}|${TASK_NOUN}|${NOTE_NOUN})`;
 const NOUN_OPEN = String.raw`(?:(?:a|an|another|one\s+more|some|new)\s+)?(?:(?:quick|little|short|new)\s+)?`;
+/** The verbs and nouns that file words in a note (`Reading.filed`), not send a message or raise a point. */
+const FILING_VERB = /^(?:add|put|stick|pop|append|save|file)\b/i;
+const FILING_NOUN = new RegExp(String.raw`^(?:(?:list\s+)?(?:items?|entry|entries|bullets?|bugs?|issues?)|${TASK_NOUN}|note)$`, 'i');
 const PREP = String.raw`(?:to|in|into|onto|on|for|under)`;
 const OWNER = String.raw`(?:(?:the|my|our)\s+)?`;
 const LABEL = String.raw`(?:(?:page|note|list)\s+(?:for|called|named|titled|label(?:l)?ed)\s+)?`;
@@ -172,7 +183,7 @@ export function nameable(name: string): 'name' | 'verb' | 'not' {
 
 /** A reading, with the fields a shape leaves alone. */
 function reading(shape: Reading['shape'], name: string, over: Partial<Reading> = {}): Reading {
-  return { shape, name: name.trim(), payload: '', trailing: '', tail: '', placing: 'leave', heading: null, move: false, plainMove: false, nameFirst: false, newNote: false, self: false, stopped: false, noun: false, split: false, verb: false, ...over };
+  return { shape, name: name.trim(), payload: '', trailing: '', tail: '', placing: 'leave', heading: null, move: false, plainMove: false, nameFirst: false, newNote: false, self: false, stopped: false, noun: false, filed: false, split: false, verb: false, ...over };
 }
 
 /** A reading for a name alone, with nothing said for it: "Not this note" offering the others for that name. */
@@ -232,9 +243,9 @@ export function readRoute(text: string): Reading[] {
   };
 
   const one = SHAPE_1.exec(words);
-  if (one?.[1] && one[2]) named(1, one[2], { placing: placingOf(one[1]), noun: true });
+  if (one?.[1] && one[2]) named(1, one[2], { placing: placingOf(one[1]), noun: true, filed: FILING_VERB.test(words) && FILING_NOUN.test(one[1].trim()) });
   const two = SHAPE_2.exec(words);
-  if (two?.[1] && two[2]) named(2, two[2], { placing: placingOf(two[1]), noun: true });
+  if (two?.[1] && two[2]) named(2, two[2], { placing: placingOf(two[1]), noun: true, filed: FILING_NOUN.test(two[1].trim()) });
   const three = SHAPE_3.exec(words);
   if (three?.[1]) named(3, three[1], {});
   const eight = SHAPE_8.exec(words);
@@ -247,7 +258,7 @@ export function readRoute(text: string): Reading[] {
   }
   const five = SHAPE_5.exec(words);
   if (five?.[1] && five[3] && nameable(five[3]) === 'name') {
-    const plainMove = /^(?:move|switch)$/i.test(five[1]) && five[2] !== undefined && five[2].toLowerCase() !== 'it';
+    const plainMove = /^(?:move|switch)$/i.test(five[1]) && five[2]?.toLowerCase() === 'this';
     out.push(reading(5, five[3], { move: true, plainMove }));
   }
 
@@ -294,35 +305,47 @@ export function readRoute(text: string): Reading[] {
 
 // ---- the gate a phrase passes with no keyword ---------------------------------------------------
 
+/** When, not where: "move this to Tuesday" is a meeting moved, whatever a note is called. */
+const WHEN =
+  /^(?:(?:next|this|last)\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|week|weekend|month|year|morning|afternoon|evening|january|february|march|april|may|june|july|august|september|october|november|december)$|^(?:today|tomorrow|tonight|later)$/i;
+
 /**
  * The shapes a command has to have with no keyword said, or a mishearing of it, by its words alone (docs/DESIGN.md
  * §136): a note or an item said for it, the name run to a separator or the phrase's end and never to a split the
  * grammar chose ("add a note to house to-dos, call Sam"; "another item on the agenda is the budget" is meeting talk);
- * "put this in X, …" stopped at a separator; "add X to Y" and "add X under H in Y"; and "move this to X" said plainly.
- * Never a to-do for here ("remind me to …" is prose in a voice note), "new note", a name said first, a name that
- * starts with a verb, or "go to X": "Go to work" moved a whole recording once.
+ * "put this in X, …" stopped at a separator; "add X to Y" and "add X under H in Y"; and "move this to X" said plainly,
+ * to a note rather than a day. Never a to-do for here ("remind me to …" is prose in a voice note), "new note", a name
+ * said first, a name that starts with a verb, or "go to X": "Go to work" moved a whole recording once.
  */
 export function bareShape(r: Reading): boolean {
   if (r.self || r.newNote || r.verb || r.nameFirst) return false;
   if (r.shape === 1 || r.shape === 2) return r.noun && !r.split;
   if (r.shape === 3) return r.stopped;
-  if (r.shape === 5) return r.plainMove;
+  if (r.shape === 5) return r.plainMove && !WHEN.test(r.name);
   return r.shape === 4 || r.shape === 8;
 }
 
 /**
- * What the note named has to be for a bare phrase: for "put this in X", "add X to Y" and a heading, the name or the
- * title says what kind of list it is (a kind word in the name, or a title that ends in one: House TODOs, Groceries,
- * Packing list), and the heading is one the note has. "A note" and "an item" said are their own evidence, and so is
- * "move this". Nearly every note has one bullet, so a list in the body is no evidence: "send this to Sam, the deposit
- * is due" beside a note called Sam is a sentence.
+ * Whether a name says what kind of list its note is: a kind word ("house to-dos", "the work list", "packing list") or
+ * a shopping word ("groceries"). A title that says so is not enough on its own: "house" is House TODOs and "garden" is
+ * Garden jobs at 0.9, and "put the washing in the house" is a sentence.
+ */
+function saysList(name: string): boolean {
+  const said = nameWords(name);
+  return said.specific.length + said.generic.length > 0 || said.words.some((word) => /^(?:grocer(?:y|ie)|shopping)$/.test(word));
+}
+
+/**
+ * What a bare phrase has to show that a note was meant: for "put this in X", "add X to Y", a heading, and a note or an
+ * item said with a verb that sends or raises it rather than files it (`Reading.filed`), the name says what kind of
+ * list it is (`saysList`); and the heading is one the note has. "Add a note", "new item" and "move this" are their own
+ * evidence. Nearly every note has one bullet, so a list in the body is no evidence: "send this to Sam, the deposit is
+ * due" beside a note called Sam is a sentence, and so is "leave a note for Mum, dinner is in the oven".
  */
 export function bareEvidence(r: Reading, note: { title: string; body: string }): boolean {
-  if (r.shape === 3 || r.shape === 4 || r.shape === 8) {
-    const kind = nameWords(r.name);
-    if (kind.specific.length + kind.generic.length === 0 && titleKind(note.title) === null) return false;
-  }
-  if (r.shape === 8) return r.heading !== null && headingsOf(note.body).some((h) => nameScore(nameWords(r.heading!), nameWords(h)) >= FIND.resolved);
+  const filing = r.shape === 1 || r.shape === 2 ? r.filed : r.shape === 5;
+  if (!filing && !saysList(r.name)) return false;
+  if (r.shape === 8) return r.heading !== null && headingIn(note.body, r.heading);
   return true;
 }
 

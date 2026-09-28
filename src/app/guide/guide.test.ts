@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readInstruction } from '../ai/instruction.ts';
-import { ASK, COMMAND, CUE_ALONE, PHRASES, renderExample } from './phrases.ts';
+import { ASK, COMMAND, CUE_ALONE, NOTE_COMMAND, PHRASES, renderExample } from './phrases.ts';
 import { LiveTake } from '../capture/liveTake.ts';
 
 /**
@@ -49,6 +49,16 @@ describe('what the habits page says to say, with or without “Hey Ghost” firs
       take.close(2000);
       expect(take.body('g1'), said).toBe(`# Groceries\n\n- Eggs\n- ${COMMAND.words.charAt(0).toUpperCase()}${COMMAND.words.slice(1)}\n`);
       expect(take.result().made, said).toEqual([]);
+    }
+  });
+
+  it('is a command for a note whose title does not say it is a list, with “a note” said, carried out as it is said', () => {
+    for (const said of ways(NOTE_COMMAND.say)) {
+      const take = new LiveTake(library.map((c) => ({ id: c.id, body: c.note.body })));
+      take.phrase({ text: 'First words.', startMs: 0, endMs: 900 }, 0);
+      take.phrase({ text: `${said}.`, startMs: 1000, endMs: 2500 }, 1000);
+      take.close(3000);
+      expect(take.body('w1'), said).toBe(`# ${NOTE_COMMAND.note}\n\n${NOTE_COMMAND.words}`);
     }
   });
 

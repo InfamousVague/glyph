@@ -271,6 +271,16 @@ describe('the search', () => {
     }
   });
 
+  // The switch for the keyword went (docs/DESIGN.md §136): the words a person would look for it by lead to the Guide.
+  it('finds how to talk to Ghost.md by the words of the switch that went', () => {
+    settings();
+    const sections = handed;
+    unmount();
+    for (const words of ['hey ghost', 'keyword']) {
+      expect(searchSettings(sections, words).map((hit) => hit.setting), words).toContain('How to talk to Ghost.md');
+    }
+  });
+
   it('finds every setting it lists on its page, in a browser', () => {
     // A browser has no models to list, so Formatting's page is the one card saying it runs on the phone.
     expect(missingFromTheirPages()).toEqual(['Formatting: Local only', 'Formatting: Model']);

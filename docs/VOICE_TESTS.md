@@ -52,8 +52,10 @@ item said for a note named and then scratched, "no wait, four", and the send who
 **Without the keyword.** 112 to 118 say a command bare (DESIGN §136): "add oat milk to groceries" at the start, "add
 call the plumber to House TODOs" in the middle of a recording, "move this to weekend trip", Matt's sentence in two
 phrases without "Hey Ghost", and what stays words without it: a sentence that sounds like a command and a note there is
-none of, "go to work", and a sentence into a note that opens with a run's words. 066 kept its lines and its recording,
-and now expects the Glyph note written to. Their audio is to be made with Matt's cases; next is 119.
+none of, "go to work", and a sentence into a note that opens with a run's words. The suite plays the live reader
+only, so 116 and 118 check what is written as it is said; what the reader at Done makes of the same words is
+instruction.test.ts's and CaptureScreen.test.tsx's. 066 kept its lines and its recording, and now expects the Glyph
+note written to. Their audio is to be made with Matt's cases; next is 119.
 
 **To record again.** These scripts changed with §126, most of them by losing the "Yes." that confirmed a command, and
 058 by gaining "Glyph, new note.", so their recordings still say the old lines. Each carries `rerecord` in

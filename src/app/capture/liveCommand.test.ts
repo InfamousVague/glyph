@@ -49,7 +49,21 @@ describe('the shapes a bare command may have', () => {
     expect(names('add call Sam to house to-dos')).toContain('house to-dos');
     expect(names('add fix the tap under kitchen in home jobs')).toContain('home jobs');
     expect(names('move this to the garage')).toEqual(['garage']);
-    expect(names('switch everything to work')).toEqual(['work']);
+    expect(names('switch this to work')).toEqual(['work']);
+  });
+
+  // Each moved a whole recording, or filed a message, in review: how people talk about boxes, days and messages.
+  it('never takes “move everything”, “move these”, a move to a day, or a note sent or raised rather than filed without a list', () => {
+    for (const words of ['move everything to the garage', 'move these to the kitchen', 'move this to Tuesday', 'move this to next week', 'switch this to tomorrow']) {
+      expect(names(words), words).toEqual([]);
+    }
+    const filed = (text: string) => readRoute(commandWords(text)).find((r) => r.shape === 1 || r.shape === 2)?.filed;
+    for (const words of ['add a note to work, call Sam', 'put an item in groceries, eggs', 'new item for groceries, eggs', 'add a to-do to work, call Sam', 'another item for the agenda, we need to hire']) {
+      expect(filed(words), words).toBe(true);
+    }
+    for (const words of ['leave a note for Mum, dinner is in the oven', 'send a note to Sam, the deposit is due', 'drop a line to the team, the office is shut', 'write a note to Sam, thanks for the flowers', 'jot down a note for the kids, pizza is in the freezer', 'another point for the agenda, we need to hire', 'another thing for the kitchen, we need new tiles', 'add a comment to the work, it needs another pass']) {
+      expect(filed(words), words).toBe(false);
+    }
   });
 
   it('never takes a name from a split the grammar chose, a to-do for here, a name said first, or an unstopped “put this in”', () => {
@@ -68,12 +82,15 @@ describe('the shapes a bare command may have', () => {
     expect(plain('go to work')).toBe(false);
     expect(plain('move this to work')).toBe(true);
     expect(plain('move it to work')).toBe(false);
-    expect(plain('switch everything to work')).toBe(true);
+    expect(plain('switch this to work')).toBe(true);
+    expect(plain('switch everything to work')).toBe(false);
+    expect(plain('move these to work')).toBe(false);
+    expect(plain('continue this in work')).toBe(false);
     expect(plain('switch to weekend trip')).toBe(false);
     expect(plain('carry on in the garage')).toBe(false);
   });
 
-  it('wants the name or the title to say what kind of list it is for “put this in”, “add X to Y” and a heading, and the heading to exist', () => {
+  it('wants the name to say what kind of list it is for “put this in”, “add X to Y”, a heading and a note sent, and the heading to exist', () => {
     const one = (text: string) => shapes(text)[0]!;
     const sam = { title: 'Sam', body: '# Sam\n\n- Owes me a tenner\n' };
     const groceries = { title: 'Groceries', body: '# Groceries\n\n- Eggs\n' };
@@ -86,8 +103,23 @@ describe('the shapes a bare command may have', () => {
     expect(bareEvidence(one('add call the plumber to the work list'), work)).toBe(true);
     expect(bareEvidence(one('add fix the tap under kitchen in home jobs'), jobs)).toBe(true);
     expect(bareEvidence(one('add the key under the mat in home jobs'), jobs)).toBe(false);
-    // "A note" said is its own evidence, whatever the title.
+    // The heading reading itself: "Kitchens" is Kitchen, "Kitchen sink" is not a heading Home jobs has.
+    const heading = (text: string) => shapes(text).find((r) => r.shape === 8)!;
+    expect(bareEvidence(heading('add fix the tap under kitchens in home jobs'), jobs)).toBe(true);
+    expect(bareEvidence(heading('add fix the tap under kitchen sink in home jobs'), jobs)).toBe(false);
+    expect(bareEvidence(heading('add fix the tap under the sink in home jobs'), { title: 'Home jobs', body: '# Home jobs\n\n## Upstairs kitchen sink drains\n- [ ] Fix tap\n' })).toBe(false);
+    // A heading the note has is not enough when the name does not say it is a list.
+    expect(bareEvidence(heading('add fix the tap under kitchen in the house'), { title: 'House', body: jobs.body })).toBe(false);
+    // A title that says it is a list is not enough when the name does not: "house" is a place, and "garden" is.
+    const house = { title: 'House TODOs', body: '# House TODOs\n\n- [ ] Fix the gutter\n' };
+    const garden = { title: 'Garden jobs', body: '# Garden jobs\n\n- Weed\n' };
+    expect(bareEvidence(one('put the washing in the house'), house)).toBe(false);
+    expect(bareEvidence(one('put this in the garden, next to the shed'), garden)).toBe(false);
+    expect(bareEvidence(one('add call Sam to house to-dos'), house)).toBe(true);
+    // "A note" filed is its own evidence, whatever the title; one sent or left for someone is not.
     expect(bareEvidence(one('add a note to work, call Sam'), work)).toBe(true);
+    expect(bareEvidence(one('send a note to Sam, the deposit is due'), sam)).toBe(false);
+    expect(bareEvidence(one('send a note to the house list, call Sam'), work)).toBe(true);
     expect(bareEvidence(one('move this to work'), work)).toBe(true);
   });
 

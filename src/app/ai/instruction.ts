@@ -1,7 +1,7 @@
 import { isBookBody } from '../book/book.ts';
 import { findKeyword, findMisheard, isStandaloneCommandLike, LEAD_INS, onlyFiller, type FinalPlan } from '../capture/command.ts';
 import { classifyFinalTranscript } from '../capture/finalInstruction.ts';
-import { bareCommand, misheardShape } from '../capture/liveCommand.ts';
+import { bareCommand, bareShape, misheardShape, readRoute } from '../capture/liveCommand.ts';
 import { findNote } from '../capture/noteFind.ts';
 import type { Candidate } from '../capture/route.ts';
 import type { RunKind } from './kinds.ts';
@@ -108,6 +108,36 @@ export function runOf(words: string, { whole = false }: { whole?: boolean } = {}
   return null;
 }
 
+/**
+ * Whether the live reader's gate turned `words` down as a command for `note` (capture/liveCommand.ts `bareCommand`):
+ * they have a bare command's shape for that note, and not one such reading passes the rest of the gate, the note
+ * named clearly and the name saying it is a list where the shape needs one. Then a transcript with no keyword is the
+ * note's words at Done too, and no card offers to send it there: "Add the flour to the bowl", "Put this in the car,
+ * then drive" and "Add call the plumber to work" were cards here after the live reader had kept them as words, and
+ * the card's Cancel lets the recording go. Words with no bare shape for the note ("add to the note labeled Go pack
+ * sunscreen", a name only the model matches) were never the live gate's to judge, and are offered as they always were.
+ */
+function turnedDown<N extends Candidate & { note?: { body: string } }>(words: string, note: N, notes: readonly N[]): boolean {
+  const body = note.note?.body ?? '';
+  const judged = readRoute(words).flatMap((reading) => {
+    if (!bareShape(reading)) return [];
+    const found = findNote(reading.name, notes);
+    return found.status === 'resolved' && found.note.id === note.id ? [{ reading, score: found.score }] : [];
+  });
+  return judged.length > 0 && !judged.some(({ reading, score }) => bareCommand(reading, { title: note.title, body }, score, { atStart: true }));
+}
+
+/**
+ * The reason a command said without the keyword was not carried out, for the words saved in its place: the name as
+ * said, up to its first comma ("No note called “shopping”"), where the rules' reason carries the words after it too.
+ */
+function savedAsWords(reason: string): string {
+  const unmatched = /^No unambiguous note matches “(.+?)”\./.exec(reason);
+  const name = unmatched?.[1]?.split(/\s*[,;:]\s*/)[0]?.trim();
+  if (name) return `No note called “${name}”, so the words are saved as a note.`;
+  return reason.replace(/\.\s*Nothing changed\.$/, ', so the words are saved as a note.');
+}
+
 /** Reads a spoken instruction. `notes` are the person's notes, for a command that names one. */
 export async function readInstruction<N extends Candidate & { note?: { body: string } }>(text: string, notes: readonly N[]): Promise<Read<N>> {
   const bare = bareWords(text);
@@ -129,11 +159,15 @@ export async function readInstruction<N extends Candidate & { note?: { body: str
   const run = runOf(bare.words, { whole: !bare.keyed });
   if (run) return { kind: 'run', run };
   const decision = await classifyFinalTranscript(bare.words, notes);
-  if (decision.kind === 'offer') return { kind: 'command', plan: decision.plan };
+  if (decision.kind === 'offer') {
+    // Without the keyword, what the live reader's gate kept as words is words here too, not a card.
+    if (!bare.keyed && decision.plan.kind === 'place' && turnedDown(bare.words, decision.plan.note, notes)) return { kind: 'words' };
+    return { kind: 'command', plan: decision.plan };
+  }
   // A command that named a note fails closed after the keyword, with its reason; without it the words are the note's,
   // and the reason is the chip's. One the reader could make nothing of is an ask.
   const named = decision.kind === 'rejected' && /\bnote\b/i.test(decision.reason) && /called|matches|No unambiguous/i.test(decision.reason);
-  if (named) return bare.keyed ? { kind: 'reject', reason: decision.reason } : { kind: 'words', notice: decision.reason.replace(/\.\s*Nothing changed\.$/, ', so the words are saved as a note.') };
+  if (named) return bare.keyed ? { kind: 'reject', reason: decision.reason } : { kind: 'words', notice: savedAsWords(decision.reason) };
   if (!bare.keyed) return { kind: 'words', ...(decision.kind === 'ordinary' && decision.notice ? { notice: decision.notice } : {}) };
   return { kind: 'ask', instruction: bare.words };
 }

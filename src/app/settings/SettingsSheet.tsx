@@ -290,7 +290,8 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
         { name: 'Update alerts', words: 'notifications notify' },
         { name: "What's new", words: 'changelog releases' },
         { name: 'Ghost.md Academy', words: 'learn tutorial lessons' },
-        { name: 'How to talk to Ghost.md', words: 'voice commands cues' },
+        // The switch "Commands start with hey Ghost" went (docs/DESIGN.md §136): someone looking for it finds the Guide.
+        { name: 'How to talk to Ghost.md', words: 'voice commands cues hey ghost keyword' },
         { name: `Add ${GUIDE_TITLE}`, words: 'guide manual help book' },
         { name: 'Add the sample note', words: 'example' },
         { name: 'Add the example board', words: 'kanban' },

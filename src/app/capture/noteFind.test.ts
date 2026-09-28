@@ -5,7 +5,7 @@ import { GUIDE_TITLE } from '../guidebook/guidebook.ts';
 import { makeNote } from '../../test/notes.ts';
 import { GUIDE_CHAPTER_TITLES, LIBRARY_TITLES } from '../../test/libraryTitles.ts';
 import { commandCandidates } from './candidates.ts';
-import { FIND, findNote, headingsOf, nameScore, nameWords, titleKind } from './noteFind.ts';
+import { FIND, findNote, headingIn, headingsOf, nameScore, nameWords, titleKind } from './noteFind.ts';
 
 /**
  * Matt's library as the recorder reads it: his 76 titles (the two canvases among them as the canvases they are), the
@@ -165,5 +165,11 @@ describe('the note being written to', () => {
   it('reads a board’s lanes and a note’s labels as its places, never its own title', () => {
     expect(headingsOf('# Launch\n\n```board\nTo do: a\nDoing: b\n```\n\nShopping:\n- eggs\n')).toEqual(['Shopping', 'To do', 'Doing']);
     expect(headingsOf('# Home jobs\n\n## Kitchen\n```\n## Not a heading\n```\n')).toEqual(['Kitchen']);
+    // A heading named as surely as a note is found (`FIND.resolved`): a quarter of its words is not it, half is.
+    const drains = '# Home jobs\n\n## Upstairs kitchen sink drains\n- [ ] Fix tap\n';
+    expect(headingIn(drains, 'the sink')).toBe(false);
+    expect(headingIn(drains, 'kitchen sink')).toBe(true);
+    expect(headingIn('# Launch\n\n```board\nTo do: a\nDoing: b\n```\n', 'doing')).toBe(true);
+    expect(headingIn('# House TODOs\n\n- [ ] Fix the gutter\n', 'the sofa')).toBe(false);
   });
 });

@@ -2599,7 +2599,7 @@
     {
       "file": "116-bare-names-no-note",
       "group": "Commands",
-      "tests": "Without the keyword, a sentence that sounds like a command and a command for a note there is none of are words: no card, nothing held.",
+      "tests": "Without the keyword, a sentence that sounds like a command and a command for a note there is none of are words as they are said: no card, nothing held. (The reader at Done, which this suite does not play, saves them as the note too: instruction.test.ts.)",
       "setup": "fixtures",
       "prefs": {},
       "lines": [
@@ -2665,7 +2665,7 @@
     {
       "file": "118-a-sentence-that-opens-with-a-run",
       "group": "Commands",
-      "tests": "Into a note’s own Speak, without the keyword, a sentence that opens with a run’s words is the note’s words, not the run.",
+      "tests": "Into a note’s own Speak, without the keyword, a sentence that opens with a run’s words is written into the note as it is said. (That the reader at Done runs nothing on it is instruction.test.ts’s and CaptureScreen.test.tsx’s: this suite plays the live reader.)",
       "setup": "continue:Weekend trip",
       "prefs": {},
       "lines": [

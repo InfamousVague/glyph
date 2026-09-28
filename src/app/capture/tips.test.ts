@@ -36,9 +36,9 @@ describe('tips in a pause', () => {
   // A command needs no keyword (docs/DESIGN.md §136): every tip says it bare, in a form the bare gate takes.
   it('teach only the commands a recording carries out as they are said, without the keyword', () => {
     const said = tips({ noteTitle: 'Groceries', continuing: true }).map((tip) => tip.say);
-    for (const line of ['Add … to Groceries', 'New item for Groceries', 'New note', 'Move this to Groceries']) expect(said).toContain(line);
+    for (const line of ['Add … to Groceries', 'New item for Groceries, …', 'New note', 'Move this to Groceries']) expect(said).toContain(line);
     expect(said.some((line) => /\b(?:table|chapter|book|lane)\b/i.test(line))).toBe(false);
-    expect(said.some((line) => /fix the spelling|summarize/i.test(line))).toBe(false);
+    expect(said.some((line) => /fix the spelling|summari[sz]e/i.test(line))).toBe(false);
     expect(said.some((line) => /Hey Ghost/i.test(line))).toBe(false);
     // A note whose title does not say it is a list: "a note" said is the evidence the gate wants.
     expect(tips({ noteTitle: 'Work', continuing: true }).map((tip) => tip.say)).toContain('Add a note to Work, …');
@@ -50,7 +50,7 @@ describe('the card before the first word', () => {
     const card = starters({ noteTitle: 'Groceries', asking: true });
     expect(card.shape.map((tip) => tip.say)).toEqual(['Bullet point', 'The next item is …']);
     expect(card.send.map((tip) => tip.say)).toEqual(['Add … to Groceries', 'Move this to Groceries']);
-    expect(card.ask.map((tip) => tip.say)).toEqual(['Fix the spelling', 'Summarize this']);
+    expect(card.ask.map((tip) => tip.say)).toEqual(['Fix the spelling', 'Summarise this']);
   });
 
   it('still sends somewhere with no note to name, and offers no ask where none can run', () => {
@@ -97,7 +97,7 @@ describe('the tips that send words to a note', () => {
     for (const tip of list) {
       const take = new LiveTake([groceries, work], { own: work });
       take.phrase({ text: 'First words.', startMs: 0, endMs: 900 }, 0);
-      const said = `${tip.say.replace('…', 'oat milk')}${/new item for/i.test(tip.say) ? ', oat milk' : ''}.`;
+      const said = `${tip.say.replace('…', 'oat milk')}.`;
       take.phrase({ text: said, startMs: 1000, endMs: 1900 }, 1000);
       take.close(2000);
       const { bodies, made } = take.result();
@@ -106,6 +106,19 @@ describe('the tips that send words to a note', () => {
       else expect(bodies.get('groceries'), said).toContain('Oat milk');
       expect(made.join(''), said).not.toMatch(/Hey Ghost/i);
     }
+  });
+
+  // The item after the name in the same breath, as the tip says: mid-take a bare command needs its words in its own
+  // phrase, so "New item for Groceries." | "Oat milk." is two lines of the take, which is why the tip does not teach it.
+  it('teach the item in the same breath as its note, since the two breaths apart are words mid-take', () => {
+    const tip = tips({ noteTitle: 'Groceries', continuing: true }).find((candidate) => candidate.say.startsWith('New item for'));
+    expect(tip).toEqual({ say: 'New item for Groceries, …', does: 'with the item after it, to add to its list' });
+    const take = new LiveTake([groceries, work], { own: work });
+    take.phrase({ text: 'First words.', startMs: 0, endMs: 900 }, 0);
+    take.phrase({ text: 'New item for Groceries.', startMs: 1000, endMs: 1900 }, 1000);
+    take.phrase({ text: 'Oat milk.', startMs: 2000, endMs: 2900 }, 2000);
+    take.close(3000);
+    expect(take.result().bodies.get('groceries')).toBe(groceries.body);
   });
 
   // A note whose title does not say it is a list gets the "a note" form, which the gate takes into any note.
@@ -117,6 +130,27 @@ describe('the tips that send words to a note', () => {
     take.phrase({ text: `${tip!.say.replace('…', 'call Sam')}.`, startMs: 1000, endMs: 1900 }, 1000);
     take.close(2000);
     expect(take.result().bodies.get('work')).toBe('# Work\n\nNotes.\n\nCall Sam.');
+  });
+
+  // A title that starts with a verb is read as what to do ("Call log" is "call log"), so no tip names it: bare, "Add a
+  // note to Call log, call Sam" and "Move this to Book club" are words. The tips name the next note, and the card
+  // offers a new list instead.
+  it('never name a note whose title starts with a verb, and each tip they give instead is carried out', () => {
+    const calls = { id: 'calls', title: 'Call log', note: { body: '# Call log\n\n- Jo\n' } };
+    const club = { id: 'club', title: 'Book club', note: { body: '# Book club\n\n- Dune\n' } };
+    const named = [...new Set(Array.from({ length: 120 }, (_, turn) => tipInPause({ notes: [calls, club, { id: 'work', title: 'Work', note: { body: work.body } }], own: 'new', target: null, pluginTips: () => [], turn })?.say ?? ''))];
+    expect(named.some((say) => /Call log|Book club/.test(say))).toBe(false);
+    const routing = named.filter((say) => /Work|new note/i.test(say));
+    expect(routing).toEqual(['Add a note to Work, …', 'New item for Work, …', 'Move this to Work']);
+    for (const say of routing) {
+      const take = new LiveTake([groceries, work], { own: groceries });
+      take.phrase({ text: 'First words.', startMs: 0, endMs: 900 }, 0);
+      take.phrase({ text: `${say.replace('…', 'call Sam')}.`, startMs: 1000, endMs: 1900 }, 1000);
+      take.close(2000);
+      if (/move this/i.test(say)) expect(take.aim?.id, say).toBe('work');
+      else expect(take.result().bodies.get('work'), say).toContain('Call Sam');
+    }
+    expect(starters({ noteTitle: 'Call log' }).send.map((tip) => tip.say)).toEqual(['Make a list called … with …']);
   });
 });
 
@@ -147,6 +181,9 @@ describe('the tip for a pause', () => {
 
   it('teaches nothing for a book or a board', () => {
     expect(all({ notes: [groceries, guide] }).some((say) => /\b(?:chapter|book)\b/i.test(say))).toBe(false);
+    // The book the most recent note: the tip names the next note, never the book.
+    expect(all({ notes: [guide, work] })).toContain('Add a note to Work, …');
+    expect(all({ notes: [guide, work] }).some((say) => /Field guide/.test(say))).toBe(false);
     expect(all({ target: { body: '# Launch\n\n```board\nTo do:\nDoing:\n```' } }).some((say) => /Doing/.test(say))).toBe(false);
   });
 

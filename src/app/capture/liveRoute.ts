@@ -6,7 +6,7 @@ import { findKeyword, onlyFiller, PAYLOAD_LEAD } from './command.ts';
 import { bareCommand, bareShape, commandWords, hearKeyword, isOpener, misheardShape, namedAs, onlyFillerPhrase, onlyLead, payloadOf, readNameFirst, readRoute, silenceLine, withoutFinalStop, type Reading } from './liveCommand.ts';
 import { runsOf, semanticListKind } from './listAppend.ts';
 import { renderNote, splitSentences, type Segment } from './markdown.ts';
-import { FIND, findNote, nameWords, titleKind, type Found } from './noteFind.ts';
+import { FIND, findNote, headingIn, nameWords, titleKind, type Found } from './noteFind.ts';
 import { placeTake, placingFor, type Placing } from './place.ts';
 import { commandAfterOpener, contentWords, corrects, cuePrefixOf, opensSend, quoted, readSend, readTakeBack, swapWord, type TakeBack } from './takeBack.ts';
 import type { RouteView } from './takeHost.ts';
@@ -646,7 +646,8 @@ export class LiveRoute<N extends LiveNote> {
     // by `command`, the words before the keyword the take's own as ever.
     if (read.risky && (read.keyed || keyedByHold) && !read.send && commandAfterOpener(read.said) !== read.said) return null;
     // "Actually, add call the plumber to House TODOs" with no keyword: the command, when its words pass the bare gate.
-    if (read.risky && !read.keyed && !keyedByHold && !read.send && this.bareReading(commandAfterOpener(commandWords(read.said)), ctx) !== null) return null;
+    // A phrase with words before it ("Buy milk. Actually, add …") is read as two first, and its rest meets this alone.
+    if (read.risky && !read.head && !read.keyed && !keyedByHold && !read.send && this.bareReading(commandAfterOpener(commandWords(read.said)), ctx) !== null) return null;
     if (read.head) {
       const head = this.heard({ ...segment, text: sentence(read.head) }, ctx, now);
       const rest = this.heard({ ...segment, text: read.said }, ctx, now, { keyed: read.keyed, headBeforeKeyword: read.headBeforeKeyword });
@@ -1120,12 +1121,12 @@ export class LiveRoute<N extends LiveNote> {
         return [...spans, ...outcome];
       }
       // No keyed command came of it: this phrase is read on its own, and the held one is words after all, unless the
-      // phrase was a bare command ("Okay." | "Add a note to House TODOs, call Sam."), which the filler was said before:
-      // then the take starts there, with no note of "Okay.". Decided after the read, since `record` places by time.
-      const before = this.engagedYet;
+      // phrase was a bare command ("Okay." | "Add a note to House TODOs, call Sam.", "Um." | "New note."), which the
+      // filler was said before: then it is marked with the command, as after the keyword, and makes no note of "Okay.".
+      // Decided after the read, since `record` places by time; a phrase read as a command starts with its mark.
       const rest = this.read(segment, ctx, now);
-      const engaged = this.engagedYet !== before || rest.some((step) => step.kind === 'new-note');
-      return engaged ? [...held.segments.map((s) => spanStep<N>(s)), ...rest] : [this.words(held.segments[0]!), ...rest];
+      const commanded = rest[0]?.kind === 'command';
+      return commanded ? [...held.segments.map((s) => spanStep<N>(s)), ...rest] : [this.words(held.segments[0]!), ...rest];
     }
     const words = commandWords(heard ? heard.after : joined);
     if (isOpener(words) && held.why === 'keyword') {
@@ -1218,10 +1219,12 @@ export class LiveRoute<N extends LiveNote> {
       const lead = (r: Reading) => (PAYLOAD_LEAD.test(r.payload) ? 1 : 0);
       if (lead(a.reading) !== lead(b.reading)) return lead(b.reading) - lead(a.reading);
       if (a.reading.stopped !== b.reading.stopped) return a.reading.stopped ? -1 : 1;
-      // The same name read two ways ("add fix the tap under Kitchen in home jobs"): the reading that took the heading
-      // off the thing, and otherwise as the grammar gave them.
+      // The same name read two ways: "add fix the tap under Kitchen in home jobs" is under a heading the note has, and
+      // "add clean under the sofa in house to-dos" is one to-do, since House TODOs has no heading "the sofa".
       if (a.reading.name.toLowerCase() === b.reading.name.toLowerCase()) {
-        if ((a.reading.heading !== null) !== (b.reading.heading !== null)) return a.reading.heading !== null ? -1 : 1;
+        const placed = (x: (typeof scored)[number]) => x.reading.heading !== null && x.found.status === 'resolved' && headingIn(x.found.note.note.body, x.reading.heading);
+        if (placed(a) !== placed(b)) return placed(a) ? -1 : 1;
+        if ((a.reading.heading !== null) !== (b.reading.heading !== null)) return a.reading.heading !== null ? 1 : -1;
         return 0;
       }
       // One name the start of the other: the longer when what it adds is kind words ("house chores"), else the shorter.
