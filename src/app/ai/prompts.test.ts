@@ -11,6 +11,13 @@ describe('the newer prompts', () => {
     expect(promptForKind('format')).toBe(SYSTEM_PROMPT);
   });
 
+  it('tell each run that knows the table’s token of the place’s and the video’s too', () => {
+    for (const prompt of [FIX_PROMPT, SHAPE_PROMPT, CONTINUE_PROMPT, promptForKind('ask')].filter((one) => one.includes('![table-1](table)'))) {
+      expect(prompt).toContain('![place-1](place)');
+      expect(prompt).toContain('![video-1](video)');
+    }
+  });
+
   it('give a fix the note again, a continuation a few lines, and an ask as much as an enhancement', () => {
     expect(budgetForKind('fix', 4000)).toBe(1314);
     expect(budgetForKind('fix', 10)).toBe(128);
