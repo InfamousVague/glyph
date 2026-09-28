@@ -101,8 +101,8 @@ function keepPlace(before: string, next: string): string {
   return tag && !geoTagOf(next) ? withGeoTag(next, tag) : next;
 }
 
-/** The keys a notebook, a journal and an entry are made of (book/book.ts, book/journal.ts). */
-const KEPT_KEYS = ['title', 'book', 'journal', 'template', 'entry-place', 'date'] as const;
+/** The keys a notebook, a journal and an entry are made of (book/book.ts, book/journal.ts), and how a note looks (core/look.ts). */
+const KEPT_KEYS = ['title', 'book', 'journal', 'template', 'entry-place', 'date', 'look'] as const;
 
 /**
  * `next` with every key of `before`'s that it lacks entirely put back, as it was written: a rewrite that dropped the

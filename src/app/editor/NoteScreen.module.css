@@ -330,6 +330,23 @@
   pointer-events: none;
 }
 
+/*
+ * A page to read (`look: reading`, core/look.ts; docs/DESIGN.md §144): a display title, the kit's 5xl where a note's is
+ * its 4xl, from the note's own scale so Text size and a pinch still move it; and from 600px the words in a column of
+ * 36rem, centred, since a line of a hundred letters is a desk's and not a page's. The map card and the byline above
+ * keep the page's width. The face is the editor's to swap (typefaces.css); the sizes are set here, on the column.
+ */
+.body[data-look='reading'] {
+  --app-h1: calc(var(--glacier-font-size-5xl) * var(--app-text-scale) * var(--note-zoom));
+}
+
+@media (min-width: 600px) {
+  .body[data-look='reading'] :global(.cm-content) {
+    max-inline-size: calc(36rem + 2 * var(--app-gutter));
+    margin-inline: auto;
+  }
+}
+
 /* The note's authors (authors/Byline.tsx), in the note's own column, over its first line. */
 .byline {
   padding-inline: var(--app-gutter);

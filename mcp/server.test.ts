@@ -150,6 +150,13 @@ describe('writing', () => {
     expect((await service.stored('p'))?.note.body).toBe('---\nauthors: matt, Claude\n---\n# New name\n\nWords.');
   });
 
+  it('keeps how a note looks through a rewrite without front matter', async () => {
+    const { service, call } = await connected();
+    await service.deviceWrites(aNote('r', '---\nlook: reading\n---\n# The long road\n\nA walk.\n'));
+    await call('update_note', { id: 'r', body: '# The long road\n\nA longer walk.\n' });
+    expect((await service.stored('r'))?.note.body).toBe('---\nlook: reading\nauthors: matt, Claude\n---\n# The long road\n\nA longer walk.\n');
+  });
+
   it('says in the rewrite’s description that a notebook’s links are its pages', async () => {
     const { client } = await connected();
     const { tools } = await client.listTools();

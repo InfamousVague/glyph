@@ -44,7 +44,8 @@ import { insertPlus, type PlusHooks } from './insertPlus.ts';
 import { placeCards, refreshPlaceCards, type PlaceMode } from './placeCards.ts';
 import { videoCards, type VideoMode } from './videos.ts';
 import { nameChips, setOffers, type BlankOffers } from './nameChips.ts';
-import { openHeading as openHeadingHint } from './openHeading.ts';
+import { leadLine, openHeading as openHeadingHint } from './openHeading.ts';
+import type { Look } from '../core/look.ts';
 import { isMobile } from '../core/platform.ts';
 import { plugins } from '../plugins/registry.ts';
 import styles from './markdown.module.css';
@@ -69,7 +70,7 @@ import styles from './markdown.module.css';
  * So a prop reaches the view in one of three ways, and a caller has to know
  * which. The callbacks (`onChange`, `onImageError`, `swipeAction`, `suggest`,
  * `linkMenus`, `wiki`, `onAiMarks`) are read through refs when they are used.
- * `dark`, `assist`, `readOnly`, `tape`/`tapeId` and `display` sit in
+ * `dark`, `assist`, `readOnly`, `tape`/`tapeId`, `display` and `look` sit in
  * Compartments and are swapped in place when they change. Everything else -
  * `grow`, `arrivals`, `wispTyping`, `ripples`, `peek`, `diagrams`,
  * `placeholder`, and whether `wiki` or `linkMenus` was given at all - is read
@@ -175,6 +176,12 @@ interface EditorProps {
   blankPage?: BlankOffers & { onName: (name: string) => void; onShown?: (shown: boolean) => void };
   /** `A name` said in an open first heading (editor/openHeading.ts): the note screen and a template's card. Read once. */
   openHeading?: boolean;
+  /**
+   * How the note looks (core/look.ts): `data-look` on the editor, which swaps the face alone for a reading note
+   * (typefaces.css), and a reading note's lead line (editor/openHeading.ts). Sizes are the column's to set, never the
+   * editor's: one set here would be nearer than a card's own scale. Swapped in place as it changes.
+   */
+  look?: Look | null;
 }
 
 /**
@@ -230,6 +237,7 @@ export function Editor({
   videos = 'still',
   blankPage,
   openHeading = false,
+  look = null,
 }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -261,6 +269,7 @@ export function Editor({
   const readOnlySlot = useRef(new Compartment());
   const tapeSlot = useRef(new Compartment());
   const displaySlot = useRef(new Compartment());
+  const lookSlot = useRef(new Compartment());
 
   useEffect(() => {
     if (!host.current) return undefined;
@@ -338,6 +347,7 @@ export function Editor({
         themeSlot.current.of(glyphTheme(dark)),
         readOnlySlot.current.of(readOnlyExtensions(readOnly)),
         displaySlot.current.of(noteView(display)),
+        lookSlot.current.of(lookExtensions(look)),
         // Find and replace's marks (find.ts): nothing until a search is running.
         findExtension(),
         placeholder ? cmPlaceholder(placeholder) : [],
@@ -413,6 +423,10 @@ export function Editor({
     view.current?.dispatch({ effects: displaySlot.current.reconfigure(noteView(display)) });
   }, [display]);
 
+  useEffect(() => {
+    view.current?.dispatch({ effects: lookSlot.current.reconfigure(lookExtensions(look)) });
+  }, [look]);
+
   // What the blank page offers, told to the view as it changes: the names turn with the minute, and go at the first
   // letter. Compared by what they say, so a render that made the same list again tells the view nothing.
   const offered = useRef('');
@@ -474,6 +488,12 @@ const GROW_THEME = EditorView.theme({
   '&.cm-editor': { height: 'auto', minHeight: '100%', flex: '1 0 auto' },
   '&.cm-editor .cm-scroller': { overflowY: 'visible', overscrollBehavior: 'auto', flex: '1 0 auto' },
 });
+
+/** A look said on the editor for the stylesheets, and a reading note's lead line; nothing for the usual look. */
+function lookExtensions(look: Look | null) {
+  if (!look) return [];
+  return [EditorView.editorAttributes.of({ 'data-look': look }), look === 'reading' ? leadLine() : []];
+}
 
 /**
  * Read-only in both of CodeMirror's senses. `readOnly` stops transactions from

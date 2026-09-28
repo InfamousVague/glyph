@@ -21,7 +21,8 @@ import { BookView } from '../book/BookView.tsx';
 import { JournalView } from '../book/JournalView.tsx';
 import { isBookBody, isJournalBody, type BookPlace } from '../book/book.ts';
 import { entryPlaceOf, templateOf, withEntryPlace, withJournal, withoutJournal, withTemplate, type JournalWriter } from '../book/journal.ts';
-import { forgetUntouched, isFresh, isUntouched, keepFresh, rememberUntouched, untouchedRecord } from '../core/untouched.ts';
+import { forgetUntouched, isFresh, isUntouched, keepFresh, rememberUntouched, spoilFresh, untouchedRecord } from '../core/untouched.ts';
+import { lookOf, withLook, type Look } from '../core/look.ts';
 import { nameOffers } from '../core/noteNames.ts';
 import { setLiveTitle } from '../core/liveTitles.ts';
 import { isGuideBook } from '../guidebook/guidebook.ts';
@@ -304,6 +305,11 @@ export function NoteScreen({
    */
   const [tag, setTag] = useState<GeoTag | null>(() => geoTagOf(note.body) ?? pendingTag(note.id));
   /*
+   * How the note looks (core/look.ts; docs/DESIGN.md §144): its map as a header across the column, or a page to read.
+   * Read from every change, as the tag is, so a look written by a template, the More sheet or live sync redraws it.
+   */
+  const [look, setLook] = useState<Look | null>(() => lookOf(note.body));
+  /*
    * A journal's entry this device made and nobody has written in yet (core/untouched.ts; docs/DESIGN.md §142). Not
    * `blank`, which keeps its meaning, no words at all, so the blank note's ghost never draws over an entry's date:
    * this is its own state, read from the entry's record, and followed only for a note that has one. While it holds, a
@@ -328,6 +334,7 @@ export function NoteScreen({
       keep(next);
       const now = geoTagOf(next) ?? pendingTag(note.id);
       setTag((was) => (sameTag(was, now) ? was : now));
+      setLook(lookOf(next));
       if (freshNow.current) {
         keepFresh(note.id, next);
         if (!isFresh(note.id)) {
@@ -788,6 +795,33 @@ export function NoteScreen({
       }
     })();
   };
+  /** The map's box: the card, or a map note's header across the column. */
+  const mapSize = look === 'map' ? 'header' : 'card';
+  /**
+   * The More sheet's Look (docs/DESIGN.md §144): the key written into the front matter through the editor, as one undo
+   * step, so the view redraws from what was written; Plain takes it off. The person's own doing, so a note given its
+   * words by the app is theirs from here: its untouched record is forgotten, as a pin forgets it.
+   */
+  const chooseLook = (next: Look | null) => {
+    const editor = viewRef.current;
+    if (!editor || !editor.dom.isConnected) return;
+    const doc = editor.state.doc.toString();
+    const after = withLook(doc, next);
+    if (after === doc) return;
+    const was = frontMatterOffset(doc);
+    const now = frontMatterOffset(after);
+    const place = (pos: number) => (pos <= was ? now : pos + now - was);
+    const selection = EditorSelection.create(
+      editor.state.selection.ranges.map((range) => EditorSelection.range(place(range.anchor), place(range.head))),
+      editor.state.selection.mainIndex,
+    );
+    editor.dispatch({ changes: { from: 0, to: was, insert: after.slice(0, now) }, selection, userEvent: 'input.look' });
+    forgetUntouched(note.id);
+    spoilFresh(note.id);
+    drafted.current = false;
+    setUntouched(false);
+    fireNativeHaptic('selection');
+  };
   /** Remove location: both keys out, as one undo step; the card going, on the beat it came on, is the feedback. */
   const removeLocation = () => {
     flush();
@@ -1064,6 +1098,8 @@ export function NoteScreen({
         {(tag ?? leaving) && shown === 'raw' && !paging && !drawing ? (
           <MapCard
             tag={(tag ?? leaving)!}
+            // A map note's map is its header, across the column (core/look.ts).
+            size={mapSize}
             // A new note's tag still waiting for its first words is drawn quiet: a draft that may never be kept fetches no
             // tiles. So is an untouched entry's, which is taken back if it is left as it is.
             mode={canShowTiles() && !((blank || untouched) && !geoTagOf(body.current)) ? 'map' : 'quiet'}
@@ -1074,9 +1110,10 @@ export function NoteScreen({
             onLeft={() => setLeaving(null)}
             className={styles.mapCard}
           />
-        ) : hold && shown === 'raw' && !paging && !drawing ? (
-          // The box held for a new note's fix: the same box, empty, until the tag arrives in it or the note is left.
-          <MapPicture why={hold === 'missed' ? (prefs.localOnly ? 'Local only is on.' : 'No place yet.') : undefined} dark={dark} className={styles.mapCard} />
+        ) : (hold || look === 'map') && shown === 'raw' && !paging && !drawing ? (
+          // The box held for a new note's fix: the same box, empty, until the tag arrives in it or the note is left. A
+          // map note's header is its shape, so it is drawn with no place too, saying why.
+          <MapPicture size={mapSize} why={hold === 'waiting' ? undefined : prefs.localOnly ? 'Local only is on.' : 'No place yet.'} dark={dark} className={styles.mapCard} />
         ) : null}
 
         {shown === 'transcript' ? (
@@ -1128,7 +1165,7 @@ export function NoteScreen({
             />
           </div>
         ) : null}
-        <div className={styles.body} hidden={shown !== 'raw' || drawing || paging}>
+        <div className={styles.body} hidden={shown !== 'raw' || drawing || paging} data-look={(!typed && look) || undefined}>
           <Editor
             // A canvas's JSON or a book's Markdown, once asked for, is what the view has written by now, not what the note opened with.
             value={typed && source ? body.current : note.body}
@@ -1150,6 +1187,7 @@ export function NoteScreen({
             plus={plusHooks}
             blankPage={{ names, host: offering ? offersHost : null, onName: nameIt, onShown: setOffersShown }}
             openHeading
+            look={typed ? null : look}
             places="live"
             videos="play"
             grow
@@ -1210,6 +1248,7 @@ export function NoteScreen({
             : undefined
         }
         onMakeBoard={shown === 'raw' && settingsOpen && boardFrom(view?.state.doc.toString() ?? body.current) ? makeBoard : undefined}
+        look={!typed && shown === 'raw' ? { value: look, canMap: Boolean(tag) || look === 'map', onChange: chooseLook } : undefined}
         location={{ tag, can: canLocate(), asksName: prefs.placeNames && !prefs.localOnly, refused: tag ? null : refusedFor(note.createdAt), onPhone: hasLocationBridge(), onAdd: addLocation, onRemove: removeLocation }}
         onPin={() => {
           flush();

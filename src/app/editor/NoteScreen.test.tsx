@@ -1895,3 +1895,74 @@ describe('a new note’s blank page', () => {
     expect(document.querySelector('.cm-openHint')?.textContent).toBe('A name');
   });
 });
+
+describe('how a note looks', () => {
+  const box = () => document.querySelector<HTMLElement>('[class*=mapCard]');
+  const radio = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="radiogroup"][aria-label="How this note looks"] [role="radio"]')].find((one) => one.textContent === label);
+
+  it('draws a map note’s map as its header from the first frame, with a place or without, and says why there is none', async () => {
+    const { setPreferences } = await import('../core/preferences.ts');
+    show(screen(await createNote('lm1', '---\nlook: map\n---\n# Walk\n')));
+    expect(box()?.getAttribute('data-size')).toBe('header');
+    expect(box()?.querySelector('button')).toBeNull();
+    expect(box()?.textContent).toBe('No place yet.');
+    unmount();
+    setPreferences({ localOnly: true });
+    try {
+      show(screen(await createNote('lm2', '---\nlook: map\n---\n# Walk\n')));
+      expect(box()?.textContent).toBe('Local only is on.');
+      unmount();
+      // With its place, the card itself as the header, quiet under Local only: the dot grid and no tiles.
+      show(screen(await createNote('lm3', '---\nlook: map\nlocation: 51.5074,-0.1278\n---\n# Walk\n')));
+      expect(box()?.getAttribute('data-size')).toBe('header');
+      expect(box()?.getAttribute('data-mode')).toBe('quiet');
+      expect(box()?.querySelector('button')).not.toBeNull();
+    } finally {
+      setPreferences({ localOnly: false });
+    }
+  });
+
+  it('sets a reading note as a page to read: the look on the editor and the column, and a lead line under its title', async () => {
+    show(screen(await createNote('lr1', '---\nlook: reading\n---\n# The long road\n\nIt went on.\n')));
+    expect(document.querySelector('.cm-editor')?.getAttribute('data-look')).toBe('reading');
+    // And on the column around it, which sets the title's size and the measure.
+    expect(document.querySelector('.cm-editor')?.parentElement?.closest('[data-look="reading"]')).not.toBeNull();
+    expect([...document.querySelectorAll('.cm-lead')].map((line) => line.textContent)).toEqual(['It went on.']);
+    // Folded to nothing: the note opens on its title, with no band saying "look".
+    expect(document.querySelector('.cm-frontFold')).toBeNull();
+    unmount();
+    show(screen(await createNote('lr2', '# The long road\n\nIt went on.\n')));
+    expect(document.querySelector('.cm-editor')?.hasAttribute('data-look')).toBe(false);
+    expect(document.querySelectorAll('.cm-lead')).toHaveLength(0);
+  });
+
+  it('is changed from the More sheet as one undo step, Map only for a note with a place, and Plain takes it off', async () => {
+    show(screen(await createNote('ll1', '# The long road\n\nIt went on.\n')));
+    act(() => button('More for this note').click());
+    expect(radio('Plain')?.getAttribute('aria-checked')).toBe('true');
+    expect(radio('Map')).toBeUndefined();
+    act(() => radio('Reading')!.click());
+    const view = editor();
+    expect(view.state.doc.toString()).toBe('---\nlook: reading\n---\n# The long road\n\nIt went on.\n');
+    expect(document.querySelector('.cm-editor')?.getAttribute('data-look')).toBe('reading');
+    act(() => void undo(view));
+    expect(view.state.doc.toString()).toBe('# The long road\n\nIt went on.\n');
+    unmount();
+    // A place no other test here has named: a name known this run would be written in as the note opens.
+    show(screen(await createNote('ll2', '---\nlocation: 12.3456,65.4321\nlook: reading\n---\n# Walk\n')));
+    act(() => button('More for this note').click());
+    act(() => radio('Map')!.click());
+    expect(editor().state.doc.toString()).toBe('---\nlocation: 12.3456,65.4321\nlook: map\n---\n# Walk\n');
+    act(() => radio('Plain')!.click());
+    expect(editor().state.doc.toString()).toBe('---\nlocation: 12.3456,65.4321\n---\n# Walk\n');
+  });
+
+  it('makes a note the app gave its words to the person’s own, so it is not taken back', async () => {
+    const { rememberUntouched, untouchedRecord } = await import('../core/untouched.ts');
+    rememberUntouched('ll3', { title: '', words: '# \n\n- [ ] ', at: Date.now() });
+    show(screen(await createNote('ll3', '# \n\n- [ ] ')));
+    act(() => button('More for this note').click());
+    act(() => radio('Reading')!.click());
+    expect(untouchedRecord('ll3')).toBeNull();
+  });
+});

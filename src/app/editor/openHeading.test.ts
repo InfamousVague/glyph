@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EditorSelection, EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { onNamingLine, openFirstHeading, openHeading } from './openHeading.ts';
+import { leadLine, leadOf, onNamingLine, openFirstHeading, openHeading } from './openHeading.ts';
 
 /**
  * What an open first heading says (editor/openHeading.ts): `A name` on the note's first line of words when it is a
@@ -47,5 +47,36 @@ describe('the line that names the note', () => {
     expect(onNamingLine(state('Words'))).toBe(false);
     expect(onNamingLine(state('- [ ] '))).toBe(false);
     expect(onNamingLine(state('---\nlook: map\n---\n', 4))).toBe(false);
+  });
+});
+
+describe('a reading note’s lead line', () => {
+  const lead = (doc: string) => {
+    const { lines, hint } = leadOf(state(doc));
+    return { lines: lines.map((line) => line.text), hint: hint?.number ?? null };
+  };
+
+  it('is the first paragraph after the title, and stops at a blank line or a line that is not prose', () => {
+    expect(lead('# The long road\n\nIt went on.\nAnd on.\n\nMore.')).toEqual({ lines: ['It went on.', 'And on.'], hint: null });
+    expect(lead('---\nlook: reading\n---\n# Road\nStraight under it.')).toEqual({ lines: ['Straight under it.'], hint: null });
+    expect(lead('# Road\n\n- a list\n\nWords.')).toEqual({ lines: [], hint: null });
+    expect(lead('# Road\n\n> A quote')).toEqual({ lines: [], hint: null });
+    expect(lead('# Road\n\n![a picture](p.webp)')).toEqual({ lines: [], hint: null });
+    expect(lead('Road, with no title\n\nWords.')).toEqual({ lines: [], hint: null });
+  });
+
+  it('says what goes there on the empty line under the title while nothing below has words', () => {
+    expect(lead('# \n')).toEqual({ lines: [], hint: 2 });
+    expect(lead('# The long road\n\n')).toEqual({ lines: [], hint: 2 });
+    expect(lead('# The long road')).toEqual({ lines: [], hint: null });
+  });
+
+  it('is drawn larger in the reading look only, with its hint quiet and not in the note', () => {
+    const view = new EditorView({ state: EditorState.create({ doc: '# Road\n\nIt went on.\n', extensions: [leadLine()] }), parent: document.body });
+    expect([...view.contentDOM.querySelectorAll('.cm-lead')].map((line) => line.textContent)).toEqual(['It went on.']);
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: '# \n' } });
+    expect(view.contentDOM.querySelector('.cm-lead .cm-openHint')?.textContent).toBe('A line that says what it is about.');
+    expect(view.state.doc.toString()).toBe('# \n');
+    view.destroy();
   });
 });

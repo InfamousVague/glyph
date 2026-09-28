@@ -12,10 +12,18 @@ import styles from './markdown.module.css';
  *
  * Only the note's first line of words, the one that names it: an empty `## ` further down is a heading being written,
  * and says nothing. Nothing is written into the note: the words are a widget, and not in the file.
+ *
+ * And a reading note's lead line (`leadLine`, `look: reading`, core/look.ts): the first paragraph after its title set a
+ * step larger, in the second ink, with a little less leading, as a magazine sets its standfirst. Being a ratio of
+ * `--app-body` it scales on a template's card as it does in the note. While the line under the title is empty and
+ * nothing below it has words, that line says `A line that says what it is about.`, quiet, so the card shows the
+ * typography and the note starts with nothing to delete.
  */
 
 /** The hint in an open first heading. */
 export const OPEN_HEADING_HINT = 'A name';
+/** The hint on a reading note's empty lead line. */
+export const LEAD_HINT = 'A line that says what it is about.';
 
 const HEADING_SIZE = [styles.h1, styles.h1, styles.h2, styles.h3, styles.h4, styles.h5, styles.h6];
 
@@ -110,6 +118,70 @@ export function openHeading(): Extension {
       },
       { decorations: (value) => value.decorations },
     ),
+    theme,
+  ];
+}
+
+/** A line a lead paragraph cannot be: a heading, a list, a quote, a fence, a table, a rule or a picture. */
+const NOT_PROSE = /^\s*(#{1,6}(\s|$)|[-*+]\s|\d+[.)]\s|>|```|~~~|\||(-{3,}|\*{3,}|_{3,})\s*$|!\[)/;
+
+/**
+ * The lead: the first paragraph after the note's first line of words when that is a heading, as the lines it covers;
+ * and the line under the title that says what goes there, when that line is empty and nothing below it has words.
+ */
+export function leadOf(state: EditorState): { lines: Line[]; hint: Line | null } {
+  const title = firstWordsLine(state);
+  if (!title || !/^ {0,3}#{1,6}(\s|$)/.test(title.text)) return { lines: [], hint: null };
+  let n = title.number + 1;
+  while (n <= state.doc.lines && !state.doc.line(n).text.trim()) n += 1;
+  if (n > state.doc.lines) {
+    // Nothing under the title yet: the line under it, where the caret goes after Enter, says what goes there.
+    return { lines: [], hint: title.number < state.doc.lines ? state.doc.line(title.number + 1) : null };
+  }
+  const lines: Line[] = [];
+  for (; n <= state.doc.lines; n += 1) {
+    const line = state.doc.line(n);
+    if (!line.text.trim() || NOT_PROSE.test(line.text)) break;
+    lines.push(line);
+  }
+  return { lines, hint: null };
+}
+
+const leadMark = Decoration.line({ class: 'cm-lead' });
+
+function leads(state: EditorState): DecorationSet {
+  const { lines, hint } = leadOf(state);
+  if (hint) return Decoration.set([leadMark.range(hint.from), Decoration.widget({ widget: new HintWidget(LEAD_HINT, ''), side: 1 }).range(hint.from)], true);
+  return Decoration.set(lines.map((line) => leadMark.range(line.from)));
+}
+
+const leadTheme = EditorView.baseTheme({
+  // A step up from the words, the kit's xl over its lg, in the second ink.
+  '.cm-line.cm-lead': {
+    fontSize: 'calc(var(--app-body) * 1.2)',
+    lineHeight: '1.4',
+    color: 'var(--app-ink-2, var(--glacier-text))',
+  },
+});
+
+/** A reading note's lead line under its title, and what it says while it is empty. */
+export function leadLine(): Extension {
+  return [
+    ViewPlugin.fromClass(
+      class {
+        decorations: DecorationSet;
+
+        constructor(view: EditorView) {
+          this.decorations = leads(view.state);
+        }
+
+        update(update: ViewUpdate) {
+          if (update.docChanged) this.decorations = leads(update.state);
+        }
+      },
+      { decorations: (value) => value.decorations },
+    ),
+    leadTheme,
     theme,
   ];
 }

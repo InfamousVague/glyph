@@ -15,6 +15,7 @@ import { noteTitle, type Note } from '../app/core/store.ts';
 import { readShared, readShareLink, sharedAsFile, type Shared } from '../app/share/share.ts';
 import { authorsOf } from '../app/core/authors.ts';
 import { geoTagOf } from '../app/core/geotag.ts';
+import { lookOf } from '../app/core/look.ts';
 import { Byline } from '../app/authors/Byline.tsx';
 import styles from './Reader.module.css';
 
@@ -142,6 +143,8 @@ function Read({
   const canvas = isCanvasBody(current.body) ? canvasOf(current.body) : null;
   // Where the page was written, when its owner shared that (share/share.ts): the card, quiet until tapped.
   const tag = geoTagOf(current.body);
+  // How the page looks (core/look.ts): a map note's header, or a page to read.
+  const look = lookOf(current.body);
   const link = typeof location !== 'undefined' ? location.href : '';
   const found = readShareLink(link);
 
@@ -234,11 +237,12 @@ function Read({
           </div>
         </>
       ) : (
-        <article className={styles.note}>
+        <article className={styles.note} data-look={look ?? undefined}>
           <Byline authors={authorsOf(current.body)} />
+          {/* A map note's map is its header; with its place taken off the share there is no box at all (core/look.ts). */}
           {tag ? (
             <Suspense fallback={null}>
-              <MapCard tag={tag} mode={mapOn === page ? 'map' : 'ask'} dark={dark} onShow={() => setMapOn(page)} className={styles.map} />
+              <MapCard tag={tag} size={look === 'map' ? 'header' : 'card'} mode={mapOn === page ? 'map' : 'ask'} dark={dark} onShow={() => setMapOn(page)} className={styles.map} />
             </Suspense>
           ) : null}
           <Editor
@@ -254,6 +258,7 @@ function Read({
             places="ask"
             // A film in the words is its still: the film itself never leaves the phone it was added on.
             videos="shared"
+            look={look}
             grow
           />
         </article>
@@ -270,10 +275,11 @@ function readOnly(): void {
 
 /**
  * A page as the reader draws it: without the `title:` and `date:` a journal's entry is made with (book/journal.ts
- * `entryBody`). A note's own editor folds its front matter to one quiet line, but a read-only one draws it as it is, so
- * every entry shared, a journal being shared an entry at a time, opened on four lines of keys above its date. The
- * heading names the page, and the entry says its day and its time in its words. Any other key stays as it was sent.
+ * `entryBody`), nor the `look:` a note is drawn by (core/look.ts), which the page draws instead of saying. A note's own
+ * editor folds its front matter to one quiet line, but a read-only one draws it as it is, so every entry shared, a
+ * journal being shared an entry at a time, opened on four lines of keys above its date. The heading names the page,
+ * and the entry says its day and its time in its words. Any other key stays as it was sent.
  */
 function drawnBody(body: string): string {
-  return ['title', 'date'].reduce((next, key) => withFrontMatterValue(next, key, null), body);
+  return ['title', 'date', 'look'].reduce((next, key) => withFrontMatterValue(next, key, null), body);
 }
