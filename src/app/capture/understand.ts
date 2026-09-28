@@ -18,7 +18,7 @@ import type { Plan } from './command.ts';
  * same words (`understands_spoken_commands`), and understand.test.ts holds the reader to the answers it asks for.
  */
 
-export const COMMAND_PROMPT = String.raw`You read one spoken command for Ghost.md, a notes app, and answer with JSON. The person said "hey Ghost" (or "Glyph") and then the command. It was written down by speech recognition, so words can be misheard and a note's name can come out spelled or split differently.
+export const COMMAND_PROMPT = String.raw`You read one spoken command for Ghost.md, a notes app, and answer with JSON. The person may have said "hey Ghost" (or "Glyph") first; the words here are the command. It was written down by speech recognition, so words can be misheard and a note's name can come out spelled or split differently.
 
 Answer with exactly one JSON object on one line, and nothing else. It is one of:
 {"action":"add","note":"<a title from the list>","text":"<what to add>","item":false,"task":false}

@@ -410,6 +410,20 @@ describe('ending a recording', () => {
     expect((await listNotes()).map((note) => note.body).sort()).toEqual(['# Add to shopping, oat milk', 'Work']);
     expect(screen.getByText(/No unambiguous note matches “shopping, oat milk”, so the words are saved as a note\./)).toBeInTheDocument();
   });
+
+  // After the keyword it was said to be a command: the live reader keeps its words here with its own chip, as it did.
+  it('keeps a keyworded command that names no note as its words, with the live reader’s chip', async () => {
+    await createNote('work', 'Work');
+    capture.session!.stop = async () => ({ recordedMs: null, transcript: 'Hey Ghost, add to shopping, oat milk.' });
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} onFinish={onFinish} />);
+    await waitFor(() => expect(capture.handlers).not.toBeNull());
+    await say('Hey Ghost, add to shopping, oat milk.', 0);
+    fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect((await listNotes()).map((note) => note.body).sort()).toEqual(['# Oat milk', 'Work']);
+    expect(screen.getByText('No note called “shopping”, so the words stay here.')).toBeInTheDocument();
+  });
 });
 
 describe('the recorder’s own lines', () => {

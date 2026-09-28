@@ -194,11 +194,12 @@ export function renderExample(example: Example): string {
 }
 
 /**
- * What the habits page (guide/pages/Tips.tsx) teaches to say first, after "Hey Ghost": a command, which puts words in
- * a note by its name, and an ask, which runs the AI on the note whose mic it is said into. guide.test.ts holds the
- * command to the live reader (capture/liveRoute.ts), which carries it out as it is said, and the ask to `readInstruction`
- * (ai/instruction.ts), the reader the recorder asks at Done, so a change to either that stops it working fails a test
- * rather than the page.
+ * What the habits page (guide/pages/Tips.tsx) teaches to say first, with or without "Hey Ghost" first (docs/DESIGN.md
+ * §136): a command, which puts words in a note by its name (Groceries' title says it is a list, so "add bread to
+ * Groceries" passes the bare gate), and an ask, which runs the AI on the note whose mic it is said into, and without
+ * the keyword is the whole phrase. guide.test.ts holds the command to the live reader (capture/liveRoute.ts), which
+ * carries it out as it is said, and the ask to `readInstruction` (ai/instruction.ts), the reader the recorder asks at
+ * Done, each bare and after the keyword, so a change to either that stops it working fails a test rather than the page.
  */
-export const COMMAND = { say: 'Hey Ghost, add bread to Groceries', note: 'Groceries', words: 'bread' } as const;
-export const ASK = { say: 'Hey Ghost, fix the spelling', run: 'fix' } as const;
+export const COMMAND = { say: 'Add bread to Groceries', note: 'Groceries', words: 'bread' } as const;
+export const ASK = { say: 'Fix the spelling', run: 'fix' } as const;
