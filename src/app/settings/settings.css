@@ -78,9 +78,14 @@
 }
 
 /* A pane drilled into slides in from the right; coming back, the list slides
-   in from the left, so the motion says which way the page went. */
+   in from the left, so the motion says which way the page went. A sub-page
+   stepping back to its parent is a pane coming back: from the left too. */
 .settingsScreen[data-view='pane'] .settingsScreen__pane {
   animation: settingsPush var(--glacier-duration-normal) var(--glacier-ease-out);
+}
+
+.settingsScreen[data-view='pane'][data-direction='out'] .settingsScreen__pane {
+  animation-name: settingsPop;
 }
 
 .settingsScreen[data-view='list'][data-direction='out'] .settingsScreen__list {
@@ -123,14 +128,6 @@
     opacity: 0;
     transform: translateY(8px);
   }
-}
-
-/* A word under the list after a back step: the way forward. */
-.settingsScreen__hint {
-  margin: var(--glacier-space-2) 0 0;
-  padding-inline: var(--glacier-space-2);
-  font-size: var(--glacier-font-size-sm);
-  color: var(--app-ink-4);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -313,20 +310,15 @@
  * on a dark phone, which leaves `data-theme` off (core/preferences.ts) and so needs the media query's twin.
  */
 [data-hue='blue']     { --hue: #0a6fe0; --hue-dark: #4ea1ff; }
-[data-hue='indigo']   { --hue: #5552d4; --hue-dark: #8583ff; }
 [data-hue='purple']   { --hue: #9a45c9; --hue-dark: #c77dff; }
 [data-hue='red']      { --hue: #dd3a30; --hue-dark: #ff6b61; }
-[data-hue='orange']   { --hue: #d97706; --hue-dark: #ffa53a; }
-[data-hue='teal']     { --hue: #1b92a8; --hue-dark: #5ccfe6; }
 [data-hue='graphite'] { --hue: #5f6368; --hue-dark: #aeb2b8; }
 [data-hue='coral']    { --hue: #c8643f; --hue-dark: #f0906b; }
 [data-hue='green']    { --hue: #2a9d4b; --hue-dark: #4cd571; }
-[data-hue='pink']     { --hue: #d9315a; --hue-dark: #ff6b8d; }
 [data-hue='yellow']   { --hue: #b58400; --hue-dark: #ffd43b; }
 [data-hue='grey']     { --hue: #7c7c82; --hue-dark: #a1a1a8; }
 [data-hue='brown']    { --hue: #93724e; --hue-dark: #c7a57f; }
 [data-hue='mint']     { --hue: #1f9e8f; --hue-dark: #5fe0cf; }
-[data-hue='lime']     { --hue: #5f8f0a; --hue-dark: #a3d63f; }
 
 :root[data-theme='dark'] [data-hue] {
   --hue: var(--hue-dark);

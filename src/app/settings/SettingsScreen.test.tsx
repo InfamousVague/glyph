@@ -10,6 +10,7 @@ vi.mock('../art/wispEdge.ts', () => ({ useWispEdge: () => undefined }));
 const { SettingsScreen } = await import('./SettingsScreen.tsx');
 const { goBack } = await import('../core/back.ts');
 import type { SettingsSection } from './SettingsScreen.tsx';
+// The shell's own rows and panes here are made up; the app's sections are SettingsSheet.test.tsx's.
 
 const sections: SettingsSection[] = [
   { id: 'type', label: 'Type', icon: null, group: 0, summary: 'Larger · Inter', content: <div className="setk-row"><span className="setk-row__label">Text size</span></div>, settings: [{ name: 'Text size' }] },
@@ -127,8 +128,8 @@ describe('the Settings shell', () => {
       goBack();
     });
     expect(display()).toBeNull();
-    // Coming back out of a page says the way back into it.
-    expect(host.querySelector('.settingsScreen__hint')?.textContent).toBe('Swipe left to go back into Animations.');
+    // The list ends in air: the way back into the page is the swipe, not a line saying so (docs/DESIGN.md §138).
+    expect(host.querySelector('.settingsScreen__hint')).toBeNull();
     expect(onClose).not.toHaveBeenCalled();
     act(() => rowFor('Type').click());
     act(() => host.querySelector<HTMLButtonElement>('.settingsScreen__headWord')!.click());
@@ -196,19 +197,158 @@ describe('the Settings shell', () => {
     }
   });
 
-  it('colours a section by its own hue, else by its id, else grey', () => {
+  it('colours a section by its own hue, else by its id, else grey, and has no hue for a page that went', () => {
     host = show(
       <SettingsScreen
         open
         onClose={() => {}}
         sections={[
           { id: 'account', label: 'Account', icon: null, group: 0, content: null },
-          { id: 'plugin:someday', label: 'Someday', icon: null, group: 1, content: null, hue: 'coral' },
-          { id: 'plugin:unknown', label: 'Unknown', icon: null, group: 1, content: null },
+          { id: 'theme', label: 'Appearance', icon: null, group: 1, content: null },
+          { id: 'recording', label: 'Recording', icon: null, group: 1, content: null },
+          { id: 'plugins', label: 'Plugins', icon: null, group: 1, content: null },
+          { id: 'about', label: 'About', icon: null, group: 2, content: null },
+          { id: 'plugin:someday', label: 'Someday', icon: null, group: 3, content: null, hue: 'coral' },
+          { id: 'plugin:unknown', label: 'Unknown', icon: null, group: 3, content: null },
+          // Formatting's orange went with its page: a section by that id now is grey like any without one.
+          { id: 'formatting', label: 'Formatting', icon: null, group: 3, content: null },
         ]}
       />,
     );
     const hues = [...host.querySelectorAll('.settingsScreen__rowIcon')].map((chip) => chip.getAttribute('data-hue'));
-    expect(hues).toEqual(['blue', 'coral', 'grey']);
+    expect(hues).toEqual(['blue', 'purple', 'red', 'green', 'grey', 'coral', 'grey', 'grey']);
+  });
+});
+
+/**
+ * Sub-pages (docs/DESIGN.md §138): a section off the list, opened from a row on its parent's page or by the search,
+ * with its parent's name in the head and back stepping there first.
+ */
+describe('a sub-page', () => {
+  const withSub: SettingsSection[] = [
+    ...sections,
+    {
+      id: 'plugins',
+      label: 'Plugins',
+      icon: null,
+      group: 1,
+      content: <div className="setk-row"><span className="setk-row__label">Notion</span></div>,
+    },
+    {
+      id: 'plugin:notion',
+      label: 'Notion',
+      icon: null,
+      group: 1,
+      listed: false,
+      parent: 'plugins',
+      hue: 'graphite',
+      content: (
+        <section className="setk">
+          <div className="setk__title">Boards</div>
+          <div className="setk-row"><span className="setk-row__label">Kitchen</span></div>
+        </section>
+      ),
+      settings: [{ name: 'Boards', words: 'databases' }],
+    },
+  ];
+  const headWord = () => host.querySelector('.settingsScreen__headWord')?.textContent?.trim();
+
+  it('is not a row on the list, but the search finds it and what is on it', () => {
+    host = show(<SettingsScreen open onClose={() => {}} sections={withSub} />);
+    expect(labels()).toEqual(['Type', 'Animations', 'Plugins']);
+    type('notion');
+    expect(labels()).toEqual(['Notion']);
+    type('databases');
+    expect(labels()).toEqual(['Boards']);
+    expect(host.querySelector('.settingsScreen__rowSummary')?.textContent).toBe('Notion');
+  });
+
+  it('opens from its parent’s page, names the parent in the head, and steps back to it, then to the list', () => {
+    const onClose = vi.fn();
+    host = show(<SettingsScreen open onClose={onClose} sections={withSub} goTo={{ id: 'plugin:notion', nonce: 1 }} />);
+    expect(display()).toBe('Notion');
+    expect(headWord()).toBe('Plugins');
+    act(() => {
+      goBack();
+    });
+    expect(display()).toBe('Plugins');
+    expect(headWord()).toBe('Settings');
+    act(() => host.querySelector<HTMLButtonElement>('.settingsScreen__headWord')!.click());
+    expect(display()).toBeNull();
+    act(() => {
+      goBack();
+    });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('steps to its parent on a swipe to the right, and back into it on one to the left, from the parent only', () => {
+    host = show(<SettingsScreen open onClose={() => {}} sections={withSub} goTo={{ id: 'plugin:notion', nonce: 1 }} />);
+    swipe(120);
+    expect(display()).toBe('Plugins');
+    swipe(-120);
+    expect(display()).toBe('Notion');
+    // Back twice, to the list: from there the swipe forward goes into Plugins, the page just left, not to Notion.
+    swipe(120);
+    swipe(120);
+    expect(display()).toBeNull();
+    swipe(-120);
+    expect(display()).toBe('Plugins');
+  });
+
+  it('opened from a search hit, still steps back to its parent', () => {
+    host = show(<SettingsScreen open onClose={() => {}} sections={withSub} />);
+    type('boards');
+    act(() => host.querySelector<HTMLButtonElement>('.settingsScreen__row')!.click());
+    expect(display()).toBe('Notion');
+    act(() => {
+      goBack();
+    });
+    expect(display()).toBe('Plugins');
+  });
+
+  it('shows on the right of a wide window with its parent’s row current, and back steps to the parent before it leaves', () => {
+    const onClose = vi.fn();
+    wide = true;
+    try {
+      host = show(<SettingsScreen open onClose={onClose} sections={withSub} goTo={{ id: 'plugin:notion', nonce: 1 }} />);
+      expect(display()).toBe('Notion');
+      expect(labels()).toEqual(['Type', 'Animations', 'Plugins']);
+      expect(rowFor('Plugins').getAttribute('aria-current')).toBe('page');
+      expect(host.querySelector('.settingsScreen__pane')?.getAttribute('data-hue')).toBe('graphite');
+      act(() => {
+        goBack();
+      });
+      expect(display()).toBe('Plugins');
+      expect(onClose).not.toHaveBeenCalled();
+      act(() => {
+        goBack();
+      });
+      expect(onClose).toHaveBeenCalledOnce();
+    } finally {
+      wide = false;
+    }
+  });
+});
+
+describe('a target', () => {
+  it('opens a page at a setting named with it, scrolled to and lit as a search hit is', () => {
+    vi.useFakeTimers();
+    host = show(<SettingsScreen open onClose={() => {}} sections={sections} goTo={{ id: 'animations', setting: 'Smoke at the edges', nonce: 1 }} />);
+    expect(display()).toBe('Animations');
+    act(() => vi.advanceTimersToNextFrame());
+    expect(host.querySelector('#smoke')?.hasAttribute('data-found')).toBe(true);
+    act(() => vi.advanceTimersByTime(1700));
+    expect(host.querySelector('#smoke')?.hasAttribute('data-found')).toBe(false);
+    // Asked again from the page it is already on (a word on Account for Account's own card): lit again.
+    rerender(<SettingsScreen open onClose={() => {}} sections={sections} goTo={{ id: 'animations', setting: 'Smoke at the edges', nonce: 2 }} />);
+    act(() => vi.advanceTimersToNextFrame());
+    expect(host.querySelector('#smoke')?.hasAttribute('data-found')).toBe(true);
+  });
+
+  it('opens the page alone when it names no setting', () => {
+    vi.useFakeTimers();
+    host = show(<SettingsScreen open onClose={() => {}} sections={sections} goTo={{ id: 'animations', nonce: 1 }} />);
+    act(() => vi.advanceTimersToNextFrame());
+    expect(host.querySelector('[data-found]')).toBeNull();
   });
 });
