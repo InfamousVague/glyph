@@ -170,7 +170,7 @@ function Read({
         <div className={styles.bannerInner}>
           <span className={styles.brand}>Ghost.md</span>
           <span className={styles.pitch}>
-            <span className={styles.pitchMore}>{isBook ? 'A shared book.' : 'A shared note.'} </span>
+            <span className={styles.pitchMore}>{isBook ? 'A shared notebook.' : 'A shared note.'} </span>
             <a className={styles.getApp} href={INSTALL_URL}>
               Get the app
             </a>{' '}

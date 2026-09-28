@@ -52,6 +52,8 @@ export interface PaletteDoing {
   /** A note opened by name, from outside it: a book where it was left (book/bookSpot.ts). Absent, `openNote`. */
   openNoteWhereLeft?: (id: string) => void;
   newNote: () => void;
+  /** The New notebook sheet (book/NewBookSheet.tsx), as the + sheet's Notebook row opens it. */
+  newNotebook: () => void;
   speak: () => void;
   speakInto: (id: string) => void;
   closeTab: (id: string) => void;
@@ -157,6 +159,8 @@ export function paletteCommands(world: PaletteWorld, doing: PaletteDoing, query 
 
   // ---- making and going ---------------------------------------------------------------------
   add({ id: 'new', label: 'New note', group: 'Notes', keywords: 'write blank create add', shortcut: '⌘N' }, () => doing.newNote());
+  // "book" and "chapters" stay among its words: a book was a notebook's name until docs/DESIGN.md §142.
+  add({ id: 'notebook', label: 'New notebook', group: 'Notes', keywords: 'book index pages chapters create' }, () => doing.newNotebook());
   add({ id: 'speak', label: 'Speak a new note', group: 'Notes', keywords: 'record voice dictate mic talk' }, () => doing.speak());
   add({ id: 'list', label: 'Home', group: 'Notes', keywords: 'home list back dashboard start' }, () => doing.showList());
   add({ id: 'notes', label: 'All notes', group: 'Notes', keywords: 'browse every grid cards library search archive' }, () => doing.browseNotes());

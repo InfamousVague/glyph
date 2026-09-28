@@ -26,7 +26,7 @@ describe('the typeface cards', () => {
     const page = show(<TypefaceCards label="Interface font" kind="interface" faces={INTERFACE_FACES} value="inter" onValueChange={onValueChange} />);
     const cards = [...page.querySelectorAll('label')];
     expect(cards.map((card) => card.querySelector('strong')?.textContent)).toEqual(['Inter', 'Noto', 'Plex']);
-    expect(cards[0]!.textContent).toContain('Notes & Books');
+    expect(cards[0]!.textContent).toContain('Notes & Notebooks');
     expect(cards[0]!.textContent).not.toContain('Quick');
     act(() => (cards[2]!.querySelector('input') as HTMLInputElement).click());
     expect(onValueChange).toHaveBeenCalledWith('plex');

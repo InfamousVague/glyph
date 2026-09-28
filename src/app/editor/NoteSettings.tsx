@@ -50,10 +50,11 @@ interface NoteSettingsProps {
   /** Lays the note's list out as a board (core/boards.ts); absent where there is nothing to make one of. */
   onMakeBoard?: () => void;
   /**
-   * A field to name the note by, for a note with no heading to be named in: a canvas (docs/CANVAS.md), whose name
-   * is its `title:` front matter. Absent on a note of words, which is named by its first line.
+   * A field to name the note by, for a note with no heading to be named in: a canvas (docs/CANVAS.md) or a notebook
+   * (docs/BOOKS.md), whose name is its `title:` front matter, and which of the two it is, for the field's placeholder.
+   * Absent on a note of words, which is named by its first line.
    */
-  name?: { value: string; onChange: (title: string) => void };
+  name?: { value: string; onChange: (title: string) => void; kind: 'canvas' | 'notebook' };
   /** How the note is shown, when the header has no room for its switch (a folded phone); absent, no row. */
   view?: NoteView;
   /** The AI's kind of run on this note now, if one is on, and how to ask for one (ai/start.ts). Absent on a note that can't be read to. */
@@ -174,7 +175,7 @@ export function NoteSettings({
       <SheetTitle>{title || 'Untitled'}</SheetTitle>
       {name ? (
         <SheetGroup>
-          <SheetField label="Name" value={name.value} onChange={(e) => name.onChange(e.target.value)} placeholder="What this canvas is called" autoComplete="off" />
+          <SheetField label="Name" value={name.value} onChange={(e) => name.onChange(e.target.value)} placeholder={`What this ${name.kind} is called`} autoComplete="off" />
         </SheetGroup>
       ) : null}
 
@@ -240,7 +241,7 @@ export function NoteSettings({
       ) : null}
 
       {/* Read by anyone with its link, and nobody else (share/share.ts, docs/SHARING.md). */}
-      <ShareRows noteId={noteId} />
+      <ShareRows noteId={noteId} kind={name?.kind === 'notebook' ? 'notebook' : 'note'} />
 
       {/* The group under AI, named like the rest of them (Matt: "the section under AI is not labeled"). */}
       <SheetHeading>Where it sits</SheetHeading>

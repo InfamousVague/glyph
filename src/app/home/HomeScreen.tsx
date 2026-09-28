@@ -9,7 +9,7 @@ import { useGlideToTop } from '../core/glideToTop.ts';
 import { isAndroid } from '../core/platform.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { Ghost } from '../art/Ghost.tsx';
-import { Book, Cassette, Clock, Cog, Grid, Magnifier, Pin, Plus, TickBox } from '../art/Icons.tsx';
+import { Cassette, Clock, Cog, Grid, Magnifier, Notebook, Pin, Plus, TickBox } from '../art/Icons.tsx';
 import { NoteCard } from '../notes/NoteCard.tsx';
 import { when } from '../notes/when.ts';
 import { WorkspaceBar } from '../notes/WorkspaceBar.tsx';
@@ -54,9 +54,10 @@ import styles from './HomeScreen.module.css';
  * category above the rest"); every to-do not yet ticked, gathered from all of their notes into one card and ticked
  * here without opening the note, second because it is what is waiting, its tick is the page's one in-place action, and
  * a meeting's summary writes its actions there; the tapes the recorder made as a row of cards (home/TapeShelf.tsx;
- * Matt: "display them in a cassette shelf on the home page"), above the Library as §127 placed them; their books; and
- * the notes they were in last, four of them (six on a desk), running into "All notes" at the foot, which opens the page
- * that lists every note as a grid of the same cards (notes/AllNotesScreen.tsx).
+ * Matt: "display them in a cassette shelf on the home page"), above the notebooks as §127 placed them; the
+ * notebooks (the Library until §142); and the notes they were in last, four of them (six on a desk), running into
+ * "All notes" at the foot, which opens the page that lists every note as a grid of the same cards
+ * (notes/AllNotesScreen.tsx).
  *
  * Laid out by its own width (home/tiers.ts, docs/DESIGN.md §137; Matt: "Extend the dashboard to support wide phone /
  * tablet layouts too", and then: "It's okay if they're two across or the layout changes slightly on wide the four
@@ -410,8 +411,8 @@ export function HomeScreen({
               <section className={styles.section} data-group="library" aria-labelledby="home-library">
                 <div className={styles.groupRow}>
                   <h2 id="home-library" className={styles.group}>
-                    <Book className={styles.groupMark} />
-                    <span className={styles.groupName}>Library</span>
+                    <Notebook className={styles.groupMark} />
+                    <span className={styles.groupName}>Notebooks</span>
                   </h2>
                 </div>
                 <ol className={styles.cards}>{books.map((n, i) => card(n, i + pinned.length + todoBeats + shelfBeats))}</ol>

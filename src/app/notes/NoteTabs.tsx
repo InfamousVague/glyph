@@ -198,7 +198,7 @@ export function NoteTabs({
             className={`${styles.sidebar} ${styles.mirrored}`}
             onClick={onAside}
             data-aside-toggle
-            aria-label="Book index"
+            aria-label="Notebook index"
             aria-expanded={asideOpen ?? false}
             data-on={asideOpen || undefined}
           >

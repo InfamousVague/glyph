@@ -140,7 +140,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
           >
             <List size={16} aria-hidden="true" /> Index
           </button>
-          <nav className={styles.rail} aria-label="Chapters">
+          <nav className={styles.rail} aria-label="Pages">
             {chapters.map((chapter, i) => (
               <button
                 key={`${chapter.line}-${chapter.title}`}
@@ -190,9 +190,9 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
       <Byline authors={authors} />
       {words.before ? <BookWords words={words.before} known={known} open={open} dark={dark} /> : null}
       {chapters.length === 0 ? (
-        <p className={styles.empty}>{readOnly ? 'No chapters yet.' : 'No chapters yet. Add one below, or a note you have already written.'}</p>
+        <p className={styles.empty}>{readOnly ? 'No pages yet.' : 'No pages yet. Add one below, or a note you have already written.'}</p>
       ) : (
-        <ol className={styles.index} aria-label="Chapters">
+        <ol className={styles.index} aria-label="Pages">
           {chapters.map((chapter, i) => {
             const there = known(chapter.title);
             const canvas = there && isCanvas(chapter.title);
@@ -233,7 +233,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
                   <button type="button" className={styles.tool} aria-label={`Move ${chapter.title} down`} disabled={i === chapters.length - 1} onClick={() => onChange(withChapterMoved(body, chapter.title, 1))}>
                     <ChevronDown size={16} aria-hidden="true" />
                   </button>
-                  <button type="button" className={styles.tool} aria-label={`Take ${chapter.title} out of the book`} onClick={() => onChange(withoutChapter(body, chapter.title))}>
+                  <button type="button" className={styles.tool} aria-label={`Take ${chapter.title} out of the notebook`} onClick={() => onChange(withoutChapter(body, chapter.title))}>
                     <X size={16} aria-hidden="true" />
                   </button>
                 </span>
@@ -264,8 +264,8 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
         >
           <input
             className={styles.field}
-            aria-label="New chapter's title"
-            placeholder="Chapter title"
+            aria-label="New page's title"
+            placeholder="Page title"
             value={draft}
             autoFocus
             onChange={(event) => setDraft(event.target.value)}
@@ -289,7 +289,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
         <div className={styles.add}>
           <input className={styles.field} aria-label="Find a note to add" placeholder="Find a note" value={filter} autoFocus onChange={(event) => setFilter(event.target.value)} />
           <ul className={styles.picker} aria-label="Notes to add">
-            {others.length === 0 ? <li className={styles.none}>{filter.trim() ? 'No note by that name outside the book.' : 'Every note is in the book already.'}</li> : null}
+            {others.length === 0 ? <li className={styles.none}>{filter.trim() ? 'No note by that name outside the notebook.' : 'Every note is in the notebook already.'}</li> : null}
             {others.slice(0, 40).map((name) => {
               const on = picked.some((p) => sameTitle(p, name));
               return (
@@ -322,7 +322,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
       ) : (
         <div className={styles.adds}>
           <button type="button" className={styles.action} onClick={() => setAdding('new')}>
-            <Plus size={16} aria-hidden="true" /> Add a chapter
+            <Plus size={16} aria-hidden="true" /> Add a page
           </button>
           <button type="button" className={styles.action} onClick={() => setAdding('existing')}>
             <BookOpen size={16} aria-hidden="true" /> Add a note you have

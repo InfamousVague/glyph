@@ -1108,7 +1108,7 @@ describe('adding to a note as it is said', () => {
     await createNote('book', bookNoteBody('Field guide', ['Trees']));
     const onFinish = await recording();
     await say('Hey Ghost, add Rivers to the field guide.', 0);
-    await screen.findByText('“Field guide” is a book, so the words stay here.');
+    await screen.findByText('“Field guide” is a notebook, so the words stay here.');
     await say('Hey Ghost, add call Sam to house plans.', 1000);
     done();
     await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
@@ -1311,7 +1311,7 @@ describe('adding to a note as it is said', () => {
     await createNote('guide', '# HelloTrade: Frontend Developer Guide\n');
     const onFinish = await recording();
     await say('Hey Ghost, add a note to hello trade the book, check the glossary.', 0);
-    await screen.findByText('“HelloTrade — The Book” is a book, so the words stay here.');
+    await screen.findByText('“HelloTrade — The Book” is a notebook, so the words stay here.');
     expect(screen.queryByRole('region', { name: 'Add to which note?' })).toBeNull();
     done();
     await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));

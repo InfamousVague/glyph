@@ -9,15 +9,15 @@ const BOOK = '---\ntitle: "Field guide"\nbook: true\n---\n# Field guide\n\n- [[T
 const notes = [makeNote('b', BOOK, { updatedAt: 5 }), makeNote('t', '# Trees\n', { updatedAt: 4 }), makeNote('x', '# Loose\n', { updatedAt: 3 })];
 
 describe('the right-hand aside', () => {
-  it('shows a page’s book: its chapters with the open one marked, a tap opening another, the title opening the book', () => {
+  it('shows a page’s notebook: its pages with the open one marked, a tap opening another, the title opening the notebook', () => {
     const onOpen = vi.fn();
     const onOpenTitle = vi.fn();
     show(<Aside content={asideContent(notes, notes[1]!)!} onOpen={onOpen} onOpenTitle={onOpenTitle} />);
-    expect([...document.querySelectorAll('ol[aria-label="Chapters"] button')].map((b) => b.textContent?.trim())).toEqual(['1Trees', '2Birds']);
+    expect([...document.querySelectorAll('ol[aria-label="Pages"] button')].map((b) => b.textContent?.trim())).toEqual(['1Trees', '2Birds']);
     expect(document.querySelector('[aria-current="page"]')?.textContent).toContain('Trees');
     act(() => button('2Birds').click());
     expect(onOpenTitle).toHaveBeenCalledWith('Birds');
-    act(() => button('Open the book Field guide').click());
+    act(() => button('Open the notebook Field guide').click());
     expect(onOpen).toHaveBeenCalledWith('b');
   });
 
@@ -50,7 +50,7 @@ describe('the aside as the drawer’s card', () => {
     document.body.appendChild(toggle);
     show(<AsideCard content={asideContent(notes, notes[1]!)!} onOpen={() => {}} onOpenTitle={onOpenTitle} onClose={onClose} />);
     const card = document.querySelector('[role="dialog"][data-side="end"]');
-    expect(card?.getAttribute('aria-label')).toBe('Book index');
+    expect(card?.getAttribute('aria-label')).toBe('Notebook index');
     expect(card?.querySelector('[data-popup]')).toBeTruthy();
     // The outside listener joins on the next tick, so the press that opened the card cannot close it.
     act(() => void vi.advanceTimersByTime(0));
@@ -58,7 +58,7 @@ describe('the aside as the drawer’s card', () => {
     expect(onClose).not.toHaveBeenCalled();
     document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
     expect(onClose).toHaveBeenCalledTimes(1);
-    const birds = [...document.querySelectorAll<HTMLButtonElement>('ol[aria-label="Chapters"] button')][1]!;
+    const birds = [...document.querySelectorAll<HTMLButtonElement>('ol[aria-label="Pages"] button')][1]!;
     act(() => birds.click());
     expect(onOpenTitle).toHaveBeenCalledWith('Birds');
     expect(onClose).toHaveBeenCalledTimes(2);

@@ -17,7 +17,7 @@ export function pinnedNotes(notes: readonly Note[]): Note[] {
   return notes.filter((n) => n.starred && !n.archivedAt).sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-/** The books (docs/BOOKS.md), newest change first, for the home page's Library. The archive stays out. */
+/** The notebooks (docs/BOOKS.md), newest change first, for the home page's Notebooks. The archive stays out. */
 export function bookNotes(notes: readonly Note[]): Note[] {
   return notes.filter((n) => !n.archivedAt && isBookBody(n.body)).sort((a, b) => b.updatedAt - a.updatedAt);
 }

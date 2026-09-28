@@ -34,7 +34,7 @@ describe('a book note', () => {
     const body = bookNoteBody('Trip', ['Packing', 'Days']);
     expect(body).toBe('---\ntitle: "Trip"\nbook: true\n---\n# Trip\n\n- [[Packing]]\n- [[Days]]\n');
     expect(chaptersOf(body).map((c) => c.title)).toEqual(['Packing', 'Days']);
-    expect(bookNoteBody('  ')).toContain('title: "Book"');
+    expect(bookNoteBody('  ')).toContain('title: "Notebook"');
   });
 
   // Until 2026-09-25 a book took any block between two fences as its front matter, however far down the second, so

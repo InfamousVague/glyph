@@ -68,10 +68,10 @@ export function NewSheet({ open, onClose, onNote, onCanvas, onBook, onMeeting, o
       <SheetGroup>
         <SheetRow icon={SquarePen} label="Note" hint="A page of markdown, typed or said." onPress={pick(onNote)} />
         <SheetRow icon={Workflow} label="Canvas" hint="Cards on a page with lines between them." onPress={pick(onCanvas)} />
-        <SheetRow icon={Book} label="Book" hint="Notes in an order, with an index." onPress={pick(onBook)} />
+        <SheetRow icon={Book} label="Notebook" hint="Notes in an order, with an index." onPress={pick(onBook)} />
         {onMeeting ? <SheetRow icon={Cassette} label="Meeting" hint="Record a meeting. The screen can go off. It is written up afterwards." onPress={pick(onMeeting)} /> : null}
         {onFromLink && link === null ? (
-          <SheetRow icon={Link2} label="From a shared link" hint="A copy of a note or book someone shared with you." onPress={() => setLink('')} />
+          <SheetRow icon={Link2} label="From a shared link" hint="A copy of a note or notebook someone shared with you." onPress={() => setLink('')} />
         ) : null}
       </SheetGroup>
       {onFromLink && link !== null ? (

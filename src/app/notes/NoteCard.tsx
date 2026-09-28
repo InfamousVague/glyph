@@ -56,7 +56,7 @@ export function NoteCard({ note, index, onOpen, gist, place, dense = false }: No
     <li key={note.id} className={styles.item} data-dense={dense || undefined} style={{ '--i': Math.min(index, 8) } as CSSProperties}>
       <button type="button" className={styles.card} onClick={() => onOpen(note.id)}>
         <span className={styles.title} data-untitled={title ? undefined : ''}>
-          {title ? shortenUrls(title) : book ? 'Untitled book' : 'Untitled'}
+          {title ? shortenUrls(title) : book ? 'Untitled notebook' : 'Untitled'}
         </span>
         {/* The AI at work on this note's line (format/gist.ts), or changes of its own still marked in the note (ai/marks.ts): said in the card's corner. */}
         {activeGist() === note.id ? (

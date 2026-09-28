@@ -13,8 +13,10 @@ import styles from '../editor/NoteSettings.module.css';
  *
  * A shared note that says where it was written (or a book with such a chapter) gets one more row, "Share where it was
  * written", with the kit's tick: the link leaves the location out until it is ticked (share.ts's header says why).
+ *
+ * A notebook's row says its pages go with it, since a share of a notebook carries every page (share.ts `shareNote`).
  */
-export function ShareRows({ noteId }: { noteId: string }) {
+export function ShareRows({ noteId, kind = 'note' }: { noteId: string; kind?: 'note' | 'notebook' }) {
   const { session } = useAccount();
   const link = useSyncExternalStore(onShares, () => linkFor(noteId), () => null);
   const withPlace = useSyncExternalStore(onShares, () => sharingPlace(noteId), () => false);
@@ -89,7 +91,7 @@ export function ShareRows({ noteId }: { noteId: string }) {
             </span>
             <span className={styles.label}>
               {busy ? 'Sharing…' : 'Share a read-only link'}
-              <span className={styles.hint}>Anyone with the link can read it, and your edits follow. The server can’t read it.</span>
+              <span className={styles.hint}>Anyone with the link can read it, and your edits follow. The server can’t read it.{kind === 'notebook' ? ' Every page goes with it.' : ''}</span>
             </span>
           </button>
         ) : (

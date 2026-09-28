@@ -102,6 +102,13 @@ describe('a note’s sharing', () => {
     expect(document.body.lastElementChild!.querySelector('[role="status"]')?.textContent).toBe('The service is not answering.');
   });
 
+  it('says a notebook’s pages go with it, and a note’s row says nothing of pages', () => {
+    show(<ShareRows noteId="a" kind="notebook" />);
+    expect(row('Share a read-only link')?.textContent).toContain('Every page goes with it.');
+    show(<ShareRows noteId="b" />);
+    expect(buttonSaying(document.body.lastElementChild!, 'Share a read-only link')?.textContent).not.toContain('page');
+  });
+
   it('shows the link itself where the clipboard will not take it', async () => {
     shares.links.set('a', 'https://attack.fm/glyph/read.html#kept');
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => Promise.reject(new Error('no')) } });

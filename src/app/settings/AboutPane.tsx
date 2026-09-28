@@ -80,7 +80,7 @@ export function AboutPane({ updates, onGuide, onGuideBook, onAcademy, onOpen }: 
         <SettingRow
           icon={<BookOpenText size={20} />}
           label={GUIDE_TITLE}
-          hint={`The whole app as a book of ${GUIDE_CHAPTERS} short chapters. Added to your notes the first time, and opened after that.`}
+          hint={`The whole app in ${GUIDE_CHAPTERS} short chapters. Added to your notes the first time, and opened after that.`}
           onPress={onGuideBook}
         />
         <SettingRow icon={<Shapes size={20} />} label="Examples" hint="A sample note, a board and two canvases, to add to your notes." onPress={() => onOpen({ id: 'examples' })} />

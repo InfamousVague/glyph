@@ -35,6 +35,14 @@ describe('the + sheet', () => {
     expect(buttonSaying(sheet()!, 'From a shared link')).toBeUndefined();
   });
 
+  it('offers a notebook by that name, and makes one on a tap', () => {
+    const onBook = vi.fn();
+    show(<NewSheet open onClose={noop} onNote={noop} onCanvas={noop} onBook={onBook} onFromLink={async () => undefined} />);
+    act(() => buttonSaying(sheet()!, 'Notebook')!.click());
+    expect(onBook).toHaveBeenCalledTimes(1);
+    expect(sheet()?.textContent).not.toMatch(/\bbook\b/i);
+  });
+
   it('saves a copy from a pasted link, saying what went wrong in the row, and closes once it is saved', async () => {
     const onClose = vi.fn();
     const onFromLink = vi.fn(async (link: string) => {

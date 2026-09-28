@@ -138,7 +138,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpSer
   const authorField = z
     .string()
     .optional()
-    .describe('Your name, as this note’s co-author: it is listed with the account’s own on the note, its book and a shared page. Left out, the name your app connected with is used (Claude for Claude).');
+    .describe('Your name, as this note’s co-author: it is listed with the account’s own on the note, its notebook and a shared page. Left out, the name your app connected with is used (Claude for Claude).');
 
   server.registerTool(
     'list_notes',

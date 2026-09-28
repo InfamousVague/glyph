@@ -330,7 +330,7 @@ describe('what is never switched to', () => {
     const { take, say, done } = record();
     say('Hey Ghost, add Rivers to the field guide.');
     done();
-    expect(take.chips).toContainEqual({ phase: 'said', text: '“Field guide” is a book, so the words stay here.' });
+    expect(take.chips).toContainEqual({ phase: 'said', text: '“Field guide” is a notebook, so the words stay here.' });
     expect(take.result().made).toEqual(['# Rivers']);
   });
 
@@ -812,7 +812,7 @@ describe('what a card holds', () => {
     take.answer({ kind: 'note', id: 'b1' });
     done();
     expect(take.body('b1')).toBe(bookNoteBody('HelloTrade: The Book', ['Intro']));
-    expect(take.chips).toContainEqual({ phase: 'said', text: '“HelloTrade: The Book” is a book, so the words stay here.' });
+    expect(take.chips).toContainEqual({ phase: 'said', text: '“HelloTrade: The Book” is a notebook, so the words stay here.' });
     expect(take.result().made).toEqual(['# Chapter two needs work']);
   });
 
@@ -1280,7 +1280,7 @@ describe('taking back what was just said', () => {
     book.say('Scratch that.');
     book.say('Add it to the field guide.');
     expect(words(book.take)).toEqual(['Oat milk.']);
-    expect(lastChip(book.take)).toEqual({ phase: 'said', text: '“Field guide” is a book, so the words stay here.' });
+    expect(lastChip(book.take)).toEqual({ phase: 'said', text: '“Field guide” is a notebook, so the words stay here.' });
   });
 
   it('keeps the words here when the send names no note, or a book, and says so', () => {
@@ -1295,7 +1295,7 @@ describe('taking back what was just said', () => {
     book.say('Oat milk.');
     book.say('Scratch that, add it to the field guide.');
     expect(words(book.take)).toEqual(['Oat milk.']);
-    expect(lastChip(book.take)).toEqual({ phase: 'said', text: '“Field guide” is a book, so the words stay here.' });
+    expect(lastChip(book.take)).toEqual({ phase: 'said', text: '“Field guide” is a notebook, so the words stay here.' });
   });
 
   it('asks which note on a card for a send that is not sure, the words still on the page until it is answered', () => {

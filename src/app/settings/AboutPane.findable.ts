@@ -16,7 +16,7 @@ export function findable({ whatsNew }: { whatsNew: boolean }): SettingsFindable[
     { name: 'Update alerts', words: 'notifications notify' },
     { name: 'Ghost.md Academy', words: 'learn tutorial lessons' },
     { name: 'The welcome walkthrough', words: 'guide onboarding set-up first launch side key how to talk to ghost.md voice commands cues hey ghost keyword' },
-    { name: 'Ghost.md: The Guide', words: 'guide manual help book chapters add' },
+    { name: 'Ghost.md: The Guide', words: 'guide manual help book notebook chapters add' },
     ...(whatsNew ? [{ name: "What's new", words: 'changelog releases' }] : []),
   ];
 }

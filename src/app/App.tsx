@@ -604,6 +604,7 @@ function Shell() {
     openNote,
     openNoteWhereLeft,
     newNote: () => void newNote(),
+    newNotebook: newBook,
     speak,
     speakInto,
     closeTab,
@@ -734,7 +735,7 @@ function Shell() {
           </main>
           {/* The right-hand aside as a column beside a docked sidebar: a book's index, or a run of chapters (aside/Aside.tsx). */}
           {asideDocked && asideBody ? (
-            <aside className="app-aside" aria-label="Book index">
+            <aside className="app-aside" aria-label="Notebook index">
               <Aside content={asideBody} onOpen={openNoteWithin} onOpenTitle={openTitleWithin} />
             </aside>
           ) : null}

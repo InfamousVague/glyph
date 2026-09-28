@@ -4,6 +4,7 @@ import { MOST_NOTES, notesByName, paletteCommands, type PaletteDoing, type Palet
 const doing = (): PaletteDoing => ({
   openNote: vi.fn(),
   newNote: vi.fn(),
+  newNotebook: vi.fn(),
   speak: vi.fn(),
   speakInto: vi.fn(),
   closeTab: vi.fn(),
@@ -45,7 +46,7 @@ const run = (commands: ReturnType<typeof paletteCommands>, id: string) => comman
 describe('what the palette offers', () => {
   it('always offers the things that need nothing', () => {
     const list = paletteCommands(world(), doing());
-    expect(ids(list)).toEqual(expect.arrayContaining(['new', 'speak', 'list', 'settings', 'cheatsheet', 'academy', 'guide']));
+    expect(ids(list)).toEqual(expect.arrayContaining(['new', 'notebook', 'speak', 'list', 'settings', 'cheatsheet', 'academy', 'guide']));
     // Nothing about a note, a tab or a workspace, because there are none.
     expect(ids(list).some((id) => id.startsWith('note:') || id.startsWith('tab:') || id.startsWith('space:'))).toBe(false);
   });
@@ -138,6 +139,14 @@ describe('what the palette offers', () => {
     expect(acts.setView).toHaveBeenCalledWith('formatted');
     run(list, 'academy');
     expect(acts.academy).toHaveBeenCalled();
+    run(list, 'notebook');
+    expect(acts.newNotebook).toHaveBeenCalled();
+  });
+
+  it('names a notebook as a notebook, and still finds it by the word book', () => {
+    const made = paletteCommands(world(), doing()).find((command) => command.descriptor.id === 'notebook')!.descriptor;
+    expect(made.label).toBe('New notebook');
+    expect(made.keywords).toContain('book');
   });
 
   it('gives every command its own id, so the palette can tell them apart', () => {

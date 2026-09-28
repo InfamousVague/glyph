@@ -53,6 +53,16 @@ describe('the reader page', () => {
     expect(lent[0]?.type).toBe('image/jpeg');
     expect(document.querySelector('button[aria-label="Download as Markdown (.zip)"]')).toBeTruthy();
   });
+
+  it('says a shared notebook is one, and lists its pages as pages', async () => {
+    const index = '---\ntitle: "Field guide"\nbook: true\n---\n# Field guide\n\n- [[Trees]]\n';
+    vi.mocked(readShared).mockResolvedValueOnce({ v: 1, kind: 'book', title: 'Field guide', pages: [{ title: 'Field guide', body: index }, { title: 'Trees', body: '# Trees\n\nOaks.' }], at: 1 });
+    history.replaceState(null, '', `/read.html#${'a'.repeat(22)}.${'b'.repeat(43)}`);
+    show(<Reader />);
+    await waitUntil(() => expect(document.querySelector('ol[aria-label="Pages"]')).not.toBeNull());
+    expect(document.body.textContent).toContain('A shared notebook.');
+    expect(document.body.textContent).not.toMatch(/\bbook\b/i);
+  });
 });
 
 describe('where a shared page was written', () => {

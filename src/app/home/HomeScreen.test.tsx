@@ -79,7 +79,7 @@ afterEach(() => {
 });
 
 describe('the home page', () => {
-  it('lays its groups out in their order: Pinned, To do, Tapes, Library, Recent', () => {
+  it('lays its groups out in their order: Pinned, To do, Tapes, Notebooks, Recent', () => {
     show(
       page([
         makeNote('p', '# Packing\n\n- [ ] Tent', { starred: true, updatedAt: 3 }),
@@ -88,7 +88,7 @@ describe('the home page', () => {
         makeNote('r', '# Route', { updatedAt: 1 }),
       ]),
     );
-    expect(headings()).toEqual(['Pinned', 'To do', 'Tapes', 'Library', 'Recent']);
+    expect(headings()).toEqual(['Pinned', 'To do', 'Tapes', 'Notebooks', 'Recent']);
     // The cassette mark on Tapes, the way the pin sits on Pinned.
     expect(document.querySelector('#home-tapes svg')).not.toBeNull();
     // A page of a book says which on its card.

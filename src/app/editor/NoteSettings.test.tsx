@@ -87,11 +87,18 @@ describe('the More sheet', () => {
 
   it('names a canvas in its field', () => {
     const onChange = vi.fn();
-    show(<NoteSettings {...sheet({ name: { value: 'Map', onChange } })} />);
+    show(<NoteSettings {...sheet({ name: { value: 'Map', onChange, kind: 'canvas' } })} />);
     const field = document.querySelector<HTMLInputElement>('input[placeholder="What this canvas is called"]')!;
     expect(field.value).toBe('Map');
     typeInto(field, 'Trip map');
     expect(onChange).toHaveBeenCalledWith('Trip map');
+  });
+
+  it('names a notebook in its field, and says it is one', () => {
+    show(<NoteSettings {...sheet({ name: { value: 'Field guide', onChange: vi.fn(), kind: 'notebook' } })} />);
+    const field = document.querySelector<HTMLInputElement>('input[placeholder="What this notebook is called"]')!;
+    expect(field.value).toBe('Field guide');
+    expect(document.querySelector('input[placeholder="What this canvas is called"]')).toBeNull();
   });
 
   it('closes on a tap on the dimmed note, and not on a tap inside the sheet', () => {

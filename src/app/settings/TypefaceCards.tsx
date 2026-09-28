@@ -55,7 +55,7 @@ export function TypefaceCards<F extends Typeface>({ faces, value, onValueChange,
                 </>
               ) : (
                 <>
-                  <div className={styles.title}>Notes &amp; Books</div>
+                  <div className={styles.title}>Notes &amp; Notebooks</div>
                   <div className={styles.tabs}>
                     <span className={styles.tab} data-on="">
                       Today

@@ -28,7 +28,7 @@ export function Aside({ content, onOpen, onOpenTitle, onClose, popup }: AsidePro
       {content.kind === 'book' ? (
         <>
           <div className={styles.head}>
-            <button type="button" className={styles.headButton} onClick={() => onOpen(content.place.book.id)} aria-label={`Open the book ${content.place.title}`}>
+            <button type="button" className={styles.headButton} onClick={() => onOpen(content.place.book.id)} aria-label={`Open the notebook ${content.place.title}`}>
               <BookOpen size={15} aria-hidden="true" />
               <span className={styles.headTitle}>{content.place.title}</span>
             </button>
@@ -39,9 +39,9 @@ export function Aside({ content, onOpen, onOpenTitle, onClose, popup }: AsidePro
             ) : null}
           </div>
           {content.place.chapters.length === 0 ? (
-            <p className={styles.empty}>No chapters yet.</p>
+            <p className={styles.empty}>No pages yet.</p>
           ) : (
-            <ol className={styles.list} aria-label="Chapters">
+            <ol className={styles.list} aria-label="Pages">
               {content.place.chapters.map((chapter, i) => {
                 const current = content.place.at === i;
                 return (
@@ -106,7 +106,7 @@ export function Aside({ content, onOpen, onOpenTitle, onClose, popup }: AsidePro
  */
 export function AsideCard({ onClose, onOpen, onOpenTitle, ...rest }: AsideProps & { onClose: () => void }) {
   return (
-    <FloatingCard side="end" label="Book index" toggle="[data-aside-toggle]" onClose={onClose}>
+    <FloatingCard side="end" label="Notebook index" toggle="[data-aside-toggle]" onClose={onClose}>
       <Aside
         {...rest}
         popup

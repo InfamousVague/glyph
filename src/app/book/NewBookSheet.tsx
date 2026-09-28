@@ -70,8 +70,8 @@ export function NewBookSheet({ open, onClose, titles, onCreate, isCanvas }: NewB
   };
 
   return (
-    <Sheet label="New book" onClose={onClose} className={styles.sheet}>
-      <SheetTitle>New book</SheetTitle>
+    <Sheet label="New notebook" onClose={onClose} className={styles.sheet}>
+      <SheetTitle>New notebook</SheetTitle>
       <form
         className={styles.form}
         onSubmit={(event) => {
@@ -80,10 +80,10 @@ export function NewBookSheet({ open, onClose, titles, onCreate, isCanvas }: NewB
         }}
       >
         <SheetField label="Name" value={name} placeholder="Field guide" autoFocus onChange={(event) => setName(event.target.value)} />
-        <SheetNote>Its pages are notes, in the order you choose. Pick any now, or add them later from the book's index.</SheetNote>
+        <SheetNote>Its pages are notes, in the order you choose. Pick any now, or add them later from the notebook's index.</SheetNote>
 
         {pages.length ? (
-          <ol className={styles.pages} aria-label="Pages in this book">
+          <ol className={styles.pages} aria-label="Pages in this notebook">
             {pages.map((title, i) => (
               <li
                 key={title}
@@ -122,7 +122,7 @@ export function NewBookSheet({ open, onClose, titles, onCreate, isCanvas }: NewB
 
         <SheetField label="Find a note" value={find} placeholder="Type to find" onChange={(event) => setFind(event.target.value)} />
         <ul className={styles.found} aria-label="Notes">
-          {found.length === 0 ? <li className={styles.none}>{titles.length ? 'No note by that name.' : 'No notes yet: the book starts empty, and pages can be added from its index.'}</li> : null}
+          {found.length === 0 ? <li className={styles.none}>{titles.length ? 'No note by that name.' : 'No notes yet: the notebook starts empty, and pages can be added from its index.'}</li> : null}
           {found.map((title) => {
             const on = chosen(title);
             return (
@@ -142,7 +142,7 @@ export function NewBookSheet({ open, onClose, titles, onCreate, isCanvas }: NewB
         </ul>
 
         <SheetGroup>
-          <SheetRow label="Make the book" hint={pages.length ? `${pages.length} page${pages.length === 1 ? '' : 's'}, in this order.` : 'Empty, with its index ready.'} onPress={make} disabled={!name.trim()} />
+          <SheetRow label="Make the notebook" hint={pages.length ? `${pages.length} page${pages.length === 1 ? '' : 's'}, in this order.` : 'Empty, with its index ready.'} onPress={make} disabled={!name.trim()} />
         </SheetGroup>
       </form>
     </Sheet>

@@ -1038,7 +1038,7 @@ export class LiveRoute<N extends LiveNote> {
 
   /** Why a note is never written to from here, or null: it is a book, or it is shared and the phone is locked. */
   private refusal(candidate: LiveCandidate<N>, ctx: LiveContext<N>): string | null {
-    if (isBookBody(candidate.note.body)) return `“${candidate.title}” is a book, so the words stay here.`;
+    if (isBookBody(candidate.note.body)) return `“${candidate.title}” is a notebook, so the words stay here.`;
     if (ctx.locked && ctx.published?.(candidate.note.id)) return 'That note is shared, so the words stay here.';
     return null;
   }

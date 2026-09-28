@@ -42,7 +42,7 @@ export function isBookBody(body: string): boolean {
 
 /** The body of a new book note, named, with any chapters given in order. */
 export function bookNoteBody(title: string, chapters: readonly string[] = []): string {
-  const named = quotedTitle(title, 'Book');
+  const named = quotedTitle(title, 'Notebook');
   const index = chapters.map((chapter) => `- [[${chapter.trim()}]]`).join('\n');
   // The heading is the same name, out of its quotes.
   return `---\ntitle: ${named}\nbook: true\n---\n# ${named.slice(1, -1)}\n\n${index}${index ? '\n' : ''}`;

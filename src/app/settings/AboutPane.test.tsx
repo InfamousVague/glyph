@@ -117,7 +117,7 @@ describe('Help on About', () => {
 
   it('has a row for Ghost.md: The Guide, counting its chapters, and pressing it calls the handler', () => {
     const { host, onGuideBook } = about();
-    expect(row(host, 'Ghost.md: The Guide')?.textContent).toContain('a book of 44 short chapters');
+    expect(row(host, 'Ghost.md: The Guide')?.textContent).toContain('The whole app in 44 short chapters');
     press(row(host, 'Ghost.md: The Guide'));
     expect(onGuideBook).toHaveBeenCalledOnce();
   });

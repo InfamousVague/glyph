@@ -6,21 +6,21 @@ import { dragGrip, layRowsOut } from '../../test/rows.ts';
 import { NewBookSheet } from './NewBookSheet.tsx';
 
 /**
- * The New book sheet: a name, notes picked as pages in the order they are tapped, moved and left out, and one note
+ * The New notebook sheet: a name, notes picked as pages in the order they are tapped, moved and left out, and one note
  * made with exactly that index. Closed without making it, nothing is written.
  */
 
 /** The row that makes the book: its words, then a hint that says what it will make. */
-const make = () => buttonSaying(document.body, 'Make the book')!;
+const make = () => buttonSaying(document.body, 'Make the notebook')!;
 /** Words typed into the field whose label says `label`. */
 const type = (label: string, value: string) => {
   const field = [...document.querySelectorAll<HTMLInputElement>('input')].find((i) => i.closest('label')?.textContent?.includes(label));
   if (!field) throw new Error(`no field ${label}`);
   typeInto(field, value);
 };
-const pages = () => [...document.querySelectorAll('ol[aria-label="Pages in this book"] li')].map((li) => li.querySelector('[class*=pageTitle]')?.textContent);
+const pages = () => [...document.querySelectorAll('ol[aria-label="Pages in this notebook"] li')].map((li) => li.querySelector('[class*=pageTitle]')?.textContent);
 
-describe('the New book sheet', () => {
+describe('the New notebook sheet', () => {
   it('is nothing while closed, and makes nothing when closed', () => {
     const onCreate = vi.fn();
     const onClose = vi.fn();
@@ -85,7 +85,7 @@ describe('the New book sheet', () => {
     show(<NewBookSheet open onClose={() => {}} titles={['Packing', 'Days', 'Food']} onCreate={onCreate} />);
     type('Name', 'Trip');
     for (const title of ['Packing', 'Days', 'Food']) act(() => button(title).click());
-    const rows = [...document.querySelectorAll<HTMLElement>('ol[aria-label="Pages in this book"] li')];
+    const rows = [...document.querySelectorAll<HTMLElement>('ol[aria-label="Pages in this notebook"] li')];
     layRowsOut(rows);
     // Food, from the bottom to above Packing's middle: the first page.
     dragGrip(rows[2]!.querySelector('[class*=grip]')!, 100, 10);
