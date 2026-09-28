@@ -7,6 +7,7 @@ import { externalStore } from '../externalStore.ts';
 import { failureText } from '../failure.ts';
 import { imageBytes, keepImage } from '../images.ts';
 import { hasNativeGeneration } from '../nativeGeneration.ts';
+import { isIOS } from '../platform.ts';
 import { onPreferences, preferences, setPreferences } from '../preferences.ts';
 import { recordingDigest } from '../recordings.ts';
 import { announceNotesChanged, applyNote, deleteNote, getNote, listNotes, NOTE_SAVED, type Note } from '../store.ts';
@@ -159,10 +160,12 @@ const deviceFiles: LocalFiles = {
   },
   // A recording's fingerprint from the phone rather than from its bytes read into the page (native generation 20):
   // the same first sixteen bytes of the SHA-256 the pass would take itself. Undefined where the binary cannot say,
-  // so the pass reads the file as it always did.
+  // so the pass reads the file as it always did: an older binary, iOS (whose command answers null for every tape,
+  // since it hashes nothing there), and a call that failed, which is not "no tape" and must not be remembered as one.
   async digest(name: string) {
-    if (!isTauri() || !(await hasNativeGeneration(MEETING_GENERATION))) return undefined;
-    const answer = await recordingDigest(name).catch(() => null);
+    if (!isTauri() || isIOS || !(await hasNativeGeneration(MEETING_GENERATION))) return undefined;
+    const answer = await recordingDigest(name).catch(() => undefined);
+    if (answer === undefined) return undefined;
     return answer ? answer.sha256.slice(0, 32) : null;
   },
 };
@@ -222,7 +225,6 @@ async function once(): Promise<void> {
   setStatus({ phase: 'syncing', message: null });
   try {
     const notesKey = stateKey(session.accountId, 'notes');
-    const prefs = preferences();
     const outcome = await syncNotes({
       token: session.token,
       key,
@@ -231,8 +233,14 @@ async function once(): Promise<void> {
       state: load<SyncState>(notesKey, emptyState()),
       save: (state) => store(notesKey, state),
       // Which notes are meetings, and whether their audio may go: their words go regardless (docs/DESIGN.md §127 section 6).
-      meetings: prefs.meetings,
-      syncMeetingRecordings: prefs.syncMeetingRecordings,
+      // Read when each recording is decided, not when the pass began: a meeting finished on the Mac during a pass is
+      // listed in `meetings` as it is made, and a snapshot from before it would send its audio.
+      get meetings() {
+        return preferences().meetings;
+      },
+      get syncMeetingRecordings() {
+        return preferences().syncMeetingRecordings;
+      },
     });
     if (outcome.changed) announceNotesChanged();
 

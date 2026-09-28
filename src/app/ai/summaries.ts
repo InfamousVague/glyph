@@ -14,6 +14,7 @@ import { isTauri } from '../core/tauri.ts';
 import { isTrashed } from '../core/trash.ts';
 import { fill, NOTES_CONTEXT, PIECE_CONTEXT, RECORDING_NOTES_PROMPT, RECORDING_SUMMARY_PROMPT, recordingNotesBudget, recordingSummaryBudget, TEMPERATURE } from '../format/prompt.ts';
 import { modelFor, presentIds } from './available.ts';
+import { sendJobConfig } from './jobConfig.ts';
 import { anyRunning, type RunHandle } from './runs.ts';
 import { keepSummary, readSummary } from './summaryKeep.ts';
 import { carryTicked, shapeSummary, SUMMARY_HEADING, summarySection, transcriptPieces, withSummary } from './summaryText.ts';
@@ -404,7 +405,7 @@ async function runNext(): Promise<void> {
   if (anyNative()) {
     await refreshJobStates();
     // A write-up that needed a model is asked of the service again once one is on the phone.
-    if (jobStates.some((s) => s.phase === 'needsModel')) afterModelArrived(presentIds(await listModels().catch(() => [])));
+    if (jobStates.some((s) => s.phase === 'needsModel')) await afterModelArrived(presentIds(await listModels().catch(() => [])));
     for (const job of readQueue().filter((j) => j.native && !j.failed)) await landNativeResult(job.id);
     publish();
   }
@@ -428,7 +429,7 @@ async function runNext(): Promise<void> {
   try {
     await syncSettled();
     const present = presentIds(await listModels().catch(() => []));
-    afterModelArrived(present);
+    await afterModelArrived(present);
     const model = modelFor(present, preferences().formatModel);
     if (!model) {
       needsModel.add(job.id);
@@ -464,12 +465,17 @@ async function runNext(): Promise<void> {
   }
 }
 
-/** A model has come: every native job that was waiting for one is asked of the service again, once. */
-function afterModelArrived(present: readonly string[]): void {
+/**
+ * A model has come: every native job that was waiting for one is asked of the service again, once. The write-up's
+ * config is sent first and waited for (ai/jobConfig.ts): it still names the model the phone lacked until it is, and
+ * a job asked again before it would end "Needs a model" a second time.
+ */
+async function afterModelArrived(present: readonly string[]): Promise<void> {
   if (!modelFor(present, preferences().formatModel)) return;
-  for (const job of readQueue()) {
-    if (!job.native || job.failed || askedAfterModel.has(job.id)) continue;
-    if (jobStates.find((s) => s.id === job.id)?.phase !== 'needsModel') continue;
+  const waiting = readQueue().filter((job) => job.native && !job.failed && !askedAfterModel.has(job.id) && jobStates.find((s) => s.id === job.id)?.phase === 'needsModel');
+  if (!waiting.length) return;
+  await sendJobConfig().catch((failure: unknown) => console.warn('[glyph] the write-up’s configuration was not kept:', failure));
+  for (const job of waiting) {
     askedAfterModel.add(job.id);
     writeUpOnHost(job.id, false);
   }

@@ -8,7 +8,8 @@ import { NOTES_CHANGED } from '../core/store.ts';
  * The meeting being recorded, as the page knows it: one store every screen reads (docs/DESIGN.md §127 section 3).
  *
  * A meeting on Android is recorded by a foreground service (capture/MeetingService.kt), which outlives the page: the
- * screen can go off, the app can be swiped away, and the microphone stays open with only the notification showing.
+ * screen can go off and the app can be left, and the microphone stays open with only the notification showing (a
+ * swipe from Recents stops the meeting, and what was recorded is written up).
  * So the page does not hold the state, it asks for it. `GlyphHost.meetingState()` is read once a second while the
  * page is visible and something is listening (the shelf, the meeting screen, the capture route), at once when the
  * page comes back to the front, and whenever the service says something has changed (`window.__glyph.meeting`,

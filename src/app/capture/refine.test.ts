@@ -291,6 +291,33 @@ describe('when the pass runs', () => {
   });
 });
 
+describe('a meeting’s take (the Mac)', () => {
+  const MEETING = '# Meeting, 26 Sep 14:05\n\n## Transcript\n\nOat milk and legs.';
+
+  it('is known by its preference wherever it was queued, and its better phrases are its transcript again', async () => {
+    setPreferences({ meetings: { n1: 1 } });
+    notes.set('n1', { id: 'n1', body: MEETING, revision: 1 });
+    enqueueRefine(job({ savedBody: MEETING, titled: false }));
+    expect(queued()[0]?.meeting).toBe(true);
+    await vi.advanceTimersByTimeAsync(0);
+    // Rendered as a transcript under the date title: no title from the first sentence, no dictated shape.
+    expect(notes.get('n1')?.body).toBe('# Meeting, 26 Sep 14:05\n\n## Transcript\n\nGrocery run. Oat milk and eggs.');
+    setPreferences({ meetings: {} });
+  });
+
+  it('waits while the phone’s write-up has the speech model', async () => {
+    const live = await import('./meetingLive.ts');
+    const running = vi.spyOn(live, 'writeUpRunning').mockReturnValue(true);
+    enqueueRefine(job());
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls('capture_refine')).toEqual([]);
+    running.mockReturnValue(false);
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(calls('capture_refine')).toHaveLength(1);
+    running.mockRestore();
+  });
+});
+
 describe('the review’s own pass', () => {
   it('listens again now, telling its progress for this note only', async () => {
     const percent = vi.fn();

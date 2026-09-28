@@ -26,6 +26,11 @@ vi.mock('../core/tauri.ts', () => ({
     throw new Error(`no ${command} in a test`);
   },
 }));
+// The `rec` scheme's URL as the app makes it: what a tape is asked about.
+vi.mock('@tauri-apps/api/core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tauri-apps/api/core')>()),
+  convertFileSrc: (path: string, scheme: string) => `${scheme}://localhost/${path}`,
+}));
 vi.mock('../core/platform.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../core/platform.ts')>()),
   get isAndroid() {
@@ -186,6 +191,24 @@ describe('Tapes', () => {
     expect(JSON.parse(localStorage.getItem('glyph-notes')!)).toHaveLength(3);
   });
 
+  it('counts only the audio that is on this device: not what was removed, nor a synced tape whose audio stayed elsewhere', async () => {
+    phone.generation = 20;
+    seed();
+    // The Tapes row took the hour's audio away on an earlier visit; the minute's tape answers 404, made elsewhere.
+    localStorage.setItem('glyph-audio-removed', JSON.stringify(['old']));
+    const heads: string[] = [];
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: RequestInfo | URL, init?: RequestInit) => {
+      heads.push(`${init?.method} ${String(url)}`);
+      return new Response(null, { status: String(url).includes('new.wav') ? 404 : 200 });
+    });
+    const { Pane } = await freshPage();
+    const host = show(<Pane />);
+    await waitUntil(() => expect(host.textContent).toContain('No tapes on this device.'));
+    expect(heads.every((head) => head.startsWith('HEAD '))).toBe(true);
+    expect(buttonSaying(host, 'Remove audio older than a month')?.hasAttribute('disabled') ?? true).toBe(true);
+    fetch.mockRestore();
+  });
+
   it('only says the size on an older phone, which cannot remove a file', async () => {
     seed();
     const { Pane } = await freshPage();
@@ -200,6 +223,9 @@ describe('Tapes', () => {
     expect(tapeSize(117_120_000)).toBe('117 MB');
     expect(tapeSize(10)).toBe('1 MB');
     expect(tapeBytes([{ id: 'a', body: '', createdAt: 0, updatedAt: 0, source: 'capture', recordingMs: 3_600_000 }])).toBe(115_200_000);
+    const { tapesHere } = await import('./tapes.ts');
+    const tapes = [{ id: 'a', body: '', createdAt: 0, updatedAt: 0, source: 'capture' as const, recordingMs: 1 }, { id: 'b', body: '', createdAt: 0, updatedAt: 0, source: 'capture' as const, recordingMs: 1 }, { id: 'c', body: '', createdAt: 0, updatedAt: 0, source: 'editor' as const }];
+    expect(tapesHere(tapes, (id) => id === 'b').map((n) => n.id)).toEqual(['a']);
     // Old is more than a month, of a tape, not archived.
     const day = 24 * 60 * 60 * 1000;
     const tapeOf = (id: string, ageDays: number, over: Record<string, unknown> = {}) => ({ id, body: '', createdAt: 100 * day - ageDays * day, updatedAt: 0, source: 'capture' as const, recordingMs: 60_000, ...over });

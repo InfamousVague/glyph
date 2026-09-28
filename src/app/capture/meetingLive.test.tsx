@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { show, unmount } from '../../test/render.tsx';
+import type { MeetingEvent, MeetingEventName } from './meetingLive.ts';
 
 /**
  * The one store of the meeting being recorded (capture/meetingLive.ts): what the service's JSON becomes, what a push
@@ -187,5 +190,60 @@ describe('whether a write-up is running', () => {
     jobs.running = false;
     setMeetingStateForTests({ ...RECORDING, recording: false, writingUp: 'm1' });
     expect(writeUpRunning()).toBe(true);
+  });
+});
+
+/*
+ * The two sides of the bridge are typed twice, once in Kotlin and once here, and a key misspelt in either is read as
+ * nothing without a word. So what the service and the activity build is read out of their sources and held to what
+ * this store parses (the Rust side does the same for the write-up's options and answers, write_up.rs).
+ */
+describe('what the Kotlin says, and what the page reads', () => {
+  const android = join(process.cwd(), 'src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph');
+  const service = readFileSync(join(android, 'capture/MeetingService.kt'), 'utf8');
+  const activity = readFileSync(join(android, 'MainActivity.kt'), 'utf8');
+  /** Every `.put("key"` in `text`. */
+  const keys = (text: string) => new Set([...text.matchAll(/\.put\("([A-Za-z]+)"/g)].map((match) => match[1]!));
+  /** The body of `fun <name>(` up to the next `fun ` at the same indent or deeper, roughly: enough for its puts. */
+  const body = (text: string, name: string) => {
+    const from = text.indexOf(`fun ${name}(`);
+    expect(from, `fun ${name}`).toBeGreaterThan(-1);
+    const next = text.indexOf('\n  fun ', from + 1);
+    const nextPrivate = text.indexOf('\n  private fun ', from + 1);
+    const ends = [next, nextPrivate, text.indexOf('\n    fun ', from + 1), text.indexOf('\n    private fun ', from + 1)].filter((at) => at > from);
+    return text.slice(from, ends.length ? Math.min(...ends) : undefined);
+  };
+
+  it('has every key of the state the service answers, and no other', () => {
+    const answered = keys(body(service, 'meetingState'));
+    expect([...answered].sort()).toEqual(Object.keys(parseMeetingState({ recording: false })!).sort());
+  });
+
+  it('knows every event the service and the activity push, and every key they carry', () => {
+    const known: MeetingEventName[] = ['started', 'silenced', 'sounding', 'stopped', 'discarded', 'failed', 'permission', 'asked', 'open'];
+    const pushed = new Set([
+      ...[...service.matchAll(/push\("([a-z]+)"/g)].map((match) => match[1]!),
+      ...[...service.matchAll(/if \(now\) "([a-z]+)" else "([a-z]+)"/g)].flatMap((match) => [match[1]!, match[2]!]),
+      ...[...`${service}${activity}`.matchAll(/\.put\("event", "([a-z]+)"\)/g)].map((match) => match[1]!),
+    ]);
+    expect(pushed.size).toBeGreaterThanOrEqual(8);
+    for (const name of pushed) expect(known, `the page does not know "${name}"`).toContain(name);
+    const carried = new Set([
+      ...keys(body(service, 'push')),
+      ...keys(body(service, 'pushStopped')),
+      ...keys(body(service, 'pushFailed')),
+      ...keys(body(service, 'offerDied')),
+      ...[...activity.matchAll(/tell\("meeting", ([^\n]+)/g)].flatMap((match) => [...keys(match[1]!)]),
+      ...keys(body(activity, 'deliverMeeting')),
+    ]);
+    const read: (keyof MeetingEvent)[] = ['event', 'noteId', 'elapsedMs', 'reason', 'granted', 'message'];
+    expect([...carried].sort()).toEqual([...read].sort());
+  });
+
+  it('stops a meeting only for the reasons the page names', () => {
+    const reasons = new Set([...service.matchAll(/requestStop\("([a-z]+)"\)/g)].map((match) => match[1]!));
+    reasons.add('died');
+    const named: NonNullable<MeetingEvent['reason']>[] = ['done', 'notification', 'cap', 'error', 'died'];
+    for (const reason of reasons) expect(named).toContain(reason);
   });
 });

@@ -75,6 +75,19 @@ export interface Download {
   total: number;
 }
 
+const modelsChanged = new Set<() => void>();
+
+/** `listener` after a model has been downloaded or removed here; answers the way to stop. */
+export function onModelsChanged(listener: () => void): () => void {
+  modelsChanged.add(listener);
+  return () => void modelsChanged.delete(listener);
+}
+
+/** Tells the listeners the models on the phone changed: after a download or a removal here. */
+export function announceModelsChanged(): void {
+  for (const listener of [...modelsChanged]) listener();
+}
+
 /** The catalogue with what is on this phone; an empty list in a browser. */
 export async function listModels(): Promise<ModelInfo[]> {
   if (!isTauri()) return [];
@@ -139,6 +152,7 @@ export function useModels(): {
         setDownload(null);
         busy.current = false;
         await refresh();
+        announceModelsChanged();
       }
     },
     [refresh],
@@ -154,6 +168,7 @@ export function useModels(): {
         setProblem(failureText(failure));
       }
       await refresh();
+      announceModelsChanged();
     },
     [refresh],
   );

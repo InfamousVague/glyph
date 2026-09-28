@@ -52,11 +52,21 @@ vi.mock('./prefs.ts', async (importOriginal) => ({
 
 let native = false;
 let generation = 16;
+let ios = false;
+/** What `recording_digest` answers, or throws. */
+let digestAnswer: () => unknown = () => null;
 const invoked: { command: string; args: unknown }[] = [];
 vi.mock('../tauri.ts', () => ({
   isTauri: () => native,
   invoke: async (command: string, args?: unknown) => {
     invoked.push({ command, args });
+    if (command === 'recording_digest') return digestAnswer();
+  },
+}));
+vi.mock('../platform.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../platform.ts')>()),
+  get isIOS() {
+    return ios;
   },
 }));
 vi.mock('../nativeGeneration.ts', () => ({ hasNativeGeneration: async (wanted: number) => generation >= wanted }));
@@ -98,6 +108,8 @@ beforeEach(async () => {
   key = {} as CryptoKey;
   native = false;
   generation = 16;
+  ios = false;
+  digestAnswer = () => null;
   passes.length = 0;
   invoked.length = 0;
   notesPass = async () => ({ changed: 0, conflicts: 0, unsent: 0, reason: null });
@@ -385,6 +397,41 @@ describe('this device and the account', () => {
     expect(deleteAccount).toHaveBeenCalledWith('correct horse');
     expect(prefs.preferences().shares).toEqual({});
     expect(localStorage.getItem('glyph-sync-7-notes')).toBeNull();
+  });
+
+  it('asks the phone for a tape’s fingerprint, and reads the file where the phone cannot say rather than calling it gone', async () => {
+    await act(() => engine.syncNow());
+    const files = passes[0]!.files;
+    native = true;
+    generation = 20;
+    digestAnswer = () => ({ sha256: 'ab'.repeat(32), bytes: 10 });
+    expect(await files.digest!('n1')).toBe('ab'.repeat(16));
+    digestAnswer = () => null;
+    expect(await files.digest!('n1')).toBeNull();
+    // A call that failed is not "no tape": remembered as one, the note would travel without its tape's fingerprint for good.
+    digestAnswer = () => {
+      throw new Error('the phone was busy');
+    };
+    expect(await files.digest!('n1')).toBeUndefined();
+    // iOS keeps synced tapes and hashes none: its command answers null for every tape, which is not the truth.
+    digestAnswer = () => null;
+    ios = true;
+    expect(await files.digest!('n1')).toBeUndefined();
+    generation = 19;
+    ios = false;
+    expect(await files.digest!('n1')).toBeUndefined();
+  });
+
+  it('reads which notes are meetings when it decides about a recording, not when the pass began', async () => {
+    const pass = heldPass();
+    const running = engine.syncNow();
+    await flush();
+    expect(passes[0]!.meetings).toEqual({});
+    // Done on the Mac's meeting while the pass is out: its note is listed as a meeting before its audio is kept.
+    prefs.setPreferences({ meetings: { m2: 1 } });
+    expect(passes[0]!.meetings).toEqual({ m2: 1 });
+    pass.release();
+    await act(() => running);
   });
 
   it('files a recording that arrived by sync with Rust as standard base64, and keeps none in a browser', async () => {

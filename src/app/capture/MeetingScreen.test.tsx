@@ -86,6 +86,21 @@ afterEach(() => {
 const screen = (over: { fromAssistant?: boolean; onLeave?: () => void } = {}) => show(<MeetingScreen noteId="m1" fromAssistant={over.fromAssistant ?? false} onLeave={over.onLeave ?? (() => undefined)} />);
 
 describe('the meeting screen', () => {
+  it('lets the screen go off: none of the recorder’s keep-awake, screen-off or refine holds', async () => {
+    const setCapturing = vi.fn();
+    window.GlyphHost = { ...window.GlyphHost, setCapturing } as unknown as Window['GlyphHost'];
+    const refine = await import('./refine.ts');
+    const live = vi.spyOn(refine, 'setRecorderLive');
+    const before = window.__glyph?.screenOff;
+    screen();
+    await act(async () => undefined);
+    // FLAG_KEEP_SCREEN_ON and the SCREEN_OFF receiver are the dictation's; the screen going off is this one's point.
+    expect(setCapturing).not.toHaveBeenCalled();
+    expect(window.__glyph?.screenOff).toBe(before);
+    expect(live).not.toHaveBeenCalled();
+    live.mockRestore();
+  });
+
   it('shows the cassette turning, the counter and the line that says the screen can go off', () => {
     const host = screen();
     expect(host.textContent).toContain('Meeting');

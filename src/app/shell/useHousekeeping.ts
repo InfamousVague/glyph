@@ -1,20 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { useToast } from '@glacier/react';
-import { modelFor, presentIds } from '../ai/available.ts';
+import { keepJobConfigCurrent } from '../ai/jobConfig.ts';
 import { startSummaries } from '../ai/summaries.ts';
-import { ONE_PASS_CHARS, PIECE_CHARS } from '../ai/summaryText.ts';
 import { startRefining } from '../capture/refine.ts';
-import { keepJobConfig, listModels } from '../core/ai.ts';
 import { installBack } from '../core/back.ts';
 import { installTapHaptics } from '../core/haptics.ts';
 import { settleBoot } from '../core/ota.ts';
-import { applyPreferences, onPreferences, preferences } from '../core/preferences.ts';
+import { applyPreferences } from '../core/preferences.ts';
 import { sampleNoteSeeded, seedSampleNote } from '../core/seed.ts';
 import { latestCommandMutation, NOTE_SAVED, undoCommandMutation, type Note } from '../core/store.ts';
 import { sweepMemos } from '../core/sweepMemos.ts';
 import { startSync } from '../core/sync/engine.ts';
-import { isTauri } from '../core/tauri.ts';
-import { NOTES_CONTEXT, PIECE_CONTEXT, RECORDING_NOTES_PROMPT, RECORDING_SUMMARY_PROMPT, TEMPERATURE } from '../format/prompt.ts';
 
 /**
  * What the Shell keeps running for the life of the app and draws nothing for: the boot handshake, the page-wide
@@ -95,37 +91,10 @@ export function useHousekeeping({ notes, loading, refresh, sidebar, open }: Hous
   // Sync, for a device signed in to an account (docs/SYNC.md); nothing happens without one.
   useEffect(() => startSync(), []);
 
-  // What the phone's own write-up of a meeting reads when the app is not there to ask (core/ai.ts `keepJobConfig`;
-  // docs/DESIGN.md §127 section 4): the model as the page would choose it, the prompts as the page has them, and the
-  // two preferences it obeys. Written at launch and whenever one of those changes, so a write-up with the app closed
-  // runs by the same words as one the page would run. Nothing off the phone.
-  useEffect(() => {
-    if (!isTauri()) return undefined;
-    let last = '';
-    const send = () => {
-      const prefs = preferences();
-      void listModels()
-        .catch(() => [])
-        .then((models) => {
-          const config = {
-            model: modelFor(presentIds(models), prefs.formatModel) ?? prefs.formatModel,
-            prompts: { summary: RECORDING_SUMMARY_PROMPT, notes: RECORDING_NOTES_PROMPT, piece: PIECE_CONTEXT, parts: NOTES_CONTEXT },
-            onePassChars: ONE_PASS_CHARS,
-            pieceChars: PIECE_CHARS,
-            temperature: TEMPERATURE,
-            writeUp: prefs.writeUp,
-            summaries: prefs.summaries,
-          };
-          const text = JSON.stringify(config);
-          if (text === last) return;
-          last = text;
-          return keepJobConfig(config);
-        })
-        .catch((failure: unknown) => console.warn('[glyph] the write-up’s configuration was not kept:', failure));
-    };
-    send();
-    return onPreferences(send);
-  }, []);
+  // What the phone's own write-up of a meeting reads when the app is not there to ask (ai/jobConfig.ts; docs/DESIGN.md
+  // §127 section 4): sent at launch, when the model chosen, Write up or Summaries changes, and when a model arrives
+  // or goes, so a write-up with the app closed runs by the same words and the same model as one the page would run.
+  useEffect(() => keepJobConfigCurrent(), []);
 
   // The list beside a note shows its title and order as it is written: read again a moment after each save.
   useEffect(() => {

@@ -149,7 +149,10 @@ export function useNoteSaving(note: Note, rename?: NoteRename | null, { onExtern
 
   const adopt = useCallback(
     (stored: Note): boolean => {
-      if (!writable.current || body.current !== saved.current) return false;
+      // Nothing unsaved, and nothing on its way either: a save flushed but not yet answered counts as unsaved, since
+      // adopting over it would hand the editor words without the ones just typed, and leave that save to conflict
+      // with a body this hook had already taken as written (its rebase would then see no transcript to put back).
+      if (!writable.current || body.current !== saved.current || written.current !== saved.current) return false;
       revision.current = stored.revision ?? revision.current;
       written.current = stored.body;
       if (stored.body === body.current) return true;

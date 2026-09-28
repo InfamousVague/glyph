@@ -825,6 +825,9 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         return;
       }
       const title = meetingTitled.current;
+      // A meeting before it has words or a recording: a sync pass that lists the note from here on must already find
+      // it among the meetings, or it would send the audio that `syncMeetingRecordings` keeps on this device.
+      setPreferences({ meetings: { ...preferences().meetings, [recordedAs]: meetingStartedAt.current } });
       let saved = await writer.queue(() => writer.persist(recordedAs, meetingBody(title, segments), 'capture'));
       if (stopped.recordedMs !== null && session.current?.keepsAudio) {
         const kept = await setNoteRecording(saved.id, stopped.recordedMs, [...segments]).catch((failure: unknown) => {
@@ -835,7 +838,6 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
         setTapeId(saved.id, tapeOfTake());
         enqueueRefine({ id: saved.id, fromMs: 0, recordingMs: stopped.recordedMs, baseBody: '', savedBody: saved.body, titled: false, priorSegments: [], promptTail: '', meeting: true });
       }
-      setPreferences({ meetings: { ...preferences().meetings, [saved.id]: meetingStartedAt.current } });
       if (preferences().summaries !== 'off') enqueueSummary(saved.id, 'meeting');
       fireNativeHaptic('success');
       endCapture(locked);

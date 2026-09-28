@@ -1,3 +1,4 @@
+import { STOP_THE_MEETING } from '../capture/meeting.ts';
 import { meetingStateNow } from '../capture/meetingLive.ts';
 import { plugins } from '../plugins/registry.ts';
 import { accountState } from './account/account.ts';
@@ -50,8 +51,8 @@ import { invoke, isTauri } from './tauri.ts';
 /** The binary generation that has `reset_local_data`. */
 const RESET_GENERATION = 11;
 
-/** Said when a reset is asked for while a meeting is being recorded. */
-export const STOP_THE_MEETING = 'Stop the meeting first.';
+/** Said when a reset is asked for while a meeting is being recorded (capture/meeting.ts, where an install says it too). */
+export { STOP_THE_MEETING };
 
 /**
  * What a reset leaves behind: developer mode, and the two smoke overrides a

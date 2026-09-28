@@ -122,6 +122,24 @@ describe('the list of sections', () => {
     expect(labels(host)).toEqual(['Account', 'Type', 'Appearance', 'Recording', 'Formatting', 'Feel', 'Notion', 'GitHub', 'Claude', 'Plugins', 'Animations', 'Cheat sheet', 'About']);
   });
 
+  it('on an Android phone, lists the meeting settings for the search, each by its row’s own name', () => {
+    native = true;
+    android = true;
+    settings();
+    const recording = handed.find((section) => section.id === 'recording');
+    expect(recording?.settings?.map((s) => s.name)).toEqual([
+      'Stop when I go quiet',
+      'Commands start with “hey Ghost”',
+      'Review after recording',
+      'Better words',
+      'Summaries',
+      'Where the side key is',
+      'Write up',
+      'Tell me when a meeting is written up',
+      'Your tapes',
+    ]);
+  });
+
   it('on the Mac, has Recording too, for the better words and the summaries, without the side key', () => {
     native = true;
     const host = settings();

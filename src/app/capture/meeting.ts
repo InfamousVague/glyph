@@ -25,6 +25,9 @@ import { renderTranscript, type Segment } from './markdown.ts';
 /** The binary generation with the meeting service, its host bridge and the write-up commands. */
 export const MEETING_GENERATION = 20;
 
+/** Said when something that would end the recording is asked for while a meeting records: a reset, an update's install. */
+export const STOP_THE_MEETING = 'Stop the meeting first.';
+
 /** Whether a meeting can be recorded here: the Mac, and Android from generation 20. */
 export async function canRecordMeeting(): Promise<boolean> {
   if (!isTauri() || isIOS) return false;

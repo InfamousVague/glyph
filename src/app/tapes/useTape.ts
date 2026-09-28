@@ -40,8 +40,11 @@ export async function whyNotPlayed(note: Pick<Note, 'id' | 'recordingMs'>, head:
   return status === 404 ? NOT_ON_THIS_DEVICE : COULD_NOT_PLAY;
 }
 
-/** What the `rec` scheme answers for the note's file: 404 when it is not on this device. */
-async function headStatus(id: string): Promise<number | null> {
+/**
+ * What the `rec` scheme answers a HEAD for the note's file with: 404 when it is not on this device. From native
+ * generation 20 a HEAD reads nothing (src-tauri/src/recordings.rs); before it, the whole file.
+ */
+export async function headStatus(id: string): Promise<number | null> {
   try {
     return (await fetch(convertFileSrc(`${id}.wav`, 'rec'), { method: 'HEAD' })).status;
   } catch {

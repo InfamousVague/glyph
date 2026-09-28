@@ -10,11 +10,12 @@ import { requestNotifications } from '../core/host.ts';
 import { hasNativeGeneration } from '../core/nativeGeneration.ts';
 import { isAndroid } from '../core/platform.ts';
 import { setPreferences, usePreferences, type Summaries, type WriteUp } from '../core/preferences.ts';
-import { deleteRecordings } from '../core/recordings.ts';
+import { audioRemoved, deleteRecordings } from '../core/recordings.ts';
 import { listNotes, type Note } from '../core/store.ts';
 import { isTauri } from '../core/tauri.ts';
+import { headStatus } from '../tapes/useTape.ts';
 import { PaneSection, RowAction, SettingRow } from './kit/settingsKit.tsx';
-import { oldTapes, tapeBytes, tapeSize } from './tapes.ts';
+import { oldTapes, tapeBytes, tapeSize, tapesHere } from './tapes.ts';
 
 /**
  * Recording: how a take ends, whether a command needs its word first, what happens to the words afterwards, and - on
@@ -146,25 +147,33 @@ function Tapes({ canRemove }: { canRemove: boolean }) {
   const [armed, setArmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState<string | null>(null);
+  /** Tapes whose audio the `rec` scheme answered 404 for: a synced note whose audio stayed where it was made. */
+  const [elsewhere, setElsewhere] = useState<ReadonlySet<string>>(() => new Set());
   useEffect(() => {
     let live = true;
     void listNotes()
-      .then((all) => {
-        if (live) setNotes(all);
+      .then(async (all) => {
+        if (!live) return;
+        setNotes(all);
+        // Asked of each tape only where a HEAD reads nothing (native generation 20, which `canRemove` is).
+        if (!canRemove) return;
+        const answers = await Promise.all(tapesHere(all, audioRemoved).map(async (note) => [note.id, await headStatus(note.id)] as const));
+        if (live) setElsewhere(new Set(answers.filter(([, status]) => status === 404).map(([id]) => id)));
       })
       .catch(() => undefined);
     return () => {
       live = false;
     };
-  }, []);
+  }, [canRemove]);
   useEffect(() => {
     if (!armed) return undefined;
     const id = window.setTimeout(() => setArmed(false), ARMED_MS);
     return () => window.clearTimeout(id);
   }, [armed]);
-  const taped = (notes ?? []).filter((note) => (note.recordingMs ?? 0) > 0);
+  // Only the tapes whose audio is here: not one this row removed, nor one the `rec` scheme says is elsewhere.
+  const taped = tapesHere(notes ?? [], (id) => audioRemoved(id) || elsewhere.has(id));
   const bytes = tapeBytes(taped);
-  const old = oldTapes(notes ?? [], Date.now());
+  const old = oldTapes(taped, Date.now());
   const press = async () => {
     if (!armed) {
       setArmed(true);

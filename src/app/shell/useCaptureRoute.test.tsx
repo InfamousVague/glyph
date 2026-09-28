@@ -207,6 +207,40 @@ describe('a meeting on the phone', () => {
     expect(refresh).toHaveBeenCalled();
   });
 
+  it('files the meeting where the list is looking, as any new note is', async () => {
+    installService();
+    const work = addWorkspace('Work')!;
+    chooseWorkspace(work.id);
+    show(<Probe from={{ name: 'list' }} />);
+    await act(async () => route.meeting(false));
+    const [note] = await listNotes();
+    expect(workspaceOf(note!.id)?.id).toBe(work.id);
+  });
+
+  it('takes its new note back without a word when the service answers that a meeting is already recording', async () => {
+    installService();
+    show(<Probe from={{ name: 'list' }} />);
+    // The page's last read said none was (a poll a second old): the service knows better.
+    service.answer = 'recording';
+    await act(async () => route.meeting(false));
+    expect(service.started).toHaveLength(1);
+    await waitUntil(async () => expect(await listNotes()).toEqual([]));
+    expect(preferences().meetings).toEqual({});
+    expect(summaries.dropped).toHaveLength(1);
+    expect(said).toEqual([]);
+  });
+
+  it('says the service’s line when the last meeting is still being put away, and keeps nothing', async () => {
+    installService();
+    service.answer = 'The last meeting is still stopping. Try again in a moment.';
+    show(<Probe from={{ name: 'list' }} />);
+    await act(async () => route.meeting(false));
+    expect(said).toEqual(['The last meeting is still stopping. Try again in a moment.']);
+    expect(await listNotes()).toEqual([]);
+    expect(preferences().meetings).toEqual({});
+    expect(screen).toEqual({ name: 'list' });
+  });
+
   it('queues no write-up with summaries off: the transcript still comes', async () => {
     installService();
     setPreferences({ summaries: 'off' });

@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { ToastProvider } from '@glacier/react';
 import { createNote, getNote } from '../core/store.ts';
-import { reloadPreferences } from '../core/preferences.ts';
+import { reloadPreferences, setPreferences } from '../core/preferences.ts';
+import type { RecordingJobState } from '../core/recordings.ts';
 import { isTrashed, trashNote } from '../core/trash.ts';
 import { addWorkspace, fileNote, workspaceOf } from '../core/workspaces.ts';
 import { keepGist, readGist } from '../format/results.ts';
@@ -22,6 +23,13 @@ import type { NoteActions } from './useNoteActions.ts';
 
 // The Glacier kit asks matchMedia as it loads.
 await vi.hoisted(async () => (await import('../../test/stubs.ts')).stubMatchMedia());
+
+/** The write-ups the phone holds, as `recording_job_state` would answer. */
+let phoneJobs: RecordingJobState[] = [];
+vi.mock('../core/recordings.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../core/recordings.ts')>()),
+  recordingJobState: async () => phoneJobs,
+}));
 const { useNoteActions } = await import('./useNoteActions.ts');
 
 let actions: NoteActions;
@@ -177,6 +185,71 @@ describe('the trash', () => {
     mount();
     act(() => actions.remove(makeNote('long', '# A title far too long to fit in the one line a toast has')));
     expect(said()).toContain('Moved the note to the Trash.');
+  });
+});
+
+describe('a meeting in the trash', () => {
+  const writeUp = vi.fn((_id: string, _now: boolean) => 'queued');
+  const cancelWriteUp = vi.fn((_id: string) => undefined);
+  const job = (phase: RecordingJobState['phase']): RecordingJobState => ({ id: 'm', title: 'Meeting', phase, waitingFor: null, percent: 0, error: null, updatedAt: 0 });
+  beforeEach(() => {
+    phoneJobs = [];
+    writeUp.mockClear();
+    cancelWriteUp.mockClear();
+    window.GlyphHost = { writeUp, cancelWriteUp } as unknown as typeof window.GlyphHost;
+    setPreferences({ meetings: { m: 1 } });
+  });
+  afterEach(() => {
+    delete window.GlyphHost;
+  });
+
+  it('has its write-up cancelled even with Summaries off, when no summary job was ever made', async () => {
+    setPreferences({ summaries: 'off' });
+    await createNote('m', '# Meeting, 26 Sep 14:05\n', 'capture');
+    mount();
+    act(() => actions.remove(makeNote('m', '# Meeting, 26 Sep 14:05\n')));
+    expect(cancelWriteUp).toHaveBeenCalledWith('m');
+    // A note that is not a meeting asks nothing of the phone.
+    act(() => actions.remove(apples));
+    expect(cancelWriteUp).toHaveBeenCalledTimes(1);
+  });
+
+  it('is written up again by the toast’s Undo, as by Restore, where the phone still holds its job', async () => {
+    const meeting = makeNote('m', '# Meeting, 26 Sep 14:05\n');
+    await createNote('m', meeting.body, 'capture');
+    mount();
+    act(() => actions.remove(meeting));
+    phoneJobs = [job('cancelled')];
+    await act(async () => button('Undo').click());
+    await settle();
+    expect(isTrashed('m')).toBe(false);
+    expect(writeUp).toHaveBeenCalledWith('m', false);
+  });
+
+  it('is not listened to again once its words are in the note and the phone holds nothing for it', async () => {
+    const written = makeNote('m', '# Meeting, 26 Sep 14:05\n\n## Transcript\n\nWe agreed, as I corrected it.\n');
+    await createNote('m', written.body, 'capture');
+    trashNote('m');
+    mount();
+    act(() => actions.restore(written));
+    await settle();
+    expect(writeUp).not.toHaveBeenCalled();
+    // One whose write-up the trash stopped half way is picked up where it was.
+    trashNote('m');
+    phoneJobs = [job('cancelled')];
+    act(() => actions.restore(written));
+    await settle();
+    expect(writeUp).toHaveBeenCalledWith('m', false);
+  });
+
+  it('with no words and no job yet is asked for afresh', async () => {
+    const bare = makeNote('m', '# Meeting, 26 Sep 14:05\n');
+    await createNote('m', bare.body, 'capture');
+    trashNote('m');
+    mount();
+    act(() => actions.restore(bare));
+    await settle();
+    expect(writeUp).toHaveBeenCalledWith('m', false);
   });
 });
 

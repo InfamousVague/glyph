@@ -85,7 +85,38 @@ describe('any other conflict', () => {
   });
 });
 
+describe('a conflict that has a transcript in it and another writer’s words too', () => {
+  it('stops, since rebasing would drop the other writer’s words', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const note = await createNote('n1', '# Plan\n\nOne.\n');
+    show(<Probe note={note} />);
+    const theirs = withTranscript('# Plan\n\nOne, changed elsewhere.\n', TRANSCRIPT);
+    await updateNote('n1', theirs, note.revision ?? 1);
+    act(() => saving.onChange('# Plan\n\nOne, changed here.\n'));
+    saving.flush();
+    await waitUntil(() => expect(warn).toHaveBeenCalledWith('[glyph] editor save stopped:', expect.anything()));
+    expect((await getNote('n1'))?.body).toBe(theirs);
+    expect(handed).toEqual([]);
+  });
+});
+
 describe('a note the write-up changed', () => {
+  it('is not adopted over a save that is on its way, which then lands through its own rebase', async () => {
+    const note = await createNote('m1', '# Meeting, 26 Sep 14:05\n', 'capture');
+    show(<Probe note={note} />);
+    const stored = await updateNote('m1', withTranscript(note.body, TRANSCRIPT), note.revision ?? 1);
+    act(() => saving.onChange('# Meeting, 26 Sep 14:05\n\nJust typed.\n'));
+    saving.flush();
+    // Flushed, not yet answered: taking the stored note now would hand the editor words without "Just typed."
+    expect(saving.adopt(stored)).toBe(false);
+    expect(saving.body.current).toBe('# Meeting, 26 Sep 14:05\n\nJust typed.\n');
+    await waitUntil(async () => expect((await getNote('m1'))?.body).toBe(withTranscript('# Meeting, 26 Sep 14:05\n\nJust typed.\n', TRANSCRIPT)));
+    // Saving carries on.
+    act(() => saving.onChange(saving.body.current.replace('Just typed.', 'Just typed, and more.')));
+    saving.flush();
+    await waitUntil(async () => expect((await getNote('m1'))?.body).toContain('Just typed, and more.'));
+  });
+
   it('is adopted whole when nothing here is unsaved, and left to the next save when something is', async () => {
     const note = await createNote('m1', '# Meeting, 26 Sep 14:05\n', 'capture');
     show(<Probe note={note} />);

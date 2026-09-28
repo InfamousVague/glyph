@@ -11,6 +11,15 @@ export const BYTES_PER_MS = 32;
 /** A tape older than this is one the row offers to remove the audio of. */
 export const OLD_MS = 30 * 24 * 60 * 60 * 1000;
 
+/**
+ * The tapes among `notes` whose audio is on this device: a length, and not `away` (its audio removed by this row, or
+ * answered 404 by the `rec` scheme, which is a synced note whose audio stayed on the device that made it). The words
+ * "on this device" are only true of these.
+ */
+export function tapesHere(notes: readonly Note[], away: (id: string) => boolean): Note[] {
+  return notes.filter((note) => (note.recordingMs ?? 0) > 0 && !away(note.id));
+}
+
 /** How much room the tapes among `notes` take, from their lengths. */
 export function tapeBytes(notes: readonly Note[]): number {
   return notes.reduce((sum, note) => sum + Math.max(0, note.recordingMs ?? 0) * BYTES_PER_MS, 0);

@@ -251,6 +251,28 @@ describe('the APK', () => {
     expect(updates?.apk).toEqual({ kind: 'failed', info: APK, message: 'The installer did not start (no-activity).' });
   });
 
+  it('is not installed while a meeting records, since the installer would end the recording without a word', async () => {
+    const { setMeetingStateForTests } = await import('../capture/meetingLive.ts');
+    let installed = 0;
+    window.GlyphHost = {
+      installApk: () => {
+        installed += 1;
+        return 'started';
+      },
+    } as unknown as Window['GlyphHost'];
+    await offered();
+    setMeetingStateForTests({ recording: true, noteId: 'm1', title: 'Meeting', startedAt: 0, elapsedMs: 1_000, silenced: false, writingUp: null, discarded: [] });
+    act(() => updates?.installApk());
+    await wait(0);
+    expect(updates?.apk).toEqual({ kind: 'failed', info: APK, message: 'Stop the meeting first.' });
+    expect(installed).toBe(0);
+    // Stopped: the next tap installs.
+    setMeetingStateForTests(null);
+    act(() => updates?.installApk());
+    await wait(0);
+    expect(installed).toBe(1);
+  });
+
   it('says so on a build that cannot install, and when the download fails', async () => {
     window.GlyphHost = {} as unknown as Window['GlyphHost'];
     await offered();
