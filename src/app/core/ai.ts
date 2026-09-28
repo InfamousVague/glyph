@@ -27,14 +27,20 @@ export interface ModelChoice {
   about: string;
   /** The download, in bytes, from the catalogue. */
   bytes: number;
+  /**
+   * The last whole year the model is taken to know, a fixed year and never the clock (docs/DESIGN.md §145): a blank
+   * asking about an event after it is refused before the model is asked (core/fillLive.ts), in 2026 and in 2028 alike.
+   * 2024 for every model until each is read from its own card, which refuses more than it needs to and never less.
+   */
+  learntUntil: number;
 }
 
 /** In the order Settings shows them. Ids match `llm::model::CATALOGUE`. */
 export const MODELS: readonly ModelChoice[] = [
-  { id: 'qwen3.5-2b', name: 'Qwen3.5 2B', about: 'Quick. Good for short notes, and it can shorten long ones.', bytes: 1_280_835_840 },
-  { id: 'qwen3.5-4b', name: 'Qwen3.5 4B', about: 'The balance. Careful with facts, fits most phones.', bytes: 2_740_937_888 },
-  { id: 'qwen3.5-9b', name: 'Qwen3.5 9B', about: 'The most careful, and the slowest. Wants 12 GB of memory.', bytes: 5_680_522_464 },
-  { id: 'gemma-4-e4b', name: 'Gemma 4 E4B', about: 'A different voice. Runs like a 4B, with a bigger file.', bytes: 4_977_171_584 },
+  { id: 'qwen3.5-2b', name: 'Qwen3.5 2B', about: 'Quick. Good for short notes, and it can shorten long ones.', bytes: 1_280_835_840, learntUntil: 2024 },
+  { id: 'qwen3.5-4b', name: 'Qwen3.5 4B', about: 'The balance. Careful with facts, fits most phones.', bytes: 2_740_937_888, learntUntil: 2024 },
+  { id: 'qwen3.5-9b', name: 'Qwen3.5 9B', about: 'The most careful, and the slowest. Wants 12 GB of memory.', bytes: 5_680_522_464, learntUntil: 2024 },
+  { id: 'gemma-4-e4b', name: 'Gemma 4 E4B', about: 'A different voice. Runs like a 4B, with a bigger file.', bytes: 4_977_171_584, learntUntil: 2024 },
 ];
 
 export const DEFAULT_MODEL = 'qwen3.5-4b';
@@ -47,6 +53,18 @@ export function modelSpec(id: string): ModelChoice | undefined {
 export function modelName(id: string): string {
   return modelSpec(id)?.name ?? id;
 }
+
+/** The year a model is taken to know up to: its own, or the catalogue's earliest for one this build does not know. */
+export function learntUntil(id: string): number {
+  return modelSpec(id)?.learntUntil ?? Math.min(...MODELS.map((m) => m.learntUntil));
+}
+
+/**
+ * What every model is, said one way everywhere (the setup's model row, its sheet, Settings' Model card, and the panel on
+ * a filled blank): the model runs with no internet whatever the phone has, knows nothing newer than its training, and
+ * can be wrong (docs/DESIGN.md §145, onboarding's §146 shares it).
+ */
+export const MODEL_LIMITS = 'The model has no internet. It knows what it learnt in training, nothing newer, and it can be wrong.';
 
 /** Bytes as a person reads them: "2.7 GB". */
 export function gb(bytes: number): string {

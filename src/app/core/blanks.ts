@@ -159,6 +159,8 @@ export interface Asking {
   sentence: string;
   /** The words of that sentence straight before the blank: at most five words. */
   label: string;
+  /** Every word of that sentence before the blank. */
+  before: string;
   /** The words of that sentence straight after it. */
   after: string;
   /**
@@ -241,7 +243,7 @@ export function askingWords(blank: Blank, text: string): Asking {
     else prior = lastSentenceAbove(text, lineStart);
   }
   const words = [blank.question, sentence, prior].filter(Boolean).join(' ');
-  return { question: blank.question, sentence, label, after, prior, text: words };
+  return { question: blank.question, sentence, label, before: tidyWords(beforeBlank), after, prior, text: words };
 }
 
 /** The last sentence of the line above `lineStart`, one empty line between passed over. */

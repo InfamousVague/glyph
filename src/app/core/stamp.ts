@@ -33,3 +33,13 @@ export function clockTime(date: Date): string {
 export function longDay(date: Date): string {
   return new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(date);
 }
+
+/**
+ * "Monday 19 October 2026": the weekday, the day, the month and the year, as a worked-out date is drawn after a blank
+ * (core/fillFacts.ts, docs/DESIGN.md §145). The person's own form, whatever their phone's language writes, since it is
+ * read on this screen and never written into the note. The model is never shown it: its message has fixed English
+ * (ai/fills/message.ts `modelDay`).
+ */
+export function longDate(date: Date): string {
+  return new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date);
+}
