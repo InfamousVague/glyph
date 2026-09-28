@@ -51,9 +51,11 @@ line its words up with its sound, and the undo of recent voice commands.
 A note is one `.md` file named after its title: the first heading, or the first line of words. Characters a
 file name can't hold, or a sync service refuses (`/ \ : * ? " < > |`, and `# ^ [ ]`), are dropped with any bold
 marks, a title longer than 80 characters is cut at a word, an empty one is "Untitled", and a clash gets " 2", " 3"
-(`src-tauri/src/library/names.rs`). The name comes from the first line of the words the page sends, so a canvas or a
-book, whose words open with the page's own front matter, is named from that block's opening `---` rather than from
-its `title:`. When the title changes, the file is renamed. The id in its front matter keeps it the same note wherever it moves.
+(`src-tauri/src/library/names.rs`). The name comes from the first line of the words the page sends, with the page's
+own front matter at their top skipped by the page's rule (`frontMatterEnd`), so a canvas or a book is named by that
+block's `title:`, and a note whose block has none, such as one an AI signed, by its first line under the block. Until
+2026-09-27 all of them were named from the block's opening `---`, as `---.md`, `--- 2.md` and so on; such a file takes
+its name the next time its note is saved. When the title changes, the file is renamed. The id in its front matter keeps it the same note wherever it moves.
 
 **A new note has no file until it has words.** Ghost.md opens a new note the moment + is tapped, but a note
 opened and left empty would be an "Untitled.md" in the folder. Until its first words it is a draft, held in
