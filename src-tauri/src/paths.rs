@@ -147,31 +147,22 @@ mod tests {
 
     /// The names Kotlin resolves on its own. Matched against the source as it
     /// is written, `File(<root>, "<name>")`, so a rename on either side fails
-    /// here rather than on a phone. The meeting files (generation 20) are built
-    /// on their own branch: until they are in this tree their lines print
-    /// SKIPPED and pass, and once they are they bite like the others.
+    /// here rather than on a phone.
     #[test]
     fn the_kotlin_twins_name_the_same_directories() {
         let kotlin = |file: &str| {
             let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("gen/android/app/src/main/java/com/mattssoftware/glyph").join(file);
-            std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))
+            std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
         };
-        for (file, twin, arriving) in [
-            ("files/LibraryDocuments.kt", format!("File(context!!.dataDir, \"{LIBRARY}\")"), false),
-            ("updates/UpdateCheckWorker.kt", format!("File(context.dataDir, \"{OTA}\")"), false),
-            ("MainActivity.kt", format!("File(cacheDir, \"{PICKED}\")"), false),
-            ("MainActivity.kt", format!("File(cacheDir, \"{UPDATES}\")"), false),
-            ("capture/MeetingService.kt", format!("File(dataDir, \"{RECORDINGS}\")"), true),
-            ("recordings/RecordingWorker.kt", format!("File(context.dataDir, \"{JOBS}\")"), true),
+        for (file, twin) in [
+            ("files/LibraryDocuments.kt", format!("File(context!!.dataDir, \"{LIBRARY}\")")),
+            ("updates/UpdateCheckWorker.kt", format!("File(context.dataDir, \"{OTA}\")")),
+            ("MainActivity.kt", format!("File(cacheDir, \"{PICKED}\")")),
+            ("MainActivity.kt", format!("File(cacheDir, \"{UPDATES}\")")),
+            ("capture/MeetingService.kt", format!("File(dataDir, \"{RECORDINGS}\")")),
+            ("recordings/RecordingWorker.kt", format!("File(context.dataDir, \"{JOBS}\")")),
         ] {
-            let source = match kotlin(file) {
-                Ok(source) => source,
-                Err(_) if arriving => {
-                    eprintln!("SKIPPED: gen/android/app/src/main/java/com/mattssoftware/glyph/{file} is not in this tree yet");
-                    continue;
-                }
-                Err(e) => panic!("{e}"),
-            };
+            let source = kotlin(file);
             assert!(source.contains(&twin), "{file} no longer says {twin}");
             assert!(source.contains("paths.rs"), "{file} should name src-tauri/src/paths.rs beside its twin");
         }

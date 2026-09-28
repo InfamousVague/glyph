@@ -74,23 +74,13 @@ fn repo_dir() -> PathBuf {
 
 /// A prompt from any page file under `src/app/`, by the name of its `String.raw` constant.
 fn page_prompt_in(file: &str, name: &str) -> String {
-    page_prompt_if(file, name).unwrap_or_else(|| panic!("{name} is a String.raw literal in {file}"))
-}
-
-/// `page_prompt_in`, for a literal another branch may not have written yet: `None`, said as SKIPPED, when the file
-/// does not declare it that way.
-fn page_prompt_if(file: &str, name: &str) -> Option<String> {
     let source = std::fs::read_to_string(repo_dir().join("src/app").join(file))
         .unwrap_or_else(|_| panic!("{file} is in the repository"));
     // The declaration, not the docblock's mention of `String.raw` above it.
     let opener = format!("{name} = String.raw`");
-    let Some(at) = source.find(&opener) else {
-        eprintln!("SKIPPED: {name} is not a String.raw literal in src/app/{file} yet");
-        return None;
-    };
-    let start = at + opener.len();
+    let start = source.find(&opener).unwrap_or_else(|| panic!("{name} is a String.raw literal")) + opener.len();
     let end = start + source[start..].find('`').expect("the literal closes");
-    Some(source[start..end].trim().to_string())
+    source[start..end].trim().to_string()
 }
 
 /// A spoken note as the recorder writes it: cues applied, no other shape.
@@ -335,14 +325,12 @@ fn the_write_ups_compiled_in_prompts_are_the_pages() {
     use crate::write_up::{fill, prompts, thousands};
     assert_eq!(prompts::SUMMARY, page_prompt("RECORDING_SUMMARY_PROMPT"));
     assert_eq!(prompts::NOTES, page_prompt("RECORDING_NOTES_PROMPT"));
-    if let Some(piece) = page_prompt_if("format/prompt.ts", "PIECE_CONTEXT") {
-        assert_eq!(prompts::PIECE, piece);
-        assert_eq!(fill(&piece, &[("n", "2"), ("m", "5")]), "Part 2 of 5 of one recording.");
-    }
-    if let Some(parts) = page_prompt_if("format/prompt.ts", "NOTES_CONTEXT") {
-        assert_eq!(prompts::PARTS, parts);
-        assert!(fill(&parts, &[("words", &thousands(41_230))]).contains("41,230"));
-    }
+    let piece = page_prompt("PIECE_CONTEXT");
+    assert_eq!(prompts::PIECE, piece);
+    assert_eq!(fill(&piece, &[("n", "2"), ("m", "5")]), "Part 2 of 5 of one recording.");
+    let parts = page_prompt("NOTES_CONTEXT");
+    assert_eq!(prompts::PARTS, parts);
+    assert!(fill(&parts, &[("words", &thousands(41_230))]).contains("41,230"));
     assert_eq!(thousands(41_230), "41,230");
 }
 

@@ -10,7 +10,7 @@
 //! the two must agree line for line, or a body the page re-renders would differ
 //! from the one Rust wrote and every conflict rule downstream would trip. One
 //! fixture, `src/app/capture/paragraphs.fixture.json`, is asserted on both
-//! sides; the test here reads it and skips when it is not in the tree.
+//! sides, and a missing fixture fails the test here as a changed one would.
 //!
 //! Every target, NOT ONE `tauri::` TYPE, and nothing but `note.rs` beside it,
 //! so tools/host-tests compiles it by path with the library.
@@ -327,14 +327,11 @@ mod tests {
         }
     }
 
-    /// The fixture both twins are asserted on, when it is in the tree.
+    /// The fixture both twins are asserted on (capture/markdown.test.ts reads it too).
     #[test]
     fn the_paragraphs_agree_with_the_pages_fixture() {
-        let path = repo_dir().map(|dir| dir.join("src/app/capture/paragraphs.fixture.json"));
-        let Some(source) = path.as_ref().and_then(|path| std::fs::read_to_string(path).ok()) else {
-            eprintln!("SKIPPED: src/app/capture/paragraphs.fixture.json is not in this tree yet");
-            return;
-        };
+        let path = repo_dir().expect("the repository, or GLYPH_REPO_DIR").join("src/app/capture/paragraphs.fixture.json");
+        let source = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         #[derive(serde::Deserialize)]
         struct Case {
             name: String,
