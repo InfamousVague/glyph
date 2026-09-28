@@ -3,12 +3,31 @@
 What to enter in each form, in the order the Console's dashboard lists them for a new app. Every answer says where it
 comes from: the privacy policy (`landing/privacy.html`, live at https://ghostmarkdown.com/privacy.html), the plan
 (`docs/store/PLAY_STORE.md`), the Android manifest, or the code. Read against the app at 1.8.0-20, the meetings work
-on the `meetings/kotlin` branch, and Play's help pages as they read on 2026-09-27 (the data safety page, the testing
+on the `meetings/integrate` branch (2d8890d, 19:01 on 2026-09-27, which merges `meetings/kotlin`, `meetings/page`
+and `meetings/rust`), and Play's help pages as they read on 2026-09-27 (the data safety page, the testing
 requirements page, the graphic assets page, the create-app page and the foreground service page). Where the Console
 words a question differently on the day, its wording wins and the answer stays the same.
 
+One thing these answers were not written for: tagging notes with where they were made, on the `notes/geotag` branch.
+If that is in the bundle, the location permission, the Data safety rows for location and the map it draws from
+openstreetmap.org have to be answered too, and this file read again against it.
+
 Nothing here is a secret. No password, key or token appears in this file, and none should be added to it. A test
 account, if you choose to give reviewers one, is made on the day and typed into the Console alone.
+
+## The developer account
+
+Play Console › Account details, once the account exists. Everything here is asked before an app can be created,
+and two of the answers are shown on every listing.
+
+| Field | Enter |
+|---|---|
+| Account type | Personal or organisation: the first decision in CHECKLIST.md. An organisation needs a D-U-N-S number before the account can be made; a personal account made after 13 November 2023 must run the closed test first. |
+| Identity | Play verifies the legal name and address it takes from the Google Payments profile, an identity document, and the contact email and phone by one-time code, before anything can be published. Only you can do this. |
+| Developer name (public) | Matt Wisniewski. The privacy page says "made by Matt Wisniewski" and the account-deletion page "Ghost.md, by Matt Wisniewski", so the listing matches them. The package's mattssoftware is the other honest answer; pick one and keep it. |
+| Developer email (public) | infamousvaguerat@gmail.com, the address on the privacy page and in the listing's contact details, so a person sees one address everywhere. |
+| Contact email and phone (not public) | Yours. Play writes to the email about policy and reviews. |
+| Digital Services Act trader declaration | Not a trader. The app is free, sells nothing and carries no ads, so nothing is traded. Declaring as a trader puts an address, an email and a phone number on the listing in the EEA. Redo it if the app ever charges. The question sits on the Account details page and the help pages do not print it, so read it there. Until it is answered the app cannot be distributed in the EEA. |
 
 ## Create app
 
@@ -210,23 +229,24 @@ Not asked. The app declares no `READ_MEDIA_IMAGES` or `READ_MEDIA_VIDEO`; pictur
 
 ### Foreground service permissions (1.9.0 only)
 
-1.8.0 has no foreground service, so the form does not appear for it. The 1.9.0 meeting service (`MeetingService.kt`
-on the `meetings/kotlin` branch, commit 909b491 as read on 2026-09-27) records under the **microphone** type, then
-writes the meeting up under **media processing** on Android 15 and later and under **special use** on Android 14,
-where that type does not exist. WorkManager's own foreground service carries the same two write-up types for the
-retry path, and both services name the special use as "Writing up a meeting recording on the device" in the
-manifest. The service also holds a partial wake lock.
+1.8.0 declares no foreground service type (WorkManager's own service is in its manifest with none), so the form does
+not appear for it. The 1.9.0 meeting service (`capture/MeetingService.kt` on `meetings/integrate`, 2d8890d) records
+under the **microphone** type, then writes the meeting up under **media processing** on Android 15 and later and
+under **special use** on Android 14, where that type does not exist. WorkManager's own foreground service carries the
+same two write-up types for the retry path (`recordings/RecordingWorker.kt`), and both services name the special use
+as "Writing up a meeting recording on the device" in the manifest. The service also holds a partial wake lock.
 
 Play asks per type, not per service, once a bundle declaring the types is uploaded. For each type the form wants: a
 description of what the feature does, what happens to the person if the system defers or stops it, a use case
-picked from Play's list (or written in when none fits), and a link to a video showing it. Read the built service
-before pasting: docs/DESIGN.md §127 sections 3, 4 and 5 were still headed "To come" when this was written, and the
-page's way of starting a meeting is not on main, so check the word the app uses for it.
+picked from Play's list (or written in when none fits), and a link to a video showing it. The branch was still
+moving when this was written, so read it again before pasting. On it a meeting is started by hand, from Meeting on
+the + sheet ("Record a meeting. The screen can go off. It is written up afterwards.") or Meeting instead on the
+recorder's Things to say card.
 
 | Type | Description to paste | If the system stops it |
 |---|---|---|
-| Microphone | Records a meeting the person started by hand in the app. The screen can go off and the app can be left; the recording carries on, and a notification shows the whole time, reading Recording with the elapsed time and offering Stop and Discard. After two hours it asks whether to keep going. The microphone is open for that recording and nothing else. | The recording ends where it stopped. The tape and its words are kept, and the note says so. |
-| Media processing | After the meeting is stopped, the recording is transcribed and summarised on the device, in the same service, with progress in the same notification: Writing up, then Listening to the recording with a percentage, then the summary. Nothing leaves the phone. When it is done a notification reads Written up with the note's title and the first line of the summary; on the lock screen it says only that a recording was written up. | The write-up resumes when the app is next opened, or from Write up now on the Tapes shelf. |
+| Microphone | Records a meeting the person started by hand in the app, from Meeting on the + sheet. The screen can go off and the app can be left; the recording carries on, and a notification shows the whole time, reading Recording with the elapsed time and offering Stop and Discard. After two hours it asks whether to keep going. Five minutes with no answer, or four hours in all, and it stops on its own. The microphone is open for that recording and nothing else. | The recording ends where it was cut and the audio is kept. The next launch finishes the meeting and writes it up. |
+| Media processing | After the meeting is stopped, the recording is transcribed and summarised on the device, in the same service, with progress in the same notification: Writing up, then Listening to the recording with a percentage, then Summarizing. Nothing leaves the phone. Under the default setting (Settings › Recording › Meetings › Write up: When charging or above half), a meeting stopped with the battery under half and no charger waits for the charger, and the Tapes shelf says Waiting to charge, with Write up now to run it at once. When it is done a notification reads Written up with the note's title and the first line of the summary; on the lock screen it says only that a recording was written up. | The write-up is picked up again by WorkManager's retry, or at the next launch. After three failed tries the Tapes shelf offers Try again. |
 | Special use | The same write-up of a meeting recording on Android 14, where the media processing type does not exist. | As above. |
 
 The use case from Play's list: for the microphone, the nearest to voice recording or background audio recording; for
@@ -237,7 +257,9 @@ under the title. An unlisted YouTube link is what the form takes. Only you can r
 ## The permissions the manifest declares
 
 For the record, from `src-tauri/gen/android/app/src/main/AndroidManifest.xml` with
-`src-tauri/gen/android/app/src/store/AndroidManifest.xml` merged over it by `GLYPH_STORE=play`.
+`src-tauri/gen/android/app/src/store/AndroidManifest.xml` merged over it by `GLYPH_STORE=play`, and what the
+libraries add. Play reads the merged manifest, not the source ones, so a bundle's real list is Test and release › App
+bundle explorer › Permissions, and it is that list a reviewer's question comes from.
 
 | Permission | Why it is there |
 |---|---|
@@ -245,7 +267,8 @@ For the record, from `src-tauri/gen/android/app/src/main/AndroidManifest.xml` wi
 | RECORD_AUDIO, MODIFY_AUDIO_SETTINGS | Voice notes. Asked for at the first recording. |
 | POST_NOTIFICATIONS | Update alerts, off until switched on in Settings. In 1.9.0, the meeting's notification too. |
 | REQUEST_INSTALL_PACKAGES | Removed from the Play build. |
-| 1.9.0: FOREGROUND_SERVICE, FOREGROUND_SERVICE_MICROPHONE, FOREGROUND_SERVICE_MEDIA_PROCESSING, FOREGROUND_SERVICE_SPECIAL_USE, WAKE_LOCK | The meeting service. |
+| From libraries, in every build: WAKE_LOCK, ACCESS_NETWORK_STATE, RECEIVE_BOOT_COMPLETED, FOREGROUND_SERVICE, VIBRATE | WorkManager (2.9.1) declares the first four; it runs the update check and, in 1.9.0, the write-up's retry. Its own foreground service names no type, so the foreground-service form is not asked of a 1.8.0 bundle. The haptics plugin declares VIBRATE. |
+| 1.9.0: FOREGROUND_SERVICE_MICROPHONE, FOREGROUND_SERVICE_MEDIA_PROCESSING, FOREGROUND_SERVICE_SPECIAL_USE | The meeting service's three types, which is what the foreground-service form asks about. |
 
 No SMS, call log, location, contacts, all-files or accessibility permission, so the sensitive-permissions
 declaration does not apply. Two things in the manifest can draw a reviewer's eye and are explained in the App access
@@ -261,4 +284,4 @@ Test and release › Testing › Closed testing, or Test and release › Product
 | App bundle | `app-universal-release.aab`, built and signed as CHECKLIST.md says. |
 | Release name | Play fills it from the bundle (the version name and code). Leave it. |
 | Release notes | The block in `copy/whats-new.md`, in the en-GB box. |
-| Countries and regions | All, or your choice. Set once under the track's Countries/regions tab. |
+| Countries and regions | All, or your choice. Set once under the track's Countries/regions tab. Distribution in the EEA waits on the trader declaration under Account details. |

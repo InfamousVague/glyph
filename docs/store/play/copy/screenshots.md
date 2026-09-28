@@ -1,39 +1,46 @@
 # The screenshots
 
 Every picture in `screenshots/` is one real screen of the web build of the app at main (1.8.0-20), taken in headless
-Chromium over an invented library. Nobody in it is real: Sam, Ana and Ali are first names and nothing more, the call
-and the standup never happened, and every number is made up. The seeded notes are Weekend trip, House TODOs,
+Chromium over an invented library, with the browser's clock set to Monday 28 September 2026 so that the Monday
+standup was held on a Monday and the home page's date agrees with it. Nobody in it is real: Sam, Ana and Ali are first
+names and nothing more, the call and the standup never happened, and every number is made up. The seeded notes are Weekend trip, House TODOs,
 Groceries, Flat, Reading list, Planning call with Sam, Monday standup, Ideas on the walk, Launch week, the Portugal
 book with its three pages, and the Cabin weekend canvas.
 
 Above each screen sits a kicker in the app's eyebrow style and one caption in the app's interface face (Inter, with
 the app's own cv11 and ss01), in the app's ink on the app's paper: gray-12 on gray-1 from `src/app/ink.css`, the
-third ink for the kicker. No device frame. The band is 380 px of the phone's 1920 (19.8 percent) and 280 of the
-tablet's 1440 (19.4 percent), under the fifth Play allows for a tagline. Seven words at most, in the app's own words.
+third ink for the kicker. No device frame. The band is 380 px of the phone's 1920 (19.8 percent), 280 of the
+tablet's 1440 (19.4 percent) and 420 of the Fold's 2176 (19.3 percent), under the fifth Play allows for a tagline.
+Seven words at most, in the app's own words. The screen runs off the foot of the picture, and its last 90 px (100 on
+the Fold's, 70 on the tablet's) fade to the paper, so a line the edge cuts through fades out instead of ending
+sliced. The three recorder pictures end on the recorder's own empty background under Done and have no fade.
 
 Every file is a 24-bit PNG with no alpha, which is what Play's preview assets page asks for, and `../shots/verify.mjs`
 reads each one back with pngjs and prints its pixels and whether it carries alpha.
 
 ## Phone, to upload
 
-`screenshots/phone/`, 1080 × 1920 (9:16), the dark theme. Play shows the first two or three in a search result, so
-the recorder is first and Hey Ghost second, and the order follows the listing's sections.
+`screenshots/phone/`, 1080 × 1920 (9:16), the dark theme, which is the whole listing's: the tablet set and the
+feature graphic are dark too. Play shows the first two or three in a search result, so the recorder is first and Hey
+Ghost second, and the order follows the listing's sections.
 
 | # | File | The screen | What the seed puts on it | Caption |
 |---|---|---|---|---|
 | 1 | `01-speak.png` | The recorder sixteen seconds into a new note, the words laid out as they were said, a tip on the foot | "Saturday at the market" as the title, "Before we go" as a heading, a to-do with its box, two bullets and a plain line, said with the cues (heading, remember to, bullet point, next point) and the cues taken out | Say it. It lands as Markdown. |
-| 2 | `02-hey-ghost.png` | The recorder after "Hey Ghost, add a note to House TODOs": the top line reads Adding to "House TODOs" with Not this note beside it, and the two sentences said next sit under Electrical as to-dos | House TODOs with its headed lists (Electrical, Kitchen, Garden); the words "Call an electrician about the light sockets" and "And check the fuse box while they are here" landed as two boxes | Name the note. The words go there. |
+| 2 | `02-hey-ghost.png` | The recorder after "Hey Ghost, add a note to House TODOs": the top line reads Adding to "House TODOs" with Not this note beside it, and the two sentences said next sit under Electrical as to-dos, the view scrolled so the heading sits clear of the top edge | House TODOs with its two headed lists (Electrical, Kitchen); the words "Call an electrician about the light sockets" and "And check the fuse box while they are here" landed as two boxes | Name the note. The words go there. |
 | 3 | `03-tapes.png` | A spoken note open: the tape at the top with its counter, Play, Add and Remove, the Work chip, then the title and the Summary section | Planning call with Sam, a 25:10 tape, a one-line Summary, two items, a Decided line | Every recording keeps its tape. |
 | 4 | `04-the-review.png` | After Done: the note with the review's strip across the top (Reviewed, Keep all, Undo) and one marked change, the old line struck through and the new one tinted, with Keep and Revert under it | Notes from the bug bash, a 0:13 tape; "seat bar" heard again as "seek bar" | After Done, the phone reads it through. |
 | 5 | `05-a-meeting.png` | A meeting written up: a long tape at the top, the title, the Summary with who has what and what was decided | Monday standup, a 12:40 tape, its Summary (Ana's post by Wednesday, Ali's form, the beta closing on the 28th) | Screen off. Written up when it ends. |
-| 6 | `06-the-marks.png` | A typed note scrolled to its marks: a counted list, a highlight, a spoiler in smoke, the ## mark dimmed on a heading, a table and a quote | Weekend trip: Bottles of water [3/8], ==cabin key== highlighted, ||under the third stone|| hidden, the Who brings what table, the quote | Plain Markdown, with marks of its own. |
+| 6 | `06-the-marks.png` | A typed note scrolled to its marks: to-dos with their boxes, a counted list, a highlight, a spoiler in smoke, the ## mark dimmed on a heading, and a table | Weekend trip: the Before we go list ending on Bottles of water [3/8], ==cabin key== highlighted, ||under the third stone|| hidden, the Who brings what table | Plain Markdown, with marks of its own. |
 | 7 | `07-a-board.png` | A board: columns drawn from the fence, cards with their boxes, the first column full | Launch week: This week with three cards, Waiting on Sam beside it | A list can be a board. |
-| 8 | `08-home.png` | The home page: the date, the count of to-dos open, the workspace chips, Pinned with its card, the To do list starting under it, the dock | The whole seed, the Weekend trip pinned | Your day on one page. |
+| 8 | `08-home.png` | The home page: Monday 28 September, the count of to-dos open, the workspace chips, Pinned with its card, the To do list starting under it, the dock | The whole seed, the Weekend trip pinned | Your day on one page. |
 
 **Picture 4** is the app's real review screen. In a browser the two models are played by a script (`?review`,
 `src/app/ai/reviewSimulation.ts`): the slower speech model "hears" seat bar as seek bar, and the language model's
 thought is fixed text. On a phone with the models installed the same screen shows what those models found. Nothing
-on the picture says a word about the script, and nothing on it is drawn that the app would not draw.
+on the picture says a word about the script, and nothing on it is drawn that the app would not draw. The strip's
+label reads "Reviewed ...": at a phone's width the app shortens it to make room for Keep all and Undo, and the picture
+shows it as the app draws it.
 
 **Picture 5** is 1.9.0's, since meetings that record with the screen off are that release's. The screen itself is
 1.8.0's spoken note with a summary, which is what a written-up meeting looks like. For a 1.8.0 build, put
@@ -46,7 +53,7 @@ on the picture says a word about the script, and nothing on it is drawn that the
 | # | File | The screen | Caption |
 |---|---|---|---|
 | 9 | `09-the-tapes-shelf.png` | The home page scrolled to the Tapes shelf: two cassettes with their titles and first lines, then the Library with the Portugal book and its three pages | Your recordings, on a shelf. |
-| 10 | `10-a-canvas.png` | The Cabin weekend canvas fitted to the phone's screen: the group, six cards, lines with words on them, the minimap | Cards on a canvas, lines between them. |
+| 10 | `10-a-canvas.png` | The Cabin weekend canvas zoomed to its Before we go group and the Weekend trip file card under it, where a card's words can be read: four cards in the group, the file card, lines with words on them, the minimap | Cards on a canvas, lines between them. |
 | 11 | `11-things-to-say.png` | The recorder before the first word: Start talking, the listening ghost, and the Things to say card | Things to say, before the first word. |
 | 12 | `12-a-spoken-note.png` | Ideas on the walk: a 3:05 tape, a highlight, a to-do and a bullet said with the cues | Said on a walk. The tape stays. |
 
@@ -54,7 +61,8 @@ on the picture says a word about the script, and nothing on it is drawn that the
 
 `screenshots/phone-light/` and `phone-light/spares/` are the same twelve pictures in the light theme, the same names
 and sizes, the caption in dark ink on white paper. Play takes one set per slot; the dark one is the app's default and
-the one to upload unless the listing should read light.
+the one to upload unless the listing should read light, in which case the tablet set and the feature graphic go light
+with it (`tablet-16x9-light/`, `graphics/spares/feature-1024x500-light.png`).
 
 ## Tablet, to upload
 
@@ -67,7 +75,7 @@ library) under the band. The same four files go into both tablet slots, the 7-in
 |---|---|---|---|
 | 1 | `01-home.png` | The home page beside the docked sidebar: the date, the chips, Pinned, the sidebar's Work and Home notes | Your day, with the sidebar docked. |
 | 2 | `02-a-tape.png` | Planning call with Sam beside the sidebar: the tape, Play, the title, the Summary | The note, the tape, the summary. |
-| 3 | `03-a-canvas.png` | Cabin weekend, laid out: the group, the cards, the lines with words on them | Cards on a canvas, lines between them. |
+| 3 | `03-a-canvas.png` | Cabin weekend, laid out: the group, the cards with their words whole, the flowchart, the lines with words on them | Cards on a canvas, lines between them. |
 | 4 | `04-a-book.png` | Portugal in Read, its Index and page chips, the Book index aside on the right | A book, read straight through. |
 
 `tablet-16x9/spares/` holds `05-a-board.png` (Launch week as a board) and `06-a-meeting.png` (Monday standup with its
@@ -76,9 +84,11 @@ tape and Summary), swaps and not additions. `tablet-16x9-light/` is the same six
 ### The Fold opened out
 
 `screenshots/tablet/` and `tablet-light/` are the same six screens at the Fold's inner shape, 1812 × 2176 (a 906 ×
-1088 viewport at a scale of 2, the sidebar docked). That is near square, not 9:16, so the tablet slots may refuse
-it; it is kept because it is what the app looks like on Matt's own phone, for the landing page or a post, and for the
-day Play's slots take a squarer shape.
+1088 viewport at a scale of 2, the sidebar docked), the band 420 px of 2176. That is near square, not 9:16, so the
+tablet slots may refuse it; it is kept because it is what the app looks like on Matt's own phone, for the landing page
+or a post, and for the day Play's slots take a squarer shape. Its canvas picture is the whole board, which on a
+near-square screen is a wide strip across the middle: the canvas is wider than it is tall, and the picture is honest
+about it.
 
 ## The plain set, with no caption
 
@@ -95,15 +105,25 @@ Everything is under `../shots/`, beside the pack, and runs against `vite preview
 
 - `seed.mjs` is the invented library, written into localStorage before the page's scripts run, the way the app's tests
   seed a store: the notes, the gists under the cards, two workspaces, the theme, and the flags that say the walkthrough,
-  the sample note and the Academy's card have been seen.
+  the sample note and the Academy's card have been seen. The canvas's cards are as tall as their words need at the
+  whole board's fit, where a card's type is larger against its box than when zoomed in. Its clock is pinned to Monday 28 September 2026 at ten in the
+  morning, London time, and the shoot scripts hand the browser the same instant (Playwright's `clock.install`, from
+  which time runs on), so the date on the home page and every "2 hr ago" agree with the seeded notes.
 - `shoot.mjs` takes the raw screens into `screenshots/raw/` as `phone-<scene>-<theme>.png` (a 412 × 733 viewport at
   1080/412, cropped to 1080 × 1920) and `fold-<scene>-<theme>.png` (906 × 1088 at 2). The recorder scenes use the
   app's simulated engine (`?simulate=say&say=...`, `src/app/capture/simulated.ts`) so the words arrive as they would
   from a microphone; the review scene adds `&review` and taps Done. Each scene waits for the home page's dock, then
-  for the words to settle before the shot.
+  for the words to settle before the shot. The three recorder scenes are shot on a phone 680 css px tall and padded
+  below with the screen's own background, so the Done pill sits whole above the composed picture's foot instead of
+  being sliced by it. An editor's top edge turns the line under it to smoke, which a still shows smeared, so the
+  scenes that scroll put a gap there: the marks scene scrolls the note 320 px, which hides the Before we go heading
+  under the tab bar and leaves the blank line after it in the smoke, and the Hey Ghost scene sets the recorder 95 px
+  from its top once the words are in, so Electrical sits clear of the edge. The phone's canvas scene zooms to the
+  Before we go group and the file card under it after the fit, the way a pinch would, and centres them in what the
+  composed picture keeps of the screen; the Fold's fills the screen's width with the board.
 - `shoot-tablet.mjs` is the same for the landscape tablet, `tablet-<scene>-<theme>.png` at 2400 × 1350.
-- `compose.mjs` and `compose-tablet.mjs` draw each raw screen under its caption through `../dist/compose/frame.html`
-  and write the finals as 24-bit PNG with no alpha. `plain.mjs` writes the uncaptioned twins.
+- `compose.mjs` and `compose-tablet.mjs` draw each raw screen under its caption through `../dist/compose/frame.html`,
+  with the fade at the foot, and write the finals as 24-bit PNG with no alpha. `plain.mjs` writes the uncaptioned twins.
 - `verify.mjs` reads every final back and prints its pixels, its alpha and its size on disk.
 
 To shoot again after the app changes: build main into `../dist`, serve it with `vite preview`, then `node shoot.mjs`,

@@ -27,6 +27,21 @@ the app and on the web, the privacy and account-deletion pages, targetSdk 36 and
    `grep -ril "password=\|token=\|BEGIN PRIVATE" docs/store/play/` finds nothing but the placeholder lines in
    this file.
 
+## 0. The developer account
+
+**You.** Everything here comes before Create app, and the Console will not let an app be published until it is
+done. The answers are in `forms.md` › The developer account.
+
+1. Register the account if there is none (play.google.com/console, the one-time fee), as personal or organisation:
+   decision 1 above. An organisation needs a D-U-N-S number before the account can be made.
+2. Verify identity: Play takes the legal name and address from the Google Payments profile, asks for an identity
+   document, and confirms the contact email and phone by one-time code.
+3. Account details: the public Developer name (`forms.md` says Matt Wisniewski, the name on the privacy page) and the
+   public developer email (infamousvaguerat@gmail.com, the same as the listing and the privacy page). Both are shown
+   on every listing.
+4. The Digital Services Act trader declaration, on the same page: not a trader, while the app is free and sells
+   nothing. Nothing can be distributed in the EEA until it is answered.
+
 ## 1. Create app
 
 **You.** Play Console › All apps › Create app. The answers are in `forms.md` › Create app: Ghost.md, English (United
@@ -78,8 +93,8 @@ Store presence › Main store listing. **Done: every field has a file.** Paste e
 | Short description | `copy/listing.md` › Short description (the first block; the second is a spare) |
 | Full description | `copy/listing.md` › Full description. Read its two conditions first: the MEETINGS section is 1.9.0's, and the one emoji is the heat effect's own syntax. |
 | App icon | `graphics/icon-512.png`, 512 × 512, 32-bit PNG with every pixel opaque, 594 KB: the app's own icon (`src-tauri/icons/icon.png`, re-encoded). Play draws its own rounded mask over it. `graphics/icon-512-preview.md` says where it came from. |
-| Feature graphic | `graphics/feature-1024x500.png`, 1024 × 500, 24-bit PNG with no alpha: the listening ghost on ruled paper beside the wordmark and the line "Notes you say or type." `copy/feature-graphic.md` is the design and `graphics/feature-1024x500-preview.md` says how it was made. The two files in `graphics/spares/` (the waving ghost, and a dark version) are swaps, not uploads. |
-| Phone screenshots | Eight, in this order, from `screenshots/phone/`: `01-speak.png`, `02-hey-ghost.png`, `03-tapes.png`, `04-the-review.png`, `05-a-meeting.png`, `06-the-marks.png`, `07-a-board.png`, `08-home.png`. 1080 × 1920 (9:16), 24-bit PNG with no alpha, each a real screen under its caption on the app's paper, the dark theme. `copy/screenshots.md` says what each shows and its caption. Play takes at most eight; the four in `screenshots/phone/spares/` (`09-the-tapes-shelf.png`, `10-a-canvas.png`, `11-things-to-say.png`, `12-a-spoken-note.png`) are swaps, not additions. `screenshots/phone-light/` is the same twelve in the light theme, should the listing read light. |
+| Feature graphic | `graphics/feature-1024x500.png`, 1024 × 500, 24-bit PNG with no alpha: the listening ghost on ruled paper beside the wordmark and the line "Notes you say or type.", in the dark theme on the same #040404 paper as the screenshots, because the screenshots below are the dark theme and the listing is one theme throughout. `copy/feature-graphic.md` is the design and `graphics/feature-1024x500-preview.md` says how it was made. The two files in `graphics/spares/` are swaps, not uploads: `feature-1024x500-light.png` goes with the `-light` screenshot sets if the listing is made light instead, and `feature-1024x500-waving.png` is the other ghost. |
+| Phone screenshots | Eight, in this order, from `screenshots/phone/`: `01-speak.png`, `02-hey-ghost.png`, `03-tapes.png`, `04-the-review.png`, `05-a-meeting.png`, `06-the-marks.png`, `07-a-board.png`, `08-home.png`. 1080 × 1920 (9:16), 24-bit PNG with no alpha, each a real screen under its caption on the app's paper, the dark theme, which is the theme of the whole listing (the tablet set and the feature graphic are dark too). `copy/screenshots.md` says what each shows and its caption. Play takes at most eight; the four in `screenshots/phone/spares/` (`09-the-tapes-shelf.png`, `10-a-canvas.png`, `11-things-to-say.png`, `12-a-spoken-note.png`) are swaps, not additions. `screenshots/phone-light/` is the same twelve in the light theme, should the listing read light. |
 | 7-inch tablet screenshots | From `screenshots/tablet-16x9/`: `01-home.png`, `02-a-tape.png`, `03-a-canvas.png`, `04-a-book.png`. 2560 × 1440 (16:9), 24-bit PNG with no alpha, the landscape screen with the sidebar docked under its caption. Play's preview assets page asks for 16:9 or 9:16 in the tablet slots, with sides between 1080 and 7680 px, which this is. `tablet-16x9/spares/` holds `05-a-board.png` and `06-a-meeting.png` as swaps, and `tablet-16x9-light/` the same six in light. |
 | 10-inch tablet screenshots | The same four files. Both tablet slots take the same shape, so upload the set twice. Do not upload `screenshots/tablet/`, the Fold opened out at 1812 × 2176: it is near square, not 9:16, and is kept for the landing page and for the day the slots take that shape. |
 | Video | None. |
@@ -87,9 +102,9 @@ Store presence › Main store listing. **Done: every field has a file.** Paste e
 Save, then read the preview on the right of the page as a phone would show it: the first two or three screenshots
 and the short description are what a search result shows.
 
-**The screenshots, as they stand on 2026-09-27 at 18:40.** Every picture named above is in the pack folder, and
-`node ../shots/verify.mjs` read each one back with pngjs: the phone sets at 1080 × 1920, the tablet sets at 2560 ×
-1440, none with alpha, none over 620 KB. Run it again before the day; its last line should say every final fits Play.
+**The screenshots, as they stand on 2026-09-27 at 22:30.** Every picture named above is in the pack folder, and
+`node ../shots/verify.mjs` read all 84 back with pngjs: the phone sets at 1080 × 1920, the tablet sets at 2560 ×
+1440, none with alpha, none over 640 KB (the largest to upload is 454 KB). Run it again before the day; its last line should say every final fits Play.
 If Play's review turns a captioned picture down for the words above the screen, `screenshots/plain/` (dark) and
 `screenshots/plain-light/` hold every picture with no caption and no frame under the same names, `phone/` at 1080 ×
 1920 and `tablet/` at 2400 × 1350: swap the one turned down for its plain twin and resubmit. The listing can be edited
@@ -98,9 +113,11 @@ after publishing. An older set of real screens at 1.8.0-20 is in `../old-pack/` 
 ## 5. The upload key and the bundle
 
 1. **You: make the upload key.** Every APK so far is signed with Android's debug certificate, which Play refuses.
+   Use the JDK the build runs under (`npm run android:build` sets JAVA_HOME to openjdk@17), not the bare `keytool`,
+   which is Apple's stub and hands off to whichever JDK it finds:
 
    ```
-   keytool -genkeypair -v -keystore ~/.config/glyph/play-upload.keystore -alias upload -keyalg RSA -keysize 4096 -validity 10000
+   /opt/homebrew/opt/openjdk@17/bin/keytool -genkeypair -v -keystore ~/.config/glyph/play-upload.keystore -alias upload -keyalg RSA -keysize 4096 -validity 10000
    ```
 
    It asks for a keystore password, a key password and a name. Then write a second signing file, which
@@ -127,8 +144,10 @@ after publishing. An older set of real screens at 1.8.0-20 is in `../old-pack/` 
    its signer is the new key and not the debug one:
 
    ```
-   keytool -printcert -jarfile src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab | grep Owner
+   /opt/homebrew/opt/openjdk@17/bin/keytool -printcert -jarfile src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab | grep Owner
    ```
+
+   The debug key prints `CN=Android Debug`; the new one prints the name you typed.
 
    Two things to know about versions. Play needs a higher version code on every upload, and Tauri makes the code from
    the version in `src-tauri/tauri.conf.json` (1.8.0 is 1008000, as `src-tauri/gen/android/app/tauri.properties`
@@ -140,6 +159,7 @@ after publishing. An older set of real screens at 1.8.0-20 is in `../old-pack/` 
 ## 6. Test and release › Testing, then Production
 
 1. **You: choose countries.** Under the track, Countries/regions › Add countries/regions. All, or your choice.
+   Distribution in the EEA waits on the trader declaration in step 0.
 
 2. **You: closed testing** (a personal account must; an organisation account may go straight to 3). Test and
    release › Testing › Closed testing › Create track (call it "Alpha" or whatever you like) › Create new release.
@@ -152,8 +172,9 @@ after publishing. An older set of real screens at 1.8.0-20 is in `../old-pack/` 
    - After fourteen days: Dashboard › Apply for production access, three short sections about the test, the app and
      whether it is ready. Google says it answers within about seven days.
 
-3. **You: production.** Test and release › Production › Create new release. The same bundle and the same notes. Roll
-   out.
+3. **You: production.** Test and release › Closed testing › the release › Promote release › Production. The bundle
+   and the notes come with it; nothing is uploaded again, and Play would refuse a second upload of the same version
+   code anyway. A new bundle is needed only if the app changed, and then it is a version bump. Roll out.
 
 4. **Read the pre-launch report** once the bundle has been processed (Test and release › Pre-launch report): Play runs
    the app on its own devices and lists crashes, accessibility notes and what it saw.
@@ -183,7 +204,7 @@ after publishing. An older set of real screens at 1.8.0-20 is in `../old-pack/` 
 | `graphics/icon-512.png` | The icon, 512 × 512 |
 | `graphics/feature-1024x500.png` | The feature graphic, 1024 × 500 |
 | `graphics/icon-512-preview.md`, `graphics/feature-1024x500-preview.md` | Where each graphic came from and how it was checked |
-| `graphics/spares/` | Two other feature graphics, not for upload unless chosen instead |
+| `graphics/spares/` | The light feature graphic (for a light listing) and the waving ghost, not for upload unless chosen instead |
 | `screenshots/phone/01-speak.png` to `08-home.png` | The eight phone screenshots, dark, captioned |
 | `screenshots/phone/spares/` | Four phone pictures to swap in, not to add |
 | `screenshots/phone-light/`, with `spares/` | The same twelve in the light theme |
