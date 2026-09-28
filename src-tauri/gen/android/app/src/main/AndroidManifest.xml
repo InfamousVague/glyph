@@ -32,11 +32,22 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
+      Where a note was written (Settings › Location, and a note's Add my location). Nothing asks for the
+      position until the person taps one of those, or makes a new note with tagging on. The runtime prompt is
+      raised by the generated RustWebChromeClient when the page first asks, and a request for a permission the
+      manifest does not declare is silently denied. Both, so Android 12+ can offer Approximate.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!--
       No Android TV: Tauri's template declared leanback and a TV launcher entry,
       and a store reviews an app that claims TV as a TV app (it has no banner, no
       remote navigation, and nothing to record on a TV).
     -->
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <!-- Nor does a note need a position to be written: a phone with no location hardware still lists the app. -->
+    <uses-feature android:name="android.hardware.location" android:required="false" />
 
     <application
         android:icon="@mipmap/ic_launcher"

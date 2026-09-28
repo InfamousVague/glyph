@@ -200,7 +200,11 @@ pub use install::peek;
 /// 19: revision-checked note create and update (`create_note`, `update_note`), guarded command mutation and its
 /// undo (`apply_command_mutation`, `undo_command_mutation`, `latest_command_mutation`), and constrained on-device
 /// instruction inference (`ai_infer_command`), for voice commands read from a finished recording.
-pub const NATIVE_GENERATION: u32 = 19;
+///
+/// 20: `geocode_place`, a tagged note's place name asked of Nominatim with the app's own User-Agent; the Android
+/// manifest's location permissions and the activity's `locationAccess`, `requestLocation` and
+/// `openLocationSettings`; the opener's `geo:` scope, so a tapped map opens the maps app (docs/DESIGN.md §134).
+pub const NATIVE_GENERATION: u32 = 20;
 
 /// What the page built from THIS tree needs. vite.config.ts reads this line
 /// with a regex and stamps it into `ota.json`, so keep it a literal. Nothing in

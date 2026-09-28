@@ -52,6 +52,9 @@ src-tauri/gen/android/**
 !src-tauri/gen/android/app/src/store/**
 !src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/files/
 !src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/files/**
+# Where a note was written: the location permission's state and ask (native generation 20).
+!src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/location/
+!src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/location/**
 !src-tauri/gen/android/app/src/main/res/
 !src-tauri/gen/android/app/src/main/res/xml/
 !src-tauri/gen/android/app/src/main/res/xml/glyph_*.xml

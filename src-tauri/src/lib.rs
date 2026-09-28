@@ -64,6 +64,9 @@ mod notion;
 // A web page's title and summary for the card under a link, which the page
 // cannot read cross-origin either.
 mod link_preview;
+// The name of the place a tagged note was written, asked of Nominatim as the
+// app, since the page cannot name itself to it. See its header.
+mod geocode;
 // Links that open the app, ghostmd://, kept until the page takes them.
 mod links;
 
@@ -150,6 +153,7 @@ pub fn run() {
             commands::sync_put_file,
             commands::library_reveal,
             link_preview::link_preview,
+            geocode::geocode_place,
             links::links_take,
             images::save_image,
             images::save_image_data,

@@ -7,10 +7,18 @@
   The Mac records through the WebView's getUserMedia (capture/audio.ts), and macOS refuses the microphone to an app
   that does not say why it wants it - the ad-hoc desktop builds before this had no such line, so Speak could not have
   worked on a Mac. The words match the phone's, since it is the same promise.
+
+  Location, in the same voice, for the day the Mac asks CoreLocation where it is (core/location.ts says why its
+  WebView cannot today): the strings are here already, so that follow-up is Rust alone. No entitlement: the app is not
+  sandboxed.
 -->
 <plist version="1.0">
 <dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Glyph uses the microphone only while you are recording, to turn what you say into a note.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Ghost.md uses your location only when you tag a note with where it was written.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>Ghost.md uses your location only when you tag a note with where it was written.</string>
 </dict>
 </plist>

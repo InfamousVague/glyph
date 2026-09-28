@@ -33,6 +33,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.exifinterface.media.ExifInterface
+import com.mattssoftware.glyph.location.LocationAccess
 import org.json.JSONObject
 import java.io.FileOutputStream
 import java.util.Locale
@@ -267,6 +268,11 @@ class MainActivity : TauriActivity() {
 
   override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
     super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+    // Location's own answer (location/LocationAccess.kt, native generation 20): the page reads the state again.
+    if (requestCode == LocationAccess.REQUEST) {
+      webView?.let { wv -> runOnUiThread { wv.evaluateJavascript("window.__glyph && window.__glyph.location && window.__glyph.location()", null) } }
+      return
+    }
     if (requestCode != REQUEST_NOTIFICATIONS) return
     webView?.let { wv ->
       runOnUiThread { wv.evaluateJavascript("window.__glyph && window.__glyph.alerts && window.__glyph.alerts()", null) }
@@ -544,6 +550,14 @@ class MainActivity : TauriActivity() {
     /** `Build.MANUFACTURER`, e.g. "samsung", so the guide shows that maker's side-key steps. */
     @JavascriptInterface
     fun deviceMaker(): String = Build.MANUFACTURER ?: ""
+
+    // Location (native generation 20): whether the app may know where the phone is, and the ask; location/LocationAccess.kt.
+    @JavascriptInterface
+    fun locationAccess(): String = LocationAccess.state(this@MainActivity)
+    @JavascriptInterface
+    fun requestLocation() { runOnUiThread { LocationAccess.request(this@MainActivity) } }
+    @JavascriptInterface
+    fun openLocationSettings(): Boolean = LocationAccess.openSettings(this@MainActivity)
 
     /**
      * Hand a downloaded APK to Android's package installer.
