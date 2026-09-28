@@ -187,7 +187,7 @@ class VideoWidget extends WidgetType {
     return Math.min(window.innerHeight * 0.6, (window.innerWidth - 3 * rem) * shape) + 3 * rem;
   }
 
-  toDOM(): HTMLElement {
+  toDOM(view: EditorView): HTMLElement {
     const { poster, video, ms } = this.film;
     const length = ms === null ? '' : lengthText(ms);
     const card = document.createElement('div');
@@ -199,8 +199,18 @@ class VideoWidget extends WidgetType {
     still.className = styles.poster ?? '';
     still.alt = length ? `A video of ${length}` : 'A video';
     still.decoding = 'async';
+    /*
+     * The poster arrives a moment after the card is laid out, and the card grows to its size then. A film just added
+     * leaves the caret on the line under its card, which the growing card would push out of sight: kept in sight here,
+     * while the note has the focus, as the insert's own scroll meant it to be.
+     */
     const learn = () => {
       if (still.naturalWidth) rememberShape(poster, still.naturalWidth, still.naturalHeight);
+      if (!view.hasFocus || !card.isConnected) return;
+      const head = view.state.selection.main.head;
+      const at = view.posAtDOM(card);
+      if (view.state.doc.lineAt(head).number !== view.state.doc.lineAt(at).number + 1) return;
+      view.dispatch({ effects: EditorView.scrollIntoView(head, { y: 'nearest', yMargin: 56 }) });
     };
     still.addEventListener('load', learn);
     const draw = () => {

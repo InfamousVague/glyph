@@ -225,6 +225,25 @@ describe('playing', () => {
   });
 });
 
+describe('a film just added', () => {
+  it('keeps the caret under its card in sight as the poster arrives, while the note has the focus', () => {
+    const view = mount(`${LINE}\n`, 'play', LINE.length + 1);
+    const dispatch = vi.spyOn(view, 'dispatch');
+    const poster = cards(view)[0]!.querySelector('img')!;
+    poster.dispatchEvent(new Event('load'));
+    expect(dispatch).not.toHaveBeenCalled();
+    vi.spyOn(view, 'hasFocus', 'get').mockReturnValue(true);
+    poster.dispatchEvent(new Event('load'));
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    // The caret anywhere else is the person's to scroll to.
+    view.dispatch({ selection: { anchor: 0 } });
+    dispatch.mockClear();
+    poster.dispatchEvent(new Event('load'));
+    expect(dispatch).not.toHaveBeenCalled();
+    view.destroy();
+  });
+});
+
 describe('the film’s line', () => {
   it('reads as its words off the caret’s line, and as written on it while the note is being written', () => {
     const view = mount(`Harbour\n${LINE}`, 'play', 0);
