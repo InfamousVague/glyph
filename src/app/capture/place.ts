@@ -18,11 +18,24 @@ import { bestList, fitOf, itemText, listsOf, restingList, runsOf, semanticListKi
  * Three pure steps: `placingFor` decides the kind of place from the note and what was said, `itemsOf` reads the take's
  * markdown as items, and `placeTake` writes them in. `placeTake` depends only on its arguments, so the page, Done and
  * the better words, handed the same note, words and placing, write the same text.
+ *
+ * The end can carry a `lead`: words the note's last line was left open with, which the take goes on from. A journal's
+ * entry starts with its time and a space, "**14:05** " (book/template.ts `openEnd`), and a spoken entry is written as
+ * that line said on, not a lone bold time with the words in a paragraph under it (docs/DESIGN.md §142). The note is
+ * handed over without that line, and every writer puts it back with the take.
  */
 
 /** Where a take's words go in a note: its end, its lists, or a lane of its board. */
 export type Placing =
-  | { kind: 'end' }
+  | {
+      kind: 'end';
+      /**
+       * The note's last line as it was left open, taken off the note and written again before the take: on the same
+       * line when the take starts with a paragraph, on a line of its own above anything else. Absent, the end as it
+       * always was.
+       */
+      lead?: string;
+    }
   | {
       kind: 'lists';
       /** A to-do was said, or the title says to-dos: only the to-do lists count, and a new list is one. */
@@ -142,11 +155,26 @@ function itemLines(first: string, item: TakeItem, under: string): string[] {
 }
 
 /**
+ * The take with the line it goes on from before it: joined to a first paragraph, and on a line of its own above a
+ * list, a heading or anything else that is not words to run on. With nothing said yet, the line alone, so the page
+ * shows where the words will start.
+ */
+function withLead(lead: string, markdown: string): string {
+  const words = markdown.replace(/^\s+/, '');
+  if (!words) return lead.trimEnd();
+  const first = words.split('\n')[0]!;
+  return NOT_ITEMS.test(first) || listLead(first) ? `${lead.trimEnd()}\n\n${words}` : `${lead}${words}`;
+}
+
+/**
  * `base` with the take's `markdown` in it, where `placing` says: at the end (`appendBody`), in a lane of the note's
  * board, or as items of its lists, each item in the list it fits and the rest after them at the end.
  */
 export function placeTake(base: string, markdown: string, placing: Placing): Placed {
-  if (placing.kind === 'end') return { body: appendBody(base, markdown), blocks: markdown.trim() ? [markdown] : [], spot: null };
+  if (placing.kind === 'end') {
+    const take = placing.lead ? withLead(placing.lead, markdown) : markdown;
+    return { body: appendBody(base, take), blocks: markdown.trim() ? [take] : [], spot: null };
+  }
   if (!markdown.trim()) return { body: base, blocks: [], spot: null };
   const { items, after } = itemsOf(markdown);
   let body = base;

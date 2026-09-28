@@ -122,6 +122,21 @@ describe('writing the words in', () => {
     expect(placeTake(HOUSE, '', lists(HOUSE))).toEqual({ body: HOUSE, blocks: [], spot: null });
   });
 
+  it('goes on from a line left open: a paragraph on the same line, anything else under it, the line alone for nothing said', () => {
+    const entry = '---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n# Monday 28 September\n\n';
+    const at = { kind: 'end', lead: '**14:05** ' } as const;
+    expect(placeTake(entry, 'Walked along the river after lunch.\n\nThen home.', at)).toEqual({
+      body: `${entry}**14:05** Walked along the river after lunch.\n\nThen home.`,
+      blocks: ['**14:05** Walked along the river after lunch.\n\nThen home.'],
+      spot: null,
+    });
+    expect(placeTake(entry, '- Bread\n- Milk', at).body).toBe(`${entry}**14:05**\n\n- Bread\n- Milk`);
+    expect(placeTake(entry, '## Later\n\nWords.', at).body).toBe(`${entry}**14:05**\n\n## Later\n\nWords.`);
+    expect(placeTake(entry, '', at)).toEqual({ body: `${entry}**14:05**`, blocks: [], spot: null });
+    // An entry of only its time: the words follow the front matter.
+    expect(placeTake('---\ntitle: "2026-09-28 14.05"\n---\n', 'Coffee.', at).body).toBe('---\ntitle: "2026-09-28 14.05"\n---\n\n**14:05** Coffee.');
+  });
+
   it('adds a card to a board’s lane', () => {
     const board = '# Launch\n\n```board\nTo do: write-copy\nDoing: pricing-page\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n';
     const placing = placingFor(board, { lane: 'Doing', own: true });

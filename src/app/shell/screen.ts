@@ -1,6 +1,7 @@
 import type { ReviewHandoff } from '../ai/review.ts';
 import type { SpokenAsk } from '../capture/CaptureScreen.tsx';
 import type { CaptureLanding } from '../capture/landing.ts';
+import type { Placing } from '../capture/place.ts';
 import type { Note } from '../core/store.ts';
 import { ALL_NOTES, notePlace, type Place } from '../notes/visited.ts';
 
@@ -48,6 +49,8 @@ export type Screen =
       stop: number;
       /** Talking into this note, from its Speak: the words go here, and the capture comes back here. */
       noteId?: string;
+      /** Where in that note, when its opener says (capture/CaptureScreen.tsx `placing`): a journal's entry said aloud. */
+      placing?: Placing;
       /** A meeting in the page recorder (the Mac; docs/DESIGN.md §127 section 3): recorded, not read, and written up after. */
       meeting?: true;
     }
@@ -65,9 +68,12 @@ export type Screen =
   /** Glyph Academy: markdown taught a mark at a time, open from Settings whenever it is wanted (academy/). */
   | { name: 'academy' };
 
-/** A capture, fresh: from the side key (`fromAssistant`) or a Speak button, into `noteId` when it was one note's; a meeting on the Mac with `meeting`. */
-export function captureScreen(fromAssistant: boolean, noteId?: string, { meeting = false }: { meeting?: boolean } = {}): Screen {
-  return { name: 'capture', key: Date.now(), fromAssistant, stop: 0, ...(noteId ? { noteId } : {}), ...(meeting ? { meeting: true } : {}) };
+/**
+ * A capture, fresh: from the side key (`fromAssistant`) or a Speak button, into `noteId` when it was one note's, at
+ * `placing` when its opener says where in it; a meeting on the Mac with `meeting`.
+ */
+export function captureScreen(fromAssistant: boolean, noteId?: string, { meeting = false, placing }: { meeting?: boolean; placing?: Placing } = {}): Screen {
+  return { name: 'capture', key: Date.now(), fromAssistant, stop: 0, ...(noteId ? { noteId } : {}), ...(noteId && placing ? { placing } : {}), ...(meeting ? { meeting: true } : {}) };
 }
 
 /** The meeting screen for the note the service is recording into, from the side key (`fromAssistant`) or the page. */

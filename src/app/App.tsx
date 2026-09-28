@@ -708,6 +708,7 @@ function Shell() {
           fromAssistant={screen.fromAssistant}
           stopRequests={screen.stop}
           noteId={screen.noteId}
+          placing={screen.placing}
           meeting={screen.meeting}
           onMeeting={canMeet ? newMeeting : undefined}
           onFinish={(note, locked, review, ask, landing) => void capture.finished(note, locked, review, ask, landing)}

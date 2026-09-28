@@ -285,6 +285,19 @@ describe('a note’s own Speak', () => {
     expect((await listNotes()).map((note) => note.body)).toEqual(['# Daily Life\n\n- Walked\n\nOat milk too.']);
   });
 
+  it('goes where its opener says rather than where the title would send it: a journal entry’s time line', async () => {
+    const entry = '---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n# Monday 28 September\n';
+    await createNote('entry', entry);
+    capture.session!.stop = async () => ({ recordedMs: null, transcript: 'Walked along the river.' });
+    const onFinish = vi.fn();
+    render(<CaptureScreen fromAssistant={false} noteId="entry" placing={{ kind: 'end', lead: '**14:05** ' }} onFinish={onFinish} />);
+    await screen.findByRole('button', { name: 'Adding to “2026-09-28 14.05”' });
+    await say('Walked along the river.', 0);
+    fireEvent.click(screen.getByRole('button', { name: 'Stop and save' }));
+    await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+    expect((await getNote('entry'))?.body).toBe(`${entry}\n**14:05** Walked along the river.`);
+  });
+
   // Changed on purpose (docs/DESIGN.md §126): a note whose title says it is a list takes what is said as its items.
   it('writes into the list of a note whose title says it is one', async () => {
     await createNote('groceries', '# Groceries\n\n- Eggs');
