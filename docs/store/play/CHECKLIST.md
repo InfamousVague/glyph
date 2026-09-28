@@ -1,0 +1,218 @@
+# Play Console, step by step
+
+The order the Console walks a new app, and at each step which file to paste or upload. **You** marks what only you
+can do. **Done** marks what is prepared and waiting in this folder.
+
+The words are in the Markdown files beside this one, in the repo under `docs/store/play/` on the `store/play-assets`
+branch: the listing copy in `copy/`, the form answers in `forms.md`. The pictures are not in the repo. They are in
+the pack folder,
+`/private/tmp/claude-501/-Users-matt-Development-Apps-glyph/d8404dd2-3ec4-4534-82c0-8df83377f14d/scratchpad/store/play/`,
+under the names this file uses. Copy that folder somewhere that lasts before the scratchpad is cleared.
+
+What the code already has is in `docs/store/PLAY_STORE.md`: the Play build (`GLYPH_STORE=play`), Delete account in
+the app and on the web, the privacy and account-deletion pages, targetSdk 36 and 16 KB pages. Those are done.
+
+## Before the Console
+
+1. **You: decide the two things only you can** (PLAY_STORE.md, "Decisions for Matt").
+   - Personal or organisation developer account. A personal account made after 13 November 2023 must run a closed
+     test with 12 testers opted in for 14 days before it can apply for production. An organisation account is not
+     held to it.
+   - What to tell the people who installed the APK. The Play copy is signed with a different key, so it cannot update
+     over the sideloaded app, and uninstalling that app deletes the notes that are only on the phone. Ask them to sign
+     in and sync first, or keep the APK beside Play (the build without `GLYPH_STORE`).
+
+2. **Done: the pack holds no secrets.** No password, key or token is in any file here, and the library in the
+   pictures is invented (Sam, Ana and Ali are names and nothing more). To check again after an edit:
+   `grep -ril "password=\|token=\|BEGIN PRIVATE" docs/store/play/` finds nothing but the placeholder lines in
+   this file.
+
+## 0. The developer account
+
+**You.** Everything here comes before Create app, and the Console will not let an app be published until it is
+done. The answers are in `forms.md` › The developer account.
+
+1. Register the account if there is none (play.google.com/console, the one-time fee), as personal or organisation:
+   decision 1 above. An organisation needs a D-U-N-S number before the account can be made.
+2. Verify identity: Play takes the legal name and address from the Google Payments profile, asks for an identity
+   document, and confirms the contact email and phone by one-time code.
+3. Account details: the public Developer name (`forms.md` says Matt Wisniewski, the name on the privacy page) and the
+   public developer email (infamousvaguerat@gmail.com, the same as the listing and the privacy page). Both are shown
+   on every listing.
+4. The Digital Services Act trader declaration, on the same page: not a trader, while the app is free and sells
+   nothing. Nothing can be distributed in the EEA until it is answered.
+
+## 1. Create app
+
+**You.** Play Console › All apps › Create app. The answers are in `forms.md` › Create app: Ghost.md, English (United
+Kingdom), App, Free, both declarations ticked, Play App Signing accepted.
+
+## 2. Set up your app › Let us know about the content of your app
+
+**Done: every answer is in `forms.md`.** The dashboard lists the forms in this order, and each row opens one. The
+Console lets you fill them in any order, but nothing can be released until all are done.
+
+| Form | Where the answer is |
+|---|---|
+| Privacy policy | `forms.md` › Privacy policy: `https://ghostmarkdown.com/privacy.html` |
+| App access | `forms.md` › App access: all functionality available without special access, and the paragraph to keep for a reviewer's question |
+| Ads | No |
+| Content ratings | `forms.md` › Content ratings: the email, the category, the answers row by row |
+| Target audience and content | `forms.md` › Target audience: 13 and over, no appeal to children |
+| News apps | No |
+| COVID-19 contact tracing and status apps | No |
+| Data safety | `forms.md` › Data safety: the opening questions, account deletion with its URL, the data types table, the Claude connection entry, and the one open item (the access logs) |
+| Government apps | No |
+| Financial features | None |
+| Health | None |
+
+Then, further down the same App content page:
+
+| Form | Where the answer is |
+|---|---|
+| Advertising ID | No (`forms.md` › Advertising ID) |
+| Photo and video permissions | Not asked |
+| Foreground service permissions | Appears only after a 1.9.0 bundle is uploaded. `forms.md` › Foreground service permissions has the three descriptions, what happens when the system stops each, and the use case to pick. **You** record the video it asks for. |
+
+**You: the open item.** The Data safety form's IP-address question waits on the box's Caddy config, which cannot be
+read today. `forms.md` says what to look for and what to enter either way. Everything else in the form can be filled
+now and the one row added later; the form can be edited after publishing.
+
+## 3. Set up your app › Select an app category and provide contact details
+
+**Done.** Store presence › Store settings. `forms.md` › Select an app category: App, Productivity, the tags,
+infamousvaguerat@gmail.com, https://ghostmarkdown.com, no phone.
+
+## 4. Set up your app › Set up your store listing
+
+Store presence › Main store listing. **Done: every field has a file.** Paste each fenced block without its heading.
+
+| Field | Paste or upload |
+|---|---|
+| App name | `copy/listing.md` › App name: `Ghost.md` |
+| Short description | `copy/listing.md` › Short description (the first block; the second is a spare) |
+| Full description | `copy/listing.md` › Full description. Read its two conditions first: the MEETINGS section is 1.9.0's, and the one emoji is the heat effect's own syntax. |
+| App icon | `graphics/icon-512.png`, 512 × 512, 32-bit PNG with every pixel opaque, 594 KB: the app's own icon (`src-tauri/icons/icon.png`, re-encoded). Play draws its own rounded mask over it. `graphics/icon-512-preview.md` says where it came from. |
+| Feature graphic | `graphics/feature-1024x500.png`, 1024 × 500, 24-bit PNG with no alpha: the listening ghost on ruled paper beside the wordmark and the line "Notes you say or type.", in the dark theme on the same #040404 paper as the screenshots, because the screenshots below are the dark theme and the listing is one theme throughout. `copy/feature-graphic.md` is the design and `graphics/feature-1024x500-preview.md` says how it was made. The two files in `graphics/spares/` are swaps, not uploads: `feature-1024x500-light.png` goes with the `-light` screenshot sets if the listing is made light instead, and `feature-1024x500-waving.png` is the other ghost. |
+| Phone screenshots | Eight, in this order, from `screenshots/phone/`: `01-speak.png`, `02-hey-ghost.png`, `03-tapes.png`, `04-the-review.png`, `05-a-meeting.png`, `06-the-marks.png`, `07-a-board.png`, `08-home.png`. 1080 × 1920 (9:16), 24-bit PNG with no alpha, each a real screen under its caption on the app's paper, the dark theme, which is the theme of the whole listing (the tablet set and the feature graphic are dark too). `copy/screenshots.md` says what each shows and its caption. Play takes at most eight; the four in `screenshots/phone/spares/` (`09-the-tapes-shelf.png`, `10-a-canvas.png`, `11-things-to-say.png`, `12-a-spoken-note.png`) are swaps, not additions. `screenshots/phone-light/` is the same twelve in the light theme, should the listing read light. |
+| 7-inch tablet screenshots | From `screenshots/tablet-16x9/`: `01-home.png`, `02-a-tape.png`, `03-a-canvas.png`, `04-a-book.png`. 2560 × 1440 (16:9), 24-bit PNG with no alpha, the landscape screen with the sidebar docked under its caption. Play's preview assets page asks for 16:9 or 9:16 in the tablet slots, with sides between 1080 and 7680 px, which this is. `tablet-16x9/spares/` holds `05-a-board.png` and `06-a-meeting.png` as swaps, and `tablet-16x9-light/` the same six in light. |
+| 10-inch tablet screenshots | The same four files. Both tablet slots take the same shape, so upload the set twice. Do not upload `screenshots/tablet/`, the Fold opened out at 1812 × 2176: it is near square, not 9:16, and is kept for the landing page and for the day the slots take that shape. |
+| Video | None. |
+
+Save, then read the preview on the right of the page as a phone would show it: the first two or three screenshots
+and the short description are what a search result shows.
+
+**The screenshots, as they stand on 2026-09-27 at 22:30.** Every picture named above is in the pack folder, and
+`node ../shots/verify.mjs` read all 84 back with pngjs: the phone sets at 1080 × 1920, the tablet sets at 2560 ×
+1440, none with alpha, none over 640 KB (the largest to upload is 454 KB). Run it again before the day; its last line should say every final fits Play.
+If Play's review turns a captioned picture down for the words above the screen, `screenshots/plain/` (dark) and
+`screenshots/plain-light/` hold every picture with no caption and no frame under the same names, `phone/` at 1080 ×
+1920 and `tablet/` at 2400 × 1350: swap the one turned down for its plain twin and resubmit. The listing can be edited
+after publishing. An older set of real screens at 1.8.0-20 is in `../old-pack/` and is not needed.
+
+## 5. The upload key and the bundle
+
+1. **You: make the upload key.** Every APK so far is signed with Android's debug certificate, which Play refuses.
+   Use the JDK the build runs under (`npm run android:build` sets JAVA_HOME to openjdk@17), not the bare `keytool`,
+   which is Apple's stub and hands off to whichever JDK it finds:
+
+   ```
+   /opt/homebrew/opt/openjdk@17/bin/keytool -genkeypair -v -keystore ~/.config/glyph/play-upload.keystore -alias upload -keyalg RSA -keysize 4096 -validity 10000
+   ```
+
+   It asks for a keystore password, a key password and a name. Then write a second signing file, which
+   `src-tauri/gen/android/app/build.gradle.kts` reads by these four keys:
+
+   ```
+   # ~/.config/glyph/play-signing.properties, chmod 600
+   storeFile=/Users/matt/.config/glyph/play-upload.keystore
+   storePassword=<the keystore password>
+   keyAlias=upload
+   keyPassword=<the key password>
+   ```
+
+   Back up the keystore and both passwords somewhere that is not this Mac. Lose them and no later release can be
+   uploaded without asking Google to reset the upload key.
+
+2. **You: build the bundle**, pointed at that file.
+
+   ```
+   GLYPH_ANDROID_SIGNING=$HOME/.config/glyph/play-signing.properties GLYPH_STORE=play npm run android:build -- --aab --target aarch64
+   ```
+
+   It lands at `src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab`. Check
+   its signer is the new key and not the debug one:
+
+   ```
+   /opt/homebrew/opt/openjdk@17/bin/keytool -printcert -jarfile src-tauri/gen/android/app/build/outputs/bundle/universalRelease/app-universal-release.aab | grep Owner
+   ```
+
+   The debug key prints `CN=Android Debug`; the new one prints the name you typed.
+
+   Two things to know about versions. Play needs a higher version code on every upload, and Tauri makes the code from
+   the version in `src-tauri/tauri.conf.json` (1.8.0 is 1008000, as `src-tauri/gen/android/app/tauri.properties`
+   shows; 1.9.0 will be 1009000), so a new Play release is a version bump, not a `-N` build. And the copy describes
+   1.9.0: if the bundle is 1.8.0, cut the MEETINGS section from `copy/listing.md`, the "Meetings record" sentence
+   from `copy/whats-new.md`, and put `screenshots/phone/spares/09-the-tapes-shelf.png` in place of picture 5, as
+   those files say.
+
+## 6. Test and release › Testing, then Production
+
+1. **You: choose countries.** Under the track, Countries/regions › Add countries/regions. All, or your choice.
+   Distribution in the EEA waits on the trader declaration in step 0.
+
+2. **You: closed testing** (a personal account must; an organisation account may go straight to 3). Test and
+   release › Testing › Closed testing › Create track (call it "Alpha" or whatever you like) › Create new release.
+   - Upload `app-universal-release.aab`. On the first upload the Console enrols the app in Play App Signing; keep
+     the recommended choice, a Google-generated app signing key, and the upload key stays yours.
+   - Release notes: the block in `copy/whats-new.md`, into the en-GB box. **Done.**
+   - Testers: a list of email addresses, or a Google Group. Twelve people who stay opted in for fourteen days, so
+     ask for fifteen. Send them the opt-in link the track gives you.
+   - Review the release and roll it out. Play's own review of the app starts here and can take days the first time.
+   - After fourteen days: Dashboard › Apply for production access, three short sections about the test, the app and
+     whether it is ready. Google says it answers within about seven days.
+
+3. **You: production.** Test and release › Closed testing › the release › Promote release › Production. The bundle
+   and the notes come with it; nothing is uploaded again, and Play would refuse a second upload of the same version
+   code anyway. A new bundle is needed only if the app changed, and then it is a version bump. Roll out.
+
+4. **Read the pre-launch report** once the bundle has been processed (Test and release › Pre-launch report): Play runs
+   the app on its own devices and lists crashes, accessibility notes and what it saw.
+
+5. **You: send for review.** Publishing overview › Send changes for review. Anything a reviewer asks about the
+   assistant role or the AI is answered by the paragraph in `forms.md` › App access.
+
+## 7. After the first release
+
+- Point ghostmarkdown.com's Android button at the Play listing, or keep the APK beside it (decision 2).
+- Each later release: bump the version in `src-tauri/tauri.conf.json`, build and upload a new bundle, and add a section
+  to `copy/whats-new.md`. The listing and the forms change only when the app does; the Data safety form is the one
+  to re-read at every release that touches sync, sharing or the plugins.
+
+## The pack, file by file
+
+| File | What it is |
+|---|---|
+| `CHECKLIST.md` | This page |
+| `forms.md` | Every Console form with its answer, in the Console's order |
+| `FEATURES.md` | The map of the app's features the copy was written from |
+| `copy/listing.md` | App name, short description, full description |
+| `copy/whats-new.md` | The release notes |
+| `copy/screenshots.md` | What each screenshot shows, its file name and its caption |
+| `copy/feature-graphic.md` | What the feature graphic shows and how it is laid out |
+| `copy/check.mjs` | `node check.mjs` in that folder counts the blocks against Play's limits and reads them for the banned words |
+| `graphics/icon-512.png` | The icon, 512 × 512 |
+| `graphics/feature-1024x500.png` | The feature graphic, 1024 × 500 |
+| `graphics/icon-512-preview.md`, `graphics/feature-1024x500-preview.md` | Where each graphic came from and how it was checked |
+| `graphics/spares/` | The light feature graphic (for a light listing) and the waving ghost, not for upload unless chosen instead |
+| `screenshots/phone/01-speak.png` to `08-home.png` | The eight phone screenshots, dark, captioned |
+| `screenshots/phone/spares/` | Four phone pictures to swap in, not to add |
+| `screenshots/phone-light/`, with `spares/` | The same twelve in the light theme |
+| `screenshots/tablet-16x9/01-home.png` to `04-a-book.png` | The four tablet screenshots, 16:9, for both tablet slots |
+| `screenshots/tablet-16x9/spares/` | Two tablet pictures to swap in, not to add |
+| `screenshots/tablet-16x9-light/`, with `spares/` | The same six in the light theme |
+| `screenshots/tablet/`, `tablet-light/` | The same six screens at the Fold's inner shape, 1812 × 2176; not for the tablet slots |
+| `screenshots/plain/`, `plain-light/` | Every picture with no caption and no frame, for a strict reading of Play's rule |
+| `screenshots/raw/` | The bare screens the pictures were made from, not for upload |
+
+The Markdown lives in the repo on the `store/play-assets` branch; the pictures live only in the pack folder.
