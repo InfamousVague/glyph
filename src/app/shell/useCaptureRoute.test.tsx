@@ -475,9 +475,10 @@ describe('where a capture’s new notes were made', () => {
     const made = `---\ntitle: "2026-09-28 14.05"\n---\n${words}`;
     rememberEntry('entry', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
     await createNote('entry', made);
-    const asked: { reviewing: boolean; locked: boolean }[] = [];
+    const asked: { reviewing: boolean; locked: boolean; on: string }[] = [];
     const nothing = vi.fn(async (): Promise<Screen> => ({ name: 'list' }));
-    const aim = { id: 'entry', placing: { kind: 'end', lead: '**14:05** ' } as const, tag: (held: { reviewing: boolean }, locked: boolean) => void asked.push({ ...held, locked }), nothing };
+    // What was on screen as it was asked: never the recorder, whose microphone prompt shares the one listener.
+    const aim = { id: 'entry', placing: { kind: 'end', lead: '**14:05** ' } as const, tag: (held: { reviewing: boolean }, locked: boolean) => void asked.push({ ...held, locked, on: screen.name }), nothing };
     show(<Probe from={{ name: 'list' }} />);
     await act(async () => route.start(false, 'entry', aim));
     expect(screen).toMatchObject({ name: 'capture', noteId: 'entry', placing: { kind: 'end', lead: '**14:05** ' } });
@@ -487,14 +488,14 @@ describe('where a capture’s new notes were made', () => {
     await act(async () => route.finished(said, false));
     await settle();
     expect(screen).toMatchObject({ name: 'note', note: { id: 'entry' } });
-    expect(asked).toEqual([{ reviewing: false, locked: false }]);
+    expect(asked).toEqual([{ reviewing: false, locked: false, on: 'note' }]);
     expect(nothing).not.toHaveBeenCalled();
     // Over a locked phone: asked quietly, and home.
     await act(async () => route.start(false, 'entry', aim));
     const again = await updateNote('entry', `${said.body} Again.`, said.revision ?? 2);
     await act(async () => route.finished(again, true));
     await settle();
-    expect(asked.at(-1)).toEqual({ reviewing: false, locked: true });
+    expect(asked.at(-1)).toEqual({ reviewing: false, locked: true, on: 'list' });
     expect(screen).toEqual({ name: 'list' });
   });
 

@@ -31,6 +31,8 @@ describe('the placeholders', () => {
     expect(fill('{{x}} {{Date}} {{date:}} {{title:YYYY}}')).toBe('{{x}} {{Date}} Monday 28 September {{title:YYYY}}');
     expect(fill('{{__proto__}} {{constructor}} {{toString}} {{hasOwnProperty}}')).toBe('{{__proto__}} {{constructor}} {{toString}} {{hasOwnProperty}}');
     expect(fill('{ {date} } {{date')).toBe('{ {date} } {{date');
+    // Spaces inside the braces, as Obsidian allows them.
+    expect(fill('{{ time }} {{ date:YYYY }}')).toBe('14:05 2026');
   });
 });
 
@@ -43,6 +45,8 @@ describe('a format', () => {
     expect(format('YYYY YY MMMM MMM MM M DD D dddd ddd HH H hh h mm A a', 'de-DE')).toBe('2026 26 September Sep 09 9 28 28 Montag Mo 14 14 02 2 05 PM pm');
     const morning = new Date(2026, 0, 2, 0, 7);
     expect(format('DD/MM/YY h:mm a, H:mm', 'en-US', morning)).toBe('02/01/26 12:07 am, 0:07');
+    // One figure or two, as the token says, for a day and an hour under ten.
+    expect(format('D DD M MM H HH h hh', 'en-GB', new Date(2026, 0, 2, 7, 9))).toBe('2 02 1 01 7 07 7 07');
   });
 
   it('writes the day as an ordinal in English, and as a number and a full stop elsewhere', () => {
@@ -74,6 +78,12 @@ describe('where a spoken entry’s words go', () => {
     expect(placing).toEqual({ kind: 'lists', task: true, heading: null, fresh: 'task' });
     expect(placeTake(base, 'Call Sam. Buy milk.', placing).body).toBe('# Monday 28 September\n\n## To do\n\n- [ ] Call Sam\n- [ ] Buy milk\n');
     expect(openEnd('- ').placing).toEqual({ kind: 'lists', task: false, heading: null, fresh: 'bullet' });
+  });
+
+  it('numbers what is said for a template of your own that ends in an empty numbered item', () => {
+    const { base, placing } = openEnd('# Steps\n\n1. ');
+    expect(placing).toEqual({ kind: 'lists', task: false, heading: null, fresh: 'number' });
+    expect(placeTake(base, 'Buy milk. Call Sam.', placing).body).toBe('# Steps\n\n1. Buy milk\n2. Call Sam\n');
   });
 
   it('puts the words at the end of a morning page, whose last line is already closed', () => {

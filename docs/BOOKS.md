@@ -150,11 +150,16 @@ entry-place: true
   the place switch, whose default is this device's Tag new notes. Or a notebook kept as a journal from its More
   sheet, every page where it was; and made a notebook again from there. Not the Guide.
 - **New entry** (`App.tsx` `newEntry`): the record first (`src/app/book/entryDrafts.ts`), then the line last in the
-  index, through the journal's own screen when it is open, then the note, opened with the caret at the end.
+  index, at its top level, through the journal's own screen when it is open, then the note, opened with the caret at
+  the end. Named past every note there is and every line the journal has, so an entry made while another is being
+  taken back does not share its name. A second press while one is made does nothing. Where it was written is asked at
+  the tap, when the journal keeps places, and lands with the entry's first own words.
 - **Taken back when untouched.** An entry this device made and nobody wrote in is deleted, with its line and its
-  waiting tag, when it is left: home, its tab closed, or the journal opened in its tab. Not when another tab is shown
-  or a capture is aimed at it, and never on the screen's unmount. A launch does the same for an entry the phone let
-  go of. No place lands on one first (`hasOwnWords` in `src/app/core/location.ts`).
+  waiting tag, when it is left: home, its tab closed, or the journal opened in its tab, by its bar or by Back. Not when
+  another tab is shown or a capture is aimed at it, and never on the screen's unmount. Its first own keystroke makes
+  it the person's there and then, before the save, so words typed and left at once are kept. Its line stays when
+  another note is named by it. A launch does the same for an entry the phone let go of. No place lands on one first
+  (`hasOwnWords` in `src/app/core/location.ts`).
 - **Speak an entry** is the journal's mic: an entry made and recorded into, the words going on from the template's
   last line (`openEnd`, and `lead` in `src/app/capture/place.ts`), so it still starts with its time and a day's
   to-dos said aloud are to-dos. The place is asked once the recorder has gone. Said nothing, it lands on the journal
@@ -162,10 +167,13 @@ entry-place: true
 - **The view** (`src/app/book/JournalView.tsx`): New entry, the journal's own words, then the entries by month,
   newest first by when each was written, whatever order the index is in. Three months open, older ones a row each. A
   page planned before a notebook was kept as a journal is under Not written yet; an entry's line with no note is not
-  drawn. The bar and the foot walk entries in the order written. Opening a journal from outside always opens the
-  journal (`whereLeft`).
+  drawn. A row's words skip only what the template wrote for that entry, filled for its own minute. The bar and the
+  foot walk the written entries in the order written, a side named by its time, or its day when written on another.
+  The card counts the written entries and lists the newest by day and time, with no numbers. Opening a journal from
+  outside always opens the journal (`whereLeft`).
 - **Elsewhere:** two taps from home, the +'s "Entry in" row for the journal written in last, and "New entry in" in
-  the palette for three. Recent and the palette's first forty leave entries out. A journal is shared an entry at a
+  the palette for three, never a journal in the archive. Recent, the palette's first forty and the pickers of a
+  notebook's pages leave entries out. A journal is shared an entry at a
   time (docs/SHARING.md). Two devices adding lines between syncs merge (docs/SYNC.md). Claude writes an entry with
   `add_journal_entry` (docs/MCP.md).
 

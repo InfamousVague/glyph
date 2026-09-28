@@ -56,22 +56,39 @@ describe('where the note was written, on its card', () => {
 });
 
 describe('a notebook’s card', () => {
-  it('counts a journal’s entries and lists the newest, and a notebook’s pages as its index has them', () => {
+  it('counts a journal’s entries and lists the newest by day and time with no number, and a notebook’s pages as its index has them', () => {
     const journal = makeNote('j', '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n\n- [[A]]\n', { updatedAt: Date.now() });
+    const newest = [
+      { title: '2026-09-28 14.05', when: 'Mon 28 Sept, 14:05' },
+      { title: '2026-09-28 08.10', when: 'Mon 28 Sept, 08:10' },
+      { title: '2026-09-27 21.40', when: 'Sun 27 Sept, 21:40' },
+      { title: '2026-09-27 07.55', when: 'Sun 27 Sept, 07:55' },
+    ];
     const host = show(
       <ol>
-        <NoteCard note={journal} index={0} onOpen={() => undefined} entries={{ count: 212, newest: ['2026-09-28 14.05', '2026-09-28 08.10', '2026-09-27 21.40', '2026-09-27 07.55'] }} />
+        <NoteCard note={journal} index={0} onOpen={() => undefined} entries={{ count: 212, newest }} />
         <NoteCard note={makeNote('n', '---\ntitle: "Guide"\nbook: true\n---\n# Guide\n\n- [[Trees]]\n', { updatedAt: Date.now() })} index={1} onOpen={() => undefined} />
         <NoteCard note={makeNote('e', '---\ntitle: ""\nbook: true\njournal: true\n---\n', { updatedAt: Date.now() })} index={2} onOpen={() => undefined} entries={{ count: 0, newest: [] }} />
       </ol>,
     );
     const cards = [...host.querySelectorAll('li > button')];
     expect(cards[0]!.textContent).toContain('212 entries');
-    expect(cards[0]!.textContent).toContain('1' + '2026-09-28 14.05');
-    expect(cards[0]!.textContent).toContain('and 208 more');
+    expect([...cards[0]!.querySelectorAll('ol li')].map((li) => li.textContent)).toEqual(['Mon 28 Sept, 14:05', 'Mon 28 Sept, 08:10', 'Sun 27 Sept, 21:40', 'Sun 27 Sept, 07:55', 'and 208 more']);
     expect(cards[1]!.textContent).toContain('1 page');
+    expect(cards[1]!.textContent).toContain('1' + 'Trees');
     expect(cards[2]!.textContent).toContain('Untitled journal');
     expect(cards[2]!.textContent).toContain('No entries yet');
+    unmount();
+    const one = show(
+      <ol>
+        <NoteCard note={journal} index={0} onOpen={() => undefined} entries={{ count: 1, newest: newest.slice(0, 1) }} />
+        <NoteCard note={makeNote('u', '---\ntitle: ""\nbook: true\n---\n', { updatedAt: Date.now() })} index={1} onOpen={() => undefined} />
+      </ol>,
+    );
+    const [single, untitled] = [...one.querySelectorAll('li > button')];
+    expect(single!.textContent).toContain('1 entry');
+    expect(untitled!.textContent).toContain('Untitled notebook');
+    expect(untitled!.textContent).toContain('No pages yet');
   });
 
   it('marks an entry with its journal, said as an entry rather than a page number', async () => {

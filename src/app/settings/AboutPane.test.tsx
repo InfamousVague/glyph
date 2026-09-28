@@ -122,6 +122,13 @@ describe('Help on About', () => {
     expect(onGuideBook).toHaveBeenCalledOnce();
   });
 
+  it('finds the Guide by notebook, as it is one now, and still by book', async () => {
+    const { findable } = await import('./AboutPane.findable.ts');
+    const { searchSettings } = await import('./settingsSearch.ts');
+    const about = [{ id: 'about', label: 'About', settings: findable({ whatsNew: false }) }];
+    for (const word of ['notebook', 'book']) expect(searchSettings(about, word).map((hit) => hit.setting)).toEqual(['Ghost.md: The Guide']);
+  });
+
   // Changed on purpose (docs/DESIGN.md §138): eight rows, five of them "Add …", are five, two of them pages.
   it('is five rows, the cheat sheet and the examples each opening its own page', () => {
     const { host, onOpen } = about();

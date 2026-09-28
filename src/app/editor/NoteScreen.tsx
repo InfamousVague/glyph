@@ -20,7 +20,7 @@ import { BookView } from '../book/BookView.tsx';
 import { JournalView } from '../book/JournalView.tsx';
 import { isBookBody, isJournalBody, type BookPlace } from '../book/book.ts';
 import { entryPlaceOf, templateOf, withEntryPlace, withJournal, withoutJournal, withTemplate, type JournalWriter } from '../book/journal.ts';
-import { entryRecord, untouchedEntry } from '../book/entryDrafts.ts';
+import { entryRecord, forgetEntry, untouchedEntry } from '../book/entryDrafts.ts';
 import { isGuideBook } from '../guidebook/guidebook.ts';
 import { writeBookSpot } from '../book/bookSpot.ts';
 import { frontMatterOffset, withFrontMatterTitle } from '../core/frontMatter.ts';
@@ -127,6 +127,8 @@ interface NoteScreenProps {
   caretAtEnd?: boolean;
   /** Every note's title, for a canvas's + to choose a note from. */
   allTitles?: () => string[];
+  /** The titles a notebook's index offers to add as a page: every note's but a journal's entries; absent, every note's. */
+  pageTitles?: () => string[];
   /**
    * A canvas renamed from its tab (notes/NoteTabs.tsx), while this is the note being read.
    *
@@ -173,6 +175,7 @@ export function NoteScreen({
   onJournal,
   caretAtEnd = false,
   allTitles,
+  pageTitles,
   at,
   rename,
   ask,
@@ -232,6 +235,10 @@ export function NoteScreen({
    * this is its own state, read from the entry's record, and followed only for a note that has one. While it holds, a
    * tag waits for the entry's first own words and the map fetches no tiles, since the entry is taken back if it is
    * left as it is (App.tsx).
+   *
+   * Its first own words make it the person's there and then: the record goes on the keystroke, not when the save
+   * lands. App decides a take-back from the store, and the words reach the store 400 ms later, or on the way out a
+   * turn after App has looked, so an entry typed in and left at once for home was taken back with its words.
    */
   const drafted = useRef(entryRecord(note.id) !== null);
   const [untouched, setUntouched] = useState(() => drafted.current && untouchedEntry(note.id, note.body, note));
@@ -240,7 +247,12 @@ export function NoteScreen({
       keep(next);
       const now = geoTagOf(next) ?? pendingTag(note.id);
       setTag((was) => (sameTag(was, now) ? was : now));
-      if (drafted.current) setUntouched(untouchedEntry(note.id, next));
+      if (!drafted.current) return;
+      const still = untouchedEntry(note.id, next);
+      setUntouched(still);
+      if (still) return;
+      forgetEntry(note.id);
+      drafted.current = false;
     },
     [keep, note.id],
   );
@@ -780,7 +792,7 @@ export function NoteScreen({
               known={hasTitle ?? (() => false)}
               open={(t) => (onOpenWithin ?? onOpenTitle)?.(t)}
               openCanvas={onNewCanvas}
-              titles={allTitles ?? (() => [])}
+              titles={pageTitles ?? allTitles ?? (() => [])}
               bodyOf={bodyOfTitle}
               spot={{ id: note.id, page }}
               onChange={(next) => {

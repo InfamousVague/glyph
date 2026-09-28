@@ -34,11 +34,16 @@ export interface FillFor {
   at: Date;
   title?: string;
   journal?: string;
+  /**
+   * `{{date}}`, `{{time}}` and `{{weekday}}` already written for `at`, by a caller that fills a year of entries with
+   * one set of formatters (book/journalMonths.ts). Absent, written here.
+   */
+  said?: { date: string; time: string; weekday: string };
 }
 
 /** The template with its placeholders filled for one entry. */
-export function fillTemplate(text: string, { at, title = '', journal = '' }: FillFor): string {
-  const values: Record<string, string> = { date: longDay(at), time: clockTime(at), weekday: named(at, { weekday: 'long' }), title, journal };
+export function fillTemplate(text: string, { at, title = '', journal = '', said }: FillFor): string {
+  const values: Record<string, string> = { ...(said ?? { date: longDay(at), time: clockTime(at), weekday: named(at, { weekday: 'long' }) }), title, journal };
   return text.replace(PLACEHOLDER, (whole, name: string, format: string | undefined) => {
     if (format !== undefined && format.trim()) return name === 'date' || name === 'time' ? formatStamp(at, format.trim()) : whole;
     return Object.hasOwn(values, name) ? values[name]! : whole;
@@ -118,7 +123,8 @@ export function openEnd(words: string): { base: string; placing: Placing } {
   const lead = listLead(last);
   if (lead && !last.slice(lead.wordsAt).trim()) {
     const task = lead.done !== null;
-    return { base: rest, placing: { kind: 'lists', task, heading: null, fresh: task ? 'task' : 'bullet' } };
+    const fresh = task ? 'task' : /\d/.test(lead.marker) ? 'number' : 'bullet';
+    return { base: rest, placing: { kind: 'lists', task, heading: null, fresh } };
   }
   if (last.trim() && /\s$/.test(last)) return { base: rest, placing: { kind: 'end', lead: last } };
   return { base: words, placing: { kind: 'end' } };

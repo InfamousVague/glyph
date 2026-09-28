@@ -235,6 +235,69 @@ describe('saving what is typed', () => {
     expect((await getNote('n1'))?.body).toBe('# Groceries\nmilk\neggs');
   });
 
+  it('opens on the words the store has when the copy it was given is older, and saves from their revision', async () => {
+    // The copy a list read before the last words were saved: a page opened again from its notebook's bar or its row.
+    const old = await createNote('n1', '# Lisbon\n\nTrams.');
+    await updateNote('n1', '# Lisbon\n\nTrams. And tarts.', 1);
+    saves.mockClear();
+    show(screen(old));
+    await settle();
+    expect(editor().state.doc.toString()).toBe('# Lisbon\n\nTrams. And tarts.');
+    type(' And the river.');
+    act(() => vi.advanceTimersByTime(400));
+    await settle();
+    expect(saves.mock.calls.map((call) => call[2])).toEqual([2]);
+    expect((await getNote('n1'))?.body).toBe('# Lisbon\n\nTrams. And tarts. And the river.');
+  });
+
+  it('reads the note again only once the last screen on it has saved, however soon it is opened again', async () => {
+    const note = await createNote('n1', '# Lisbon\n\nTrams.');
+    show(screen(note));
+    type(' And tarts.');
+    // The phone's store slow to answer the save on the way out, as a write across the bridge is.
+    let land: () => void = () => undefined;
+    const landed = new Promise<void>((resolve) => {
+      land = resolve;
+    });
+    const real = saves.getMockImplementation()!;
+    saves.mockImplementationOnce(async (...args: Parameters<typeof real>) => {
+      await landed;
+      return real(...args);
+    });
+    // Left, and opened again at once with the copy it was opened with first: the last save is still on its way.
+    unmount();
+    show(screen(note));
+    await settle();
+    land();
+    await settle();
+    expect(editor().state.doc.toString()).toBe('# Lisbon\n\nTrams. And tarts.');
+    type(' And the river.');
+    act(() => vi.advanceTimersByTime(400));
+    await settle();
+    expect((await getNote('n1'))?.body).toBe('# Lisbon\n\nTrams. And tarts. And the river.');
+  });
+
+  it('says the notes changed once the last save of a note left has landed, so the lists drawn from them catch up', async () => {
+    const { NOTES_CHANGED } = await import('../core/store.ts');
+    const heard = vi.fn(async () => (await getNote('n1'))?.body);
+    window.addEventListener(NOTES_CHANGED, heard);
+    try {
+      show(screen(await createNote('n1', '# Groceries')));
+      unmount();
+      await settle();
+      // Nothing written, nothing said.
+      expect(heard).not.toHaveBeenCalled();
+      show(screen((await getNote('n1'))!));
+      type('\nmilk');
+      unmount();
+      await settle();
+      expect(heard).toHaveBeenCalledTimes(1);
+      expect(await heard.mock.results[0]!.value).toBe('# Groceries\nmilk');
+    } finally {
+      window.removeEventListener(NOTES_CHANGED, heard);
+    }
+  });
+
   it('stops saving after a write is refused, rather than writing over the note that won', async () => {
     const note = await createNote('n1', '# Groceries');
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -916,6 +979,23 @@ describe('where the note was written', () => {
     expect(asked).toHaveLength(1);
   });
 
+  it('makes an entry the person’s on its first own word, before the save: left at once, it is not taken back', async () => {
+    const { rememberEntry, entryRecord } = await import('../book/entryDrafts.ts');
+    const words = '# Monday 28 September\n\n**14:05** ';
+    const made = `---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n${words}`;
+    rememberEntry('en2', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
+    show(screen(await createNote('en2', made)));
+    expect(entryRecord('en2')).not.toBeNull();
+    type('W');
+    // Nothing saved yet (400 ms), and the record is gone already: App's take-back reads the store and the record, and
+    // Home pressed now finds no record to act on while the save on the way out is still a turn behind.
+    expect(saves).not.toHaveBeenCalled();
+    expect(entryRecord('en2')).toBeNull();
+    unmount();
+    await settle();
+    expect((await getNote('en2'))?.body).toBe(`${made}W`);
+  });
+
   it('takes a new note’s waiting tag with it when the note is left without a word', async () => {
     const { tagNewNotes, pendingTag } = await import('../core/location.ts');
     show(screen(await createNote('w2', '')));
@@ -1089,6 +1169,9 @@ describe('a notebook kept as a journal', () => {
     expect(buttonSaying(document.body, 'Keep it as a journal')?.textContent).toContain('New pages start dated, from a template.');
     act(() => buttonSaying(document.body, 'Keep it as a journal')!.click());
     expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Journal');
+    // A draft until it is kept: nothing is written yet, so nothing is said about entries already written.
+    expect(document.body.textContent).not.toContain('Entries you have written stay as they are.');
+    expect(buttonSaying(document.body, 'Make it a journal')?.textContent).toContain('Its pages stay where they are.');
     act(() => button('Just the time').click());
     act(() => buttonSaying(document.body, 'Make it a journal')!.click());
     const body = await written();
@@ -1103,6 +1186,9 @@ describe('a notebook kept as a journal', () => {
     show(screen(await createNote('j1', journal), { hasTitle: () => true, onOpenTitle: () => {} }));
     more();
     act(() => buttonSaying(document.body, 'Journal')!.click());
+    // Each change is written as it is made, and is for entries from then on.
+    expect(document.body.textContent).toContain('Entries you have written stay as they are.');
+    expect(buttonSaying(document.body, 'Make it a notebook again')?.textContent).toContain('Its entries stay as pages. New pages start plain.');
     act(() => button('A morning page').click());
     expect(await written()).toContain('template: "# {{date}}\\n\\n> What is on your mind this morning?\\n\\n"');
     act(() => document.querySelector<HTMLElement>('input[aria-label="With where you are"]')!.click());

@@ -3,8 +3,9 @@ import { inLocale } from '../../test/locale.ts';
 import { makeNote } from '../../test/notes.ts';
 import { withGeoTag } from '../core/geotag.ts';
 import { DEFAULT_TEMPLATE, entryBody, PRESETS } from './journal.ts';
-import { asideMonth, firstWords, inTimeOrder, journalCards, monthsOf, type JournalPage } from './journalMonths.ts';
+import { asideMonth, firstWords, inTimeOrder, journalCards, monthsOf, sideName, type JournalPage } from './journalMonths.ts';
 import { bookOf } from './book.ts';
+import { fillTemplate } from './template.ts';
 
 /**
  * A journal's entries in months, newest first by when each was written, whatever order its index is in; what a row
@@ -48,6 +49,23 @@ describe('a journal’s months', () => {
     expect(unwritten).toEqual(['Packing list', 'The route']);
   });
 
+  it('puts an entry in the month its clock said, read in a zone where that moment is still the month before', () => {
+    const zone = process.env.TZ;
+    process.env.TZ = 'America/New_York';
+    try {
+      const october = entry('2026-10-01 00.10', '2026-10-01T00:10', 'October.');
+      const september = entry('2026-09-30 21.00', '2026-09-30T21:00', 'September.');
+      const { months } = inLocale('en-GB', () => monthsOf(pages(october, september)));
+      expect(titles(months)).toEqual([
+        ['October 2026', ['2026-10-01 00.10']],
+        ['September 2026', ['2026-09-30 21.00']],
+      ]);
+    } finally {
+      if (zone === undefined) delete process.env.TZ;
+      else process.env.TZ = zone;
+    }
+  });
+
   it('keeps a travelling entry on the day its clock said, wherever it is read', () => {
     const late = entry('2026-09-28 23.30', '2026-09-28T23:30', 'Written in New York.');
     const next = entry('2026-09-29 00.10', '2026-09-29T00:10', 'Just after midnight.');
@@ -72,11 +90,35 @@ describe('a journal’s months', () => {
 });
 
 describe('an entry’s first line', () => {
+  const at = new Date(2026, 8, 28, 14, 5);
+  const filled = (template: string) => inLocale('en-GB', () => fillTemplate(template, { at, title: '2026-09-28 14.05', journal: 'Diary' }));
+  const first = (words: string, template: string) => firstWords(entryBody('2026-09-28 14.05', '2026-09-28T14:05', words), filled(template));
+
   it('skips its front matter, headings, the template’s own lines and the time that leads a line', () => {
-    expect(firstWords(entryBody('t', '2026-09-28T14:05', '# Monday 28 September\n\n**14:05** '), DEFAULT_TEMPLATE)).toBe('');
-    expect(firstWords(entryBody('t', '2026-09-28T14:05', '# Monday\n\n> What is on your mind this morning?\n\nThe garden, mostly.'), PRESETS[2]!.text)).toBe('The garden, mostly.');
-    expect(firstWords(entryBody('t', '2026-09-28T14:05', '# Monday\n\n## To do\n\n- [ ] \n- [ ] Call **Sam**'), PRESETS[3]!.text)).toBe('Call Sam');
+    expect(first('# Monday 28 September\n\n**14:05** ', DEFAULT_TEMPLATE)).toBe('');
+    expect(first('# Monday\n\n> What is on your mind this morning?\n\nThe garden, mostly.', PRESETS[2]!.text)).toBe('The garden, mostly.');
+    expect(first('# Monday\n\n## To do\n\n- [ ] \n- [ ] Call **Sam**', PRESETS[3]!.text)).toBe('Call Sam');
     expect(firstWords('---\ntitle: "x"\n---\n![](image/a.jpg)\n14:05 Tea.')).toBe('Tea.');
+  });
+
+  it('skips only what the template wrote for this entry, never every line a placeholder could stand for', () => {
+    // A line of your own that is only a placeholder, or a format with words round it, left open for the entry's words.
+    const own = '# {{date}}\n{{date:dddd [at] HH:mm}}. ';
+    expect(first('# Monday 28 September\nMonday at 14:05. Walked along the river after lunch.', own)).toBe('Walked along the river after lunch.');
+    expect(first('Monday 28 September\n\n14:05 Walked along the river after lunch.', '{{date}}\n\n{{time}} ')).toBe('Walked along the river after lunch.');
+    // Bold of the entry's own, whole or at the line's end, is words.
+    expect(first('# Monday 28 September\n\n**14:05** \n**Remember the milk**', DEFAULT_TEMPLATE)).toBe('Remember the milk');
+    expect(first('# Monday 28 September\n\n**14:05** Walked **fast**', DEFAULT_TEMPLATE)).toBe('Walked fast');
+    // A heading of the entry's own is still a heading.
+    expect(first('# Monday 28 September\n\n## Lunch\n\nSoup.', DEFAULT_TEMPLATE)).toBe('Soup.');
+  });
+
+  it('draws a row’s words for a template of your own, filled for each entry’s own minute', () => {
+    const one = entry('2026-09-28 20.58', '2026-09-28T20:58', '# Monday 28 September\nMonday at 20:58. Walked along the river after lunch.');
+    const two = entry('2026-09-27 07.30', '2026-09-27T07:30', '# Sunday 27 September\nSunday at 07:30. ');
+    const { months } = inLocale('en-GB', () => monthsOf(pages(one, two), '# {{date}}\n{{date:dddd [at] HH:mm}}. ', 'Diary'));
+    expect(months[0]!.entries.map((e) => e.first)).toEqual(['Walked along the river after lunch.', '']);
+    expect(months[0]!.entries[0]!.label).toBe('Monday 28 September, 20:58. Walked along the river after lunch.');
   });
 });
 
@@ -90,18 +132,36 @@ describe('a journal elsewhere', () => {
   ];
   const noteOf = (title: string) => notes.find((note) => note.id === title);
 
-  it('gives a journal’s card its count and its newest entries, the planned page after them, and a notebook none', () => {
-    const cards = journalCards(notes);
+  it('gives a journal’s card its count of entries written and its newest by day and time, and a notebook none', () => {
+    const cards = inLocale('en-GB', () => journalCards(notes));
     expect([...cards.keys()]).toEqual(['diary']);
-    expect(cards.get('diary')).toEqual({ count: 3, newest: ['2026-09-28 14.05', '2026-09-27 21.40', 'Planned'] });
+    // The planned page is not an entry: not counted, not listed.
+    expect(cards.get('diary')).toEqual({
+      count: 2,
+      newest: [
+        { title: '2026-09-28 14.05', when: 'Mon 28 Sept, 14:05' },
+        { title: '2026-09-27 21.40', when: 'Sun 27 Sept, 21:40' },
+      ],
+    });
   });
 
-  it('walks a journal’s entries oldest first for the bar, and a notebook’s pages as they are', () => {
+  it('walks a journal’s written entries oldest first for the bar, and a notebook’s pages as they are', () => {
     const place = inTimeOrder(bookOf(notes, '2026-09-28 14.05')!, noteOf);
-    expect(place.chapters.map((c) => c.title)).toEqual(['2026-09-27 21.40', '2026-09-28 14.05', 'Planned']);
+    // A page planned and never written is not walked to.
+    expect(place.chapters.map((c) => c.title)).toEqual(['2026-09-27 21.40', '2026-09-28 14.05']);
     expect(place.at).toBe(1);
     const guide = bookOf(notes, 'Trees')!;
     expect(inTimeOrder(guide, noteOf)).toBe(guide);
+  });
+
+  it('names an entry either side by its time on the same day, else by its day, and any other page as it is', () => {
+    inLocale('en-GB', () => {
+      expect(sideName('2026-09-28 08.10', '2026-09-28 14.05')).toBe('08:10');
+      expect(sideName('2026-09-28 14.05 (2)', '2026-09-28 14.05')).toBe('14:05');
+      expect(sideName('2026-09-27 21.40', '2026-09-28 14.05')).toBe('27 Sept');
+      expect(sideName('Packing list', '2026-09-28 14.05')).toBe('Packing list');
+      expect(sideName('2026-09-28 08.10', 'Packing list')).toBe('28 Sept');
+    });
   });
 
   it('gives the aside the month of the entry open, or the newest', () => {

@@ -49,10 +49,17 @@ describe('a journal note', () => {
     expect(isJournalBody(DIARY)).toBe(true);
     expect(isJournalBody('---\njournal: true\n---\n# Not a notebook\n')).toBe(false);
     expect(isJournalBody('---\nbook: true\njournal: YES\n---\n')).toBe(true);
+    expect(isJournalBody('---\nbook: true\njournal: false\n---\n')).toBe(false);
+    expect(isJournalBody('---\nbook: true\njournal: no\n---\n')).toBe(false);
     expect(frontMatterEnd(DIARY.split('\n'))).toBe(7);
     expect(noteTitle(DIARY)).toBe('Diary');
     expect(entryPlaceOf(DIARY)).toBe(true);
     expect(entryPlaceOf(journalNoteBody('Log', DEFAULT_TEMPLATE, false))).toBe(false);
+    expect(entryPlaceOf('---\nbook: true\njournal: true\nentry-place: false\n---\n')).toBe(false);
+    expect(entryPlaceOf('---\nbook: true\njournal: true\nentry-place: Yes\n---\n')).toBe(true);
+    // Its name as the heading says it, out of its quotes; no name at all is a Journal.
+    expect(journalNoteBody('Say "hi"', DEFAULT_TEMPLATE, false)).toMatch(/^---\ntitle: "Say 'hi'"\n[\s\S]*\n---\n# Say 'hi'\n\n$/);
+    expect(journalNoteBody('  ', DEFAULT_TEMPLATE, false)).toMatch(/^---\ntitle: "Journal"\n[\s\S]*\n---\n# Journal\n\n$/);
   });
 
   it('keeps any template through its one line: quotes, backslashes, curly quotes, emoji and line breaks', () => {
@@ -71,6 +78,8 @@ describe('a journal note', () => {
     expect(templateOf('---\nbook: true\njournal: true\ntemplate: # {{date}}\\n\\n{{time}} \n---\n')).toBe('# {{date}}\n\n{{time}}');
     expect(templateOf("---\nbook: true\njournal: true\ntemplate: 'Just {{time}}'\n---\n")).toBe('Just {{time}}');
     expect(templateOf('---\nbook: true\njournal: true\n---\n')).toBe(DEFAULT_TEMPLATE);
+    // Only the front matter's: a line in the words that looks like the key is words.
+    expect(templateOf('---\nbook: true\njournal: true\n---\ntemplate: "Not this"\n')).toBe(DEFAULT_TEMPLATE);
   });
 
   it('changes its template and its place switch without touching the other keys or the index', () => {
@@ -80,6 +89,8 @@ describe('a journal note', () => {
     expect(frontMatterValue(changed, 'book')).toBe('true');
     expect(templateOf(changed)).toBe('**{{time}}** ');
     expect(entryPlaceOf(changed)).toBe(false);
+    // Off is the key taken out, not a `false` an older app would have to read.
+    expect(changed).not.toContain('entry-place');
     expect(chaptersOf(changed).map((c) => c.title)).toEqual(['2026-09-27 21.40', '2026-09-28 08.10']);
   });
 
@@ -101,6 +112,13 @@ describe('a journal note', () => {
     expect(chaptersOf(two).map((c) => c.title)).toEqual(['2026-09-28 14.05', '2026-09-27 09.00']);
     // It is withChapter's append, so a numbered index goes on numbering.
     expect(withEntry('---\nbook: true\njournal: true\n---\n1. [[A]]\n', 'B')).toBe(withChapter('---\nbook: true\njournal: true\n---\n1. [[A]]\n', 'B'));
+    // At the top level, never a part of the page above it, and numbered on from the last top-level line.
+    const kept = '---\nbook: true\njournal: true\n---\n- [[Trip]]\n  - [[Day one]]\n';
+    expect(withEntry(kept, '2026-09-28 14.05')).toBe(`${kept}- [[2026-09-28 14.05]]\n`);
+    const numbered = '---\nbook: true\njournal: true\n---\n1. [[Trip]]\n   1. [[Day one]]\n';
+    expect(withEntry(numbered, '2026-09-28 14.05')).toBe(`${numbered}2. [[2026-09-28 14.05]]\n`);
+    expect(chaptersOf(withEntry(numbered, '2026-09-28 14.05')).at(-1)).toMatchObject({ title: '2026-09-28 14.05', depth: 0 });
+    expect(withEntry(kept, 'Day one')).toBe(kept);
   });
 
   it('says what an entry starts with in one fixed sentence, and knows its presets', () => {
@@ -128,6 +146,8 @@ describe('an entry', () => {
     expect(isEntryTitle('2026-09-28 14.05')).toBe(true);
     expect(isEntryTitle('2026-09-28 14.05 (2)')).toBe(true);
     expect(isEntryTitle('2026-09-28')).toBe(false);
+    expect(isEntryTitle('Notes 2026-09-28 14.05')).toBe(false);
+    expect(isEntryTitle('2026-09-28 14.05 later')).toBe(false);
     expect(isEntryTitle('Trees')).toBe(false);
     expect(chapterOf('2026-09-28 14.05')).toBeNull();
     expect(chapterOf('2026-09-28 14.05 (2)')).toBeNull();

@@ -101,6 +101,7 @@
   color: var(--glacier-text-subtle);
 }
 
+/* The time and where: a long place's name fades at the column's edge as the words beside it do, never cut mid-letter. */
 .meta {
   grid-area: meta;
   min-inline-size: 0;
@@ -109,6 +110,8 @@
   font-size: var(--glacier-font-size-sm);
   font-variant-numeric: tabular-nums;
   color: var(--glacier-text-subtle);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
 }
 
 /* How it starts: one line, faded out at the edge the way the menu band fades (editor/ContextMenu.module.css), never cut with an ellipsis. */

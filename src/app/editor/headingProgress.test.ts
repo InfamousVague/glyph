@@ -21,6 +21,12 @@ describe('progress under a heading', () => {
     expect(headingCounts(note)).toEqual([{ line: 1, done: 1, total: 2 }]);
   });
 
+  it('counts no box that has no words yet, as the home page’s To do card counts none', () => {
+    // A journal's day of to-dos, as its template starts an entry.
+    expect(headingCounts(doc(['# Monday 28 September', '', '## To do', '', '- [ ] '].join('\n')))).toEqual([]);
+    expect(headingCounts(doc(['## To do', '- [ ] ', '- [x]   ', '- [ ] Call Sam'].join('\n')))).toEqual([{ line: 1, done: 0, total: 1 }]);
+  });
+
   it('ignores boxes and headings inside code', () => {
     const note = doc(['## Code', '```', '# not a heading', '- [ ] not a to-do', '```', '- [ ] real'].join('\n'));
     expect(headingCounts(note)).toEqual([{ line: 1, done: 0, total: 1 }]);

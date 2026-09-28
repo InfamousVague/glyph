@@ -42,8 +42,11 @@ export type Placing =
       task: boolean;
       /** A heading said for it ("under Electrical"): the list under that heading. */
       heading: string | null;
-      /** The note has no list yet: the one to start, or null for none (the words go at the end). */
-      fresh: 'task' | 'bullet' | null;
+      /**
+       * The note has no list yet: the one to start, or null for none (the words go at the end). Numbered for a journal
+       * whose template ends in an empty numbered item, "1. " (book/template.ts `openEnd`).
+       */
+      fresh: 'task' | 'bullet' | 'number' | null;
     }
   /** A lane of a board, by name, for "add … to Doing" said on the board's own Speak (core/boards.ts). */
   | { kind: 'lane'; lane: string };
@@ -195,11 +198,12 @@ export function placeTake(base: string, markdown: string, placing: Placing): Pla
     const all = runsOf(lines);
     const runs = placing.task && all.some((run) => run.style.task) ? all.filter((run) => run.style.task) : all;
     if (!runs.length) {
-      const box = (placing.fresh ?? (placing.task ? 'task' : 'bullet')) === 'task' ? '- [ ] ' : '- ';
-      const block = items.flatMap((item) => itemLines(`${box}${itemText(item.text)}`, item, '  ')).join('\n');
+      const fresh = placing.fresh ?? (placing.task ? 'task' : 'bullet');
+      const lead = (n: number) => (fresh === 'task' ? '- [ ] ' : fresh === 'number' ? `${n}. ` : '- ');
+      const block = items.flatMap((item, n) => itemLines(`${lead(n + 1)}${itemText(item.text)}`, item, fresh === 'number' ? ' '.repeat(lead(n + 1).length) : '  ')).join('\n');
       body = appendBlock(body, block);
       blocks.push(block);
-      spot = box === '- [ ] ' ? 'in a new to-do list' : 'in a new list';
+      spot = fresh === 'task' ? 'in a new to-do list' : 'in a new list';
     } else {
       const lists = listsOf(lines, runs);
       const scoreOf = (text: string, index: number) => fitOf(text, lists[index]!);

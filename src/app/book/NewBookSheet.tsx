@@ -47,12 +47,15 @@ export function NewBookSheet({ open, onClose, titles, onCreate, onCreateJournal,
   const [kind, setKind] = useState(opening);
   const [template, setTemplate] = useState(DEFAULT_TEMPLATE);
   const [place, setPlace] = useState(() => preferences().tagNewNotes);
-  // Each opening starts on the kind it was opened for, and a journal's switch on this device's Tag new notes.
+  // Each opening starts on the kind it was opened for, and a journal's switch on this device's Tag new notes. Only an
+  // opening: App hands a new `onCreateJournal` on every render, and a sync, the app coming back or the phone's own
+  // location prompt answered each draws App again while the sheet is up, which put the choices back under the person.
+  const journals = onCreateJournal !== undefined;
   useEffect(() => {
     if (!open) return;
-    setKind(onCreateJournal ? opening : 'notebook');
+    setKind(journals ? opening : 'notebook');
     setPlace(preferences().tagNewNotes);
-  }, [open, opening, onCreateJournal]);
+  }, [open, opening, journals]);
   const journal = kind === 'journal';
   const pageEls = useRef<(HTMLElement | null)[]>([]);
   const rows = useRowDrag(

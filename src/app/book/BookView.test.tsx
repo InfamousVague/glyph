@@ -70,6 +70,7 @@ describe('the index view', () => {
     const open = vi.fn();
     show(<BookView body={BOOK} title="Field guide" known={() => true} open={open} titles={() => ['Field guide', 'Trees', 'Rivers', 'Mountains']} onChange={onChange} />);
     act(() => button('Add a page').click());
+    expect(document.querySelector<HTMLInputElement>('input[aria-label="New page\'s title"]')?.placeholder).toBe('Page title');
     typeInto(document.querySelector<HTMLInputElement>('input[aria-label="New page\'s title"]')!, 'Rivers');
     act(() => button('Add and open').click());
     expect(chaptersOf(onChange.mock.calls[0]![0] as string).map((c) => c.title)).toEqual(['Introduction', 'Trees', 'Birds', 'Rivers']);
@@ -84,6 +85,17 @@ describe('the index view', () => {
     expect(button('Add 2 notes')).toBeTruthy();
     act(() => button('Add 2 notes').click());
     expect(chaptersOf(onChange.mock.calls[1]![0] as string).map((c) => c.title).slice(-2)).toEqual(['Mountains', 'Rivers']);
+  });
+
+  it('says so when no note outside the notebook has that name, or every note is in it already', () => {
+    show(<BookView body={BOOK} title="Field guide" known={() => true} open={() => {}} titles={() => ['Field guide', 'Trees', 'Rivers']} onChange={() => {}} />);
+    act(() => button('Add a note you have').click());
+    typeInto(document.querySelector<HTMLInputElement>('input[aria-label="Find a note to add"]')!, 'zzz');
+    expect(document.body.textContent).toContain('No note by that name outside the notebook.');
+    unmount();
+    show(<BookView body={BOOK} title="Field guide" known={() => true} open={() => {}} titles={() => ['Field guide', 'Trees']} onChange={() => {}} />);
+    act(() => button('Add a note you have').click());
+    expect(document.body.textContent).toContain('Every note is in the notebook already.');
   });
 
   it('marks a chapter that is a canvas, and a canvas it offers to add, with the canvas mark', () => {
@@ -235,6 +247,8 @@ describe('the bar a chapter wears', () => {
     show(<BookBar place={place} open={() => {}} />);
     expect(button('First page').disabled).toBe(true);
     expect(button('Next page: Trees').disabled).toBe(false);
+    show(<BookBar place={bookOf([makeNote('b', BOOK)], 'Birds')!} open={() => {}} />);
+    expect(button('Last page').disabled).toBe(true);
   });
 });
 

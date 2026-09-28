@@ -6,7 +6,7 @@ import { syncDevice, type SyncDevice } from '../../../test/syncDevice.ts';
 import { withSummary } from '../../ai/summaryText.ts';
 import { markShared } from '../live/shared.ts';
 import type { Note } from '../store.ts';
-import { fileId, mark, RECORDING_SYNC_LIMIT, recordingBytes, recordingStaysHere, stayedHere } from './notes.ts';
+import { fileId, mark, mergedIndex, RECORDING_SYNC_LIMIT, recordingBytes, recordingStaysHere, stayedHere } from './notes.ts';
 
 /*
  * The note sync pass (notes.ts) between two devices on the service in memory: the rules a person would feel break -
@@ -439,6 +439,14 @@ describe('a notebook on two devices', () => {
     mac.notes.set('a', edited(note, `${DIARY}- [[2026-09-28 14.05]]\n`, 3));
     await phone.sync();
     expect(await mac.sync()).toMatchObject({ conflicts: 1 });
+  });
+
+  it('reads the blank lines round the index as one, however many a line taken out left', () => {
+    const head = '---\ntitle: "Log"\nbook: true\njournal: true\n---\n# Log\n\n';
+    // Here a line was added; there the only line was taken out by hand, and the blank lines either side of it kept.
+    const merged = mergedIndex(`${head}- [[A]]\n- [[B]]\n\nAfter the list.\n`, `${head}\n\n\nAfter the list.\n`);
+    expect(merged).not.toBeNull();
+    expect(merged).toContain('- [[B]]');
   });
 
   it('merges only notebooks: a note with a list of links changed on both sides is kept twice', async () => {

@@ -162,7 +162,9 @@ export function HomeScreen({
   const books = useMemo(() => bookNotes(shown), [shown]);
   /** Every page's book, for the cards' marks (book/book.ts). */
   const inBooks = useMemo(() => bookIndex(shown), [shown]);
-  const journals = useMemo(() => journalCards(shown), [shown]);
+  // A journal's card counts every entry in it, wherever each was filed: an entry is filed in the workspace being looked
+  // at when it is made (App.tsx `showMade`), and the + offers the journal written in last from any of them.
+  const journals = useMemo(() => journalCards(notes), [notes]);
   const tasks = useMemo(() => openTasks(shown), [shown]);
   // One quiet line under each card's title, what the note is about, written by a model on the phone (format/gist.ts).
   // Only the notes with a card or a cassette on the page: the runner asks about what is on screen, not about every

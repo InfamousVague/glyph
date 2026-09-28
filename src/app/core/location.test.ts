@@ -591,6 +591,18 @@ describe('tagging new notes', () => {
     expect(calls).toHaveLength(1);
   });
 
+  it('asks for an entry quietly over a locked phone: no introduction, no prompt, and no refusal kept', async () => {
+    native = true;
+    android = true;
+    window.GlyphHost = { takeLaunch: () => '', isLocked: () => true, endCapture: () => undefined, locationAccess: () => 'ask' };
+    const { calls } = fixAt(51.5074, -0.1278);
+    const introduce = vi.fn();
+    expect(await location.tagEntryIfWanted(['e1'], { reviewing: false }, { quiet: true, introduce })).toBe('unavailable');
+    expect(introduce).not.toHaveBeenCalled();
+    expect(calls).toHaveLength(0);
+    expect(location.autoTagRefusal()).toBeNull();
+  });
+
   it('introduces the first ask for entries on its own, whatever a new note’s introduction met', async () => {
     const { calls } = fixAt(51.5074, -0.1278);
     await store.createNote('n1', '# Said\n');

@@ -5,6 +5,7 @@ import type { Note } from '../core/store.ts';
 import { titleKey } from '../core/titleKey.ts';
 import { chaptersOf, isJournalBody, type BookPlace } from './book.ts';
 import { isEntryTitle, stampOf, templateOf } from './journal.ts';
+import { fillTemplate } from './template.ts';
 
 /**
  * A journal's entries as its view draws them (book/JournalView.tsx; docs/DESIGN.md §142): newest first, in runs by the
@@ -66,40 +67,55 @@ function wallFormats() {
   return {
     day: make({ day: 'numeric' }),
     weekday: make({ weekday: 'short' }),
+    weekdayLong: make({ weekday: 'long' }),
     time: make({ hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }),
     long: make({ weekday: 'long', month: 'long', day: 'numeric' }),
     month: make({ month: 'long', year: 'numeric' }),
+    when: make({ weekday: 'short', day: 'numeric', month: 'short' }),
   };
 }
 
-/** A line of a template, as the lines it fills can be recognised: its placeholders stand for anything. */
-function templateLine(line: string): RegExp {
-  const pattern = line
-    .trim()
-    .split(/\{\{[^{}]*\}\}/)
-    .map((piece) => piece.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    .join('.*?');
-  return new RegExp(`^${pattern}$`);
+/** A wall clock (journal.ts `stampOf`: its UTC fields are the clock) as the moment here that reads the same. */
+function localOf(wall: number): Date {
+  const at = new Date(wall);
+  return new Date(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate(), at.getUTCHours(), at.getUTCMinutes());
+}
+
+/**
+ * The template as it was filled for an entry: its words, which are not the entry's own. With the rows' formatters, so
+ * a year of entries fills a year of templates without a formatter made for each (`{{date}}` and `{{time}}` are these
+ * formats, core/stamp.ts); only a format of your own, `{{date:dddd}}`, makes its own.
+ */
+function templateFor(template: string, journal: string, formats: ReturnType<typeof wallFormats>): (page: Written) => string {
+  if (!template.includes('{{')) return () => template;
+  return ({ wall, title }) =>
+    fillTemplate(template, { at: localOf(wall), title, journal, said: { date: formats.long(wall), time: formats.time(wall), weekday: formats.weekdayLong(wall) } });
 }
 
 /** A time the template put at the start of a line, bold or not: "**14:05** ". */
 const LEADING_TIME = /^(?:\*\*|__)?\d{1,2}[:.]\d{2}(?:\*\*|__)?\s*/;
 
 /**
- * The first line of an entry's own words, as plain text: past its front matter, its headings, a line that is only the
- * template's (its question, its empty to-do) and a time the template led a line with; a list's or a quote's mark, and
- * bold, taken off.
+ * The first line of an entry's own words, as plain text: past its front matter, its headings, a picture alone on its
+ * line, and `filled`, the template as it was filled for this entry: a line that is only the template's (its question,
+ * its empty to-do) is skipped, and a line the template left open for the words to go on ("**14:05** ") comes off the
+ * front of the line that goes on from it. Its own lines as they were filled, never a pattern of them: a template line
+ * that is only a placeholder, `{{date}}`, read as a pattern stood for every line there is, and the row had no words.
+ * A time that leads a line comes off too, for an entry made before its journal's template changed. A list's or a
+ * quote's mark, and bold, taken off.
  */
-export function firstWords(body: string, template = ''): string {
-  const own = template
-    .split('\n')
-    .filter((line) => line.trim())
-    .map(templateLine);
+export function firstWords(body: string, filled = ''): string {
+  const template = filled.split('\n').filter((line) => line.trim());
+  const only = new Set(template.map((line) => line.trim()));
+  const open = template.filter((line) => /\s$/.test(line)).map((line) => line.trimStart());
   const lines = body.split('\n');
   for (const raw of lines.slice(frontMatterEnd(lines))) {
     const line = raw.trim();
-    if (!line || /^#{1,6}\s/.test(line) || /^!\[[^\]]*\]\([^)]*\)$/.test(line) || own.some((pattern) => pattern.test(line))) continue;
-    const words = line
+    if (!line || /^#{1,6}\s/.test(line) || /^!\[[^\]]*\]\([^)]*\)$/.test(line) || only.has(line)) continue;
+    const from = raw.trimStart();
+    const lead = open.find((each) => from.startsWith(each));
+    const words = (lead ? from.slice(lead.length) : line)
+      .trim()
       .replace(/^(?:>\s*)+/, '')
       .replace(/^(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?/, '')
       .replace(LEADING_TIME, '')
@@ -114,11 +130,11 @@ export function firstWords(body: string, template = ''): string {
 type Written = JournalPage & { note: Note; wall: number };
 
 /** One entry's row. */
-function rowOf(page: Written, template: string, formats: ReturnType<typeof wallFormats>): EntryRow {
+function rowOf(page: Written, filled: string, formats: ReturnType<typeof wallFormats>): EntryRow {
   const { wall } = page;
   const tag = geoTagOf(page.note.body);
   const place = tag ? tagLabel(tag) : null;
-  const first = firstWords(page.note.body, template);
+  const first = firstWords(page.note.body, filled);
   const time = formats.time(wall);
   const label = `${[formats.long(wall), time, place].filter(Boolean).join(', ')}.${first ? ` ${first}` : ''}`;
   return { title: page.title, id: page.note.id, wall, day: formats.day(wall), weekday: formats.weekday(wall), time, place, first, label };
@@ -146,14 +162,16 @@ export function pagesOf(body: string, noteOf: (title: string) => Note | undefine
 
 /**
  * The journal's written entries in months, newest first, and the names planned in it with no note yet, in the index's
- * order. `template` is the journal's, so a row's first line is the entry's own words and not the template's.
+ * order. `template` and `journal` are the journal's, so a row's first line is the entry's own words and not the
+ * template's as it was filled for that entry.
  */
-export function monthsOf(pages: readonly JournalPage[], template = ''): { months: JournalMonth[]; unwritten: string[] } {
+export function monthsOf(pages: readonly JournalPage[], template = '', journal = ''): { months: JournalMonth[]; unwritten: string[] } {
   const { rows, unwritten } = written(pages);
   const formats = wallFormats();
+  const fill = templateFor(template, journal, formats);
   const months: JournalMonth[] = [];
   for (const page of rows) {
-    const row = rowOf(page, template, formats);
+    const row = rowOf(page, fill(page), formats);
     const at = new Date(row.wall);
     const key = `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, '0')}`;
     const last = months[months.length - 1];
@@ -165,16 +183,19 @@ export function monthsOf(pages: readonly JournalPage[], template = ''): { months
 
 /**
  * A page's place in its journal as the bar and the foot walk it (book/BookNav.tsx): the written entries oldest first,
- * so Previous is the entry written before this one and the newest is "212 of 212", then any page planned and not yet
- * written. A notebook's place is answered as it is.
+ * so Previous is the entry written before this one and the newest is "212 of 212". A page planned and not yet written
+ * is not an entry: in a notebook kept as a journal the first entry read "2 of 3", with Next a page nobody had written.
+ * A notebook's place is answered as it is.
  */
 export function inTimeOrder(place: BookPlace, noteOf: (title: string) => Note | undefined): BookPlace {
   if (!place.journal) return place;
-  const { rows, unwritten } = written(pagesOf(place.book.body, noteOf));
-  const order = [...rows.reverse().map((row) => row.title), ...unwritten];
+  const { rows } = written(pagesOf(place.book.body, noteOf));
+  const order = rows.reverse().map((row) => row.title);
   const chapters = order.map((title) => place.chapters.find((chapter) => chapter.title === title)!).filter(Boolean);
   const current = place.chapters[place.at]?.title;
-  return { ...place, chapters, at: current === undefined ? -1 : chapters.findIndex((chapter) => chapter.title === current) };
+  const at = current === undefined ? -1 : chapters.findIndex((chapter) => chapter.title === current);
+  // Not among the written (a note by that name the index finds no line for): walked as the index has it.
+  return at < 0 ? place : { ...place, chapters, at };
 }
 
 /** Every note by its title's key, the first of two that share one, as a link finds it. */
@@ -187,10 +208,14 @@ function byTitle(notes: readonly Note[]): (title: string) => Note | undefined {
   return (title) => map.get(titleKey(title));
 }
 
-/** What a journal's card says (notes/NoteCard.tsx): how many entries, and the newest few by when each was written. */
+/**
+ * What a journal's card says (notes/NoteCard.tsx): how many entries are written, and the newest few by when each was
+ * written, each said as its day and time ("Mon 28 Sept, 13:05") rather than its file's name. A page planned and not
+ * yet written is not an entry, and is not counted.
+ */
 export interface JournalCard {
   count: number;
-  newest: string[];
+  newest: { title: string; when: string }[];
 }
 
 /** Every journal's card among `notes`, by the journal's id: none where there is no journal. */
@@ -199,11 +224,35 @@ export function journalCards(notes: readonly Note[], newest = 4): Map<string, Jo
   const journals = notes.filter((note) => isJournalBody(note.body));
   if (!journals.length) return cards;
   const noteOf = byTitle(notes);
+  const formats = wallFormats();
   for (const journal of journals) {
-    const { rows, unwritten } = written(pagesOf(journal.body, noteOf));
-    cards.set(journal.id, { count: rows.length + unwritten.length, newest: [...rows.map((row) => row.title), ...unwritten].slice(0, newest) });
+    const { rows } = written(pagesOf(journal.body, noteOf));
+    cards.set(journal.id, { count: rows.length, newest: rows.slice(0, newest).map((row) => ({ title: row.title, when: `${formats.when(row.wall)}, ${formats.time(row.wall)}` })) });
   }
   return cards;
+}
+
+/** An entry's name read back as the wall clock it names (journal.ts `entryTitle`), or null for a name that is not one. */
+function wallOfName(title: string): number | null {
+  if (!isEntryTitle(title)) return null;
+  const [, year, month, day, hour, minute] = /^(\d{4})-(\d{2})-(\d{2}) (\d{2})\.(\d{2})/.exec(title.trim())!;
+  return Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute));
+}
+
+const DAY_MS = 24 * 60 * 60_000;
+
+/**
+ * What an entry's bar calls the entry either side of `open` (book/BookNav.tsx): its time when it was written the day
+ * the open one was, else its day, "27 Sept". At a phone's width a side has room for about nine letters, and a name cut
+ * there, "2026-09-2…", kept only what every entry shares. A name that is not an entry's is said as it is.
+ */
+export function sideName(title: string, open: string): string {
+  const wall = wallOfName(title);
+  if (wall === null) return title;
+  const here = wallOfName(open);
+  const options: Intl.DateTimeFormatOptions =
+    here !== null && Math.floor(here / DAY_MS) === Math.floor(wall / DAY_MS) ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } : { day: 'numeric', month: 'short' };
+  return new Intl.DateTimeFormat(undefined, { ...options, timeZone: 'UTC' }).format(wall);
 }
 
 /**
@@ -211,7 +260,7 @@ export function journalCards(notes: readonly Note[], newest = 4): Map<string, Jo
  * first, or the journal's newest month. Null for a journal with nothing written.
  */
 export function asideMonth(journal: Note, notes: readonly Note[], openTitle: string | null): JournalMonth | null {
-  const { months } = monthsOf(pagesOf(journal.body, byTitle(notes)), templateOf(journal.body));
+  const { months } = monthsOf(pagesOf(journal.body, byTitle(notes)), templateOf(journal.body), noteTitle(journal.body));
   if (!months.length) return null;
   const key = openTitle === null ? null : titleKey(openTitle);
   return months.find((month) => month.entries.some((entry) => titleKey(entry.title) === key)) ?? months[0]!;

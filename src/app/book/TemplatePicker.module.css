@@ -27,6 +27,12 @@
       'place preview';
     align-items: start;
   }
+
+  /* Beside the choice, it stays in sight while your own template grows in the box: typing scrolled it away above. */
+  .preview {
+    position: sticky;
+    inset-block-start: 0;
+  }
 }
 
 .choice {
@@ -93,10 +99,17 @@
 }
 
 .rule,
-.where {
+.where,
+.note {
   margin: 0;
   font-size: var(--glacier-font-size-sm);
   color: var(--glacier-text-subtle);
+}
+
+/* Under the choice, before your own template's box: what a change does. */
+.note {
+  margin-block: calc(-1 * var(--glacier-space-1)) var(--glacier-space-3);
+  padding-inline: var(--glacier-space-1);
 }
 
 .preview {
@@ -112,15 +125,24 @@
 }
 
 /*
- * The page as a note draws it, in a room with no ground, gutter or caret of its own (guide/MarkExample.module.css),
- * and small: the note's reading size, from which its headings take theirs, brought down to the sheet's, so an entry's
- * date heading is a preview and not a poster.
+ * The page as a note draws it, in the note's own face, in a room with no ground, gutter or caret of its own
+ * (guide/MarkExample.module.css), and small: the note's reading size and its headings' sizes brought down to the
+ * sheet's, so an entry's date heading is a preview and not a poster. The headings take the kit's steps rather than a
+ * step off the body (app.css): brought down alone, the body left a heading three times its size, louder than the
+ * sheet's own title.
  */
 .page {
   composes: room from '../guide/MarkExample.module.css';
   --app-gutter: 0px;
   --app-body: var(--glacier-font-size-sm);
+  --app-h1: var(--glacier-font-size-lg);
+  --app-h2: var(--glacier-font-size-md);
+  --app-h3: var(--glacier-font-size-md);
+  --app-h4: var(--glacier-font-size-sm);
+  --app-h5: var(--glacier-font-size-sm);
+  --app-h6: var(--glacier-font-size-sm);
   min-inline-size: 0;
+  font-family: var(--app-note-font);
 }
 
 /* The place switch: a row of the sheet with its switch at the end. The switch is the press, not the row. */

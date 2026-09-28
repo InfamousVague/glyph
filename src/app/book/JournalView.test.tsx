@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { makeNote } from '../../test/notes.ts';
-import { button, show } from '../../test/render.tsx';
+import { button, rerender, show } from '../../test/render.tsx';
+import { inLocale } from '../../test/locale.ts';
 import type { Note } from '../core/store.ts';
 import { titleKey } from '../core/titleKey.ts';
 import { bookOf, chaptersOf } from './book.ts';
@@ -90,6 +91,18 @@ describe('a journal drawn', () => {
     expect(chaptersOf(onChange.mock.calls[0]![0] as string).map((c) => c.title)).toEqual(['2026-09-28 14.05', '2026-09-27 09.00']);
   });
 
+  it('draws a row again when its entry changes, though the journal’s own words did not', () => {
+    const first = entryAt(2026, 9, 28, 14, 5, 'Walked.');
+    const { body } = journalOf([first]);
+    let now = first;
+    const view = () => <JournalView body={body} noteOf={() => now} known={() => true} open={() => {}} onChange={() => {}} />;
+    show(view());
+    expect(document.querySelector('ol button')!.textContent).toContain('Walked.');
+    now = { ...first, body: first.body.replace('Walked.', 'Walked along the river.'), updatedAt: first.updatedAt + 1 };
+    rerender(view());
+    expect(document.querySelector('ol button')!.textContent).toContain('Walked along the river.');
+  });
+
   it('has one action, New entry, only where one can be made, and says what an entry starts with while it is empty', () => {
     const body = journalNoteBody('Log', PRESETS[3]!.text, false);
     const onNewEntry = vi.fn();
@@ -114,8 +127,10 @@ describe('the bar and the foot an entry wears', () => {
     const journal = makeNote('diary', body);
     const place = inTimeOrder(bookOf([journal], '2026-09-28 08.10')!, noteOf);
     const open = vi.fn();
-    show(<BookBar place={place} open={open} />);
+    inLocale('en-GB', () => show(<BookBar place={place} open={open} />));
     expect(document.querySelector('nav[aria-label="Journal"]')?.textContent).toContain('2 of 3');
+    // Each side says what tells it apart: the day it was written, or its time on this one's day.
+    expect([...document.querySelectorAll('nav[aria-label="Journal"] [data-next], nav[aria-label="Journal"] button:first-child')].map((b) => b.textContent)).toEqual(['27 Sept', '14:05']);
     act(() => button('Previous entry: 2026-09-27 21.40').click());
     act(() => button('Next entry: 2026-09-28 14.05').click());
     act(() => button('Open the journal Diary').click());
@@ -126,5 +141,7 @@ describe('the bar and the foot an entry wears', () => {
     expect(last.at).toBe(2);
     show(<BookBar place={last} open={() => {}} />);
     expect(button('Last entry').disabled).toBe(true);
+    show(<BookBar place={inTimeOrder(bookOf([journal], '2026-09-27 21.40')!, noteOf)} open={() => {}} />);
+    expect(button('First entry').disabled).toBe(true);
   });
 });

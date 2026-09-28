@@ -1,7 +1,7 @@
 import { frontMatterEnd, frontMatterValue, quotedTitle, withFrontMatterValue } from '../core/frontMatter.ts';
 import { noteTitle } from '../core/noteTitle.ts';
 import type { Note } from '../core/store.ts';
-import { titleKey } from '../core/titleKey.ts';
+import { sameTitle, titleKey } from '../core/titleKey.ts';
 import { chaptersOf, isBookBody, isJournalBody, withChapter } from './book.ts';
 
 /**
@@ -140,9 +140,21 @@ export function journalNoteBody(name: string, template: string, place: boolean):
  * The journal's body with an entry's line added last, where the index's last line is, or after its words when it has
  * none yet. Last, whatever the entries' times, so the index reads in the order they were made in any app, and two
  * devices that each added one merge as the two lines (core/sync/notes.ts); the journal's own view orders by time.
+ *
+ * At the index's top level, however its last line sits: in a notebook kept as a journal whose last page is a part of
+ * the one above it, `withChapter` would indent the entry under that page too. Numbered on from the last top-level line
+ * where the index numbers its pages.
  */
 export function withEntry(body: string, title: string): string {
-  return withChapter(body, title);
+  const clean = title.trim();
+  const chapters = chaptersOf(body);
+  const last = chapters[chapters.length - 1];
+  if (!clean || !last || last.depth === 0 || chapters.some((c) => sameTitle(c.title, clean))) return withChapter(body, clean);
+  const lines = body.split('\n');
+  const top = [...chapters].reverse().find((c) => c.depth === 0);
+  const marker = top ? /^\s*(\d+)([.)])/.exec(lines[top.line] ?? '') : null;
+  lines.splice(last.line + 1, 0, `${marker ? `${Number(marker[1]) + 1}${marker[2]}` : '-'} [[${clean}]]`);
+  return lines.join('\n');
 }
 
 /**

@@ -144,6 +144,19 @@ describe('writing', () => {
     await service.deviceWrites(aNote('e', '---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n**14:05** Walked.'));
     await call('update_note', { id: 'e', body: '---\ntitle: "A walk"\n---\n**14:05** Walked by the river.' });
     expect((await service.stored('e'))?.note.body).toBe('---\ntitle: "A walk"\ndate: 2026-09-28T14:05\nauthors: matt, Claude\n---\n**14:05** Walked by the river.');
+    // A plain note the app renamed is renamed by the heading Claude writes, as it always was: its old name is not put back.
+    await service.deviceWrites(aNote('p', '---\ntitle: "Old name"\ndate: 2026-01-02\n---\n# Old name\n\nWords.'));
+    await call('update_note', { id: 'p', body: '# New name\n\nWords.' });
+    expect((await service.stored('p'))?.note.body).toBe('---\nauthors: matt, Claude\n---\n# New name\n\nWords.');
+  });
+
+  it('says in the rewrite’s description that a notebook’s links are its pages', async () => {
+    const { client } = await connected();
+    const { tools } = await client.listTools();
+    expect(tools.find((t) => t.name === 'update_note')?.description).toContain('A notebook’s or a journal’s list of [[links]] is its pages: a link left out of the new body takes that page or entry out of it, though its note stays.');
+    // The co-author's field says where the name shows, in a notebook's words.
+    const author = (tools.find((t) => t.name === 'create_note')?.inputSchema.properties as Record<string, { description?: string }>).author;
+    expect(author?.description).toContain('on the note, its notebook and a shared page');
   });
 
   it('turns a journal down for append_to_note, and says what writes an entry', async () => {
@@ -173,6 +186,55 @@ describe('writing', () => {
     const again = JSON.parse((await call('add_journal_entry', { journal: 'j', text: 'And again.', at: '2026-09-28T14:05' })).text) as { created: { title: string } };
     expect(again.created.title).toBe('2026-09-28 14.05 (2)');
     expect((await service.stored('j'))?.note.body).toBe(`${journal}- [[2026-09-28 14.05]]\n- [[2026-09-28 14.05 (2)]]\n`);
+  });
+
+  it('turns down a time that is not one, rather than rolling it on into another day', async () => {
+    const { service, call } = await connected();
+    await service.deviceWrites(aNote('j', '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n'));
+    for (const at of ['2026-13-45T99:99', '2026-02-30T12:00', '2026-09-28T24:00']) {
+      expect(await call('add_journal_entry', { journal: 'Diary', text: 'Walked.', at })).toEqual({ isError: true, text: `${at} is not a time. Give it as YYYY-MM-DDTHH:MM.` });
+    }
+    expect((await service.stored('j'))?.note.body).toBe('---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n');
+  });
+
+  it('names an entry past a note of that minute put away in the archive', async () => {
+    const { service, call } = await connected();
+    await service.deviceWrites(aNote('j', '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n'));
+    await service.deviceWrites(aNote('old', '---\ntitle: "2026-09-28 14.05"\n---\nArchived.', { archivedAt: WRITTEN }));
+    const made = JSON.parse((await call('add_journal_entry', { journal: 'Diary', text: 'Walked.', at: '2026-09-28T14:05' })).text) as { created: { title: string } };
+    expect(made.created.title).toBe('2026-09-28 14.05 (2)');
+  });
+
+  it('makes nothing when another device changed the journal first, so a second try is clean', async () => {
+    let before: (() => Promise<void>) | null = null;
+    const { service, call } = await connected({
+      hooks: {
+        fetcher: (service) => async (input, init) => {
+          if (init?.method === 'PUT' && before) {
+            const step = before;
+            before = null;
+            await step();
+          }
+          return service.fetcher(input, init);
+        },
+      },
+    });
+    const journal = '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n\n';
+    await service.deviceWrites(aNote('j', journal));
+    await call('list_notes', {});
+    // The phone writes the journal between the tool's read and its write.
+    before = async () => {
+      await service.deviceWrites(aNote('j', `${journal}- [[2026-09-28 08.10]]\n`));
+    };
+    const refused = await call('add_journal_entry', { journal: 'j', text: 'Walked.', at: '2026-09-28T14:05' });
+    expect(refused.isError).toBe(true);
+    expect(refused.text).toContain('Another device changed this note first');
+    const listed = JSON.parse((await call('list_notes', {})).text) as Listed;
+    expect(listed.notes.map((n) => n.title)).toEqual(['Diary']);
+    // Tried again, the entry and its line, once each.
+    const made = JSON.parse((await call('add_journal_entry', { journal: 'j', text: 'Walked.', at: '2026-09-28T14:05' })).text) as { created: { title: string } };
+    expect(made.created.title).toBe('2026-09-28 14.05');
+    expect((await service.stored('j'))?.note.body).toBe(`${journal}- [[2026-09-28 08.10]]\n- [[2026-09-28 14.05]]\n`);
   });
 
   it('makes a day’s to-dos from what is said, and turns down a note that is not a journal', async () => {

@@ -55,8 +55,9 @@ export function NoteCard({ note, index, onOpen, gist, place, entries, dense = fa
   const title = noteTitle(note.body);
   const book = isBookBody(note.body);
   const journal = book && isJournalBody(note.body);
-  // A journal's newest entries, else a notebook's first pages, as the index has them.
-  const listed = journal ? (entries?.newest ?? []).map((name, line) => ({ title: name, line, depth: 0 as const })) : book ? chaptersOf(note.body) : [];
+  // A journal's newest entries, by when each was written and with no number, since a journal has no page order: else a
+  // notebook's first pages, numbered as the index has them.
+  const listed = journal ? (entries?.newest ?? []).map((entry, line) => ({ title: entry.when, line, depth: 0 as const })) : book ? chaptersOf(note.body) : [];
   const count = journal ? (entries?.count ?? listed.length) : listed.length;
   const part = journal ? ['entry', 'entries'] : ['page', 'pages'];
   const where = geoTagOf(note.body)?.place ?? null;
@@ -93,7 +94,7 @@ export function NoteCard({ note, index, onOpen, gist, place, entries, dense = fa
               <ol className={styles.bookPages} aria-hidden="true">
                 {listed.slice(0, 4).map((c, n) => (
                   <li key={`${c.line}-${c.title}`} data-depth={c.depth}>
-                    <span className={styles.bookPageNumber}>{n + 1}</span>
+                    {journal ? null : <span className={styles.bookPageNumber}>{n + 1}</span>}
                     {c.title}
                   </li>
                 ))}

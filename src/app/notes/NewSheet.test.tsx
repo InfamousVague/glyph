@@ -44,6 +44,7 @@ describe('the + sheet', () => {
     act(() => buttonSaying(sheet()!, 'Notebook')!.click());
     expect(onBook).toHaveBeenCalledTimes(1);
     expect(sheet()?.textContent).not.toMatch(/\bbook\b/i);
+    expect(buttonSaying(sheet()!, 'From a shared link')?.textContent).toContain('A copy of a note or notebook someone shared with you.');
   });
 
   it('offers a new entry in the journal written in last, right after Note, with what an entry starts with', () => {

@@ -7698,6 +7698,27 @@ pages' authors again only when a page changed.
 draws or stores so the MCP server bundles them. `append_to_note` refuses a journal's index, and `update_note` keeps a
 notebook's keys. The hosted connector is not deployed: that is Matt's word.
 
+**After review.** Words typed into a new entry and left at once for home, inside the save's 400 ms, were taken back
+with the entry: App looked at the store before the screen's last save reached it. An entry is the person's on its
+first own keystroke now, and its record goes then. A double tap on New entry made two entries of one name and one
+line, and taking back the one left took the other's line: a second press while one is made does nothing, a name is
+unique against the journal's lines too, and a line stays while another note is named by it. Back from an untouched
+entry gives its journal the tab back, and so takes the entry back. A row's words skip only what the template wrote for
+that entry, filled for its minute: a template line that was only `{{date}}` had stood for every line. The bar's sides
+say a time or a day, not the first letters of a date. A journal's card counts only entries written, across
+workspaces, and lists them by day and time with no numbers. The template's preview is drawn in the view and the face
+a new note opens in, its heading a step above its words, and a heading counts no empty to-do. A shared entry is
+read without its `title:` and `date:`, and a notebook kept as a journal after it was shared is read as the notebook
+it was sent as. Claude's `add_journal_entry` writes the line first and turns down a time that is not one, and a
+rewrite keeps `title:` only where it is a notebook's or an entry's name.
+
+Found on the way, and older than journals: a note opened again from a list read before its last save opened without
+its last words, and the next keystroke's save, from the old revision, was refused and stopped the saving. A notebook's
+page opened again from its bar did it, and so did every entry opened from its journal's row after it was written in. A
+note's screen now reads the note once the last screen on it has finished saving, and takes that copy while nothing is
+typed there yet, and a screen that saved anything says so as it goes, so the list and the journal's rows catch up
+(editor/useNoteSaving.ts).
+
 **Left undone.** One entry a day, where a second tap opens today's. A daily reminder and a launcher shortcut (native,
 generation 21). The side key starting an entry. A folder per journal on disk. Reading a month straight through.
 Sharing a whole journal, or part of one. A notebook's pages nested under it in the sidebar. The page's keys in

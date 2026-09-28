@@ -4,7 +4,7 @@ import type { NoteScreen } from './editor/NoteScreen.tsx';
 import type { CaptureScreen } from './capture/CaptureScreen.tsx';
 import type { Guide } from './guide/Guide.tsx';
 import type { SettingsSheet } from './settings/SettingsSheet.tsx';
-import { createNote, getNote, setNoteRecording, type Note } from './core/store.ts';
+import { createNote, getNote, listNotes, setNoteArchived, setNoteRecording, updateNote, type Note } from './core/store.ts';
 import { preferences, reloadPreferences, setPreferences } from './core/preferences.ts';
 import { button, buttonSaying, show, unmount, waitUntil } from '../test/render.tsx';
 import { stubResizeObserver } from '../test/stubs.ts';
@@ -79,6 +79,16 @@ vi.mock('./ai/summaries.ts', async (importOriginal) => ({
   useSummaries: () => ({ pending: new Set<string>(), native: new Set<string>(), waiting: new Set<string>(), failed: new Set<string>(), needsModel }),
   retrySummary: () => undefined,
 }));
+// The store's writes, watched: a test can see what was already kept when one was made, or have one lose a race.
+vi.mock('./core/store.ts', async (importOriginal) => {
+  const real = await importOriginal<typeof import('./core/store.ts')>();
+  return { ...real, createNote: vi.fn(real.createNote), updateNote: vi.fn(real.updateNote) };
+});
+// Where a journal's entry was written is asked through here: a test sees whether it was asked, when, and how.
+vi.mock('./core/location.ts', async (importOriginal) => {
+  const real = await importOriginal<typeof import('./core/location.ts')>();
+  return { ...real, tagEntryIfWanted: vi.fn(real.tagEntryIfWanted) };
+});
 vi.mock('./share/share.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./share/share.ts')>()),
   readShared: vi.fn(async () => ({ v: 1, kind: 'note', title: 'Shared', pages: [{ title: 'Shared', body: '# Shared\n\nFrom a friend.' }], at: 1 })),
@@ -86,6 +96,8 @@ vi.mock('./share/share.ts', async (importOriginal) => ({
 }));
 
 const { App } = await import('./App.tsx');
+const { tagEntryIfWanted } = await import('./core/location.ts');
+const realStore = await vi.importActual<typeof import('./core/store.ts')>('./core/store.ts');
 const { addGuideBook } = await import('./guidebook/guidebook.ts');
 const { syncNow } = await import('./core/sync/engine.ts');
 
@@ -133,6 +145,11 @@ beforeEach(() => {
 afterEach(() => {
   unmount();
   vi.useRealTimers();
+  vi.mocked(createNote).mockImplementation(realStore.createNote);
+  vi.mocked(updateNote).mockImplementation(realStore.updateNote);
+  vi.mocked(createNote).mockClear();
+  vi.mocked(updateNote).mockClear();
+  vi.mocked(tagEntryIfWanted).mockClear();
   needsModel.clear();
   delete window.__glyph;
 });
@@ -524,6 +541,8 @@ describe('a journal’s entries', () => {
     expect(seen.note!.caretAtEnd).toBe(true);
     // In the journal's tab: made from inside it.
     expect(tabs()).toEqual([id]);
+    // The journal keeps no places: nothing is asked for this entry.
+    expect(tagEntryIfWanted).not.toHaveBeenCalled();
   });
 
   it('puts one line in for each entry made from inside the journal, a second in one minute named with (2)', async () => {
@@ -639,6 +658,8 @@ describe('a journal’s entries', () => {
       await openApp();
       act(() => card('Diary').click());
       const { id } = await newEntry();
+      // Asked at the tap, with the journal's own introduction for a device never asked before.
+      expect(vi.mocked(tagEntryIfWanted).mock.calls[0]).toEqual([[id], { reviewing: false }, { introduce: expect.any(Function) }]);
       await waitUntil(() => expect(pendingTag(id)).toMatchObject({ lat: 51.5074, lon: -0.1278 }));
       // It waits for the entry's first own words, then lands.
       expect((await getNote(id))!.body).not.toContain('location:');
@@ -704,12 +725,16 @@ describe('a journal’s entries', () => {
     await openApp();
     act(() => card('Diary').click());
     setMeetingStateForTests({ recording: true, noteId: 'm1', startedAt: Date.now(), writeUps: [] } as unknown as Parameters<typeof setMeetingStateForTests>[0]);
+    const before = (await getNote('diary'))!;
     try {
       await act(async () => seen.note!.onSpeak!('diary'));
       await waitUntil(() => expect(document.querySelector('[aria-label="Stop and write up"]')).not.toBeNull());
       expect(noteShown()).toBeNull();
       expect(records()).toEqual({});
       expect(await diaryBody()).toBe(DIARY);
+      // Not written and put back: never written at all, so a sync sends nothing and the journal is not newer.
+      expect((await getNote('diary'))!.revision).toBe(before.revision);
+      expect(createNote).not.toHaveBeenCalledWith(expect.any(String), expect.stringContaining('title: "20'), 'editor');
     } finally {
       setMeetingStateForTests(null);
     }
@@ -735,7 +760,13 @@ describe('a journal’s entries', () => {
   });
 
   it('makes an entry from home through the +, in the journal written in last, in a tab of its own', async () => {
-    await seed(['diary', DIARY], ['older', DIARY.replace(/Diary/g, 'Dreams')]);
+    // Written a second apart, so which is the last written in is plain. Dreams is made last and is the older one.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 8, 28, 9, 0, 1));
+    await createNote('diary', DIARY);
+    vi.setSystemTime(new Date(2026, 8, 28, 9, 0, 0));
+    await createNote('older', DIARY.replace(/Diary/g, 'Dreams'));
+    vi.useRealTimers();
     await openApp();
     // The journal sits in a tab behind home: its line is written from the store, once.
     act(() => card('Diary').click());
@@ -750,6 +781,20 @@ describe('a journal’s entries', () => {
     const { title } = records()[id]!;
     expect(await diaryBody()).toBe(`${DIARY}- [[${title}]]\n`);
     expect((await getNote('older'))!.body).not.toContain(title);
+  });
+
+  it('offers no entry in a journal put away in the archive, however lately it was written in', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 8, 28, 9, 0, 0));
+    await createNote('diary', DIARY);
+    vi.setSystemTime(new Date(2026, 8, 28, 9, 0, 1));
+    await createNote('old', DIARY.replace(/Diary/g, 'Old diary'));
+    await setNoteArchived('old', true);
+    vi.useRealTimers();
+    await openApp();
+    act(() => button('Write a note').click());
+    expect(buttonSaying(document.body, 'Entry in Diary')).toBeDefined();
+    expect(buttonSaying(document.body, 'Entry in Old diary')).toBeUndefined();
   });
 
   it('leaves an untouched entry as it was made when its mic opens the meeting being recorded instead', async () => {
@@ -767,6 +812,223 @@ describe('a journal’s entries', () => {
     } finally {
       setMeetingStateForTests(null);
     }
+  });
+
+  it('makes one entry for New entry pressed twice at once, and gives it its line', async () => {
+    await seed(['diary', DIARY]);
+    await openApp();
+    act(() => card('Diary').click());
+    const press = seen.note!.onNewEntry!;
+    // A double tap: the second press comes before the first has read anything.
+    act(() => {
+      press();
+      press();
+    });
+    await waitUntil(() => expect(noteShown()).not.toBe('diary'));
+    const id = noteShown()!;
+    await waitUntil(async () => expect(await diaryBody()).toBe(`${DIARY}- [[${records()[id]!.title}]]\n`));
+    // The store here answers in the same turn (core/store.ts): everything either press started has landed by now.
+    expect((await listNotes()).map((n) => n.id).filter((each) => each !== 'diary')).toEqual([id]);
+    expect(Object.keys(records())).toEqual([id]);
+    // Made once: the second press did nothing, rather than making a twin to be taken back.
+    expect(vi.mocked(createNote).mock.calls.filter(([each]) => each !== 'diary')).toHaveLength(1);
+  });
+
+  it('names an entry past a line the journal still has for the minute, and notes archived or in the Trash with its name', async () => {
+    const { trashNote } = await import('./core/trash.ts');
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 8, 28, 14, 5));
+    // An entry left a moment ago whose line is still being taken out, an old note archived under the next name, and
+    // one in the Trash under the name after that: Restore would bring back a second note of the new entry's name.
+    await seed(['diary', `${DIARY}- [[2026-09-28 14.05]]\n`], ['old', '---\ntitle: "2026-09-28 14.05 (2)"\n---\nArchived.'], ['binned', '---\ntitle: "2026-09-28 14.05 (3)"\n---\nBinned.']);
+    await setNoteArchived('old', true);
+    trashNote('binned');
+    await openApp();
+    act(() => card('Diary').click());
+    const { title } = await newEntry();
+    expect(title).toBe('2026-09-28 14.05 (4)');
+    expect(await diaryBody()).toBe(`${DIARY}- [[2026-09-28 14.05]]\n- [[2026-09-28 14.05 (4)]]\n`);
+  });
+
+  it('keeps the line of an entry taken back when another note is named by it, whose line it is too', async () => {
+    const title = '2026-09-28 14.05';
+    const words = '# Monday 28 September\n\n**14:05** ';
+    await seed(
+      ['diary', `${DIARY}- [[${title}]]\n`],
+      ['kept', `---\ntitle: "${title}"\ndate: 2026-09-28T14:05\n---\n${words}Written in.`],
+      ['left', `---\ntitle: "${title}"\ndate: 2026-09-28T14:05\n---\n${words}`],
+    );
+    localStorage.setItem('glyph-entry-drafts', JSON.stringify({ left: { journalId: 'diary', title, words, at: Date.now() } }));
+    await openApp();
+    await waitUntil(async () => expect(await getNote('left')).toBeNull());
+    await waitUntil(() => expect(records()).toEqual({}));
+    expect(await diaryBody()).toBe(`${DIARY}- [[${title}]]\n`);
+    expect(await getNote('kept')).not.toBeNull();
+  });
+
+  it('takes out the line of an entry whose note is already gone', async () => {
+    const title = '2026-09-28 14.05';
+    await seed(['diary', `${DIARY}- [[${title}]]\n`]);
+    localStorage.setItem('glyph-entry-drafts', JSON.stringify({ gone: { journalId: 'diary', title, words: 'x', at: Date.now() } }));
+    await openApp();
+    await waitUntil(async () => expect(await diaryBody()).toBe(DIARY));
+    expect(records()).toEqual({});
+  });
+
+  it('takes an untouched entry back when its tab is closed behind another note', async () => {
+    await seed(['diary', DIARY], ['walk', '# Walk']);
+    await openApp();
+    act(() => card('Walk').click());
+    act(() => button('Home').click());
+    act(() => card('Diary').click());
+    const { id, title } = await newEntry();
+    act(() => button('Walk').click());
+    expect(noteShown()).toBe('walk');
+    // Closed from the tab row while Walk stays on screen: nothing on screen changes but the tabs.
+    act(() => button(`Close ${title}`).click());
+    expect(noteShown()).toBe('walk');
+    await waitUntil(async () => expect(await getNote(id)).toBeNull());
+    await waitUntil(async () => expect(await diaryBody()).toBe(DIARY));
+  });
+
+  it('gives the journal back the tab an untouched entry took, on Back, and takes the entry back', async () => {
+    await seed(['diary', DIARY]);
+    await openApp();
+    act(() => card('Diary').click());
+    const { id } = await newEntry();
+    expect(tabs()).toEqual([id]);
+    act(() => button('Back to where you were').click());
+    expect(noteShown()).toBe('diary');
+    expect(tabs()).toEqual(['diary']);
+    await waitUntil(async () => expect(await getNote(id)).toBeNull());
+    await waitUntil(async () => expect(await diaryBody()).toBe(DIARY));
+  });
+
+  it('keeps the record before the line and the note, so a WebView let go at any step leaves it to finish from', async () => {
+    await seed(['diary', DIARY]);
+    await openApp();
+    // The journal behind home, so its line is written through the store and the order can be watched there.
+    act(() => card('Diary').click());
+    act(() => button('Home').click());
+    const kept: string[] = [];
+    vi.mocked(updateNote).mockImplementation(async (id, body, revision) => {
+      if (id === 'diary') kept.push(`line:${Object.keys(records()).length}`);
+      return realStore.updateNote(id, body, revision);
+    });
+    vi.mocked(createNote).mockImplementation(async (id, body, source) => {
+      kept.push(`note:${Object.keys(records()).length}`);
+      return realStore.createNote(id, body, source);
+    });
+    act(() => button('Write a note').click());
+    await act(async () => buttonSaying(document.body, 'Entry in Diary')!.click());
+    await waitUntil(() => expect(noteShown()).not.toBeNull());
+    expect(kept).toEqual(['line:1', 'note:1']);
+  });
+
+  it('leaves an entry still being made alone when the person goes home before it is open', async () => {
+    await seed(['diary', DIARY]);
+    await openApp();
+    act(() => card('Diary').click());
+    // The store slow to make the entry's note: its record and its line are in, and the note is not there yet.
+    let made: () => void = () => undefined;
+    const slow = new Promise<void>((resolve) => {
+      made = resolve;
+    });
+    vi.mocked(createNote).mockImplementation(async (id, body, source) => {
+      await slow;
+      return realStore.createNote(id, body, source);
+    });
+    act(() => void seen.note!.onNewEntry!());
+    await waitUntil(async () => expect(await diaryBody()).toMatch(/- \[\[\d{4}-\d{2}-\d{2} \d{2}\.\d{2}\]\]\n$/));
+    const [id] = Object.keys(records());
+    act(() => button('Home').click());
+    await act(async () => {
+      made();
+      await slow;
+    });
+    await waitUntil(() => expect(noteShown()).toBe(id));
+    // Made whole, and still the journal's: the look on the way home found it being made and let it be.
+    expect(records()[id!]).toBeDefined();
+    expect(await diaryBody()).toBe(`${DIARY}- [[${records()[id!]!.title}]]\n`);
+    expect(await getNote(id!)).not.toBeNull();
+  });
+
+  it('writes the entry’s line again when another writer got to the journal first', async () => {
+    await seed(['diary', DIARY]);
+    await openApp();
+    act(() => card('Diary').click());
+    act(() => button('Home').click());
+    let lost = false;
+    vi.mocked(updateNote).mockImplementation(async (id, body, revision) => {
+      if (id === 'diary' && !lost) {
+        lost = true;
+        throw new Error('the note changed since it was read');
+      }
+      return realStore.updateNote(id, body, revision);
+    });
+    act(() => button('Write a note').click());
+    await act(async () => buttonSaying(document.body, 'Entry in Diary')!.click());
+    await waitUntil(() => expect(noteShown()).not.toBeNull());
+    const { title } = records()[noteShown()!]!;
+    expect(lost).toBe(true);
+    expect(await diaryBody()).toBe(`${DIARY}- [[${title}]]\n`);
+  });
+
+  it('puts an untouched entry back as it was made when its own mic keeps nothing, even with the entry handed back', async () => {
+    await seed(['diary', DIARY]);
+    await openApp();
+    act(() => card('Diary').click());
+    const { id } = await newEntry();
+    const made = (await getNote(id))!.body;
+    await act(async () => seen.note!.onSpeak!(id));
+    await waitUntil(() => expect(screenNow()?.dataset.screen).toBe('capture'));
+    // The record follows the entry as the recorder was given it, without the line the words go on from.
+    const handed = (await getNote(id))!;
+    expect((records()[id] as unknown as { words: string }).words).toBe(handed.body.slice(handed.body.indexOf('\n---\n') + 5));
+    // The recorder answers with the entry as it had it: nothing was said into it.
+    await act(async () => seen.capture!.onFinish(handed, false));
+    await waitUntil(() => expect(noteShown()).toBe(id));
+    await waitUntil(async () => expect((await getNote(id))!.body).toBe(made));
+    expect(records()[id]).toBeDefined();
+  });
+
+  it('asks where a spoken entry was written only once the recorder has gone, with its own introduction', async () => {
+    await seed(['diary', DIARY.replace('---\n# Diary', 'entry-place: true\n---\n# Diary')]);
+    await openApp();
+    act(() => card('Diary').click());
+    await act(async () => seen.note!.onSpeak!('diary'));
+    await waitUntil(() => expect(screenNow()?.dataset.screen).toBe('capture'));
+    const id = screenNow()!.dataset.into!;
+    // Never at the tap: the recorder's microphone prompt comes first.
+    expect(tagEntryIfWanted).not.toHaveBeenCalled();
+    const made = (await getNote(id))!;
+    const said = await updateNote(id, `${made.body}\n**14:05** Walked along the river.`, made.revision ?? 1);
+    await act(async () => seen.capture!.onFinish(said, false));
+    await waitUntil(() => expect(noteShown()).toBe(id));
+    await waitUntil(() => expect(tagEntryIfWanted).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(tagEntryIfWanted).mock.calls[0]).toEqual([[id], { reviewing: false }, { quiet: false, introduce: expect.any(Function) }]);
+    // Its introduction, in the app's words.
+    act(() => vi.mocked(tagEntryIfWanted).mock.calls[0]![2]!.introduce!(() => undefined));
+    await waitUntil(() => expect(document.body.textContent).toContain('Diary keeps where each entry was written.'));
+    expect(buttonSaying(document.body, 'Allow location')).toBeDefined();
+  });
+
+  it('offers no journal entry as a page for a notebook, from the New notebook sheet or a notebook’s index', async () => {
+    const title = '2026-09-28 14.05';
+    await seed(['diary', `${DIARY}- [[${title}]]\n`], ['e1', `---\ntitle: "${title}"\ndate: 2026-09-28T14:05\n---\nWords of mine.`], ['walk', '# Walk'], ['guide', '---\ntitle: "Field guide"\nbook: true\n---\n# Field guide\n']);
+    await openApp();
+    act(() => button('Write a note').click());
+    act(() => buttonSaying(document.body, 'Notebook')!.click());
+    const listed = () => [...document.querySelectorAll('ul[aria-label="Notes"] button')].map((b) => b.textContent?.trim());
+    await waitUntil(() => expect(listed()).toContain('Walk'));
+    expect(listed()).not.toContain(title);
+    const { goBack } = await import('./core/back.ts');
+    act(() => goBack());
+    act(() => card('Field guide').click());
+    expect(seen.note!.pageTitles!()).toContain('Walk');
+    expect(seen.note!.pageTitles!()).not.toContain(title);
+    // A [[link]] still finds an entry by its name.
+    expect(seen.note!.allTitles!()).toContain(title);
   });
 
   it('opens the journal itself from its card, after an entry was read', async () => {

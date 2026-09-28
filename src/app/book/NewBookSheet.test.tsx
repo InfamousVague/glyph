@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { goBack } from '../core/back.ts';
-import { button, buttonSaying, rerender, show, typeInto, waitUntil } from '../../test/render.tsx';
+import { button, buttonSaying, rerender, show, typeInto, unmount, waitUntil } from '../../test/render.tsx';
 import { dragGrip, layRowsOut } from '../../test/rows.ts';
 import { inLocale } from '../../test/locale.ts';
 
@@ -56,6 +56,12 @@ describe('the New notebook sheet', () => {
     expect(marked()).toEqual(['Route map']);
     act(() => button('Route map').click());
     expect(marked()).toEqual(['Route map', 'Route map']);
+  });
+
+  it('says where its pages come from, in a notebook’s words, and that it may start empty', () => {
+    show(<NewBookSheet open onClose={() => {}} titles={[]} onCreate={() => {}} />);
+    expect(document.body.textContent).toContain("Pick any now, or add them later from the notebook's index.");
+    expect(document.body.textContent).toContain('No notes yet: the notebook starts empty, and pages can be added from its index.');
   });
 
   it('needs a name before it will make the book', () => {
@@ -173,7 +179,20 @@ describe('a journal from the New notebook sheet', () => {
     expect(box.value).toBe(PRESETS[2]!.text);
     typeInto(box, 'Dear {{journal}}, ');
     await waitUntil(() => expect(preview()).toContain('Dear Diary,'));
+    typeInto(box, '');
+    await waitUntil(() => expect(preview()).toContain('An empty page.'));
     expect(document.body.textContent).toContain('Words inside a format go in square brackets, as in {{date:D MMMM [at] HH:mm}}.');
+  });
+
+  it('draws the preview in the view a new note opens in, marks and all where they show', async () => {
+    show(<NewBookSheet open kind="journal" onClose={() => {}} titles={[]} onCreate={() => {}} onCreateJournal={() => {}} />);
+    // Settings' Show as it comes: the marks are the page's, as the entry will open with them.
+    await waitUntil(() => expect(preview()).toMatch(/\*\*\d\d:\d\d\*\*/));
+    unmount();
+    setPreferences({ noteView: 'formatted' });
+    show(<NewBookSheet open kind="journal" onClose={() => {}} titles={[]} onCreate={() => {}} onCreateJournal={() => {}} />);
+    await waitUntil(() => expect(preview()).toMatch(/\d\d:\d\d/));
+    expect(preview()).not.toContain('**');
   });
 
   it('puts a placeholder in at the caret', () => {
@@ -202,6 +221,19 @@ describe('a journal from the New notebook sheet', () => {
     type('Name', 'Log');
     act(() => makeJournal().click());
     expect(onCreateJournal).toHaveBeenCalledWith('Log', PRESETS[0]!.text, false);
+  });
+
+  it('keeps what was chosen while App draws again with the sheet up, as a sync or the phone’s prompt answered makes it', () => {
+    const sheet = () => <NewBookSheet open onClose={() => {}} titles={['Packing']} onCreate={() => {}} onCreateJournal={(title, template, place) => void [title, template, place]} />;
+    show(sheet());
+    journal();
+    act(() => button('A morning page').click());
+    act(() => document.querySelector<HTMLElement>('input[aria-label="With where you are"]')!.click());
+    // App's next render hands a new function for the same making.
+    rerender(sheet());
+    expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('New journal');
+    expect(document.querySelector<HTMLInputElement>('input[aria-label="With where you are"]')?.checked).toBe(false);
+    expect(preview()).toContain('What is on your mind this morning?');
   });
 
   it('says under the switch what keeping a place means here, or why entries made here keep none', () => {

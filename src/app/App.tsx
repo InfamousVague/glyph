@@ -45,7 +45,7 @@ import { addGuideBook, GUIDE_TITLE } from './guidebook/guidebook.ts';
 import { isTrashed, outOfTrash, trash } from './core/trash.ts';
 import { canvasNoteBody, isCanvasBody } from './canvas/jsonCanvas.ts';
 import { frontMatterOffset, withFrontMatterTitle } from './core/frontMatter.ts';
-import { bookNoteBody, bookOf, isBookBody, isJournalBody, withoutChapter } from './book/book.ts';
+import { bookNoteBody, bookOf, chaptersOf, isBookBody, isJournalBody, withoutChapter } from './book/book.ts';
 import { entryBody, entryPages, entryPlaceOf, entryTitle, journalNoteBody, localStamp, templateOf, templateSentence, uniqueTitle, withEntry, type JournalWriter } from './book/journal.ts';
 import { entryRecord, entryRecords, forgetEntry, rememberEntry, setEntryWords, untouchedEntry, type EntryRecord } from './book/entryDrafts.ts';
 import { fillTemplate, openEnd } from './book/template.ts';
@@ -225,12 +225,18 @@ function Shell() {
     await refresh();
   };
 
-  /** Where one of the arrows said to go (shell/useTrail.ts): the home page, the grid, or a note. */
+  /**
+   * Where one of the arrows said to go (shell/useTrail.ts): the home page, the grid, or a note. From an entry nobody
+   * has written in to its own journal, the journal takes the entry's tab, as its bar's way back does: New entry gave
+   * the entry the journal's tab, and Back otherwise opened the journal in a second one and kept the entry open in its
+   * own, so it was never left and never taken back.
+   */
   const land = (spot: Place | null) => {
     if (!spot) return;
     const id = noteIdOf(spot);
     if (spot === ALL_NOTES) setScreen({ name: 'notes' });
     else if (id === null) void backToList();
+    else if (shown && entryRecord(shown)?.journalId === id) openNoteWithin(id);
     else openNote(id);
   };
   const goBack = () => land(walk.back());
@@ -275,6 +281,11 @@ function Shell() {
   };
   /** Whether a note by that title is in the library: what a `[[link]]` is drawn by. */
   const hasTitle = (title: string) => titled(title) !== undefined;
+  /**
+   * The notes some journal's index names (book/journal.ts `entryPages`): its entries. Recent, the palette's first list
+   * and the pickers of a notebook's pages leave them out, as they leave the Guide's pages out.
+   */
+  const entryIds = useMemo(() => entryPages(shownNotes), [shownNotes]);
   /** What the aside holds now: the open note's book, or its numbered chapters in order, or nothing (aside/aside.ts). */
   const asideBody = useMemo(() => asideContent(shownNotes, screen.name === 'note' ? screen.note : null), [shownNotes, screen]);
   /** That note's body, for a canvas card that is a note to draw it small (canvas/CanvasView.tsx); null for none. */
@@ -399,8 +410,11 @@ function Shell() {
     tabs.replaceNext(null);
     return showMade(journalNoteBody(title, template, place));
   };
-  /** What can be a page: every note's title but the books' own. */
-  const pageTitles = () => shownNotes.filter((n) => !isBookBody(n.body)).map((n) => noteTitle(n.body)).filter((t) => t.trim());
+  /**
+   * What can be a page of a new notebook: every note's title but the notebooks' own, and none of a journal's entries,
+   * which belong to their journal: for someone who writes one every day, most of the list was entries.
+   */
+  const pageTitles = () => shownNotes.filter((n) => !isBookBody(n.body) && !entryIds.has(n.id)).map((n) => noteTitle(n.body)).filter((t) => t.trim());
 
   // Written to the store immediately rather than on first keystroke: a note
   // that exists only in memory is a note that a backgrounded webview loses,
@@ -533,8 +547,11 @@ function Shell() {
       }
     }
   };
-  /** The journals, the one written in last first: its note changed last, as a new entry's line changes it. */
-  const journals = useMemo(() => shownNotes.filter((n) => isJournalBody(n.body)).sort((a, b) => b.updatedAt - a.updatedAt), [shownNotes]);
+  /**
+   * The journals, the one written in last first: its note changed last, as a new entry's line changes it. Not one put
+   * away in the archive, which the home page's Notebooks leave out too (home/dashboard.ts `bookNotes`).
+   */
+  const journals = useMemo(() => shownNotes.filter((n) => !n.archivedAt && isJournalBody(n.body)).sort((a, b) => b.updatedAt - a.updatedAt), [shownNotes]);
   /** The + sheet's row for a new entry, in the journal written in last. */
   const entryRow = journals[0]
     ? { journal: noteTitle(journals[0].body) || 'Untitled journal', hint: templateSentence(templateOf(journals[0].body)), onPress: () => void newEntry(journals[0]!.id) }
@@ -542,7 +559,22 @@ function Shell() {
   /** The first ask for where a journal's entries were written, introduced in the app's words, from its own press. */
   const introduceEntries = (journal: string) => (allow: () => void) =>
     toast({ message: `${journal} keeps where each entry was written.`, duration: 10_000, action: { label: 'Allow location', onPress: allow } });
-  const newEntry = async (journalId: string, { speak: spoken = false }: { speak?: boolean } = {}) => {
+  /**
+   * A New entry being made: a second press before it is open is the same press, a double tap or a tap again while the
+   * store is slow. Two made at once both read the notes before either was there, took one name and one line, and the
+   * take-back of the one left behind then took the other's line with it.
+   */
+  const entering = useRef(false);
+  const newEntry = async (journalId: string, how: { speak?: boolean } = {}) => {
+    if (entering.current) return;
+    entering.current = true;
+    try {
+      await makeEntry(journalId, how);
+    } finally {
+      entering.current = false;
+    }
+  };
+  const makeEntry = async (journalId: string, { speak: spoken = false }: { speak?: boolean }) => {
     // A meeting holds the microphone: the way to it, and nothing made that its capture would leave behind.
     if (spoken && meetingStateNow()?.recording) {
       capture.showMeeting(false);
@@ -552,8 +584,11 @@ function Shell() {
     if (!journal || !isJournalBody(journal.body)) return;
     const name = noteTitle(journal.body);
     const now = Date.now();
-    // Unique against every note there is, archived and in the Trash too: a second entry in one minute is " (2)".
-    const taken = new Set((await listNotes().catch(() => notes)).map((n) => titleKey(noteTitle(n.body))));
+    // Unique against every note there is, archived and in the Trash too, and every line the journal has: a second entry
+    // in one minute is " (2)", and so is one made while an entry left a moment ago is still being taken back, its note
+    // gone and its line not yet.
+    const titles = [...(await listNotes().catch(() => notes)).map((n) => noteTitle(n.body)), ...chaptersOf(journal.body).map((c) => c.title)];
+    const taken = new Set(titles.map(titleKey));
     const title = uniqueTitle(entryTitle(now), taken);
     const filled = fillTemplate(templateOf(journal.body), { at: new Date(now), title, journal: name });
     // Spoken, the words go on from the template's last line, which is taken off until they come.
@@ -614,6 +649,16 @@ function Shell() {
     return open.includes(id) && (now.name === 'note' || now.name === 'capture' || now.name === 'meeting');
   };
   const takingBack = useRef(new Set<string>());
+  /**
+   * An entry's line out of its journal, unless another note is named by it now: then the line is that note's too, and
+   * taking it out would leave a written entry out of its journal. Left in when the store does not answer, the lesser
+   * harm: a line with an entry's name and no note is not drawn (book/journalMonths.ts).
+   */
+  const lineOut = async (id: string, record: EntryRecord) => {
+    const all = await listNotes().catch(() => null);
+    if (!all || all.some((n) => n.id !== id && sameTitle(noteTitle(n.body), record.title))) return;
+    await writeJournal(record.journalId, (body) => withoutChapter(body, record.title));
+  };
   const takeBack = async (id: string, record: EntryRecord) => {
     let fresh: Note | null;
     try {
@@ -624,7 +669,7 @@ function Shell() {
     }
     if (stays(id) || making.current.has(id)) return;
     if (!fresh) {
-      await writeJournal(record.journalId, (body) => withoutChapter(body, record.title));
+      await lineOut(id, record);
       forgetEntry(id);
       return;
     }
@@ -633,7 +678,7 @@ function Shell() {
       return;
     }
     await deleteNote(id);
-    await writeJournal(record.journalId, (body) => withoutChapter(body, record.title));
+    await lineOut(id, record);
     setPendingTag(id, null);
     tabs.drop(id);
     forgetEntry(id);
@@ -732,6 +777,7 @@ function Shell() {
         onJournal={onJournal}
         caretAtEnd={screen.caretAtEnd}
         allTitles={() => shownNotes.map((n) => noteTitle(n.body)).filter(Boolean)}
+        pageTitles={() => shownNotes.filter((n) => !entryIds.has(n.id)).map((n) => noteTitle(n.body)).filter(Boolean)}
         rename={rename}
         onArchive={(n) => {
           tabs.drop(n.id);
@@ -809,8 +855,8 @@ function Shell() {
    * The command palette (commands/palette.ts): what Glyph can do right now, and how. Built here because this is where
    * the app's doings already live - every command below is something a person can also do by hand.
    */
-  // A journal's entries are found by name when typed for, and left out of the forty offered before a word is typed.
-  const entryIds = useMemo(() => entryPages(shownNotes), [shownNotes]);
+  // A journal's entries are found by name when typed for, and left out of the forty offered before a word is typed
+  // (the memo is up with the notes, `entryIds`).
   const paletteWorld = useMemo(
     () => ({
       notes: shownNotes.map((n) => ({ id: n.id, title: noteTitle(n.body), ...(entryIds.has(n.id) ? { entry: true as const } : {}) })),

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ChevronRight, Plus, X } from '@glacier/icons';
+import { noteTitle } from '../core/noteTitle.ts';
 import { isDarkNow, usePreferences } from '../core/preferences.ts';
 import type { Note } from '../core/store.ts';
 import { bookWords, withoutChapter } from './book.ts';
@@ -45,12 +46,13 @@ export function JournalView({ body, noteOf, known, open, onChange, onNewEntry, d
   const dark = darkGiven ?? themeDark;
   const words = useMemo(() => bookWords(body), [body]);
   const template = useMemo(() => templateOf(body), [body]);
+  const name = useMemo(() => noteTitle(body), [body]);
   // Read every render, and the months worked out again only when a page's note changed: `noteOf` is new each time App
   // draws, and a year of entries is a year of rows to sort.
   const pages = pagesOf(body, noteOf);
   const changed = pages.map((page) => (page.note ? `${page.note.id}:${page.note.updatedAt}` : '')).join('|');
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `changed` says when the pages' notes did
-  const { months, unwritten } = useMemo(() => monthsOf(pages, template), [body, template, changed]);
+  const { months, unwritten } = useMemo(() => monthsOf(pages, template, name), [body, template, name, changed]);
   /** The older months opened by a tap. */
   const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(() => new Set());
 

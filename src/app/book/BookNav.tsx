@@ -1,5 +1,6 @@
 import { BookOpen, ChevronLeft, ChevronRight } from '@glacier/icons';
 import type { BookPlace } from './book.ts';
+import { sideName } from './journalMonths.ts';
 import styles from './BookNav.module.css';
 
 /**
@@ -24,16 +25,20 @@ function sides(place: BookPlace): { prev: string | null; next: string | null } {
 
 /**
  * The bar a chapter wears under its header: the book it is in, its place in it, and the chapters either side
- * (`bookOf` in book/book.ts finds them). A tap on the book opens the index; the ends open the neighbours.
+ * (`bookOf` in book/book.ts finds them). A tap on the book opens the index; the ends open the neighbours. A journal's
+ * sides say an entry's time, or its day when it was written on another (book/journalMonths.ts `sideName`): its name
+ * is a date and a minute, and at a phone's width only the date's first letters, the same on every entry, had room.
  */
 export function BookBar({ place, open }: { place: BookPlace; open: (title: string) => void }) {
   const { prev, next } = sides(place);
   const { kind, part } = wordsFor(place);
+  const here = place.chapters[place.at]?.title ?? '';
+  const said = (title: string | null) => (title !== null && place.journal ? sideName(title, here) : (title ?? ''));
   return (
     <nav className={styles.bar} aria-label={place.journal ? 'Journal' : 'Notebook'}>
       <button type="button" className={styles.end} disabled={!prev} onClick={() => prev && open(prev)} aria-label={prev ? `Previous ${part}: ${prev}` : `First ${part}`}>
         <ChevronLeft size={16} aria-hidden="true" />
-        <span className={styles.endTitle}>{prev ?? ''}</span>
+        <span className={styles.endTitle}>{said(prev)}</span>
       </button>
       <button type="button" className={styles.middle} onClick={() => open(place.title)} aria-label={`Open the ${kind} ${place.title}`}>
         <BookOpen size={15} aria-hidden="true" />
@@ -43,7 +48,7 @@ export function BookBar({ place, open }: { place: BookPlace; open: (title: strin
         </span>
       </button>
       <button type="button" className={styles.end} data-next="" disabled={!next} onClick={() => next && open(next)} aria-label={next ? `Next ${part}: ${next}` : `Last ${part}`}>
-        <span className={styles.endTitle}>{next ?? ''}</span>
+        <span className={styles.endTitle}>{said(next)}</span>
         <ChevronRight size={16} aria-hidden="true" />
       </button>
     </nav>

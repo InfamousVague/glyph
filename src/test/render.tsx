@@ -57,14 +57,17 @@ afterEach(unmount);
  * that fills in from a fetch or a file rather than on the render itself. What a fixed sleep guessed at, asked
  * instead. Gives up after `timeoutMs` with `check`'s own error, kept under the suite's twenty-second testTimeout
  * (vitest.config.ts) so the failure names what never arrived rather than only that the test ran out of time.
+ *
+ * `check` may wait itself (a read of the store, say), and is waited for: typed as answering nothing, an async check's
+ * promise was dropped, so it passed on its first look and a failure it rejected with later belonged to no test.
  */
-export async function waitUntil(check: () => void, timeoutMs = 15_000): Promise<void> {
+export async function waitUntil(check: () => void | Promise<void>, timeoutMs = 15_000): Promise<void> {
   await vi.waitFor(
     async () => {
       await act(async () => {
         // Nothing to do but let what is queued run, inside act so React's updates are flushed as they land.
       });
-      check();
+      await check();
     },
     { timeout: timeoutMs, interval: 10 },
   );

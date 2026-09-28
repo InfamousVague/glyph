@@ -18,8 +18,10 @@ import styles from './TemplatePicker.module.css';
  * Five choices, the presets and your own (book/journal.ts). Your own opens a box to write it in, in the note's own
  * face, with the placeholders under it to tap in at the caret, and the one rule a format has (book/template.ts: words
  * go in square brackets). Under the choice, the page an entry would start as now, filled with this minute and drawn by
- * the note's own editor, read-only and formatted, as the cheat sheet draws a mark (guide/MarkExample.tsx). On the
- * Fold opened out the preview sits beside the choice.
+ * the note's own editor, read-only, in the view and the face a new note opens in (Settings' Show, the typeface), so
+ * the page shown is the page opened: drawn formatted in the sheet's face, it promised a heading with no marks that
+ * opened with its `#` showing. On the Fold opened out the preview sits beside the choice, and stays in sight while your
+ * own template is written in the box beside it.
  *
  * "With where you are" is the journal's choice, and travels in its file. What protects a device stays that device's:
  * Local only, a Mac that cannot say where it is, a refusal kept, and the system's prompt only ever from a press. So
@@ -34,12 +36,14 @@ export interface TemplatePickerProps {
   onPlace: (on: boolean) => void;
   /** The journal's name, for `{{journal}}` in the preview. */
   name: string;
+  /** A line under the choice: on a journal's own page, that a change is for entries from then on. */
+  note?: string;
 }
 
 /** The placeholders a tap puts in at the caret. */
 const CHIPS = ['{{date}}', '{{time}}', '{{weekday}}', '{{title}}', '{{journal}}'];
 
-export function TemplatePicker({ template, onTemplate, place, onPlace, name }: TemplatePickerProps) {
+export function TemplatePicker({ template, onTemplate, place, onPlace, name, note }: TemplatePickerProps) {
   const prefs = usePreferences();
   /** Which choice is ticked: your own stays your own while its words happen to be a preset's. */
   const [choice, setChoice] = useState<PresetId>(() => presetOf(template));
@@ -91,6 +95,7 @@ export function TemplatePicker({ template, onTemplate, place, onPlace, name }: T
             ))}
             <SheetRow label={OWN.name} chosen={choice === OWN.id} onPress={() => pick(OWN.id)} />
           </SheetGroup>
+          {note ? <p className={styles.note}>{note}</p> : null}
           {choice === OWN.id ? (
             <div className={styles.own}>
               <textarea
@@ -118,7 +123,7 @@ export function TemplatePicker({ template, onTemplate, place, onPlace, name }: T
           {place ? <p className={styles.where}>Where you are, with the map, at the top.</p> : null}
           {filled.trim() ? (
             <div className={styles.page}>
-              <Editor value={filled} onChange={keep} dark={isDarkNow(prefs.theme)} assist={false} readOnly display="formatted" grow />
+              <Editor value={filled} onChange={keep} dark={isDarkNow(prefs.theme)} assist={false} readOnly display={prefs.noteView} grow />
             </div>
           ) : (
             <p className={styles.where}>An empty page.</p>

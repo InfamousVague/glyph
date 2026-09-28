@@ -146,7 +146,14 @@ function JournalPage({ journal, name }: { journal: NonNullable<NoteSettingsProps
   };
   return (
     <>
-      <TemplatePicker template={template} onTemplate={chooseTemplate} place={place} onPlace={choosePlace} name={name} />
+      <TemplatePicker
+        template={template}
+        onTemplate={chooseTemplate}
+        place={place}
+        onPlace={choosePlace}
+        name={name}
+        note={journal.on ? 'Entries you have written stay as they are.' : undefined}
+      />
       <SheetGroup>
         {journal.on ? (
           <SheetRow label="Make it a notebook again" hint="Its entries stay as pages. New pages start plain." onPress={journal.unkeep} />

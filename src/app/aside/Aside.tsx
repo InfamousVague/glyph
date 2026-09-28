@@ -53,7 +53,7 @@ export function Aside({ content, onOpen, onOpenTitle, onClose, popup }: AsidePro
                         <span className={styles.number} aria-hidden="true">
                           {entry.day}
                         </span>
-                        <span className={styles.title}>
+                        <span className={styles.entryWords}>
                           {entry.time}
                           {entry.first ? ` ${entry.first}` : ''}
                         </span>

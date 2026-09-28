@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { isJournalBody } from '../src/app/book/book.ts';
-import { entryBody, entryTitle, localStamp, templateOf, uniqueTitle, withEntry } from '../src/app/book/journal.ts';
+import { isBookBody, isJournalBody } from '../src/app/book/book.ts';
+import { entryBody, entryTitle, isEntryTitle, localStamp, templateOf, uniqueTitle, withEntry } from '../src/app/book/journal.ts';
 import { fillTemplate, openEnd } from '../src/app/book/template.ts';
 import { placeWords } from '../src/app/capture/listAppend.ts';
 import { placeTake } from '../src/app/capture/place.ts';
@@ -107,13 +107,17 @@ const KEPT_KEYS = ['title', 'book', 'journal', 'template', 'entry-place', 'date'
 /**
  * `next` with every key of `before`'s that it lacks entirely put back, as it was written: a rewrite that dropped the
  * front matter would otherwise turn a notebook into a note with a list of links, and a journal's entry lose its name.
- * A value `next` gives is kept, so Claude can still rename a note.
+ * A value `next` gives is kept, so Claude can still rename a note. `title:` and `date:` only for a notebook or an
+ * entry, whose names they are: a plain note the app renamed keeps its `title:` too, and put back it outranked the
+ * heading Claude wrote the new name in, so a rewrite could no longer rename it as it could before.
  */
 export function keepKeys(before: string, next: string): string {
   let out = next;
   const lines = before.split('\n');
   const keys = lines.slice(1, Math.max(1, frontMatterEnd(lines) - 1));
+  const named = isBookBody(before) || isEntryTitle(frontMatterValue(before, 'title') ?? '');
   for (const key of KEPT_KEYS) {
+    if (!named && (key === 'title' || key === 'date')) continue;
     const line = keys.find((each) => new RegExp(`^\\s*${key}\\s*:`, 'i').test(each));
     if (line === undefined || frontMatterValue(before, key) === null || frontMatterValue(out, key) !== null) continue;
     out = withFrontMatterValue(out, key, line.replace(/^\s*[\w.-]+\s*:\s*/, '').trim());
@@ -268,7 +272,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpSer
     {
       title: 'Replace a note’s body',
       description:
-        'The whole markdown body of a note replaced with `body`. Read the note first and send it back changed: this writes from the version last read, and if another device changed the note meanwhile the write is refused and their version shown, never overwritten. For adding a line or a task to the end of a note, prefer append_to_note.',
+        'The whole markdown body of a note replaced with `body`. Read the note first and send it back changed: this writes from the version last read, and if another device changed the note meanwhile the write is refused and their version shown, never overwritten. For adding a line or a task to the end of a note, prefer append_to_note. A notebook’s or a journal’s list of [[links]] is its pages: a link left out of the new body takes that page or entry out of it, though its note stays. For a new journal entry use add_journal_entry.',
       inputSchema: {
         id: z.string().describe('The note’s id.'),
         body: z.string().describe('The new markdown body, whole.'),
@@ -340,15 +344,22 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpSer
         const target = (await account.get(journal)) ?? (await find(account, undefined, journal));
         if (!isJournalBody(target.note.body)) return failed(`“${noteTitle(target.note.body)}” is not a journal. Use append_to_note or create_note for it.`);
         const said = at ? WALL.exec(at) : null;
-        const when = said ? new Date(Number(said[1]), Number(said[2]) - 1, Number(said[3]), Number(said[4]), Number(said[5])) : new Date();
-        if (Number.isNaN(when.getTime())) return failed(`${at} is not a time. Give it as YYYY-MM-DDTHH:MM.`);
+        const [year, month, day, hour, minute] = said ? said.slice(1).map(Number) : [];
+        const when = said ? new Date(year!, month! - 1, day!, hour!, minute!) : new Date();
+        // A date rolls a month of 13 or a minute of 99 on into another day rather than failing: read back, it must say
+        // what was asked.
+        const kept = !said || (when.getFullYear() === year && when.getMonth() === month! - 1 && when.getDate() === day && when.getHours() === hour && when.getMinutes() === minute);
+        if (Number.isNaN(when.getTime()) || !kept) return failed(`${at} is not a time. Give it as YYYY-MM-DDTHH:MM.`);
         const name = noteTitle(target.note.body);
         const taken = new Set((await account.list({ archived: true })).map((r) => titleKey(noteTitle(r.note.body))));
         const title = uniqueTitle(entryTitle(when.getTime()), taken);
         const { base, placing } = openEnd(fillTemplate(templateOf(target.note.body), { at: when, title, journal: name }));
         const body = placeTake(entryBody(title, localStamp(when.getTime()), base), words.trim(), placing).body;
-        const made = await account.create(authored(body, author));
+        // The line first: refused because another device changed the journal, nothing is made and a second try is
+        // clean. The entry first, it was left with no line, and the second try made it again with " (2)". A line whose
+        // entry never came is an entry's name with no note, which the journal does not draw.
         const listed = await account.edit(target.note.id, (note) => ({ ...note, body: withEntry(note.body, title) }));
+        const made = await account.create(authored(body, author));
         return text({ created: whole(made), journal: summary(listed) });
       }),
   );
