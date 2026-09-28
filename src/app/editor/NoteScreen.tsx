@@ -35,6 +35,7 @@ import {
   canShowTiles,
   forgetRefusal,
   heldFor,
+  holdFor,
   landTag,
   locate,
   pendingTag,
@@ -44,6 +45,7 @@ import {
   rememberRefusal,
   setPendingTag,
   settleTag,
+  tagEntryIfWanted,
   wantPlace,
   watchTag,
   whyLocateFailed,
@@ -60,6 +62,8 @@ import { AddList } from './AddList.tsx';
 import { REVIEW_HANDED_BACK } from '../ai/useNoteReview.ts';
 import { hasLocationBridge } from '../core/placeLink.ts';
 import { MapCard, MapPicture } from './MapCard.tsx';
+import { TemplateCards } from '../notes/TemplateCards.tsx';
+import { fillNoteTemplate, type NoteTemplate } from '../notes/noteTemplates.ts';
 import { authorsOf } from '../core/authors.ts';
 import { Byline } from '../authors/Byline.tsx';
 import { useBack } from '../core/back.ts';
@@ -939,6 +943,55 @@ export function NoteScreen({
   const names = useMemo(() => (offering ? nameOffers(clock, takenTitles ?? NO_TITLES) : null), [offering, clock, takenTitles]);
   const [offersHost] = useState(() => document.createElement('div'));
   const [offersShown, setOffersShown] = useState(false);
+  /*
+   * The template cards under the names (notes/TemplateCards.tsx; Matt: "cards on the blank page"): shown with them, and
+   * gone at the first letter, with the names, or at a tap elsewhere on the page, which says the page is to be written on
+   * as it is. A tap that began before the cards were there, the one that raised the keyboard and brought them, is not
+   * one: only a press that starts while they are shown counts.
+   */
+  const [cardsGone, setCardsGone] = useState(false);
+  const cardsShown = offering && offersShown && !cardsGone;
+  useEffect(() => {
+    const el = page.current;
+    if (!cardsShown || !el) return undefined;
+    const outside = (target: EventTarget | null) => !(target instanceof Element && target.closest('.cm-blankOffers'));
+    let armed = false;
+    const down = (event: PointerEvent) => {
+      armed = outside(event.target);
+    };
+    const click = (event: MouseEvent) => {
+      if (armed && outside(event.target)) setCardsGone(true);
+      armed = false;
+    };
+    el.addEventListener('pointerdown', down, true);
+    el.addEventListener('click', click, true);
+    return () => {
+      el.removeEventListener('pointerdown', down, true);
+      el.removeEventListener('click', click, true);
+    };
+  }, [cardsShown]);
+  /**
+   * A card pressed: the blank note becomes that template, as one change, so one undo takes it back to the blank page
+   * with its names and cards. Its record first (core/untouched.ts), so a note left without a word of the person's own is
+   * taken back; its name settled against every other note's before anything is measured (notes/noteTemplates.ts); the
+   * caret in its first open line, the focus kept. A map at the top holds its header's box and asks for the place once,
+   * the card's press being the choice, whatever Tag new notes says: unless a fix for this note is already on its way.
+   */
+  const startFrom = (template: NoteTemplate) => {
+    const editor = viewRef.current;
+    if (!editor || !isFresh(note.id) || editor.state.doc.toString().trim()) return;
+    const filled = fillNoteTemplate(template, new Date(), takenTitles ?? NO_TITLES);
+    rememberUntouched(note.id, { title: filled.title, words: filled.words, at: Date.now() });
+    drafted.current = true;
+    setUntouched(true);
+    editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: filled.body }, selection: { anchor: filled.caret }, scrollIntoView: true, userEvent: 'input.template' });
+    editor.focus();
+    fireNativeHaptic('selection');
+    if (template.look === 'map' && !geoTagOf(body.current) && !pendingTag(note.id) && heldFor(note.id) !== 'waiting') {
+      holdFor([note.id]);
+      void tagEntryIfWanted([note.id], { reviewing: false });
+    }
+  };
   /**
    * A name tapped: the note's heading, as the only name a note of words has is its first line, and the caret on the
    * line under it. Its record first (core/untouched.ts), so a note named and left without a word of the person's own
@@ -1194,7 +1247,15 @@ export function NoteScreen({
           />
           {blank && !typed && !(offering && offersShown) ? <Ghost scene="new-note" align="center" className={styles.blankGhost} /> : null}
           {/* Under the names while they are shown: the ghost, in the page's flow, so it is never behind them. */}
-          {offering && offersShown ? createPortal(<Ghost scene="new-note" align="center" className={styles.offersGhost} />, offersHost) : null}
+          {offering && offersShown
+            ? createPortal(
+                <>
+                  {cardsShown ? <TemplateCards at={clock} taken={takenTitles ?? NO_TITLES} smallMap={Boolean(hold || tag)} onChoose={startFrom} /> : null}
+                  <Ghost scene="new-note" align="center" className={styles.offersGhost} />
+                </>,
+                offersHost,
+              )
+            : null}
         </div>
         {/* And under its last line, the chapters either side again, to go on from the end of the page (docs/BOOKS.md). */}
         {book && onOpenTitle && shown === 'raw' ? <BookFoot place={book} open={(t) => (onOpenWithin ?? onOpenTitle)(t)} /> : null}

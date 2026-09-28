@@ -1966,3 +1966,90 @@ describe('how a note looks', () => {
     expect(untouchedRecord('ll3')).toBeNull();
   });
 });
+
+describe('the templates on a new note’s blank page', () => {
+  const cardFor = (id: string) => document.querySelector<HTMLButtonElement>(`[data-template="${id}"]`);
+  const fresh = async (id: string) => {
+    const { markFresh } = await import('../core/untouched.ts');
+    markFresh(id);
+    show(screen(await createNote(id, ''), { caret: 0 }));
+    await act(async () => vi.advanceTimersByTimeAsync(20));
+  };
+
+  beforeEach(() => void vi.spyOn(document, 'hasFocus').mockReturnValue(true));
+  afterEach(() => {
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(navigator, 'geolocation');
+    Reflect.deleteProperty(navigator, 'permissions');
+  });
+
+  it('sit under the names, and go at a tap elsewhere on the page but not at a press on a name or a card', async () => {
+    await fresh('t1');
+    const block = document.querySelector('.cm-blankOffers')!;
+    expect(block.querySelector('[data-template="day"]')).not.toBeNull();
+    // Under the names, in their block.
+    const names = block.querySelector('.cm-nameChips')!;
+    expect(names.compareDocumentPosition(cardFor('day')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // A tap on the words takes them away, the names staying.
+    const line = document.querySelector<HTMLElement>('.cm-line')!;
+    act(() => {
+      line.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      line.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(cardFor('day')).toBeNull();
+    expect(document.querySelectorAll('.cm-nameChip')).toHaveLength(4);
+  });
+
+  it('turn the blank note into a template on a press: its words, the caret in its first open line, a record, the focus kept', async () => {
+    const { untouchedRecord } = await import('../core/untouched.ts');
+    await fresh('t2');
+    act(() => cardFor('meeting')!.click());
+    const view = editor();
+    const doc = view.state.doc.toString();
+    expect(doc).toMatch(/^# Meeting \d{4}-\d\d-\d\d \d\d\.\d\d\n\nWith \n\n## Notes\n\n- \n\n## To do\n\n- \[ \] $/);
+    expect(doc.slice(0, view.state.selection.main.head).endsWith('With ')).toBe(true);
+    expect(view.hasFocus).toBe(true);
+    expect(untouchedRecord('t2')?.words).toBe(doc);
+    expect(cardFor('day')).toBeNull();
+    // One undo: the blank page, its names and its cards.
+    act(() => void undo(view));
+    await settle();
+    expect(view.state.doc.toString()).toBe('');
+    expect(cardFor('day')).not.toBeNull();
+    expect(document.querySelectorAll('.cm-nameChip')).toHaveLength(4);
+  });
+
+  it('make A page to read a reading note, its look kept out of the words the record compares', async () => {
+    const { untouchedRecord } = await import('../core/untouched.ts');
+    await fresh('t3');
+    act(() => cardFor('reading')!.click());
+    const view = editor();
+    expect(view.state.doc.toString()).toBe('---\nlook: reading\n---\n# \n');
+    expect(view.state.selection.main.head).toBe('---\nlook: reading\n---\n# '.length);
+    expect(untouchedRecord('t3')?.words).toBe('# \n');
+    expect(document.querySelector('.cm-editor')?.getAttribute('data-look')).toBe('reading');
+    expect(document.querySelector('.cm-openHint')?.textContent).toBe('A name');
+  });
+
+  it('make A map at the top hold its header from the press and ask for the place once, whatever Tag new notes says', async () => {
+    const { heldFor } = await import('../core/location.ts');
+    const { setPreferences } = await import('../core/preferences.ts');
+    const asked: number[] = [];
+    Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition: () => void asked.push(1) } });
+    Object.defineProperty(navigator, 'permissions', { configurable: true, value: { query: async () => ({ state: 'granted' }) } });
+    setPreferences({ tagNewNotes: false });
+    try {
+      await fresh('t4');
+      act(() => cardFor('map')!.click());
+      await settle();
+      expect(editor().state.doc.toString()).toMatch(/^---\nlook: map\n---\n# \n\n.+, \d\d:\d\d\.\n$/);
+      expect(heldFor('t4')).toBe('waiting');
+      expect(asked).toHaveLength(1);
+      const box = document.querySelector<HTMLElement>('[class*=mapCard]');
+      expect(box?.getAttribute('data-size')).toBe('header');
+      expect(box?.textContent).toBe('');
+    } finally {
+      setPreferences({ tagNewNotes: true });
+    }
+  });
+});

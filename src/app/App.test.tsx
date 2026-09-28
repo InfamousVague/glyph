@@ -446,6 +446,35 @@ describe('a new note, ready to type', () => {
     }
   });
 
+  it('takes back a note given a template or a name and left without a word, and keeps one written in', async () => {
+    const { rememberUntouched, untouchedRecord } = await import('./core/untouched.ts');
+    const { setPendingTag, pendingTag } = await import('./core/location.ts');
+    await openApp();
+    const made = async () => {
+      act(() => button('Write a note').click());
+      await act(async () => buttonSaying(document.body, 'A page of markdown')!.click());
+      await waitUntil(() => expect(noteShown()).not.toBeNull());
+      return noteShown()!;
+    };
+    // As the note's screen writes a card's template: its record first, then its words, and a place waiting for words.
+    const left = await made();
+    rememberUntouched(left, { title: '', words: '# \n\n- [ ] ', at: Date.now() });
+    await updateNote(left, '---\nlook: reading\n---\n# \n\n- [ ] ', (await getNote(left))!.revision ?? 1);
+    setPendingTag(left, { lat: 51.5, lon: -0.12, rough: false, place: null });
+    act(() => button('Home').click());
+    await waitUntil(async () => expect(await getNote(left)).toBeNull());
+    expect(untouchedRecord(left)).toBeNull();
+    expect(pendingTag(left)).toBeNull();
+    expect(tabs()).not.toContain(left);
+    // Written in, it is the person's: it stays, and its record goes.
+    const kept = await made();
+    rememberUntouched(kept, { title: '2026-09-28', words: '# 2026-09-28\n\n', at: Date.now() });
+    await updateNote(kept, '# 2026-09-28\n\nA word.', (await getNote(kept))!.revision ?? 1);
+    act(() => button('Home').click());
+    await waitUntil(() => expect(untouchedRecord(kept)).toBeNull());
+    expect(await getNote(kept)).not.toBeNull();
+  });
+
   it('holds nothing where the prompt was never answered, and leaves a note opened to be read unfocused', async () => {
     const { heldFor } = await import('./core/location.ts');
     await seed(['a', '# Apples']);

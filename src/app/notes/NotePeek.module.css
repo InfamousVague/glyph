@@ -38,6 +38,28 @@
   user-select: none;
 }
 
+/*
+ * A template's card (NotePeek.tsx `whole`; notes/TemplateCards.tsx): the top of the note it makes, so in the note's own
+ * ink and its heading proportions (the 4xl title, each heading a step under it, app.css), at the card's scale, where a
+ * home card's words are in the third ink with headings a step down. Held to 10rem, the words' first lines.
+ */
+.peek[data-whole] {
+  --app-h1: calc(var(--glacier-font-size-4xl) * var(--peek-scale));
+  --app-h2: calc(var(--glacier-font-size-3xl) * var(--peek-scale));
+  --app-h3: calc(var(--glacier-font-size-2xl) * var(--peek-scale));
+  --app-h4: calc(var(--glacier-font-size-xl) * var(--peek-scale));
+  --app-h5: calc(var(--glacier-font-size-lg) * var(--peek-scale));
+  --app-h6: calc(var(--glacier-font-size-md) * var(--peek-scale));
+  max-block-size: 10rem;
+  margin-block-start: 0;
+  color: var(--glacier-text);
+}
+
+/* A page to read, drawn small: its display title from the card's own scale, as the note's is from the note's. */
+.peek[data-whole][data-look='reading'] {
+  --app-h1: calc(var(--glacier-font-size-5xl) * var(--peek-scale));
+}
+
 /* More below the edge: the last line goes to nothing, as a mask and never a painted shadow. */
 .peek[data-clipped] {
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.8em), transparent);

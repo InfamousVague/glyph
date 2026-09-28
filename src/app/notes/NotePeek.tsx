@@ -4,6 +4,7 @@ import { Editor } from '../editor/Editor.tsx';
 import { isDarkNow, usePreferences } from '../core/preferences.ts';
 import { PEEK_LINES, peekMarkdown } from './peek.ts';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
+import type { Look } from '../core/look.ts';
 import styles from './NotePeek.module.css';
 
 /**
@@ -30,12 +31,26 @@ import styles from './NotePeek.module.css';
  * and the live editor is let go: the next time that card - or any card of the same text - comes near the screen, it is
  * drawn from what was kept, with no editor at all. The same formatter, run once per note per session instead of once
  * per scroll past it. The card watches the screen through one observer shared by every card, and does not render
- * again when the list around it does (`memo`: its props are two strings).
+ * again when the list around it does (`memo`: its props are strings and flags).
+ *
+ * A template's card on a new note's blank page (notes/TemplateCards.tsx; docs/DESIGN.md §144) is drawn `whole`: the
+ * words it is handed from their first line, since they are the top of the note it makes and not a note's gist after
+ * its title, in the note's own ink and heading proportions (NotePeek.module.css `data-whole`), with its `look` and
+ * the `A name` of an open heading. And `eager`: six cards on a page that scrolls inside a note are drawn one after
+ * another as soon as they are there, not as they come near the screen, and kept while the page is open.
  */
 
 export interface NotePeekProps {
   body: string;
   className?: string;
+  /** The words as they are, from the first line: a template's top, not a note after its title. */
+  whole?: boolean;
+  /** How the note it depicts looks (core/look.ts). */
+  look?: Look | null;
+  /** `A name` in an open first heading (editor/openHeading.ts). */
+  openHeading?: boolean;
+  /** Drawn in its turn at once, with no look at the screen, and kept. */
+  eager?: boolean;
 }
 
 /** How far off the screen a card is drawn, or kept drawn, in pixels: a scroll's worth. */
@@ -108,13 +123,13 @@ function soon(run: () => void): () => void {
   };
 }
 
-export const NotePeek = memo(function NotePeek({ body, className }: NotePeekProps) {
+export const NotePeek = memo(function NotePeek({ body, className, whole = false, look = null, openHeading = false, eager = false }: NotePeekProps) {
   const { theme } = usePreferences();
   const dark = isDarkNow(theme);
   // A canvas note is JSON, not words: its card shows nothing small until a canvas can be drawn small (docs/CANVAS.md).
-  const markdown = useMemo(() => (isCanvasBody(body) ? '' : peekMarkdown(body)), [body]);
-  /** Which drawing this card is: the same text in the same theme draws the same. */
-  const key = `${dark ? 'dark' : 'light'}\n${markdown}`;
+  const markdown = useMemo(() => (whole ? body : isCanvasBody(body) ? '' : peekMarkdown(body)), [body, whole]);
+  /** Which drawing this card is: the same text in the same theme, drawn the same way, draws the same. */
+  const key = `${dark ? 'dark' : 'light'}\n${whole ? 'whole' : ''}:${look ?? ''}:${openHeading ? 'open' : ''}\n${markdown}`;
   const keyRef = useRef(key);
   keyRef.current = key;
   /** A drawing was just kept for this card: render again to let its editor go. */
@@ -137,9 +152,21 @@ export const NotePeek = memo(function NotePeek({ body, className }: NotePeekProp
     return () => watcher.disconnect();
   }, [drawn, markdown]);
 
+  // Eager: in its turn, one editor at a time with every other card, and never let go while it is on the page.
+  useEffect(() => {
+    if (!eager || drawn) return undefined;
+    if (drawings.has(keyRef.current)) {
+      setDrawn(true);
+      return undefined;
+    }
+    return soon(() => setDrawn(true));
+    // Once, as it arrives: what it draws is followed below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eager]);
+
   useEffect(() => {
     const el = host.current;
-    if (!el || typeof IntersectionObserver === 'undefined') return undefined;
+    if (eager || !el || typeof IntersectionObserver === 'undefined') return undefined;
     let cancel: (() => void) | null = null;
     const stop = watch(el, (near) => {
       cancel?.();
@@ -164,6 +191,8 @@ export const NotePeek = memo(function NotePeek({ body, className }: NotePeekProp
       cancel?.();
       stop();
     };
+    // Watched once, as it arrives; an eager card is never watched.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // A card whose editor has drawn keeps what it drew, then lets the editor go.
@@ -189,13 +218,14 @@ export const NotePeek = memo(function NotePeek({ body, className }: NotePeekProp
   const held = stood !== null ? `${stood}px` : `calc(var(--app-body) * 1.6 * ${lines})`;
   const style = drawn ? undefined : { blockSize: held, minBlockSize: held };
   const peek = className ? `${styles.peek} ${className}` : styles.peek;
+  const marks = { 'data-whole': whole ? '' : undefined, 'data-look': look ?? undefined };
   // Drawn before: the kept drawing is the card's own HTML, what its editor drew, with no editor behind it.
   if (drawn && kept !== undefined) {
-    return <span ref={host} className={peek} data-clipped={clipped ? '' : undefined} aria-hidden="true" dangerouslySetInnerHTML={{ __html: kept }} />;
+    return <span ref={host} className={peek} {...marks} data-clipped={clipped ? '' : undefined} aria-hidden="true" dangerouslySetInnerHTML={{ __html: kept }} />;
   }
   return (
-    <span ref={host} className={peek} style={style} data-clipped={drawn && clipped ? '' : undefined} aria-hidden="true">
-      {drawn ? <Editor value={markdown} onChange={noop} dark={dark} assist={false} readOnly display="formatted" peek grow /> : null}
+    <span ref={host} className={peek} {...marks} style={style} data-clipped={drawn && clipped ? '' : undefined} aria-hidden="true">
+      {drawn ? <Editor value={markdown} onChange={noop} dark={dark} assist={false} readOnly display="formatted" peek grow look={look} openHeading={openHeading} /> : null}
     </span>
   );
 });
