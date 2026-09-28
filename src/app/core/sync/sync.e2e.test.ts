@@ -127,7 +127,7 @@ describe.skipIf(!DATA)('sync between two devices', () => {
     phone.files.set('recording/n1', audio);
     phone.files.set('image/pic-1.jpg', picture);
 
-    expect(await sync(phone)).toEqual({ changed: 0, conflicts: 0 });
+    expect(await sync(phone)).toEqual({ changed: 0, conflicts: 0, unsent: 0, reason: null });
     const got = await sync(desk);
     expect(got.changed).toBe(2);
     expect(desk.notes.get('n1')).toEqual(phone.notes.get('n1'));
@@ -137,8 +137,8 @@ describe.skipIf(!DATA)('sync between two devices', () => {
     expect(desk.files.get('image/pic-1.jpg')).toEqual(picture);
 
     // Nothing more to do on either side.
-    expect(await sync(phone)).toEqual({ changed: 0, conflicts: 0 });
-    expect(await sync(desk)).toEqual({ changed: 0, conflicts: 0 });
+    expect(await sync(phone)).toEqual({ changed: 0, conflicts: 0, unsent: 0, reason: null });
+    expect(await sync(desk)).toEqual({ changed: 0, conflicts: 0, unsent: 0, reason: null });
   });
 
   it('never gives the service the words', () => {

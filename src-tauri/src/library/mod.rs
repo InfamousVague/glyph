@@ -51,6 +51,44 @@ use vault::{FsVault, Vault};
 /// Where new notes go.
 pub const INBOX: &str = "Inbox";
 
+/// Every write to the notes in this process, one at a time.
+///
+/// Two `Library` handles write the same files in one process since meetings
+/// came: the app's (`NotesStore`, behind its own lock) and a meeting's
+/// write-up, which opens its own because it arrives over JNI with no Tauri
+/// state (`write_up.rs`). `update_note` checks the revision and then writes the
+/// file and then bumps the revision, and two handles interleaving those steps
+/// would both pass at revision r, both set r + 1, and the later file write
+/// would win with no conflict seen: the transcript lost, or the person's last
+/// words, and the editor's rebase on a conflict (editor/useNoteSaving.ts)
+/// never asked. A sidecar is read, changed and written back the same way. So
+/// every public method that writes holds this, re-entrantly, since one write
+/// calls another (`update_note` saves through `save_note`).
+static WRITING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+thread_local! {
+    /// How deep this thread is in `WRITING`: only the outermost takes the lock.
+    static WRITING_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// Held for one write (see `WRITING`).
+struct Writing {
+    _held: Option<std::sync::MutexGuard<'static, ()>>,
+}
+
+fn writing() -> Writing {
+    let depth = WRITING_DEPTH.with(std::cell::Cell::get);
+    let held = (depth == 0).then(|| crate::lock::lock(&WRITING));
+    WRITING_DEPTH.with(|d| d.set(depth + 1));
+    Writing { _held: held }
+}
+
+impl Drop for Writing {
+    fn drop(&mut self) {
+        WRITING_DEPTH.with(|d| d.set(d.get().saturating_sub(1)));
+    }
+}
+
 #[derive(Debug)]
 pub enum LibraryError {
     Io(std::io::Error),
@@ -190,6 +228,7 @@ impl Library {
 
     /// Writes `body` as the note's text. A new id is a new file in `Inbox/`; `source` is only read then.
     pub fn save_note(&mut self, id: &str, body: &str, source: &str) -> Result<Note> {
+        let _writing = writing();
         let blank = body.trim().is_empty();
         let row = self.row(id)?;
         if blank {
@@ -247,6 +286,7 @@ impl Library {
     /// insertion path; queued writers use `update_note` and cannot recreate a
     /// deleted file.
     pub fn create_note(&mut self, id: &str, body: &str, source: &str) -> Result<Option<Note>> {
+        let _writing = writing();
         if self.row(id)?.is_some() || self.drafts.contains_key(id) {
             return Ok(None);
         }
@@ -256,6 +296,7 @@ impl Library {
     /// Updates exactly the revision the caller read. Missing or changed notes
     /// are conflicts and never become new files.
     pub fn update_note(&mut self, id: &str, body: &str, expected_revision: i64) -> Result<Option<Note>> {
+        let _writing = writing();
         let Some(current) = self.get_note(id)? else { return Ok(None) };
         if current.revision != expected_revision {
             return Ok(None);
@@ -325,6 +366,7 @@ impl Library {
     /// included. Removing one already gone is not an error: the page deletes
     /// from a list it drew some time ago.
     pub fn delete_note(&mut self, id: &str) -> Result<bool> {
+        let _writing = writing();
         self.drafted.remove(id);
         let Some(row) = self.row(id)? else { return Ok(self.drafts.remove(id).is_some()) };
         self.delete_file(id, &row.path)?;
@@ -333,6 +375,7 @@ impl Library {
 
     /// Changes front matter only, keeping the file's modified time: a pin is not an edit.
     fn set_front(&mut self, id: &str, change: impl FnOnce(&mut FrontMatter)) -> Result<Option<Note>> {
+        let _writing = writing();
         self.written(id)?;
         let Some(row) = self.row(id)? else { return Ok(None) };
         let text = self.vault.read(&row.path)?;
@@ -363,6 +406,7 @@ impl Library {
     /// beside the note rather than in it. Not an edit: the words were saved
     /// when they were said.
     pub fn set_recording(&mut self, id: &str, recording: Option<&Recording>) -> Result<Option<Note>> {
+        let _writing = writing();
         if !self.written(id)? {
             return Ok(None);
         }
@@ -378,6 +422,7 @@ impl Library {
     /// text, the page's hash of the body it came from, and which model wrote it.
     /// Not an edit: the body and its modified time stand.
     pub fn set_formatted(&mut self, id: &str, formatted: Option<&str>, formatted_for: Option<i64>, model: Option<&str>) -> Result<Option<Note>> {
+        let _writing = writing();
         if !self.written(id)? {
             return Ok(None);
         }
@@ -392,6 +437,7 @@ impl Library {
 
     /// Every note gone: the files, what isn't text, the index. For a reset of a library in the app's own storage.
     pub fn clear(&mut self) -> Result<()> {
+        let _writing = writing();
         for entry in self.vault.markdown()? {
             self.vault.remove(&entry.path)?;
         }
@@ -410,6 +456,7 @@ impl Library {
     /// times are the note's own: a note synced in is not a note edited now.
     /// Front matter this device added that Glyph doesn't manage stays.
     pub fn apply_note(&mut self, note: &Note) -> Result<Note> {
+        let _writing = writing();
         self.drafts.remove(&note.id);
         self.drafted.remove(&note.id);
         let stem = file_stem(&title_of(&note.body));

@@ -178,6 +178,18 @@ export function isSummaries(value: unknown): value is Summaries {
   return typeof value === 'string' && (SUMMARIES as readonly string[]).includes(value);
 }
 
+/**
+ * When a meeting is written up with the app closed (docs/DESIGN.md §127 section 4): only while the phone is charging
+ * or above half its battery, which is the default, or straight away. The write-up is the cost of a meeting, an hour
+ * of the speech model and then the language model, so by default it waits for power a person is not about to miss.
+ */
+export type WriteUp = 'charging' | 'now';
+export const WRITE_UPS: readonly WriteUp[] = ['charging', 'now'];
+
+export function isWriteUp(value: unknown): value is WriteUp {
+  return typeof value === 'string' && (WRITE_UPS as readonly string[]).includes(value);
+}
+
 /** How much longer (above 1) or shorter (below 1) every animation runs at a speed. */
 const MOTION_SCALE: Record<MotionSpeed, number> = { relaxed: 1.6, normal: 1, brisk: 0.6 };
 
@@ -232,6 +244,13 @@ export interface Preferences {
   review: boolean;
   /** Which recordings are summarised on their own (`Summaries`; ai/summaries.ts). Meetings by default. */
   summaries: Summaries;
+  /** When a meeting is written up with the app closed (`WriteUp`): while charging or above half, by default. */
+  writeUp: WriteUp;
+  /**
+   * Whether a meeting's audio goes to the account with its note (core/sync/notes.ts). Off by default: a meeting is
+   * other people's voices, so the words sync and the audio stays on the device it was made on.
+   */
+  syncMeetingRecordings: boolean;
   /**
    * Nothing leaves the phone and nothing arrives: no update checks, no model
    * downloads, and plugins that use the network are off. Glyph runs from what
@@ -321,6 +340,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
   commandWord: true,
   review: true,
   summaries: 'meetings',
+  writeUp: 'charging',
+  syncMeetingRecordings: false,
   localOnly: false,
   formatModel: 'qwen3.5-4b',
   codeLight: 'pastel',
@@ -399,6 +420,8 @@ function settle(raw: unknown): Preferences {
   loaded.shares = shares;
   if (!(loaded.motionSpeed in MOTION_SCALE)) loaded.motionSpeed = DEFAULT_PREFERENCES.motionSpeed;
   if (!isSummaries(loaded.summaries)) loaded.summaries = DEFAULT_PREFERENCES.summaries;
+  if (!isWriteUp(loaded.writeUp)) loaded.writeUp = DEFAULT_PREFERENCES.writeUp;
+  if (typeof loaded.syncMeetingRecordings !== 'boolean') loaded.syncMeetingRecordings = DEFAULT_PREFERENCES.syncMeetingRecordings;
   // An accent or a rounding this build does not have - one from an older store, where the accent was a colour the
   // app never used, or from a newer phone - is the app's own rather than a name nothing can draw.
   if (!isAccent(loaded.accent)) loaded.accent = DEFAULT_PREFERENCES.accent;

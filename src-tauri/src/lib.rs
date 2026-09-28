@@ -6,9 +6,14 @@
 // Building blocks every other module shares, each written once. See each header.
 // The poison-tolerant lock, Tauri-free so whisper/ and llm/ can use it.
 mod lock;
+// What the page's engine doors and the JNI write-up door must agree on: whether a
+// capture runs, the one small.en at a time, the abort background jobs watch. iOS
+// has no whisper, no llama and no recorder, so nothing there reaches most of it.
+#[cfg_attr(target_os = "ios", allow(dead_code))]
+mod guards;
 // Whole-file writes, JSON with a fallback, removals where gone is done. Tauri-free too.
 mod fsx;
-// Where the app keeps things, and the four directory names Kotlin shares.
+// Where the app keeps things, and the six directory names Kotlin shares.
 mod paths;
 // What iOS does not have, and the one sentence each such command answers with there.
 #[cfg_attr(not(target_os = "ios"), allow(dead_code))]
@@ -27,6 +32,13 @@ pub mod note;
 pub mod library;
 // The database the notes lived in before 1.3.0, read once to move them into the library.
 pub mod store;
+// A recording's phrases as the paragraphs of its transcript, and the section they
+// live in: the twin of the page's `toParagraphs`, for the write-up that runs with
+// the app closed. Tauri-free, and in tools/host-tests.
+pub mod transcript;
+// The files a meeting's write-up is kept in under `jobs/`: its config, its
+// progress, its result. Tauri-free, read by the commands and the JNI door alike.
+pub mod jobs;
 
 // The webview's door to the notes: one library call per command, and the
 // delete that takes a note's pictures and recording with it.
@@ -85,6 +97,21 @@ mod ota;
 // closed - the first code in Glyph that runs with no Tauri in the process.
 #[cfg(target_os = "android")]
 mod update_alerts;
+
+// A meeting's write-up with the app closed: the recording finished, transcribed
+// span by span, the transcript into the note, the summary from the model.
+// Tauri-free, like the engines it drives; not on iOS, which has neither. Only
+// the JNI door reaches it, so on the Mac it is built and tested and called by
+// nothing, as `unsupported` is on the phone.
+#[cfg(not(target_os = "ios"))]
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+mod write_up;
+// The webview's door to the write-ups and the tapes: the job config, the
+// result, every job's state, a digest, a removal.
+mod recording_commands;
+// The JNI door the meeting service and its WorkManager job call: finish, run, cancel.
+#[cfg(target_os = "android")]
+mod recording_jobs;
 
 // The window fixes one platform needs: iOS's key window, macOS's traffic lights.
 mod platform;
@@ -177,6 +204,12 @@ pub fn run() {
             ai_commands::ai_generate,
             ai_commands::ai_infer_command,
             ai_commands::ai_cancel,
+            ai_commands::ai_unload,
+            recording_commands::ai_keep_job_config,
+            recording_commands::recording_result_take,
+            recording_commands::recording_job_state,
+            recording_commands::recording_digest,
+            recording_commands::recording_delete,
             reset::reset_local_data,
             ota::ota_claim_boot,
             ota::ota_boot_ok,

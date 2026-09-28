@@ -1,16 +1,20 @@
 import { renderNote } from '../capture/markdown.ts';
+import { canNotifyNow } from '../capture/meetingLive.ts';
 import { onRefineHold, refineHeld, refinePending } from '../capture/refine.ts';
-import { generate, listModels, type Run } from '../core/ai.ts';
+import { generate, listModels, unloadModel, type Run } from '../core/ai.ts';
 import { externalStore } from '../core/externalStore.ts';
 import { failureText } from '../core/failure.ts';
+import { answerHost, writeUpOnHost } from '../core/host.ts';
 import { preferences } from '../core/preferences.ts';
+import { recordingJobState, takeRecordingResult, type RecordingJobState } from '../core/recordings.ts';
 import { readStored, writeStored } from '../core/stored.ts';
-import { getNote, noteTitle, updateNote } from '../core/store.ts';
+import { getNote, NOTES_CHANGED, noteTitle, updateNote } from '../core/store.ts';
 import { syncNow, syncSettled } from '../core/sync/engine.ts';
 import { isTauri } from '../core/tauri.ts';
 import { isTrashed } from '../core/trash.ts';
-import { RECORDING_NOTES_PROMPT, RECORDING_SUMMARY_PROMPT, recordingNotesBudget, recordingSummaryBudget, TEMPERATURE } from '../format/prompt.ts';
+import { fill, NOTES_CONTEXT, PIECE_CONTEXT, RECORDING_NOTES_PROMPT, RECORDING_SUMMARY_PROMPT, recordingNotesBudget, recordingSummaryBudget, TEMPERATURE } from '../format/prompt.ts';
 import { modelFor, presentIds } from './available.ts';
+import { sendJobConfig } from './jobConfig.ts';
 import { anyRunning, type RunHandle } from './runs.ts';
 import { keepSummary, readSummary } from './summaryKeep.ts';
 import { carryTicked, shapeSummary, SUMMARY_HEADING, summarySection, transcriptPieces, withSummary } from './summaryText.ts';
@@ -22,10 +26,10 @@ import { carryTicked, shapeSummary, SUMMARY_HEADING, summarySection, transcriptP
  * for it, after the better words, and never the server.
  *
  * A job a note, kept in localStorage on capture/refine.ts's pattern, so one the phone did not get to runs at the next
- * launch. A job is queued for a meeting when its transcript is there (section 3, which nothing makes yet: the
- * 'meeting' kind is typed and handled and no path enqueues it), from the tape strip's Summarize word
- * (tapes/NoteTape.tsx), and for a long voice note when the setting says so (capture/CaptureScreen.tsx). Never again
- * on its own: a summary is remade only on purpose.
+ * launch. A job is queued for a meeting as it starts (shell/useCaptureRoute.ts on the phone, natively; the Mac's
+ * recorder at Done, as a page job), from the tape strip's Summarize word (tapes/NoteTape.tsx), and for a long voice
+ * note when the setting says so (capture/CaptureScreen.tsx). Never again on its own: a summary is remade only on
+ * purpose.
  *
  * What it reads is the tape, not the note: the recording's phrases as the note keeps them, commands left out.
  * A transcript past twenty thousand characters goes in pieces (ai/summaryText.ts `transcriptPieces`), each piece's
@@ -43,6 +47,15 @@ import { carryTicked, shapeSummary, SUMMARY_HEADING, summarySection, transcriptP
  * launch; three tries and it is `failed`, for the shelf's Try again. No model on the phone: the job waits, looks
  * again in a minute, and the shelf says "Needs a model".
  *
+ * A NATIVE job (`native`, §127 sections 4 and 5) is a meeting the phone's own service writes up, with the app closed:
+ * the model is never run for it here. Its result is taken when it is there (core/recordings.ts
+ * `takeRecordingResult`) - on every kick, when the service says it is done (`window.__glyph.recordingDone`), when
+ * the page comes back to the front, and every fifteen seconds while one waits - and landed through the same
+ * `write` every page summary goes through, or handed to the note's editor when the note is open: one rule for the
+ * section, one set of tests. Its state on the shelf comes from the phone's own progress files (`recordingJobState`):
+ * writing up, waiting to charge (with the word to write it up now), needing a model, or failed, each with the way to
+ * ask again, which goes to the service (`GlyphHost.writeUp`) rather than to a model the page would run.
+ *
  * Two writers. A closed note is written plain by `withSummary`, through `generate()`, since a background write can
  * make no marks. An open note lands through its editor, the one writer of an open note (§126): the note screen
  * registers a starter (`openForSummaries`), the queue hands it the words, and the summary is a run of ai/runs.ts
@@ -50,8 +63,8 @@ import { carryTicked, shapeSummary, SUMMARY_HEADING, summarySection, transcriptP
  * finished answer instead, and the editor lands it at once: the plain write never lands under an open editor, whose
  * next save would conflict and every save of that visit after it be dropped (editor/useNoteSaving.ts). Both place
  * and shape the section by ai/summaryText.ts's rules. On success the list is refreshed and, with the page visible,
- * a toast says "Summarized" with Open (shell/useHousekeeping.ts); not for a native job, whose notification already
- * said it (sections 4 and 5, generation 20: a native job waits here for its result, which nothing delivers yet).
+ * a toast says "Summarized" with Open (shell/useHousekeeping.ts); for a native job only when the phone cannot
+ * notify, since its notification has said it otherwise, and with notifications refused the toast is the only word.
  *
  * Only in Tauri: a browser has no summariser, and shows what synced.
  */
@@ -69,6 +82,8 @@ export interface SummaryJob {
   pieces?: string[];
   /** The model's finished answer, kept when the write did not go through, so the next kick writes without asking again. */
   text?: string;
+  /** Which model wrote `text`, for a native result, whose model the page did not choose. */
+  model?: string;
   /** The write-up runs natively, with the app closed (§127 section 4): the job waits here for its result. */
   native?: boolean;
   /** The queue gave up: three tries. Try again clears it. */
@@ -82,6 +97,8 @@ export interface SummariesState {
   pending: ReadonlySet<string>;
   /** Notes a native write-up is running for (§127 section 4). */
   native: ReadonlySet<string>;
+  /** Notes whose native write-up waits for the phone to charge, or be above half (§127 section 4). */
+  waiting: ReadonlySet<string>;
   /** Notes whose summary the queue gave up on, for the caption's Try again. */
   failed: ReadonlySet<string>;
   /** Notes whose job waits for a language model that is not on the phone. */
@@ -107,9 +124,8 @@ export interface SummaryAsk {
 /** A run in the editor to follow, or the section landed at once from an answer already in hand, or why not. */
 export type SummaryStarted = { ok: true; handle: RunHandle } | { ok: true; landed: string } | { ok: false; reason: 'edited' | 'nothing' | string };
 
-/** The line before a piece's words, and before the joined notes: the summary's length is measured against the recording, not the notes. */
-export const PIECE_CONTEXT = (n: number, m: number) => `Part ${n} of ${m} of one recording.`;
-export const NOTES_CONTEXT = (words: number) => `These are notes on the parts of one recording, in order. The recording itself was about ${words.toLocaleString('en')} words: the summary's length is measured against that, not against these notes.`;
+/** What the service says when a write-up ends (`window.__glyph.recordingDone`). */
+export type RecordingOutcome = 'done' | 'needsModel' | 'failed' | 'cancelled';
 
 const QUEUE_KEY = 'glyph-summary-queue';
 const MAX_TRIES = 3;
@@ -119,6 +135,8 @@ const RETRY_MS = 20_000;
 const NO_MODEL_MS = 60_000;
 /** How long to wait for a note's own run to end. */
 const RUN_WAIT_MS = 3000;
+/** How often to look for a native write-up's result while one waits and the page is visible. */
+const NATIVE_POLL_MS = 15_000;
 
 // ---- the queue -------------------------------------------------------------------------
 
@@ -136,18 +154,44 @@ function patch(id: string, change: Partial<SummaryJob>): void {
 
 // ---- what the shelf and the strip see ----------------------------------------------------
 
-const NONE: SummariesState = { pending: new Set(), native: new Set(), failed: new Set(), needsModel: new Set() };
+const NONE: SummariesState = { pending: new Set(), native: new Set(), waiting: new Set(), failed: new Set(), needsModel: new Set() };
 const summaries = externalStore<SummariesState>(NONE, { server: () => NONE });
 /** Notes whose job is waiting for a model, said by the last look. */
 const needsModel = new Set<string>();
+/** The phone's own write-ups, as last read (core/recordings.ts): what a native job's caption is made of. */
+let jobStates: readonly RecordingJobState[] = [];
 
+/**
+ * The five sets, from the queue and the phone's write-ups: a native job wears the phase its progress file says
+ * (waiting to charge, needing a model, failed), and one the service cancelled is dropped here too.
+ */
 function publish(): void {
-  const queue = readQueue();
+  let queue = readQueue();
+  const stateOf = (id: string) => jobStates.find((s) => s.id === id);
+  const cancelled = queue.filter((j) => j.native && !j.failed && stateOf(j.id)?.phase === 'cancelled').map((j) => j.id);
+  if (cancelled.length) {
+    queue = queue.filter((j) => !cancelled.includes(j.id));
+    writeQueue(queue);
+    for (const id of cancelled) {
+      needsModel.delete(id);
+      askedAfterModel.delete(id);
+    }
+  }
+  const nativeJobs = queue.filter((j) => j.native && !j.failed);
+  const phaseOf = (id: string) => stateOf(id)?.phase;
   summaries.set({
     pending: new Set(queue.filter((j) => !j.failed && !j.native).map((j) => j.id)),
-    native: new Set(queue.filter((j) => j.native && !j.failed).map((j) => j.id)),
-    failed: new Set(queue.filter((j) => j.failed).map((j) => j.id)),
-    needsModel: new Set(queue.filter((j) => !j.failed && needsModel.has(j.id)).map((j) => j.id)),
+    native: new Set(
+      nativeJobs
+        .filter((j) => {
+          const state = stateOf(j.id);
+          return !(state?.phase === 'needsModel' || state?.phase === 'failed' || (state?.phase === 'waiting' && state.waitingFor === 'battery'));
+        })
+        .map((j) => j.id),
+    ),
+    waiting: new Set(nativeJobs.filter((j) => phaseOf(j.id) === 'waiting' && stateOf(j.id)?.waitingFor === 'battery').map((j) => j.id)),
+    failed: new Set([...queue.filter((j) => j.failed).map((j) => j.id), ...nativeJobs.filter((j) => phaseOf(j.id) === 'failed').map((j) => j.id)]),
+    needsModel: new Set([...queue.filter((j) => !j.failed && !j.native && needsModel.has(j.id)).map((j) => j.id), ...nativeJobs.filter((j) => phaseOf(j.id) === 'needsModel').map((j) => j.id)]),
   });
 }
 
@@ -172,6 +216,10 @@ let activeHandle: RunHandle | null = null;
 let cut = false;
 /** The notes open in an editor, each with the way to run a summary in it. */
 const starters = new Map<string, SummaryStarter>();
+/** Who wants to know a note's transcript or summary arrived from the phone's write-up (editor/NoteScreen.tsx). */
+const recordingListeners = new Set<(id: string) => void>();
+/** Native jobs that were asked to be written up again after a model arrived, so they are asked once. */
+const askedAfterModel = new Set<string>();
 
 /** Ask for a summary of the note's tape. Runs once the holds are clear; a job already queued for the note is replaced. */
 export function enqueueSummary(id: string, kind: SummaryKind, options: { native?: boolean; replace?: boolean } = {}): void {
@@ -179,15 +227,34 @@ export function enqueueSummary(id: string, kind: SummaryKind, options: { native?
   const queue = readQueue().filter((j) => j.id !== id);
   queue.push({ id, kind, tries: 0, ...(options.native ? { native: true } : {}), ...(options.replace ? { replace: true } : {}) });
   writeQueue(queue);
+  // A state kept for an earlier write-up of this note - cancelled, say - is not this job's: the phone is asked again.
+  jobStates = jobStates.filter((s) => s.id !== id);
+  askedAfterModel.delete(id);
   publish();
   kick();
 }
 
-/** Try again, from the shelf's caption: the note's job back in the queue with its tries reset. */
+/**
+ * Try again, from the shelf's caption: the note's job back in the queue with its tries reset. A native job's again
+ * is the service's to run (`GlyphHost.writeUp`), from the front, straight away.
+ */
 export function retrySummary(id: string): void {
   const queue = readQueue();
-  if (!queue.some((j) => j.id === id)) return;
+  const job = queue.find((j) => j.id === id);
+  if (!job) return;
   writeQueue(queue.map((j) => (j.id === id ? { ...j, tries: 0, failed: false, started: false } : j)));
+  if (job.native) {
+    writeUpOnHost(id, true);
+    jobStates = jobStates.filter((s) => s.id !== id);
+  }
+  publish();
+  kick();
+}
+
+/** "Write up now", from the shelf's caption under a meeting waiting to charge: the service asked to run it from the front. */
+export function writeUpNow(id: string): void {
+  writeUpOnHost(id, true);
+  jobStates = jobStates.filter((s) => s.id !== id);
   publish();
   kick();
 }
@@ -196,6 +263,7 @@ export function retrySummary(id: string): void {
 export function dropSummary(id: string): void {
   const queue = readQueue();
   needsModel.delete(id);
+  askedAfterModel.delete(id);
   if (!queue.some((j) => j.id === id)) return;
   writeQueue(queue.filter((j) => j.id !== id));
   publish();
@@ -204,6 +272,11 @@ export function dropSummary(id: string): void {
 /** Whether the note has a job queued or running. */
 export function summaryPending(id: string): boolean {
   return readQueue().some((j) => j.id === id && !j.failed);
+}
+
+/** Whether the note's job is a native one, waiting on the phone's own write-up. */
+export function summaryNative(id: string): boolean {
+  return readQueue().some((j) => j.id === id && j.native);
 }
 
 /**
@@ -231,6 +304,14 @@ export function openForSummaries(id: string, starter: SummaryStarter | null): vo
   else starters.delete(id);
 }
 
+/** Hear that the phone's write-up changed a note - its transcript landed, or its result came; answers the way to stop. */
+export function onRecordingChanged(listener: (id: string) => void): () => void {
+  recordingListeners.add(listener);
+  return () => {
+    recordingListeners.delete(listener);
+  };
+}
+
 /**
  * Wire the runner to the app: called once, with what to do when a note's words changed, and what to say once a
  * summary has landed with the page visible.
@@ -244,13 +325,23 @@ export function startSummaries(changed: () => void, summarized: (done: { id: str
     writeQueue(queue.map((j) => (j.started ? { ...j, started: false, tries: j.tries + 1, ...(j.tries + 1 >= MAX_TRIES ? { failed: true } : {}) } : j)));
   }
   publish();
+  // Back to the front: at once when a native result may be waiting, else a moment later.
   const onVisible = () => {
-    if (document.visibilityState === 'visible') kick(2000);
+    if (document.visibilityState === 'visible') kick(anyNative() ? 0 : 2000);
   };
   document.addEventListener('visibilitychange', onVisible);
+  // The activity's refresh, heard as the notes changing: a native result may have come while the app was away.
+  const onNotesChanged = () => {
+    if (anyNative()) kick(0);
+  };
+  window.addEventListener(NOTES_CHANGED, onNotesChanged);
+  // The service says a write-up ended: its result taken now, or its state read, and the note screen told.
+  const unanswer = answerHost('recordingDone', (json) => void recordingDone(json));
   kick(4000);
   return () => {
     document.removeEventListener('visibilitychange', onVisible);
+    window.removeEventListener(NOTES_CHANGED, onNotesChanged);
+    unanswer();
     window.clearTimeout(timer);
     onChanged = null;
     onSummarized = null;
@@ -267,21 +358,66 @@ function owed(): boolean {
   return readQueue().some((j) => !j.failed && !j.native);
 }
 
+/** Whether a native job waits for its result. */
+function anyNative(): boolean {
+  return readQueue().some((j) => j.native && !j.failed);
+}
+
+/** What the service said when a write-up ended. */
+async function recordingDone(json: string): Promise<void> {
+  let said: { id?: unknown; outcome?: unknown };
+  try {
+    said = JSON.parse(json) as { id?: unknown; outcome?: unknown };
+  } catch {
+    return;
+  }
+  if (typeof said.id !== 'string') return;
+  const id = said.id;
+  if (said.outcome === 'cancelled') {
+    dropSummary(id);
+    return;
+  }
+  await refreshJobStates();
+  if (said.outcome === 'done') await landNativeResult(id);
+  publish();
+  onChanged?.();
+  for (const listener of recordingListeners) listener(id);
+}
+
+/** The phone's write-ups read again; a note whose write-up has left listening is said to have changed, since its transcript is in it now. */
+async function refreshJobStates(): Promise<void> {
+  const was = jobStates;
+  jobStates = await recordingJobState().catch(() => was);
+  for (const before of was) {
+    const after = jobStates.find((s) => s.id === before.id);
+    if (before.phase === 'listening' && after && after.phase !== 'listening') for (const listener of recordingListeners) listener(before.id);
+  }
+}
+
 /**
  * The first job in the queue the holds let through, if the phone can take it now. What comes next is decided by how
  * it went: the next job half a second after one that finished, and this one again after a wait when the model was
- * not there, the phone was busy, or the run failed.
+ * not there, the phone was busy, or the run failed. The native jobs are looked at first, every time: a result that
+ * is there is landed, and their states are read for the shelf.
  */
 async function runNext(): Promise<void> {
   if (running || paused || !isTauri() || typeof document === 'undefined' || document.visibilityState !== 'visible') return;
+  if (anyNative()) {
+    await refreshJobStates();
+    // A write-up that needed a model is asked of the service again once one is on the phone.
+    if (jobStates.some((s) => s.phase === 'needsModel')) await afterModelArrived(presentIds(await listModels().catch(() => [])));
+    for (const job of readQueue().filter((j) => j.native && !j.failed)) await landNativeResult(job.id);
+    publish();
+  }
   // The hold read at its source: the same answer as `paused`, which follows it and is what the cancel needs.
   if (refineHeld()) return;
   const queue = readQueue();
   // The first that is not failed, not native, not in the trash and not waiting for its better words.
   const job = queue.find((j) => !j.failed && !j.native && !isTrashed(j.id) && !refinePending(j.id));
   if (!job) {
-    // A job held only by its better words looks again once they have come.
+    // A job held only by its better words looks again once they have come; a native one is looked at again in a while.
     if (queue.some((j) => !j.failed && !j.native && !isTrashed(j.id))) kick(RETRY_MS);
+    else if (anyNative()) kick(NATIVE_POLL_MS);
     return;
   }
   if (anyRunning()) {
@@ -292,7 +428,9 @@ async function runNext(): Promise<void> {
   let next = 500;
   try {
     await syncSettled();
-    const model = modelFor(presentIds(await listModels().catch(() => [])), preferences().formatModel);
+    const present = presentIds(await listModels().catch(() => []));
+    await afterModelArrived(present);
+    const model = modelFor(present, preferences().formatModel);
     if (!model) {
       needsModel.add(job.id);
       publish();
@@ -323,7 +461,83 @@ async function runNext(): Promise<void> {
     activeHandle = null;
     publish();
     if (owed()) kick(next);
+    else if (anyNative()) kick(NATIVE_POLL_MS);
   }
+}
+
+/**
+ * A model has come: every native job that was waiting for one is asked of the service again, once. The write-up's
+ * config is sent first and waited for (ai/jobConfig.ts): it still names the model the phone lacked until it is, and
+ * a job asked again before it would end "Needs a model" a second time.
+ */
+async function afterModelArrived(present: readonly string[]): Promise<void> {
+  if (!modelFor(present, preferences().formatModel)) return;
+  const waiting = readQueue().filter((job) => job.native && !job.failed && !askedAfterModel.has(job.id) && jobStates.find((s) => s.id === job.id)?.phase === 'needsModel');
+  if (!waiting.length) return;
+  await sendJobConfig().catch((failure: unknown) => console.warn('[glyph] the write-up’s configuration was not kept:', failure));
+  for (const job of waiting) {
+    askedAfterModel.add(job.id);
+    writeUpOnHost(job.id, false);
+  }
+}
+
+/**
+ * A native write-up's result landed, in this order: an answer the job already holds is written without asking the
+ * phone (the take happened, the page died before the write); then the phone is asked, and a result makes the job if
+ * none exists and is written through the same `write` as every page summary, or handed to the note's editor when it
+ * is open. A result with no summary (summaries off) ends the job: the transcript is in the note from Rust already.
+ */
+export async function landNativeResult(id: string): Promise<void> {
+  if (!isTauri()) return;
+  // A page job is being written: this result is looked at again a moment after it.
+  if (running) {
+    kick(500);
+    return;
+  }
+  running = true;
+  try {
+    const had = readQueue().find((j) => j.id === id && j.native);
+    if (had?.text !== undefined) {
+      await landText(had, had.text);
+      return;
+    }
+    const result = await takeRecordingResult(id).catch(() => null);
+    if (!result) return;
+    if (!readQueue().some((j) => j.id === id)) {
+      const queue = readQueue();
+      queue.push({ id, kind: 'meeting', tries: 0, native: true });
+      writeQueue(queue);
+    }
+    if (result.summary === null || !result.summary.trim()) {
+      const job = readQueue().find((j) => j.id === id);
+      if (job) finish(job);
+      return;
+    }
+    patch(id, { text: result.summary, model: result.model, failed: false });
+    const job = readQueue().find((j) => j.id === id);
+    if (job) await landText(job, result.summary);
+  } catch (error) {
+    console.warn('[glyph] the write-up did not land:', failureText(error));
+  } finally {
+    running = false;
+    publish();
+  }
+}
+
+/** A native answer into its note, the way a page answer goes: plain when closed, through its editor when open. */
+async function landText(job: SummaryJob, text: string): Promise<void> {
+  const note = await getNote(job.id);
+  if (!note) {
+    finish(job);
+    return;
+  }
+  const ask: SummaryAsk = { words: '', model: job.model ?? preferences().formatModel, maxTokens: 0, replace: Boolean(job.replace), text };
+  const starter = starters.get(job.id);
+  const outcome = starter ? await throughEditor(job, starter, ask) : await write(job, text, ask, note.recordingMs ?? 0);
+  if (outcome === 'written') {
+    finish(job);
+    onChanged?.();
+  } else if (outcome === 'left') finish(job);
 }
 
 type Outcome = 'written' | 'left' | 'wait';
@@ -347,19 +561,21 @@ async function summarize(job: SummaryJob, model: string): Promise<Outcome> {
     const notes = [...(job.pieces ?? [])].slice(0, pieces.length);
     for (let n = notes.length; n < pieces.length; n += 1) {
       const piece = pieces[n]!;
-      const output = await run({ model, system: RECORDING_NOTES_PROMPT, prompt: `${PIECE_CONTEXT(n + 1, pieces.length)}\n\n${piece}`, maxTokens: recordingNotesBudget(piece.length) });
+      const output = await run({ model, system: RECORDING_NOTES_PROMPT, prompt: `${fill(PIECE_CONTEXT, { n: n + 1, m: pieces.length })}\n\n${piece}`, maxTokens: recordingNotesBudget(piece.length) });
       notes.push(output.trim());
       // Each finished piece is checkpointed, so a kill after four of five starts at the fifth.
       patch(job.id, { pieces: [...notes] });
     }
     words = notes.join('\n\n');
-    context = NOTES_CONTEXT(plain.split(/\s+/).filter(Boolean).length);
+    context = fill(NOTES_CONTEXT, { words: plain.split(/\s+/).filter(Boolean).length.toLocaleString('en') });
   }
   const ask: SummaryAsk = { words, context, model, maxTokens: budget, replace: Boolean(job.replace) };
   const starter = starters.get(job.id);
   if (starter) return throughEditor(job, starter, job.text === undefined ? ask : { ...ask, text: job.text });
   const text = job.text ?? (await run({ model, system: RECORDING_SUMMARY_PROMPT, prompt: context ? `${context}\n\n${words}` : words, maxTokens: budget }));
   patch(job.id, { text });
+  // A long tape's context is the largest the page asks for: the engine may let it go now rather than in five minutes.
+  if (pieces.length > 1) void unloadModel();
   return write(job, text, ask, note.recordingMs ?? 0);
 }
 
@@ -451,14 +667,16 @@ async function write(job: SummaryJob, text: string, ask: SummaryAsk, recordingMs
   return 'wait';
 }
 
-/** "Summarized" with Open, when the page is visible and the job was the page's. */
+/** "Summarized" with Open, when the page is visible: for the page's jobs, and for a native one only where the phone could not say it itself. */
 function said(job: SummaryJob, body: string): void {
-  if (job.native || typeof document === 'undefined' || document.visibilityState !== 'visible') return;
+  if (typeof document === 'undefined' || document.visibilityState !== 'visible') return;
+  if (job.native && canNotifyNow()) return;
   onSummarized?.({ id: job.id, title: noteTitle(body) || 'Untitled' });
 }
 
 function finish(job: SummaryJob): void {
   needsModel.delete(job.id);
+  askedAfterModel.delete(job.id);
   writeQueue(readQueue().filter((j) => j.id !== job.id));
   publish();
 }

@@ -52,6 +52,13 @@ GLYPH_STORE=play npm run android:build -- --aab --target aarch64
    - **Content rating:** notes, no public feed. Shared links are unlisted and read-only.
    - **Target audience:** 13 and over.
    - **Data safety:** the answers below.
+   - **Foreground service permissions** (from 1.9.0, DESIGN §127): Play asks what each declared type is for, with a
+     short video of it in use (`docs/store/play/forms.md` has the words to paste). Three are declared:
+     - `FOREGROUND_SERVICE_MICROPHONE`: recording a meeting the person started from the app, with the screen off
+       (Meeting in the + sheet). The notification and Android's microphone mark show while it records, with Stop.
+     - `FOREGROUND_SERVICE_MEDIA_PROCESSING` (Android 15+) and `FOREGROUND_SERVICE_SPECIAL_USE` (Android 14, subtype
+       "Writing up a meeting recording on the device"): transcribing and summarising that recording on the phone
+       after it stops, which takes minutes and must not stop with the screen.
 4. **Closed test, then production.** A personal developer account must run a closed test with 12 testers for 14 days
    before production. An organisation account can skip this.
 
@@ -62,6 +69,7 @@ GLYPH_STORE=play npm run android:build -- --aab --target aarch64
 | User IDs (the handle) | Yes, optional (only with an account), not shared | Account management |
 | Device or other IDs (a device's public key and kind, e.g. "Android") | Yes, optional, not shared | Account management |
 | Notes, audio, photos | **No** | End-to-end encrypted, so we can't read them. Play counts that as not collected. |
+| A meeting's audio | **No** | Recorded, transcribed and summarised on the phone. It is not synced at all unless Settings › Account › Sync meeting recordings is on, and then end-to-end encrypted like the rest. |
 | Anything else (location, contacts, analytics, crash logs) | No | |
 
 Also answer:

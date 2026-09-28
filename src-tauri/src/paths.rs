@@ -25,12 +25,13 @@
 //! present - and NOT a relative path, which would answer for whatever file
 //! happens to sit in the process's working directory).
 //!
-//! FOUR NAMES ARE SHARED WITH KOTLIN, which resolves them from its own
-//! `Context` and has no way to ask this module: `Library`, `ota`, `picked`
-//! and `updates`. Each constant names its twin, each twin names this file,
-//! and a test reads the Kotlin sources, so renaming one side alone fails the
-//! build's tests instead of quietly breaking the Files app, update alerts, the
-//! picker or APK install on a phone.
+//! SIX NAMES ARE SHARED WITH KOTLIN, which resolves them from its own
+//! `Context` and has no way to ask this module: `Library`, `recordings`,
+//! `jobs`, `ota`, `picked` and `updates`. Each constant names its twin, each
+//! twin names this file, and a test reads the Kotlin sources, so renaming one
+//! side alone fails the build's tests instead of quietly breaking the Files
+//! app, a meeting's recording or its write-up, update alerts, the picker or
+//! APK install on a phone.
 
 use std::fmt::Display;
 use std::path::PathBuf;
@@ -42,7 +43,9 @@ use tauri::{Manager, Runtime};
 /// which serves this folder to the Files app.
 pub const LIBRARY: &str = "Library";
 
-/// A spoken note's kept audio, `<id>.wav`.
+/// A spoken note's kept audio, `<id>.wav`. KOTLIN TWIN:
+/// `capture/MeetingService.kt`, `File(dataDir, "recordings")`, where the
+/// meeting service writes the WAV it records as it goes.
 pub const RECORDINGS: &str = "recordings";
 
 /// Pictures in notes, `<uuid>.<jpg|png|webp>`.
@@ -51,6 +54,12 @@ pub const IMAGES: &str = "images";
 /// Model files and their `.part` downloads, whisper's and the formatter's in
 /// one directory, so a file name must be unique across both catalogues.
 pub const MODELS: &str = "models";
+
+/// A meeting's write-up: `config.json`, `<id>.progress` and `<id>.json`
+/// (jobs.rs). KOTLIN TWIN: `recordings/RecordingWorker.kt`,
+/// `File(context.dataDir, "jobs")`, which lists the `.progress` files at
+/// launch to enqueue the unfinished ones, and never writes there.
+pub const JOBS: &str = "jobs";
 
 /// Downloaded frontends and the OTA state files. KOTLIN TWIN:
 /// `updates/UpdateCheckWorker.kt`, `File(context.dataDir, "ota")`, whose path
@@ -100,6 +109,11 @@ pub fn models_dir<R: Runtime>(app: &impl Manager<R>) -> Result<PathBuf, String> 
     Ok(data_dir(app)?.join(MODELS))
 }
 
+/// `<app_data_dir>/jobs`.
+pub fn jobs_dir<R: Runtime>(app: &impl Manager<R>) -> Result<PathBuf, String> {
+    Ok(data_dir(app)?.join(JOBS))
+}
+
 /// `<app_data_dir>/ota`.
 pub fn ota_dir<R: Runtime>(app: &impl Manager<R>) -> Result<PathBuf, String> {
     Ok(data_dir(app)?.join(OTA))
@@ -145,10 +159,22 @@ mod tests {
             ("updates/UpdateCheckWorker.kt", format!("File(context.dataDir, \"{OTA}\")")),
             ("MainActivity.kt", format!("File(cacheDir, \"{PICKED}\")")),
             ("MainActivity.kt", format!("File(cacheDir, \"{UPDATES}\")")),
+            ("capture/MeetingService.kt", format!("fun recordingsDir(context: Context): File = File(context.dataDir, \"{RECORDINGS}\")")),
+            ("recordings/RecordingWorker.kt", format!("File(context.dataDir, \"{JOBS}\")")),
         ] {
             let source = kotlin(file);
             assert!(source.contains(&twin), "{file} no longer says {twin}");
             assert!(source.contains("paths.rs"), "{file} should name src-tauri/src/paths.rs beside its twin");
         }
+        // The meeting service writes the tape and Discard deletes it: both through the one function above, so a
+        // path changed in one place but not the other cannot write where Rust never looks, or leave an hour of
+        // other people's voices behind a Discard.
+        let meeting = kotlin("capture/MeetingService.kt");
+        assert_eq!(meeting.matches(&format!("\"{RECORDINGS}\"")).count(), 1, "MeetingService.kt names {RECORDINGS:?} once, in recordingsDir");
+        assert!(!meeting.contains("File(dataDir, "), "every path in MeetingService.kt goes through recordingsDir");
+        // The bridge's id rule is Rust's (`fsx::plain_id`), its length cap included.
+        let activity = kotlin("MainActivity.kt");
+        let rule = format!("id.length in 1..{}", crate::fsx::PLAIN_ID_MAX);
+        assert!(activity.contains(&rule), "MainActivity.isNoteId no longer says {rule}");
     }
 }

@@ -53,7 +53,7 @@ vi.mock('../capture/refine.ts', async (importOriginal) => ({
 const summaries = vi.hoisted(() => ({ pending: new Set<string>() }));
 vi.mock('../ai/summaries.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../ai/summaries.ts')>()),
-  useSummaries: () => ({ pending: summaries.pending, native: new Set<string>(), failed: new Set<string>(), needsModel: new Set<string>() }),
+  useSummaries: () => ({ pending: summaries.pending, native: new Set<string>(), waiting: new Set<string>(), failed: new Set<string>(), needsModel: new Set<string>() }),
 }));
 
 const { AtWork } = await import('./AtWork.tsx');

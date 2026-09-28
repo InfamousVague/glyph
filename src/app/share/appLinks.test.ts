@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * Share links that opened the app are taken from the native side once the app has its notes, and again each time the
- * side says another has arrived; only the ones that are shares are opened, and nothing is done in a browser.
+ * Links that opened the app are taken from the native side once the app has its notes, and again each time the side
+ * says another has arrived, and from the activity's own memory of the link it was opened with, which the deep-link
+ * plugin can miss in an activity recreated inside a live process; the same link from both is opened once. Every link
+ * goes to the opener, which sorts the shares from the note links; nothing is done in a browser.
  */
 
 const native = vi.hoisted(() => ({ on: true, kept: [] as string[][], heard: null as (() => void) | null, stopped: 0 }));
@@ -22,8 +24,9 @@ vi.mock('../core/events.ts', () => ({
   }),
 }));
 
-const { followAppLinks } = await import('./appLinks.ts');
+const { followAppLinks, readNoteLink } = await import('./appLinks.ts');
 const share = `ghostmd://fork#${'a'.repeat(22)}.${'b'.repeat(43)}`;
+const noteLink = 'ghostmd://note/m1';
 /** The native side's answers and the listener are promises: let them land. */
 const settle = async () => {
   for (let i = 0; i < 5; i += 1) await Promise.resolve();
@@ -34,15 +37,65 @@ beforeEach(() => {
   native.kept = [];
   native.heard = null;
   native.stopped = 0;
+  delete window.GlyphHost;
+});
+
+describe('a note link', () => {
+  it('names the note the notification’s tap opens, and nothing else does', () => {
+    expect(readNoteLink('ghostmd://note/m1')).toBe('m1');
+    expect(readNoteLink(' ghostmd://note/abc_DEF-123/ ')).toBe('abc_DEF-123');
+    expect(readNoteLink('ghostmd://note/')).toBeNull();
+    expect(readNoteLink('ghostmd://note/a b')).toBeNull();
+    expect(readNoteLink('ghostmd://note/../x')).toBeNull();
+    expect(readNoteLink(share)).toBeNull();
+    expect(readNoteLink('https://attack.fm/glyph/note/m1')).toBeNull();
+  });
 });
 
 describe('links that opened the app', () => {
-  it('opens the shares the native side kept, and leaves anything else', async () => {
-    native.kept = [[share, 'ghostmd://something-else']];
+  it('hands every link the native side kept to the opener, which sorts them', async () => {
+    native.kept = [[share, noteLink, 'ghostmd://something-else']];
     const open = vi.fn();
     followAppLinks(open);
     await settle();
-    expect(open.mock.calls).toEqual([[share]]);
+    expect(open.mock.calls).toEqual([[share], [noteLink], ['ghostmd://something-else']]);
+  });
+
+  it('takes the link the activity was opened with as well, once, and the same link from both roads once', async () => {
+    let held: string | null = noteLink;
+    window.GlyphHost = {
+      takeLink: () => {
+        const link = held ?? '';
+        held = null;
+        return link;
+      },
+    } as unknown as Window['GlyphHost'];
+    native.kept = [[noteLink]];
+    const open = vi.fn();
+    followAppLinks(open);
+    await settle();
+    expect(open.mock.calls).toEqual([[noteLink]]);
+    // The plugin missed the next one; the activity did not.
+    held = 'ghostmd://note/m2';
+    native.heard!();
+    await settle();
+    expect(open.mock.calls).toEqual([[noteLink], ['ghostmd://note/m2']]);
+    // Nothing anywhere: nothing opened.
+    native.heard!();
+    await settle();
+    expect(open).toHaveBeenCalledTimes(2);
+  });
+
+  it('still takes the activity’s link when the native side cannot answer', async () => {
+    window.GlyphHost = { takeLink: () => noteLink } as unknown as Window['GlyphHost'];
+    const { invoke } = await import('../core/tauri.ts');
+    (invoke as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+      throw new Error('an older binary');
+    });
+    const open = vi.fn();
+    followAppLinks(open);
+    await settle();
+    expect(open.mock.calls).toEqual([[noteLink]]);
   });
 
   it('takes again when another arrives while the app runs, and stops listening when asked', async () => {

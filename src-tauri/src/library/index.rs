@@ -55,10 +55,20 @@ const INDEX_SCHEMA: &str = "
 
 /// Opens the index in `glyph`, dropping and rebuilding its tables when they
 /// are of another `INDEX_VERSION`.
+///
+/// The version check and the rebuild run under one process-wide lock. Two
+/// handles are opened in one process now (the app's `NotesStore`, and a
+/// meeting's write-up on its own thread with no Tauri around it), and after a
+/// version bump both would find the old number: without the lock the second
+/// could `DROP TABLE` the rows the first had just rebuilt and filled, and an
+/// hour's meeting would be indexed by neither until the next scan. With it,
+/// the second reads the new version and drops nothing.
 pub(super) fn open(glyph: &Path) -> Result<Connection> {
+    static OPENING: std::sync::Mutex<()> = std::sync::Mutex::new(());
     let index = Connection::open(glyph.join("index.sqlite"))?;
     let _: String = index.query_row("PRAGMA journal_mode=WAL", [], |row| row.get(0))?;
     index.busy_timeout(std::time::Duration::from_secs(5))?;
+    let _one_at_a_time = crate::lock::lock(&OPENING);
     let version: i64 = index.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     if version != INDEX_VERSION {
         index.execute_batch("DROP TABLE IF EXISTS notes; DROP TABLE IF EXISTS command_mutations;")?;
@@ -172,8 +182,16 @@ impl Library {
             .unwrap_or(entry.modified_ms);
         let archived_at = front.text("archived").and_then(|t| parse_iso(&t)).or_else(|| front.flag("archived").then_some(entry.modified_ms));
         let sidecar = self.sidecar(&id);
-        self.index.execute("DELETE FROM notes WHERE path = ?1 OR id = ?2", rusqlite::params![entry.path, id])?;
-        self.index.execute(
+        // The row is replaced in one write transaction. Two handles are open in
+        // one process now (the app's, and a meeting's write-up on its own
+        // thread), and both scan the same files: as two autocommitted
+        // statements, the second handle's INSERT could land between the first's
+        // DELETE and INSERT and fail on the path's UNIQUE constraint. As one
+        // transaction it waits on SQLite's writer lock and replaces the row in
+        // its turn.
+        let tx = rusqlite::Transaction::new_unchecked(&self.index, rusqlite::TransactionBehavior::Immediate)?;
+        tx.execute("DELETE FROM notes WHERE path = ?1 OR id = ?2", rusqlite::params![entry.path, id])?;
+        tx.execute(
             &format!("INSERT INTO notes ({ROW_COLUMNS}, title, size) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)"),
             rusqlite::params![
                 id,
@@ -193,6 +211,7 @@ impl Library {
                 entry.size as i64,
             ],
         )?;
+        tx.commit()?;
         Ok(())
     }
 

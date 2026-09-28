@@ -498,7 +498,12 @@ fn a_timed_pass_over_part_of_a_recording_keeps_its_phrases_in_order_and_in_range
     for word in ["plumber", "report", "monday"] {
         assert!(words.contains(word), "missing {word} from {words:?}");
     }
-    assert_eq!(progress.load(std::sync::atomic::Ordering::Relaxed), 100, "whisper reported its progress to the end");
+    // To the end, and past it: whisper.cpp reports `100 * (seek - start) / (end - start)` before each window, and a
+    // window whose last token is not a timestamp moves `seek` on by the whole 30 s, so a slice shorter than a window
+    // can read up to 300 on its last report. Any change to the prompt can decide that last token (the cues added
+    // for generation 20 did, on this fixture), so the end is ">= 100", and whoever shows it clamps.
+    let reported = progress.load(std::sync::atomic::Ordering::Relaxed);
+    assert!((100..=300).contains(&reported), "whisper reported its progress to the end: {reported}");
 }
 
 #[test]

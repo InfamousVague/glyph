@@ -17,6 +17,7 @@ impl Library {
     /// Applies a confirmed preview only while its exact base is current, then
     /// records enough for guarded undo.
     pub fn apply_command(&mut self, change: &CommandMutation) -> Result<CommandMutationResult> {
+        let _writing = super::writing();
         let current = self.get_note(&change.note_id)?;
         let matches = match (&current, change.before_revision) {
             (None, None) => true,
@@ -45,6 +46,7 @@ impl Library {
 
     /// Reverses a command only while its exact result is still current.
     pub fn undo_command(&mut self, mutation_id: &str) -> Result<CommandUndoResult> {
+        let _writing = super::writing();
         let record = self.index.query_row(
             "SELECT note_id, before_body, after_body, before_revision, after_revision, undone_at
              FROM command_mutations WHERE id = ?1",

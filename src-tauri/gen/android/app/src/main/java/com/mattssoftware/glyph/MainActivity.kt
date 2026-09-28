@@ -1,5 +1,6 @@
 package com.mattssoftware.glyph
 
+import android.Manifest
 import android.app.KeyguardManager
 import android.app.role.RoleManager
 import android.content.ActivityNotFoundException
@@ -9,6 +10,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
@@ -28,18 +30,27 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.exifinterface.media.ExifInterface
+import androidx.lifecycle.Lifecycle
 import org.json.JSONObject
 import java.io.FileOutputStream
 import java.util.Locale
 import java.util.UUID
+import com.mattssoftware.glyph.capture.MeetingService
+import com.mattssoftware.glyph.recordings.RecordingAlerts
+import com.mattssoftware.glyph.recordings.RecordingJob
+import com.mattssoftware.glyph.recordings.RecordingWorker
 import com.mattssoftware.glyph.updates.UpdateAlerts
 import java.io.File
+import java.lang.ref.WeakReference
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -62,11 +73,62 @@ class MainActivity : TauriActivity() {
     /** Sent by `GlyphSession` when the side key is held, and by the launcher shortcut. */
     const val ACTION_CAPTURE = "com.mattssoftware.glyph.CAPTURE"
     const val EXTRA_SOURCE = "com.mattssoftware.glyph.SOURCE"
+    /** On the recording notification's tap: a plain launch that opens the meeting screen (native generation 20). */
+    const val EXTRA_MEETING = "com.mattssoftware.glyph.MEETING"
     private const val TAG = "GlyphCapture"
     private const val REQUEST_NOTIFICATIONS = 4101
     private const val REQUEST_PICTURE = 4102
+    /** Meetings ask for notifications with their own code: 4101 is update alerts', and its answer must not switch those on. */
+    private const val REQUEST_MEETING_NOTIFICATIONS = 4103
+    /** The microphone, for a meeting on a phone that never dictated (the WebView asks for its own). */
+    private const val REQUEST_MICROPHONE = 4104
     /** A picked picture is shrunk so its long side is at most this, as a JPEG. Plenty for a note; ~300 KB. */
     private const val PICTURE_MAX_PX = 1600
+
+    /**
+     * The activity in front, for the meeting service to reach the page through
+     * (native generation 20). Set in onResume and cleared in onPause, and a
+     * WeakReference, never a captured activity: the service outlives the task,
+     * and an activity it held on to would be a leaked window.
+     */
+    @Volatile private var resumed: WeakReference<MainActivity>? = null
+
+    /**
+     * The trash's cancel and the write-up's request, one after the other in the
+     * order the page made them (native generation 20). A meeting put in the
+     * trash and brought straight back by the toast's Undo asks for both within
+     * a second; the cancel waits for the run to let go before it marks the file,
+     * and a request enqueued meanwhile would be older than that mark, which Rust
+     * honours over it. Made one at a time, the request is always the newer.
+     */
+    private val writeUpDoor: ExecutorService by lazy { Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "glyph-write-up-door") } }
+
+    /**
+     * `window.__glyph.<name>(argument)` on the page, from anywhere in the
+     * process, while an activity is resumed; false when none is, and the call is
+     * dropped (the page reads `meetingState()` when it is next visible). The
+     * WebView is resumed first, as `deliverCapture` does: a paused one queues
+     * the script instead of running it.
+     */
+    internal fun tell(name: String, argument: String?): Boolean = tell(name, argument, null)
+
+    /**
+     * As above, and `taken` hears whether the page had a handler for it: false
+     * when it did not (the page is still loading, or an older page), so a word
+     * that must not be lost can be kept and said again.
+     */
+    internal fun tell(name: String, argument: String?, taken: ((Boolean) -> Unit)?): Boolean {
+      val activity = resumed?.get() ?: return false
+      val wv = activity.webView ?: return false
+      val call = if (argument == null) "window.__glyph.$name()" else "window.__glyph.$name(${JSONObject.quote(argument)})"
+      activity.runOnUiThread {
+        wv.onResume()
+        wv.evaluateJavascript("window.__glyph && window.__glyph.$name ? ($call, 'ok') : 'no'") { result ->
+          taken?.invoke(result == "\"ok\"")
+        }
+      }
+      return true
+    }
   }
 
   private var webView: WebView? = null
@@ -78,18 +140,40 @@ class MainActivity : TauriActivity() {
    */
   @Volatile private var pendingLaunch: String? = null
 
+  /**
+   * A `ghostmd://` link this activity was opened with, until the page takes it
+   * (`GlyphHost.takeLink`). The deep-link plugin carries the same link when it
+   * can; it cannot in an activity recreated inside a live process (the app
+   * swiped away during a write-up, then the notification tapped), where its
+   * channel is null, so the link is kept here as well and the page takes both.
+   */
+  @Volatile private var pendingLink: String? = null
+
+  /** The microphone permission's answer, delivered from onResume so the page's retry runs with the activity resumed. */
+  @Volatile private var pendingPermission: Boolean? = null
+
+  /** The note whose meeting asked for the microphone, named in the answer so the page knows whose it is. */
+  @Volatile private var microphoneFor: String? = null
+
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     // Before super: the window's lock-screen behaviour has to be decided before
     // the window is shown, and super.onCreate is what shows it.
     takeCapture(intent)
+    takeMeeting(intent)
+    takeLink(intent)
     super.onCreate(savedInstanceState)
+    // Off the main thread: it opens WorkManager and reads the jobs folder, and it
+    // must not race Tauri's own index open in the same second (it calls no Rust).
+    Thread({ MeetingService.recover(applicationContext) }, "glyph-meeting-recover").start()
   }
 
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     setIntent(intent)
     if (takeCapture(intent)) deliverCapture()
+    if (takeMeeting(intent)) deliverMeeting()
+    takeLink(intent)
   }
 
   /**
@@ -163,6 +247,13 @@ class MainActivity : TauriActivity() {
 
   override fun onResume() {
     super.onResume()
+    resumed = WeakReference(this)
+    // The microphone's answer, now that the page's retry can start the service while the activity is resumed.
+    pendingPermission?.let { granted ->
+      pendingPermission = null
+      deliverPermission(granted)
+    }
+    MeetingService.flushPending()
     // Registered whether or not the WebView exists yet: on a cold start it
     // may not, and the listener drops readings until it does. Waiting for it
     // here would mean no hinge until the second resume.
@@ -172,6 +263,7 @@ class MainActivity : TauriActivity() {
   }
 
   override fun onPause() {
+    if (resumed?.get() === this) resumed = null
     (getSystemService(SENSOR_SERVICE) as? SensorManager)?.unregisterListener(hingeListener)
     super.onPause()
   }
@@ -267,10 +359,29 @@ class MainActivity : TauriActivity() {
 
   override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
     super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-    if (requestCode != REQUEST_NOTIFICATIONS) return
-    webView?.let { wv ->
-      runOnUiThread { wv.evaluateJavascript("window.__glyph && window.__glyph.alerts && window.__glyph.alerts()", null) }
+    when (requestCode) {
+      REQUEST_NOTIFICATIONS -> webView?.let { wv ->
+        runOnUiThread { wv.evaluateJavascript("window.__glyph && window.__glyph.alerts && window.__glyph.alerts()", null) }
+      }
+      // Meetings' own answer, its own inbound call: `alerts` belongs to update alerts and is never reused.
+      REQUEST_MEETING_NOTIFICATIONS -> webView?.let { wv ->
+        runOnUiThread { wv.evaluateJavascript("window.__glyph && window.__glyph.notified && window.__glyph.notified()", null) }
+      }
+      REQUEST_MICROPHONE -> {
+        val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
+        // After a dialog this callback comes before onResume, which delivers the answer, so the page's retry
+        // starts the service with the activity resumed. With no dialog (refused twice before, Android answers on
+        // the spot) the activity never left the front and no resume follows: the answer goes now.
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) deliverPermission(granted) else pendingPermission = granted
+      }
     }
+  }
+
+  /** The microphone's answer to the page, `meeting { event: "permission", noteId, granted }`. */
+  private fun deliverPermission(granted: Boolean) {
+    val noteId = microphoneFor
+    microphoneFor = null
+    tell("meeting", JSONObject().put("event", "permission").put("noteId", noteId ?: JSONObject.NULL).put("elapsedMs", 0).put("granted", granted).toString())
   }
 
   override fun onWebViewCreate(webView: WebView) {
@@ -309,6 +420,36 @@ class MainActivity : TauriActivity() {
 
   private fun isCapture(intent: Intent?): Boolean =
     intent?.action == ACTION_CAPTURE || intent?.action == Intent.ACTION_ASSIST
+
+  /**
+   * The recording notification tapped: a plain launch carrying EXTRA_MEETING.
+   * Cold, the page reads "meeting" through `takeLaunch` and opens the meeting
+   * screen; warm, it is pushed as `meeting { event: "open" }`.
+   */
+  private fun takeMeeting(intent: Intent?): Boolean {
+    if (intent?.getBooleanExtra(EXTRA_MEETING, false) != true) return false
+    pendingLaunch = "meeting"
+    return true
+  }
+
+  /** Push a warm meeting tap to a running page, the way deliverCapture does; held for `takeLaunch` until the page says it took it. */
+  private fun deliverMeeting() {
+    val wv = webView ?: return
+    val json = JSONObject.quote(JSONObject().put("event", "open").put("noteId", MeetingService.recordingNoteId() ?: JSONObject.NULL).put("elapsedMs", 0).toString())
+    runOnUiThread {
+      wv.onResume()
+      wv.evaluateJavascript("window.__glyph && window.__glyph.meeting ? (window.__glyph.meeting($json), 'ok') : 'no'") { result ->
+        if (result == "\"ok\"") pendingLaunch = null
+        else Log.i(TAG, "meeting held: page not ready ($result)")
+      }
+    }
+  }
+
+  /** A `ghostmd://` link on the intent, kept for `takeLink` (the deep-link plugin's copy reaches the page when its channel is up). */
+  private fun takeLink(intent: Intent?) {
+    val link = intent?.data?.takeIf { it.scheme == "ghostmd" } ?: return
+    pendingLink = link.toString()
+  }
 
   /**
    * Record the request and let this one launch show over the lock screen.
@@ -682,5 +823,158 @@ class MainActivity : TauriActivity() {
         error.javaClass.simpleName
       }
     }
+
+    /*
+     * Meetings (native generation 20): a recording that keeps going with the
+     * screen off, in capture/MeetingService.kt, and the write-up that follows
+     * it with the app closed. The page makes the note first and then asks here;
+     * everything below answers from what can be checked on this thread and
+     * posts the rest to the UI thread, where a foreground service may be
+     * started while the app is in front.
+     */
+
+    /**
+     * Start recording a meeting into `noteId`'s tape. "started" (the service was
+     * asked; `meeting { event: "started" }` confirms it and `failed` undoes it),
+     * "permission" (the microphone was asked for with REQUEST_MICROPHONE; the
+     * page retries on `meeting { event: "permission", granted: true }`),
+     * "recording" (one is being recorded already), or a reason: the last
+     * meeting's Stop still being put away is one, said in the app's words,
+     * since its bookkeeping would clear a meeting started under it.
+     */
+    @JavascriptInterface
+    fun startMeeting(noteId: String, title: String): String {
+      if (!isNoteId(noteId)) return "not a note id"
+      if (MeetingService.isRecording()) return "recording"
+      if (MeetingService.isEnding()) return MeetingService.STILL_STOPPING
+      if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        microphoneFor = noteId
+        runOnUiThread { requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_MICROPHONE) }
+        return "permission"
+      }
+      runOnUiThread {
+        val intent = Intent(this@MainActivity, MeetingService::class.java)
+          .setAction(MeetingService.ACTION_START)
+          .putExtra(MeetingService.EXTRA_NOTE_ID, noteId)
+          .putExtra(MeetingService.EXTRA_TITLE, title)
+        try {
+          ContextCompat.startForegroundService(this@MainActivity, intent)
+        } catch (error: Exception) {
+          // Android 12+ refuses a foreground start from an app it does not see in front; the page undoes the note.
+          Log.w(TAG, "the meeting service could not start", error)
+          tell("meeting", JSONObject().put("event", "failed").put("noteId", noteId).put("elapsedMs", 0).put("message", "The meeting could not start.").toString())
+        }
+      }
+      return "started"
+    }
+
+    /** Done: the service stops recording and carries on as the write-up. */
+    @JavascriptInterface
+    fun stopMeeting() {
+      MeetingService.stop()
+    }
+
+    /** Discard: the service stops and deletes the WAV; the page deletes the note itself. */
+    @JavascriptInterface
+    fun discardMeeting() {
+      MeetingService.discard()
+    }
+
+    /** `{ recording, noteId, title, startedAt, elapsedMs, silenced, writingUp, discarded }`, polled once a second while the page is visible. */
+    @JavascriptInterface
+    fun meetingState(): String = MeetingService.meetingState(this@MainActivity)
+
+    /**
+     * Ask to post notifications, for "Let Ghost.md tell you when it is written
+     * up". "allowed", "asked" (the answer arrives as `window.__glyph.notified()`),
+     * or "blocked" (refused for good, or notifications off for the app: the
+     * meeting screen then says to stop it there). Never touches update alerts.
+     */
+    @JavascriptInterface
+    fun requestNotifications(): String {
+      if (RecordingAlerts.canNotify(this@MainActivity)) return "allowed"
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return "blocked"
+      val permission = Manifest.permission.POST_NOTIFICATIONS
+      // Granted and still not able to notify: turned off in the phone's settings, which no dialog changes.
+      if (checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) return "blocked"
+      // Refused twice: Android shows no third dialog, and asking would answer nothing.
+      if (RecordingAlerts.wasAsked(this@MainActivity) && !shouldShowRequestPermissionRationale(permission)) return "blocked"
+      RecordingAlerts.rememberAsked(this@MainActivity)
+      runOnUiThread { requestPermissions(arrayOf(permission), REQUEST_MEETING_NOTIFICATIONS) }
+      return "asked"
+    }
+
+    /** Whether a written-up notification would be shown: the permission, the app's switch and the channel all on. */
+    @JavascriptInterface
+    fun canNotify(): Boolean = RecordingAlerts.canNotify(this@MainActivity)
+
+    /**
+     * Write `noteId` up (again): "Write up now", Try again, restore from the
+     * trash, a model arrived. One request at the end of the chain, fresh, with
+     * `now` skipping the battery rule. "queued", or a reason.
+     */
+    @JavascriptInterface
+    fun writeUp(noteId: String, now: Boolean): String {
+      if (!isNoteId(noteId)) return "not a note id"
+      val context = applicationContext
+      writeUpDoor.execute { RecordingWorker.enqueue(context, noteId, null, now, fresh = true) }
+      return "queued"
+    }
+
+    /**
+     * The note went to the trash: its write-up is cancelled through Rust alone,
+     * never through WorkManager (cancelling one member of the chain would cancel
+     * everything queued after it); the worker that reaches the id later finds
+     * the job cancelled and moves on.
+     */
+    @JavascriptInterface
+    fun cancelWriteUp(noteId: String) {
+      if (!isNoteId(noteId)) return
+      val dataDir = dataDir.absolutePath
+      writeUpDoor.execute {
+        try {
+          RecordingJob.cancel(dataDir, noteId, "cancel")
+        } catch (error: Throwable) {
+          Log.w(TAG, "cancelWriteUp failed", error)
+        }
+      }
+    }
+
+    /**
+     * Reset, before `reset_local_data`: both unique works whole, then any run
+     * in hand, waited for here on the bridge thread (at most five seconds a
+     * run). The page's call returns only once the run has let go and marked its
+     * file, so Rust's reset removes the jobs folder after the last write to it,
+     * not before one that would leave a file behind.
+     */
+    @JavascriptInterface
+    fun cancelWriteUps() {
+      RecordingWorker.cancelAll(this@MainActivity)
+      val dataDir = dataDir.absolutePath
+      for (id in listOfNotNull(MeetingService.writingUp, RecordingWorker.running).distinct()) {
+        try {
+          RecordingJob.cancel(dataDir, id, "cancel")
+        } catch (error: Throwable) {
+          Log.w(TAG, "cancelWriteUps failed for $id", error)
+        }
+      }
+    }
+
+    /** The page has deleted a note the notification's Discard threw away. */
+    @JavascriptInterface
+    fun forgetDiscarded(noteId: String) {
+      MeetingService.forgetDiscarded(this@MainActivity, noteId)
+    }
+
+    /** A `ghostmd://` link this activity was opened with, once; "" otherwise. */
+    @JavascriptInterface
+    fun takeLink(): String {
+      val link = pendingLink ?: ""
+      pendingLink = null
+      return link
+    }
+
+    /** The shape Rust's `fsx::plain_id` accepts (1 to `PLAIN_ID_MAX`, 128, of these); an id that fails it names no file and starts nothing. */
+    private fun isNoteId(id: String): Boolean = id.length in 1..128 && id.all { it in 'A'..'Z' || it in 'a'..'z' || it in '0'..'9' || it == '-' || it == '_' }
   }
 }

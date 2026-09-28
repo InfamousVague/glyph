@@ -1,5 +1,7 @@
+import { summarySection, withoutSummary, withSummary } from '../../ai/summaryText.ts';
 import { ApiError, call, callBytes } from '../account/api.ts';
 import { toHex } from '../bytes.ts';
+import { failureText } from '../failure.ts';
 import { randomId } from '../ids.ts';
 import { imageNames } from '../imageRefs.ts';
 import type { Note } from '../store.ts';
@@ -27,6 +29,17 @@ import { open, openBytes, seal, sealBytes, type Bytes } from './crypto.ts';
  *    a note written through the MCP names pictures another program dropped into the Mac's picture folder, the Mac
  *    pulls the note, finds the files, and nothing sends them, so the phone shows the note with every picture broken.
  *    And a device that asked for a picture before it was sent only asked when the note arrived, never again.
+ *
+ * Three rules keep one tape from stopping the whole sync, and a meeting's audio where it was made (docs/DESIGN.md
+ * §127 section 6). A note whose send fails is counted and the loop goes on (`Outcome.unsent`, with the first reason);
+ * only a lapsed session (401) still ends the pass, since nothing after it could succeed. A recording over the
+ * service's limit (`RECORDING_SYNC_LIMIT`, server/src/sync.rs `RECORDING_LIMIT`) is never sent, decided from its
+ * length without reading a byte, and a meeting's recording is not sent while `syncMeetingRecordings` is off: the
+ * note goes with its phrases, so the transcript reads on every device, and the tape says the audio is not there
+ * (tapes/useTape.ts). And a tape is hashed only when its length changed (`forMs`; a tape changes only when its length
+ * does), through the phone's own digest where the binary has one, so a ticked to-do no longer costs an hour's audio
+ * read into the page three times. A note changed on both sides that differs only by the app's own summary section
+ * (ai/summaryText.ts `withoutSummary`) is not kept twice: theirs is taken with this device's section on it, and sent.
  */
 
 // --- what this module is given ---------------------------------------------------------
@@ -45,6 +58,11 @@ export type FileKind = 'recording' | 'image';
 export interface LocalFiles {
   read(kind: FileKind, name: string): Promise<Bytes | null>;
   write(kind: FileKind, name: string, bytes: Bytes): Promise<void>;
+  /**
+   * A recording's fingerprint as `sha` would give it, made without reading the file into the page: null with no
+   * file, undefined where this device cannot say (an older binary), when the file is read and hashed here instead.
+   */
+  digest?(name: string): Promise<string | null | undefined>;
 }
 
 export interface SyncContext {
@@ -58,6 +76,29 @@ export interface SyncContext {
   fetcher?: typeof fetch;
   /** The time, in ms: swapped in by the tests. */
   now?: () => number;
+  /** Which notes are meetings (core/preferences.ts `meetings`): their audio stays here unless `syncMeetingRecordings`. */
+  meetings?: Readonly<Record<string, number>>;
+  syncMeetingRecordings?: boolean;
+}
+
+/** The most a recording may be to travel: the service's own limit (server/src/sync.rs), about 35 minutes of 16 kHz PCM. */
+export const RECORDING_SYNC_LIMIT = 64 * 1024 * 1024;
+
+/** The bytes a recording of `ms` takes: 16 kHz, 16-bit, mono, and the WAV header. */
+export function recordingBytes(ms: number): number {
+  return ms * 32 + 44;
+}
+
+/** Whether a note's recording stays on this device: too big for the service, or a meeting's while those are kept here. */
+export function recordingStaysHere(note: Pick<Note, 'id' | 'recordingMs'>, meetings: Readonly<Record<string, number>>, syncMeetingRecordings: boolean): boolean {
+  if (!note.recordingMs) return false;
+  if (recordingBytes(note.recordingMs) > RECORDING_SYNC_LIMIT) return true;
+  return note.id in meetings && !syncMeetingRecordings;
+}
+
+/** How many of the notes have a recording that stays on this device: the Account row's "3 recordings stayed on this phone". */
+export function stayedHere(notes: readonly Note[], prefs: { meetings: Readonly<Record<string, number>>; syncMeetingRecordings: boolean }): number {
+  return notes.filter((note) => recordingStaysHere(note, prefs.meetings, prefs.syncMeetingRecordings)).length;
 }
 
 // --- what a device remembers -----------------------------------------------------------
@@ -68,10 +109,12 @@ export interface SyncState {
   /** Per note: the revision last seen, and the note's fingerprint then. */
   notes: Record<string, { rev: number; mark: string }>;
   /**
-   * Per synced file: its revision, and for a recording the hash of what it held. A revision of 0 is what an older app
-   * wrote for a picture it found on this device and never sent: settled like a picture with no entry at all.
+   * Per synced file: its revision, and for a recording the hash of what it held and the length it was hashed at
+   * (`forMs`), so a tape whose length has not moved is not read again; `stayed` marks a recording this device chose
+   * to keep (a meeting's, or one over the limit), so it is sent once that choice changes. A revision of 0 is what an
+   * older app wrote for a picture it found on this device and never sent: settled like a picture with no entry at all.
    */
-  files: Record<string, { rev: number; sha?: string }>;
+  files: Record<string, { rev: number; sha?: string; forMs?: number; stayed?: boolean }>;
 }
 
 export function emptyState(): SyncState {
@@ -191,18 +234,46 @@ async function heldRev(ctx: SyncContext, id: string): Promise<number | null | un
   }
 }
 
+/**
+ * A note's recording sent where the service lacks it, and its fingerprint for the note to carry: read and hashed
+ * only when the tape's length has moved since it was last hashed (`forMs`), through the phone's own digest where
+ * there is one, and never for a recording that stays on this device (the header says which).
+ */
+async function sendRecordingOf(ctx: SyncContext, note: Note): Promise<string | undefined> {
+  const id = fileId('recording', note.id);
+  if (!note.recordingMs || !id) return undefined;
+  const known = ctx.state.files[id];
+  if (recordingStaysHere(note, ctx.meetings ?? {}, ctx.syncMeetingRecordings ?? false)) {
+    // Kept here on purpose, and remembered as such: once the choice changes it is owed, and hashed afresh then.
+    ctx.state.files[id] = { rev: known?.rev ?? 0, stayed: true };
+    return undefined;
+  }
+  // Hashed at this length already: nothing is read, and a tape that was not there is not asked about again.
+  if (known?.forMs === note.recordingMs) return known.sha;
+  let bytes: Bytes | null = null;
+  let digest: string | null | undefined = ctx.files.digest ? await ctx.files.digest(note.id) : undefined;
+  if (digest === undefined) {
+    bytes = await ctx.files.read('recording', note.id);
+    digest = bytes ? await sha(bytes) : null;
+  }
+  if (digest === null) {
+    ctx.state.files[id] = { rev: known?.rev ?? 0, forMs: note.recordingMs };
+    return undefined;
+  }
+  if (known?.sha !== digest) {
+    bytes ??= await ctx.files.read('recording', note.id);
+    if (bytes) await sendFile(ctx, 'recording', note.id, bytes, digest);
+  }
+  const sent = ctx.state.files[id];
+  ctx.state.files[id] = { rev: sent?.rev ?? known?.rev ?? 0, sha: digest, forMs: note.recordingMs };
+  return digest;
+}
+
 /** What a note needs sent before it: its recording and pictures, where the service lacks them. */
 async function sendFilesOf(ctx: SyncContext, note: Note): Promise<Pick<NotePayload, 'recording' | 'images'>> {
   const out: Pick<NotePayload, 'recording' | 'images'> = {};
-  if (note.recordingMs) {
-    const bytes = await ctx.files.read('recording', note.id);
-    if (bytes) {
-      const digest = await sha(bytes);
-      out.recording = digest;
-      const id = fileId('recording', note.id);
-      if (id && ctx.state.files[id]?.sha !== digest) await sendFile(ctx, 'recording', note.id, bytes, digest);
-    }
-  }
+  const recording = await sendRecordingOf(ctx, note);
+  if (recording) out.recording = recording;
   const images = imageNames(note.body);
   if (images.length) {
     out.images = images;
@@ -273,6 +344,9 @@ export interface Outcome {
   changed: number;
   /** Notes kept twice because both sides changed them. */
   conflicts: number;
+  /** Notes whose send failed this pass, and the first reason: sent again next pass. */
+  unsent: number;
+  reason: string | null;
 }
 
 /** A new id for this device's side of a conflict. */
@@ -306,6 +380,17 @@ async function merge(ctx: SyncContext, item: FeedItem, local: Note | undefined, 
   const theirs: Note = { ...payload.note, id: item.id };
   // Only the words are worth keeping twice: a pin, the archive or a folder changed on both sides takes theirs.
   if (local && changedHere && local.body !== theirs.body) {
+    if (withoutSummary(local.body) === withoutSummary(theirs.body)) {
+      // The two differ only by the app's own summary section: theirs, with this device's section on it, and no copy.
+      // The mark kept is theirs as the service has it, so the push that follows sends the merged note.
+      const mine = summarySection(local.body);
+      const merged: Note = { ...theirs, body: mine ? withSummary(theirs.body, mine.text, { kept: summarySection(theirs.body)?.text ?? null }) : withoutSummary(theirs.body) };
+      await fetchFilesOf(ctx, payload);
+      await ctx.notes.apply(merged);
+      outcome.changed += 1;
+      ctx.state.notes[item.id] = { rev: item.rev, mark: mark(theirs) };
+      return;
+    }
     // Changed on both sides and not the same: this device's version is kept as a note of its own.
     const full = (await ctx.notes.get(item.id)) ?? local;
     // The recording is filed under the note's id, which the other version keeps; the copy is the words.
@@ -377,27 +462,45 @@ async function send(ctx: SyncContext, id: string, note: Note | null, outcome: Ou
   ctx.save(ctx.state);
 }
 
+/** One note's send, or its deletion, with its failure counted rather than ending the pass; a lapsed session still does. */
+async function sendCounted(ctx: SyncContext, id: string, note: Note | null, outcome: Outcome): Promise<void> {
+  try {
+    await send(ctx, id, note, outcome);
+  } catch (failure) {
+    if (failure instanceof ApiError && failure.status === 401) throw failure;
+    outcome.unsent += 1;
+    outcome.reason ??= failureText(failure);
+  }
+}
+
+/** Whether a recording this device chose to keep may go now: a meeting's, once the setting says so. */
+function recordingOwed(ctx: SyncContext, note: Note): boolean {
+  const id = fileId('recording', note.id);
+  if (!id || !note.recordingMs || !ctx.state.files[id]?.stayed) return false;
+  return !recordingStaysHere(note, ctx.meetings ?? {}, ctx.syncMeetingRecordings ?? false);
+}
+
 async function push(ctx: SyncContext, outcome: Outcome): Promise<void> {
   const here = await ctx.notes.list();
   const present = new Set<string>();
   for (const note of here) {
     present.add(note.id);
     const known = ctx.state.notes[note.id];
-    if (known && known.mark === mark(note)) continue;
+    if (known && known.mark === mark(note) && !recordingOwed(ctx, note)) continue;
     // Live with another device: sent once the session ends, when both hold the same words (docs/LIVE.md).
     if (isSharedLive(note.id)) continue;
     // A note opened and left empty is not a note yet: it is sent once it has words.
     if (!known && blank(note)) continue;
-    await send(ctx, note.id, note, outcome);
+    await sendCounted(ctx, note.id, note, outcome);
   }
   for (const id of Object.keys(ctx.state.notes)) {
-    if (!present.has(id)) await send(ctx, id, null, outcome);
+    if (!present.has(id)) await sendCounted(ctx, id, null, outcome);
   }
 }
 
 /** One whole sync of the notes: what changed elsewhere first, then what changed here, then their pictures. */
 export async function syncNotes(ctx: SyncContext): Promise<Outcome> {
-  const outcome: Outcome = { changed: 0, conflicts: 0 };
+  const outcome: Outcome = { changed: 0, conflicts: 0, unsent: 0, reason: null };
   await pull(ctx, outcome);
   await push(ctx, outcome);
   await settlePictures(ctx);

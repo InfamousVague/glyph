@@ -43,6 +43,11 @@ pub mod note;
 #[path = "../../../src-tauri/src/fsx.rs"]
 pub mod fsx;
 
+// The poison-tolerant lock, Tauri-free: `library/index.rs` opens the index
+// under it, so two handles in one process cannot race a rebuild.
+#[path = "../../../src-tauri/src/lock.rs"]
+pub mod lock;
+
 #[cfg(test)]
 #[path = "../../../src-tauri/src/test_support/temp.rs"]
 pub mod test_support;
@@ -58,3 +63,9 @@ pub mod command;
 
 #[path = "../../../src-tauri/src/llm/prompt.rs"]
 pub mod prompt;
+
+// The transcript a meeting's write-up puts into a note's body, the twin of
+// the page's `toParagraphs`; Tauri-free so the write-up can run with no Tauri
+// in the process, and so its fixture test runs here.
+#[path = "../../../src-tauri/src/transcript.rs"]
+pub mod transcript;

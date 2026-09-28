@@ -26,6 +26,9 @@ describe('the top line', () => {
   it('says where the words are going, and names no note over the lock screen', () => {
     expect(whereLine(null, false)).toBe('New note');
     expect(whereLine({ body: '# Weekend trip\n\nBook the cabin.' }, false)).toBe('Adding to “Weekend trip”');
+    // A meeting is recorded, not read, and its line says only that, whatever else is true.
+    expect(whereLine(null, false, { meeting: true })).toBe('Meeting');
+    expect(whereLine({ body: '# Weekend trip' }, true, { routed: true, meeting: true })).toBe('Meeting');
     expect(whereLine({ body: '# Weekend trip' }, true)).toBe('Adding to your last note');
     // A note a command switched to, and one a card will make at Done.
     expect(whereLine({ body: '# House TODOs' }, false, { routed: true })).toBe('Adding to “House TODOs”');

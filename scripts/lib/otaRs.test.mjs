@@ -1,9 +1,28 @@
 // @vitest-environment node
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { rustU32Const } from './otaRs.mjs';
+import { ROOT } from './paths.mjs';
+
+/** Every `*_GENERATION = <n>;` gate the page declares outside its tests, by file: what each feature waits for. */
+function pageGates() {
+  const gates = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (/\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) {
+        for (const match of readFileSync(path, 'utf8').matchAll(/const ([A-Z][A-Z_]*_GENERATION) = (\d+);/g)) {
+          gates.push({ name: match[1], value: Number(match[2]), file: relative(ROOT, path) });
+        }
+      }
+    }
+  };
+  walk(join(ROOT, 'src/app'));
+  return gates;
+}
 
 /*
  * The two generations the build and the deploy stamp, read from the Rust that
@@ -27,6 +46,15 @@ describe('reading a u32 constant out of ota.rs', () => {
     expect(Number.isInteger(requires) && requires > 0).toBe(true);
     // The same promise ota.rs makes at compile time: `assert!(BUNDLE_REQUIRES <= NATIVE_GENERATION)`.
     expect(requires).toBeLessThanOrEqual(native);
+  });
+
+  it('never has the page wait for a generation the binary being built does not provide', () => {
+    // A 1.9.0 APK built with NATIVE_GENERATION left at 19 would hide Meeting and every command that came with it,
+    // with every other suite green: the page's gates are only ever read against this number on a phone.
+    const native = rustU32Const('NATIVE_GENERATION');
+    const gates = pageGates();
+    expect(gates.map((gate) => gate.name)).toEqual(expect.arrayContaining(['MEETING_GENERATION', 'SYNC_GENERATION', 'FILES_GENERATION', 'AI_GENERATION']));
+    for (const gate of gates) expect({ ...gate, above: gate.value > native }).toEqual({ ...gate, above: false });
   });
 
   it('matches the name whole: BUNDLE is not BUNDLE_REQUIRES', () => {

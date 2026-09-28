@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { MEETING_GENERATION } from '../capture/meeting.ts';
 import { listenTo } from './events.ts';
 import { failureText } from './failure.ts';
+import { hasNativeGeneration } from './nativeGeneration.ts';
 import { preferences } from './preferences.ts';
 import { invoke, isTauri } from './tauri.ts';
 
@@ -73,6 +75,19 @@ export interface Download {
   total: number;
 }
 
+const modelsChanged = new Set<() => void>();
+
+/** `listener` after a model has been downloaded or removed here; answers the way to stop. */
+export function onModelsChanged(listener: () => void): () => void {
+  modelsChanged.add(listener);
+  return () => void modelsChanged.delete(listener);
+}
+
+/** Tells the listeners the models on the phone changed: after a download or a removal here. */
+export function announceModelsChanged(): void {
+  for (const listener of [...modelsChanged]) listener();
+}
+
 /** The catalogue with what is on this phone; an empty list in a browser. */
 export async function listModels(): Promise<ModelInfo[]> {
   if (!isTauri()) return [];
@@ -137,6 +152,7 @@ export function useModels(): {
         setDownload(null);
         busy.current = false;
         await refresh();
+        announceModelsChanged();
       }
     },
     [refresh],
@@ -152,6 +168,7 @@ export function useModels(): {
         setProblem(failureText(failure));
       }
       await refresh();
+      announceModelsChanged();
     },
     [refresh],
   );
@@ -289,5 +306,37 @@ export function generate(options: RunOptions): Run {
       if (isTauri()) void invoke<boolean>('ai_cancel', { id }).catch(() => undefined);
     },
   };
+}
+
+// ---- the write-up with the app closed (native generation 20) ---------------------------------
+
+/**
+ * What the phone's own write-up reads when the app is not there to ask (src-tauri/src/jobs.rs `JobConfig`): which
+ * model, the prompts as the page has them, the piece rule, and the two preferences it obeys. Written at launch and on
+ * every change (shell/useHousekeeping.ts), so a write-up runs by the same words and the same budget the page would use.
+ */
+export interface JobConfig {
+  model: string;
+  prompts: { summary: string; notes: string; piece: string; parts: string };
+  onePassChars: number;
+  pieceChars: number;
+  temperature: number;
+  writeUp: 'charging' | 'now';
+  summaries: 'meetings' | 'long' | 'off';
+}
+
+/** Hand the write-up its configuration; nothing on a binary without a write-up. */
+export async function keepJobConfig(config: JobConfig): Promise<void> {
+  if (!isTauri() || !(await hasNativeGeneration(MEETING_GENERATION))) return;
+  await invoke<void>('ai_keep_job_config', { config });
+}
+
+/**
+ * Let the engine drop its model and context: after a long summary, whose context is the largest the page asks for.
+ * The engine idles it out after five minutes anyway; this is sooner. Nothing on an older binary.
+ */
+export async function unloadModel(): Promise<void> {
+  if (!isTauri() || !(await hasNativeGeneration(MEETING_GENERATION))) return;
+  await invoke<void>('ai_unload').catch(() => undefined);
 }
 

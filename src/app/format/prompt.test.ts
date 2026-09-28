@@ -2,7 +2,21 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { MODES } from './modes.ts';
-import { budgetFor, ENHANCE_PROMPT, outputBudget, promptFor, RECORDING_NOTES_PROMPT, RECORDING_SUMMARY_PROMPT, recordingNotesBudget, recordingSummaryBudget, SUMMARIZE_PROMPT, SYSTEM_PROMPT } from './prompt.ts';
+import {
+  budgetFor,
+  ENHANCE_PROMPT,
+  fill,
+  NOTES_CONTEXT,
+  outputBudget,
+  PIECE_CONTEXT,
+  promptFor,
+  RECORDING_NOTES_PROMPT,
+  RECORDING_SUMMARY_PROMPT,
+  recordingNotesBudget,
+  recordingSummaryBudget,
+  SUMMARIZE_PROMPT,
+  SYSTEM_PROMPT,
+} from './prompt.ts';
 
 describe('the recording prompts', () => {
   it('ask for a box only on the person recording’s own to-dos, and can be read by name from the Mac’s test', () => {
@@ -29,6 +43,23 @@ describe('the recording prompts', () => {
       const start = source.indexOf(opener) + opener.length;
       const end = source.indexOf('`', start);
       expect(source.slice(start, end).trim()).toBe(prompt);
+    }
+  });
+
+  it('keep the two context lines as templates the phone’s own write-up can read by name and fill the same way', () => {
+    expect(fill(PIECE_CONTEXT, { n: 2, m: 5 })).toBe('Part 2 of 5 of one recording.');
+    expect(fill(NOTES_CONTEXT, { words: (41230).toLocaleString('en') })).toContain('about 41,230 words');
+    // A slot the values do not name is left as it is, and a name that is not a slot is not a slot.
+    expect(fill('{n} of {m} {x}', { n: 1 })).toBe('1 of {m} {x}');
+    const source = readFileSync(join(process.cwd(), 'src/app/format/prompt.ts'), 'utf8');
+    for (const [name, prompt] of [
+      ['PIECE_CONTEXT', PIECE_CONTEXT],
+      ['NOTES_CONTEXT', NOTES_CONTEXT],
+    ] as const) {
+      const opener = `${name} = String.raw\``;
+      const start = source.indexOf(opener) + opener.length;
+      expect(start).toBeGreaterThan(opener.length);
+      expect(source.slice(start, source.indexOf('`', start)).trim()).toBe(prompt);
     }
   });
 

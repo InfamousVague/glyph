@@ -17,11 +17,26 @@
 //! (`links.rs`) had drifted into dropping links on poison. Tauri-free, so
 //! `whisper/` and `llm/` can use it without breaking their rule.
 
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Mutex, MutexGuard, PoisonError, TryLockError};
 
 /// The guard, whether or not an earlier holder panicked with it.
 pub fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// The guard if nobody else holds it, poisoned or not, and `None` while
+/// somebody does. For the locks a caller refuses rather than waits on: a
+/// meeting's write-up and a recording's refine pass both want small.en, and
+/// the second to arrive says "busy" instead of loading it twice
+/// (`guards::try_write_up`). The same poison rule as `lock`, for the same
+/// reason: a pass that panicked with the guard must not make every later pass
+/// answer "busy" for the life of the process.
+pub fn try_lock<T>(mutex: &Mutex<T>) -> Option<MutexGuard<'_, T>> {
+    match mutex.try_lock() {
+        Ok(guard) => Some(guard),
+        Err(TryLockError::Poisoned(poisoned)) => Some(poisoned.into_inner()),
+        Err(TryLockError::WouldBlock) => None,
+    }
 }
 
 #[cfg(test)]
@@ -45,5 +60,23 @@ mod tests {
         guard.push("and it can still be written".to_string());
         drop(guard);
         assert_eq!(lock(&shared).len(), 3);
+    }
+
+    #[test]
+    fn a_try_answers_none_only_while_somebody_else_holds_the_lock() {
+        let shared = std::sync::Arc::new(Mutex::new(0));
+        let held = try_lock(&shared).expect("nobody holds it");
+        assert!(try_lock(&shared).is_none(), "held by this thread");
+        drop(held);
+        assert!(try_lock(&shared).is_some());
+        // Poisoned by a panic, and still handed over rather than refused.
+        let holder = std::sync::Arc::clone(&shared);
+        let _ = std::thread::spawn(move || {
+            let _guard = holder.lock().unwrap();
+            panic!("dies with the guard");
+        })
+        .join();
+        assert!(shared.is_poisoned());
+        assert!(try_lock(&shared).is_some(), "poison is recovered, not obeyed");
     }
 }

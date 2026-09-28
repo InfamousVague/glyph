@@ -80,8 +80,8 @@ The updates sentence says over-the-air updates are "Android-only". In the code o
 
 A bundle that arrives over the air may run on a binary older than itself. The contract between them is one number.
 
-- **`NATIVE_GENERATION`**, in `src-tauri/src/ota.rs`, is what this binary provides: 19 at HEAD. The comment above it is the one complete register of which commands arrived in which generation, from 2 (signed manifests, 0.3.0) to 19 (revision-checked create and update, the guarded voice-command writes and their undo, and `ai_infer_command`).
-- **`BUNDLE_REQUIRES`**, beside it, is what the page built from this tree needs, and it is 19 too. `vite.config.ts` reads it out of the file with a regex and stamps it into `ota.json`, so both stay literals. A compile-time test keeps it at or under `NATIVE_GENERATION`.
+- **`NATIVE_GENERATION`**, in `src-tauri/src/ota.rs`, is what this binary provides: 20 at HEAD. The comment above it is the one complete register of which commands arrived in which generation, from 2 (signed manifests, 0.3.0) through 19 (revision-checked create and update, the guarded voice-command writes and their undo, and `ai_infer_command`) to 20 (meetings on Android, 1.9.0: the JNI door a foreground service and a WorkManager job call to write a meeting up with the app closed, `ai_unload`, `ai_keep_job_config`, `recording_result_take`, `recording_job_state`, `recording_digest`, `recording_delete`, range serving by seek, and `GlyphHost.startMeeting` and its kin).
+- **`BUNDLE_REQUIRES`**, beside it, is what the page built from this tree needs, and it stayed at 19 when the binary went to 20: every meeting call is gated on the page, so a bundle from main still runs on a generation-19 phone, without Meeting. `vite.config.ts` reads it out of the file with a regex and stamps it into `ota.json`, so both stay literals. A compile-time test keeps it at or under `NATIVE_GENERATION`.
 - **A generation never goes backwards.** Generation 5 added handwriting, 0.5.2 took it out again, and the number stayed. Generation 6 was a bump for a removal, so that older phones would learn a new APK existed.
 
 On the page, each feature asks `hasNativeGeneration` in `src/app/core/nativeGeneration.ts`, with a constant of its own kept beside the command it gates. The question goes to `ota_status` once per page load, and the one answer is shared. It is 0 in a browser and 0 on failure, which hides a feature rather than calling a command that is not there.
@@ -97,10 +97,11 @@ On the page, each feature asks `hasNativeGeneration` in `src/app/core/nativeGene
 | `SYNC_GENERATION` | 16 | `core/sync/engine.ts` |
 | `PREVIEW_GENERATION` | 17 | `core/linkPreview.ts` |
 | `FILES_GENERATION` | 18 | `core/libraryFiles.ts` |
+| `MEETING_GENERATION` | 20 | `capture/meeting.ts` |
 
 A plugin declares its generation in its manifest, and `src/app/plugins/host.ts` asks the same question: Notion's is 12 (`src/app/plugins/notion/manifest.ts`).
 
-While `BUNDLE_REQUIRES` is 19, a bundle from main only ever runs on a generation-19 binary. `src-tauri/src/ota/install.rs` reports `needs-native` for a manifest that needs more, and `src-tauri/src/ota/boot.rs` never claims one. So inside the app, every gate in the table answers yes today. The gates still answer no in a browser, and they are what would let a later page run on an older binary if `BUNDLE_REQUIRES` were held back. The stake and the quarantine are in [[Over the air, and releases]].
+While `BUNDLE_REQUIRES` is 19, a bundle from main runs on a generation-19 binary as well as a generation-20 one. `src-tauri/src/ota/install.rs` reports `needs-native` for a manifest that needs more, and `src-tauri/src/ota/boot.rs` never claims one. So inside the app, every gate in the table up to 18 answers yes today, and `MEETING_GENERATION` is the one that can answer no: on a generation-19 phone the + sheet has no Meeting, the recorder's card no "Meeting instead", and the Recording page no Meetings section. The gates still answer no in a browser, and they are what let a later page run on an older binary while `BUNDLE_REQUIRES` is held back. The stake and the quarantine are in [[Over the air, and releases]].
 
 ## The Android shell
 

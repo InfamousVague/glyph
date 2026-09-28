@@ -35,6 +35,19 @@ vi.mock('../capture/refine.ts', async (importOriginal) => {
   return { ...real, holdNote: (id: string, on: boolean) => void holds.push([id, on]), dropRefine: (id: string, fromMs: number) => void drops.push([id, fromMs]) };
 });
 
+/** Who is listening for the phone's write-up changing a note (ai/summaries.ts `onRecordingChanged`), to say it to them. */
+const recordingListeners = vi.hoisted(() => new Set<(id: string) => void>());
+vi.mock('../ai/summaries.ts', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../ai/summaries.ts')>();
+  return {
+    ...real,
+    onRecordingChanged: (listener: (id: string) => void) => {
+      recordingListeners.add(listener);
+      return () => void recordingListeners.delete(listener);
+    },
+  };
+});
+
 vi.mock('../core/store.ts', async (importOriginal) => {
   const real = await importOriginal<typeof import('../core/store.ts')>();
   return { ...real, updateNote: vi.fn(real.updateNote) };
@@ -599,6 +612,24 @@ describe('a note a recording just wrote into', () => {
     expect(holds).toContainEqual(['house', true]);
     unmount();
     expect(holds.at(-1)).toEqual(['house', false]);
+  });
+});
+
+describe('a meeting the phone wrote up while it was open', () => {
+  it('shows the transcript as it arrives when nothing typed is waiting, and leaves it to the next save when something is', async () => {
+    const note = await createNote('m1', '# Meeting, 26 Sep 14:05\n', 'capture');
+    show(screen(note));
+    // Rust appends the transcript under the note: the revision moves on, and the page is told the note changed.
+    const stored = await updateNote('m1', '# Meeting, 26 Sep 14:05\n\n## Transcript\n\nWe agreed.', note.revision ?? 1);
+    for (const listener of recordingListeners) listener('m1');
+    await settle();
+    expect(editor().state.doc.toString()).toBe(stored.body);
+    // Typed since, not yet saved: the stored note is not taken over the words in hand.
+    type('\n\nMine.');
+    await updateNote('m1', `${stored.body}\n\nMore was said.`, stored.revision ?? 2);
+    for (const listener of recordingListeners) listener('m1');
+    await settle();
+    expect(editor().state.doc.toString()).toBe(`${stored.body}\n\nMine.`);
   });
 });
 

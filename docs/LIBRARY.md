@@ -32,6 +32,10 @@ own is phase 2, not built.
       index.sqlite              the index: a cache, rebuilt from the files at any time
       notes/<id>.json           what a note has that isn't text: its recording's length and phrases
   recordings/<id>.wav           a note's kept recording, beside the library rather than in it
+  jobs/                         a meeting's write-up while it is under way (Android, DESIGN §127)
+    config.json                 what the page chose: the model, the prompts, the piece rule, the two settings
+    <id>.progress               how far it has got: the phase, the speech found, the phrases, the notes per piece
+    <id>.json                   the summary it wrote, until the page takes it into the note
   images/<name>                 the pictures notes show
 ```
 
@@ -160,6 +164,14 @@ they land in the note itself, and nothing writes those fields now; sync still ca
 A note's kept recording is `<app_data_dir>/recordings/<id>.wav`, outside the library (`src-tauri/src/recordings.rs`).
 When a note is deleted in Ghost.md, its file, its sidecar, its recording and the pictures only it used all go.
 Nothing yet clears a sidecar or a recording whose note was deleted by another app.
+
+A recording's summary and a meeting's transcript are text: the `## Summary` and `## Transcript` sections are in the
+note's `.md`, where another app, sync and a share link read them, and nothing about them is kept in the sidecar but
+the phrases the transcript was made from. A meeting written up on the phone with the app closed passes through
+`<app_data_dir>/jobs/` on the way (`src-tauri/src/jobs.rs`): the transcript goes into the note from there once the
+whole recording has been heard, and the summary waits in `<id>.json` until the page next runs and writes it in the
+way it writes every summary. The folder is working state, not the note: deleting the note or removing its tape's
+audio clears the job's files, and a reset removes the folder whole.
 
 ## Moving in
 

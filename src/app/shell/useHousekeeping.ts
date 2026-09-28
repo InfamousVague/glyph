@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useToast } from '@glacier/react';
+import { keepJobConfigCurrent } from '../ai/jobConfig.ts';
 import { startSummaries } from '../ai/summaries.ts';
 import { startRefining } from '../capture/refine.ts';
 import { installBack } from '../core/back.ts';
@@ -89,6 +90,11 @@ export function useHousekeeping({ notes, loading, refresh, sidebar, open }: Hous
   );
   // Sync, for a device signed in to an account (docs/SYNC.md); nothing happens without one.
   useEffect(() => startSync(), []);
+
+  // What the phone's own write-up of a meeting reads when the app is not there to ask (ai/jobConfig.ts; docs/DESIGN.md
+  // §127 section 4): sent at launch, when the model chosen, Write up or Summaries changes, and when a model arrives
+  // or goes, so a write-up with the app closed runs by the same words and the same model as one the page would run.
+  useEffect(() => keepJobConfigCurrent(), []);
 
   // The list beside a note shows its title and order as it is written: read again a moment after each save.
   useEffect(() => {

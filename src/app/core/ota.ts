@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { STOP_THE_MEETING } from '../capture/meeting.ts';
+import { meetingStateNow } from '../capture/meetingLive.ts';
 import { listenTo } from './events.ts';
 import { failureText } from './failure.ts';
 import { isIOS } from './platform.ts';
@@ -253,6 +255,12 @@ export function useUpdates(): Updates {
     // the verified file is still in the cache, so a second tap costs nothing.
     if (apk.kind === 'none' || apk.kind === 'downloading') return;
     const info = apk.info;
+    // The installer ends the process, and a meeting being recorded with it: stopped without a word, and written up
+    // only at the next launch. So not while one records, as a reset is not (core/reset.ts).
+    if (meetingStateNow()?.recording) {
+      setApk({ kind: 'failed', info, message: STOP_THE_MEETING });
+      return;
+    }
     const host = window.GlyphHost;
     if (!host?.installApk) {
       setApk({ kind: 'failed', info, message: 'This build can’t install updates itself. Download it from attack.fm/glyph.' });
@@ -265,6 +273,11 @@ export function useUpdates(): Updates {
         setApk({ kind: 'downloading', info, received: progress.received, total: progress.total });
       });
       const path = await invoke<string>('ota_fetch_apk');
+      // A meeting started while the download ran: the same answer, now that the file is here for a later tap.
+      if (meetingStateNow()?.recording) {
+        setApk({ kind: 'failed', info, message: STOP_THE_MEETING });
+        return;
+      }
       const answer = host.installApk(path);
       if (answer === 'permission') setApk({ kind: 'needs-permission', info });
       else if (answer === 'started') setApk({ kind: 'installing', info });

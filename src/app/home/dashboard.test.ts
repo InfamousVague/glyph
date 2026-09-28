@@ -113,6 +113,22 @@ describe('the shelf of tapes', () => {
     expect(pinnedNotes([pinned]).map((n) => n.id)).toEqual(['p']);
   });
 
+  it('puts the meeting being recorded first on the shelf, with no tape yet, and out of Recent', () => {
+    const live = makeNote('live', '# Meeting, 26 Sep 14:05', { source: 'capture', createdAt: 5, updatedAt: 5 });
+    const notes = [recorded('tape', 50), live, makeNote('plain', '# Plain', { updatedAt: 30 })];
+    // Without the live id it is a note with no recording: Recent's, not the shelf's.
+    expect(tapedNotes(notes, none).map((n) => n.id)).toEqual(['tape']);
+    expect(recentNotes(notes, 10, none).map((n) => n.id)).toEqual(['plain', 'live']);
+    // With it, it is first on the shelf whatever its date, and gone from Recent.
+    expect(tapedNotes(notes, none, 'live').map((n) => n.id)).toEqual(['live', 'tape']);
+    expect(recentNotes(notes, 10, none, 'live').map((n) => n.id)).toEqual(['plain']);
+    // A live id for a note that is not here changes nothing; an archived one stays out.
+    expect(tapedNotes(notes, none, 'elsewhere').map((n) => n.id)).toEqual(['tape']);
+    expect(tapedNotes([{ ...live, archivedAt: 6 }], none, 'live')).toEqual([]);
+    // Once it has its recording it is a tape by its own right, and is not listed twice.
+    expect(tapedNotes([recorded('tape', 50), { ...live, recordingMs: 3_600_000 }], none, 'live').map((n) => n.id)).toEqual(['live', 'tape']);
+  });
+
   it('leaves out of Recent exactly what the shelf takes, so a typed note with a tape stays in Recent', () => {
     const notes = [
       recorded('tape', 50),
@@ -130,7 +146,7 @@ describe('the shelf of tapes', () => {
 });
 
 describe('the digest', () => {
-  const none = { pending: new Set<string>(), native: new Set<string>(), failed: new Set<string>(), needsModel: new Set<string>() };
+  const none = { pending: new Set<string>(), native: new Set<string>(), waiting: new Set<string>(), failed: new Set<string>(), needsModel: new Set<string>() };
   const set = (...ids: string[]) => new Set(ids);
 
   it('counts the notes touched since the local day began, the archive and the Guide out', () => {
@@ -156,9 +172,11 @@ describe('the digest', () => {
     const tapes = ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => makeNote(id, `# ${id}`, { source: 'capture', recordingMs: 40_000 }));
     const waiting = tapesWaiting(tapes, {
       refining: set('a'),
-      summaries: { pending: set('b', 'e'), native: set('c'), needsModel: set('d', 'e'), failed: set('d', 'f') },
+      summaries: { pending: set('b', 'e'), native: set('c'), waiting: set(), needsModel: set('d', 'e'), failed: set('d', 'f') },
     });
     expect(waiting).toEqual({ working: 4, needsModel: 1, failed: 1 });
+    // A write-up waiting for the phone to charge is working, as far as the digest says: it is on its way.
+    expect(tapesWaiting(tapes, { refining: set(), summaries: { ...none, waiting: set('a') } })).toEqual({ working: 1, needsModel: 0, failed: 0 });
     expect(tapesWaiting(tapes, { refining: set(), summaries: none })).toEqual({ working: 0, needsModel: 0, failed: 0 });
     // Only the tapes given: a note in a queue but not on the page is not counted.
     expect(tapesWaiting([], { refining: set('a'), summaries: none })).toEqual({ working: 0, needsModel: 0, failed: 0 });

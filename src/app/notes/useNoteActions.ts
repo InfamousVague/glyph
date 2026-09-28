@@ -7,8 +7,13 @@ import { forgetNote } from '../core/workspaces.ts';
 import { forgetResults } from '../format/results.ts';
 import { forgetRuns } from '../ai/log.ts';
 import { forgetMarks } from '../ai/marks.ts';
-import { dropSummary } from '../ai/summaries.ts';
+import { dropSummary, enqueueSummary, summaryNative } from '../ai/summaries.ts';
 import { forgetSummary } from '../ai/summaryKeep.ts';
+import { summaryLine } from '../ai/summaryText.ts';
+import { transcriptOf } from '../capture/markdown.ts';
+import { cancelWriteUpOnHost, writeUpOnHost } from '../core/host.ts';
+import { preferences } from '../core/preferences.ts';
+import { recordingJobState } from '../core/recordings.ts';
 import { forget as forgetTrashed, restoreNote, trashNote } from '../core/trash.ts';
 
 /**
@@ -28,6 +33,14 @@ import { forget as forgetTrashed, restoreNote, trashNote } from '../core/trash.t
  *
  * Archive and pin are real at once - they are flags, not edits, and undoing
  * one is just setting it back.
+ *
+ * A meeting's write-up runs on the phone with the app closed (docs/DESIGN.md §127 section 4): a meeting put in the
+ * trash has its write-up cancelled and its job dropped, whether or not a summary was asked for (Summaries off still
+ * writes the transcript). One taken out again, by Restore or by the toast's Undo alike (`resumeWriteUp`), is asked of
+ * the phone once more only where there is something to write up: a job the phone still holds (cancelled by the
+ * trash, failed, waiting for a model, or done and not landed yet), or a note that never got its transcript. A
+ * meeting whose result the page already took has its words in the note, and asking again would transcribe the hour
+ * afresh and write over whatever the person corrected in it.
  */
 
 const UNDO_MS = 5000;
@@ -45,6 +58,16 @@ function forgetKept(id: string): void {
   forgetMarks(id);
   forgetSummary(id);
   dropSummary(id);
+}
+
+/** A meeting out of the trash: its write-up asked of the phone again, where there is one to run (the header says when). */
+export async function resumeWriteUp(note: Note): Promise<void> {
+  if (!(note.id in preferences().meetings)) return;
+  const jobs = await recordingJobState().catch(() => []);
+  const held = jobs.some((job) => job.id === note.id);
+  if (!held && transcriptOf(note.body) !== null) return;
+  if (!writeUpOnHost(note.id, false)) return;
+  if (preferences().summaries !== 'off' && summaryLine(note.body) === null) enqueueSummary(note.id, 'meeting', { native: true });
 }
 
 function label(note: Note): string {
@@ -124,6 +147,12 @@ export function useNoteActions(refresh: () => Promise<void>): NoteActions {
   const remove = useCallback(
     (note: Note) => {
       trashNote(note.id);
+      // A meeting: its write-up on the phone stops (any meeting, since Summaries off makes no page job to ask by), and
+      // a summary job waiting for it goes; restored, it is asked again.
+      if (note.id in preferences().meetings) {
+        cancelWriteUpOnHost(note.id);
+        if (summaryNative(note.id)) dropSummary(note.id);
+      }
       fireNativeHaptic('warning');
       toast({
         message: `Moved ${label(note)} to the Trash.`,
@@ -132,6 +161,7 @@ export function useNoteActions(refresh: () => Promise<void>): NoteActions {
           label: 'Undo',
           onPress: () => {
             restoreNote(note.id);
+            void resumeWriteUp(note);
             fireNativeHaptic('success');
           },
         },
@@ -143,6 +173,7 @@ export function useNoteActions(refresh: () => Promise<void>): NoteActions {
   const restore = useCallback(
     (note: Note) => {
       restoreNote(note.id);
+      void resumeWriteUp(note);
       fireNativeHaptic('success');
       toast({ message: `${capitalise(label(note))} is back in your notes.`, duration: UNDO_MS });
     },

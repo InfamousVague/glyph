@@ -35,6 +35,7 @@ import {
   type OpenTask,
 } from './dashboard.ts';
 import { TapeShelf } from './TapeShelf.tsx';
+import { useMeetingLive } from './useMeetingLive.ts';
 import { bookIndex, placeOf } from '../book/book.ts';
 import styles from './HomeScreen.module.css';
 
@@ -137,10 +138,12 @@ export function HomeScreen({
   const shown = useMemo(() => inWorkspace(notes, workspace), [notes, workspace]);
   // Which notes are meetings (core/preferences.ts): a meeting is a tape whatever made it, so Recent leaves it to the shelf.
   const { meetings } = usePreferences();
+  // The meeting being recorded now (home/useMeetingLive.ts): a tape while it is made, first on the shelf, not in Recent.
+  const live = useMeetingLive();
   const pinned = useMemo(() => pinnedNotes(shown), [shown]);
-  const recent = useMemo(() => recentNotes(shown, RECENT, meetings), [shown, meetings]);
+  const recent = useMemo(() => recentNotes(shown, RECENT, meetings, live), [shown, meetings, live]);
   // The tapes, the last recorded first; the shelf holds eight and says how many more there are (home/TapeShelf.tsx).
-  const taped = useMemo(() => tapedNotes(shown, meetings), [shown, meetings]);
+  const taped = useMemo(() => tapedNotes(shown, meetings, live), [shown, meetings, live]);
   const shelf = useMemo(() => taped.slice(0, SHELF), [taped]);
   const shelfBeats = Math.min(shelf.length, SHELF_BEATS);
   const books = useMemo(() => bookNotes(shown), [shown]);

@@ -62,6 +62,17 @@
   font-weight: var(--glacier-font-weight-semibold);
 }
 
+/* One word at the foot, for the day Speak was pressed for a meeting: quieter than the lines, since it is a way out. */
+.foot {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3);
+}
+
+.footWord {
+  font-size: inherit;
+}
+
 /*
  * A phone held upright has the room for the whole card; a short window (a folded phone on its side) keeps one line a
  * group, loses the title, and closes up, so the page above it keeps its hint and a line to start talking on.

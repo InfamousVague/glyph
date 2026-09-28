@@ -85,13 +85,18 @@ pub fn clean(raw: &str) -> String {
 /// When it trims, it trims from the front, so this line goes before the
 /// committed tail and is the part that gets dropped first.
 ///
-/// "Glyph" closes it, the keyword every spoken command starts with. Without it
+/// "Glyph" opens it, the keyword every spoken command started with. Without it
 /// twelve synthesised voices wrote "Gliff", "Gliv", "Glit", "Life" and "Live"
 /// for it; with it a few more came back as "Glyph" or a spelling
 /// `capture/command.ts` knows, and plain dictation did not change. It leads
 /// the line: at the end, just before the committed tail, it read as a
 /// sentence of its own and a phrase carried across a cut started over in
 /// capitals (`tests::a_prompt_tail_carries_a_sentence_across_the_cut`).
+/// "Hey Ghost", the keyword a person says now, is NOT here, for the same
+/// reason: put after "Glyph." it made base.en start that carried phrase over
+/// in capitals again ("Fresh bread on the way home." where the test wants
+/// "fresh"), so it goes with the spoken cues below, after a finished sentence,
+/// which is where the keyword is said anyway.
 pub const CUE_VOCABULARY: &str = "Glyph. Title. Heading. Bullet point. Number one. Check box. To do. Quote. \
     Important. Bold, end bold. Italics, end italics. Divider. New paragraph.";
 
@@ -101,18 +106,40 @@ pub const CUE_VOCABULARY: &str = "Glyph. Title. Heading. Bullet point. Number on
 pub const MORE_CUES: &str = "Subheading. Option. Info box. Hidden line. Calculate. Hashtag. Counter. \
     Strike, end strike. Code, end code. Note link, end link. Voice memo, end memo. \
     Done task. Footnote. Code block. Superscript. Subscript. Maths. Emoji. Anchor. Item link. Bookmark this. New line. Define. \
-    Create list. Add to list. Called. Groceries. Grocery list.";
+    Create list. Add to list. Called. Groceries. Grocery list. Redact, end redact.";
+
+/// The words a person says TO the app rather than into the note: the keyword
+/// ("Hey Ghost", and "Ghost" on its own), and the take-backs
+/// (`capture/takeBack.ts`), so "scratch that"
+/// is heard as those two words and not as "scratched at". After `MORE_CUES`,
+/// where a sentence has just ended. NOT counted by `without_prompt_echo`: a
+/// person who says "Hey Ghost. Scratch that. Never mind." has said three of
+/// these in a row and meant every one, where three cues from the lists above
+/// in a row is the prompt recited. The risky openers the page also takes
+/// ("actually", "I mean", "sorry", "or rather", "no") are ordinary words and
+/// are not made more likely.
+pub const SPOKEN_CUES: &str = "Hey Ghost. Ghost. Scratch that. Strike that. Take that back. Forget that. Delete that. \
+    Never mind. Cancel that. Ignore that. No wait.";
 
 /// The prompt for the next window: the cue vocabulary, then the committed tail.
 pub fn prompt(committed: &str, tail_chars: usize) -> String {
     let tail = prompt_tail(committed, tail_chars);
     if tail.is_empty() {
-        format!("{CUE_VOCABULARY} {MORE_CUES}")
+        format!("{CUE_VOCABULARY} {MORE_CUES} {SPOKEN_CUES}")
     } else if tail.trim_end().ends_with(['.', '!', '?']) {
-        format!("{CUE_VOCABULARY} {MORE_CUES} {tail}")
+        format!("{CUE_VOCABULARY} {MORE_CUES} {SPOKEN_CUES} {tail}")
     } else {
         format!("{CUE_VOCABULARY} {tail}")
     }
+}
+
+/// The prompt for a pass over a recording nobody dictated into: the committed
+/// tail alone, with no vocabulary in front of it. A meeting's write-up
+/// (`write_up.rs`) hands each span the previous span's tail this way, because
+/// an hour of cross-talk primed with "Title. Heading. Scratch that." would
+/// hear cues in it that nobody said.
+pub fn prompt_plain(committed: &str, tail_chars: usize) -> String {
+    prompt_tail(committed, tail_chars).to_string()
 }
 
 /// Removes the cue vocabulary if whisper recites it back.
@@ -257,14 +284,23 @@ mod tests {
 
     #[test]
     fn the_prompt_is_the_vocabulary_then_the_committed_tail() {
-        assert_eq!(prompt("", 200), format!("{CUE_VOCABULARY} {MORE_CUES}"));
-        assert_eq!(prompt("   ", 200), format!("{CUE_VOCABULARY} {MORE_CUES}"));
-        // After a finished sentence the rarer cues come too; mid-sentence only the short list, so the words carry on.
-        assert_eq!(prompt("Call the plumber.", 200), format!("{CUE_VOCABULARY} {MORE_CUES} Call the plumber."));
+        assert_eq!(prompt("", 200), format!("{CUE_VOCABULARY} {MORE_CUES} {SPOKEN_CUES}"));
+        assert_eq!(prompt("   ", 200), format!("{CUE_VOCABULARY} {MORE_CUES} {SPOKEN_CUES}"));
+        // After a finished sentence the rarer cues and the spoken ones come too; mid-sentence only the short list,
+        // so the words carry on.
+        assert_eq!(prompt("Call the plumber.", 200), format!("{CUE_VOCABULARY} {MORE_CUES} {SPOKEN_CUES} Call the plumber."));
         assert_eq!(
             prompt("Remember to descale the kettle before Thursday", 20),
             format!("{CUE_VOCABULARY} before Thursday")
         );
+    }
+
+    #[test]
+    fn a_plain_prompt_is_the_tail_and_nothing_in_front_of_it() {
+        assert_eq!(prompt_plain("", 200), "");
+        assert_eq!(prompt_plain("Call the plumber.", 200), "Call the plumber.");
+        assert_eq!(prompt_plain("Remember to descale the kettle before Thursday", 20), "before Thursday");
+        assert!(!prompt_plain("we agreed", 200).contains("Title"), "the vocabulary is never put in front");
     }
 
     #[test]
@@ -273,6 +309,19 @@ mod tests {
         assert!(!CUE_VOCABULARY.contains("  "), "{CUE_VOCABULARY:?}");
         assert_eq!(sentences(CUE_VOCABULARY).count(), 13);
         assert!(!MORE_CUES.contains("  "), "{MORE_CUES:?}");
+        assert!(!SPOKEN_CUES.contains("  "), "{SPOKEN_CUES:?}");
+        assert!(sentences(SPOKEN_CUES).any(|s| s == "Hey Ghost."), "the keyword the app answers to");
+        assert!(!sentences(CUE_VOCABULARY).any(|s| s == "Hey Ghost."), "never before a carried phrase (the prompt-tail test)");
+        assert!(sentences(MORE_CUES).any(|s| s == "Redact, end redact."));
+    }
+
+    #[test]
+    fn take_backs_said_in_a_row_are_speech_not_an_echo() {
+        for said in ["Scratch that. Never mind. Ghost.", "Hey Ghost. Scratch that. Never mind.", "No wait. Delete that. Strike that. Cancel that."] {
+            assert_eq!(without_prompt_echo(said), said);
+        }
+        // A spoken cue between two vocabulary cues breaks the run they would have made.
+        assert_eq!(without_prompt_echo("Title. Heading. Scratch that. Bullet point."), "Title. Heading. Scratch that. Bullet point.");
     }
 
     #[test]

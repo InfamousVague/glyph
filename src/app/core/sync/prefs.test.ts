@@ -98,6 +98,16 @@ describe('settings kept the same on every device', () => {
     expect(desk.prefs.meetings).toEqual({ m: 40 });
   });
 
+  it('carry when a meeting is written up and whether its audio syncs: the person’s choices on every device', async () => {
+    const service = await fakeService(ACCOUNT);
+    const phone = device(service);
+    phone.set({ writeUp: 'now', syncMeetingRecordings: true });
+    await phone.sync();
+    const desk = device(service);
+    await desk.sync();
+    expect(desk.prefs).toMatchObject({ writeUp: 'now', syncMeetingRecordings: true });
+  });
+
   it('ignore what a newer build wrote that this one does not know', async () => {
     const service = await fakeService(ACCOUNT);
     const token = service.signedIn();

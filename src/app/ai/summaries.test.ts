@@ -85,14 +85,27 @@ const hold = (on: boolean) => {
 const synced = vi.hoisted(() => ({ now: vi.fn(async () => undefined), settled: vi.fn(async () => undefined) }));
 vi.mock('../core/sync/engine.ts', () => ({ syncNow: synced.now, syncSettled: () => synced.settled() }));
 
+/** The phone's own write-ups (core/recordings.ts): the result each left, the state each is in, and whether the phone may notify. */
+const phone = vi.hoisted(() => ({ results: new Map<string, unknown>(), states: [] as unknown[], taken: [] as string[], canNotify: true }));
+vi.mock('../core/recordings.ts', () => ({
+  takeRecordingResult: async (id: string) => {
+    phone.taken.push(id);
+    const result = phone.results.get(id) ?? null;
+    phone.results.delete(id);
+    return result;
+  },
+  recordingJobState: async () => phone.states,
+}));
+vi.mock('../capture/meetingLive.ts', () => ({ canNotifyNow: () => phone.canNotify }));
+
 const { setPreferences, DEFAULT_PREFERENCES } = await import('../core/preferences.ts');
-const { dropSummary, enqueueSummary, NOTES_CONTEXT, openForSummaries, PIECE_CONTEXT, pauseSummaries, retrySummary, startSummaries, summariesNow, summaryPending } = await import('./summaries.ts');
+const { dropSummary, enqueueSummary, landNativeResult, openForSummaries, pauseSummaries, retrySummary, startSummaries, summariesNow, summaryPending, writeUpNow } = await import('./summaries.ts');
 const { readSummary, keepSummary, summaryUnchanged } = await import('./summaryKeep.ts');
 const { allLines, cancelRun, forgetAllRuns, runFor, startRun } = await import('./runs.ts');
 const { startNoteRun } = await import('./start.ts');
 const { Lander } = await import('./land.ts');
 const { renderNote } = await import('../capture/markdown.ts');
-const { RECORDING_NOTES_PROMPT, RECORDING_SUMMARY_PROMPT } = await import('../format/prompt.ts');
+const { fill, NOTES_CONTEXT, PIECE_CONTEXT, RECORDING_NOTES_PROMPT, RECORDING_SUMMARY_PROMPT } = await import('../format/prompt.ts');
 const { ONE_PASS_CHARS, summarySection } = await import('./summaryText.ts');
 
 const QUEUE_KEY = 'glyph-summary-queue';
@@ -124,6 +137,11 @@ beforeEach(() => {
   refine.pending.clear();
   synced.now.mockClear();
   synced.settled.mockClear();
+  phone.results.clear();
+  phone.states = [];
+  phone.taken = [];
+  phone.canNotify = true;
+  delete window.GlyphHost;
   visible('visible');
   notes.set('n1', { id: 'n1', body: '# March launch\n\nThat is the March launch settled. Sam owns the press list.', revision: 1, recordingMs: 4000, segments: phrases });
   changed = vi.fn();
@@ -260,7 +278,7 @@ describe('a summary of a closed note', () => {
     await tick(0);
     fakes[3]!.finish(ANSWER);
     await tick(0);
-    expect(summariesNow()).toEqual({ pending: new Set(), native: new Set(), failed: new Set(), needsModel: new Set() });
+    expect(summariesNow()).toEqual({ pending: new Set(), native: new Set(), waiting: new Set(), failed: new Set(), needsModel: new Set() });
     enqueueSummary('n1', 'recording', { native: true });
     expect(summariesNow().native.has('n1')).toBe(true);
     dropSummary('n1');
@@ -458,7 +476,8 @@ describe('a long recording', () => {
     await tick(0);
     expect(fakes).toHaveLength(1);
     expect(fakes[0]!.options.system).toBe(RECORDING_NOTES_PROMPT);
-    expect(fakes[0]!.options.prompt.startsWith(`${PIECE_CONTEXT(1, 2)}\n\n`)).toBe(true);
+    expect(fakes[0]!.options.prompt.startsWith(`${fill(PIECE_CONTEXT, { n: 1, m: 2 })}\n\n`)).toBe(true);
+    expect(fakes[0]!.options.prompt.startsWith('Part 1 of 2 of one recording.\n\n')).toBe(true);
     // The recorder up as the first piece ends: the next piece waits for it to go, the finished one kept.
     fakes[0]!.finish('- The first half.');
     hold(true);
@@ -467,13 +486,15 @@ describe('a long recording', () => {
     expect(fakes).toHaveLength(1);
     hold(false);
     await tick(1500);
-    expect(fakes[1]!.options.prompt.startsWith(`${PIECE_CONTEXT(2, 2)}\n\n`)).toBe(true);
+    expect(fakes[1]!.options.prompt.startsWith(`${fill(PIECE_CONTEXT, { n: 2, m: 2 })}\n\n`)).toBe(true);
     fakes[1]!.finish('- The second half.\n- [ ] Book the venue.');
     await tick(0);
     expect(fakes[2]!.options.system).toBe(RECORDING_SUMMARY_PROMPT);
     const words = renderNote(long).plain.split(/\s+/).filter(Boolean).length;
-    expect(fakes[2]!.options.prompt).toBe(`${NOTES_CONTEXT(words)}\n\n- The first half.\n\n- The second half.\n- [ ] Book the venue.`);
-    expect(NOTES_CONTEXT(words)).toContain('measured against that, not against these notes');
+    const parts = fill(NOTES_CONTEXT, { words: words.toLocaleString('en') });
+    expect(fakes[2]!.options.prompt).toBe(`${parts}\n\n- The first half.\n\n- The second half.\n- [ ] Book the venue.`);
+    expect(parts).toContain(`about ${words.toLocaleString('en')} words`);
+    expect(parts).toContain('measured against that, not against these notes');
     fakes[2]!.finish(ANSWER);
     await tick(0);
     expect(notes.get('n1')?.body).toContain(SECTION);
@@ -493,7 +514,7 @@ describe('a long recording', () => {
     stop = startSummaries(changed, summarized);
     await tick(4000);
     expect(fakes).toHaveLength(1);
-    expect(fakes[0]!.options.prompt.startsWith(`${PIECE_CONTEXT(2, 2)}\n\n`)).toBe(true);
+    expect(fakes[0]!.options.prompt.startsWith(`${fill(PIECE_CONTEXT, { n: 2, m: 2 })}\n\n`)).toBe(true);
   });
 });
 
@@ -604,5 +625,153 @@ describe('an open note', () => {
     await tick(60_000);
     expect(starter).toHaveBeenCalledTimes(2);
     expect(fakes).toHaveLength(2);
+  });
+});
+
+describe('a native write-up', () => {
+  const RESULT = { summary: ANSWER, model: 'qwen3.5-2b', transcriptChars: 60, finishedAt: 1 };
+  const state = (phase: string, waitingFor: string | null = null) => ({ id: 'n1', title: 'Meeting, 26 Sep 14:05', phase, waitingFor, percent: 0, error: null, updatedAt: 1 });
+
+  it('takes the result the phone left and lands it through the same write, refreshing the list and running no model, and says nothing while the phone can notify', async () => {
+    enqueueSummary('n1', 'meeting', { native: true });
+    phone.results.set('n1', RESULT);
+    await tick(0);
+    expect(fakes).toEqual([]);
+    expect(notes.get('n1')?.body).toBe(`# March launch\n\n${SECTION}\n\nThat is the March launch settled. Sam owns the press list.`);
+    expect(readSummary('n1')).toMatchObject({ text: SECTION, model: 'qwen3.5-2b' });
+    expect(queued()).toEqual([]);
+    expect(changed).toHaveBeenCalled();
+    expect(summarized).not.toHaveBeenCalled();
+  });
+
+  it('says it, with Open, when the phone cannot notify: the toast is the only word then', async () => {
+    phone.canNotify = false;
+    enqueueSummary('n1', 'meeting', { native: true });
+    phone.results.set('n1', RESULT);
+    await tick(0);
+    expect(summarized).toHaveBeenCalledWith({ id: 'n1', title: 'March launch' });
+  });
+
+  it('lands an answer the job already holds without asking the phone: the take happened, the page died before the write', async () => {
+    localStorage.setItem(QUEUE_KEY, JSON.stringify([{ id: 'n1', kind: 'meeting', tries: 0, native: true, text: ANSWER, model: 'qwen3.5-2b' }]));
+    stop?.();
+    stop = startSummaries(changed, summarized);
+    await tick(4000);
+    expect(phone.taken).toEqual([]);
+    expect(notes.get('n1')?.body).toContain(SECTION);
+    expect(queued()).toEqual([]);
+  });
+
+  it('makes the job for a result that has none, and lands it', async () => {
+    phone.results.set('n1', RESULT);
+    await landNativeResult('n1');
+    expect(phone.taken).toEqual(['n1']);
+    expect(notes.get('n1')?.body).toContain(SECTION);
+    expect(queued()).toEqual([]);
+  });
+
+  it('ends the job with nothing written when the result has no summary: the transcript is in the note from the phone already', async () => {
+    enqueueSummary('n1', 'meeting', { native: true });
+    phone.results.set('n1', { ...RESULT, summary: null });
+    await tick(0);
+    expect(queued()).toEqual([]);
+    expect(notes.get('n1')?.body).not.toContain('## Summary');
+    expect(invoked.filter((c) => c.command === 'update_note')).toEqual([]);
+  });
+
+  it('lands at once when the service says the write-up is done, and drops the job when it says cancelled', async () => {
+    enqueueSummary('n1', 'meeting', { native: true });
+    await tick(0);
+    expect(queued()).toHaveLength(1);
+    phone.results.set('n1', RESULT);
+    window.__glyph!.recordingDone!(JSON.stringify({ id: 'n1', outcome: 'done' }));
+    await tick(0);
+    expect(notes.get('n1')?.body).toContain(SECTION);
+    expect(queued()).toEqual([]);
+    enqueueSummary('n1', 'meeting', { native: true });
+    window.__glyph!.recordingDone!(JSON.stringify({ id: 'n1', outcome: 'cancelled' }));
+    await tick(0);
+    expect(queued()).toEqual([]);
+    // A push this build cannot read does nothing.
+    expect(() => window.__glyph!.recordingDone!('{')).not.toThrow();
+  });
+
+  it('wears the phase the phone’s progress file says: writing up, waiting to charge, needing a model, failed, and gone when cancelled', async () => {
+    enqueueSummary('n1', 'meeting', { native: true });
+    phone.states = [state('listening')];
+    await tick(0);
+    expect(summariesNow().native.has('n1')).toBe(true);
+    expect(summariesNow().waiting.has('n1')).toBe(false);
+    phone.states = [state('waiting', 'battery')];
+    await tick(15_000);
+    expect(summariesNow().waiting.has('n1')).toBe(true);
+    expect(summariesNow().native.has('n1')).toBe(false);
+    // Waiting for anything else - the heat, a dictation - is still writing up, as far as the shelf says.
+    phone.states = [state('waiting', 'thermal')];
+    await tick(15_000);
+    expect(summariesNow().native.has('n1')).toBe(true);
+    expect(summariesNow().waiting.has('n1')).toBe(false);
+    phone.states = [state('needsModel')];
+    await tick(15_000);
+    expect(summariesNow().needsModel.has('n1')).toBe(true);
+    expect(summariesNow().native.has('n1')).toBe(false);
+    phone.states = [state('failed')];
+    await tick(15_000);
+    expect(summariesNow().failed.has('n1')).toBe(true);
+    expect(summariesNow().native.has('n1')).toBe(false);
+    phone.states = [state('cancelled')];
+    await tick(15_000);
+    expect(queued()).toEqual([]);
+    expect(summariesNow().failed.has('n1')).toBe(false);
+  });
+
+  it('sends Try again on a failed write-up and Write up now on a waiting one to the service, to run from the front', async () => {
+    const writeUp = vi.fn(() => 'queued');
+    window.GlyphHost = { writeUp } as unknown as Window['GlyphHost'];
+    enqueueSummary('n1', 'meeting', { native: true });
+    phone.states = [state('failed')];
+    await tick(0);
+    expect(summariesNow().failed.has('n1')).toBe(true);
+    retrySummary('n1');
+    expect(writeUp).toHaveBeenCalledWith('n1', true);
+    // Until the phone says otherwise it is writing up again.
+    expect(summariesNow().failed.has('n1')).toBe(false);
+    expect(summariesNow().native.has('n1')).toBe(true);
+    phone.states = [state('waiting', 'battery')];
+    await tick(15_000);
+    expect(summariesNow().waiting.has('n1')).toBe(true);
+    writeUpNow('n1');
+    expect(writeUp).toHaveBeenLastCalledWith('n1', true);
+    expect(summariesNow().waiting.has('n1')).toBe(false);
+  });
+
+  it('asks the service again, once, for a write-up that needed a model once one is on the phone', async () => {
+    const writeUp = vi.fn(() => 'queued');
+    window.GlyphHost = { writeUp } as unknown as Window['GlyphHost'];
+    present = [];
+    enqueueSummary('n1', 'meeting', { native: true });
+    phone.states = [state('needsModel')];
+    await tick(0);
+    expect(summariesNow().needsModel.has('n1')).toBe(true);
+    expect(writeUp).not.toHaveBeenCalled();
+    present = ['qwen3.5-4b'];
+    await tick(15_000);
+    expect(writeUp).toHaveBeenCalledWith('n1', false);
+    await tick(15_000);
+    expect(writeUp).toHaveBeenCalledTimes(1);
+  });
+
+  it('looks for a waiting result again when the page comes back to the front, and every fifteen seconds while one waits', async () => {
+    enqueueSummary('n1', 'meeting', { native: true });
+    await tick(0);
+    expect(phone.taken).toEqual(['n1']);
+    await tick(15_000);
+    expect(phone.taken).toEqual(['n1', 'n1']);
+    visible('hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+    visible('visible');
+    document.dispatchEvent(new Event('visibilitychange'));
+    await tick(0);
+    expect(phone.taken).toEqual(['n1', 'n1', 'n1']);
   });
 });

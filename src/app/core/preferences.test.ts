@@ -97,6 +97,11 @@ describe('a store written by another build, or half written', () => {
     reloadPreferences();
   });
 
+  it('reads a Write up or a Sync meeting recordings it does not know as the default', () => {
+    expect(launchWith({ writeUp: 'now', syncMeetingRecordings: true })).toMatchObject({ writeUp: 'now', syncMeetingRecordings: true });
+    expect(launchWith({ writeUp: 'overnight', syncMeetingRecordings: 'yes' })).toMatchObject({ writeUp: 'charging', syncMeetingRecordings: false });
+  });
+
   it('reads as the defaults when there is nothing, or nothing that is JSON', () => {
     expect(preferences()).toEqual(DEFAULT_PREFERENCES);
     localStorage.setItem(KEY, '{half');

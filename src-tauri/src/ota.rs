@@ -200,7 +200,12 @@ pub use install::peek;
 /// 19: revision-checked note create and update (`create_note`, `update_note`), guarded command mutation and its
 /// undo (`apply_command_mutation`, `undo_command_mutation`, `latest_command_mutation`), and constrained on-device
 /// instruction inference (`ai_infer_command`), for voice commands read from a finished recording.
-pub const NATIVE_GENERATION: u32 = 19;
+///
+/// 20: meetings on Android: `recording_jobs` (the JNI door a foreground service and a WorkManager job call, to
+/// finish a recording, write it up with the app closed, and cancel), `ai_unload`, `ai_keep_job_config`,
+/// `recording_result_take`, `recording_job_state`, `recording_digest`, `recording_delete`, the `rec` scheme
+/// serving ranges by seek, and `GlyphHost.startMeeting` and its kin in the Android shell (1.9.0).
+pub const NATIVE_GENERATION: u32 = 20;
 
 /// What the page built from THIS tree needs. vite.config.ts reads this line
 /// with a regex and stamps it into `ota.json`, so keep it a literal. Nothing in

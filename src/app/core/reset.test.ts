@@ -190,6 +190,29 @@ describe('a reset', () => {
     expect(localStorage.getItem('glyph-notes')).toBeNull();
   });
 
+  it('refuses while a meeting is being recorded, and otherwise cancels the phone’s write-ups before the wipe', async () => {
+    native = true;
+    signedInWithBookkeeping();
+    const order: string[] = [];
+    let recording = true;
+    window.GlyphHost = {
+      meetingState: () => JSON.stringify({ recording, noteId: recording ? 'm1' : null }),
+      cancelWriteUps: () => void order.push('cancelWriteUps'),
+    } as unknown as Window['GlyphHost'];
+    wipe = async () => void order.push('reset_local_data');
+    try {
+      await expect(reset()).rejects.toThrow('Stop the meeting first.');
+      expect(invoke).not.toHaveBeenCalledWith('reset_local_data');
+      // Nothing was touched: still signed in, the bookkeeping still there.
+      expect(signOut).not.toHaveBeenCalled();
+      recording = false;
+      await reset();
+      expect(order).toEqual(['cancelWriteUps', 'reset_local_data']);
+    } finally {
+      delete window.GlyphHost;
+    }
+  });
+
   it('leaves nothing that could sync the wiped notes as deletions when the native wipe fails partway', async () => {
     native = true;
     signedInWithBookkeeping();

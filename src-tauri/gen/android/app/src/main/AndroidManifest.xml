@@ -4,7 +4,8 @@
   template and drop everything Glyph adds below, so .gitignore re-includes it
   by name. Every addition carries a comment saying what breaks without it.
 -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!--
@@ -30,6 +31,26 @@
       without it the background check still runs but never shows anything.
     -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
+      Meetings (capture/MeetingService.kt, native generation 20): a recording
+      that keeps going with the screen off, and the write-up that follows it
+      with the app closed. A foreground service needs FOREGROUND_SERVICE, and
+      from Android 14 each of its types needs its own permission and a
+      matching type on the <service> below: MICROPHONE while it records (the
+      only type Android lets hold a microphone in the background, and only when
+      started while the app is in front), MEDIA_PROCESSING for the write-up on
+      Android 15 and later, SPECIAL_USE for the same on Android 14, where that
+      type does not exist yet. Without one of these the start throws and no
+      meeting can be recorded. WAKE_LOCK keeps the CPU on while the phone is
+      on the table with the screen off; without it the recording thread would
+      stop with the screen.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!--
       No Android TV: Tauri's template declared leanback and a TV launcher entry,
@@ -114,6 +135,42 @@
             android:name=".capture.GlyphSessionService"
             android:exported="false"
             android:permission="android.permission.BIND_VOICE_INTERACTION" />
+
+        <!--
+          A meeting being recorded, then written up (capture/MeetingService.kt).
+          Not exported: only this app starts it, from MainActivity while in front
+          and from its own notification's Stop and Discard. The types are the
+          ones the service passes to startForeground as it goes: microphone while
+          recording, then mediaProcessing (Android 15+) or specialUse (Android
+          14) for the write-up. A type passed that is not declared here throws.
+          The property is what specialUse asks for: a sentence saying what the
+          special use is, which a store reviews.
+        -->
+        <service
+            android:name=".capture.MeetingService"
+            android:exported="false"
+            android:foregroundServiceType="microphone|mediaProcessing|specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Writing up a meeting recording on the device" />
+        </service>
+
+        <!--
+          WorkManager's own foreground service, given the write-up's types
+          (recordings/RecordingWorker.kt calls setForegroundAsync with them on
+          Android 14+). Merged onto the library's declaration, which has no
+          type; without this the worker's foreground start throws
+          InvalidForegroundServiceTypeException and the retry path runs with no
+          notification at all.
+        -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="mediaProcessing|specialUse"
+            tools:node="merge">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Writing up a meeting recording on the device" />
+        </service>
 
         <!-- Required by the assistant role and deliberately inert; see GlyphRecognitionService. -->
         <service

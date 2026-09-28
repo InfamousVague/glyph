@@ -4424,6 +4424,11 @@ left. What was fixed now:
 2. the landing pages;
 3. then the OTA.
 
+**Meetings (1.9.0, §127).** The APK now declares three foreground service types (microphone while a meeting records,
+mediaProcessing and specialUse while it is written up), and Play asks what each is for. docs/store/PLAY_STORE.md has
+the answers and a data-safety row for a meeting's audio, which is recorded and written up on the phone and synced
+only when the person switches that on.
+
 ## 114. The AI in the note: runs that land as tracked changes, a strip, a bar, one reader (2026-09-25)
 
 Matt: "rewrite the AI tooling to be more real time, more interactive with UI updates, iconography and general
@@ -5082,8 +5087,8 @@ that came out of answering them:
   notification on the lock screen says nothing of what was said.
 
 Four things, in the order they ship: the shelf (page), summaries (page), meetings on the Mac (page), then meetings
-and the write-up on Android (a native release, generation 20). Sections 1 and 2 are built and written up here; the
-other sections are headings until their slices land.
+and the write-up on Android (a native release, generation 20). Sections 1 and 2 were built as page code in 1.8.0;
+sections 3 to 5 as the 1.9.0 APK (native generation 20) and its bundle, and 6 to 9 say what shipped with them.
 
 ### 1. Tapes: the shelf on the home page
 
@@ -5349,10 +5354,9 @@ recording has to do** (said as I, we, my, or their own name), under ten words, w
 fifth of the recording's words and never more than about two hundred; plain markdown, no `*` bullets, no numbered
 lists, no other labels, no closing remark. `TEMPERATURE` (0.3), no thinking. Model:
 `modelFor(present, prefs.formatModel)`. Budget `recordingSummaryBudget(chars) = min(1024, max(200, tokens / 6 + 96))`.
-The Rust side has not run it: `llm/tests.rs` should gain a test beside `summarizes_a_note_to_a_fraction_keeping_its_facts`
-that reads both prompts by name over a two-speaker fixture (one `# name`, points, a Decided line, a box only on the
-recorder's own actions, plus a pieces pass) and checks which lines carry a box; it needs a model, so it is a
-follow-up for the next native release.
+The Rust side runs it since 1.9.0: `llm/tests.rs` reads both prompts by name
+(`recording_summary_boxes_only_the_recorders_own_actions`, `recording_notes_are_items_only`) over a two-speaker
+meeting and checks which lines carry a box; both need the model and skip without it.
 
 **Long recordings.** `transcriptPieces(plain, PIECE_CHARS = 12_000)`: 20,000 chars or fewer goes in one pass;
 longer is cut at paragraph breaks into pieces of about 3,000 tokens, a paragraph longer than a piece cut at sentence
@@ -5448,31 +5452,530 @@ over the air, generation 19. Nothing here has run on the Fold.
 
 ### 3. Meetings
 
-To come.
+Built 2026-09-27: on the Mac as page code, and on Android as native generation 20 (1.9.0). Matt chose where the words
+are made and how long the microphone stays open: summaries on the phone, never the server, and a meeting recording
+that keeps going with the screen off.
+
+**A meeting is known by a preference.** `prefs.meetings: Record<noteId, startedAtMs>` (slice 1's shape, written from
+here). The note is `source: 'capture'`, titled by `capture/meeting.ts` `meetingTitle`: "Meeting, 26 Sep 14:05", the
+day and the month in the locale's own order from `Intl.DateTimeFormat`'s parts with its literals dropped (de-DE's
+"." after the day), then the time on a 24-hour clock. `meeting.test.ts` holds it to `dateTitled` under en-GB, en-US
+and de-DE at 00:05 and 14:05, so the model's heading still replaces it when the summary lands.
+
+**Record only, during.** No live reader, no reader at Done, no keyword, no quiet stop, no review, no title from the
+first sentence. The transcript is paragraphs cut at 1.5 s pauses under `## Transcript`, no cues
+(`capture/markdown.ts` `renderTranscript`, with `transcriptOf`, `withTranscript` and `withoutTranscript` beside it).
+
+**Where it can run.** `capture/meeting.ts` `MEETING_GENERATION = 20` and `canRecordMeeting()`: the Mac always,
+Android from generation 20 (`hasNativeGeneration`), never iOS (no whisper, no model) and never a browser (its engine
+keeps no audio). The + sheet's **Meeting** row (the cassette, "Record a meeting. The screen can go off. It is written
+up afterwards.") and the recorder card's "Meeting instead" are drawn only where it answers true.
+
+#### 3a. On the Mac, in the page recorder
+
+`captureScreen(fromAssistant, noteId?, { meeting: true })` puts `CaptureScreen` in meeting mode: the quiet stop off,
+the live reader replaced by the take listening raw, no card, no instruction, no review, no keyword, the where-line
+"Meeting", and the live page drawing `renderTranscript(segments, partial)` under the date title. "Meeting instead" on
+the card flips the recorder into this mode. Done writes `# <title>` over the transcript as a `'capture'` note, files
+it, records its tape, writes `prefs.meetings[id]`, queues the better words with `meeting: true` (`capture/refine.ts`
+renders such a job through `renderTranscript` and keeps the app's summary section, compared with `withoutSummary`)
+and the summary unless Summaries is Off, and says "Keep Ghost.md open while it is written up." The hour's audio is in
+RAM until Done, as every page recording is; on a Mac that is 115 MB and fine. Not measured (section 9).
+
+#### 3b. On Android, generation 20
+
+1. **The page first.** `shell/useCaptureRoute.ts` `meeting`: the note (date title, `'capture'`), filed where the list
+   is looking, its tape id, `prefs.meetings[id]`, a native summary job unless Summaries is Off, and only then
+   `GlyphHost.startMeeting(noteId, title)`, which answers from what the bridge thread can check:
+   - `"started"`: the meeting screen. `meeting { event: "started" }` confirms it; `failed` undoes it.
+   - `"permission"`: RECORD_AUDIO is not granted (a phone that never dictated). The activity asks with request code
+     4104 (`REQUEST_MICROPHONE`; 4101 is update alerts', 4102 the picture picker's) and delivers the answer as
+     `meeting { event: "permission", noteId, granted }` from `onResume`, never from `onRequestPermissionsResult`,
+     so the page's retry starts the service with the activity resumed, which a `microphone` service needs. A refusal
+     Android answers without a dialog (refused for good) goes at once, since no resume follows it.
+   - `"recording"`: that meeting's screen, and the new note taken back.
+   - anything else: taken back and said.
+
+   **The undo has one owner**, the same hook: the note deleted, the preference and the job dropped, the meeting
+   screen left, and the line ("Ghost.md needs the microphone to record a meeting.", "The meeting could not start.",
+   or the service's own sentence). From the recorder's card, `CaptureScreen` first cancels its session, stops the
+   WebView's microphone, discards the take and ends the capture, because the WebView's microphone must be shut
+   before `AudioRecord` can open. While a meeting is being recorded every way into a capture (Speak, the side key,
+   the boot) opens the meeting screen instead, since the microphone is taken.
+
+2. **`capture/MeetingService.kt`**, declared `microphone|mediaProcessing|specialUse` and started as `microphone`
+   (typed from Android 11, the two-argument form below) inside one `try`: the notification first and shown at once
+   (`FOREGROUND_SERVICE_IMMEDIATE`, where Android 12+ would hold it back ten seconds), a partial wake lock
+   `glyph:meeting` with its own limit past the cap, then `AudioRecord` from `MIC`, 16 kHz mono PCM16, no effects, a
+   two-second buffer. Anything thrown, or a recorder that did not initialise, deletes the file, clears the state and
+   pushes `failed`. A reader thread writes 4 KB at a time straight into `recordings/<id>.wav` through
+   `capture/WavSpool.kt`, whose 44-byte header is `wav::header`'s byte for byte, both lengths patched every ten
+   seconds and at close, so a kill leaves a header at most ten seconds short. The state behind `meetingState()` is
+   in the service's companion and mirrored in SharedPreferences `glyph_meeting` for the meeting a kill leaves.
+   - The notification (channel `glyph_recordings`, id 4201): "Recording · 12:40", its counter refreshed every ten
+     seconds, silent and alerting once, ongoing, public on the lock screen (a running microphone should be
+     stoppable by whoever holds the phone, and it shows only a counter), with **Stop** and **Discard** as
+     foreground-service intents. Its tap is a plain launch with an extra: at a cold start `takeLaunch()` answers
+     `"meeting"` and the boot opens the meeting screen from `meetingState()`; with the app up it is
+     `meeting { event: "open" }`.
+   - **Muted by another app.** An `AudioRecordingCallback` on the recorder: while `isClientSilenced` the notification
+     says "Muted by another app · 12:40" and the meeting screen "Muted by another app."; the file keeps growing with
+     silence, so the timeline stays honest. A read error stops the meeting as Done does, with the reason `error`.
+   - **The cap.** At two hours "Still recording? · 2:00:00" is a notification of its own (id 4203, not silent, since a
+     question nobody can hear is not a question) with **Keep going** and **Stop**. Unanswered for five minutes, the
+     meeting stops as Done with the reason `cap`; at four hours it stops whatever was answered.
+   - No `FLAG_KEEP_SCREEN_ON` and no screen-off receiver: those are the dictation's. The screen can go off, the app
+     can be left, the phone can be folded.
+   - **Swiping the app away ends the meeting, and it is written up anyway.** The draft said a started service
+     outlives its task. On this shell it does not: the Tauri shell exits its process when its last activity is
+     destroyed (`lib.rs`'s run callback lets `ExitRequested` through), and the service goes with the process. On
+     the emulator a Recents swipe ended it with "exited cleanly (0)", the service still in front, and the meeting
+     then waited for the next launch to be written up. So `onTaskRemoved` stops the meeting as Done does and waits
+     for the chain request to be written down, and what was recorded is written up with the app closed (section 9
+     has it seen). Keeping the recording going past a swipe means keeping the process when a meeting holds it and
+     giving a new activity in that process a webview, and Tauri's plugin manager keeps its first activity for good
+     (its own comment: "on destroy, we should change to a different activity"). That is shell work of its own, and
+     whether it is worth doing is Matt's question.
+3. **`capture/MeetingScreen.tsx`** (`shell/screen.ts` `{ name: 'meeting', noteId, fromAssistant, key }`): the cassette
+   turning (`TapeArt playing`, the elapsed time as its position and `max(TAPE_MS, elapsed)` as its length), the
+   counter, "Recording. The screen can go off and you can leave. Stop here or from the notification.", **Discard**
+   and **Done**. Nothing of the note, since the side key can open it over the lock screen. It calls none of the
+   recorder's mount effects: no `setCapturing`, no `setRecorderLive`, no screen-off answer. **Back leaves; it does not
+   stop**: the list, and a locked phone handed back to its lock screen when the side key opened it. Done calls
+   `stopMeeting()`; Discard calls `discardMeeting()` and deletes the note, its preference and its job itself.
+   Under the cassette, until asked once on this device (`glyph-meeting-alerts-asked`): "Let Ghost.md tell you when it
+   is written up." with **Allow**; refused, "Notifications are off for Ghost.md, so stop it here." The state comes
+   from the one store, `capture/meetingLive.ts`: `meetingState()` read once a second while visible and something
+   listens, at once on a return to the front and on the activity's refresh (heard as the notes-changed event, since
+   the notes store owns `refresh`), and on every `meeting` push, which it fans out to the screens that own undo
+   state (`onMeetingEvent`). `home/useMeetingLive.ts` is that store's note id, so the shelf's "Recording" caption is
+   real, and `tapedNotes(notes, meetings, live)` puts the live meeting first before it has a length.
+4. **Stop** (Done, the notification, the cap, a read error): the microphone let go (the wake lock kept for the
+   write-up), then `RecordingJob.finish(dataDir, noteId, title)` on the service's own thread. `finish` writes
+   `jobs/<id>.progress` as `queued` with the title before anything that can fail, then patches the header from the
+   file's length and records the tape's length on the note. It never deletes anything: an error is written into the
+   file and the chain takes the job, whose `run` repeats `finish`'s steps where they are not done, so an hour of audio
+   is never unlinked because a library open lost a race. The page is told `stopped` with its reason, the service
+   says it has the job in hand, makes the chain request, and carries on as the write-up (section 4). **Discard**
+   deletes the WAV, marks the job cancelled and clears `glyph_meeting`; from the notification, with the app closed,
+   the id is also kept in `discarded` until the page has deleted the note and called `forgetDiscarded`.
+
+   **No meeting starts while a Stop is being put away** (`MeetingService.isEnding`, from the Stop until the type has
+   changed for the write-up; about one to four seconds): `startMeeting` answers "The last meeting is still stopping.
+   Try again in a moment.", which the page says and takes back. The review found why: a meeting started in that
+   window had its state and `glyph_meeting` cleared by the last one's bookkeeping, so its Done returned early and the
+   microphone stayed open until the process died; the type change for the write-up ran under its open `AudioRecord`,
+   so it went on recording silence with the screen off; and its Done waited behind the last one's whole write-up on
+   the one control thread. Now the bookkeeping clears only what still names its own meeting, the write-up runs on a
+   thread of its own so a later Done and Discard never queue behind it, a write-up does not start (or go on) while a
+   meeting records, and a new meeting asks any write-up in hand to let go as `meeting`, the service's or the worker's,
+   asking again for five seconds because a run that has not reached Rust's `RUNNING_JOB` cannot hear the first ask.
+   "Still recording?" is taken down whenever the service stops or a killed meeting is recovered, and a write-up's
+   last progress line is not posted after Android's budget (`onTimeout`) has stopped the service. The spooled WAV is
+   synced to the disk at every ten-second patch, so a power cut loses at most that, and a header a power cut left
+   claiming more than landed is brought down to the file by `patch_header` rather than failing the job three times.
+5. **A meeting a kill left.** `MeetingService.recover`, off the main thread at every `MainActivity.onCreate`: a
+   `glyph_meeting` with no service recording is cleared and handed to the chain with its title, unless Rust already
+   has a progress file for it or a request for it waits (a second fresh request after the page took the first one's
+   result would write the meeting up again), and the page is told `stopped { reason: "died" }` once it has a
+   handler (offered every two seconds for half a minute a resume). It does not call `finish` itself, so it cannot
+   race Tauri's own index open in the same second. Then the sweep: every
+   `jobs/*.progress` that is not `done`, `needsModel`, `failed` or `cancelled` goes back into the chain unless a
+   request for it is already there. `library/index.rs` opens under a process-wide lock around its version check and
+   rebuild, and `index_file` replaces a row in one immediate transaction: two handles in one process scanning the same
+   file raced the path's unique constraint in one run of two before, and never in thirty since, under load too.
+
+**Every take spooled to disk is not in this release.** Nothing yet recovers a spooled take without a note, so it ships
+with that recovery in a later native release, and the recorder's header sentence stays as slice 1 corrected it: a
+kill loses the take's audio.
+
+**`wav.rs`** has one rule for where the samples end, `data_end`: a `data` chunk that is the file's last runs to the
+end of the file in whole samples, and any other is its declared length clamped to the file. `parse`, `read_span` (one
+stretch read by seeking, never the hour), `duration_ms` (the header and the length only) and `spans::find` all use it,
+so a header ten seconds short reads the same everywhere; `patch_header` puts it right. Tests both ways round.
+
+**`recordings.rs` serves a tape by seek.** `serve` stats the file, seeks and reads only the bytes a range asks for;
+an open range (`bytes=a-`) is answered with at most `OPEN_RANGE_CAP` (2 MB) as a 206 with its `Content-Range`, and the
+element asks for the rest as it plays. No range is the whole file as a 200, as before. Opening an hour's note no
+longer reads 115 MB on the WebView's thread, and a seek does not read it again. A `HEAD` (the tape asking why it
+would not play, the Tapes row asking which audio is here) reads nothing and says the length. Tested on a file through
+a reader that counts what it reads.
+
+**Files.** Kotlin: `capture/MeetingService.kt`, `capture/WavSpool.kt`, `recordings/RecordingJob.kt`,
+`recordings/RecordingWorker.kt`, `recordings/WriteUp.kt`, `recordings/RecordingAlerts.kt`, `MainActivity.kt` (the
+bridge, 4103 and 4104, the resumed-activity reference the service speaks through, the launch extra, the link), the
+manifest (`FOREGROUND_SERVICE` and its `MICROPHONE`, `MEDIA_PROCESSING` and `SPECIAL_USE` kinds, `WAKE_LOCK`, the
+service with its special-use subtype, the write-up's types merged onto WorkManager's own foreground service). Rust:
+`guards.rs`, `jobs.rs`, `transcript.rs`, `write_up.rs`, `recording_jobs.rs`, `recording_commands.rs`,
+`whisper/spans.rs`, `whisper/wav.rs`, `recordings.rs`, `library/index.rs`, `ota.rs` (`NATIVE_GENERATION` 20,
+`BUNDLE_REQUIRES` still 19). Page: `capture/meeting.ts`, `capture/meetingLive.ts`, `capture/MeetingScreen.tsx`,
+`core/host.ts`, `core/recordings.ts`, `shell/useCaptureRoute.ts`, `shell/screen.ts`, `notes/NewSheet.tsx`,
+`capture/SayCard.tsx`, `capture/CaptureScreen.tsx`. Tests: meeting.test.ts, meetingLive.test.tsx,
+MeetingScreen.test.tsx, useCaptureRoute.test.tsx (the start in order, the microphone's answer with and without a note
+named, every undo, the meeting already recording, a tap that names no note), CaptureScreen.test.tsx (the Mac's
+meeting and Meeting instead), NewSheet.test.tsx; in Rust wav.rs's and spans.rs's (tone-and-silence files, one with a
+short header), recordings.rs's (ranges on a file), library's two handles on an older index from two threads; in
+Kotlin `WavSpoolTest`.
 
 ### 4. The write-up with the app closed (Android, generation 20)
 
-To come.
+**Who runs it.** The service itself, after Stop: `startForeground` again under `mediaProcessing` on Android 15 and
+later, `specialUse` on 14, the untyped form below, with the notification (still id 4201) saying "Listening to the
+recording, 40%", then "Summarizing". The chain request is made before the write-up starts, so a kill mid-way is
+WorkManager's to pick up rather than the next launch's; if the type change is refused (the emulator accepted it; the
+Fold is section 9's), the chain takes the job.
+
+**The retry path**, `recordings/RecordingWorker.kt`, a plain `Worker`:
+- One chain, `glyph-write-ups`, under `APPEND_OR_REPLACE` (under `APPEND` a failed or cancelled request would cancel
+  everything queued after it), linear backoff from two minutes, each request tagged `glyph-write-up:<id>`.
+- A second unique work, `glyph-write-ups-charging` (`KEEP`, requires charging), sweeps every unfinished job into the
+  chain when the charger connects. That is how a job the battery rule held comes back, with no polling.
+- `doWork`: waits (`Result.retry()`) while a meeting is being recorded or the service has this job in hand; succeeds
+  at once for a job already done or with no file left and nothing fresh asked; asks to be foreground (id 4202) inside
+  a `try`, and runs without when Android refuses it from the background, which costs at most the span in hand.
+  `Result.retry()` only for a partial; every terminal outcome is a success, so a job that failed for good does not
+  back off forever. `onStopped` (Reset, or the ten-minute limit on work with no foreground) lets the run go as a
+  timeout, resumable.
+- One member of the chain is never cancelled through WorkManager, since that cancels everything appended after it.
+
+**One door to start a write-up and one to stop it, both Kotlin's**, the one side that knows WorkManager and the JNI
+cancel. `GlyphHost.writeUp(noteId, now)` (Write up now, Try again, a note restored from the trash, a model that
+arrived) queues one fresh request. `cancelWriteUp(noteId)` (the trash) is `RecordingJob.cancel(…, "cancel")` alone,
+and the worker that later reaches the id finds it cancelled and moves on. **A fresh request carries when it was made**
+(`requestedAt`), and Rust reopens a `cancelled` file for it only when the cancel is older: WorkManager retries a
+request with the same input after every hold, and a meeting put in the trash while a Write up now waited was being
+written up by the retry, notification and all. The two doors run one after the other on one Kotlin thread, so the
+toast's Undo straight after a trash always makes the newer request. `cancelWriteUps()` (Reset) cancels both
+unique works whole and then any run in hand, waiting for it on the bridge thread, so Rust's reset removes `jobs/`
+after the run's last write rather than before one that would leave a file behind.
+
+**When.** Settings › Recording › Meetings › **Write up**: "When charging or above half" (the default) or "Straight
+away", with the hint "A meeting is written up when the phone is charging or above half. Straight away uses more of
+the battery." The rule is Rust's, decided from Kotlin's readings (`charging`, `batteryPercent`) and the setting in
+`jobs/config.json`: a job held by it is `waiting` for `battery`, Kotlin makes the charging sweep, and the shelf's
+caption says "Waiting to charge" with **Write up now**, which queues it with `now` from the foreground. Heat:
+`severe` or worse at the start holds the job; during a run Kotlin reads the thermal status every thirty seconds and
+cancels with `thermal` at `THERMAL_STATUS_SEVERE`, Rust lets go within one graph computation, and the service waits a
+minute at a time, up to thirty, before running again (the worker retries instead). Android 15's `onTimeout` cancels
+with `timeout` and stops within seconds.
+
+**Cores.** One rule, `guards::background_threads(x) = max(2, x / 2)`, applied to whisper's `min(4, cores)` and the
+model's `clamp(2, 6)` alike, and only while the app is in front (`appInFront`, from `ProcessLifecycleOwner`): with it
+closed nobody is typing, and the write-up takes what the foreground would. Chosen once a run. llama-cpp-2 0.1.156 has
+no run-time thread setter, so the kept context remembers its count and is remade when a job asks for another.
+
+**The Rust job** (`write_up.rs`, no Tauri types; `recording_jobs.rs` is the door, three
+`Java_com_mattssoftware_glyph_recordings_RecordingJob_{finish,run,cancel}` symbols under `catch_unwind` answering
+JSON, and `recordings/RecordingJob.kt` loads `glyph_lib` itself, as `UpdateCheck` does, because WorkManager can start
+the process with no activity). `run(dataDir, noteId, options)`:
+
+0. No WAV: `gone`, and the file with it. The file's phase is settled first, before any hold, so a done job looked at
+   during a dictation is still done: `done` answers `alreadyDone`; `cancelled` answers `cancelled` unless the run is
+   fresh; a fresh run resets the tries and queues a `cancelled`, `failed` or `needsModel` file with its checkpoints
+   kept; `failed` at three tries answers the error `again`; `needsModel` looks for the model once more and answers
+   `again` while it is still not there. Kotlin posts nothing for an answer said before. Then the holds, each a
+   `waiting` file and a retry that is not counted: a dictation running (`capturing`), the one small.en in use
+   (`busy`: `guards::WRITE_UP`, which the dictation's better words try too; a lock poisoned by a panic is recovered,
+   never busy for good), the battery, the heat. A `queued` file repeats `finish`'s steps, each only where not done.
+1. **Listening.** `whisper/spans.rs` `find` runs the energy VAD over the file thirty seconds at a time by the live
+   streamer's rules (two voiced frames to start, 600 ms of quiet to close once 1.5 s of speech has come, 300 ms kept
+   either side, split at the longest pause once a span would pass `WINDOW_CAP`, 28 s), never holding the hour. Each
+   span not yet done is read with `read_span` and transcribed by small.en (base.en when only that is on the phone;
+   neither is `needsModel`) on the job's abort, with the previous span's tail as its prompt through
+   `text::prompt_plain`, never `text::prompt`: the cue vocabulary would prime an hour of cross-talk with "Title.
+   Heading. Scratch that." Every span is checkpointed, so the job resumes by span, and a watcher rewrites the percent
+   every two seconds. The engine and the audio go before the model loads.
+2. **The note.** The phrases beside it (`set_recording`), and the transcript into its body from Rust:
+   `transcript::paragraphs`, the twin of `toParagraphs`, held to the page by one fixture both sides read
+   (`src/app/capture/paragraphs.fixture.json`), through `with_transcript` and `update_note` at the note's revision; a
+   conflict is read again once, then held as `conflict`. A meeting note is never wordless on disk, in its `.md` file,
+   in sync or to the MCP, even when the summary never comes.
+3. **Summarizing**, unless Summaries is Off, and not at all when nothing was heard: a model asked to summarise an
+   empty transcript writes one anyway, and the prompt's first rule is that nothing is invented. `llm::shared()`, the
+   one worker both doors use (moved out of Tauri's managed state), with `background: true`. 20,000 characters or
+   fewer in one pass; longer, `transcript::pieces` at 12,000 through `RECORDING_NOTES_PROMPT` with "Part n of m of one
+   recording." before each piece, each piece's notes checkpointed, then the notes through the summary prompt with
+   `NOTES_CONTEXT` as its context: exactly where `ai/summaries.ts` puts them. The model, the prompts, the piece rule,
+   the temperature and the two settings come from `jobs/config.json`, which the page writes at launch and on every
+   change (`ai_keep_job_config`); a fresh install that never ran the page falls back to `write_up::prompts`, which a
+   test without a model holds equal to the page's `String.raw` literals, `PIECE_CONTEXT` and `NOTES_CONTEXT` among
+   them (moved to `format/prompt.ts` as `{n}`, `{m}` and `{words}` templates with a `fill` on each side). No model on
+   the phone is `needsModel`, never retried on its own, and nothing ever downloads.
+4. **Done.** `jobs/<id>.json` `{ summary, model, transcriptChars, finishedAt }`, the file `done`, the model unloaded.
+
+Any other error is counted; the third is `failed`. `cancel(dataDir, noteId, reason)` raises the abort when that note's
+run is in hand; for `cancel` it waits up to five seconds for the run to let go and marks the file `cancelled`, never
+taking `WRITE_UP`, so the trash is never stuck behind a dictation's better words. A `done` file is left as it is: its
+result waits for the page, and a meeting brought back from the trash lands it rather than being written up twice. It
+removes nothing: removal is `recording_result_take`'s, `recording_delete`'s, `delete_note`'s and reset's.
+
+**Asked again, it keeps the words the note has.** A fresh run with nothing listened to yet, for a note that already has
+words under `## Transcript` (the page took the last result), takes those words as the transcript: listening again
+would take an hour's decoding and replace everything from the heading down, the person's corrections with it.
+
+**The model is the page's rule on both sides.** The config names the model the page would run, and is sent again when
+a model is downloaded or removed as well as when the model chosen, Write up or Summaries changes (`ai/jobConfig.ts`;
+the model list is not read for any other preference); a model's arrival sends it before asking a waiting job again.
+Rust picks by the same rule from what is on the phone (`llm::model::model_for`, the twin of `modelFor`), so a config
+that still names an absent model does not end the job "Needs a model" a second time.
+
+**Two handles, one writer at a time.** The app's library and the write-up's (opened over JNI) write the same notes in
+one process, and `update_note`'s check of the revision and its write are separate steps: interleaved, both passed at
+the same revision and the later file write won with no conflict seen. Every write in `library/` now holds one
+process-wide lock, re-entrantly, so the editor's rebase on a conflict is what meets the transcript.
+
+**The foreground comes first.** A page generation asked for while a background piece runs raises the abort with
+`busy` before it is sent: the piece ends, the job is retried two minutes later uncounted, and a voice command after
+Done, a page summary or a format never waits behind a 3,000-token prefill. A background job counts as running from
+its model's load, so a request that arrives during the load preempts it too. The worker drains its inbox into a
+queue and takes a shutdown first, then foreground work, then background. Exit raises `shutdown` and waits up to two
+seconds for the run in hand to let go (it runs on the service's or the worker's thread, which nobody joins) before
+the worker is joined; a dictation starting raises `capturing` before its engine loads and counts as running from
+then (`guards::capture_starting`), so a write-up that begins in that second is held rather than lowering the flag the
+dictation raised; whether a capture is running is derived from the capture slot under its own lock after every
+change of it (`guards::change_capture`), never stored by hand.
+
+**The files** (`jobs.rs`, every target, no Tauri types): `jobs/config.json`, `jobs/<id>.progress` and `jobs/<id>.json`.
+Every write to a `.progress` in the process goes through `Progress::save` under one lock, which reads the file's phase
+first and never writes over `cancelled` unless it is a fresh `queued`, so a cancel from the trash is not undone by the
+watcher's next tick. Kotlin only reads the phase, the percent and the title.
+
+**On the page while the app is up.** `ai/summaries.ts` `landNativeResult(id)`, in this order: an answer the job
+already holds is written without asking the phone (the take happened, the page died before the write); else
+`recording_result_take`, and a result makes the job if there is none and lands through the same `write` as every page
+summary, or through the note's editor when it is open; no summary (Summaries Off, or nothing heard) ends the job.
+It runs on `recordingDone`, on every kick, at once on a return to the front and on the refresh, and every fifteen
+seconds while a native job waits and the page is visible. `publish()` reads `recording_job_state` into the shelf's
+store: `needsModel`, `failed`, `waiting` for the battery (the new `waiting` caption), `cancelled` (the job dropped),
+else `native`. Try again and Write up now call `writeUp(id, true)`; a model arriving asks each waiting job again with
+`writeUp(id, false)`. The better words hold while a write-up is listening or summarizing (both want small.en; Rust's
+`WRITE_UP` is the hard guard). **The open editor** takes the transcript Rust wrote: a conflict whose only difference
+is the transcript section (`withoutTranscript` alike) is rebased onto it and saved again, and any other conflict stops
+as before; `NoteScreen` reloads a note with no unsaved edits when its write-up leaves listening or ends, so the
+transcript is seen arriving; a save flushed and not yet answered counts as unsaved, so the note is not adopted over
+it. The trash: putting a meeting there cancels its write-up (`cancelWriteUp`, for every meeting, since Summaries Off
+makes no page job to ask by) and drops the page job; taking it out again, by Restore or by the toast's Undo alike,
+asks the phone again only where the phone still holds a job for it or the note has no transcript. An update's
+install is refused while a meeting records ("Stop the meeting first."), as a reset is. Reset refuses while a meeting is being recorded ("Stop the
+meeting first."), then cancels the write-ups before `reset_local_data`, which now removes `jobs/` with the recordings.
+After a page summary of a transcript over the one-pass length, the page lets the engine's context go (`ai_unload`).
+
+**Memory, said plainly.** One span's audio and whisper, dropped; then the model and one piece's context. Not the old
+draft's 115 MB, 230 MB, 190 MB and an 8k-token cache at once.
+
+**Files.** Rust: `write_up.rs`, `recording_jobs.rs`, `jobs.rs`, `guards.rs`, `lock.rs` (`try_lock`),
+`transcript.rs` (and in tools/host-tests), `whisper/spans.rs`, `whisper/engine.rs` (`load_with_threads`,
+`TimedText::offset` moved from the refine), `whisper/text.rs` (`prompt_plain`), `llm/engine.rs` (the shared worker,
+the queue order, the preemption), `llm/generate.rs` (the context's thread count), `llm/job.rs` (`background`),
+`ai_commands.rs` (`ai_unload`, `shutdown`), `capture_commands.rs` and `capture_commands/refine.rs` (the flag, the
+lock), `recording_commands.rs`, `reset.rs`, `commands.rs` (`delete_note` takes the job's files). Kotlin:
+`recordings/`. Page: `ai/summaries.ts`, `ai/jobConfig.ts`, `core/ai.ts` (`keepJobConfig`, `unloadModel`), `core/recordings.ts`,
+`format/prompt.ts`, `shell/useHousekeeping.ts`, `editor/useNoteSaving.ts`, `editor/NoteScreen.tsx`,
+`home/tapeCaption.ts`, `home/TapeShelf.tsx`, `home/dashboard.ts`, `capture/refine.ts`, `notes/useNoteActions.ts`,
+`core/reset.ts`. Tests: every terminal phase with and without `fresh`; a cancel during a run marks the file and the
+watcher's tick cannot unmark it; a poisoned `WRITE_UP` recovered; a cancel within its wait while a refine holds the
+lock; `finish` on a library that cannot open keeps the WAV and a `queued` file that says so; a silent meeting written
+up to the end without a model, and not summarised with summaries on; the holds; the counted error; the Kotlin door
+and the Rust symbols naming each other; the Kotlin twins for `recordings` and `jobs`; the queue order and the
+preemption on a fake inbox. Since the review, each rule the review could break with every suite green has a test
+that fails without it: the real listening with base.en over two spoken sentences (two spans, each phrase at its place
+on the tape, a resume that decodes only the second), skipped without the model or `say`; the summary one pass and
+piece by piece through a stand-in for the model (the piece line in the prompt, the parts line in the context, a
+resume at the piece it stopped on, a dictation between pieces holding the rest); every condition of the battery rule
+and its boundary; Summaries Off with words; a meeting a kill left before `finish`; the fence; a cancel that leaves a
+done file; the words kept on a fresh run; the model picked from what is here; the Kotlin options' keys against the
+Rust fields, the answers' keys, the thermal words and the terminal phases read out of `WriteUp.kt`, the door's full
+signatures; one `recordingsDir` in `MeetingService.kt`; the capture slot raced by a stop and a start; a foreground
+request preempting a background one on the real model; the context remade for other cores; the window cap and the
+short phrase in the span finder; two handles writing one revision at once. On the page: `landNativeResult`'s order,
+`tapedNotes` with a live id, the editor's rebase, its stop on another writer's words, and no adopting over a save in
+flight, the caption's `waiting`, the trash's cancel, Undo and Restore, the reset's and the install's refusal, the
+meeting screen never keeping the screen on, the page's gates against `NATIVE_GENERATION` (scripts/lib/otaRs.test.mjs),
+the job config and when it is sent, the digest on iOS and on a failed call. `llm/tests.rs` reads both recording
+prompts by name over a two-speaker meeting (only the recorder's own actions boxed, the notes items only); both need
+the 4B and skip without it.
 
 ### 5. The notification
 
-To come.
+**Android.** Channel `glyph_recordings` ("Recordings", `IMPORTANCE_DEFAULT`, "While a meeting is being recorded, and
+when one has been written up"), made by `recordings/RecordingAlerts.kt` the way `UpdateAlerts` makes `glyph_updates`.
+When a write-up ends for the first time, the service or the worker posts it under the tag `GlyphRecordings` with the
+note id's hash: "Written up: Meeting, 26 Sep 14:05" (the progress file's title; the model's heading is the page's to
+apply) over the summary's first sentence (BigText), found by `write_up::summary_line` as the page's `summaryLine`
+finds it. Without a sentence it says where the words are: "The summary is in the note.", "The transcript is in the
+note." with Summaries Off, "Nothing was heard in the recording." for a tape with no speech. No model: "Needs the
+language model to write up the meeting." Failed: "The meeting could not be written up." `VISIBILITY_PRIVATE` with a
+public version that says only "A recording was written up": a locked phone shows nothing of a note, and a meeting's
+first sentence says who decided what. Auto-cancelled. Never posted for an answer said before, a job already done, a
+cancel or a tape that is gone. The write-up's own progress notification is private too, with a public version titled
+"Writing up": a write-up asked again takes its title from the note's heading, which is the note's words. `window.__glyph.recordingDone({ id, outcome })` goes to a resumed page beside it, and
+the page toasts a native job only when Ghost.md cannot notify, so a meeting written up while the app is open is said
+once, and one written up with notifications refused is still said.
+
+**Permission.** `GlyphHost.requestNotifications()` asks with its own request code, 4103, and its answer arrives as
+`window.__glyph.notified()`, never through `alerts`: `answerHost` keeps one answer a name, `alerts` is update alerts',
+and turning those on starts a six-hourly network job. It answers `"allowed"`, `"asked"`, or `"blocked"` (asked
+before and refused for good, or granted with the app's notifications turned off). `canNotify()` is the permission,
+the app's switch and the channel not set to nothing. Asked from the meeting screen once per device, and from Settings
+› Recording › Meetings › "Tell me when a meeting is written up" (**Allow**). Refused, the write-up still runs, the
+shelf still says, and the meeting screen says "Notifications are off for Ghost.md, so stop it here."
+
+**The tap opens the note with its words.** The content intent is `ACTION_VIEW ghostmd://note/<id>` at MainActivity,
+and the link reaches the page two ways, because the deep-link plugin's channel is per activity and set once by Rust:
+an activity recreated in a live process has none, and `links.rs` would never see the URL. So MainActivity keeps
+`intent.data` itself in `onCreate` and `onNewIntent`, and `GlyphHost.takeLink()` hands it over once, beside the
+plugin's `links_take`; `share/appLinks.ts` `followAppLinks` takes both and drops a URL it has already seen in the same
+take, `readNoteLink` reads `ghostmd://note/<id>`, and `shell/useAppLinks.ts` (was `useForkLinks`) sends share links to
+the fork and note links to `openNote`, which lands a waiting result first (`landNativeResult`) and then opens the note
+where it was left. The transcript is in the body already, so a tap that beats the summary still opens a note with its
+words.
+
+**The page path** (dictations, the strip's word, Mac meetings): the toast, "Summarized “{title}”" with **Open**, as
+section 2 built it. No system notification from the page.
+
+**Mac** system notifications need `tauri-plugin-notification` and a signed bundle: not in this release.
 
 ### 6. Sync, storage, sharing, privacy
 
-To come.
+- **The summary and the transcript are words in the body**: the `.md` file, sync, a share link, a download, To do.
+  The phrases stay in the sidecar. `docs/LIBRARY.md` says so, and names `jobs/` beside `recordings/`.
+- **One tape cannot stop sync.** `push` catches per note: a note whose send fails is counted and the pass goes on,
+  `once()` reports "N notes not synced" with the first reason, and a 401 still ends the pass. The settings row's
+  summary says the count.
+- **A recording over the service's limit is never sent.** `RECORDING_SYNC_LIMIT = 64 * 1024 * 1024`, the server's
+  `RECORDING_LIMIT`; a tape is over it when `recordingMs * 32 + 44` is, decided before a byte is read. The note goes
+  with its length and phrases and no recording, so the words show everywhere and the tape says "This recording is not
+  on this device." where `rec://` has nothing.
+- **Meeting audio stays on the phone unless he says otherwise.** Settings › Account › Sync › **Sync meeting
+  recordings**, off by default: "A meeting is other people's voices. Off, the words sync and the audio stays on the
+  device it was made on." A recording kept back on purpose is marked (`SyncState.files[id].stayed`), so switching the
+  setting on sends it without the note having to change. The Sync section's footer counts what stayed: "3 recordings
+  stayed on this phone" (`stayedHere`). Whether a meeting's audio should ever leave the phone stays his question.
+- **The WAV is not re-read on every push.** `SyncState.files[id].forMs`: the file is read or hashed only when the
+  tape's length has changed. On generation 20 the hash is `recording_digest(id)` (SHA-256 on the blocking pool; the
+  page compares the first 32 hex characters, as it always hashed), the bytes read only for an upload, and a tape with
+  no file is remembered as looked at, so a removed tape is not asked about on every push. iOS hashes nothing there,
+  so it and a call that failed read the bytes as before rather than being taken for "no tape". Which notes are
+  meetings is read when each recording is decided, not when the pass began, and the Mac lists a meeting before its
+  tape is kept, so a pass under way never sends a meeting's audio.
+- **A conflict does not lose the summary or copy the note.** When both sides changed a note and they differ only by
+  the app's own section (`withoutSummary` alike), theirs is taken with the local section put back, no conflict copy.
+- **Storage.** Settings › Recording › **Tapes** (Android and the Mac): "Your tapes take about 2.3 GB on this device."
+  (`recordingMs * 32` summed over the tapes whose audio is here: not one this row removed, nor a synced one whose
+  audio the `rec` scheme answers 404 for) and **Remove audio older than a month**, which asks twice, as emptying the trash does,
+  and calls `recording_delete` for tapes older than thirty days (generation 20). The words and phrases stay; the
+  device remembers which audio it removed (`glyph-audio-removed`), and such a tape says "The audio was removed."
+- **Nothing leaves the phone.** Whisper and the model are on the device; the service and the worker open no network
+  and never download; the notification's words are written on the phone. The recording notification and Android's
+  microphone mark are the visible sign a meeting is being recorded; telling the room stays the person's.
+- **The stores.** Play reviews every foreground service type an app declares: `docs/store/PLAY_STORE.md` lists the
+  three this release declares and what to say about each (§113).
+- Deleting a note deletes its file, sidecar and WAV as before, and its job files; Reset removes `jobs/` and cancels
+  the chain.
 
 ### 7. Every line, in the app's voice (§21)
 
-To come.
+As shipped. No dashes, no semicolons, no ellipses; Summarize, Summarizing, Summarized.
+
+- + sheet: "Meeting", "Record a meeting. The screen can go off. It is written up afterwards." Recorder card:
+  "Meeting instead".
+- Meeting screen: "Recording. The screen can go off and you can leave. Stop here or from the notification.", "Let
+  Ghost.md tell you when it is written up." with Allow, "Muted by another app.", "Notifications are off for Ghost.md,
+  so stop it here." Refused microphone: "Ghost.md needs the microphone to record a meeting." Could not start: "The
+  meeting could not start." A binary without the service: "Meetings need the newest Ghost.md." Started while the
+  last one's Stop is put away: "The last meeting is still stopping. Try again in a moment."
+- Recording notification: "Recording · 12:40", Stop, Discard; "Muted by another app · 12:40". The question: "Still
+  recording? · 2:00:00", Keep going, Stop. The write-up: "Listening to the recording, 40%", "Summarizing". Written up:
+  "Written up: Meeting, 26 Sep 14:05" with the first sentence, or "The summary is in the note.", "The transcript is in
+  the note.", "Nothing was heard in the recording."; public: "A recording was written up". No model: "Needs the
+  language model to write up the meeting." Failed: "The meeting could not be written up."
+- Captions: "Recording", "Listening again", "Writing up", "Summarizing", "Keep Ghost.md open", "Waiting to charge"
+  with Write up now, "Needs a model" with Get a model, "The summary didn’t come" with Try again.
+- Settings: Write up, "When charging or above half", "Straight away", "A meeting is written up when the phone is
+  charging or above half. Straight away uses more of the battery."; "Tell me when a meeting is written up"; "Your
+  tapes take about 2.3 GB on this device.", "Remove audio older than a month"; "Sync meeting recordings", "A meeting is
+  other people's voices. Off, the words sync and the audio stays on the device it was made on.", "3 recordings stayed
+  on this phone", "N notes not synced". Developer › Reset while recording, and an update's install: "Stop the meeting
+  first."
+- Mac meeting at Done: "Keep Ghost.md open while it is written up." Tape: "The audio was removed.", "This recording
+  is not on this device."
+
+"The summary is in the note." and "Nothing was heard in the recording." were written at the integration, for two ends
+the notification had no line for, and "The last meeting is still stopping. Try again in a moment." at the review, for
+a start the service now refuses. They are Matt's to change.
 
 ### 8. Slices, each shippable alone
 
-To come.
+1. **The shelf** and 2. **Summaries**: page code, over the air, generation 19, live from 1.8.0 (sections 1 and 2).
+3. **Meetings on the Mac**: page code in the 1.9.0 bundle, gated by platform, not generation.
+4. and 5. **Meeting recording on Android, and the write-up with the app closed**: one APK, 1.9.0, native generation
+   20, `BUNDLE_REQUIRES` still 19. Every new call on the page is gated on `hasNativeGeneration(MEETING_GENERATION)`, so
+   the same bundle over the air on a generation-19 APK shows no Meeting on Android and calls none of it. The native
+   things that had waited for a release came with it: the recogniser's words (§133), both recording prompts read by
+   name in `llm/tests.rs`, `ai_unload`, range serving by seek.
+6. **Mac notifications**: not built.
 
 ### 9. Measured
 
-To come.
+Nothing below was measured on a device in this release: the Fold was not reachable while it was built. Every line
+stays blank until one is.
+
+- Slice 1: the shelf on the cover screen, the title line readable at 11rem: not measured on a device in this release.
+- Slice 2: a ten-minute recording on the Fold, refine time and summary time on the 4B: not measured on a device in
+  this release.
+- Slice 3: a one-hour meeting on the Mac, refine and summary: not measured in this release.
+- Slice 4: a one-hour meeting on the Fold, battery over the hour, whether `MIC` without gain control is enough across a
+  table: not measured on a device in this release.
+- Slice 5: the Fold's Android version; whether a `microphone` service may change to `mediaProcessing` after Stop
+  (it may on the emulator, below), and how long it may run; whether WorkManager's `setForeground` is refused from the
+  background; `isClientSilenced` firing when a call takes the microphone; the deep-link plugin's channel in an
+  activity recreated in a live process (moot while the shell exits with its activity, section 3); what a Recents
+  swipe does to a meeting on the Fold; an hour's battery; the write-up's minutes at half the cores with the app in
+  front and at all of them with it closed; the heat; a meeting started within seconds of the last one's Stop (refused
+  until the Stop is put away) and a write-up in hand letting go for a new meeting, both of which the review's fixes
+  changed after the emulator runs below: not measured on a device in this release, nor on the emulator.
+
+**Seen on the emulator, which is not the Fold** (attackfm: Android 16, API 36, arm64, four cores, 1.5 GB). Numbers
+here say what happened there and nothing about a phone.
+
+- The Kotlin build, 2026-09-27, on a staging debug build with no Rust door: `startMeeting` asked for the microphone
+  and the retry ran from `onResume`; the service in front as `microphone` (types `0x80`), 4201 ongoing, silent,
+  public, two actions; the WAV growing at 32 kB/s with the screen asleep under the wake lock, its header within ten
+  seconds while recording and exact at close; `requestNotifications` asked and `notified` came; Discard listed the
+  note in `discarded` until `forgetDiscarded`; a `kill -9` mid-meeting left a header ten seconds short, and the next
+  launch handed it to the chain. WorkManager's foreground service took the merged types from a process in front.
+- The 1.9.0 release APK, the same night, installed over 1.7.2 (the note data kept):
+  - The + sheet had Meeting (generation 20), and `jobs/config.json` was written at launch with `qwen3.5-2b`, the
+    model that emulator has.
+  - A meeting started as `microphone`; Back left it recording; with the screen off it grew at 32,153 B/s and the
+    header was 9.3 s behind. The notification's Stop ran `finish` and the service's own write-up with no refusal
+    logged, and posted "Written up: Meeting, Sep 27 22:32" over "Nothing was heard in the recording." (the
+    emulator's microphone gives silence, peak 8 of 32,767), private with its public version. Its tap opened the note
+    with its `## Transcript` and its 2:20 tape. This is what found three seams: the shelf that did not show the
+    meeting until the list was read again, the meeting screen's header with no gutters, and the Recents swipe.
+  - A meeting ended by a Recents swipe, with 25 s of synthesised speech put into its file, was handed to the chain at
+    the next launch: one span, base.en, the transcript word for word, the summary by the 2B, landed by the page with
+    the model's title ("Launch date set to second week of March") and its to-do in To do, 14 s after the worker
+    started, with the app in front.
+  - The task removed while recording (`am stack remove`, the way out a Recents swipe takes, since the headless
+    gesture did not register a second time): `onTaskRemoved` stopped the meeting, the service wrote it up and posted
+    its notification, and the process exited ten seconds later, native threads printing "FORTIFY:
+    pthread_mutex_lock called on a destroyed mutex" as it went, still "exited cleanly (0)".
+  - The task removed during a write-up of 148 s of speech: the process exited, WorkManager ran the job again in a new
+    process two minutes later, and the low-memory killer took that process twice while the 2B summarised (1.5 GB
+    resident on a 1.5 GB emulator); listening was not repeated after its checkpoint. The third process finished it
+    with no activity in it, fifteen minutes after the removal (two kills, WorkManager's backoff between them, and a
+    model test on the same Mac at the end), and posted "Written up: Meeting, Sep 27 22:51" over the summary's
+    sentence.
+  - A meeting stopped from its notification with 148 s of speech written over the start of its file: the service
+    went from `microphone` (`0x80`) to `mediaProcessing` (`0x2000`) at Stop and kept it until the write-up ended,
+    and then stopped. With the app not in front the result waited in `jobs/` for the page, as it should.
+  - The written-up notification tapped with the app swiped away (Android had restarted the process for the voice
+    interaction service, with no activity): the app opened on the note, its summary and its transcript.
+  - Everything above ran on the release APK before the whisper words moved (§133). The final APK was installed over
+    it and launched; on the freshly booted emulator the WebView's first construction ran past Android's five-second
+    input limit once (the trace is in Chromium's init), and the page's own language-model work then held all four
+    cores with the 2B, so no meeting was driven on that build.
 
 ## 128. The phone at work: the review, full screen (2026-09-26)
 
@@ -5996,3 +6499,50 @@ whole.
 
 Cites: §21, §26, §29g, §29i, §31, "The card is the note, small" and "A home page, and the notes list gone"
 (2026-09-18), §64/§67, §71, §72, §84/§97, §92/§110, §94, §115, §118, §121, §124, §125, §127.
+
+## 133. What waited for a native release: the words said to the app, heard (2026-09-27)
+
+The native half of what earlier sections left for "the next APK", shipped with meetings in 1.9.0 (generation 20,
+§127). Nothing in it has run on the Fold.
+
+**The recogniser is told the words said to the app** (`src-tauri/src/whisper/text.rs`). A prompt primes whisper with
+the spelling of what it is likely to hear; what a person says to Ghost.md itself was missing from it.
+- `MORE_CUES` gains "Redact, end redact." (§131's mark, whose "Not done" said whisper was not primed with it).
+- `SPOKEN_CUES`, new: "Hey Ghost.", the keyword since §73, "Ghost." on its own, and the take-backs
+  `capture/takeBack.ts` reads (§130): "Scratch that. Strike that. Take that back. Forget that. Delete that. Never
+  mind. Cancel that. Ignore that. No wait." It follows `MORE_CUES`, only after a finished sentence, as `MORE_CUES`
+  does. `without_prompt_echo` does not count these: "Hey Ghost. Scratch that. Never mind." is three in a row said on
+  purpose, where three cues from the other lists in a row is whisper reciting its prompt. Tested: three spoken cues
+  in a row are kept, and no prompt has a double space.
+- **"Hey Ghost." is not in `CUE_VOCABULARY`,** which the build first put it in, after "Glyph.", with the count its
+  test holds moved to 14. The whisper tests that need the models, which no builder's tree had, were run at the
+  integration with `models/` in place, and `a_prompt_tail_carries_a_sentence_across_the_cut` failed: base.en heard
+  "Fresh bread on the way home." where a phrase carried across a cut must go on as "fresh", the capital
+  `CUE_VOCABULARY`'s own comment says any word past the short line brings. Out of the line it passes, the count is
+  13 again, and the keyword is primed where it is said, after a sentence. Whether the new words make the keyword
+  and the take-backs heard more often is not measured: the ignored twelve-voice comparison (`tests::cue_vocabulary`)
+  was not run.
+- The same run found `a_timed_pass_over_part_of_a_recording_keeps_its_phrases_in_order_and_in_range` reading 298 for
+  whisper's last progress report. whisper.cpp reports `100 * (seek - start) / (end - start)` before each window, and
+  a window whose last token is not a timestamp moves `seek` on by the whole 30 s, so a slice shorter than a window
+  can read up to 300; any word added to the prompt can decide that last token, and "Redact, end redact." alone did,
+  on this fixture. The phrases and their times were right. The test now holds the report to 100 to 300, and the
+  better words' progress event, which the page shows, is clamped to 100.
+- The riskier openers the page also takes ("actually", "I mean", "sorry", "or rather", "no") are ordinary words and
+  are not made more likely.
+- `prompt_plain(committed, tail)`, new: the tail alone, with no vocabulary. A meeting's write-up prompts each span
+  this way, because an hour of cross-talk primed with "Title. Heading. Scratch that." would hear cues nobody said.
+
+**`llm/tests.rs` reads the recording prompts by name**, as it reads the others: `RECORDING_SUMMARY_PROMPT` over a
+meeting with two other speakers (only the recorder's own actions boxed, Priya's and Tom's never), and
+`RECORDING_NOTES_PROMPT` (items only). Both need the 4B and skip without it; at the integration they ran with it on
+the Mac and passed, in four minutes. Beside them, with no model, the write-up's compiled-in prompts are held equal to
+the page's literals, `PIECE_CONTEXT` and `NOTES_CONTEXT` included.
+
+**`ai_unload`** and **range serving by seek** are §127's (sections 4 and 3).
+
+**Still open from §129's native follow-ups:** `MORE_CUES` still primes "Voice memo, end memo", and
+`understands_spoken_commands` still measures `COMMAND_PROMPT` where `ai_infer_command` sends `COMMAND_SYSTEM`. Both
+change what a measurement means, so they go with the next measurement on the Fold rather than with this release.
+
+Cites: §73, §127, §129, §130, §131.

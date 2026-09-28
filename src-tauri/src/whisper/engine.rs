@@ -52,11 +52,19 @@ impl Engine {
     /// numbers worth keeping from it - how long the load took - are measured
     /// here instead and kept on the `Engine`.
     ///
-    /// Threads are `min(4, cores)`, which is whisper.cpp's own default. On an
-    /// eight-core phone it leaves half the cores for the things that must not
-    /// stutter while a window decodes: the webview, and the audio capture that
-    /// is feeding this in the first place.
+    /// Threads are `whisper_threads()`, `min(4, cores)`, which is whisper.cpp's
+    /// own default. On an eight-core phone it leaves half the cores for the
+    /// things that must not stutter while a window decodes: the webview, and
+    /// the audio capture that is feeding this in the first place.
     pub fn load(path: &Path) -> Result<Engine, String> {
+        Engine::load_with_threads(path, whisper_threads())
+    }
+
+    /// `load`, with the thread count chosen by the caller: a meeting's
+    /// write-up takes `guards::background_threads(whisper_threads())` while
+    /// the app is in front, so a write-up never takes every core from a phone
+    /// somebody is typing on.
+    pub fn load_with_threads(path: &Path, threads: i32) -> Result<Engine, String> {
         static QUIET: Once = Once::new();
         QUIET.call_once(whisper_rs::install_logging_hooks);
 
@@ -67,10 +75,7 @@ impl Engine {
         parameters.use_gpu(false);
         let context = WhisperContext::new_with_params(path, parameters)
             .map_err(|e| format!("cannot load the model at {}: {e}", path.display()))?;
-        let threads = std::thread::available_parallelism()
-            .map(|n| n.get())
-            .unwrap_or(4)
-            .min(4) as i32;
+        let threads = threads.max(1);
         let name = path
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
@@ -92,6 +97,15 @@ impl Engine {
     pub fn loaded_in(&self) -> Duration {
         self.loaded_in
     }
+}
+
+/// How many cores a foreground transcription takes: `min(4, cores)`, the
+/// reasoning in `Engine::load`.
+pub fn whisper_threads() -> i32 {
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
+        .min(4) as i32
 }
 
 /// One capture's inference state against a shared `Engine`.
@@ -130,6 +144,15 @@ pub struct TimedText {
     pub text: String,
     pub start_ms: u64,
     pub end_ms: u64,
+}
+
+impl TimedText {
+    /// The phrase as a note's segment, moved from the audio it was found in
+    /// (a take from `from_ms`, a span of a meeting) onto the whole recording's
+    /// timeline.
+    pub fn offset(self, from_ms: u64) -> crate::note::RecordedSegment {
+        crate::note::RecordedSegment { text: self.text, start_ms: self.start_ms + from_ms, end_ms: self.end_ms + from_ms }
+    }
 }
 
 impl Session {
@@ -300,5 +323,22 @@ impl Session {
             .full(params, audio)
             .map_err(|e| format!("whisper could not transcribe: {e}"))?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TimedText;
+
+    #[test]
+    fn a_refined_take_lands_on_the_whole_recordings_timeline() {
+        let timed = vec![
+            TimedText { text: "Fresh bread.".into(), start_ms: 0, end_ms: 1200 },
+            TimedText { text: "On the way home.".into(), start_ms: 1200, end_ms: 2600 },
+        ];
+        let segments: Vec<_> = timed.into_iter().map(|t| t.offset(45_000)).collect();
+        assert_eq!((segments[0].start_ms, segments[0].end_ms), (45_000, 46_200));
+        assert_eq!((segments[1].start_ms, segments[1].end_ms), (46_200, 47_600));
+        assert_eq!(segments[1].text, "On the way home.");
     }
 }

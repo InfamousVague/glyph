@@ -163,12 +163,22 @@ pub fn install(app: &tauri::App) {
 pub fn shutdown(app: &AppHandle) {
     #[cfg(not(target_os = "ios"))]
     if let Some(state) = app.try_state::<CaptureState>() {
-        if let Some(capture) = lock(&state.capture).take() {
+        let taken = take_capture(&state);
+        if let Some(capture) = taken {
             capture.cancel();
         }
     }
     #[cfg(target_os = "ios")]
     let _ = app;
+}
+
+/// Takes the running capture out of its slot, if there is one, and tells the
+/// guards what the slot now holds - under the slot's own lock, so a stop for
+/// an old capture racing a new start can never clear the flag while the new
+/// capture runs (`guards::set_capturing`).
+#[cfg(not(target_os = "ios"))]
+fn take_capture(state: &CaptureState) -> Option<Capture> {
+    crate::guards::change_capture(&state.capture, Option::take)
 }
 
 /// The cached engine, loading it on first use.
@@ -238,12 +248,19 @@ pub async fn capture_start(app: AppHandle, state: State<'_, CaptureState>) -> Re
         state
             .refine_abort
             .store(true, std::sync::atomic::Ordering::Relaxed);
+        // A meeting's write-up in progress stops within a graph computation
+        // too: a person who has started talking gets the cores (guards.rs).
+        // The capture counts as running from here, before its model loads, so
+        // a write-up starting meanwhile is refused rather than lowering the
+        // flag just raised; dropped when this block ends, by then the slot's.
+        let _starting = crate::guards::capture_starting();
+        crate::guards::abort_with("capturing");
         let engine = engine(&app, &state).await?;
         let abort = Arc::new(AtomicBool::new(false));
         let session = Session::new(engine, Arc::clone(&abort))?;
         let emitter = app.clone();
         let capture = Capture::start(session, abort, move |event| emit(&emitter, event));
-        let previous = lock(&state.capture).replace(capture);
+        let previous = crate::guards::change_capture(&state.capture, |slot| slot.replace(capture));
         if let Some(previous) = previous {
             // Joined off the async runtime; see `Capture::cancel`.
             tauri::async_runtime::spawn_blocking(move || previous.cancel());
@@ -328,9 +345,7 @@ pub async fn capture_stop(
     return on_ios(TRANSCRIPTION, (app, state, record_as, append));
     #[cfg(not(target_os = "ios"))]
     {
-        let capture = lock(&state.capture)
-            .take()
-            .ok_or("No capture is running.")?;
+        let capture = take_capture(&state).ok_or("No capture is running.")?;
         let append = append.unwrap_or(false);
         let stopped = tauri::async_runtime::spawn_blocking(move || capture.stop())
             .await
@@ -429,7 +444,7 @@ pub async fn capture_cancel(state: State<'_, CaptureState>) -> Result<(), String
     return on_ios(TRANSCRIPTION, state);
     #[cfg(not(target_os = "ios"))]
     {
-        let Some(capture) = lock(&state.capture).take() else {
+        let Some(capture) = take_capture(&state) else {
             return Ok(());
         };
         tauri::async_runtime::spawn_blocking(move || capture.cancel())

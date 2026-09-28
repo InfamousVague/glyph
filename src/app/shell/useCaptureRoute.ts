@@ -1,16 +1,23 @@
 import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import type { ReviewHandoff } from '../ai/review.ts';
+import { dropSummary, enqueueSummary } from '../ai/summaries.ts';
 import type { SpokenAsk } from '../capture/CaptureScreen.tsx';
 import type { CaptureLanding } from '../capture/landing.ts';
 import { afterPendingDeletes } from '../capture/launch.ts';
-import { answerHost } from '../core/host.ts';
+import { meetingTitle } from '../capture/meeting.ts';
+import { meetingStateNow, onMeetingEvent, useMeetingState, type MeetingEvent } from '../capture/meetingLive.ts';
+import { freshTapeId, setTapeId } from '../core/clips.ts';
+import { answerHost, forgetDiscardedOnHost, startMeetingOnHost } from '../core/host.ts';
+import { isMobile } from '../core/platform.ts';
+import { preferences, setPreferences } from '../core/preferences.ts';
+import { createNote, deleteNote, getNote, newNoteId, type Note } from '../core/store.ts';
+import { isTauri } from '../core/tauri.ts';
 import { fileNewNote } from '../core/workspaces.ts';
-import { getNote, type Note } from '../core/store.ts';
-import { captureScreen, type Screen } from './screen.ts';
+import { captureScreen, meetingScreen, type Screen } from './screen.ts';
 
 /**
  * How a capture begins and where the app goes when it ends: the Shell's half of the recorder (capture/CaptureScreen.tsx
- * is the recorder itself).
+ * is the recorder itself), and of a meeting (capture/MeetingScreen.tsx; docs/DESIGN.md §127 section 3).
  *
  * A capture can begin several ways, and all of them arrive at the same screen: the side key while Glyph is closed
  * (read once at boot, core/host.ts `takeCaptureLaunch`), the side key while Glyph is open (pushed by the activity into
@@ -21,6 +28,17 @@ import { captureScreen, type Screen } from './screen.ts';
  * Every one of them waits for the deferred deletes first (notes/useNoteActions.ts): the recorder reads its targets as
  * it mounts - a note to continue, the titles a command could mean - and a note deleted a moment ago must not be one of
  * them (capture/launch.ts).
+ *
+ * A meeting is the other kind of recording. On the Mac it is the page recorder in meeting mode. On Android it is the
+ * phone's own service, and starting one is the page's to do in order: the note first (its date title, `source:
+ * 'capture'`), its tape id, its place in `prefs.meetings`, its write-up queued as native, and only then the service
+ * asked. The service can answer that the microphone has yet to be granted (the page waits for the activity's answer
+ * and asks again), that a meeting is already being recorded (the page opens that one), or that it could not start,
+ * and the service can fail after saying it started. Whatever the way, the UNDO HAS ONE OWNER: this hook deletes the
+ * note, drops the preference and the job, and says why. The notification's Discard, with the app closed, is
+ * remembered by the service until the page has done the same and said so (`forgetDiscarded`), which happens here as
+ * well. And while a meeting is being recorded the microphone is taken, so every way into a capture - the side key,
+ * a Speak button, the boot - opens the meeting screen instead.
  */
 
 export interface CaptureRoute {
@@ -31,6 +49,12 @@ export interface CaptureRoute {
    * went into (`landing`), the note spoken into, or home.
    */
   finished: (note: Note | null, locked: boolean, review?: ReviewHandoff, ask?: SpokenAsk, landing?: CaptureLanding) => Promise<void>;
+  /** A meeting: the Mac's recorder in meeting mode, or the phone's service with the meeting screen over it. */
+  meeting: (fromAssistant?: boolean) => Promise<void>;
+  /** The meeting screen for the meeting being recorded, when there is one: true when it opened. */
+  showMeeting: (fromAssistant?: boolean) => boolean;
+  /** The meeting screen left: home. */
+  leftMeeting: () => void;
 }
 
 export interface CaptureRouteOptions {
@@ -46,14 +70,38 @@ export interface CaptureRouteOptions {
   sayTooSoon: () => void;
   /** Everything over the screen put away - the sheet, the walkthrough - so the bare recorder is all that is left. */
   clearStage: () => void;
+  /** A line to the person: why a meeting did not start. */
+  say: (message: string) => void;
 }
 
-export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBoot, tooSoon, sayTooSoon, clearStage }: CaptureRouteOptions): CaptureRoute {
+/** Said when the activity refused the microphone, and when the service could not say why it failed. */
+export const MICROPHONE_REFUSED = 'Ghost.md needs the microphone to record a meeting.';
+export const MEETING_FAILED = 'The meeting could not start.';
+
+export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBoot, tooSoon, sayTooSoon, clearStage, say }: CaptureRouteOptions): CaptureRoute {
+  // Read by the handlers registered once.
+  const now = useRef({ screen, tooSoon, sayTooSoon, clearStage, say, refresh });
+  now.current = { screen, tooSoon, sayTooSoon, clearStage, say, refresh };
+
+  const showMeeting = useCallback(
+    (fromAssistant = false) => {
+      const live = meetingStateNow();
+      if (!live?.recording || !live.noteId) return false;
+      const current = now.current.screen;
+      if (current.name === 'meeting' && current.noteId === live.noteId) return true;
+      setScreen(meetingScreen(live.noteId, fromAssistant));
+      return true;
+    },
+    [setScreen],
+  );
+
   const start = useCallback(
     async (fromAssistant: boolean, noteId?: string) => {
+      // A meeting being recorded holds the microphone: the way to it, not a second recording.
+      if (showMeeting(fromAssistant)) return;
       await afterPendingDeletes(flushDeletes, () => setScreen(captureScreen(fromAssistant, noteId)));
     },
-    [flushDeletes, setScreen],
+    [flushDeletes, setScreen, showMeeting],
   );
 
   const boot = useRef(atBoot);
@@ -63,9 +111,15 @@ export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBo
     void start(true);
   }, [start]);
 
-  // Read by the side-key handler, which is registered once.
-  const now = useRef({ screen, tooSoon, sayTooSoon, clearStage });
-  now.current = { screen, tooSoon, sayTooSoon, clearStage };
+  // The app opened with a meeting already being recorded (the notification's tap, or a launch while one runs): its
+  // screen, once, as the boot would have shown a capture; a boot by the side key has asked already.
+  const wasAtBoot = useRef(atBoot);
+  const shownAtBoot = useRef(false);
+  useEffect(() => {
+    if (shownAtBoot.current) return;
+    shownAtBoot.current = true;
+    if (!wasAtBoot.current) showMeeting(false);
+  }, [showMeeting]);
 
   // The side key, while Glyph is already open.
   //
@@ -86,6 +140,8 @@ export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBo
           setScreen({ ...current, stop: current.stop + 1 });
           return;
         }
+        // The meeting screen is up: Done and the notification stop a meeting, not the key.
+        if (current.name === 'meeting') return;
         // On a reading page of the guide the key is too soon: the line, not a recording.
         if (now.current.tooSoon()) {
           now.current.sayTooSoon();
@@ -97,6 +153,127 @@ export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBo
       }),
     [start, setScreen],
   );
+
+  // ---- a meeting on the phone -----------------------------------------------------------------
+
+  /** The meeting waiting for the microphone to be granted, to be asked for again once it is. */
+  const pendingMeeting = useRef<{ id: string; title: string; fromAssistant: boolean } | null>(null);
+  /** The meetings this page started, whose failure is this page's to undo. */
+  const started = useRef(new Set<string>());
+
+  /** Everything the start made, taken back, and the person told why. */
+  const undo = useCallback(
+    async (id: string, why: string | null) => {
+      started.current.delete(id);
+      if (pendingMeeting.current?.id === id) pendingMeeting.current = null;
+      const rest = { ...preferences().meetings };
+      delete rest[id];
+      setPreferences({ meetings: rest });
+      dropSummary(id);
+      await deleteNote(id).catch(() => undefined);
+      const current = now.current.screen;
+      if (current.name === 'meeting' && current.noteId === id) setScreen({ name: 'list' });
+      await now.current.refresh().catch(() => undefined);
+      if (why) now.current.say(why);
+    },
+    [setScreen],
+  );
+
+  /** The service asked; what it answers decides what happens next. */
+  const ask = useCallback(
+    async (id: string, title: string, fromAssistant: boolean) => {
+      const answer = startMeetingOnHost(id, title);
+      if (answer === 'started') {
+        pendingMeeting.current = null;
+        started.current.add(id);
+        setScreen(meetingScreen(id, fromAssistant));
+        // The list read again, so the note is on the shelf, recording, when Back leaves the meeting screen.
+        void now.current.refresh().catch(() => undefined);
+        return;
+      }
+      if (answer === 'permission') {
+        pendingMeeting.current = { id, title, fromAssistant };
+        return;
+      }
+      if (answer === 'recording') {
+        // One is being recorded already: that one, and not a second note for it.
+        await undo(id, null);
+        showMeeting(fromAssistant);
+        return;
+      }
+      await undo(id, answer);
+    },
+    [setScreen, showMeeting, undo],
+  );
+
+  const meeting = useCallback(
+    async (fromAssistant = false) => {
+      // The Mac: the page recorder, with the dictation features off (capture/CaptureScreen.tsx `meeting`).
+      if (isTauri() && !isMobile) {
+        await afterPendingDeletes(flushDeletes, () => setScreen(captureScreen(fromAssistant, undefined, { meeting: true })));
+        return;
+      }
+      if (showMeeting(fromAssistant)) return;
+      const id = newNoteId();
+      const startedAt = Date.now();
+      const title = meetingTitle(startedAt);
+      await createNote(id, `# ${title}\n`, 'capture');
+      fileNewNote(id);
+      setTapeId(id, freshTapeId());
+      setPreferences({ meetings: { ...preferences().meetings, [id]: startedAt } });
+      if (preferences().summaries !== 'off') enqueueSummary(id, 'meeting', { native: true });
+      await ask(id, title, fromAssistant);
+    },
+    [ask, flushDeletes, setScreen, showMeeting],
+  );
+
+  // What the service says, for the meetings this page started: the microphone's answer, and a start that failed
+  // after it was asked for; and, while its screen is up, a meeting that ended from the notification or the cap.
+  useEffect(
+    () =>
+      onMeetingEvent((event: MeetingEvent) => {
+        const pending = pendingMeeting.current;
+        // The microphone's answer is the waiting meeting's: only one waits, so a push that names no note is its too.
+        if (event.event === 'permission' && pending && (event.noteId === null || pending.id === event.noteId)) {
+          if (event.granted) void ask(pending.id, pending.title, pending.fromAssistant);
+          else void undo(pending.id, MICROPHONE_REFUSED);
+          return;
+        }
+        const id = event.noteId;
+        if (id === null) {
+          if (event.event === 'open') showMeeting(false);
+          return;
+        }
+        if (event.event === 'failed' && (started.current.has(id) || pending?.id === id)) {
+          void undo(id, event.message ?? MEETING_FAILED);
+          return;
+        }
+        if (event.event === 'started') started.current.delete(id);
+        const current = now.current.screen;
+        if ((event.event === 'stopped' || event.event === 'discarded') && current.name === 'meeting' && current.noteId === id) {
+          setScreen({ name: 'list' });
+          void now.current.refresh().catch(() => undefined);
+        }
+        if (event.event === 'open') showMeeting(false);
+      }),
+    [ask, setScreen, showMeeting, undo],
+  );
+
+  // A meeting the notification's Discard threw away with the app closed: its note goes, as Discard here would have
+  // taken it, and the service is told so it can stop listing it.
+  const live = useMeetingState();
+  const discarded = live?.discarded;
+  const handled = useRef(new Set<string>());
+  useEffect(() => {
+    if (!discarded?.length) return;
+    for (const id of discarded) {
+      if (handled.current.has(id)) continue;
+      handled.current.add(id);
+      void undo(id, null).then(() => forgetDiscardedOnHost(id));
+    }
+  }, [discarded, undo]);
+
+  const leftMeeting = useCallback(() => setScreen({ name: 'list' }), [setScreen]);
 
   const finished = useCallback(
     async (note: Note | null, locked: boolean, review?: ReviewHandoff, ask?: SpokenAsk, landing?: CaptureLanding) => {
@@ -152,5 +329,5 @@ export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBo
     [refresh, setScreen],
   );
 
-  return { start, finished };
+  return { start, finished, meeting, showMeeting, leftMeeting };
 }

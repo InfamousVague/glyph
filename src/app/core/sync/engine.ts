@@ -1,4 +1,5 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { MEETING_GENERATION } from '../../capture/meeting.ts';
 import { accountKey, accountState, deleteAccount, resume, signOut } from '../account/account.ts';
 import { ApiError } from '../account/api.ts';
 import { toBase64 } from '../bytes.ts';
@@ -6,7 +7,9 @@ import { externalStore } from '../externalStore.ts';
 import { failureText } from '../failure.ts';
 import { imageBytes, keepImage } from '../images.ts';
 import { hasNativeGeneration } from '../nativeGeneration.ts';
+import { isIOS } from '../platform.ts';
 import { onPreferences, preferences, setPreferences } from '../preferences.ts';
+import { recordingDigest } from '../recordings.ts';
 import { announceNotesChanged, applyNote, deleteNote, getNote, listNotes, NOTE_SAVED, type Note } from '../store.ts';
 import { readStored, writeStored } from '../stored.ts';
 import { invoke, isTauri } from '../tauri.ts';
@@ -36,9 +39,12 @@ export interface SyncStatus {
   message: string | null;
   /** Notes kept twice by the last sync because both sides had changed them. */
   conflicts: number;
+  /** Notes the last sync could not send, and the first reason why: sent again next time (docs/DESIGN.md §127 section 6). */
+  unsent: number;
+  unsentReason: string | null;
 }
 
-const status = externalStore<SyncStatus>({ phase: 'off', lastAt: null, message: null, conflicts: 0 });
+const status = externalStore<SyncStatus>({ phase: 'off', lastAt: null, message: null, conflicts: 0, unsent: 0, unsentReason: null });
 
 function setStatus(next: Partial<SyncStatus>): void {
   status.update((was) => ({ ...was, ...next }));
@@ -59,7 +65,13 @@ export function syncSummary(signedIn: string | null, status: SyncStatus): string
   if (!signedIn) return 'Not signed in';
   if (status.phase === 'syncing') return `${signedIn} · syncing`;
   if (status.phase === 'error') return `${signedIn} · not synced`;
+  if (status.unsent) return `${signedIn} · ${unsentLine(status.unsent)}`;
   return status.lastAt ? `${signedIn} · synced ${syncedWhen(status.lastAt)}` : signedIn;
+}
+
+/** "3 notes not synced": what the last pass could not send. */
+export function unsentLine(unsent: number): string {
+  return unsent === 1 ? '1 note not synced' : `${unsent} notes not synced`;
 }
 
 // --- what this device remembers -----------------------------------------------------------
@@ -100,7 +112,7 @@ export async function signOutHere(): Promise<void> {
   const session = accountState().session;
   await signOut();
   if (session) forgetSync(session.accountId);
-  setStatus({ phase: 'off', message: null, lastAt: null, conflicts: 0 });
+  setStatus({ phase: 'off', message: null, lastAt: null, conflicts: 0, unsent: 0, unsentReason: null });
 }
 
 /**
@@ -112,7 +124,7 @@ export async function deleteAccountHere(password: string): Promise<void> {
   await deleteAccount(password);
   if (session) forgetSync(session.accountId);
   setPreferences({ shares: {} });
-  setStatus({ phase: 'off', message: null, lastAt: null, conflicts: 0 });
+  setStatus({ phase: 'off', message: null, lastAt: null, conflicts: 0, unsent: 0, unsentReason: null });
 }
 
 // --- this device's stores -------------------------------------------------------------------
@@ -145,6 +157,16 @@ const deviceFiles: LocalFiles = {
     if (!isTauri()) return;
     // Standard base64, which is what Rust reads.
     await invoke('sync_put_file', { kind, name, base64: toBase64(bytes) });
+  },
+  // A recording's fingerprint from the phone rather than from its bytes read into the page (native generation 20):
+  // the same first sixteen bytes of the SHA-256 the pass would take itself. Undefined where the binary cannot say,
+  // so the pass reads the file as it always did: an older binary, iOS (whose command answers null for every tape,
+  // since it hashes nothing there), and a call that failed, which is not "no tape" and must not be remembered as one.
+  async digest(name: string) {
+    if (!isTauri() || isIOS || !(await hasNativeGeneration(MEETING_GENERATION))) return undefined;
+    const answer = await recordingDigest(name).catch(() => undefined);
+    if (answer === undefined) return undefined;
+    return answer ? answer.sha256.slice(0, 32) : null;
   },
 };
 
@@ -210,6 +232,15 @@ async function once(): Promise<void> {
       files: deviceFiles,
       state: load<SyncState>(notesKey, emptyState()),
       save: (state) => store(notesKey, state),
+      // Which notes are meetings, and whether their audio may go: their words go regardless (docs/DESIGN.md §127 section 6).
+      // Read when each recording is decided, not when the pass began: a meeting finished on the Mac during a pass is
+      // listed in `meetings` as it is made, and a snapshot from before it would send its audio.
+      get meetings() {
+        return preferences().meetings;
+      },
+      get syncMeetingRecordings() {
+        return preferences().syncMeetingRecordings;
+      },
     });
     if (outcome.changed) announceNotesChanged();
 
@@ -227,7 +258,7 @@ async function once(): Promise<void> {
     } finally {
       applyingRemote = false;
     }
-    setStatus({ phase: 'idle', lastAt: Date.now(), message: null, conflicts: outcome.conflicts });
+    setStatus({ phase: 'idle', lastAt: Date.now(), message: null, conflicts: outcome.conflicts, unsent: outcome.unsent, unsentReason: outcome.reason });
   } catch (failure) {
     if (failure instanceof ApiError && failure.status === 401) {
       // The session lapsed mid-sync: renew it (with this device's key if need be) and go again next time.

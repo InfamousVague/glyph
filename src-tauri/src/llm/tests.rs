@@ -97,6 +97,7 @@ fn request(id: &str, system: &str, note: &str, max_tokens: u32) -> Request {
         think: false,
         think_budget: 0,
         grammar: None,
+        background: false,
     }
 }
 
@@ -221,6 +222,31 @@ fn cancelling_during_prefill_stops_the_run_and_says_cancelled() {
     assert!(events.iter().all(|e| e.phase != Phase::Generating), "{events:?}");
 }
 
+/// A meeting's write-up is a background job on the same worker: a page
+/// request that arrives while one runs preempts it (`guards::abort_with("busy")`
+/// on the flag every background job watches), and is served next rather than
+/// behind the whole piece.
+#[test]
+fn a_foreground_request_preempts_a_background_job_and_is_served_next() {
+    let _one = serial();
+    let _flags = crate::lock::lock(&crate::guards::TEST_SERIAL);
+    let Some(path) = model_path() else { return };
+    crate::guards::clear_abort();
+    let (loading, loaded) = std::sync::mpsc::channel();
+    let mut background = request("write-up:n1:piece-1", &page_prompt("RECORDING_NOTES_PROMPT"), &"We talked about the launch and the venue and the press list. ".repeat(120), 200);
+    background.background = true;
+    let piece = engine().generate(&path, background, crate::guards::abort_jobs(), move |progress| {
+        let _ = loading.send(progress.phase);
+    });
+    // Sent once the background job is in hand: from its load on, it counts as running.
+    assert_eq!(loaded.recv().ok(), Some(Phase::Loading));
+    let page = engine().generate(&path, request("page", &page_system_prompt(), SPOKEN, 16), Arc::default(), |_| {});
+    assert_eq!(piece.recv().expect("the piece answers"), Err(Failure::Cancelled));
+    assert_eq!(crate::guards::abort_reason(), "busy", "and says why, so the write-up holds uncounted");
+    assert!(page.recv().expect("the page's request answers").is_ok());
+    crate::guards::clear_abort();
+}
+
 #[test]
 fn a_prompt_over_the_window_is_refused_before_any_prefill() {
     let _one = serial();
@@ -315,6 +341,62 @@ fn keeps_a_table_token_on_its_own_line() {
     assert!(text.lines().any(|l| l.trim() == "![table-1](table)"), "the token is on its own line:\n{}", output.text);
     assert!(!text.contains("|--") && !text.contains("| --"), "no table of its own:\n{}", output.text);
     eprintln!("{}", output.text);
+}
+
+/// The write-up's compiled-in prompts (write_up.rs) are the page's, word for word: a fresh install whose page has
+/// not written `jobs/config.json` yet must write the same summary the page would ask for. No model needed.
+#[test]
+fn the_write_ups_compiled_in_prompts_are_the_pages() {
+    use crate::write_up::{fill, prompts, thousands};
+    assert_eq!(prompts::SUMMARY, page_prompt("RECORDING_SUMMARY_PROMPT"));
+    assert_eq!(prompts::NOTES, page_prompt("RECORDING_NOTES_PROMPT"));
+    let piece = page_prompt("PIECE_CONTEXT");
+    assert_eq!(prompts::PIECE, piece);
+    assert_eq!(fill(&piece, &[("n", "2"), ("m", "5")]), "Part 2 of 5 of one recording.");
+    let parts = page_prompt("NOTES_CONTEXT");
+    assert_eq!(prompts::PARTS, parts);
+    assert!(fill(&parts, &[("words", &thousands(41_230))]).contains("41,230"));
+    assert_eq!(thousands(41_230), "41,230");
+}
+
+/// The recording's summary (RECORDING_SUMMARY_PROMPT) over a meeting with two other speakers: only the recorder's
+/// own actions ("I need to write the release notes") get a box, and Priya's and Tom's never do.
+#[test]
+fn recording_summary_boxes_only_the_recorders_own_actions() {
+    let _one = serial();
+    let Some(path) = model_path() else { return };
+    let budget = crate::write_up::summary_budget(MEETING.len());
+    let (result, _) = run(&path, request("meeting", &page_prompt("RECORDING_SUMMARY_PROMPT"), MEETING, budget), Arc::default(), |_| {});
+    let output = result.expect("a generation");
+    let text = output.text.trim();
+    eprintln!("{text}");
+    assert!(text.starts_with('#'), "starts with a heading:\n{text}");
+    let boxed: Vec<&str> = text.lines().filter(|l| l.trim_start().starts_with("- [ ]")).collect();
+    assert!(!boxed.is_empty(), "the recorder's own actions are boxed:\n{text}");
+    let lower = |l: &&str| l.to_lowercase();
+    assert!(boxed.iter().map(lower).any(|l| l.contains("release notes") || l.contains("demo room") || l.contains("keys")), "the I lines:\n{text}");
+    for line in boxed.iter().map(lower) {
+        assert!(!line.contains("priya") && !line.contains("tom"), "another person's action is never boxed:\n{text}");
+    }
+}
+
+/// The notes on one piece (RECORDING_NOTES_PROMPT): items and nothing else.
+#[test]
+fn recording_notes_are_items_only() {
+    let _one = serial();
+    let Some(path) = model_path() else { return };
+    let prompt = format!("{}\n\n{MEETING}", crate::write_up::fill(crate::write_up::prompts::PIECE, &[("n", "1"), ("m", "3")]));
+    let budget = crate::write_up::notes_budget(MEETING.len());
+    let (result, _) = run(&path, request("notes", &page_prompt("RECORDING_NOTES_PROMPT"), &prompt, budget), Arc::default(), |_| {});
+    let output = result.expect("a generation");
+    let text = output.text.trim();
+    eprintln!("{text}");
+    let lines: Vec<&str> = text.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+    assert!(!lines.is_empty());
+    for line in &lines {
+        assert!(line.starts_with("- "), "an item, nothing else:\n{text}");
+    }
+    assert!(lines.len() <= 12, "at most twelve:\n{text}");
 }
 
 /// The review prompt the page sends after a recording (src/app/review/prompt.ts).

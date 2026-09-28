@@ -6,7 +6,10 @@
 //!
 //! A pass never competes with a capture. One is refused while a capture runs,
 //! a second is refused while one runs, and `capture_start` stops one within a
-//! graph computation (`CaptureState::refine_abort`).
+//! graph computation (`CaptureState::refine_abort`). Nor with a meeting's
+//! write-up, which loads the same 190 MB model with no Tauri in sight: the two
+//! share `guards::WRITE_UP`, tried on the blocking thread, and the second to
+//! arrive is "busy".
 
 use tauri::{AppHandle, State};
 
@@ -100,6 +103,11 @@ pub async fn capture_refine(
         let job = id.clone();
         let result = tauri::async_runtime::spawn_blocking(
             move || -> Result<Vec<crate::note::RecordedSegment>, String> {
+                // The one small.en at a time, held for the pass; a meeting's
+                // write-up holding it is "busy", as a second pass is.
+                let Some(_write_up) = crate::guards::try_write_up() else {
+                    return Err("busy".into());
+                };
                 let audio = crate::whisper::wav::read(&recording)?;
                 let from = crate::whisper::ms_to_samples(from_ms).min(audio.len());
                 if audio.len() - from < crate::whisper::ms_to_samples(100) {
@@ -115,7 +123,8 @@ pub async fn capture_refine(
                     scope.spawn(|| {
                         let mut last = -1;
                         while !finished.load(Ordering::Relaxed) {
-                            let percent = progress.load(Ordering::Relaxed);
+                            // Clamped: whisper.cpp's last report can pass 100 (whisper/tests.rs says why).
+                            let percent = progress.load(Ordering::Relaxed).clamp(0, 100);
                             if percent != last {
                                 last = percent;
                                 let _ = emitter.emit(
@@ -133,7 +142,8 @@ pub async fn capture_refine(
                     finished.store(true, Ordering::Relaxed);
                     timed
                 })
-                .map(|timed| offset_segments(timed, from_ms))
+                // Timed phrases from a pass over `[from_ms, end)`, moved onto the whole recording's timeline.
+                .map(|timed| timed.into_iter().map(|t| t.offset(from_ms)).collect())
             },
         )
         .await
@@ -153,45 +163,3 @@ pub async fn capture_refine(
     }
 }
 
-/// Timed phrases from a pass over `[from_ms, end)`, moved onto the whole
-/// recording's timeline.
-#[cfg(not(target_os = "ios"))]
-fn offset_segments(
-    timed: Vec<crate::whisper::engine::TimedText>,
-    from_ms: u64,
-) -> Vec<crate::note::RecordedSegment> {
-    timed
-        .into_iter()
-        .map(|t| crate::note::RecordedSegment {
-            text: t.text,
-            start_ms: t.start_ms + from_ms,
-            end_ms: t.end_ms + from_ms,
-        })
-        .collect()
-}
-
-#[cfg(all(test, not(target_os = "ios")))]
-mod tests {
-    use super::offset_segments;
-    use crate::whisper::engine::TimedText;
-
-    #[test]
-    fn a_refined_take_lands_on_the_whole_recordings_timeline() {
-        let timed = vec![
-            TimedText {
-                text: "Fresh bread.".into(),
-                start_ms: 0,
-                end_ms: 1200,
-            },
-            TimedText {
-                text: "On the way home.".into(),
-                start_ms: 1200,
-                end_ms: 2600,
-            },
-        ];
-        let segments = offset_segments(timed, 45_000);
-        assert_eq!((segments[0].start_ms, segments[0].end_ms), (45_000, 46_200));
-        assert_eq!((segments[1].start_ms, segments[1].end_ms), (46_200, 47_600));
-        assert_eq!(segments[1].text, "On the way home.");
-    }
-}

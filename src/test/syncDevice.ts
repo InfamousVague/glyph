@@ -1,6 +1,6 @@
 import type { Note } from '../app/core/store.ts';
 import type { Bytes } from '../app/core/sync/crypto.ts';
-import { emptyState, syncNotes, type FileKind, type LocalFiles, type LocalNotes, type SyncState } from '../app/core/sync/notes.ts';
+import { emptyState, syncNotes, type FileKind, type LocalFiles, type LocalNotes, type SyncContext, type SyncState } from '../app/core/sync/notes.ts';
 import type { FakeService } from './fakeService.ts';
 
 /**
@@ -15,7 +15,12 @@ import type { FakeService } from './fakeService.ts';
  */
 export function syncDevice(
   api: FakeService,
-  { clock = { at: 0 }, pictures = {}, fetcher = api.fetcher }: { clock?: { at: number }; pictures?: Record<string, Bytes>; fetcher?: typeof fetch } = {},
+  {
+    clock = { at: 0 },
+    pictures = {},
+    fetcher = api.fetcher,
+    digest,
+  }: { clock?: { at: number }; pictures?: Record<string, Bytes>; fetcher?: typeof fetch; digest?: LocalFiles['digest'] } = {},
 ) {
   const key = api.accountKey;
   const token = api.signedIn();
@@ -41,6 +46,7 @@ export function syncDevice(
     write: async (kind: FileKind, name: string, bytes) => {
       (kind === 'image' ? held : tapes).set(name, bytes);
     },
+    ...(digest ? { digest } : {}),
   };
   return {
     notes,
@@ -52,7 +58,9 @@ export function syncDevice(
     set state(next: SyncState) {
       state = next;
     },
-    sync: () => syncNotes({ token, key, notes: local, files, state, save: (s) => (state = s), fetcher, now: () => clock.at }),
+    /** One pass; `extra` is what the app hands the pass besides its stores (which notes are meetings, and whether their audio goes). */
+    sync: (extra: Pick<SyncContext, 'meetings' | 'syncMeetingRecordings'> = {}) =>
+      syncNotes({ token, key, notes: local, files, state, save: (s) => (state = s), fetcher, now: () => clock.at, ...extra }),
   };
 }
 

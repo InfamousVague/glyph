@@ -3,12 +3,14 @@ import { act } from 'react';
 import { rerender, show } from '../../test/render.tsx';
 
 /**
- * A shared link that opened the app is saved once, and only once the notes are read: from the web app's `#fork=`,
- * which then leaves the address, and from the native side's `ghostmd://` links, however many arrive.
+ * A link that opened the app is followed once, and only once the notes are read: a share link from the web app's
+ * `#fork=`, which then leaves the address, and from the native side's `ghostmd://` links, however many arrive; a note
+ * link, the tap on the notification that a meeting was written up, opened where the note was left.
  */
 
 const links = vi.hoisted(() => ({ open: null as ((link: string) => void) | null, stopped: 0 }));
-vi.mock('../share/appLinks.ts', () => ({
+vi.mock('../share/appLinks.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../share/appLinks.ts')>()),
   followAppLinks: (open: (link: string) => void) => {
     links.open = open;
     return () => {
@@ -17,10 +19,12 @@ vi.mock('../share/appLinks.ts', () => ({
   },
 }));
 
-const { useForkLinks } = await import('./useForkLinks.ts');
+const { useAppLinks } = await import('./useAppLinks.ts');
 
-function Probe({ loading, fork }: { loading: boolean; fork: (link: string) => Promise<void> }) {
-  useForkLinks(loading, fork);
+const SHARE = `ghostmd://fork#${'a'.repeat(22)}.${'b'.repeat(43)}`;
+
+function Probe({ loading, fork, openNote = async () => undefined }: { loading: boolean; fork: (link: string) => Promise<void>; openNote?: (id: string) => Promise<void> }) {
+  useAppLinks(loading, { fork, openNote });
   return null;
 }
 
@@ -67,9 +71,9 @@ describe('a shared link arriving', () => {
     expect(links.open).toBeNull();
     rerender(<Probe loading={false} fork={first} />);
     rerender(<Probe loading={false} fork={second} />);
-    act(() => links.open!('ghostmd://fork#abc.def'));
+    act(() => links.open!(SHARE));
     expect(first).not.toHaveBeenCalled();
-    expect(second).toHaveBeenCalledWith('ghostmd://fork#abc.def');
+    expect(second).toHaveBeenCalledWith(SHARE);
   });
 
   it('says in the console, and nowhere else, when a copy could not be saved', async () => {
@@ -78,8 +82,42 @@ describe('a shared link arriving', () => {
       throw new Error('offline');
     });
     show(<Probe loading={false} fork={fork} />);
-    await act(async () => links.open!('ghostmd://fork#abc.def'));
+    await act(async () => links.open!(SHARE));
     expect(warn).toHaveBeenCalledWith('[glyph] could not save the shared copy:', expect.any(Error));
+    warn.mockRestore();
+  });
+});
+
+describe('a note link arriving', () => {
+  it('opens the note it names, and a link that is neither a share nor a note opens nothing', async () => {
+    const fork = vi.fn(async () => undefined);
+    const openNote = vi.fn(async () => undefined);
+    show(<Probe loading={false} fork={fork} openNote={openNote} />);
+    await act(async () => links.open!('ghostmd://note/m1'));
+    expect(openNote).toHaveBeenCalledWith('m1');
+    expect(fork).not.toHaveBeenCalled();
+    await act(async () => links.open!('ghostmd://something-else'));
+    expect(openNote).toHaveBeenCalledTimes(1);
+    expect(fork).not.toHaveBeenCalled();
+  });
+
+  it('waits for the notes to be read, as a share does, so the note opened is one the list has', () => {
+    const openNote = vi.fn(async () => undefined);
+    show(<Probe loading fork={async () => undefined} openNote={openNote} />);
+    expect(links.open).toBeNull();
+    rerender(<Probe loading={false} fork={async () => undefined} openNote={openNote} />);
+    act(() => links.open!('ghostmd://note/m1'));
+    expect(openNote).toHaveBeenCalledWith('m1');
+  });
+
+  it('says in the console when the note could not be opened', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const openNote = vi.fn(async () => {
+      throw new Error('gone');
+    });
+    show(<Probe loading={false} fork={async () => undefined} openNote={openNote} />);
+    await act(async () => links.open!('ghostmd://note/m1'));
+    expect(warn).toHaveBeenCalledWith('[glyph] could not open the note the link named:', expect.any(Error));
     warn.mockRestore();
   });
 });
