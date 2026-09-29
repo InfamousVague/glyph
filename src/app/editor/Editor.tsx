@@ -121,6 +121,12 @@ interface EditorProps {
    * Read once, when the editor is made.
    */
   grow?: boolean;
+  /**
+   * How far above the bottom of the page the caret is kept, in pixels, as it is typed and moved (art/wispEdge.ts
+   * `WISP_EDGE_FOOT_CLEAR`): the page's foot smokes the words there, so a line is lifted out of it while it is still
+   * being written rather than when it reaches the edge. Read on every scroll, so it can change with the page.
+   */
+  footClear?: number;
   /** Where this note's recording is played from, for the voice memos in it (editor/clips.ts); null without one. */
   tape?: string | null;
   /** Which tape that is (core/clips.ts `tapeId`): a memo of another tape is drawn, not played. */
@@ -205,6 +211,7 @@ export function Editor({
   linkMenus,
   wiki,
   grow = false,
+  footClear = 0,
   tape = null,
   tapeId = null,
   arrivals = false,
@@ -228,6 +235,8 @@ export function Editor({
   onImageErrorRef.current = onImageError;
   const swipeActionRef = useRef(swipeAction);
   swipeActionRef.current = swipeAction;
+  const footClearRef = useRef(footClear);
+  footClearRef.current = footClear;
   const suggestRef = useRef(suggest);
   suggestRef.current = suggest;
   const linkMenusRef = useRef(linkMenus);
@@ -327,6 +336,9 @@ export function Editor({
         findExtension(),
         placeholder ? cmPlaceholder(placeholder) : [],
         grow ? Prec.highest(GROW_THEME) : [],
+        // The caret kept out of the page's foot smoke as it moves: the line being written is scrolled up before the
+        // smoke bends it, not when it reaches the edge. Widens only what is scrolled to, so nothing moves otherwise.
+        peek ? [] : EditorView.scrollMargins.of(() => (footClearRef.current > 0 ? { bottom: footClearRef.current } : null)),
         arrivals || wispTyping ? wispArrivals({ typing: wispTyping }) : [],
         ripples ? wispRipples(ripples) : [],
         // The AI's changes, tracked: tinted where it added, struck where it took away, Keep and Revert (aiChanges.ts).

@@ -6,7 +6,7 @@ import { useToast } from '@glacier/react';
 import { EditorSelection } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { undoDepth } from '@codemirror/commands';
-import { useWispEdge } from '../art/wispEdge.ts';
+import { useWispEdge, WISP_EDGE_FOOT_CLEAR } from '../art/wispEdge.ts';
 import { useNotePlace } from './notePlace.ts';
 import { boardFrom } from '../core/boards.ts';
 import { hasClips, tapeId } from '../core/clips.ts';
@@ -1041,6 +1041,8 @@ export function NoteScreen({
             // A canvas's JSON or a book's Markdown, once asked for, is what the view has written by now, not what the note opened with.
             value={typed && source ? body.current : note.body}
             onChange={onChange}
+            // The line being typed stays above the page's foot smoke (art/wispEdge.ts), which a canvas does not wear.
+            footClear={canvas ? 0 : WISP_EDGE_FOOT_CLEAR}
             onView={setView}
             wispTyping={prefs.wisp}
             display={typed ? 'mixed' : prefs.noteView}

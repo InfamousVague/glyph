@@ -184,6 +184,13 @@ export const WISP_EDGE_FOOT_BAND = 11;
  */
 export const WISP_EDGE_FOOT_SOFT = 29;
 export const WISP_EDGE_FOOT_LIFT = 24;
+/**
+ * How far above a view's bottom edge the foot's smoke reaches words: its lip, lifted off the edge, and two widths of
+ * its ramp's blur, past which the bend is too faint to see. A line typed lower than this comes out of the smoke
+ * already bent (Matt: "when I'm typing and the text is affected by the wisp at the bottom of the page it should scroll
+ * the page up"), so the note's editor keeps its caret this far clear of the edge (editor/Editor.tsx `footClear`).
+ */
+export const WISP_EDGE_FOOT_CLEAR = WISP_EDGE_FOOT_LIFT + WISP_EDGE_FOOT_BAND + 2 * WISP_EDGE_FOOT_SOFT;
 /** How far below the band's lip the bend and blur are computed at all: past the strip's soft edge, with room for the drift. */
 export const WISP_EDGE_REACH = WISP_EDGE_BAND + WISP_EDGE_SOFT * 4 + 48;
 
