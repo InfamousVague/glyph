@@ -526,8 +526,15 @@ function asAsked(target: Target, blank: Blank, text: string): { note: string; bl
 function landings(batch: Batch, text: string, ready: readonly Ready[]): Landing[] {
   const out: Landing[] = [];
   const name = modelName(batch.model);
-  for (const one of ready) {
+  // A title or a summary is checked last, against the note with this press's other answers in it: once the capital
+  // blank beside it has landed, "Lisbon" is the note's own word, and a summary of the note may say it. The shots found
+  // "In one line" refused for naming what the press itself had just written.
+  const found = ready.map((one) => {
     const blank = locate(batch.noteId, one.target, text);
+    const shape = blank ? askFor(one.target, blank, text).info.shape : null;
+    return { one, blank, late: shape === 'title' || shape === 'summary' };
+  });
+  for (const { one, blank, late } of [...found.filter((f) => !f.late), ...found.filter((f) => f.late)]) {
     setStatus(batch.noteId, one.target.key, null);
     if (!blank) {
       batch.counts.changed += 1;
@@ -535,7 +542,8 @@ function landings(batch: Batch, text: string, ready: readonly Ready[]): Landing[
     }
     const ask = askFor(one.target, blank, text);
     const asked = asAsked(one.target, blank, text);
-    const checked = checkShape(one.lines, asked.blank, ask.info, asked.note, one.truncated);
+    const others = late && out.length ? `${asked.note}\n\n${out.map((landing) => landing.words.join('\n')).join('\n')}` : asked.note;
+    const checked = checkShape(one.lines, asked.blank, ask.info, others, one.truncated);
     if (!checked.ok) {
       if (one.target.again) {
         toaster?.({ message: checked.why === 'unknown' ? `${name} said it did not know this time.` : checked.why === 'didnt-fit' ? 'The new answer didn’t fit, so the old one stays.' : 'No new answer came, so the old one stays.' });

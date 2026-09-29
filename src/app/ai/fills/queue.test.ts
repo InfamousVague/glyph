@@ -116,6 +116,26 @@ describe('a press of Fill in an open note', () => {
     openForFills('n1', null);
   });
 
+  it('lets a summary say what the same press wrote beside it, and nothing else the note lacks', async () => {
+    // Found by the shots: "In one line" was refused for naming Lisbon, which the capital blank had just written.
+    const TRIP = '# Trip prep\n\nThe capital of Portugal is {?}.\n\n- Passport\n\nIn one line: {?summary}';
+    const note = host(TRIP);
+    openForFills('n8', note);
+    pressFill('n8', targets(TRIP), 'qwen3.5-4b');
+    await until(() => fakes.length === 1);
+    fakes[0]!.finish('[1] Lisbon\n[2] A trip to Lisbon, with a passport packed.');
+    await until(() => note.lands === 1);
+    expect(note.body).toContain('In one line: ??A trip to Lisbon, with a passport packed.??');
+    openForFills('n8', null);
+    const again = host(TRIP);
+    openForFills('n9', again);
+    pressFill('n9', targets(TRIP), 'qwen3.5-4b');
+    await until(() => fakes.length === 2);
+    fakes[1]!.finish('[1] Lisbon\n[2] A trip to Porto, with a passport packed.');
+    await until(() => toasts.some((t) => t.message === "1 filled. 1 didn't fit."));
+    openForFills('n9', null);
+  });
+
   it('drops an answer whose question changed while it ran, and says so', async () => {
     const note = host(TOKYO);
     openForFills('n1', note);
