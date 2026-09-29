@@ -8151,12 +8151,26 @@ note and the `[[?` alias (both Matt's to choose), and a measure on the Fold, whi
 names the fills, and its about lines are §146's to reword ("Careful with facts" for the 4B, which the probes showed
 confidently wrong). With no Settings › AI page yet (§146's), Get a model opens Recording at the Model card.
 
+**What the shots found.** The built page, driven in Chromium as the Fold and as the Mac with the 4B's own answers
+handed back, showed faults the unit tests had passed over. Each is fixed with a test that fails on the old code. Every
+square's icon was an empty `<svg>`: editor/iconDom.ts forced React's draw with flushSync while React was committing
+the editor, where it does nothing, and the test counted the empty ones. The icon is now React's own draw, copied into
+the copies waiting for it. A fill's landing, signed in the same change, crashed the wisp for the note ("No tile at
+position 70"): the plugin read the note's new positions in the DOM of the note before the change, and now maps them
+back. "Cheapest flight to Lisbon today" went to the model, since cheapest was not a price. A press of live blanks
+offline said nothing, and now says they wait for a connection. A short square that wrapped drew two boxes, and one of
+28 characters or fewer now stays on one line. A summary naming what the same press had just written beside it (Lisbon,
+in Trip prep) was refused as naming what the note lacks. A title or a summary is now checked last, against the note
+with the press's other answers in it. And the whole-note read of blanks read the tree its state was made with, not the
+one it asked for, which the readers' test showed under the 9B's load: a fence past a long note's first 3000 characters
+read as words.
+
 **Tests.** core/blanks.test.ts (the sixteen cases, the parser reading every written mark as Unsure, the title
 fixture), core/blanks.readers.test.ts (both readers over one corpus, their two named differences), core/maths.test.ts,
 core/fillFacts.test.ts, core/fillLive.test.ts, ai/fills/{shape, source, read, message, prompts, web, edits, queue,
 voice}.test.ts (the queue with a simulated model: one change a generation, a closed note written with its revision, a
-Format stopping a fill, a press behind another, a live blank waiting offline then asking Open-Meteo), editor/blanks and
-fillPanel tests, the readers' tests (home's To do, Notion's item text, search, the gist, the MCP's search), the + rows,
-the More sheet, the palette, Privacy, and the Rust bar.
+Format stopping a fill, a press behind another, a live blank waiting offline then asking Open-Meteo), the
+editor/blanks, fillPanel, iconDom and wispArrivals tests, the readers' tests (home's To do, Notion's item text,
+search, the gist, the MCP's search), the + rows, the More sheet, the palette, Privacy, and the Rust bar.
 
 Cites: §21, §122, §127, §138, §141, §142.
