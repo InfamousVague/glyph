@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { transcriptOf, withoutTranscript, withTranscript } from '../capture/markdown.ts';
 import { withFrontMatterTitle } from '../core/frontMatter.ts';
 import { announceNotesChanged, getNote, noteTitle, updateNote, type Note } from '../core/store.ts';
+import { followRename } from '../book/followRename.ts';
+import { titleKey } from '../core/titleKey.ts';
 
 /**
  * Saving the open note, which is the part of the note screen with teeth (editor/NoteScreen.tsx).
@@ -80,6 +82,8 @@ export function useNoteSaving(note: Note, rename?: NoteRename | null, { onExtern
   // render depends on it, so putting it in state would re-render the screen once per character for nothing.
   const body = useRef(note.body);
   const saved = useRef(note.body);
+  /** The title the store last held for this note, not empty: a save that changes it is followed into its notebooks. */
+  const titled = useRef(noteTitle(note.body));
   /** The body the store last took from here: what a conflict is measured against. */
   const written = useRef(note.body);
   const revision = useRef(note.revision ?? 1);
@@ -112,6 +116,14 @@ export function useNoteSaving(note: Note, rename?: NoteRename | null, { onExtern
         const stored = await updateNote(note.id, pending, revision.current);
         revision.current = stored.revision ?? revision.current + 1;
         written.current = pending;
+        // A page renamed keeps its place in its notebooks and journals (book/followRename.ts). An emptied heading is
+        // a rename still being typed: followed from the last title it had, once it has one again.
+        const now = noteTitle(pending);
+        if (now && titleKey(now) !== titleKey(titled.current)) {
+          const from = titled.current;
+          titled.current = now;
+          if (from) void followRename(note.id, from, now).catch(() => undefined);
+        }
       } catch (failure) {
         // Another writer won, or the row was deleted. The one writer allowed is the phone's write-up, which appends
         // the transcript: when that is the whole difference between the store and what was last written from here,

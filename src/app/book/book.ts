@@ -127,6 +127,23 @@ export function withChapter(body: string, title: string, after: string | null = 
 }
 
 /**
+ * The body with a chapter's link renamed: every index line whose link names `from` names `to` instead, its `#heading`
+ * or `|alias` and whatever follows kept. A page is listed by its title, so a page renamed was a page lost from its
+ * notebook until this (Matt, 2026-09-29: "when changing the title of a page it gets removed from the journal /
+ * notebook"). Lines that only mention it in passing are left, as `chaptersOf` leaves them.
+ */
+export function withChapterRenamed(body: string, from: string, to: string): string {
+  const clean = to.trim();
+  if (!clean || sameTitle(from, clean)) return body;
+  const lines = body.split('\n');
+  for (const chapter of chaptersOf(body)) {
+    if (!sameTitle(chapter.title, from)) continue;
+    lines[chapter.line] = lines[chapter.line]!.replace(/\[\[([^\]\n|#]{1,120})([#|][^\]\n]*)?\]\]/, (_all, _title: string, rest: string | undefined) => `[[${clean}${rest ?? ''}]]`);
+  }
+  return lines.join('\n');
+}
+
+/**
  * The titles with `title` taken out where it is there, matched as a link matches, or put on the end where it is not:
  * a tap on a note in a picker, ticking it or unticking it (book/BookView.tsx, book/NewBookSheet.tsx).
  */
