@@ -190,6 +190,22 @@ export function offersShown(state: EditorState): boolean {
   return (state.field(pageField, false)?.decorations.size ?? 0) > 0;
 }
 
+/**
+ * The field told of the editor's focus as it stands. CodeMirror tells its extensions of a focus change once
+ * (`focusChangeEffect`), and drops the telling when another change lands first: a new note is focused and given its
+ * names and its + in the same moment, and on the Fold's build the names never learned the note had the focus. So the
+ * focus is read again a moment after each focus and blur, and told when the field has it wrong.
+ */
+function syncFocus(view: EditorView): void {
+  const page = view.state.field(pageField, false);
+  if (!page || !view.dom.isConnected) return;
+  const has = view.hasFocus;
+  if (page.focused !== has) view.dispatch({ effects: focusChanged.of(has) });
+}
+
+/** How long after a focus or a blur the field's word on it is checked: after CodeMirror's own 10ms. */
+const FOCUS_CHECK_MS = 20;
+
 /** The page is ready for words, once, from whichever of its signs came first. */
 function ready(view: EditorView): void {
   const page = view.state.field(pageField, false);
@@ -215,6 +231,12 @@ const readiness = ViewPlugin.fromClass(
   },
   {
     eventHandlers: {
+      focus(_event, view) {
+        window.setTimeout(() => syncFocus(view), FOCUS_CHECK_MS);
+      },
+      blur(_event, view) {
+        window.setTimeout(() => syncFocus(view), FOCUS_CHECK_MS);
+      },
       pointerup(event, view) {
         if (event.target instanceof Element && event.target.closest('.cm-blankOffers')) return;
         ready(view);

@@ -181,6 +181,8 @@ describe('front matter, folded', () => {
     const reading = open('---\nlook: reading\n---\n# Walk\n');
     expect(frontMatterFolded(reading.state)).toBe(true);
     expect(reading.contentDOM.querySelector('.cm-frontFold')).toBeNull();
+    // An empty mark in its place, and the title straight after it.
+    expect(reading.contentDOM.querySelector('.cm-frontNone')?.nextElementSibling?.textContent).toBe('# Walk');
     expect(reading.contentDOM.textContent).not.toContain('look');
     expect(reading.contentDOM.textContent).toContain('# Walk');
     // The caret moved into it, in the Markdown view, still opens it.

@@ -137,6 +137,16 @@ describe('the names under line 1', () => {
     expect(view.contentDOM.querySelector('.cm-blankOffers')?.contains(host)).toBe(true);
   });
 
+  it('learn of the focus even where CodeMirror drops its own telling under changes landing at the same moment', async () => {
+    const view = await mount('', { readyAtOnce: true, focus: false });
+    view.focus();
+    // As a new note's screen makes them: the caret placed and the offers told, each its own change, in one moment.
+    view.dispatch({ selection: { anchor: 0 } });
+    view.dispatch({ effects: setOffers.of({ names: NAMES, host: null }) });
+    await vi.advanceTimersByTimeAsync(30);
+    expect(offersShown(view.state)).toBe(true);
+  });
+
   it('keep the block while the focus is on a chip, reached by Tab', async () => {
     const view = await mount('', { readyAtOnce: true });
     chips(view)[0]!.focus();

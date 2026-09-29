@@ -155,6 +155,23 @@ class FrontWidget extends WidgetType {
   }
 }
 
+/**
+ * A block that holds only unsaid keys, folded to nothing: an empty mark in its place, so the stylesheet can set the
+ * title under it as a note's first line (markdown.module.css), with no room above it.
+ */
+class NoFrontWidget extends WidgetType {
+  eq(): boolean {
+    return true;
+  }
+
+  toDOM(): HTMLElement {
+    const div = document.createElement('div');
+    div.className = 'cm-frontNone';
+    div.setAttribute('aria-hidden', 'true');
+    return div;
+  }
+}
+
 /** The editor gained or lost focus: the block is open only while it has it. */
 const focusEffect = StateEffect.define<boolean>();
 
@@ -169,7 +186,7 @@ function foldOf(state: EditorState, focused: boolean): DecorationSet {
   const from = state.doc.line(front.from).from;
   const to = state.doc.line(front.to).to;
   const at = state.doc.line(Math.min(front.from + 1, front.to)).from;
-  if (onlyUnsaid(state, front)) return Decoration.set(Decoration.replace({ block: true }).range(from, to));
+  if (onlyUnsaid(state, front)) return Decoration.set(Decoration.replace({ widget: new NoFrontWidget(), block: true }).range(from, to));
   return Decoration.set(Decoration.replace({ widget: new FrontWidget(keyNames(state, front), at), block: true }).range(from, to));
 }
 
