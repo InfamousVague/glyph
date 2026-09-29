@@ -8070,25 +8070,28 @@ device can never locate (the Mac, an older Android binary, a browser with no geo
 with its reason under Local only or a refusal that still stands. The + sheet's Note row is as it was, and no row or
 palette command offers templates: the blank page does. The ghost goes under the cards, in their block.
 
-**Your own templates.** The blank page's last card, Your templates, opens a notebook the templates are kept in
-(notes/ownTemplates.ts), found by `templates: true` beside `book: true` and never by its name. The first press makes it
-with the six built-ins as its pages, the pages first and the notebook last, as the Guide is added, against the store
-read then and out of the Trash, so a press cut short makes only what is missing the next time. From then on the blank
-page's cards are its pages in its index's order, two notebooks made on two devices read oldest first and a page named
-twice offered once. A page is named by its `title:`, its words after the front matter are the template, and only `look:`
-passes to a note made from it, so a page written where it was tagged never hands its place on. A page still word for
-word a built-in keeps that one's sentence and rules, and any other says `One of your own.` Add a page in the notebook
-makes a page with its heading left open. The pages stay out of Recent, To do, the ticked count, the notes touched today,
-what a spoken command can name, the palette's list before anything is typed and a notebook's page pickers. Settings were
-the other way, and were not taken: they sync as one sealed blob, last writer wins, and Claude reads notes only. The
-costs: seven notes appear and sync, and a device on 1.9.0 shows the pages in Recent the day they are made, their
-`{{date}}` as it is, until the update reaches it. Claude's rewrite keeps `templates:`.
+**Your own templates.** The blank page's last card, Your templates, opens the notebook the templates are kept in
+(notes/ownTemplates.ts) in the blank note's tab. It is found by `templates: true` beside `book: true` and never by its
+name. The first press makes it with the six built-ins as its pages, the pages first and the notebook last, as the Guide
+is added, against the store read then and out of the Trash, so a press cut short makes only what is missing the next
+time. From then on the blank page's cards are its pages in its index's order, two notebooks made on two devices read
+oldest first and a page named twice offered once. A page is named by its `title:`, its words after the front matter are
+the template, and only `look:` passes to a note made from it, so a page written where it was tagged never hands its
+place on. A page still word for word a built-in keeps that one's sentence and rules, and any other says `One of your
+own.` Add a page in the notebook makes a page with its heading left open. The pages stay out of Recent, To do, the
+ticked count, the notes touched today, what a spoken command can name, the palette's list before anything is typed and a
+notebook's page pickers. Settings were the other way, and were not taken: they sync as one sealed blob, last writer
+wins, and Claude reads notes only. The costs: seven notes appear and sync, and a device on 1.9.0 shows the pages in
+Recent the day they are made, their `{{date}}` as it is, until the update reaches it. Claude's rewrite keeps
+`templates:`.
 
 **One engine and one record.** The journal's `fillTemplate` fills them, moved to core/template.ts and given the ISO week
 (`GGGG`, `WW` and `W`, while Moment's locale week, `gggg` and `ww`, stays as typed) and `firstOpenAt`, where the caret
 goes. The journal's record of an entry nobody has written in is core/untouched.ts now, its journal optional and its
 storage key the one 1.10.0 wrote, so a templated or named note left without a word of the person's is taken back as an
-untouched entry is, with no toast and no line to take out, and no place lands on it before then.
+untouched entry is, with no toast and no line to take out, and no place lands on it before then. The screen saves a name
+or a template at once rather than on typing's beat, and a take-back that finds a new note with no words in the store
+yet, its save still on the way, leaves the record to the next look.
 
 **Two looks.** One flat key, `look:`. `look: map` draws the note's map as a header across its column, 10rem on a phone
 and 16rem from 600px, up to 48rem, its box drawn from the first frame with or without a place, saying `No place yet.` or
