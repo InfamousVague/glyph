@@ -1,4 +1,4 @@
-import type { Extension, Range } from '@codemirror/state';
+import type { ChangeDesc, Extension, Range } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { hiddenDefs, smokeFilter, type Smoke } from './svgFilters.ts';
 import { settle, typing, wispState, type Moving } from './wispMotion.ts';
@@ -124,6 +124,11 @@ const wispPlugin = ViewPlugin.fromClass(
     private readonly pool: Slot[] = [];
     private readonly slots = new Map<number, Slot>();
     private frame = 0;
+    /**
+     * The change being drawn, while the plugins update: CodeMirror draws the note after them, so its DOM is still the
+     * note before this change, and a position of the note after it is read there only once mapped back (`lookAt`).
+     */
+    private drawing: ChangeDesc | null = null;
 
     constructor(readonly view: EditorView) {
       instances += 1;
@@ -133,7 +138,13 @@ const wispPlugin = ViewPlugin.fromClass(
     }
 
     update(update: ViewUpdate) {
-      if (update.docChanged || update.startState.field(wispState) !== update.state.field(wispState)) this.redraw();
+      if (!update.docChanged && update.startState.field(wispState) === update.state.field(wispState)) return;
+      this.drawing = update.docChanged ? update.changes : null;
+      try {
+        this.redraw();
+      } finally {
+        this.drawing = null;
+      }
     }
 
     destroy() {
@@ -236,7 +247,16 @@ const wispPlugin = ViewPlugin.fromClass(
      * place"). Bold, code and a heading's letters smoke as themselves for the same reason.
      */
     private lookAt(pos: number): string {
-      const at = this.view.domAtPos(pos);
+      // Where the text stood: in the DOM as it still is, the note before the change. A fill that also signs the note
+      // moves every position after the front matter it adds, past the end of that DOM, and domAtPos threw there,
+      // which took the whole wisp down for the note.
+      const where = this.drawing ? this.drawing.invertedDesc.mapPos(pos, -1) : pos;
+      let at: { node: Node };
+      try {
+        at = this.view.domAtPos(where);
+      } catch {
+        return '';
+      }
       const node = at.node.nodeType === 3 ? at.node.parentElement : (at.node as HTMLElement);
       const span = node?.closest('.cm-line > span, .cm-line span') ?? null;
       if (!span || span.classList.contains('cm-wispGonePlace')) return '';
