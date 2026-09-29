@@ -344,8 +344,13 @@ function openPanelAt(view: EditorView, at: number): void {
 /** The panel's opener, given by editor/fillPanel.ts, so the two modules do not import each other. */
 export const panelOpener = Facet.define<(view: EditorView, at: number) => void, ((view: EditorView, at: number) => void) | null>({ combine: (values) => values[0] ?? null });
 
-/** The square round a blank, named for a screen reader by its outcome, and breathing while it fills. */
-const boxFor = (name: string, busy: boolean) => Decoration.mark({ class: 'cm-blank', attributes: { role: 'group', 'aria-label': name, ...(busy ? { 'data-busy': '' } : {}) }, inclusiveStart: true, inclusiveEnd: true });
+/**
+ * The square round a blank, named for a screen reader by its outcome, and breathing while it fills. A short one is kept
+ * on one line: the shots showed `{?` closing a square at a line's end and `weather}` opening another under it.
+ */
+const SHORT_BLANK = 28;
+const boxFor = (name: string, busy: boolean, short: boolean) =>
+  Decoration.mark({ class: 'cm-blank', attributes: { role: 'group', 'aria-label': name, ...(busy ? { 'data-busy': '' } : {}), ...(short ? { 'data-short': '' } : {}) }, inclusiveStart: true, inclusiveEnd: true });
 const brace = Decoration.mark({ class: 'cm-blankMark' });
 const question = Decoration.mark({ class: 'cm-blankQuestion' });
 const hidden = Decoration.replace({});
@@ -384,7 +389,7 @@ function draw(view: EditorView, idle: boolean): Drawn {
       const typing = caretLines.has(line.number) && !idle;
       const caretInside = view.hasFocus && head > blank.from + 1 && head < blank.to;
       const busy = status?.phase === 'filling' || status?.phase === 'looking';
-      marks.push(boxFor(label(lane, blank, text), busy).range(blank.from, blank.to));
+      marks.push(boxFor(label(lane, blank, text), busy, blank.to - blank.from <= SHORT_BLANK).range(blank.from, blank.to));
       const showBraces = !formatted || caretLines.has(line.number);
       if (showBraces) {
         marks.push(brace.range(blank.from, blank.from + 2));
@@ -522,6 +527,7 @@ const theme = EditorView.baseTheme({
     boxDecorationBreak: 'clone',
     WebkitBoxDecorationBreak: 'clone',
   },
+  '.cm-blank[data-short]': { whiteSpace: 'nowrap' },
   '.cm-blank[data-busy]': {
     animation: 'cm-blank-breathe 1.6s ease-in-out infinite alternate',
   },

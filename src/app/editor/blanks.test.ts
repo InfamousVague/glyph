@@ -62,6 +62,13 @@ describe('the square', () => {
     expect(labels(view)).toEqual(['A blank for the AI: what day / time?']);
   });
 
+  it('keeps a short square on one line, and lets a long question wrap', () => {
+    const view = editor('Weather in Lisbon tomorrow: {?weather}\n\nA plan: {?a friendlier way to say: fix the boiler now, and the date}');
+    const [short, long] = [...view.contentDOM.querySelectorAll<HTMLElement>('.cm-blank[role="group"]')];
+    expect(short!.hasAttribute('data-short')).toBe(true);
+    expect(long!.hasAttribute('data-short')).toBe(false);
+  });
+
   it('hides the braces in the Formatted view, but on the line being written', () => {
     const view = editor('Flights are cheapest on {?which day}\n\nAnother line', hooks(), { formatted: true, anchor: 40 });
     expect(html(view)).not.toContain('{?');
