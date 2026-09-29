@@ -37,6 +37,8 @@ Settings › Recording › Model lists four, each once. The one you choose rewri
 
 The 4B is the default. Settings rounds the sizes to one decimal place, so the 4B shows as 2.7 GB.
 
+The models have no internet. They know what they learnt in training, nothing newer, and they can be wrong. That is why an answer from one is dotted ([[Asking the AI to work on a note]]).
+
 The app never fetches a language model without asking you. Asking for a run with no model on the phone does not fetch one either: the note tells you it needs a model. There are two places to get one:
 
 - **Settings › Recording › Model.** You can choose any model that is on the phone, and remove one that is not in use: the one in use has no Remove, so pick another first, unless it is the only one on the phone. Remove takes two taps, Remove and then Tap again. One that is not on the phone has **Get**. The download happens in the open, with a line such as "Getting Qwen3.5 4B, 1.2 GB of 2.7 GB. Keep Ghost.md open." Only one downloads at a time.

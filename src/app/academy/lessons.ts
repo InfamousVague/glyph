@@ -1,5 +1,6 @@
 import { ensureSyntaxTree } from '@codemirror/language';
 import { EditorState, Text, type Extension } from '@codemirror/state';
+import { blanksIn } from '../core/blanks.ts';
 import { boardsIn, itemsIn, refsIn } from '../core/boards.ts';
 import { shortcodesIn } from '../core/emoji.ts';
 import { BOX, BULLET, MARKER, NUMBER } from '../core/itemSyntax.ts';
@@ -487,6 +488,19 @@ export const LESSONS: Lesson[] = [
     passes: (text) => text.split('\n').some((each) => sumOnLine(each) !== null),
     praise: 'Worked out.',
     hint: 'An equals sign, a space, then the sum: = 12 * 4.',
+  },
+  {
+    id: 'blank',
+    chapter: 'Lines that do more',
+    symbol: '{?}',
+    rows: ['A blank'],
+    title: 'A blank for the AI',
+    teach: 'Curly brackets and a question mark ask a question where its answer belongs. A total or a date is worked out at once. Anything else waits for Fill, and the model on the phone answers with a dotted line under what it wrote.',
+    example: 'Days until Christmas: {?}',
+    task: 'Write a blank.',
+    passes: (text) => blanksIn(text).length > 0,
+    praise: 'That is a blank.',
+    hint: 'A curly bracket, a question mark, the question, then a closing bracket: {?which day}.',
   },
   {
     id: 'hiddenLine',

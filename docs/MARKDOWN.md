@@ -150,6 +150,21 @@ from a list of ideas.
 - **Sums — `= $450 + 120 * 2`.** A line (or list item, or quote) starting `= ` shows its answer after it, `→ $690`,
   never written into the note. Arithmetic only: `+ - * / ^`, brackets, `%` after a number; a currency sign and
   thousands commas carry over. (`src/app/editor/sums.ts`)
+- **Blanks — `{?what day / time?}`.** A question in curly brackets with a question mark after the first, where its
+  answer belongs (DESIGN §145). The pattern is `/(?<![{\\$])\{\?(?!\?)([^{}|\n]{0,160})\}(?!\})/g`: not `{{?…}}` (the
+  templates' family), not after a backslash or a `$` (`${?HOME}`), not `{??`, no `|` in the question, at most 160
+  characters, one line. `{?}` asks about the sentence it sits in, or the question just before it. Drawn as a square
+  with an icon that says which of four things happens: worked out by the app and drawn after it like a sum (a total,
+  a count, days until, a weekday, a conversion, the time in a city, `src/app/core/fillFacts.ts`); Can't work out; a
+  live answer looked up by the phone on Fill, or Can't know offline where no public source answers
+  (`src/app/core/fillLive.ts`, `src/app/ai/fills/web.ts`); or the model, on Fill. Nothing fills unless pressed.
+  A model's answer is written as an Unsure mark whose note says where it came from, which the app hides:
+  `??midweek??(Qwen3.5 4B from memory, 2026-09-28. Asked: what day / time?)`, read back by `FILLED`
+  (`src/app/core/blanks.ts`): whose answer, `from memory`, `from this note` or `from` a named source such as
+  `Open-Meteo`, the ISO date, what was asked, and `N of M` for one of several items. Other apps show both as the plain
+  text they are. A title never holds a mark: a title blank fills as plain words, a question as the whole first line
+  stays the title with its answer under it, and every reader of titles, to-dos, the item text sent to Notion and
+  GitHub, and search reads a filled answer as its words (`plainFills`). (`src/app/editor/blanks.ts`)
 - **Choices — `- ( )` / `- (x)`.** Round boxes on bullets, one picked per group (the choice lines side by side at
   one indent). A tap picks, and clears the rest; tapping the picked one clears it. (`src/app/editor/choices.ts`)
 - **Hidden lines — `>| the answer`.** A quote whose first character is a bar goes to smoke, like `||this||`, until

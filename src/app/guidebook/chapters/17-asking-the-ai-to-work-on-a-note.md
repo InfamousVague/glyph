@@ -1,20 +1,23 @@
 # Asking the AI to work on a note
 
-_Pick a run from a note's More sheet and watch the model write into the note itself. Every change stays marked until you keep it or revert it._
+_Pick a run from a note's More sheet and watch the model write into the note itself. Every change stays marked until you keep it or revert it. Or write a question where its answer belongs, and let the model fill it._
 
-## Three runs in the More sheet
+## Six runs in the More sheet, and an Ask field
 
-Open a note and tap the three dots in its tools (**More for this note**). The group headed **AI** holds three runs:
+Open a note and tap the three dots in its tools (**More for this note**). The group headed **AI** holds six runs:
 
 | Run | What it does | Where its words go |
 |---|---|---|
 | **Format** | Tidy and organise, keeping every word that matters. | In place of the note's words |
 | **Summarize** | The point of the note and its tasks, in far fewer words. | Above the note, which stays as it was |
 | **Enhance** | Every thought finished and the note made fuller, without inventing. | In place of the note's words |
+| **Fix spelling** | Spelling, grammar and punctuation, and not a word more. | In place of the note's words |
+| **Make a list** | Tasks, a list or a table out of what is there. | In place of the note's words |
+| **Continue** | Carries on from the last line in the note's own voice. | Under the note |
 
-Tap one and the sheet closes as the run starts. While it is going, its row in the sheet shows as pressed, with a dot at its end. The other runs (Fix spelling, Make a list, Continue, and a free ask) are spoken, and the next chapter covers them.
+Tap one and the sheet closes as the run starts. While it is going, its row in the sheet shows as pressed, with a dot at its end. Under the runs is a field, **Ask it to do something with this note**. Type any instruction there, such as "make it shorter" or "put the dates in a table", and tap the arrow. It runs as a spoken ask does, and its changes are marked like any run's. On the Mac, the command palette has Fix spelling, Make a list and Continue too. When the note has a blank for the model, **Fill the blanks** follows the runs (the section below).
 
-Format and Enhance are told to keep every fact, name, number, date and picture in the note, and to turn each thing to do into its own task line. Links and tables go to the model as placeholders, and the app puts them back afterwards, so a rewrite cannot lose one. A summary is a heading, one sentence saying what the note is for, and its tasks; it may leave a table out. All three are told never to add a fact the note did not give.
+Format and Enhance are told to keep every fact, name, number, date and picture in the note, and to turn each thing to do into its own task line. Links and tables go to the model as placeholders, and the app puts them back afterwards, so a rewrite cannot lose one. A summary is a heading, one sentence saying what the note is for, and its tasks. It may leave a table out. The runs are told never to add a fact the note did not give. A blank is the one thing the AI may answer from what it knows, and it says so.
 
 For example, here is a note spoken in one breath:
 
@@ -32,6 +35,64 @@ Format might return it as:
 ```
 
 The front matter at the top of a note (the lines between the two `---` lines) is never given to the model, and the model never rewrites it. The one change a run makes there is to sign the note, as the last part of this chapter shows. If the note is linked to a GitHub repo, the model is also given what the GitHub plugin has read about that repo, for spelling its names and terms, and it is told not to add any of it to the note. A note with nothing in it yet gets the message "Nothing in the note yet."
+
+## Questions the AI answers in place
+
+Write a question in curly brackets, with a question mark after the first one, where its answer belongs:
+
+    Flights are cheapest to Tokyo on {?what day / time?}
+
+The question is drawn in a small square with an icon that says what will happen. Once you stop typing, **Fill** shows at the end of the line. Tap it and the model on your phone writes its answer where the square was. **Fill the blanks** in the More sheet answers every square in the note in one go. The question can be a few words, or nothing at all: `{?}` asks the model to read the sentence around it, or the question just before it. The + beside an empty line writes one too, under **More**, and on the line under a table **Blanks in the empty cells** puts one in each empty cell.
+
+### What happens to a square
+
+| The square | What happens |
+|---|---|
+| A calculator, a calendar or a globe | The app works it out at once: a total, a count, a date, a conversion, the time in a city. The answer shows after the square, with its working a tap away, and changes when a number or the day does. The model is not asked. |
+| The same, with **Can't work out** | The app saw a sum or a date it could not finish, such as two currencies or Easter. A tap says why. |
+| A signal | Something live: the weather, an exchange rate, a recent result. When you tap Fill, the phone asks a public source (the list below) and the model writes the answer from what came back. |
+| A crossed-out signal | Something live that no public source answers, such as today's fares, opening hours or a share price, or the phone may not look things up. It says **Can't know offline**, and the model is not asked. |
+| A speech bubble with a question mark | The model answers when you tap **Fill**. |
+
+When the app says it can't, tap its words and **Ask the model anyway** if you think it is wrong. The answer comes with a dotted line, like any other.
+
+Where the square sits shapes the answer. As a note's whole first line with no question, it writes a title. As a whole list item it adds items, one new item a line. In a table cell it answers for that row and column. `{?in Japanese}` says the words before it in Japanese. A question as a note's whole first line stays as the title, and its answer goes under it.
+
+### What the model's answer looks like
+
+The answer goes into the note with a dotted line under it, the line for a fact to check later ([[The marks you can type]]). Tap it to see where it came from:
+
+- **From this note**: its words are in a line of the note, beside what you asked.
+- **From memory**: it came from what the model learnt in training.
+- **From the web**: the phone asked a public source, which the panel names, and the model wrote the answer from what came back.
+
+The model has no internet. It knows what it learnt in training, nothing newer, and it can be wrong. Asked who won the 2022 World Cup with France in the note, the 2B said France. It was Argentina.
+
+The note keeps the source and your question beside the answer, in brackets the app hides:
+
+    Flights are cheapest to Tokyo on ??midweek??(Qwen3.5 4B from memory, 2026-09-28. Asked: what day / time?)
+
+So wherever the note is read, on another phone, in a share or in another app, it says where the answer came from. Your question travels with it, shares included, until you tap **Keep as mine**.
+
+| To | Do this |
+|---|---|
+| Make the answer yours | Tap it, then **Keep as mine**. The dotted line and your question go, and the words stay. |
+| Ask again | Tap it, then **Ask again**. The model is told its first answer was not the one. |
+| Have the question back | Tap it, then **Put the question back**. |
+| Keep a worked-out answer | Tap it, then **Write it in**. It stops changing. |
+| Undo a fill | Tap **Undo** beside it in the strip's log, while the note still reads as the fill left it. One press of Fill is one line there. |
+
+In a title, an answer is written as plain words, since a title is a name and shows in every list. Its source is in the strip's log.
+
+`[[what day?]]` is still a link to a note called "what day?". Only curly brackets ask the AI.
+
+### Looking things up
+
+A square with a signal is looked up by the phone itself, and only when you tap Fill. The phone asks one public source that needs no account: Open-Meteo for the weather, the European Central Bank's rates (through Frankfurter) for exchange rates, and Wikipedia and Wikidata for results, the newest of something and events after the model's training. Only the question goes, or the place and the day for the weather, never the note. Offline, the square says **Waiting for a connection**, and the lookup goes on by itself once the phone is online. **Look up blanks online** in Settings › Account › Privacy turns it off, and Local only keeps such squares waiting.
+
+### Where it runs
+
+Fills run on your phone, or on a Mac with the app, with a model you downloaded ([[The models on your phone]]). Once you tap Fill, the answers come even if you leave the note. In a browser and on an iPhone the squares, the worked-out answers and the dotted answers all show, and the model's answers wait for a phone.
 
 ## The strip
 

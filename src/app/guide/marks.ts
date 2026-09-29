@@ -31,6 +31,7 @@ import {
   SquareArrowOutUpRight,
   SquareCheckBig,
   SquareCode,
+  SquareDashed,
   Sticker,
   Strikethrough,
   Subscript,
@@ -98,6 +99,7 @@ export type Looks =
   | 'tag'
   | 'counter'
   | 'sum'
+  | 'blank'
   | 'progress'
   | 'choice'
   | 'spoilerLine'
@@ -167,6 +169,8 @@ const OWN: MarkGroup[] = [
       { symbol: '- ( )', name: 'A choice', typed: 'Where do we stay?\n- ( ) Tent\n- (x) Cabin', words: 'Cabin', looks: 'choice', icon: CircleDot, say: '“option: tent”, “picked option: cabin”' },
       { symbol: '[ / ]', name: 'A counter', typed: '- Water [3/8]', words: '3/8', looks: 'counter', icon: Gauge, say: '“counter three of eight”' },
       { symbol: '=', name: 'A sum', typed: '= $450 + 120 * 2', words: '$690', looks: 'sum', icon: Calculator, say: '“calculate: four hundred plus one hundred twenty”' },
+      // A question the AI answers where it stands (docs/DESIGN.md §145). No `say`: a blank has no spoken cue.
+      { symbol: '{?}', name: 'A blank', typed: 'Cheapest day to fly: {?which day}', words: 'which day', looks: 'blank', icon: SquareDashed },
       {
         symbol: '>',
         name: 'A quote',

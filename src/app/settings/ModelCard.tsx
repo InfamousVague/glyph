@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Download } from '@glacier/icons';
 import { ProgressBar } from '@glacier/react';
 import { modelFor } from '../ai/available.ts';
-import { gb, MODELS, modelSpec, useModels } from '../core/ai.ts';
+import { gb, MODEL_LIMITS, MODELS, modelSpec, useModels } from '../core/ai.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { isAndroid } from '../core/platform.ts';
 import { setPreferences, usePreferences } from '../core/preferences.ts';
@@ -69,7 +69,7 @@ export function ModelCard() {
 
       <PaneSection
         title="Model"
-        description={`Writes the summaries and the review, and Format, Summarize and Enhance on a note. Bigger is more careful, and slower. It runs on ${device}. Nothing is sent anywhere.`}
+        description={`Writes the summaries and the review, runs the AI in a note's More sheet, and fills its blanks. Bigger writes better, and is slower. It runs on ${device}. Nothing is sent anywhere. ${MODEL_LIMITS}`}
         footer={held ? `${gb(held)} on ${device}.` : 'Nothing downloaded yet. Get one above, or tap the robot on a note and it will offer to.'}
       >
         {MODELS.map((model) => {
