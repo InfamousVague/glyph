@@ -37,6 +37,18 @@ describe('the notes a command can name', () => {
     expect(titles).not.toContain('Untitled canvas');
     expect(titles).not.toContain('Canvas · The tick path');
   });
+
+  it('leaves out the pages of a Templates notebook: a checklist said is the person’s, never the template', async () => {
+    const { templatePageBody, templatesNotebookBody } = await import('../notes/ownTemplates.ts');
+    const { BUILT_INS } = await import('../notes/noteTemplates.ts');
+    const checklist = BUILT_INS.find((one) => one.kind === 'checklist')!;
+    const named = commandCandidates([
+      makeNote('tpl', templatesNotebookBody([checklist.name]), { updatedAt: 3 }),
+      makeNote('page', templatePageBody(checklist), { updatedAt: 2 }),
+      makeNote('mine', '# Groceries\n\n- [ ] Eggs', { updatedAt: 1 }),
+    ]).map((c) => c.id);
+    expect(named).toEqual(['tpl', 'mine']);
+  });
 });
 
 describe('one spelling of to-do, and the kind words', () => {

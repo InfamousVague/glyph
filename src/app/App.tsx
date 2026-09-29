@@ -67,6 +67,7 @@ import { useRootStamp } from './shell/useRootStamp.ts';
 import { useTrail } from './shell/useTrail.ts';
 import { useVisibleNotes } from './shell/useVisibleNotes.ts';
 import { dropLiveTitles } from './core/liveTitles.ts';
+import { isTemplatesBody, newTemplatePageBody, seedPlan, templatePageBody, templatePages, templatesOf } from './notes/ownTemplates.ts';
 import { isMacApp } from './core/platform.ts';
 
 /**
@@ -293,9 +294,16 @@ function Shell() {
   const takenTitles = useMemo(() => new Set(notes.map((n) => titleKey(noteTitle(n.body))).filter(Boolean)), [notes]);
   /**
    * The notes some journal's index names (book/journal.ts `entryPages`): its entries. Recent, the palette's first list
-   * and the pickers of a notebook's pages leave them out, as they leave the Guide's pages out.
+   * and the pickers of a notebook's pages leave them out, as they leave the Guide's pages out. And the pages of a
+   * Templates notebook (notes/ownTemplates.ts `templatePages`), which are templates and not notes of the person's.
    */
-  const entryIds = useMemo(() => entryPages(shownNotes), [shownNotes]);
+  const entryIds = useMemo(() => {
+    const ids = entryPages(shownNotes);
+    for (const id of templatePages(shownNotes)) ids.add(id);
+    return ids;
+  }, [shownNotes]);
+  /** Your own templates, a Templates notebook's pages in its order, or null where there is none: the blank page's cards. */
+  const ownTemplates = useMemo(() => templatesOf(shownNotes), [shownNotes]);
   /** What the aside holds now: the open note's book, or its numbered chapters in order, or nothing (aside/aside.ts). */
   const asideBody = useMemo(() => asideContent(shownNotes, screen.name === 'note' ? screen.note : null), [shownNotes, screen]);
   /** That note's body, for a canvas card that is a note to draw it small (canvas/CanvasView.tsx); null for none. */
@@ -358,10 +366,14 @@ function Shell() {
     }
     await openTitleFrom(title, at);
   };
-  /** A title opened from inside a book: in the current tab's place. */
+  /**
+   * A title opened from inside a book: in the current tab's place. A page added to a Templates notebook is made as a
+   * template's page (notes/ownTemplates.ts): named by its `title:`, its heading left open for a note's name.
+   */
   const openTitleWithin = (title: string) => {
     tabs.replaceNext(shown);
-    void openTitleFrom(title);
+    const inTemplates = screen.name === 'note' && isTemplatesBody(screen.note.body);
+    void openTitleFrom(title, undefined, inTemplates ? newTemplatePageBody : undefined);
   };
   /** A canvas by that title opened from a book's index, made first if there is none (book/BookView.tsx). */
   const openCanvasWithin = (title: string) => {
@@ -453,6 +465,36 @@ function Shell() {
       },
     });
     void tagNewNotesIfWanted([note.id], { reviewing: false }, { introduce: introduceLocation });
+  };
+
+  /*
+   * Your templates, the blank page's last card (notes/ownTemplates.ts; docs/DESIGN.md §144): the Templates notebook,
+   * opened in a tab of its own. The first time there is none, and it is made with the six built-ins as its pages, the
+   * pages first and the notebook last, as the Guide is added, against the store read now and out of the Trash, so a
+   * press cut short makes only what is missing the next time. Not filed and not tagged: they are the app's pages until
+   * the person changes them. A second press while it is being made is the same press.
+   */
+  const seeding = useRef(false);
+  const openTemplates = async () => {
+    if (seeding.current) return;
+    seeding.current = true;
+    try {
+      tabs.replaceNext(null);
+      const plan = seedPlan(outOfTrash(await listNotes().catch(() => notes), trash()));
+      if ('open' in plan) {
+        setScreen({ name: 'note', note: plan.open });
+        return;
+      }
+      for (const template of [...plan.pages].reverse()) await createNote(newNoteId(), templatePageBody(template), 'editor');
+      const book = await createNote(newNoteId(), plan.index, 'editor');
+      await refresh();
+      setScreen({ name: 'note', note: book });
+    } catch {
+      await refresh().catch(() => undefined);
+      toast({ message: 'Your templates could not be made. Try again.' });
+    } finally {
+      seeding.current = false;
+    }
   };
 
   /*
@@ -827,6 +869,8 @@ function Shell() {
         onJournal={onJournal}
         caret={screen.caret}
         takenTitles={takenTitles}
+        templates={ownTemplates}
+        onTemplates={() => void openTemplates()}
         allTitles={() => shownNotes.map((n) => noteTitle(n.body)).filter(Boolean)}
         pageTitles={() => shownNotes.filter((n) => !entryIds.has(n.id)).map((n) => noteTitle(n.body)).filter(Boolean)}
         rename={rename}

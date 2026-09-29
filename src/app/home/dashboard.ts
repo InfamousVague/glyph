@@ -6,12 +6,23 @@ import type { SummariesState, SummaryKind } from '../ai/summaries.ts';
 import type { Note } from '../core/store.ts';
 import { guidePages, isGuideBook } from '../guidebook/guidebook.ts';
 import { hasTape } from '../notes/allNotes.ts';
+import { templatePages } from '../notes/ownTemplates.ts';
 
 /**
  * What the home page gathers from the notes (home/HomeScreen.tsx): the pinned ones, the tapes on the shelf, the ones
  * touched last, every to-do not yet ticked, wherever it was written, and the digest line under the date that says
  * what is waiting (docs/DESIGN.md §132). Pure, so each rule is a test rather than a page to look at.
  */
+
+/**
+ * The pages that are not the person's notes to show among theirs: the Guide's, and the pages of a Templates notebook
+ * (notes/ownTemplates.ts), whose to-dos are a template's empty boxes and whose names are templates' and not notes'.
+ */
+function pagesApart(notes: readonly Note[]): Set<string> {
+  const ids = guidePages(notes);
+  for (const id of templatePages(notes)) ids.add(id);
+  return ids;
+}
 
 /** Pinned notes, newest first. The archive is never on the home page. */
 export function pinnedNotes(notes: readonly Note[]): Note[] {
@@ -65,7 +76,7 @@ export function tapedNotes(notes: readonly Note[], meetings: Meetings, live: str
  * being recorded).
  */
 export function recentNotes(notes: readonly Note[], count: number, meetings: Meetings, live: string | null = null): Note[] {
-  const guide = guidePages(notes);
+  const guide = pagesApart(notes);
   // A year of a journal's entries would fill Recent every day; the journal's card is the way to them (book/journal.ts).
   const entries = entryPages(notes);
   return notes
@@ -100,7 +111,7 @@ const FENCE = /^\s*(`{3,}|~{3,})/;
 /** Every unticked to-do in the notes, the most recently touched note's first, in the order each note has them. */
 export function openTasks(notes: readonly Note[]): OpenTask[] {
   const tasks: OpenTask[] = [];
-  const guide = guidePages(notes);
+  const guide = pagesApart(notes);
   for (const note of [...notes].filter((n) => !n.archivedAt && !guide.has(n.id)).sort((a, b) => b.updatedAt - a.updatedAt)) {
     let fenced = false;
     note.body.split('\n').forEach((line, index) => {
@@ -132,7 +143,7 @@ export function startOfToday(now = Date.now()): number {
  */
 export function touchedToday(notes: readonly Note[], now = Date.now()): number {
   const since = startOfToday(now);
-  const guide = guidePages(notes);
+  const guide = pagesApart(notes);
   return notes.filter((n) => !n.archivedAt && !guide.has(n.id) && !isGuideBook(n) && n.updatedAt >= since).length;
 }
 
@@ -193,7 +204,7 @@ export function digest(facts: { open: number; waiting: Waiting; touched: number 
  */
 export function tickedTasks(notes: readonly Note[]): number {
   let count = 0;
-  const guide = guidePages(notes);
+  const guide = pagesApart(notes);
   for (const note of notes) {
     if (note.archivedAt || guide.has(note.id)) continue;
     let fenced = false;

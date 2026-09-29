@@ -26,7 +26,10 @@ import { fillTemplate, firstOpenAt } from '../core/template.ts';
 export type TemplateId = 'day' | 'meeting' | 'checklist' | 'book' | 'map' | 'reading';
 
 export interface NoteTemplate {
-  id: TemplateId;
+  /** A built-in's name for itself, or your own template's page's note id (notes/ownTemplates.ts). */
+  id: string;
+  /** Which built-in it is, or is still word for word, whose rules it keeps: A day's taken name, a map's place. */
+  kind?: TemplateId;
   /** The card's name. */
   name: string;
   /** What it makes, in one fixed sentence, under the name. */
@@ -38,19 +41,20 @@ export interface NoteTemplate {
 }
 
 export const BUILT_INS: readonly NoteTemplate[] = [
-  { id: 'day', name: 'A day', sentence: 'Named for today, with a to-do to start.', words: '# {{date:YYYY-MM-DD}}\n\n{{date}}\n\n- [ ] ', look: null },
+  { id: 'day', kind: 'day', name: 'A day', sentence: 'Named for today, with a to-do to start.', words: '# {{date:YYYY-MM-DD}}\n\n{{date}}\n\n- [ ] ', look: null },
   {
     id: 'meeting',
+    kind: 'meeting',
     name: 'A meeting',
     sentence: 'Named for this minute, with who was there, notes and to-dos.',
     // "Meeting" outside the braces, so its M is not read as a month.
     words: '# Meeting {{date:YYYY-MM-DD HH.mm}}\n\nWith \n\n## Notes\n\n- \n\n## To do\n\n- [ ] ',
     look: null,
   },
-  { id: 'checklist', name: 'A checklist', sentence: 'A name to type, then a to-do.', words: '# {{title}}\n\n- [ ] ', look: null },
-  { id: 'book', name: 'Notes on a book', sentence: 'Its title, who wrote it, notes and quotes.', words: '# {{title}}\n\nBy \n\n## Notes\n\n- \n\n## Quotes\n\n> ', look: null },
-  { id: 'map', name: 'A map at the top', sentence: 'Where you are, drawn large above the words.', words: '# {{title}}\n\n{{date}}, {{time}}.\n', look: 'map' },
-  { id: 'reading', name: 'A page to read', sentence: 'A large title, a lead line and a column set for reading.', words: '# {{title}}\n', look: 'reading' },
+  { id: 'checklist', kind: 'checklist', name: 'A checklist', sentence: 'A name to type, then a to-do.', words: '# {{title}}\n\n- [ ] ', look: null },
+  { id: 'book', kind: 'book', name: 'Notes on a book', sentence: 'Its title, who wrote it, notes and quotes.', words: '# {{title}}\n\nBy \n\n## Notes\n\n- \n\n## Quotes\n\n> ', look: null },
+  { id: 'map', kind: 'map', name: 'A map at the top', sentence: 'Where you are, drawn large above the words.', words: '# {{title}}\n\n{{date}}, {{time}}.\n', look: 'map' },
+  { id: 'reading', kind: 'reading', name: 'A page to read', sentence: 'A large title, a lead line and a column set for reading.', words: '# {{title}}\n', look: 'reading' },
 ];
 
 /** A day's sentence on a day that already has a note by its name. */

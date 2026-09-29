@@ -113,6 +113,26 @@ describe('the template cards', () => {
     expect(said('map')).toBe('Allow location for this site in the browser’s settings for a note to keep its place.');
   });
 
+  it('are your own templates once you have them, in their order, and end with the way to them', async () => {
+    const { templateOf, newTemplatePageBody, templatePageBody } = await import('./ownTemplates.ts');
+    const { BUILT_INS } = await import('./noteTemplates.ts');
+    const { makeNote } = await import('../../test/notes.ts');
+    const walk = templateOf(makeNote('walk', newTemplatePageBody('A walk')));
+    const day = templateOf(makeNote('d', templatePageBody(BUILT_INS[0]!)));
+    const yours = vi.fn();
+    const chosen: string[] = [];
+    show(<TemplateCards at={AT} taken={new Set([titleKey('2026-09-28')])} smallMap={false} onChoose={(template) => chosen.push(template.id)} templates={[walk, day]} onYours={yours} />);
+    expect(cards().map((one) => one.dataset.template)).toEqual(['walk', 'd', 'yours']);
+    expect(said('walk')).toBe('One of your own.');
+    // Still A day word for word: its rules, a taken name included.
+    expect(said('d')).toBe('Today has a note by this name. This makes a second.');
+    expect(card('yours').textContent).toBe('Your templatesChange these or write your own. They are notes in a notebook.');
+    act(() => card('walk').click());
+    act(() => card('yours').click());
+    expect(chosen).toEqual(['walk']);
+    expect(yours).toHaveBeenCalledTimes(1);
+  });
+
   it('leave it out where the device can never say where it is: the Mac, or a browser with no geolocation', () => {
     device.mac = true;
     show(<TemplateCards at={AT} taken={new Set()} smallMap={false} onChoose={() => undefined} />);

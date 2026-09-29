@@ -8015,33 +8015,33 @@ at the same time, have 145 and 146.)
 Matt: "Add suggestions for note names like the days date and other standard note formats. When making a new note also
 offer a few templates to chose from with cards showing how they look (map header, typography focus, etc)". Then, asked
 where and how: "cards on the blank page", the big map header, the reading page, and "the day in words first". Every
-other question took its default: every new note opens focused, six templates, the cards formatted, a taken name gets
-" (2)", ⌘N bound in the Mac app, and your own templates later, as notes in a Templates notebook.
+other question took its default: every new note opens focused, six templates, the cards formatted, a taken name gets "
+(2)", ⌘N bound in the Mac app, and your own templates later, as notes in a Templates notebook.
 
 **Ready to type.** + › Note, the palette's New note and ⌘N open a new note with the caret in its first line and the
-editor focused, the keyboard up where the phone allows it. No new note took focus before. The screen's `caretAtEnd`,
-a journal's entry's, became `caret`, a place or `end`. Whether Android raises the keyboard for a focus that follows the
+editor focused, the keyboard up where the phone allows it. No new note took focus before. The screen's `caretAtEnd`, a
+journal's entry's, became `caret`, a place or `end`. Whether Android raises the keyboard for a focus that follows the
 note's write is the Fold's to say. If it does not, the caret waits in line 1 and the first tap raises it, as before.
 
 **The map's box holds its place.** With the caret in line 1 from the first frame, a map card arriving with the fix, or
 leaving when the fix failed, moved the line under a typing thumb (about 105px at 412). So where a fix is expected
 (`willLocate`: Tag new notes on, not Local only, a device that can locate, no refusal standing, and nothing to answer,
-each read as it stands) the box is held from the first frame, drawn as `MapPicture`: the card's own box and dot grid,
-no map, no button, `inert`, nothing fetched. The tag arrives in it with no beat, so nothing moves. A fix that does not
-come leaves it saying `No place yet.` until the note is left, and a note reopened with no tag draws none. Where the
-prompt was never answered nothing is held until the introduction's Allow, which holds the box under the person's own
-press. What still moves: the folded front matter line arrives with the tag at the first own words, as it did.
+each read as it stands) the box is held from the first frame, drawn as `MapPicture`: the card's own box and dot grid, no
+map, no button, `inert`, nothing fetched. The tag arrives in it with no beat, so nothing moves. A fix that does not come
+leaves it saying `No place yet.` until the note is left, and a note reopened with no tag draws none. Where the prompt
+was never answered nothing is held until the introduction's Allow, which holds the box under the person's own press.
+What still moves: the folded front matter line arrives with the tag at the first own words, as it did.
 
 **Names on the blank page.** Under a new note's empty first line, four quiet chips in a fixed order: the day in words
 with its year, `Monday, 28 September 2026`, then `2026-09-28`, `2026-09-28 14.05` and `2026-W40` (core/noteNames.ts).
 The ISO names are ASCII digits in every language, so a file name and a title's key keep them whole, and none has a
-colon. A tap writes the name as the note's heading, as one undo step, the caret on the line under it. The heading is
-the name, as it is for every note, and names the file, `Inbox/2026-09-28.md`. A name another note has, archived or in
-the Trash too, is left out and the rest keep their places, so no chip opens another note or makes a second of a name.
-Where a language's title key loses the month (Russian keys "понедельник, 28 сентября 2026 г." as `28 2026`, like every
-28th that year), the words are still offered, but today's taken check asks the ISO name. The minute's chip turns with
-the clock while shown. The + beside the line writes the minute's name, not the stamp, on the line that names the note,
-since `28 Sept 2026, 14:05` there files as `28 Sept 2026, 1405.md`.
+colon. A tap writes the name as the note's heading, as one undo step, the caret on the line under it. The heading is the
+name, as it is for every note, and names the file, `Inbox/2026-09-28.md`. A name another note has, archived or in the
+Trash too, is left out and the rest keep their places, so no chip opens another note or makes a second of a name. Where
+a language's title key loses the month (Russian keys "понедельник, 28 сентября 2026 г." as `28 2026`, like every 28th
+that year), the words are still offered, but today's taken check asks the ISO name. The minute's chip turns with the
+clock while shown. The + beside the line writes the minute's name, not the stamp, on the line that names the note, since
+`28 Sept 2026, 14:05` there files as `28 Sept 2026, 1405.md`.
 
 They show only while the page is being written in: the editor has the focus, and the page is ready for words, which is
 no keyboard on the screen (the Mac, a desktop), the keyboard up (core/keyboard.ts: the viewport 150px under the tallest
@@ -8060,33 +8060,47 @@ name's take-back is a delete with no Trash, so an old note never shows them and 
 is the top of the note it makes, drawn by the note's own editor, formatted, in the note's ink and heading proportions
 (NotePeek's `whole`), one to a row on a phone and as many as fit 15rem from 600px, three at 880 and on the Mac. Where
 this note holds a map's box every card draws the small box it would get above its words, so A map at the top's header
-reads large against small. A card is a button named by its template and described by its sentence, and what it draws
-is one `inert` picture with no button in it. A press keeps the focus in line 1 and turns the blank note into that
-template as one change: its record first, then its name settled (a second A day is `2026-09-28 (2)`, and its card says
-`Today has a note by this name. This makes a second.` before the press), then the caret in its first open line. One
-undo brings the blank page, the names and the cards back. The cards go at the first letter with the names, or at a tap
-elsewhere on the page that began while they were shown, never at the tap that brought them. A map at the top is not
-drawn where the device can never locate (the Mac, an older Android binary, a browser with no geolocation), and is dimmed,
-not a button, with its reason under Local only or a refusal that still stands. The + sheet's Note row is as it was, and
-no row or palette command offers templates: the blank page does. The ghost goes under the cards, in their block.
+reads large against small. A card is a button named by its template and described by its sentence, and what it draws is
+one `inert` picture with no button in it. A press keeps the focus in line 1 and turns the blank note into that template
+as one change: its record first, then its name settled (a second A day is `2026-09-28 (2)`, and its card says `Today has
+a note by this name. This makes a second.` before the press), then the caret in its first open line. One undo brings the
+blank page, the names and the cards back. The cards go at the first letter with the names, or at a tap elsewhere on the
+page that began while they were shown, never at the tap that brought them. A map at the top is not drawn where the
+device can never locate (the Mac, an older Android binary, a browser with no geolocation), and is dimmed, not a button,
+with its reason under Local only or a refusal that still stands. The + sheet's Note row is as it was, and no row or
+palette command offers templates: the blank page does. The ghost goes under the cards, in their block.
 
-**One engine and one record.** The journal's `fillTemplate` fills them, moved to core/template.ts and given the ISO
-week (`GGGG`, `WW` and `W`, while Moment's locale week, `gggg` and `ww`, stays as typed) and `firstOpenAt`, where the caret goes. The
-journal's record of an entry nobody has written in is core/untouched.ts now, its journal optional and its storage key
-the one 1.10.0 wrote, so a templated or named note left without a word of the person's is taken back as an untouched
-entry is, with no toast and no line to take out, and no place lands on it before then.
+**Your own templates.** The blank page's last card, Your templates, opens a notebook the templates are kept in
+(notes/ownTemplates.ts), found by `templates: true` beside `book: true` and never by its name. The first press makes it
+with the six built-ins as its pages, the pages first and the notebook last, as the Guide is added, against the store
+read then and out of the Trash, so a press cut short makes only what is missing the next time. From then on the blank
+page's cards are its pages in its index's order, two notebooks made on two devices read oldest first and a page named
+twice offered once. A page is named by its `title:`, its words after the front matter are the template, and only `look:`
+passes to a note made from it, so a page written where it was tagged never hands its place on. A page still word for
+word a built-in keeps that one's sentence and rules, and any other says `One of your own.` Add a page in the notebook
+makes a page with its heading left open. The pages stay out of Recent, To do, the ticked count, the notes touched today,
+what a spoken command can name, the palette's list before anything is typed and a notebook's page pickers. Settings were
+the other way, and were not taken: they sync as one sealed blob, last writer wins, and Claude reads notes only. The
+costs: seven notes appear and sync, and a device on 1.9.0 shows the pages in Recent the day they are made, their
+`{{date}}` as it is, until the update reaches it. Claude's rewrite keeps `templates:`.
+
+**One engine and one record.** The journal's `fillTemplate` fills them, moved to core/template.ts and given the ISO week
+(`GGGG`, `WW` and `W`, while Moment's locale week, `gggg` and `ww`, stays as typed) and `firstOpenAt`, where the caret
+goes. The journal's record of an entry nobody has written in is core/untouched.ts now, its journal optional and its
+storage key the one 1.10.0 wrote, so a templated or named note left without a word of the person's is taken back as an
+untouched entry is, with no toast and no line to take out, and no place lands on it before then.
 
 **Two looks.** One flat key, `look:`. `look: map` draws the note's map as a header across its column, 10rem on a phone
 and 16rem from 600px, up to 48rem, its box drawn from the first frame with or without a place, saying `No place yet.` or
 `Local only is on.` where there is none, and the place asked for once from the card's own press whatever Tag new notes
 says. `look: reading` sets the words in the interface's face (the note face swapped on the editor, and both of
 typefaces.css's coding-face rules kept off it, so Inter keeps its features, optical sizes and the title's -0.035em), a
-5xl title from the column's own scale, a lead line a step larger in the second ink that says
-`A line that says what it is about.` while it is empty, and a 36rem column from 600px. No serif ships, only Maple Mono
-has true italics, and the text size is the person's, so that is all a look can be. The key is kept out of the folded
-front matter line, and a block holding only the look folds to nothing, so a reading note opens on its title. The More
-sheet's Reading it gains Look, Plain, Reading, and Map for a note with a place, as one undo, and the person's own, so
-it forgets an untouched record. The shared reader draws both looks and not the key, and Claude's rewrite keeps `look:`.
+5xl title from the column's own scale, a lead line a step larger in the second ink that says `A line that says what it
+is about.` while it is empty, and a 36rem column from 600px. No serif ships, only Maple Mono has true italics, and the
+text size is the person's, so that is all a look can be. The key is kept out of the folded front matter line, and a
+block holding only the look folds to nothing, so a reading note opens on its title. The More sheet's Reading it gains
+Look, Plain, Reading, and Map for a note with a place, as one undo, and the person's own, so it forgets an untouched
+record. The shared reader draws both looks and not the key, and Claude's rewrite keeps `look:`.
 
 **The tab says the name.** A new note's tab said Untitled however its first line was typed, since tabs are drawn from
 App's list, read again when the store says so and not on the editor's saves. The note screen now says its title to a
@@ -8100,31 +8114,32 @@ type, from a place only, and not while a sheet, the palette or the Guide is open
 lands first. A new note is focused and given its caret, its + and its names in one moment, so on the Fold's build the
 names never heard it had the focus. The names' field reads the focus again 20ms after each focus and blur. The folded
 front matter line has the same blind spot, and is left as it was. The heading counter had already stopped counting an
-empty to-do on main. §134's line that a tag shows in Obsidian's Properties is not so: the page's keys are a second
-front matter block, which Obsidian shows as text, as it shows `look:`.
+empty to-do on main. §134's line that a tag shows in Obsidian's Properties is not so: the page's keys are a second front
+matter block, which Obsidian shows as text, as it shows `look:`.
 
 **Tests.** The ISO week at the year's turns, the caret for each template, a taken name's " (2)" measured after, each of
-the six made exactly, the names in their order in eight languages and dropped where taken, the day's key kept or lost in
-fourteen, the keyboard by width, the record with and without a journal and one 1.10.0 kept, the fresh set, the chips'
-gates (focus, a tap's end, a key, the keyboard) and their press, a focus CodeMirror dropped, the lead line and the hint,
-the look's fold, the held box found, missed and left, the cards (buttons, pictures, the dimmed and absent map card, A
-day taken), a card's press and its undo, a map note's header and its one ask, the Look row, the reader, the take-back
-of a templated note left, ⌘N, and an old note emptied by hand showing nothing and still there after.
+the six made exactly, your own templates (the notebook by its key, their order, two notebooks, a look passed on and
+nothing else, a built-in's rules kept, the pages kept apart, a seed cut short), the names in their order in eight
+languages and dropped where taken, the day's key kept or lost in fourteen, the keyboard by width, the record with and
+without a journal and one 1.10.0 kept, the fresh set, the chips' gates (focus, a tap's end, a key, the keyboard) and
+their press, a focus CodeMirror dropped, the lead line and the hint, the look's fold, the held box found, missed and
+left, the cards (buttons, pictures, the dimmed and absent map card, A day taken), a card's press and its undo, a map
+note's header and its one ask, the Look row, the reader, the take-back of a templated note left, ⌘N, and an old note
+emptied by hand showing nothing and still there after.
 
 **Measured** (a production build of this branch, Playwright's Chromium as the Android app at generation 21 and as the
 Mac app, the clock at 14:05 on Monday 28 September in London, shots in `scratchpad/newnote/shots/`). At 412 with the
 keyboard's height taken (412 by 585): the held box 120 to 216, line 1 at 239 from the first frame, the chips in two rows
 from 279 to 350, the first card from about 370. At 880 the chips take one row and the cards three across. On the Mac the
-chips and cards are there at once, five cards with no A map at the top. A map note's header is 367 by 160 at 412 and
-768 by 256 at 1280. A reading note's title is Inter at 44.4px with -1.55px tracking at 412, where a Maple title is
-36.9px, and its words hold a 36rem column at 1280.
+chips and cards are there at once, five cards with no A map at the top. A map note's header is 367 by 160 at 412 and 768
+by 256 at 1280. A reading note's title is Inter at 44.4px with -1.55px tracking at 412, where a Maple title is 36.9px,
+and its words hold a 36rem column at 1280.
 
-**Left undone.** Your own templates, as notes in a Templates notebook (slice 2, not built). A daily note, where today's
-name opens today's note, asked together with a journal's one a day. On the Fold: the keyboard rising for the focus after
-the write, `keyboardUp` against the real keyboard on both screens and the floating one, the held box on the first
-painted frame and the fix's time, the header's tile count against §134's, the cards' first draw at 4x throttle and in
-WebKit. The front matter line's arrival at the first words. The recorder's meeting title in the ISO shape, which is the
-summary's placeholder. Moment's locale week. The looks on a canvas's card, a notebook read through and a home card. An
-empty to-do drawn as a box: a bare `- [ ] ` is not a task to the parser, so the note and its card draw `- [ ]` as the
-journal's to-do preset does. A `template` argument for Claude's `create_note`, whose hosted server deploys only on Matt's
-word.
+**Left undone.** A daily note, where today's name opens today's note, asked together with a journal's one a day. On the
+Fold: the keyboard rising for the focus after the write, `keyboardUp` against the real keyboard on both screens and the
+floating one, the held box on the first painted frame and the fix's time, the header's tile count against §134's, the
+cards' first draw at 4x throttle and in WebKit. The front matter line's arrival at the first words. The recorder's
+meeting title in the ISO shape, which is the summary's placeholder. Moment's locale week. The looks on a canvas's card,
+a notebook read through and a home card. An empty to-do drawn as a box: a bare `- [ ] ` is not a task to the parser, so
+the note and its card draw `- [ ]` as the journal's to-do preset does. A `template` argument for Claude's `create_note`,
+whose hosted server deploys only on Matt's word.

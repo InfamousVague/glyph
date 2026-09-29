@@ -10,7 +10,7 @@ import { BUILT_INS, fillNoteTemplate, type TemplateId } from './noteTemplates.ts
  */
 
 const AT = () => new Date(2026, 8, 28, 14, 5);
-const template = (id: TemplateId) => BUILT_INS.find((one) => one.id === id)!;
+const template = (id: TemplateId) => BUILT_INS.find((one) => one.kind === id)!;
 const fill = (id: TemplateId, taken: string[] = []) => inLocale('en-GB', () => fillNoteTemplate(template(id), AT(), new Set(taken.map(titleKey))));
 /** The note as it is made, the caret drawn in it as `|`. */
 const made = (id: TemplateId, taken: string[] = []) => {
@@ -20,6 +20,7 @@ const made = (id: TemplateId, taken: string[] = []) => {
 
 describe('the six templates', () => {
   it('are in this order, each with its name and its fixed sentence', () => {
+    expect(BUILT_INS.every((one) => one.id === one.kind)).toBe(true);
     expect(BUILT_INS.map((one) => [one.id, one.name, one.sentence])).toEqual([
       ['day', 'A day', 'Named for today, with a to-do to start.'],
       ['meeting', 'A meeting', 'Named for this minute, with who was there, notes and to-dos.'],
@@ -66,7 +67,7 @@ describe('the six templates', () => {
         expect(line).not.toMatch(/^- \[ \] \S/);
       }
       // Its shape shows in the first five lines a card shows.
-      expect(fill(one.id).words.split('\n').slice(0, 5).join('').trim()).not.toBe('');
+      expect(fill(one.kind!).words.split('\n').slice(0, 5).join('').trim()).not.toBe('');
     }
   });
 });

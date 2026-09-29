@@ -54,6 +54,12 @@
   outline-offset: 2px;
 }
 
+/* Your templates: not a note's top but the notebook they are kept in, so its words alone, at the foot of the row. */
+.yours {
+  justify-content: flex-end;
+  background: transparent;
+}
+
 /* A map at the top where no note made here keeps a place: there, and plainly not to be pressed. */
 .card[data-dimmed] {
   cursor: default;

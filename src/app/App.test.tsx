@@ -483,6 +483,38 @@ describe('a new note, ready to type', () => {
     expect(await getNote(kept)).not.toBeNull();
   });
 
+  it('makes your Templates notebook from Your templates, pages first, opens it, and offers its pages on a blank page', async () => {
+    const { isTemplatesBody } = await import('./notes/ownTemplates.ts');
+    await openApp();
+    const blank = async () => {
+      if (noteShown()) act(() => button('Home').click());
+      act(() => button('Write a note').click());
+      await act(async () => buttonSaying(document.body, 'A page of markdown')!.click());
+      await waitUntil(() => expect(seen.note?.note.body).toBe(''));
+    };
+    await blank();
+    expect(seen.note!.templates).toBeNull();
+    const made = vi.mocked(createNote).mock.calls.length;
+    await act(async () => seen.note!.onTemplates!());
+    await waitUntil(() => expect(isTemplatesBody(seen.note!.note.body)).toBe(true));
+    const bodies = vi.mocked(createNote).mock.calls.slice(made).map((call) => call[1]);
+    // The six pages, the last first so a list read newest first reads them in order, then the notebook.
+    expect(bodies).toHaveLength(7);
+    expect(bodies[0]).toContain('title: "A page to read"');
+    expect(bodies[5]).toContain('title: "A day"');
+    expect(isTemplatesBody(bodies[6]!)).toBe(true);
+    const book = seen.note!.note.id;
+    // From then on a blank page's cards are its pages, and a second press opens the same notebook.
+    await blank();
+    expect(seen.note!.templates?.map((one) => one.name)).toEqual(['A day', 'A meeting', 'A checklist', 'Notes on a book', 'A map at the top', 'A page to read']);
+    await act(async () => seen.note!.onTemplates!());
+    await waitUntil(() => expect(seen.note!.note.id).toBe(book));
+    expect(vi.mocked(createNote).mock.calls.length).toBe(made + 8);
+    // A page added from inside it is a template's page, named by its title.
+    await act(async () => seen.note!.onOpenWithin!('A walk'));
+    await waitUntil(() => expect(seen.note!.note.body).toBe('---\ntitle: "A walk"\n---\n# {{title}}\n\n'));
+  });
+
   it('makes one from ⌘N in the Mac app, never in a browser, and not while a sheet is over the page', async () => {
     const press = () => act(() => void window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', metaKey: true, bubbles: true, cancelable: true })));
     await seed(['a', '# Apples']);

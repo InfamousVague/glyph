@@ -224,7 +224,8 @@ toggle aren't drawn. It no longer lists the workspace's other notes.
 | `src/app/book/journal.ts` | a journal's keys, its presets, an entry's name, `date:` and body, `stampOf`, and which notes are entries (`entryPages`); pure, so the MCP server bundles it |
 | `src/app/core/template.ts` | a template filled (`fillTemplate`, `formatStamp`), and where a spoken entry's words go (`openEnd`) |
 | `src/app/book/journalMonths.ts` | the entries by month, a row's words, the bar's time order, a journal's card and the aside's month |
-| `src/app/core/untouched.ts` | the record of an entry nobody has written in yet, on this device |
+| `src/app/core/untouched.ts` | the record of an entry nobody has written in yet, on this device, and of a new note given words from its blank page (DESIGN §144) |
+| `src/app/notes/ownTemplates.ts` | the Templates notebook your own templates are kept in: found by `templates: true`, its pages as the blank page's cards, kept out of Recent and To do |
 | `src/app/book/JournalView.tsx`, `src/app/book/TemplatePicker.tsx` | a journal drawn, and the template's choice with its preview and the place switch |
 | `src/app/core/stamp.ts` | a moment as words: `stamp`, `clockTime`, `longDay` |
 | `src/app/capture/command.ts` | "make a book called …" and a page for a notebook named, read so the reader at Done turns them down (`forBook`) |

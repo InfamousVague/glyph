@@ -188,6 +188,10 @@ interface NoteScreenProps {
    * note's blank page (core/noteNames.ts). Absent, nothing is taken.
    */
   takenTitles?: ReadonlySet<string>;
+  /** Your own templates, the pages of your Templates notebook (notes/ownTemplates.ts); absent or null, the six built in. */
+  templates?: readonly NoteTemplate[] | null;
+  /** Your templates, from the blank page: the notebook they are kept in, made the first time (App.tsx). */
+  onTemplates?: () => void;
   /** The review after the recording that just made or grew this note (ai/useNoteReview.ts): run here, in the strip and the note. */
   review?: ReviewHandoff & { key: number };
   /** What the recording that just ended wrote into this note, for its Undo (editor/useLanding.ts). */
@@ -260,6 +264,8 @@ export function NoteScreen({
   review,
   landing,
   takenTitles,
+  templates,
+  onTemplates,
 }: NoteScreenProps) {
   const prefs = usePreferences();
   // The page's side, followed while the note is open: on System the phone may turn dark under it.
@@ -1250,7 +1256,9 @@ export function NoteScreen({
           {offering && offersShown
             ? createPortal(
                 <>
-                  {cardsShown ? <TemplateCards at={clock} taken={takenTitles ?? NO_TITLES} smallMap={Boolean(hold || tag)} onChoose={startFrom} /> : null}
+                  {cardsShown ? (
+                    <TemplateCards at={clock} taken={takenTitles ?? NO_TITLES} smallMap={Boolean(hold || tag)} onChoose={startFrom} templates={templates} onYours={onTemplates} />
+                  ) : null}
                   <Ghost scene="new-note" align="center" className={styles.offersGhost} />
                 </>,
                 offersHost,

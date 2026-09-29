@@ -5,6 +5,7 @@ import { fireNativeHaptic } from '../core/haptics.ts';
 import { isDarkNow, usePreferences } from '../core/preferences.ts';
 import { NotePeek } from './NotePeek.tsx';
 import { BUILT_INS, DAY_TAKEN_SENTENCE, fillNoteTemplate, type NoteTemplate } from './noteTemplates.ts';
+import { YOUR_TEMPLATES_SENTENCE } from './ownTemplates.ts';
 import styles from './TemplateCards.module.css';
 
 /**
@@ -30,6 +31,10 @@ import styles from './TemplateCards.module.css';
  * All six are drawn once the block is there, one editor at a time (NotePeek's `eager`), not as they come near the
  * screen, and kept as HTML for the next blank page. Their words follow the minute (`at`), so A meeting and A map at the
  * top are drawn again when it turns.
+ *
+ * Once there is a Templates notebook (notes/ownTemplates.ts), the cards are its pages, in its order, each with a
+ * built-in's rules while its words are that one's; a map note's rules follow its look. The last card, Your templates,
+ * makes that notebook the first time and opens it.
  */
 
 export interface TemplateCardsProps {
@@ -40,6 +45,10 @@ export interface TemplateCardsProps {
   /** This note holds a map's box: every card draws the small one it would get. */
   smallMap: boolean;
   onChoose: (template: NoteTemplate) => void;
+  /** Your own, the pages of your Templates notebook; absent, the six built in. */
+  templates?: readonly NoteTemplate[] | null;
+  /** Your templates: the notebook they are kept in, made the first time. Absent, no such card. */
+  onYours?: () => void;
 }
 
 /** Why A map at the top cannot be pressed here, or null where it can. */
@@ -48,7 +57,7 @@ type MapWhy = 'local-only' | 'refused' | null;
 /** A press that keeps the editor's focus, the caret and the keyboard: its default taken, and the click does the work. */
 const keepFocus = (event: React.PointerEvent | React.MouseEvent) => event.preventDefault();
 
-export function TemplateCards({ at, taken, smallMap, onChoose }: TemplateCardsProps) {
+export function TemplateCards({ at, taken, smallMap, onChoose, templates, onYours }: TemplateCardsProps) {
   const prefs = usePreferences();
   const dark = isDarkNow(prefs.theme);
   const canHere = useMemo(() => locateHere().ok, []);
@@ -64,12 +73,18 @@ export function TemplateCards({ at, taken, smallMap, onChoose }: TemplateCardsPr
     };
   }, []);
   const mapWhy: MapWhy = prefs.localOnly ? 'local-only' : refused ? 'refused' : null;
-  const cards = BUILT_INS.filter((template) => template.id !== 'map' || canHere);
+  const cards = (templates ?? BUILT_INS).filter((template) => template.look !== 'map' || canHere);
   return (
     <div className={styles.cards} role="group" aria-label="Start from a template">
       {cards.map((template) => (
-        <Card key={template.id} template={template} at={at} taken={taken} smallMap={smallMap} dark={dark} dimmed={template.id === 'map' ? mapWhy : null} onChoose={onChoose} />
+        <Card key={template.id} template={template} at={at} taken={taken} smallMap={smallMap} dark={dark} dimmed={template.look === 'map' ? mapWhy : null} onChoose={onChoose} />
       ))}
+      {onYours ? (
+        <button type="button" className={`${styles.card} ${styles.yours}`} data-template="yours" onPointerDown={keepFocus} onMouseDown={keepFocus} onClick={onYours}>
+          <span className={styles.name}>Your templates</span>
+          <span className={styles.sentence}>{YOUR_TEMPLATES_SENTENCE}</span>
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -98,7 +113,7 @@ function Card({
       ? 'Local only is on, so a note made here keeps no place.'
       : dimmed === 'refused'
         ? `${allowLocationWhere()} for a note to keep its place.`
-        : template.id === 'day' && filled.renamed
+        : template.kind === 'day' && filled.renamed
           ? DAY_TAKEN_SENTENCE
           : template.sentence;
   const header = template.look === 'map';
