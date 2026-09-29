@@ -11,6 +11,7 @@ import type { VideoMode } from '../editor/videos.ts';
 import { isDarkNow, usePreferences } from '../core/preferences.ts';
 import { readBookSpot, useBookSpot } from './bookSpot.ts';
 import { useRowDrag } from './rowDrag.ts';
+import { JUST_THE_TITLE, pageStarts, startLine } from './entryStarts.ts';
 import styles from './BookView.module.css';
 
 /**
@@ -49,6 +50,11 @@ interface BookViewProps {
   /** Makes a canvas by that title and opens it (App.tsx): the new-chapter form's "Add as a canvas". Absent, no such button. */
   openCanvas?: (title: string) => void;
   /**
+   * Makes a page by that title from a template and opens it (App.tsx): Add a page's "Start with". Absent, the form
+   * offers no templates and a page begins as its title, through `open`.
+   */
+  openNew?: (title: string, template: string) => void;
+  /**
    * Read, not changed: no grips, no move or take-out tools, nothing to add. The index, the preface, the canvas marks
    * and reading straight through stay. The reader page (src/read/Reader.tsx) draws a shared book with this.
    */
@@ -70,7 +76,7 @@ export function BookWords({ words, known, open, dark, videos = 'still' }: { word
   );
 }
 
-export function BookView({ body, known, open, titles, title, onChange, bodyOf, openCanvas, readOnly = false, dark: darkGiven, spot, videos = 'still' }: BookViewProps) {
+export function BookView({ body, known, open, titles, title, onChange, bodyOf, openCanvas, openNew, readOnly = false, dark: darkGiven, spot, videos = 'still' }: BookViewProps) {
   const isCanvas = (name: string) => {
     const found = bodyOf?.(name);
     return !!found && isCanvasBody(found);
@@ -95,6 +101,8 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
   const themeDark = isDarkNow(usePreferences().theme);
   const dark = darkGiven ?? themeDark;
   const [draft, setDraft] = useState('');
+  /** What the page being added starts with (book/entryStarts.ts `pageStarts`): just its title unless another is picked. */
+  const [start, setStart] = useState(JUST_THE_TITLE.id);
   const [filter, setFilter] = useState('');
   /** The notes ticked so far in the picker, in the order they were ticked. */
   const [picked, setPicked] = useState<string[]>([]);
@@ -112,10 +120,13 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
   const addNew = (asCanvas = false) => {
     const name = draft.trim();
     if (!name) return;
+    const template = pageStarts().find((each) => each.id === start)?.text ?? '';
     onChange(withChapter(body, name));
     setDraft('');
+    setStart(JUST_THE_TITLE.id);
     setAdding(null);
     if (asCanvas && openCanvas) openCanvas(name);
+    else if (template && openNew) openNew(name, template);
     else open(name);
   };
   const togglePick = (name: string) => setPicked((was) => toggledTitle(was, name));
@@ -278,6 +289,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
               if (event.key === 'Escape') setAdding(null);
             }}
           />
+          {openNew ? <PageStarts chosen={start} onChoose={setStart} title={draft.trim()} notebook={title} /> : null}
           <button type="submit" className={styles.action} disabled={!draft.trim()}>
             Add and open
           </button>
@@ -286,7 +298,14 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
               <Workflow size={16} aria-hidden="true" /> Add as a canvas
             </button>
           ) : null}
-          <button type="button" className={styles.quiet} onClick={() => setAdding(null)}>
+          <button
+            type="button"
+            className={styles.quiet}
+            onClick={() => {
+              setStart(JUST_THE_TITLE.id);
+              setAdding(null);
+            }}
+          >
             Cancel
           </button>
         </form>
@@ -353,4 +372,23 @@ function useSameList(list: readonly string[]): readonly string[] {
   const was = kept.current;
   if (was.length !== list.length || was.some((item, i) => item !== list[i])) kept.current = list;
   return kept.current;
+}
+
+/**
+ * What a new page starts with, under its title in Add a page: just the title, chosen until another is, then the
+ * templates, each with a line of how it would start this minute. A tap chooses; Add and open makes the page from it.
+ */
+function PageStarts({ chosen, onChoose, title, notebook }: { chosen: string; onChoose: (id: string) => void; title: string; notebook: string }) {
+  const now = new Date();
+  return (
+    <div className={styles.starts} role="radiogroup" aria-label="Start the page with">
+      <p className={styles.startsTitle}>Start with</p>
+      {pageStarts().map((each) => (
+        <button key={each.id} type="button" role="radio" aria-checked={chosen === each.id} className={styles.start} onClick={() => onChoose(each.id)}>
+          <span className={styles.startName}>{each.name}</span>
+          <span className={styles.startLine}>{each.text ? startLine(each.text, notebook, now) : title || 'The page’s title, and nothing under it'}</span>
+        </button>
+      ))}
+    </div>
+  );
 }

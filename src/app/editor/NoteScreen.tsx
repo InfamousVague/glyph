@@ -143,6 +143,8 @@ interface NoteScreenProps {
   onOpenWithin?: (title: string) => void;
   /** Makes a canvas by that title and opens it in this tab: a book's "Add a canvas" (book/BookView.tsx). */
   onNewCanvas?: (title: string) => void;
+  /** A notebook's new page made from a template (App.tsx `openPageWithin`): Add a page's Start with. */
+  onNewPage?: (title: string, template: string) => void;
   /** A note's body by its title, for a canvas card that is a note to be drawn small (canvas/CanvasView.tsx). */
   bodyOfTitle?: (title: string) => string | null;
   /** The note by its title, for a journal's entries: when each was written, where, and how it starts (book/JournalView.tsx). */
@@ -206,6 +208,7 @@ export function NoteScreen({
   book,
   onOpenWithin,
   onNewCanvas,
+  onNewPage,
   bodyOfTitle,
   noteOfTitle,
   onNewEntry,
@@ -1022,6 +1025,7 @@ export function NoteScreen({
               known={hasTitle ?? (() => false)}
               open={(t) => (onOpenWithin ?? onOpenTitle)?.(t)}
               openCanvas={onNewCanvas}
+              openNew={onNewPage ? (t, template) => onNewPage(t, template) : undefined}
               titles={pageTitles ?? allTitles ?? (() => [])}
               bodyOf={bodyOfTitle}
               spot={{ id: note.id, page }}

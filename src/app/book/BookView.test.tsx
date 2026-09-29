@@ -7,6 +7,7 @@ import { dragGrip, layRowsOut } from '../../test/rows.ts';
 import { bookNoteBody, bookOf, chaptersOf } from './book.ts';
 import { BookBar, BookFoot } from './BookNav.tsx';
 import { BookView } from './BookView.tsx';
+import { PRESETS } from './journal.ts';
 import { readBookSpot, writeBookSpot } from './bookSpot.ts';
 
 /**
@@ -63,6 +64,31 @@ describe('the index view', () => {
     expect(chaptersOf(onChange.mock.calls[0]![0] as string).map((c) => c.title)).toEqual(['Introduction', 'Trees', 'Birds', 'Trail map']);
     expect(openCanvas).toHaveBeenCalledWith('Trail map');
     expect(open).not.toHaveBeenCalled();
+  });
+
+  it('offers what a new page starts with under its title, just the title unless a template is picked', () => {
+    const onChange = vi.fn();
+    const open = vi.fn();
+    const openNew = vi.fn();
+    show(<BookView body={BOOK} title="Field guide" known={() => true} open={open} openNew={openNew} titles={() => []} onChange={onChange} />);
+    act(() => button('Add a page').click());
+    const choices = () => [...document.querySelectorAll<HTMLButtonElement>('[role="radiogroup"][aria-label="Start the page with"] [role="radio"]')];
+    expect(choices().map((c) => c.firstElementChild?.textContent)).toEqual(['Just the title', ...PRESETS.map((p) => p.name)]);
+    expect(choices()[0]!.getAttribute('aria-checked')).toBe('true');
+    // Just the title: the page opens as it always did.
+    typeInto(document.querySelector<HTMLInputElement>('input[aria-label="New page\'s title"]')!, 'Rivers');
+    act(() => button('Add and open').click());
+    expect(open).toHaveBeenCalledWith('Rivers');
+    expect(openNew).not.toHaveBeenCalled();
+    // A template picked: the page is made from it, and the next page starts from just the title again.
+    act(() => button('Add a page').click());
+    typeInto(document.querySelector<HTMLInputElement>('input[aria-label="New page\'s title"]')!, 'Monday');
+    act(() => choices()[3]!.click());
+    expect(choices()[3]!.getAttribute('aria-checked')).toBe('true');
+    act(() => button('Add and open').click());
+    expect(openNew).toHaveBeenCalledWith('Monday', PRESETS[2]!.text);
+    act(() => button('Add a page').click());
+    expect(choices()[0]!.getAttribute('aria-checked')).toBe('true');
   });
 
   it('adds a new chapter by name and opens it, and adds a note already written from the library', () => {

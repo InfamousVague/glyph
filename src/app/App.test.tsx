@@ -9,6 +9,7 @@ import { preferences, reloadPreferences, setPreferences } from './core/preferenc
 import { button, buttonSaying, show, unmount, waitUntil } from '../test/render.tsx';
 import { stubResizeObserver } from '../test/stubs.ts';
 import { bookNoteBody } from './book/book.ts';
+import { PRESETS } from './book/journal.ts';
 import { writeBookSpot } from './book/bookSpot.ts';
 
 /**
@@ -512,6 +513,27 @@ describe('the notes Settings › About adds', () => {
     act(() => seen.settings!.onGuideBook());
     await waitUntil(() => expect(noteShown()).toBe('guide'));
     expect(vi.mocked(syncNow).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(addGuideBook).mock.invocationCallOrder[0]!);
+  });
+});
+
+describe('a notebook’s new page', () => {
+  it('is made from the template picked under its title, in the notebook’s tab, and its line finds it', async () => {
+    await seed(['book', bookNoteBody('Field guide', ['Introduction'])], ['intro', '# Introduction\n\nWelcome.']);
+    await openApp();
+    act(() => card('Field guide').click());
+    expect(noteShown()).toBe('book');
+    // The notebook's Add a page, with A morning page picked under the title (book/BookView.tsx `PageStarts`), and
+    // its line put in the index as the form does.
+    const book = (await getNote('book'))!;
+    await updateNote('book', `${book.body}- [[Monday]]\n`, book.revision ?? 1);
+    await act(async () => seen.note!.onNewPage!('Monday', PRESETS[2]!.text));
+    await waitUntil(() => expect(noteShown()).not.toBe('book'));
+    const page = (await getNote(noteShown()!))!;
+    expect(page.body.startsWith('# Monday\n\n## ')).toBe(true);
+    expect(page.body).toContain('> What is on your mind this morning?');
+    expect(noteShown()).not.toBeNull();
+    // In the notebook's tab, which the page takes, as a page opened from the index does.
+    expect(tabs()).toEqual([noteShown()]);
   });
 });
 

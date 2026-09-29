@@ -321,3 +321,66 @@
   /* The editor draws at the note's size; the book's own type stays for the rest. */
   font-size: 1rem;
 }
+
+/*
+ * What a new page starts with (BookView.tsx `PageStarts`): a list under the title field, the whole of the form's
+ * width, a row a choice with its name over the line it starts with; the chosen one is washed and ringed.
+ */
+.starts {
+  flex-basis: 100%;
+  display: grid;
+  gap: 2px;
+  padding: var(--glacier-space-1);
+  border: 1px solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-md);
+}
+
+.startsTitle {
+  margin: var(--glacier-space-1) var(--glacier-space-2);
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--glacier-text-subtle);
+}
+
+.start {
+  display: grid;
+  gap: 2px;
+  min-inline-size: 0;
+  padding: var(--glacier-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--glacier-radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.start:hover {
+  background: color-mix(in srgb, var(--glacier-text) 5%, transparent);
+}
+
+.start[aria-checked='true'] {
+  border-color: var(--glacier-border-strong);
+  background: color-mix(in srgb, var(--glacier-text) 7%, transparent);
+}
+
+.start:focus-visible {
+  outline: 2px solid var(--glacier-accent-solid);
+  outline-offset: 1px;
+}
+
+.startName {
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--glacier-text);
+}
+
+.startLine {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--glacier-text-muted);
+}

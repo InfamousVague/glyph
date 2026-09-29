@@ -31,3 +31,26 @@ export function startLine(text: string, journal: string, at = new Date()): strin
     .filter(Boolean);
   return lines.length ? lines.join(' · ') : 'Nothing, a blank page';
 }
+
+/**
+ * What a notebook's new page can start from, under its title in Add a page (book/BookView.tsx; Matt: "this should be
+ * visible on the page where I enter the note name after hitting new page"): just its title, as a page always began,
+ * then the templates a journal's entries start from.
+ */
+export const JUST_THE_TITLE: Start = { id: 'title', name: 'Just the title', text: '' };
+
+export function pageStarts(): Start[] {
+  return [JUST_THE_TITLE, ...PRESETS.map((each) => ({ id: each.id, name: each.name, text: each.text }))];
+}
+
+/**
+ * A new page's body: its title as its heading, so its line in the index still finds it, and the template filled under
+ * it for this minute, `{{title}}` the page's name and `{{journal}}` the notebook's. A heading the template opens with
+ * steps down a level, so the page keeps one title.
+ */
+export function pageBody(title: string, template: string, notebook: string, at = new Date()): string {
+  const head = `# ${title}\n\n`;
+  if (!template.trim()) return head;
+  const filled = fillTemplate(template, { at, title, journal: notebook.trim() || 'Notebook' });
+  return head + filled.replace(/^# /, '## ');
+}

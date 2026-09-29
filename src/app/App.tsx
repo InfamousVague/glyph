@@ -47,6 +47,7 @@ import { canvasNoteBody, isCanvasBody } from './canvas/jsonCanvas.ts';
 import { frontMatterOffset, withFrontMatterTitle } from './core/frontMatter.ts';
 import { bookNoteBody, bookOf, chaptersOf, isBookBody, isJournalBody, withoutChapter } from './book/book.ts';
 import { entryBody, entryPages, entryPlaceOf, entryTitle, journalNoteBody, localStamp, templateOf, templateSentence, uniqueTitle, withEntry, type JournalWriter } from './book/journal.ts';
+import { pageBody } from './book/entryStarts.ts';
 import { entryRecord, entryRecords, forgetEntry, rememberEntry, setEntryWords, untouchedEntry, type EntryRecord } from './book/entryDrafts.ts';
 import { fillTemplate, openEnd } from './book/template.ts';
 import { inTimeOrder } from './book/journalMonths.ts';
@@ -350,6 +351,16 @@ function Shell() {
   const openTitleWithin = (title: string) => {
     tabs.replaceNext(shown);
     void openTitleFrom(title);
+  };
+  /**
+   * A notebook's new page from a template, opened from its index in the notebook's tab (book/BookView.tsx Add a page):
+   * its title as its heading and the template under it (book/entryStarts.ts `pageBody`). A page by that title already
+   * written opens as it is.
+   */
+  const openPageWithin = (title: string, template: string) => {
+    tabs.replaceNext(shown);
+    const notebook = screen.name === 'note' ? noteTitle(screen.note.body) : '';
+    void openTitleFrom(title, undefined, (named) => pageBody(named, template, notebook));
   };
   /** A canvas by that title opened from a book's index, made first if there is none (book/BookView.tsx). */
   const openCanvasWithin = (title: string) => {
@@ -790,6 +801,7 @@ function Shell() {
         hasTitle={hasTitle}
         onOpenWithin={openTitleWithin}
         onNewCanvas={openCanvasWithin}
+        onNewPage={openPageWithin}
         book={placeInBook(screen.note)}
         bodyOfTitle={bodyOfTitle}
         noteOfTitle={titled}
