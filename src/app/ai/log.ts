@@ -38,6 +38,8 @@ export interface RunRecord {
   /** Why it failed, for a run that did. */
   message: string | null;
   truncated: boolean;
+  /** How many blanks a press of Fill filled, for its one line in the log (docs/DESIGN.md §145, 7.3). */
+  filled?: number;
   /** The note before the run's words landed and after, for a run that changed it; absent for one that only wrote on the side. */
   before?: string;
   after?: string;

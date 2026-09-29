@@ -405,7 +405,8 @@ function addMonths(day: Day, months: number): Day {
   return { y: target.getUTCFullYear(), m: target.getUTCMonth(), d: Math.min(day.d, last) };
 }
 
-const UNIT_WORD = /\b(days?|weeks?|months?)\b/i;
+/** A count of days, weeks or months asked for: the plural, as "Days until" and "how many weeks" ask. "What day" asks which. */
+const UNIT_WORD = /\b(days|weeks|months)\b/i;
 const FORWARD = /\b(until|till|til|to go|to|before|left)\b/i;
 const BACKWARD = /\b(since|ago)\b/i;
 

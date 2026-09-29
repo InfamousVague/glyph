@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useToast } from '@glacier/react';
 import { keepJobConfigCurrent } from '../ai/jobConfig.ts';
+import { startFills } from '../ai/fills/queue.ts';
 import { startSummaries } from '../ai/summaries.ts';
 import { startRefining } from '../capture/refine.ts';
 import { installBack } from '../core/back.ts';
@@ -101,6 +102,19 @@ export function useHousekeeping({ notes, loading, refresh, sidebar, open }: Hous
       startSummaries(
         () => void refresh(),
         ({ id, title }) => toast({ message: `Summarized “${title}”`, duration: 10_000, action: { label: 'Open', onPress: () => openRef.current(id) } }),
+      ),
+    [refresh, toast],
+  );
+  // Blanks the AI fills (ai/fills/queue.ts, docs/DESIGN.md §145): what a press did, said as it ends, and Open for a
+  // note that was closed when its answers landed. The list is refreshed too, since a closed note changed.
+  useEffect(
+    () =>
+      startFills(
+        (options) => {
+          toast(options);
+          void refresh();
+        },
+        (id) => openRef.current(id),
       ),
     [refresh, toast],
   );

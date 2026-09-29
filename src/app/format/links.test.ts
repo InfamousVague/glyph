@@ -101,3 +101,27 @@ describe('a mark on an item a board names', () => {
     expect(restoreLinks('- [ ] Buy milk ^buy-milk\n', links, true)).toBe(`- [ ] Buy milk [notion](${NOTION}) ^buy-milk\n`);
   });
 });
+
+describe('blanks and their answers through a rewrite (docs/DESIGN.md §145)', () => {
+  const FILL = '??midweek??(Qwen3.5 4B from memory, 2026-09-28. Asked: what day / time?)';
+  const note = `flights are cheapest on ${FILL} and the capital is {?which city}\n`;
+
+  it('go in as tokens and come back whole, whatever words the model gave them', () => {
+    const { text, links } = protectLinks(note);
+    expect(text).toBe('flights are cheapest on [midweek](link-1) and the capital is [which city](link-2)\n');
+    expect(links.map((l) => l.kind)).toEqual(['filled', 'blank']);
+    const rewritten = 'Flights are cheapest on [Tuesday](link-1), and the capital is [Canberra](link-2).\n';
+    expect(restoreLinks(rewritten, links)).toBe(`Flights are cheapest on ${FILL}, and the capital is {?which city}.\n`);
+  });
+
+  it('put a lost one at the end on its own line, and let a summary leave it out', () => {
+    const { links } = protectLinks(note);
+    expect(restoreLinks('Flights are cheapest midweek.\n', links)).toBe(`Flights are cheapest midweek.\n\n${FILL}\n{?which city}\n`);
+    expect(restoreLinks('Flights are cheapest midweek.\n', links, true, { lostBlanks: false })).toBe('Flights are cheapest midweek.\n');
+  });
+
+  it('stay as they are for the fill’s own message, which turns this off', () => {
+    expect(protectLinks(note, { blanks: false }).text).toBe(note);
+  });
+});
+

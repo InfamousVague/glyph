@@ -334,6 +334,14 @@ export interface Preferences {
    * and says so on the note's More sheet.
    */
   tagNewNotes: boolean;
+  /**
+   * A blank that needs live facts (weather today, an exchange rate, a result after the model's training) is looked up
+   * by the phone itself once it is pressed: a keyless public source is asked the question, and the model on the phone
+   * writes the answer from what came back (ai/fills/web.ts, docs/DESIGN.md §145). On by default (Matt: "Phone looks it
+   * up, all local"), and held off whatever it says under Local only. Kept on the device, as Local only is: whether a
+   * device talks to the network stays with the device (core/sync/prefs.ts).
+   */
+  lookUpBlanks: boolean;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -373,6 +381,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   mapTiles: true,
   placeNames: true,
   tagNewNotes: true,
+  lookUpBlanks: true,
 };
 
 const STORAGE_KEY = 'glyph-preferences';
@@ -445,6 +454,7 @@ function settle(raw: unknown): Preferences {
   if (!isSummaries(loaded.summaries)) loaded.summaries = DEFAULT_PREFERENCES.summaries;
   if (!isWriteUp(loaded.writeUp)) loaded.writeUp = DEFAULT_PREFERENCES.writeUp;
   if (typeof loaded.syncMeetingRecordings !== 'boolean') loaded.syncMeetingRecordings = DEFAULT_PREFERENCES.syncMeetingRecordings;
+  if (typeof loaded.lookUpBlanks !== 'boolean') loaded.lookUpBlanks = DEFAULT_PREFERENCES.lookUpBlanks;
   // An accent or a rounding this build does not have - one from an older store, where the accent was a colour the
   // app never used, or from a newer phone - is the app's own rather than a name nothing can draw.
   if (!isAccent(loaded.accent)) loaded.accent = DEFAULT_PREFERENCES.accent;

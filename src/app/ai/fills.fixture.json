@@ -9,7 +9,7 @@
     "qwen3.5-4b",
     "qwen3.5-9b"
   ],
-  "prompt_tokens": 940,
+  "prompt_tokens": 975,
   "cases": [
     {
       "name": "capital",
@@ -374,7 +374,7 @@
             "system": [
               "FILL_PROMPT"
             ],
-            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Phrases\n\n- Thank you: {?1 in Japanese}\n- Where is the station? {?2 in Japanese}\n\nBlank 1 asks for Japanese.\nBlank 2 asks for Japanese.\n\nAnswer blanks 1 to 2.",
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Phrases\n\n- Thank you: {?1 in Japanese}\n- Where is the station? {?2 in Japanese}\n\nBlank 1 asks for Japanese, in Japanese script.\nBlank 2 asks for Japanese, in Japanese script.\n\nAnswer blanks 1 to 2.",
             "max_tokens": 134,
             "blanks": [
               1,
@@ -387,7 +387,7 @@
             "system": [
               "FILL_PROMPT"
             ],
-            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Phrases\n\n- Thank you: {?1 in Japanese}\n- Where is the station? ___\n\nBlank 1 asks for Japanese.\n\nAnswer blank 1.",
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Phrases\n\n- Thank you: {?1 in Japanese}\n- Where is the station? ___\n\nBlank 1 asks for Japanese, in Japanese script.\n\nAnswer blank 1.",
             "max_tokens": 67,
             "blanks": [
               1
@@ -397,7 +397,7 @@
             "system": [
               "FILL_PROMPT"
             ],
-            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Phrases\n\n- Thank you: ___\n- Where is the station? {?1 in Japanese}\n\nBlank 1 asks for Japanese.\n\nAnswer blank 1.",
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Phrases\n\n- Thank you: ___\n- Where is the station? {?1 in Japanese}\n\nBlank 1 asks for Japanese, in Japanese script.\n\nAnswer blank 1.",
             "max_tokens": 67,
             "blanks": [
               2
@@ -814,7 +814,7 @@
             "system": [
               "FILL_PROMPT"
             ],
-            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Kyoto in November\n\n| Say | In Japanese |\n| --- | --- |\n| Thank you | {?1 } |\n| Where is the station? | {?2 } |\n| Excuse me | {?3 } |\n\nBlank 1 is Thank you in Japanese.\nBlank 2 is Where is the station? in Japanese.\nBlank 3 is Excuse me in Japanese.\n\nAnswer blanks 1 to 3.",
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Kyoto in November\n\n| Say | In Japanese |\n| --- | --- |\n| Thank you | {?1 } |\n| Where is the station? | {?2 } |\n| Excuse me | {?3 } |\n\nBlank 1 is Thank you in Japanese, in Japanese script.\nBlank 2 is Where is the station? in Japanese, in Japanese script.\nBlank 3 is Excuse me in Japanese, in Japanese script.\n\nAnswer blanks 1 to 3.",
             "max_tokens": 201,
             "blanks": [
               1,
@@ -828,7 +828,7 @@
             "system": [
               "FILL_PROMPT"
             ],
-            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Kyoto in November\n\n| Say | In Japanese |\n| --- | --- |\n| Thank you | {?1 } |\n\nBlank 1 is Thank you in Japanese.\n\nAnswer blank 1.",
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Kyoto in November\n\n| Say | In Japanese |\n| --- | --- |\n| Thank you | {?1 } |\n\nBlank 1 is Thank you in Japanese, in Japanese script.\n\nAnswer blank 1.",
             "max_tokens": 67,
             "blanks": [
               1
@@ -838,7 +838,7 @@
             "system": [
               "FILL_PROMPT"
             ],
-            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Kyoto in November\n\n| Say | In Japanese |\n| --- | --- |\n\n(lines left out)\n\n| Where is the station? | {?1 } |\n\nBlank 1 is Where is the station? in Japanese.\n\nAnswer blank 1.",
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Kyoto in November\n\n| Say | In Japanese |\n| --- | --- |\n\n(lines left out)\n\n| Where is the station? | {?1 } |\n\nBlank 1 is Where is the station? in Japanese, in Japanese script.\n\nAnswer blank 1.",
             "max_tokens": 67,
             "blanks": [
               2
@@ -848,7 +848,7 @@
             "system": [
               "FILL_PROMPT"
             ],
-            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Kyoto in November\n\n| Say | In Japanese |\n| --- | --- |\n\n(lines left out)\n\n| Excuse me | {?1 } |\n\nBlank 1 is Excuse me in Japanese.\n\nAnswer blank 1.",
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Kyoto in November\n\n| Say | In Japanese |\n| --- | --- |\n\n(lines left out)\n\n| Excuse me | {?1 } |\n\nBlank 1 is Excuse me in Japanese, in Japanese script.\n\nAnswer blank 1.",
             "max_tokens": 67,
             "blanks": [
               3
@@ -1410,7 +1410,7 @@
             "system": [
               "FILL_PROMPT"
             ],
-            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Seoul\n\n- Where is the toilet? {?1 in Korean}\n\nBlank 1 asks for Korean.\n\nAnswer blank 1.",
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Seoul\n\n- Where is the toilet? {?1 in Korean}\n\nBlank 1 asks for Korean, in Korean script.\n\nAnswer blank 1.",
             "max_tokens": 67,
             "blanks": [
               1
@@ -1422,7 +1422,7 @@
             "system": [
               "FILL_PROMPT"
             ],
-            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Seoul\n\n- Where is the toilet? {?1 in Korean}\n\nBlank 1 asks for Korean.\n\nAnswer blank 1.",
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Seoul\n\n- Where is the toilet? {?1 in Korean}\n\nBlank 1 asks for Korean, in Korean script.\n\nAnswer blank 1.",
             "max_tokens": 67,
             "blanks": [
               1

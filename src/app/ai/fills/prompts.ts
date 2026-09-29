@@ -23,6 +23,7 @@ A blank to fill is written with a number, like {?1 the writer's question}. The q
 - When the note holds the answer, answer from the note, in its own words.
 - Otherwise answer from what you know that stays true from month to month: facts, figures, definitions, translations, how-tos, general advice, a kinder way to say something.
 - When the answer depends on anything live or recent (prices, fares, rates, weather, news, results, opening hours, the newest of anything), or you are not sure of it, answer exactly: UNKNOWN
+- General advice about prices stays true from month to month, such as the day of the week or the time of year things tend to be cheapest: answer it.
 - Do not guess. A number, a name, a date or a quotation you are not sure of is UNKNOWN.
 
 Answer each numbered blank on its own line, in order: its number in square brackets, a space, then only the words that go in the blank. No quotes, no explanation, no markdown, no code fence. Never repeat the words around the blank. No full stop unless the blank ends a sentence. Number every answer this way, even inside a numbered list.
@@ -216,4 +217,4 @@ export function rungFor(model: string): Rung {
  * The tokens `FILL_PROMPT` takes as the models read it, the chat template's own included, for the room (5.5). Measured
  * on the Mac by the Rust test for each model present, and the largest kept, so the room errs on the safe side.
  */
-export const FILL_PROMPT_TOKENS = 940;
+export const FILL_PROMPT_TOKENS = 975;

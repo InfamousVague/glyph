@@ -43,6 +43,8 @@ import { aiChanges, type AiChange } from './aiChanges.ts';
 import { insertPlus, type PlusHooks } from './insertPlus.ts';
 import { placeCards, refreshPlaceCards, type PlaceMode } from './placeCards.ts';
 import { videoCards, type VideoMode } from './videos.ts';
+import { blanks as blankSquares, type BlankHooks } from './blanks.ts';
+import { fillPanel } from './fillPanel.ts';
 import { plugins } from '../plugins/registry.ts';
 import styles from './markdown.module.css';
 
@@ -164,6 +166,13 @@ interface EditorProps {
    * this phone, `shared` on a shared page, and `still`, the poster and its length, everywhere else. Read once.
    */
   videos?: VideoMode;
+  /**
+   * Blanks the AI fills (editor/blanks.ts, docs/DESIGN.md §145): the note screen's hooks, which draw the Fill pill and
+   * hand a press to the fills' queue. Absent, the squares, their icons and the worked-out answers still draw, with
+   * nothing to press: a shared page, a notebook read straight through. Whether it was given is read once; its
+   * callbacks through a ref.
+   */
+  blanks?: BlankHooks;
 }
 
 /**
@@ -217,6 +226,7 @@ export function Editor({
   plus,
   places = 'off',
   videos = 'still',
+  blanks,
 }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -240,6 +250,8 @@ export function Editor({
   onAiMarksRef.current = onAiMarks;
   const plusRef = useRef(plus);
   plusRef.current = plus;
+  const blanksRef = useRef(blanks);
+  blanksRef.current = blanks;
 
   const themeSlot = useRef(new Compartment());
   const assistSlot = useRef(new Compartment());
@@ -277,6 +289,22 @@ export function Editor({
         // headingProgress.ts, choices.ts).
         counters(),
         sums(),
+        // {?questions} drawn as squares, worked out or waiting for the model, and the panel a tap on an answer opens
+        // (editor/blanks.ts, editor/fillPanel.ts).
+        blankSquares(
+          blanks
+            ? {
+                noteId: () => blanksRef.current?.noteId() ?? '',
+                canFill: () => blanksRef.current?.canFill() ?? false,
+                learntUntil: () => blanksRef.current?.learntUntil() ?? 2024,
+                lookups: () => blanksRef.current?.lookups() ?? 'off',
+                fill: (targets) => blanksRef.current?.fill(targets),
+                say: (message) => blanksRef.current?.say(message),
+              }
+            : null,
+          { still: peek },
+        ),
+        peek ? [] : fillPanel(),
         headingProgress(),
         choices(),
         // [[Another note]] opens that note, or makes it (editor/wikiLinks.ts).

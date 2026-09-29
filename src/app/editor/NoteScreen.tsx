@@ -176,6 +176,8 @@ interface NoteScreenProps {
   review?: ReviewHandoff & { key: number };
   /** What the recording that just ended wrote into this note, for its Undo (editor/useLanding.ts). */
   landing?: CaptureLanding & { key: number };
+  /** Settings at the Model card: a press of the AI with no model on the phone offers it. */
+  onGetModel?: () => void;
 }
 
 /** How long a place from the + waits for its name before it is written with its coordinates (core/location.ts rule 2). */
@@ -217,6 +219,7 @@ export function NoteScreen({
   ask,
   review,
   landing,
+  onGetModel,
 }: NoteScreenProps) {
   const prefs = usePreferences();
   // The page's side, followed while the note is open: on System the phone may turn dark under it.
@@ -403,7 +406,7 @@ export function NoteScreen({
   useUnfold(screen);
   const onStripHeight = useStripRoom(screen, header);
 
-  const ai = useNoteAi({ note, view, flush, body, wisp: prefs.wisp, ask, review, toast });
+  const ai = useNoteAi({ note, view, flush, body, wisp: prefs.wisp, ask, review, toast, onGetModel });
 
   const remove = () => {
     // No confirmation: it goes to the trash, with an Undo, and is only deleted
@@ -809,7 +812,9 @@ export function NoteScreen({
     });
   }, []);
   const addKeys = useRef<((key: PlusKey) => boolean) | null>(null);
-  const plusAllowed = !typed && shown === 'raw' && ai.runningKind === null;
+  // A fill holds no landing bookmark an insert could cross: its answers go only where its blanks are, so the + stays
+  // while one runs (docs/DESIGN.md §145, 19.3), and a press of Fill the blanks on a long note does not take it away.
+  const plusAllowed = !typed && shown === 'raw' && (ai.runningKind === null || ai.runningKind === 'fill');
   const plusAllowedRef = useRef(plusAllowed);
   plusAllowedRef.current = plusAllowed;
   const plusHooks = useMemo<PlusHooks>(
@@ -1051,6 +1056,7 @@ export function NoteScreen({
             wiki={wiki}
             onAiMarks={ai.onAiMarks}
             plus={plusHooks}
+            blanks={ai.blankHooks}
             places="live"
             videos="play"
             grow

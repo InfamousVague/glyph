@@ -766,6 +766,10 @@ function Shell() {
         ask={screen.ask}
         review={screen.review}
         landing={screen.landing}
+        onGetModel={() => {
+          setSettings(true);
+          setToModel(Date.now());
+        }}
         onOpenTitle={(title, at) => void openTitle(title, at)}
         hasTitle={hasTitle}
         onOpenWithin={openTitleWithin}

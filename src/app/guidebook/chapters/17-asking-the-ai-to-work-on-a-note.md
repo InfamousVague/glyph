@@ -47,7 +47,7 @@ A strip under the note's header says in one line what is happening:
 
 A thin bar under the line fills up as the model reads the note, and again as it writes. **Stop** sits at the end of the strip while the run is going. What has landed by then stays, and the strip says "Stopped." Tap the line while the run is going to open the AI card, with the phone's readings ([[The models on your phone]]). Once the run has ended, a cross puts the strip away.
 
-If the model uses up all the room it is allowed to write in, the done line adds "It ran out of room; try a shorter note."
+If the model uses up all the room it is allowed to write in, the done line adds "It ran out of room. Try a shorter note."
 
 ## Lines land as they finish
 

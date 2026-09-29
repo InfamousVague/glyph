@@ -109,6 +109,32 @@ describe('days and dates, on Monday 28 September 2026', () => {
   });
 });
 
+describe('what the app leaves to the model', () => {
+  it('works none of the model’s scenarios out, Matt’s Tokyo first', () => {
+    for (const text of [
+      '# Tokyo trip\n\nFlights are cheapest to Tokyo on {?what day / time?}',
+      'The capital of Australia is {?}.',
+      'Sam said she would bring the charger and the dog food. I am booking the ferry.\n\nWho brings the charger? {?}',
+      'Priya: export bug fixed, in review, lands Tuesday.\n\nIn one line: {?summary}',
+      '# Kitchen tap\n- [x] Found the leak under the sink\n- [ ] {?the next step}',
+      '## Japan packing\n- Passport\n- Plug adapter\n- {?three more things}',
+      '| Say | In Japanese |\n| --- | --- |\n| Thank you | {?} |',
+      '| Book | Author | Year |\n| --- | --- | --- |\n| The Remains of the Day | {?} | {?} |',
+      'Petrichor: {?what it means}',
+      '1 cup of plain flour is about {?grams} grams.',
+      '# {?}\n\nBook the cabin for the second week of October.',
+      'The 2022 World Cup was won by {?}',
+      'Opening line, friendlier: {?a friendlier way to say: fix the boiler now}',
+      '{?how long to boil an egg}',
+      '# Trip to {?capital of Japan}',
+      'What’s the average lifespan of a cat? {?}',
+      'Which day of our trip is best for the temple? {?}',
+    ]) {
+      expect(worked(text), text).toBeNull();
+    }
+  });
+});
+
 describe('units', () => {
   it('converts a temperature, a distance and a weight', () => {
     expect(answer('180 °C in Fahrenheit is {?°F}.')).toBe('356 °F');

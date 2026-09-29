@@ -60,7 +60,7 @@ export function prepareNote(body: string, mode: Mode): { prompt: string; restore
   const { text: withoutTables, tables } = protectTables(withoutEmbeds);
   const { text: prompt, links } = protectLinks(withoutTables);
   const keepAll = mode !== 'summarize';
-  const put = (text: string, final: boolean) => restoreEmbeds(restoreTables(restoreLinks(text, links, final), tables, final, keepAll), embeds, final, keepAll);
+  const put = (text: string, final: boolean) => restoreEmbeds(restoreTables(restoreLinks(text, links, final, { lostBlanks: keepAll }), tables, final, keepAll), embeds, final, keepAll);
   return {
     prompt,
     restore: (text, final) => (final ? tidy(cleanRewrite(put(tidy(text), true))) : put(text, false)),

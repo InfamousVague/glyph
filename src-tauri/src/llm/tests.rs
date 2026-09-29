@@ -750,7 +750,7 @@ fn fills_answer_in_their_shapes() {
     }
     assert!(failed.is_empty(), "{} at rung {rung} missed the bar:\n{}", chosen().id, failed.join("\n"));
     // What the room counts the prompt as (FILL_PROMPT_TOKENS) is within 5% of what this model reads, and never under it.
-    let mut probe = request("fill-tokens", &page_prompt_in("ai/fills/prompts.ts", "FILL_PROMPT"), "Answer blank 1.", 1);
+    let mut probe = request("fill-tokens", &page_prompt_in("ai/fills/prompts.ts", "FILL_PROMPT"), "Answer blank 1.", 48);
     probe.temperature = 0.0;
     let real = run(&path, probe, Arc::default(), |_| {}).0.expect("a generation").prompt_tokens;
     let counted = fixture["prompt_tokens"].as_u64().unwrap() as u32;
@@ -779,7 +779,7 @@ fn fills_rungs_compared() {
             continue;
         };
         // What the prompt costs as this model reads it, its chat template included.
-        let mut probe = request("fill-tokens", &page_prompt_in("ai/fills/prompts.ts", "FILL_PROMPT"), "Answer blank 1.", 1);
+        let mut probe = request("fill-tokens", &page_prompt_in("ai/fills/prompts.ts", "FILL_PROMPT"), "Answer blank 1.", 48);
         probe.temperature = 0.0;
         let tokens = run(&path, probe, Arc::default(), |_| {}).0.map(|o| o.prompt_tokens).unwrap_or(0);
         println!("\n===== {}: FILL_PROMPT with a four-word message is {tokens} tokens =====", spec.id);

@@ -1,5 +1,6 @@
 import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
+import { readFilled } from '../core/blanks.ts';
 import { escapeRegExp } from '../core/text.ts';
 import type { InlineFormat } from '../plugins/types.ts';
 import { closeTextPanel, showTextPanel, textPanel } from './textPanel.ts';
@@ -135,8 +136,9 @@ export function markNotes(formats: readonly InlineFormat[]): Extension {
           const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
           if (pos === null) return false;
           const note = noteAt(this.notes, pos);
-          // A colour is not a note: there is nothing to show, and the tap is the editor's as usual.
-          if (note && isTint(note, formats)) {
+          // A colour is not a note: there is nothing to show, and the tap is the editor's as usual. Nor is a filled
+          // blank's bracket, which says where an answer came from: its panel is editor/fillPanel.ts's.
+          if (note && (isTint(note, formats) || readFilled(note.text))) {
             closeNote(view);
             return false;
           }

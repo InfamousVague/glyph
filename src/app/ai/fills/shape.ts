@@ -183,8 +183,12 @@ export function hintFor(n: number, info: ShapeInfo): string | null {
   switch (info.shape) {
     case 'title':
       return `Blank ${n} is the note's title.`;
-    case 'language':
-      return info.cell ? `Blank ${n} is ${info.cell.row} in ${info.language!.name}.` : `Blank ${n} asks for ${info.language!.name}.`;
+    case 'language': {
+      // A language with a script of its own is asked for in that script by name: measured, the 4B dropped the script
+      // for three cells of a table ("arigatō gozaimasu"), which the check then refused.
+      const script = info.language!.script ? `, in ${info.language!.name} script` : '';
+      return info.cell ? `Blank ${n} is ${info.cell.row} in ${info.language!.name}${script}.` : `Blank ${n} asks for ${info.language!.name}${script}.`;
+    }
     case 'items':
       return info.count > 1 ? `Blanks ${n} to ${n + info.count - 1} are whole items of the list they are in, each one new.` : `Blank ${n} is a whole item of the list it is in.`;
     case 'cell':

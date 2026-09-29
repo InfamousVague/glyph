@@ -1,4 +1,4 @@
-import { RangeSetBuilder, type Extension } from '@codemirror/state';
+import { Facet, RangeSetBuilder, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
 import { selectedLines } from './lines.ts';
@@ -69,9 +69,12 @@ const styled = ViewPlugin.fromClass(
   },
 );
 
+/** Whether the note is shown Formatted, for what hides its own marks there too (a blank's braces, editor/blanks.ts). */
+export const formattedView = Facet.define<boolean, boolean>({ combine: (values) => values.some(Boolean) });
+
 /** The extension for a view: Formatted hides the marks; Markdown, the mixed page, adds nothing. */
 export function noteView(view: NoteView): Extension {
-  return view === 'formatted' ? styled : [];
+  return view === 'formatted' ? [styled, formattedView.of(true)] : [];
 }
 
 export function isNoteView(value: unknown): value is NoteView {

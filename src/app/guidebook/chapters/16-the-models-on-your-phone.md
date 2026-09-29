@@ -85,7 +85,7 @@ Everywhere the app offers the AI, it asks the same question first: can it run he
 | A browser tab | The AI runs on the phone. Install Ghost.md on Android to use it. |
 | The iPhone build, not released yet | The AI is not on iOS yet. |
 | An app older than the AI | The AI needs the newest Ghost.md. Install it from attack.fm/glyph. |
-| No model downloaded yet | The AI needs a model on the phone. It runs here; nothing leaves the phone. |
+| No model downloaded yet | The AI needs a model on the phone. It runs here, and nothing leaves the phone. |
 | No model, and Local only on | No model is on the phone, and Local only is on, so none can be downloaded. Turn it off in Settings to get one. |
 
 For a moment after the app opens, while it is still checking which models are here, it says "Looking for the model." The Mac app runs the models too.
