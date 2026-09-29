@@ -21,6 +21,10 @@ import { PaneSection, SettingRow } from './kit/settingsKit.tsx';
  * list them again (it ran to five lines at 412 when it did). Link previews stays live under it: its switch also says
  * whether a link's card is drawn at all (editor/linkCards.ts), which Local only leaves alone, and only the title's
  * fetch is held off, so the hint says that.
+ *
+ * Look up blanks online (docs/DESIGN.md §145): a blank that needs something live is looked up by the phone itself once
+ * it is pressed, from a keyless public source (ai/fills/web.ts), Matt's "Phone looks it up, all local". On by default,
+ * greyed off under Local only, which keeps such blanks paused. It stays on this device, as Local only does.
  */
 
 /** The privacy policy (landing/privacy.html), on the download site. */
@@ -54,6 +58,14 @@ export function PrivacyCard() {
         hint="A card under a line that is only a link. In the app, the page's title is read from that site."
         control={<Switch aria-label="Link previews" checked={prefs.linkPreviews} onCheckedChange={(linkPreviews) => setPreferences({ linkPreviews })} />}
       />
+      {app ? (
+        <SettingRow
+          label="Look up blanks online"
+          hint="When you press Fill on a blank that needs something live, like today’s weather or an exchange rate, this device asks Open-Meteo, the European Central Bank’s rates or Wikipedia. Only the question goes, and the model here writes the answer."
+          control={<Switch aria-label="Look up blanks online" checked={prefs.lookUpBlanks && !prefs.localOnly} onCheckedChange={(lookUpBlanks) => setPreferences({ lookUpBlanks })} />}
+          disabledReason={prefs.localOnly ? 'Local only is on, so such blanks wait.' : undefined}
+        />
+      ) : null}
       <SettingRow icon={<ShieldCheck size={20} />} label="Privacy policy" hint="What stays on this device, and what an account, a shared link or a plugin sends." onPress={() => void openLink(PRIVACY_URL)} />
     </PaneSection>
   );

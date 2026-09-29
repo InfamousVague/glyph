@@ -58,7 +58,8 @@ describe('the Privacy card', () => {
     act(() => host.querySelector<HTMLElement>('[aria-label="Link previews"]')!.click());
     expect(preferences().linkPreviews).toBe(false);
     act(() => setPreferences({ localOnly: true }));
-    expect(host.querySelector('[data-disabled]')).toBeNull();
+    const row = [...host.querySelectorAll('.setk-row')].find((r) => r.querySelector('.setk-row__label')?.textContent === 'Link previews');
+    expect(row?.hasAttribute('data-disabled')).toBe(false);
   });
 
   it('opens the policy, and says what it comes to in its footer', () => {
@@ -70,3 +71,29 @@ describe('the Privacy card', () => {
     );
   });
 });
+
+describe('looking up blanks online (docs/DESIGN.md §145)', () => {
+  it('is on by default in the app, says what goes where, and switches off', () => {
+    const host = show(<PrivacyCard />);
+    expect(hint(host, 'Look up blanks online')).toBe(
+      'When you press Fill on a blank that needs something live, like today’s weather or an exchange rate, this device asks Open-Meteo, the European Central Bank’s rates or Wikipedia. Only the question goes, and the model here writes the answer.',
+    );
+    const toggle = host.querySelector<HTMLInputElement>('[aria-label="Look up blanks online"]')!;
+    expect(toggle.checked).toBe(true);
+    act(() => toggle.click());
+    expect(preferences().lookUpBlanks).toBe(false);
+  });
+
+  it('is off and held under Local only, which keeps such blanks waiting', () => {
+    setPreferences({ localOnly: true });
+    const host = show(<PrivacyCard />);
+    expect(host.querySelector<HTMLInputElement>('[aria-label="Look up blanks online"]')?.checked).toBe(false);
+    expect(host.textContent).toContain('Local only is on, so such blanks wait.');
+  });
+
+  it('is not in a browser, which runs no model', () => {
+    native = false;
+    expect(show(<PrivacyCard />).querySelector('[aria-label="Look up blanks online"]')).toBeNull();
+  });
+});
+
