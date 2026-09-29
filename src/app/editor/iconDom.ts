@@ -28,16 +28,35 @@ function fill(copy: SVGElement, drawn: SVGElement): void {
   copy.replaceChildren(...[...drawn.childNodes].map((node) => node.cloneNode(true)));
 }
 
+/** Draws still waiting for React's commit, each settled once its root is taken down. */
+const pending = new Set<Promise<void>>();
+
+/**
+ * Settles once every icon drawn so far is in and its root taken down. A test that drew squares awaits it before its
+ * environment goes: a first draw is React's to schedule, and one that ran after jsdom was torn down threw "window is
+ * not defined" and failed the whole run, about one run in ten.
+ */
+export async function iconsSettled(): Promise<void> {
+  while (pending.size) await Promise.all([...pending]);
+}
+
 function draw(Icon: LucideIcon, strokeWidth: number, drawing: Drawing): void {
   const host = document.createElement('div');
   const root = createRoot(host);
+  let settle!: () => void;
+  const done = new Promise<void>((resolve) => (settle = resolve));
+  pending.add(done);
+  void done.then(() => pending.delete(done));
   const drawn = (svg: SVGSVGElement | null) => {
     if (!svg || drawing.svg) return;
     drawing.svg = svg.cloneNode(true) as SVGElement;
     for (const copy of drawing.waiting) fill(copy, drawing.svg);
     drawing.waiting.clear();
     // Taken down after React's commit, never in the middle of it (editor/reactMount.ts).
-    queueMicrotask(() => root.unmount());
+    queueMicrotask(() => {
+      root.unmount();
+      settle();
+    });
   };
   root.render(createElement(Icon, { size: '1em', strokeWidth, 'aria-hidden': true, focusable: false, ref: drawn }));
 }

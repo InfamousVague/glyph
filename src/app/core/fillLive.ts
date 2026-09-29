@@ -53,20 +53,21 @@ export function liveWords(kind: LiveKind, year?: number): string {
 }
 
 const WHEN_NOW = /\b(today|tonight|tomorrow|now|this week|this weekend|right now|at the moment)\b/i;
-const WEATHER = /\b(weather|forecast|rain|raining|rainy|snow|snowing|temperature|sunny|windy)\b/i;
+const WEATHER = /\b(weather|forecast|rain|raining|rainy|snow|snowing|temperature|sunny|windy|warm|cold|hot|degrees)\b/i;
 // "Cheapest" is a price too: "Cheapest flight to Lisbon today" is a fare now. "Flights are cheapest to Tokyo on" has
 // no word for now, and stays general advice for the model.
 const PRICE = /\b(price|prices|cost|costs|fare|fares|how much|cheapest|cheaper|cheap|dearest)\b/i;
 const PRICE_NOW = /\b(today|tonight|tomorrow|now|current|currently|this week|this weekend|right now|at the moment)\b/i;
 const MARKET = /\b(stocks?|share price|shares|bitcoin|ethereum|crypto|the market|nasdaq|ftse|dow jones|s&p)\b/i;
 const MARKET_WHAT = /\b(price|value|worth|trading|at)\b/i;
-const HOURS = /\b(opens|opening hours|opening times|closes|closing time|open on|is it open|open until)\b/i;
-const NEWEST = /\b(newest|latest|most recent|current)\b/i;
-const PRODUCT = /\b(version|model|phone|release|update|edition)\b/i;
+const HOURS = /\b(opens|opening hours|opening times|closes|closing time|open on|is it open|open until|open (?:today|tonight|now|tomorrow))\b/i;
+const NEWEST = /\b(newest|latest|most recent|current|reigning)\b/i;
+const PRODUCT = /\b(version|model|phone|release|update|edition|album|single|song|film|movie|book|iphone|pixel|galaxy)\b/i;
+const OFFICE = /\b(prime minister|president|chancellor|pope|king|queen|monarch|mayor|ceo|base rate|interest rate)\b/i;
 const HOLDER = /\b(leader|champion|winner|record|holder|prime minister|president|ceo)\b/i;
-const EVENT = /\b(won|win|winner|winners|result|results|score|released|launched|elected|announced|happened|died|champion)\b/i;
+const EVENT = /\b(won|win|winner|winners|result|results|score|released|launched|elected|announced|happened|died|champion|went to|awarded|prize|came out)\b/i;
 const NEWS = /\b(who won|the score|results?)\b/i;
-const NEWS_WHEN = /\b(last night|yesterday|this season|this year|last week|at the weekend)\b/i;
+const NEWS_WHEN = /\b(last night|yesterday|this season|last season|this year|last year|last week|at the weekend)\b/i;
 const TRANSPORT = /\b(delays?|departures?|next train|next bus|next tram|traffic|is it running|running late)\b/i;
 
 /** The pieces a blank asks with, each on its own: a rule that needs two words needs them in one sentence. */
@@ -100,12 +101,14 @@ export function screen(asking: Asking, learntUntil: number): Live | null {
   if (year) return { kind: 'after', words: liveWords('after', year) };
   if (any((p) => NEWEST.test(p) && (HOLDER.test(p) || PRODUCT.test(p) || namedAfter(p)))) return { kind: 'newest', words: liveWords('newest') };
   if (any((p) => NEWS.test(p) && NEWS_WHEN.test(p))) return { kind: 'news', words: liveWords('news') };
+  // Who holds an office now: "The President of the United States is {?}", with no year to date it.
+  if (any((p) => OFFICE.test(p) && /\b(is|are)\b/i.test(p) && !/\b(1\d{3}|2\d{3})\b/.test(p) && !inIf(p, OFFICE))) return { kind: 'newest', words: liveWords('newest') };
   return null;
 }
 
 /** A capitalised name straight after newest or latest: "The newest Pixel", "the latest version of Android". */
 function namedAfter(piece: string): boolean {
-  return /\b(?:newest|latest|most recent|current)\s+(?:version of\s+(?:the\s+)?)?[A-Z][\w-]*/.test(piece);
+  return /\b(?:newest|latest|most recent|current|reigning)\s+(?:version of\s+(?:the\s+)?)?(?:[A-Z][\w-]*|[a-z]+[A-Z][\w-]*)/.test(piece);
 }
 
 /** A year after the model's horizon, beside a word for something that happened: a year alone is a plan, not news. */
@@ -188,11 +191,48 @@ export function moneyAsked(asking: Asking): { amount: number; from: string; to: 
   return { amount: source.amount!, from: source.code, to: target.code };
 }
 
-/** The place a weather question names: `Weather in Lisbon today`, `the forecast for New York`. */
+/** Languages, which follow "in" as often as places do: `{?in Italian}` asks for a translation, not the weather in Italy. */
+const LANGUAGES = new Set(
+  'english french german spanish italian portuguese japanese chinese mandarin cantonese korean russian arabic dutch swedish norwegian danish finnish polish greek turkish hindi hebrew welsh irish latin czech hungarian vietnamese thai indonesian ukrainian romanian catalan'.split(' '),
+);
+
+/**
+ * The part of the blank's own sentence that asks: its last clause before the blank (a comma or a semicolon ends a
+ * clause), from its last question word on when it has one. `Sarah Jones owes me £450, and who won the 2026 World Cup
+ * {?}` asks "who won the 2026 World Cup". The sentence before is read only when the blank's own is a label or nothing.
+ * This is what a lookup may send when the braces hold no words of their own (docs/DESIGN.md §145): never the rest of
+ * the note, a whole sentence, or the one before.
+ */
+export function askingClause(asking: Asking): string {
+  const own = asking.before.replace(/[:\s]+$/, '').trim();
+  const from = own && !/^[\p{L}]{1,2}$/u.test(own) ? own : asking.prior;
+  const clause = (from.split(/[,;]|\s(?:and|but|so)\s/i).pop() ?? '').trim();
+  const wh = [...clause.matchAll(/\b(who|what|when|where|which|how|whose|whom)\b/gi)];
+  const start = wh.length ? wh[0]!.index! : 0;
+  return clause.slice(start).trim();
+}
+
+/** What a lookup reads its words from: the braces' own question when it has any words, else the asking clause. */
+function lookupPieces(asking: Asking): string[] {
+  const question = asking.question.trim();
+  return question && /[\p{L}\p{N}]{2,}/u.test(question) ? [question] : [askingClause(asking)].filter(Boolean);
+}
+
+/**
+ * The place a weather question names: `Weather in Lisbon today`, `the forecast for New York`. Read from the question and
+ * the blank's own clause only, never a word from elsewhere in the note; a possessive ("Sarah's wedding") names a person
+ * and a language names no place, so both are passed over.
+ */
 export function placeAsked(asking: Asking): string | null {
-  for (const piece of pieces(asking)) {
-    const found = /\b(?:in|at|for|over)\s+((?:[A-Z][\p{L}'’-]+)(?:\s+(?:de|del|da|do|di|la|le|am|upon|on)?\s*[A-Z][\p{L}'’-]+){0,2})/u.exec(piece);
-    if (found) return found[1]!.replace(/\s+/g, ' ').trim();
+  const read = [asking.question, askingClause(asking), asking.before.replace(/[:\s]+$/, '')].filter(Boolean);
+  for (const piece of read) {
+    const pattern = /\b(?:in|at|for|over)\s+((?:[A-Z][\p{L}'’-]+)(?:\s+(?:de|del|da|do|di|la|le|am|upon|on)?\s*[A-Z][\p{L}'’-]+){0,2})/gu;
+    for (const found of piece.matchAll(pattern)) {
+      const place = found[1]!.replace(/\s+/g, ' ').trim();
+      if (/['’]s?$/.test(place) || /['’]s\b/.test(place)) continue;
+      if (LANGUAGES.has(place.toLowerCase())) continue;
+      return place;
+    }
   }
   return null;
 }
@@ -211,17 +251,18 @@ export function dayAsked(asking: Asking, now: Date): { from: number; to: number 
 
 /** Words that carry nothing for a search: the question's small words. */
 const STOP = new Set(
-  'a an the of to in on at and or is are was were be been it for with by from as that this what which who whom whose when where why how do does did will would can could should i we you he she they me my our your his her their there here about into over than then so not no yes please tell me find out newest latest current most recent'.split(
+  'a an the of to in on at and or is are was were be been it for with by from as that this what which who whom whose when where why how do does did will would can could should i we you he she they me my our your his her their there here about into over than then so not no yes please tell me find out'.split(
     ' ',
   ),
 );
 
 /**
- * The words a lookup searches for: the question's own words, the small ones left out, at most eight. Only these leave
- * the phone, to the one source asked (docs/DESIGN.md §145): never the note.
+ * The words a lookup searches for: the braces' own question, or with `{?}` the clause that asks (askingClause), the small
+ * ones left out, at most eight. Only these leave the phone, to the one source asked (docs/DESIGN.md §145): never the
+ * rest of the note.
  */
 export function searchWords(asking: Asking): string {
-  const words = pieces(asking)
+  const words = lookupPieces(asking)
     .join(' ')
     .replace(/[^\p{L}\p{N}'’ -]+/gu, ' ')
     .split(/\s+/)

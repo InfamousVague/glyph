@@ -66,6 +66,8 @@ const COMMENT = /<!--[\s\S]*?-->/g;
 const TAG = /<\/?[A-Za-z][^<>\n]*>/g;
 /** A link's or a picture's address, and an autolink. */
 const ADDRESS = /\]\([^)\n]*\)|<(?:https?:|mailto:|geo:)[^<>\s]*>/g;
+/** A note link's title: a blank there would be filled into the link's target (`[[Trip to {?capital}]]`), so it is text. */
+export const WIKI_LINK = /\[\[[^\]\n]*\]\]/g;
 
 /**
  * Where the words are quiet for a blank, away from the editor: front matter, fenced code, code spans, comments, HTML
@@ -97,7 +99,7 @@ export function quietRanges(text: string): { from: number; to: number }[] {
       return;
     }
     quiet.push(...codeSpans(line, start));
-    for (const pattern of [TAG, ADDRESS]) {
+    for (const pattern of [TAG, ADDRESS, WIKI_LINK]) {
       const found = new RegExp(pattern.source, 'g');
       for (let match = found.exec(line); match; match = found.exec(line)) quiet.push({ from: start + match.index, to: start + match.index + match[0].length });
     }

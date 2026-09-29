@@ -91,10 +91,17 @@ describe('the More sheet', () => {
     show(<NoteSettings {...sheet({ onAi: vi.fn() })} />);
     expect(buttonSaying(document.body, 'Fill the blanks')).toBeFalsy();
     const onAi = vi.fn();
-    rerender(<NoteSettings {...sheet({ onAi, blanks: 3 })} />);
+    rerender(<NoteSettings {...sheet({ onAi, blanks: { count: 3, online: [] } })} />);
     expect(buttonSaying(document.body, 'Fill the blanks')?.textContent).toContain('Answers the 3 questions written {?like this}. Nothing leaves the phone.');
     act(() => buttonSaying(document.body, 'Fill the blanks')!.click());
     expect(onAi).toHaveBeenCalledWith('fill');
+  });
+
+  it('never says nothing leaves when a press would look blanks up, and names who is asked', () => {
+    show(<NoteSettings {...sheet({ onAi: vi.fn(), blanks: { count: 2, online: ['Open-Meteo', 'Wikipedia and Wikidata'] } })} />);
+    const hint = buttonSaying(document.body, 'Fill the blanks')?.textContent ?? '';
+    expect(hint).not.toContain('Nothing leaves');
+    expect(hint).toContain('only their questions go, to Open-Meteo and Wikipedia and Wikidata.');
   });
 
   it('asks the AI anything typed in its field, as the spoken Ask', () => {

@@ -18,7 +18,8 @@ import { FILL_WEB_PROMPT, rungFor } from './prompts.ts';
 import { readAsks } from './read.ts';
 import { checkShape, shapeOf } from './shape.ts';
 import { fromThisNote } from './source.ts';
-import { lookUp, type LookupPlan, pageFetch, type Fetcher, webMessage } from './web.ts';
+import { lookUp, type LookupPlan, pageFetch, type Fetcher, standsIn, webMessage } from './web.ts';
+import { isMacApp } from '../../core/platform.ts';
 
 /**
  * The fills' queue: every press of Fill, run to its end and landed, whether its note stays open or not (docs/DESIGN.md
@@ -256,11 +257,15 @@ export function pressFill(noteId: string, targets: readonly FillTarget[], model:
   if (text !== null) {
     const lookups = lookupsHere();
     for (const target of batch.targets) {
-      if (target.again || target.anyway) continue;
-      const blank = locate(noteId, target, text);
-      if (!blank) continue;
-      const lane = laneOf(blank, text, { clock: { now: now() }, learntUntil: learntUntil(model), lookups });
-      if (lane.lane === 'live' && lane.can === 'look') target.plan = lane.plan;
+      if (target.anyway) continue;
+      // Asked again, an answer from the web is looked up again, never answered from memory; one from the model or the
+      // note is asked of the model as before.
+      if (target.again && !/\bfrom (?:Open-Meteo|Frankfurter|Wikipedia)\b/.test(target.again.mark)) continue;
+      const found = locate(noteId, target, text);
+      if (!found) continue;
+      const { note, blank } = asAsked(target, found, text);
+      const lane = laneOf(blank, note, { clock: { now: now() }, learntUntil: learntUntil(model), lookups });
+      if (lane.lane === 'live' && (lane.can === 'look' || (target.again && lane.plan.kind !== 'none'))) target.plan = lane.plan;
     }
   }
   for (const target of batch.targets) {
@@ -419,7 +424,14 @@ async function runWeb(batch: Batch, target: Target): Promise<void> {
     return;
   }
   setStatus(batch.noteId, target.key, { phase: 'looking' });
-  const found = await lookUp(target.plan!, fetcher);
+  // Local only or the switch is read again before every request a lookup makes (a Wikipedia search is followed by two
+  // Wikidata asks): turned on mid-lookup, nothing more goes.
+  const held: Fetcher = (url) => (lookupsHere() === 'on' ? fetcher(url) : Promise.reject(new Error('held')));
+  const found = await lookUp(target.plan!, held);
+  if (lookupsHere() !== 'on') {
+    park(batch, target, 'local-only');
+    return;
+  }
   if (!found.ok && found.why === 'offline') {
     park(batch, target, 'offline');
     return;
@@ -440,11 +452,25 @@ async function runWeb(batch: Batch, target: Target): Promise<void> {
     return;
   }
   const ask = askFor(target, blank, text);
+  // The weather and a rate are the app's own sentence from the source's data: no model writes them.
+  if (found.answer) {
+    await land(batch, [{ target, ask, lines: [found.answer], truncated: false, source: { kind: 'web', name: found.source }, by: 'Ghost.md' }]);
+    return;
+  }
   const today = now();
   const built = buildFill(text, [ask], { rung: 1, today });
   const state = await runOne(batch, [{ target, ask }], { system: FILL_WEB_PROMPT, prompt: webMessage(built.prompt, found.source, found.facts), maxTokens: built.maxTokens }, { before: 0, total: 1 });
   if (!state) return;
-  await land(batch, [{ target, ask, lines: readAsks(state.text ?? '', built.numbers)[0] ?? [], truncated: state.truncated, source: { kind: 'web', name: found.source } }]);
+  const lines = readAsks(state.text ?? '', built.numbers)[0] ?? [];
+  // A model's answer lands as the web's only if what came back holds it (web.ts `standsIn`); otherwise it is not found.
+  const said = lines.filter((line) => line.trim() && !/^unknown\.?$/i.test(line.trim()));
+  if (said.length && !said.every((line) => standsIn(line.replace(/^[-*]\s+/, ''), found.facts))) {
+    batch.counts.nothing += 1;
+    setStatus(batch.noteId, target.key, null);
+    setOutcome(batch.noteId, target.key, { why: 'nothing', words: `The answer wasn’t in what ${found.source} returned.`, model: batch.model });
+    return;
+  }
+  await land(batch, [{ target, ask, lines, truncated: state.truncated, source: { kind: 'web', name: found.source } }]);
 }
 
 function park(batch: Batch, target: Target, why: 'offline' | 'local-only'): void {
@@ -507,6 +533,8 @@ interface Ready {
   truncated: boolean;
   /** From the web, named; null for the model's own, whose source is worked out at landing. */
   source: FillSource | null;
+  /** Who wrote the words, when not the model: the app, for a forecast or a rate it wrote from the source's own data. */
+  by?: string;
 }
 
 const isoDay = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -561,7 +589,7 @@ function landings(batch: Batch, text: string, ready: readonly Ready[]): Landing[
     }
     const fromNote = checked.items.every((item) => fromThisNote(item, asked.blank, ask.info.shape, asked.note, asked.note));
     const source: FillSource = one.source ?? (fromNote ? { kind: 'note' } : { kind: 'memory' });
-    out.push({ from: blank.from, to: blank.to, question: one.target.question, info: ask.info, words: checked.items, source, model: name, date: isoDay(now()) });
+    out.push({ from: blank.from, to: blank.to, question: one.target.question, info: ask.info, words: checked.items, source, model: one.by ?? name, date: isoDay(now()) });
     setOutcome(batch.noteId, one.target.key, null);
   }
   return out;
@@ -687,7 +715,7 @@ export function pressToast(batch: Pick<Batch, 'landed' | 'counts' | 'stopped' | 
   const onlyNone = counts.none > 0 && parts.length === 1;
   if (batch.landed && parts.length) message = `${batch.landed} filled. ${parts.join(', ')}.`;
   else if (!batch.landed && onlyNone) message = 'Nothing filled. No answer came.';
-  else if (!batch.landed && batch.parked && parts.length === 1) message = held ? 'Local only is on, so the phone looks nothing up.' : `Waiting for a connection. The phone looks ${batch.parked === 1 ? 'it' : 'them'} up once it is online.`;
+  else if (!batch.landed && batch.parked && parts.length === 1) message = held ? `Local only is on, so ${isMacApp ? 'this Mac' : 'the phone'} looks nothing up.` : `Waiting for a connection. ${isMacApp ? 'This Mac' : 'The phone'} looks ${batch.parked === 1 ? 'it' : 'them'} up once it is online.`;
   else if (!batch.landed && parts.length) message = `Nothing filled. ${parts.join(', ')}.`;
   if (changed) message = message ? `${message} ${changed}` : changed;
   if (batch.closedTitle && batch.landed && typeof document !== 'undefined' && document.visibilityState === 'visible') {

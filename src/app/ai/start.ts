@@ -84,7 +84,10 @@ export function startNoteRun(view: EditorView, noteId: string, kind: RunKind, av
   if (!source.trim()) return { ok: false, reason: 'Nothing in the note yet.' };
   const instruction = options.instruction?.trim() || undefined;
   if (kind === 'ask' && !instruction) return { ok: false, reason: 'Say what to do with the note.' };
-  const { prompt: text, restore } = prepareNote(source, kind === 'summarize' ? 'summarize' : 'format');
+  // Continue writes only what comes next, so nothing it leaves out is lost: restored as a summary is, a blank, fill,
+  // table or picture it does not repeat is not added again at the note's end (the review of §145 found every blank
+  // and answer doubled under a continuation).
+  const { prompt: text, restore } = prepareNote(source, kind === 'summarize' || kind === 'continue' ? 'summarize' : 'format');
   const prompt = kind === 'ask' && instruction ? askMessage(instruction, text) : text;
   const handle = startRun({
     noteId,

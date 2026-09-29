@@ -141,6 +141,6 @@ describe('the Model card', () => {
     android = false;
     const host = show(<ModelCard />);
     expect(host.querySelector('.setk__footer')?.textContent).toBe('Nothing downloaded yet. Get one above, or tap the robot on a note and it will offer to.');
-    expect(host.textContent).toContain('It runs on this Mac. Nothing is sent anywhere.');
+    expect(host.textContent).toContain('It runs on this Mac and sends nothing anywhere.');
   });
 });

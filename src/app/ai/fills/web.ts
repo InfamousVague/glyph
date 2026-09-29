@@ -1,6 +1,7 @@
 import type { Asking } from '../../core/blanks.ts';
 import { dayAsked, type LiveKind, moneyAsked, placeAsked, searchWords } from '../../core/fillLive.ts';
 import { modelDay } from './message.ts';
+import { isMacApp } from '../../core/platform.ts';
 
 /**
  * Live blanks, looked up by the phone itself (docs/DESIGN.md §145). Matt, asked where an answer that needs live facts
@@ -33,14 +34,14 @@ export type LookupPlan =
   | { kind: 'none'; why: string };
 
 /** The sentence for a live blank no public source can answer. */
-export const NO_SOURCE = 'No public source the phone can ask answers this.';
+export const NO_SOURCE = `No public source ${isMacApp ? 'this Mac' : 'the phone'} can ask answers this.`;
 
 /** What a lookup for a live blank would ask, or why there is none. */
 export function lookupPlan(kind: LiveKind, asking: Asking, now: Date): LookupPlan {
   switch (kind) {
     case 'weather': {
       const place = placeAsked(asking);
-      return place ? { kind: 'weather', place, days: dayAsked(asking, now) } : { kind: 'none', why: 'Name the place, as in “Weather in Lisbon today”, and the phone can look it up.' };
+      return place ? { kind: 'weather', place, days: dayAsked(asking, now) } : { kind: 'none', why: `Name the place, as in “Weather in Lisbon today”, and ${isMacApp ? 'this Mac' : 'the phone'} can look it up.` };
     }
     case 'money': {
       const money = moneyAsked(asking);
@@ -161,6 +162,58 @@ export function parseRates(json: unknown, plan: { amount: number; from: string; 
   return `The European Central Bank's rate for ${day}: 1 ${plan.from} is ${figure(rate)} ${plan.to}.\nSo ${figure(plan.amount)} ${plan.from} is ${figure(Math.round(plan.amount * rate * 100) / 100)} ${plan.to}.`;
 }
 
+/**
+ * The weather's answer, written by the app from the forecast: "Rain showers, 19 to 25 °C", or one such part a day for a
+ * weekend. The model never writes it, so nothing it says can be marked as Open-Meteo's without being Open-Meteo's.
+ */
+export function forecastAnswer(json: unknown, days: { from: number; to: number }): string | null {
+  const daily = (json as Forecast)?.daily;
+  if (!daily?.time?.length) return null;
+  const parts: string[] = [];
+  for (let d = days.from; d <= days.to && d < daily.time.length; d += 1) {
+    const words = WEATHER_CODES[daily.weather_code?.[d] ?? -1];
+    if (!words) continue;
+    const low = daily.temperature_2m_min?.[d];
+    const high = daily.temperature_2m_max?.[d];
+    const temps = typeof low === 'number' && typeof high === 'number' ? `, ${round(low)} to ${round(high)} °C` : '';
+    const text = `${words}${temps}`;
+    if (days.to > days.from) {
+      const [y, m, day] = daily.time[d]!.split('-').map(Number);
+      const weekday = new Date(y!, m! - 1, day!, 12).toLocaleDateString('en-GB', { weekday: 'long' });
+      parts.push(`${weekday} ${text}`);
+    } else parts.push(text);
+  }
+  if (!parts.length) return null;
+  const joined = parts.join(', then ');
+  return joined.charAt(0).toUpperCase() + joined.slice(1);
+}
+
+/** The exchange's answer, worked out by the app from the ECB's rate: "67.06 USD". */
+export function ratesAnswer(json: unknown, plan: { amount: number; to: string }): string | null {
+  const rate = (json as { rates?: Record<string, number> })?.rates?.[plan.to];
+  if (typeof rate !== 'number') return null;
+  return `${figure(Math.round(plan.amount * rate * 100) / 100)} ${plan.to}`;
+}
+
+/**
+ * Whether a model's answer stands in what a source returned: every number in it, and every content word, is in the
+ * facts. Measured before this: the 2B landed seven of eight answers wrong "from Wikipedia" ("newest" for the newest
+ * Pixel, a 2024 winner for 2025), each marked as the web's. An answer the facts do not hold is not the web's, and
+ * does not land as it.
+ */
+export function standsIn(answer: string, facts: string): boolean {
+  const fold = (t: string) => t.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/(\d),(\d)/g, '$1$2');
+  const have = fold(facts);
+  const numbers = fold(answer).match(/\d+(?:\.\d+)?/g) ?? [];
+  if (numbers.some((n) => !have.includes(n))) return false;
+  const words = (fold(answer).match(/[\p{L}]+/gu) ?? []).filter((w) => w.length >= 3 && !SMALL.has(w));
+  if (!words.length && !numbers.length) return false;
+  const haveWords = new Set((have.match(/[\p{L}]+/gu) ?? []).map((w) => w.replace(/s$/, '')));
+  return words.every((w) => haveWords.has(w.replace(/s$/, '')));
+}
+
+const SMALL = new Set('the and for with from that this was were are its his her their has had have been into over than then about after before'.split(' '));
+
 export interface WikiPage {
   title: string;
   extract: string;
@@ -276,7 +329,7 @@ export function wikiFacts(pages: readonly WikiPage[], facts: { title: string; cl
 // ---- asking ----------------------------------------------------------------------------------------------------
 
 /** How a lookup went: what came back, with the source to name; offline; or nothing from a source that answered. */
-export type Found = { ok: true; source: string; facts: string } | { ok: false; why: 'offline' } | { ok: false; why: 'nothing'; words: string };
+export type Found = { ok: true; source: string; facts: string; answer?: string } | { ok: false; why: 'offline' } | { ok: false; why: 'nothing'; words: string };
 
 /** Asks a URL for JSON; throws `offline` on a network failure, and answers the status with the body otherwise. */
 export type Fetcher = (url: string) => Promise<{ status: number; json: unknown }>;
@@ -317,12 +370,16 @@ export async function lookUp(plan: LookupPlan, fetcher: Fetcher = pageFetch): Pr
     if (plan.kind === 'weather') {
       const place = parseGeocode((await fetcher(URLS.geocode(plan.place))).json);
       if (!place) return { ok: false, why: 'nothing', words: `Open-Meteo doesn’t know a place called ${plan.place}.` };
-      const facts = parseForecast((await fetcher(URLS.forecast(place, Math.min(7, plan.days.to + 1)))).json, place, plan.days);
-      return facts ? { ok: true, source: 'Open-Meteo', facts } : { ok: false, why: 'nothing', words: 'Open-Meteo had no forecast for that day.' };
+      const forecast = (await fetcher(URLS.forecast(place, Math.min(7, plan.days.to + 1)))).json;
+      const facts = parseForecast(forecast, place, plan.days);
+      const answer = forecastAnswer(forecast, plan.days);
+      return facts && answer ? { ok: true, source: 'Open-Meteo', facts, answer } : { ok: false, why: 'nothing', words: 'Open-Meteo had no forecast for that day.' };
     }
     if (plan.kind === 'rates') {
-      const facts = parseRates((await fetcher(URLS.rates(plan.from, plan.to))).json, plan);
-      return facts ? { ok: true, source: 'Frankfurter', facts } : { ok: false, why: 'nothing', words: `The European Central Bank has no rate from ${plan.from} to ${plan.to}.` };
+      const rates = (await fetcher(URLS.rates(plan.from, plan.to))).json;
+      const facts = parseRates(rates, plan);
+      const answer = ratesAnswer(rates, plan);
+      return facts && answer ? { ok: true, source: 'Frankfurter', facts, answer } : { ok: false, why: 'nothing', words: `The European Central Bank has no rate from ${plan.from} to ${plan.to}.` };
     }
     if (plan.kind === 'wiki') {
       const pages = parseWikiSearch((await fetcher(URLS.wiki(plan.terms))).json);

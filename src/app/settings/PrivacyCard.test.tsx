@@ -76,7 +76,7 @@ describe('looking up blanks online (docs/DESIGN.md §145)', () => {
   it('is on by default in the app, says what goes where, and switches off', () => {
     const host = show(<PrivacyCard />);
     expect(hint(host, 'Look up blanks online')).toBe(
-      'When you press Fill on a blank that needs something live, like today’s weather or an exchange rate, this device asks Open-Meteo, the European Central Bank’s rates or Wikipedia. Only the question goes, and the model here writes the answer.',
+      'On Fill, a blank that needs something live asks Open-Meteo, Frankfurter’s bank rates or Wikipedia. Only its question goes.',
     );
     const toggle = host.querySelector<HTMLInputElement>('[aria-label="Look up blanks online"]')!;
     expect(toggle.checked).toBe(true);

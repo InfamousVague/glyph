@@ -90,11 +90,11 @@ describe('the icon and what follows', () => {
     expect(labels(view)).toEqual([
       'A blank for the AI: which day',
       'Worked out: Days until Christmas:',
-      'Looked up online: weather',
+      'Looked up online when pressed: weather',
       "Can't work out: Days until Easter:",
-      "Can't know offline: price today",
+      'No source to ask: price today',
     ]);
-    expect(after(view)).toEqual(['88 days', 'Can’t work out', 'Can’t know offline']);
+    expect(after(view)).toEqual(['88 days', 'Can’t work out', 'No source to ask']);
     expect(view.contentDOM.querySelectorAll('.cm-blankIcon svg')).toHaveLength(5);
   });
 

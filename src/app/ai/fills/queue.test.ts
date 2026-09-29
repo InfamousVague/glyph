@@ -246,13 +246,11 @@ describe('a live blank, looked up by the phone', () => {
       },
     });
     resumeParked();
-    await until(() => fakes.length === 1);
-    expect(asked[0]).toContain('name=Lisbon');
-    expect(fakes[0]!.options.system).toContain('Answer only from what the source returned.');
-    expect(fakes[0]!.options.prompt).toContain('What Open-Meteo returned:');
-    fakes[0]!.finish('[1] Rain showers, 19 to 25 °C');
     await until(() => note.lands === 1);
-    expect(note.body).toContain('??Rain showers, 19 to 25 °C??(Qwen3.5 4B from Open-Meteo, 2026-09-28. Asked: weather)');
+    expect(asked[0]).toContain('name=Lisbon');
+    // The forecast is the app's own sentence from Open-Meteo's data: no model writes it, and the bracket says so.
+    expect(fakes).toHaveLength(0);
+    expect(note.body).toMatch(/\?\?[A-Z][^?]* to \d+ °C\?\?\(Ghost\.md from Open-Meteo, 2026-09-28\. Asked: weather\)/);
     openForFills('n6', null);
   });
 

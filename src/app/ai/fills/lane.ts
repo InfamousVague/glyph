@@ -38,12 +38,16 @@ export interface LaneOptions {
 
 /** A blank's lane. */
 export function laneOf(blank: Blank, text: string, options: LaneOptions): Lane {
+  // A translation is read first: `- Is the museum open on Sundays? {?in German}` asks for German words, not the hours,
+  // and `- How many days until Christmas? {?in French}` for French ones, not the count.
+  const shaped = shapeOf(blank, text);
+  if (shaped.shape === 'language') return { lane: 'model', info: shaped };
   const worked = workOut(blank, text, options.clock);
   if (worked?.kind === 'answer') return { lane: 'worked', worked };
   if (worked?.kind === 'cannot') return { lane: 'cannot', cannot: worked };
   const asking = askingWords(blank, text);
   const live = screen(asking, options.learntUntil);
-  const info = shapeOf(blank, text);
+  const info = shaped;
   if (live) {
     const plan = lookupPlan(live.kind, asking, options.clock.now);
     const can = plan.kind === 'none' ? 'none' : options.lookups === 'on' ? 'look' : options.lookups;

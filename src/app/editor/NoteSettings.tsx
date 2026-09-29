@@ -83,8 +83,11 @@ interface NoteSettingsProps {
   /** The AI's kind of run on this note now, if one is on, and how to ask for one (ai/start.ts). Absent on a note that can't be read to. */
   running?: RunKind | null;
   onAi?: (kind: RunKind, instruction?: string) => void;
-  /** How many blanks a press of Fill the blanks would take (editor/blanks.ts), read as the sheet opens: the row shows only with one. */
-  blanks?: number;
+  /**
+   * What a press of Fill the blanks would take (editor/blanks.ts `fillPlanOf`), read as the sheet opens: how many, and
+   * the public sources its live blanks would be looked up at. The row shows only with one.
+   */
+  blanks?: { count: number; online: string[] };
   onView?: (view: NoteView) => void;
   /**
    * Where the note was written (core/geotag.ts, core/location.ts): its tag, whether a fix can be asked for here and
@@ -136,10 +139,16 @@ function locationHint(location: NonNullable<NoteSettingsProps['location']>): str
  */
 const SHEET_KINDS: readonly KindWords[] = (['format', 'summarize', 'enhance', 'fix', 'shape', 'continue'] as const).map((id) => KINDS.find((kind) => kind.id === id)!);
 
-/** Fill the blanks' hint, with the count, on this device. */
-function fillHint(count: number): string {
+/**
+ * Fill the blanks' hint, with the count, on this device. It says nothing leaves only when nothing will: a press that
+ * looks live blanks up names who is asked, since only their questions go there.
+ */
+function fillHint(plan: { count: number; online: string[] }): string {
   const device = isMacApp ? 'this Mac' : 'the phone';
-  return count === 1 ? `Answers the question written {?like this}. Nothing leaves ${device}.` : `Answers the ${count} questions written {?like this}. Nothing leaves ${device}.`;
+  const what = plan.count === 1 ? 'Answers the question written {?like this}.' : `Answers the ${plan.count} questions written {?like this}.`;
+  if (!plan.online.length) return `${what} Nothing leaves ${device}.`;
+  const who = plan.online.length === 1 ? plan.online[0]! : `${plan.online.slice(0, -1).join(', ')} and ${plan.online.at(-1)!}`;
+  return `${what} Some are looked up online: only their questions go, to ${who}.`;
 }
 
 /**
@@ -155,7 +164,7 @@ function AskField({ onAsk }: { onAsk: (instruction: string) => void }) {
   };
   const Icon = KIND_ICONS.ask;
   return (
-    <form className={styles.ask} onSubmit={submit} role="search" aria-label="Ask the AI">
+    <form className={styles.ask} onSubmit={submit} aria-label="Ask the AI">
       <span className={styles.icon} aria-hidden="true">
         <Icon size={20} strokeWidth={2.1} />
       </span>
@@ -225,7 +234,7 @@ export function NoteSettings({
   onView,
   running,
   onAi,
-  blanks = 0,
+  blanks = { count: 0, online: [] },
   location,
 }: NoteSettingsProps) {
   // Re-rendered when a plugin is switched, so its rows come and go.
@@ -345,7 +354,7 @@ export function NoteSettings({
         <>
           <SheetHeading>AI</SheetHeading>
           <SheetGroup>
-            {[...SHEET_KINDS, ...(blanks > 0 ? [{ ...KINDS.find((kind) => kind.id === 'fill')!, hint: fillHint(blanks) }] : [])].map((words) => {
+            {[...SHEET_KINDS, ...(blanks.count > 0 ? [{ ...KINDS.find((kind) => kind.id === 'fill')!, hint: fillHint(blanks) }] : [])].map((words) => {
               const Icon = KIND_ICONS[words.id];
               // Pressed, with a dot at its end, while that run is on - rather than the kit's tick, which marks a choice.
               return (

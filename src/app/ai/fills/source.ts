@@ -1,4 +1,5 @@
 import { askingWords, BLANK, type Blank, fillsIn } from '../../core/blanks.ts';
+import { askingClause } from '../../core/fillLive.ts';
 import type { Shape } from './shape.ts';
 
 /**
@@ -12,7 +13,7 @@ import type { Shape } from './shape.ts';
  * wrong. Pure.
  */
 
-const STOP = new Set('a an the of to in on at and or is are was be it for with by from as that this i we you he she they'.split(' '));
+const STOP = new Set('a an the of to in on at and or is are was be it for with by from as that this i we you he she they who what when where which how why whom whose'.split(' '));
 
 /** A text's content words: lower case, accents folded, punctuation off, a trailing s aside, stop words and short words out, numbers kept. */
 export function contentWords(text: string): string[] {
@@ -41,8 +42,14 @@ function sentencesOf(text: string): string[] {
 
 /**
  * Whether an answer is from this note: for a title or a summary, every content word of it is in its scope; for any
- * other shape, one sentence of the note holds every content word of it and at least one of the asking words'. An
- * answer with no content words at all ("no", "A") is from memory.
+ * other shape, one sentence of the note, not on the blank's own line, holds every content word of the answer and every
+ * one of what was asked. An answer with no content words at all ("no", "A") is from memory.
+ *
+ * Both rules came from the review of §145. The blank's own line always holds the asking words, so "Australia" for
+ * `The capital of Australia is {?}` counted as the note's: that line is left out. And words side by side are not the
+ * note giving the answer: under `We watched the World Cup final in 2022: France against Argentina.`, "France" for
+ * `The 2022 World Cup was won by {?}` stood beside 2022, World and Cup, but no sentence says who won. So every asking
+ * word must be there, "won" included.
  */
 export function fromThisNote(answer: string, blank: Blank, shape: Shape, text: string, scope: string): boolean {
   const words = contentWords(answer);
@@ -51,9 +58,14 @@ export function fromThisNote(answer: string, blank: Blank, shape: Shape, text: s
     const have = new Set(contentWords(noteForSource(scope)));
     return words.every((w) => have.has(w));
   }
-  const asking = new Set(contentWords(askingWords(blank, text).text));
-  return sentencesOf(noteForSource(text)).some((sentence) => {
+  const asked = askingWords(blank, text);
+  const asking = contentWords(asked.question.trim() || askingClause(asked));
+  if (!asking.length) return false;
+  const lineStart = text.lastIndexOf('\n', blank.from - 1) + 1;
+  const lineEnd = text.indexOf('\n', blank.to);
+  const others = `${text.slice(0, lineStart)}${lineEnd < 0 ? '' : text.slice(lineEnd)}`;
+  return sentencesOf(noteForSource(others)).some((sentence) => {
     const have = new Set(contentWords(sentence));
-    return words.every((w) => have.has(w)) && [...asking].some((w) => have.has(w));
+    return words.every((w) => have.has(w)) && asking.every((w) => have.has(w));
   });
 }

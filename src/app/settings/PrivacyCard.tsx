@@ -61,7 +61,7 @@ export function PrivacyCard() {
       {app ? (
         <SettingRow
           label="Look up blanks online"
-          hint="When you press Fill on a blank that needs something live, like today’s weather or an exchange rate, this device asks Open-Meteo, the European Central Bank’s rates or Wikipedia. Only the question goes, and the model here writes the answer."
+          hint="On Fill, a blank that needs something live asks Open-Meteo, Frankfurter’s bank rates or Wikipedia. Only its question goes."
           control={<Switch aria-label="Look up blanks online" checked={prefs.lookUpBlanks && !prefs.localOnly} onCheckedChange={(lookUpBlanks) => setPreferences({ lookUpBlanks })} />}
           disabledReason={prefs.localOnly ? 'Local only is on, so such blanks wait.' : undefined}
         />

@@ -10,6 +10,11 @@ import { fillOutcome, fillStatus, type FillOutcome, type FillStatus } from '../a
 import { NO_SOURCE, sourceName } from '../ai/fills/web.ts';
 import { blankHooks, editorBlanks, keyOf, panelOpener, trackBlanks } from './blanks.ts';
 import { iconElement } from './iconDom.ts';
+import { isMacApp } from '../core/platform.ts';
+
+/** The device, as the panel's words name it: the phone, or this Mac in the Mac app. */
+const device = () => (isMacApp ? 'this Mac' : 'the phone');
+const Device = () => (isMacApp ? 'This Mac' : 'The phone');
 
 /**
  * The panel a tap on an answer opens (docs/DESIGN.md §145, 7): where it came from, in words, and what can be done with
@@ -99,7 +104,7 @@ function fillContent(view: EditorView, fill: ReturnType<typeof fillsIn>[number])
   } else if (filled.source.kind === 'web') {
     Icon = Wifi;
     title = `${filled.model}, from ${filled.source.name}`;
-    lines.push(`The phone asked ${filled.source.name}, and the model wrote this from what came back. It can still be wrong.`);
+    lines.push(filled.model === 'Ghost.md' ? `${Device()} asked ${filled.source.name}, and the app wrote this from what came back.` : `${Device()} asked ${filled.source.name}, and the model wrote this from what came back. It can still be wrong.`);
   } else {
     lines.push(MODEL_LIMITS);
     const warning = caveat(lane, sentence);
@@ -161,8 +166,8 @@ function blankContent(view: EditorView, blank: Blank): PanelContent | null {
   if (status?.phase === 'paused') {
     const source = lane.lane === 'live' ? sourceName(lane.plan) : null;
     return status.why === 'offline'
-      ? { Icon: WifiOff, title: 'Waiting for a connection', lines: [`The phone will ask ${source ?? 'the source'} once it is online, and the model will write the answer from what comes back.`], actions: [] }
-      : { Icon: WifiOff, title: 'Paused', lines: ['Local only is on, so the phone doesn’t look this up. It goes on when Local only is off.'], actions: [] };
+      ? { Icon: WifiOff, title: 'Waiting for a connection', lines: [`${Device()} will ask ${source ?? 'the source'} once it is online, and the answer is written from what comes back.`], actions: [] }
+      : { Icon: WifiOff, title: 'Paused', lines: [`Local only is on, so ${device()} doesn’t look this up. It goes on when Local only is off.`], actions: [] };
   }
   if (outcome) {
     const name = modelName(outcome.model);
@@ -200,10 +205,10 @@ function blankContent(view: EditorView, blank: Blank): PanelContent | null {
           ? lane.plan.why
           : NO_SOURCE
         : lane.can === 'local-only'
-          ? `Local only is on, so this waits. The phone would ask ${source} for it.`
+          ? `Local only is on, so this waits. ${Device()} would ask ${source} for it.`
           : lane.can === 'off'
-            ? 'Look up blanks online is off in Settings, so the phone doesn’t ask the web.'
-            : `On Fill, the phone asks ${source}, and the model writes the answer from what comes back. Only the question goes.`;
+            ? `Look up blanks online is off in Settings, so ${device()} doesn’t ask the web.`
+            : `On Fill, ${device()} asks ${source}, and the answer is written from what comes back. Only the question goes.`;
     return { Icon: lane.can === 'look' ? Wifi : WifiOff, title: lane.can === 'look' ? 'Looked up online' : 'The model can’t know this', lines: [liveWords(lane.live.kind), why], actions: lane.can === 'look' ? [] : anyway ? [anyway] : [] };
   }
   return null;

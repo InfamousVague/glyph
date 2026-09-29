@@ -3,12 +3,13 @@ import { Facet, StateEffect, StateField, type EditorState, type Extension, type 
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { BookOpenText, Calculator, CalendarDays, Globe, Hourglass, LoaderCircle, MessageCircleQuestionMark, PenLine, Wifi, WifiOff, type LucideIcon } from '@glacier/icons';
 import type { Tree } from '@lezer/common';
-import { blankMatches, type Blank, fillsIn } from '../core/blanks.ts';
+import { blankMatches, type Blank, fillsIn, WIKI_LINK } from '../core/blanks.ts';
 import { externalStore } from '../core/externalStore.ts';
 import { frontMatterOffset } from '../core/frontMatter.ts';
 import type { FactIcon } from '../core/fillFacts.ts';
 import { mathsIn } from '../core/maths.ts';
 import { fillable, laneOf, type Lane, type Lookups } from '../ai/fills/lane.ts';
+import { sourceName } from '../ai/fills/web.ts';
 import { blankKey, fillOutcome, fillStatus, subscribeFills, type FillOutcome, type FillStatus, type FillTarget } from '../ai/fills/queue.ts';
 import { runFor } from '../ai/runs.ts';
 import { iconElement } from './iconDom.ts';
@@ -109,6 +110,7 @@ function inWords(state: EditorState, from: number, tree: Tree = syntaxTree(state
   if (from < frontMatterOffset(state.doc.sliceString(0, Math.min(state.doc.length, 4000)))) return false;
   if (inQuietText(state, from, tree)) return false;
   const line = state.doc.lineAt(from);
+  if ([...line.text.matchAll(WIKI_LINK)].some((m) => from >= line.from + m.index && from < line.from + m.index + m[0].length)) return false;
   return !mathsIn(line.text, line.from).some((m) => from >= m.from && from < m.to);
 }
 
@@ -178,6 +180,28 @@ export function fillableBlanks(state: EditorState): Blank[] {
   return editorBlanks(state).filter((blank) => fillable(laneOf(blank, text, options)));
 }
 
+/**
+ * What a press of Fill the blanks would do, for the More sheet's hint: how many it takes, and the public sources the
+ * live ones would be looked up at. The hint says "Nothing leaves" only when that list is empty.
+ */
+export function fillPlanOf(state: EditorState): { count: number; online: string[] } {
+  const hooks = state.facet(blankHooks);
+  const text = state.doc.toString();
+  const options = laneOptions(hooks);
+  const online = new Set<string>();
+  let count = 0;
+  for (const blank of editorBlanks(state)) {
+    const lane = laneOf(blank, text, options);
+    if (!fillable(lane)) continue;
+    count += 1;
+    if (lane.lane === 'live') {
+      const name = sourceName(lane.plan);
+      if (name) online.add(name === 'Wikipedia' ? 'Wikipedia and Wikidata' : name);
+    }
+  }
+  return { count, online: [...online] };
+}
+
 /** Fill the blanks: every blank the model or a lookup can answer, top to bottom. Answers how many went. */
 export function fillAll(view: EditorView): number {
   const all = editorBlanks(view.state);
@@ -214,6 +238,8 @@ export function wordsAfter(lane: Lane, status: FillStatus | null, outcome: FillO
   if (outcome) return { unknown: 'Not known', none: 'No answer came', 'didnt-fit': 'Didn’t fit', nothing: 'Not found online' }[outcome.why];
   if (lane.lane === 'cannot') return 'Can’t work out';
   if (lane.lane === 'live' && lane.can === 'local-only') return 'Paused';
+  // No public source answers it (a fare, opening hours): the phone being online would not help, so it says that.
+  if (lane.lane === 'live' && lane.can === 'none') return 'No source to ask';
   if (lane.lane === 'live' && lane.can !== 'look') return 'Can’t know offline';
   return null;
 }
@@ -223,8 +249,9 @@ function label(lane: Lane, blank: Blank, text: string): string {
   const asked = blank.question || text.slice(text.lastIndexOf('\n', blank.from - 1) + 1, blank.from).trim() || '';
   if (lane.lane === 'worked') return `Worked out: ${asked}`;
   if (lane.lane === 'cannot') return `Can't work out: ${asked}`;
+  if (lane.lane === 'live' && lane.can === 'none') return `No source to ask: ${asked}`;
   if (lane.lane === 'live' && lane.can !== 'look') return `Can't know offline: ${asked}`;
-  if (lane.lane === 'live') return `Looked up online: ${asked}`;
+  if (lane.lane === 'live') return `Looked up online when pressed: ${asked}`;
   return blank.question ? `A blank for the AI: ${blank.question}` : 'A blank for the AI';
 }
 
@@ -389,7 +416,9 @@ function draw(view: EditorView, idle: boolean): Drawn {
       const typing = caretLines.has(line.number) && !idle;
       const caretInside = view.hasFocus && head > blank.from + 1 && head < blank.to;
       const busy = status?.phase === 'filling' || status?.phase === 'looking';
-      marks.push(boxFor(label(lane, blank, text), busy, blank.to - blank.from <= SHORT_BLANK).range(blank.from, blank.to));
+      // Kept on one line only in words at body size: a heading's square must wrap, or at 412 it runs off the column.
+      const heading = /^\s{0,3}#{1,6}\s/.test(line.text);
+      marks.push(boxFor(label(lane, blank, text), busy, !heading && blank.to - blank.from <= SHORT_BLANK).range(blank.from, blank.to));
       const showBraces = !formatted || caretLines.has(line.number);
       if (showBraces) {
         marks.push(brace.range(blank.from, blank.from + 2));
@@ -499,7 +528,8 @@ const plugin = ViewPlugin.fromClass(
       }
       if (update.docChanged) this.count();
       const asked = update.transactions.some((tr) => tr.effects.some((e) => e.is(blanksRedraw)));
-      if (update.docChanged || update.selectionSet || update.viewportChanged || update.focusChanged || asked || syntaxTree(update.startState) !== syntaxTree(update.state)) {
+      const viewFlipped = update.startState.facet(formattedView) !== update.state.facet(formattedView);
+      if (update.docChanged || update.selectionSet || update.viewportChanged || update.focusChanged || asked || viewFlipped || syntaxTree(update.startState) !== syntaxTree(update.state)) {
         const drawn = draw(update.view, this.idle);
         this.decorations = drawn.decorations;
         this.tick(drawn.minutely);
@@ -564,9 +594,9 @@ const theme = EditorView.baseTheme({
     padding: '0',
     marginInlineStart: '0.6em',
     font: 'inherit',
-    fontSize: '0.68em',
-    color: 'var(--app-ink-4, currentColor)',
-    verticalAlign: '0.15em',
+    fontSize: '0.8em',
+    color: 'var(--app-ink-3, currentColor)',
+    verticalAlign: '0.08em',
     whiteSpace: 'nowrap',
     cursor: 'pointer',
     WebkitTapHighlightColor: 'transparent',

@@ -74,6 +74,19 @@ describe('what a lookup would ask', () => {
   it('searches for the question’s own words, the small ones left out', () => {
     expect(searchWords(asking('The 2026 World Cup was won by {?}'))).toBe('2026 World Cup won');
     expect(searchWords(asking('Q: Who won the 2026 World Cup?\nA: {?}'))).toBe('won 2026 World Cup');
-    expect(searchWords(asking('The newest Pixel is the {?}'))).toBe('Pixel');
+    // "newest" is kept: a search for plain "Pixel" found the picture element (the review of §145).
+    expect(searchWords(asking('The newest Pixel is the {?}'))).toBe('newest Pixel');
+  });
+
+  it('sends the braces’ own question alone, and never the rest of the sentence or the one before', () => {
+    expect(searchWords(asking('Sarah Jones owes me £450 for rent. {?who won the 2026 World Cup}'))).toBe('won 2026 World Cup');
+    expect(searchWords(asking('My HIV test results came back and Dr Patel said to ask who won the 2026 World Cup {?}'))).toBe('won 2026 World Cup');
+    expect(searchWords(asking('Told Dr Patel about my knee, and he asked who won the 2026 World Cup {?}'))).toBe('won 2026 World Cup');
+  });
+
+  it('takes a place only from the question or its own clause, never a person or a language', () => {
+    expect(placeAsked(asking('Weather for Sarah’s wedding in Lisbon tomorrow: {?}'))).toBe('Lisbon');
+    expect(placeAsked(asking('Q: Will it rain at Dr Patel’s clinic tomorrow? A: {?}'))).toBeNull();
+    expect(placeAsked(asking('- Will it rain tomorrow? {?in Italian}'))).toBeNull();
   });
 });

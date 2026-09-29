@@ -69,7 +69,7 @@ class PlaceWidget extends WidgetType {
     return a.lat === b.lat && a.lon === b.lon && a.place === b.place && a.rough === b.rough && other.look.mode === this.look.mode && other.look.quietWhy === this.look.quietWhy && other.dark === this.dark;
   }
 
-  /** The card's own height (6rem, 8rem from 600px wide) and the room around it, so the note does not jump as it draws. */
+  /** The card's own height (7.2rem, 9.6rem from 600px wide) and the room around it, so the note does not jump as it draws. */
   get estimatedHeight(): number {
     if (typeof window === 'undefined') return 110;
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
@@ -199,9 +199,9 @@ const theme = EditorView.baseTheme({
     paddingInline: 'calc(var(--app-safe-left, 0px) + var(--app-gutter, 0px)) calc(var(--app-safe-right, 0px) + var(--app-gutter, 0px))',
   },
   // The card's own height held while its component arrives, so nothing under it moves when it does.
-  '.cm-placeCardBox': { minBlockSize: '6rem', maxInlineSize: '32rem' },
+  '.cm-placeCardBox': { minBlockSize: '7.2rem', maxInlineSize: '32rem' },
   '@media (min-width: 600px)': {
-    '.cm-placeCardBox': { minBlockSize: '8rem' },
+    '.cm-placeCardBox': { minBlockSize: '9.6rem' },
   },
 });
 

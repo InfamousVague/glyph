@@ -18,6 +18,12 @@ describe('where an answer came from', () => {
     expect(fromNote('We watched France play in Qatar.\n\nThe 2022 World Cup was won by {?}', 'France')).toBe(false);
   });
 
+  it('is memory for an answer that only echoes its own line, or stands beside the question without answering it', () => {
+    expect(fromNote('The capital of Australia is {?}', 'Australia')).toBe(false);
+    expect(fromNote('We watched the World Cup final in 2022: France against Argentina.\n\nThe 2022 World Cup was won by {?}', 'France')).toBe(false);
+    expect(fromNote('Argentina won the 2022 World Cup on penalties.\n\nThe 2022 World Cup was won by {?}', 'Argentina')).toBe(true);
+  });
+
   it('is memory for words the note lacks, and for an answer with no content words', () => {
     expect(fromNote('# Kitchen tap\n- [x] Found the leak under the sink\n- [ ] {?the next step}', 'Turn off the water and fit the new washer')).toBe(false);
     expect(fromNote('Is it done? {?}', 'no')).toBe(false);

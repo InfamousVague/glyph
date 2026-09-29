@@ -69,7 +69,7 @@ export function ModelCard() {
 
       <PaneSection
         title="Model"
-        description={`Writes the summaries and the review, runs the AI in a note's More sheet, and fills its blanks. Bigger writes better, and is slower. It runs on ${device}. Nothing is sent anywhere. ${MODEL_LIMITS}`}
+        description={`Writes the summaries and the review, runs the AI in a note's More sheet, and fills its blanks. Bigger writes better, and is slower. It runs on ${device} and sends nothing anywhere. ${MODEL_LIMITS}`}
         footer={held ? `${gb(held)} on ${device}.` : 'Nothing downloaded yet. Get one above, or tap the robot on a note and it will offer to.'}
       >
         {MODELS.map((model) => {

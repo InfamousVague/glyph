@@ -88,7 +88,7 @@ In a title, an answer is written as plain words, since a title is a name and sho
 
 ### Looking things up
 
-A square with a signal is looked up by the phone itself, and only when you tap Fill. The phone asks one public source that needs no account: Open-Meteo for the weather, the European Central Bank's rates (through Frankfurter) for exchange rates, and Wikipedia and Wikidata for results, the newest of something and events after the model's training. Only the question goes, or the place and the day for the weather, never the note. Offline, the square says **Waiting for a connection**, and the lookup goes on by itself once the phone is online. **Look up blanks online** in Settings › Account › Privacy turns it off, and Local only keeps such squares waiting.
+A square with a signal is looked up by the phone itself, and only when you tap Fill. The phone asks one public source that needs no account: Open-Meteo for the weather, the European Central Bank's rates (through Frankfurter) for exchange rates, and Wikipedia and Wikidata for results, the newest of something and events after the model's training. Only the question in the braces goes (for an empty `{?}`, the words of its own sentence that ask), or the place and the day for the weather, never the rest of the note. The weather and a rate are then written by the app from the source's own figures; a Wikipedia answer lands only if its words are in what came back. Offline, the square says **Waiting for a connection**, and the lookup goes on by itself once the phone is online. **Look up blanks online** in Settings › Account › Privacy turns it off, and Local only keeps such squares waiting.
 
 ### Where it runs
 

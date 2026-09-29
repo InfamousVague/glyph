@@ -1,4 +1,10 @@
 import '@testing-library/jest-dom/vitest';
+import { afterAll } from 'vitest';
+import { iconsSettled } from '../app/editor/iconDom.ts';
+
+// An editor icon's first draw is React's to schedule (editor/iconDom.ts): let every one land before a file's
+// environment is torn down, or a late one throws "window is not defined" and fails the whole run.
+afterAll(() => iconsSettled());
 
 /*
  * jsdom has no layout: CodeMirror measures its text by asking ranges for rectangles, and a measure scheduled on the
