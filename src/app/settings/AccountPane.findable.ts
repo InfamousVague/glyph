@@ -11,13 +11,19 @@ import type { SettingsFindable } from './settingsSearch.ts';
  * Account's story. In the page's order, so "privacy" and Enter open the Privacy card itself.
  */
 
-/** The Privacy card's: the switch that keeps everything here, the one that reads a linked site, and the policy. */
-const PRIVACY: SettingsFindable[] = [
-  { name: 'Privacy', words: 'what leaves the phone' },
-  { name: 'Local only', words: 'offline privacy network internet nothing leaves the phone' },
-  { name: 'Link previews', words: 'links url cards' },
-  { name: 'Privacy policy', words: 'data privacy personal information policy' },
-];
+/**
+ * The Privacy card's: the switch that keeps everything here, the one that reads a linked site, the one that looks a
+ * live blank up (the app's only, where a model runs, docs/DESIGN.md §145), and the policy.
+ */
+function privacy(app: boolean): SettingsFindable[] {
+  return [
+    { name: 'Privacy', words: 'what leaves the phone' },
+    { name: 'Local only', words: 'offline privacy network internet nothing leaves the phone' },
+    { name: 'Link previews', words: 'links url cards' },
+    ...(app ? [{ name: 'Look up blanks online', words: 'fill blank weather rates wikipedia web live internet' }] : []),
+    { name: 'Privacy policy', words: 'data privacy personal information policy' },
+  ];
+}
 
 /** The Location card's, which was a page of its own (Settings › Location) until §138, with that page's words. */
 const LOCATION: SettingsFindable[] = [
@@ -27,7 +33,8 @@ const LOCATION: SettingsFindable[] = [
   { name: 'Tag new notes with my location', words: 'automatic gps position geotag place where front matter' },
 ];
 
-export function findable(signedIn: boolean): SettingsFindable[] {
+export function findable(signedIn: boolean, app = false): SettingsFindable[] {
+  const PRIVACY = privacy(app);
   return signedIn
     ? [
         { name: 'Sync now', words: 'devices' },

@@ -7,6 +7,8 @@ import { dragGrip, layRowsOut } from '../../test/rows.ts';
 import { bookNoteBody, bookOf, chaptersOf } from './book.ts';
 import { BookBar, BookFoot } from './BookNav.tsx';
 import { BookView } from './BookView.tsx';
+import { installBack, onBack } from '../core/back.ts';
+import { PRESETS } from './journal.ts';
 import { readBookSpot, writeBookSpot } from './bookSpot.ts';
 
 /**
@@ -63,6 +65,58 @@ describe('the index view', () => {
     expect(chaptersOf(onChange.mock.calls[0]![0] as string).map((c) => c.title)).toEqual(['Introduction', 'Trees', 'Birds', 'Trail map']);
     expect(openCanvas).toHaveBeenCalledWith('Trail map');
     expect(open).not.toHaveBeenCalled();
+  });
+
+  it('offers what a new page starts with under its title, just the title unless a template is picked', () => {
+    const onChange = vi.fn();
+    const open = vi.fn();
+    const openNew = vi.fn();
+    show(<BookView body={BOOK} title="Field guide" known={() => true} open={open} openNew={openNew} titles={() => []} onChange={onChange} />);
+    act(() => button('Add a page').click());
+    const choices = () => [...document.querySelectorAll<HTMLButtonElement>('[role="radiogroup"][aria-label="Start the page with"] [role="radio"]')];
+    expect(choices().map((c) => c.firstElementChild?.textContent)).toEqual(['Just the title', ...PRESETS.map((p) => p.name)]);
+    expect(choices()[0]!.getAttribute('aria-checked')).toBe('true');
+    // Just the title: the page opens as it always did.
+    typeInto(document.querySelector<HTMLInputElement>('input[aria-label="New page\'s title"]')!, 'Rivers');
+    act(() => button('Add and open').click());
+    expect(open).toHaveBeenCalledWith('Rivers');
+    expect(openNew).not.toHaveBeenCalled();
+    // A template picked: the page is made from it, and the next page starts from just the title again.
+    act(() => button('Add a page').click());
+    typeInto(document.querySelector<HTMLInputElement>('input[aria-label="New page\'s title"]')!, 'Monday');
+    act(() => choices()[3]!.click());
+    expect(choices()[3]!.getAttribute('aria-checked')).toBe('true');
+    act(() => button('Add and open').click());
+    expect(openNew).toHaveBeenCalledWith('Monday', PRESETS[2]!.text);
+    act(() => button('Add a page').click());
+    expect(choices()[0]!.getAttribute('aria-checked')).toBe('true');
+    // One Tab stop, on the chosen row, and the arrows move the choice and the focus together.
+    expect(choices().map((c) => c.tabIndex)).toEqual([0, -1, -1, -1, -1]);
+    act(() => void choices()[0]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })));
+    expect(choices()[1]!.getAttribute('aria-checked')).toBe('true');
+    expect(document.activeElement).toBe(choices()[1]);
+    act(() => void choices()[1]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })));
+    act(() => void choices()[0]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })));
+    expect(choices()[4]!.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('closes Add a page on the back gesture before the notebook would be left, letting the choice go', () => {
+    const uninstall = installBack();
+    const left = vi.fn();
+    const unhook = onBack(() => {
+      left();
+      return true;
+    });
+    show(<BookView body={BOOK} title="Field guide" known={() => true} open={vi.fn()} openNew={vi.fn()} titles={() => []} onChange={vi.fn()} />);
+    act(() => button('Add a page').click());
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="radio"]')][3]!.click());
+    act(() => void window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    expect(document.querySelector('input[aria-label="New page\'s title"]')).toBeNull();
+    expect(left).not.toHaveBeenCalled();
+    act(() => button('Add a page').click());
+    expect([...document.querySelectorAll('[role="radio"]')][0]!.getAttribute('aria-checked')).toBe('true');
+    unhook();
+    uninstall();
   });
 
   it('adds a new chapter by name and opens it, and adds a note already written from the library', () => {

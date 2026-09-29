@@ -30,8 +30,8 @@ describe('a moment as words', () => {
     expect(inLocale('de-DE', () => longDay(AFTERNOON))).toBe('Montag, 28. September');
   });
 
-  it('names the day in words with its year, in the locale’s own order', () => {
-    expect(inLocale('en-GB', () => longDate(AFTERNOON))).toBe('Monday, 28 September 2026');
+  it('writes a worked-out date whole, in the person’s own form (docs/DESIGN.md §145)', () => {
+    expect(inLocale('en-GB', () => longDate(AFTERNOON))).toMatch(/^Monday,? 28 September 2026$/);
     expect(inLocale('en-US', () => longDate(AFTERNOON))).toBe('Monday, September 28, 2026');
     expect(inLocale('de-DE', () => longDate(AFTERNOON))).toBe('Montag, 28. September 2026');
   });

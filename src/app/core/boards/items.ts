@@ -1,3 +1,4 @@
+import { readableWords } from '../blanks.ts';
 import { ANCHOR_NAME, COUNTER, anchorSpan, listLead, taskBox, withoutAnchor, withoutBookmark } from '../itemSyntax.ts';
 
 /**
@@ -169,7 +170,8 @@ export function refFor(id: string): string {
  * is only what the card shows.
  */
 export function cardText(text: string): string {
-  return withoutBookmark(text)
+  // A filled blank as its answer's words and a blank as its question (docs/DESIGN.md §145): no card shows a bracket.
+  return withoutBookmark(readableWords(text))
     .replace(REF, '^$1')
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/<((?:https?|mailto):[^>]+)>/g, '$1')

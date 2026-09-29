@@ -202,4 +202,31 @@ describe('the smoke of text that went', () => {
       view.destroy();
     }
   });
+
+  it('is read where the text stood when the same change adds lines above it, as a fill that signs the note does', () => {
+    // The plugins update before CodeMirror draws the change, so the DOM is the note before it. The blank's place in
+    // the note after it, 22 characters on, was read in that DOM, past its end, and the wisp crashed for the note.
+    const doc = '# Tokyo trip\n\nCheapest on {?what day}';
+    const at = doc.indexOf('{?');
+    const box = EditorView.decorations.of(Decoration.set([Decoration.mark({ class: 'probe-blank' }).range(at, doc.length)]));
+    const view = new EditorView({ doc, extensions: [box, wispArrivals()] });
+    document.body.appendChild(view.dom);
+    const crashed = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      view.dispatch({
+        changes: [
+          { from: 0, insert: '---\nauthors: Ghost\n---\n' },
+          { from: at, to: doc.length, insert: 'Tuesday' },
+        ],
+        annotations: wisp.of({ kind: 'rewrite' }),
+      });
+      expect(crashed).not.toHaveBeenCalled();
+      const ghost = view.dom.querySelector('.cm-wispGone');
+      expect(ghost?.textContent).toBe('{?what day}');
+      expect(ghost?.className).toContain('probe-blank');
+    } finally {
+      crashed.mockRestore();
+      view.destroy();
+    }
+  });
 });

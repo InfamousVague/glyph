@@ -57,7 +57,7 @@ vi.mock('../core/ai.ts', async (importOriginal) => {
   };
 });
 
-const { allLines, anyRunning, cancelRun, dismissRun, forgetAllRuns, isRunning, runFor, splitLines, startRun, subscribeRuns, useAnyRunning } = await import('./runs.ts');
+const { allLines, anyRunning, cancelRun, dismissRun, forgetAllRuns, isRunning, runFor, sayRun, splitLines, startRun, subscribeRuns, useAnyRunning } = await import('./runs.ts');
 const { show } = await import('../../test/render.tsx');
 const { runsOf } = await import('./log.ts');
 
@@ -114,6 +114,17 @@ describe('a run', () => {
     for (let i = 1; i < seen.length; i += 1) expect(seen[i]!.length).toBeGreaterThanOrEqual(seen[i - 1]!.length);
     off();
     expect(runsOf('n1')[0]).toMatchObject({ kind: 'format', model: 'qwen3.5-4b', outcome: 'done' });
+  });
+
+  it('writes no line of its own in the log for a press of Fill, whose queue writes the press’s one (docs/DESIGN.md §145)', async () => {
+    const handle = startRun({ ...request('fill-note'), kind: 'fill', batch: { id: 'b1', before: 0, asked: 2, total: 2 } });
+    await tick();
+    fakes[0]!.finish('[1] midweek\n[2] Canberra');
+    const last = await handle.done;
+    expect(last.batch).toEqual({ id: 'b1', before: 0, asked: 2, total: 2 });
+    expect(runsOf('fill-note')).toEqual([]);
+    sayRun('fill-note', last.id, 'Filled 2 blanks with Qwen3.5 4B in 0:02.');
+    expect(runFor('fill-note')?.said).toBe('Filled 2 blanks with Qwen3.5 4B in 0:02.');
   });
 
   it('puts the links and tables back with the caller’s restore, and tidies once at the end', async () => {

@@ -138,6 +138,17 @@
           unless you tick "Share where it was written" on that note.
         </li>
         <li>
+          <strong>Blanks the AI fills</strong>: a question you write in curly brackets, like <code>{?weather tomorrow}</code>,
+          is answered on your device. When it needs something live, such as the weather, an exchange rate or a recent
+          result, and you press Fill, your device asks one public source directly: Open-Meteo for the weather (the place's
+          name, then its coordinates), Frankfurter for the European Central Bank's exchange rates (the two currencies), or
+          Wikipedia and Wikidata (the words of the question in the braces, or for an empty <code>{?}</code> the words of
+          its own sentence that ask). No account or key is used, and nothing else from the note is sent. The source sees
+          your IP address and what was asked. Your device then writes the answer from what came back: the weather and a
+          rate from the source's own figures, and a Wikipedia answer only if its words are in what was returned. Turn "Look up blanks online" off in Settings › Account › Privacy to stop it. Local only stops it
+          too.
+        </li>
+        <li>
           <strong>Updates and models</strong>: the apps check attack.fm for updates, and download the voice and formatting models
           from attack.fm, or from Hugging Face if attack.fm can't be reached. These are plain downloads: no account, device id or
           anything about you is sent. The servers see your IP address.

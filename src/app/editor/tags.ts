@@ -3,6 +3,7 @@ import { RangeSetBuilder, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { forEachVisibleLine } from './lines.ts';
 import { inQuietText } from './syntax.ts';
+import { blankMatches } from '../core/blanks.ts';
 
 /**
  * Tags on list items, and anywhere else in a line (Matt: "add ability to make tags on list items"):
@@ -45,7 +46,9 @@ function decorate(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   // Nothing inside code, an address, front matter, HTML, a comment or maths is a tag.
   forEachVisibleLine(view, (line) => {
-    for (const tag of tagsIn(line.text, line.from)) if (!inQuietText(view.state, tag.from)) builder.add(tag.from, tag.to, chip);
+    // A `#word` inside a blank's question is not a chip: the question reads as one quiet phrase (docs/DESIGN.md §145).
+    const blanks = line.text.includes('{?') ? blankMatches(line.text, line.from) : [];
+    for (const tag of tagsIn(line.text, line.from)) if (!inQuietText(view.state, tag.from) && !blanks.some((b) => tag.from > b.from && tag.from < b.to)) builder.add(tag.from, tag.to, chip);
   });
   return builder.finish();
 }

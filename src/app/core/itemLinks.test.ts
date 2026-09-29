@@ -170,3 +170,21 @@ describe('the same line read the same way everywhere (core/itemSyntax.ts)', () =
     expect(linkedLine('- ( ) ^pick', 'https://n.so/a')).toBe('- ( ) [notion](https://n.so/a) ^pick');
   });
 });
+
+describe('an item the AI filled, or one still asking (docs/DESIGN.md §145)', () => {
+  const filled = '- [ ] ??Turn off the water and fit the new washer??(Qwen3.5 4B from memory, 2026-09-28. Asked: the next step)';
+
+  it('is sent as its answer’s words, never the bracket', () => {
+    expect(unsentItems(filled)).toEqual([{ line: 1, text: 'Turn off the water and fit the new washer' }]);
+    expect(itemWords(filled)).toBe('Turn off the water and fit the new washer');
+  });
+
+  it('is not sent while it holds a blank, and reads as its question', () => {
+    expect(unsentItems('- [ ] {?the next step}\n- [ ] Call Sam')).toEqual([{ line: 2, text: 'Call Sam' }]);
+    expect(itemWords('- [ ] {?the next step}')).toBe('the next step');
+  });
+
+  it('keeps a person’s own note on a doubt, as written', () => {
+    expect(itemWords('- [ ] Pay ??400??(check with Sam)')).toBe('Pay ??400??(check with Sam)');
+  });
+});

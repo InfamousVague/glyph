@@ -9,6 +9,7 @@ import { aiName, authorsOf, withAuthor } from '../src/app/core/authors.ts';
 import { failureText } from '../src/app/core/failure.ts';
 import { frontMatterEnd, frontMatterValue, withFrontMatterValue } from '../src/app/core/frontMatter.ts';
 import { geoTagOf, withGeoTag } from '../src/app/core/geotag.ts';
+import { plainFills } from '../src/app/core/blanks.ts';
 import { noteTitle, withoutFrontMatter } from '../src/app/core/noteTitle.ts';
 import { titleKey } from '../src/app/core/titleKey.ts';
 import { Conflict, GlyphApiError, type GlyphAccount, type NoteRecord } from './glyph.ts';
@@ -27,6 +28,12 @@ import { Conflict, GlyphApiError, type GlyphAccount, type NoteRecord } from './g
  * index, from the app's own modules (book/journal.ts, core/template.ts). `append_to_note` turns a journal down, since
  * its words are the list of its entries, and a rewrite keeps a notebook's keys as it keeps the authors and the place.
  */
+
+/**
+ * What a blank is, told to Claude in the two tools that write a body (docs/DESIGN.md §145): left alone unless asked, and
+ * answered in the form the app reads back, so a note says where each answer came from.
+ */
+const BLANKS = 'A {?question} is a blank for Ghost.md’s model to fill on the phone. Leave it as it is unless asked to answer it. To answer one, write ??answer??(Claude from memory, YYYY-MM-DD. Asked: question) in its place, so the note says where the answer came from.';
 
 export const VERSION = '1.0.0';
 
@@ -236,10 +243,13 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpSer
         const want = query.trim().toLowerCase();
         const hits = (await account.list({ archived: Boolean(include_archived) }))
           .map((record) => {
-            const at = record.note.body.toLowerCase().indexOf(want);
+            // A filled blank's hidden bracket is not the note's words (docs/DESIGN.md §145): its answer is found, the
+            // bracket's "memory" and "Asked" are not, as in the app's own search.
+            const words = plainFills(record.note.body);
+            const at = words.toLowerCase().indexOf(want);
             if (at < 0) return null;
             const from = Math.max(0, at - 80);
-            const snippet = `${from > 0 ? '…' : ''}${record.note.body.slice(from, at + want.length + 80).replace(/\s+/g, ' ')}${at + want.length + 80 < record.note.body.length ? '…' : ''}`;
+            const snippet = `${from > 0 ? '…' : ''}${words.slice(from, at + want.length + 80).replace(/\s+/g, ' ')}${at + want.length + 80 < words.length ? '…' : ''}`;
             return { ...summary(record), snippet };
           })
           .filter((hit): hit is NonNullable<typeof hit> => hit !== null);
@@ -254,7 +264,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpSer
       description:
         'A new note in the account, as if typed in the app: markdown, with the first line as its title. Give a `title` and it becomes a `# Title` heading above the body. It appears on every signed-in device at its next sync.',
       inputSchema: {
-        body: z.string().describe('The note’s markdown. Ghost.md’s marks all work: headings, lists, `- [ ]` to-dos, tables, ```board fences.'),
+        body: z.string().describe(`The note’s markdown. Ghost.md’s marks all work: headings, lists, \`- [ ]\` to-dos, tables, \`\`\`board fences. ${BLANKS}`),
         title: z.string().optional().describe('A title to put above the body as a heading, if the body does not start with one.'),
         pinned: z.boolean().optional().describe('Pin it to the top of the list.'),
         author: authorField,
@@ -278,7 +288,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpSer
         'The whole markdown body of a note replaced with `body`. Read the note first and send it back changed: this writes from the version last read, and if another device changed the note meanwhile the write is refused and their version shown, never overwritten. For adding a line or a task to the end of a note, prefer append_to_note. A notebook’s or a journal’s list of [[links]] is its pages: a link left out of the new body takes that page or entry out of it, though its note stays. For a new journal entry use add_journal_entry.',
       inputSchema: {
         id: z.string().describe('The note’s id.'),
-        body: z.string().describe('The new markdown body, whole.'),
+        body: z.string().describe(`The new markdown body, whole. ${BLANKS}`),
         author: authorField,
       },
     },

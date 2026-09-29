@@ -10,6 +10,7 @@ import {
   FileText,
   Film,
   Gauge,
+  Grid2x2Plus,
   Hash,
   Heading,
   ImagePlus,
@@ -20,6 +21,7 @@ import {
   Minus,
   Sparkles,
   SquareCode,
+  SquareDashed,
   SquareKanban,
   Table,
   TextQuote,
@@ -31,7 +33,7 @@ import { Locate, type StrokeIcon } from '../art/Icons.tsx';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { plugins } from '../plugins/registry.ts';
-import { linkableTitles, moreRows, readGates, topRows, writeCanvasFrame, writeNoteLink, writeRow, type AddRow, type AddRowId } from './addRows.ts';
+import { emptyCellsAbove, linkableTitles, moreRows, readGates, topRows, writeCanvasFrame, writeNoteLink, writeRow, type AddRow, type AddRowId } from './addRows.ts';
 import { onNamingLine } from './openHeading.ts';
 import { closePlus, plusMenu, type PlusKey, type PlusOpening } from './insertPlus.ts';
 import styles from './AddList.module.css';
@@ -118,6 +120,8 @@ const ICONS: Partial<Record<AddRowId, StrokeIcon>> = {
   tag: Hash,
   counter: Gauge,
   sum: Calculator,
+  blank: SquareDashed,
+  blankCells: Grid2x2Plus,
 };
 
 function iconFor(id: AddRowId | 'back'): ReactNode {
@@ -151,8 +155,17 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
 
   // The gates, read once as the list opens (editor/addRows.ts).
   const gates = useMemo(
-    () => readGates({ picture: Boolean(onPicture), video: Boolean(onVideo), place: Boolean(onPlace), note: Boolean(titles), canvas: Boolean(canvases) }),
-    [onPicture, onVideo, onPlace, titles, canvases],
+    () =>
+      readGates({
+        picture: Boolean(onPicture),
+        video: Boolean(onVideo),
+        place: Boolean(onPlace),
+        note: Boolean(titles),
+        canvas: Boolean(canvases),
+        // Read from the +'s line as the list opens, beside the others: a table straight above with an empty cell.
+        tableAbove: emptyCellsAbove(view.state, view.state.selection.main.head) !== null,
+      }),
+    [onPicture, onVideo, onPlace, titles, canvases, view],
   );
 
   // The time row says what it will write: read as the list opens, and again at the turn of each minute while it is open.

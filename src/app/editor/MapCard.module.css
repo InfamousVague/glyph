@@ -11,9 +11,11 @@
   /* Leaflet's panes carry z-indexes in the hundreds: kept inside the card, never over the header it scrolls under. */
   isolation: isolate;
   overflow: hidden;
-  /* The tape row's weight on a phone, so a spoken tagged note has two rows of one kind above its words. A template's
-     card draws the box smaller, by `--map-scale` (notes/TemplateCards.module.css). */
-  block-size: calc(6rem * var(--map-scale, 1));
+  /*
+   * The tape row's weight on a phone, and a fifth more (Matt, 2026-09-29: "make the default map card 20% taller"). A
+   * template's card draws the box smaller, by `--map-scale` (notes/TemplateCards.module.css).
+   */
+  block-size: calc(7.2rem * var(--map-scale, 1));
   /*
    * A card in the note, not a banner over it: the width a link card is held to (editor/linkCards.ts), so on the Mac
    * or a wide window the place's chip and the pin stay one glance apart.
@@ -27,10 +29,10 @@
   color: var(--app-ink);
 }
 
-/* The opened Fold and the Mac have the room. */
+/* The opened Fold and the Mac have the room: 8rem and a fifth more. */
 @media (min-width: 600px) {
   .card {
-    block-size: calc(8rem * var(--map-scale, 1));
+    block-size: calc(9.6rem * var(--map-scale, 1));
   }
 }
 

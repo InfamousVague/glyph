@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RunState } from './runs.ts';
-import { clock, paceNumber, progressOf, recordSentence, runSentence } from './words.ts';
+import { clock, filledSentence, paceNumber, progressOf, recordSentence, runSentence } from './words.ts';
 
 const run = (patch: Partial<RunState>): RunState => ({
   id: 'r',
@@ -48,7 +48,7 @@ describe('what the strip says', () => {
 
   it('says how a run ended', () => {
     expect(runSentence(run({ phase: 'done', elapsedMs: 42_000 }))).toBe('Formatted by Qwen3.5 4B in 0:42.');
-    expect(runSentence(run({ phase: 'done', kind: 'summarize', truncated: true }))).toBe('Summarized by Qwen3.5 4B in 0:12. It ran out of room; try a shorter note.');
+    expect(runSentence(run({ phase: 'done', kind: 'summarize', truncated: true }))).toBe('Summarized by Qwen3.5 4B in 0:12. It ran out of room. Try a shorter note.');
     expect(runSentence(run({ phase: 'stopped' }))).toBe('Stopped.');
     expect(runSentence(run({ phase: 'failed', message: 'The model went away.' }))).toBe('The model went away.');
     expect(runSentence(run({ phase: 'failed' }))).toBe('The model stopped.');
@@ -74,5 +74,18 @@ describe('what the strip says', () => {
     expect(recordSentence({ kind: 'ask', instruction: 'add a title', model: 'qwen3.5-2b', ms: 9_000, outcome: 'done', message: null })).toBe('“add a title” by Qwen3.5 2B in 0:09.');
     expect(recordSentence({ kind: 'enhance', instruction: null, model: 'qwen3.5-2b', ms: 3_000, outcome: 'stopped', message: null })).toBe('Enhance, stopped after 0:03.');
     expect(recordSentence({ kind: 'fix', instruction: null, model: 'qwen3.5-2b', ms: 3_000, outcome: 'failed', message: 'No room.' })).toBe('Fix spelling failed: No room.');
+  });
+});
+
+describe('a press of Fill in the strip and the log (docs/DESIGN.md §145)', () => {
+  it('counts the answers as they are written, and the blank it is on across several generations', () => {
+    expect(runSentence(run({ kind: 'fill', lines: ['[1] midweek'], batch: { id: 'b', before: 0, asked: 3, total: 3 } }))).toBe('Filling with Qwen3.5 4B, 31 tokens a second, 0:12, 1 of 3.');
+    expect(runSentence(run({ kind: 'fill', batch: { id: 'b', before: 1, asked: 1, total: 5 } }))).toBe('Filling 2 of 5 blanks with Qwen3.5 4B.');
+  });
+
+  it('says the press’s whole count once it has ended, in the strip and the log', () => {
+    expect(runSentence(run({ kind: 'fill', phase: 'done', said: 'Filled 3 blanks with Qwen3.5 4B in 0:08.' }))).toBe('Filled 3 blanks with Qwen3.5 4B in 0:08.');
+    expect(filledSentence(1, 'qwen3.5-4b', 2000)).toBe('Filled 1 blank with Qwen3.5 4B in 0:02.');
+    expect(recordSentence({ kind: 'fill', instruction: 'what day', model: 'qwen3.5-4b', ms: 8000, outcome: 'done', message: null, filled: 3 })).toBe('Filled 3 blanks with Qwen3.5 4B in 0:08.');
   });
 });

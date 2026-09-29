@@ -29,8 +29,9 @@ export function useLanding(
 
   useEffect(() => {
     if (!view || !run) return;
-    // The review's answer is its findings, which it lands itself (ai/useNoteReview.ts).
-    if (run.kind === 'review') return;
+    // The review's answer is its findings, which it lands itself (ai/useNoteReview.ts), and a fill's answers go where
+    // its blanks are, which the fills' queue lands itself (ai/fills/useFillLanding.ts).
+    if (run.kind === 'review' || run.kind === 'fill') return;
     if (current.current && current.current.runId !== run.id) {
       // Another run took this one's place: what landed stays.
       current.current.lander.abandon();

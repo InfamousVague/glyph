@@ -144,6 +144,9 @@
 .label {
   display: grid;
   gap: 2px;
+  /* Never wider than its row: a word with no break in it - a link in a journal's own template - wraps rather than
+     widening the group's one column, which cut every row in the group off at the sheet's edge. */
+  min-inline-size: 0;
   font-weight: var(--glacier-font-weight-medium);
 }
 
@@ -151,6 +154,53 @@
  * The robot's rows are an ordinary group under their "AI" heading (Matt: "the AI section shouldnt look different from
  * the background of other items in more"). It had glass of its own before; the heading is enough to set it apart.
  */
+
+/* The Ask field, a row of the AI group: its ring, the words, and a send that is quiet until there are words. */
+.ask {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  min-block-size: var(--glacier-space-12);
+  padding: var(--glacier-space-2) var(--glacier-space-3) var(--glacier-space-2) var(--glacier-space-4);
+  border-block-start: 1px solid var(--glacier-border-subtle);
+  color: var(--glacier-text);
+}
+
+.askInput {
+  flex: 1;
+  min-inline-size: 0;
+  appearance: none;
+  padding: var(--glacier-space-2) 0;
+  border: none;
+  background: none;
+  color: var(--glacier-text);
+  font: inherit;
+  font-size: var(--glacier-font-size-md);
+  outline: none;
+}
+
+.askInput::placeholder {
+  color: var(--glacier-text-subtle);
+}
+
+.askSend {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  border: var(--app-line) solid currentColor;
+  border-radius: 50%;
+  background: none;
+  color: var(--glacier-text);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.askSend:disabled {
+  color: var(--glacier-text-muted);
+  cursor: default;
+}
 
 /* The mode showing now: a dot at the end of its row. */
 .chosen {
@@ -165,6 +215,7 @@
   font-size: var(--glacier-font-size-sm);
   font-weight: var(--glacier-font-weight-regular);
   color: var(--glacier-text-subtle);
+  overflow-wrap: anywhere;
 }
 
 .row:disabled {

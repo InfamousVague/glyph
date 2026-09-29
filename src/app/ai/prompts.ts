@@ -17,6 +17,7 @@
  */
 
 import type { RunKind } from './kinds.ts';
+import { FILL_PROMPT } from './fills/prompts.ts';
 import { ENHANCE_PROMPT, SUMMARIZE_PROMPT, SYSTEM_PROMPT, budgetFor } from '../format/prompt.ts';
 
 const KEEP = String.raw`Keep, without exception:
@@ -147,6 +148,9 @@ export function promptForKind(kind: RunKind): string {
       return CONTINUE_PROMPT;
     case 'ask':
       return ASK_PROMPT;
+    case 'fill':
+      // A fill's own messages are built by ai/fills/message.ts; this keeps the switch total.
+      return FILL_PROMPT;
     default:
       return SYSTEM_PROMPT;
   }

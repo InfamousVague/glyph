@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { generate, listModels, type Run } from '../core/ai.ts';
 import { externalStore } from '../core/externalStore.ts';
+import { withoutBlanks } from '../core/blanks.ts';
 import { frontMatterOffset } from '../core/frontMatter.ts';
 import { MARKER } from '../core/itemSyntax.ts';
 import type { Note } from '../core/store.ts';
@@ -173,7 +174,8 @@ async function pump(): Promise<void> {
     if (paused) return;
     // The words after the front matter; links go in as tokens, as for every run, and the line never has them.
     const words = wordsOf(body);
-    const { text } = protectLinks(words);
+    // Blanks out and fills as their words (docs/DESIGN.md §145): the smallest model is never handed a question to answer.
+    const { text } = protectLinks(withoutBlanks(words));
     activeRun = generate({ model, system: GIST_PROMPT, prompt: text, maxTokens: 40, temperature: TEMPERATURE, onProgress: () => undefined });
     const output = await activeRun.done;
     const line = tidyGist(output.text);

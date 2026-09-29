@@ -1,0 +1,15 @@
+{
+  "about": "A note's first line and what its title reads, blanks and fills aside (docs/DESIGN.md §145, 8): core/blanks.ts `titleWords`, then core/noteTitle.ts. `words` is the line after titleWords, `title` what noteTitle answers for a note that is only that line. The Rust namer's `title_of` is to read the same rows when its rule lands in a binary.",
+  "rows": [
+    { "line": "# {?}", "words": "", "title": "" },
+    { "line": "# {?a title}", "words": "", "title": "" },
+    { "line": "{?}", "words": "", "title": "" },
+    { "line": "{?how long to boil an egg}", "words": "how long to boil an egg", "title": "how long to boil an egg" },
+    { "line": "# {?who wrote Dune}", "words": "# who wrote Dune", "title": "who wrote Dune" },
+    { "line": "# Trip to {?capital of Japan}", "words": "# Trip to", "title": "Trip to" },
+    { "line": "# Trip to Tokyo", "words": "# Trip to Tokyo", "title": "Trip to Tokyo" },
+    { "line": "# Trip to ??Tokyo??(Qwen3.5 4B from memory, 2026-09-28. Asked: capital of Japan)", "words": "# Trip to Tokyo", "title": "Trip to Tokyo" },
+    { "line": "# {?} for {?which city}", "words": "# for", "title": "for" },
+    { "line": "# Doubts ??four hundred??(check with Sam)", "words": "# Doubts ??four hundred??(check with Sam)", "title": "Doubts ??four hundred??(check with Sam)" }
+  ]
+}

@@ -1,5 +1,6 @@
 import { isBookBody } from '../book/book.ts';
 import { entryPages } from '../book/journal.ts';
+import { readableWords } from '../core/blanks.ts';
 import { itemOnLine, itemWords } from '../core/boards.ts';
 import { taskBox } from '../core/itemSyntax.ts';
 import type { SummariesState, SummaryKind } from '../ai/summaries.ts';
@@ -120,7 +121,10 @@ export function openTasks(notes: readonly Note[]): OpenTask[] {
         return;
       }
       if (fenced || !isOpen(line)) return;
-      const text = itemWords(line)?.trim();
+      // A filled answer as its words, and a blank as its question (docs/DESIGN.md §145): "Tick off ??Turn off…??(Qwen3.5
+      // 4B from memory, …)" was read aloud whole.
+      const words = itemWords(line);
+      const text = words === null ? undefined : readableWords(words).trim();
       if (!text) return;
       tasks.push({ noteId: note.id, line: index, text, at: itemOnLine(line)?.id, touched: note.updatedAt });
     });

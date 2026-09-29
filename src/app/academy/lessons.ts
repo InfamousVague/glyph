@@ -1,5 +1,6 @@
 import { ensureSyntaxTree } from '@codemirror/language';
 import { EditorState, Text, type Extension } from '@codemirror/state';
+import { blanksIn } from '../core/blanks.ts';
 import { boardsIn, itemsIn, refsIn } from '../core/boards.ts';
 import { shortcodesIn } from '../core/emoji.ts';
 import { BOX, BULLET, MARKER, NUMBER } from '../core/itemSyntax.ts';
@@ -17,6 +18,7 @@ import { sumOnLine } from '../editor/sums.ts';
 import { tagsIn } from '../editor/tags.ts';
 import { wikiLinksIn } from '../editor/wikiLinks.ts';
 import { plugins } from '../plugins/registry.ts';
+import { videoOfLine } from '../core/videoRefs.ts';
 
 /**
  * Ghost.md Academy's lessons (academy/AcademyScreen.tsx): what each mark is, what to type, and how the Academy knows
@@ -327,6 +329,19 @@ export const LESSONS: Lesson[] = [
     hint: 'An exclamation mark, then [what it shows], then (where it is).',
   },
   {
+    id: 'video',
+    chapter: 'More Markdown',
+    symbol: '[![ ]( )]( )',
+    rows: ['A video'],
+    title: 'A video',
+    teach: 'A picture of the film’s first frame, linked to the film itself. You never type it: on Android, the + beside an empty line writes it when you choose A video. The film stays on the phone it was added on; everywhere else the still shows.',
+    example: '[![video 0:12](image/tape.jpg)](video/a1b2c3.mp4)',
+    task: 'Write a video’s line, as the + would.',
+    passes: (text) => text.split('\n').some((one) => videoOfLine(one.trim()) !== null),
+    praise: 'That is a video’s line.',
+    hint: 'A picture’s line inside a link’s square brackets, then (video/ and the file’s name).',
+  },
+  {
     id: 'raised',
     chapter: 'More Markdown',
     symbol: '^ ^',
@@ -487,6 +502,19 @@ export const LESSONS: Lesson[] = [
     passes: (text) => text.split('\n').some((each) => sumOnLine(each) !== null),
     praise: 'Worked out.',
     hint: 'An equals sign, a space, then the sum: = 12 * 4.',
+  },
+  {
+    id: 'blank',
+    chapter: 'Lines that do more',
+    symbol: '{?}',
+    rows: ['A blank'],
+    title: 'A blank for the AI',
+    teach: 'Curly brackets and a question mark ask a question where its answer belongs. A total, a date or a conversion is worked out at once. Anything else waits for Fill: the model on the phone answers with a dotted line under what it wrote, and something live, like the weather or a rate, is looked up online when you press it, with only the question sent.',
+    example: 'Days until Christmas: {?}',
+    task: 'Write a blank.',
+    passes: (text) => blanksIn(text).length > 0,
+    praise: 'That is a blank.',
+    hint: 'A curly bracket, a question mark, the question, then a closing bracket: {?which day}.',
   },
   {
     id: 'hiddenLine',

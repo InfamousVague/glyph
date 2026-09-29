@@ -130,7 +130,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       label: 'Account',
       words: 'sign in login handle encrypted sync',
       // Signed in, the page is the account's; signed out, it is the ways in. Privacy and Location either way.
-      settings: accountFindable(Boolean(account.session)),
+      settings: accountFindable(Boolean(account.session), isTauri()),
       icon: <CircleUser size={16} />,
       content: <AccountPane onOpen={go} />,
       // Local only holds the sync off, so the line says it is on.

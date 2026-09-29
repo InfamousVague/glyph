@@ -16,8 +16,16 @@
  * survived, they are made the link again; if not, the link is added at the
  * end of the note on its own line. None of this depends on the prompt,
  * though the prompt asks as well (prompt.ts).
+ *
+ * Blanks and the AI's answers to them go through the same way (docs/DESIGN.md
+ * §145, 9): a `{?question}` as `[question](link-7)` and a filled answer as
+ * `[midweek](link-8)`, each put back whole by its token whatever words the
+ * model gave it, so a rewrite never answers a blank, drops one, or strips an
+ * answer's bracket. The fill's own message turns this off (`blanks: false`),
+ * since there the blanks are the point. A summary may leave a blank out.
  */
 
+import { blanksIn, fillsIn } from '../core/blanks.ts';
 import { isMarkName, itemWords, withMark } from '../core/itemLinks.ts';
 import { AFTER_MARK } from '../core/itemSyntax.ts';
 
@@ -35,6 +43,8 @@ export interface ProtectedLink {
    * from, found again by those words, rather than to the end of the note.
    */
   item?: string;
+  /** A blank, or a filled answer, kept by its token and put back whole (docs/DESIGN.md §145). */
+  kind?: 'blank' | 'filled';
 }
 
 export interface Protected {
@@ -49,13 +59,29 @@ const BARE = /https?:\/\/[^\s<>()[\]]+/g;
 /** Punctuation that ends the sentence, not the address. */
 const TRAILING = /[.,;:!?'"]+$/;
 
-/** The note with every link replaced by a token, and the links to put back. */
-export function protectLinks(body: string): Protected {
+/** The note with every link replaced by a token, and the links to put back. Blanks and filled answers too, unless `blanks` is false. */
+export function protectLinks(body: string, { blanks = true }: { blanks?: boolean } = {}): Protected {
   const links: ProtectedLink[] = [];
   const next = () => `link-${links.length + 1}`;
-  let text = body.replace(MARKDOWN, (whole: string, words: string, url: string, offset: number) => {
+  let source = body;
+  if (blanks && (body.includes('{?') || body.includes('??('))) {
+    const spans = [...fillsIn(body).map((f) => ({ from: f.from, to: f.to, words: f.words, kind: 'filled' as const })), ...blanksIn(body).map((b) => ({ from: b.from, to: b.to, words: b.question || '?', kind: 'blank' as const }))]
+      .sort((a, b) => a.from - b.from)
+      .filter((span, i, all) => !all.slice(0, i).some((other) => span.from < other.to));
+    let out = '';
+    let at = 0;
+    for (const span of spans) {
+      const token = next();
+      const original = body.slice(span.from, span.to);
+      links.push({ token, text: span.words, url: '', original, kind: span.kind });
+      out += `${body.slice(at, span.from)}[${span.words.replace(/[[\]]/g, '')}](${token})`;
+      at = span.to;
+    }
+    source = out + body.slice(at);
+  }
+  let text = source.replace(MARKDOWN, (whole: string, words: string, url: string, offset: number) => {
     const token = next();
-    const item = markedItem(body, offset, whole, words);
+    const item = markedItem(source, offset, whole, words);
     links.push(item === null ? { token, text: words, url, original: whole } : { token, text: words, url, original: whole, item });
     return `[${words}](${token})`;
   });
@@ -125,7 +151,7 @@ function findItemLine(lines: readonly string[], words: string): number {
  * token never came back is restored around its words or added at the end;
  * a partial rewrite still streaming is only substituted.
  */
-export function restoreLinks(text: string, links: readonly ProtectedLink[], final = true): string {
+export function restoreLinks(text: string, links: readonly ProtectedLink[], final = true, { lostBlanks = true }: { lostBlanks?: boolean } = {}): string {
   let out = text;
   const missing: ProtectedLink[] = [];
   for (const link of links) {
@@ -135,7 +161,8 @@ export function restoreLinks(text: string, links: readonly ProtectedLink[], fina
     let found = false;
     out = out.replace(new RegExp(`\\[([^\\]\\n]*)\\]\\s*\\(\\s*${token}\\s*\\)`, 'gi'), (_, words: string) => {
       found = true;
-      return `[${words}](${link.url})`;
+      // A blank or an answer comes back whole, whatever words the model gave its token.
+      return link.kind ? link.original : `[${words}](${link.url})`;
     });
     out = out.replace(new RegExp(`<\\s*${token}\\s*>`, 'gi'), () => {
       found = true;
@@ -161,6 +188,11 @@ export function restoreLinks(text: string, links: readonly ProtectedLink[], fina
 
   const orphans: string[] = [];
   for (const link of stillMissing) {
+    // A lost blank or answer goes at the end on a line of its own, as a lost link does; a summary may leave one out.
+    if (link.kind) {
+      if (lostBlanks) orphans.push(link.original);
+      continue;
+    }
     const words = link.text?.trim() ?? '';
     const at = words ? indexOfWords(out, words) : -1;
     if (at >= 0) {

@@ -71,6 +71,19 @@ export interface RunRequest {
   scope?: RunScope | null;
   /** Where its lines land when the kind's own rule is not the one meant: a recording's summary lands over its scope. */
   placement?: Placement | null;
+  /**
+   * One generation of a press of Fill (ai/fills/queue.ts): the press's id, the blanks answered before this generation,
+   * the blanks it asks, and the press's whole count. The press writes its one line in the log, so a run with a batch
+   * writes none of its own (docs/DESIGN.md §145, 7.3).
+   */
+  batch?: RunBatch;
+}
+
+export interface RunBatch {
+  id: string;
+  before: number;
+  asked: number;
+  total: number;
 }
 
 export interface RunState {
@@ -107,6 +120,10 @@ export interface RunState {
   startedAt: number;
   endedAt: number | null;
   hash: number | null;
+  /** A press of Fill's generation, as its request said. */
+  batch?: RunBatch;
+  /** What the strip says once it has ended, when the one who ran it knows better than the run: a press's whole count. */
+  said?: string;
 }
 
 export interface RunHandle {
@@ -220,6 +237,7 @@ export function startRun(request: RunRequest): RunHandle {
     startedAt: Date.now(),
     endedAt: null,
     hash: request.hash ?? null,
+    ...(request.batch ? { batch: request.batch } : {}),
   };
   let resolve: (state: RunState) => void = () => undefined;
   const done = new Promise<RunState>((r) => {
@@ -338,19 +356,22 @@ function end(entry: Entry, phase: 'done' | 'stopped' | 'failed', message: string
   }
   set(entry, patch);
   const { state } = entry;
-  recordRun({
-    id: state.id,
-    noteId: state.noteId,
-    kind: state.kind,
-    instruction: state.instruction,
-    model: state.model,
-    at: state.startedAt,
-    ms: state.elapsedMs,
-    outputTokens: state.outputTokens,
-    outcome: phase,
-    message,
-    truncated: state.truncated,
-  });
+  // A press of Fill writes one line for all its generations (ai/fills/queue.ts).
+  if (!entry.request.batch) {
+    recordRun({
+      id: state.id,
+      noteId: state.noteId,
+      kind: state.kind,
+      instruction: state.instruction,
+      model: state.model,
+      at: state.startedAt,
+      ms: state.elapsedMs,
+      outputTokens: state.outputTokens,
+      outcome: phase,
+      message,
+      truncated: state.truncated,
+    });
+  }
   entry.resolve(state);
   if (entry === active) {
     active = null;
@@ -359,6 +380,18 @@ function end(entry: Entry, phase: 'done' | 'stopped' | 'failed', message: string
     // asking whether the model is on any note (`useAnyRunning`) hears the answer change.
     if (!active) listeners.forEach((l) => l(state));
   }
+}
+
+/**
+ * What the strip says for a run that has ended, when its caller knows the whole of it: a press of Fill counts the
+ * blanks every generation filled. Nothing if the note's latest run is another.
+ */
+export function sayRun(noteId: string, runId: string, said: string): void {
+  const run = latest.get(noteId);
+  if (!run || run.id !== runId) return;
+  const next = { ...run, said };
+  latest.set(noteId, next);
+  listeners.forEach((l) => l(next));
 }
 
 /** The latest run of a note, going or ended, or null. */

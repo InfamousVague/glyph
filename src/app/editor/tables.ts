@@ -2,6 +2,7 @@ import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import { type EditorState, type Extension, RangeSetBuilder, StateField } from '@codemirror/state';
 import { Decoration, type DecorationSet, EditorView, WidgetType } from '@codemirror/view';
 import { caretIn, focusMoved, openOnPress, trackFocus } from './drawnBlock.ts';
+import { blankStamp, blanksRedraw, drawCell, tablePill } from './blanks.ts';
 
 /**
  * Tables, shown as tables.
@@ -71,16 +72,41 @@ function plainCell(text: string): string {
     .replace(/`([^`]+)`/g, '$1');
 }
 
+/** Where each cell of a table's text starts in it, by line and column: the raw words a blank or a fill is drawn from. */
+function cellSpans(text: string): { raw: string; at: number }[][] {
+  const out: { raw: string; at: number }[][] = [];
+  let lineAt = 0;
+  for (const line of text.split('\n')) {
+    const row: { raw: string; at: number }[] = [];
+    if (line.trim()) {
+      const pipes = [...line.matchAll(/(?<!\\)\|/g)].map((m) => m.index);
+      const edges = line.trim().startsWith('|') ? pipes : [-1, ...pipes];
+      if (!line.trim().endsWith('|') || line.trim().endsWith('\\|')) edges.push(line.length);
+      for (let i = 0; i + 1 < edges.length; i += 1) {
+        const start = edges[i]! + 1;
+        const cell = line.slice(start, edges[i + 1]);
+        const lead = cell.length - cell.trimStart().length;
+        row.push({ raw: cell.trim(), at: lineAt + start + lead });
+      }
+      out.push(row);
+    }
+    lineAt += line.length + 1;
+  }
+  return out;
+}
+
 class TableWidget extends WidgetType {
   constructor(
     readonly text: string,
     readonly from: number,
+    /** Bumped as blanks change under the table (editor/blanks.ts), so its cells are drawn again. */
+    readonly stamp: number,
   ) {
     super();
   }
 
   eq(other: TableWidget): boolean {
-    return other.text === this.text && other.from === this.from;
+    return other.text === this.text && other.from === this.from && other.stamp === this.stamp;
   }
 
   toDOM(view: EditorView): HTMLElement {
@@ -93,23 +119,36 @@ class TableWidget extends WidgetType {
     }
     const table = document.createElement('table');
     table.className = 'cm-glyphTable';
+    // Each cell's raw words and where they start, for a blank or a filled answer drawn in it (docs/DESIGN.md §145).
+    const spans = cellSpans(this.text);
+    const draw = (el: HTMLElement, value: string, line: number, column: number) => {
+      const span = spans[line]?.[column];
+      if (!span || !drawCell(view, el, span.raw, this.from + span.at, plainCell)) el.textContent = plainCell(value);
+    };
     const head = table.createTHead().insertRow();
     parsed.header.forEach((label, i) => {
       const th = document.createElement('th');
-      th.textContent = plainCell(label);
+      draw(th, label, 0, i);
       if (parsed.align[i]) th.style.textAlign = parsed.align[i]!;
       head.appendChild(th);
     });
     const body = table.createTBody();
-    for (const row of parsed.rows) {
+    parsed.rows.forEach((row, r) => {
       const tr = body.insertRow();
       row.forEach((value, i) => {
         const td = tr.insertCell();
-        td.textContent = plainCell(value);
+        draw(td, value, r + 2, i);
         if (parsed.align[i]) td.style.textAlign = parsed.align[i]!;
       });
-    }
+    });
     wrap.appendChild(table);
+    // Its blanks' Fill pill, after its last row.
+    const pill = tablePill(view, this.from, this.from + this.text.length);
+    if (pill) {
+      const foot = document.createElement('div');
+      foot.appendChild(pill);
+      wrap.appendChild(foot);
+    }
     openOnPress(view, wrap, this.from);
     return wrap;
   }
@@ -131,7 +170,7 @@ function build(state: EditorState): DecorationSet {
       const to = state.doc.lineAt(node.to).to;
       const inside = editable && caretIn(state, from, to);
       if (!inside) {
-        builder.add(from, to, Decoration.replace({ widget: new TableWidget(state.doc.sliceString(from, to), from), block: true }));
+        builder.add(from, to, Decoration.replace({ widget: new TableWidget(state.doc.sliceString(from, to), from, state.field(blankStamp, false) ?? 0), block: true }));
       }
       return false;
     },
@@ -143,7 +182,8 @@ const tableField = StateField.define<DecorationSet>({
   create: build,
   update(decorations, tr) {
     const treeMoved = syntaxTree(tr.state) !== syntaxTree(tr.startState);
-    if (tr.docChanged || tr.selection || treeMoved || focusMoved(tr) || tr.reconfigured) return build(tr.state);
+    const blanksMoved = tr.effects.some((effect) => effect.is(blanksRedraw));
+    if (tr.docChanged || tr.selection || treeMoved || focusMoved(tr) || tr.reconfigured || blanksMoved) return build(tr.state);
     return decorations;
   },
   provide: (field) => EditorView.decorations.from(field),

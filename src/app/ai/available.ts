@@ -90,7 +90,7 @@ export function availability(models: readonly ModelInfo[], chosen: string, where
   if (where.localOnly) {
     return { ok: false, reason: 'No model is on the phone, and Local only is on, so none can be downloaded. Turn it off in Settings to get one.', get: null, waiting: false };
   }
-  return { ok: false, reason: 'The AI needs a model on the phone. It runs here; nothing leaves the phone.', get: chosen, waiting: false };
+  return { ok: false, reason: 'The AI needs a model on the phone. It runs here, and nothing leaves the phone.', get: chosen, waiting: false };
 }
 
 /** Whether the binary can run a model at all (native generation 10). */

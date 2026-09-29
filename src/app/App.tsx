@@ -24,6 +24,8 @@ import { AcademyScreen } from './academy/AcademyScreen.tsx';
 import { CommandBar } from './commands/CommandBar.tsx';
 import type { PaletteDoing } from './commands/palette.ts';
 import type { NoteView } from './editor/viewMode.ts';
+import { openNoteBlanks } from './editor/blanks.ts';
+import type { RunKind } from './ai/kinds.ts';
 import { academyBannerDue, dismissAcademyBanner } from './academy/banner.ts';
 import { WhatsNewSheet } from './notes/WhatsNewSheet.tsx';
 import { Guide } from './guide/Guide.tsx';
@@ -49,6 +51,7 @@ import { bookNoteBody, bookOf, chaptersOf, isBookBody, isJournalBody, withoutCha
 import { entryBody, entryPages, entryPlaceOf, entryTitle, journalNoteBody, localStamp, templateOf, templateSentence, uniqueTitle, withEntry, type JournalWriter } from './book/journal.ts';
 import { forgetUntouched, isUntouched, markFresh, rememberUntouched, setUntouchedWords, untouchedRecord, untouchedRecords, wordsOf, type UntouchedRecord } from './core/untouched.ts';
 import { fillTemplate, openEnd } from './core/template.ts';
+import { pageBody } from './book/entryStarts.ts';
 import { inTimeOrder } from './book/journalMonths.ts';
 import { whereLeft } from './book/bookSpot.ts';
 import { NewBookSheet } from './book/NewBookSheet.tsx';
@@ -396,6 +399,22 @@ function Shell() {
     }
     await showMade(newTemplatePageBody(title));
   };
+  /**
+   * A notebook's new page from a template, opened from its index in the notebook's tab (book/BookView.tsx Add a page):
+   * its title as its heading and the template under it (book/entryStarts.ts `pageBody`). A page by that title already
+   * written opens as it is.
+   */
+  const openPageWithin = (title: string, template: string) => {
+    tabs.replaceNext(shown);
+    // In a Templates notebook a new page is a template's page, marked (notes/ownTemplates.ts): what it starts with is
+    // the template being written, so Start with is not read there.
+    if (screen.name === 'note' && isTemplatesBody(screen.note.body)) {
+      void openTemplatePage(title);
+      return;
+    }
+    const notebook = screen.name === 'note' ? noteTitle(screen.note.body) : '';
+    void openTitleFrom(title, undefined, (named) => pageBody(named, template, notebook));
+  };
   /** A canvas by that title opened from a book's index, made first if there is none (book/BookView.tsx). */
   const openCanvasWithin = (title: string) => {
     tabs.replaceNext(shown);
@@ -545,6 +564,11 @@ function Shell() {
    * for every +, so the choice reads the same wherever it is offered.
    */
   const [newSheet, setNewSheet] = useState(false);
+  // The + sheet opening reads the notes again, so its entry row names and describes each journal as it is now: an open
+  // note's changes reach the list only when it closes, and a journal's template or kind may have changed in it.
+  useEffect(() => {
+    if (newSheet) void refresh();
+  }, [newSheet, refresh]);
 
   const newCanvas = () => {
     tabs.replaceNext(null);
@@ -663,9 +687,23 @@ function Shell() {
    * away in the archive, which the home page's Notebooks leave out too (home/dashboard.ts `bookNotes`).
    */
   const journals = useMemo(() => shownNotes.filter((n) => !n.archivedAt && isJournalBody(n.body)).sort((a, b) => b.updatedAt - a.updatedAt), [shownNotes]);
-  /** The + sheet's row for a new entry, in the journal written in last. */
-  const entryRow = journals[0]
-    ? { journal: noteTitle(journals[0].body) || 'Untitled journal', hint: templateSentence(templateOf(journals[0].body)), onPress: () => void newEntry(journals[0]!.id) }
+  /**
+   * The + sheet's row for a new entry: in the journal on screen, else the one written in last. The sheet asks which
+   * template it starts from (notes/NewSheet.tsx), the journal's usual one first.
+   */
+  // The journal on screen, or the journal of the entry on screen, before the one written in last.
+  const onScreenBook = screen.name === 'note' ? placeInBook(screen.note) : null;
+  const entryJournal =
+    journals.find((n) => n.id === shown) ?? (onScreenBook?.journal ? journals.find((n) => n.id === onScreenBook.book.id) : undefined) ?? journals[0];
+  const entryRow = entryJournal
+    ? {
+        journal: noteTitle(entryJournal.body) || 'Untitled journal',
+        hint: templateSentence(templateOf(entryJournal.body)),
+        usual: templateOf(entryJournal.body),
+        // The usual row sends no template: the entry is made from the journal as the store has it now, not from this
+        // list's copy, which an open journal's More sheet may have changed since (makeEntry reads it fresh).
+        onPress: (template?: string) => void newEntry(entryJournal.id, template === undefined ? {} : { template }),
+      }
     : undefined;
   /** The first ask for where a journal's entries were written, introduced in the app's words, from its own press. */
   const introduceEntries = (journal: string) => (allow: () => void) =>
@@ -676,7 +714,7 @@ function Shell() {
    * take-back of the one left behind then took the other's line with it.
    */
   const entering = useRef(false);
-  const newEntry = async (journalId: string, how: { speak?: boolean } = {}) => {
+  const newEntry = async (journalId: string, how: { speak?: boolean; template?: string } = {}) => {
     if (entering.current) return;
     entering.current = true;
     try {
@@ -685,7 +723,7 @@ function Shell() {
       entering.current = false;
     }
   };
-  const makeEntry = async (journalId: string, { speak: spoken = false }: { speak?: boolean }) => {
+  const makeEntry = async (journalId: string, { speak: spoken = false, template }: { speak?: boolean; template?: string }) => {
     // A meeting holds the microphone: the way to it, and nothing made that its capture would leave behind.
     if (spoken && meetingStateNow()?.recording) {
       capture.showMeeting(false);
@@ -701,7 +739,8 @@ function Shell() {
     const titles = [...(await listNotes().catch(() => notes)).map((n) => noteTitle(n.body)), ...chaptersOf(journal.body).map((c) => c.title)];
     const taken = new Set(titles.map(titleKey));
     const title = uniqueTitle(entryTitle(now), taken);
-    const filled = fillTemplate(templateOf(journal.body), { at: new Date(now), title, journal: name });
+    // The template chosen under New entry, else the journal's own (book/JournalView.tsx `TemplateChoice`).
+    const filled = fillTemplate(template ?? templateOf(journal.body), { at: new Date(now), title, journal: name });
     // Spoken, the words go on from the template's last line, which is taken off until they come.
     const { base: words, placing } = spoken ? openEnd(filled) : { base: filled, placing: null };
     const id = newNoteId();
@@ -885,14 +924,19 @@ function Shell() {
         ask={screen.ask}
         review={screen.review}
         landing={screen.landing}
+        onGetModel={() => {
+          setSettings(true);
+          setToModel(Date.now());
+        }}
         onOpenTitle={(title, at) => void openTitle(title, at)}
         hasTitle={hasTitle}
         onOpenWithin={openTitleWithin}
         onNewCanvas={openCanvasWithin}
+        onNewPage={openPageWithin}
         book={placeInBook(screen.note)}
         bodyOfTitle={bodyOfTitle}
         noteOfTitle={titled}
-        onNewEntry={() => void newEntry(screen.note.id)}
+        onNewEntry={(template) => void newEntry(screen.note.id, { template })}
         onJournal={onJournal}
         caret={screen.caret}
         takenTitles={takenTitles}
@@ -979,6 +1023,8 @@ function Shell() {
    */
   // A journal's entries are found by name when typed for, and left out of the forty offered before a word is typed
   // (the memo is up with the notes, `entryIds`).
+  // The open note's blanks for Fill, as its editor counted them a moment after the typing stopped (editor/blanks.ts).
+  const openBlanks = openNoteBlanks.use();
   const paletteWorld = useMemo(
     () => ({
       notes: shownNotes.map((n) => ({ id: n.id, title: noteTitle(n.body), ...(entryIds.has(n.id) ? { entry: true as const } : {}) })),
@@ -986,7 +1032,15 @@ function Shell() {
       tabs: tabs.tabs.map((n) => ({ id: n.id, title: noteTitle(n.body) })),
       workspaces: spaces.list.map((w) => ({ id: w.id, name: w.name })),
       workspace: spaces.current?.id ?? null,
-      note: screen.name === 'note' ? { id: screen.note.id, title: noteTitle(screen.note.body), ...(isJournalBody(screen.note.body) ? { journal: true as const } : {}) } : null,
+      note:
+        screen.name === 'note'
+          ? {
+              id: screen.note.id,
+              title: noteTitle(screen.note.body),
+              ...(isJournalBody(screen.note.body) ? { journal: true as const } : {}),
+              ...(openBlanks?.noteId === screen.note.id && openBlanks.count ? { blanks: openBlanks.count } : {}),
+            }
+          : null,
       filedIn: screen.name === 'note' ? (workspaceOf(screen.note.id)?.id ?? null) : null,
       pinned: screen.name === 'note' ? Boolean(screen.note.starred) : false,
       canBack: walk.canBack,
@@ -996,7 +1050,7 @@ function Shell() {
       tabGroups: tabs.groups.list.map((g) => ({ id: g.id, name: g.name })),
       tabGroup: screen.name === 'note' ? (tabs.groups.of[screen.note.id] ?? null) : null,
     }),
-    [shownNotes, entryIds, journals, tabs.tabs, spaces, screen, walk.canBack, walk.canOn, prefs.noteView, prefs.theme, tabs.groups],
+    [shownNotes, entryIds, journals, tabs.tabs, spaces, screen, walk.canBack, walk.canOn, prefs.noteView, prefs.theme, tabs.groups, openBlanks],
   );
   const { setGroups } = tabs;
   /*
@@ -1041,6 +1095,10 @@ function Shell() {
       if (note) actions.archive(note, true);
     },
     remove: removeNote,
+    // The note's runs from the palette go through its screen, as a spoken instruction does (editor/useNoteAi.ts).
+    noteAi: (id: string, kind: RunKind) => {
+      if (screen.name === 'note' && screen.note.id === id) setScreen({ ...screen, ask: { kind, key: Date.now() } });
+    },
   };
 
   /*

@@ -6,7 +6,7 @@ import { useToast } from '@glacier/react';
 import { EditorSelection } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { undoDepth } from '@codemirror/commands';
-import { useWispEdge } from '../art/wispEdge.ts';
+import { footSmokes, useWispEdge, WISP_EDGE_FOOT_CLEAR } from '../art/wispEdge.ts';
 import { useNotePlace } from './notePlace.ts';
 import { boardFrom } from '../core/boards.ts';
 import { hasClips, tapeId } from '../core/clips.ts';
@@ -93,6 +93,7 @@ import { useLandAt } from './useLandAt.ts';
 import { useLanding } from './useLanding.ts';
 import { useLiveNote } from './useLiveNote.ts';
 import { useNoteAi, type NoteAsk } from './useNoteAi.ts';
+import { fillPlanOf } from './blanks.ts';
 import { useNotePictures } from './useNotePictures.ts';
 import { useNoteSaving, type NoteRename } from './useNoteSaving.ts';
 import { useNoteTape } from './useNoteTape.ts';
@@ -151,12 +152,15 @@ interface NoteScreenProps {
   onOpenWithin?: (title: string) => void;
   /** Makes a canvas by that title and opens it in this tab: a book's "Add a canvas" (book/BookView.tsx). */
   onNewCanvas?: (title: string) => void;
+  /** A notebook's new page made from a template (App.tsx `openPageWithin`): Add a page's Start with. */
+  onNewPage?: (title: string, template: string) => void;
   /** A note's body by its title, for a canvas card that is a note to be drawn small (canvas/CanvasView.tsx). */
   bodyOfTitle?: (title: string) => string | null;
   /** The note by its title, for a journal's entries: when each was written, where, and how it starts (book/JournalView.tsx). */
   noteOfTitle?: (title: string) => Note | undefined;
   /** New entry, for a journal (App.tsx `newEntry`): the journal's one action. */
-  onNewEntry?: () => void;
+  /** New entry, from the template chosen under it; left out, the journal's own. */
+  onNewEntry?: (template?: string) => void;
   /**
    * A journal open here hands App the way to write its index through this screen (book/journal.ts `JournalWriter`),
    * and takes it back as it goes: an entry's line put in or taken out while the journal is open is a change the screen
@@ -196,6 +200,8 @@ interface NoteScreenProps {
   review?: ReviewHandoff & { key: number };
   /** What the recording that just ended wrote into this note, for its Undo (editor/useLanding.ts). */
   landing?: CaptureLanding & { key: number };
+  /** Settings at the Model card: a press of the AI with no model on the phone offers it. */
+  onGetModel?: () => void;
 }
 
 /** Nothing taken, for a screen given no titles. */
@@ -251,6 +257,7 @@ export function NoteScreen({
   book,
   onOpenWithin,
   onNewCanvas,
+  onNewPage,
   bodyOfTitle,
   noteOfTitle,
   onNewEntry,
@@ -266,6 +273,7 @@ export function NoteScreen({
   takenTitles,
   templates,
   onTemplates,
+  onGetModel,
 }: NoteScreenProps) {
   const prefs = usePreferences();
   // The page's side, followed while the note is open: on System the phone may turn dark under it.
@@ -480,7 +488,7 @@ export function NoteScreen({
   useUnfold(screen);
   const onStripHeight = useStripRoom(screen, header);
 
-  const ai = useNoteAi({ note, view, flush, body, wisp: prefs.wisp, ask, review, toast });
+  const ai = useNoteAi({ note, view, flush, body, wisp: prefs.wisp, ask, review, toast, onGetModel });
 
   const remove = () => {
     // No confirmation: it goes to the trash, with an Undo, and is only deleted
@@ -918,7 +926,9 @@ export function NoteScreen({
     });
   }, []);
   const addKeys = useRef<((key: PlusKey) => boolean) | null>(null);
-  const plusAllowed = !typed && shown === 'raw' && ai.runningKind === null;
+  // A fill holds no landing bookmark an insert could cross: its answers go only where its blanks are, so the + stays
+  // while one runs (docs/DESIGN.md §145, 19.3), and a press of Fill the blanks on a long note does not take it away.
+  const plusAllowed = !typed && shown === 'raw' && (ai.runningKind === null || ai.runningKind === 'fill');
   const plusAllowedRef = useRef(plusAllowed);
   plusAllowedRef.current = plusAllowed;
   const plusHooks = useMemo<PlusHooks>(
@@ -1228,6 +1238,7 @@ export function NoteScreen({
               known={hasTitle ?? (() => false)}
               open={(t) => (onOpenWithin ?? onOpenTitle)?.(t)}
               openCanvas={onNewCanvas}
+              openNew={onNewPage ? (t, template) => onNewPage(t, template) : undefined}
               titles={pageTitles ?? allTitles ?? (() => [])}
               bodyOf={bodyOfTitle}
               spot={{ id: note.id, page }}
@@ -1243,6 +1254,9 @@ export function NoteScreen({
             // A canvas's JSON or a book's Markdown, once asked for, is what the view has written by now, not what the note opened with.
             value={typed && source ? body.current : note.body}
             onChange={onChange}
+            // The line being typed stays above the page's foot smoke (art/wispEdge.ts), where there is smoke to keep
+            // clear of: not on a canvas, nor a desktop's plain fade, nor with the smoke or motion turned down.
+            footClear={!canvas && footSmokes(prefs.wispEdge) ? WISP_EDGE_FOOT_CLEAR : 0}
             onView={setView}
             wispTyping={prefs.wisp}
             display={typed ? 'mixed' : prefs.noteView}
@@ -1261,6 +1275,7 @@ export function NoteScreen({
             blankPage={{ names, host: offering ? offersHost : null, onName: nameIt, onShown: setOffersShown }}
             openHeading
             look={typed ? null : look}
+            blanks={ai.blankHooks}
             places="live"
             videos="play"
             grow
@@ -1322,6 +1337,7 @@ export function NoteScreen({
         onView={typed ? (next) => showSource(next === 'mixed') : chooseView}
         running={ai.runningKind}
         onAi={ai.runAi}
+        blanks={settingsOpen && view ? fillPlanOf(view.state) : { count: 0, online: [] }}
         onFind={
           shown === 'raw'
             ? () => {

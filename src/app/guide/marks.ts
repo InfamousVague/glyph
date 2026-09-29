@@ -3,34 +3,36 @@ import {
   Anchor,
   Asterisk,
   Baseline,
-  Bookmark,
   Bold,
-  Code,
-  Hash,
-  Highlighter,
+  Bookmark,
   Calculator,
   CircleDot,
+  Code,
   EyeOff,
+  Film,
   Gauge,
-  ListChecks,
+  Hash,
   Heading1,
   Heading2,
   Heading3,
+  Highlighter,
   Image,
   Info,
   Italic,
   LayoutGrid,
   Link,
   List,
+  ListChecks,
   ListOrdered,
   ListTodo,
   MapPin,
-  Minus,
   MessageSquareQuote,
+  Minus,
   Sigma,
   SquareArrowOutUpRight,
   SquareCheckBig,
   SquareCode,
+  SquareDashed,
   Sticker,
   Strikethrough,
   Subscript,
@@ -98,6 +100,7 @@ export type Looks =
   | 'tag'
   | 'counter'
   | 'sum'
+  | 'blank'
   | 'progress'
   | 'choice'
   | 'spoilerLine'
@@ -167,6 +170,8 @@ const OWN: MarkGroup[] = [
       { symbol: '- ( )', name: 'A choice', typed: 'Where do we stay?\n- ( ) Tent\n- (x) Cabin', words: 'Cabin', looks: 'choice', icon: CircleDot, say: '“option: tent”, “picked option: cabin”' },
       { symbol: '[ / ]', name: 'A counter', typed: '- Water [3/8]', words: '3/8', looks: 'counter', icon: Gauge, say: '“counter three of eight”' },
       { symbol: '=', name: 'A sum', typed: '= $450 + 120 * 2', words: '$690', looks: 'sum', icon: Calculator, say: '“calculate: four hundred plus one hundred twenty”' },
+      // A question the AI answers where it stands (docs/DESIGN.md §145). No `say`: a blank has no spoken cue.
+      { symbol: '{?}', name: 'A blank', typed: 'Cheapest day to fly: {?which day}', words: 'which day', looks: 'blank', icon: SquareDashed },
       {
         symbol: '>',
         name: 'A quote',
@@ -250,6 +255,8 @@ const OWN: MarkGroup[] = [
         icon: Table,
       },
       { symbol: '![ ]( )', name: 'A picture', typed: '![A cassette](image/tape.jpg)', words: 'A cassette', looks: 'picture', icon: Image },
+      // Written by the +, never typed: a still of the film's first frame, linked to the film (core/videoRefs.ts). It is drawn here as its still.
+      { symbol: '[![ ]( )]( )', name: 'A video', typed: '[![video 0:12](image/tape.jpg)](video/a1b2c3.mp4)', words: 'video 0:12', looks: 'picture', icon: Film },
       { symbol: '```', name: 'A block of code', typed: '```js\nconst note = "hello";\n```', words: 'const note = "hello";', looks: 'fence', icon: SquareCode, say: '“code block in bash” … “end code block”' },
       {
         symbol: '[! ]',

@@ -90,8 +90,9 @@ describe('maths', () => {
     expect(drawn('the sum $$a + b$$ inline').html).toContain('cm-maths');
   });
 
-  it('leaves a price alone', () => {
-    expect(drawn('it cost $20 and $30').html).toContain('cm-maths');
+  it('leaves two prices alone, by Pandoc’s rule (core/maths.ts)', () => {
+    expect(drawn('it cost $20 and $30').html).not.toContain('cm-maths');
+    expect(drawn('It costs $5, or $6 with tax.').html).not.toContain('cm-maths');
   });
 });
 

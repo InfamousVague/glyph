@@ -39,6 +39,10 @@ export function longDay(date: Date): string {
  * "Monday, 28 September 2026": the weekday, the day, the month and the year, in the locale's own order and words, as a
  * new note's name for the day (core/noteNames.ts). With its year, so it never names two days: the home page's
  * `longDay` has none and repeats every year.
+ * As a worked-out date is drawn after a blank too: "Monday 19 October 2026": the weekday, the day, the month and the year, as a worked-out date is drawn after a blank
+ * (core/fillFacts.ts, docs/DESIGN.md §145). The person's own form, whatever their phone's language writes, since it is
+ * read on this screen and never written into the note. The model is never shown it: its message has fixed English
+ * (ai/fills/message.ts `modelDay`).
  */
 export function longDate(date: Date): string {
   return new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date);

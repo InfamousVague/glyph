@@ -47,6 +47,8 @@ import { nameChips, setOffers, type BlankOffers } from './nameChips.ts';
 import { leadLine, openHeading as openHeadingHint } from './openHeading.ts';
 import type { Look } from '../core/look.ts';
 import { isMobile } from '../core/platform.ts';
+import { blanks as blankSquares, type BlankHooks } from './blanks.ts';
+import { fillPanel } from './fillPanel.ts';
 import { plugins } from '../plugins/registry.ts';
 import styles from './markdown.module.css';
 
@@ -125,6 +127,12 @@ interface EditorProps {
    * Read once, when the editor is made.
    */
   grow?: boolean;
+  /**
+   * How far above the bottom of the page the caret is kept, in pixels, as it is typed and moved (art/wispEdge.ts
+   * `WISP_EDGE_FOOT_CLEAR`): the page's foot smokes the words there, so a line is lifted out of it while it is still
+   * being written rather than when it reaches the edge. Read on every scroll, so it can change with the page.
+   */
+  footClear?: number;
   /** Where this note's recording is played from, for the voice memos in it (editor/clips.ts); null without one. */
   tape?: string | null;
   /** Which tape that is (core/clips.ts `tapeId`): a memo of another tape is drawn, not played. */
@@ -182,6 +190,13 @@ interface EditorProps {
    * editor's: one set here would be nearer than a card's own scale. Swapped in place as it changes.
    */
   look?: Look | null;
+  /**
+   * Blanks the AI fills (editor/blanks.ts, docs/DESIGN.md §145): the note screen's hooks, which draw the Fill pill and
+   * hand a press to the fills' queue. Absent, the squares, their icons and the worked-out answers still draw, with
+   * nothing to press: a shared page, a notebook read straight through. Whether it was given is read once; its
+   * callbacks through a ref.
+   */
+  blanks?: BlankHooks;
 }
 
 /**
@@ -223,6 +238,7 @@ export function Editor({
   linkMenus,
   wiki,
   grow = false,
+  footClear = 0,
   tape = null,
   tapeId = null,
   arrivals = false,
@@ -238,6 +254,7 @@ export function Editor({
   blankPage,
   openHeading = false,
   look = null,
+  blanks,
 }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -249,6 +266,8 @@ export function Editor({
   onImageErrorRef.current = onImageError;
   const swipeActionRef = useRef(swipeAction);
   swipeActionRef.current = swipeAction;
+  const footClearRef = useRef(footClear);
+  footClearRef.current = footClear;
   const suggestRef = useRef(suggest);
   suggestRef.current = suggest;
   const linkMenusRef = useRef(linkMenus);
@@ -263,6 +282,8 @@ export function Editor({
   plusRef.current = plus;
   const blankRef = useRef(blankPage);
   blankRef.current = blankPage;
+  const blanksRef = useRef(blanks);
+  blanksRef.current = blanks;
 
   const themeSlot = useRef(new Compartment());
   const assistSlot = useRef(new Compartment());
@@ -301,6 +322,22 @@ export function Editor({
         // headingProgress.ts, choices.ts).
         counters(),
         sums(),
+        // {?questions} drawn as squares, worked out or waiting for the model, and the panel a tap on an answer opens
+        // (editor/blanks.ts, editor/fillPanel.ts).
+        blankSquares(
+          blanks
+            ? {
+                noteId: () => blanksRef.current?.noteId() ?? '',
+                canFill: () => blanksRef.current?.canFill() ?? false,
+                learntUntil: () => blanksRef.current?.learntUntil() ?? 2024,
+                lookups: () => blanksRef.current?.lookups() ?? 'off',
+                fill: (targets) => blanksRef.current?.fill(targets),
+                say: (message) => blanksRef.current?.say(message),
+              }
+            : null,
+          { still: peek },
+        ),
+        peek ? [] : fillPanel(),
         headingProgress(),
         choices(),
         // [[Another note]] opens that note, or makes it (editor/wikiLinks.ts).
@@ -352,6 +389,9 @@ export function Editor({
         findExtension(),
         placeholder ? cmPlaceholder(placeholder) : [],
         grow ? Prec.highest(GROW_THEME) : [],
+        // The caret kept out of the page's foot smoke as it moves: the line being written is scrolled up before the
+        // smoke bends it, not when it reaches the edge. Widens only what is scrolled to, so nothing moves otherwise.
+        peek ? [] : EditorView.scrollMargins.of((current) => (footClearRef.current > 0 ? { bottom: footClearAt(current, footClearRef.current) } : null)),
         arrivals || wispTyping ? wispArrivals({ typing: wispTyping }) : [],
         ripples ? wispRipples(ripples) : [],
         // The AI's changes, tracked: tinted where it added, struck where it took away, Keep and Revert (aiChanges.ts).
@@ -481,6 +521,20 @@ export function Editor({
 }
 
 /** An editor as tall as its document, filling at least its box, for a page that scrolls it. */
+/**
+ * The foot's clearance, held to a third of the room the page shows under its header: on a short page - a phone on its
+ * side with the keyboard up - the whole of it would lift the line being typed up under the header, into the top's
+ * smoke. The room is the page that scrolls around the note (NoteScreen's, `[data-scrolls]`) less the header over its
+ * top, which it pads by; not laid out (a test), the clearance stands.
+ */
+function footClearAt(view: EditorView, clear: number): number {
+  const page = view.dom.closest<HTMLElement>('[data-scrolls]') ?? view.scrollDOM;
+  const height = page.clientHeight;
+  if (!height) return clear;
+  const under = parseFloat(getComputedStyle(page).paddingTop) || 0;
+  return Math.min(clear, Math.max(0, (height - under) / 3));
+}
+
 // One class more specific than glyphTheme's own rules, which set the scroller
 // to scroll and to hold its overscroll; kept, those swallowed every swipe on
 // the note before the page could scroll.

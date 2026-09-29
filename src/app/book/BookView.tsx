@@ -11,6 +11,8 @@ import type { VideoMode } from '../editor/videos.ts';
 import { isDarkNow, usePreferences } from '../core/preferences.ts';
 import { readBookSpot, useBookSpot } from './bookSpot.ts';
 import { useRowDrag } from './rowDrag.ts';
+import { JUST_THE_TITLE, pageStarts, startLine } from './entryStarts.ts';
+import { useBack } from '../core/back.ts';
 import styles from './BookView.module.css';
 
 /**
@@ -49,6 +51,11 @@ interface BookViewProps {
   /** Makes a canvas by that title and opens it (App.tsx): the new-chapter form's "Add as a canvas". Absent, no such button. */
   openCanvas?: (title: string) => void;
   /**
+   * Makes a page by that title from a template and opens it (App.tsx): Add a page's "Start with". Absent, the form
+   * offers no templates and a page begins as its title, through `open`.
+   */
+  openNew?: (title: string, template: string) => void;
+  /**
    * Read, not changed: no grips, no move or take-out tools, nothing to add. The index, the preface, the canvas marks
    * and reading straight through stay. The reader page (src/read/Reader.tsx) draws a shared book with this.
    */
@@ -70,7 +77,7 @@ export function BookWords({ words, known, open, dark, videos = 'still' }: { word
   );
 }
 
-export function BookView({ body, known, open, titles, title, onChange, bodyOf, openCanvas, readOnly = false, dark: darkGiven, spot, videos = 'still' }: BookViewProps) {
+export function BookView({ body, known, open, titles, title, onChange, bodyOf, openCanvas, openNew, readOnly = false, dark: darkGiven, spot, videos = 'still' }: BookViewProps) {
   const isCanvas = (name: string) => {
     const found = bodyOf?.(name);
     return !!found && isCanvasBody(found);
@@ -95,6 +102,8 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
   const themeDark = isDarkNow(usePreferences().theme);
   const dark = darkGiven ?? themeDark;
   const [draft, setDraft] = useState('');
+  /** What the page being added starts with (book/entryStarts.ts `pageStarts`): just its title unless another is picked. */
+  const [start, setStart] = useState(JUST_THE_TITLE.id);
   const [filter, setFilter] = useState('');
   /** The notes ticked so far in the picker, in the order they were ticked. */
   const [picked, setPicked] = useState<string[]>([]);
@@ -112,10 +121,13 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
   const addNew = (asCanvas = false) => {
     const name = draft.trim();
     if (!name) return;
+    const template = pageStarts().find((each) => each.id === start)?.text ?? '';
     onChange(withChapter(body, name));
     setDraft('');
+    setStart(JUST_THE_TITLE.id);
     setAdding(null);
     if (asCanvas && openCanvas) openCanvas(name);
+    else if (template && openNew) openNew(name, template);
     else open(name);
   };
   const togglePick = (name: string) => setPicked((was) => toggledTitle(was, name));
@@ -127,6 +139,16 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
     setFilter('');
     setAdding(null);
   };
+  /** Either form put away, and what it was holding let go: the next one opens as new. */
+  const closeAdding = () => {
+    setStart(JUST_THE_TITLE.id);
+    setPicked([]);
+    setFilter('');
+    setAdding(null);
+  };
+  // While a form is open, the back gesture (Escape on a desktop) closes it before it would leave the notebook, as the
+  // journal's own template choice does (JournalView.tsx), whichever of its controls has the focus.
+  useBack(adding !== null, closeAdding);
   const others = adding === 'existing' ? titles().filter((t) => t.trim() && !sameTitle(t, title) && !chapters.some((c) => sameTitle(c.title, t)) && (!filter.trim() || t.toLowerCase().includes(filter.trim().toLowerCase()))) : [];
 
   if (reading) {
@@ -275,9 +297,14 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
             autoFocus
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Escape') setAdding(null);
+              // Taken here, so the back stack does not also step: one Escape closes the form and nothing more.
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                closeAdding();
+              }
             }}
           />
+          {openNew ? <PageStarts chosen={start} onChoose={setStart} title={draft.trim()} notebook={title} /> : null}
           <button type="submit" className={styles.action} disabled={!draft.trim()}>
             Add and open
           </button>
@@ -286,7 +313,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
               <Workflow size={16} aria-hidden="true" /> Add as a canvas
             </button>
           ) : null}
-          <button type="button" className={styles.quiet} onClick={() => setAdding(null)}>
+          <button type="button" className={styles.quiet} onClick={closeAdding}>
             Cancel
           </button>
         </form>
@@ -353,4 +380,54 @@ function useSameList(list: readonly string[]): readonly string[] {
   const was = kept.current;
   if (was.length !== list.length || was.some((item, i) => item !== list[i])) kept.current = list;
   return kept.current;
+}
+
+/**
+ * What a new page starts with, under its title in Add a page: just the title, chosen until another is, then the
+ * templates, each with a line of how it would start this minute. A tap chooses; Add and open makes the page from it.
+ */
+function PageStarts({ chosen, onChoose, title, notebook }: { chosen: string; onChoose: (id: string) => void; title: string; notebook: string }) {
+  const now = new Date();
+  const starts = pageStarts();
+  const rows = useRef<(HTMLButtonElement | null)[]>([]);
+  /*
+   * One stop for Tab, on the chosen row, and the arrows move the choice and the focus together, as a radio group does
+   * (notes/WorkspaceSwatch.tsx): focus never rests on a row that is not the one chosen, so the ring and the choice agree.
+   */
+  const step = (from: number, by: number) => {
+    const to = (from + by + starts.length) % starts.length;
+    onChoose(starts[to]!.id);
+    rows.current[to]?.focus();
+  };
+  return (
+    <div className={styles.starts} role="radiogroup" aria-label="Start the page with">
+      <p className={styles.startsTitle}>Start with</p>
+      {starts.map((each, n) => (
+        <button
+          key={each.id}
+          ref={(el) => {
+            rows.current[n] = el;
+          }}
+          type="button"
+          role="radio"
+          aria-checked={chosen === each.id}
+          tabIndex={chosen === each.id ? 0 : -1}
+          className={styles.start}
+          onClick={() => onChoose(each.id)}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+              event.preventDefault();
+              step(n, 1);
+            } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+              event.preventDefault();
+              step(n, -1);
+            }
+          }}
+        >
+          <span className={styles.startName}>{each.name}</span>
+          <span className={styles.startLine}>{each.text ? startLine(each.text, notebook, now) : title || 'The page’s title, and nothing under it'}</span>
+        </button>
+      ))}
+    </div>
+  );
 }

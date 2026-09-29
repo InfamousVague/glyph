@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Feather, ListChecks, TextSearch } from '@glacier/icons';
+import { useEffect, useState, type FormEvent } from 'react';
+import { ArrowUp, Feather, ListChecks, TextSearch } from '@glacier/icons';
 import { ArchiveBox, ArrowLeft, Bin, Board, Locate, Pin, Workspace as WorkspaceIcon } from '../art/Icons.tsx';
 import { CheatSheet } from '../guide/CheatSheet.tsx';
 import { tagLabel, type GeoTag } from '../core/geotag.ts';
@@ -9,9 +9,9 @@ import { SheetField, SheetGroup, SheetHeading, SheetRow, SheetTitle } from '../p
 import { plugins } from '../plugins/registry.ts';
 import { usePlugins } from '../plugins/hooks.ts';
 import type { NoteEditing, NoteLink } from '../plugins/types.ts';
-import { MODES } from '../format/modes.ts';
 import { KIND_ICONS } from '../ai/icons.ts';
-import type { RunKind } from '../ai/kinds.ts';
+import { KINDS, type KindWords, type RunKind } from '../ai/kinds.ts';
+import { isMacApp } from '../core/platform.ts';
 import { WorkspacePicker } from './WorkspacePicker.tsx';
 import { ShareRows } from '../share/ShareRows.tsx';
 import { DEFAULT_TEMPLATE, PLACE_SENTENCE, templateSentence } from '../book/journal.ts';
@@ -88,7 +88,12 @@ interface NoteSettingsProps {
   look?: { value: Look | null; canMap: boolean; onChange: (look: Look | null) => void };
   /** The AI's kind of run on this note now, if one is on, and how to ask for one (ai/start.ts). Absent on a note that can't be read to. */
   running?: RunKind | null;
-  onAi?: (kind: RunKind) => void;
+  onAi?: (kind: RunKind, instruction?: string) => void;
+  /**
+   * What a press of Fill the blanks would take (editor/blanks.ts `fillPlanOf`), read as the sheet opens: how many, and
+   * the public sources its live blanks would be looked up at. The row shows only with one.
+   */
+  blanks?: { count: number; online: string[] };
   onView?: (view: NoteView) => void;
   /**
    * Where the note was written (core/geotag.ts, core/location.ts): its tag, whether a fix can be asked for here and
@@ -130,6 +135,51 @@ function locationHint(location: NonNullable<NoteSettingsProps['location']>): str
   if (location.refused && location.onPhone) return 'Ghost.md wasn’t allowed to know where you are, so this note wasn’t tagged. Tap to ask again.';
   if (location.refused) return 'Ghost.md wasn’t allowed to know where you are, so this note wasn’t tagged. Allow location for this site in the browser’s settings, then tap to try again.';
   return location.asksName ? 'Where you are now, kept in the note. Its name is asked of OpenStreetMap once.' : 'Where you are now, kept in the note.';
+}
+
+/**
+ * The AI's runs in the sheet, in order (docs/DESIGN.md §145, 11): Format, Summarize and Enhance, then Fix spelling, Make
+ * a list and Continue, which were reachable only by voice and would have gone with voice behind its switch. Their own
+ * words and icons (ai/kinds.ts, ai/icons.ts). Ask is its own field under them, and Fill the blanks follows when the note
+ * has a blank for the model.
+ */
+const SHEET_KINDS: readonly KindWords[] = (['format', 'summarize', 'enhance', 'fix', 'shape', 'continue'] as const).map((id) => KINDS.find((kind) => kind.id === id)!);
+
+/**
+ * Fill the blanks' hint, with the count, on this device. It says nothing leaves only when nothing will: a press that
+ * looks live blanks up names who is asked, since only their questions go there.
+ */
+function fillHint(plan: { count: number; online: string[] }): string {
+  const device = isMacApp ? 'this Mac' : 'the phone';
+  const what = plan.count === 1 ? 'Answers the question written {?like this}.' : `Answers the ${plan.count} questions written {?like this}.`;
+  if (!plan.online.length) return `${what} Nothing leaves ${device}.`;
+  const who = plan.online.length === 1 ? plan.online[0]! : `${plan.online.slice(0, -1).join(', ')} and ${plan.online.at(-1)!}`;
+  return `${what} Some are looked up online: only their questions go, to ${who}.`;
+}
+
+/**
+ * The Ask field (Matt: "Those, plus an Ask field"): any instruction for the note, typed, run as the spoken Ask always
+ * was (ai/start.ts), its changes marked with Keep and the log's Undo. A field in the AI group rather than the AI bar
+ * that was taken off the note (§122): it is there only when the sheet is.
+ */
+function AskField({ onAsk }: { onAsk: (instruction: string) => void }) {
+  const [words, setWords] = useState('');
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (words.trim()) onAsk(words.trim());
+  };
+  const Icon = KIND_ICONS.ask;
+  return (
+    <form className={styles.ask} onSubmit={submit} aria-label="Ask the AI">
+      <span className={styles.icon} aria-hidden="true">
+        <Icon size={20} strokeWidth={2.1} />
+      </span>
+      <input className={styles.askInput} value={words} onChange={(e) => setWords(e.target.value)} placeholder="Ask it to do something with this note" aria-label="What to do with this note" enterKeyHint="send" autoComplete="off" />
+      <button type="submit" className={styles.askSend} disabled={!words.trim()} aria-label="Ask">
+        <ArrowUp size={18} strokeWidth={2.2} aria-hidden="true" />
+      </button>
+    </form>
+  );
 }
 
 /** The two drawn icons from the kit, at the weight the sheet's own are drawn: the rings size every icon to 18 px. */
@@ -190,6 +240,7 @@ export function NoteSettings({
   onView,
   running,
   onAi,
+  blanks = { count: 0, online: [] },
   location,
   look,
 }: NoteSettingsProps) {
@@ -329,7 +380,7 @@ export function NoteSettings({
         <>
           <SheetHeading>AI</SheetHeading>
           <SheetGroup>
-            {MODES.map((words) => {
+            {[...SHEET_KINDS, ...(blanks.count > 0 ? [{ ...KINDS.find((kind) => kind.id === 'fill')!, hint: fillHint(blanks) }] : [])].map((words) => {
               const Icon = KIND_ICONS[words.id];
               // Pressed, with a dot at its end, while that run is on - rather than the kit's tick, which marks a choice.
               return (
@@ -354,6 +405,12 @@ export function NoteSettings({
                 </button>
               );
             })}
+            <AskField
+              onAsk={(instruction) => {
+                onClose();
+                onAi('ask', instruction);
+              }}
+            />
           </SheetGroup>
         </>
       ) : null}

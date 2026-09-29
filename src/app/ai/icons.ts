@@ -1,4 +1,4 @@
-import { BookOpenText, Bot, Brain, CircleCheck, CircleStop, Hourglass, ListChecks, LoaderCircle, PenLine, ScanText, Sparkles, SpellCheck, TriangleAlert, WandSparkles, type LucideIcon } from '@glacier/icons';
+import { BookOpenText, Bot, Brain, CircleCheck, CircleStop, Hourglass, ListChecks, LoaderCircle, PenLine, ScanText, Sparkles, SpellCheck, SquareDashed, TriangleAlert, WandSparkles, type LucideIcon } from '@glacier/icons';
 import type { RunKind } from './kinds.ts';
 import type { RunPhase } from './runs.ts';
 
@@ -29,6 +29,7 @@ export const KIND_ICONS: Record<RunKind, LucideIcon> = {
   continue: PenLine,
   ask: Bot,
   review: Brain,
+  fill: SquareDashed,
 };
 
 /** The phases whose icon turns: the model is at work and nothing else on the page is moving. */

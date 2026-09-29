@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useBack } from '../core/back.ts';
 import { ChevronRight, Plus, X } from '@glacier/icons';
 import { noteTitle } from '../core/noteTitle.ts';
 import { isDarkNow, usePreferences } from '../core/preferences.ts';
@@ -6,6 +7,7 @@ import type { Note } from '../core/store.ts';
 import { bookWords, withoutChapter } from './book.ts';
 import { BookWords } from './BookView.tsx';
 import { templateOf, templateSentence } from './journal.ts';
+import { entryStarts, startLine } from './entryStarts.ts';
 import { monthsOf, pagesOf } from './journalMonths.ts';
 import styles from './JournalView.module.css';
 
@@ -22,6 +24,11 @@ import styles from './JournalView.module.css';
  * with the index's cross to take it out; an entry's line with no note is not drawn (book/journalMonths.ts).
  *
  * The top bar's mic is Speak an entry on a journal (editor/NoteTools.tsx), so the view has one button.
+ *
+ * New entry asks what the entry starts with (Matt: "I would like to see [the templates] when clicking new page on a
+ * journal while the journal is open"): the journal's own template first, marked as its usual, then the other presets
+ * and an empty page, each with a line of how it starts, filled for this minute. A tap makes the entry from that one;
+ * the journal's usual template is changed only on its More sheet (book/TemplatePicker.tsx).
  */
 
 interface JournalViewProps {
@@ -33,8 +40,8 @@ interface JournalViewProps {
   /** Opens the note by that title in this tab (App.tsx `openTitleWithin`). */
   open: (title: string) => void;
   onChange: (body: string) => void;
-  /** New entry (App.tsx `newEntry`); absent, no button. */
-  onNewEntry?: () => void;
+  /** New entry (App.tsx `newEntry`), from the template chosen for it; absent, no button. */
+  onNewEntry?: (template: string) => void;
   dark?: boolean;
 }
 
@@ -55,15 +62,28 @@ export function JournalView({ body, noteOf, known, open, onChange, onNewEntry, d
   const { months, unwritten } = useMemo(() => monthsOf(pages, template, name), [body, template, name, changed]);
   /** The older months opened by a tap. */
   const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(() => new Set());
+  /** New entry pressed: the templates to start it from are showing. */
+  const [choosing, setChoosing] = useState(false);
 
   return (
     <div className={styles.journal} data-entries={months.reduce((sum, month) => sum + month.entries.length, 0)}>
       {onNewEntry ? (
         <div className={styles.adds}>
-          <button type="button" className={styles.action} onClick={onNewEntry}>
+          <button type="button" className={styles.action} aria-expanded={choosing} onClick={() => setChoosing((was) => !was)}>
             <Plus size={16} aria-hidden="true" /> New entry
           </button>
         </div>
+      ) : null}
+      {onNewEntry && choosing ? (
+        <TemplateChoice
+          usual={template}
+          journal={name}
+          onPick={(text) => {
+            setChoosing(false);
+            onNewEntry(text);
+          }}
+          onCancel={() => setChoosing(false)}
+        />
       ) : null}
       {words.before ? <BookWords words={words.before} known={known} open={open} dark={dark} /> : null}
       {months.length === 0 && unwritten.length === 0 ? (
@@ -124,5 +144,34 @@ export function JournalView({ body, noteOf, known, open, onChange, onNewEntry, d
       ) : null}
       {words.after ? <BookWords words={words.after} known={known} open={open} dark={dark} /> : null}
     </div>
+  );
+}
+
+/** The templates a new entry can start from, under New entry (JournalView). */
+function TemplateChoice({ usual, journal, onPick, onCancel }: { usual: string; journal: string; onPick: (text: string) => void; onCancel: () => void }) {
+  // The back gesture folds the choice before it leaves the journal, as the find bar and the palette take it first.
+  useBack(true, onCancel);
+  const starts = useMemo(() => entryStarts(usual), [usual]);
+  const now = new Date();
+  return (
+    <section className={styles.choose} aria-label="Start the entry with">
+      <p className={styles.chooseTitle}>Start the entry with</p>
+      <ul className={styles.starts}>
+        {starts.map((start) => (
+          <li key={start.id}>
+            <button type="button" className={styles.start} onClick={() => onPick(start.text)}>
+              <span className={styles.startName}>
+                {start.name}
+                {start.id === 'usual' ? <span className={styles.usual}>Usual</span> : null}
+              </span>
+              <span className={styles.startLine}>{startLine(start.text, journal, now)}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <button type="button" className={`app-word ${styles.cancel}`} onClick={onCancel}>
+        Cancel
+      </button>
+    </section>
   );
 }

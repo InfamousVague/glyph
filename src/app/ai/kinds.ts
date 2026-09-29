@@ -6,14 +6,15 @@
  * reaches for daily - fix the spelling, make a shape of it, carry on
  * writing - and a free-text Ask for everything else (ai/instruction.ts).
  * The review after a recording is a kind too, so the strip and the log
- * speak of it in the same words as the rest. Each kind is a set of words the
+ * speak of it in the same words as the rest, and so are the blanks a note
+ * asks the AI to fill (ai/fills/queue.ts). Each kind is a set of words the
  * screen says (its name, its hint, the verb while it runs, the word once it
  * has); its prompt and budget live with the prompts (format/prompt.ts, and
  * ai/prompts.ts for the newer kinds), and the run itself is the same
  * machine for all of them (ai/runs.ts).
  */
 
-export type RunKind = 'format' | 'summarize' | 'enhance' | 'fix' | 'shape' | 'continue' | 'ask' | 'review';
+export type RunKind = 'format' | 'summarize' | 'enhance' | 'fix' | 'shape' | 'continue' | 'ask' | 'review' | 'fill';
 
 export interface KindWords {
   id: RunKind;
@@ -36,6 +37,8 @@ export const KINDS: readonly KindWords[] = [
   { id: 'continue', label: 'Continue', hint: 'Carries on from the last line in the note’s own voice.', doing: 'Writing', done: 'Written' },
   { id: 'ask', label: 'Ask', hint: 'Whatever you tell it to do with the note.', doing: 'Working', done: 'Done' },
   { id: 'review', label: 'Review', hint: 'Listens again with the careful model and checks what was heard.', doing: 'Reviewing', done: 'Reviewed' },
+  // Blanks the AI fills (docs/DESIGN.md §145): the questions written {?like this}, answered where they stand.
+  { id: 'fill', label: 'Fill the blanks', hint: 'Answers the questions written {?like this}.', doing: 'Filling', done: 'Filled' },
 ];
 
 export function kindWords(kind: RunKind): KindWords {

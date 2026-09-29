@@ -25,8 +25,15 @@
  * Ticked to-dos are left alone: a done thing is not a task to make. Plugins
  * use these for what they link items to (the Notion plugin's tasks). Pure, so
  * every shape of line is a test.
+ *
+ * An item the AI filled (docs/DESIGN.md §145) says its answer's words: the
+ * hidden bracket on `??Turn off the water??(Qwen3.5 4B from memory, …)` is
+ * never a task's title, nor read aloud on home's To do. An item still holding
+ * a blank is a question, not a task yet, so it is not sent, and it reads as
+ * its question's words where it is shown.
  */
 
+import { hasBlank, readableWords } from './blanks.ts';
 import { COUNTER_IN_WORDS, ITEM_TAIL, MARK_NAME, MARK_URL, listLead, withoutBookmark } from './itemSyntax.ts';
 
 /**
@@ -60,7 +67,7 @@ function anchorOff(text: string): { body: string; anchor: string } {
  * part of its name, and no bookmark. A choice's box is already off, with the lead it belongs to.
  */
 function said(text: string): string {
-  return withoutBookmark(text.replace(COUNTERS, '')).replace(/\s+/g, ' ').trim();
+  return withoutBookmark(readableWords(text).replace(COUNTERS, '')).replace(/\s+/g, ' ').trim();
 }
 
 /** Words with an anchor put back after them, one space between. */
@@ -145,7 +152,7 @@ export function unsentItems(body: string): Item[] {
     // part of its name: none of them is sent.
     const whole = anchorOff(found.rest.trim()).body.trim();
     const text = said(whole);
-    if (!text || found.ticked || linked(whole) || whole.startsWith('![')) return;
+    if (!text || found.ticked || linked(whole) || whole.startsWith('![') || hasBlank(whole)) return;
     items.push({ line: index + 1, text });
   });
   return items;

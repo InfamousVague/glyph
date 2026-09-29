@@ -243,7 +243,7 @@ describe('Ghost.md: The Guide on the home page', () => {
 
 describe('your templates on the home page', () => {
   const book = makeNote('tpl', templatesNotebookBody(['A checklist', 'A walk']), { updatedAt: 90 });
-  const checklist = makeNote('checklist', '---\ntitle: "A checklist"\n---\n# {{title}}\n\n- [ ] Bread\n- [x] Milk', { updatedAt: 80 });
+  const checklist = makeNote('checklist', '---\ntitle: "A checklist"\ntemplates: page\n---\n# {{title}}\n\n- [ ] Bread\n- [x] Milk', { updatedAt: 80 });
   const walk = makeNote('walk', newTemplatePageBody('A walk'), { updatedAt: 70 });
   const own = makeNote('own', '# Groceries\n\n- [ ] Eggs', { updatedAt: 30 });
   const notes = [book, checklist, walk, own];
@@ -253,5 +253,12 @@ describe('your templates on the home page', () => {
     expect(openTasks(notes).map((t) => t.text)).toEqual(['Eggs']);
     expect(tickedTasks(notes)).toBe(0);
     expect(touchedToday(notes, 100)).toBe(2);
+  });
+});
+
+describe('a to-do the AI filled (docs/DESIGN.md §145)', () => {
+  it('is its answer’s words on home’s To do, and a to-do holding a blank is its question’s', () => {
+    const note = makeNote('tap', '# Kitchen tap\n- [x] Found the leak\n- [ ] ??Turn off the water and fit the new washer??(Qwen3.5 4B from memory, 2026-09-28. Asked: the next step)\n- [ ] {?what to buy}');
+    expect(openTasks([note]).map((t) => t.text)).toEqual(['Turn off the water and fit the new washer', 'what to buy']);
   });
 });
