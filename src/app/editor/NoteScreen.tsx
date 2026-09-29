@@ -85,6 +85,7 @@ import { useLandAt } from './useLandAt.ts';
 import { useLanding } from './useLanding.ts';
 import { useLiveNote } from './useLiveNote.ts';
 import { useNoteAi, type NoteAsk } from './useNoteAi.ts';
+import { fillableBlanks } from './blanks.ts';
 import { useNotePictures } from './useNotePictures.ts';
 import { useNoteSaving, type NoteRename } from './useNoteSaving.ts';
 import { useNoteTape } from './useNoteTape.ts';
@@ -1106,6 +1107,7 @@ export function NoteScreen({
         onView={typed ? (next) => showSource(next === 'mixed') : chooseView}
         running={ai.runningKind}
         onAi={ai.runAi}
+        blanks={settingsOpen && view ? fillableBlanks(view.state).length : 0}
         onFind={
           shown === 'raw'
             ? () => {

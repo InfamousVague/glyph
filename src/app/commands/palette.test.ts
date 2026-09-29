@@ -229,3 +229,24 @@ describe('what the palette offers', () => {
     expect(list.find((c) => c.descriptor.id === 'open:n1')?.descriptor.label).toBe('Open Untitled');
   });
 });
+
+describe('the AI on the note on screen (docs/DESIGN.md §145)', () => {
+  it('offers Fix spelling, Make a list and Continue, and Fill the blanks only with a blank for the model', () => {
+    const noteAi = vi.fn();
+    const plain = paletteCommands(world({ note: { id: 'n1', title: 'A' } }), { ...doing(), noteAi });
+    expect(ids(plain)).toEqual(expect.arrayContaining(['note:fix', 'note:shape', 'note:continue']));
+    expect(ids(plain)).not.toContain('note:fill');
+    const blanks = paletteCommands(world({ note: { id: 'n1', title: 'A', blanks: 2 } }), { ...doing(), noteAi });
+    run(blanks, 'note:fill');
+    run(blanks, 'note:fix');
+    expect(noteAi.mock.calls).toEqual([
+      ['n1', 'fill'],
+      ['n1', 'fix'],
+    ]);
+  });
+
+  it('offers none of them where the app gives no way to run them', () => {
+    expect(ids(paletteCommands(world({ note: { id: 'n1', title: 'A', blanks: 2 } }), doing()))).not.toContain('note:fill');
+  });
+});
+

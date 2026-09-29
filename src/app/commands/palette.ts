@@ -1,4 +1,5 @@
 import type { CommandDescriptor } from '@glacier/react';
+import type { RunKind } from '../ai/kinds.ts';
 import type { ThemePref } from '../core/preferences.ts';
 import type { NoteView } from '../editor/viewMode.ts';
 
@@ -24,6 +25,8 @@ export interface PaletteNote {
   journal?: true;
   /** One of a journal's entries: found by name when typed for, and not among the forty offered before a word is typed. */
   entry?: true;
+  /** How many blanks a press of Fill would take in it, for the note on screen (editor/blanks.ts `openNoteBlanks`). */
+  blanks?: number;
 }
 
 /** The app as it stands, for deciding what can be done right now. */
@@ -83,6 +86,11 @@ export interface PaletteDoing {
   pin: (id: string, pinned: boolean) => void;
   archive: (id: string) => void;
   remove: (id: string) => void;
+  /**
+   * One of the AI's runs on the note on screen, as its More sheet runs it (docs/DESIGN.md §145, 11): Fix spelling, Make
+   * a list, Continue, and Fill the blanks. Absent, no such commands.
+   */
+  noteAi?: (id: string, kind: RunKind) => void;
   /** Tab groups, for a phone, which has no right-click to reach a tab's own menu. */
   groupTab?: (noteId: string) => void;
   joinTabGroup?: (noteId: string, group: string) => void;
@@ -142,6 +150,14 @@ export function paletteCommands(world: PaletteWorld, doing: PaletteDoing, query 
       { id: 'note:view', label: world.view === 'mixed' ? 'Show it formatted' : 'Show the marks', group: 'This note', keywords: 'markdown formatted preview read' },
       () => doing.setView(world.view === 'mixed' ? 'formatted' : 'mixed'),
     );
+    // The runs that were only said aloud, and the blanks, typed here as in the More sheet (the Mac's keyboard way).
+    if (doing.noteAi) {
+      const run = doing.noteAi;
+      add({ id: 'note:fix', label: 'Fix spelling', group: 'This note', keywords: 'ai spelling grammar punctuation typo correct' }, () => run(note.id, 'fix'));
+      add({ id: 'note:shape', label: 'Make a list', group: 'This note', keywords: 'ai list tasks table shape organise' }, () => run(note.id, 'shape'));
+      add({ id: 'note:continue', label: 'Continue', group: 'This note', keywords: 'ai carry on write more next' }, () => run(note.id, 'continue'));
+      if (note.blanks) add({ id: 'note:fill', label: 'Fill the blanks', group: 'This note', keywords: 'fill blank question answer ask ai square' }, () => run(note.id, 'fill'));
+    }
     add({ id: 'note:pin', label: world.pinned ? 'Unpin it from the top' : 'Pin it to the top', group: 'This note', keywords: 'star favourite' }, () => doing.pin(note.id, !world.pinned));
     add({ id: 'note:archive', label: 'Archive this note', group: 'This note', keywords: 'hide file away' }, () => doing.archive(note.id));
     add({ id: 'note:delete', label: 'Delete this note', group: 'This note', keywords: 'remove bin trash' }, () => doing.remove(note.id));

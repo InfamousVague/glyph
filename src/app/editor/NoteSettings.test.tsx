@@ -74,6 +74,39 @@ describe('the More sheet', () => {
     expect(order).toEqual(['close', 'ai enhance']);
   });
 
+  it('offers the runs that were only spoken, in order, each running its own kind (docs/DESIGN.md §145)', () => {
+    const asked: string[] = [];
+    show(<NoteSettings {...sheet({ onAi: (kind) => asked.push(kind) })} />);
+    const labels = [...document.querySelectorAll('button[aria-pressed]')].map((b) => b.querySelector('span:nth-child(2)')?.firstChild?.textContent);
+    expect(labels).toEqual(['Format', 'Summarize', 'Enhance', 'Fix spelling', 'Make a list', 'Continue']);
+    act(() => buttonSaying(document.body, 'Fix spelling')!.click());
+    rerender(<NoteSettings {...sheet({ onAi: (kind) => asked.push(kind) })} />);
+    act(() => buttonSaying(document.body, 'Make a list')!.click());
+    rerender(<NoteSettings {...sheet({ onAi: (kind) => asked.push(kind) })} />);
+    act(() => buttonSaying(document.body, 'Continue')!.click());
+    expect(asked).toEqual(['fix', 'shape', 'continue']);
+  });
+
+  it('shows Fill the blanks only with a blank for the model, its hint counting them', () => {
+    show(<NoteSettings {...sheet({ onAi: vi.fn() })} />);
+    expect(buttonSaying(document.body, 'Fill the blanks')).toBeFalsy();
+    const onAi = vi.fn();
+    rerender(<NoteSettings {...sheet({ onAi, blanks: 3 })} />);
+    expect(buttonSaying(document.body, 'Fill the blanks')?.textContent).toContain('Answers the 3 questions written {?like this}. Nothing leaves the phone.');
+    act(() => buttonSaying(document.body, 'Fill the blanks')!.click());
+    expect(onAi).toHaveBeenCalledWith('fill');
+  });
+
+  it('asks the AI anything typed in its field, as the spoken Ask', () => {
+    const order: string[] = [];
+    show(<NoteSettings {...sheet({ onAi: (kind, instruction) => order.push(`${kind}: ${instruction}`), onClose: () => order.push('close') })} />);
+    const field = document.querySelector('input[aria-label="What to do with this note"]') as HTMLInputElement;
+    expect((document.querySelector('button[aria-label="Ask"]') as HTMLButtonElement).disabled).toBe(true);
+    typeInto(field, 'make it shorter');
+    act(() => (document.querySelector('button[aria-label="Ask"]') as HTMLButtonElement).click());
+    expect(order).toEqual(['close', 'ask: make it shorter']);
+  });
+
   it('pins or unpins, archives, and moves to the trash', () => {
     const props = sheet({ pinned: true });
     show(<NoteSettings {...props} />);

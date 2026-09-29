@@ -24,6 +24,8 @@ import { AcademyScreen } from './academy/AcademyScreen.tsx';
 import { CommandBar } from './commands/CommandBar.tsx';
 import type { PaletteDoing } from './commands/palette.ts';
 import type { NoteView } from './editor/viewMode.ts';
+import { openNoteBlanks } from './editor/blanks.ts';
+import type { RunKind } from './ai/kinds.ts';
 import { academyBannerDue, dismissAcademyBanner } from './academy/banner.ts';
 import { WhatsNewSheet } from './notes/WhatsNewSheet.tsx';
 import { Guide } from './guide/Guide.tsx';
@@ -861,6 +863,8 @@ function Shell() {
    */
   // A journal's entries are found by name when typed for, and left out of the forty offered before a word is typed
   // (the memo is up with the notes, `entryIds`).
+  // The open note's blanks for Fill, as its editor counted them a moment after the typing stopped (editor/blanks.ts).
+  const openBlanks = openNoteBlanks.use();
   const paletteWorld = useMemo(
     () => ({
       notes: shownNotes.map((n) => ({ id: n.id, title: noteTitle(n.body), ...(entryIds.has(n.id) ? { entry: true as const } : {}) })),
@@ -868,7 +872,15 @@ function Shell() {
       tabs: tabs.tabs.map((n) => ({ id: n.id, title: noteTitle(n.body) })),
       workspaces: spaces.list.map((w) => ({ id: w.id, name: w.name })),
       workspace: spaces.current?.id ?? null,
-      note: screen.name === 'note' ? { id: screen.note.id, title: noteTitle(screen.note.body), ...(isJournalBody(screen.note.body) ? { journal: true as const } : {}) } : null,
+      note:
+        screen.name === 'note'
+          ? {
+              id: screen.note.id,
+              title: noteTitle(screen.note.body),
+              ...(isJournalBody(screen.note.body) ? { journal: true as const } : {}),
+              ...(openBlanks?.noteId === screen.note.id && openBlanks.count ? { blanks: openBlanks.count } : {}),
+            }
+          : null,
       filedIn: screen.name === 'note' ? (workspaceOf(screen.note.id)?.id ?? null) : null,
       pinned: screen.name === 'note' ? Boolean(screen.note.starred) : false,
       canBack: walk.canBack,
@@ -878,7 +890,7 @@ function Shell() {
       tabGroups: tabs.groups.list.map((g) => ({ id: g.id, name: g.name })),
       tabGroup: screen.name === 'note' ? (tabs.groups.of[screen.note.id] ?? null) : null,
     }),
-    [shownNotes, entryIds, journals, tabs.tabs, spaces, screen, walk.canBack, walk.canOn, prefs.noteView, prefs.theme, tabs.groups],
+    [shownNotes, entryIds, journals, tabs.tabs, spaces, screen, walk.canBack, walk.canOn, prefs.noteView, prefs.theme, tabs.groups, openBlanks],
   );
   const { setGroups } = tabs;
   /*
@@ -923,6 +935,10 @@ function Shell() {
       if (note) actions.archive(note, true);
     },
     remove: removeNote,
+    // The note's runs from the palette go through its screen, as a spoken instruction does (editor/useNoteAi.ts).
+    noteAi: (id: string, kind: RunKind) => {
+      if (screen.name === 'note' && screen.note.id === id) setScreen({ ...screen, ask: { kind, key: Date.now() } });
+    },
   };
 
   /*
