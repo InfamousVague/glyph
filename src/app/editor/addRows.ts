@@ -1,3 +1,4 @@
+import type { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { CHART_CARD } from '../canvas/edits.ts';
 import { NEW_COLUMNS, anchorFor, itemsIn, writeBoard } from '../core/boards.ts';
@@ -10,6 +11,7 @@ import { plugins } from '../plugins/registry.ts';
 import type { InlineFormat } from '../plugins/types.ts';
 import { TABLE_SEED, insertBlock } from './format.ts';
 import { apply, footnotePlan, formPlan, itemPlan, ownLinePlan, wordsPlan, type BlockSelect, type Plan } from './inserts.ts';
+import { lineWords, listLead } from '../core/itemSyntax.ts';
 
 /**
  * What the + beside the line offers (editor/AddList.tsx draws it), whether each row is there, and what each writes.
@@ -54,6 +56,8 @@ export type AddRowId =
   | 'tag'
   | 'counter'
   | 'sum'
+  | 'blank'
+  | 'blankCells'
   | `effect:${string}`;
 
 /** A row as the list draws it. */
@@ -83,6 +87,8 @@ export interface AddGates {
   note: boolean;
   canvas: boolean;
   effects: InlineFormat[];
+  /** The +'s empty line sits straight under a table with an empty body cell: Blanks in the empty cells (docs/DESIGN.md §145). */
+  tableAbove?: boolean;
 }
 
 /** Whether this build can pick a picture: the phone's chooser, a browser's file input, and the Mac once its run has passed. */
@@ -105,7 +111,7 @@ export function placeRow(): AddGates['place'] {
  * A video is the screen's to say outright: it asks the binary once as it opens (core/videos.ts `canAddVideos`, an
  * Android binary of native generation 21 with the picker on its bridge) and gives the list an `onVideo` only there.
  */
-export function readGates(can: { picture: boolean; video: boolean; place: boolean; note: boolean; canvas: boolean }): AddGates {
+export function readGates(can: { picture: boolean; video: boolean; place: boolean; note: boolean; canvas: boolean; tableAbove?: boolean }): AddGates {
   return {
     picture: can.picture && canPickPicture(),
     video: can.video,
@@ -113,6 +119,7 @@ export function readGates(can: { picture: boolean; video: boolean; place: boolea
     note: can.note,
     canvas: can.canvas,
     effects: plugins.formats().filter((format) => format.look.kind === 'effect'),
+    tableAbove: can.tableAbove ?? false,
   };
 }
 
@@ -156,6 +163,10 @@ export function moreRows(gates: AddGates): AddRow[] {
   ];
   if (gates.canvas) rows.push({ id: 'canvas', words: 'A canvas', step: 'canvas' });
   rows.push({ id: 'footnote', words: 'A footnote' }, { id: 'tag', words: 'A tag' }, { id: 'counter', words: 'A counter' }, { id: 'sum', words: 'A sum' });
+  // A question for the AI where its answer belongs (docs/DESIGN.md §145): writing one needs no model, and one written on
+  // the Mac or the web is filled on the phone. Under a table with an empty cell, a blank in every one.
+  rows.push({ id: 'blank', words: 'A blank for the AI' });
+  if (gates.tableAbove) rows.push({ id: 'blankCells', words: 'Blanks in the empty cells', label: 'Blanks in the empty cells of the table above' });
   for (const effect of gates.effects) rows.push({ id: `effect:${effect.name}`, words: effectWords(effect) });
   return rows;
 }
@@ -214,6 +225,11 @@ export function planFor(view: EditorView, id: AddRowId, now = new Date()): { pla
   if (id === 'footnote') return { plan: footnotePlan(state, at) };
   if (id === 'tag') return { plan: wordsPlan(state, at, '#tag', { from: 1, to: 4 }) };
   if (id === 'counter') return { plan: wordsPlan(state, at, COUNTER_SEED, { from: 0, to: COUNTER_SEED.indexOf(' [') }) };
+  if (id === 'blank') return { plan: blankPlan(state, at) };
+  if (id === 'blankCells') {
+    const plan = emptyCellsPlan(state, at);
+    return plan ? { plan } : null;
+  }
   if (id === 'table') return { block: TABLE_SEED };
   if (id === 'callout') return { block: { text: CALLOUT_SEED, select: { from: CALLOUT_SEED.length } } };
   if (id === 'code') return { block: { text: CODE_SEED, select: { from: 4 } } };
@@ -228,6 +244,58 @@ export function planFor(view: EditorView, id: AddRowId, now = new Date()): { pla
     return { plan: wordsPlan(state, at, `${mark}${EFFECT_WORDS}${mark}`, { from: mark.length, to: mark.length + EFFECT_WORDS.length }) };
   }
   return null;
+}
+
+/**
+ * A blank, `{?}`, with the caret between its `?` and `}` so the question is typed straight in, as the tag row leaves
+ * `tag` to write over. On an empty list item or to-do it is the item's words, since a blank there is meant as one;
+ * anywhere else it takes a line of its own by the rule every drawn thing keeps (editor/inserts.ts `ownLinePlan`), a
+ * blank line first under a table row, a list item or a quote, or the parser reads it as part of that block (a table
+ * row of one cell, or the item's words).
+ */
+export function blankPlan(state: EditorState, at: number): Plan {
+  const line = state.doc.lineAt(at);
+  const lead = listLead(line.text.replace(/^\s*(?:>\s*)+/, ''));
+  if (lead && !lineWords(line.text)) return wordsPlan(state, line.to, '{?}', { from: 2 });
+  const plan = ownLinePlan(state, at, '{?}');
+  const change = plan.changes as { from: number; insert: string };
+  return { ...plan, selection: { anchor: change.from + change.insert.indexOf('{?}') + 2 } };
+}
+
+/** The unescaped pipes of a table line, where each cell starts and ends. */
+function pipesOf(text: string): number[] {
+  return [...text.matchAll(/(?<!\\)\|/g)].map((m) => m.index);
+}
+
+/** The table straight above `line`, its body rows' empty cells as ranges, or null where there is none or none is empty. */
+export function emptyCellsAbove(state: EditorState, at: number): { from: number; to: number }[] | null {
+  const line = state.doc.lineAt(at);
+  if (line.number < 2) return null;
+  const rows: { from: number; text: string }[] = [];
+  for (let n = line.number - 1; n >= 1; n -= 1) {
+    const above = state.doc.line(n);
+    if (!/^\s*\|/.test(above.text)) break;
+    rows.unshift({ from: above.from, text: above.text });
+  }
+  if (rows.length < 3 || !/^\s*\|?\s*:?-+/.test(rows[1]!.text)) return null;
+  const cells: { from: number; to: number }[] = [];
+  for (const row of rows.slice(2)) {
+    const pipes = pipesOf(row.text);
+    for (let i = 0; i + 1 < pipes.length; i += 1) {
+      const inside = row.text.slice(pipes[i]! + 1, pipes[i + 1]);
+      if (!inside.trim()) cells.push({ from: row.from + pipes[i]! + 1, to: row.from + pipes[i + 1]! });
+    }
+  }
+  return cells.length ? cells : null;
+}
+
+/** A blank in every empty body cell of the table above, as one Undo; the caret stays where it was, outside the table. */
+export function emptyCellsPlan(state: EditorState, at: number): Plan | null {
+  const cells = emptyCellsAbove(state, at);
+  if (!cells) return null;
+  // Every cell is above the caret, so it moves on by what they grew.
+  const grew = cells.reduce((sum, cell) => sum + ' {?} '.length - (cell.to - cell.from), 0);
+  return { changes: cells.map((cell) => ({ from: cell.from, to: cell.to, insert: ' {?} ' })), selection: { anchor: at + grew } };
 }
 
 /** Writes a row that writes at once, as one Undo; answers whether it wrote. */

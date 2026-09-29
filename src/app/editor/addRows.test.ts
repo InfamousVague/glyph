@@ -107,6 +107,7 @@ describe('the list’s rows', () => {
       'A tag',
       'A counter',
       'A sum',
+      'A blank for the AI',
       'Heated words',
     ]);
     expect(rows.moreRows(gates({ canvas: false })).map((row) => row.id)).not.toContain('canvas');
@@ -233,3 +234,32 @@ describe('a note to link to', () => {
     expect(framed.state.doc.toString()).toBe('![[Cabin weekend]]\n');
   });
 });
+
+describe('a blank for the AI (docs/DESIGN.md §145)', () => {
+  it('writes {?} with the caret between its ? and }, a line of its own', () => {
+    expect(written('blank', '')).toBe('{?|}\n');
+    expect(written('blank', 'Lunch\n')).toBe('Lunch\n{?|}\n');
+  });
+
+  it('is an item’s words on an empty item, and keeps a blank line from a table, a list or a quote above', () => {
+    expect(written('blank', '- ')).toBe('- {?|}');
+    expect(written('blank', '- [ ] ')).toBe('- [ ] {?|}');
+    expect(written('blank', '| A | B |\n| --- | --- |\n| x | y |\n')).toBe('| A | B |\n| --- | --- |\n| x | y |\n\n{?|}\n');
+    expect(written('blank', '- Passport\n')).toBe('- Passport\n\n{?|}\n');
+  });
+
+  it('fills every empty body cell of the table above, in one Undo, only where there is one', () => {
+    const table = '| Say | In Japanese |\n| --- | --- |\n| Thank you |  |\n| Excuse me | すみません |\n| Goodbye | |\n';
+    expect(rows.moreRows(gates({ tableAbove: true })).map((r) => r.id)).toContain('blankCells');
+    expect(rows.moreRows(gates()).map((r) => r.id)).not.toContain('blankCells');
+    const view = viewOf(table);
+    expect(rows.emptyCellsAbove(view.state, table.length)).toHaveLength(2);
+    expect(rows.writeRow(view, 'blankCells', NOW)).toBe(true);
+    expect(view.state.doc.toString()).toBe('| Say | In Japanese |\n| --- | --- |\n| Thank you | {?} |\n| Excuse me | すみません |\n| Goodbye | {?} |\n');
+    expect(view.state.selection.main.head).toBe(view.state.doc.length);
+    undo(view);
+    expect(view.state.doc.toString()).toBe(table);
+    expect(rows.emptyCellsAbove(viewOf('| A |\n| --- |\n| x |\n').state, 17)).toBeNull();
+  });
+});
+
