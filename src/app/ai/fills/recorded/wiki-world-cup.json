@@ -1,0 +1,41 @@
+{
+ "batchcomplete": true,
+ "continue": {
+  "gsroffset": 3,
+  "continue": "gsroffset||"
+ },
+ "query": {
+  "pages": [
+   {
+    "pageid": 36581929,
+    "ns": 0,
+    "title": "2026 FIFA World Cup",
+    "index": 3,
+    "extract": "The 2026 FIFA World Cup was the 23rd FIFA World Cup, the quadrennial international men's soccer championship contested by the national teams of the member associations of FIFA. The tournament began on June 11, 2026, and concluded on July 19 with Spain winning the championship for the second time. It was jointly hosted by 16 cities—11 in the United States, 3 in Mexico, and 2 in Canada. The tournament was the first FIFA World Cup to be hosted by three countries and the first to include 48 teams, an expansion from the previous 32-team format.\nThe 2026 tournament was the second World Cup to be hosted by multiple nations, after the 2002 edition.",
+    "pageprops": {
+     "wikibase_item": "Q5020214"
+    }
+   },
+   {
+    "pageid": 81660182,
+    "ns": 0,
+    "title": "2026 FIFA World Cup Group B",
+    "index": 1,
+    "extract": "Group B of the 2026 FIFA World Cup took place from June 12 to 24, 2026. The group consisted of Canada (co-host), Bosnia and Herzegovina, Qatar, and Switzerland. This also marked the return of Bosnia and Herzegovina to the World Cup finals, with the Bosnians making their first appearance since 2014.\nSwitzerland began their World Cup campaign with a draw, and would go on to top the group after winning their next two group games.",
+    "pageprops": {
+     "wikibase_item": "Q128810065"
+    }
+   },
+   {
+    "pageid": 81667005,
+    "ns": 0,
+    "title": "2026 FIFA World Cup knockout stage",
+    "index": 2,
+    "extract": "The knockout stage of the 2026 FIFA World Cup was the second and final stage of the competition, following the group stage. Played from June 28 to July 19, 2026, the knockout stage ended with the final, held at MetLife Stadium in East Rutherford, New Jersey. The top two teams from each of the twelve groups, along with the best eight third-place teams, advanced to the knockout stage to compete in a single-elimination tournament. There were 32 matches in the knockout stage, including a match for third place.",
+    "pageprops": {
+     "wikibase_item": "Q128303972"
+    }
+   }
+  ]
+ }
+}

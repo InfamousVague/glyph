@@ -1,0 +1,1671 @@
+{
+  "about": "The fill bar (docs/DESIGN.md §145, 16.2): each case as the page builds it at each rung, the prompts by their names in src/app/ai/fills/prompts.ts, and what the answers must hold. Written by src/app/ai/fills/message.test.ts (GLYPH_WRITE_FILLS_FIXTURE=1); read by src-tauri/src/llm/tests.rs.",
+  "rungs": {
+    "qwen3.5-2b": 1,
+    "qwen3.5-4b": 1,
+    "qwen3.5-9b": 1
+  },
+  "binds": [
+    "qwen3.5-4b",
+    "qwen3.5-9b"
+  ],
+  "prompt_tokens": 940,
+  "cases": [
+    {
+      "name": "capital",
+      "note": "# Australia trip\n\nThe capital of Australia is {?}.",
+      "expect": [
+        {
+          "blank": 1,
+          "any": [
+            "Canberra"
+          ]
+        }
+      ],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Australia trip\n\nThe capital of Australia is {?1 }.\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Australia trip\n\nThe capital of Australia is {?1 }.\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_ANSWER"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Australia trip\n\nThe capital of Australia is {?}.\n\nFill {?}.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "book-cells",
+      "note": "# Reading\n\n| Book | Author | Year |\n| --- | --- | --- |\n| The Remains of the Day | {?} | {?} |",
+      "expect": [
+        {
+          "blank": 1,
+          "any": [
+            "Ishiguro"
+          ]
+        },
+        {
+          "blank": 2,
+          "any": [
+            "1989"
+          ]
+        }
+      ],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Reading\n\n| Book | Author | Year |\n| --- | --- | --- |\n| The Remains of the Day | {?1 } | {?2 } |\n\nBlank 1 is the Author of The Remains of the Day.\nBlank 2 is the Year of The Remains of the Day.\n\nAnswer blanks 1 to 2.",
+            "max_tokens": 54,
+            "blanks": [
+              1,
+              2
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Reading\n\n| Book | Author | Year |\n| --- | --- | --- |\n| The Remains of the Day | {?1 } | ___ |\n\nBlank 1 is the Author of The Remains of the Day.\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          },
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Reading\n\n| Book | Author | Year |\n| --- | --- | --- |\n| The Remains of the Day | ___ | {?1 } |\n\nBlank 1 is the Year of The Remains of the Day.\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              2
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_CELL"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Reading\n\n| Book | Author | Year |\n| --- | --- | --- |\n| The Remains of the Day | {?} | ___ |\n\nFill {?}, the Author of The Remains of the Day.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          },
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_CELL"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Reading\n\n| Book | Author | Year |\n| --- | --- | --- |\n| The Remains of the Day | ___ | {?} |\n\nFill {?}, the Year of The Remains of the Day.",
+            "max_tokens": 48,
+            "blanks": [
+              2
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "title",
+      "note": "# {?}\n\nBook the cabin for the second week of October. Ferry once Sam confirms dates with her brother. Deposit $200 by Friday.",
+      "expect": [
+        {
+          "blank": 1,
+          "words": [
+            2,
+            6
+          ],
+          "title": true
+        }
+      ],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# {?1 }\n\nBook the cabin for the second week of October. Ferry once Sam confirms dates with her brother. Deposit $200 by Friday.\n\nBlank 1 is the note's title.\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# {?1 }\n\nBook the cabin for the second week of October. Ferry once Sam confirms dates with her brother. Deposit $200 by Friday.\n\nBlank 1 is the note's title.\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_TITLE"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# {?}\n\nBook the cabin for the second week of October. Ferry once Sam confirms dates with her brother. Deposit $200 by Friday.\n\nFill {?}.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "newest-pixel",
+      "note": "# Phones\n\nThe newest Pixel is the {?}",
+      "expect": [
+        {
+          "blank": 1,
+          "unknown": true
+        }
+      ],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Phones\n\nThe newest Pixel is the {?1 }\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Phones\n\nThe newest Pixel is the {?1 }\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_ANSWER"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Phones\n\nThe newest Pixel is the {?}\n\nFill {?}.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "world-cup-2026",
+      "note": "# Football\n\nThe 2026 World Cup was won by {?}",
+      "expect": [
+        {
+          "blank": 1,
+          "unknown": true
+        }
+      ],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Football\n\nThe 2026 World Cup was won by {?1 }\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Football\n\nThe 2026 World Cup was won by {?1 }\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_ANSWER"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Football\n\nThe 2026 World Cup was won by {?}\n\nFill {?}.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "charger",
+      "note": "# Cabin weekend\n\nSam said she would bring the charger and the dog food. I am booking the ferry.\n\nWho brings the charger? {?}",
+      "expect": [
+        {
+          "blank": 1,
+          "any": [
+            "Sam"
+          ]
+        }
+      ],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Cabin weekend\n\nSam said she would bring the charger and the dog food. I am booking the ferry.\n\nWho brings the charger? {?1 }\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Cabin weekend\n\nSam said she would bring the charger and the dog food. I am booking the ferry.\n\nWho brings the charger? {?1 }\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_ANSWER"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Cabin weekend\n\nSam said she would bring the charger and the dog food. I am booking the ferry.\n\nWho brings the charger? {?}\n\nFill {?}.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "phrases",
+      "note": "# Phrases\n\n- Thank you: {?in Japanese}\n- Where is the station? {?in Japanese}",
+      "expect": [
+        {
+          "blank": 2,
+          "any": [
+            "駅はどこですか"
+          ]
+        }
+      ],
+      "raw_none": [],
+      "in_order": true,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Phrases\n\n- Thank you: {?1 in Japanese}\n- Where is the station? {?2 in Japanese}\n\nBlank 1 asks for Japanese.\nBlank 2 asks for Japanese.\n\nAnswer blanks 1 to 2.",
+            "max_tokens": 134,
+            "blanks": [
+              1,
+              2
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Phrases\n\n- Thank you: {?1 in Japanese}\n- Where is the station? ___\n\nBlank 1 asks for Japanese.\n\nAnswer blank 1.",
+            "max_tokens": 67,
+            "blanks": [
+              1
+            ]
+          },
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Phrases\n\n- Thank you: ___\n- Where is the station? {?1 in Japanese}\n\nBlank 1 asks for Japanese.\n\nAnswer blank 1.",
+            "max_tokens": 67,
+            "blanks": [
+              2
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_TRANSLATE"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Phrases\n\n- Thank you: {?in Japanese}\n- Where is the station? ___\n\nFill {?in Japanese}.",
+            "max_tokens": 67,
+            "blanks": [
+              1
+            ]
+          },
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_TRANSLATE"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Phrases\n\n- Thank you: ___\n- Where is the station? {?in Japanese}\n\nFill {?in Japanese}.",
+            "max_tokens": 67,
+            "blanks": [
+              2
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "packing",
+      "note": "## Japan packing\n- Passport\n- Plug adapter\n- {?three more things}",
+      "expect": [
+        {
+          "blank": 1,
+          "items": 3,
+          "none": [
+            "Passport",
+            "Plug adapter"
+          ]
+        }
+      ],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n## Japan packing\n- Passport\n- Plug adapter\n- {?1 three more things}\n- {?2 }\n- {?3 }\n\nBlanks 1 to 3 are whole items of the list they are in, each one new.\n\nAnswer blanks 1 to 3.",
+            "max_tokens": 99,
+            "blanks": [
+              1,
+              1,
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n## Japan packing\n- Passport\n- Plug adapter\n- {?1 three more things}\n- {?2 }\n- {?3 }\n\nBlanks 1 to 3 are whole items of the list they are in, each one new.\n\nAnswer blanks 1 to 3.",
+            "max_tokens": 99,
+            "blanks": [
+              1,
+              1,
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_ITEMS"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n## Japan packing\n- Passport\n- Plug adapter\n- {?three more things}\n\nFill {?three more things}. Give 3.",
+            "max_tokens": 99,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "numbered-list",
+      "note": "# Japan packing\n\n1. Passport\n2. Plug adapter\n3. {?more}",
+      "expect": [
+        {
+          "blank": 1,
+          "items": 3,
+          "none": [
+            "Passport",
+            "Plug adapter"
+          ]
+        }
+      ],
+      "raw_none": [
+        "3.",
+        "4.",
+        "5."
+      ],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Japan packing\n\n1. Passport\n2. Plug adapter\n3. {?1 more}\n4. {?2 }\n5. {?3 }\n\nBlanks 1 to 3 are whole items of the list they are in, each one new.\n\nAnswer blanks 1 to 3.",
+            "max_tokens": 99,
+            "blanks": [
+              1,
+              1,
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Japan packing\n\n1. Passport\n2. Plug adapter\n3. {?1 more}\n4. {?2 }\n5. {?3 }\n\nBlanks 1 to 3 are whole items of the list they are in, each one new.\n\nAnswer blanks 1 to 3.",
+            "max_tokens": 99,
+            "blanks": [
+              1,
+              1,
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_ITEMS"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Japan packing\n\n1. Passport\n2. Plug adapter\n3. {?more}\n\nFill {?more}. Give 3.",
+            "max_tokens": 99,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "everest",
+      "note": "# Trekking\n\nMount Everest is {?} metres high.",
+      "expect": [
+        {
+          "blank": 1,
+          "any": [
+            "8848",
+            "8849",
+            "8,848",
+            "8,849"
+          ],
+          "unknown": false
+        }
+      ],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Trekking\n\nMount Everest is {?1 } metres high.\n\nBlank 1 is a number.\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Trekking\n\nMount Everest is {?1 } metres high.\n\nBlank 1 is a number.\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_NUMBER"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Trekking\n\nMount Everest is {?} metres high.\n\nFill {?}.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "ask-again",
+      "note": "# Football\n\nThe 2022 World Cup was won by ??France??(Qwen3.5 4B from memory, 2026-09-28)",
+      "expect": [
+        {
+          "blank": 1,
+          "none": [
+            "France"
+          ]
+        }
+      ],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Football\n\nThe 2022 World Cup was won by {?1 }\n\nIt is not: France.\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Football\n\nThe 2022 World Cup was won by {?1 }\n\nIt is not: France.\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_ANSWER"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Football\n\nThe 2022 World Cup was won by {?}\n\nIt is not: France.\nFill {?}.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "eye": [
+    {
+      "name": "tokyo",
+      "note": "# Tokyo trip\n\nFlights are cheapest to Tokyo on {?what day / time?}",
+      "expect": [],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Tokyo trip\n\nFlights are cheapest to Tokyo on {?1 what day / time?}\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Tokyo trip\n\nFlights are cheapest to Tokyo on {?1 what day / time?}\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_ANSWER"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Tokyo trip\n\nFlights are cheapest to Tokyo on {?what day / time?}\n\nFill {?what day / time?}.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "standup",
+      "note": "# Standup 28 Sep\n\nPriya: export bug fixed, in review, lands Tuesday. Tom: blocked on staging keys, will get them today. We moved the launch to the 24th.\n\nIn one line: {?summary}",
+      "expect": [],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Standup 28 Sep\n\nPriya: export bug fixed, in review, lands Tuesday. Tom: blocked on staging keys, will get them today. We moved the launch to the 24th.\n\nIn one line: {?1 summary}\n\nBlank 1 is one sentence saying what the lines above it say.\n\nAnswer blank 1.",
+            "max_tokens": 67,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Standup 28 Sep\n\nPriya: export bug fixed, in review, lands Tuesday. Tom: blocked on staging keys, will get them today. We moved the launch to the 24th.\n\nIn one line: {?1 summary}\n\nBlank 1 is one sentence saying what the lines above it say.\n\nAnswer blank 1.",
+            "max_tokens": 67,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_SUMMARY"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Standup 28 Sep\n\nPriya: export bug fixed, in review, lands Tuesday. Tom: blocked on staging keys, will get them today. We moved the launch to the 24th.\n\nIn one line: {?summary}\n\nFill {?summary}.",
+            "max_tokens": 67,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "kitchen-tap",
+      "note": "# Kitchen tap\n- [x] Found the leak under the sink\n- [x] Bought a new washer\n- [ ] {?the next step}",
+      "expect": [],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Kitchen tap\n- [x] Found the leak under the sink\n- [x] Bought a new washer\n- [ ] {?1 the next step}\n\nBlank 1 is a whole item of the list it is in.\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Kitchen tap\n- [x] Found the leak under the sink\n- [x] Bought a new washer\n- [ ] {?1 the next step}\n\nBlank 1 is a whole item of the list it is in.\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_ITEMS"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Kitchen tap\n- [x] Found the leak under the sink\n- [x] Bought a new washer\n- [ ] {?the next step}\n\nFill {?the next step}. Give 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "phrase-table",
+      "note": "# Kyoto in November\n\n| Say | In Japanese |\n| --- | --- |\n| Thank you | {?} |\n| Where is the station? | {?} |\n| Excuse me | {?} |",
+      "expect": [],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Kyoto in November\n\n| Say | In Japanese |\n| --- | --- |\n| Thank you | {?1 } |\n| Where is the station? | {?2 } |\n| Excuse me | {?3 } |\n\nBlank 1 is Thank you in Japanese.\nBlank 2 is Where is the station? in Japanese.\nBlank 3 is Excuse me in Japanese.\n\nAnswer blanks 1 to 3.",
+            "max_tokens": 201,
+            "blanks": [
+              1,
+              2,
+              3
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Kyoto in November\n\n| Say | In Japanese |\n| --- | --- |\n| Thank you | {?1 } |\n\nBlank 1 is Thank you in Japanese.\n\nAnswer blank 1.",
+            "max_tokens": 67,
+            "blanks": [
+              1
+            ]
+          },
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Kyoto in November\n\n| Say | In Japanese |\n| --- | --- |\n\n(lines left out)\n\n| Where is the station? | {?1 } |\n\nBlank 1 is Where is the station? in Japanese.\n\nAnswer blank 1.",
+            "max_tokens": 67,
+            "blanks": [
+              2
+            ]
+          },
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Kyoto in November\n\n| Say | In Japanese |\n| --- | --- |\n\n(lines left out)\n\n| Excuse me | {?1 } |\n\nBlank 1 is Excuse me in Japanese.\n\nAnswer blank 1.",
+            "max_tokens": 67,
+            "blanks": [
+              3
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_TRANSLATE"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Kyoto in November\n\n| Say | In Japanese |\n| --- | --- |\n| Thank you | {?} |\n\nFill {?}, Thank you in Japanese.",
+            "max_tokens": 67,
+            "blanks": [
+              1
+            ]
+          },
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_TRANSLATE"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Kyoto in November\n\n| Say | In Japanese |\n| --- | --- |\n\n(lines left out)\n\n| Where is the station? | {?} |\n\nFill {?}, Where is the station? in Japanese.",
+            "max_tokens": 67,
+            "blanks": [
+              2
+            ]
+          },
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_TRANSLATE"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Kyoto in November\n\n| Say | In Japanese |\n| --- | --- |\n\n(lines left out)\n\n| Excuse me | {?} |\n\nFill {?}, Excuse me in Japanese.",
+            "max_tokens": 67,
+            "blanks": [
+              3
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "petrichor",
+      "note": "# Words\n\nPetrichor: {?what it means}",
+      "expect": [],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Words\n\nPetrichor: {?1 what it means}\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Words\n\nPetrichor: {?1 what it means}\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_ANSWER"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Words\n\nPetrichor: {?what it means}\n\nFill {?what it means}.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "flour",
+      "note": "# Baking\n\n1 cup of plain flour is about {?grams} grams.",
+      "expect": [],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Baking\n\n1 cup of plain flour is about {?1 grams} grams.\n\nBlank 1 is a number.\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Baking\n\n1 cup of plain flour is about {?1 grams} grams.\n\nBlank 1 is a number.\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_NUMBER"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Baking\n\n1 cup of plain flour is about {?grams} grams.\n\nFill {?grams}.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "world-cup-2022",
+      "note": "# Football\n\nWe watched France play in Qatar.\n\nThe 2022 World Cup was won by {?}",
+      "expect": [],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Football\n\nWe watched France play in Qatar.\n\nThe 2022 World Cup was won by {?1 }\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Football\n\nWe watched France play in Qatar.\n\nThe 2022 World Cup was won by {?1 }\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_ANSWER"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Football\n\nWe watched France play in Qatar.\n\nThe 2022 World Cup was won by {?}\n\nFill {?}.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "friendlier",
+      "note": "# Email to the landlord\n\nOpening line, friendlier: {?a friendlier way to say: fix the boiler now}",
+      "expect": [],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Email to the landlord\n\nOpening line, friendlier: {?1 a friendlier way to say: fix the boiler now}\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Email to the landlord\n\nOpening line, friendlier: {?1 a friendlier way to say: fix the boiler now}\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_ANSWER"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Email to the landlord\n\nOpening line, friendlier: {?a friendlier way to say: fix the boiler now}\n\nFill {?a friendlier way to say: fix the boiler now}.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "egg-title-question",
+      "note": "{?how long to boil an egg}",
+      "expect": [],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n{?1 how long to boil an egg}\n\nBlank 1 is a whole line.\n\nAnswer blank 1.",
+            "max_tokens": 67,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n{?1 how long to boil an egg}\n\nBlank 1 is a whole line.\n\nAnswer blank 1.",
+            "max_tokens": 67,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_ANSWER"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n{?how long to boil an egg}\n\nFill {?how long to boil an egg}.",
+            "max_tokens": 67,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "dune",
+      "note": "# {?who wrote Dune}",
+      "expect": [],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# {?1 who wrote Dune}\n\nBlank 1 is a whole line.\n\nAnswer blank 1.",
+            "max_tokens": 67,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# {?1 who wrote Dune}\n\nBlank 1 is a whole line.\n\nAnswer blank 1.",
+            "max_tokens": 67,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_ANSWER"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# {?who wrote Dune}\n\nFill {?who wrote Dune}.",
+            "max_tokens": 67,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "trip-to",
+      "note": "# Trip to {?capital of Japan}\n\nFlights booked for November.",
+      "expect": [],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Trip to {?1 capital of Japan}\n\nFlights booked for November.\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Trip to {?1 capital of Japan}\n\nFlights booked for November.\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_ANSWER"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Trip to {?capital of Japan}\n\nFlights booked for November.\n\nFill {?capital of Japan}.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "cat",
+      "note": "# Pets\n\nWhat’s the average lifespan of a cat? {?}",
+      "expect": [],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Pets\n\nWhat’s the average lifespan of a cat? {?1 }\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Pets\n\nWhat’s the average lifespan of a cat? {?1 }\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_ANSWER"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Pets\n\nWhat’s the average lifespan of a cat? {?}\n\nFill {?}.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "buttermilk",
+      "note": "# Pancakes\n\nA substitute for buttermilk: {?}",
+      "expect": [],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Pancakes\n\nA substitute for buttermilk: {?1 }\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Pancakes\n\nA substitute for buttermilk: {?1 }\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_ANSWER"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Pancakes\n\nA substitute for buttermilk: {?}\n\nFill {?}.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "soft-egg",
+      "note": "# Kitchen\n\nFor a soft-boiled egg, boil it for {?how long}.",
+      "expect": [],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Kitchen\n\nFor a soft-boiled egg, boil it for {?1 how long}.\n\nBlank 1 is a number.\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Kitchen\n\nFor a soft-boiled egg, boil it for {?1 how long}.\n\nBlank 1 is a number.\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_NUMBER"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Kitchen\n\nFor a soft-boiled egg, boil it for {?how long}.\n\nFill {?how long}.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "portuguese",
+      "note": "# Lisbon\n\n- Two coffees, please: {?in Portuguese}",
+      "expect": [],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Lisbon\n\n- Two coffees, please: {?1 in Portuguese}\n\nBlank 1 asks for Portuguese.\n\nAnswer blank 1.",
+            "max_tokens": 67,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Lisbon\n\n- Two coffees, please: {?1 in Portuguese}\n\nBlank 1 asks for Portuguese.\n\nAnswer blank 1.",
+            "max_tokens": 67,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_TRANSLATE"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Lisbon\n\n- Two coffees, please: {?in Portuguese}\n\nFill {?in Portuguese}.",
+            "max_tokens": 67,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "korean",
+      "note": "# Seoul\n\n- Where is the toilet? {?in Korean}",
+      "expect": [],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Seoul\n\n- Where is the toilet? {?1 in Korean}\n\nBlank 1 asks for Korean.\n\nAnswer blank 1.",
+            "max_tokens": 67,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Seoul\n\n- Where is the toilet? {?1 in Korean}\n\nBlank 1 asks for Korean.\n\nAnswer blank 1.",
+            "max_tokens": 67,
+            "blanks": [
+              1
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_TRANSLATE"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Seoul\n\n- Where is the toilet? {?in Korean}\n\nFill {?in Korean}.",
+            "max_tokens": 67,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "five-blanks",
+      "note": "# Trip prep\n\nThe capital of Portugal is {?}.\n\n| Say | In Portuguese |\n| --- | --- |\n| Thank you | {?} |\n| Good night | {?} |\n\n## Packing\n- Passport\n- {?two more things}\n\nIn one line: {?summary}",
+      "expect": [],
+      "raw_none": [],
+      "in_order": false,
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Trip prep\n\nThe capital of Portugal is {?1 }.\n\n| Say | In Portuguese |\n| --- | --- |\n| Thank you | {?2 } |\n| Good night | {?3 } |\n\n## Packing\n- Passport\n- {?4 two more things}\n- {?5 }\n\nIn one line: {?6 summary}\n\nBlank 2 is Thank you in Portuguese.\nBlank 3 is Good night in Portuguese.\nBlanks 4 and 5 are whole items of the list they are in, each one new.\nBlank 6 is one sentence saying what the lines above it say.\n\nAnswer blanks 1 to 6.",
+            "max_tokens": 303,
+            "blanks": [
+              1,
+              2,
+              3,
+              4,
+              4,
+              5
+            ]
+          }
+        ],
+        "2": [
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Trip prep\n\nThe capital of Portugal is {?1 }.\n\n| Say | In Portuguese |\n| --- | --- |\n| Thank you | ___ |\n| Good night | ___ |\n\n## Packing\n- Passport\n- ___\n\nIn one line: ___\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          },
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Trip prep\n\n(lines left out)\n\n| Say | In Portuguese |\n| --- | --- |\n| Thank you | {?1 } |\n\nBlank 1 is Thank you in Portuguese.\n\nAnswer blank 1.",
+            "max_tokens": 67,
+            "blanks": [
+              2
+            ]
+          },
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Trip prep\n\n(lines left out)\n\n| Say | In Portuguese |\n| --- | --- |\n\n(lines left out)\n\n| Good night | {?1 } |\n\nBlank 1 is Good night in Portuguese.\n\nAnswer blank 1.",
+            "max_tokens": 67,
+            "blanks": [
+              3
+            ]
+          },
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Trip prep\n\n(lines left out)\n\n## Packing\n- Passport\n- {?1 two more things}\n- {?2 }\n\nBlanks 1 and 2 are whole items of the list they are in, each one new.\n\nAnswer blanks 1 to 2.",
+            "max_tokens": 67,
+            "blanks": [
+              4,
+              4
+            ]
+          },
+          {
+            "system": [
+              "FILL_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Trip prep\n\n(lines left out)\n\n## Packing\n- Passport\n- ___\n\nIn one line: {?1 summary}\n\nBlank 1 is one sentence saying what the lines above it say.\n\nAnswer blank 1.",
+            "max_tokens": 67,
+            "blanks": [
+              5
+            ]
+          }
+        ],
+        "3": [
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_ANSWER"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Trip prep\n\nThe capital of Portugal is {?}.\n\n| Say | In Portuguese |\n| --- | --- |\n| Thank you | ___ |\n| Good night | ___ |\n\n## Packing\n- Passport\n- ___\n\nIn one line: ___\n\nFill {?}.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          },
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_TRANSLATE"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Trip prep\n\n(lines left out)\n\n| Say | In Portuguese |\n| --- | --- |\n| Thank you | {?} |\n\nFill {?}, Thank you in Portuguese.",
+            "max_tokens": 67,
+            "blanks": [
+              2
+            ]
+          },
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_TRANSLATE"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Trip prep\n\n(lines left out)\n\n| Say | In Portuguese |\n| --- | --- |\n\n(lines left out)\n\n| Good night | {?} |\n\nFill {?}, Good night in Portuguese.",
+            "max_tokens": 67,
+            "blanks": [
+              3
+            ]
+          },
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_ITEMS"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Trip prep\n\n(lines left out)\n\n## Packing\n- Passport\n- {?two more things}\n\nFill {?two more things}. Give 2.",
+            "max_tokens": 67,
+            "blanks": [
+              4
+            ]
+          },
+          {
+            "system": [
+              "FILL_CORE",
+              "FILL_SUMMARY"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Trip prep\n\n(lines left out)\n\n## Packing\n- Passport\n- ___\n\nIn one line: {?summary}\n\nFill {?summary}.",
+            "max_tokens": 67,
+            "blanks": [
+              5
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "web": [
+    {
+      "name": "web-weather",
+      "note": "# Lisbon\n\nWeather in Lisbon tomorrow: {?weather}",
+      "expect": [
+        {
+          "blank": 1,
+          "any": [
+            "°c"
+          ]
+        }
+      ],
+      "raw_none": [],
+      "in_order": false,
+      "source": "Open-Meteo",
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_WEB_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Lisbon\n\nWeather in Lisbon tomorrow: {?1 weather}\n\nWhat Open-Meteo returned:\nLisbon, Portugal, Wednesday 30 September 2026: rain showers, 19 to 25 °C, a 58% chance of rain, wind up to 20 km/h.\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "web-world-cup",
+      "note": "# Football\n\nThe 2026 World Cup was won by {?}",
+      "expect": [
+        {
+          "blank": 1,
+          "any": [
+            "Spain"
+          ]
+        }
+      ],
+      "raw_none": [],
+      "in_order": false,
+      "source": "Wikipedia and Wikidata",
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_WEB_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Football\n\nThe 2026 World Cup was won by {?1 }\n\nWhat Wikipedia and Wikidata returned:\n2026 FIFA World Cup Group B: Group B of the 2026 FIFA World Cup took place from June 12 to 24, 2026. The group consisted of Canada (co-host), Bosnia and Herzegovina, Qatar, and Switzerland. This also marked the return of Bosnia and Herzegovina to the World Cup finals, with the Bosnians making their first appearance since 2014. Switzerland began their World Cup campaign with a draw, and would go on to top the group after winning their next two group games.\n2026 FIFA World Cup knockout stage: The knockout stage of the 2026 FIFA World Cup was the second and final stage of the competition, following the group stage. Played from June 28 to July 19, 2026, the knockout stage ended with the final, held at MetLife Stadium in East Rutherford, New Jersey. The top two teams from each of the twelve groups, along with the best eight third-place teams, advanced to the knockout stage to compete in a single-elimination tournament. There were 32 matches in the knockout stage, including a match for third place.\n2026 FIFA World Cup: The 2026 FIFA World Cup was the 23rd FIFA World Cup, the quadrennial international men's soccer championship contested by the national teams of the member associations of FIFA. The tournament began on June 11, 2026, and concluded on July 19 with Spain winning the championship for the second time. It was jointly hosted by 16 cities—11 in the United States, 3 in Mexico, and 2 in Canada. The tournament was the first FIFA World Cup to be hosted by three countries and the first to include 48 teams, an expansion from the previous 32-team format. The 2026 tournament was the second World Cup to be hosted by multiple nations, after the 2002 edition.\nWikidata on 2026 FIFA World Cup: winner Spain men's national football team; when 2026; from 11 June 2026; until 19 July 2026; followed by 2030 FIFA World Cup; follows 2022 FIFA World Cup.\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "web-nothing",
+      "note": "# Football\n\nThe 2026 World Cup was won by {?}",
+      "expect": [
+        {
+          "blank": 1,
+          "unknown": true
+        }
+      ],
+      "raw_none": [],
+      "in_order": false,
+      "source": "Wikipedia",
+      "rungs": {
+        "1": [
+          {
+            "system": [
+              "FILL_WEB_PROMPT"
+            ],
+            "prompt": "Today is Monday 28 September 2026.\n\nThe note:\n# Football\n\nThe 2026 World Cup was won by {?1 }\n\nWhat Wikipedia returned:\nGroup B of the 2026 FIFA World Cup took place from June 12 to 24, 2026. The group consisted of Canada (co-host), Bosnia and Herzegovina, Qatar, and Switzerland. This also marked the return of Bosnia and Herzegovina to the World Cup finals, with the Bosnians making their first appearance since 2014. Switzerland began their World Cup campaign with a draw, and would go on to top the group after winning their next two group games.\n\nAnswer blank 1.",
+            "max_tokens": 48,
+            "blanks": [
+              1
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

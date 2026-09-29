@@ -529,3 +529,341 @@ fn understands_spoken_commands() {
     }
     println!("\n{right}/{} right, {:.0} ms mean", cases.len(), total_ms as f64 / cases.len() as f64);
 }
+
+
+// ---- blanks the AI fills (docs/DESIGN.md §145, 16.2) --------------------------------------------------------------
+
+/// The fill bar's cases as the page builds them: every case's messages at each rung, the prompts by their names, and
+/// what the answers must hold (src/app/ai/fills.fixture.json, written and kept equal to the builder by
+/// src/app/ai/fills/message.test.ts). So what the Mac measures is what the phone sends, today's date line included.
+fn fills_fixture() -> serde_json::Value {
+    let text = std::fs::read_to_string(repo_dir().join("src/app/ai/fills.fixture.json")).expect("the fills fixture is in the repository");
+    serde_json::from_str(&text).expect("the fills fixture is JSON")
+}
+
+/// A fill's system prompt from its names, joined as the page joins the third rung's core and block.
+fn fill_system(names: &serde_json::Value) -> String {
+    names.as_array().expect("prompt names").iter().map(|name| page_prompt_in("ai/fills/prompts.ts", name.as_str().expect("a name"))).collect::<Vec<_>>().join("\n\n")
+}
+
+/// `[N] words`, a space after the bracket, as src/app/ai/fills/read.ts reads an answer line.
+fn fill_line(line: &str) -> Option<(usize, String)> {
+    let rest = line.trim_start().strip_prefix('[')?;
+    let close = rest.find(']')?;
+    if close == 0 || close > 2 {
+        return None;
+    }
+    let n = rest[..close].parse().ok()?;
+    let after = rest[close + 1..].strip_prefix(' ')?;
+    Some((n, after.trim().to_string()))
+}
+
+/// A generation's answers by the case's own blank numbers: its `[N]` lines, or with one blank asked, a bare answer.
+fn fill_answers(text: &str, blanks: &[usize]) -> std::collections::HashMap<usize, Vec<String>> {
+    let mut out: std::collections::HashMap<usize, Vec<String>> = blanks.iter().map(|b| (*b, Vec::new())).collect();
+    let mut numbered = false;
+    for line in text.lines() {
+        if let Some((n, words)) = fill_line(line) {
+            numbered = true;
+            if let Some(blank) = blanks.get(n.wrapping_sub(1)) {
+                if !words.is_empty() {
+                    out.entry(*blank).or_default().push(words);
+                }
+            }
+        }
+    }
+    if !numbered && blanks.len() == 1 {
+        out.insert(blanks[0], text.lines().map(str::trim).filter(|l| !l.is_empty()).map(str::to_string).collect());
+    }
+    out
+}
+
+/// An item as a person reads it: a list's mark, a box, a step's number and quotes off.
+fn fill_item(line: &str) -> String {
+    let mut t = line.trim();
+    for lead in ["- [ ] ", "- [x] ", "- ", "* "] {
+        if let Some(rest) = t.strip_prefix(lead) {
+            t = rest;
+        }
+    }
+    let figures = t.chars().take_while(char::is_ascii_digit).count();
+    if figures > 0 && t[figures..].starts_with(". ") {
+        t = &t[figures + 2..];
+    }
+    t.trim_matches(|c| c == '"' || c == '“' || c == '”').trim_end_matches('.').trim().to_string()
+}
+
+/// One generation as it came back.
+struct FillRun {
+    text: String,
+    blanks: Vec<usize>,
+    prompt_tokens: u32,
+    cached_tokens: u32,
+    output_tokens: u32,
+    ms: u64,
+    truncated: bool,
+}
+
+/// Runs one case's generations at one rung, one after another, as the page's queue would.
+fn run_fill_case(path: &Path, case: &serde_json::Value, rung: &str) -> Vec<FillRun> {
+    case["rungs"][rung]
+        .as_array()
+        .expect("generations")
+        .iter()
+        .map(|generation| {
+            let blanks: Vec<usize> = generation["blanks"].as_array().unwrap().iter().map(|b| b.as_u64().unwrap() as usize).collect();
+            let mut req = request("fill", &fill_system(&generation["system"]), generation["prompt"].as_str().unwrap(), generation["max_tokens"].as_u64().unwrap() as u32);
+            req.temperature = 0.0;
+            let (result, _) = run(path, req, Arc::default(), |_| {});
+            match result {
+                Ok(output) => FillRun { text: output.text, blanks, prompt_tokens: output.prompt_tokens, cached_tokens: output.cached_tokens, output_tokens: output.output_tokens, ms: output.ms, truncated: output.truncated },
+                Err(failure) => FillRun { text: format!("ERROR {failure:?}"), blanks, prompt_tokens: 0, cached_tokens: 0, output_tokens: 0, ms: 0, truncated: false },
+            }
+        })
+        .collect()
+}
+
+/// What a case's answers came to against the bar: whether every expectation held, whether every line was an `[N]`
+/// line for an asked blank, and what missed.
+fn judge_fill_case(case: &serde_json::Value, runs: &[FillRun]) -> (bool, bool, Vec<String>) {
+    let mut answers: std::collections::HashMap<usize, Vec<String>> = std::collections::HashMap::new();
+    for run in runs {
+        for (blank, lines) in fill_answers(&run.text, &run.blanks) {
+            answers.entry(blank).or_default().extend(lines);
+        }
+    }
+    let mut misses = Vec::new();
+    let texts = |v: &serde_json::Value| -> Vec<String> { v.as_array().map(|a| a.iter().filter_map(|s| s.as_str().map(str::to_lowercase)).collect()).unwrap_or_default() };
+    for expect in case["expect"].as_array().unwrap() {
+        let blank = expect["blank"].as_u64().unwrap() as usize;
+        let lines = answers.get(&blank).cloned().unwrap_or_default();
+        let first = lines.first().cloned().unwrap_or_default();
+        let lower = lines.join(" / ").to_lowercase();
+        let is_unknown = first.trim_start().to_uppercase().starts_with("UNKNOWN");
+        let items: Vec<String> = lines.iter().map(|l| fill_item(l)).filter(|l| !l.is_empty()).collect();
+        let any = texts(&expect["any"]);
+        if !any.is_empty() && !any.iter().any(|w| lower.contains(w.as_str())) {
+            misses.push(format!("blank {blank} holds none of {any:?}: {first:?}"));
+        }
+        let none = texts(&expect["none"]);
+        if expect.get("items").is_some() {
+            let wanted = expect["items"].as_u64().unwrap() as usize;
+            let new: Vec<&String> = items.iter().filter(|i| !none.contains(&i.to_lowercase())).collect();
+            if new.len() < wanted {
+                misses.push(format!("blank {blank} gave {} new items of {wanted}: {items:?}", new.len()));
+            }
+        } else if none.iter().any(|w| lower.contains(w.as_str())) {
+            misses.push(format!("blank {blank} holds one of {none:?}: {first:?}"));
+        }
+        match expect.get("unknown").and_then(serde_json::Value::as_bool) {
+            Some(true) if !is_unknown => misses.push(format!("blank {blank} is not UNKNOWN: {first:?}")),
+            Some(false) if is_unknown || first.is_empty() => misses.push(format!("blank {blank} is UNKNOWN or empty: {first:?}")),
+            _ => {}
+        }
+        if let Some(range) = expect.get("words").and_then(serde_json::Value::as_array) {
+            let (low, high) = (range[0].as_u64().unwrap() as usize, range[1].as_u64().unwrap() as usize);
+            let count = first.split_whitespace().count();
+            if count < low || count > high {
+                misses.push(format!("blank {blank} has {count} words: {first:?}"));
+            }
+        }
+        if expect.get("title").is_some() && (first.contains('#') || first.trim_end().ends_with('.')) {
+            misses.push(format!("blank {blank} is no title: {first:?}"));
+        }
+    }
+    let raw_none = texts(&case["raw_none"]);
+    for run in runs {
+        for line in run.text.lines().map(str::trim) {
+            if raw_none.iter().any(|lead| line.to_lowercase().starts_with(lead.as_str())) {
+                misses.push(format!("a line carries on the note's own list: {line:?}"));
+            }
+            if line.contains("{?") {
+                misses.push(format!("an answer holds a blank: {line:?}"));
+            }
+        }
+    }
+    if case["in_order"].as_bool() == Some(true) {
+        let order: Vec<usize> = runs.iter().flat_map(|r| r.text.lines().filter_map(fill_line).map(|(n, _)| n).collect::<Vec<_>>()).collect();
+        if order.windows(2).any(|w| w[0] > w[1]) {
+            misses.push(format!("the answers came out of order: {order:?}"));
+        }
+    }
+    let numbered = runs.iter().all(|run| run.text.lines().filter(|l| !l.trim().is_empty()).all(|l| fill_line(l).is_some_and(|(n, _)| n >= 1 && n <= run.blanks.len())));
+    (misses.is_empty(), numbered, misses)
+}
+
+/// A catalogue model's file, when it is on this Mac, for the tests that go through every model present.
+fn present_model(spec: &LlmSpec) -> Option<PathBuf> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../models/llm").join(spec.spec.file);
+    std::fs::metadata(&path).is_ok_and(|m| m.len() == spec.spec.bytes).then_some(path)
+}
+
+#[test]
+fn the_fill_prompts_read_from_the_page() {
+    let prompt = page_prompt_in("ai/fills/prompts.ts", "FILL_PROMPT");
+    assert!(prompt.starts_with("You fill blanks in a note"), "{prompt:.80}");
+    assert!(prompt.ends_with("(ohayō gozaimasu)"), "{prompt}");
+    assert!(prompt.contains("UNKNOWN") && !prompt.contains("Never invent"), "{prompt}");
+    let web = page_prompt_in("ai/fills/prompts.ts", "FILL_WEB_PROMPT");
+    assert!(web.starts_with("You fill one blank in a note") && web.ends_with("[1] Rain showers, 18 to 24 °C"), "{web}");
+    for name in ["FILL_CORE", "FILL_ANSWER", "FILL_NUMBER", "FILL_TITLE", "FILL_SUMMARY", "FILL_ITEMS", "FILL_CELL", "FILL_TRANSLATE"] {
+        let block = page_prompt_in("ai/fills/prompts.ts", name);
+        assert!(!block.is_empty(), "{name} is read");
+        if name != "FILL_CORE" {
+            assert!(block.contains("Example."), "{name} carries its worked example");
+        }
+    }
+    // Every case names prompts the page has, at every rung.
+    let fixture = fills_fixture();
+    for case in fixture["cases"].as_array().unwrap().iter().chain(fixture["eye"].as_array().unwrap()) {
+        for rung in ["1", "2", "3"] {
+            for generation in case["rungs"][rung].as_array().unwrap() {
+                assert!(!fill_system(&generation["system"]).is_empty());
+                assert!(generation["prompt"].as_str().unwrap().starts_with("Today is Monday 28 September 2026."));
+            }
+        }
+    }
+}
+
+/// The bar, on the chosen model (`GLYPH_LLM_MODEL`, the 4B by default) at the rung the page ships for it: every case of
+/// the fixture holds, and at the first rung every line is an `[N]` line for an asked blank.
+#[test]
+fn fills_answer_in_their_shapes() {
+    let _one = serial();
+    let Some(path) = model_path() else { return };
+    let fixture = fills_fixture();
+    let rung = fixture["rungs"][chosen().id].as_u64().unwrap_or(2).to_string();
+    let mut failed = Vec::new();
+    for case in fixture["cases"].as_array().unwrap() {
+        let runs = run_fill_case(&path, case, &rung);
+        let (content, numbered, misses) = judge_fill_case(case, &runs);
+        let shown: Vec<String> = runs.iter().map(|r| r.text.trim().replace('\n', " / ")).collect();
+        eprintln!("{} rung {rung} {:<16} {}{} {:?}", chosen().id, case["name"].as_str().unwrap(), if content { "ok" } else { "MISS" }, if rung == "1" && !numbered { " (not all [N] lines)" } else { "" }, shown);
+        if !content || (rung == "1" && !numbered) {
+            failed.push(format!("{}: {misses:?} {shown:?}", case["name"]));
+        }
+    }
+    let binds = fixture["binds"].as_array().is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some(chosen().id)));
+    if !binds {
+        eprintln!("{} met the bar at no rung when it was measured, so it is printed, not held: {} missed", chosen().id, failed.len());
+        return;
+    }
+    assert!(failed.is_empty(), "{} at rung {rung} missed the bar:\n{}", chosen().id, failed.join("\n"));
+    // What the room counts the prompt as (FILL_PROMPT_TOKENS) is within 5% of what this model reads, and never under it.
+    let mut probe = request("fill-tokens", &page_prompt_in("ai/fills/prompts.ts", "FILL_PROMPT"), "Answer blank 1.", 1);
+    probe.temperature = 0.0;
+    let real = run(&path, probe, Arc::default(), |_| {}).0.expect("a generation").prompt_tokens;
+    let counted = fixture["prompt_tokens"].as_u64().unwrap() as u32;
+    assert!(counted >= real && counted <= real + real / 20, "FILL_PROMPT_TOKENS is {counted}, the prompt reads as {real}");
+}
+
+/// Every model on this Mac at all three rungs, printed with the prompt's tokens, what was restored and the time, and
+/// the rung each earns: the first when every case holds and every line is `[N]`, else the second when every case holds,
+/// else the third. How `FILL_RUNGS` and `FILL_PROMPT_TOKENS` are chosen (docs/DESIGN.md §145, 5.8). Run with the
+/// machine quiet:
+///
+///   cargo test --lib llm::tests::fills_rungs_compared -- --ignored --nocapture
+#[test]
+#[ignore]
+fn fills_rungs_compared() {
+    let _one = serial();
+    let fixture = fills_fixture();
+    let only = std::env::var("GLYPH_FILL_MODELS").ok();
+    let mut table = Vec::new();
+    for spec in model::CATALOGUE.iter() {
+        if only.as_deref().is_some_and(|ids| !ids.split(',').any(|id| id == spec.id)) {
+            continue;
+        }
+        let Some(path) = present_model(spec) else {
+            println!("SKIPPED: {} is not on this Mac", spec.id);
+            continue;
+        };
+        // What the prompt costs as this model reads it, its chat template included.
+        let mut probe = request("fill-tokens", &page_prompt_in("ai/fills/prompts.ts", "FILL_PROMPT"), "Answer blank 1.", 1);
+        probe.temperature = 0.0;
+        let tokens = run(&path, probe, Arc::default(), |_| {}).0.map(|o| o.prompt_tokens).unwrap_or(0);
+        println!("\n===== {}: FILL_PROMPT with a four-word message is {tokens} tokens =====", spec.id);
+        let mut verdicts = Vec::new();
+        for rung in ["1", "2", "3"] {
+            let (mut all_content, mut all_numbered, mut ms, mut generations) = (true, true, 0u64, 0usize);
+            for case in fixture["cases"].as_array().unwrap() {
+                let runs = run_fill_case(&path, case, rung);
+                let (content, numbered, misses) = judge_fill_case(case, &runs);
+                all_content &= content;
+                all_numbered &= numbered;
+                generations += runs.len();
+                for run in &runs {
+                    ms += run.ms;
+                    println!(
+                        "{} r{rung} {:<16} {:>6} ms  pt {:>4} (cached {:>4}) out {:>3}{}  {}",
+                        spec.id,
+                        case["name"].as_str().unwrap(),
+                        run.ms,
+                        run.prompt_tokens,
+                        run.cached_tokens,
+                        run.output_tokens,
+                        if run.truncated { " TRUNC" } else { "" },
+                        run.text.trim().replace('\n', " / ")
+                    );
+                }
+                if !content || !numbered {
+                    println!("      {} {misses:?}{}", if content { "ok" } else { "MISS" }, if numbered { "" } else { " (not all [N] lines)" });
+                }
+            }
+            println!("  {} rung {rung}: every case {}, every line [N] {}, {generations} generations, {ms} ms", spec.id, if all_content { "holds" } else { "does NOT hold" }, if all_numbered { "yes" } else { "no" });
+            verdicts.push((all_content, all_numbered));
+        }
+        // The web's answers (ai/fills/web.ts): the model writes from what a source returned, or says UNKNOWN.
+        let mut web_right = 0;
+        let web = fixture["web"].as_array().unwrap();
+        for case in web {
+            let runs = run_fill_case(&path, case, "1");
+            let (content, _, misses) = judge_fill_case(case, &runs);
+            web_right += usize::from(content);
+            for run in &runs {
+                println!("{} web {:<16} {:>6} ms  pt {:>4} (cached {:>4})  {}  {}", spec.id, case["name"].as_str().unwrap(), run.ms, run.prompt_tokens, run.cached_tokens, if content { "ok  " } else { "MISS" }, run.text.trim().replace('\n', " / "));
+            }
+            if !content {
+                println!("      {misses:?}");
+            }
+        }
+        println!("  {} web: {web_right} of {} right", spec.id, web.len());
+        let earns = if verdicts[0].0 && verdicts[0].1 {
+            1
+        } else if verdicts[1].0 {
+            2
+        } else {
+            3
+        };
+        table.push(format!("{:<12} tokens {tokens:>4}  rung 1 holds {} and numbered {}, rung 2 holds {}, rung 3 holds {}: earns rung {earns}", spec.id, verdicts[0].0, verdicts[0].1, verdicts[1].0, verdicts[2].0));
+    }
+    println!("\n===== the rungs =====\n{}", table.join("\n"));
+}
+
+/// Every eye case (the spec's scenarios and a press of five blanks) on the chosen model at its rung (or
+/// `GLYPH_FILL_RUNG`), with timings, for DESIGN:
+///
+///   GLYPH_LLM_MODEL=qwen3.5-4b cargo test --lib llm::tests::prints_fills -- --ignored --nocapture
+#[test]
+#[ignore]
+fn prints_fills_for_the_eye() {
+    let _one = serial();
+    let Some(path) = model_path() else { return };
+    let fixture = fills_fixture();
+    let rung = std::env::var("GLYPH_FILL_RUNG").unwrap_or_else(|_| fixture["rungs"][chosen().id].as_u64().unwrap_or(2).to_string());
+    for (case, rung) in fixture["eye"].as_array().unwrap().iter().map(|c| (c, rung.as_str())).chain(fixture["web"].as_array().unwrap().iter().map(|c| (c, "1"))) {
+        for run in run_fill_case(&path, case, rung) {
+            println!(
+                "{} r{rung} {:<18} {:>6} ms  pt {:>4} (cached {:>4}) out {:>3}{}  {}",
+                chosen().id,
+                case["name"].as_str().unwrap(),
+                run.ms,
+                run.prompt_tokens,
+                run.cached_tokens,
+                run.output_tokens,
+                if run.truncated { " TRUNC" } else { "" },
+                run.text.trim().replace('\n', " / ")
+            );
+        }
+    }
+}

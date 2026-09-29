@@ -1,0 +1,65 @@
+{
+ "entities": {
+  "Q284163": {
+   "type": "item",
+   "id": "Q284163",
+   "labels": {
+    "en": {
+     "language": "en",
+     "value": "2022 FIFA World Cup"
+    }
+   }
+  },
+  "Q14935989": {
+   "type": "item",
+   "id": "Q14935989",
+   "labels": {
+    "en": {
+     "language": "en",
+     "value": "2030 FIFA World Cup"
+    }
+   }
+  },
+  "Q42267": {
+   "type": "item",
+   "id": "Q42267",
+   "labels": {
+    "en": {
+     "language": "en",
+     "value": "Spain men's national football team"
+    }
+   }
+  },
+  "Q16": {
+   "type": "item",
+   "id": "Q16",
+   "labels": {
+    "en": {
+     "language": "en",
+     "value": "Canada"
+    }
+   }
+  },
+  "Q96": {
+   "type": "item",
+   "id": "Q96",
+   "labels": {
+    "en": {
+     "language": "en",
+     "value": "Mexico"
+    }
+   }
+  },
+  "Q30": {
+   "type": "item",
+   "id": "Q30",
+   "labels": {
+    "en": {
+     "language": "en",
+     "value": "United States"
+    }
+   }
+  }
+ },
+ "success": 1
+}
