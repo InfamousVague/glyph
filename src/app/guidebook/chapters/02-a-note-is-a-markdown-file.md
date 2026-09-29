@@ -24,6 +24,8 @@ A canvas and a notebook are named by a `title:` line in a small block at the top
 
 Tap **+** › **Note** and a note opens at once, but nothing is written to the folder until it has words. A note opened and left empty never becomes an `Untitled.md`. Take every word back out of a note you have just started, before you have pinned it or recorded into it, and its file goes again. Pinning or archiving an empty note does write its file.
 
+A note started from a template, or named from one of the names on its blank page, has words at once and so has a file at once. Leave it without writing a word of your own and it is taken back, as an empty note leaves nothing. Only a note made just now is ever taken back, and a name tapped as its title is named on its file too: `2026-09-28.md`.
+
 ## Inbox, and the workspaces' folders
 
 New notes land in `Inbox/`. File a note in a workspace and its file moves to `workspaces/<the workspace's name>/`; take it out again and it goes back to `Inbox/`. The folder's name is the workspace's, with the characters a folder cannot hold taken out. Only where the file sits changes, never the words.
