@@ -106,6 +106,15 @@ vi.mock('../core/videos.ts', async (importOriginal) => {
   };
 });
 
+/** A phone, where a test says so: the blank page's names then wait for the keyboard or a tap (editor/nameChips.ts). */
+const device = vi.hoisted(() => ({ mobile: false }));
+vi.mock('../core/platform.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../core/platform.ts')>()),
+  get isMobile() {
+    return device.mobile;
+  },
+}));
+
 const { NoteScreen } = await import('./NoteScreen.tsx');
 
 const saves = vi.mocked(updateNote);
@@ -1897,6 +1906,58 @@ describe('a new note’s blank page', () => {
     show(screen(await createNote('h1', '# \n\n- [ ] Milk')));
     expect(document.querySelector('.cm-openHint')?.textContent).toBe('A name');
   });
+
+  it('wait on a phone for the keyboard or the click that ends a tap, never the focus alone', async () => {
+    device.mobile = true;
+    try {
+      await fresh('b5');
+      expect(editor().hasFocus).toBe(true);
+      expect(chips()).toHaveLength(0);
+      const line = document.querySelector<HTMLElement>('.cm-line')!;
+      act(() => void line.dispatchEvent(new PointerEvent('pointerup', { bubbles: true })));
+      expect(chips()).toHaveLength(0);
+      act(() => void line.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+      expect(chips()).toHaveLength(4);
+    } finally {
+      device.mobile = false;
+    }
+  });
+
+  it('give the focus back to the words when a name is pressed from the keyboard, and leave the page at its top', async () => {
+    await fresh('b6');
+    const page = document.querySelector<HTMLElement>('[data-scrolls]')!;
+    page.scrollTop = 120;
+    // Reached by Tab: the focus on the chip, as a key's press leaves it.
+    act(() => chip('week')!.focus());
+    act(() => chip('week')!.click());
+    expect(editor().state.doc.toString()).toMatch(/^# \d{4}-W\d\d\n\n$/);
+    expect(editor().hasFocus).toBe(true);
+    expect(page.scrollTop).toBe(0);
+  });
+
+  it('follow a named note’s words from then on: typed in, its record goes', async () => {
+    const { untouchedRecord } = await import('../core/untouched.ts');
+    await fresh('b7');
+    act(() => chip('day')!.click());
+    expect(untouchedRecord('b7')).not.toBeNull();
+    type('Milk');
+    expect(untouchedRecord('b7')).toBeNull();
+  });
+
+  it('never name a note from a chip pressed after its first letter', async () => {
+    await fresh('b8');
+    const stale = chip('day')!;
+    type('T');
+    act(() => stale.click());
+    expect(editor().state.doc.toString()).toBe('T');
+  });
+
+  it('leave a note opened to be read unfocused, its caret where it was', async () => {
+    show(screen(await createNote('r1', '# Walk\n\nOn the river.')));
+    await act(async () => vi.advanceTimersByTimeAsync(20));
+    expect(editor().hasFocus).toBe(false);
+    expect(document.activeElement?.closest('.cm-editor')).toBeNull();
+  });
 });
 
 describe('how a note looks', () => {
@@ -1944,6 +2005,8 @@ describe('how a note looks', () => {
     act(() => button('More for this note').click());
     expect(radio('Plain')?.getAttribute('aria-checked')).toBe('true');
     expect(radio('Map')).toBeUndefined();
+    // Choices to press, never inside a row said to be off.
+    expect(radio('Reading')!.closest('[aria-disabled]')).toBeNull();
     act(() => radio('Reading')!.click());
     const view = editor();
     expect(view.state.doc.toString()).toBe('---\nlook: reading\n---\n# The long road\n\nIt went on.\n');
@@ -1972,11 +2035,15 @@ describe('how a note looks', () => {
 
 describe('the templates on a new note’s blank page', () => {
   const cardFor = (id: string) => document.querySelector<HTMLButtonElement>(`[data-template="${id}"]`);
-  const fresh = async (id: string) => {
+  const fresh = async (id: string, over: Partial<Parameters<typeof NoteScreen>[0]> = {}) => {
     const { markFresh } = await import('../core/untouched.ts');
     markFresh(id);
-    show(screen(await createNote(id, ''), { caret: 0 }));
+    show(screen(await createNote(id, ''), { caret: 0, ...over }));
     await act(async () => vi.advanceTimersByTimeAsync(20));
+  };
+  const today = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   };
 
   beforeEach(() => void vi.spyOn(document, 'hasFocus').mockReturnValue(true));
@@ -1984,6 +2051,86 @@ describe('the templates on a new note’s blank page', () => {
     vi.restoreAllMocks();
     Reflect.deleteProperty(navigator, 'geolocation');
     Reflect.deleteProperty(navigator, 'permissions');
+  });
+
+  it('stay for a click whose press began before they were there, the tap that brought them', async () => {
+    await fresh('t5');
+    const line = document.querySelector<HTMLElement>('.cm-line')!;
+    act(() => void line.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    expect(cardFor('day')).not.toBeNull();
+  });
+
+  it('leave the page at its top and the caret’s heading in sight, from a card pressed lower down', async () => {
+    await fresh('t6');
+    const page = document.querySelector<HTMLElement>('[data-scrolls]')!;
+    page.scrollTop = 189;
+    act(() => cardFor('book')!.click());
+    expect(editor().state.doc.toString()).toMatch(/^# \n\nBy \n/);
+    expect(page.scrollTop).toBe(0);
+  });
+
+  it('give the focus back to the words when a card is pressed from the keyboard, and keep the note at once', async () => {
+    await fresh('t7');
+    act(() => cardFor('checklist')!.focus());
+    expect(editor().hasFocus).toBe(false);
+    act(() => cardFor('checklist')!.click());
+    expect(editor().hasFocus).toBe(true);
+    // Kept now, not on typing's 400ms beat: a note templated and left at once is looked at in the store.
+    await settle();
+    expect(saved()).toContain('# \n\n- [ ] ');
+  });
+
+  it('take only the first of two cards pressed at once', async () => {
+    await fresh('t8');
+    const [day, meeting] = [cardFor('day')!, cardFor('meeting')!];
+    act(() => {
+      day.click();
+      meeting.click();
+    });
+    expect(editor().state.doc.toString()).toMatch(/^# \d{4}-\d\d-\d\d\n/);
+  });
+
+  it('name A day past a note that has today’s name, and its card says so first', async () => {
+    const { titleKey } = await import('../core/titleKey.ts');
+    await fresh('t9', { takenTitles: new Set([titleKey(today())]) });
+    const said = document.getElementById(cardFor('day')!.getAttribute('aria-describedby')!)?.textContent;
+    expect(said).toBe('Today has a note by this name. This makes a second.');
+    act(() => cardFor('day')!.click());
+    expect(editor().state.doc.toString().startsWith(`# ${today()} (2)\n`)).toBe(true);
+  });
+
+  it('draw no map on any card but A map at the top, while the note holds its own box', async () => {
+    const { holdFor, watchTag } = await import('../core/location.ts');
+    Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition: () => undefined } });
+    holdFor(['t10']);
+    const stop = watchTag('t10', () => undefined);
+    try {
+      await fresh('t10');
+      expect(document.querySelector('[class*=mapCard]')).not.toBeNull();
+      const withMaps = [...document.querySelectorAll<HTMLElement>('[data-template]')].filter((one) => one.querySelector('[data-size]'));
+      expect(withMaps.map((one) => one.dataset.template)).toEqual(['map']);
+    } finally {
+      stop();
+    }
+  });
+
+  it('go while an AI run writes into the note, with the names', async () => {
+    simulateRuns(() => {
+      let stop: (why: Error) => void = () => undefined;
+      return { done: new Promise<never>((_resolve, reject) => void (stop = reject)), cancel: () => stop(new Error('cancelled')) };
+    });
+    try {
+      await fresh('t11');
+      expect(cardFor('day')).not.toBeNull();
+      act(() => void startRun({ noteId: 't11', kind: 'format', model: 'qwen3.5-4b', system: '', prompt: '', maxTokens: 16 }));
+      await act(async () => vi.advanceTimersByTimeAsync(100));
+      expect(cardFor('day')).toBeNull();
+      expect(document.querySelectorAll('.cm-nameChip')).toHaveLength(0);
+      await act(async () => cancelRun('t11'));
+    } finally {
+      simulateRuns(null);
+      forgetAllRuns();
+    }
   });
 
   it('sit under the names, and go at a tap elsewhere on the page but not at a press on a name or a card', async () => {

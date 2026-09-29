@@ -60,10 +60,35 @@
   --app-h1: calc(var(--glacier-font-size-5xl) * var(--peek-scale));
 }
 
+/*
+ * The room above a heading at the card's scale too, where the editor's is the page's: a meeting's `## Notes` had the
+ * page's 2rem over it and was sliced at the card's foot, and its To do never showed. A blank line between blocks is
+ * half a line: the picture shows the note's shape, not its spacing to the pixel (found in review).
+ */
+.peek[data-whole] :global(.cm-editor .cm-scroller .cm-line:not(:first-child)[class*='lineH1']),
+.peek[data-whole] :global(.cm-editor .cm-scroller .cm-line:not(:first-child)[class*='lineH2']) {
+  padding-block-start: calc(var(--glacier-space-8) * var(--peek-scale));
+}
+
+.peek[data-whole] :global(.cm-editor .cm-scroller .cm-line:not(:first-child)[class*='lineH3']),
+.peek[data-whole] :global(.cm-editor .cm-scroller .cm-line:not(:first-child)[class*='lineH4']) {
+  padding-block-start: calc(var(--glacier-space-6) * var(--peek-scale));
+}
+
+.peek[data-whole] :global(.cm-editor .cm-scroller .cm-line:has(> br:only-child)) {
+  line-height: 0.8;
+}
+
 /* More below the edge: the last line goes to nothing, as a mask and never a painted shadow. */
 .peek[data-clipped] {
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 1.8em), transparent);
   mask-image: linear-gradient(to bottom, #000 calc(100% - 1.8em), transparent);
+}
+
+/* A template's picture ends on a heading as often as on a line of words: a fade tall enough for one. */
+.peek[data-whole][data-clipped] {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 3em), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 3em), transparent);
 }
 
 /*

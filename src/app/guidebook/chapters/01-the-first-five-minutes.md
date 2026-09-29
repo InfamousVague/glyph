@@ -45,7 +45,7 @@ While you write on a new blank page, four names sit under its first line: the da
 
 Under the names are six templates, each a card drawn as the top of the note it makes: A day, A meeting, A checklist, Notes on a book, A map at the top, and A page to read. Tap one and the blank page becomes that note, with the caret where you write first. A day already taken by another note makes a second, and its card says so. The cards go at your first letter, or when you tap the page itself. Changed your mind? Undo takes it back to a blank page. Or leave it before you write a word, and the note is gone, as an empty note is.
 
-The last card, **Your templates**, opens a notebook called Templates, made the first time with the six as its pages. Change a page, take one out, or add your own with **Add a page**, and from then on the cards on a blank page are that notebook's pages, in its order. A page is named by its `title:` line, its words are the template, and a note made from it takes its words and its look and nothing else. The pages stay out of Recent and To do.
+The last card, **Your templates**, opens a notebook called Templates, made the first time with the six as its pages. Change a page, take one out, or add your own with **Add a page**, and from then on the cards on a blank page are that notebook's pages, in its order. A page is named by its `title:` line, its words are the template, and a note made from it takes its words and its look and nothing else. The pages stay out of Recent and To do. A note of your own that shares a page's name stays yours.
 
 The **+** sheet also offers a Canvas, a Notebook, and From a shared link. Each has a chapter of its own.
 

@@ -10,9 +10,11 @@ import { FRONT_MATTER_LINES, frontMatterValue, withFrontMatterValue } from './fr
  *   600px a column of 36rem. No new font: a note's faces are the two the person chose.
  *
  * One key, one value, so never both at once. Anything else in it is no look, and the key is kept as it was written, as
- * every key the app does not know is. Obsidian and any CommonMark reader show the block as text, as they show the
- * tag's `location:`; the app keeps the key out of the folded front matter line (editor/extended.ts), so a new reading
- * note opens on its title. Pure, so the MCP server keeps it across a rewrite as the app reads it.
+ * every key the app does not know is. In a file, after the file's own properties, Obsidian and any CommonMark reader
+ * draw the block as a rule and then a heading holding its keys (`look: reading` with the `---` under it is one), as
+ * they draw the tag's `location:` (docs/DESIGN.md §134): where the app's keys go in a file is the file's question, left
+ * with §142's. The app keeps the key out of the folded front matter line (editor/extended.ts), so a new reading note
+ * opens on its title. Pure, so the MCP server keeps it across a rewrite as the app reads it.
  */
 
 export type Look = 'map' | 'reading';

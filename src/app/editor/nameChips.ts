@@ -17,9 +17,11 @@ import { frontMatter } from './extended.ts';
  *
  * **Only while the page is being written in**: the editor has the focus (or the focus is on a chip, reached by Tab), and
  * the page is ready for words. Ready is a device with no keyboard on the screen, the keyboard up (core/keyboard.ts), or
- * a tap of the person's own ended on the words, or a key of theirs reached them. Taken at a tap's end, so chips that
- * appear under a finger still on the glass are never that tap's target: a click goes to what both its ends share. So
- * the tap that raises the keyboard never picks a name. Once ready, the page stays ready.
+ * a tap of the person's own ended on the words, or a key of theirs reached them. A tap is taken at its click, its last
+ * event, and never at its pointerup: a touch's mouse events and its click come after the finger has left, at the place
+ * it left, so chips drawn at the pointerup were under the click and it picked one (found in review: a first tap on a
+ * blank page at 412 named the note or made A day). Nothing drawn at the click is any event's target, so the tap that
+ * raises the keyboard never picks a name. Once ready, the page stays ready.
  *
  * **Gone at the first letter** in line 1: the screen stops offering, and the field draws nothing over a line with words
  * whatever it was told. **The press** is the suggestion pill's (editor/suggestions.ts): a pointer or mouse press has its
@@ -237,8 +239,9 @@ const readiness = ViewPlugin.fromClass(
       blur(_event, view) {
         window.setTimeout(() => syncFocus(view), FOCUS_CHECK_MS);
       },
-      pointerup(event, view) {
-        if (event.target instanceof Element && event.target.closest('.cm-blankOffers')) return;
+      // The tap's click, its last event: see the header. The block is drawn only once the page is ready, so a click
+      // on it is never the sign.
+      click(_event, view) {
         ready(view);
       },
       keydown(_event, view) {
@@ -272,7 +275,7 @@ const theme = EditorView.baseTheme({
     fontFamily: 'var(--glacier-font-sans)',
     fontSize: 'var(--glacier-font-size-sm)',
     lineHeight: '1.5',
-    fontVariantNumeric: 'tabular-nums',
+    // Proportional figures: Inter's tabular ones spread an ISO name's hyphens to "2026 - 09 - 28" (found in review).
     whiteSpace: 'nowrap',
     cursor: 'pointer',
     WebkitTapHighlightColor: 'transparent',

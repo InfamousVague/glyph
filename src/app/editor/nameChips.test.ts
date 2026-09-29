@@ -73,15 +73,28 @@ describe('the names under line 1', () => {
     expect(chips(view)[1]!.getAttribute('aria-label')).toBe('Name it for today, 2026-09-28.');
   });
 
-  it('are ready at the end of the person’s own tap on the words, not at its start, or at a key', async () => {
+  it('are ready at the click that ends the person’s own tap on the words, never before it, or at a key', async () => {
     const view = await mount();
-    view.contentDOM.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
-    expect(offersShown(view.state)).toBe(false);
-    view.contentDOM.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+    // A touch as Android sends it: the pointer and touch events, then the mouse events and the click, all at the place
+    // the finger left. Chips drawn before the click were under it, and the click picked one.
+    for (const type of ['pointerdown', 'touchstart', 'pointerup', 'touchend', 'mousedown', 'mouseup']) {
+      const event = new MouseEvent(type, { bubbles: true, clientX: 20, clientY: 20 });
+      // jsdom has no TouchEvent, and CodeMirror reads a touch's first point.
+      if (type.startsWith('touch')) Object.assign(event, { touches: [], targetTouches: [{ clientX: 20, clientY: 20 }], changedTouches: [{ clientX: 20, clientY: 20 }] });
+      view.contentDOM.dispatchEvent(event);
+      expect(offersShown(view.state)).toBe(false);
+    }
+    view.contentDOM.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     expect(offersShown(view.state)).toBe(true);
     const other = await mount();
     other.contentDOM.dispatchEvent(new KeyboardEvent('keydown', { key: 'Shift', bubbles: true }));
     expect(offersShown(other.state)).toBe(true);
+  });
+
+  it('are ready at once where the keyboard is already up when the editor is made', async () => {
+    keyboard.up = true;
+    const view = await mount();
+    expect(offersShown(view.state)).toBe(true);
   });
 
   it('are there at once where no keyboard is on the screen, and only with the focus', async () => {
@@ -118,9 +131,12 @@ describe('the names under line 1', () => {
     chip.dispatchEvent(mouse);
     expect(mouse.defaultPrevented).toBe(true);
     // A touch is only kept from the editor: one with its default taken never becomes a click on Android.
+    const touches: Event[] = [];
+    view.dom.addEventListener('touchstart', (event) => touches.push(event));
     const touch = new Event('touchstart', { bubbles: true, cancelable: true });
     chip.dispatchEvent(touch);
     expect(touch.defaultPrevented).toBe(false);
+    expect(touches).toHaveLength(0);
     chip.click();
     expect(named).toEqual(['2026-09-28']);
     expect(view.hasFocus).toBe(true);

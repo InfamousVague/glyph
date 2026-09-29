@@ -282,8 +282,9 @@ export function NoteSettings({
         <>
           <SheetHeading>Reading it</SheetHeading>
           <SheetGroup>
+            {/* Rows of choices, not rows to press: marked for their look, never `aria-disabled`, which said their radios were off. */}
             {view && onView ? (
-              <div className={styles.row} aria-disabled>
+              <div className={styles.row} data-choice>
                 <span className={styles.label}>Show</span>
                 <div className={styles.viewChoice} role="radiogroup" aria-label="How the note is shown">
                   {(
@@ -300,7 +301,7 @@ export function NoteSettings({
               </div>
             ) : null}
             {look ? (
-              <div className={styles.row} aria-disabled>
+              <div className={styles.row} data-choice>
                 <span className={styles.label}>Look</span>
                 <div className={styles.viewChoice} role="radiogroup" aria-label="How this note looks">
                   {(

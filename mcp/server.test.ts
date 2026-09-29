@@ -159,6 +159,10 @@ describe('writing', () => {
     await service.deviceWrites(aNote('t', '---\ntitle: "Templates"\nbook: true\ntemplates: true\n---\n# Templates\n\n- [[A day]]\n'));
     await call('update_note', { id: 't', body: '# Templates\n\n- [[A day]]\n- [[A walk]]\n' });
     expect((await service.stored('t'))?.note.body).toContain('templates: true');
+    // And a page of it stays one of its pages, by its mark.
+    await service.deviceWrites(aNote('d', '---\ntitle: "A day"\ntemplates: page\n---\n# {{date:YYYY-MM-DD}}\n\n- [ ] \n'));
+    await call('update_note', { id: 'd', body: '# {{date:YYYY-MM-DD}}\n\n- [ ] Water the plants\n' });
+    expect((await service.stored('d'))?.note.body).toContain('templates: page');
   });
 
   it('says in the rewrite’s description that a notebook’s links are its pages', async () => {

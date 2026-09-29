@@ -752,6 +752,21 @@ describe('a new note’s map box, held while its fix is on its way', () => {
     expect(await location.willLocate()).toBe(true);
   });
 
+  it('is not expected where location is off with no refusal kept here: denied by the browser, blocked on the phone', async () => {
+    fixAt(51.5, -0.12);
+    Object.defineProperty(navigator, 'permissions', { configurable: true, value: { query: async () => ({ state: 'denied' }) } });
+    expect(await location.willLocate()).toBe(false);
+    android = true;
+    native = true;
+    let access = 'blocked';
+    window.GlyphHost = { takeLaunch: () => '', isLocked: () => false, endCapture: () => undefined, locationAccess: () => access, requestLocation: () => undefined };
+    expect(await location.willLocate()).toBe(false);
+    access = 'approximate';
+    expect(await location.willLocate()).toBe(true);
+    access = 'ask';
+    expect(await location.willLocate()).toBe(false);
+  });
+
   it('stays from the first frame until the note is left, found or not, and says when none is coming', async () => {
     granted();
     await store.createNote('h1', '');

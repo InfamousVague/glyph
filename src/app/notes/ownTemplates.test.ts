@@ -5,6 +5,7 @@ import { noteTitle } from '../core/noteTitle.ts';
 import { BUILT_INS } from './noteTemplates.ts';
 import {
   OWN_SENTENCE,
+  isTemplatePageBody,
   isTemplatesBody,
   newTemplatePageBody,
   seedPlan,
@@ -37,13 +38,19 @@ describe('the Templates notebook', () => {
     expect(isTemplatesBody(body.replace('title: "Templates"', 'title: "Starts"'))).toBe(true);
     expect(isTemplatesBody('---\ntitle: "Templates"\nbook: true\n---\n# Templates\n')).toBe(false);
     expect(isTemplatesBody('---\ntemplates: true\n---\n# Not a notebook\n')).toBe(false);
+    // Said, and said yes: a notebook marked false, or a page's mark, is not one.
+    expect(isTemplatesBody(body.replace('templates: true', 'templates: false'))).toBe(false);
+    expect(isTemplatesBody(body.replace('templates: true', 'templates: page'))).toBe(false);
   });
 
-  it('names a built-in’s page by its title, keeps its look beside it, and a new page leaves its heading open', () => {
-    expect(templatePageBody(DAY)).toBe('---\ntitle: "A day"\n---\n# {{date:YYYY-MM-DD}}\n\n{{date}}\n\n- [ ] ');
-    expect(templatePageBody(MAP)).toBe('---\ntitle: "A map at the top"\nlook: map\n---\n# {{title}}\n\n{{date}}, {{time}}.\n');
-    expect(newTemplatePageBody('A walk')).toBe('---\ntitle: "A walk"\n---\n# {{title}}\n\n');
+  it('names a built-in’s page by its title, marks it, keeps its look beside it, and a new page leaves its heading open', () => {
+    expect(templatePageBody(DAY)).toBe('---\ntitle: "A day"\ntemplates: page\n---\n# {{date:YYYY-MM-DD}}\n\n{{date}}\n\n- [ ] ');
+    expect(templatePageBody(MAP)).toBe('---\ntitle: "A map at the top"\ntemplates: page\nlook: map\n---\n# {{title}}\n\n{{date}}, {{time}}.\n');
+    expect(newTemplatePageBody('A walk')).toBe('---\ntitle: "A walk"\ntemplates: page\n---\n# {{title}}\n\n');
     expect(noteTitle(templatePageBody(MAP))).toBe('A map at the top');
+    expect(isTemplatePageBody(templatePageBody(DAY))).toBe(true);
+    expect(isTemplatePageBody('# A day\n')).toBe(false);
+    expect(isTemplatePageBody(templatesNotebookBody(['A day']))).toBe(false);
   });
 });
 
@@ -87,6 +94,35 @@ describe('the pages kept apart', () => {
     expect([...apart].sort()).toEqual(BUILT_INS.map((template) => `tpl-${template.kind}`).sort());
     expect(apart.has('tpl')).toBe(false);
     expect(templatePages([makeNote('mine', '# A day')]).size).toBe(0);
+  });
+});
+
+describe('a note of the person’s named like a page', () => {
+  const MINE = makeNote('mine', '# Notes on a book\n\n- [ ] Return Middlemarch to the library', { createdAt: 500 });
+
+  it('is never taken for the page: the seed makes the page beside it, and the card is the page’s', () => {
+    const plan = seedPlan([MINE]);
+    expect('pages' in plan && plan.pages.map((one) => one.kind)).toEqual(['day', 'meeting', 'checklist', 'book', 'map', 'reading']);
+    const notes = [...seeded(), MINE];
+    expect(templatesOf(notes)?.find((one) => one.name === 'Notes on a book')).toMatchObject({ id: 'tpl-book', kind: 'book' });
+    expect(templatePages(notes).has('mine')).toBe(false);
+  });
+
+  it('stays the person’s when it is newer than the page, and the page stays apart', () => {
+    const later = { ...MINE, createdAt: 9000 };
+    const notes = [later, ...seeded()];
+    expect(templatesOf(notes)?.find((one) => one.name === 'Notes on a book')?.id).toBe('tpl-book');
+    const apart = templatePages(notes);
+    expect(apart.has('mine')).toBe(false);
+    expect(apart.has('tpl-book')).toBe(true);
+  });
+
+  it('keeps every page of a name apart, as two devices’ seeds leave them', () => {
+    const notes = [...seeded(1000, 'one'), ...seeded(5000, 'two')];
+    const apart = templatePages(notes);
+    expect(apart.has('one-day') && apart.has('two-day')).toBe(true);
+    // The cards are the older notebook's pages, each name once.
+    expect(templatesOf(notes)?.filter((one) => one.name === 'A day').map((one) => one.id)).toEqual(['one-day']);
   });
 });
 

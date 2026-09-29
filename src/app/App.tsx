@@ -67,7 +67,7 @@ import { useRootStamp } from './shell/useRootStamp.ts';
 import { useTrail } from './shell/useTrail.ts';
 import { useVisibleNotes } from './shell/useVisibleNotes.ts';
 import { dropLiveTitles } from './core/liveTitles.ts';
-import { isTemplatesBody, newTemplatePageBody, seedPlan, templatePageBody, templatePages, templatesOf } from './notes/ownTemplates.ts';
+import { isTemplatePageBody, isTemplatesBody, newTemplatePageBody, seedPlan, templatePageBody, templatePages, templatesOf } from './notes/ownTemplates.ts';
 import { isMacApp } from './core/platform.ts';
 
 /**
@@ -268,11 +268,13 @@ function Shell() {
    * Every note by its title as a link matches it (core/titleKey.ts), the first of any two that share one, as a search
    * down the list would find: built once per change to the notes. A notebook's index asks after every page on every
    * render, and a search per page through a library that titles every note it passes was about a thousand library
-   * scans a render for a journal of a year (docs/DESIGN.md §142).
+   * scans a render for a journal of a year (docs/DESIGN.md §142). A template's page (notes/ownTemplates.ts) only where
+   * no note of the person's has its name: the seed makes its pages beside a note called like one, and a `[[link]]` in
+   * the person's words still means their note. Inside the Templates notebook its pages come first (`openTitleWithin`).
    */
   const byTitle = useMemo(() => {
     const map = new Map<string, Note>();
-    for (const note of shownNotes) {
+    for (const note of [...shownNotes.filter((n) => !isTemplatePageBody(n.body)), ...shownNotes.filter((n) => isTemplatePageBody(n.body))]) {
       const key = titleKey(noteTitle(note.body));
       if (key && !map.has(key)) map.set(key, note);
     }
@@ -289,9 +291,11 @@ function Shell() {
    * Every title a note has, as its key: every note the store answers, archived and in the Trash too, as a journal's new
    * entry reads them. A new note's blank page offers no name another note has (core/noteNames.ts), and a template's
    * heading that is taken gets " (2)" (notes/noteTemplates.ts), so a note restored from the Trash never meets a second
-   * of its name.
+   * of its name. Every note but the one on screen: named from its blank page and the list read again (sync, a meeting,
+   * the summaries), its own name was taken from it, and an undo back to the blank page offered the rest, A day saying
+   * a second was coming (found in review).
    */
-  const takenTitles = useMemo(() => new Set(notes.map((n) => titleKey(noteTitle(n.body))).filter(Boolean)), [notes]);
+  const takenTitles = useMemo(() => new Set(notes.filter((n) => n.id !== shown).map((n) => titleKey(noteTitle(n.body))).filter(Boolean)), [notes, shown]);
   /**
    * The notes some journal's index names (book/journal.ts `entryPages`): its entries. Recent, the palette's first list
    * and the pickers of a notebook's pages leave them out, as they leave the Guide's pages out. And the pages of a
@@ -313,7 +317,9 @@ function Shell() {
    * journal's entries in the order they were written, so Previous is the entry before and the newest is last.
    */
   const placeInBook = (note: Note) => {
-    const place = bookOf(shownNotes, noteTitle(note.body));
+    // A Templates notebook's lines are its marked pages, never a note of the person's that shares a name with one.
+    const books = isTemplatePageBody(note.body) ? shownNotes : shownNotes.filter((n) => !isTemplatesBody(n.body));
+    const place = bookOf(books, noteTitle(note.body));
     return place ? inTimeOrder(place, titled) : null;
   };
 
@@ -367,13 +373,28 @@ function Shell() {
     await openTitleFrom(title, at);
   };
   /**
-   * A title opened from inside a book: in the current tab's place. A page added to a Templates notebook is made as a
-   * template's page (notes/ownTemplates.ts): named by its `title:`, its heading left open for a note's name.
+   * A title opened from inside a book: in the current tab's place. Inside a Templates notebook a line is a template's
+   * page (notes/ownTemplates.ts), the marked note of its name, and never a note of the person's that shares it: one
+   * added is made as a page, marked, named by its `title:`, its heading left open for a note's name.
    */
   const openTitleWithin = (title: string) => {
     tabs.replaceNext(shown);
-    const inTemplates = screen.name === 'note' && isTemplatesBody(screen.note.body);
-    void openTitleFrom(title, undefined, inTemplates ? newTemplatePageBody : undefined);
+    if (screen.name === 'note' && isTemplatesBody(screen.note.body)) {
+      void openTemplatePage(title);
+      return;
+    }
+    void openTitleFrom(title);
+  };
+  const openTemplatePage = async (title: string) => {
+    // The oldest of a name, as the blank page's cards read them (`templatesOf`).
+    const page = (notes: readonly Note[]) => [...notes].sort((a, b) => a.createdAt - b.createdAt).find((n) => !n.archivedAt && isTemplatePageBody(n.body) && sameTitle(noteTitle(n.body), title));
+    // The list in hand can be a moment old, as `openTitleFrom` says: the store is asked before a second page is made.
+    const found = page(shownNotes) ?? page(outOfTrash(await listNotes().catch(() => []), trash()));
+    if (found) {
+      setScreen({ name: 'note', note: found });
+      return;
+    }
+    await showMade(newTemplatePageBody(title));
   };
   /** A canvas by that title opened from a book's index, made first if there is none (book/BookView.tsx). */
   const openCanvasWithin = (title: string) => {
@@ -562,7 +583,9 @@ function Shell() {
    * words into the index (`newEntry`). An entry nobody has written in yet is spoken from its time line: the line it was
    * left open with is taken off and put back before the words (core/template.ts `openEnd`, capture/place.ts `lead`),
    * so it still starts with its time, and a day's to-dos said aloud are to-dos. Said nothing, the entry is put back as
-   * it was made.
+   * it was made. Only an entry: a new note given a template or a name from its blank page (§144) keeps a record too,
+   * and spoken from its last line A meeting's words were all to-dos under To do and Notes on a book's all quotes (found
+   * in review), so it is spoken into as any note is.
    */
   const speakInto = (id: string) => void speakIntoNote(id);
   const speakIntoNote = async (id: string) => {
@@ -571,7 +594,7 @@ function Shell() {
       await newEntry(id, { speak: true });
       return;
     }
-    const fresh = untouchedRecord(id) ? await getNote(id).catch(() => null) : null;
+    const fresh = untouchedRecord(id)?.journalId ? await getNote(id).catch(() => null) : null;
     // A meeting holds the microphone: the capture opens the meeting instead, and the entry is left as it was made.
     if (!fresh || !isUntouched(id, fresh.body, fresh) || meetingStateNow()?.recording) {
       await capture.start(false, id);

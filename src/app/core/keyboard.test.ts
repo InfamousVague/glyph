@@ -50,6 +50,9 @@ describe('the keyboard', () => {
     expect(keyboard.keyboardUp()).toBe(true);
     size(412, 915);
     expect(keyboard.keyboardUp()).toBe(false);
+    // The cover screen turned on its side: 412 tall is the tallest it has been at that width, not a keyboard.
+    size(915, 412);
+    expect(keyboard.keyboardUp()).toBe(false);
   });
 
   it('reads a keyboard already up at launch as down, until it has gone once', async () => {

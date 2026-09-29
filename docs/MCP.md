@@ -164,8 +164,8 @@ The server itself runs on your computer, started by Claude, and talks to nothing
 sees the words of the notes it reads, as it sees anything you paste into it, including where a tagged note was
 written (its `location:` and `place:` front matter, DESIGN §134); `update_note` keeps that across a rewrite that
 dropped it, as it keeps the authors, the keys that make a note a notebook, a journal or an entry (`title:`,
-`book:`, `journal:`, `template:`, `entry-place:` and `date:`), and how the note looks (`look:`, DESIGN §144) unless the
-new body gives one of its own.
+`book:`, `journal:`, `template:`, `entry-place:` and `date:`), the one that makes it your Templates notebook or one of
+its pages (`templates:`), and how the note looks (`look:`, DESIGN §144) unless the new body gives one of its own.
 
 ## Where the pieces are
 

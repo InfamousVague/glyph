@@ -982,7 +982,15 @@ export function NoteScreen({
    * taken back; its name settled against every other note's before anything is measured (notes/noteTemplates.ts); the
    * caret in its first open line, the focus kept. A map at the top holds its header's box and asks for the place once,
    * the card's press being the choice, whatever Tag new notes says: unless a fix for this note is already on its way.
+   *
+   * And the page back at its top, where the note now starts. A card lower down is pressed with the page scrolled, which
+   * keeps its scroll as the cards go. CodeMirror counts the band under the header and the tabs as seen, so its own
+   * scroll left the caret's heading under them (found in review: Notes on a book at 412 by 585, typed into a heading
+   * nobody could see). From the top, its scroll only ever brings the caret up from below.
    */
+  const backToTop = () => {
+    if (page.current) page.current.scrollTop = 0;
+  };
   const startFrom = (template: NoteTemplate) => {
     const editor = viewRef.current;
     if (!editor || !isFresh(note.id) || editor.state.doc.toString().trim()) return;
@@ -991,6 +999,7 @@ export function NoteScreen({
     drafted.current = true;
     setUntouched(true);
     editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: filled.body }, selection: { anchor: filled.caret }, scrollIntoView: true, userEvent: 'input.template' });
+    backToTop();
     flush();
     editor.focus();
     fireNativeHaptic('selection');
@@ -1003,6 +1012,7 @@ export function NoteScreen({
    * A name tapped: the note's heading, as the only name a note of words has is its first line, and the caret on the
    * line under it. Its record first (core/untouched.ts), so a note named and left without a word of the person's own
    * is taken back as an untouched entry is. One change, so one undo takes it back to a blank page with the names on it.
+   * The page back at its top, as a card's press leaves it.
    */
   const nameIt = (name: string) => {
     const editor = viewRef.current;
@@ -1013,6 +1023,7 @@ export function NoteScreen({
     setUntouched(true);
     const from = frontMatterOffset(editor.state.doc.toString());
     editor.dispatch({ changes: { from, to: editor.state.doc.length, insert: words }, selection: { anchor: from + words.length }, scrollIntoView: true, userEvent: 'input.name' });
+    backToTop();
     // Kept now, not on typing's beat: a note named and left at once is looked at by its take-back from the store.
     flush();
     editor.focus();
@@ -1103,7 +1114,7 @@ export function NoteScreen({
         Formatted view and the transcript keep their own scrolling, under a
         tape that stays, since each has a bar of words at its top.
       */}
-      <div ref={page} className={styles.page} data-scrolls={(shown === 'raw' && !drawing) || undefined}>
+      <div ref={page} className={styles.page} data-scrolls={(shown === 'raw' && !drawing) || undefined} data-look={(!typed && look) || undefined}>
         {tape.length > 0 ? (
           <div className={styles.tapeRow}>
             {recording ? (
@@ -1260,7 +1271,7 @@ export function NoteScreen({
             ? createPortal(
                 <>
                   {cardsShown ? (
-                    <TemplateCards at={clock} taken={takenTitles ?? NO_TITLES} smallMap={Boolean(hold || tag)} onChoose={startFrom} templates={templates} onYours={onTemplates} />
+                    <TemplateCards at={clock} taken={takenTitles ?? NO_TITLES} onChoose={startFrom} templates={templates} onYours={onTemplates} />
                   ) : null}
                   <Ghost scene="new-note" align="center" className={styles.offersGhost} />
                 </>,

@@ -334,7 +334,9 @@
  * A page to read (`look: reading`, core/look.ts; docs/DESIGN.md §144): a display title, the kit's 5xl where a note's is
  * its 4xl, from the note's own scale so Text size and a pinch still move it; and from 600px the words in a column of
  * 36rem, centred, since a line of a hundred letters is a desk's and not a page's. The map card and the byline above
- * keep the page's width. The face is the editor's to swap (typefaces.css); the sizes are set here, on the column.
+ * start where the column does: left at the page's edge they sat 127px outside it at 880, on every A page to read made
+ * where Tag new notes is on (found in review). The face is the editor's to swap (typefaces.css); the sizes are set
+ * here, on the column.
  */
 .body[data-look='reading'] {
   --app-h1: calc(var(--glacier-font-size-5xl) * var(--app-text-scale) * var(--note-zoom));
@@ -344,6 +346,15 @@
   .body[data-look='reading'] :global(.cm-content) {
     max-inline-size: calc(36rem + 2 * var(--app-gutter));
     margin-inline: auto;
+  }
+
+  /* The column's own left edge: half of what the page has past 36rem, or the gutter where it has less. */
+  .page[data-look='reading'] > .mapCard {
+    margin-inline-start: max(var(--app-gutter), calc((100% - 36rem) / 2));
+  }
+
+  .page[data-look='reading'] > .byline {
+    padding-inline-start: max(var(--app-gutter), calc((100% - 36rem) / 2));
   }
 }
 
@@ -365,4 +376,17 @@
   flex: none;
   margin-block: var(--glacier-space-2) 0;
   margin-inline: var(--app-gutter);
+}
+
+/*
+ * A map note's header on a phone (`look: map`): the page's whole width, square, a masthead. Inset and rounded as the
+ * card is, at 367 by 160 against the card's 367 by 96, it read as a taller card on the Fold's cover screen (found in
+ * review). From 600px it is 16rem tall and reads as one already.
+ */
+@media (max-width: 599.98px) {
+  .page > .mapCard[data-size='header'] {
+    margin-inline: 0;
+    border-inline: none;
+    border-radius: 0;
+  }
 }

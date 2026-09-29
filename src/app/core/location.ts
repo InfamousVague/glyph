@@ -524,19 +524,27 @@ export function forgetRefusal(): void {
 async function stillRefused(): Promise<LocateFailure | null> {
   const why = autoTagRefusal();
   if (!why) return null;
-  let allowed = false;
+  if (!(await allowedNow())) return why;
+  forgetRefusal();
+  return null;
+}
+
+/**
+ * Whether the device says location is allowed for the app now: Android's bridge, granted or approximate, or the
+ * browser's permissions, granted. False where neither can say.
+ */
+async function allowedNow(): Promise<boolean> {
   if (androidBridge()) {
     const state = readAccess();
-    allowed = state === 'granted' || state === 'approximate';
-  } else if (typeof navigator !== 'undefined' && typeof navigator.permissions?.query === 'function') {
-    allowed = await navigator.permissions
+    return state === 'granted' || state === 'approximate';
+  }
+  if (typeof navigator !== 'undefined' && typeof navigator.permissions?.query === 'function') {
+    return navigator.permissions
       .query({ name: 'geolocation' })
       .then((status) => status.state === 'granted')
       .catch(() => false);
   }
-  if (!allowed) return why;
-  forgetRefusal();
-  return null;
+  return false;
 }
 
 /**
@@ -745,14 +753,16 @@ export async function tagEntryIfWanted(
 
 /**
  * Whether a new note made now would get a fix without a prompt, so its map's box is held from its first frame: Tag new
- * notes on, not Local only, a device that can locate, no refusal that still stands, and nothing to answer. Each of
- * these is read as it stands (Android's bridge, the browser's permissions): nothing is kept between calls.
+ * notes on, not Local only, a device that can locate, no refusal that still stands, and location allowed. Each of these
+ * is read as it stands (Android's bridge, the browser's permissions): nothing is kept between calls. Allowed, and not
+ * merely nothing to answer: blocked in the phone's settings, or denied by the browser, with no refusal kept here, asks
+ * nothing either, and a box was held for a fix that could not come, saying `No place yet.` (found in review).
  */
 export async function willLocate(): Promise<boolean> {
   const prefs = preferences();
   if (!prefs.tagNewNotes || prefs.localOnly || !canLocate().ok) return false;
   if (await stillRefused()) return false;
-  return !(await wouldPrompt());
+  return allowedNow();
 }
 
 /** Whether a refusal the device keeps still stands: location refused, or off for the app, and not allowed since. */

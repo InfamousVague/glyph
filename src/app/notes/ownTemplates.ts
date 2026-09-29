@@ -19,6 +19,14 @@ import { BUILT_INS, type NoteTemplate } from './noteTemplates.ts';
  * missing), and opens it. From then on the blank page's cards are its pages, in its index's order: two made on two
  * devices are read oldest first, and a page named twice is offered once.
  *
+ * **A page is marked**, `templates: page`, by the seed and by Add a page in the notebook, and only a marked note is
+ * ever a page: a chapter of the index is the marked note of its name. Found by name alone, a note of the person's that
+ * shared a page's name was taken for the page (found in review): a note `# Notes on a book` holding a to-do, there
+ * before the first press, was made a page, its to-do gone from home and its words a card. So the seed makes every
+ * page no marked note has, whatever the person's notes are called, and a note named like a page later stays theirs.
+ * The same key as the notebook's, so Claude's rewrite keeps it (mcp/server.ts). A note of the person's put in the
+ * index by hand is a line of the notebook's and not a template, since nothing marks it.
+ *
  * **A page** is named by its `title:`, since its first line is the template's own heading, `# {{title}}`; its words
  * after the front matter are the template. Only `look:` passes from a page to a note made from it: its `title:`, a
  * `location:` and `place:` from where it was written, and any key the app does not know stay with the page, so a page
@@ -46,20 +54,25 @@ export function isTemplatesBody(body: string): boolean {
   return isBookBody(body) && said(frontMatterValue(body, 'templates'));
 }
 
+/** Whether a note is a template's page: marked `templates: page`, and not a notebook. */
+export function isTemplatePageBody(body: string): boolean {
+  return !isBookBody(body) && /^page$/i.test(frontMatterValue(body, 'templates') ?? '');
+}
+
 /** A new Templates notebook's body, its pages named in order. */
 export function templatesNotebookBody(pages: readonly string[]): string {
   return withFrontMatterValue(bookNoteBody(TEMPLATES_TITLE, pages), 'templates', 'true');
 }
 
-/** A built-in's page: its name as its `title:`, its look beside it, and its words. */
+/** A built-in's page: its name as its `title:`, its mark, its look beside them, and its words. */
 export function templatePageBody(template: NoteTemplate): string {
-  const named = `---\ntitle: ${quotedTitle(template.name, template.name)}\n---\n${template.words}`;
+  const named = `---\ntitle: ${quotedTitle(template.name, template.name)}\ntemplates: page\n---\n${template.words}`;
   return template.look ? withLook(named, template.look) : named;
 }
 
-/** A page added to the notebook by name: its heading left open for the name a note is given. */
+/** A page added to the notebook by name: marked, its heading left open for the name a note is given. */
 export function newTemplatePageBody(name: string): string {
-  return `---\ntitle: ${quotedTitle(name, 'A template')}\n---\n# {{title}}\n\n`;
+  return `---\ntitle: ${quotedTitle(name, 'A template')}\ntemplates: page\n---\n# {{title}}\n\n`;
 }
 
 /** The Templates notebooks, oldest first. */
@@ -67,13 +80,13 @@ function notebooks(notes: readonly Note[]): Note[] {
   return notes.filter((note) => !note.archivedAt && isTemplatesBody(note.body)).sort((a, b) => a.createdAt - b.createdAt);
 }
 
-/** The notes by their title's key, the first of any two that share one, less the notebooks themselves. */
-function byTitle(notes: readonly Note[]): Map<string, Note> {
-  const map = new Map<string, Note>();
-  for (const note of notes) {
-    if (note.archivedAt || isBookBody(note.body)) continue;
-    const key = titleKey(noteTitle(note.body));
-    if (key && !map.has(key)) map.set(key, note);
+/** The marked pages by their title's key, oldest first: never a note of the person's, whatever it is called. */
+function pagesByTitle(notes: readonly Note[]): Map<string, Note[]> {
+  const map = new Map<string, Note[]>();
+  const pages = notes.filter((note) => !note.archivedAt && isTemplatePageBody(note.body)).sort((a, b) => a.createdAt - b.createdAt);
+  for (const page of pages) {
+    const key = titleKey(noteTitle(page.body));
+    if (key) map.set(key, [...(map.get(key) ?? []), page]);
   }
   return map;
 }
@@ -90,13 +103,13 @@ export function templateOf(page: Note): NoteTemplate {
 export function templatesOf(notes: readonly Note[]): NoteTemplate[] | null {
   const books = notebooks(notes);
   if (!books.length) return null;
-  const pages = byTitle(notes);
+  const pages = pagesByTitle(notes);
   const seen = new Set<string>();
   const out: NoteTemplate[] = [];
   for (const book of books) {
     for (const chapter of chaptersOf(book.body)) {
       const key = titleKey(chapter.title);
-      const page = pages.get(key);
+      const page = pages.get(key)?.[0];
       if (!key || seen.has(key) || !page) continue;
       seen.add(key);
       out.push(templateOf(page));
@@ -105,29 +118,32 @@ export function templatesOf(notes: readonly Note[]): NoteTemplate[] | null {
   return out;
 }
 
-/** The notes a Templates notebook's index names: its pages, kept out of the lists a person's own notes are in. */
+/**
+ * The marked pages a Templates notebook's index names, kept out of the lists a person's own notes are in: every one of
+ * a name, so a second device's seed leaves no page of its own in Recent.
+ */
 export function templatePages(notes: readonly Note[]): Set<string> {
   const ids = new Set<string>();
   const books = notebooks(notes);
   if (!books.length) return ids;
-  const pages = byTitle(notes);
+  const pages = pagesByTitle(notes);
   for (const book of books) {
     for (const chapter of chaptersOf(book.body)) {
-      const page = pages.get(titleKey(chapter.title));
-      if (page) ids.add(page.id);
+      for (const page of pages.get(titleKey(chapter.title)) ?? []) ids.add(page.id);
     }
   }
   return ids;
 }
 
 /**
- * What Your templates still has to make: the notebook to open where there is one, or the built-ins' pages whose name
- * no note has yet, and the notebook. A first press cut short by the phone leaves pages and no notebook: the next makes
- * only the notebook, naming the pages already there.
+ * What Your templates still has to make: the notebook to open where there is one, or the built-ins' pages no marked
+ * page has made yet, and the notebook. A first press cut short by the phone leaves pages and no notebook: the next
+ * makes only the notebook, naming the pages already there. A note of the person's by a page's name is not a page, so
+ * the seed makes that page beside it.
  */
 export function seedPlan(notes: readonly Note[]): { open: Note } | { pages: NoteTemplate[]; index: string } {
   const book = notebooks(notes)[0];
   if (book) return { open: book };
-  const pages = byTitle(notes);
+  const pages = pagesByTitle(notes);
   return { pages: BUILT_INS.filter((template) => !pages.has(titleKey(template.name))), index: templatesNotebookBody(BUILT_INS.map((template) => template.name)) };
 }

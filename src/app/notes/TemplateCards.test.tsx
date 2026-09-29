@@ -50,7 +50,7 @@ afterEach(() => {
 describe('the template cards', () => {
   it('are six buttons, each named by its template and described by its sentence, and a press chooses it', () => {
     const chosen: string[] = [];
-    show(<TemplateCards at={AT} taken={new Set()} smallMap={false} onChoose={(template) => chosen.push(template.id)} />);
+    show(<TemplateCards at={AT} taken={new Set()} onChoose={(template) => chosen.push(template.id)} />);
     expect(cards().map((one) => one.dataset.template)).toEqual(['day', 'meeting', 'checklist', 'book', 'map', 'reading']);
     expect(cards().every((one) => one.tagName === 'BUTTON')).toBe(true);
     expect(card('meeting').getAttribute('aria-label')).toBe('A meeting');
@@ -60,7 +60,7 @@ describe('the template cards', () => {
   });
 
   it('keep the editor’s focus: a pointer or mouse press has its default taken', () => {
-    show(<TemplateCards at={AT} taken={new Set()} smallMap={false} onChoose={() => undefined} />);
+    show(<TemplateCards at={AT} taken={new Set()} onChoose={() => undefined} />);
     for (const kind of ['pointerdown', 'mousedown']) {
       const press = new (kind === 'pointerdown' ? PointerEvent : MouseEvent)(kind, { bubbles: true, cancelable: true });
       card('day').dispatchEvent(press);
@@ -69,34 +69,35 @@ describe('the template cards', () => {
   });
 
   it('draw the note’s top in a picture with nothing to press and nothing read out, and each map as a picture', async () => {
-    show(<TemplateCards at={AT} taken={new Set()} smallMap={false} onChoose={() => undefined} />);
+    show(<TemplateCards at={AT} taken={new Set()} onChoose={() => undefined} />);
     for (const one of cards()) {
       const drawn = one.querySelector('[inert]')!;
       expect(drawn.getAttribute('aria-hidden')).toBe('true');
       expect(drawn.querySelector('button')).toBeNull();
     }
-    // A map at the top draws its header; the rest draw no map where the note holds none.
+    // A map at the top draws its header, and it is the only card with a map.
     expect(card('map').querySelector('[data-size="header"]')).not.toBeNull();
-    expect(card('day').querySelector('[data-size]')).toBeNull();
+    expect(cards().filter((one) => one.querySelector('[data-size]')).map((one) => one.dataset.template)).toEqual(['map']);
     await waitUntil(() => expect(card('day').querySelector('.cm-content')?.textContent).toContain('2026-09-28'));
     expect(card('checklist').querySelector('.cm-openHint')?.textContent).toBe('A name');
-    unmount();
-    // A note that holds a map's box: every card draws the small box it would get.
-    show(<TemplateCards at={AT} taken={new Set()} smallMap onChoose={() => undefined} />);
-    expect(card('day').querySelector('[data-size="card"]')).not.toBeNull();
-    expect(card('map').querySelector('[data-size="header"]')).not.toBeNull();
   });
 
   it('say when today’s name is taken, and draw the heading A day will write', async () => {
-    show(<TemplateCards at={AT} taken={new Set([titleKey('2026-09-28')])} smallMap={false} onChoose={() => undefined} />);
+    show(<TemplateCards at={AT} taken={new Set([titleKey('2026-09-28')])} onChoose={() => undefined} />);
     expect(said('day')).toBe('Today has a note by this name. This makes a second.');
     await waitUntil(() => expect(card('day').querySelector('.cm-content')?.textContent).toContain('2026-09-28 (2)'));
+    unmount();
+    // Only A day says so: a second meeting in the same minute is still named for it, and says what it is.
+    show(<TemplateCards at={AT} taken={new Set([titleKey('Meeting 2026-09-28 14.05')])} onChoose={() => undefined} />);
+    expect(said('meeting')).toBe('Named for this minute, with who was there, notes and to-dos.');
+    expect(said('day')).toBe('Named for today, with a to-do to start.');
+    await waitUntil(() => expect(card('meeting').querySelector('.cm-content')?.textContent).toContain('14.05 (2)'));
   });
 
   it('dim A map at the top under Local only, as no button, and buzz at a press that makes nothing', () => {
     setPreferences({ localOnly: true });
     const chosen: string[] = [];
-    show(<TemplateCards at={AT} taken={new Set()} smallMap={false} onChoose={(template) => chosen.push(template.id)} />);
+    show(<TemplateCards at={AT} taken={new Set()} onChoose={(template) => chosen.push(template.id)} />);
     expect(card('map').tagName).toBe('DIV');
     expect(card('map').hasAttribute('data-dimmed')).toBe(true);
     expect(said('map')).toBe('Local only is on, so a note made here keeps no place.');
@@ -108,7 +109,7 @@ describe('the template cards', () => {
   it('dim it with where to allow location after a refusal that still stands', async () => {
     rememberRefusal('refused');
     Object.defineProperty(navigator, 'permissions', { configurable: true, value: { query: async () => ({ state: 'denied' }) } });
-    show(<TemplateCards at={AT} taken={new Set()} smallMap={false} onChoose={() => undefined} />);
+    show(<TemplateCards at={AT} taken={new Set()} onChoose={() => undefined} />);
     await waitUntil(() => expect(card('map').hasAttribute('data-dimmed')).toBe(true));
     expect(said('map')).toBe('Allow location for this site in the browser’s settings for a note to keep its place.');
   });
@@ -121,7 +122,7 @@ describe('the template cards', () => {
     const day = templateOf(makeNote('d', templatePageBody(BUILT_INS[0]!)));
     const yours = vi.fn();
     const chosen: string[] = [];
-    show(<TemplateCards at={AT} taken={new Set([titleKey('2026-09-28')])} smallMap={false} onChoose={(template) => chosen.push(template.id)} templates={[walk, day]} onYours={yours} />);
+    show(<TemplateCards at={AT} taken={new Set([titleKey('2026-09-28')])} onChoose={(template) => chosen.push(template.id)} templates={[walk, day]} onYours={yours} />);
     expect(cards().map((one) => one.dataset.template)).toEqual(['walk', 'd', 'yours']);
     expect(said('walk')).toBe('One of your own.');
     // Still A day word for word: its rules, a taken name included.
@@ -135,12 +136,12 @@ describe('the template cards', () => {
 
   it('leave it out where the device can never say where it is: the Mac, or a browser with no geolocation', () => {
     device.mac = true;
-    show(<TemplateCards at={AT} taken={new Set()} smallMap={false} onChoose={() => undefined} />);
+    show(<TemplateCards at={AT} taken={new Set()} onChoose={() => undefined} />);
     expect(cards().map((one) => one.dataset.template)).toEqual(['day', 'meeting', 'checklist', 'book', 'reading']);
     unmount();
     device.mac = false;
     Reflect.deleteProperty(navigator, 'geolocation');
-    show(<TemplateCards at={AT} taken={new Set()} smallMap={false} onChoose={() => undefined} />);
+    show(<TemplateCards at={AT} taken={new Set()} onChoose={() => undefined} />);
     expect(cards()).toHaveLength(5);
   });
 });
