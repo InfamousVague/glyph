@@ -99,7 +99,7 @@ describe('a lookup', () => {
     if (!found.ok) return;
     expect(found.source).toBe('Wikipedia and Wikidata');
     expect(found.facts).toContain('concluded on July 19 with Spain winning the championship');
-    expect(found.facts).toContain("Wikidata on 2026 FIFA World Cup: winner Spain men's national football team");
+    expect(found.facts).toContain("Wikidata on 2026 FIFA World Cup:\n- winner: Spain men's national football team\n- when: 2026");
     expect(asked[0]).toBe(URLS.wiki('2026 World Cup won'));
   });
 

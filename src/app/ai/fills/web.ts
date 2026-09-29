@@ -263,10 +263,12 @@ export function parseWikidataLabels(json: unknown): Record<string, string> {
 export function wikiFacts(pages: readonly WikiPage[], facts: { title: string; claims: { property: string; values: (string | { entity: string })[] }[]; labels: Record<string, string> } | null): string {
   const lines = pages.map((p) => `${p.title}: ${p.extract}`);
   if (facts?.claims.length) {
+    // One fact a line, its property first: "- winner: Spain men's national football team".
     const said = facts.claims
-      .map((c) => `${c.property} ${c.values.map((v) => (typeof v === 'string' ? v : (facts.labels[v.entity] ?? '')).trim()).filter(Boolean).join(', ')}`)
-      .filter((line) => !/ $/.test(line));
-    if (said.length) lines.push(`Wikidata on ${facts.title}: ${said.join('; ')}.`);
+      .map((c) => ({ property: c.property, values: c.values.map((v) => (typeof v === 'string' ? v : (facts.labels[v.entity] ?? '')).trim()).filter(Boolean) }))
+      .filter((c) => c.values.length)
+      .map((c) => `- ${c.property}: ${c.values.join(', ')}`);
+    if (said.length) lines.push(`Wikidata on ${facts.title}:`, ...said);
   }
   return lines.join('\n');
 }
