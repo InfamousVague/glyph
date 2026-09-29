@@ -8006,3 +8006,157 @@ settle both.
 **Not done: the cost of a second band.** A column scrolled and left still keeps its filter while the page beside it
 scrolls, and the compositor applies it again every frame: in headless Chromium's software compositor that was about 23%
 more per frame. What it costs on the Fold's GPU is for the Smoke bench there to say.
+
+## 145. Blanks the AI fills (2026-09-28)
+
+(Numbered 145: note names and templates have 144, the voice-assistant switch and the onboarding 146.)
+
+Matt: "Add an option as well for the users to be able to put special syntax in a note that allows the AI to fill
+context make a few different scenarios like "flights are cheapest to Tokyo on [[what day / time?]]" Then the AI fills
+in the squares with the factual response using the phones local AI model think of other scenarios as well".
+
+Built from the revised design (scratchpad/aifill/fills.md) and Matt's answers to its questions, which win where they
+differ. The syntax is `{?question}`. Totals, day counts, dates and conversions are worked out live by the app. Fills run
+only when pressed. A live blank is paused until online, then looked up by the phone itself. The voice-only runs get
+typed doors, and an Ask field. Every other question took the design's default.
+
+**The syntax is `{?question}`.** `[[…]]` is already a note link (editor/wikiLinks.ts), and a tap on one makes a note.
+`{{…}}` is the journal's and the templates'. So a blank is a curly bracket and a question mark
+(core/blanks.ts `BLANK`): not `{{?`, not after a backslash or a `$` (`${?HOME}`), not `{??`, no `|` in the question, at
+most 160 characters. It makes no node in the parser and means nothing in Obsidian, GitHub or Pandoc. `{?}` asks the
+model to read its sentence, or the question just before it: the asking words (`askingWords`) read "How many days
+until Christmas? {?}" as that question and `Q: …?` then `A: {?}` as the Q.
+
+**Code decides where an answer comes from, never the model.** Every blank goes through three pure readings first
+(ai/fills/lane.ts): worked out by the app (core/fillFacts.ts: a total or an average of the note's own amounts, a count
+of to-dos or of the list above, days until or since a date, a weekday, a date some weeks on, a unit conversion, the time
+in about eighty cities and the day their clocks change), recognised and not finished (Can't work out: two currencies, a
+line with two amounts, Easter, a slashed date, no date to count to, a city it does not know), live (core/fillLive.ts:
+weather today, prices now, rates, markets, opening hours, transport, the newest of anything, results, and an event after
+a fixed year per model, `learntUntil`, 2024 for all four until read from their cards, never the clock), or the model's.
+A worked-out answer is drawn after the square like a sum, with its working a tap away, and never written unless Write
+it in is pressed. Every refusal offers Ask the model anyway, since a word list can be wrong.
+
+**The square.** editor/blanks.ts draws a blank as a dashed hairline of the words' own ink round the question, the
+braces dim in the Markdown view and hidden in Formatted but on the lines being written, and an icon at its end that says
+what will happen before anything is pressed: a calculator, a calendar or a globe for the app's working, a speech bubble
+with a question mark for the model, a signal for a lookup, a crossed-out signal for what can't be known. On the line
+being typed the icon, the words after the square and the pill wait until the hands have stopped for 700 ms. A drawn
+table draws its cells' squares and dotted answers, with its pill after its last row. A card's peek draws the square
+with no icon.
+
+**Only a press fills.** The Fill pill at the end of the line ("Fill", "Fill 2", "Filling", "Waiting"), Fill the blanks
+in the More sheet with its count, the palette's Fill the blanks, and the panel's Ask again and Ask the model anyway.
+Never on typing, opening, leaving or syncing. The fills' queue (ai/fills/queue.ts) is the page's, beside the summaries',
+so a press finishes when its note is closed: the answers are written to the store with the revision they were read at,
+read again once on a conflict, and kept for the next open when that fails, with "Filled 2 blanks in Tokyo trip." and
+Open. A generation's answers land in one change with the AI's signature on the first, a press is one line in the log
+with one Undo however many generations it took (`batch` on the run), a fill waits while Format runs on its note, and a
+Format asked while it fills stops it: "Format stopped the fill. 2 blanks are still questions." The + stays while a fill
+runs, since a fill holds no landing an insert could cross.
+
+**What the model reads, and how it answers.** One prompt with a worked example per shape (ai/fills/prompts.ts), read
+by the Rust tests by name, and a message of the note's title and the part a blank needs: its section, a cell's
+headings, header row and own row, a list and the line above it, a title's first 2,000 characters. The cell is named in
+words ("Blank 2 is the Year of The Remains of the Day."), other blanks are `___`, worked-out ones their answers, earlier
+fills their words, and the room is counted in tokens by script. The date line is fixed English on every phone.
+Answers come back as `[1] …`. The shape of a blank is read by code from where it sits (ai/fills/shape.ts): a title, a
+language, items, a cell, a summary, a number, a line or a phrase, and the answer is checked against its shape before
+it is written (an echo taken off, a title or summary naming what the note lacks refused, a translation into Japanese
+with no Japanese script refused, a cap on each). A refused answer writes nothing and says Not known, No answer came or
+Didn't fit after the square for the session.
+
+**Measured first, per model.** src-tauri/src/llm/tests.rs reads the prompts from the page and the cases as the page
+builds them (src/app/ai/fills.fixture.json, kept equal to the builder by a vitest) and runs them on the Mac's models at
+temperature 0, the bar binding on the 4B in the deploy's test run:
+
+- The adopted form first failed on items on every model: asked for three under one number, the 4B gave "Sunglasses"
+  and the 9B "Cash, power bank, and rain jacket" on one line. An items blank is now asked as numbered slots, one new
+  item a blank (`3. {?1 more}`, `4. {?2 }`, `5. {?3 }`), which the models already answer as several blanks.
+- The engine refused a 969-token prompt with 35 to write ("the window is 1024"): it makes a window of the prompt, the
+  budget and 16, rounded up to 512, and wants 64 of it left. A fill's budget has a floor of 48, which always leaves it.
+- Matt's own Tokyo blank came back UNKNOWN on the 4B and the 9B: the prompt's line on live prices read "cheapest" as a
+  fare. One line more says general advice about prices stays true from month to month, and the 4B says "Tuesday".
+  The 9B still says UNKNOWN, which the square says as Not known, and Ask again is a tap.
+- Three language cells of a table came back without Japanese script ("arigatō gozaimasu"), which the check refused.
+  The hint now names the script ("Blank 1 is Thank you in Japanese, in Japanese script."), and the 4B writes ありがとう
+  (arigatō), 駅はどこですか (eki wa doko desu ka) and すみません (sumimasen).
+- With those, the 4B and the 9B meet every case at rung 1, one generation a press, every line an `[N]` line: Canberra,
+  Kazuo Ishiguro and 1989 in one message, Cabin booking, UNKNOWN for the newest Pixel and the 2026 World Cup, Sam, the
+  station in Japanese, three new items in a bulleted and a numbered list, 8848, and Argentina when asked again with
+  "It is not: France.". `FILL_RUNGS` is 1 for both.
+- The 2B meets the bar at no rung (Mark Twain for The Remains of the Day, France for 2026, a Samsung for the newest
+  Pixel). It fills at rung 1, where it missed least, and the bar prints its misses rather than failing.
+- Gemma 4 E4B cannot run at all on this build: every request answers "cannot apply the chat template: ffi error -1",
+  the existing gist test too. A native fault, left to its own task. It takes the rung of a model never measured, 2.
+- `FILL_PROMPT` reads as 968 tokens on the Qwen models, and `FILL_PROMPT_TOKENS` is 975.
+
+The eye run of the design's scenarios on the 4B (rung 1, the Mac, timings under other builds' load and not a measure):
+Tuesday for the cheapest day to Tokyo, a one-line standup that keeps Priya, Tom, Tuesday and the 24th, Call the plumber
+for the tap's next step, the three phrases in Japanese script, the smell of rain on dry earth, 120 grams of flour,
+Argentina for 2022 with France in the note, Frank Herbert, Tokyo in the title, 13 to 17 years for a cat, and a
+press of five blanks in one generation of 6.6 s. And calm misses, dotted from memory: "milk and water" for buttermilk,
+"Duas cafés" for two coffees, one word of Korean, three minutes for a soft egg. The 2B said France for 2022 with the
+Qatar line in the note, and "Monday morning" for Tokyo.
+
+**The answer says what it is, in the file.** An Unsure mark whose note the app hides: `??midweek??(Qwen3.5 4B from
+memory, 2026-09-28. Asked: what day / time?)`, read back by `FILLED`: whose answer, from memory, from this note, or from
+a named web source, the date, the question, and an item's place. "From this note" only when the answer's words stand in
+one sentence of the note beside what was asked (ai/fills/source.ts). A trailing `?` goes after the bracket, or the
+parser would not close the mark. A title line never holds a mark: a title fills as plain words, a question as the whole
+first line stays the title with its answer under it, and every reader of titles, to-dos, the item text sent to Notion
+and GitHub, a board's card and search reads a filled answer as its words (`plainFills`), so no list shows a bracket. A
+tap on an answer opens its panel (editor/fillPanel.ts): whose, from where, when and what was asked, `MODEL_LIMITS` word
+for word, and Keep as mine, Ask again (told "It is not: France.", since greedy decoding repeats itself), Put the
+question back (an items fill's items together, by their places).
+
+**Live blanks, looked up by the phone** (Matt: "Pause till online", then "Phone looks it up, all local"). A live blank
+pressed with Fill asks one keyless public source that answers a page's CORS check with `*` (ai/fills/web.ts, checked
+2026-09-28): Open-Meteo's geocoder and forecast for the weather, Frankfurter's European Central Bank rates for money,
+with the sum the app's own, and Wikipedia's search with the first sentences of its pages, then Wikidata's facts for
+the page the question names best, for results, the newest and events after the training. Only the question goes, or
+the place and then its coordinates, or two currency codes, never the note or the amount. The model on the phone writes
+the answer from what came back with a prompt that answers only from it, or says UNKNOWN, and the answer is marked
+`from Open-Meteo`. Offline, the square says "Waiting for a connection" and the lookup goes on by itself when the phone
+is online, never started but by the press. Prices, fares, markets, opening hours and transport have no source that
+allows it and say "No public source the phone can ask answers this." No general web search allows a page to call it
+keylessly: DuckDuckGo's result pages refuse a script, and its instant-answer API answers only from Wikipedia's topics,
+so Wikipedia's own search is the search source. Measured from recorded answers, the 4B and the 9B wrote "Rain showers,
+19 to 25 °C", "Spain" (the 9B, reading Wikidata's facts a line each, "Spain men's national football team"), and
+UNKNOWN from a page that did not say, 3 of 3. Settings › Account › Privacy gains "Look up blanks online", on by
+default, off and held under Local only, which keeps such blanks paused and says so, and kept on the device.
+landing/privacy.html gains a paragraph, committed and not deployed.
+
+**Typed doors** (Matt: "Those, plus an Ask field"). Fix spelling, Make a list and Continue were reachable only by voice.
+They are rows of the More sheet's AI group now, after Format, Summarize and Enhance, and in the palette, and an Ask
+field under them runs any typed instruction as the spoken Ask always ran, its changes marked with Keep and the log's
+Undo.
+
+**Carried through rewrites.** A blank and a filled answer go to every other run as link tokens (format/links.ts),
+put back whole whatever words the model gave them, and a summary may leave one out. The gist reads the note with its
+blanks taken out. Maths drawn from `$` now follows Pandoc's rule (core/maths.ts), so two prices on a line are prices.
+
+**The + writes one.** More gains A blank for the AI, `{?}` with the caret inside, on its own line after a blank line
+under a table, a list or a quote, or as an empty item's words. The empty line straight under a table with an empty cell
+gains Blanks in the empty cells. The cheat sheet has A blank, and the Academy a lesson.
+
+**Claude.** `search_notes` reads fills as words, and create_note and update_note say what a blank is and how to answer
+one. The MCP's copy of the title rule comes with the bundle. None of it reaches Claude until the next Claude server
+deploy Matt approves.
+
+**Page only, over the air.** No Rust but the tests, no Kotlin, no native generation. Left out, each needing native
+code or Matt: the Rust namer's title rule (src-tauri/src/library/names.rs keeps `??`, brackets and braces in a file's
+name until it reads core/titles.fixture.json in a binary of its own), Gemma's template, automatic fills on leaving a
+note and the `[[?` alias (both Matt's to choose), and a measure on the Fold, which was not reachable. The Model card
+names the fills, and its about lines are §146's to reword ("Careful with facts" for the 4B, which the probes showed
+confidently wrong). With no Settings › AI page yet (§146's), Get a model opens Recording at the Model card.
+
+**Tests.** core/blanks.test.ts (the sixteen cases, the parser reading every written mark as Unsure, the title
+fixture), core/blanks.readers.test.ts (both readers over one corpus, their two named differences), core/maths.test.ts,
+core/fillFacts.test.ts, core/fillLive.test.ts, ai/fills/{shape, source, read, message, prompts, web, edits, queue,
+voice}.test.ts (the queue with a simulated model: one change a generation, a closed note written with its revision, a
+Format stopping a fill, a press behind another, a live blank waiting offline then asking Open-Meteo), editor/blanks and
+fillPanel tests, the readers' tests (home's To do, Notion's item text, search, the gist, the MCP's search), the + rows,
+the More sheet, the palette, Privacy, and the Rust bar.
+
+Cites: §21, §122, §127, §138, §141, §142.
