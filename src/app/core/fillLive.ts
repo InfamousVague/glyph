@@ -54,8 +54,10 @@ export function liveWords(kind: LiveKind, year?: number): string {
 
 const WHEN_NOW = /\b(today|tonight|tomorrow|now|this week|this weekend|right now|at the moment)\b/i;
 const WEATHER = /\b(weather|forecast|rain|raining|rainy|snow|snowing|temperature|sunny|windy)\b/i;
-const PRICE = /\b(price|prices|cost|costs|fare|fares|how much)\b/i;
-const PRICE_NOW = /\b(today|now|current|currently|this week|right now|at the moment)\b/i;
+// "Cheapest" is a price too: "Cheapest flight to Lisbon today" is a fare now. "Flights are cheapest to Tokyo on" has
+// no word for now, and stays general advice for the model.
+const PRICE = /\b(price|prices|cost|costs|fare|fares|how much|cheapest|cheaper|cheap|dearest)\b/i;
+const PRICE_NOW = /\b(today|tonight|tomorrow|now|current|currently|this week|this weekend|right now|at the moment)\b/i;
 const MARKET = /\b(stocks?|share price|shares|bitcoin|ethereum|crypto|the market|nasdaq|ftse|dow jones|s&p)\b/i;
 const MARKET_WHAT = /\b(price|value|worth|trading|at)\b/i;
 const HOURS = /\b(opens|opening hours|opening times|closes|closing time|open on|is it open|open until)\b/i;

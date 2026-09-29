@@ -10,6 +10,9 @@ describe('what the model can’t know offline', () => {
   it('refuses the scenarios that need something live or newer', () => {
     expect(live('Weather in Lisbon today: {?weather}')).toBe('weather');
     expect(live('A return flight London to Tokyo costs {?price today}')).toBe('prices');
+    // Found by the shots: a fare asked with "cheapest" went to the model, which could only say it did not know.
+    expect(live('Cheapest flight to Lisbon today: {?}')).toBe('prices');
+    expect(live('The cheapest hotel in Porto tomorrow night is {?}')).toBe('prices');
     expect(live('The 2026 World Cup was won by {?}')).toBe('after');
     expect(live('100 dollars is {?how many yen} yen.')).toBe('money');
     expect(live('Kinkaku-ji opens at {?opening time}')).toBe('hours');
