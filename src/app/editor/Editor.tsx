@@ -123,6 +123,12 @@ interface EditorProps {
    * Read once, when the editor is made.
    */
   grow?: boolean;
+  /**
+   * How far above the bottom of the page the caret is kept, in pixels, as it is typed and moved (art/wispEdge.ts
+   * `WISP_EDGE_FOOT_CLEAR`): the page's foot smokes the words there, so a line is lifted out of it while it is still
+   * being written rather than when it reaches the edge. Read on every scroll, so it can change with the page.
+   */
+  footClear?: number;
   /** Where this note's recording is played from, for the voice memos in it (editor/clips.ts); null without one. */
   tape?: string | null;
   /** Which tape that is (core/clips.ts `tapeId`): a memo of another tape is drawn, not played. */
@@ -214,6 +220,7 @@ export function Editor({
   linkMenus,
   wiki,
   grow = false,
+  footClear = 0,
   tape = null,
   tapeId = null,
   arrivals = false,
@@ -238,6 +245,8 @@ export function Editor({
   onImageErrorRef.current = onImageError;
   const swipeActionRef = useRef(swipeAction);
   swipeActionRef.current = swipeAction;
+  const footClearRef = useRef(footClear);
+  footClearRef.current = footClear;
   const suggestRef = useRef(suggest);
   suggestRef.current = suggest;
   const linkMenusRef = useRef(linkMenus);
@@ -355,6 +364,9 @@ export function Editor({
         findExtension(),
         placeholder ? cmPlaceholder(placeholder) : [],
         grow ? Prec.highest(GROW_THEME) : [],
+        // The caret kept out of the page's foot smoke as it moves: the line being written is scrolled up before the
+        // smoke bends it, not when it reaches the edge. Widens only what is scrolled to, so nothing moves otherwise.
+        peek ? [] : EditorView.scrollMargins.of((current) => (footClearRef.current > 0 ? { bottom: footClearAt(current, footClearRef.current) } : null)),
         arrivals || wispTyping ? wispArrivals({ typing: wispTyping }) : [],
         ripples ? wispRipples(ripples) : [],
         // The AI's changes, tracked: tinted where it added, struck where it took away, Keep and Revert (aiChanges.ts).
@@ -461,6 +473,20 @@ export function Editor({
 }
 
 /** An editor as tall as its document, filling at least its box, for a page that scrolls it. */
+/**
+ * The foot's clearance, held to a third of the room the page shows under its header: on a short page - a phone on its
+ * side with the keyboard up - the whole of it would lift the line being typed up under the header, into the top's
+ * smoke. The room is the page that scrolls around the note (NoteScreen's, `[data-scrolls]`) less the header over its
+ * top, which it pads by; not laid out (a test), the clearance stands.
+ */
+function footClearAt(view: EditorView, clear: number): number {
+  const page = view.dom.closest<HTMLElement>('[data-scrolls]') ?? view.scrollDOM;
+  const height = page.clientHeight;
+  if (!height) return clear;
+  const under = parseFloat(getComputedStyle(page).paddingTop) || 0;
+  return Math.min(clear, Math.max(0, (height - under) / 3));
+}
+
 // One class more specific than glyphTheme's own rules, which set the scroller
 // to scroll and to hold its overscroll; kept, those swallowed every swipe on
 // the note before the page could scroll.

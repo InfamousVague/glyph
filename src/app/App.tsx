@@ -49,6 +49,7 @@ import { canvasNoteBody, isCanvasBody } from './canvas/jsonCanvas.ts';
 import { frontMatterOffset, withFrontMatterTitle } from './core/frontMatter.ts';
 import { bookNoteBody, bookOf, chaptersOf, isBookBody, isJournalBody, withoutChapter } from './book/book.ts';
 import { entryBody, entryPages, entryPlaceOf, entryTitle, journalNoteBody, localStamp, templateOf, templateSentence, uniqueTitle, withEntry, type JournalWriter } from './book/journal.ts';
+import { pageBody } from './book/entryStarts.ts';
 import { entryRecord, entryRecords, forgetEntry, rememberEntry, setEntryWords, untouchedEntry, type EntryRecord } from './book/entryDrafts.ts';
 import { fillTemplate, openEnd } from './book/template.ts';
 import { inTimeOrder } from './book/journalMonths.ts';
@@ -353,6 +354,16 @@ function Shell() {
     tabs.replaceNext(shown);
     void openTitleFrom(title);
   };
+  /**
+   * A notebook's new page from a template, opened from its index in the notebook's tab (book/BookView.tsx Add a page):
+   * its title as its heading and the template under it (book/entryStarts.ts `pageBody`). A page by that title already
+   * written opens as it is.
+   */
+  const openPageWithin = (title: string, template: string) => {
+    tabs.replaceNext(shown);
+    const notebook = screen.name === 'note' ? noteTitle(screen.note.body) : '';
+    void openTitleFrom(title, undefined, (named) => pageBody(named, template, notebook));
+  };
   /** A canvas by that title opened from a book's index, made first if there is none (book/BookView.tsx). */
   const openCanvasWithin = (title: string) => {
     tabs.replaceNext(shown);
@@ -438,6 +449,11 @@ function Shell() {
    * for every +, so the choice reads the same wherever it is offered.
    */
   const [newSheet, setNewSheet] = useState(false);
+  // The + sheet opening reads the notes again, so its entry row names and describes each journal as it is now: an open
+  // note's changes reach the list only when it closes, and a journal's template or kind may have changed in it.
+  useEffect(() => {
+    if (newSheet) void refresh();
+  }, [newSheet, refresh]);
 
   const newCanvas = () => {
     tabs.replaceNext(null);
@@ -554,9 +570,23 @@ function Shell() {
    * away in the archive, which the home page's Notebooks leave out too (home/dashboard.ts `bookNotes`).
    */
   const journals = useMemo(() => shownNotes.filter((n) => !n.archivedAt && isJournalBody(n.body)).sort((a, b) => b.updatedAt - a.updatedAt), [shownNotes]);
-  /** The + sheet's row for a new entry, in the journal written in last. */
-  const entryRow = journals[0]
-    ? { journal: noteTitle(journals[0].body) || 'Untitled journal', hint: templateSentence(templateOf(journals[0].body)), onPress: () => void newEntry(journals[0]!.id) }
+  /**
+   * The + sheet's row for a new entry: in the journal on screen, else the one written in last. The sheet asks which
+   * template it starts from (notes/NewSheet.tsx), the journal's usual one first.
+   */
+  // The journal on screen, or the journal of the entry on screen, before the one written in last.
+  const onScreenBook = screen.name === 'note' ? placeInBook(screen.note) : null;
+  const entryJournal =
+    journals.find((n) => n.id === shown) ?? (onScreenBook?.journal ? journals.find((n) => n.id === onScreenBook.book.id) : undefined) ?? journals[0];
+  const entryRow = entryJournal
+    ? {
+        journal: noteTitle(entryJournal.body) || 'Untitled journal',
+        hint: templateSentence(templateOf(entryJournal.body)),
+        usual: templateOf(entryJournal.body),
+        // The usual row sends no template: the entry is made from the journal as the store has it now, not from this
+        // list's copy, which an open journal's More sheet may have changed since (makeEntry reads it fresh).
+        onPress: (template?: string) => void newEntry(entryJournal.id, template === undefined ? {} : { template }),
+      }
     : undefined;
   /** The first ask for where a journal's entries were written, introduced in the app's words, from its own press. */
   const introduceEntries = (journal: string) => (allow: () => void) =>
@@ -567,7 +597,7 @@ function Shell() {
    * take-back of the one left behind then took the other's line with it.
    */
   const entering = useRef(false);
-  const newEntry = async (journalId: string, how: { speak?: boolean } = {}) => {
+  const newEntry = async (journalId: string, how: { speak?: boolean; template?: string } = {}) => {
     if (entering.current) return;
     entering.current = true;
     try {
@@ -576,7 +606,7 @@ function Shell() {
       entering.current = false;
     }
   };
-  const makeEntry = async (journalId: string, { speak: spoken = false }: { speak?: boolean }) => {
+  const makeEntry = async (journalId: string, { speak: spoken = false, template }: { speak?: boolean; template?: string }) => {
     // A meeting holds the microphone: the way to it, and nothing made that its capture would leave behind.
     if (spoken && meetingStateNow()?.recording) {
       capture.showMeeting(false);
@@ -592,7 +622,8 @@ function Shell() {
     const titles = [...(await listNotes().catch(() => notes)).map((n) => noteTitle(n.body)), ...chaptersOf(journal.body).map((c) => c.title)];
     const taken = new Set(titles.map(titleKey));
     const title = uniqueTitle(entryTitle(now), taken);
-    const filled = fillTemplate(templateOf(journal.body), { at: new Date(now), title, journal: name });
+    // The template chosen under New entry, else the journal's own (book/JournalView.tsx `TemplateChoice`).
+    const filled = fillTemplate(template ?? templateOf(journal.body), { at: new Date(now), title, journal: name });
     // Spoken, the words go on from the template's last line, which is taken off until they come.
     const { base: words, placing } = spoken ? openEnd(filled) : { base: filled, placing: null };
     const id = newNoteId();
@@ -776,10 +807,11 @@ function Shell() {
         hasTitle={hasTitle}
         onOpenWithin={openTitleWithin}
         onNewCanvas={openCanvasWithin}
+        onNewPage={openPageWithin}
         book={placeInBook(screen.note)}
         bodyOfTitle={bodyOfTitle}
         noteOfTitle={titled}
-        onNewEntry={() => void newEntry(screen.note.id)}
+        onNewEntry={(template) => void newEntry(screen.note.id, { template })}
         onJournal={onJournal}
         caretAtEnd={screen.caretAtEnd}
         allTitles={() => shownNotes.map((n) => noteTitle(n.body)).filter(Boolean)}

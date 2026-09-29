@@ -144,6 +144,9 @@
 .label {
   display: grid;
   gap: 2px;
+  /* Never wider than its row: a word with no break in it - a link in a journal's own template - wraps rather than
+     widening the group's one column, which cut every row in the group off at the sheet's edge. */
+  min-inline-size: 0;
   font-weight: var(--glacier-font-weight-medium);
 }
 
@@ -212,6 +215,7 @@
   font-size: var(--glacier-font-size-sm);
   font-weight: var(--glacier-font-weight-regular);
   color: var(--glacier-text-subtle);
+  overflow-wrap: anywhere;
 }
 
 .row:disabled {

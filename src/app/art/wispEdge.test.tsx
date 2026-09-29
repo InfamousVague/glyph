@@ -377,3 +377,24 @@ describe('a column’s band beside the page’s', () => {
     }
   });
 });
+
+describe('whether the foot smokes, for a note to keep its caret clear of it', () => {
+  it('smokes where it is drawn as smoke, and not with the preference off', () => {
+    expect(edge.footSmokes(true)).toBe(true);
+    expect(edge.footSmokes(false)).toBe(false);
+  });
+
+  it('does not on a desktop, whose foot is a plain fade', () => {
+    localStorage.setItem('glyph-wisp-head', 'blur');
+    expect(edge.wispModeFor()).toBe('fade');
+    expect(edge.footSmokes(true)).toBe(false);
+  });
+
+  it('does not with reduced motion, which takes the filter away, but the mask stays', () => {
+    localStorage.setItem('glyph-wisp-head', 'smoke');
+    stubMatchMedia(true);
+    expect(edge.footSmokes(true)).toBe(false);
+    localStorage.setItem('glyph-wisp-draw', 'mask');
+    expect(edge.footSmokes(true)).toBe(true);
+  });
+});

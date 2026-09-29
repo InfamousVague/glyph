@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
-import type { EditorView } from '@codemirror/view';
+import { EditorView } from '@codemirror/view';
 import { rerender, show, unmount } from '../../test/render.tsx';
 import { Editor } from './Editor.tsx';
+import { WISP_EDGE_FOOT_CLEAR } from '../art/wispEdge.ts';
 
 /**
  * The one CodeMirror host: the view is made once and React never touches what is inside it. So `value` loads a new
@@ -99,5 +100,46 @@ describe('the editor', () => {
     unmount();
     mount({ value, readOnly: true, places: 'ask' });
     expect(document.querySelectorAll('.cm-placeCard')).toHaveLength(1);
+  });
+});
+
+describe('the caret kept out of the foot smoke', () => {
+  const bottomMargin = (view: EditorView) =>
+    view.state
+      .facet(EditorView.scrollMargins)
+      .map((margins) => margins(view)?.bottom ?? 0)
+      .reduce((most, each) => Math.max(most, each), 0);
+
+  it('asks to be scrolled that far clear of the bottom as it is typed, and follows a change', () => {
+    const { view, element } = mount({ footClear: WISP_EDGE_FOOT_CLEAR });
+    expect(WISP_EDGE_FOOT_CLEAR).toBe(24 + 11 + 2 * 29);
+    expect(bottomMargin(view())).toBe(WISP_EDGE_FOOT_CLEAR);
+    rerender(element({ footClear: 0 }));
+    expect(bottomMargin(view())).toBe(0);
+    unmount();
+  });
+
+  it('asks for nothing where no page smokes under it', () => {
+    const { view } = mount();
+    expect(bottomMargin(view())).toBe(0);
+    unmount();
+  });
+
+  it('holds the clearance to a third of the room on a short page, so the line is not lifted under the header', () => {
+    const { view } = mount({ footClear: WISP_EDGE_FOOT_CLEAR });
+    // The page that scrolls around the note: 210px tall, 80 of them under the header, as a phone on its side with
+    // the keyboard up.
+    const page = document.createElement('div');
+    page.dataset.scrolls = '';
+    page.style.paddingTop = '80px';
+    let tall = 210;
+    Object.defineProperty(page, 'clientHeight', { get: () => tall });
+    view().dom.replaceWith(page);
+    page.append(view().dom);
+    expect(bottomMargin(view())).toBeCloseTo(130 / 3);
+    // A tall page gives the whole clearance.
+    tall = 900;
+    expect(bottomMargin(view())).toBe(WISP_EDGE_FOOT_CLEAR);
+    unmount();
   });
 });

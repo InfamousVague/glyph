@@ -9,6 +9,7 @@ import { preferences, reloadPreferences, setPreferences } from './core/preferenc
 import { button, buttonSaying, show, unmount, waitUntil } from '../test/render.tsx';
 import { stubResizeObserver } from '../test/stubs.ts';
 import { bookNoteBody } from './book/book.ts';
+import { PRESETS } from './book/journal.ts';
 import { writeBookSpot } from './book/bookSpot.ts';
 
 /**
@@ -515,6 +516,27 @@ describe('the notes Settings › About adds', () => {
   });
 });
 
+describe('a notebook’s new page', () => {
+  it('is made from the template picked under its title, in the notebook’s tab, and its line finds it', async () => {
+    await seed(['book', bookNoteBody('Field guide', ['Introduction'])], ['intro', '# Introduction\n\nWelcome.']);
+    await openApp();
+    act(() => card('Field guide').click());
+    expect(noteShown()).toBe('book');
+    // The notebook's Add a page, with A morning page picked under the title (book/BookView.tsx `PageStarts`), and
+    // its line put in the index as the form does.
+    const book = (await getNote('book'))!;
+    await updateNote('book', `${book.body}- [[Monday]]\n`, book.revision ?? 1);
+    await act(async () => seen.note!.onNewPage!('Monday', PRESETS[2]!.text));
+    await waitUntil(() => expect(noteShown()).not.toBe('book'));
+    const page = (await getNote(noteShown()!))!;
+    expect(page.body.startsWith('# Monday\n\n## ')).toBe(true);
+    expect(page.body).toContain('> What is on your mind this morning?');
+    expect(noteShown()).not.toBeNull();
+    // In the notebook's tab, which the page takes, as a page opened from the index does.
+    expect(tabs()).toEqual([noteShown()]);
+  });
+});
+
 describe('a journal’s entries', () => {
   const DIARY = '---\ntitle: "Diary"\nbook: true\njournal: true\ntemplate: "# {{date}}\\n\\n**{{time}}** "\n---\n# Diary\n\n';
   const records = () => JSON.parse(localStorage.getItem('glyph-entry-drafts') ?? '{}') as Record<string, { title: string; journalId: string }>;
@@ -774,13 +796,68 @@ describe('a journal’s entries', () => {
     act(() => button('Write a note').click());
     const row = buttonSaying(document.body, 'Entry in Diary')!;
     expect(row.textContent).toContain('Starts with the date and the time.');
-    await act(async () => row.click());
+    act(() => row.click());
+    // The sheet asks what the entry starts with; the journal's usual template is first.
+    await act(async () => buttonSaying(document.body, '· usual')!.click());
     await waitUntil(() => expect(noteShown()).not.toBeNull());
     const id = noteShown()!;
     expect(tabs()).toEqual(['diary', id]);
     const { title } = records()[id]!;
     expect(await diaryBody()).toBe(`${DIARY}- [[${title}]]\n`);
     expect((await getNote('older'))!.body).not.toContain(title);
+  });
+
+  it('aims the + at the journal on screen, and at the journal of an entry on screen, before the one written in last', async () => {
+    // Dreams is written in last; Diary, with one entry, is the one being read.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 8, 28, 9, 0, 0));
+    await createNote('walk', '# Walk\n\nWalked.');
+    await createNote('diary', `${DIARY}- [[Walk]]\n`);
+    vi.setSystemTime(new Date(2026, 8, 28, 9, 0, 1));
+    await createNote('dreams', DIARY.replace(/Diary/g, 'Dreams'));
+    vi.useRealTimers();
+    await openApp();
+    const plus = () => document.querySelector<HTMLButtonElement>('button[aria-label="New note in a new tab"]')!;
+    const closeSheet = () => act(() => (document.querySelector('[role="dialog"][aria-label="New"]')!.parentElement as HTMLElement).click());
+    act(() => card('Diary').click());
+    await act(async () => plus().click());
+    expect(buttonSaying(document.body, 'Entry in Diary')).toBeDefined();
+    expect(buttonSaying(document.body, 'Entry in Dreams')).toBeUndefined();
+    closeSheet();
+    await act(async () => seen.note!.onOpenWithin!('Walk'));
+    await waitUntil(() => expect(noteShown()).toBe('walk'));
+    await act(async () => plus().click());
+    expect(buttonSaying(document.body, 'Entry in Diary')).toBeDefined();
+    expect(buttonSaying(document.body, 'Entry in Dreams')).toBeUndefined();
+  });
+
+  it('makes the entry from the template picked in the + sheet', async () => {
+    await seed(['diary', DIARY]);
+    await openApp();
+    act(() => button('Write a note').click());
+    act(() => buttonSaying(document.body, 'Entry in Diary')!.click());
+    await act(async () => buttonSaying(document.body, 'A morning page')!.click());
+    await waitUntil(() => expect(noteShown()).not.toBeNull());
+    const body = (await getNote(noteShown()!))!.body;
+    expect(body).toContain('> What is on your mind this morning?');
+    expect(body).not.toMatch(/\*\*\d{2}:\d{2}\*\*/);
+  });
+
+  it('makes the usual entry from the journal as the store has it now, not as the list last read it', async () => {
+    const { updateNote } = await import('./core/store.ts');
+    await seed(['diary', DIARY]);
+    await openApp();
+    // The template changed underneath the list, as a journal's More sheet changes it while the journal is open.
+    const before = (await getNote('diary'))!;
+    await updateNote('diary', before.body.replace('"# {{date}}\\n\\n**{{time}}** "', '"# {{date}}\\n\\n## To do\\n\\n- [ ] "'), before.revision ?? 1);
+    expect((await getNote('diary'))!.body).toContain('## To do');
+    act(() => button('Write a note').click());
+    act(() => buttonSaying(document.body, 'Entry in Diary')!.click());
+    await act(async () => buttonSaying(document.body, '· usual')!.click());
+    await waitUntil(() => expect(noteShown()).not.toBeNull());
+    const body = (await getNote(noteShown()!))!.body;
+    expect(body).toContain('## To do');
+    expect(body).toContain('- [ ] ');
   });
 
   it('offers no entry in a journal put away in the archive, however lately it was written in', async () => {
@@ -920,7 +997,8 @@ describe('a journal’s entries', () => {
       return realStore.createNote(id, body, source);
     });
     act(() => button('Write a note').click());
-    await act(async () => buttonSaying(document.body, 'Entry in Diary')!.click());
+    act(() => buttonSaying(document.body, 'Entry in Diary')!.click());
+    await act(async () => buttonSaying(document.body, '· usual')!.click());
     await waitUntil(() => expect(noteShown()).not.toBeNull());
     expect(kept).toEqual(['line:1', 'note:1']);
   });
@@ -967,7 +1045,8 @@ describe('a journal’s entries', () => {
       return realStore.updateNote(id, body, revision);
     });
     act(() => button('Write a note').click());
-    await act(async () => buttonSaying(document.body, 'Entry in Diary')!.click());
+    act(() => buttonSaying(document.body, 'Entry in Diary')!.click());
+    await act(async () => buttonSaying(document.body, '· usual')!.click());
     await waitUntil(() => expect(noteShown()).not.toBeNull());
     const { title } = records()[noteShown()!]!;
     expect(lost).toBe(true);
