@@ -494,9 +494,12 @@ describe('a new note, ready to type', () => {
     };
     await blank();
     expect(seen.note!.templates).toBeNull();
+    const left = seen.note!.note.id;
     const made = vi.mocked(createNote).mock.calls.length;
     await act(async () => seen.note!.onTemplates!());
     await waitUntil(() => expect(isTemplatesBody(seen.note!.note.body)).toBe(true));
+    // In the blank note's tab: a note left with no words leaves nothing, its tab included.
+    expect(tabs()).not.toContain(left);
     const bodies = vi.mocked(createNote).mock.calls.slice(made).map((call) => call[1]);
     // The six pages, the last first so a list read newest first reads them in order, then the notebook.
     expect(bodies).toHaveLength(7);

@@ -469,7 +469,7 @@ function Shell() {
 
   /*
    * Your templates, the blank page's last card (notes/ownTemplates.ts; docs/DESIGN.md §144): the Templates notebook,
-   * opened in a tab of its own. The first time there is none, and it is made with the six built-ins as its pages, the
+   * opened in the blank note's tab, since a note left with no words leaves nothing. The first time there is none, and it is made with the six built-ins as its pages, the
    * pages first and the notebook last, as the Guide is added, against the store read now and out of the Trash, so a
    * press cut short makes only what is missing the next time. Not filed and not tagged: they are the app's pages until
    * the person changes them. A second press while it is being made is the same press.
@@ -479,7 +479,7 @@ function Shell() {
     if (seeding.current) return;
     seeding.current = true;
     try {
-      tabs.replaceNext(null);
+      tabs.replaceNext(shown ?? null);
       const plan = seedPlan(outOfTrash(await listNotes().catch(() => notes), trash()));
       if ('open' in plan) {
         setScreen({ name: 'note', note: plan.open });
