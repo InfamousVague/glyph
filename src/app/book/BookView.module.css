@@ -337,7 +337,8 @@
 
 .startsTitle {
   margin: var(--glacier-space-1) var(--glacier-space-2);
-  font-size: var(--glacier-font-size-xs);
+  /* In the book's own type, as the rest of the page is, so a pinch of the note's zoom sizes it too. */
+  font-size: 0.7em;
   font-weight: var(--glacier-font-weight-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -367,6 +368,7 @@
   background: color-mix(in srgb, var(--glacier-text) 7%, transparent);
 }
 
+/* Focus rests only on the chosen row (BookView.tsx `PageStarts`), so its ring marks the choice rather than rivalling it. */
 .start:focus-visible {
   outline: 2px solid var(--glacier-accent-solid);
   outline-offset: 1px;
@@ -377,10 +379,16 @@
   color: var(--glacier-text);
 }
 
+/*
+ * How it starts, in two lines at most: on a phone one line cut A morning page off before its question, which is what
+ * tells it from the others.
+ */
 .startLine {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--glacier-font-size-sm);
+  overflow-wrap: anywhere;
+  font-size: 0.85em;
   color: var(--glacier-text-muted);
 }

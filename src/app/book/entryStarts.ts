@@ -32,13 +32,14 @@ export function startLine(text: string, journal: string, at = new Date()): strin
   return lines.length ? lines.join(' · ') : 'Nothing, a blank page';
 }
 
-/**
- * What a notebook's new page can start from, under its title in Add a page (book/BookView.tsx; Matt: "this should be
- * visible on the page where I enter the note name after hitting new page"): just its title, as a page always began,
- * then the templates a journal's entries start from.
- */
+/** A new page made as it always was: its title, and nothing under it. */
 export const JUST_THE_TITLE: Start = { id: 'title', name: 'Just the title', text: '' };
 
+/**
+ * What a notebook's new page can start from, under its title in Add a page (book/BookView.tsx; Matt: "To be clear this
+ * should be visible on the page where I enter the note name after hitting new page in journal"): just its title, as a
+ * page always began, then the templates a journal's entries start from.
+ */
 export function pageStarts(): Start[] {
   return [JUST_THE_TITLE, ...PRESETS.map((each) => ({ id: each.id, name: each.name, text: each.text }))];
 }

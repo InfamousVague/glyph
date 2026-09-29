@@ -12,6 +12,7 @@ import { isDarkNow, usePreferences } from '../core/preferences.ts';
 import { readBookSpot, useBookSpot } from './bookSpot.ts';
 import { useRowDrag } from './rowDrag.ts';
 import { JUST_THE_TITLE, pageStarts, startLine } from './entryStarts.ts';
+import { useBack } from '../core/back.ts';
 import styles from './BookView.module.css';
 
 /**
@@ -138,6 +139,16 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
     setFilter('');
     setAdding(null);
   };
+  /** Either form put away, and what it was holding let go: the next one opens as new. */
+  const closeAdding = () => {
+    setStart(JUST_THE_TITLE.id);
+    setPicked([]);
+    setFilter('');
+    setAdding(null);
+  };
+  // While a form is open, the back gesture (Escape on a desktop) closes it before it would leave the notebook, as the
+  // journal's own template choice does (JournalView.tsx), whichever of its controls has the focus.
+  useBack(adding !== null, closeAdding);
   const others = adding === 'existing' ? titles().filter((t) => t.trim() && !sameTitle(t, title) && !chapters.some((c) => sameTitle(c.title, t)) && (!filter.trim() || t.toLowerCase().includes(filter.trim().toLowerCase()))) : [];
 
   if (reading) {
@@ -286,7 +297,11 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
             autoFocus
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Escape') setAdding(null);
+              // Taken here, so the back stack does not also step: one Escape closes the form and nothing more.
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                closeAdding();
+              }
             }}
           />
           {openNew ? <PageStarts chosen={start} onChoose={setStart} title={draft.trim()} notebook={title} /> : null}
@@ -298,14 +313,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
               <Workflow size={16} aria-hidden="true" /> Add as a canvas
             </button>
           ) : null}
-          <button
-            type="button"
-            className={styles.quiet}
-            onClick={() => {
-              setStart(JUST_THE_TITLE.id);
-              setAdding(null);
-            }}
-          >
+          <button type="button" className={styles.quiet} onClick={closeAdding}>
             Cancel
           </button>
         </form>
@@ -380,11 +388,42 @@ function useSameList(list: readonly string[]): readonly string[] {
  */
 function PageStarts({ chosen, onChoose, title, notebook }: { chosen: string; onChoose: (id: string) => void; title: string; notebook: string }) {
   const now = new Date();
+  const starts = pageStarts();
+  const rows = useRef<(HTMLButtonElement | null)[]>([]);
+  /*
+   * One stop for Tab, on the chosen row, and the arrows move the choice and the focus together, as a radio group does
+   * (notes/WorkspaceSwatch.tsx): focus never rests on a row that is not the one chosen, so the ring and the choice agree.
+   */
+  const step = (from: number, by: number) => {
+    const to = (from + by + starts.length) % starts.length;
+    onChoose(starts[to]!.id);
+    rows.current[to]?.focus();
+  };
   return (
     <div className={styles.starts} role="radiogroup" aria-label="Start the page with">
       <p className={styles.startsTitle}>Start with</p>
-      {pageStarts().map((each) => (
-        <button key={each.id} type="button" role="radio" aria-checked={chosen === each.id} className={styles.start} onClick={() => onChoose(each.id)}>
+      {starts.map((each, n) => (
+        <button
+          key={each.id}
+          ref={(el) => {
+            rows.current[n] = el;
+          }}
+          type="button"
+          role="radio"
+          aria-checked={chosen === each.id}
+          tabIndex={chosen === each.id ? 0 : -1}
+          className={styles.start}
+          onClick={() => onChoose(each.id)}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+              event.preventDefault();
+              step(n, 1);
+            } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+              event.preventDefault();
+              step(n, -1);
+            }
+          }}
+        >
           <span className={styles.startName}>{each.name}</span>
           <span className={styles.startLine}>{each.text ? startLine(each.text, notebook, now) : title || 'The page’s title, and nothing under it'}</span>
         </button>
