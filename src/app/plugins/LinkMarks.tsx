@@ -1,4 +1,3 @@
-import { useWorkspaces, workspaceOf } from '../core/workspaces.ts';
 import { useNoteLinks } from './hooks.ts';
 import styles from './LinkMarks.module.css';
 
@@ -15,17 +14,14 @@ import styles from './LinkMarks.module.css';
  * switched off says nothing, and its marks go. A tap opens the cog sheet,
  * where the link is changed or removed.
  *
- * The workspace the note is filed in comes first in the row, as the pill the home page draws it with, in its own
- * hue (Matt: "show the workspace on the view that shows the note itself"): the home page said it and the note did
- * not, so a note opened from a tab or a search gave no sign of where it lived. The same tap opens the cog, where
- * the note is filed (editor/WorkspacePicker.tsx).
+ * The workspace the note is filed in was worn here too, as a pill first in the row, until the tab wore it (Matt:
+ * "Remove the pill at the top of the notes it's already in the tab so it's redundant"): every note on screen has
+ * its tab, and the tab's pill comes before its name in the workspace's hue (notes/NoteTabs.tsx). The note is filed
+ * in its More sheet (editor/WorkspacePicker.tsx).
  */
 export function LinkMarks({ noteId, onPress }: { noteId: string; onPress?: () => void }) {
   const links = useNoteLinks(noteId);
-  // Read through the store's hook, so filing the note from the cog redraws the pill.
-  useWorkspaces();
-  const space = workspaceOf(noteId);
-  if (!links.length && !space) return null;
+  if (!links.length) return null;
   const marks = links.map(({ link, name }) => {
     const Icon = link.icon;
     return (
@@ -37,26 +33,13 @@ export function LinkMarks({ noteId, onPress }: { noteId: string; onPress?: () =>
       </span>
     );
   });
-  const pill = space ? (
-    <span className={styles.space} data-hue={space.hue ?? 'ink'} title={`Workspace: ${space.name}`}>
-      {space.name}
-    </span>
-  ) : null;
   if (onPress) {
-    const said = [space ? `In the workspace ${space.name}` : '', links.length ? `Linked to ${links.map((l) => `${l.link.label} ${l.name}`).join(' and ')}` : '']
-      .filter(Boolean)
-      .join('. ');
+    const said = `Linked to ${links.map((l) => `${l.link.label} ${l.name}`).join(' and ')}`;
     return (
       <button type="button" className={styles.row} onClick={onPress} aria-label={`${said}. Change in this note’s settings.`}>
-        {pill}
         {marks}
       </button>
     );
   }
-  return (
-    <span className={styles.row}>
-      {pill}
-      {marks}
-    </span>
-  );
+  return <span className={styles.row}>{marks}</span>;
 }
