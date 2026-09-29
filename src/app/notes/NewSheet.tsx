@@ -4,6 +4,7 @@ import { Cassette } from '../art/Icons.tsx';
 import { failureText } from '../core/failure.ts';
 import { SheetField, SheetGroup, SheetRow, SheetTitle } from '../plugins/kit.tsx';
 import { Sheet } from '../editor/Sheet.tsx';
+import sheetStyles from '../editor/NoteSettings.module.css';
 import { entryStarts, startLine } from '../book/entryStarts.ts';
 
 /**
@@ -31,9 +32,10 @@ export interface NewSheetProps {
   onBook: () => void;
   /**
    * A new entry in the journal on screen, else the one written in last: its name, what an entry starts with (`hint`, and
-   * `usual`, the template itself), and the entry made from the template chosen. Absent with no journal.
+   * `usual`, the template itself), and the entry made from the template chosen: none for the usual one, which is read
+   * from the journal afresh as the entry is made. Absent with no journal.
    */
-  entry?: { journal: string; hint: string; usual: string; onPress: (template: string) => void };
+  entry?: { journal: string; hint: string; usual: string; onPress: (template?: string) => void };
   /** Records a meeting; given only where one can be recorded here. */
   onMeeting?: () => void;
   /** Saves a copy of a shared note or book from its link; answers nothing, or throws what went wrong. */
@@ -79,8 +81,13 @@ export function NewSheet({ open, onClose, onNote, onCanvas, onBook, entry, onMee
   };
   if (entry && starting) {
     const now = new Date();
+    // The way back at the top, as the More sheet's pages have it, and the back gesture steps back rather than closing.
+    // Keyed apart from the choices, so each step opens at its own top rather than where the other was scrolled to.
     return (
-      <Sheet label="New" onClose={onClose}>
+      <Sheet key="start" label="New" onClose={onClose} onBack={() => setStarting(false)}>
+        <button type="button" className={sheetStyles.back} onClick={() => setStarting(false)}>
+          <ArrowLeft /> New
+        </button>
         <SheetTitle>Start the entry with</SheetTitle>
         <SheetGroup>
           {entryStarts(entry.usual).map((start) => (
@@ -88,19 +95,16 @@ export function NewSheet({ open, onClose, onNote, onCanvas, onBook, entry, onMee
               key={start.id}
               icon={Feather}
               label={start.id === 'usual' ? `${start.name} · usual` : start.name}
-              hint={startLine(start.text, entry.journal, now)}
-              onPress={pick(() => entry.onPress(start.text))}
+              hint={clip(startLine(start.text, entry.journal, now))}
+              onPress={pick(() => entry.onPress(start.id === 'usual' ? undefined : start.text))}
             />
           ))}
-        </SheetGroup>
-        <SheetGroup>
-          <SheetRow icon={ArrowLeft} label="Back" onPress={() => setStarting(false)} />
         </SheetGroup>
       </Sheet>
     );
   }
   return (
-    <Sheet label="New" onClose={onClose}>
+    <Sheet key="new" label="New" onClose={onClose}>
       <SheetTitle>New</SheetTitle>
       <SheetGroup>
         <SheetRow icon={SquarePen} label="Note" hint="A page of markdown, typed or said." onPress={pick(onNote)} />
@@ -130,4 +134,15 @@ export function NewSheet({ open, onClose, onNote, onCanvas, onBook, entry, onMee
       ) : null}
     </Sheet>
   );
+}
+
+/** How long a template's line runs on its row before it stops: about two lines on a phone, as the journal page keeps it to one. */
+const HINT_MOST = 90;
+
+/** A template's line cut at a word near the end of the room, with an ellipsis. */
+function clip(line: string): string {
+  if (line.length <= HINT_MOST) return line;
+  const cut = line.slice(0, HINT_MOST);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > HINT_MOST * 0.6 ? cut.slice(0, space) : cut).trimEnd()}…`;
 }

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useBack } from '../core/back.ts';
 import { ChevronRight, Plus, X } from '@glacier/icons';
 import { noteTitle } from '../core/noteTitle.ts';
 import { isDarkNow, usePreferences } from '../core/preferences.ts';
@@ -148,6 +149,8 @@ export function JournalView({ body, noteOf, known, open, onChange, onNewEntry, d
 
 /** The templates a new entry can start from, under New entry (JournalView). */
 function TemplateChoice({ usual, journal, onPick, onCancel }: { usual: string; journal: string; onPick: (text: string) => void; onCancel: () => void }) {
+  // The back gesture folds the choice before it leaves the journal, as the find bar and the palette take it first.
+  useBack(true, onCancel);
   const starts = useMemo(() => entryStarts(usual), [usual]);
   const now = new Date();
   return (

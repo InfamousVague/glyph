@@ -785,6 +785,59 @@ describe('a journal’s entries', () => {
     expect((await getNote('older'))!.body).not.toContain(title);
   });
 
+  it('aims the + at the journal on screen, and at the journal of an entry on screen, before the one written in last', async () => {
+    // Dreams is written in last; Diary, with one entry, is the one being read.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 8, 28, 9, 0, 0));
+    await createNote('walk', '# Walk\n\nWalked.');
+    await createNote('diary', `${DIARY}- [[Walk]]\n`);
+    vi.setSystemTime(new Date(2026, 8, 28, 9, 0, 1));
+    await createNote('dreams', DIARY.replace(/Diary/g, 'Dreams'));
+    vi.useRealTimers();
+    await openApp();
+    const plus = () => document.querySelector<HTMLButtonElement>('button[aria-label="New note in a new tab"]')!;
+    const closeSheet = () => act(() => (document.querySelector('[role="dialog"][aria-label="New"]')!.parentElement as HTMLElement).click());
+    act(() => card('Diary').click());
+    await act(async () => plus().click());
+    expect(buttonSaying(document.body, 'Entry in Diary')).toBeDefined();
+    expect(buttonSaying(document.body, 'Entry in Dreams')).toBeUndefined();
+    closeSheet();
+    await act(async () => seen.note!.onOpenWithin!('Walk'));
+    await waitUntil(() => expect(noteShown()).toBe('walk'));
+    await act(async () => plus().click());
+    expect(buttonSaying(document.body, 'Entry in Diary')).toBeDefined();
+    expect(buttonSaying(document.body, 'Entry in Dreams')).toBeUndefined();
+  });
+
+  it('makes the entry from the template picked in the + sheet', async () => {
+    await seed(['diary', DIARY]);
+    await openApp();
+    act(() => button('Write a note').click());
+    act(() => buttonSaying(document.body, 'Entry in Diary')!.click());
+    await act(async () => buttonSaying(document.body, 'A morning page')!.click());
+    await waitUntil(() => expect(noteShown()).not.toBeNull());
+    const body = (await getNote(noteShown()!))!.body;
+    expect(body).toContain('> What is on your mind this morning?');
+    expect(body).not.toMatch(/\*\*\d{2}:\d{2}\*\*/);
+  });
+
+  it('makes the usual entry from the journal as the store has it now, not as the list last read it', async () => {
+    const { updateNote } = await import('./core/store.ts');
+    await seed(['diary', DIARY]);
+    await openApp();
+    // The template changed underneath the list, as a journal's More sheet changes it while the journal is open.
+    const before = (await getNote('diary'))!;
+    await updateNote('diary', before.body.replace('"# {{date}}\\n\\n**{{time}}** "', '"# {{date}}\\n\\n## To do\\n\\n- [ ] "'), before.revision ?? 1);
+    expect((await getNote('diary'))!.body).toContain('## To do');
+    act(() => button('Write a note').click());
+    act(() => buttonSaying(document.body, 'Entry in Diary')!.click());
+    await act(async () => buttonSaying(document.body, '· usual')!.click());
+    await waitUntil(() => expect(noteShown()).not.toBeNull());
+    const body = (await getNote(noteShown()!))!.body;
+    expect(body).toContain('## To do');
+    expect(body).toContain('- [ ] ');
+  });
+
   it('offers no entry in a journal put away in the archive, however lately it was written in', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(2026, 8, 28, 9, 0, 0));

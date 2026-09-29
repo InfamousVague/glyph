@@ -436,6 +436,11 @@ function Shell() {
    * for every +, so the choice reads the same wherever it is offered.
    */
   const [newSheet, setNewSheet] = useState(false);
+  // The + sheet opening reads the notes again, so its entry row names and describes each journal as it is now: an open
+  // note's changes reach the list only when it closes, and a journal's template or kind may have changed in it.
+  useEffect(() => {
+    if (newSheet) void refresh();
+  }, [newSheet, refresh]);
 
   const newCanvas = () => {
     tabs.replaceNext(null);
@@ -556,13 +561,18 @@ function Shell() {
    * The + sheet's row for a new entry: in the journal on screen, else the one written in last. The sheet asks which
    * template it starts from (notes/NewSheet.tsx), the journal's usual one first.
    */
-  const entryJournal = journals.find((n) => n.id === shown) ?? journals[0];
+  // The journal on screen, or the journal of the entry on screen, before the one written in last.
+  const onScreenBook = screen.name === 'note' ? placeInBook(screen.note) : null;
+  const entryJournal =
+    journals.find((n) => n.id === shown) ?? (onScreenBook?.journal ? journals.find((n) => n.id === onScreenBook.book.id) : undefined) ?? journals[0];
   const entryRow = entryJournal
     ? {
         journal: noteTitle(entryJournal.body) || 'Untitled journal',
         hint: templateSentence(templateOf(entryJournal.body)),
         usual: templateOf(entryJournal.body),
-        onPress: (template: string) => void newEntry(entryJournal.id, { template }),
+        // The usual row sends no template: the entry is made from the journal as the store has it now, not from this
+        // list's copy, which an open journal's More sheet may have changed since (makeEntry reads it fresh).
+        onPress: (template?: string) => void newEntry(entryJournal.id, template === undefined ? {} : { template }),
       }
     : undefined;
   /** The first ask for where a journal's entries were written, introduced in the app's words, from its own press. */

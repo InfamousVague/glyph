@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { installBack } from '../core/back.ts';
 import { act } from 'react';
 import { makeNote } from '../../test/notes.ts';
 import { button, rerender, show } from '../../test/render.tsx';
@@ -134,6 +135,12 @@ describe('a journal drawn', () => {
     act(() => button('Cancel').click());
     expect(document.querySelector('[aria-label="Start the entry with"]')).toBeNull();
     expect(onNewEntry).not.toHaveBeenCalled();
+    // The back gesture folds the choice first, before it would leave the journal.
+    const uninstall = installBack();
+    act(() => button('New entry').click());
+    act(() => void window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    expect(document.querySelector('[aria-label="Start the entry with"]')).toBeNull();
+    uninstall();
   });
 });
 
