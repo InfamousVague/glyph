@@ -338,7 +338,7 @@ export function Editor({
         grow ? Prec.highest(GROW_THEME) : [],
         // The caret kept out of the page's foot smoke as it moves: the line being written is scrolled up before the
         // smoke bends it, not when it reaches the edge. Widens only what is scrolled to, so nothing moves otherwise.
-        peek ? [] : EditorView.scrollMargins.of(() => (footClearRef.current > 0 ? { bottom: footClearRef.current } : null)),
+        peek ? [] : EditorView.scrollMargins.of((current) => (footClearRef.current > 0 ? { bottom: footClearAt(current, footClearRef.current) } : null)),
         arrivals || wispTyping ? wispArrivals({ typing: wispTyping }) : [],
         ripples ? wispRipples(ripples) : [],
         // The AI's changes, tracked: tinted where it added, struck where it took away, Keep and Revert (aiChanges.ts).
@@ -445,6 +445,20 @@ export function Editor({
 }
 
 /** An editor as tall as its document, filling at least its box, for a page that scrolls it. */
+/**
+ * The foot's clearance, held to a third of the room the page shows under its header: on a short page - a phone on its
+ * side with the keyboard up - the whole of it would lift the line being typed up under the header, into the top's
+ * smoke. The room is the page that scrolls around the note (NoteScreen's, `[data-scrolls]`) less the header over its
+ * top, which it pads by; not laid out (a test), the clearance stands.
+ */
+function footClearAt(view: EditorView, clear: number): number {
+  const page = view.dom.closest<HTMLElement>('[data-scrolls]') ?? view.scrollDOM;
+  const height = page.clientHeight;
+  if (!height) return clear;
+  const under = parseFloat(getComputedStyle(page).paddingTop) || 0;
+  return Math.min(clear, Math.max(0, (height - under) / 3));
+}
+
 // One class more specific than glyphTheme's own rules, which set the scroller
 // to scroll and to hold its overscroll; kept, those swallowed every swipe on
 // the note before the page could scroll.

@@ -124,4 +124,22 @@ describe('the caret kept out of the foot smoke', () => {
     expect(bottomMargin(view())).toBe(0);
     unmount();
   });
+
+  it('holds the clearance to a third of the room on a short page, so the line is not lifted under the header', () => {
+    const { view } = mount({ footClear: WISP_EDGE_FOOT_CLEAR });
+    // The page that scrolls around the note: 210px tall, 80 of them under the header, as a phone on its side with
+    // the keyboard up.
+    const page = document.createElement('div');
+    page.dataset.scrolls = '';
+    page.style.paddingTop = '80px';
+    let tall = 210;
+    Object.defineProperty(page, 'clientHeight', { get: () => tall });
+    view().dom.replaceWith(page);
+    page.append(view().dom);
+    expect(bottomMargin(view())).toBeCloseTo(130 / 3);
+    // A tall page gives the whole clearance.
+    tall = 900;
+    expect(bottomMargin(view())).toBe(WISP_EDGE_FOOT_CLEAR);
+    unmount();
+  });
 });

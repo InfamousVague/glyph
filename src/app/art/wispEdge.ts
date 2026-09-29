@@ -188,9 +188,32 @@ export const WISP_EDGE_FOOT_LIFT = 24;
  * How far above a view's bottom edge the foot's smoke reaches words: its lip, lifted off the edge, and two widths of
  * its ramp's blur, past which the bend is too faint to see. A line typed lower than this comes out of the smoke
  * already bent (Matt: "when I'm typing and the text is affected by the wisp at the bottom of the page it should scroll
- * the page up"), so the note's editor keeps its caret this far clear of the edge (editor/Editor.tsx `footClear`).
+ * the page up"), so the note's editor keeps its caret this far clear of the edge (editor/Editor.tsx `footClear`), where
+ * the foot smokes at all (`footSmokes`).
  */
 export const WISP_EDGE_FOOT_CLEAR = WISP_EDGE_FOOT_LIFT + WISP_EDGE_FOOT_BAND + 2 * WISP_EDGE_FOOT_SOFT;
+
+/**
+ * Which drawing a view's edges get: the filter or the mask, or on a desktop neither - a blur strip at the top and a
+ * short fade at the foot. `draw` is what the view asked for; left out, the platform decides. One answer for the hook
+ * below and for anyone asking whether the edges smoke (`footSmokes`), so the two cannot come to disagree.
+ */
+export function wispModeFor(draw?: WispDraw): WispDraw | 'fade' {
+  if (!draw && wispHead() === 'blur') return 'fade';
+  return draw ?? wispDraw();
+}
+
+/**
+ * Whether a page's foot bends the words under it here: its smoke is wanted (Settings › Appearance › Motion), drawn as
+ * smoke rather than a desktop's plain fade, and motion is not asked to be reduced, which takes the filter away
+ * (art/wisp.css). Where it does not, nothing needs lifting out of it.
+ */
+export function footSmokes(wanted: boolean, draw?: WispDraw): boolean {
+  if (!wanted) return false;
+  const mode = wispModeFor(draw);
+  if (mode === 'fade') return false;
+  return !(mode === 'filter' && prefersStill());
+}
 /** How far below the band's lip the bend and blur are computed at all: past the strip's soft edge, with room for the drift. */
 export const WISP_EDGE_REACH = WISP_EDGE_BAND + WISP_EDGE_SOFT * 4 + 48;
 
@@ -464,9 +487,9 @@ export function useWispEdge(
     // On a desktop neither end smokes: the top is a blur strip under the header, the foot a short fade at the very edge,
     // so the page runs down to the window's bottom (Matt: "the desktop UI on the home page isn't reaching to the bottom
     // of the screen"). The mask's foot hid the last 104px, which a dock row across the bottom used to stand over.
-    const plain = !draw && wispHead() === 'blur';
     // `fade`: neither drawing, a desktop's plain edges - the blur strip at the top, a short fade at the foot.
-    const mode: WispDraw | 'fade' = plain ? 'fade' : (draw ?? wispDraw());
+    const mode = wispModeFor(draw);
+    const plain = mode === 'fade';
     const masked = mode === 'mask';
     /** Whether this view wears the SVG filter, and so has its bands placed in the filter's coordinates. */
     const filtered = mode === 'filter';
