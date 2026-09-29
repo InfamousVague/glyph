@@ -42,6 +42,13 @@ describe('the two readers of blanks', () => {
     expect(editorRead(CORPUS)).toEqual(expected);
   });
 
+  it('read a fence past the parse a state was made with', () => {
+    // A state parses its first 3000 characters as it is made. The fence below starts past them, so its blank is code
+    // only in the tree the whole-note read asks for.
+    const long = `${'Words to fill the note. '.repeat(200)}\n\n\`\`\`\n{?fenced}\n\`\`\`\n\nAfter {?prose}`;
+    expect(editorRead(long)).toEqual(['prose']);
+  });
+
   it('differ, as named, on an indented code block and an HTML block over several lines', () => {
     // An indented code block is code to the parser and words to the pure reader, which reads fences only.
     expect(editorRead('Words.\n\n    {?indented}\n')).toEqual([]);

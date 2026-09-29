@@ -2,6 +2,7 @@ import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import { Facet, StateEffect, StateField, type EditorState, type Extension, type Range } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { BookOpenText, Calculator, CalendarDays, Globe, Hourglass, LoaderCircle, MessageCircleQuestionMark, PenLine, Wifi, WifiOff, type LucideIcon } from '@glacier/icons';
+import type { Tree } from '@lezer/common';
 import { blankMatches, type Blank, fillsIn } from '../core/blanks.ts';
 import { externalStore } from '../core/externalStore.ts';
 import { frontMatterOffset } from '../core/frontMatter.ts';
@@ -104,9 +105,9 @@ export const blanksField = StateField.define<ReadonlyMap<string, { from: number;
  * Whether a blank starting at `from` sits in words the editor draws: not front matter (the parser makes no node for
  * it, editor/extended.ts draws it by its own rule), code, a comment, an address or maths.
  */
-function inWords(state: EditorState, from: number): boolean {
+function inWords(state: EditorState, from: number, tree: Tree = syntaxTree(state)): boolean {
   if (from < frontMatterOffset(state.doc.sliceString(0, Math.min(state.doc.length, 4000)))) return false;
-  if (inQuietText(state, from)) return false;
+  if (inQuietText(state, from, tree)) return false;
   const line = state.doc.lineAt(from);
   return !mathsIn(line.text, line.from).some((m) => from >= m.from && from < m.to);
 }
@@ -114,13 +115,15 @@ function inWords(state: EditorState, from: number): boolean {
 /**
  * The blanks the editor draws, offers and fills: every match of the pattern outside the parser's quiet places. For
  * the whole note (Fill the blanks, its count in the More sheet, the palette) the whole tree is asked for first, on the
- * press or when the sheet opens, never per keystroke.
+ * press or when the sheet opens, never per keystroke. The tree that answers is the one read: a state keeps the tree it
+ * was made with, so a parse cut short at its making (a long note, or a busy phone) would leave a fence's blank as
+ * words.
  */
 export function editorBlanks(state: EditorState, whole = true): Blank[] {
-  if (whole) ensureSyntaxTree(state, state.doc.length, 200);
   const text = state.doc.toString();
   if (!text.includes('{?')) return [];
-  return blankMatches(text).filter((blank) => inWords(state, blank.from));
+  const tree = (whole && ensureSyntaxTree(state, state.doc.length, 200)) || syntaxTree(state);
+  return blankMatches(text).filter((blank) => inWords(state, blank.from, tree));
 }
 
 /** A blank's identity among `all`: its question and its order among blanks with that question. */
