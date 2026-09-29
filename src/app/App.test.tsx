@@ -457,6 +457,7 @@ describe('a new note, ready to type', () => {
   it('takes back a note given a template or a name and left without a word, and keeps one written in', async () => {
     const { rememberUntouched, untouchedRecord } = await import('./core/untouched.ts');
     const { setPendingTag, pendingTag } = await import('./core/location.ts');
+    await seed(['a', '# Apples']);
     await openApp();
     const made = async () => {
       act(() => button('Write a note').click());
@@ -474,6 +475,21 @@ describe('a new note, ready to type', () => {
     expect(untouchedRecord(left)).toBeNull();
     expect(pendingTag(left)).toBeNull();
     expect(tabs()).not.toContain(left);
+    // Left before its screen's save of the words has landed: the store has none yet, so the record waits for a look
+    // that finds them, and the note is taken back then.
+    const early = await made();
+    rememberUntouched(early, { title: '2026-09-28', words: '# 2026-09-28\n\n', at: Date.now() });
+    act(() => button('Home').click());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(untouchedRecord(early)).not.toBeNull();
+    await updateNote(early, '# 2026-09-28\n\n', (await getNote(early))!.revision ?? 1);
+    // The next look: another note, and home again (behind another note its open tab would keep it).
+    act(() => card('Apples').click());
+    await waitUntil(() => expect(noteShown()).toBe('a'));
+    act(() => button('Home').click());
+    await waitUntil(async () => expect(await getNote(early)).toBeNull());
     // Written in, it is the person's: it stays, and its record goes.
     const kept = await made();
     rememberUntouched(kept, { title: '2026-09-28', words: '# 2026-09-28\n\n', at: Date.now() });

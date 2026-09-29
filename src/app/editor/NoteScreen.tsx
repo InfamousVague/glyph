@@ -991,6 +991,7 @@ export function NoteScreen({
     drafted.current = true;
     setUntouched(true);
     editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: filled.body }, selection: { anchor: filled.caret }, scrollIntoView: true, userEvent: 'input.template' });
+    flush();
     editor.focus();
     fireNativeHaptic('selection');
     if (template.look === 'map' && !geoTagOf(body.current) && !pendingTag(note.id) && heldFor(note.id) !== 'waiting') {
@@ -1012,6 +1013,8 @@ export function NoteScreen({
     setUntouched(true);
     const from = frontMatterOffset(editor.state.doc.toString());
     editor.dispatch({ changes: { from, to: editor.state.doc.length, insert: words }, selection: { anchor: from + words.length }, scrollIntoView: true, userEvent: 'input.name' });
+    // Kept now, not on typing's beat: a note named and left at once is looked at by its take-back from the store.
+    flush();
     editor.focus();
     fireNativeHaptic('selection');
   };

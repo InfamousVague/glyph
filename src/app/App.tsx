@@ -47,7 +47,7 @@ import { canvasNoteBody, isCanvasBody } from './canvas/jsonCanvas.ts';
 import { frontMatterOffset, withFrontMatterTitle } from './core/frontMatter.ts';
 import { bookNoteBody, bookOf, chaptersOf, isBookBody, isJournalBody, withoutChapter } from './book/book.ts';
 import { entryBody, entryPages, entryPlaceOf, entryTitle, journalNoteBody, localStamp, templateOf, templateSentence, uniqueTitle, withEntry, type JournalWriter } from './book/journal.ts';
-import { forgetUntouched, isUntouched, markFresh, rememberUntouched, setUntouchedWords, untouchedRecord, untouchedRecords, type UntouchedRecord } from './core/untouched.ts';
+import { forgetUntouched, isUntouched, markFresh, rememberUntouched, setUntouchedWords, untouchedRecord, untouchedRecords, wordsOf, type UntouchedRecord } from './core/untouched.ts';
 import { fillTemplate, openEnd } from './core/template.ts';
 import { inTimeOrder } from './book/journalMonths.ts';
 import { whereLeft } from './book/bookSpot.ts';
@@ -765,6 +765,10 @@ function Shell() {
       forgetUntouched(id);
       return;
     }
+    // A new note given its words on its blank page gets them from its screen's save, which a note left at once may
+    // still be making: the store has no words yet, so the next look decides. The screen forgets the record of a note
+    // emptied on it, so a record with no words in the store is only ever that.
+    if (!record.journalId && !isTrashed(id) && !wordsOf(fresh.body).trim()) return;
     if (isTrashed(id) || !isUntouched(id, fresh.body, fresh)) {
       forgetUntouched(id);
       return;

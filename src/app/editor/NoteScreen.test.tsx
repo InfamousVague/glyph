@@ -1837,6 +1837,9 @@ describe('a new note’s blank page', () => {
     expect(view.hasFocus).toBe(true);
     expect(untouchedRecord('b2')).toMatchObject({ title: today(), words });
     expect(untouchedRecord('b2')?.journalId).toBeUndefined();
+    // Kept at once, not on typing's 400ms beat: its take-back reads the store.
+    await settle();
+    expect(saved()).toContain(words);
     expect(chips()).toHaveLength(0);
     // The tab row's title, as the store outside App has it.
     let said = '';
