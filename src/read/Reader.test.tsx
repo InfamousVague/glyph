@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import type { Shared } from '../app/share/share.ts';
-import { show, waitUntil } from '../test/render.tsx';
+import { show, unmount, waitUntil } from '../test/render.tsx';
 
 /**
  * The reader page draws a shared note's pictures from the share itself (Matt: "Images for notes are not loading on
@@ -62,6 +62,30 @@ describe('the reader page', () => {
     await waitUntil(() => expect(document.querySelector('ol[aria-label="Pages"]')).not.toBeNull());
     expect(document.body.textContent).toContain('A shared notebook.');
     expect(document.body.textContent).not.toMatch(/\bbook\b/i);
+  });
+});
+
+describe('a note with a look, shared', () => {
+  it('is drawn in its look, without the key it is drawn by, and a map note’s header only with its place', async () => {
+    const reading = '---\nlook: reading\n---\n# The long road\n\nIt went on.';
+    vi.mocked(readShared).mockResolvedValueOnce({ v: 1, kind: 'note', title: 'The long road', pages: [{ title: 'The long road', body: reading }], at: 1 });
+    history.replaceState(null, '', `/read.html#${'a'.repeat(22)}.${'b'.repeat(43)}`);
+    show(<Reader />);
+    await waitUntil(() => expect(document.querySelector('.cm-content')?.textContent).toContain('It went on.'));
+    expect(document.querySelector('.cm-content')!.textContent).not.toContain('look');
+    expect(document.querySelector('.cm-editor')?.getAttribute('data-look')).toBe('reading');
+    expect(document.querySelector('article')?.getAttribute('data-look')).toBe('reading');
+    const map = '---\nlook: map\nlocation: 51.5074,-0.1278\n---\n# Walk\n\nBy the river.';
+    vi.mocked(readShared).mockResolvedValueOnce({ v: 1, kind: 'note', title: 'Walk', pages: [{ title: 'Walk', body: map }], at: 1 });
+    unmount();
+    show(<Reader />);
+    await waitUntil(() => expect(document.querySelector('[data-size="header"]')).not.toBeNull());
+    // Its place taken off the share: no box at all, saying nothing about a place.
+    vi.mocked(readShared).mockResolvedValueOnce({ v: 1, kind: 'note', title: 'Walk', pages: [{ title: 'Walk', body: '---\nlook: map\n---\n# Walk\n\nBy the river.' }], at: 1 });
+    unmount();
+    show(<Reader />);
+    await waitUntil(() => expect(document.querySelector('.cm-content')?.textContent).toContain('By the river.'));
+    expect(document.querySelector('[data-size]')).toBeNull();
   });
 });
 

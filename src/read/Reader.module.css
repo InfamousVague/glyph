@@ -155,6 +155,21 @@
   margin-inline: 0;
 }
 
+/*
+ * A page to read (`look: reading`, core/look.ts): a display title, the kit's 5xl, and from 600px the words in a column of
+ * 36rem, centred in the reader's own. The face is the editor's to swap (typefaces.css).
+ */
+.note[data-look='reading'] {
+  --app-h1: calc(var(--glacier-font-size-5xl) * var(--app-text-scale));
+}
+
+@media (min-width: 600px) {
+  .note[data-look='reading'] :global(.cm-editor) :global(.cm-content) {
+    max-inline-size: 36rem;
+    margin-inline: auto;
+  }
+}
+
 /* Where the page was written (editor/MapCard.tsx), under the byline: the page is the column, so no gutter of its own. */
 .map {
   margin-block: 0 var(--glacier-space-4);

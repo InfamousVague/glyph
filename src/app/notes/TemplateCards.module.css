@@ -1,0 +1,117 @@
+/*
+ * The templates on a new note's blank page (TemplateCards.tsx; docs/DESIGN.md §144): cards under the names, one to a row
+ * on a phone (§121, and Matt: one card per row on a phone is the rule), as many as fit 15rem from 600px in a column of
+ * at most 56rem. A card is a home card's box (notes/NoteCard.module.css): a hairline, the ink at 3% for its ground, and
+ * the note drawn small at the top, then its name and its sentence.
+ *
+ * Every card's picture is the same height (`--picture`), so a row's names sit on one line and the page stays calm.
+ * Drawn to their own heights they were 204 to 336px tall, names at three heights across a row, and the ghost under
+ * them never reached the first screen (found in review).
+ */
+
+.cards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--glacier-space-3);
+  max-inline-size: 56rem;
+  padding-block-start: var(--glacier-space-5);
+  /* The interface's face for the names and sentences, whatever face the note is in; the words drawn keep the note's. */
+  font-family: var(--glacier-font-sans);
+  /* A map at the top's header, drawn small (editor/MapCard.module.css): about a third of the card's picture. */
+  --map-scale: 0.45;
+  --picture: 7rem;
+}
+
+@media (min-width: 600px) {
+  .cards {
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+    --map-scale: 0.3;
+  }
+}
+
+.card {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--glacier-space-1);
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--glacier-space-3);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-lg);
+  background: color-mix(in oklch, var(--app-ink) 3%, transparent);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.card:hover {
+  background: color-mix(in oklch, var(--app-ink) 6%, transparent);
+}
+
+.card:active .name {
+  color: var(--glacier-text-muted);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+/*
+ * Your templates: not a note's top but the notebook they are kept in, so its words alone, across the whole row under
+ * the cards. As a cell of its own it read as a card whose picture had not drawn, alone on the last row at 880.
+ */
+.yours {
+  grid-column: 1 / -1;
+  background: transparent;
+}
+
+/* A map at the top where no note made here keeps a place: there, and plainly not to be pressed. */
+.card[data-dimmed] {
+  cursor: default;
+}
+
+.card[data-dimmed] .drawn,
+.card[data-dimmed] .name {
+  opacity: 0.45;
+}
+
+/* What the card draws: A map at the top's header and the note's first lines, a picture with nothing to press in it. */
+.drawn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--glacier-space-2);
+  flex: none;
+  block-size: var(--picture);
+  min-inline-size: 0;
+  margin-block-end: var(--glacier-space-2);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* The words take what the header leaves, and fade out at the picture's foot (notes/NotePeek.module.css). */
+.card .drawn > .words {
+  flex: 1 1 0;
+  min-block-size: 0;
+  max-block-size: none;
+}
+
+/* The map's box keeps the card's width, never a card's own cap: said at more weight than the card's own rule. */
+.drawn > .map {
+  max-inline-size: none;
+}
+
+.name {
+  font-size: var(--glacier-font-size-md);
+  line-height: 1.25;
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.sentence {
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  color: var(--app-ink-3);
+}

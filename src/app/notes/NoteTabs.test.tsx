@@ -91,6 +91,21 @@ describe('the top bar', () => {
   });
 });
 
+describe('a tab’s title', () => {
+  it('says what the open note’s editor has in line 1 as it is written, and the note’s own once that is newer', async () => {
+    const { dropLiveTitles, setLiveTitle } = await import('../core/liveTitles.ts');
+    const fresh = makeNote('n', '');
+    show(bar({ tabs: [fresh, ...notes], activeId: 'n' }));
+    expect(tab('n').textContent).toContain('Untitled');
+    act(() => setLiveTitle('n', '2026-09-28'));
+    expect(tab('n').textContent).toContain('2026-09-28');
+    // Renamed elsewhere after it was said: the note App has now wins.
+    rerender(bar({ tabs: [{ ...fresh, body: '# From the Mac', updatedAt: Date.now() + 1000 }, ...notes], activeId: 'n' }));
+    expect(tab('n').textContent).toContain('From the Mac');
+    dropLiveTitles(['n']);
+  });
+});
+
 describe('a tab’s menu', () => {
   it('opens on a mouse’s right-click, and not on a finger’s press and hold that the phone would raise', () => {
     show(bar({ onGroups: () => undefined }));

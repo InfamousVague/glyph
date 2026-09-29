@@ -43,6 +43,10 @@ import { aiChanges, type AiChange } from './aiChanges.ts';
 import { insertPlus, type PlusHooks } from './insertPlus.ts';
 import { placeCards, refreshPlaceCards, type PlaceMode } from './placeCards.ts';
 import { videoCards, type VideoMode } from './videos.ts';
+import { nameChips, setOffers, type BlankOffers } from './nameChips.ts';
+import { leadLine, openHeading as openHeadingHint } from './openHeading.ts';
+import type { Look } from '../core/look.ts';
+import { isMobile } from '../core/platform.ts';
 import { blanks as blankSquares, type BlankHooks } from './blanks.ts';
 import { fillPanel } from './fillPanel.ts';
 import { plugins } from '../plugins/registry.ts';
@@ -68,12 +72,12 @@ import styles from './markdown.module.css';
  * So a prop reaches the view in one of three ways, and a caller has to know
  * which. The callbacks (`onChange`, `onImageError`, `swipeAction`, `suggest`,
  * `linkMenus`, `wiki`, `onAiMarks`) are read through refs when they are used.
- * `dark`, `assist`, `readOnly`, `tape`/`tapeId` and `display` sit in
+ * `dark`, `assist`, `readOnly`, `tape`/`tapeId`, `display` and `look` sit in
  * Compartments and are swapped in place when they change. Everything else -
  * `grow`, `arrivals`, `wispTyping`, `ripples`, `peek`, `diagrams`,
  * `placeholder`, and whether `wiki` or `linkMenus` was given at all - is read
- * once, when the view is made, and so are whether `plus` was given, which
- * `places` and which `videos`; a caller that needs a different set remounts
+ * once, when the view is made, and so are whether `plus` or `blankPage` was
+ * given, `openHeading`, which `places` and which `videos`; a caller that needs a different set remounts
  * the editor with a new `key` (src/read/Reader.tsx does). And a new `wiki`
  * object is also a sign the notes changed (below), so a caller keeps the same
  * one while its lookups are the same.
@@ -173,6 +177,20 @@ interface EditorProps {
    */
   videos?: VideoMode;
   /**
+   * A new note's blank page (editor/nameChips.ts): the names under its first line and the screen's element under them,
+   * or nothing on offer; told to the view as they change. Whether it was given is read once; `onName` and `onShown` are
+   * read through a ref. Only the note screen gives it.
+   */
+  blankPage?: BlankOffers & { onName: (name: string) => void; onShown?: (shown: boolean) => void };
+  /** `A name` said in an open first heading (editor/openHeading.ts): the note screen and a template's card. Read once. */
+  openHeading?: boolean;
+  /**
+   * How the note looks (core/look.ts): `data-look` on the editor, which swaps the face alone for a reading note
+   * (typefaces.css), and a reading note's lead line (editor/openHeading.ts). Sizes are the column's to set, never the
+   * editor's: one set here would be nearer than a card's own scale. Swapped in place as it changes.
+   */
+  look?: Look | null;
+  /**
    * Blanks the AI fills (editor/blanks.ts, docs/DESIGN.md §145): the note screen's hooks, which draw the Fill pill and
    * hand a press to the fills' queue. Absent, the squares, their icons and the worked-out answers still draw, with
    * nothing to press: a shared page, a notebook read straight through. Whether it was given is read once; its
@@ -233,6 +251,9 @@ export function Editor({
   plus,
   places = 'off',
   videos = 'still',
+  blankPage,
+  openHeading = false,
+  look = null,
   blanks,
 }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
@@ -259,6 +280,8 @@ export function Editor({
   onAiMarksRef.current = onAiMarks;
   const plusRef = useRef(plus);
   plusRef.current = plus;
+  const blankRef = useRef(blankPage);
+  blankRef.current = blankPage;
   const blanksRef = useRef(blanks);
   blanksRef.current = blanks;
 
@@ -267,6 +290,7 @@ export function Editor({
   const readOnlySlot = useRef(new Compartment());
   const tapeSlot = useRef(new Compartment());
   const displaySlot = useRef(new Compartment());
+  const lookSlot = useRef(new Compartment());
 
   useEffect(() => {
     if (!host.current) return undefined;
@@ -360,6 +384,7 @@ export function Editor({
         themeSlot.current.of(glyphTheme(dark)),
         readOnlySlot.current.of(readOnlyExtensions(readOnly)),
         displaySlot.current.of(noteView(display)),
+        lookSlot.current.of(lookExtensions(look)),
         // Find and replace's marks (find.ts): nothing until a search is running.
         findExtension(),
         placeholder ? cmPlaceholder(placeholder) : [],
@@ -379,6 +404,12 @@ export function Editor({
               onClose: () => plusRef.current?.onClose(),
               onKey: (key) => plusRef.current?.onKey(key) ?? false,
             })
+          : [],
+        // What goes in an open first heading, said in it (openHeading.ts).
+        openHeading ? openHeadingHint() : [],
+        // A new note's names and what the screen puts under them (nameChips.ts), where the screen asked for them.
+        blankPage && !peek
+          ? nameChips({ readyAtOnce: !isMobile, onName: (name) => blankRef.current?.onName(name), onShown: (shown) => blankRef.current?.onShown?.(shown) })
           : [],
         EditorView.updateListener.of((update) => {
           if (update.docChanged) onChangeRef.current(update.state.doc.toString());
@@ -431,6 +462,23 @@ export function Editor({
   useEffect(() => {
     view.current?.dispatch({ effects: displaySlot.current.reconfigure(noteView(display)) });
   }, [display]);
+
+  useEffect(() => {
+    view.current?.dispatch({ effects: lookSlot.current.reconfigure(lookExtensions(look)) });
+  }, [look]);
+
+  // What the blank page offers, told to the view as it changes: the names turn with the minute, and go at the first
+  // letter. Compared by what they say, so a render that made the same list again tells the view nothing.
+  const offered = useRef('');
+  const names = blankPage?.names ?? null;
+  const offersHost = blankPage?.host ?? null;
+  useEffect(() => {
+    const said = JSON.stringify(names?.map((offer) => [offer.name, offer.label]) ?? null);
+    const hostId = offersHost ? 'host' : '';
+    if (offered.current === `${said}|${hostId}` && view.current) return;
+    offered.current = `${said}|${hostId}`;
+    view.current?.dispatch({ effects: setOffers.of({ names, host: offersHost }) });
+  }, [names, offersHost]);
 
   // A different note was opened. Compared against the view's own document
   // rather than a previous prop, so the echo of our own `onChange` is ignored.
@@ -494,6 +542,12 @@ const GROW_THEME = EditorView.theme({
   '&.cm-editor': { height: 'auto', minHeight: '100%', flex: '1 0 auto' },
   '&.cm-editor .cm-scroller': { overflowY: 'visible', overscrollBehavior: 'auto', flex: '1 0 auto' },
 });
+
+/** A look said on the editor for the stylesheets, and a reading note's lead line; nothing for the usual look. */
+function lookExtensions(look: Look | null) {
+  if (!look) return [];
+  return [EditorView.editorAttributes.of({ 'data-look': look }), look === 'reading' ? leadLine() : []];
+}
 
 /**
  * Read-only in both of CodeMirror's senses. `readOnly` stops transactions from

@@ -18,6 +18,7 @@ import { DEFAULT_TEMPLATE, PLACE_SENTENCE, templateSentence } from '../book/jour
 import { TemplatePicker } from '../book/TemplatePicker.tsx';
 import { preferences } from '../core/preferences.ts';
 import type { NoteView } from './viewMode.ts';
+import type { Look } from '../core/look.ts';
 import { Sheet } from './Sheet.tsx';
 import styles from './NoteSettings.module.css';
 
@@ -80,6 +81,11 @@ interface NoteSettingsProps {
   };
   /** How the note is shown, when the header has no room for its switch (a folded phone); absent, no row. */
   view?: NoteView;
+  /**
+   * How the note looks (core/look.ts; docs/DESIGN.md §144): Plain, a page to read, or its map as a header, the last only
+   * for a note with a place to draw. Absent on a canvas or a notebook, which have looks of their own.
+   */
+  look?: { value: Look | null; canMap: boolean; onChange: (look: Look | null) => void };
   /** The AI's kind of run on this note now, if one is on, and how to ask for one (ai/start.ts). Absent on a note that can't be read to. */
   running?: RunKind | null;
   onAi?: (kind: RunKind, instruction?: string) => void;
@@ -236,6 +242,7 @@ export function NoteSettings({
   onAi,
   blanks = { count: 0, online: [] },
   location,
+  look,
 }: NoteSettingsProps) {
   // Re-rendered when a plugin is switched, so its rows come and go.
   usePlugins();
@@ -322,12 +329,13 @@ export function NoteSettings({
         </SheetGroup>
       ) : null}
 
-      {onFind || onMakeBoard || (view && onView) ? (
+      {onFind || onMakeBoard || (view && onView) || look ? (
         <>
           <SheetHeading>Reading it</SheetHeading>
           <SheetGroup>
+            {/* Rows of choices, not rows to press: marked for their look, never `aria-disabled`, which said their radios were off. */}
             {view && onView ? (
-              <div className={styles.row} aria-disabled>
+              <div className={styles.row} data-choice>
                 <span className={styles.label}>Show</span>
                 <div className={styles.viewChoice} role="radiogroup" aria-label="How the note is shown">
                   {(
@@ -337,6 +345,24 @@ export function NoteSettings({
                     ] as const
                   ).map(([value, label]) => (
                     <button key={value} type="button" role="radio" aria-checked={view === value} data-on={view === value || undefined} onClick={() => onView(value)}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {look ? (
+              <div className={styles.row} data-choice>
+                <span className={styles.label}>Look</span>
+                <div className={styles.viewChoice} role="radiogroup" aria-label="How this note looks">
+                  {(
+                    [
+                      [null, 'Plain'],
+                      ['reading', 'Reading'],
+                      ...(look.canMap ? ([['map', 'Map']] as const) : []),
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button key={label} type="button" role="radio" aria-checked={look.value === value} data-on={look.value === value || undefined} onClick={() => look.onChange(value)}>
                       {label}
                     </button>
                   ))}

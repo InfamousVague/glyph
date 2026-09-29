@@ -297,6 +297,17 @@
 }
 
 /*
+ * Under front matter folded to nothing, a block that holds only the note's look (editor/extended.ts), the title is the
+ * note's first line and sits as one, with no room above it.
+ */
+.editor :global(.cm-frontNone) + :global(.cm-line).lineH1,
+.editor :global(.cm-frontNone) + :global(.cm-line).lineH2,
+.editor :global(.cm-frontNone) + :global(.cm-line).lineH3,
+.editor :global(.cm-frontNone) + :global(.cm-line).lineH4 {
+  padding-block-start: 0;
+}
+
+/*
  * Under the front matter folded to its one quiet line (editor/extended.ts), a heading keeps a little of its room: the
  * line belongs with the map card above it, not with the title, so the gap below it is the larger.
  */

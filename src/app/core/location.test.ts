@@ -441,10 +441,10 @@ describe('a tag waiting for the better words', () => {
   });
 
   it('waits for an entry’s first own words, whichever of the note’s screen and the sweep asks first', async () => {
-    const { rememberEntry } = await import('../book/entryDrafts.ts');
+    const { rememberUntouched } = await import('./untouched.ts');
     const words = '# Monday 28 September\n\n**14:05** ';
     const made = `---\ntitle: "2026-09-28 14.05"\n---\n${words}`;
-    rememberEntry('e1', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
+    rememberUntouched('e1', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
     await store.createNote('e1', made);
     location.setPendingTag('e1', LONDON);
     const asked = nominatim();
@@ -721,6 +721,130 @@ describe('tagging new notes', () => {
     prefs.setPreferences({ tagNewNotes: true, localOnly: true });
     expect(await location.tagNewNotesIfWanted(['n1'], { reviewing: false })).toBeNull();
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe('a new note’s map box, held while its fix is on its way', () => {
+  const granted = () => Object.defineProperty(navigator, 'permissions', { configurable: true, value: { query: async () => ({ state: 'granted' }) } });
+  afterEach(() => Reflect.deleteProperty(navigator, 'permissions'));
+
+  it('is expected only where a fix would come with nothing to answer: the switch, Local only, a refusal, the prompt', async () => {
+    fixAt(51.5, -0.12);
+    // Never answered: nothing comes unless the person allows it, so nothing is held.
+    expect(await location.willLocate()).toBe(false);
+    granted();
+    expect(await location.willLocate()).toBe(true);
+    prefs.setPreferences({ tagNewNotes: false });
+    expect(await location.willLocate()).toBe(false);
+    prefs.setPreferences({ tagNewNotes: true, localOnly: true });
+    expect(await location.willLocate()).toBe(false);
+    prefs.setPreferences({ localOnly: false });
+    mac = true;
+    expect(await location.willLocate()).toBe(false);
+    mac = false;
+    // A refusal kept stands while the device still refuses; allowed again, it is forgotten and the fix expected.
+    location.rememberRefusal('refused');
+    Object.defineProperty(navigator, 'permissions', { configurable: true, value: { query: async () => ({ state: 'denied' }) } });
+    expect(await location.willLocate()).toBe(false);
+    expect(await location.refusalStanding()).toBe(true);
+    granted();
+    expect(await location.refusalStanding()).toBe(false);
+    expect(await location.willLocate()).toBe(true);
+  });
+
+  it('is not expected where location is off with no refusal kept here: denied by the browser, blocked on the phone', async () => {
+    fixAt(51.5, -0.12);
+    Object.defineProperty(navigator, 'permissions', { configurable: true, value: { query: async () => ({ state: 'denied' }) } });
+    expect(await location.willLocate()).toBe(false);
+    android = true;
+    native = true;
+    let access = 'blocked';
+    window.GlyphHost = { takeLaunch: () => '', isLocked: () => false, endCapture: () => undefined, locationAccess: () => access, requestLocation: () => undefined };
+    expect(await location.willLocate()).toBe(false);
+    access = 'approximate';
+    expect(await location.willLocate()).toBe(true);
+    access = 'ask';
+    expect(await location.willLocate()).toBe(false);
+  });
+
+  it('stays from the first frame until the note is left, found or not, and says when none is coming', async () => {
+    granted();
+    await store.createNote('h1', '');
+    const told: string[] = [];
+    const stop = location.watchTag('h1', (event) => told.push(event.kind));
+    location.holdFor(['h1']);
+    expect(location.heldFor('h1')).toBe('waiting');
+    // Missed while the note is open: the box stays and says so.
+    failWith(2);
+    await location.tagNewNotesIfWanted(['h1'], { reviewing: false });
+    await settle();
+    expect(location.heldFor('h1')).toBe('missed');
+    expect(told).toEqual(['held', 'held']);
+    // Left: gone, so the note reopened draws no box.
+    stop();
+    expect(location.heldFor('h1')).toBeNull();
+  });
+
+  it('gives way to the tag once the fix is found, and is let go by a note left while its fix was coming', async () => {
+    granted();
+    await store.createNote('h2', '');
+    const stop = location.watchTag('h2', () => undefined);
+    location.holdFor(['h2']);
+    fixAt(51.5074, -0.1278);
+    await location.tagNewNotesIfWanted(['h2'], { reviewing: false });
+    await settle();
+    expect(location.heldFor('h2')).toBeNull();
+    expect(location.pendingTag('h2')).not.toBeNull();
+    stop();
+    // Left before the fix settled: kept while it is on its way, then let go when it comes.
+    await store.createNote('h3', '');
+    const stop3 = location.watchTag('h3', () => undefined);
+    location.holdFor(['h3']);
+    let answerFix: (() => void) | null = null;
+    geolocation((ok) => {
+      answerFix = () => ok(position(51.5, -0.12));
+    });
+    const tagging = location.tagNewNotesIfWanted(['h3'], { reviewing: false });
+    await settle();
+    stop3();
+    expect(location.heldFor('h3')).toBe('waiting');
+    answerFix!();
+    await tagging;
+    expect(location.heldFor('h3')).toBeNull();
+  });
+
+  it('says no fix is coming when the ask is not made at all, and is held again by the introduction’s Allow', async () => {
+    await store.createNote('h4', '');
+    const stop = location.watchTag('h4', () => undefined);
+    location.holdFor(['h4']);
+    prefs.setPreferences({ localOnly: true });
+    await location.tagNewNotesIfWanted(['h4'], { reviewing: false });
+    expect(location.heldFor('h4')).toBe('missed');
+    prefs.setPreferences({ localOnly: false });
+    // Never answered: introduced, and nothing held until the press, which holds it before it asks.
+    const { calls } = fixAt(51.5, -0.12);
+    let allow: (() => void) | null = null;
+    await location.tagNewNotesIfWanted(['h4'], { reviewing: false }, { introduce: (press) => (allow = press) });
+    expect(location.heldFor('h4')).toBe('missed');
+    allow!();
+    expect(location.heldFor('h4')).toBe('waiting');
+    await settle();
+    expect(calls).toHaveLength(1);
+    expect(location.heldFor('h4')).toBeNull();
+    stop();
+  });
+
+  it('holds a map note’s box for the one ask its card’s press makes, whatever Tag new notes says', async () => {
+    granted();
+    prefs.setPreferences({ tagNewNotes: false });
+    await store.createNote('m1', '');
+    const stop = location.watchTag('m1', () => undefined);
+    location.holdFor(['m1']);
+    failWith(3);
+    await location.tagEntryIfWanted(['m1'], { reviewing: false });
+    await settle();
+    expect(location.heldFor('m1')).toBe('missed');
+    stop();
   });
 });
 

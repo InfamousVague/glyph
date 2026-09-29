@@ -205,7 +205,7 @@ describe('which notes are entries', () => {
 
 describe('the pure half', () => {
   it('reaches nothing that draws or stores, so the MCP server can bundle a journal', () => {
-    for (const entry of ['app/book/journal.ts', 'app/book/template.ts']) {
+    for (const entry of ['app/book/journal.ts', 'app/core/template.ts']) {
       const { files, packages } = valueImports(entry);
       expect(packages).toEqual([]);
       expect(files.filter((file) => /store\.ts$|tauri|editor\/|\.tsx$/.test(file))).toEqual([]);

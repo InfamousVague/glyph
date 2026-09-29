@@ -12,10 +12,10 @@
   isolation: isolate;
   overflow: hidden;
   /*
-   * The tape row's weight on a phone, and a fifth more (Matt, 2026-09-29: "make the default map card 20% taller"):
-   * 6rem was 7.2rem's first draft.
+   * The tape row's weight on a phone, and a fifth more (Matt, 2026-09-29: "make the default map card 20% taller"). A
+   * template's card draws the box smaller, by `--map-scale` (notes/TemplateCards.module.css).
    */
-  block-size: 7.2rem;
+  block-size: calc(7.2rem * var(--map-scale, 1));
   /*
    * A card in the note, not a banner over it: the width a link card is held to (editor/linkCards.ts), so on the Mac
    * or a wide window the place's chip and the pin stay one glance apart.
@@ -32,8 +32,29 @@
 /* The opened Fold and the Mac have the room: 8rem and a fifth more. */
 @media (min-width: 600px) {
   .card {
-    block-size: 9.6rem;
+    block-size: calc(9.6rem * var(--map-scale, 1));
   }
+}
+
+/*
+ * A map note's header (docs/DESIGN.md §144, `look: map`): the card made the note's masthead, as wide as its column up to
+ * the reader's 48rem, 10rem tall on a phone and 16rem where there is the room. Its heights read `--map-scale` too, so a
+ * template's card draws it small in the same proportion.
+ */
+.card[data-size='header'] {
+  block-size: calc(10rem * var(--map-scale, 1));
+  max-inline-size: 48rem;
+}
+
+@media (min-width: 600px) {
+  .card[data-size='header'] {
+    block-size: calc(16rem * var(--map-scale, 1));
+  }
+}
+
+/* A picture: nothing to press, so no hand over it. */
+.picture {
+  pointer-events: none;
 }
 
 /* A rough tag's ring is an area, not a point: it sits in the middle, where it has the room. */

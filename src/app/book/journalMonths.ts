@@ -8,7 +8,7 @@ import { titleKey } from '../core/titleKey.ts';
 import { videoOfLine } from '../core/videoRefs.ts';
 import { chaptersOf, isJournalBody, type BookPlace } from './book.ts';
 import { isEntryTitle, stampOf, templateOf } from './journal.ts';
-import { fillTemplate } from './template.ts';
+import { fillTemplate } from '../core/template.ts';
 
 /**
  * A journal's entries as its view draws them (book/JournalView.tsx; docs/DESIGN.md §142): newest first, in runs by the

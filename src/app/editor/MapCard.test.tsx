@@ -73,7 +73,7 @@ vi.mock('../core/placeLink.ts', async (importOriginal) => ({
   },
 }));
 
-const { MapCard } = await import('./MapCard.tsx');
+const { MapCard, MapPicture } = await import('./MapCard.tsx');
 
 const LONDON: GeoTag = { lat: 51.5074, lon: -0.1278, place: null, rough: false };
 const NAMED: GeoTag = { ...LONDON, place: 'Trafalgar Square, London' };
@@ -164,6 +164,30 @@ describe('the quiet card', () => {
     show(<MapCard tag={NAMED} mode="quiet" dark={false} where={false} />);
     expect(chips()).toEqual(['© OpenStreetMap contributors']);
     expect(tap().getAttribute('aria-label')).toBe('Open Trafalgar Square, London on a map');
+  });
+});
+
+describe('the picture', () => {
+  it('is the card’s own box with no map in it: nothing to press, nothing read out, nothing imported', async () => {
+    show(<MapPicture dark={false} />);
+    await act(async () => Promise.resolve());
+    expect(card().hasAttribute('inert')).toBe(true);
+    expect(card().getAttribute('aria-hidden')).toBe('true');
+    expect(card().getAttribute('data-size')).toBe('card');
+    expect(document.querySelector('button')).toBeNull();
+    expect(marks()).toHaveLength(0);
+    expect(leaflet.imported).toBe(0);
+    rerender(<MapPicture size="header" pin why="No place yet." dark />);
+    expect(card().getAttribute('data-size')).toBe('header');
+    expect(marks()).toHaveLength(1);
+    expect(chips()).toEqual(['No place yet.']);
+  });
+
+  it('draws a map note’s card as its header, the size a card is told', () => {
+    show(<MapCard tag={LONDON} size="header" mode="quiet" dark={false} />);
+    expect(card().getAttribute('data-size')).toBe('header');
+    rerender(<MapCard tag={LONDON} mode="quiet" dark={false} />);
+    expect(card().getAttribute('data-size')).toBe('card');
   });
 });
 

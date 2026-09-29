@@ -175,6 +175,26 @@ describe('front matter, folded', () => {
     view.destroy();
   });
 
+  it('never names the note’s look, and folds a block that holds only its look to nothing', async () => {
+    const both = open('---\nlook: map\nlocation: 51.5074,-0.1278\nplace: "London"\n---\n# Walk\n');
+    expect(both.contentDOM.querySelector('.cm-frontFold')?.textContent).toBe('location · place');
+    both.destroy();
+    const reading = open('---\nlook: reading\n---\n# Walk\n');
+    expect(frontMatterFolded(reading.state)).toBe(true);
+    expect(reading.contentDOM.querySelector('.cm-frontFold')).toBeNull();
+    // An empty mark in its place, and the title straight after it.
+    expect(reading.contentDOM.querySelector('.cm-frontNone')?.nextElementSibling?.textContent).toBe('# Walk');
+    expect(reading.contentDOM.textContent).not.toContain('look');
+    expect(reading.contentDOM.textContent).toContain('# Walk');
+    // The caret moved into it, in the Markdown view, still opens it.
+    reading.focus();
+    reading.dispatch({ selection: { anchor: 5 } });
+    await Promise.resolve();
+    expect(frontMatterFolded(reading.state)).toBe(false);
+    expect(reading.contentDOM.textContent).toContain('look: reading');
+    reading.destroy();
+  });
+
   it('leaves a note with no front matter, and a rule with words under it, as they are', () => {
     expect(drawn('# Plain\n\nWords.').html).not.toContain('cm-frontFold');
     expect(drawn('---\njust some words\n---').html).not.toContain('cm-frontFold');

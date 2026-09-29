@@ -115,7 +115,7 @@
   border-block-start: 1px solid var(--glacier-border-subtle);
 }
 
-.row:active:not([aria-disabled]) {
+.row:active:not([aria-disabled], [data-choice]) {
   background: var(--app-wash);
 }
 
@@ -303,9 +303,13 @@
   }
 }
 
-/* How the note is shown, when the header has no room for it: two words, the chosen one filled (NoteScreen's switch). */
-.row[aria-disabled]:has(.viewChoice) {
+/*
+ * How the note is shown, when the header has no room for it, and how it looks: a row of words, the chosen one filled
+ * (NoteScreen's switch). The row itself is not pressed, its words are.
+ */
+.row[data-choice] {
   justify-content: space-between;
+  cursor: default;
   color: var(--glacier-text);
 }
 

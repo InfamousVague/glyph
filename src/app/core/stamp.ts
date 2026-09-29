@@ -1,6 +1,7 @@
 /**
  * A moment written as words, one way wherever the app writes one: the time the + puts at the line (docs/DESIGN.md
- * §141), a journal entry's date and time (§142, book/template.ts `{{date}}` and `{{time}}`), and the home page's day.
+ * §141), a journal entry's date and time (§142, core/template.ts `{{date}}` and `{{time}}`), the home page's day, and
+ * the day in words a new note can be named by (§144, core/noteNames.ts).
  *
  * In the device's own language and order, and always on a 24-hour clock, as a meeting's title is written
  * (capture/meeting.ts `meetingTitle`): "14:05" reads the same to everyone who reads the note later, and a note does
@@ -35,7 +36,10 @@ export function longDay(date: Date): string {
 }
 
 /**
- * "Monday 19 October 2026": the weekday, the day, the month and the year, as a worked-out date is drawn after a blank
+ * "Monday, 28 September 2026": the weekday, the day, the month and the year, in the locale's own order and words, as a
+ * new note's name for the day (core/noteNames.ts). With its year, so it never names two days: the home page's
+ * `longDay` has none and repeats every year.
+ * As a worked-out date is drawn after a blank too: "Monday 19 October 2026": the weekday, the day, the month and the year, as a worked-out date is drawn after a blank
  * (core/fillFacts.ts, docs/DESIGN.md §145). The person's own form, whatever their phone's language writes, since it is
  * read on this screen and never written into the note. The model is never shown it: its message has fixed English
  * (ai/fills/message.ts `modelDay`).

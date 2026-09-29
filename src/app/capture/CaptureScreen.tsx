@@ -115,7 +115,7 @@ interface CaptureScreenProps {
   noteId?: string;
   /**
    * Where in that note the words go, when its opener knows better than its title (place.ts `placingFor`): a journal's
-   * entry said aloud goes on from its time, or into its to-do list (book/template.ts `openEnd`). Absent, the note's own.
+   * entry said aloud goes on from its time, or into its to-do list (core/template.ts `openEnd`). Absent, the note's own.
    */
   placing?: Placing;
   /** A meeting from the start: recorded, not read (the Mac; capture/meeting.ts). */

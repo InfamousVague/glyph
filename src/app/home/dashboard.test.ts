@@ -3,6 +3,7 @@ import { makeNote } from '../../test/notes.ts';
 import { bookNotes, digest, isTape, openTasks, pinnedNotes, recentNotes, startOfToday, summaryKindOf, tapedNotes, tapesWaiting, tickedTasks, touchedToday } from './dashboard.ts';
 import { bookNoteBody } from '../book/book.ts';
 import { GUIDE_TITLE } from '../guidebook/guidebook.ts';
+import { newTemplatePageBody, templatesNotebookBody } from '../notes/ownTemplates.ts';
 
 describe('the home page', () => {
   const notes = [
@@ -237,6 +238,21 @@ describe('Ghost.md: The Guide on the home page', () => {
   it('leaves its example to-dos out of the to-do list and the count of ticked ones', () => {
     expect(openTasks(notes).map((t) => t.text)).toEqual(['Eggs', 'Find an oak']);
     expect(tickedTasks(notes)).toBe(0);
+  });
+});
+
+describe('your templates on the home page', () => {
+  const book = makeNote('tpl', templatesNotebookBody(['A checklist', 'A walk']), { updatedAt: 90 });
+  const checklist = makeNote('checklist', '---\ntitle: "A checklist"\ntemplates: page\n---\n# {{title}}\n\n- [ ] Bread\n- [x] Milk', { updatedAt: 80 });
+  const walk = makeNote('walk', newTemplatePageBody('A walk'), { updatedAt: 70 });
+  const own = makeNote('own', '# Groceries\n\n- [ ] Eggs', { updatedAt: 30 });
+  const notes = [book, checklist, walk, own];
+
+  it('keeps a Templates notebook’s pages out of Recent, To do, the ticked count and the notes touched today', () => {
+    expect(recentNotes(notes, 6, {}).map((n) => n.id)).toEqual(['own']);
+    expect(openTasks(notes).map((t) => t.text)).toEqual(['Eggs']);
+    expect(tickedTasks(notes)).toBe(0);
+    expect(touchedToday(notes, 100)).toBe(2);
   });
 });
 

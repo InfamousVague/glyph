@@ -49,15 +49,15 @@ import { canvasNoteBody, isCanvasBody } from './canvas/jsonCanvas.ts';
 import { frontMatterOffset, withFrontMatterTitle } from './core/frontMatter.ts';
 import { bookNoteBody, bookOf, chaptersOf, isBookBody, isJournalBody, withoutChapter } from './book/book.ts';
 import { entryBody, entryPages, entryPlaceOf, entryTitle, journalNoteBody, localStamp, templateOf, templateSentence, uniqueTitle, withEntry, type JournalWriter } from './book/journal.ts';
+import { forgetUntouched, isUntouched, markFresh, rememberUntouched, setUntouchedWords, untouchedRecord, untouchedRecords, wordsOf, type UntouchedRecord } from './core/untouched.ts';
+import { fillTemplate, openEnd } from './core/template.ts';
 import { pageBody } from './book/entryStarts.ts';
-import { entryRecord, entryRecords, forgetEntry, rememberEntry, setEntryWords, untouchedEntry, type EntryRecord } from './book/entryDrafts.ts';
-import { fillTemplate, openEnd } from './book/template.ts';
 import { inTimeOrder } from './book/journalMonths.ts';
 import { whereLeft } from './book/bookSpot.ts';
 import { NewBookSheet } from './book/NewBookSheet.tsx';
 import { NewSheet } from './notes/NewSheet.tsx';
 import { chooseWorkspace, fileNewNote, fileNote, useWorkspaces, workspaceOf } from './core/workspaces.ts';
-import { setPendingTag, tagEntryIfWanted, tagNewNotesIfWanted } from './core/location.ts';
+import { holdFor, setPendingTag, tagEntryIfWanted, tagNewNotesIfWanted, willLocate } from './core/location.ts';
 import { useNoteActions } from './notes/useNoteActions.ts';
 import { isPlace, isRecording, noteOnScreen, placeOf, type Screen } from './shell/screen.ts';
 import { useCaptureRoute } from './shell/useCaptureRoute.ts';
@@ -69,6 +69,9 @@ import { useOpenTabs } from './shell/useOpenTabs.ts';
 import { useRootStamp } from './shell/useRootStamp.ts';
 import { useTrail } from './shell/useTrail.ts';
 import { useVisibleNotes } from './shell/useVisibleNotes.ts';
+import { dropLiveTitles } from './core/liveTitles.ts';
+import { isTemplatePageBody, isTemplatesBody, newTemplatePageBody, seedPlan, templatePageBody, templatePages, templatesOf } from './notes/ownTemplates.ts';
+import { isMacApp } from './core/platform.ts';
 
 /**
  * The whole app: which screen is up, and everything drawn over it.
@@ -239,7 +242,7 @@ function Shell() {
     const id = noteIdOf(spot);
     if (spot === ALL_NOTES) setScreen({ name: 'notes' });
     else if (id === null) void backToList();
-    else if (shown && entryRecord(shown)?.journalId === id) openNoteWithin(id);
+    else if (shown && untouchedRecord(shown)?.journalId === id) openNoteWithin(id);
     else openNote(id);
   };
   const goBack = () => land(walk.back());
@@ -256,6 +259,7 @@ function Shell() {
 
   /** One tab closed, or a whole group's; the note being read among them hands over to the tab left beside it. */
   const closeTabs = (ids: readonly string[]) => {
+    dropLiveTitles(ids);
     const next = tabs.close(ids);
     if (next === undefined) return;
     if (next) openNote(next);
@@ -267,11 +271,13 @@ function Shell() {
    * Every note by its title as a link matches it (core/titleKey.ts), the first of any two that share one, as a search
    * down the list would find: built once per change to the notes. A notebook's index asks after every page on every
    * render, and a search per page through a library that titles every note it passes was about a thousand library
-   * scans a render for a journal of a year (docs/DESIGN.md §142).
+   * scans a render for a journal of a year (docs/DESIGN.md §142). A template's page (notes/ownTemplates.ts) only where
+   * no note of the person's has its name: the seed makes its pages beside a note called like one, and a `[[link]]` in
+   * the person's words still means their note. Inside the Templates notebook its pages come first (`openTitleWithin`).
    */
   const byTitle = useMemo(() => {
     const map = new Map<string, Note>();
-    for (const note of shownNotes) {
+    for (const note of [...shownNotes.filter((n) => !isTemplatePageBody(n.body)), ...shownNotes.filter((n) => isTemplatePageBody(n.body))]) {
       const key = titleKey(noteTitle(note.body));
       if (key && !map.has(key)) map.set(key, note);
     }
@@ -285,10 +291,26 @@ function Shell() {
   /** Whether a note by that title is in the library: what a `[[link]]` is drawn by. */
   const hasTitle = (title: string) => titled(title) !== undefined;
   /**
-   * The notes some journal's index names (book/journal.ts `entryPages`): its entries. Recent, the palette's first list
-   * and the pickers of a notebook's pages leave them out, as they leave the Guide's pages out.
+   * Every title a note has, as its key: every note the store answers, archived and in the Trash too, as a journal's new
+   * entry reads them. A new note's blank page offers no name another note has (core/noteNames.ts), and a template's
+   * heading that is taken gets " (2)" (notes/noteTemplates.ts), so a note restored from the Trash never meets a second
+   * of its name. Every note but the one on screen: named from its blank page and the list read again (sync, a meeting,
+   * the summaries), its own name was taken from it, and an undo back to the blank page offered the rest, A day saying
+   * a second was coming (found in review).
    */
-  const entryIds = useMemo(() => entryPages(shownNotes), [shownNotes]);
+  const takenTitles = useMemo(() => new Set(notes.filter((n) => n.id !== shown).map((n) => titleKey(noteTitle(n.body))).filter(Boolean)), [notes, shown]);
+  /**
+   * The notes some journal's index names (book/journal.ts `entryPages`): its entries. Recent, the palette's first list
+   * and the pickers of a notebook's pages leave them out, as they leave the Guide's pages out. And the pages of a
+   * Templates notebook (notes/ownTemplates.ts `templatePages`), which are templates and not notes of the person's.
+   */
+  const entryIds = useMemo(() => {
+    const ids = entryPages(shownNotes);
+    for (const id of templatePages(shownNotes)) ids.add(id);
+    return ids;
+  }, [shownNotes]);
+  /** Your own templates, a Templates notebook's pages in its order, or null where there is none: the blank page's cards. */
+  const ownTemplates = useMemo(() => templatesOf(shownNotes), [shownNotes]);
   /** What the aside holds now: the open note's book, or its numbered chapters in order, or nothing (aside/aside.ts). */
   const asideBody = useMemo(() => asideContent(shownNotes, screen.name === 'note' ? screen.note : null), [shownNotes, screen]);
   /** That note's body, for a canvas card that is a note to draw it small (canvas/CanvasView.tsx); null for none. */
@@ -298,7 +320,9 @@ function Shell() {
    * journal's entries in the order they were written, so Previous is the entry before and the newest is last.
    */
   const placeInBook = (note: Note) => {
-    const place = bookOf(shownNotes, noteTitle(note.body));
+    // A Templates notebook's lines are its marked pages, never a note of the person's that shares a name with one.
+    const books = isTemplatePageBody(note.body) ? shownNotes : shownNotes.filter((n) => !isTemplatesBody(n.body));
+    const place = bookOf(books, noteTitle(note.body));
     return place ? inTimeOrder(place, titled) : null;
   };
 
@@ -309,11 +333,13 @@ function Shell() {
    * a book's index takes the book's. A shared link's copy and a Settings sample have ends of their own (`forkFromLink`,
    * `openSample`).
    */
-  const showMade = async (body: string): Promise<Note> => {
+  const showMade = async (body: string, { caret, before }: { caret?: number; before?: (note: Note) => void | Promise<void> } = {}): Promise<Note> => {
     const note = await createNote(newNoteId(), body, 'editor');
     fileNewNote(note.id);
     await refresh();
-    setScreen({ name: 'note', note });
+    // What the note needs before its first frame: a new note's fresh mark and its held map box (`newNote`).
+    await before?.(note);
+    setScreen({ name: 'note', note, ...(caret !== undefined ? { caret } : {}) });
     return note;
   };
 
@@ -349,10 +375,29 @@ function Shell() {
     }
     await openTitleFrom(title, at);
   };
-  /** A title opened from inside a book: in the current tab's place. */
+  /**
+   * A title opened from inside a book: in the current tab's place. Inside a Templates notebook a line is a template's
+   * page (notes/ownTemplates.ts), the marked note of its name, and never a note of the person's that shares it: one
+   * added is made as a page, marked, named by its `title:`, its heading left open for a note's name.
+   */
   const openTitleWithin = (title: string) => {
     tabs.replaceNext(shown);
+    if (screen.name === 'note' && isTemplatesBody(screen.note.body)) {
+      void openTemplatePage(title);
+      return;
+    }
     void openTitleFrom(title);
+  };
+  const openTemplatePage = async (title: string) => {
+    // The oldest of a name, as the blank page's cards read them (`templatesOf`).
+    const page = (notes: readonly Note[]) => [...notes].sort((a, b) => a.createdAt - b.createdAt).find((n) => !n.archivedAt && isTemplatePageBody(n.body) && sameTitle(noteTitle(n.body), title));
+    // The list in hand can be a moment old, as `openTitleFrom` says: the store is asked before a second page is made.
+    const found = page(shownNotes) ?? page(outOfTrash(await listNotes().catch(() => []), trash()));
+    if (found) {
+      setScreen({ name: 'note', note: found });
+      return;
+    }
+    await showMade(newTemplatePageBody(title));
   };
   /**
    * A notebook's new page from a template, opened from its index in the notebook's tab (book/BookView.tsx Add a page):
@@ -361,6 +406,12 @@ function Shell() {
    */
   const openPageWithin = (title: string, template: string) => {
     tabs.replaceNext(shown);
+    // In a Templates notebook a new page is a template's page, marked (notes/ownTemplates.ts): what it starts with is
+    // the template being written, so Start with is not read there.
+    if (screen.name === 'note' && isTemplatesBody(screen.note.body)) {
+      void openTemplatePage(title);
+      return;
+    }
     const notebook = screen.name === 'note' ? noteTitle(screen.note.body) : '';
     void openTitleFrom(title, undefined, (named) => pageBody(named, template, notebook));
   };
@@ -438,11 +489,75 @@ function Shell() {
   // And it starts with where the person is, when Settings says so (core/location.ts): the tag waits for the note's
   // first words, so a note opened and left still leaves nothing behind. Only a note the person makes here: a canvas, a
   // book, the Guide, a sample, a shared link's copy and a note made for a title are the app's, and are not tagged.
+  //
+  // It opens ready to type (docs/DESIGN.md §144): the caret in line 1 and the editor focused, the keyboard up where the
+  // phone allows it. It is fresh (core/untouched.ts), so its blank page offers names and templates until the person
+  // writes in it. And where a fix is expected its map's box is held from the first frame (core/location.ts
+  // `willLocate`), asked beside the write so it costs no time on screen, so the card arriving never moves line 1.
   const newNote = async () => {
     tabs.replaceNext(null);
-    const note = await showMade('');
+    const expected = willLocate().catch(() => false);
+    const note = await showMade('', {
+      caret: 0,
+      before: async (made) => {
+        markFresh(made.id);
+        if (await expected) holdFor([made.id]);
+      },
+    });
     void tagNewNotesIfWanted([note.id], { reviewing: false }, { introduce: introduceLocation });
   };
+
+  /*
+   * Your templates, the blank page's last card (notes/ownTemplates.ts; docs/DESIGN.md §144): the Templates notebook,
+   * opened in the blank note's tab, since a note left with no words leaves nothing. The first time there is none, and it is made with the six built-ins as its pages, the
+   * pages first and the notebook last, as the Guide is added, against the store read now and out of the Trash, so a
+   * press cut short makes only what is missing the next time. Not filed and not tagged: they are the app's pages until
+   * the person changes them. A second press while it is being made is the same press.
+   */
+  const seeding = useRef(false);
+  const openTemplates = async () => {
+    if (seeding.current) return;
+    seeding.current = true;
+    try {
+      tabs.replaceNext(shown ?? null);
+      const plan = seedPlan(outOfTrash(await listNotes().catch(() => notes), trash()));
+      if ('open' in plan) {
+        setScreen({ name: 'note', note: plan.open });
+        return;
+      }
+      for (const template of [...plan.pages].reverse()) await createNote(newNoteId(), templatePageBody(template), 'editor');
+      const book = await createNote(newNoteId(), plan.index, 'editor');
+      await refresh();
+      setScreen({ name: 'note', note: book });
+    } catch {
+      await refresh().catch(() => undefined);
+      toast({ message: 'Your templates could not be made. Try again.' });
+    } finally {
+      seeding.current = false;
+    }
+  };
+
+  /*
+   * ⌘N in the Mac app (docs/DESIGN.md §144): a new blank note, as + › Note makes one, ready to type. The palette always
+   * showed ⌘N beside New note and nothing bound it (the kit binds only ⌘K). Only in the Mac app, since in a browser ⌘N
+   * is the browser's new window; only on a place (home, All notes, a note), never over a recording or the Academy; and
+   * not while a sheet, the palette or the Guide is open over the page, each a modal dialog, whose own keys come first.
+   */
+  const newNoteByKey = useRef<() => void>(() => undefined);
+  newNoteByKey.current = () => {
+    if (!isPlace(screen) || document.querySelector('[aria-modal="true"]')) return;
+    void newNote();
+  };
+  useEffect(() => {
+    if (!isMacApp) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (!event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.repeat || event.key.toLowerCase() !== 'n') return;
+      event.preventDefault();
+      newNoteByKey.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   /*
    * What the + makes (notes/NewSheet.tsx): a note, a canvas or a book, or a copy from a shared link. The sheet is one
@@ -490,9 +605,11 @@ function Shell() {
   /**
    * Talking into a note, from its mic or the palette. A journal's is Speak an entry: an entry made and spoken, never
    * words into the index (`newEntry`). An entry nobody has written in yet is spoken from its time line: the line it was
-   * left open with is taken off and put back before the words (book/template.ts `openEnd`, capture/place.ts `lead`),
+   * left open with is taken off and put back before the words (core/template.ts `openEnd`, capture/place.ts `lead`),
    * so it still starts with its time, and a day's to-dos said aloud are to-dos. Said nothing, the entry is put back as
-   * it was made.
+   * it was made. Only an entry: a new note given a template or a name from its blank page (§144) keeps a record too,
+   * and spoken from its last line A meeting's words were all to-dos under To do and Notes on a book's all quotes (found
+   * in review), so it is spoken into as any note is.
    */
   const speakInto = (id: string) => void speakIntoNote(id);
   const speakIntoNote = async (id: string) => {
@@ -501,9 +618,9 @@ function Shell() {
       await newEntry(id, { speak: true });
       return;
     }
-    const fresh = entryRecord(id) ? await getNote(id).catch(() => null) : null;
+    const fresh = untouchedRecord(id)?.journalId ? await getNote(id).catch(() => null) : null;
     // A meeting holds the microphone: the capture opens the meeting instead, and the entry is left as it was made.
-    if (!fresh || !untouchedEntry(id, fresh.body, fresh) || meetingStateNow()?.recording) {
+    if (!fresh || !isUntouched(id, fresh.body, fresh) || meetingStateNow()?.recording) {
       await capture.start(false, id);
       return;
     }
@@ -512,7 +629,7 @@ function Shell() {
     const { base, placing } = openEnd(filled);
     if (base !== filled) {
       await updateNote(id, `${head}${base}`, fresh.revision ?? 1).catch(() => undefined);
-      setEntryWords(id, base);
+      setUntouchedWords(id, base);
     }
     await capture.start(false, id, {
       id,
@@ -524,7 +641,7 @@ function Shell() {
         if (!now) return { name: 'list' };
         if (base === filled) return { name: 'note', note: now };
         const back = await updateNote(id, `${head}${filled}`, now.revision ?? 1).catch(() => now);
-        setEntryWords(id, filled);
+        setUntouchedWords(id, filled);
         return { name: 'note', note: back };
       },
     });
@@ -535,7 +652,7 @@ function Shell() {
    * from the journal's template, puts its line last in the journal's index and opens it with the caret at the end: in
    * the journal's tab from inside the journal, a tab of its own from anywhere else.
    *
-   * The order is the record first (book/entryDrafts.ts), then the line, then the note, so that a WebView let go at any
+   * The order is the record first (core/untouched.ts), then the line, then the note, so that a WebView let go at any
    * step leaves a record the take-back below can finish from. The line goes through the journal's own screen when it is
    * the note being read (`journalWriter`), since its next save would otherwise write the old index back.
    */
@@ -629,7 +746,7 @@ function Shell() {
     const id = newNoteId();
     making.current.add(id);
     try {
-      rememberEntry(id, { journalId, title, words, at: now });
+      rememberUntouched(id, { journalId, title, words, at: now });
       await writeJournal(journalId, (body) => withEntry(body, title));
       if (spoken && placing) {
         await createNote(id, entryBody(title, localStamp(now), words), 'editor');
@@ -654,7 +771,7 @@ function Shell() {
       const note = await createNote(id, entryBody(title, localStamp(now), words), 'editor');
       fileNewNote(id);
       await refresh();
-      setScreen({ name: 'note', note, caretAtEnd: true });
+      setScreen({ name: 'note', note, caret: 'end' });
       // Where it was written, when the journal keeps that: the tag waits for the entry's first own words.
       if (entryPlaceOf(journal.body)) void tagEntryIfWanted([id], { reviewing: false }, { introduce: introduceEntries(name) });
     } finally {
@@ -664,7 +781,9 @@ function Shell() {
 
   /*
    * An entry nobody has written in, taken back once it is left (docs/DESIGN.md §142): the promise a new note keeps, that
-   * a note opened and left leaves nothing behind, kept for an entry that had words from birth. Looked at whenever the
+   * a note opened and left leaves nothing behind, kept for an entry that had words from birth. And the same for a new
+   * note given words from its blank page, a template or a name (§144), whose record has no journal: the note and its
+   * waiting tag go, and there is no line to take out. Looked at whenever the
    * screen or the open tabs change, and at launch, which opens on the home page. An entry stays while it is the note
    * on screen, while a capture is aimed at it, and while its tab is open behind another note, a capture or a meeting:
    * a tab switched, a link followed, a recording of something else. Anywhere else - home, All notes, the Academy, its
@@ -687,12 +806,14 @@ function Shell() {
    * taking it out would leave a written entry out of its journal. Left in when the store does not answer, the lesser
    * harm: a line with an entry's name and no note is not drawn (book/journalMonths.ts).
    */
-  const lineOut = async (id: string, record: EntryRecord) => {
+  const lineOut = async (id: string, record: UntouchedRecord) => {
+    const journalId = record.journalId;
+    if (!journalId) return;
     const all = await listNotes().catch(() => null);
     if (!all || all.some((n) => n.id !== id && sameTitle(noteTitle(n.body), record.title))) return;
-    await writeJournal(record.journalId, (body) => withoutChapter(body, record.title));
+    await writeJournal(journalId, (body) => withoutChapter(body, record.title));
   };
-  const takeBack = async (id: string, record: EntryRecord) => {
+  const takeBack = async (id: string, record: UntouchedRecord) => {
     let fresh: Note | null;
     try {
       fresh = await getNote(id);
@@ -703,22 +824,26 @@ function Shell() {
     if (stays(id) || making.current.has(id)) return;
     if (!fresh) {
       await lineOut(id, record);
-      forgetEntry(id);
+      forgetUntouched(id);
       return;
     }
-    if (isTrashed(id) || !untouchedEntry(id, fresh.body, fresh)) {
-      forgetEntry(id);
+    // A new note given its words on its blank page gets them from its screen's save, which a note left at once may
+    // still be making: the store has no words yet, so the next look decides. The screen forgets the record of a note
+    // emptied on it, so a record with no words in the store is only ever that.
+    if (!record.journalId && !isTrashed(id) && !wordsOf(fresh.body).trim()) return;
+    if (isTrashed(id) || !isUntouched(id, fresh.body, fresh)) {
+      forgetUntouched(id);
       return;
     }
     await deleteNote(id);
     await lineOut(id, record);
     setPendingTag(id, null);
     tabs.drop(id);
-    forgetEntry(id);
+    forgetUntouched(id);
     await refresh();
   };
   useEffect(() => {
-    for (const [id, record] of Object.entries(entryRecords())) {
+    for (const [id, record] of Object.entries(untouchedRecords())) {
       if (making.current.has(id) || takingBack.current.has(id) || stays(id)) continue;
       takingBack.current.add(id);
       void takeBack(id, record).finally(() => takingBack.current.delete(id));
@@ -813,7 +938,10 @@ function Shell() {
         noteOfTitle={titled}
         onNewEntry={(template) => void newEntry(screen.note.id, { template })}
         onJournal={onJournal}
-        caretAtEnd={screen.caretAtEnd}
+        caret={screen.caret}
+        takenTitles={takenTitles}
+        templates={ownTemplates}
+        onTemplates={() => void openTemplates()}
         allTitles={() => shownNotes.map((n) => noteTitle(n.body)).filter(Boolean)}
         pageTitles={() => shownNotes.filter((n) => !entryIds.has(n.id)).map((n) => noteTitle(n.body)).filter(Boolean)}
         rename={rename}

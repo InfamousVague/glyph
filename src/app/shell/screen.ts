@@ -39,8 +39,12 @@ export type Screen =
       review?: ReviewHandoff & { key: number };
       /** What a recording just wrote into this note, for its Undo (capture/landing.ts); `key` tells one from the next. */
       landing?: CaptureLanding & { key: number };
-      /** A journal's entry just made: the caret at the end of its words, where the first word goes (App.tsx `newEntry`). */
-      caretAtEnd?: true;
+      /**
+       * A note just made, opened to be written in: the caret here, the editor focused and the keyboard up where the phone
+       * allows it. A blank note's line 1 (App.tsx `newNote`), or `end`, the end of its words, where a journal's entry's
+       * first word goes (`newEntry`). A note opened to be read takes no focus.
+       */
+      caret?: number | 'end';
     }
   | {
       name: 'capture';

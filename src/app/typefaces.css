@@ -71,14 +71,27 @@
  * Mono and Fira Code both break at -0.005em). The editor tightens its headings for Inter; a monospace face is never
  * spaced, since its grid is the point. `.cm-editor` is every note the app draws: the note, a card's preview, a
  * canvas card, a book read through, the reader's page.
+ *
+ * Not a note that looks like a page to read (`look: reading`, core/look.ts; docs/DESIGN.md §144): its words are in the
+ * interface's face, so both rules are kept off it, and the face has its own features (app.css's `cv11`, `ss01`), its
+ * optical sizes and its headings' tightening. Scoping only the spacing would leave Maple's `calt` and `liga` on Inter.
  */
-:root:is(:not([data-note-font]), [data-note-font='maple'], [data-note-font='fira']) .cm-editor {
+:root:is(:not([data-note-font]), [data-note-font='maple'], [data-note-font='fira']) .cm-editor:not([data-look='reading']) {
   font-feature-settings: var(--app-mono-features);
   font-optical-sizing: none;
 }
 
-:root:is(:not([data-note-font]), [data-note-font='maple'], [data-note-font='fira']) .cm-editor * {
+:root:is(:not([data-note-font]), [data-note-font='maple'], [data-note-font='fira']) .cm-editor:not([data-look='reading']) * {
   letter-spacing: 0 !important;
+}
+
+/*
+ * A page to read: the words in the face the person chose for the interface, whatever they chose for notes. Only the face
+ * is set here, on the editor: the sizes are the note's column's (NoteScreen.module.css), so a card's own scale holds.
+ * Inline code and code blocks keep the code face, which is `--glacier-font-mono` and not this.
+ */
+.cm-editor[data-look='reading'] {
+  --app-note-font: var(--glacier-font-sans);
 }
 
 /*

@@ -6,6 +6,8 @@ import { locateHere } from '../core/location.ts';
 import { isAndroid, isMacApp } from '../core/platform.ts';
 import { preferences } from '../core/preferences.ts';
 import { clockTime, stamp } from '../core/stamp.ts';
+import { minuteName } from '../core/noteNames.ts';
+import { onNamingLine } from './openHeading.ts';
 import { isTauri } from '../core/tauri.ts';
 import { plugins } from '../plugins/registry.ts';
 import type { InlineFormat } from '../plugins/types.ts';
@@ -133,13 +135,25 @@ export function timeLabel(date: Date): string {
   return `The date and time, ${day} ${date.getFullYear()}, ${clockTime(date)}`;
 }
 
-/** The list's first page: the seven things, as far as this screen can do them, and More. */
-export function topRows(gates: AddGates, now: Date): AddRow[] {
+/**
+ * What the time row writes: the stamp, "28 Sept 2026, 14:05", or on the line that names the note, the minute's name,
+ * "2026-09-28 14.05" (docs/DESIGN.md §144). There the words are the note's name and its file's, and the stamp's colon
+ * and comma make a file called `28 Sept 2026, 1405.md`; the minute's name is the third name on a blank page's chips
+ * (core/noteNames.ts), so the two can never differ.
+ */
+export function timeWords(now: Date, naming: boolean): { words: string; label: string } {
+  if (!naming) return { words: stamp(now), label: timeLabel(now) };
+  const name = minuteName(now);
+  return { words: name, label: `The date and time as a name, ${name}` };
+}
+
+/** The list's first page: the seven things, as far as this screen can do them, and More. `naming`: the caret is on the line that names the note. */
+export function topRows(gates: AddGates, now: Date, naming = false): AddRow[] {
   const rows: AddRow[] = [];
   if (gates.picture) rows.push({ id: 'picture', words: 'A picture' });
   if (gates.video) rows.push({ id: 'video', words: 'A video' });
   if (gates.place !== 'absent') rows.push({ id: 'place', words: 'A place', ...(gates.place === 'dimmed' ? { dimmed: 'Local only is on.' } : {}) });
-  rows.push({ id: 'time', words: stamp(now), label: timeLabel(now) });
+  rows.push({ id: 'time', ...timeWords(now, naming) });
   rows.push({ id: 'table', words: 'A table' });
   if (gates.note) rows.push({ id: 'note', words: 'A note', step: 'note' });
   rows.push({ id: 'todo', words: 'A to-do' });
@@ -214,7 +228,7 @@ export function boardSeed(doc: string): { text: string; select: BlockSelect } {
 export function planFor(view: EditorView, id: AddRowId, now = new Date()): { plan: Plan; drawn?: boolean } | { block: { text: string; select: BlockSelect } } | null {
   const state = view.state;
   const at = state.selection.main.head;
-  if (id === 'time') return { plan: wordsPlan(state, at, stamp(now)) };
+  if (id === 'time') return { plan: wordsPlan(state, at, timeWords(now, onNamingLine(state)).words) };
   if (id === 'todo') return { plan: itemPlan(state, at, 'todo') };
   if (id === 'choice') return { plan: itemPlan(state, at, 'choice') };
   if (id === 'bullets') return { plan: itemPlan(state, at, 'bullet') };

@@ -79,6 +79,17 @@ describe('the list’s rows', () => {
     expect(time.label).toContain(new Intl.DateTimeFormat(undefined, { month: 'long' }).format(NOW));
   });
 
+  it('write the minute’s name on the line that names the note, not the stamp, and say so', () => {
+    const naming = rows.topRows(gates(), NOW, true).find((row) => row.id === 'time')!;
+    expect(naming.words).toBe('2026-09-28 14.05');
+    expect(naming.label).toBe('The date and time as a name, 2026-09-28 14.05');
+    expect(written('time', '')).toBe('2026-09-28 14.05|');
+    expect(written('time', '# ')).toBe('# 2026-09-28 14.05|');
+    // Anywhere else, the stamp as before.
+    expect(written('time', '# Lunch\n\n')).toContain(stamp(NOW));
+    expect(written('time')).toContain(stamp(NOW));
+  });
+
   it('leave out what the screen cannot do', () => {
     const top = rows.topRows(gates({ picture: false, place: 'absent', note: false }), NOW);
     expect(top.map((row) => row.id)).toEqual(['time', 'table', 'todo', 'more']);

@@ -106,6 +106,15 @@ vi.mock('../core/videos.ts', async (importOriginal) => {
   };
 });
 
+/** A phone, where a test says so: the blank page's names then wait for the keyboard or a tap (editor/nameChips.ts). */
+const device = vi.hoisted(() => ({ mobile: false }));
+vi.mock('../core/platform.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../core/platform.ts')>()),
+  get isMobile() {
+    return device.mobile;
+  },
+}));
+
 const { NoteScreen } = await import('./NoteScreen.tsx');
 
 const saves = vi.mocked(updateNote);
@@ -954,6 +963,32 @@ describe('where the note was written', () => {
     setPreferences({ placeNames: true });
   });
 
+  it('holds a new note’s box from its first frame, the box its tag arrives in, and says when no place came', async () => {
+    const { holdFor, tagNewNotes, LocateError } = await import('../core/location.ts');
+    const box = () => document.querySelector<HTMLElement>('[class*=mapCard]');
+    holdFor(['held1']);
+    show(screen(await createNote('held1', ''), { caret: 0 }));
+    // A picture of the card's own box: nothing to press, nothing read out.
+    expect(box()?.hasAttribute('inert')).toBe(true);
+    expect(box()?.querySelector('button')).toBeNull();
+    expect(box()?.textContent).toBe('');
+    await act(async () => tagNewNotes(['held1'], Promise.resolve({ lat: 51.52, lon: -0.1, accuracy: 12, at: 0 }), { reviewing: false }));
+    await settle();
+    // Found: the card itself, in the same box, arriving without the beat that would move the words.
+    expect(box()?.querySelector('button')).not.toBeNull();
+    expect(box()?.hasAttribute('data-arrive')).toBe(false);
+    unmount();
+    holdFor(['held2']);
+    show(screen(await createNote('held2', ''), { caret: 0 }));
+    await act(async () => tagNewNotes(['held2'], Promise.reject(new LocateError('timeout')), { reviewing: false }));
+    await settle();
+    expect(box()?.textContent).toBe('No place yet.');
+    unmount();
+    // Left, and opened again: no box at all.
+    show(screen((await getNote('held2'))!));
+    expect(box()).toBeNull();
+  });
+
   it('sends nothing for a new note’s tag until it has words: the card quiet, no tiles, no name, then both once it lands', async () => {
     const { tagNewNotes, pendingTag } = await import('../core/location.ts');
     const asked = nominatim('Somerset House');
@@ -978,11 +1013,11 @@ describe('where the note was written', () => {
 
   it('keeps an untouched entry’s tag waiting, its card quiet and its place unnamed, until its first own words', async () => {
     const { tagNewNotes, pendingTag } = await import('../core/location.ts');
-    const { rememberEntry } = await import('../book/entryDrafts.ts');
+    const { rememberUntouched } = await import('../core/untouched.ts');
     const asked = nominatim('Somerset House');
     const words = '# Monday 28 September\n\n**14:05** ';
     const made = `---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n${words}`;
-    rememberEntry('en1', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
+    rememberUntouched('en1', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
     show(screen(await createNote('en1', made)));
     // A place no other test here has named: names already known this run are not asked again.
     await act(async () => tagNewNotes(['en1'], Promise.resolve({ lat: 51.5033, lon: -0.1196, accuracy: 12, at: 0 }), { reviewing: false }));
@@ -1003,17 +1038,17 @@ describe('where the note was written', () => {
   });
 
   it('makes an entry the person’s on its first own word, before the save: left at once, it is not taken back', async () => {
-    const { rememberEntry, entryRecord } = await import('../book/entryDrafts.ts');
+    const { rememberUntouched, untouchedRecord } = await import('../core/untouched.ts');
     const words = '# Monday 28 September\n\n**14:05** ';
     const made = `---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n${words}`;
-    rememberEntry('en2', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
+    rememberUntouched('en2', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
     show(screen(await createNote('en2', made)));
-    expect(entryRecord('en2')).not.toBeNull();
+    expect(untouchedRecord('en2')).not.toBeNull();
     type('W');
     // Nothing saved yet (400 ms), and the record is gone already: App's take-back reads the store and the record, and
     // Home pressed now finds no record to act on while the save on the way out is still a turn behind.
     expect(saves).not.toHaveBeenCalled();
-    expect(entryRecord('en2')).toBeNull();
+    expect(untouchedRecord('en2')).toBeNull();
     unmount();
     await settle();
     expect((await getNote('en2'))?.body).toBe(`${made}W`);
@@ -1285,10 +1320,10 @@ describe('where the note was written', () => {
 
     it('writes a late name all the same in an untouched entry, whose waiting tag lands after the place', async () => {
       const { tagNewNotes } = await import('../core/location.ts');
-      const { rememberEntry } = await import('../book/entryDrafts.ts');
+      const { rememberUntouched } = await import('../core/untouched.ts');
       const words = '# Monday 28 September\n\n**14:05** \n\n';
       const made = `---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n${words}`;
-      rememberEntry('en9', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
+      rememberUntouched('en9', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
       // Places of their own, so no name is known already: the entry's tag is named at once, the + place's late.
       fixAt(51.51383, -0.09837);
       let named: (() => void) | null = null;
@@ -1322,10 +1357,10 @@ describe('where the note was written', () => {
 
     it('keeps the coordinates when the person did something after the place, the tag landing or not', async () => {
       const { tagNewNotes } = await import('../core/location.ts');
-      const { rememberEntry } = await import('../book/entryDrafts.ts');
+      const { rememberUntouched } = await import('../core/untouched.ts');
       const words = '# Monday 28 September\n\n**14:05** \n\n';
       const made = `---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n${words}`;
-      rememberEntry('en10', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
+      rememberUntouched('en10', { journalId: 'diary', title: '2026-09-28 14.05', words, at: Date.now() });
       fixAt(51.50332, -0.11951);
       let named: (() => void) | null = null;
       vi.stubGlobal('fetch', (url: string) =>
@@ -1668,7 +1703,7 @@ describe('a notebook kept as a journal', () => {
 
   it('puts the caret at the end of a new entry’s words, and has the editor’s focus', async () => {
     const entry = '---\ntitle: "2026-09-28 14.05"\n---\n# Monday 28 September\n\n**14:05** ';
-    show(screen(await createNote('en1', entry), { caretAtEnd: true }));
+    show(screen(await createNote('en1', entry), { caret: 'end' }));
     await settle();
     expect(editor().state.selection.main.head).toBe(entry.length);
     expect(editor().hasFocus).toBe(true);
@@ -1738,7 +1773,7 @@ describe('the + beside the line in a journal', () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
     try {
       const entry = '---\ntitle: "2026-09-28 14.05"\ndate: 2026-09-28T14:05\n---\n# Monday 28 September\n\n**14:05** ';
-      show(screen(await createNote('en1', entry), { caretAtEnd: true }));
+      show(screen(await createNote('en1', entry), { caret: 'end' }));
       await settle();
       const view = editor();
       expect(view.state.selection.main.head).toBe(entry.length);
@@ -1764,6 +1799,407 @@ describe('the + beside the line in a journal', () => {
       expect(await restHere(view)).toBe('off');
     } finally {
       vi.restoreAllMocks();
+    }
+  });
+});
+
+describe('a new note’s blank page', () => {
+  /** The names drawn under line 1, by what they write. */
+  const chips = () => [...document.querySelectorAll<HTMLButtonElement>('.cm-nameChip')];
+  const chip = (kind: string) => document.querySelector<HTMLButtonElement>(`.cm-nameChip[data-kind="${kind}"]`);
+  /** A new note as + › Note makes one: fresh, and opened with the caret in line 1 and the focus. */
+  const fresh = async (id: string, over: Partial<Parameters<typeof NoteScreen>[0]> = {}) => {
+    const { markFresh } = await import('../core/untouched.ts');
+    markFresh(id);
+    show(screen(await createNote(id, ''), { caret: 0, ...over }));
+    // CodeMirror tells its extensions of the focus 10ms after it comes.
+    await act(async () => vi.advanceTimersByTimeAsync(20));
+  };
+  const today = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  };
+
+  beforeEach(() => void vi.spyOn(document, 'hasFocus').mockReturnValue(true));
+  afterEach(() => vi.restoreAllMocks());
+
+  it('offers the four names on a fresh note with the focus, the day in words first, and the ghost under them', async () => {
+    await fresh('b1');
+    expect(editor().hasFocus).toBe(true);
+    expect(chips().map((one) => one.dataset.kind)).toEqual(['words', 'day', 'minute', 'week']);
+    expect(chip('day')?.textContent).toBe(today());
+    // The ghost is in their block, after them, and not over the page behind them.
+    const block = document.querySelector('.cm-blankOffers')!;
+    expect(block.querySelector('[class*=offersGhost]')).not.toBeNull();
+    expect(document.querySelector('[class*=blankGhost]')).toBeNull();
+  });
+
+  it('names the note from a tap: its heading, the caret under it, one undo step, a record, and the tab says it', async () => {
+    const { untouchedRecord } = await import('../core/untouched.ts');
+    const { useLiveTitles } = await import('../core/liveTitles.ts');
+    await fresh('b2');
+    act(() => chip('day')!.click());
+    const view = editor();
+    const words = `# ${today()}\n\n`;
+    expect(view.state.doc.toString()).toBe(words);
+    expect(view.state.selection.main.head).toBe(words.length);
+    expect(view.hasFocus).toBe(true);
+    expect(untouchedRecord('b2')).toMatchObject({ title: today(), words });
+    expect(untouchedRecord('b2')?.journalId).toBeUndefined();
+    // Kept at once, not on typing's 400ms beat: its take-back reads the store.
+    await settle();
+    expect(saved()).toContain(words);
+    expect(chips()).toHaveLength(0);
+    // The tab row's title, as the store outside App has it.
+    let said = '';
+    function Tab() {
+      said = useLiveTitles().get('b2')?.title ?? '';
+      return null;
+    }
+    const probe = document.body.appendChild(document.createElement('div'));
+    const { createRoot } = await import('react-dom/client');
+    const root = createRoot(probe);
+    act(() => root.render(<Tab />));
+    expect(said).toBe(today());
+    act(() => root.unmount());
+    // One undo: a blank page with the names on it again.
+    act(() => void undo(view));
+    await settle();
+    expect(view.state.doc.toString()).toBe('');
+    expect(chips()).toHaveLength(4);
+  });
+
+  it('leaves out a name another note has, the others keeping their order', async () => {
+    await fresh('b3', { takenTitles: new Set([today().replace(/-/g, ' ')]) });
+    expect(chips().map((one) => one.dataset.kind)).toEqual(['words', 'minute', 'week']);
+  });
+
+  it('goes at the first letter, and a fresh note typed in and emptied never offers them again', async () => {
+    const { isFresh } = await import('../core/untouched.ts');
+    await fresh('b4');
+    type('T');
+    expect(chips()).toHaveLength(0);
+    const view = editor();
+    act(() => view.dispatch({ changes: { from: 0, to: view.state.doc.length }, userEvent: 'delete' }));
+    await settle();
+    expect(view.state.doc.toString()).toBe('');
+    expect(isFresh('b4')).toBe(false);
+    expect(chips()).toHaveLength(0);
+  });
+
+  it('never offers a name on an old note emptied by hand, so nothing can take it away', async () => {
+    const { untouchedRecord } = await import('../core/untouched.ts');
+    // Made before this run of the screen: not fresh, however empty.
+    show(screen(await createNote('old1', 'A list I had.'), { caret: 0 }));
+    await act(async () => vi.advanceTimersByTimeAsync(20));
+    const view = editor();
+    act(() => view.dispatch({ changes: { from: 0, to: view.state.doc.length }, userEvent: 'delete' }));
+    await settle();
+    expect(chips()).toHaveLength(0);
+    expect(document.querySelector('.cm-blankOffers')).toBeNull();
+    expect(untouchedRecord('old1')).toBeNull();
+    unmount();
+    expect(await getNote('old1')).not.toBeNull();
+  });
+
+  it('says `A name` in an open first heading', async () => {
+    show(screen(await createNote('h1', '# \n\n- [ ] Milk')));
+    expect(document.querySelector('.cm-openHint')?.textContent).toBe('A name');
+  });
+
+  it('wait on a phone for the keyboard or the click that ends a tap, never the focus alone', async () => {
+    device.mobile = true;
+    try {
+      await fresh('b5');
+      expect(editor().hasFocus).toBe(true);
+      expect(chips()).toHaveLength(0);
+      const line = document.querySelector<HTMLElement>('.cm-line')!;
+      act(() => void line.dispatchEvent(new PointerEvent('pointerup', { bubbles: true })));
+      expect(chips()).toHaveLength(0);
+      act(() => void line.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+      expect(chips()).toHaveLength(4);
+    } finally {
+      device.mobile = false;
+    }
+  });
+
+  it('give the focus back to the words when a name is pressed from the keyboard, and leave the page at its top', async () => {
+    await fresh('b6');
+    const page = document.querySelector<HTMLElement>('[data-scrolls]')!;
+    page.scrollTop = 120;
+    // Reached by Tab: the focus on the chip, as a key's press leaves it.
+    act(() => chip('week')!.focus());
+    act(() => chip('week')!.click());
+    expect(editor().state.doc.toString()).toMatch(/^# \d{4}-W\d\d\n\n$/);
+    expect(editor().hasFocus).toBe(true);
+    expect(page.scrollTop).toBe(0);
+  });
+
+  it('follow a named note’s words from then on: typed in, its record goes', async () => {
+    const { untouchedRecord } = await import('../core/untouched.ts');
+    await fresh('b7');
+    act(() => chip('day')!.click());
+    expect(untouchedRecord('b7')).not.toBeNull();
+    type('Milk');
+    expect(untouchedRecord('b7')).toBeNull();
+  });
+
+  it('never name a note from a chip pressed after its first letter', async () => {
+    await fresh('b8');
+    const stale = chip('day')!;
+    type('T');
+    act(() => stale.click());
+    expect(editor().state.doc.toString()).toBe('T');
+  });
+
+  it('leave a note opened to be read unfocused, its caret where it was', async () => {
+    show(screen(await createNote('r1', '# Walk\n\nOn the river.')));
+    await act(async () => vi.advanceTimersByTimeAsync(20));
+    expect(editor().hasFocus).toBe(false);
+    expect(document.activeElement?.closest('.cm-editor')).toBeNull();
+  });
+});
+
+describe('how a note looks', () => {
+  const box = () => document.querySelector<HTMLElement>('[class*=mapCard]');
+  const radio = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="radiogroup"][aria-label="How this note looks"] [role="radio"]')].find((one) => one.textContent === label);
+
+  it('draws a map note’s map as its header from the first frame, with a place or without, and says why there is none', async () => {
+    const { setPreferences } = await import('../core/preferences.ts');
+    show(screen(await createNote('lm1', '---\nlook: map\n---\n# Walk\n')));
+    expect(box()?.getAttribute('data-size')).toBe('header');
+    expect(box()?.querySelector('button')).toBeNull();
+    expect(box()?.textContent).toBe('No place yet.');
+    unmount();
+    setPreferences({ localOnly: true });
+    try {
+      show(screen(await createNote('lm2', '---\nlook: map\n---\n# Walk\n')));
+      expect(box()?.textContent).toBe('Local only is on.');
+      unmount();
+      // With its place, the card itself as the header, quiet under Local only: the dot grid and no tiles.
+      show(screen(await createNote('lm3', '---\nlook: map\nlocation: 51.5074,-0.1278\n---\n# Walk\n')));
+      expect(box()?.getAttribute('data-size')).toBe('header');
+      expect(box()?.getAttribute('data-mode')).toBe('quiet');
+      expect(box()?.querySelector('button')).not.toBeNull();
+    } finally {
+      setPreferences({ localOnly: false });
+    }
+  });
+
+  it('sets a reading note as a page to read: the look on the editor and the column, and a lead line under its title', async () => {
+    show(screen(await createNote('lr1', '---\nlook: reading\n---\n# The long road\n\nIt went on.\n')));
+    expect(document.querySelector('.cm-editor')?.getAttribute('data-look')).toBe('reading');
+    // And on the column around it, which sets the title's size and the measure.
+    expect(document.querySelector('.cm-editor')?.parentElement?.closest('[data-look="reading"]')).not.toBeNull();
+    expect([...document.querySelectorAll('.cm-lead')].map((line) => line.textContent)).toEqual(['It went on.']);
+    // Folded to nothing: the note opens on its title, with no band saying "look".
+    expect(document.querySelector('.cm-frontFold')).toBeNull();
+    unmount();
+    show(screen(await createNote('lr2', '# The long road\n\nIt went on.\n')));
+    expect(document.querySelector('.cm-editor')?.hasAttribute('data-look')).toBe(false);
+    expect(document.querySelectorAll('.cm-lead')).toHaveLength(0);
+  });
+
+  it('is changed from the More sheet as one undo step, Map only for a note with a place, and Plain takes it off', async () => {
+    show(screen(await createNote('ll1', '# The long road\n\nIt went on.\n')));
+    act(() => button('More for this note').click());
+    expect(radio('Plain')?.getAttribute('aria-checked')).toBe('true');
+    expect(radio('Map')).toBeUndefined();
+    // Choices to press, never inside a row said to be off.
+    expect(radio('Reading')!.closest('[aria-disabled]')).toBeNull();
+    act(() => radio('Reading')!.click());
+    const view = editor();
+    expect(view.state.doc.toString()).toBe('---\nlook: reading\n---\n# The long road\n\nIt went on.\n');
+    expect(document.querySelector('.cm-editor')?.getAttribute('data-look')).toBe('reading');
+    act(() => void undo(view));
+    expect(view.state.doc.toString()).toBe('# The long road\n\nIt went on.\n');
+    unmount();
+    // A place no other test here has named: a name known this run would be written in as the note opens.
+    show(screen(await createNote('ll2', '---\nlocation: 12.3456,65.4321\nlook: reading\n---\n# Walk\n')));
+    act(() => button('More for this note').click());
+    act(() => radio('Map')!.click());
+    expect(editor().state.doc.toString()).toBe('---\nlocation: 12.3456,65.4321\nlook: map\n---\n# Walk\n');
+    act(() => radio('Plain')!.click());
+    expect(editor().state.doc.toString()).toBe('---\nlocation: 12.3456,65.4321\n---\n# Walk\n');
+  });
+
+  it('makes a note the app gave its words to the person’s own, so it is not taken back', async () => {
+    const { rememberUntouched, untouchedRecord } = await import('../core/untouched.ts');
+    rememberUntouched('ll3', { title: '', words: '# \n\n- [ ] ', at: Date.now() });
+    show(screen(await createNote('ll3', '# \n\n- [ ] ')));
+    act(() => button('More for this note').click());
+    act(() => radio('Reading')!.click());
+    expect(untouchedRecord('ll3')).toBeNull();
+  });
+});
+
+describe('the templates on a new note’s blank page', () => {
+  const cardFor = (id: string) => document.querySelector<HTMLButtonElement>(`[data-template="${id}"]`);
+  const fresh = async (id: string, over: Partial<Parameters<typeof NoteScreen>[0]> = {}) => {
+    const { markFresh } = await import('../core/untouched.ts');
+    markFresh(id);
+    show(screen(await createNote(id, ''), { caret: 0, ...over }));
+    await act(async () => vi.advanceTimersByTimeAsync(20));
+  };
+  const today = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  };
+
+  beforeEach(() => void vi.spyOn(document, 'hasFocus').mockReturnValue(true));
+  afterEach(() => {
+    vi.restoreAllMocks();
+    Reflect.deleteProperty(navigator, 'geolocation');
+    Reflect.deleteProperty(navigator, 'permissions');
+  });
+
+  it('stay for a click whose press began before they were there, the tap that brought them', async () => {
+    await fresh('t5');
+    const line = document.querySelector<HTMLElement>('.cm-line')!;
+    act(() => void line.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    expect(cardFor('day')).not.toBeNull();
+  });
+
+  it('leave the page at its top and the caret’s heading in sight, from a card pressed lower down', async () => {
+    await fresh('t6');
+    const page = document.querySelector<HTMLElement>('[data-scrolls]')!;
+    page.scrollTop = 189;
+    act(() => cardFor('book')!.click());
+    expect(editor().state.doc.toString()).toMatch(/^# \n\nBy \n/);
+    expect(page.scrollTop).toBe(0);
+  });
+
+  it('give the focus back to the words when a card is pressed from the keyboard, and keep the note at once', async () => {
+    await fresh('t7');
+    act(() => cardFor('checklist')!.focus());
+    expect(editor().hasFocus).toBe(false);
+    act(() => cardFor('checklist')!.click());
+    expect(editor().hasFocus).toBe(true);
+    // Kept now, not on typing's 400ms beat: a note templated and left at once is looked at in the store.
+    await settle();
+    expect(saved()).toContain('# \n\n- [ ] ');
+  });
+
+  it('take only the first of two cards pressed at once', async () => {
+    await fresh('t8');
+    const [day, meeting] = [cardFor('day')!, cardFor('meeting')!];
+    act(() => {
+      day.click();
+      meeting.click();
+    });
+    expect(editor().state.doc.toString()).toMatch(/^# \d{4}-\d\d-\d\d\n/);
+  });
+
+  it('name A day past a note that has today’s name, and its card says so first', async () => {
+    const { titleKey } = await import('../core/titleKey.ts');
+    await fresh('t9', { takenTitles: new Set([titleKey(today())]) });
+    const said = document.getElementById(cardFor('day')!.getAttribute('aria-describedby')!)?.textContent;
+    expect(said).toBe('Today has a note by this name. This makes a second.');
+    act(() => cardFor('day')!.click());
+    expect(editor().state.doc.toString().startsWith(`# ${today()} (2)\n`)).toBe(true);
+  });
+
+  it('draw no map on any card but A map at the top, while the note holds its own box', async () => {
+    const { holdFor, watchTag } = await import('../core/location.ts');
+    Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition: () => undefined } });
+    holdFor(['t10']);
+    const stop = watchTag('t10', () => undefined);
+    try {
+      await fresh('t10');
+      expect(document.querySelector('[class*=mapCard]')).not.toBeNull();
+      const withMaps = [...document.querySelectorAll<HTMLElement>('[data-template]')].filter((one) => one.querySelector('[data-size]'));
+      expect(withMaps.map((one) => one.dataset.template)).toEqual(['map']);
+    } finally {
+      stop();
+    }
+  });
+
+  it('go while an AI run writes into the note, with the names', async () => {
+    simulateRuns(() => {
+      let stop: (why: Error) => void = () => undefined;
+      return { done: new Promise<never>((_resolve, reject) => void (stop = reject)), cancel: () => stop(new Error('cancelled')) };
+    });
+    try {
+      await fresh('t11');
+      expect(cardFor('day')).not.toBeNull();
+      act(() => void startRun({ noteId: 't11', kind: 'format', model: 'qwen3.5-4b', system: '', prompt: '', maxTokens: 16 }));
+      await act(async () => vi.advanceTimersByTimeAsync(100));
+      expect(cardFor('day')).toBeNull();
+      expect(document.querySelectorAll('.cm-nameChip')).toHaveLength(0);
+      await act(async () => cancelRun('t11'));
+    } finally {
+      simulateRuns(null);
+      forgetAllRuns();
+    }
+  });
+
+  it('sit under the names, and go at a tap elsewhere on the page but not at a press on a name or a card', async () => {
+    await fresh('t1');
+    const block = document.querySelector('.cm-blankOffers')!;
+    expect(block.querySelector('[data-template="day"]')).not.toBeNull();
+    // Under the names, in their block.
+    const names = block.querySelector('.cm-nameChips')!;
+    expect(names.compareDocumentPosition(cardFor('day')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // A tap on the words takes them away, the names staying.
+    const line = document.querySelector<HTMLElement>('.cm-line')!;
+    act(() => {
+      line.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      line.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(cardFor('day')).toBeNull();
+    expect(document.querySelectorAll('.cm-nameChip')).toHaveLength(4);
+  });
+
+  it('turn the blank note into a template on a press: its words, the caret in its first open line, a record, the focus kept', async () => {
+    const { untouchedRecord } = await import('../core/untouched.ts');
+    await fresh('t2');
+    act(() => cardFor('meeting')!.click());
+    const view = editor();
+    const doc = view.state.doc.toString();
+    expect(doc).toMatch(/^# Meeting \d{4}-\d\d-\d\d \d\d\.\d\d\n\nWith \n\n## Notes\n\n- \n\n## To do\n\n- \[ \] $/);
+    expect(doc.slice(0, view.state.selection.main.head).endsWith('With ')).toBe(true);
+    expect(view.hasFocus).toBe(true);
+    expect(untouchedRecord('t2')?.words).toBe(doc);
+    expect(cardFor('day')).toBeNull();
+    // One undo: the blank page, its names and its cards.
+    act(() => void undo(view));
+    await settle();
+    expect(view.state.doc.toString()).toBe('');
+    expect(cardFor('day')).not.toBeNull();
+    expect(document.querySelectorAll('.cm-nameChip')).toHaveLength(4);
+  });
+
+  it('make A page to read a reading note, its look kept out of the words the record compares', async () => {
+    const { untouchedRecord } = await import('../core/untouched.ts');
+    await fresh('t3');
+    act(() => cardFor('reading')!.click());
+    const view = editor();
+    expect(view.state.doc.toString()).toBe('---\nlook: reading\n---\n# \n');
+    expect(view.state.selection.main.head).toBe('---\nlook: reading\n---\n# '.length);
+    expect(untouchedRecord('t3')?.words).toBe('# \n');
+    expect(document.querySelector('.cm-editor')?.getAttribute('data-look')).toBe('reading');
+    expect(document.querySelector('.cm-openHint')?.textContent).toBe('A name');
+  });
+
+  it('make A map at the top hold its header from the press and ask for the place once, whatever Tag new notes says', async () => {
+    const { heldFor } = await import('../core/location.ts');
+    const { setPreferences } = await import('../core/preferences.ts');
+    const asked: number[] = [];
+    Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition: () => void asked.push(1) } });
+    Object.defineProperty(navigator, 'permissions', { configurable: true, value: { query: async () => ({ state: 'granted' }) } });
+    setPreferences({ tagNewNotes: false });
+    try {
+      await fresh('t4');
+      act(() => cardFor('map')!.click());
+      await settle();
+      expect(editor().state.doc.toString()).toMatch(/^---\nlook: map\n---\n# \n\n.+, \d\d:\d\d\.\n$/);
+      expect(heldFor('t4')).toBe('waiting');
+      expect(asked).toHaveLength(1);
+      const box = document.querySelector<HTMLElement>('[class*=mapCard]');
+      expect(box?.getAttribute('data-size')).toBe('header');
+      expect(box?.textContent).toBe('');
+    } finally {
+      setPreferences({ tagNewNotes: true });
     }
   });
 });

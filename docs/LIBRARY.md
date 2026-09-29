@@ -64,7 +64,10 @@ memory: the open note finds it, the list leaves it out. The first words write th
 created time. A note Ghost.md started as a draft in this run, whose words are all taken out again, with nothing
 else set (no pin, archive, recording, or front matter beyond `id`, `created`, `source`), goes back to being a draft
 and its file is removed. Pinning or archiving a draft writes its file even without words. A file Ghost.md didn't
-start this way is never removed for being empty.
+start this way is never removed for being empty. A new note the app gave words to from its blank page, a template or
+a name tapped as its title (DESIGN §144), has a file at once. Left without a word of the person's own, the page takes
+it back, as it takes back a journal's untouched entry (`src/app/core/untouched.ts`). A new note is filed in `Inbox/`,
+or in the folder of the workspace being looked at when it was made.
 
 ```markdown
 ---
@@ -110,8 +113,9 @@ The library writes these keys, and only these (`src-tauri/src/library/mod.rs`: a
 
 The page keeps a few keys of its own in a block at the top of the note's words (`src/app/core/frontMatter.ts`):
 `title:`, which names a canvas or a notebook, since neither has a first line to rename it in; `book: true`, which
-makes a note a notebook (docs/BOOKS.md); and `authors:`, the names a note was written by, the AI among them
-(`src/app/core/authors.ts`). The library does not merge that block into its own. A named notebook's file therefore
+makes a note a notebook (docs/BOOKS.md); `authors:`, the names a note was written by, the AI among them
+(`src/app/core/authors.ts`); and `look:`, `map` or `reading`, how the note is drawn (`src/app/core/look.ts`, DESIGN
+§144). The library does not merge that block into its own. A named notebook's file therefore
 opens with two blocks, the library's and then the page's, and an app that reads only the first shows the second as text.
 
 Keys for a note's tags, its Notion board and its GitHub repo (`tags`, `notion-board`, `project`) are phase 4. The

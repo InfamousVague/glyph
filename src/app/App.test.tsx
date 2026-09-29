@@ -90,6 +90,14 @@ vi.mock('./core/location.ts', async (importOriginal) => {
   const real = await importOriginal<typeof import('./core/location.ts')>();
   return { ...real, tagEntryIfWanted: vi.fn(real.tagEntryIfWanted) };
 });
+// The Mac app, where a test says so: ⌘N is bound only there.
+const device = vi.hoisted(() => ({ mac: false }));
+vi.mock('./core/platform.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./core/platform.ts')>()),
+  get isMacApp() {
+    return device.mac;
+  },
+}));
 vi.mock('./share/share.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./share/share.ts')>()),
   readShared: vi.fn(async () => ({ v: 1, kind: 'note', title: 'Shared', pages: [{ title: 'Shared', body: '# Shared\n\nFrom a friend.' }], at: 1 })),
@@ -424,6 +432,303 @@ describe('a new note, and where it was made', () => {
   });
 });
 
+describe('a new note, ready to type', () => {
+  it('opens with the caret in line 1, fresh, with no record written, and holds its map box where a fix is expected', async () => {
+    const { isFresh } = await import('./core/untouched.ts');
+    const { heldFor } = await import('./core/location.ts');
+    Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition: () => undefined } });
+    Object.defineProperty(navigator, 'permissions', { configurable: true, value: { query: async () => ({ state: 'granted' }) } });
+    try {
+      await openApp();
+      act(() => button('Write a note').click());
+      await act(async () => buttonSaying(document.body, 'A page of markdown')!.click());
+      await waitUntil(() => expect(noteShown()).not.toBeNull());
+      const made = noteShown()!;
+      expect(seen.note!.caret).toBe(0);
+      expect(isFresh(made)).toBe(true);
+      expect(localStorage.getItem('glyph-entry-drafts')).toBeNull();
+      // Allowed already, so the fix is on its way from the first frame, and the box is held for it.
+      expect(heldFor(made)).toBe('waiting');
+    } finally {
+      Reflect.deleteProperty(navigator, 'geolocation');
+      Reflect.deleteProperty(navigator, 'permissions');
+    }
+  });
+
+  it('takes back a note given a template or a name and left without a word, and keeps one written in', async () => {
+    const { rememberUntouched, untouchedRecord } = await import('./core/untouched.ts');
+    const { setPendingTag, pendingTag } = await import('./core/location.ts');
+    await seed(['a', '# Apples']);
+    await openApp();
+    const made = async () => {
+      act(() => button('Write a note').click());
+      await act(async () => buttonSaying(document.body, 'A page of markdown')!.click());
+      await waitUntil(() => expect(noteShown()).not.toBeNull());
+      return noteShown()!;
+    };
+    // As the note's screen writes a card's template: its record first, then its words, and a place waiting for words.
+    const left = await made();
+    rememberUntouched(left, { title: '', words: '# \n\n- [ ] ', at: Date.now() });
+    await updateNote(left, '---\nlook: reading\n---\n# \n\n- [ ] ', (await getNote(left))!.revision ?? 1);
+    setPendingTag(left, { lat: 51.5, lon: -0.12, rough: false, place: null });
+    act(() => button('Home').click());
+    await waitUntil(async () => expect(await getNote(left)).toBeNull());
+    expect(untouchedRecord(left)).toBeNull();
+    expect(pendingTag(left)).toBeNull();
+    expect(tabs()).not.toContain(left);
+    // Left before its screen's save of the words has landed: the store has none yet, so the record waits for a look
+    // that finds them, and the note is taken back then.
+    const early = await made();
+    rememberUntouched(early, { title: '2026-09-28', words: '# 2026-09-28\n\n', at: Date.now() });
+    act(() => button('Home').click());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(untouchedRecord(early)).not.toBeNull();
+    await updateNote(early, '# 2026-09-28\n\n', (await getNote(early))!.revision ?? 1);
+    // The next look: another note, and home again (behind another note its open tab would keep it).
+    act(() => card('Apples').click());
+    await waitUntil(() => expect(noteShown()).toBe('a'));
+    act(() => button('Home').click());
+    await waitUntil(async () => expect(await getNote(early)).toBeNull());
+    // Written in, it is the person's: it stays, and its record goes.
+    const kept = await made();
+    rememberUntouched(kept, { title: '2026-09-28', words: '# 2026-09-28\n\n', at: Date.now() });
+    await updateNote(kept, '# 2026-09-28\n\nA word.', (await getNote(kept))!.revision ?? 1);
+    act(() => button('Home').click());
+    await waitUntil(() => expect(untouchedRecord(kept)).toBeNull());
+    expect(await getNote(kept)).not.toBeNull();
+  });
+
+  it('makes your Templates notebook from Your templates, pages first, opens it, and offers its pages on a blank page', async () => {
+    const { isTemplatesBody } = await import('./notes/ownTemplates.ts');
+    await openApp();
+    const blank = async () => {
+      if (noteShown()) act(() => button('Home').click());
+      act(() => button('Write a note').click());
+      await act(async () => buttonSaying(document.body, 'A page of markdown')!.click());
+      await waitUntil(() => expect(seen.note?.note.body).toBe(''));
+    };
+    await blank();
+    expect(seen.note!.templates).toBeNull();
+    const left = seen.note!.note.id;
+    const made = vi.mocked(createNote).mock.calls.length;
+    await act(async () => seen.note!.onTemplates!());
+    await waitUntil(() => expect(isTemplatesBody(seen.note!.note.body)).toBe(true));
+    // In the blank note's tab: a note left with no words leaves nothing, its tab included.
+    expect(tabs()).not.toContain(left);
+    const bodies = vi.mocked(createNote).mock.calls.slice(made).map((call) => call[1]);
+    // The six pages, the last first so a list read newest first reads them in order, then the notebook.
+    expect(bodies).toHaveLength(7);
+    expect(bodies[0]).toContain('title: "A page to read"');
+    expect(bodies[5]).toContain('title: "A day"');
+    expect(isTemplatesBody(bodies[6]!)).toBe(true);
+    const book = seen.note!.note.id;
+    // From then on a blank page's cards are its pages, and a second press opens the same notebook.
+    await blank();
+    expect(seen.note!.templates?.map((one) => one.name)).toEqual(['A day', 'A meeting', 'A checklist', 'Notes on a book', 'A map at the top', 'A page to read']);
+    await act(async () => seen.note!.onTemplates!());
+    await waitUntil(() => expect(seen.note!.note.id).toBe(book));
+    expect(vi.mocked(createNote).mock.calls.length).toBe(made + 8);
+    // A page added from inside it is a template's page, marked and named by its title.
+    await act(async () => seen.note!.onOpenWithin!('A walk'));
+    await waitUntil(() => expect(seen.note!.note.body).toBe('---\ntitle: "A walk"\ntemplates: page\n---\n# {{title}}\n\n'));
+  });
+
+  it('never takes a note of the person’s named like a page for the page, from the seed or inside the notebook', async () => {
+    const { isTemplatesBody } = await import('./notes/ownTemplates.ts');
+    await seed(['mine', '# Notes on a book\n\n- [ ] Return Middlemarch to the library']);
+    await openApp();
+    expect(document.body.textContent).toContain('Return Middlemarch to the library');
+    act(() => button('Write a note').click());
+    await act(async () => buttonSaying(document.body, 'A page of markdown')!.click());
+    await waitUntil(() => expect(seen.note?.note.body).toBe(''));
+    const made = vi.mocked(createNote).mock.calls.length;
+    await act(async () => seen.note!.onTemplates!());
+    await waitUntil(() => expect(isTemplatesBody(seen.note!.note.body)).toBe(true));
+    // All six pages, the one sharing the person's note's name too.
+    expect(vi.mocked(createNote).mock.calls.slice(made).map((call) => call[1]).filter((body) => body.includes('title: "Notes on a book"'))).toHaveLength(1);
+    expect(vi.mocked(createNote).mock.calls.length).toBe(made + 7);
+    // Inside the notebook its line is the page. Everywhere else the name is the person's note, still on home.
+    await act(async () => seen.note!.onOpenWithin!('Notes on a book'));
+    await waitUntil(() => expect(seen.note!.note.body).toContain('templates: page'));
+    const page = seen.note!.note.id;
+    expect(page).not.toBe('mine');
+    await act(async () => seen.note!.onOpenTitle!('Notes on a book'));
+    await waitUntil(() => expect(noteShown()).toBe('mine'));
+    // Its place in a book is none: the Templates notebook's lines are its pages.
+    expect(seen.note!.book ?? null).toBeNull();
+    act(() => button('Home').click());
+    await waitUntil(() => expect(document.body.textContent).toContain('Return Middlemarch to the library'));
+    expect(seen.note!.templates?.find((one) => one.name === 'Notes on a book')?.id).toBe(page);
+  });
+
+  it('makes the notebook once for Your templates pressed twice at once, and keeps its pages out of a notebook’s pickers', async () => {
+    await seed(['a', '# Apples']);
+    await openApp();
+    act(() => button('Write a note').click());
+    await act(async () => buttonSaying(document.body, 'A page of markdown')!.click());
+    await waitUntil(() => expect(seen.note?.note.body).toBe(''));
+    const made = vi.mocked(createNote).mock.calls.length;
+    const press = seen.note!.onTemplates!;
+    await act(async () => {
+      press();
+      press();
+    });
+    await waitUntil(() => expect(vi.mocked(createNote).mock.calls.length).toBe(made + 7));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(vi.mocked(createNote).mock.calls.length).toBe(made + 7);
+    // A notebook's page pickers offer the person's notes, not the templates.
+    const offered = seen.note!.pageTitles!();
+    expect(offered).toContain('Apples');
+    expect(offered).not.toContain('A day');
+  });
+
+  it('offers a named note’s own name again after an undo, though the list was read again meanwhile', async () => {
+    const { titleKey } = await import('./core/titleKey.ts');
+    const { announceNotesChanged } = await import('./core/store.ts');
+    const { trashNote } = await import('./core/trash.ts');
+    await seed(['a', '# Apples'], ['old', '# Old plans'], ['binned', '# Binned list']);
+    await setNoteArchived('old', true);
+    trashNote('binned');
+    await openApp();
+    act(() => button('Write a note').click());
+    await act(async () => buttonSaying(document.body, 'A page of markdown')!.click());
+    await waitUntil(() => expect(seen.note?.note.body).toBe(''));
+    const id = seen.note!.note.id;
+    // Every other note's name is taken, archived and in the Trash too.
+    for (const name of ['Apples', 'Old plans', 'Binned list']) expect(seen.note!.takenTitles?.has(titleKey(name))).toBe(true);
+    // Named on its blank page, saved, and the list read again: the name is its own, not taken from it.
+    await updateNote(id, '# Zebra crossing\n\n', (await getNote(id))!.revision ?? 1);
+    await act(async () => announceNotesChanged());
+    await waitUntil(() => expect(seen.note!.takenTitles?.has(titleKey('Apples'))).toBe(true));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(seen.note!.takenTitles?.has(titleKey('Zebra crossing'))).toBe(false);
+  });
+
+  it('speaks into a note given a template as into any note, not from its last line', async () => {
+    const { rememberUntouched } = await import('./core/untouched.ts');
+    await openApp();
+    act(() => button('Write a note').click());
+    await act(async () => buttonSaying(document.body, 'A page of markdown')!.click());
+    await waitUntil(() => expect(seen.note?.note.body).toBe(''));
+    const id = seen.note!.note.id;
+    // As a card's press writes A meeting: its record first, then its words.
+    const words = '# Meeting 2026-09-28 14.05\n\nWith \n\n## Notes\n\n- \n\n## To do\n\n- [ ] ';
+    rememberUntouched(id, { title: 'Meeting 2026-09-28 14.05', words, at: Date.now() });
+    await updateNote(id, words, (await getNote(id))!.revision ?? 1);
+    await act(async () => seen.note!.onSpeak!(id));
+    await waitUntil(() => expect(screenNow()?.dataset.screen).toBe('capture'));
+    expect(screenNow()!.dataset.into).toBe(id);
+    // Nothing taken off its end to be said as to-dos under To do.
+    expect(seen.capture!.placing).toBeUndefined();
+    expect((await getNote(id))!.body).toBe(words);
+  });
+
+  it('makes one from ⌘N in the Mac app, never in a browser, and not while a sheet is over the page', async () => {
+    const press = () => act(() => void window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', metaKey: true, bubbles: true, cancelable: true })));
+    await seed(['a', '# Apples']);
+    await openApp();
+    press();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(noteShown()).toBeNull();
+    unmount();
+    device.mac = true;
+    try {
+      await openApp();
+      // The + sheet open: its own keys come first.
+      act(() => button('Write a note').click());
+      press();
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(noteShown()).toBeNull();
+      const { goBack } = await import('./core/back.ts');
+      act(() => void goBack());
+      await waitUntil(() => expect(document.querySelector('[aria-modal="true"]')).toBeNull());
+      press();
+      await waitUntil(() => expect(noteShown()).not.toBeNull());
+      expect(seen.note!.caret).toBe(0);
+      expect(seen.note!.note.body).toBe('');
+    } finally {
+      device.mac = false;
+    }
+  });
+
+  it('takes only ⌘N itself, held once, and its own default, and never over a recording', async () => {
+    device.mac = true;
+    try {
+      await seed(['a', '# Apples']);
+      await openApp();
+      const made = () => vi.mocked(createNote).mock.calls.length;
+      const before = made();
+      const key = (init: KeyboardEventInit) => {
+        const event = new KeyboardEvent('keydown', { key: 'n', bubbles: true, cancelable: true, ...init });
+        act(() => void window.dispatchEvent(event));
+        return event;
+      };
+      for (const other of [{ metaKey: true, ctrlKey: true }, { metaKey: true, altKey: true }, { metaKey: true, shiftKey: true, key: 'N' }, { metaKey: true, repeat: true }, { ctrlKey: true }]) {
+        expect(key(other).defaultPrevented).toBe(false);
+      }
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(made()).toBe(before);
+      expect(noteShown()).toBeNull();
+      // Over a recording, which is not a place: nothing made, and the recorder stays.
+      await act(async () => window.__glyph!.capture!());
+      expect(screenNow()?.dataset.screen).toBe('capture');
+      key({ metaKey: true });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(made()).toBe(before);
+      expect(screenNow()?.dataset.screen).toBe('capture');
+      await act(async () => seen.capture!.onFinish(null, false));
+      await waitUntil(() => expect(screenNow()?.dataset.screen).not.toBe('capture'));
+      expect(key({ metaKey: true }).defaultPrevented).toBe(true);
+      await waitUntil(() => expect(noteShown()).not.toBeNull());
+    } finally {
+      device.mac = false;
+    }
+  });
+
+  it('forgets the name a closed tab’s editor gave it, so the note opened again says its own', async () => {
+    const { setLiveTitle } = await import('./core/liveTitles.ts');
+    await seed(['a', '# Apples'], ['b', '# Bread']);
+    await openApp();
+    act(() => card('Apples').click());
+    await waitUntil(() => expect(noteShown()).toBe('a'));
+    act(() => setLiveTitle('a', 'Apples and pears'));
+    await waitUntil(() => expect(button('Close Apples and pears')).not.toBeNull());
+    act(() => button('Close Apples and pears').click());
+    await waitUntil(() => expect(tabs()).not.toContain('a'));
+    act(() => card('Apples').click());
+    await waitUntil(() => expect(noteShown()).toBe('a'));
+    expect(document.querySelector('[aria-label="Close Apples"]')).not.toBeNull();
+  });
+
+  it('holds nothing where the prompt was never answered, and leaves a note opened to be read unfocused', async () => {
+    const { heldFor } = await import('./core/location.ts');
+    await seed(['a', '# Apples']);
+    await openApp();
+    act(() => button('Write a note').click());
+    await act(async () => buttonSaying(document.body, 'A page of markdown')!.click());
+    await waitUntil(() => expect(noteShown()).not.toBeNull());
+    expect(heldFor(noteShown()!)).toBeNull();
+    act(() => button('Home').click());
+    act(() => card('Apples').click());
+    await waitUntil(() => expect(noteShown()).toBe('a'));
+    expect(seen.note!.caret).toBeUndefined();
+  });
+});
+
 describe('a capture ending', () => {
   it('comes back to the note it was spoken into, read fresh', async () => {
     await seed(['a', '# Apples']);
@@ -560,7 +865,7 @@ describe('a journal’s entries', () => {
     expect(await diaryBody()).toBe(`${DIARY}- [[${title}]]\n`);
     const body = (await getNote(id))!.body;
     expect(body).toMatch(new RegExp(`^---\\ntitle: "${title}"\\ndate: \\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}\\n---\\n# \\w+.*\\n\\n\\*\\*\\d{2}:\\d{2}\\*\\* $`));
-    expect(seen.note!.caretAtEnd).toBe(true);
+    expect(seen.note!.caret).toBe('end');
     // In the journal's tab: made from inside it.
     expect(tabs()).toEqual([id]);
     // The journal keeps no places: nothing is asked for this entry.

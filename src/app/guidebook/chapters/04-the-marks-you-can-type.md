@@ -103,6 +103,10 @@ The first round button in a note's tools switches between them.
 
 The choice holds for every note. On a narrow screen, such as a folded phone, the note's More sheet has the switch as well, under Reading it › Show. In the command palette it is "Show it formatted" and "Show the marks".
 
+## How a note looks
+
+A note made from **A map at the top** draws where you were as a large map across the top, and keeps the place even with Tag new notes off. Its map is asked for when you tap the card, and waits for your first words before it is written in. A note made from **A page to read** sets its words in the interface's face, with a large title, a lead line under it, and on a wide screen a narrower column. Change it, or take it off, under **Look** in the note's More sheet, which offers Plain, Reading, and Map for a note that has a place. It is one line in the note's front matter, `look: map` or `look: reading`, which Ghost.md keeps out of the folded line at the top. Obsidian and other apps show it over your words, as a rule and a small heading. A note cannot have a face of its own, a serif, or a size of its own. Those are yours in Settings, for every note.
+
 ## The press-and-hold menu
 
 Press and hold in a note, or right-click on a Mac, for a band of actions. Some show only when they apply.

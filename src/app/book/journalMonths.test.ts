@@ -5,7 +5,7 @@ import { withGeoTag } from '../core/geotag.ts';
 import { DEFAULT_TEMPLATE, entryBody, PRESETS } from './journal.ts';
 import { asideMonth, firstWords, inTimeOrder, journalCards, monthsOf, sideName, type JournalPage } from './journalMonths.ts';
 import { bookOf } from './book.ts';
-import { fillTemplate } from './template.ts';
+import { fillTemplate } from '../core/template.ts';
 
 /**
  * A journal's entries in months, newest first by when each was written, whatever order its index is in; what a row

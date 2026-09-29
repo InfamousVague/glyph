@@ -1,5 +1,5 @@
 import { entryTitle, OWN, PRESETS } from './journal.ts';
-import { fillTemplate } from './template.ts';
+import { fillTemplate } from '../core/template.ts';
 
 /**
  * What a new entry can start from, as New entry offers it on an open journal (book/JournalView.tsx `TemplateChoice`;

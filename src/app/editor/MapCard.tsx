@@ -24,10 +24,20 @@ import styles from './MapCard.module.css';
  * In `ask` mode (the reader) the quiet card carries "Show the map" and a tap fetches nothing until then. Otherwise a
  * tap opens the place in the device's maps app (core/placeLink.ts `openPlace`), with the place or the coordinates and
  * never the note's title. That module is kept apart from core/location.ts so a shared page loads none of the rest.
+ *
+ * Two sizes (docs/DESIGN.md §144): the card, and the header a note made from A map at the top wears (`look: map`),
+ * 10rem tall on a phone and 16rem from 600px, as wide as the note's column up to 48rem. And `MapPicture`: the same box
+ * with the quiet layer alone, for a box held while a new note's fix is on its way, a map note with no place yet, and
+ * the template cards. No tag, no button, no Leaflet, no credit, nothing asked; `inert`, since it is a picture.
  */
+
+/** The ordinary card, or the header across a map note's column (`look: map`). */
+export type MapSize = 'card' | 'header';
 
 export interface MapCardProps {
   tag: GeoTag;
+  /** The card, or a map note's header. */
+  size?: MapSize;
   /** Tiles from OpenStreetMap; the quiet card (coordinates and a drawn pin); or the quiet card with "Show the map" on it, one tap from tiles (the reader). */
   mode: 'map' | 'quiet' | 'ask';
   /** Why the card is quiet, said in a chip, or nothing (offline, a failed tile, a tile switch). */
@@ -96,7 +106,7 @@ function MapMark({ rough, lat, over }: { rough: boolean; lat: number; over: bool
 
 const WHY = { 'local-only': 'Local only is on.', off: 'Map off in Settings.' } as const;
 
-export function MapCard({ tag, mode, quietWhy, dark, onShow, arrive, leave, onLeft, where = true, className }: MapCardProps) {
+export function MapCard({ tag, size = 'card', mode, quietWhy, dark, onShow, arrive, leave, onLeft, where = true, className }: MapCardProps) {
   const mapEl = useRef<HTMLDivElement>(null);
   const [loaded, setLoaded] = useState(false);
   const { lat, lon, rough } = tag;
@@ -197,6 +207,7 @@ export function MapCard({ tag, mode, quietWhy, dark, onShow, arrive, leave, onLe
     <div
       className={`${styles.card} ${className ?? ''}`}
       data-dark={dark || undefined}
+      data-size={size}
       data-loaded={loaded || undefined}
       data-mode={mode}
       data-rough={rough || undefined}
@@ -221,6 +232,30 @@ export function MapCard({ tag, mode, quietWhy, dark, onShow, arrive, leave, onLe
       ) : null}
       {credit ? <span className={`${styles.chip} ${styles.credit}`}>© OpenStreetMap contributors</span> : null}
       <button type="button" className={styles.tap} aria-label={asks ? 'Show the map' : `Open ${label} on a map`} onClick={press} disabled={leave} />
+    </div>
+  );
+}
+
+export interface MapPictureProps {
+  size?: MapSize;
+  /** A stand-in pin, where the card would put one: on a template's card, which shows a map it has no place for yet. */
+  pin?: boolean;
+  /** Why the box has no map, said in its chip, or nothing while a fix is on its way. */
+  why?: string;
+  dark: boolean;
+  className?: string;
+}
+
+/**
+ * The map's box with no map in it: the quiet layer alone, the card's own box and dot grid, so a box held for a fix and
+ * the card that arrives in it are the same box and nothing moves. A picture: no button, nothing to press, nothing read
+ * out, and nothing fetched.
+ */
+export function MapPicture({ size = 'card', pin = false, why, dark, className }: MapPictureProps) {
+  return (
+    <div className={`${styles.card} ${styles.picture} ${className ?? ''}`} data-dark={dark || undefined} data-size={size} data-mode="quiet" aria-hidden="true" inert>
+      <div className={styles.quiet}>{pin ? <MapMark rough={false} lat={0} over={false} /> : null}</div>
+      {why ? <span className={`${styles.chip} ${styles.why}`}>{why}</span> : null}
     </div>
   );
 }

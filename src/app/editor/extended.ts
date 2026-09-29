@@ -35,6 +35,10 @@ import { mathsIn } from '../core/maths.ts';
  * words can be edited: a read-only page (the shared reader, a note being dictated) shows the lines as they are,
  * since a stranger has no caret to open the fold with. Goal 2 says nothing is folded; DESIGN §134 says why this is,
  * and that it is Matt's to keep or take back.
+ *
+ * `look:` is not named in the folded line (docs/DESIGN.md §144): it is how the note is drawn, and the drawing says it,
+ * so a new reading note would otherwise open on a band that says "look" over its display title. A block that holds only
+ * `look` folds to nothing at all, and the note opens on its title; the caret moved into it still opens it.
  */
 
 /** The words of a raised or lowered run, by node name: the highlighter gives both the same tag. */
@@ -85,14 +89,29 @@ class EmojiWidget extends WidgetType {
   }
 }
 
-/** The names of the keys a front matter block holds, in order: what the folded line says. */
+/** Keys the folded line never names, since the note's own drawing says them: its look. */
+const UNSAID = new Set(['look']);
+
+/** The names of the keys a front matter block holds, in order, less the unsaid ones: what the folded line says. */
 function keyNames(state: EditorState, front: { from: number; to: number }): string[] {
   const names: string[] = [];
   for (let n = front.from + 1; n < front.to; n += 1) {
     const found = /^\s*([\w.-]+)\s*:/.exec(state.doc.line(n).text);
-    if (found) names.push(found[1]!);
+    if (found && !UNSAID.has(found[1]!.toLowerCase())) names.push(found[1]!);
   }
   return names;
+}
+
+/** Whether the block holds keys and every one of them is unsaid: it folds to nothing, not to a line. */
+function onlyUnsaid(state: EditorState, front: { from: number; to: number }): boolean {
+  let any = false;
+  for (let n = front.from + 1; n < front.to; n += 1) {
+    const found = /^\s*([\w.-]+)\s*:/.exec(state.doc.line(n).text);
+    if (!found) continue;
+    if (!UNSAID.has(found[1]!.toLowerCase())) return false;
+    any = true;
+  }
+  return any;
 }
 
 /** Whether a selection head sits on one of the block's lines. */
@@ -135,6 +154,23 @@ class FrontWidget extends WidgetType {
   }
 }
 
+/**
+ * A block that holds only unsaid keys, folded to nothing: an empty mark in its place, so the stylesheet can set the
+ * title under it as a note's first line (markdown.module.css), with no room above it.
+ */
+class NoFrontWidget extends WidgetType {
+  eq(): boolean {
+    return true;
+  }
+
+  toDOM(): HTMLElement {
+    const div = document.createElement('div');
+    div.className = 'cm-frontNone';
+    div.setAttribute('aria-hidden', 'true');
+    return div;
+  }
+}
+
 /** The editor gained or lost focus: the block is open only while it has it. */
 const focusEffect = StateEffect.define<boolean>();
 
@@ -149,6 +185,7 @@ function foldOf(state: EditorState, focused: boolean): DecorationSet {
   const from = state.doc.line(front.from).from;
   const to = state.doc.line(front.to).to;
   const at = state.doc.line(Math.min(front.from + 1, front.to)).from;
+  if (onlyUnsaid(state, front)) return Decoration.set(Decoration.replace({ widget: new NoFrontWidget(), block: true }).range(from, to));
   return Decoration.set(Decoration.replace({ widget: new FrontWidget(keyNames(state, front), at), block: true }).range(from, to));
 }
 
