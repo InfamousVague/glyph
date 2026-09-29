@@ -671,11 +671,15 @@ export function pressToast(batch: Pick<Batch, 'landed' | 'counts' | 'stopped' | 
   if (counts.didntFit) parts.push(`${counts.didntFit} didn't fit`);
   if (counts.none) parts.push(`${counts.none} had no answer`);
   if (counts.nothing) parts.push(`${counts.nothing} not found online`);
+  // A live blank parked for a connection, or held by Local only, is said too: the press did something with it.
+  const held = lookupsHere() === 'local-only';
+  if (batch.parked) parts.push(`${batch.parked} ${held ? 'held by Local only' : 'waiting for a connection'}`);
   const changed = counts.changed ? (counts.changed === 1 ? '1 answer was not written. Its question had changed.' : `${counts.changed} answers were not written. Their questions had changed.`) : '';
   let message = '';
   const onlyNone = counts.none > 0 && parts.length === 1;
   if (batch.landed && parts.length) message = `${batch.landed} filled. ${parts.join(', ')}.`;
   else if (!batch.landed && onlyNone) message = 'Nothing filled. No answer came.';
+  else if (!batch.landed && batch.parked && parts.length === 1) message = held ? 'Local only is on, so the phone looks nothing up.' : `Waiting for a connection. The phone looks ${batch.parked === 1 ? 'it' : 'them'} up once it is online.`;
   else if (!batch.landed && parts.length) message = `Nothing filled. ${parts.join(', ')}.`;
   if (changed) message = message ? `${message} ${changed}` : changed;
   if (batch.closedTitle && batch.landed && typeof document !== 'undefined' && document.visibilityState === 'visible') {

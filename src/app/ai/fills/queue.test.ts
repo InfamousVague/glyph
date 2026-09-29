@@ -215,6 +215,9 @@ describe('a live blank, looked up by the phone', () => {
     await until(() => fillStatus('n6', blankKey('weather', 0))?.phase === 'paused');
     expect(fillStatus('n6', blankKey('weather', 0))).toEqual({ phase: 'paused', why: 'offline' });
     expect(fakes).toHaveLength(0);
+    // The press says what it did with the blank, where it used to say nothing at all (found by the shots).
+    await until(() => toasts.length === 1);
+    expect(toasts[0]!.message).toBe('Waiting for a connection. The phone looks it up once it is online.');
     const asked: string[] = [];
     setFillWorld({
       fetch: async (url) => {
