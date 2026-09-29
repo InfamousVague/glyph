@@ -148,7 +148,8 @@ interface NoteScreenProps {
   /** The note by its title, for a journal's entries: when each was written, where, and how it starts (book/JournalView.tsx). */
   noteOfTitle?: (title: string) => Note | undefined;
   /** New entry, for a journal (App.tsx `newEntry`): the journal's one action. */
-  onNewEntry?: () => void;
+  /** New entry, from the template chosen under it; left out, the journal's own. */
+  onNewEntry?: (template?: string) => void;
   /**
    * A journal open here hands App the way to write its index through this screen (book/journal.ts `JournalWriter`),
    * and takes it back as it goes: an entry's line put in or taken out while the journal is open is a change the screen

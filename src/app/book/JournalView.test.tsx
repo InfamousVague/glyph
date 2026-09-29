@@ -10,6 +10,7 @@ import { BookBar, BookFoot } from './BookNav.tsx';
 import { DEFAULT_TEMPLATE, entryBody, journalNoteBody, PRESETS, withEntry } from './journal.ts';
 import { inTimeOrder } from './journalMonths.ts';
 import { JournalView } from './JournalView.tsx';
+import { entryStarts, startLine } from './entryStarts.ts';
 
 /**
  * A journal drawn: New entry, its entries newest first by month with the older months folded, a row said whole, the
@@ -110,10 +111,29 @@ describe('a journal drawn', () => {
     expect(document.body.textContent).toContain('No entries yet.');
     expect(document.body.textContent).toContain('Starts with a to-do list.');
     expect([...document.querySelectorAll('button')].map((b) => b.textContent?.trim())).toEqual(['New entry']);
+    // New entry shows the templates to start from, the journal's usual one first, and makes nothing yet.
     act(() => button('New entry').click());
+    expect(onNewEntry).not.toHaveBeenCalled();
+    const names = [...document.querySelectorAll('[aria-label="Start the entry with"] li button')].map((b) => b.firstElementChild?.textContent);
+    expect(names).toEqual(['A day’s to-dosUsual', 'The date and the time', 'Just the time', 'A morning page', 'An empty page']);
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('[aria-label="Start the entry with"] li button')][3]!.click());
     expect(onNewEntry).toHaveBeenCalledTimes(1);
+    expect(onNewEntry).toHaveBeenCalledWith(PRESETS[2]!.text);
+    expect(document.querySelector('[aria-label="Start the entry with"]')).toBeNull();
     // No grips, moves or Add a page: time decides the order.
     expect(document.body.textContent).not.toContain('Add a page');
+  });
+
+  it('says how each template starts on one line, and lets the choice be put away', () => {
+    expect(startLine('# {{journal}}\n\n## To do\n\n- [ ] ', 'Log')).toBe('Log · To do');
+    expect(startLine('', 'Log')).toBe('Nothing, a blank page');
+    expect(entryStarts('my own words').map((s) => s.name)).toEqual(['My own', ...PRESETS.map((p) => p.name), 'An empty page']);
+    const onNewEntry = vi.fn();
+    show(<JournalView body={journalNoteBody('Log', PRESETS[0]!.text, false)} noteOf={() => undefined} known={() => false} open={() => {}} onChange={() => {}} onNewEntry={onNewEntry} />);
+    act(() => button('New entry').click());
+    act(() => button('Cancel').click());
+    expect(document.querySelector('[aria-label="Start the entry with"]')).toBeNull();
+    expect(onNewEntry).not.toHaveBeenCalled();
   });
 });
 

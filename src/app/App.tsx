@@ -565,7 +565,7 @@ function Shell() {
    * take-back of the one left behind then took the other's line with it.
    */
   const entering = useRef(false);
-  const newEntry = async (journalId: string, how: { speak?: boolean } = {}) => {
+  const newEntry = async (journalId: string, how: { speak?: boolean; template?: string } = {}) => {
     if (entering.current) return;
     entering.current = true;
     try {
@@ -574,7 +574,7 @@ function Shell() {
       entering.current = false;
     }
   };
-  const makeEntry = async (journalId: string, { speak: spoken = false }: { speak?: boolean }) => {
+  const makeEntry = async (journalId: string, { speak: spoken = false, template }: { speak?: boolean; template?: string }) => {
     // A meeting holds the microphone: the way to it, and nothing made that its capture would leave behind.
     if (spoken && meetingStateNow()?.recording) {
       capture.showMeeting(false);
@@ -590,7 +590,8 @@ function Shell() {
     const titles = [...(await listNotes().catch(() => notes)).map((n) => noteTitle(n.body)), ...chaptersOf(journal.body).map((c) => c.title)];
     const taken = new Set(titles.map(titleKey));
     const title = uniqueTitle(entryTitle(now), taken);
-    const filled = fillTemplate(templateOf(journal.body), { at: new Date(now), title, journal: name });
+    // The template chosen under New entry, else the journal's own (book/JournalView.tsx `TemplateChoice`).
+    const filled = fillTemplate(template ?? templateOf(journal.body), { at: new Date(now), title, journal: name });
     // Spoken, the words go on from the template's last line, which is taken off until they come.
     const { base: words, placing } = spoken ? openEnd(filled) : { base: filled, placing: null };
     const id = newNoteId();
@@ -773,7 +774,7 @@ function Shell() {
         book={placeInBook(screen.note)}
         bodyOfTitle={bodyOfTitle}
         noteOfTitle={titled}
-        onNewEntry={() => void newEntry(screen.note.id)}
+        onNewEntry={(template) => void newEntry(screen.note.id, { template })}
         onJournal={onJournal}
         caretAtEnd={screen.caretAtEnd}
         allTitles={() => shownNotes.map((n) => noteTitle(n.body)).filter(Boolean)}
