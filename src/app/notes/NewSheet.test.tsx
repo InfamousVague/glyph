@@ -3,6 +3,7 @@ import { act } from 'react';
 import { installBack } from '../core/back.ts';
 import { buttonSaying, rerender, show, typeInto } from '../../test/render.tsx';
 import { NewSheet } from './NewSheet.tsx';
+import { PRESETS } from '../book/journal.ts';
 
 /**
  * What the + makes, and the copy of a shared note it can save: a row that becomes a field, whose failure is said in
@@ -47,15 +48,34 @@ describe('the + sheet', () => {
     expect(buttonSaying(sheet()!, 'From a shared link')?.textContent).toContain('A copy of a note or notebook someone shared with you.');
   });
 
-  it('offers a new entry in the journal written in last, right after Note, with what an entry starts with', () => {
+  it('offers a new entry right after Note, and asks which template it starts with before making it', () => {
     const onPress = vi.fn();
     const onClose = vi.fn();
-    show(<NewSheet open onClose={onClose} onNote={noop} onCanvas={noop} onBook={noop} entry={{ journal: 'Diary', hint: 'Starts with the date and the time.', onPress }} />);
+    const usual = PRESETS[0]!.text;
+    show(<NewSheet open onClose={onClose} onNote={noop} onCanvas={noop} onBook={noop} entry={{ journal: 'Diary', hint: 'Starts with the date and the time.', usual, onPress }} />);
     const rows = [...sheet()!.querySelectorAll('button')].map((b) => b.textContent);
     expect(rows[1]).toBe('Entry in DiaryStarts with the date and the time.');
     act(() => buttonSaying(sheet()!, 'Entry in Diary')!.click());
+    // Nothing made yet: the sheet shows the templates, the journal's usual one first.
+    expect(onPress).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(sheet()!.textContent).toContain('Start the entry with');
+    const labels = [...sheet()!.querySelectorAll('button')].map((b) => b.textContent ?? '');
+    expect(labels[0]).toContain('The date and the time · usual');
+    expect(labels.some((l) => l.startsWith('A morning page'))).toBe(true);
+    expect(labels.some((l) => l.startsWith('An empty page'))).toBe(true);
+    act(() => buttonSaying(sheet()!, 'A morning page')!.click());
     expect(onClose).toHaveBeenCalledTimes(1);
-    expect(onPress).toHaveBeenCalledTimes(1);
+    expect(onPress).toHaveBeenCalledWith(PRESETS[2]!.text);
+  });
+
+  it('goes back from the templates to the choices', () => {
+    const onPress = vi.fn();
+    show(<NewSheet open onClose={noop} onNote={noop} onCanvas={noop} onBook={noop} entry={{ journal: 'Diary', hint: '', usual: PRESETS[0]!.text, onPress }} />);
+    act(() => buttonSaying(sheet()!, 'Entry in Diary')!.click());
+    act(() => buttonSaying(sheet()!, 'Back')!.click());
+    expect(buttonSaying(sheet()!, 'Note')).toBeDefined();
+    expect(onPress).not.toHaveBeenCalled();
   });
 
   it('saves a copy from a pasted link, saying what went wrong in the row, and closes once it is saved', async () => {

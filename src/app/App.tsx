@@ -552,9 +552,18 @@ function Shell() {
    * away in the archive, which the home page's Notebooks leave out too (home/dashboard.ts `bookNotes`).
    */
   const journals = useMemo(() => shownNotes.filter((n) => !n.archivedAt && isJournalBody(n.body)).sort((a, b) => b.updatedAt - a.updatedAt), [shownNotes]);
-  /** The + sheet's row for a new entry, in the journal written in last. */
-  const entryRow = journals[0]
-    ? { journal: noteTitle(journals[0].body) || 'Untitled journal', hint: templateSentence(templateOf(journals[0].body)), onPress: () => void newEntry(journals[0]!.id) }
+  /**
+   * The + sheet's row for a new entry: in the journal on screen, else the one written in last. The sheet asks which
+   * template it starts from (notes/NewSheet.tsx), the journal's usual one first.
+   */
+  const entryJournal = journals.find((n) => n.id === shown) ?? journals[0];
+  const entryRow = entryJournal
+    ? {
+        journal: noteTitle(entryJournal.body) || 'Untitled journal',
+        hint: templateSentence(templateOf(entryJournal.body)),
+        usual: templateOf(entryJournal.body),
+        onPress: (template: string) => void newEntry(entryJournal.id, { template }),
+      }
     : undefined;
   /** The first ask for where a journal's entries were written, introduced in the app's words, from its own press. */
   const introduceEntries = (journal: string) => (allow: () => void) =>

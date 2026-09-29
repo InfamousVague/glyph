@@ -774,7 +774,9 @@ describe('a journal’s entries', () => {
     act(() => button('Write a note').click());
     const row = buttonSaying(document.body, 'Entry in Diary')!;
     expect(row.textContent).toContain('Starts with the date and the time.');
-    await act(async () => row.click());
+    act(() => row.click());
+    // The sheet asks what the entry starts with; the journal's usual template is first.
+    await act(async () => buttonSaying(document.body, '· usual')!.click());
     await waitUntil(() => expect(noteShown()).not.toBeNull());
     const id = noteShown()!;
     expect(tabs()).toEqual(['diary', id]);
@@ -920,7 +922,8 @@ describe('a journal’s entries', () => {
       return realStore.createNote(id, body, source);
     });
     act(() => button('Write a note').click());
-    await act(async () => buttonSaying(document.body, 'Entry in Diary')!.click());
+    act(() => buttonSaying(document.body, 'Entry in Diary')!.click());
+    await act(async () => buttonSaying(document.body, '· usual')!.click());
     await waitUntil(() => expect(noteShown()).not.toBeNull());
     expect(kept).toEqual(['line:1', 'note:1']);
   });
@@ -967,7 +970,8 @@ describe('a journal’s entries', () => {
       return realStore.updateNote(id, body, revision);
     });
     act(() => button('Write a note').click());
-    await act(async () => buttonSaying(document.body, 'Entry in Diary')!.click());
+    act(() => buttonSaying(document.body, 'Entry in Diary')!.click());
+    await act(async () => buttonSaying(document.body, '· usual')!.click());
     await waitUntil(() => expect(noteShown()).not.toBeNull());
     const { title } = records()[noteShown()!]!;
     expect(lost).toBe(true);
