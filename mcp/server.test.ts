@@ -71,6 +71,14 @@ describe('listing and reading', () => {
     expect(found.notes.find((n) => n.id === 'b')!.snippet).toBe('# Cabin Short.');
     expect(JSON.parse((await call('search_notes', { query: 'cabin', limit: 1 })).text)).toMatchObject({ count: 2, notes: [{}] });
   });
+
+  it('finds a filled blank by its answer and titles a note by its words, never by the hidden bracket (docs/DESIGN.md §145)', async () => {
+    const { service, call } = await connected();
+    await service.deviceWrites(aNote('a', '# Trip to ??Tokyo??(Qwen3.5 4B from memory, 2026-09-28. Asked: capital of Japan)\n\nCheapest on ??midweek??(Qwen3.5 4B from memory, 2026-09-28. Asked: what day)'));
+    const found = JSON.parse((await call('search_notes', { query: 'midweek' })).text) as { count: number; notes: { snippet: string; title: string }[] };
+    expect(found.notes[0]).toMatchObject({ title: 'Trip to Tokyo', snippet: '# Trip to Tokyo Cheapest on midweek' });
+    expect(JSON.parse((await call('search_notes', { query: 'memory' })).text)).toMatchObject({ count: 0 });
+  });
 });
 
 describe('writing', () => {

@@ -142,6 +142,8 @@ describe('an anchor pointed at from the words', () => {
 describe('what a card says', () => {
   it('says a link by its words and drops the marks around them', () => {
     expect(cardText('Fix the [login button](https://example.com/a/very/long/url) *today*')).toBe('Fix the login button today');
+    expect(cardText('??Fit the washer??(Qwen3.5 4B from memory, 2026-09-28. Asked: the next step)')).toBe('Fit the washer');
+    expect(cardText('{?the next step}')).toBe('the next step');
     expect(cardText('Read <https://example.com/x>')).toBe('Read https://example.com/x');
     expect(cardText('  lots   of   room  ')).toBe('lots of room');
   });
