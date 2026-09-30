@@ -6,6 +6,7 @@ import { reloadPreferences, setPreferences, type HomeLayout } from '../core/pref
 import { addWorkspace, chooseWorkspace, fileNote, reloadWorkspaces } from '../core/workspaces.ts';
 import type { Note } from '../core/store.ts';
 import { makeNote } from '../../test/notes.ts';
+import { goBack } from '../core/back.ts';
 import { button, rerender, show, typeInto, unmount } from '../../test/render.tsx';
 import { stubMatchMedia, stubResizeObserver } from '../../test/stubs.ts';
 
@@ -66,7 +67,8 @@ const choose = (heading: string, words: string) => act(() => choices(heading).fi
 /** The chips under the search, one for each filter on. */
 const chips = () => [...document.querySelectorAll('[aria-label="Filters on"] button')].map((b) => b.textContent);
 
-const now = Date.now();
+/** The page's clock, held at a Wednesday afternoon, so a note touched a minute ago is today whenever the tests run. */
+const now = new Date(2026, 8, 30, 15, 0).getTime();
 const day = 24 * 60 * 60 * 1000;
 const trip = makeNote('b', bookNoteBody('Trip', ['Packing', 'Route']), { updatedAt: 5 });
 const packing = makeNote('p', '# Packing\n\n- [ ] Tent and stove', { starred: true, updatedAt: 3 });
@@ -82,11 +84,19 @@ const dated = [
 ];
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(now);
   localStorage.clear();
   reloadPreferences();
   reloadWorkspaces();
 });
-afterEach(() => unmount());
+afterEach(() => {
+  unmount();
+  vi.useRealTimers();
+});
+
+/** A tick of the real clock, for what the panel does once the kit has opened it. */
+const tick = () => act(async () => await new Promise((done) => setTimeout(done, 0)));
 
 describe('the home page', () => {
   it('is the search with its filters beside it, and the notebooks then the notes, pinned first, as cards', () => {
@@ -138,16 +148,62 @@ describe('the filters beside the search', () => {
     expect(filterButton()?.getAttribute('aria-label')).toBe('Filters');
   });
 
-  it('move the choice with the arrow keys, round the ends', () => {
+  it('open on the chosen Show, and move each group’s choice with the arrow keys, round both ends', async () => {
+    addWorkspace('Kitchen');
+    addWorkspace('Work');
     show(page(shelf));
     openFilters();
-    const keyed = (key: string) => act(() => choices('Show').find((r) => r.getAttribute('aria-checked') === 'true')!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })));
-    keyed('ArrowDown');
+    await tick();
+    expect(document.activeElement).toBe(choices('Show')[0]);
+    const keyed = (group: string, key: string) =>
+      act(() => choices(group).find((r) => r.getAttribute('aria-checked') === 'true')!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })));
+    keyed('Show', 'ArrowDown');
     expect(said(choices('Show'))[1]).toBe('Notebooks1 (on)');
     expect(document.activeElement?.textContent).toBe('Notebooks1');
-    keyed('ArrowUp');
-    keyed('ArrowUp');
+    keyed('Show', 'ArrowUp');
+    keyed('Show', 'ArrowUp');
     expect(said(choices('Show'))[3]).toBe('Pinned1 (on)');
+    keyed('Show', 'ArrowDown');
+    expect(said(choices('Show'))[0]).toBe('All4 (on)');
+    keyed('Workspace', 'ArrowDown');
+    expect(said(choices('Workspace'))).toEqual(['Every workspace', 'Kitchen (on)', 'Work']);
+    expect(document.activeElement?.textContent).toBe('Kitchen');
+    keyed('Workspace', 'ArrowUp');
+    keyed('Workspace', 'ArrowUp');
+    expect(said(choices('Workspace'))[2]).toBe('Work (on)');
+  });
+
+  it('close on the phone’s back, and when the keyboard leaves them for the page', () => {
+    show(page(shelf));
+    openFilters();
+    expect(filterButton()?.getAttribute('aria-expanded')).toBe('true');
+    act(() => goBack());
+    expect(filterButton()?.getAttribute('aria-expanded')).toBe('false');
+    openFilters();
+    // Shift+Tab from the first choice lands on the page's last button, the dock's.
+    const away = button('Settings');
+    act(() => choices('Show')[0]!.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: away })));
+    expect(filterButton()?.getAttribute('aria-expanded')).toBe('false');
+    // Moving between its own choices keeps it open.
+    openFilters();
+    act(() => choices('Show')[0]!.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: choices('Show')[1]! })));
+    expect(filterButton()?.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('say every filter on in the button’s name and a chip each, and hand the keyboard on as each chip goes', () => {
+    const kitchen = addWorkspace('Kitchen')!;
+    fileNote('l', kitchen.id);
+    show(page(shelf));
+    openFilters();
+    choose('Show', 'Notes');
+    choose('Workspace', 'Kitchen');
+    expect(filterButton()?.getAttribute('aria-label')).toBe('Filters: Notes, Kitchen');
+    expect(chips()).toEqual(['Notes', 'Kitchen']);
+    act(() => button('Notes: show everything').click());
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('Kitchen: every workspace');
+    act(() => button('Kitchen: every workspace').click());
+    expect(chips()).toEqual([]);
+    expect(document.activeElement).toBe(filterButton());
   });
 
   it('choose the workspace, name it in a chip in its colour, and take it off from the chip', () => {
@@ -157,6 +213,9 @@ describe('the filters beside the search', () => {
     show(page(shelf));
     openFilters();
     expect(said(choices('Workspace'))).toEqual(['Every workspace (on)', 'Kitchen', 'Work']);
+    // The pills are gone from the page: the workspaces and the Show choices are only in the panel.
+    expect(document.querySelector('[role="group"][aria-label="Workspaces"]')).toBeNull();
+    expect([...document.querySelectorAll('[role="radiogroup"]')].every((group) => group.closest('[role="dialog"]'))).toBe(true);
     choose('Workspace', 'Kitchen');
     expect(listed('Notes')).toEqual(['Shopping']);
     expect(said(choices('Show'))[0]).toBe('All1 (on)');
@@ -185,6 +244,9 @@ describe('the filters beside the search', () => {
     openFilters();
     act(() => button('Edit Kitchen').click());
     expect(document.querySelector('[role="dialog"][aria-label="Kitchen"]')).not.toBeNull();
+    // The sheet closed, the keyboard is back on the button that opened the panel.
+    act(() => goBack());
+    expect(document.activeElement).toBe(filterButton());
   });
 
   it('stay on a workspace with nothing in it, so it can be left', () => {
@@ -231,6 +293,19 @@ describe('the layouts', () => {
     expect(listed('In no notebook')).toEqual(['Shopping']);
     act(() => document.querySelector<HTMLButtonElement>('section[aria-label="Trip"] button')!.click());
     expect(onOpen).toHaveBeenLastCalledWith('b');
+  });
+
+  it('draws a page the search found under Notes when its notebook was not found, in the Library and Notebook cards', () => {
+    for (const layout of ['library', 'notebook-cards'] as const) {
+      show(page(shelf));
+      laidOut(layout);
+      search('coast');
+      expect(headings()).toEqual(['Notes']);
+      expect(listed('Notes')).toEqual(['Route']);
+      search('zebra');
+      expect(document.body.textContent).toContain('Nothing has “zebra”.');
+      unmount();
+    }
   });
 
   it('draws the Timeline by when each was last touched, as rows', () => {

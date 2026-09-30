@@ -88,13 +88,16 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
   const inBooks = useMemo(() => bookIndex(inSpace), [inSpace]);
   const journals = useMemo(() => journalCards(notes), [notes]);
   const byTitle = useMemo(() => new Map(notes.filter((n) => !n.archivedAt).map((n) => [titleKey(noteTitle(n.body)), n])), [notes]);
+  // The day the spans are counted from: a new plan when it turns, not on every draw.
+  const today = new Date().setHours(0, 0, 0, 0);
   const plan = useMemo(
     () =>
       homePlan(layout, lists, {
         pagesOf: (book) => chaptersOf(book.body).flatMap((c) => byTitle.get(titleKey(c.title)) ?? []),
         placeOf: (note) => placeOf(inBooks, note),
+        now: today,
       }),
-    [layout, lists, byTitle, inBooks],
+    [layout, lists, byTitle, inBooks, today],
   );
   // A line under each card's title, for the first cards only: the runner asks about what is on screen.
   const carded = useMemo(() => cardsIn(plan).slice(0, GISTED), [plan]);
@@ -105,7 +108,8 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
   // The search and its filters stay while there is anything to find, or a workspace to leave: one chosen and empty
   // is left from the filters, since its pills are not on the page any more.
   const tools = notes.some((n) => !n.archivedAt) || spaces.list.length > 0;
-  const found = lists.books.length + lists.notes.length;
+  // Whether the layout draws anything: what the search and the filter found, as the layout places it.
+  const found = plan.sections.length > 0;
 
   // The cards' arrival is staggered down the page, whichever section each is in.
   let order = 0;
@@ -233,13 +237,20 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
           </button>
         ) : null}
       </nav>
-      <WorkspaceSheet which={manage} onClose={() => setManage(null)} />
+      <WorkspaceSheet
+        which={manage}
+        onClose={() => {
+          setManage(null);
+          // The sheet was opened from the filters' panel, which closed for it: the keyboard goes back to their button.
+          scroller.current?.querySelector<HTMLButtonElement>('button[aria-haspopup="dialog"]')?.focus({ preventScroll: true });
+        }}
+      />
     </div>
   );
 }
 
 /**
- * A note on one line, for the List, Library and Timeline layouts: its kind's mark, its name, how it starts, and when it
+ * A note on one line, for every layout that draws rows (List, Timeline, Spotlight, Shelf and timeline, Library): its kind's mark, its name, how it starts, and when it
  * was touched, with the pin and its notebook's name where it has them.
  */
 function HomeRow({ note, index, onOpen, bookName, entries }: { note: Note; index: number; onOpen: (id: string) => void; bookName: string | null; entries?: number }) {
@@ -271,7 +282,7 @@ function HomeRow({ note, index, onOpen, bookName, entries }: { note: Note; index
   );
 }
 
-/** A notebook as a cover on the Shelf: its name large, how many pages or entries, and when it was last written in. */
+/** A notebook as a cover on the shelf (Shelf, Shelf and timeline): its name large, how many pages or entries, and when it was last written in. */
 function BookCover({ book, index, onOpen, count, journal }: { book: Note; index: number; onOpen: (id: string) => void; count: number; journal: boolean }) {
   const title = noteTitle(book.body) || 'Untitled notebook';
   return (

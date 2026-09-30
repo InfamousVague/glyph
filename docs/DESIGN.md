@@ -8438,8 +8438,31 @@ for a workspace, with a cross that takes it off. With everything shown, nothing 
 notes. The search and its button stay on a workspace with nothing in it, so there is a way out of it, and go only on a
 page with no notes and no workspaces at all.
 
-**Tests.** home/homeLayout.test.ts (every layout's sections, the card budget, Spotlight's lead),
-home/HomeScreen.test.tsx (the panel, its counts, the arrow keys, the chips and their crosses, a workspace chosen, made
-and edited, an empty workspace left, each mix drawn), settings/AppearancePane.test.tsx (the nine picks).
+**What the review found.** A four-lens review of the change, each finding put to a skeptic before it counted, confirmed
+these, and each is fixed with a test that fails without it:
+
+- A page was drawn only under its notebook, so in Library and Notebook cards a search or a filter that found a page
+  and not its notebook (a word only the page has; Pinned on a pinned page; Notes) drew nothing, and said nothing, since
+  the empty message asked whether anything was found rather than whether anything was drawn. A note is loose now unless
+  it is a page of a notebook drawn on the page; those left over go under "Other notes" when some belong to a notebook
+  left out, and the message asks whether the layout drew anything. (Library had it before; Notebook cards copied it.)
+- Notebook cards showed a journal's six oldest entries, as its index is in the order they were added. A journal's
+  pages are newest first now, by when each was written, as its own screen and its card order them.
+- A page its notebook names twice was drawn twice, with one React key for both. Each is drawn once.
+- A span in Card timeline cut short by the 48 said how many it drew, not how many it holds.
+- The plan was kept from the moment it was made, so after midnight "Today" still held yesterday's notes until
+  something else changed. It is made again when the day turns.
+- The panel had no height of its own and the kit never clamps one, so with a few workspaces New workspace fell below
+  the screen: it scrolls within the room under the button now. The keyboard is never dropped: the panel opens on the
+  chosen Show, leaving it by Tab closes it, a chip's cross hands focus to the next chip or the button, and the
+  workspace sheet hands it back to the button. The rows', covers', headings' and the clear button's focus rings, lost
+  in the rewrite, are back.
+- The tests' notes were a minute old at load, so a run in the two minutes after midnight put them in Yesterday. The
+  page's clock is held in the tests now.
+
+**Tests.** home/homeLayout.test.ts (every layout's sections, the card budget, Spotlight's lead, a page found without
+its notebook, a page named twice, a journal newest first), home/HomeScreen.test.tsx (the panel, its counts, the arrow
+keys in both groups, back and the keyboard leaving, the chips and their crosses, a workspace chosen, made and edited,
+an empty workspace left, each mix drawn), settings/AppearancePane.test.tsx (the nine picks).
 
 Cites: §137, §147.

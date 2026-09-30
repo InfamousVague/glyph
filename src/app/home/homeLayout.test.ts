@@ -78,7 +78,7 @@ describe('each layout’s sections', () => {
   const now = new Date(2026, 8, 30, 15, 0).getTime();
   const at = (days: number) => now - days * 24 * 60 * 60 * 1000 - 60_000;
   const book = makeNote('b', bookNoteBody('Trip', ['Packing', 'Route']), { updatedAt: at(0) });
-  const pages = [makeNote('p', '# Packing', { updatedAt: at(1) }), makeNote('r', '# Route', { updatedAt: at(40) })];
+  const pages = [makeNote('p', '# Packing', { updatedAt: at(1) }), makeNote('r', '# Route\n\nAlong the coast.', { updatedAt: at(40) })];
   const shop = makeNote('s', '# Shopping', { updatedAt: at(0) - 60_000 });
   const lists = homeLists([book, ...pages, shop], '', 'all');
   const ways: PlanWays = {
@@ -128,6 +128,8 @@ describe('each layout’s sections', () => {
     expect(homePlan('cards', lists, tight)).toMatchObject({ cut: 1 });
     expect(shape(homePlan('card-timeline', lists, tight))).toEqual(['today cards: b s']);
     expect(homePlan('card-timeline', lists, tight).cut).toBe(2);
+    // A span cut short still says how many it holds.
+    expect(homePlan('card-timeline', lists, { ...ways, most: 1 }).sections[0]).toMatchObject({ count: 2, notes: [book] });
     // Notebook cards spends the budget notebook by notebook, and says how many pages it did not draw.
     const cards = homePlan('notebook-cards', lists, { ...ways, most: 1 });
     expect(shape(cards)).toEqual(['book-b cards: p']);
@@ -135,6 +137,38 @@ describe('each layout’s sections', () => {
     expect(cards.cut).toBe(1);
     // Rows are cheap, and never stop.
     expect(homePlan('timeline', lists, tight).cut).toBe(0);
+    // Its budget spent, a notebook draws none of its pages and offers them all in the notebook.
+    const spent = homePlan('notebook-cards', lists, { ...ways, most: 0 });
+    expect(spent.sections[0]).toMatchObject({ key: 'book-b', notes: [], more: 2 });
+  });
+
+  it('draws a page whose notebook the search or the filter left out among the other notes, never nowhere', () => {
+    const route = pages[1]!;
+    for (const layout of ['library', 'notebook-cards'] as const) {
+      // Only a page matches the search (the notebook names it, but not its coast): it is drawn, under Notes.
+      const found = homePlan(layout, homeLists([book, ...pages, shop], 'coast', 'all'), ways);
+      expect(shape(found).map((s) => s.split(':')[1])).toEqual([' r']);
+      expect(found.sections[0]).toMatchObject({ heading: 'Notes' });
+      // The Notes filter: every note, the pages among them.
+      expect(homePlan(layout, homeLists([book, ...pages, shop], '', 'notes'), ways).sections.flatMap((s) => s.notes.map((n) => n.id))).toEqual(['s', 'p', 'r']);
+    }
+    // A notebook drawn, and a page of another the search left out: the page is one of the other notes.
+    const other = makeNote('b2', bookNoteBody('Other trip', ['Route']), { updatedAt: at(0) });
+    const onlyRoute = { ...ways, pagesOf: (b: Note) => (b.id === 'b2' ? [route] : []), placeOf: (n: Note) => (n.id === 'p' ? { book, title: 'Trip', chapters: [], at: 0, journal: false } : null) };
+    const plan = homePlan('library', { books: [other], notes: [pages[0]!] }, onlyRoute);
+    expect(plan.sections.map((s) => ('heading' in s ? s.heading : s.key))).toEqual(['book-b2', 'Other notes']);
+  });
+
+  it('draws a page once however often its notebook names it, and a journal newest first', () => {
+    const twice = homePlan('library', lists, { ...ways, pagesOf: () => [pages[0]!, pages[0]!, pages[1]!] });
+    expect(shape(twice)[0]).toBe('book-b rows: p r');
+    expect(twice.sections[0]).toMatchObject({ count: 2 });
+    const diary = makeNote('d', '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n\n', { updatedAt: at(0) });
+    const entry = (id: string, date: string) => makeNote(id, `---\ntitle: "${id}"\ndate: ${date}\n---\nWords.`, { updatedAt: at(0) });
+    // The index in the order they were added: the oldest first.
+    const entries = [entry('e1', '2026-09-10T09:00'), entry('e2', '2026-09-20T09:00'), entry('e3', '2026-09-29T09:00')];
+    const journal = homePlan('notebook-cards', { books: [diary], notes: [] }, { ...ways, pagesOf: () => entries });
+    expect(shape(journal)).toEqual(['book-d cards: e3 e2 e1']);
   });
 
   it('draws no empty section, and names every card in the page’s order', () => {
