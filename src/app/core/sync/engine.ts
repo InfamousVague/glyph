@@ -203,6 +203,14 @@ export function syncNow(): Promise<void> {
 }
 
 /**
+ * A sync, waited for `ms` at most: a pull to refresh (notes/PullToRefresh.tsx, docs/DESIGN.md §152) holds its ring
+ * that long and no longer, on a slow connection too. The sync goes on after it, and its notes arrive as it lands.
+ */
+export function syncWithin(ms = 5000): Promise<void> {
+  return Promise.race([syncNow(), new Promise<void>((done) => setTimeout(done, ms))]);
+}
+
+/**
  * The sync running now, finished, and the one it queued; at once when none is. For a reset (core/reset.ts), which
  * signs out first and then waits here: a sync already under way holds the session it began with and the bookkeeping
  * it read, and would send every note wiped under it as a deletion. Signed out, a queued one ends as it starts.

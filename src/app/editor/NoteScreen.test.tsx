@@ -176,6 +176,49 @@ afterEach(() => {
   Reflect.deleteProperty(document, 'visibilityState');
 });
 
+describe('pulling a note down to refresh it (docs/DESIGN.md §152)', () => {
+  /** A finger down at the top of the note's page, drawn well past the detent quickly, and let go. */
+  function pull(): void {
+    const page = document.querySelector<HTMLElement>('[data-scrolls]')!;
+    const touch = (type: string, y: number, at: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'touches', { value: type === 'touchend' ? [] : [{ clientX: 100, clientY: y }] });
+      Object.defineProperty(event, 'timeStamp', { value: at });
+      act(() => page.dispatchEvent(event));
+    };
+    touch('touchstart', 100, 0);
+    for (let step = 1; step <= 8; step += 1) touch('touchmove', 100 + step * 30, step * 20);
+    touch('touchend', 340, 200);
+  }
+  const done = async () => {
+    await settle();
+    act(() => vi.advanceTimersByTime(600));
+    await settle();
+  };
+
+  it('takes the note as another device left it into the editor', async () => {
+    const note = await createNote('n1', '# Groceries');
+    show(screen(note));
+    await settle();
+    // Written since the note was opened, as a sync writes it.
+    await updateNote('n1', '# Groceries\nmilk, from the other phone', 1);
+    pull();
+    await done();
+    expect(editor().state.doc.toString()).toBe('# Groceries\nmilk, from the other phone');
+  });
+
+  it('saves what is typed first, and never takes it away', async () => {
+    const note = await createNote('n1', '# Groceries');
+    show(screen(note));
+    await settle();
+    type('\neggs');
+    pull();
+    await done();
+    expect(saved()).toEqual(['# Groceries\neggs']);
+    expect(editor().state.doc.toString()).toBe('# Groceries\neggs');
+  });
+});
+
 describe('saving what is typed', () => {
   it('saves once, 400 ms after the last keystroke, with every keystroke in it', async () => {
     const note = await createNote('n1', '# Groceries');

@@ -38,7 +38,7 @@ import { useUpdates } from './core/ota.ts';
 import { LaunchScreen } from './launch/LaunchScreen.tsx';
 import { SceneBench } from './diag/SceneBench.tsx';
 import { sceneQuery } from './scene/scripted.ts';
-import { syncNow, useSyncStatus } from './core/sync/engine.ts';
+import { syncNow, syncWithin, useSyncStatus } from './core/sync/engine.ts';
 import { createNote, deleteNote, getNote, newNoteId, noteTitle, updateNote, useNotes, type Note, listNotes } from './core/store.ts';
 import { sameTitle } from './editor/wikiLinks.ts';
 import { titleKey } from './core/titleKey.ts';
@@ -112,6 +112,12 @@ export function App() {
 function Shell() {
   const { toast } = useToast();
   const { notes, loading, refresh } = useNotes();
+  // A pull down from the top of the home page or All notes (docs/DESIGN.md §152): a sync, waited for a few seconds at
+  // most, and the notes read again whatever it answered.
+  const pullRefresh = async () => {
+    await syncWithin();
+    await refresh();
+  };
   const actions = useNoteActions(refresh);
   // A desktop window wide enough keeps the notes in a sidebar beside the open note (core/useWideScreen.ts).
   const sidebar = useSidebar();
@@ -976,7 +982,7 @@ function Shell() {
     setScreen({ name: 'notes', ...(options?.tapes ? { tapes: true } : {}) });
   };
   const allNotes = (
-    <AllNotesScreen notes={shownNotes} loading={loading} onOpen={openNoteWhereLeft} onBack={() => void backToList()} tapes={screen.name === 'notes' && screen.tapes === true} />
+    <AllNotesScreen notes={shownNotes} loading={loading} onOpen={openNoteWhereLeft} onBack={() => void backToList()} tapes={screen.name === 'notes' && screen.tapes === true} onRefresh={pullRefresh} />
   );
   /*
    * The home page (home/HomeScreen.tsx): the start page on every screen (Matt: "Add a 'home' button to take us to a
@@ -1004,6 +1010,7 @@ function Shell() {
       }}
       onSearch={openCommands ?? undefined}
       onAllNotes={showAllNotes}
+      onRefresh={pullRefresh}
       // A note swiped on the home page (docs/DESIGN.md §151): pinned in place, or archived or deleted, its tab closed
       // with it, each with the Undo the editor's own gives.
       onSwipe={(note, action) => {

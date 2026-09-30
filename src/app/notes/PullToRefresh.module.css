@@ -1,0 +1,81 @@
+/*
+ * Pull to refresh's ring (notes/PullToRefresh.tsx; docs/DESIGN.md §152): a small round badge in the gap the page leaves
+ * as it comes down, fixed where that gap opens, its ring filling to the detent. Ink on paper, as the swipes' gap is.
+ */
+.pull {
+  position: fixed;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border-radius: var(--glacier-radius-full);
+  background: var(--app-paper-2, var(--glacier-surface-sunken));
+  color: var(--app-ink-2);
+  box-shadow: 0 1px 0 var(--app-rule);
+  transform: translate(-50%, -50%) scale(calc(0.6 + var(--progress, 0) * 0.4));
+  opacity: calc(0.25 + var(--progress, 0) * 0.75);
+  pointer-events: none;
+}
+
+.pull[hidden] {
+  display: none;
+}
+
+.pull[data-armed],
+.pull[data-phase='refreshing'],
+.pull[data-phase='done'] {
+  color: var(--app-ink);
+  opacity: 1;
+}
+
+.ring {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  transform: rotate(-90deg);
+}
+
+.ring circle {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: calc(1 - var(--progress, 0));
+  opacity: 0.6;
+}
+
+.pull[data-armed] .ring circle {
+  opacity: 1;
+}
+
+/* The arrow turns over once a let-go would refresh: it points at what happens next. */
+.arrow {
+  transition: rotate 160ms var(--glacier-ease-out, ease-out);
+}
+
+.pull[data-armed] .arrow {
+  rotate: 180deg;
+}
+
+.spin {
+  animation: spin 800ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arrow {
+    transition: none;
+  }
+
+  .spin {
+    animation-duration: 2400ms;
+  }
+}

@@ -57,6 +57,8 @@ export interface NoteSaving {
   onChange: (next: string) => void;
   /** Saves what is waiting now, if anything is. Safe to call as often as a way off the note is taken. */
   flush: () => void;
+  /** Saves what is waiting and resolves once every save from here has been answered: a pull to refresh waits on it. */
+  settled: () => Promise<void>;
   /** The note's first line, which is the only title it has. */
   title: string;
   /** No words at all yet: the page shows the ghost with its pen (art/Ghost.tsx). */
@@ -232,5 +234,10 @@ export function useNoteSaving(note: Note, rename?: NoteRename | null, { onExtern
     };
   }, [flush]);
 
-  return { body, onChange, flush, title, blank, adopt };
+  const settled = useCallback(() => {
+    flush();
+    return writes.current;
+  }, [flush]);
+
+  return { body, onChange, flush, settled, title, blank, adopt };
 }

@@ -8535,3 +8535,30 @@ archived, and deleted pulled further, with the motor's clicks at each detent, he
 way; springing back and never opening; the cards and the pinned lines; no swipe without the page's actions).
 
 Cites: §28, §31, §147, §150.
+
+## 152. Pull to refresh: the home page, All notes, and a note (2026-09-30)
+
+Matt: "add a pull to refresh feature on notes and the home page". A page pulled down from its top refreshes
+(notes/PullToRefresh.tsx, core/pull.ts): the home page and All notes sync and read the notes again; a note saves what
+is typed, syncs, and takes the note as the store then has it into the editor (useNoteSaving.ts `adopt`) - unless
+something typed since is still to be saved, which is never taken away, and the next save's rebase looks after it. The
+sync is waited for five seconds at most (core/sync/engine.ts `syncWithin`) and goes on after; signed out it answers
+at once, and the pull is a re-read.
+
+It is felt the way the swipes are (§151). The page comes down at half the finger's travel to the detent, 64px, then as
+a rubber band to 110px at most. Light ticks quicken as it nears the detent, a firm click says it is there, the lightest
+tick says it was backed out of, and a tap says the refresh is done. It is shown too: in the gap the page leaves under
+the top bar, a ring fills round an arrow, the arrow turns over once a let-go would refresh, the ring spins while it runs
+(half a second at least, so it never flickers), and a tick says it is done, all said to a screen reader as it happens.
+
+Only a touch that is plainly a pull is one: down, more than across, from a page at its top, and within 300 ms - a finger
+that rests first is choosing words in a note, and a long press then a drag of the selection's handles stays the
+editor's. It stops the browser's own overscroll while it pulls, which only a touchmove listened to directly can do. On a
+note only where the page itself scrolls: the Formatted view and the transcript scroll their own, and a canvas is drawn.
+
+**Tests.** core/pull.test.ts (the rubber band, the detent, which touches are a pull), notes/PullToRefresh.test.tsx (a
+pull past the detent refreshes, with its clicks, its ring and its tap; short of it and backed out of, nothing; scrolled
+down, a rested finger, or off, nothing), editor/NoteScreen.test.tsx (a note takes another device's words, and never
+loses what is typed).
+
+Cites: §151.

@@ -12,6 +12,7 @@ import { bookIndex, placeOf } from '../book/book.ts';
 import { journalCards } from '../book/journalMonths.ts';
 import { useGists } from '../format/gist.ts';
 import { NoteCard } from './NoteCard.tsx';
+import { PullToRefresh } from './PullToRefresh.tsx';
 import { WorkspaceBar } from './WorkspaceBar.tsx';
 import { WorkspaceSheet } from './WorkspaceSheet.tsx';
 import { archivedCount, browseNotes, readSort, SORTS, tapeCount, writeSort, type AllNotesSort } from './allNotes.ts';
@@ -41,12 +42,14 @@ interface AllNotesScreenProps {
   onBack: () => void;
   /** Opened with the Tapes word already on, from the home page's Tapes heading, its "See all". */
   tapes?: boolean;
+  /** A pull down from the top (notes/PullToRefresh.tsx): a sync, and the notes read again. */
+  onRefresh?: () => Promise<unknown>;
 }
 
 /** How many of the cards on the page have their gist written (format/gist.ts): the first screens of them, not every note there is. */
 const GISTED = 24;
 
-export function AllNotesScreen({ notes, loading, onOpen, onBack, tapes: tapesAtFirst = false }: AllNotesScreenProps) {
+export function AllNotesScreen({ notes, loading, onOpen, onBack, tapes: tapesAtFirst = false, onRefresh }: AllNotesScreenProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const topBar = useRef<HTMLElement>(null);
   const field = useRef<HTMLInputElement>(null);
@@ -181,6 +184,7 @@ export function AllNotesScreen({ notes, loading, onOpen, onBack, tapes: tapesAtF
           ) : null}
         </div>
       </div>
+      {onRefresh ? <PullToRefresh scroller={scroller} onRefresh={onRefresh} /> : null}
       <WorkspaceSheet which={manage} onClose={() => setManage(null)} />
     </div>
   );

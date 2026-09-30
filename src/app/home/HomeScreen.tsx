@@ -14,6 +14,7 @@ import { useWispEdge } from '../art/wispEdge.ts';
 import { Ghost } from '../art/Ghost.tsx';
 import { Cassette, Clock, Cog, Grid, Magnifier, Notebook, Pin, Plus } from '../art/Icons.tsx';
 import { NoteCard } from '../notes/NoteCard.tsx';
+import { PullToRefresh } from '../notes/PullToRefresh.tsx';
 import { SwipeRow } from '../notes/SwipeRow.tsx';
 import { isNoteSwipe, noteSwipes, type NoteSwipe } from '../notes/swipe.ts';
 import { when } from '../notes/when.ts';
@@ -66,6 +67,8 @@ interface HomeScreenProps {
    * Undo (notes/useNoteActions.ts). Without it the notes do not swipe.
    */
   onSwipe?: (note: Note, action: NoteSwipe) => void;
+  /** A pull down from the top (notes/PullToRefresh.tsx, docs/DESIGN.md §152): a sync, and the notes read again. */
+  onRefresh?: () => Promise<unknown>;
   voiceModel: VoiceModelState;
   onRetryVoiceModel: () => void;
   updates: Updates;
@@ -78,7 +81,7 @@ interface HomeScreenProps {
 /** How many of the first cards get a line written under their titles (format/gist.ts), the rest waiting for a scroll. */
 const GISTED = 16;
 
-export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSettings, onSearch, onAllNotes, onSwipe, voiceModel, onRetryVoiceModel, updates }: HomeScreenProps) {
+export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSettings, onSearch, onAllNotes, onSwipe, onRefresh, voiceModel, onRetryVoiceModel, updates }: HomeScreenProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const topBar = useRef<HTMLElement>(null);
   useWispEdge(scroller, 'home', topBar, { foot: true });
@@ -261,6 +264,7 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
           </button>
         ) : null}
       </nav>
+      {onRefresh ? <PullToRefresh scroller={scroller} onRefresh={onRefresh} /> : null}
       <WorkspaceSheet
         which={manage}
         onClose={() => {

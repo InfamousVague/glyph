@@ -70,6 +70,8 @@ import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { useUnfold } from '../core/unfold.ts';
 import { getNote, type Note } from '../core/store.ts';
+import { syncWithin } from '../core/sync/engine.ts';
+import { PullToRefresh } from '../notes/PullToRefresh.tsx';
 import { setPreferences, useDarkNow, usePreferences } from '../core/preferences.ts';
 import type { NoteView } from './viewMode.ts';
 import type { ReviewHandoff } from '../ai/review.ts';
@@ -288,7 +290,7 @@ export function NoteScreen({
   const { toast, dismiss } = useToast();
   // The live words, and their saving: everything below that reads or writes the note goes through these. Words that
   // arrive from outside the editor - a meeting's transcript from the phone's write-up - are put into it whole.
-  const { body, onChange: keep, flush, title, blank, adopt } = useNoteSaving(note, rename, {
+  const { body, onChange: keep, flush, settled, title, blank, adopt } = useNoteSaving(note, rename, {
     onExternalChange: (next) => {
       const editor = viewRef.current;
       if (!editor) return;
@@ -394,6 +396,17 @@ export function NoteScreen({
   const [canvasBody, setCanvasBody] = useState(note.body);
   const canvas = useMemo(() => canvasOf(canvasBody), [canvasBody]);
   const drawing = !!canvas && !source;
+  /**
+   * A pull down from the top of the note (notes/PullToRefresh.tsx, docs/DESIGN.md §152): what is typed saved first, a
+   * sync, and the note as the store then has it taken into the editor (useNoteSaving.ts `adopt`) - unless something
+   * typed since is still to be saved, which the next save's rebase looks after.
+   */
+  const pullNote = async () => {
+    await settled();
+    await syncWithin();
+    const stored = await getNote(note.id).catch(() => null);
+    if (stored) adopt(stored);
+  };
   /*
    * A note that is a book (docs/BOOKS.md) is drawn as its index the same way, its Markdown behind the same switch.
    * The view's own changes (a chapter added, moved, taken out) are written through `onChange` like typing and kept
@@ -1101,6 +1114,8 @@ export function NoteScreen({
         </p>
       ) : null}
 
+      {/* Only where the page itself scrolls: the Formatted view and the transcript scroll their own. */}
+      <PullToRefresh scroller={page} onRefresh={pullNote} enabled={shown === 'raw' && !drawing} />
       {/*
         The tape and the note are one page under the header, and scroll
         together (Matt: "the tape and stuff at the top of a note should scroll
