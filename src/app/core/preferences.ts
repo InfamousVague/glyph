@@ -85,7 +85,7 @@ export function isSidebarStyle(style: unknown): style is SidebarStyle {
  * shelf-timeline and notebook-cards - that Matt asked for after (docs/DESIGN.md §148): "i like the card view and the
  * timeline view add a few more variations that are mixes and matches of different views".
  */
-export const HOME_LAYOUT_IDS = ['cards', 'timeline', 'card-timeline', 'spotlight', 'shelf-timeline', 'notebook-cards', 'list', 'shelf', 'library'] as const;
+export const HOME_LAYOUT_IDS = ['spotlight', 'cards', 'timeline', 'card-timeline', 'shelf-timeline', 'notebook-cards', 'list', 'shelf', 'library'] as const;
 export type HomeLayout = (typeof HOME_LAYOUT_IDS)[number];
 
 export function isHomeLayout(layout: unknown): layout is HomeLayout {
@@ -215,6 +215,12 @@ export interface Preferences {
   sidebarStyle: SidebarStyle;
   /** How the home page lays out the notebooks and notes (`HomeLayout`), chosen in Settings › Appearance. */
   homeLayout: HomeLayout;
+  /**
+   * Whether the home page's layout was picked in Settings; until it is, it follows the default. Spotlight became the
+   * default after Cards had been (Matt: "make the spotlight mode the default"), and every device that had drawn the
+   * home page had stored Cards without anyone choosing it.
+   */
+  homeLayoutChosen: boolean;
   /**
    * The one colour a person can choose (Matt: "add ... the accent color picker"). `ink` is the app's own answer and
    * the default: Glyph is grey on purpose (app/ink.css), and with ink chosen nothing is stamped and every accent
@@ -363,7 +369,8 @@ export const DEFAULT_PREFERENCES: Preferences = {
   theme: 'dark',
   uiScale: 1,
   sidebarStyle: 'popover',
-  homeLayout: 'cards',
+  homeLayout: 'spotlight',
+  homeLayoutChosen: false,
   accent: 'ink',
   density: 'comfortable',
   rounding: 'round',
@@ -420,7 +427,7 @@ function settle(raw: unknown): Preferences {
   // A size that is not one of the steps - another build's, or a half-written store - is the kit's own.
   if (!isUiScale(loaded.uiScale)) loaded.uiScale = DEFAULT_PREFERENCES.uiScale;
   if (!isSidebarStyle(loaded.sidebarStyle)) loaded.sidebarStyle = DEFAULT_PREFERENCES.sidebarStyle;
-  if (!isHomeLayout(loaded.homeLayout)) loaded.homeLayout = DEFAULT_PREFERENCES.homeLayout;
+  if (!isHomeLayout(loaded.homeLayout) || !loaded.homeLayoutChosen) loaded.homeLayout = DEFAULT_PREFERENCES.homeLayout;
   // Tabs from another build, or a half-written store: anything but a list of ids is no tabs at all.
   loaded.openNotes = Array.isArray(loaded.openNotes) ? loaded.openNotes.filter((id): id is string => typeof id === 'string').slice(-MOST_TABS) : [];
   // Tab groups from another build, or a half-written store: only well-formed groups, and tabs pointing at them.

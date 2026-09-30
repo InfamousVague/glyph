@@ -22,14 +22,15 @@ import { matches } from '../notes/allNotes.ts';
  */
 
 /**
- * The layouts, in the order Settings offers them, each with the sentence that says what it looks like: the two Matt
- * liked, then the mixes of them, then the three single ways the page was first drawn.
+ * The layouts, in the order Settings offers them, each with the sentence that says what it looks like: Spotlight, the
+ * default (Matt: "make the spotlight mode the default"), then the two Matt liked, the other mixes of them, and the three
+ * single ways the page was first drawn.
  */
 export const HOME_LAYOUTS: readonly { id: HomeLayout; label: string; hint: string }[] = [
+  { id: 'spotlight', label: 'Spotlight', hint: 'The four you touched last as cards, then everything else by when.' },
   { id: 'cards', label: 'Cards', hint: 'Notebooks and notes as cards, each note drawn small.' },
   { id: 'timeline', label: 'Timeline', hint: 'Everything by when you last touched it: today, yesterday, this week and earlier.' },
   { id: 'card-timeline', label: 'Card timeline', hint: 'Cards, under today, yesterday, this week and earlier.' },
-  { id: 'spotlight', label: 'Spotlight', hint: 'The four you touched last as cards, then everything else by when.' },
   { id: 'shelf-timeline', label: 'Shelf and timeline', hint: 'Notebooks as covers along a shelf, then the notes by when.' },
   { id: 'notebook-cards', label: 'Notebook cards', hint: 'Each notebook with its pages as cards, then the notes in no notebook.' },
   { id: 'list', label: 'List', hint: 'One line each: the name, how it starts, and when. The most on a screen.' },

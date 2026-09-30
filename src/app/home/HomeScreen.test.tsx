@@ -89,6 +89,8 @@ beforeEach(() => {
   localStorage.clear();
   reloadPreferences();
   reloadWorkspaces();
+  // Most of these read the Cards layout's two sections, Notebooks then Notes; the default has a test of its own.
+  setPreferences({ homeLayout: 'cards', homeLayoutChosen: true });
 });
 afterEach(() => {
   unmount();
@@ -99,6 +101,14 @@ afterEach(() => {
 const tick = () => act(async () => await new Promise((done) => setTimeout(done, 0)));
 
 describe('the home page', () => {
+  it('opens on Spotlight on a device where no layout was picked', () => {
+    setPreferences({ homeLayout: 'cards', homeLayoutChosen: false });
+    reloadPreferences();
+    show(page(dated));
+    expect(document.querySelector('[data-layout="spotlight"]')).not.toBeNull();
+    expect(headings()).toEqual(['Recent']);
+  });
+
   it('is the search with its filters beside it, and the notebooks then the notes, pinned first, as cards', () => {
     show(page(shelf));
     expect(document.querySelector('input[type="search"]')?.getAttribute('placeholder')).toBe('Search notebooks and notes');

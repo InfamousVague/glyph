@@ -176,4 +176,11 @@ describe('a store written by another build, or half written', () => {
     expect(launchWith({ codeLight: 'ink', codeDark: 'ink', codeChosen: false })).toMatchObject({ codeLight: DEFAULT_PREFERENCES.codeLight, codeDark: DEFAULT_PREFERENCES.codeDark });
     expect(launchWith({ codeLight: 'ink', codeDark: 'ink', codeChosen: true })).toMatchObject({ codeLight: 'ink', codeDark: 'ink' });
   });
+
+  it('opens the home page on Spotlight until a layout is picked, the Cards every device stored before it included', () => {
+    expect(DEFAULT_PREFERENCES.homeLayout).toBe('spotlight');
+    expect(launchWith({ homeLayout: 'cards' })).toMatchObject({ homeLayout: 'spotlight' });
+    expect(launchWith({ homeLayout: 'cards', homeLayoutChosen: true })).toMatchObject({ homeLayout: 'cards' });
+    expect(launchWith({ homeLayout: 'sideways', homeLayoutChosen: true })).toMatchObject({ homeLayout: 'spotlight' });
+  });
 });

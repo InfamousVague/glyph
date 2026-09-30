@@ -63,7 +63,7 @@ export function AppearancePane() {
             key={layout.id}
             label={layout.label}
             hint={layout.hint}
-            control={<Pick checked={prefs.homeLayout === layout.id} label={layout.label} onPress={() => setPreferences({ homeLayout: layout.id })} />}
+            control={<Pick checked={prefs.homeLayout === layout.id} label={layout.label} onPress={() => setPreferences({ homeLayout: layout.id, homeLayoutChosen: true })} />}
           />
         ))}
       </PaneSection>

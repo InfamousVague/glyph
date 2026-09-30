@@ -59,14 +59,15 @@ describe('the Appearance page', () => {
     expect(host.querySelector('[aria-label="Sidebar"]')).toBeNull();
   });
 
-  it('offers the home page’s layouts, Cards chosen at first, and writes the one picked (docs/DESIGN.md §147, §148)', () => {
+  it('offers the home page’s layouts, Spotlight chosen at first, and writes the one picked as picked (docs/DESIGN.md §147, §148)', () => {
     const host = show(<AppearancePane />);
-    expect(labels(host, 'Home page')).toEqual(['Cards', 'Timeline', 'Card timeline', 'Spotlight', 'Shelf and timeline', 'Notebook cards', 'List', 'Shelf', 'Library']);
+    expect(labels(host, 'Home page')).toEqual(['Spotlight', 'Cards', 'Timeline', 'Card timeline', 'Shelf and timeline', 'Notebook cards', 'List', 'Shelf', 'Library']);
     const picked = () => [...host.querySelectorAll('.setk-pick[aria-checked="true"]')].map((pick) => pick.getAttribute('aria-label'));
-    expect(picked()).toEqual(['Cards']);
-    act(() => host.querySelector<HTMLElement>('.setk-pick[aria-label="Spotlight"]')!.click());
-    expect(preferences().homeLayout).toBe('spotlight');
     expect(picked()).toEqual(['Spotlight']);
+    expect(preferences().homeLayoutChosen).toBe(false);
+    act(() => host.querySelector<HTMLElement>('.setk-pick[aria-label="Cards"]')!.click());
+    expect(preferences()).toMatchObject({ homeLayout: 'cards', homeLayoutChosen: true });
+    expect(picked()).toEqual(['Cards']);
   });
 
   it('offers the sidebar’s choice on a window wide enough for the sidebar, and writes it', () => {

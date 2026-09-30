@@ -16,8 +16,8 @@ const all = [packing, trip, route, board, gone];
 const ids = (notes: { id: string }[]) => notes.map((n) => n.id);
 
 describe('what the home page lists', () => {
-  it('offers every layout the preference knows, Cards and Timeline first, then their mixes, then the rest', () => {
-    expect(HOME_LAYOUTS.map((l) => l.id)).toEqual(['cards', 'timeline', 'card-timeline', 'spotlight', 'shelf-timeline', 'notebook-cards', 'list', 'shelf', 'library']);
+  it('offers every layout the preference knows, Spotlight, the default, first, then Cards and Timeline, their other mixes, and the rest', () => {
+    expect(HOME_LAYOUTS.map((l) => l.id)).toEqual(['spotlight', 'cards', 'timeline', 'card-timeline', 'shelf-timeline', 'notebook-cards', 'list', 'shelf', 'library']);
     expect([...HOME_LAYOUTS.map((l) => l.id)].sort()).toEqual([...HOME_LAYOUT_IDS].sort());
   });
 

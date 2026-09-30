@@ -8466,3 +8466,20 @@ keys in both groups, back and the keyboard leaving, the chips and their crosses,
 an empty workspace left, each mix drawn), settings/AppearancePane.test.tsx (the nine picks).
 
 Cites: §137, §147.
+
+## 149. Spotlight is the home page's default (2026-09-30)
+
+Matt: "make the spotlight mode the default". A device where no layout was picked opens the home page on Spotlight
+(§148): the four notes touched last as cards, then everything else by when. It leads Settings › Appearance › Home
+page's list, as the default does.
+
+Preferences are kept whole, so every device that had drawn the home page since §147 had stored Cards, the default
+then, without anyone choosing it; a new default alone would have reached no one who had updated. So the pick is
+remembered as a pick, as the code colours' is (`codeChosen`): `homeLayoutChosen`, set by a tap in Settings and synced
+with the layout. Until it is set, the stored layout is read as the default. A layout picked on purpose stays.
+
+Tests: core/preferences.test.ts (Cards stored and not picked opens on Spotlight; picked, it stays),
+home/HomeScreen.test.tsx (a fresh device draws Spotlight), settings/AppearancePane.test.tsx (Spotlight first and
+chosen; a tap writes the layout and that it was picked).
+
+Cites: §147, §148.
