@@ -5,12 +5,14 @@ import { titleKey } from '../core/titleKey.ts';
 import { inWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
 import { usePreferences } from '../core/preferences.ts';
 import type { VoiceModelState } from '../capture/useVoiceModel.ts';
+import { useMeetingState } from '../capture/meetingLive.ts';
+import { counter } from '../capture/tape.ts';
 import type { Updates } from '../core/ota.ts';
 import { useGlideToTop } from '../core/glideToTop.ts';
 import { isAndroid } from '../core/platform.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { Ghost } from '../art/Ghost.tsx';
-import { Clock, Cog, Grid, Magnifier, Notebook, Pin, Plus } from '../art/Icons.tsx';
+import { Cassette, Clock, Cog, Grid, Magnifier, Notebook, Pin, Plus } from '../art/Icons.tsx';
 import { NoteCard } from '../notes/NoteCard.tsx';
 import { when } from '../notes/when.ts';
 import { WorkspaceSheet } from '../notes/WorkspaceSheet.tsx';
@@ -20,7 +22,7 @@ import { shortenUrls } from '../core/shortUrl.ts';
 import { bookIndex, chaptersOf, placeOf } from '../book/book.ts';
 import { journalCards } from '../book/journalMonths.ts';
 import type { OpenTask } from './dashboard.ts';
-import { cardsIn, firstLine, homeCounts, homeLists, homePlan, isBookSection, kindOf, type HomeFilter, type SectionDraw } from './homeLayout.ts';
+import { cardsIn, firstLine, homeCounts, homeLists, homePlan, isBookSection, kindOf, type HomeFilter, type HomeKind, type SectionDraw } from './homeLayout.ts';
 import { HomeFilters } from './HomeFilters.tsx';
 import styles from './HomeScreen.module.css';
 import look from './HomeLayouts.module.css';
@@ -73,6 +75,9 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
   const scroller = useRef<HTMLDivElement>(null);
   const topBar = useRef<HTMLElement>(null);
   useWispEdge(scroller, 'home', topBar, { foot: true });
+  // The meeting being recorded now, whose note has no tape until it stops: its row says so (capture/meetingLive.ts).
+  const meeting = useMeetingState();
+  const recording = meeting?.recording ? meeting.noteId : null;
   const { homeLayout: layout } = usePreferences();
   const spaces = useWorkspaces();
   const [manage, setManage] = useState<Workspace | 'new' | null>(null);
@@ -118,10 +123,18 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
     <NoteCard key={note.id} note={note} index={order++} onOpen={onOpen} gist={gists[note.id]} place={inBook ? null : placeOf(inBooks, note)} entries={journals.get(note.id)} dense={dense} />
   );
   const row = (note: Note, inBook = false) => (
-    <HomeRow key={note.id} note={note} index={order++} onOpen={onOpen} bookName={inBook ? null : (placeOf(inBooks, note)?.title ?? null)} entries={journals.get(note.id)?.count} />
+    <HomeRow key={note.id} note={note} index={order++} onOpen={onOpen} bookName={inBook ? null : (placeOf(inBooks, note)?.title ?? null)} entries={journals.get(note.id)?.count} live={note.id === recording} />
   );
   const drawn = (notes: Note[], draw: SectionDraw, inBook = false) => {
     if (draw === 'rows') return <ul className={look.rows}>{notes.map((n) => row(n, inBook))}</ul>;
+    if (draw === 'lines')
+      return (
+        <ul className={look.lines}>
+          {notes.map((n) => (
+            <HomeLine key={n.id} note={n} index={order++} onOpen={onOpen} bookName={placeOf(inBooks, n)?.title ?? null} live={n.id === recording} />
+          ))}
+        </ul>
+      );
     if (draw === 'covers')
       return (
         <ol className={look.shelf} aria-label="Notebooks">
@@ -161,6 +174,8 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
             <Notebook className={look.mark} />
           ) : section.mark === 'note' ? (
             <FileText size={15} className={look.mark} aria-hidden="true" />
+          ) : section.mark === 'pinned' ? (
+            <Pin className={`${look.mark} ${look.markPin}`} />
           ) : section.mark === 'recent' ? (
             <Clock className={look.mark} />
           ) : null;
@@ -250,32 +265,74 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
 }
 
 /**
+ * A note's kind as a mark at the start of its row or line: a notebook, a canvas, a recording's cassette (the one the
+ * tape shelf wore, art/Icons.tsx), or a page of words.
+ */
+function KindMark({ kind }: { kind: HomeKind }) {
+  if (kind === 'tape') return <Cassette className={`${look.rowMark} ${look.rowMarkTape}`} />;
+  const Mark = kind === 'book' ? BookOpen : kind === 'canvas' ? Workflow : FileText;
+  return <Mark size={16} strokeWidth={2} className={look.rowMark} aria-hidden="true" />;
+}
+
+/**
+ * What a recording says before its words: how long it is, "0:40", or, for the meeting being recorded, that it is. A
+ * voice note reads as one at a glance in the timeline, where it had been a page of words like any other.
+ */
+function TapeWords({ note, live }: { note: Note; live: boolean }) {
+  if (live) return <span className={look.rowLive}>Recording now</span>;
+  if (kindOf(note) !== 'tape') return null;
+  return <span className={look.rowTape}>{counter(note.recordingMs ?? 0)}</span>;
+}
+
+/**
  * A note on one line, for every layout that draws rows (List, Timeline, Spotlight, Shelf and timeline, Library): its kind's mark, its name, how it starts, and when it
  * was touched, with the pin and its notebook's name where it has them.
  */
-function HomeRow({ note, index, onOpen, bookName, entries }: { note: Note; index: number; onOpen: (id: string) => void; bookName: string | null; entries?: number }) {
+function HomeRow({ note, index, onOpen, bookName, entries, live = false }: { note: Note; index: number; onOpen: (id: string) => void; bookName: string | null; entries?: number; live?: boolean }) {
   const title = noteTitle(note.body);
-  const kind = kindOf(note);
-  const Mark = kind === 'book' ? BookOpen : kind === 'canvas' ? Workflow : FileText;
+  const kind = live ? 'tape' : kindOf(note);
   const pages = kind === 'book' ? chaptersOf(note.body).length : 0;
   // A journal counts its entries, from every workspace (book/journalMonths.ts), and a notebook its pages.
   const lead = entries !== undefined ? (entries === 1 ? '1 entry' : `${entries} entries`) : kind === 'book' ? (pages === 1 ? '1 page' : `${pages} pages`) : firstLine(note.body);
   return (
     <li className={look.rowItem} style={{ '--i': Math.min(index, 12) } as CSSProperties}>
       <button type="button" className={look.row} onClick={() => onOpen(note.id)}>
-        <Mark size={16} strokeWidth={2} className={look.rowMark} aria-hidden="true" />
+        <KindMark kind={kind} />
         <span className={look.rowText}>
           <span className={look.rowTitle} data-untitled={title ? undefined : ''}>
             {note.starred ? <Pin className={look.rowPin} /> : null}
             {title ? shortenUrls(title) : 'Untitled'}
           </span>
-          {lead || bookName ? (
+          {lead || bookName || kind === 'tape' ? (
             <span className={look.rowLead}>
               {bookName ? <span className={look.rowBook}>{bookName}</span> : null}
+              <TapeWords note={note} live={live} />
               {lead ? shortenUrls(lead) : null}
             </span>
           ) : null}
         </span>
+        <span className={look.rowWhen}>{when(note.updatedAt)}</span>
+      </button>
+    </li>
+  );
+}
+
+/**
+ * A note on one short line, for Spotlight's pinned notes: its kind's mark, its name, the notebook it is in, and when.
+ * No pin, since the list is the pinned ones, and no line of how it starts: the list is for finding a note by its name.
+ */
+function HomeLine({ note, index, onOpen, bookName, live = false }: { note: Note; index: number; onOpen: (id: string) => void; bookName: string | null; live?: boolean }) {
+  const title = noteTitle(note.body);
+  const kind = live ? 'tape' : kindOf(note);
+  return (
+    <li className={look.rowItem} style={{ '--i': Math.min(index, 12) } as CSSProperties}>
+      <button type="button" className={look.line} onClick={() => onOpen(note.id)}>
+        <KindMark kind={kind} />
+        <span className={look.lineTitle} data-untitled={title ? undefined : ''}>
+          {title ? shortenUrls(title) : 'Untitled'}
+        </span>
+        {bookName ? <span className={look.lineBook}>{bookName}</span> : null}
+        <TapeWords note={note} live={live} />
         <span className={look.rowWhen}>{when(note.updatedAt)}</span>
       </button>
     </li>

@@ -4,7 +4,7 @@ import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { frontMatterEnd } from '../core/frontMatter.ts';
 import type { HomeLayout } from '../core/preferences.ts';
 import { noteTitle, type Note } from '../core/store.ts';
-import { matches } from '../notes/allNotes.ts';
+import { hasTape, matches } from '../notes/allNotes.ts';
 
 /**
  * The home page's rules (home/HomeScreen.tsx; docs/DESIGN.md §147, §148): what it shows, in what order, and the ways
@@ -27,7 +27,7 @@ import { matches } from '../notes/allNotes.ts';
  * single ways the page was first drawn.
  */
 export const HOME_LAYOUTS: readonly { id: HomeLayout; label: string; hint: string }[] = [
-  { id: 'spotlight', label: 'Spotlight', hint: 'The four you touched last as cards, then everything else by when.' },
+  { id: 'spotlight', label: 'Spotlight', hint: 'Your pinned notes in a list, the four you touched last as cards, then everything else by when.' },
   { id: 'cards', label: 'Cards', hint: 'Notebooks and notes as cards, each note drawn small.' },
   { id: 'timeline', label: 'Timeline', hint: 'Everything by when you last touched it: today, yesterday, this week and earlier.' },
   { id: 'card-timeline', label: 'Card timeline', hint: 'Cards, under today, yesterday, this week and earlier.' },
@@ -58,12 +58,17 @@ export const HOME_FILTERS: readonly { id: HomeFilter; label: string }[] = [
   { id: 'pinned', label: 'Pinned' },
 ];
 
-/** A note's kind as the page marks it: a notebook (a journal is one), a canvas, or words. */
-export type HomeKind = 'book' | 'canvas' | 'note';
+/**
+ * A note's kind as the page marks it: a notebook (a journal is one), a canvas, a voice recording (a note with its tape
+ * kept, notes/allNotes.ts `hasTape`), or words. A recording is a note like any other in every list and filter; its kind
+ * is only how its row looks (Matt: "make it so voice recordings also show up in the timeline", docs/DESIGN.md §150).
+ */
+export type HomeKind = 'book' | 'canvas' | 'tape' | 'note';
 
 export function kindOf(note: Note): HomeKind {
   if (isBookBody(note.body)) return 'book';
   if (isCanvasBody(note.body)) return 'canvas';
+  if (hasTape(note)) return 'tape';
   return 'note';
 }
 
@@ -156,19 +161,23 @@ export function timeline(lists: HomeLists, now = Date.now()): { span: Span; note
 }
 
 /**
- * Spotlight: the few touched last, as cards, and everything else by when. By when alone, not pinned first: the cards
- * are where the person was, and a pinned note has its pin on its row further down, or the Pinned filter.
+ * Spotlight's cards and rows: the few touched last, as cards, and everything else by when. By when alone, not pinned
+ * first: the cards are where the person was. `homePlan` draws the pinned notes in a list of their own above them, and
+ * hands this only the rest.
  */
 export function spotlight(lists: HomeLists, lead = SPOTLIT, now = Date.now()): { lead: Note[]; rest: { span: Span; notes: Note[] }[] } {
   const every = together(lists);
   return { lead: every.slice(0, lead), rest: spans(every.slice(lead), now) };
 }
 
-/** A section's mark before its heading: a notebook's, a note's, the clock of the recent ones, or none (a span). */
-export type SectionMark = 'notebook' | 'note' | 'recent' | null;
+/** A section's mark before its heading: a notebook's, a note's, the pin, the clock of the recent ones, or none (a span). */
+export type SectionMark = 'notebook' | 'note' | 'pinned' | 'recent' | null;
 
-/** How a section draws its notes: as cards, as the Shelf's small cards, as rows, or as covers along a shelf. */
-export type SectionDraw = 'cards' | 'dense' | 'rows' | 'covers';
+/**
+ * How a section draws its notes: as cards, as the Shelf's small cards, as rows, as covers along a shelf, or as lines -
+ * one short line a note, its name and when, the simplest list the page has.
+ */
+export type SectionDraw = 'cards' | 'dense' | 'rows' | 'covers' | 'lines';
 
 /** A section under a heading of words: "Notebooks", "Today", "In no notebook". `count` is how many in all, where drawn. */
 export interface WordsSection {
@@ -277,7 +286,13 @@ export function homePlan(layout: HomeLayout, lists: HomeLists, ways: PlanWays): 
       break;
     }
     case 'spotlight': {
-      const lit = spotlight(lists, Math.min(SPOTLIT, most), now);
+      // The pinned notes first, a line each, above Recent (Matt: "add a section above all the others that shows above
+      // recent that's a simple list of pinned notes"), and not again below it: a pin is a place of its own, as it is
+      // at the top of a phone's notes.
+      const pinned = together(lists).filter((n) => n.starred);
+      add({ key: 'pinned', heading: 'Pinned', mark: 'pinned', count: pinned.length, draw: 'lines', notes: pinned });
+      const unpinned = { books: books.filter((n) => !n.starred), notes: notes.filter((n) => !n.starred) };
+      const lit = spotlight(unpinned, Math.min(SPOTLIT, most), now);
       add({ key: 'recent', heading: 'Recent', mark: 'recent', count: null, draw: 'cards', notes: lit.lead });
       sections.push(...byWhen(lit.rest, 'rows'));
       break;

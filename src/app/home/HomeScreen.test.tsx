@@ -18,6 +18,12 @@ import { stubMatchMedia, stubResizeObserver } from '../../test/stubs.ts';
 
 // A card's small drawing is the editor (notes/NotePeek.tsx), which is nothing the page decides.
 vi.mock('../notes/NotePeek.tsx', () => ({ NotePeek: () => null }));
+// The meeting being recorded now, which the phone's service knows (capture/meetingLive.ts) and a test says.
+const meeting = vi.hoisted(() => ({ live: null as string | null }));
+vi.mock('../capture/meetingLive.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../capture/meetingLive.ts')>()),
+  useMeetingState: () => (meeting.live ? { recording: true, noteId: meeting.live, title: null, startedAt: 0, elapsedMs: 0, silenced: false, writingUp: null, discarded: [] } : null),
+}));
 // The glide back to the top asks whether motion is reduced; jsdom has no matchMedia.
 stubMatchMedia();
 const { HomeScreen } = await import('./HomeScreen.tsx');
@@ -95,6 +101,7 @@ beforeEach(() => {
 afterEach(() => {
   unmount();
   vi.useRealTimers();
+  meeting.live = null;
 });
 
 /** A tick of the real clock, for what the panel does once the kit has opened it. */
@@ -107,6 +114,24 @@ describe('the home page', () => {
     show(page(dated));
     expect(document.querySelector('[data-layout="spotlight"]')).not.toBeNull();
     expect(headings()).toEqual(['Recent']);
+  });
+
+  it('lists the pinned notes above Recent on Spotlight, a line each, and not again below', () => {
+    const onOpen = vi.fn();
+    laidOut('spotlight');
+    show(page([...dated, makeNote('pin', '# Wifi password', { starred: true, updatedAt: now - 5 * day }), trip, packing], { onOpen }));
+    expect(headings()).toEqual(['Pinned', 'Recent', 'Earlier']);
+    const lines = [...document.querySelectorAll<HTMLButtonElement>('section[data-section="pinned"] li button')];
+    expect(lines.map((b) => b.querySelector('[class*=lineTitle]')?.textContent)).toEqual(['Wifi password', 'Packing']);
+    // Its notebook after its name, and no pin on a line: the list is the pinned ones.
+    expect(lines[1]?.textContent).toContain('Trip');
+    expect(document.querySelector('section[data-section="pinned"] ul [class*=rowPin]')).toBeNull();
+    expect(document.querySelector('#home-pinned')?.textContent).toBe('Pinned2');
+    // Not in Recent, nor further down.
+    expect(listed('Recent')).toEqual(['Fresh', 'Morning', 'Last night', 'Stale']);
+    expect(document.body.textContent?.match(/Wifi password/g)).toHaveLength(1);
+    act(() => lines[0]!.click());
+    expect(onOpen).toHaveBeenLastCalledWith('pin');
   });
 
   it('is the search with its filters beside it, and the notebooks then the notes, pinned first, as cards', () => {
@@ -324,6 +349,25 @@ describe('the layouts', () => {
     expect(headings()).toEqual(['Today', 'Yesterday', 'Earlier']);
     expect(listed('Today')).toEqual(['Fresh', 'Morning']);
     expect(document.querySelector('section[data-section="today"] ul')).not.toBeNull();
+  });
+
+  it('draws a voice recording in the Timeline as one, with its cassette and its length, and the one being recorded as that', () => {
+    const spoken = makeNote('v', '# Standup\n\nWe agreed to ship on Friday.', { source: 'capture', recordingMs: 40_000, updatedAt: now - 30_000 });
+    const live = makeNote('m', '# Planning', { source: 'capture', updatedAt: now - 10_000 });
+    meeting.live = 'm';
+    show(page([...dated, spoken, live]));
+    laidOut('timeline');
+    expect(listed('Today')).toEqual(['Planning', 'Standup', 'Fresh', 'Morning']);
+    const rows = [...document.querySelectorAll<HTMLButtonElement>('section[data-section="today"] li button')];
+    expect(rows[1]?.querySelector('[class*=rowLead]')?.textContent).toBe('0:40We agreed to ship on Friday.');
+    expect(rows[1]?.querySelector('[class*=rowMarkTape]')).not.toBeNull();
+    expect(rows[0]?.querySelector('[class*=rowLive]')?.textContent).toBe('Recording now');
+    expect(rows[0]?.querySelector('[class*=rowMarkTape]')).not.toBeNull();
+    // A note of words has neither.
+    expect(rows[2]?.querySelector('[class*=rowMarkTape], [class*=rowTape], [class*=rowLive]')).toBeNull();
+    // In Spotlight the four touched last are its cards, the recording and the meeting among them.
+    laidOut('spotlight');
+    expect(listed('Recent')).toEqual(['Planning', 'Standup', 'Fresh', 'Morning']);
   });
 
   it('draws the Card timeline as the Timeline’s spans with a card for each', () => {

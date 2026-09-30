@@ -8483,3 +8483,27 @@ home/HomeScreen.test.tsx (a fresh device draws Spotlight), settings/AppearancePa
 chosen; a tap writes the layout and that it was picked).
 
 Cites: §147, §148.
+
+## 150. Spotlight's pinned list, and recordings that read as recordings (2026-09-30)
+
+Matt: "add a section above all the others that shows above recent that's a simple list of pinned notes", then "also
+make it so voice recordings also show up in the timeline".
+
+**Pinned.** Spotlight (§148, the default since §149) opens with the pinned notes, above Recent: a line each, the
+simplest list the page has (home/homeLayout.ts `SectionDraw` 'lines') - the kind's mark, the name, the notebook it is
+in, and when, newest first. No pin on a line, since the list is the pinned ones, and no line of how it starts: it is
+for finding a note by its name. A pinned note is not drawn again under Recent or the spans below, as a phone's notes
+keep theirs at the top alone. Nothing pinned, no Pinned; the Pinned filter on, only Pinned.
+
+**Recordings.** A voice recording was on the page all along, in every layout's lists - it is a note, with its tape
+kept (notes/allNotes.ts `hasTape`) - but the rows drew it as a page of words, so since the tape shelf went (§147) a
+person looking down the timeline for one saw none. A recording is a kind of its own now (`kindOf` 'tape'): its row
+and its line wear the shelf's cassette (art/Icons.tsx) and say its length before its words, "0:40", and the meeting
+being recorded, whose note has no tape until it stops, says "Recording now" beside a dot that beats
+(capture/meetingLive.ts). In every list and filter it is a note like any other; a card already said its length.
+
+**Tests.** home/homeLayout.test.ts (Pinned first, newest first, and nowhere else; a recording's kind; a recording in
+every filter a note is in), home/HomeScreen.test.tsx (the pinned lines, their notebook, no pin, not repeated; a
+recording's cassette and length in the Timeline; the one being recorded).
+
+Cites: §147, §148, §149.

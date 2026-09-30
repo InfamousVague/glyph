@@ -21,8 +21,16 @@ describe('what the home page lists', () => {
     expect([...HOME_LAYOUTS.map((l) => l.id)].sort()).toEqual([...HOME_LAYOUT_IDS].sort());
   });
 
-  it('knows a notebook, a canvas and a note of words', () => {
-    expect([trip, board, route].map(kindOf)).toEqual(['book', 'canvas', 'note']);
+  it('knows a notebook, a canvas, a voice recording and a note of words', () => {
+    const spoken = makeNote('v', '# Standup', { source: 'capture', recordingMs: 40_000 });
+    const removed = makeNote('x', '# Its tape removed', { source: 'capture', recordingMs: null });
+    expect([trip, board, spoken, removed, route].map(kindOf)).toEqual(['book', 'canvas', 'tape', 'note', 'note']);
+  });
+
+  it('lists a voice recording as a note, in every filter a note is in', () => {
+    const spoken = makeNote('v', '# Standup', { source: 'capture', recordingMs: 40_000, updatedAt: 6 });
+    expect(ids(homeLists([spoken, ...all], '', 'notes').notes)).toEqual(['p', 'v', 'r', 'c']);
+    expect(homeCounts([spoken, ...all])).toMatchObject({ all: 5, notes: 4 });
   });
 
   it('puts the notebooks apart from the notes, pinned first and then newest, and never the archive', () => {
@@ -107,6 +115,19 @@ describe('each layout’s sections', () => {
     // A pin does not put a note in the lead: the lead is where the person was.
     const pinned = makeNote('old', '# Pinned long ago', { starred: true, updatedAt: at(300) });
     expect(spotlight(homeLists([pinned, book, ...pages, shop], '', 'all'), 4, now).lead.map((n) => n.id)).toEqual(['b', 's', 'p', 'r']);
+  });
+
+  it('heads Spotlight with the pinned notes as lines, newest first, and draws them nowhere else on it', () => {
+    const pinnedBook = makeNote('pb', bookNoteBody('Recipes', []), { starred: true, updatedAt: at(5) });
+    const pinnedNote = makeNote('pn', '# Passwords to change', { starred: true, updatedAt: at(0) });
+    const plan = homePlan('spotlight', homeLists([book, ...pages, shop, pinnedBook, pinnedNote], '', 'all'), ways);
+    expect(shape(plan)).toEqual(['pinned lines: pn pb', 'recent cards: b s p r']);
+    expect(plan.sections[0]).toMatchObject({ heading: 'Pinned', mark: 'pinned', count: 2 });
+    // Nothing pinned, no Pinned; only pinned (the Pinned filter), only Pinned.
+    expect(shape(homePlan('spotlight', lists, ways))[0]).toBe('recent cards: b s p r');
+    expect(shape(homePlan('spotlight', homeLists([book, pinnedBook, pinnedNote], '', 'pinned'), ways))).toEqual(['pinned lines: pn pb']);
+    // Lines are not cards: no line under a title is written for them.
+    expect(cardsIn(plan).map((n) => n.id)).toEqual(['b', 's', 'p', 'r']);
   });
 
   it('puts the Shelf and timeline’s notebooks on the shelf and only the notes on the timeline', () => {
