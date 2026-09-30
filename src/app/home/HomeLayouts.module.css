@@ -1,7 +1,7 @@
 /*
- * The home page's own parts (HomeScreen.tsx; docs/DESIGN.md §147): the search, the filter, the section headings, and
- * the five layouts - Cards, List, Shelf, Library and Timeline (home/homeLayout.ts). The glass bar, the scroller, the
- * dock and the empty page are HomeScreen.module.css's, as they were.
+ * The home page's own parts (HomeScreen.tsx, HomeFilters.tsx; docs/DESIGN.md §147, §148): the search and its filters,
+ * the section headings, and the layouts' pieces - cards, rows, covers - which the mixes combine (home/homeLayout.ts).
+ * The glass bar, the scroller, the dock and the empty page are HomeScreen.module.css's, as they were.
  */
 
 .page {
@@ -74,61 +74,201 @@
   cursor: pointer;
 }
 
-/* The filter: four words with their counts, the chosen one inked. Fits a 412px phone; scrolls sideways on a narrower one. */
-.filters {
+/*
+ * The search and, at its end, the filters' button (HomeFilters.tsx): one row, the button a circle the search's height,
+ * so the two read as one tool. Inked while a filter is on, the way a chosen pill is.
+ */
+.searchRow {
   display: flex;
-  gap: var(--glacier-space-1);
-  overflow-x: auto;
-  scrollbar-width: none;
+  align-items: center;
+  gap: var(--glacier-space-2);
 }
 
-.filters::-webkit-scrollbar {
-  display: none;
+.searchRow > .search {
+  flex: 1;
 }
 
-.filter {
+.filterButton {
   appearance: none;
   flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4em;
-  min-block-size: var(--glacier-space-10);
+  display: grid;
+  place-items: center;
+  inline-size: var(--glacier-space-12);
+  block-size: var(--glacier-space-12);
   margin: 0;
-  padding-inline: var(--glacier-space-3);
+  padding: 0;
   border: var(--glacier-hairline) solid var(--app-rule);
   border-radius: var(--glacier-radius-full);
-  background: none;
+  background: color-mix(in oklch, var(--app-ink) 4%, transparent);
   color: var(--app-ink-2);
-  font: inherit;
-  font-size: var(--glacier-font-size-sm);
-  font-weight: var(--glacier-font-weight-medium);
-  white-space: nowrap;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
-.filter[aria-checked='true'] {
+.filterButton:hover,
+.filterButton[aria-expanded='true'] {
+  border-color: var(--glacier-border-strong);
+  color: var(--app-ink);
+}
+
+.filterButton[data-on] {
   border-color: var(--app-ink);
   background: var(--app-ink);
   color: var(--app-paper);
 }
 
-.filter:focus-visible,
-.clear:focus-visible,
-.row:focus-visible,
-.cover:focus-visible,
-.bookHead:focus-visible {
+/* The panel the button opens: two headed groups of choices, then the workspace's actions. */
+.panel {
+  display: grid;
+  gap: 2px;
+  min-inline-size: min(17rem, calc(100vw - 2rem));
+}
+
+.panelHeading {
+  margin: var(--glacier-space-2) var(--glacier-space-2) var(--glacier-space-1);
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--app-ink-3);
+}
+
+.panelHeading:first-child {
+  margin-block-start: var(--glacier-space-1);
+}
+
+.choices {
+  display: grid;
+  gap: 2px;
+}
+
+/* A choice: its mark, its word, its count, and a tick while it is the one chosen. */
+.choice,
+.panelAction {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  inline-size: 100%;
+  min-block-size: var(--glacier-space-10);
+  margin: 0;
+  padding: 0 var(--glacier-space-2);
+  border: none;
+  border-radius: var(--glacier-radius-md);
+  background: none;
+  color: var(--app-ink);
+  font: inherit;
+  font-size: var(--glacier-font-size-md);
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.choice:hover,
+.panelAction:hover {
+  background: color-mix(in oklch, var(--app-ink) 6%, transparent);
+}
+
+.choice[aria-checked='true'] {
+  background: color-mix(in oklch, var(--app-ink) 9%, transparent);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.choiceMark {
+  flex: none;
+  inline-size: 1em;
+  color: var(--app-ink-3);
+}
+
+.choiceWord {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.choiceCount {
+  font-size: var(--glacier-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--glacier-font-weight-regular);
+  color: var(--app-ink-3);
+}
+
+.choiceTick {
+  flex: none;
+  visibility: hidden;
+}
+
+.choice[aria-checked='true'] .choiceTick {
+  visibility: visible;
+}
+
+/* A workspace's colour as a dot, where the pill used to wear it (ink.css `[data-hue]`). */
+.hueDot {
+  flex: none;
+  inline-size: 0.7em;
+  block-size: 0.7em;
+  margin-inline: 0.15em;
+  border-radius: var(--glacier-radius-full);
+  background: var(--app-space, var(--app-ink-3));
+}
+
+.panelNote {
+  margin: 0 var(--glacier-space-2) var(--glacier-space-1);
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3);
+}
+
+.panelActions {
+  display: grid;
+  gap: 2px;
+  margin-block-start: var(--glacier-space-1);
+  padding-block-start: var(--glacier-space-1);
+  border-block-start: var(--glacier-hairline) solid var(--app-rule);
+}
+
+.panelAction {
+  color: var(--app-ink-2);
+}
+
+/* What is chosen, under the search: a chip for each, its cross taking it off. Nothing while everything is shown. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--glacier-space-2);
+}
+
+.chip {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  min-block-size: var(--glacier-space-8);
+  margin: 0;
+  padding: 0 var(--glacier-space-2) 0 var(--glacier-space-3);
+  border: var(--glacier-hairline) solid color-mix(in oklch, var(--app-space, var(--app-ink)) 55%, transparent);
+  border-radius: var(--glacier-radius-full);
+  background: color-mix(in oklch, var(--app-space, var(--app-ink)) 10%, transparent);
+  color: var(--app-ink);
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-medium);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chipMark {
+  font-size: 1.05em;
+  color: var(--app-ink-2);
+}
+
+.filterButton:focus-visible,
+.choice:focus-visible,
+.panelAction:focus-visible,
+.chip:focus-visible {
   outline: 2px solid var(--glacier-focus-ring);
   outline-offset: 2px;
-}
-
-.filterMark {
-  font-size: 1.05em;
-}
-
-.filterCount {
-  font-variant-numeric: tabular-nums;
-  opacity: 0.65;
 }
 
 .notices:empty {
@@ -382,6 +522,12 @@
   margin: 0;
   font-size: var(--glacier-font-size-sm);
   color: var(--app-ink-3);
+}
+
+/* "8 more in Trip" under a notebook's cards (Notebook cards), which opens the notebook. */
+.more {
+  justify-self: start;
+  font-size: var(--glacier-font-size-sm);
 }
 
 /* A search or filter that found nothing: a small ghost and a line. */

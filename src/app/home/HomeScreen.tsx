@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, type CSSProperties } from 'react';
-import { BookOpen, FileText, Mic, Search, Workflow, X } from '@glacier/icons';
+import { BookOpen, FileText, Mic, Workflow } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
 import { titleKey } from '../core/titleKey.ts';
 import { inWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
@@ -10,10 +10,9 @@ import { useGlideToTop } from '../core/glideToTop.ts';
 import { isAndroid } from '../core/platform.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { Ghost } from '../art/Ghost.tsx';
-import { Cog, Grid, Magnifier, Notebook, Pin, Plus } from '../art/Icons.tsx';
+import { Clock, Cog, Grid, Magnifier, Notebook, Pin, Plus } from '../art/Icons.tsx';
 import { NoteCard } from '../notes/NoteCard.tsx';
 import { when } from '../notes/when.ts';
-import { WorkspaceBar } from '../notes/WorkspaceBar.tsx';
 import { WorkspaceSheet } from '../notes/WorkspaceSheet.tsx';
 import { UpdateNotice, VoiceModelStatus } from '../notes/Notices.tsx';
 import { useGists } from '../format/gist.ts';
@@ -21,23 +20,24 @@ import { shortenUrls } from '../core/shortUrl.ts';
 import { bookIndex, chaptersOf, placeOf } from '../book/book.ts';
 import { journalCards } from '../book/journalMonths.ts';
 import type { OpenTask } from './dashboard.ts';
-import { firstLine, HOME_FILTERS, homeCounts, homeLists, kindOf, library, SPAN_WORDS, timeline, type HomeFilter } from './homeLayout.ts';
+import { cardsIn, firstLine, homeCounts, homeLists, homePlan, isBookSection, kindOf, type HomeFilter, type SectionDraw } from './homeLayout.ts';
+import { HomeFilters } from './HomeFilters.tsx';
 import styles from './HomeScreen.module.css';
 import look from './HomeLayouts.module.css';
 
 /**
- * The home page: the notebooks and the notes, a search over them, and a filter, drawn one of five ways (docs/DESIGN.md
+ * The home page: the notebooks and the notes, a search over them, and filters, drawn one of several ways (docs/DESIGN.md
  * §147; Matt: "redesign the home page / dashboard to be easier to navigate, remove things like the todo list and other
  * things, focus more on displaying the books and notes in an easy way to search and look through; give me 5 different
  * dashboard layout styles we can choose from in the settings").
  *
  * It was a dashboard of what was waiting - a digest, the to-dos of every note, the shelf of tapes, notices - and grew
  * crowded (§132, §137). Now it is a way into the notes. At its top, the search: the page narrows as it is typed, every
- * word anywhere in a note (notes/allNotes.ts `matches`). Under it the filter - All, Notebooks, Notes, Pinned, with how
- * many of each - and the workspace pills. Then the notebooks and the notes in the layout chosen in Settings ›
- * Appearance (home/homeLayout.ts `HOME_LAYOUTS`): Cards, List, Shelf, Library or Timeline. Only what needs the person
- * stays above them: an update ready, the voice model's download or its failure. Tapes are notes like any other, and a
- * to-do is found in its note.
+ * word anywhere in a note (notes/allNotes.ts `matches`). Beside it, one button for the filters - All, Notebooks,
+ * Notes, Pinned, and the workspace - with a chip under the search for each one on (home/HomeFilters.tsx, §148). Then
+ * the notebooks and the notes in the layout chosen in Settings › Appearance: the sections home/homeLayout.ts
+ * `homePlan` lays out, each drawn as cards, rows or covers. Only what needs the person stays above them: an update
+ * ready, the voice model's download or its failure. Tapes are notes like any other, and a to-do is found in its note.
  *
  * The glass bar, the scroller with its smoke, and the dock - write, Speak, Settings, the palette - are as they were.
  */
@@ -66,14 +66,12 @@ interface HomeScreenProps {
   onHideAcademy?: () => void;
 }
 
-/** How many notes the Cards and Shelf layouts draw before "All notes" takes over, and how many get a gist written. */
-const CARDED = 48;
+/** How many of the first cards get a line written under their titles (format/gist.ts), the rest waiting for a scroll. */
 const GISTED = 16;
 
 export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSettings, onSearch, onAllNotes, voiceModel, onRetryVoiceModel, updates }: HomeScreenProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const topBar = useRef<HTMLElement>(null);
-  const field = useRef<HTMLInputElement>(null);
   useWispEdge(scroller, 'home', topBar, { foot: true });
   const { homeLayout: layout } = usePreferences();
   const spaces = useWorkspaces();
@@ -90,98 +88,90 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
   const inBooks = useMemo(() => bookIndex(inSpace), [inSpace]);
   const journals = useMemo(() => journalCards(notes), [notes]);
   const byTitle = useMemo(() => new Map(notes.filter((n) => !n.archivedAt).map((n) => [titleKey(noteTitle(n.body)), n])), [notes]);
-  const pagesOf = (book: Note) => chaptersOf(book.body).flatMap((c) => byTitle.get(titleKey(c.title)) ?? []);
-  // A line under each card's title, for the cards on the first screens only: the runner asks about what is on screen.
-  const carded = useMemo(() => (layout === 'cards' || layout === 'shelf' ? [...lists.books, ...lists.notes].slice(0, GISTED) : []), [layout, lists]);
+  const plan = useMemo(
+    () =>
+      homePlan(layout, lists, {
+        pagesOf: (book) => chaptersOf(book.body).flatMap((c) => byTitle.get(titleKey(c.title)) ?? []),
+        placeOf: (note) => placeOf(inBooks, note),
+      }),
+    [layout, lists, byTitle, inBooks],
+  );
+  // A line under each card's title, for the first cards only: the runner asks about what is on screen.
+  const carded = useMemo(() => cardsIn(plan).slice(0, GISTED), [plan]);
   const gists = useGists(carded);
 
   const searched = query.trim() !== '';
   const hasNotes = counts.all > 0;
+  // The search and its filters stay while there is anything to find, or a workspace to leave: one chosen and empty
+  // is left from the filters, since its pills are not on the page any more.
+  const tools = notes.some((n) => !n.archivedAt) || spaces.list.length > 0;
   const found = lists.books.length + lists.notes.length;
 
-  const card = (note: Note, i: number, dense = false) => (
-    <NoteCard key={note.id} note={note} index={i} onOpen={onOpen} gist={gists[note.id]} place={placeOf(inBooks, note)} entries={journals.get(note.id)} dense={dense} />
+  // The cards' arrival is staggered down the page, whichever section each is in.
+  let order = 0;
+  // A card or a row names the notebook a page is in, but not under that notebook's own heading.
+  const card = (note: Note, dense = false, inBook = false) => (
+    <NoteCard key={note.id} note={note} index={order++} onOpen={onOpen} gist={gists[note.id]} place={inBook ? null : placeOf(inBooks, note)} entries={journals.get(note.id)} dense={dense} />
   );
-  // A row names the notebook a page is in, but not under that notebook's own heading (the Library).
-  const row = (note: Note, i: number, inBook = false) => (
-    <HomeRow key={note.id} note={note} index={i} onOpen={onOpen} bookName={inBook ? null : (placeOf(inBooks, note)?.title ?? null)} entries={journals.get(note.id)?.count} />
+  const row = (note: Note, inBook = false) => (
+    <HomeRow key={note.id} note={note} index={order++} onOpen={onOpen} bookName={inBook ? null : (placeOf(inBooks, note)?.title ?? null)} entries={journals.get(note.id)?.count} />
   );
-
-  const section = (id: string, heading: string, mark: React.ReactNode, count: number, body: React.ReactNode) => (
-    <section className={look.section} aria-labelledby={`home-${id}`} data-section={id}>
-      <h2 id={`home-${id}`} className={look.heading}>
-        {mark}
-        <span>{heading}</span>
-        <span className={look.count}>{count}</span>
-      </h2>
-      {body}
-    </section>
-  );
-
-  let body: React.ReactNode = null;
-  if (found) {
-    if (layout === 'list') {
-      body = (
-        <>
-          {lists.books.length ? section('books', 'Notebooks', <Notebook className={look.mark} />, lists.books.length, <ul className={look.rows}>{lists.books.map((n, i) => row(n, i))}</ul>) : null}
-          {lists.notes.length ? section('notes', 'Notes', <FileText size={15} className={look.mark} aria-hidden="true" />, lists.notes.length, <ul className={look.rows}>{lists.notes.map((n, i) => row(n, i))}</ul>) : null}
-        </>
-      );
-    } else if (layout === 'shelf') {
-      body = (
-        <>
-          {lists.books.length
-            ? section(
-                'books',
-                'Notebooks',
-                <Notebook className={look.mark} />,
-                lists.books.length,
-                <ol className={look.shelf} aria-label="Notebooks">
-                  {lists.books.map((book, i) => (
-                    <BookCover key={book.id} book={book} index={i} onOpen={onOpen} count={journals.get(book.id)?.count ?? chaptersOf(book.body).length} journal={journals.has(book.id)} />
-                  ))}
-                </ol>,
-              )
-            : null}
-          {lists.notes.length
-            ? section('notes', 'Notes', <FileText size={15} className={look.mark} aria-hidden="true" />, lists.notes.length, <ol className={look.dense}>{lists.notes.slice(0, CARDED).map((n, i) => card(n, i, true))}</ol>)
-            : null}
-        </>
-      );
-    } else if (layout === 'library') {
-      const shelves = library(lists, pagesOf, (n) => placeOf(inBooks, n));
-      body = (
-        <>
-          {shelves.books.map(({ book, pages }) => (
-            <section key={book.id} className={look.section} aria-label={noteTitle(book.body) || 'Untitled notebook'}>
-              <button type="button" className={look.bookHead} onClick={() => onOpen(book.id)}>
-                <Notebook className={look.mark} />
-                <span className={look.bookName}>{noteTitle(book.body) || 'Untitled notebook'}</span>
-                <span className={look.count}>{pages.length}</span>
-              </button>
-              {pages.length ? <ul className={look.rows}>{pages.map((page, i) => row(page, i, true))}</ul> : <p className={look.none}>{journals.has(book.id) ? 'No entries yet.' : 'No pages yet.'}</p>}
-            </section>
+  const drawn = (notes: Note[], draw: SectionDraw, inBook = false) => {
+    if (draw === 'rows') return <ul className={look.rows}>{notes.map((n) => row(n, inBook))}</ul>;
+    if (draw === 'covers')
+      return (
+        <ol className={look.shelf} aria-label="Notebooks">
+          {notes.map((book) => (
+            <BookCover key={book.id} book={book} index={order++} onOpen={onOpen} count={journals.get(book.id)?.count ?? chaptersOf(book.body).length} journal={journals.has(book.id)} />
           ))}
-          {shelves.loose.length
-            ? section('loose', shelves.books.length ? 'In no notebook' : 'Notes', <FileText size={15} className={look.mark} aria-hidden="true" />, shelves.loose.length, <ul className={look.rows}>{shelves.loose.map((n, i) => row(n, i))}</ul>)
-            : null}
-        </>
+        </ol>
       );
-    } else if (layout === 'timeline') {
-      body = timeline(lists).map(({ span, notes: inSpan }) => section(span, SPAN_WORDS[span], null, inSpan.length, <ul className={look.rows}>{inSpan.map((n, i) => row(n, i))}</ul>));
-    } else {
-      body = (
-        <>
-          {lists.books.length ? section('books', 'Notebooks', <Notebook className={look.mark} />, lists.books.length, <ol className={styles.cards}>{lists.books.map((n, i) => card(n, i))}</ol>) : null}
-          {lists.notes.length
-            ? section('notes', 'Notes', <FileText size={15} className={look.mark} aria-hidden="true" />, lists.notes.length, <ol className={styles.cards}>{lists.notes.slice(0, CARDED).map((n, i) => card(n, i + lists.books.length))}</ol>)
-            : null}
-        </>
-      );
-    }
-  }
-  // The Cards and Shelf layouts stop at a few dozen notes; the rest are a tap away on the grid of every note.
-  const cut = (layout === 'cards' || layout === 'shelf') && lists.notes.length > CARDED;
+    return <ol className={draw === 'dense' ? look.dense : styles.cards}>{notes.map((n) => card(n, draw === 'dense', inBook))}</ol>;
+  };
+
+  const sections = found
+    ? plan.sections.map((section) => {
+        if (isBookSection(section)) {
+          const name = noteTitle(section.book.body) || 'Untitled notebook';
+          const journal = journals.has(section.book.id);
+          return (
+            <section key={section.key} className={look.section} aria-label={name} data-section="book">
+              <button type="button" className={look.bookHead} onClick={() => onOpen(section.book.id)}>
+                <Notebook className={look.mark} />
+                <span className={look.bookName}>{name}</span>
+                <span className={look.count}>{section.count}</span>
+              </button>
+              {section.notes.length ? drawn(section.notes, section.draw, true) : null}
+              {section.more ? (
+                <button type="button" className={`app-word ${look.more}`} onClick={() => onOpen(section.book.id)}>
+                  {section.notes.length ? `${section.more} more in ${name}` : `Open ${name}`}
+                </button>
+              ) : section.count ? null : (
+                <p className={look.none}>{journal ? 'No entries yet.' : 'No pages yet.'}</p>
+              )}
+            </section>
+          );
+        }
+        const mark =
+          section.mark === 'notebook' ? (
+            <Notebook className={look.mark} />
+          ) : section.mark === 'note' ? (
+            <FileText size={15} className={look.mark} aria-hidden="true" />
+          ) : section.mark === 'recent' ? (
+            <Clock className={look.mark} />
+          ) : null;
+        return (
+          <section key={section.key} className={look.section} aria-labelledby={`home-${section.key}`} data-section={section.key}>
+            <h2 id={`home-${section.key}`} className={look.heading}>
+              {mark}
+              <span>{section.heading}</span>
+              {section.count === null ? null : <span className={look.count}>{section.count}</span>}
+            </h2>
+            {drawn(section.notes, section.draw)}
+          </section>
+        );
+      })
+    : null;
 
   return (
     <div className={styles.screen}>
@@ -192,56 +182,13 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
         {/* The column the layouts ask their width of, and inside it the layout: a container never answers its own queries. */}
         <div className={styles.page}>
           <div className={look.page} data-layout={layout}>
-            {/* The search, first: the page narrows as it is typed. Not on a blank page, which has nothing to search. */}
-            {hasNotes ? (
-              <div className={look.search} data-filled={searched || undefined}>
-                <Search size={17} strokeWidth={2.2} className={look.searchMark} aria-hidden="true" />
-                <input
-                  ref={field}
-                  type="search"
-                  className={look.field}
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search notebooks and notes"
-                  aria-label="Search notebooks and notes"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  autoCapitalize="off"
-                  spellCheck={false}
-                  enterKeyHint="search"
-                />
-                {searched ? (
-                  <button
-                    type="button"
-                    className={look.clear}
-                    aria-label="Clear the search"
-                    onClick={() => {
-                      setQuery('');
-                      field.current?.focus();
-                    }}
-                  >
-                    <X size={14} strokeWidth={2.4} aria-hidden="true" />
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
-            {hasNotes ? (
-              <div className={look.filters} role="radiogroup" aria-label="Show">
-                {HOME_FILTERS.map((each) => (
-                  <button key={each.id} type="button" role="radio" aria-checked={filter === each.id} className={look.filter} onClick={() => setFilter(each.id)}>
-                    {each.id === 'pinned' ? <Pin className={look.filterMark} /> : null}
-                    {each.label}
-                    <span className={look.filterCount}>{counts[each.id]}</span>
-                  </button>
-                ))}
-              </div>
-            ) : null}
-            <WorkspaceBar onManage={setManage} />
+            {/* The search first, the page narrowing as it is typed, and its filters beside it. Not on a blank page. */}
+            {tools ? <HomeFilters query={query} onQuery={setQuery} filter={filter} onFilter={setFilter} counts={counts} onManage={setManage} /> : null}
             <div className={look.notices}>
               <UpdateNotice updates={updates} />
               <VoiceModelStatus state={voiceModel} onRetry={onRetryVoiceModel} />
             </div>
-  
+
             {!loading && !hasNotes ? (
               <div className={styles.empty}>
                 <Ghost scene={spaces.current ? 'empty-workspace' : 'no-notes'} size="lead" className={styles.emptyArt} />
@@ -255,13 +202,13 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
                 {searched ? <p className={look.nothingHint}>Try fewer words, or look through All notes.</p> : null}
               </div>
             ) : null}
-  
-            {body}
-  
+
+            {sections}
+
             {hasNotes ? (
               <button type="button" className={`app-word ${styles.allNotes}`} onClick={() => onAllNotes()}>
                 <Grid className={styles.allNotesMark} />
-                {cut ? `${lists.notes.length - CARDED} more in All notes` : `All notes · ${counts.all}`}
+                {plan.cut ? `${plan.cut} more in All notes` : `All notes · ${counts.all}`}
               </button>
             ) : null}
           </div>

@@ -8403,3 +8403,43 @@ home/HomeScreen.test.tsx (the search, the filter, each layout, the workspace, th
 settings/AppearancePane.test.tsx (the five picks), editor/NoteScreen.test.tsx (the two tools, More's mic and Show).
 
 Cites: §132, §137, §138, §139, §142.
+
+## 148. The home page's mixes, and its filters beside the search (2026-09-30)
+
+Matt, after §147: "i like the card view and the timeline view add a few more variations that are mixes and matches of
+different views, move the all, notebooks, notes, pinned, and the workspaces into filters next to the search bar".
+
+**Four mixes.** Settings › Appearance › Home page lists Cards and Timeline first, the two Matt liked, then four layouts
+that cross them with each other and with the rest, then List, Shelf and Library as they were:
+
+- **Card timeline** (Cards × Timeline): the Timeline's spans, Today to Earlier, each with a card for every note in it.
+- **Spotlight** (Cards × Timeline): the four touched last as cards under Recent, then everything else as the
+  Timeline's rows. By when alone, not pinned first: the cards are where the person was, and a pinned note still has
+  its pin on its row, and the Pinned filter.
+- **Shelf and timeline** (Shelf × Timeline): the notebooks as covers along the shelf, then only the notes, by when.
+- **Notebook cards** (Library × Cards): each notebook's name, which opens it, over up to six of its pages as cards and
+  "N more in Trip" past them, then the notes in no notebook as cards.
+
+A page's card or row under its own notebook does not name the notebook again. The layouts are one pure function now,
+home/homeLayout.ts `homePlan`: a layout and the lists in, sections out, each a heading (a word, a span, or a notebook
+of its own) and the notes it draws as cards, rows or covers. The page draws whatever sections it is handed, so a new
+mix is a case in that function and a test. Every layout that draws cards stops at 48 of them, since each is the note
+drawn small in an editor of its own, and the foot counts the rest on its way to All notes; Notebook cards spends those
+48 notebook by notebook. Rows are cheap and never stop.
+
+**The filters beside the search.** The two rows of pills under the search went: All, Notebooks, Notes and Pinned,
+then the workspaces. The search has one button at its end (home/HomeFilters.tsx), a circle its height, and the kit's
+Popover opens from it with two groups of radios: Show, with how many of each, and Workspace (every workspace, then each
+in its colour), then New workspace and the chosen one's Edit, which open the workspace sheet as the pills did. Both
+groups stay open to be picked in one visit; a tap outside, Escape or the phone's back closes the panel. The arrow keys
+move a group's choice, round the ends. What is chosen is never hidden: the button is inked while anything is on, its
+name says what ("Filters: Notebooks, Kitchen"), and a chip under the search names each choice, in the workspace's colour
+for a workspace, with a cross that takes it off. With everything shown, nothing stands between the search and the
+notes. The search and its button stay on a workspace with nothing in it, so there is a way out of it, and go only on a
+page with no notes and no workspaces at all.
+
+**Tests.** home/homeLayout.test.ts (every layout's sections, the card budget, Spotlight's lead),
+home/HomeScreen.test.tsx (the panel, its counts, the arrow keys, the chips and their crosses, a workspace chosen, made
+and edited, an empty workspace left, each mix drawn), settings/AppearancePane.test.tsx (the nine picks).
+
+Cites: §137, §147.

@@ -56,8 +56,8 @@ export function AppearancePane() {
           <ThemeCards value={prefs.theme} onValueChange={(value) => setPreferences(themeChoice(value, prefs))} />
         </div>
       </PaneSection>
-      {/* The home page's five layouts (home/homeLayout.ts; docs/DESIGN.md §147), each a row with the sentence that draws it. */}
-      <PaneSection title="Home page" description="How the home page lays out your notebooks and notes. The search and the filter stay on top whichever you pick.">
+      {/* The home page's layouts (home/homeLayout.ts; docs/DESIGN.md §147, §148), each a row with the sentence that draws it. */}
+      <PaneSection title="Home page" description="How the home page lays out your notebooks and notes. The search and its filters stay on top whichever you pick.">
         {HOME_LAYOUTS.map((layout) => (
           <SettingRow
             key={layout.id}

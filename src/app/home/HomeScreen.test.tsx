@@ -3,16 +3,16 @@ import { act, type ComponentProps } from 'react';
 import { bookNoteBody } from '../book/book.ts';
 import type { Updates } from '../core/ota.ts';
 import { reloadPreferences, setPreferences, type HomeLayout } from '../core/preferences.ts';
-import { addWorkspace, chooseWorkspace, fileNote } from '../core/workspaces.ts';
+import { addWorkspace, chooseWorkspace, fileNote, reloadWorkspaces } from '../core/workspaces.ts';
 import type { Note } from '../core/store.ts';
 import { makeNote } from '../../test/notes.ts';
 import { button, rerender, show, typeInto, unmount } from '../../test/render.tsx';
 import { stubMatchMedia, stubResizeObserver } from '../../test/stubs.ts';
 
 /**
- * The home page as a person reads it (docs/DESIGN.md §147): the search and the filter over the notebooks and the notes,
- * the five layouts Settings offers, the empty page, the way to All notes, and the dock. What the page lists and in what
- * order is home/homeLayout.ts's, tested there.
+ * The home page as a person reads it (docs/DESIGN.md §147, §148): the search and the filters beside it, the chips that
+ * say what is on, the layouts Settings offers, the empty page, the way to All notes, and the dock. What the page lists
+ * and in what order is home/homeLayout.ts's, tested there.
  */
 
 // A card's small drawing is the editor (notes/NotePeek.tsx), which is nothing the page decides.
@@ -46,36 +46,61 @@ const page = (notes: Note[], over: Partial<Props> = {}) => (
 const headings = () => [...document.querySelectorAll('h2')].map((h) => h.querySelector('span')?.textContent);
 /** What a section lists, by each note's title: a card's, a row's or a cover's, never a notebook card's own list of pages. */
 const listed = (heading: string) => {
-  const section = [...document.querySelectorAll('section')].find((s) => s.querySelector('h2 span')?.textContent === heading);
+  const section = [...document.querySelectorAll('section')].find((s) => s.querySelector('h2 span')?.textContent === heading || s.getAttribute('aria-label') === heading);
   return [...(section?.querySelectorAll(':scope > :is(ol, ul) > li') ?? [])].map((li) => li.querySelector('[class*=title], [class*=Title]')?.textContent);
 };
-const filters = () => [...document.querySelectorAll('[aria-label="Show"] [role="radio"]')].map((r) => `${r.textContent}${r.getAttribute('aria-checked') === 'true' ? ' (on)' : ''}`);
 const search = (words: string) => typeInto(document.querySelector<HTMLInputElement>('input[type="search"]')!, words);
 const laidOut = (layout: HomeLayout) => act(() => setPreferences({ homeLayout: layout }));
 
+/** The filters' button beside the search, whatever it says is on. */
+const filterButton = () => document.querySelector<HTMLButtonElement>('button[aria-haspopup="dialog"][aria-label^="Filters"]');
+const openFilters = () => act(() => filterButton()!.click());
+const panel = () => document.querySelector<HTMLElement>('[role="dialog"][aria-label="Filters"]');
+/** A group of the panel's choices by its heading, each as its words and "(on)" for the chosen. */
+const choices = (heading: string) => {
+  const group = [...(panel()?.querySelectorAll('[role="radiogroup"]') ?? [])].find((g) => document.getElementById(g.getAttribute('aria-labelledby') ?? '')?.textContent === heading);
+  return [...(group?.querySelectorAll<HTMLButtonElement>('[role="radio"]') ?? [])];
+};
+const said = (radios: HTMLButtonElement[]) => radios.map((r) => `${r.textContent}${r.getAttribute('aria-checked') === 'true' ? ' (on)' : ''}`);
+const choose = (heading: string, words: string) => act(() => choices(heading).find((r) => r.textContent?.startsWith(words))!.click());
+/** The chips under the search, one for each filter on. */
+const chips = () => [...document.querySelectorAll('[aria-label="Filters on"] button')].map((b) => b.textContent);
+
+const now = Date.now();
+const day = 24 * 60 * 60 * 1000;
 const trip = makeNote('b', bookNoteBody('Trip', ['Packing', 'Route']), { updatedAt: 5 });
 const packing = makeNote('p', '# Packing\n\n- [ ] Tent and stove', { starred: true, updatedAt: 3 });
 const route = makeNote('r', '# Route\n\nNorth along the coast road.', { updatedAt: 4 });
 const loose = makeNote('l', '# Shopping\n\nMilk, bread.', { updatedAt: 2 });
 const shelf = [trip, packing, route, loose];
+/** Notes touched at known moments: two today, one yesterday, one three months ago. */
+const dated = [
+  makeNote('t1', '# Fresh', { updatedAt: now - 60_000 }),
+  makeNote('t2', '# Morning', { updatedAt: now - 120_000 }),
+  makeNote('y', '# Last night', { updatedAt: now - day - 60_000 }),
+  makeNote('o', '# Stale', { updatedAt: now - 90 * day }),
+];
 
 beforeEach(() => {
   localStorage.clear();
   reloadPreferences();
+  reloadWorkspaces();
 });
 afterEach(() => unmount());
 
 describe('the home page', () => {
-  it('is the search, the filter, and the notebooks then the notes, pinned first, as cards', () => {
+  it('is the search with its filters beside it, and the notebooks then the notes, pinned first, as cards', () => {
     show(page(shelf));
     expect(document.querySelector('input[type="search"]')?.getAttribute('placeholder')).toBe('Search notebooks and notes');
-    expect(filters()).toEqual(['All4 (on)', 'Notebooks1', 'Notes3', 'Pinned1']);
+    expect(filterButton()?.getAttribute('aria-label')).toBe('Filters');
+    // No rows of pills: the filters and the workspaces are in the button's panel, and nothing is on.
+    expect(document.querySelector('[role="group"][aria-label="Workspaces"]')).toBeNull();
+    expect(chips()).toEqual([]);
     expect(headings()).toEqual(['Notebooks', 'Notes']);
     expect(listed('Notebooks')).toEqual(['Trip']);
     expect(listed('Notes')).toEqual(['Packing', 'Route', 'Shopping']);
-    // No digest, no To do, no shelf of tapes.
+    expect(document.querySelector('[title="Page 1 of Trip"]')?.textContent).toBe('Trip');
     expect(document.querySelector('button[aria-label^="Tick off "]')).toBeNull();
-    expect(document.querySelector('ol[aria-label="Tapes"]')).toBeNull();
   });
 
   it('narrows to what the search finds, says when it finds nothing, and clears', () => {
@@ -89,18 +114,91 @@ describe('the home page', () => {
     act(() => button('Clear the search').click());
     expect(headings()).toEqual(['Notebooks', 'Notes']);
   });
+});
 
-  it('shows only notebooks, only notes, or only what is pinned', () => {
+describe('the filters beside the search', () => {
+  it('offer what to show, with how many of each, and keep the choice under the search as a chip until its cross', () => {
     show(page(shelf));
-    act(() => button('Notebooks1').click());
+    expect(panel()).toBeNull();
+    openFilters();
+    expect(said(choices('Show'))).toEqual(['All4 (on)', 'Notebooks1', 'Notes3', 'Pinned1']);
+    choose('Show', 'Notebooks');
     expect(headings()).toEqual(['Notebooks']);
-    act(() => button('Notes3').click());
-    expect(headings()).toEqual(['Notes']);
-    act(() => button('Pinned1').click());
+    expect(said(choices('Show'))).toContain('Notebooks1 (on)');
+    // The button is inked and says what is on; a chip says it under the search.
+    expect(filterButton()?.getAttribute('aria-label')).toBe('Filters: Notebooks');
+    expect(filterButton()?.hasAttribute('data-on')).toBe(true);
+    expect(chips()).toEqual(['Notebooks']);
+    choose('Show', 'Pinned');
     expect(listed('Notes')).toEqual(['Packing']);
-    expect(filters()).toContain('Pinned1 (on)');
+    expect(chips()).toEqual(['Pinned']);
+    act(() => button('Pinned: show everything').click());
+    expect(chips()).toEqual([]);
+    expect(headings()).toEqual(['Notebooks', 'Notes']);
+    expect(filterButton()?.getAttribute('aria-label')).toBe('Filters');
   });
 
+  it('move the choice with the arrow keys, round the ends', () => {
+    show(page(shelf));
+    openFilters();
+    const keyed = (key: string) => act(() => choices('Show').find((r) => r.getAttribute('aria-checked') === 'true')!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })));
+    keyed('ArrowDown');
+    expect(said(choices('Show'))[1]).toBe('Notebooks1 (on)');
+    expect(document.activeElement?.textContent).toBe('Notebooks1');
+    keyed('ArrowUp');
+    keyed('ArrowUp');
+    expect(said(choices('Show'))[3]).toBe('Pinned1 (on)');
+  });
+
+  it('choose the workspace, name it in a chip in its colour, and take it off from the chip', () => {
+    const kitchen = addWorkspace('Kitchen', 'moss')!;
+    addWorkspace('Work');
+    fileNote('l', kitchen.id);
+    show(page(shelf));
+    openFilters();
+    expect(said(choices('Workspace'))).toEqual(['Every workspace (on)', 'Kitchen', 'Work']);
+    choose('Workspace', 'Kitchen');
+    expect(listed('Notes')).toEqual(['Shopping']);
+    expect(said(choices('Show'))[0]).toBe('All1 (on)');
+    expect(chips()).toEqual(['Kitchen']);
+    expect(document.querySelector('[aria-label="Filters on"] [data-hue="moss"]')).not.toBeNull();
+    expect(filterButton()?.getAttribute('aria-label')).toBe('Filters: Kitchen');
+    act(() => button('Kitchen: every workspace').click());
+    expect(chips()).toEqual([]);
+    expect(listed('Notes')).toEqual(['Packing', 'Route', 'Shopping']);
+  });
+
+  it('make a workspace, and change the chosen one, from the panel', () => {
+    show(page(shelf));
+    openFilters();
+    // None yet: a line on what one is, and the way to make one.
+    expect(choices('Workspace')).toEqual([]);
+    expect(panel()?.textContent).toContain('Notes filed in a workspace show together.');
+    act(() => button('New workspace').click());
+    // The panel closes for the sheet (its fade out is the kit's, which jsdom never finishes).
+    expect(filterButton()?.getAttribute('aria-expanded')).toBe('false');
+    expect(document.querySelector('[role="dialog"][aria-label="New workspace"]')).not.toBeNull();
+    unmount();
+    const kitchen = addWorkspace('Kitchen')!;
+    chooseWorkspace(kitchen.id);
+    show(page(shelf));
+    openFilters();
+    act(() => button('Edit Kitchen').click());
+    expect(document.querySelector('[role="dialog"][aria-label="Kitchen"]')).not.toBeNull();
+  });
+
+  it('stay on a workspace with nothing in it, so it can be left', () => {
+    const kitchen = addWorkspace('Kitchen')!;
+    chooseWorkspace(kitchen.id);
+    show(page(shelf));
+    expect(document.body.textContent).toContain('Nothing in Kitchen yet.');
+    expect(chips()).toEqual(['Kitchen']);
+    act(() => button('Kitchen: every workspace').click());
+    expect(headings()).toEqual(['Notebooks', 'Notes']);
+  });
+});
+
+describe('the layouts', () => {
   it('draws the List as one row each, with how a note starts and the notebook it is in', () => {
     show(page(shelf));
     laidOut('list');
@@ -126,22 +224,62 @@ describe('the home page', () => {
     const onOpen = vi.fn();
     show(page(shelf, { onOpen }));
     laidOut('library');
-    const tripSection = document.querySelector('section[aria-label="Trip"]')!;
-    expect([...tripSection.querySelectorAll('li')].map((li) => li.querySelector('[class*=rowTitle]')?.textContent)).toEqual(['Packing', 'Route']);
+    expect(listed('Trip')).toEqual(['Packing', 'Route']);
+    // Under its own notebook a page does not name it again.
+    expect(document.querySelector('section[aria-label="Trip"] li')?.textContent).not.toContain('Trip');
     expect(headings()).toEqual(['In no notebook']);
     expect(listed('In no notebook')).toEqual(['Shopping']);
-    act(() => tripSection.querySelector<HTMLButtonElement>('button')!.click());
+    act(() => document.querySelector<HTMLButtonElement>('section[aria-label="Trip"] button')!.click());
     expect(onOpen).toHaveBeenLastCalledWith('b');
   });
 
-  it('draws the Timeline by when each was last touched', () => {
-    const now = Date.now();
-    const day = 24 * 60 * 60 * 1000;
-    show(page([makeNote('t', '# Fresh', { updatedAt: now }), makeNote('o', '# Stale', { updatedAt: now - 90 * day })]));
+  it('draws the Timeline by when each was last touched, as rows', () => {
+    show(page(dated));
     laidOut('timeline');
-    expect(headings()).toEqual(['Today', 'Earlier']);
-    expect(listed('Today')).toEqual(['Fresh']);
-    expect(listed('Earlier')).toEqual(['Stale']);
+    expect(headings()).toEqual(['Today', 'Yesterday', 'Earlier']);
+    expect(listed('Today')).toEqual(['Fresh', 'Morning']);
+    expect(document.querySelector('section[data-section="today"] ul')).not.toBeNull();
+  });
+
+  it('draws the Card timeline as the Timeline’s spans with a card for each', () => {
+    show(page(dated));
+    laidOut('card-timeline');
+    expect(headings()).toEqual(['Today', 'Yesterday', 'Earlier']);
+    expect(listed('Today')).toEqual(['Fresh', 'Morning']);
+    expect(document.querySelector('section[data-section="today"] ul')).toBeNull();
+    expect(document.querySelectorAll('section[data-section="today"] ol > li')).toHaveLength(2);
+  });
+
+  it('draws Spotlight as the four touched last as cards, then the rest by when, as rows', () => {
+    show(page([...dated, makeNote('m', '# Last month', { updatedAt: now - 20 * day }), makeNote('a', '# Ancient', { updatedAt: now - 400 * day })]));
+    laidOut('spotlight');
+    expect(headings()).toEqual(['Recent', 'Earlier']);
+    expect(listed('Recent')).toEqual(['Fresh', 'Morning', 'Last night', 'Last month']);
+    expect(listed('Earlier')).toEqual(['Stale', 'Ancient']);
+    // "Recent" has no count: it is always the four.
+    expect(document.querySelector('#home-recent')?.textContent).toBe('Recent');
+  });
+
+  it('draws the Shelf and timeline as the notebooks’ covers, then the notes by when', () => {
+    show(page([makeNote('b', bookNoteBody('Trip', []), { updatedAt: now }), ...dated]));
+    laidOut('shelf-timeline');
+    expect(headings()).toEqual(['Notebooks', 'Today', 'Yesterday', 'Earlier']);
+    expect([...document.querySelectorAll('ol[aria-label="Notebooks"] button')].map((b) => b.textContent?.includes('Trip'))).toEqual([true]);
+    expect(listed('Today')).toEqual(['Fresh', 'Morning']);
+  });
+
+  it('draws Notebook cards as each notebook with a few of its pages as cards, the rest a tap away in the notebook', () => {
+    const titles = Array.from({ length: 8 }, (_, i) => `Day ${i + 1}`);
+    const book = makeNote('big', bookNoteBody('Road trip', titles), { updatedAt: 9 });
+    const onOpen = vi.fn();
+    show(page([book, ...titles.map((title, i) => makeNote(`d${i}`, `# ${title}`, { updatedAt: i + 1 })), loose], { onOpen }));
+    laidOut('notebook-cards');
+    expect(listed('Road trip')).toEqual(titles.slice(0, 6));
+    // Under its own notebook a page's card does not name it again; on the Cards layout it does.
+    expect(document.querySelector('section[aria-label="Road trip"] [title^="Page "]')).toBeNull();
+    expect(listed('In no notebook')).toEqual(['Shopping']);
+    act(() => button('2 more in Road trip').click());
+    expect(onOpen).toHaveBeenLastCalledWith('big');
   });
 
   it('counts a journal’s entries on its row, whichever workspace each was made in', () => {
@@ -159,20 +297,27 @@ describe('the home page', () => {
     expect(diary.textContent).toContain('2 entries');
   });
 
-  it('lists only the chosen workspace’s notes', () => {
-    const kitchen = addWorkspace('Kitchen')!;
-    fileNote('in', kitchen.id);
-    chooseWorkspace(kitchen.id);
-    show(page([makeNote('in', '# Kitchen list', { updatedAt: 2 }), makeNote('out', '# Elsewhere', { updatedAt: 3 })]));
-    expect(listed('Notes')).toEqual(['Kitchen list']);
-    expect(filters()[0]).toBe('All1 (on)');
+  it('draws forty-eight cards at most, and sends the rest to All notes', () => {
+    const many = Array.from({ length: 50 }, (_, i) => makeNote(`n${i}`, `# Note ${i}`, { updatedAt: now - i * 1000 }));
+    show(page(many));
+    expect(listed('Notes')).toHaveLength(48);
+    expect(button('2 more in All notes')).toBeTruthy();
+    laidOut('card-timeline');
+    expect(listed('Today')).toHaveLength(48);
+    expect(button('2 more in All notes')).toBeTruthy();
+    // Rows are cheap: the Timeline draws every one.
+    laidOut('timeline');
+    expect(listed('Today')).toHaveLength(50);
+    expect(button('All notes · 50')).toBeTruthy();
   });
+});
 
+describe('the rest of the page', () => {
   it('is a blank page with nothing written, and says which workspace is empty when one is chosen', () => {
     show(page([]));
     expect(document.body.textContent).toContain('A blank page.');
     expect(document.body.textContent).toContain('Write it, or tap Speak and say it.');
-    expect(document.querySelector('[aria-label="Show"]')).toBeNull();
+    expect(document.querySelector('input[type="search"]')).toBeNull();
     unmount();
     const kitchen = addWorkspace('Kitchen')!;
     chooseWorkspace(kitchen.id);
@@ -193,12 +338,6 @@ describe('the home page', () => {
     expect(onOpen).toHaveBeenLastCalledWith('a');
     act(() => button('All notes · 1').click());
     expect(onAllNotes).toHaveBeenCalledTimes(1);
-  });
-
-  it('draws forty-eight cards at most, and sends the rest to All notes', () => {
-    show(page(Array.from({ length: 50 }, (_, i) => makeNote(`n${i}`, `# Note ${i}`, { updatedAt: i + 1 }))));
-    expect(listed('Notes')).toHaveLength(48);
-    expect(button('2 more in All notes')).toBeTruthy();
   });
 
   it('keeps writing, speaking and Settings in its dock, and Search only once the palette can open', () => {

@@ -11,7 +11,7 @@ import type { SettingsFindable } from './settingsSearch.ts';
 export function findable({ wide, haptics }: { wide: boolean; haptics: boolean }): SettingsFindable[] {
   return [
     { name: 'Page', words: 'theme light dark system dawn boreal ember' },
-    { name: 'Home page', words: 'dashboard layout home cards list shelf library timeline grid' },
+    { name: 'Home page', words: 'dashboard layout home cards list shelf library timeline spotlight notebook grid' },
     { name: 'Accent', words: 'colour color highlight' },
     { name: 'Type', words: 'text font' },
     { name: 'Note font', words: 'font typeface body note editor maple fira mono monospace code coding ligatures inter noto plex' },

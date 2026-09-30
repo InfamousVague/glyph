@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { bookNoteBody } from '../book/book.ts';
 import { makeNote } from '../../test/notes.ts';
-import { firstLine, HOME_LAYOUTS, homeCounts, homeLists, kindOf, library, spanOf, timeline } from './homeLayout.ts';
+import { HOME_LAYOUT_IDS } from '../core/preferences.ts';
+import type { Note } from '../core/store.ts';
+import { cardsIn, firstLine, HOME_LAYOUTS, homeCounts, homeLists, homePlan, isBookSection, kindOf, spanOf, spotlight, timeline, type HomePlan, type PlanWays } from './homeLayout.ts';
 
-/** The home page's rules (home/homeLayout.ts; docs/DESIGN.md §147): what it lists, in what order, and how it groups them. */
+/** The home page's rules (home/homeLayout.ts; docs/DESIGN.md §147, §148): what it lists, in what order, and how each layout groups them. */
 
 const trip = makeNote('b', bookNoteBody('Trip', ['Packing']), { updatedAt: 5 });
 const packing = makeNote('p', '# Packing\n\n- [ ] Tent', { starred: true, updatedAt: 1 });
@@ -14,8 +16,9 @@ const all = [packing, trip, route, board, gone];
 const ids = (notes: { id: string }[]) => notes.map((n) => n.id);
 
 describe('what the home page lists', () => {
-  it('offers five layouts, Cards first', () => {
-    expect(HOME_LAYOUTS.map((l) => l.id)).toEqual(['cards', 'list', 'shelf', 'library', 'timeline']);
+  it('offers every layout the preference knows, Cards and Timeline first, then their mixes, then the rest', () => {
+    expect(HOME_LAYOUTS.map((l) => l.id)).toEqual(['cards', 'timeline', 'card-timeline', 'spotlight', 'shelf-timeline', 'notebook-cards', 'list', 'shelf', 'library']);
+    expect([...HOME_LAYOUTS.map((l) => l.id)].sort()).toEqual([...HOME_LAYOUT_IDS].sort());
   });
 
   it('knows a notebook, a canvas and a note of words', () => {
@@ -71,15 +74,73 @@ describe('the timeline', () => {
   });
 });
 
-describe('the library', () => {
-  it('opens each notebook over its pages, and lists only the notes in no notebook after them', () => {
-    const lists = homeLists(all, '', 'all');
-    const shelves = library(
-      lists,
-      (book) => (book.id === 'b' ? [packing] : []),
-      (note) => (note.id === 'p' ? { book: trip, title: 'Trip', chapters: [], at: 0, journal: false } : null),
-    );
-    expect(shelves.books.map(({ book, pages }) => [book.id, ids(pages)])).toEqual([['b', ['p']]]);
-    expect(ids(shelves.loose)).toEqual(['r', 'c']);
+describe('each layout’s sections', () => {
+  const now = new Date(2026, 8, 30, 15, 0).getTime();
+  const at = (days: number) => now - days * 24 * 60 * 60 * 1000 - 60_000;
+  const book = makeNote('b', bookNoteBody('Trip', ['Packing', 'Route']), { updatedAt: at(0) });
+  const pages = [makeNote('p', '# Packing', { updatedAt: at(1) }), makeNote('r', '# Route', { updatedAt: at(40) })];
+  const shop = makeNote('s', '# Shopping', { updatedAt: at(0) - 60_000 });
+  const lists = homeLists([book, ...pages, shop], '', 'all');
+  const ways: PlanWays = {
+    pagesOf: (b) => (b.id === 'b' ? pages : []),
+    placeOf: (n) => (n.id === 'p' || n.id === 'r' ? { book, title: 'Trip', chapters: [], at: 0, journal: false } : null),
+    now,
+  };
+  /** A plan as its sections' keys, each with how it draws and what, by id. */
+  const shape = (plan: HomePlan) => plan.sections.map((s) => `${s.key} ${s.draw}: ${s.notes.map((n: Note) => n.id).join(' ')}`);
+
+  it('lays out Cards and List as the notebooks then the notes, and the Shelf with covers', () => {
+    expect(shape(homePlan('cards', lists, ways))).toEqual(['books cards: b', 'notes cards: s p r']);
+    expect(shape(homePlan('list', lists, ways))).toEqual(['books rows: b', 'notes rows: s p r']);
+    expect(shape(homePlan('shelf', lists, ways))).toEqual(['books covers: b', 'notes dense: s p r']);
+  });
+
+  it('lays out the Timeline and the Card timeline by when, notebooks and notes together', () => {
+    expect(shape(homePlan('timeline', lists, ways))).toEqual(['today rows: b s', 'yesterday rows: p', 'earlier rows: r']);
+    expect(shape(homePlan('card-timeline', lists, ways))).toEqual(['today cards: b s', 'yesterday cards: p', 'earlier cards: r']);
+  });
+
+  it('leads Spotlight with the four touched last, by when alone, and the rest by when', () => {
+    const plan = homePlan('spotlight', homeLists([book, ...pages, shop, makeNote('x', '# Extra', { updatedAt: at(90) })], '', 'all'), ways);
+    expect(shape(plan)).toEqual(['recent cards: b s p r', 'earlier rows: x']);
+    expect(plan.sections[0]).toMatchObject({ heading: 'Recent', mark: 'recent', count: null });
+    // A pin does not put a note in the lead: the lead is where the person was.
+    const pinned = makeNote('old', '# Pinned long ago', { starred: true, updatedAt: at(300) });
+    expect(spotlight(homeLists([pinned, book, ...pages, shop], '', 'all'), 4, now).lead.map((n) => n.id)).toEqual(['b', 's', 'p', 'r']);
+  });
+
+  it('puts the Shelf and timeline’s notebooks on the shelf and only the notes on the timeline', () => {
+    expect(shape(homePlan('shelf-timeline', lists, ways))).toEqual(['books covers: b', 'today rows: s', 'yesterday rows: p', 'earlier rows: r']);
+  });
+
+  it('opens each notebook over its pages in the Library, as rows, and as cards in Notebook cards, then the notes in no notebook', () => {
+    const library = homePlan('library', lists, ways);
+    expect(shape(library)).toEqual(['book-b rows: p r', 'loose rows: s']);
+    expect(library.sections.map((s) => isBookSection(s))).toEqual([true, false]);
+    expect(library.sections[1]).toMatchObject({ heading: 'In no notebook' });
+    expect(shape(homePlan('notebook-cards', lists, ways))).toEqual(['book-b cards: p r', 'loose cards: s']);
+    // With no notebook to be in, the loose notes are just the notes.
+    expect(homePlan('library', homeLists([shop], '', 'all'), ways).sections[0]).toMatchObject({ heading: 'Notes' });
+  });
+
+  it('stops the card layouts at the most they may draw, and counts what it left for All notes', () => {
+    const tight = { ...ways, most: 2 };
+    expect(homePlan('cards', lists, tight)).toMatchObject({ cut: 1 });
+    expect(shape(homePlan('card-timeline', lists, tight))).toEqual(['today cards: b s']);
+    expect(homePlan('card-timeline', lists, tight).cut).toBe(2);
+    // Notebook cards spends the budget notebook by notebook, and says how many pages it did not draw.
+    const cards = homePlan('notebook-cards', lists, { ...ways, most: 1 });
+    expect(shape(cards)).toEqual(['book-b cards: p']);
+    expect(cards.sections[0]).toMatchObject({ count: 2, more: 1 });
+    expect(cards.cut).toBe(1);
+    // Rows are cheap, and never stop.
+    expect(homePlan('timeline', lists, tight).cut).toBe(0);
+  });
+
+  it('draws no empty section, and names every card in the page’s order', () => {
+    const books = homeLists([book, ...pages, shop], '', 'books');
+    expect(shape(homePlan('cards', books, ways))).toEqual(['books cards: b']);
+    expect(cardsIn(homePlan('shelf', lists, ways)).map((n) => n.id)).toEqual(['s', 'p', 'r']);
+    expect(cardsIn(homePlan('spotlight', lists, ways)).map((n) => n.id)).toEqual(['b', 's', 'p', 'r']);
   });
 });

@@ -81,12 +81,15 @@ export function isSidebarStyle(style: unknown): style is SidebarStyle {
 
 /**
  * How the home page lays out the notebooks and notes (home/homeLayout.ts `HOME_LAYOUTS`; Matt: "give me 5 different
- * dashboard layout styles we can chose from in the settings").
+ * dashboard layout styles we can chose from in the settings"). The four with two words are the mixes Matt asked for
+ * after (docs/DESIGN.md §148): "i like the card view and the timeline view add a few more variations that are mixes and
+ * matches of different views".
  */
-export type HomeLayout = 'cards' | 'list' | 'shelf' | 'library' | 'timeline';
+export const HOME_LAYOUT_IDS = ['cards', 'timeline', 'card-timeline', 'spotlight', 'shelf-timeline', 'notebook-cards', 'list', 'shelf', 'library'] as const;
+export type HomeLayout = (typeof HOME_LAYOUT_IDS)[number];
 
 export function isHomeLayout(layout: unknown): layout is HomeLayout {
-  return layout === 'cards' || layout === 'list' || layout === 'shelf' || layout === 'library' || layout === 'timeline';
+  return (HOME_LAYOUT_IDS as readonly unknown[]).includes(layout);
 }
 
 function isThemePreset(theme: unknown): theme is ThemePreset {
