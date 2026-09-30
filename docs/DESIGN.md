@@ -8507,3 +8507,31 @@ every filter a note is in), home/HomeScreen.test.tsx (the pinned lines, their no
 recording's cassette and length in the Timeline; the one being recorded).
 
 Cites: §147, §148, §149.
+
+## 151. The home page's notes swipe: pin, archive, and further to delete (2026-09-30)
+
+Matt: "also add swiping left or right on notes (with haptics and a detent for pulling further to delete instead of
+archive". The notes list had exactly this (§28, §31) until it went in 1.5.0, and its row came back whole
+(notes/SwipeRow.tsx, notes/swipe.ts) for every note the home page draws: the rows, Spotlight's pinned lines, and the
+cards, in every layout. Not the shelf's covers, which scroll sideways.
+
+- **Right**, past one detent at 22% of the width: Pin, or Unpin on a pinned note.
+- **Left**, past the first detent: Archive. Pulled on past a second at 55%: Delete instead, in the one red the app has.
+
+Each detent is felt as well as shown. Light ticks come faster as a drag closes on it (core/detentFeel.ts), a firm click
+says it has arrived - heavier for Delete - and the lightest tick says it was backed out of, so a thumb finds Archive
+and then Delete without looking, and backs off either. Behind the note, a ring round the action's picture fills as the
+detent nears, and the gap takes the action's colour once it is armed, since a fling can cross two detents inside one
+pulse of the motor. Let go short of the first and the note springs home; the click a swipe ends on never opens it.
+Archive and Delete slide the note away first, then act through App's own note actions (notes/useNoteActions.ts), with
+the Undo the editor's Delete and Archive give, and the note's tab closed with it. A drag that starts mostly vertical is
+the page's scroll, and one that starts in the phone's back-gesture edge is the system's.
+
+A card's frame is cut to its corners; a line one row tall shows the picture and its word side by side, since one
+above the other is taller than the line.
+
+**Tests.** notes/swipe.test.ts (a note's swipes, pinned and not; the detents), home/HomeScreen.test.tsx (a row pinned,
+archived, and deleted pulled further, with the motor's clicks at each detent, heavier for Delete, and its ticks on the
+way; springing back and never opening; the cards and the pinned lines; no swipe without the page's actions).
+
+Cites: §28, §31, §147, §150.

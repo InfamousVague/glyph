@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { LoaderCircle } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
 import { geoTagOf } from '../core/geotag.ts';
@@ -12,6 +12,8 @@ import { shortenUrls } from '../core/shortUrl.ts';
 import { ArchiveBox, Pin } from '../art/Icons.tsx';
 import { BookPlaceMark } from './BookPlaceMark.tsx';
 import { NotePeek } from './NotePeek.tsx';
+import { SwipeRow } from './SwipeRow.tsx';
+import type { SwipeAction } from './swipe.ts';
 import { when } from './when.ts';
 import styles from './NoteCard.module.css';
 
@@ -49,9 +51,11 @@ export interface NoteCardProps {
   entries?: JournalCard;
   /** A step smaller, with the pin and the archive said on the card itself. */
   dense?: boolean;
+  /** The card swipes (notes/SwipeRow.tsx): its actions each way and what a swipe past a detent does (docs/DESIGN.md §151). */
+  swipe?: { start: SwipeAction[]; end: SwipeAction[]; onAction: (id: string) => void };
 }
 
-export function NoteCard({ note, index, onOpen, gist, place, entries, dense = false }: NoteCardProps) {
+export function NoteCard({ note, index, onOpen, gist, place, entries, dense = false, swipe }: NoteCardProps) {
   const title = noteTitle(note.body);
   const book = isBookBody(note.body);
   const journal = book && isJournalBody(note.body);
@@ -63,64 +67,76 @@ export function NoteCard({ note, index, onOpen, gist, place, entries, dense = fa
   const where = geoTagOf(note.body)?.place ?? null;
   return (
     <li key={note.id} className={styles.item} data-dense={dense || undefined} style={{ '--i': Math.min(index, 8) } as CSSProperties}>
-      <button type="button" className={styles.card} onClick={() => onOpen(note.id)}>
-        <span className={styles.title} data-untitled={title ? undefined : ''}>
-          {title ? shortenUrls(title) : journal ? 'Untitled journal' : book ? 'Untitled notebook' : 'Untitled'}
-        </span>
-        {/* The AI at work on this note's line (format/gist.ts), or changes of its own still marked in the note (ai/marks.ts): said in the card's corner. */}
-        {activeGist() === note.id ? (
-          <LoaderCircle size={14} strokeWidth={2.2} className={styles.working} aria-label="The AI is writing this note's line" />
-        ) : hasMarks(note.id) ? (
-          <span className={styles.dot} role="img" aria-label="Changes from the AI are marked in this note" />
-        ) : null}
-        {dense && (note.starred || note.archivedAt) ? (
-          <span className={styles.flags}>
-            {note.starred ? (
-              <span className={styles.flag} role="img" aria-label="Pinned">
-                <Pin />
-              </span>
-            ) : null}
-            {note.archivedAt ? (
-              <span className={styles.flag} role="img" aria-label="Archived">
-                <ArchiveBox />
-              </span>
-            ) : null}
+      <Swiped swipe={swipe}>
+        <button type="button" className={styles.card} onClick={() => onOpen(note.id)}>
+          <span className={styles.title} data-untitled={title ? undefined : ''}>
+            {title ? shortenUrls(title) : journal ? 'Untitled journal' : book ? 'Untitled notebook' : 'Untitled'}
           </span>
-        ) : null}
-        {book ? (
-          <>
-            <span className={styles.bookMeta}>{count === 0 ? `No ${part[1]} yet` : count === 1 ? `1 ${part[0]}` : `${count} ${part[1]}`}</span>
-            {listed.length ? (
-              <ol className={styles.bookPages} aria-hidden="true">
-                {listed.slice(0, 4).map((c, n) => (
-                  <li key={`${c.line}-${c.title}`} data-depth={c.depth}>
-                    {journal ? null : <span className={styles.bookPageNumber}>{n + 1}</span>}
-                    {c.title}
-                  </li>
-                ))}
-                {count > 4 ? <li className={styles.bookMore}>and {count - 4} more</li> : null}
-              </ol>
-            ) : null}
-          </>
-        ) : (
-          <>
-            {/* A page of a book says which (docs/BOOKS.md). */}
-            {place ? <BookPlaceMark place={place} /> : null}
-            {/* What the note is about, when the phone has written it; the preview under it is the note itself. */}
-            {gist ? <span className={styles.gist}>{gist}</span> : null}
-            <NotePeek body={note.body} className={styles.peek} />
-          </>
-        )}
-        <span className={styles.when}>
-          {hasTape(note) ? (
-            <>
-              <span className={styles.tapeLength}>{counter(note.recordingMs ?? 0)}</span> ·{' '}
-            </>
+          {/* The AI at work on this note's line (format/gist.ts), or changes of its own still marked in the note (ai/marks.ts): said in the card's corner. */}
+          {activeGist() === note.id ? (
+            <LoaderCircle size={14} strokeWidth={2.2} className={styles.working} aria-label="The AI is writing this note's line" />
+          ) : hasMarks(note.id) ? (
+            <span className={styles.dot} role="img" aria-label="Changes from the AI are marked in this note" />
           ) : null}
-          {when(note.updatedAt)}
-          {where ? ` · ${where}` : null}
-        </span>
-      </button>
+          {dense && (note.starred || note.archivedAt) ? (
+            <span className={styles.flags}>
+              {note.starred ? (
+                <span className={styles.flag} role="img" aria-label="Pinned">
+                  <Pin />
+                </span>
+              ) : null}
+              {note.archivedAt ? (
+                <span className={styles.flag} role="img" aria-label="Archived">
+                  <ArchiveBox />
+                </span>
+              ) : null}
+            </span>
+          ) : null}
+          {book ? (
+            <>
+              <span className={styles.bookMeta}>{count === 0 ? `No ${part[1]} yet` : count === 1 ? `1 ${part[0]}` : `${count} ${part[1]}`}</span>
+              {listed.length ? (
+                <ol className={styles.bookPages} aria-hidden="true">
+                  {listed.slice(0, 4).map((c, n) => (
+                    <li key={`${c.line}-${c.title}`} data-depth={c.depth}>
+                      {journal ? null : <span className={styles.bookPageNumber}>{n + 1}</span>}
+                      {c.title}
+                    </li>
+                  ))}
+                  {count > 4 ? <li className={styles.bookMore}>and {count - 4} more</li> : null}
+                </ol>
+              ) : null}
+            </>
+          ) : (
+            <>
+              {/* A page of a book says which (docs/BOOKS.md). */}
+              {place ? <BookPlaceMark place={place} /> : null}
+              {/* What the note is about, when the phone has written it; the preview under it is the note itself. */}
+              {gist ? <span className={styles.gist}>{gist}</span> : null}
+              <NotePeek body={note.body} className={styles.peek} />
+            </>
+          )}
+          <span className={styles.when}>
+            {hasTape(note) ? (
+              <>
+                <span className={styles.tapeLength}>{counter(note.recordingMs ?? 0)}</span> ·{' '}
+              </>
+            ) : null}
+            {when(note.updatedAt)}
+            {where ? ` · ${where}` : null}
+          </span>
+        </button>
+      </Swiped>
     </li>
+  );
+}
+
+/** The card in a swipe's frame, cut to the card's corners, where it swipes; the card alone where it does not. */
+function Swiped({ swipe, children }: { swipe: NoteCardProps['swipe']; children: ReactNode }) {
+  if (!swipe) return children;
+  return (
+    <SwipeRow start={swipe.start} end={swipe.end} onAction={swipe.onAction} className={styles.swipe}>
+      {children}
+    </SwipeRow>
   );
 }

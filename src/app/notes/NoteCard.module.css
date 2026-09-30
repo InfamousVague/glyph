@@ -18,6 +18,23 @@
   }
 }
 
+/*
+ * A card that swipes (notes/SwipeRow.tsx, docs/DESIGN.md §151): the frame fills the item as the card did, and is cut to
+ * the card's corners, so the gap it leaves as it slides has them too.
+ */
+.swipe {
+  flex: 1;
+  display: flex;
+  min-inline-size: 0;
+  border-radius: var(--glacier-radius-lg);
+}
+
+.swipe > :last-child {
+  flex: 1;
+  display: flex;
+  min-inline-size: 0;
+}
+
 .card {
   appearance: none;
   position: relative;

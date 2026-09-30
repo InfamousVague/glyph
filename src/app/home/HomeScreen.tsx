@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { BookOpen, FileText, Mic, Workflow } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
 import { titleKey } from '../core/titleKey.ts';
@@ -14,6 +14,8 @@ import { useWispEdge } from '../art/wispEdge.ts';
 import { Ghost } from '../art/Ghost.tsx';
 import { Cassette, Clock, Cog, Grid, Magnifier, Notebook, Pin, Plus } from '../art/Icons.tsx';
 import { NoteCard } from '../notes/NoteCard.tsx';
+import { SwipeRow } from '../notes/SwipeRow.tsx';
+import { isNoteSwipe, noteSwipes, type NoteSwipe } from '../notes/swipe.ts';
 import { when } from '../notes/when.ts';
 import { WorkspaceSheet } from '../notes/WorkspaceSheet.tsx';
 import { UpdateNotice, VoiceModelStatus } from '../notes/Notices.tsx';
@@ -59,6 +61,11 @@ interface HomeScreenProps {
   onAllNotes: (options?: { tapes: boolean }) => void;
   /** Kept for the callers: the page no longer lists to-dos. */
   onTick?: (task: OpenTask) => void;
+  /**
+   * A note swiped past a detent (notes/swipe.ts `noteSwipes`): pinned or unpinned, archived, or deleted, each with its
+   * Undo (notes/useNoteActions.ts). Without it the notes do not swipe.
+   */
+  onSwipe?: (note: Note, action: NoteSwipe) => void;
   voiceModel: VoiceModelState;
   onRetryVoiceModel: () => void;
   updates: Updates;
@@ -71,7 +78,7 @@ interface HomeScreenProps {
 /** How many of the first cards get a line written under their titles (format/gist.ts), the rest waiting for a scroll. */
 const GISTED = 16;
 
-export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSettings, onSearch, onAllNotes, voiceModel, onRetryVoiceModel, updates }: HomeScreenProps) {
+export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSettings, onSearch, onAllNotes, onSwipe, voiceModel, onRetryVoiceModel, updates }: HomeScreenProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const topBar = useRef<HTMLElement>(null);
   useWispEdge(scroller, 'home', topBar, { foot: true });
@@ -118,12 +125,14 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
 
   // The cards' arrival is staggered down the page, whichever section each is in.
   let order = 0;
+  // Right to pin, left to archive, further left to delete (docs/DESIGN.md §151): every card, row and line swipes.
+  const swipe = (note: Note) => (onSwipe ? { ...noteSwipes(note), onAction: (id: string) => isNoteSwipe(id) && onSwipe(note, id) } : undefined);
   // A card or a row names the notebook a page is in, but not under that notebook's own heading.
   const card = (note: Note, dense = false, inBook = false) => (
-    <NoteCard key={note.id} note={note} index={order++} onOpen={onOpen} gist={gists[note.id]} place={inBook ? null : placeOf(inBooks, note)} entries={journals.get(note.id)} dense={dense} />
+    <NoteCard key={note.id} note={note} index={order++} onOpen={onOpen} gist={gists[note.id]} place={inBook ? null : placeOf(inBooks, note)} entries={journals.get(note.id)} dense={dense} swipe={swipe(note)} />
   );
   const row = (note: Note, inBook = false) => (
-    <HomeRow key={note.id} note={note} index={order++} onOpen={onOpen} bookName={inBook ? null : (placeOf(inBooks, note)?.title ?? null)} entries={journals.get(note.id)?.count} live={note.id === recording} />
+    <HomeRow key={note.id} note={note} index={order++} onOpen={onOpen} bookName={inBook ? null : (placeOf(inBooks, note)?.title ?? null)} entries={journals.get(note.id)?.count} live={note.id === recording} swipe={swipe(note)} />
   );
   const drawn = (notes: Note[], draw: SectionDraw, inBook = false) => {
     if (draw === 'rows') return <ul className={look.rows}>{notes.map((n) => row(n, inBook))}</ul>;
@@ -131,7 +140,7 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
       return (
         <ul className={look.lines}>
           {notes.map((n) => (
-            <HomeLine key={n.id} note={n} index={order++} onOpen={onOpen} bookName={placeOf(inBooks, n)?.title ?? null} live={n.id === recording} />
+            <HomeLine key={n.id} note={n} index={order++} onOpen={onOpen} bookName={placeOf(inBooks, n)?.title ?? null} live={n.id === recording} swipe={swipe(n)} />
           ))}
         </ul>
       );
@@ -264,6 +273,19 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
   );
 }
 
+/** What a row or a line swipes with, from the page (`swipe`), or nothing where the notes do not swipe. */
+type Swipe = ReturnType<typeof noteSwipes> & { onAction: (id: string) => void };
+
+/** A row's or a line's button in a swipe's frame (notes/SwipeRow.tsx), or alone where the notes do not swipe. */
+function Swiped({ swipe, compact = false, children }: { swipe?: Swipe; compact?: boolean; children: ReactNode }) {
+  if (!swipe) return children;
+  return (
+    <SwipeRow start={swipe.start} end={swipe.end} onAction={swipe.onAction} compact={compact}>
+      {children}
+    </SwipeRow>
+  );
+}
+
 /**
  * A note's kind as a mark at the start of its row or line: a notebook, a canvas, a recording's cassette (the one the
  * tape shelf wore, art/Icons.tsx), or a page of words.
@@ -288,7 +310,23 @@ function TapeWords({ note, live }: { note: Note; live: boolean }) {
  * A note on one line, for every layout that draws rows (List, Timeline, Spotlight, Shelf and timeline, Library): its kind's mark, its name, how it starts, and when it
  * was touched, with the pin and its notebook's name where it has them.
  */
-function HomeRow({ note, index, onOpen, bookName, entries, live = false }: { note: Note; index: number; onOpen: (id: string) => void; bookName: string | null; entries?: number; live?: boolean }) {
+function HomeRow({
+  note,
+  index,
+  onOpen,
+  bookName,
+  entries,
+  live = false,
+  swipe,
+}: {
+  note: Note;
+  index: number;
+  onOpen: (id: string) => void;
+  bookName: string | null;
+  entries?: number;
+  live?: boolean;
+  swipe?: Swipe;
+}) {
   const title = noteTitle(note.body);
   const kind = live ? 'tape' : kindOf(note);
   const pages = kind === 'book' ? chaptersOf(note.body).length : 0;
@@ -296,23 +334,25 @@ function HomeRow({ note, index, onOpen, bookName, entries, live = false }: { not
   const lead = entries !== undefined ? (entries === 1 ? '1 entry' : `${entries} entries`) : kind === 'book' ? (pages === 1 ? '1 page' : `${pages} pages`) : firstLine(note.body);
   return (
     <li className={look.rowItem} style={{ '--i': Math.min(index, 12) } as CSSProperties}>
-      <button type="button" className={look.row} onClick={() => onOpen(note.id)}>
-        <KindMark kind={kind} />
-        <span className={look.rowText}>
-          <span className={look.rowTitle} data-untitled={title ? undefined : ''}>
-            {note.starred ? <Pin className={look.rowPin} /> : null}
-            {title ? shortenUrls(title) : 'Untitled'}
-          </span>
-          {lead || bookName || kind === 'tape' ? (
-            <span className={look.rowLead}>
-              {bookName ? <span className={look.rowBook}>{bookName}</span> : null}
-              <TapeWords note={note} live={live} />
-              {lead ? shortenUrls(lead) : null}
+      <Swiped swipe={swipe}>
+        <button type="button" className={look.row} onClick={() => onOpen(note.id)}>
+          <KindMark kind={kind} />
+          <span className={look.rowText}>
+            <span className={look.rowTitle} data-untitled={title ? undefined : ''}>
+              {note.starred ? <Pin className={look.rowPin} /> : null}
+              {title ? shortenUrls(title) : 'Untitled'}
             </span>
-          ) : null}
-        </span>
-        <span className={look.rowWhen}>{when(note.updatedAt)}</span>
-      </button>
+            {lead || bookName || kind === 'tape' ? (
+              <span className={look.rowLead}>
+                {bookName ? <span className={look.rowBook}>{bookName}</span> : null}
+                <TapeWords note={note} live={live} />
+                {lead ? shortenUrls(lead) : null}
+              </span>
+            ) : null}
+          </span>
+          <span className={look.rowWhen}>{when(note.updatedAt)}</span>
+        </button>
+      </Swiped>
     </li>
   );
 }
@@ -321,20 +361,22 @@ function HomeRow({ note, index, onOpen, bookName, entries, live = false }: { not
  * A note on one short line, for Spotlight's pinned notes: its kind's mark, its name, the notebook it is in, and when.
  * No pin, since the list is the pinned ones, and no line of how it starts: the list is for finding a note by its name.
  */
-function HomeLine({ note, index, onOpen, bookName, live = false }: { note: Note; index: number; onOpen: (id: string) => void; bookName: string | null; live?: boolean }) {
+function HomeLine({ note, index, onOpen, bookName, live = false, swipe }: { note: Note; index: number; onOpen: (id: string) => void; bookName: string | null; live?: boolean; swipe?: Swipe }) {
   const title = noteTitle(note.body);
   const kind = live ? 'tape' : kindOf(note);
   return (
     <li className={look.rowItem} style={{ '--i': Math.min(index, 12) } as CSSProperties}>
-      <button type="button" className={look.line} onClick={() => onOpen(note.id)}>
-        <KindMark kind={kind} />
-        <span className={look.lineTitle} data-untitled={title ? undefined : ''}>
-          {title ? shortenUrls(title) : 'Untitled'}
-        </span>
-        {bookName ? <span className={look.lineBook}>{bookName}</span> : null}
-        <TapeWords note={note} live={live} />
-        <span className={look.rowWhen}>{when(note.updatedAt)}</span>
-      </button>
+      <Swiped swipe={swipe} compact>
+        <button type="button" className={look.line} onClick={() => onOpen(note.id)}>
+          <KindMark kind={kind} />
+          <span className={look.lineTitle} data-untitled={title ? undefined : ''}>
+            {title ? shortenUrls(title) : 'Untitled'}
+          </span>
+          {bookName ? <span className={look.lineBook}>{bookName}</span> : null}
+          <TapeWords note={note} live={live} />
+          <span className={look.rowWhen}>{when(note.updatedAt)}</span>
+        </button>
+      </Swiped>
     </li>
   );
 }

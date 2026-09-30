@@ -1004,6 +1004,17 @@ function Shell() {
       }}
       onSearch={openCommands ?? undefined}
       onAllNotes={showAllNotes}
+      // A note swiped on the home page (docs/DESIGN.md §151): pinned in place, or archived or deleted, its tab closed
+      // with it, each with the Undo the editor's own gives.
+      onSwipe={(note, action) => {
+        if (action === 'pin') {
+          actions.pin(note);
+          return;
+        }
+        tabs.drop(note.id);
+        if (action === 'archive') actions.archive(note, true);
+        else actions.remove(note);
+      }}
       onTick={(task) => void tickTask(task)}
       voiceModel={voiceModel.state}
       onRetryVoiceModel={voiceModel.retry}

@@ -18,6 +18,13 @@ import { stubMatchMedia, stubResizeObserver } from '../../test/stubs.ts';
 
 // A card's small drawing is the editor (notes/NotePeek.tsx), which is nothing the page decides.
 vi.mock('../notes/NotePeek.tsx', () => ({ NotePeek: () => null }));
+// The motor, for what a swipe makes it do at each detent.
+const felt = vi.hoisted(() => ({ kinds: [] as string[], ticks: 0 }));
+vi.mock('../core/haptics.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../core/haptics.ts')>()),
+  fireNativeHaptic: (kind = 'light') => void felt.kinds.push(kind),
+  fireMicroTick: () => void (felt.ticks += 1),
+}));
 // The meeting being recorded now, which the phone's service knows (capture/meetingLive.ts) and a test says.
 const meeting = vi.hoisted(() => ({ live: null as string | null }));
 vi.mock('../capture/meetingLive.ts', async (importOriginal) => ({
@@ -102,6 +109,8 @@ afterEach(() => {
   unmount();
   vi.useRealTimers();
   meeting.live = null;
+  felt.kinds = [];
+  felt.ticks = 0;
 });
 
 /** A tick of the real clock, for what the panel does once the kit has opened it. */
@@ -438,6 +447,93 @@ describe('the layouts', () => {
     laidOut('timeline');
     expect(listed('Today')).toHaveLength(50);
     expect(button('All notes · 50')).toBeTruthy();
+  });
+});
+
+describe('swiping a note', () => {
+  // jsdom lays nothing out: a row is as wide as a phone's, and the finger is held as a real one would be.
+  const WIDTH = 400;
+  beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, get: () => WIDTH });
+    Element.prototype.setPointerCapture = () => undefined;
+  });
+  afterEach(() => {
+    Reflect.deleteProperty(HTMLElement.prototype, 'offsetWidth');
+    Reflect.deleteProperty(Element.prototype, 'setPointerCapture');
+  });
+
+  /** A finger on a note's row, moved across by `by` of the row's width, in steps, and let go. */
+  const swipe = (button: Element, by: number) => {
+    const row = button.parentElement!;
+    const at = (type: string, x: number) => row.dispatchEvent(new PointerEvent(type, { bubbles: true, pointerId: 1, pointerType: 'touch', clientX: x, clientY: 300 }));
+    act(() => at('pointerdown', 200));
+    for (let step = 1; step <= 10; step += 1) act(() => at('pointermove', 200 + (by * WIDTH * step) / 10));
+    act(() => at('pointerup', 200 + by * WIDTH));
+  };
+  const rowOf = (title: string) => [...document.querySelectorAll('section li button')].find((b) => b.textContent?.includes(title))!;
+  /** Long enough for a row that leaves to slide away first. */
+  const away = () => act(async () => await new Promise((done) => setTimeout(done, 220)));
+
+  it('pins a note swiped right past its detent, with the firm click of arriving', () => {
+    const onSwipe = vi.fn();
+    laidOut('list');
+    show(page(shelf, { onSwipe }));
+    swipe(rowOf('Shopping'), 0.3);
+    expect(onSwipe).toHaveBeenCalledWith(loose, 'pin');
+    expect(felt.kinds).toEqual(['medium']);
+  });
+
+  it('archives a note swiped left, and deletes it pulled further, each detent felt, the delete heavier', async () => {
+    const onSwipe = vi.fn();
+    laidOut('list');
+    show(page(shelf, { onSwipe }));
+    swipe(rowOf('Shopping'), -0.3);
+    await away();
+    expect(onSwipe).toHaveBeenLastCalledWith(loose, 'archive');
+    expect(felt.kinds).toEqual(['medium']);
+    felt.kinds = [];
+    swipe(rowOf('Route'), -0.62);
+    await away();
+    expect(onSwipe).toHaveBeenLastCalledWith(route, 'delete');
+    expect(felt.kinds).toEqual(['medium', 'heavy']);
+    // The detents are felt coming, too: light ticks on the way to each.
+    expect(felt.ticks).toBeGreaterThan(0);
+  });
+
+  it('springs back short of a detent, does nothing, and never opens the note the finger let go of', async () => {
+    const onSwipe = vi.fn();
+    const onOpen = vi.fn();
+    laidOut('list');
+    show(page(shelf, { onSwipe, onOpen }));
+    swipe(rowOf('Shopping'), -0.1);
+    act(() => (rowOf('Shopping') as HTMLButtonElement).click());
+    await away();
+    expect(onSwipe).not.toHaveBeenCalled();
+    expect(onOpen).not.toHaveBeenCalled();
+    // The next tap opens it, as ever.
+    act(() => (rowOf('Shopping') as HTMLButtonElement).click());
+    expect(onOpen).toHaveBeenCalledWith('l');
+  });
+
+  it('swipes the cards, and the pinned lines, which unpin', () => {
+    const onSwipe = vi.fn();
+    show(page(shelf, { onSwipe }));
+    swipe(document.querySelector('section[data-section="notes"] ol > li button')!, 0.3);
+    expect(onSwipe).toHaveBeenLastCalledWith(packing, 'pin');
+    unmount();
+    laidOut('spotlight');
+    show(page(shelf, { onSwipe }));
+    const line = document.querySelector('section[data-section="pinned"] li button')!;
+    swipe(line, 0.3);
+    expect(onSwipe).toHaveBeenLastCalledWith(packing, 'pin');
+  });
+
+  it('does not swipe where the page has nothing to do with one', () => {
+    laidOut('list');
+    show(page(shelf));
+    expect(rowOf('Shopping').parentElement?.getAttribute('style') ?? '').not.toContain('translate');
+    expect(document.querySelector('[data-swiping]')).toBeNull();
+    expect(rowOf('Shopping').parentElement?.tagName).toBe('LI');
   });
 });
 
