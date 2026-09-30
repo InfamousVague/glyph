@@ -1,23 +1,16 @@
 /*
- * ghostmarkdown.com's home page (index.html; docs/DESIGN.md §153). Its sizes, spacing, radii, motion and shadows are
- * Glacier's tokens; its colours are the app's ink (site.css). The note-shaped pieces - the recorder, the review, the
- * marks - are drawn the way the app draws them: the words in the note's own face, the Markdown's marks left dimmed.
+ * ghostmarkdown.com's home page (index.html; docs/DESIGN.md §153, §154). Its sizes, spacing, radii, motion and shadows
+ * are Glacier's tokens; its colours are the app's ink (site.css). Everything that shows the app is the app - its
+ * screens in a phone's or a laptop's frame, and its cassette (parts/) - so this sheet draws only the page around them.
  */
 
 :root {
   --gutter: max(16px, env(safe-area-inset-left));
-  --measure: 72rem;
-  --radius-phone: 2.4rem;
+  --measure: 70rem;
   --ease: var(--glacier-ease-out, cubic-bezier(0.16, 1, 0.3, 1));
   --shadow: 0 1px 0 var(--rule), 0 30px 60px -30px color-mix(in oklch, black 55%, transparent);
   scroll-behavior: smooth;
   scroll-padding-top: 5rem;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    scroll-behavior: auto;
-  }
 }
 
 body {
@@ -47,13 +40,8 @@ code {
   padding-inline: var(--gutter);
 }
 
-.narrow {
-  --measure: 44rem;
-}
-
 .center {
   text-align: center;
-  justify-items: center;
   margin-inline: auto;
 }
 
@@ -133,7 +121,7 @@ code {
   margin-inline-start: auto;
 }
 
-@media (min-width: 760px) {
+@media (min-width: 640px) {
   .bar-links {
     display: flex;
   }
@@ -157,6 +145,7 @@ code {
   font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
+  cursor: pointer;
   transition:
     transform 160ms var(--ease),
     border-color 160ms var(--ease),
@@ -199,38 +188,23 @@ code {
   stroke-linejoin: round;
 }
 
-/* ---- the ghosts: the app's masks, painted in the page's ink ------------------------------------------------------- */
+/* ---- the app's ghosts: its masks, painted in the page's ink ------------------------------------------------------- */
 
 .ghost {
-  display: inline-block;
-  inline-size: 3.2rem;
+  display: block;
+  inline-size: 6rem;
   aspect-ratio: 1;
+  margin: 0 auto var(--glacier-space-2, 0.5rem);
   background: currentColor;
   color: var(--ink);
   -webkit-mask: var(--ghost) center / contain no-repeat;
   mask: var(--ghost) center / contain no-repeat;
 }
 
-.ghost.big {
-  inline-size: 7.5rem;
-  margin-block-end: var(--glacier-space-2, 0.5rem);
-}
-
-.ghost-listening {
-  --ghost: url('ghosts/listening.webp');
-}
-.ghost-new {
-  --ghost: url('ghosts/a-new-note.webp');
-}
-.ghost-ticked {
-  --ghost: url('ghosts/every-to-do-ticked.webp');
-}
-.ghost-working {
-  --ghost: url('ghosts/the-model-working.webp');
-}
 .ghost-signed-out {
   --ghost: url('ghosts/signed-out-not-syncing.webp');
 }
+
 .ghost-update {
   --ghost: url('ghosts/an-update-is-ready.webp');
 }
@@ -238,45 +212,26 @@ code {
 /* ---- the opening ------------------------------------------------------------------------------------------------- */
 
 .hero {
-  padding-block: clamp(2.5rem, 8vw, 6rem) clamp(3rem, 8vw, 6.5rem);
+  padding-block: clamp(3rem, 9vw, 6.5rem) clamp(3rem, 7vw, 5rem);
 }
 
-.hero-grid {
+.hero-words {
   display: grid;
-  gap: clamp(2.5rem, 6vw, 4.5rem);
-  align-items: center;
-}
-
-@media (min-width: 900px) {
-  .hero-grid {
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
-  }
-}
-
-.eyebrow {
-  margin: 0 0 var(--glacier-space-3, 0.75rem);
-  font-size: var(--glacier-font-size-sm, 0.9rem);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--ink-3);
-}
-
-h1,
-h2,
-h3 {
-  text-wrap: balance;
+  justify-items: center;
+  text-align: center;
 }
 
 .hero h1 {
   margin: 0;
-  font-size: clamp(2.6rem, 8.4vw, 5.2rem);
-  line-height: 0.98;
+  font-size: clamp(2.5rem, 7.6vw, 5rem);
+  line-height: 1;
   letter-spacing: -0.045em;
   font-weight: 750;
+  text-wrap: balance;
 }
 
 .lead {
-  max-inline-size: 34rem;
+  max-inline-size: 40rem;
   margin: var(--glacier-space-6, 1.5rem) 0 0;
   font-size: var(--glacier-font-size-lg, 1.2rem);
   line-height: 1.5;
@@ -287,19 +242,364 @@ h3 {
 .ctas {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: var(--glacier-space-3, 0.75rem);
   margin-block-start: var(--glacier-space-8, 2rem);
+}
+
+.fine {
+  margin: var(--glacier-space-4, 1rem) 0 0;
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  color: var(--ink-3);
+}
+
+.fine a {
+  color: var(--ink-2);
+}
+
+.laptop-wrap {
+  margin-block: clamp(2.5rem, 6vw, 4rem) 0;
+}
+
+.laptop {
+  max-inline-size: 60rem;
+  margin: 0 auto;
+  padding: 0.6rem 0.6rem 0;
+  border-radius: 1rem 1rem 0 0;
+  background: oklch(0.13 0 0);
+  box-shadow:
+    inset 0 0 0 1px oklch(0.3 0 0),
+    var(--shadow);
+}
+
+.laptop img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  border-radius: 0.5rem 0.5rem 0 0;
+}
+
+.laptop::after {
+  content: '';
+  display: block;
+  block-size: 0.9rem;
+  margin-inline: -1.6rem;
+  border-radius: 0 0 1rem 1rem;
+  background: linear-gradient(oklch(0.3 0 0), oklch(0.18 0 0));
+}
+
+/* ---- a band: one idea, its words, and the app showing it --------------------------------------------------------- */
+
+.band {
+  padding-block: clamp(3.5rem, 8vw, 6rem);
+  border-block-start: 1px solid var(--rule);
+}
+
+.band-tint {
+  background: color-mix(in oklch, var(--ink) 2.5%, var(--paper));
+}
+
+.band-head {
+  display: grid;
+  justify-items: center;
+  max-inline-size: 40rem;
+  margin: 0 auto clamp(2rem, 5vw, 3rem);
+  text-align: center;
+}
+
+.band-head-start {
+  justify-items: start;
+  margin-inline: 0;
+  text-align: start;
+}
+
+.eyebrow {
+  margin: 0 0 var(--glacier-space-3, 0.75rem);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+}
+
+.band h2 {
+  margin: 0;
+  font-size: clamp(1.9rem, 4.4vw, 2.9rem);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  font-weight: 750;
+  text-wrap: balance;
+}
+
+.band-head p:not(.eyebrow),
+.body {
+  margin: var(--glacier-space-4, 1rem) 0 0;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+.split {
+  display: grid;
+  gap: clamp(2.5rem, 6vw, 4rem);
+  align-items: center;
+}
+
+@media (min-width: 900px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .split-flip > :first-child {
+    order: 2;
+  }
+}
+
+/* ---- a phone: the app's screens in a frame ----------------------------------------------------------------------- */
+
+.phone {
+  inline-size: 100%;
+  max-inline-size: 20rem;
+  margin: 0 auto;
+  padding: 0.45rem;
+  border-radius: 2rem;
+  background: oklch(0.13 0 0);
+  box-shadow:
+    inset 0 0 0 1px oklch(0.3 0 0),
+    var(--shadow);
+}
+
+.phone img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  border-radius: 1.6rem;
+}
+
+/* The four ways to keep things, side by side where there is room, and a row to scroll through on a phone. */
+.shelf {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(72%, 16rem);
+  gap: var(--glacier-space-5, 1.25rem);
+  margin: 0 calc(var(--gutter) * -1);
+  padding: 0 var(--gutter) var(--glacier-space-3, 0.75rem);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--gutter);
+  list-style: none;
+}
+
+.shelf li {
+  scroll-snap-align: start;
+}
+
+.shelf h3 {
+  margin: var(--glacier-space-4, 1rem) 0 0.2rem;
+  font-size: var(--glacier-font-size-md, 1rem);
+}
+
+.shelf p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+}
+
+@media (min-width: 900px) {
+  .shelf {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+}
+
+.points {
+  display: grid;
+  gap: var(--glacier-space-4, 1rem);
+  margin: clamp(2rem, 5vw, 3rem) 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-2);
+}
+
+.points b {
+  color: var(--ink);
+}
+
+@media (min-width: 760px) {
+  .points:not(.points-stack) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.points-stack {
+  margin-block-start: var(--glacier-space-6, 1.5rem);
+}
+
+/* Two of the app's screens, the second a step lower. */
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+  max-inline-size: 34rem;
+  margin-inline: auto;
+}
+
+.phone-low {
+  margin-block-start: 3rem;
+}
+
+/* The connector's address, to copy into Claude. */
+.connect {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-block-start: var(--glacier-space-6, 1.5rem);
+  padding: 0.75rem 0.75rem 0.75rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-lg, 1rem);
+}
+
+.connect p {
+  margin: 0;
+  font-weight: 650;
+}
+
+.connect code {
+  flex: 1 1 15rem;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink-2);
+}
+
+/* The app's cassette (parts/): a button, as it is on a note. */
+.tape-fig {
+  display: grid;
+  justify-items: center;
+  margin: 0;
+}
+
+.tape-host {
+  inline-size: min(100%, 26rem);
+}
+
+.part-tape {
+  appearance: none;
+  display: block;
+  inline-size: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 1rem;
+}
+
+/* ---- private ----------------------------------------------------------------------------------------------------- */
+
+.facts {
+  display: grid;
+  gap: var(--glacier-space-4, 1rem);
+  margin: 0 0 var(--glacier-space-6, 1.5rem);
+  padding: 0;
+  list-style: none;
+}
+
+.facts li {
+  padding: 1.2rem 1.3rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-lg, 1rem);
+  color: var(--ink-2);
+}
+
+.facts b {
+  display: block;
+  margin-block-end: 0.3rem;
+  color: var(--ink);
+}
+
+@media (min-width: 760px) {
+  .facts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+#private .fine,
+#mac-note {
+  max-inline-size: 42rem;
+  margin-inline: auto;
+}
+
+/* ---- the ways to get it ------------------------------------------------------------------------------------------ */
+
+.ways {
+  display: grid;
+  gap: var(--glacier-space-3, 0.75rem);
+  max-inline-size: 52rem;
+  margin: 0 auto;
+}
+
+@media (min-width: 760px) {
+  .ways {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.way {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-lg, 1rem);
+  background: var(--paper);
+  color: var(--ink);
+  text-decoration: none;
+  transition:
+    border-color 160ms var(--ease),
+    transform 160ms var(--ease);
+}
+
+.way:hover {
+  border-color: var(--ink-3);
+  transform: translateY(-2px);
+}
+
+.way .i {
+  inline-size: 1.6rem;
+  block-size: 1.6rem;
+}
+
+.way-words {
+  display: grid;
+  min-inline-size: 0;
+}
+
+.way-words span {
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The way for the device in hand, the filled one, and first (home.js moves it there, so the keyboard meets it first too). */
+.way[data-first] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.way[data-first] .way-words span {
+  color: color-mix(in oklch, var(--paper) 72%, var(--ink));
 }
 
 .stores {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--glacier-space-3, 0.75rem);
-  margin-block-start: var(--glacier-space-5, 1.25rem);
-}
-
-.stores-center {
   justify-content: center;
+  gap: var(--glacier-space-3, 0.75rem);
+  margin-block-start: var(--glacier-space-6, 1.5rem);
 }
 
 /* A store's button: a link once its listing is live (home.js `STORES`), and a quiet "Coming soon" until then. */
@@ -350,1017 +650,10 @@ a.store:hover {
   border-color: var(--ink-3);
 }
 
-.fine {
-  margin: var(--glacier-space-5, 1.25rem) 0 0;
-  font-size: var(--glacier-font-size-sm, 0.9rem);
-  color: var(--ink-3);
-}
-
-/* ---- a phone: the app's screens in a frame ----------------------------------------------------------------------- */
-
-.phone {
-  position: relative;
-  inline-size: min(100%, 22rem);
-  margin: 0 auto;
-  padding: 0.55rem;
-  border-radius: var(--radius-phone);
-  background: oklch(0.13 0 0);
-  box-shadow:
-    inset 0 0 0 1px oklch(0.3 0 0),
-    var(--shadow);
-}
-
-.phone img,
-.phone-screen {
-  display: block;
-  inline-size: 100%;
-  block-size: auto;
-  border-radius: calc(var(--radius-phone) - 0.55rem);
-}
-
-.phone-screen {
-  aspect-ratio: 390 / 760;
-  overflow: hidden;
-  background: oklch(0.11 0 0);
-  color: oklch(0.965 0 0);
-  --ink: oklch(0.965 0 0);
-  --ink-2: oklch(0.8 0 0);
-  --ink-3: oklch(0.6 0 0);
-  --ink-4: oklch(0.44 0 0);
-  --rule: oklch(0.205 0 0);
-  --wash: oklch(0.965 0 0 / 0.08);
-  --mark: color-mix(in oklch, oklch(0.62 0.17 250) 34%, transparent);
-}
-
-/* The recorder, drawn (home.js `hearing`). */
-.live-top {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 1.1rem 1.1rem 0.4rem;
-}
-
-.live-top .ghost {
-  inline-size: 2.4rem;
-  color: var(--ink);
-  animation: bob 2.8s ease-in-out infinite;
-}
-
-.live-state {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-family: var(--mono);
-  font-size: 0.85rem;
-  color: var(--ink-2);
-  font-variant-numeric: tabular-nums;
-}
-
-.dot {
-  inline-size: 0.5rem;
-  block-size: 0.5rem;
-  border-radius: 50%;
-  background: currentColor;
-  animation: beat 1.4s ease-in-out infinite;
-}
-
-.live-done {
-  margin-inline-start: auto;
-  padding: 0.35rem 0.9rem;
-  border-radius: var(--glacier-radius-full, 999px);
-  background: var(--ink);
-  color: oklch(0.11 0 0);
-  font-size: 0.8rem;
-  font-weight: 650;
-}
-
-.said {
-  display: grid;
-  gap: 0.15rem;
-  min-block-size: 3.6rem;
-  margin: 0.4rem 1.1rem 0.2rem;
-  padding: 0.6rem 0.8rem;
-  border-radius: var(--glacier-radius-md, 0.7rem);
-  background: var(--wash);
-  font-size: 0.92rem;
-  line-height: 1.35;
-}
-
-.said-word {
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--ink-3);
-}
-
-#said {
-  font-style: italic;
-  color: var(--ink);
-}
-
-.live-page {
-  padding: 0.6rem 1.25rem 1.5rem;
-}
-
-/* A line of a note, as the app draws it: the note's face, the marks dimmed, a heading a size up. */
-.md {
-  margin: 0 0 0.35rem;
-  font-family: var(--mono);
-  font-size: 0.9rem;
-  line-height: 1.5;
-  color: var(--ink);
-  overflow-wrap: anywhere;
-}
-
-.md .mk {
-  color: var(--ink-4);
-}
-
-.md-h1 {
-  margin-block: 0.2rem 0.6rem;
-  font-size: 1.45rem;
-  font-weight: 800;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
-}
-
-.md-h2 {
-  margin-block: 0.7rem 0.35rem;
-  font-size: 1.08rem;
-  font-weight: 750;
-}
-
-.md-li,
-.md-todo {
-  padding-inline-start: 0.1rem;
-}
-
-/* A line arriving: the smoke the app writes spoken words in, settling to ink. */
-.md.arriving {
-  animation: smoke-in 700ms var(--ease) both;
-}
-
-@keyframes smoke-in {
-  from {
-    opacity: 0;
-    filter: blur(6px);
-    transform: translateY(4px);
-    letter-spacing: 0.08em;
-  }
-}
-
-@keyframes bob {
-  50% {
-    transform: translateY(-3px);
-  }
-}
-
-@keyframes beat {
-  50% {
-    opacity: 0.3;
-  }
-}
-
-/* ---- three steps ------------------------------------------------------------------------------------------------- */
-
-.steps {
-  padding-block: 1rem clamp(3rem, 8vw, 5rem);
-}
-
-.steps-list {
-  display: grid;
-  gap: var(--glacier-space-5, 1.25rem);
-  margin-block: 0;
-  list-style: none;
-}
-
-.steps-list li {
-  padding: var(--glacier-space-6, 1.5rem);
-  border: 1px solid var(--rule);
-  border-radius: var(--glacier-radius-xl, 1.4rem);
-  background: color-mix(in oklch, var(--ink) 2.5%, var(--paper));
-}
-
-.steps-list h2 {
-  margin: var(--glacier-space-3, 0.75rem) 0 var(--glacier-space-2, 0.5rem);
-  font-size: var(--glacier-font-size-lg, 1.2rem);
-  letter-spacing: -0.01em;
-}
-
-.steps-list p {
-  margin: 0;
-  color: var(--ink-2);
-}
-
-@media (min-width: 760px) {
-  .steps-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-/* ---- a feature: words beside something to see -------------------------------------------------------------------- */
-
-.feature {
-  padding-block: clamp(3.5rem, 9vw, 7rem);
-  border-block-start: 1px solid var(--rule);
-}
-
-.feature-grid {
-  display: grid;
-  gap: clamp(2.5rem, 6vw, 4rem);
-  align-items: center;
-}
-
-@media (min-width: 900px) {
-  .feature-grid {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-
-  .feature-flip .feature-words {
-    order: 2;
-  }
-}
-
-.feature-words {
-  display: grid;
-  max-inline-size: 36rem;
-}
-
-.feature-words.center {
-  max-inline-size: 44rem;
-  margin-block-end: clamp(2rem, 5vw, 3.5rem);
-}
-
-.feature h2,
-.download h2,
-.faq h2 {
-  margin: 0 0 var(--glacier-space-4, 1rem);
-  font-size: clamp(1.9rem, 4.6vw, 3rem);
-  line-height: 1.05;
-  letter-spacing: -0.035em;
-  font-weight: 750;
-}
-
-.feature-words p:not(.eyebrow) {
-  margin: 0 0 var(--glacier-space-4, 1rem);
-  font-size: var(--glacier-font-size-md, 1rem);
-  color: var(--ink-2);
-  text-wrap: pretty;
-}
-
-.quiet {
-  color: var(--ink-3);
-  font-size: var(--glacier-font-size-sm, 0.9rem);
-}
-
-.facts {
-  display: grid;
-  gap: 0.6rem;
-  margin: var(--glacier-space-2, 0.5rem) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.facts li {
-  position: relative;
-  padding-inline-start: 1.5rem;
-  color: var(--ink-2);
-}
-
-.facts li::before {
-  content: '';
-  position: absolute;
-  inset-inline-start: 0.2rem;
-  inset-block-start: 0.62em;
-  inline-size: 0.45rem;
-  block-size: 0.45rem;
-  border-radius: 50%;
-  background: var(--ink-3);
-}
-
-.facts b {
-  color: var(--ink);
-}
-
-/* The cues: what you say, and the Markdown it makes. */
-.cues {
-  display: grid;
-  gap: 0;
-  margin: var(--glacier-space-3, 0.75rem) 0 0;
-  padding: 0;
-  list-style: none;
-  border-block: 1px solid var(--rule);
-}
-
-.cues li {
-  display: grid;
-  gap: 0.1rem 1rem;
-  padding: 0.6rem 0.2rem;
-}
-
-.cues li + li {
-  border-block-start: 1px solid var(--rule);
-}
-
-.cues q {
-  font-style: italic;
-  color: var(--ink);
-}
-
-.cues q::before {
-  content: '“';
-}
-
-.cues q::after {
-  content: '”';
-}
-
-.cues code {
-  color: var(--ink-3);
-}
-
-@media (min-width: 560px) {
-  .cues li {
-    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-    align-items: baseline;
-  }
-}
-
-/* ---- Hey Ghost, as a recording that moves notes ------------------------------------------------------------------ */
-
-.convo {
-  display: grid;
-  gap: 0.75rem;
-  max-inline-size: 28rem;
-  margin-inline: auto;
-  inline-size: 100%;
-}
-
-.bubble {
-  justify-self: end;
-  max-inline-size: 85%;
-  margin: 0;
-  padding: 0.7rem 1rem;
-  border-radius: 1.2rem 1.2rem 0.35rem 1.2rem;
-  background: var(--ink);
-  color: var(--paper);
-  font-style: italic;
-}
-
-.adding {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  justify-self: center;
-  margin: 0;
-  padding: 0.35rem 0.9rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--glacier-radius-full, 999px);
-  font-size: var(--glacier-font-size-sm, 0.9rem);
-  font-weight: 600;
-  color: var(--ink-2);
-}
-
-.mini-note,
-.review,
-.tape-summary {
-  padding: 1.1rem 1.25rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--glacier-radius-lg, 1rem);
-  background: color-mix(in oklch, var(--ink) 2.5%, var(--paper));
-}
-
-.landed {
-  border-radius: 0.35rem;
-  background: var(--mark);
-  box-shadow: 0 0 0 0.25rem var(--mark);
-}
-
-/* ---- the review: changes to keep or revert (home.js wires the buttons) -------------------------------------------- */
-
-.review {
-  display: grid;
-  gap: 0.8rem;
-  max-inline-size: 30rem;
-  inline-size: 100%;
-  margin-inline: auto;
-}
-
-.review-head {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin: 0;
-  font-weight: 650;
-}
-
-.review-head .ghost {
-  inline-size: 2.4rem;
-}
-
-.review-note .md {
-  margin-block-end: 0.8rem;
-}
-
-ins {
-  text-decoration: none;
-  border-radius: 0.2rem;
-  background: color-mix(in oklch, var(--ink) 12%, transparent);
-  box-shadow: 0 0 0 0.12rem color-mix(in oklch, var(--ink) 12%, transparent);
-}
-
-del {
-  color: var(--ink-3);
-  text-decoration-thickness: 0.1em;
-}
-
-.keep-revert {
-  display: inline-flex;
-  gap: 0.25rem;
-  margin-inline-start: 0.35rem;
-  vertical-align: 0.1em;
-}
-
-.keep-revert button {
-  appearance: none;
-  min-block-size: 1.9rem;
-  padding: 0 0.7rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--glacier-radius-full, 999px);
-  background: var(--paper);
-  color: var(--ink);
-  font: inherit;
-  font-family: var(--sans);
-  font-size: 0.75rem;
-  font-weight: 650;
-  cursor: pointer;
-}
-
-.keep-revert button[data-keep] {
-  border-color: var(--ink);
-  background: var(--ink);
-  color: var(--paper);
-}
-
-/* A change kept or reverted: its words settle, and its buttons go. */
-[data-settled] .keep-revert {
-  display: none;
-}
-
-[data-settled='keep'] ins {
-  background: none;
-  box-shadow: none;
-}
-
-[data-settled='keep'] del,
-[data-settled='revert'] ins {
-  display: none;
-}
-
-[data-settled='revert'] del {
-  color: inherit;
-  text-decoration: none;
-}
-
-.review-foot {
-  margin: 0;
-  font-size: var(--glacier-font-size-sm, 0.9rem);
-  color: var(--ink-3);
-}
-
-/* ---- a tape: the cassette at the top of a spoken note ------------------------------------------------------------ */
-
-.tape {
-  display: grid;
-  gap: 0.9rem;
-  justify-items: center;
-  max-inline-size: 26rem;
-  inline-size: 100%;
-  margin-inline: auto;
-}
-
-.tape-body {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  inline-size: 100%;
-  aspect-ratio: 2.2;
-  padding: 0 12%;
-  border: 2px solid var(--ink);
-  border-radius: 1rem;
-}
-
-.reel {
-  inline-size: 24%;
-  aspect-ratio: 1;
-  border: 2px solid var(--ink);
-  border-radius: 50%;
-  background: conic-gradient(from 0deg, var(--ink) 0 8%, transparent 8% 33%, var(--ink) 33% 41%, transparent 41% 66%, var(--ink) 66% 74%, transparent 74%);
-  -webkit-mask: radial-gradient(circle, transparent 18%, black 19%);
-  mask: radial-gradient(circle, transparent 18%, black 19%);
-  animation: turn 3.2s linear infinite;
-}
-
-.tape-window {
-  flex: 1;
-  block-size: 30%;
-  border: 2px solid var(--ink-3);
-  border-radius: 0.4rem;
-}
-
-.tape-label {
-  margin: 0;
-  font-family: var(--mono);
-  font-size: 0.9rem;
-  color: var(--ink-2);
-}
-
-.tape-summary {
-  inline-size: 100%;
-}
-
-@keyframes turn {
-  to {
-    rotate: 360deg;
-  }
-}
-
-/* ---- the marks, drawn as the app draws them ---------------------------------------------------------------------- */
-
-.specimens {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 12.5rem), 1fr));
-  gap: var(--glacier-space-3, 0.75rem);
-  margin: 0 0 var(--glacier-space-3, 0.75rem);
-  padding: 0;
-  list-style: none;
-}
-
-.specimens li {
-  display: grid;
-  gap: 0.6rem;
-  justify-items: start;
-  padding: 1.1rem 1.2rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--glacier-radius-lg, 1rem);
-  font-family: var(--mono);
-  font-size: 1.15rem;
-}
-
-.specimens code {
-  font-size: 0.78rem;
-  color: var(--ink-3);
-}
-
-.spoiler {
-  appearance: none;
-  margin: 0;
-  padding: 0 0.15em;
-  border: none;
-  border-radius: 0.25rem;
-  background: none;
-  color: var(--ink);
-  font: inherit;
-  cursor: pointer;
-  filter: blur(6px);
-  text-shadow: 0 0 10px var(--ink);
-  transition: filter 400ms var(--ease);
-}
-
-.spoiler[aria-pressed='true'] {
-  filter: none;
-  text-shadow: none;
-}
-
-.highlight {
-  padding: 0.05em 0.2em;
-  border-radius: 0.25rem;
-  background: var(--mark);
-}
-
-.aside {
-  color: var(--ink-3);
-  font-style: italic;
-}
-
-.unsure {
-  text-decoration: underline wavy var(--ink-3);
-  text-underline-offset: 0.25em;
-}
-
-.unsure::after {
-  content: '?';
-  margin-inline-start: 0.1em;
-  font-size: 0.7em;
-  color: var(--ink-3);
-  vertical-align: super;
-}
-
-.redact {
-  border-radius: 0.15rem;
-  background: var(--ink);
-  color: transparent;
-  cursor: help;
-  transition:
-    background-color 200ms var(--ease),
-    color 200ms var(--ease);
-}
-
-.redact:hover,
-.redact:focus-visible {
-  background: var(--wash);
-  color: var(--ink);
-}
-
-.shout {
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.added {
-  text-decoration: underline;
-  text-decoration-thickness: 0.12em;
-  text-underline-offset: 0.2em;
-  background: color-mix(in oklch, var(--ink) 8%, transparent);
-  border-radius: 0.2rem;
-}
-
-.fx {
-  display: inline-block;
-  font-weight: 700;
-}
-
-.fx-heat {
-  animation: heat 1.8s ease-in-out infinite;
-  text-shadow: 0 -0.08em 0.4em color-mix(in oklch, oklch(0.7 0.18 50) 70%, transparent);
-}
-
-.fx-frost {
-  color: color-mix(in oklch, oklch(0.8 0.08 220) 70%, var(--ink));
-  text-shadow:
-    0 0 0.35em color-mix(in oklch, oklch(0.85 0.08 220) 70%, transparent),
-    0 0 1px var(--ink);
-}
-
-.fx-wave .ch {
-  display: inline-block;
-  animation: wave 1.8s ease-in-out infinite;
-  animation-delay: calc(var(--n) * 90ms);
-}
-
-.fx-shimmer {
-  background: linear-gradient(100deg, var(--ink) 35%, var(--ink-4) 50%, var(--ink) 65%) 0 0 / 250% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: shimmer 2.6s linear infinite;
-}
-
-.fx-haunt {
-  animation: haunt 3.6s ease-in-out infinite;
-}
-
-@keyframes heat {
-  50% {
-    transform: skewX(-3deg) translateY(-1px);
-    filter: blur(0.3px);
-  }
-}
-
-@keyframes wave {
-  50% {
-    transform: translateY(-0.25em);
-  }
-}
-
-@keyframes shimmer {
-  to {
-    background-position: -250% 0;
-  }
-}
-
-@keyframes haunt {
-  0%,
-  100% {
-    opacity: 1;
-    transform: none;
-  }
-  45% {
-    opacity: 0.25;
-    transform: translate(0.08em, -0.12em);
-    filter: blur(1.5px);
-  }
-}
-
-/* ---- two phones, one behind the other ---------------------------------------------------------------------------- */
-
-.phones-two {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 1rem;
-  align-items: start;
-  max-inline-size: 36rem;
-  margin-inline: auto;
-}
-
-.phones-two .phone-back {
-  margin-block-start: 3rem;
-}
-
-/* ---- notebooks, boards and canvases ------------------------------------------------------------------------------ */
-
-.kinds-list {
-  display: grid;
-  gap: var(--glacier-space-8, 2rem);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.kinds-list h3,
-.private-grid h3,
-.where-grid h3 {
-  margin: var(--glacier-space-5, 1.25rem) 0 0.4rem;
-  font-size: var(--glacier-font-size-lg, 1.2rem);
-  letter-spacing: -0.01em;
-}
-
-.kinds-list p,
-.private-grid p,
-.where-grid p {
-  margin: 0;
-  color: var(--ink-2);
-}
-
-@media (min-width: 820px) {
-  .kinds-list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-/* ---- private, and everywhere ------------------------------------------------------------------------------------- */
-
-.private-grid,
-.where-grid {
-  display: grid;
-  gap: var(--glacier-space-4, 1rem);
-  margin: 0 0 var(--glacier-space-6, 1.5rem);
-  padding: 0;
-  list-style: none;
-}
-
-.private-grid li,
-.where-grid li {
-  padding: 0.2rem 1.4rem 1.4rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--glacier-radius-lg, 1rem);
-}
-
-@media (min-width: 640px) {
-  .private-grid,
-  .where-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 980px) {
-  .private-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .where-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-.laptop {
-  margin: 0 auto clamp(2.5rem, 6vw, 4rem);
-  max-inline-size: 60rem;
-  padding: 0.6rem 0.6rem 0;
-  border-radius: 1rem 1rem 0 0;
-  background: oklch(0.13 0 0);
-  box-shadow:
-    inset 0 0 0 1px oklch(0.3 0 0),
-    var(--shadow);
-}
-
-.laptop img {
-  display: block;
-  inline-size: 100%;
-  block-size: auto;
-  border-radius: 0.5rem 0.5rem 0 0;
-}
-
-.laptop::after {
-  content: '';
-  display: block;
-  block-size: 0.9rem;
-  margin-inline: -1.6rem;
-  border-radius: 0 0 1rem 1rem;
-  background: linear-gradient(oklch(0.3 0 0), oklch(0.18 0 0));
-}
-
-/* ---- the pages to choose from ------------------------------------------------------------------------------------ */
-
-.swatches {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--glacier-space-3, 0.75rem);
-  margin-block-end: var(--glacier-space-6, 1.5rem);
-}
-
-.swatch {
-  appearance: none;
-  display: grid;
-  justify-items: center;
-  gap: 0.5rem;
-  min-inline-size: 5.5rem;
-  padding: 0.8rem 0.9rem 0.7rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--glacier-radius-lg, 1rem);
-  background: var(--paper);
-  color: var(--ink);
-  font: inherit;
-  font-size: var(--glacier-font-size-sm, 0.9rem);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.swatch[aria-checked='true'] {
-  border-color: var(--ink);
-  box-shadow: 0 0 0 1px var(--ink);
-}
-
-.sw {
-  inline-size: 2.6rem;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--ink) 25%, transparent);
-}
-
-.sw-system {
-  background: linear-gradient(135deg, oklch(0.995 0 0) 50%, oklch(0.11 0 0) 50%);
-}
-.sw-light {
-  background: radial-gradient(circle at 70% 70%, oklch(0.16 0 0) 0 18%, oklch(0.995 0 0) 19%);
-}
-.sw-dark {
-  background: radial-gradient(circle at 70% 70%, oklch(0.965 0 0) 0 18%, oklch(0.11 0 0) 19%);
-}
-.sw-dawn {
-  background: radial-gradient(circle at 70% 70%, oklch(0.303 0.02 46) 0 18%, oklch(0.97 0.012 60) 19%);
-}
-.sw-boreal {
-  background: radial-gradient(circle at 70% 70%, oklch(0.935 0.02 165) 0 18%, oklch(0.2 0.02 165) 19%);
-}
-.sw-ember {
-  background: radial-gradient(circle at 70% 70%, oklch(0.935 0.02 48) 0 18%, oklch(0.2 0.025 40) 19%);
-}
-
-/* ---- the ways to get it ------------------------------------------------------------------------------------------ */
-
-.download {
-  padding-block: clamp(3.5rem, 9vw, 7rem);
-  border-block-start: 1px solid var(--rule);
-  background: color-mix(in oklch, var(--ink) 2.5%, var(--paper));
-}
-
-.download .feature-words p {
-  margin: 0;
-  color: var(--ink-2);
-}
-
-.ways {
-  display: grid;
-  gap: var(--glacier-space-3, 0.75rem);
-  max-inline-size: 58rem;
-  margin: 0 auto;
-}
-
-@media (min-width: 820px) {
-  .ways {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-.way {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.9rem;
-  padding: 1.1rem 1.2rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--glacier-radius-lg, 1rem);
-  background: var(--paper);
-  color: var(--ink);
-  text-decoration: none;
-  transition:
-    border-color 160ms var(--ease),
-    transform 160ms var(--ease);
-}
-
-.way:hover {
-  border-color: var(--ink-3);
-  transform: translateY(-2px);
-}
-
-.way .i {
-  inline-size: 1.6rem;
-  block-size: 1.6rem;
-}
-
-.way-words {
-  display: grid;
-  min-inline-size: 0;
-}
-
-.way-words span {
-  font-size: var(--glacier-font-size-sm, 0.9rem);
-  color: var(--ink-3);
-  font-variant-numeric: tabular-nums;
-}
-
-.way-go {
-  padding: 0.35rem 0.8rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--glacier-radius-full, 999px);
-  font-size: 0.8rem;
-  font-weight: 650;
-}
-
-/* The way for the device in hand comes first, and is the filled one (home.js). */
-.way[data-first] {
-  order: -1;
-  border-color: var(--ink);
-  background: var(--ink);
-  color: var(--paper);
-}
-
-.way[data-first] .way-words span {
-  color: color-mix(in oklch, var(--paper) 70%, var(--ink));
-}
-
-.way[data-first] .way-go {
-  border-color: color-mix(in oklch, var(--paper) 40%, var(--ink));
-}
-
-.download .stores {
-  margin-block-start: var(--glacier-space-6, 1.5rem);
-}
-
-/* ---- questions --------------------------------------------------------------------------------------------------- */
-
-.faq {
-  padding-block: clamp(3.5rem, 9vw, 6rem);
-  border-block-start: 1px solid var(--rule);
-}
-
-.faq details {
-  border-block-end: 1px solid var(--rule);
-}
-
-.faq summary {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-  padding: 1.1rem 0;
-  font-weight: 650;
-  font-size: var(--glacier-font-size-md, 1rem);
-  list-style: none;
-  cursor: pointer;
-}
-
-.faq summary::-webkit-details-marker {
-  display: none;
-}
-
-.faq summary::after {
-  content: '+';
-  flex: none;
-  font-size: 1.4rem;
-  font-weight: 400;
-  color: var(--ink-3);
-  transition: rotate 200ms var(--ease);
-}
-
-.faq details[open] summary::after {
-  rotate: 45deg;
-}
-
-.faq details p {
-  margin: 0 0 1.2rem;
-  color: var(--ink-2);
-}
-
-/* ---- the foot ---------------------------------------------------------------------------------------------------- */
+/* ---- the foot, with the app's six pages to try on the site ------------------------------------------------------- */
 
 .foot {
-  padding-block: 2.5rem calc(2.5rem + env(safe-area-inset-bottom));
+  padding-block: 2rem calc(2rem + env(safe-area-inset-bottom));
   border-block-start: 1px solid var(--rule);
 }
 
@@ -1369,7 +662,7 @@ del {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 1rem 1.5rem;
 }
 
 .foot ul {
@@ -1386,22 +679,69 @@ del {
   color: var(--ink-2);
 }
 
+.swatches {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.swatch {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  inline-size: 2.2rem;
+  block-size: 2.2rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.swatch[aria-checked='true'] {
+  border-color: var(--ink);
+}
+
+.sw {
+  inline-size: 1.4rem;
+  block-size: 1.4rem;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--ink) 25%, transparent);
+}
+
+.sw-system {
+  background: linear-gradient(135deg, oklch(0.995 0 0) 50%, oklch(0.11 0 0) 50%);
+}
+.sw-light {
+  background: oklch(0.995 0 0);
+}
+.sw-dark {
+  background: oklch(0.11 0 0);
+}
+.sw-dawn {
+  background: oklch(0.97 0.012 60);
+}
+.sw-boreal {
+  background: oklch(0.2 0.02 165);
+}
+.sw-ember {
+  background: oklch(0.2 0.025 40);
+}
+
 /* ---- movement, only for those who want it ------------------------------------------------------------------------ */
 
 @media (prefers-reduced-motion: reduce) {
-  .live-top .ghost,
-  .dot,
-  .reel,
-  .fx-heat,
-  .fx-wave .ch,
-  .fx-shimmer,
-  .fx-haunt,
-  .md.arriving {
-    animation: none;
+  :root {
+    scroll-behavior: auto;
   }
 
-  .fx-shimmer {
-    color: var(--ink);
-    background: none;
+  .pill,
+  .way {
+    transition: none;
+  }
+
+  .pill:active,
+  .way:hover {
+    transform: none;
   }
 }

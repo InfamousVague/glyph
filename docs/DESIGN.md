@@ -8591,3 +8591,30 @@ Taking the desk's screen showed a canvas's row on the home page reading "{", the
 row says how many cards it has now, "4 cards" (home/HomeScreen.tsx; a test in home/HomeScreen.test.tsx).
 
 Cites: §132, §147, §148, §151, §152.
+
+## 154. The site reframed: organise your life, and work on it with AI (2026-09-30)
+
+Matt: "reframe the website don't focus on the talking part focus on how it can organize your life and how it works with
+AI tools to document and work in tandem, remove some of the verbosity to make the page half as long and use only real
+components from the app for things like the tape cassette".
+
+- **The story is order and AI, not voice.** The opening says "Organise everything. Work on it with AI." over the app on
+  a wide screen. Then four bands, a sentence or two each: Organise (the home page, journals, boards and canvases, in
+  the app's screens; finding, workspaces, and swipes and pull to refresh in a line each); Work with AI (the phone's
+  own models, every change marked to keep or revert, Claude's connector - which signs what it wrote, never deletes, and
+  never writes over another device's edit - with its address to copy, and Notion and GitHub); Document (meetings
+  written up, voice's one place); and Private. The recorder, Hey Ghost, the review mock-up, the marks, the devices'
+  band, the themes' band and the questions went. The page is half as long: 228 lines of HTML from 526, and on a desk
+  5,200px from 12,000.
+- **Only the app shows the app.** The screens are the web build's (§153), now with a note the AI has just worked on -
+  its changes marked, Keep all in the strip, "By Matt and Ghost" - and a note Claude wrote, "By Matt and Claude", seeded
+  as the app keeps them. The cassette is the app's own `TapeArt`, built for the site from src/landing/parts.tsx
+  (`npm run build:landing`): it plays on a tap, its reels winding the tape across, and turns with the site's theme.
+  The hand-drawn cassette, recorder, review and mark specimens are gone.
+- **What the review of §153 found, where it still applies:** the privacy line now says that Claude's hosted connector
+  holds your key while connected, and that the connector on your own computer keeps it there (Guide chapter 23); the
+  Mac's first-open steps are the Guide's for macOS 15 and later; the third ink is a step darker, since it was under
+  4.5:1 on Dawn and the light tints; the device's download is moved first in the page, not only drawn first; the
+  browser's bar takes the page's paper; and reduced motion stills the buttons' movement too.
+
+Cites: §147, §151, §153.

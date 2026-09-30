@@ -108,11 +108,16 @@
   --rule: var(--g4);
   --ink: var(--g12);
   --ink-2: var(--g11);
-  --ink-3: var(--g9);
+  /* A step darker than the app's own third ink (g9): the site's small print is read at a distance, and g9 on Dawn's
+     paper and the light tints was under 4.5:1. */
+  --ink-3: var(--g10);
   --ink-4: var(--g7);
   --wash: color-mix(in oklch, var(--g12) 7%, transparent);
   /* The highlighter's blue wash, the one colour among the marks (the app's `--app-mark`). */
   --mark: color-mix(in oklch, oklch(0.62 0.17 250) 34%, transparent);
+  /* The app's names for the two inks, which its own components read (parts/: src/landing/parts.tsx). */
+  --app-ink: var(--ink);
+  --app-paper: var(--paper);
   /* What privacy.html and delete-account.html were written against. */
   --line: var(--rule);
   --sans: var(--glacier-font-sans, 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif);

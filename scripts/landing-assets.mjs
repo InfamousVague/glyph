@@ -29,7 +29,7 @@ copy('node_modules/@glacier/tokens/css/tokens.css', 'glacier/tokens.css');
 copy('node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2', 'fonts/inter.woff2');
 copy('node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2', 'fonts/jetbrains-mono.woff2');
 // The ghosts the home page wears (home.css `.ghost-*`), and no more: each is a large mask, and the site stays small.
-const GHOSTS = ['a-new-note', 'every-to-do-ticked', 'listening', 'signed-out-not-syncing', 'the-model-working', 'an-update-is-ready'];
+const GHOSTS = ['signed-out-not-syncing', 'an-update-is-ready'];
 rmSync(join(LANDING, 'ghosts'), { recursive: true, force: true });
 for (const file of readdirSync(join(ROOT, 'src/app/art/ghosts'))) {
   const name = file.replace(/^\d+-/, '').replace(/\.webp$/, '');

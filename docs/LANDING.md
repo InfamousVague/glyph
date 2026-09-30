@@ -1,14 +1,20 @@
 # ghostmarkdown.com
 
-The app's own site: everything Ghost.md does, and the ways to get it (docs/DESIGN.md §153). It was a download page -
-the icon, the name, one line, and three buttons - and is now the whole app on one page: the recorder drawn at work, the
-cues, Hey Ghost, the review with its Keep and Revert, meetings and tapes, the marks to try, the home page, journals,
-boards and canvases, privacy, the devices, the app's six themes to try on the site itself, the downloads, and questions.
+The app's own site: what Ghost.md does for a life's notes, how it works with AI, and the ways to get it (docs/DESIGN.md
+§153, §154). One short page: the opening with the app on a wide screen; Organise (the home page, journals, boards and
+canvases); Work with AI (the phone's own AI and its marked changes, Claude's connector and its address to copy, Notion
+and GitHub); Document (meetings written up, with the app's own cassette); Private; the downloads; and a foot with the
+app's six themes to try on the site itself.
 It lives in `landing/` and ships with `node scripts/deploy-landing.mjs`, one ssh login. It has no npm alias.
 
-- **The files.** `index.html` (the page), `home.css` and `home.js` (its layout and its moving parts), `site.css` (the
-  fonts, the colours and the reading column every page shares), `theme.js` (the theme a visitor picked, on every page
-  before it draws), and the icons, resized from `src-tauri/icons/icon.png`. No build: the site is this directory.
+- **The files.** `index.html` (the page), `home.css` and `home.js` (its layout, the downloads, the address to copy and
+  the theme picker), `site.css` (the fonts, the colours and the reading column every page shares), `theme.js` (the
+  theme a visitor picked, on every page before it draws), and the icons, resized from `src-tauri/icons/icon.png`.
+- **Only the app's own components show the app** (Matt: "use only real components from the app for things like the
+  tape cassette"). What does not move is the app's screens (`shots/`). What moves is the app's code: `parts/` is
+  `src/landing/parts.tsx` built by `npm run build:landing` (vite.landing.config.ts) - today the cassette, `TapeArt`,
+  which plays on a tap and turns with the site's theme, since site.css hands it the app's names for its two inks. Run
+  it when a part changes and commit what it writes: the site is still one directory the deploy tars whole.
 - **Glacier.** The site is drawn from the kit's tokens, as the app is: `glacier/tokens.css` is `@glacier/tokens`'s, and
   its type scale, spacing, radii, motion, shadows and the named themes (Dawn, Boreal, Ember) are what `home.css` and
   `site.css` use. The colours are the app's ink (src/app/ink.css): pure grey, light or dark, or the kit's tinted greys
@@ -16,9 +22,10 @@ It lives in `landing/` and ships with `node scripts/deploy-landing.mjs`, one ssh
   font host. `node scripts/landing-assets.mjs` copies the tokens, the fonts and the ghosts the page wears (`ghosts/`, the
   app's masks, painted in the site's ink) from the kit and the app; run it when either changes and commit what it
   writes.
-- **The screens** (`shots/`) are the web build's own, seeded with a handful of notes and drawn at a phone's size and a
-  desk's in the dark page: `npm run build`, `npx vite preview --port 4173`, then `node scripts/landing-shots.mjs`.
-  Take them again when the app's look changes.
+- **The screens** (`shots/`) are the web build's own, seeded with a handful of notes - one with the AI's changes still
+  marked, as ai/marks.ts keeps them, and one Claude wrote - and drawn at a phone's size and a desk's in the dark page:
+  `npm run build`, `npx vite preview --port 4173`, then `node scripts/landing-shots.mjs`. Take them again when the
+  app's look changes.
 - **What it says is what the app does.** Each claim is the Guide's, the code's, or docs/store/play/FEATURES.md's; a
   feature that changes is a sentence here to change.
 - **The stores** are one line each in `home.js` (`STORES`). Null, a store's button says Coming soon and is not a link;
