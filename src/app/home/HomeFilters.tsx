@@ -1,10 +1,10 @@
 import { useEffect, useId, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { flushSync } from 'react-dom';
-import { Check, Search, SlidersHorizontal, X } from '@glacier/icons';
+import { Check, FileText, Search, SlidersHorizontal, X } from '@glacier/icons';
 import { Popover } from '@glacier/react';
 import { useBack } from '../core/back.ts';
 import { chooseWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
-import { Pin, Plus } from '../art/Icons.tsx';
+import { Grid, Notebook, Pin, Plus, Workspace as Folder } from '../art/Icons.tsx';
 import { HOME_FILTERS, type HomeFilter } from './homeLayout.ts';
 import look from './HomeLayouts.module.css';
 
@@ -128,7 +128,7 @@ export function HomeFilters({ query, onQuery, filter, onFilter, counts, onManage
                   onClick={() => onFilter(each.id)}
                   onKeyDown={(event) => step(event, at, HOME_FILTERS.length, (to) => onFilter(HOME_FILTERS[to]!.id))}
                 >
-                  {each.id === 'pinned' ? <Pin className={look.choiceMark} /> : <span className={look.choiceMark} aria-hidden="true" />}
+                  <ShowMark filter={each.id} />
                   <span className={look.choiceWord}>{each.label}</span>
                   <span className={look.choiceCount}>{counts[each.id]}</span>
                   <Check size={16} strokeWidth={2.4} className={look.choiceTick} aria-hidden="true" />
@@ -154,7 +154,7 @@ export function HomeFilters({ query, onQuery, filter, onFilter, counts, onManage
                       onClick={() => chooseWorkspace(place.id)}
                       onKeyDown={(event) => step(event, at, places.length, (to) => chooseWorkspace(places[to]!.id))}
                     >
-                      <span className={place.hue ? look.hueDot : look.choiceMark} aria-hidden="true" />
+                      {place.hue ? <span className={look.hueDot} aria-hidden="true" /> : <Folder className={look.choiceMark} />}
                       <span className={look.choiceWord}>{place.name}</span>
                       <Check size={16} strokeWidth={2.4} className={look.choiceTick} aria-hidden="true" />
                     </button>
@@ -199,6 +199,18 @@ export function HomeFilters({ query, onQuery, filter, onFilter, counts, onManage
       ) : null}
     </>
   );
+}
+
+/**
+ * Each Show choice's mark at its left, the one its things wear on the page (Matt: "all, notebooks, notes and 'Every
+ * workspace' should have left icons"): the grid of every note, as the foot's All notes has it; a notebook; a page; the
+ * pin. Every workspace wears the workspace's folder, where each workspace wears its colour.
+ */
+function ShowMark({ filter }: { filter: HomeFilter }) {
+  if (filter === 'all') return <Grid className={look.choiceMark} />;
+  if (filter === 'books') return <Notebook className={look.choiceMark} />;
+  if (filter === 'notes') return <FileText size="1em" strokeWidth={2.2} className={look.choiceMark} aria-hidden="true" />;
+  return <Pin className={look.choiceMark} />;
 }
 
 /**

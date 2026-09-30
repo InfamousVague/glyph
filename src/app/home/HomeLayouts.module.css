@@ -186,7 +186,8 @@
 .choiceMark {
   flex: none;
   inline-size: 1em;
-  color: var(--app-ink-3);
+  block-size: 1em;
+  color: var(--app-ink-2);
 }
 
 .choiceWord {

@@ -8618,3 +8618,13 @@ components from the app for things like the tape cassette".
   browser's bar takes the page's paper; and reduced motion stills the buttons' movement too.
 
 Cites: §147, §151, §153.
+
+## 155. A mark on every filter (2026-09-30)
+
+Matt: "all, notebooks, notes and 'Every workspace' should have left icons". Only Pinned had one in the filters' panel
+(§148). Each Show choice now wears the mark its things wear on the page: All the grid of the foot's All notes,
+Notebooks a notebook, Notes a page, Pinned the pin. Every workspace wears the workspace's folder (art/Icons.tsx), where
+each workspace wears its colour. The marks are the second ink, a step up from the third, since they are the row's
+picture now and not an empty space held for one (home/HomeFilters.tsx `ShowMark`; a test in home/HomeScreen.test.tsx).
+
+Cites: §148.

@@ -176,6 +176,8 @@ describe('the filters beside the search', () => {
     expect(panel()).toBeNull();
     openFilters();
     expect(said(choices('Show'))).toEqual(['All4 (on)', 'Notebooks1', 'Notes3', 'Pinned1']);
+    // Each with its mark at its left, the one its things wear on the page.
+    expect(choices('Show').map((choice) => choice.firstElementChild?.tagName.toLowerCase())).toEqual(['svg', 'svg', 'svg', 'svg']);
     choose('Show', 'Notebooks');
     expect(headings()).toEqual(['Notebooks']);
     expect(said(choices('Show'))).toContain('Notebooks1 (on)');
@@ -257,6 +259,9 @@ describe('the filters beside the search', () => {
     show(page(shelf));
     openFilters();
     expect(said(choices('Workspace'))).toEqual(['Every workspace (on)', 'Kitchen', 'Work']);
+    // Every workspace wears the folder; each workspace its colour.
+    expect(choices('Workspace')[0]!.firstElementChild?.tagName.toLowerCase()).toBe('svg');
+    expect(choices('Workspace')[1]!.firstElementChild?.getAttribute('class')).toContain('hueDot');
     // The pills are gone from the page: the workspaces and the Show choices are only in the panel.
     expect(document.querySelector('[role="group"][aria-label="Workspaces"]')).toBeNull();
     expect([...document.querySelectorAll('[role="radiogroup"]')].every((group) => group.closest('[role="dialog"]'))).toBe(true);
