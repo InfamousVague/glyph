@@ -1,7 +1,7 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { Mic } from '@glacier/icons';
+import { useMemo, useRef, useState, type CSSProperties } from 'react';
+import { BookOpen, FileText, Mic, Search, Workflow, X } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
-import { longDay } from '../core/stamp.ts';
+import { titleKey } from '../core/titleKey.ts';
 import { inWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
 import { usePreferences } from '../core/preferences.ts';
 import type { VoiceModelState } from '../capture/useVoiceModel.ts';
@@ -10,69 +10,36 @@ import { useGlideToTop } from '../core/glideToTop.ts';
 import { isAndroid } from '../core/platform.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { Ghost } from '../art/Ghost.tsx';
-import { Cassette, Clock, Cog, Grid, Magnifier, Notebook, Pin, Plus, TickBox } from '../art/Icons.tsx';
+import { Cog, Grid, Magnifier, Notebook, Pin, Plus } from '../art/Icons.tsx';
 import { NoteCard } from '../notes/NoteCard.tsx';
 import { when } from '../notes/when.ts';
 import { WorkspaceBar } from '../notes/WorkspaceBar.tsx';
 import { WorkspaceSheet } from '../notes/WorkspaceSheet.tsx';
-import { AcademyCard, RefiningNotice, UpdateNotice, VoiceModelStatus } from '../notes/Notices.tsx';
+import { UpdateNotice, VoiceModelStatus } from '../notes/Notices.tsx';
 import { useGists } from '../format/gist.ts';
 import { shortenUrls } from '../core/shortUrl.ts';
-import { isTauri } from '../core/tauri.ts';
-import { enqueueSummary, useSummaries } from '../ai/summaries.ts';
-import { useRefining } from '../capture/refine.ts';
-import {
-  bookNotes,
-  digest,
-  openTasks,
-  pinnedNotes,
-  recentNotes,
-  summaryKindOf,
-  tapedNotes,
-  tapesWaiting,
-  tickedTasks,
-  touchedToday,
-  type DigestGo,
-  type OpenTask,
-} from './dashboard.ts';
-import { TapeShelf } from './TapeShelf.tsx';
-import { useMeetingLive } from './useMeetingLive.ts';
-import { CAPS } from './tiers.ts';
-import { useColumnTier } from './useColumnTier.ts';
-import { bookIndex, placeOf } from '../book/book.ts';
+import { bookIndex, chaptersOf, placeOf } from '../book/book.ts';
 import { journalCards } from '../book/journalMonths.ts';
+import type { OpenTask } from './dashboard.ts';
+import { firstLine, HOME_FILTERS, homeCounts, homeLists, kindOf, library, SPAN_WORDS, timeline, type HomeFilter } from './homeLayout.ts';
 import styles from './HomeScreen.module.css';
+import look from './HomeLayouts.module.css';
 
 /**
- * The home page (Matt: "Add a 'home' button to take us to a dashboard like page"; he chose a new page on every screen,
- * the phone's start page included). The top bar's Glyph mark brings you here from anywhere.
+ * The home page: the notebooks and the notes, a search over them, and a filter, drawn one of five ways (docs/DESIGN.md
+ * §147; Matt: "redesign the home page / dashboard to be easier to navigate, remove things like the todo list and other
+ * things, focus more on displaying the books and notes in an easy way to search and look through; give me 5 different
+ * dashboard layout styles we can choose from in the settings").
  *
- * Redrawn as headed groups with room between them (docs/DESIGN.md §132; Matt: "The library and tapes headers on the
- * home page are different sizes, id like you to redo the home dashboard UI/UX to make it easier to digest everything
- * with cards and quick actions and summaries and better labeling. Right now it's just very data dense with no solid
- * organization and use of white space"). The date is the page's one title, with a digest under it of what is waiting;
- * then anything waiting on them (an update, the Academy's invitation, the voice model); then the groups, each under a
- * sentence-case heading with one mark beside it, in this order: the notes they pinned (Matt, §29g: pinned notes "in a
- * category above the rest"); every to-do not yet ticked, gathered from all of their notes into one card and ticked
- * here without opening the note, second because it is what is waiting, its tick is the page's one in-place action, and
- * a meeting's summary writes its actions there; the tapes the recorder made as a row of cards (home/TapeShelf.tsx;
- * Matt: "display them in a cassette shelf on the home page"), above the notebooks as §127 placed them; the
- * notebooks (the Library until §142); and the notes they were in last, four of them (six on a desk), running into
- * "All notes" at the foot, which opens the page that lists every note as a grid of the same cards
- * (notes/AllNotesScreen.tsx).
+ * It was a dashboard of what was waiting - a digest, the to-dos of every note, the shelf of tapes, notices - and grew
+ * crowded (§132, §137). Now it is a way into the notes. At its top, the search: the page narrows as it is typed, every
+ * word anywhere in a note (notes/allNotes.ts `matches`). Under it the filter - All, Notebooks, Notes, Pinned, with how
+ * many of each - and the workspace pills. Then the notebooks and the notes in the layout chosen in Settings ›
+ * Appearance (home/homeLayout.ts `HOME_LAYOUTS`): Cards, List, Shelf, Library or Timeline. Only what needs the person
+ * stays above them: an update ready, the voice model's download or its failure. Tapes are notes like any other, and a
+ * to-do is found in its note.
  *
- * Laid out by its own width (home/tiers.ts, docs/DESIGN.md §137; Matt: "Extend the dashboard to support wide phone /
- * tablet layouts too", and then: "It's okay if they're two across or the layout changes slightly on wide the four
- * column was a suggestion not a rule"): the phone's one column under 44rem; from there two of them across, with the
- * Fold's hinge in the gap between; and past 66rem a main two cards across beside a rail that holds To do. The groups
- * keep their order at every width, and the order they are read in is the order they are written in below.
- *
- * The headers Matt saw at two sizes were two kinds of icon: the pin and the cassette were art/Icons.tsx's 1em strokes
- * drawn at 1.15em of a 13px heading, while the Library's book was the kit's lucide, which writes width=24 as an
- * attribute and ignores the em. Every heading's mark is now Icons.tsx's line at the heading's own size.
- *
- * It took the place of the notes list, and kept what the list had that was not the list: the glass bar and scroller,
- * the workspace pills choosing what it shows, and the dock, so starting a note is where it always was.
+ * The glass bar, the scroller with its smoke, and the dock - write, Speak, Settings, the palette - are as they were.
  */
 
 interface HomeScreenProps {
@@ -82,366 +49,221 @@ interface HomeScreenProps {
   onNew: () => void;
   onCapture: () => void;
   onSettings: () => void;
-  /** Settings open at Recording's Model card, where a language model is fetched: the shelf's "Get a model". Plain Settings when absent. */
+  /** Settings at the Model card. Kept for the callers; the page no longer offers it. */
   onGetModel?: () => void;
-  /**
-   * The command palette (commands/CommandBar.tsx): search the notes and everything Glyph can do. Absent until the
-   * palette has handed back its opener, and then the dock has no Search button rather than one that does nothing.
-   */
+  /** The command palette (commands/CommandBar.tsx); absent until it has handed back its opener. */
   onSearch?: () => void;
-  /** Every note, as a grid of cards (notes/AllNotesScreen.tsx); with `tapes`, only the notes with a recording, from the Tapes heading's "See all". */
+  /** Every note, as a grid of cards (notes/AllNotesScreen.tsx). */
   onAllNotes: (options?: { tapes: boolean }) => void;
-  /** A to-do ticked from here: its note's line rewritten with the box ticked. */
-  onTick: (task: OpenTask) => void;
+  /** Kept for the callers: the page no longer lists to-dos. */
+  onTick?: (task: OpenTask) => void;
   voiceModel: VoiceModelState;
   onRetryVoiceModel: () => void;
   updates: Updates;
+  /** Kept for the callers: the Academy is offered from Settings now, not from the home page. */
   showAcademy?: boolean;
   onAcademy?: () => void;
   onHideAcademy?: () => void;
 }
 
-/**
- * How many tapes are on the shelf, at every width (one row on a phone, two rows of four on the wider screens), and how
- * many to-dos the card holds once "Show all" is pressed, before the rest are counted instead. How many of the notes
- * touched last are shown and how many to-dos before "Show all" are the page's width's to say (home/tiers.ts `CAPS`):
- * four and five on a phone, and the notes run straight into "All notes", which is their See all.
- */
-const SHELF = 8;
-const TASKS_OPEN = 40;
-/**
- * How many beats the groups under the shelf wait for it: the two and a bit cassettes the cover screen shows, not all
- * eight, or Recent's first card waited 320ms under an empty heading on every press of Home.
- */
-const SHELF_BEATS = 3;
+/** How many notes the Cards and Shelf layouts draw before "All notes" takes over, and how many get a gist written. */
+const CARDED = 48;
+const GISTED = 16;
 
-export function HomeScreen({
-  notes,
-  loading,
-  onOpen,
-  onNew,
-  onCapture,
-  onSettings,
-  onGetModel,
-  onSearch,
-  onAllNotes,
-  onTick,
-  voiceModel,
-  onRetryVoiceModel,
-  updates,
-  showAcademy = false,
-  onAcademy,
-  onHideAcademy,
-}: HomeScreenProps) {
+export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSettings, onSearch, onAllNotes, voiceModel, onRetryVoiceModel, updates }: HomeScreenProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const topBar = useRef<HTMLElement>(null);
-  // Which of its layouts the page is in, by its own column's width (home/tiers.ts): how many notes and to-dos it holds.
-  const page = useRef<HTMLDivElement>(null);
-  const caps = CAPS[useColumnTier(page)];
-  // Smoke at both ends: under the bar, and at the page's very foot, with the notes running on under the dock's
-  // buttons down to it (Matt: "Make the bottom bar transparent and move the dark gradient down").
+  const field = useRef<HTMLInputElement>(null);
   useWispEdge(scroller, 'home', topBar, { foot: true });
+  const { homeLayout: layout } = usePreferences();
   const spaces = useWorkspaces();
   const [manage, setManage] = useState<Workspace | 'new' | null>(null);
-  // Another workspace chosen: the page glides back to its top rather than jumping there.
-  useGlideToTop(scroller, spaces.current?.id ?? 'all');
-  // The chosen workspace chooses the page too, as it chose the list. Held steady between renders, since the cards it
-  // works out are what the gist runner is given: a fresh array every time a to-do is ticked would put its work off.
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<HomeFilter>('all');
   const workspace = spaces.current?.id ?? null;
-  const shown = useMemo(() => inWorkspace(notes, workspace), [notes, workspace]);
-  // Which notes are meetings (core/preferences.ts): a meeting is a tape whatever made it, so Recent leaves it to the shelf.
-  const { meetings } = usePreferences();
-  // The meeting being recorded now (home/useMeetingLive.ts): a tape while it is made, first on the shelf, not in Recent.
-  const live = useMeetingLive();
-  const pinned = useMemo(() => pinnedNotes(shown), [shown]);
-  const recent = useMemo(() => recentNotes(shown, caps.recent, meetings, live), [shown, caps.recent, meetings, live]);
-  // The tapes, the last recorded first; the shelf holds eight and says how many more there are (home/TapeShelf.tsx).
-  const taped = useMemo(() => tapedNotes(shown, meetings, live), [shown, meetings, live]);
-  const shelf = useMemo(() => taped.slice(0, SHELF), [taped]);
-  const shelfBeats = Math.min(shelf.length, SHELF_BEATS);
-  const books = useMemo(() => bookNotes(shown), [shown]);
-  /** Every page's book, for the cards' marks (book/book.ts). */
-  const inBooks = useMemo(() => bookIndex(shown), [shown]);
-  // A journal's card counts every entry in it, wherever each was filed: an entry is filed in the workspace being looked
-  // at when it is made (App.tsx `showMade`), and the + offers the journal written in last from any of them.
+  // Another workspace, filter or layout: the page glides back to its top rather than jumping there.
+  useGlideToTop(scroller, `${workspace ?? 'all'}|${filter}|${layout}`);
+  const inSpace = useMemo(() => inWorkspace(notes, workspace), [notes, workspace]);
+  const lists = useMemo(() => homeLists(inSpace, query, filter), [inSpace, query, filter]);
+  const counts = useMemo(() => homeCounts(inSpace), [inSpace]);
+  /** Every page's notebook, for a card's mark and the Library's pages (book/book.ts). */
+  const inBooks = useMemo(() => bookIndex(inSpace), [inSpace]);
   const journals = useMemo(() => journalCards(notes), [notes]);
-  const tasks = useMemo(() => openTasks(shown), [shown]);
-  // One quiet line under each card's title, what the note is about, written by a model on the phone (format/gist.ts).
-  // Only the notes with a card or a cassette on the page: the runner asks about what is on screen, not about every
-  // note there is. The shelf's notes are here too, or a 40-second voice note would never get a line.
-  const carded = useMemo(() => [...pinned, ...shelf, ...recent], [pinned, shelf, recent]);
+  const byTitle = useMemo(() => new Map(notes.filter((n) => !n.archivedAt).map((n) => [titleKey(noteTitle(n.body)), n])), [notes]);
+  const pagesOf = (book: Note) => chaptersOf(book.body).flatMap((c) => byTitle.get(titleKey(c.title)) ?? []);
+  // A line under each card's title, for the cards on the first screens only: the runner asks about what is on screen.
+  const carded = useMemo(() => (layout === 'cards' || layout === 'shelf' ? [...lists.books, ...lists.notes].slice(0, GISTED) : []), [layout, lists]);
   const gists = useGists(carded);
-  const titleOf = useMemo(() => new Map(notes.map((n) => [n.id, noteTitle(n.body) || 'Untitled'])), [notes]);
-  // A tick lands on the page at once; the note catches up when it has been written.
-  const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set());
-  // Once the notes have been read again they say it themselves, and a line number may now be another to-do's.
-  useEffect(() => setTicked(new Set()), [notes]);
-  const open = tasks.filter((t) => !ticked.has(`${t.noteId}:${t.line}`));
-  // With none left open, a page that had to-dos says they are done; one that never had any says nothing.
-  const allDone = !open.length && (ticked.size > 0 || tickedTasks(shown) > 0);
-  // "Show all 14": the card opens in place to forty rows. Folded again with the workspace, whose to-dos these are.
-  const [showAll, setShowAll] = useState(false);
-  useEffect(() => setShowAll(false), [workspace]);
-  // Opened out: Show all pressed and more open than the card holds. A tick can end it with Show all still on.
-  const spread = showAll && open.length > caps.tasks;
-  /*
-   * The pair: one pinned card and To do side by side on two columns (HomeScreen.module.css `.grid[data-paired]`), while
-   * To do is not opened out. Worked out here rather than asked of the page's shape by the sheet, since it is the page's
-   * state, and the heading's hold below turns on it.
-   */
-  const paired = pinned.length === 1 && (open.length > 0 || allDone) && !spread;
-  /*
-   * A press on the card keeps its heading where it was on the screen. On two columns To do sits beside a single pinned
-   * card, and opened out it spans the page under that card (HomeScreen.module.css), which moves its heading down by the
-   * card's height, away from the thumb that pressed it; the tick that brings the count down to what the card holds
-   * puts it back beside the card, which moves it up by as much, out from under the finger ticking the list off. So
-   * Show all, Show fewer and a tick each note where the heading is, and after the commit the page scrolls by as much
-   * as it moved. Where nothing moves (a phone, a desk's rail, a card that already spanned) that is nothing. A scroll
-   * set, not a glide: the heading is meant to stay still, so there is nothing for reduced motion.
-   */
-  const tasksRow = useRef<HTMLDivElement>(null);
-  const heldAt = useRef<number | null>(null);
-  const holdTasks = () => {
-    heldAt.current = tasksRow.current?.getBoundingClientRect().top ?? null;
-  };
-  // After every commit, and only the one a press asked for: a press is its own commit, since its updates are batched.
-  useLayoutEffect(() => {
-    const was = heldAt.current;
-    heldAt.current = null;
-    const row = tasksRow.current;
-    const scroll = scroller.current;
-    if (was === null || !row || !scroll) return;
-    const moved = row.getBoundingClientRect().top - was;
-    if (moved) scroll.scrollTop += moved;
-  });
-  // The To do card takes one beat between the pinned cards and the shelf.
-  const todoBeats = open.length || allDone ? 1 : 0;
 
-  // "Monday 28 September", as a journal's {{date}} writes the day (core/stamp.ts).
-  const today = longDay(new Date());
-  // The digest under the date: what is waiting, from what the page already holds (dashboard.ts `digest`). The tapes'
-  // queues are the shelf's own sources, read here as well; two subscribers to one store is fine.
-  const summaries = useSummaries();
-  const refining = useRefining().pending;
-  const waiting = useMemo(() => tapesWaiting(taped, { refining, summaries }), [taped, refining, summaries]);
-  const touched = useMemo(() => touchedToday(shown), [shown]);
-  const phrases = useMemo(() => digest({ open: open.length, waiting, touched }), [open.length, waiting, touched]);
-  const hasNotes = shown.some((n) => !n.archivedAt);
-  /**
-   * A phrase tapped: the page glides to its group, or Settings opens at Recording's Model card for a missing model. A
-   * group that is not on the page: nothing. The glide's target is fixed when it starts, so what is above the group must
-   * hold its height while the page moves: a pinned card's peek lets its editor go as the card leaves the scroller, and
-   * the blank that stands in is held at the editor's height (notes/NotePeek.tsx), or the heading landed 69px behind the
-   * bar.
-   */
-  const glide = (go: DigestGo) => {
-    if (go === 'model') return (onGetModel ?? onSettings)();
-    const id = { tasks: 'home-tasks', tapes: 'home-tapes' }[go];
-    // Optional-chained: jsdom has no scrollIntoView.
-    document
-      .getElementById(id)
-      ?.closest('section')
-      ?.scrollIntoView?.({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
-  };
+  const searched = query.trim() !== '';
+  const hasNotes = counts.all > 0;
+  const found = lists.books.length + lists.notes.length;
 
-  /** A note's card (notes/NoteCard.tsx), at its place in the run of cards down the page. */
-  const card = (note: Note, i: number) => (
-    <NoteCard key={note.id} note={note} index={i} onOpen={onOpen} gist={gists[note.id]} place={placeOf(inBooks, note)} entries={journals.get(note.id)} />
+  const card = (note: Note, i: number, dense = false) => (
+    <NoteCard key={note.id} note={note} index={i} onOpen={onOpen} gist={gists[note.id]} place={placeOf(inBooks, note)} entries={journals.get(note.id)} dense={dense} />
   );
+  // A row names the notebook a page is in, but not under that notebook's own heading (the Library).
+  const row = (note: Note, i: number, inBook = false) => (
+    <HomeRow key={note.id} note={note} index={i} onOpen={onOpen} bookName={inBook ? null : (placeOf(inBooks, note)?.title ?? null)} entries={journals.get(note.id)?.count} />
+  );
+
+  const section = (id: string, heading: string, mark: React.ReactNode, count: number, body: React.ReactNode) => (
+    <section className={look.section} aria-labelledby={`home-${id}`} data-section={id}>
+      <h2 id={`home-${id}`} className={look.heading}>
+        {mark}
+        <span>{heading}</span>
+        <span className={look.count}>{count}</span>
+      </h2>
+      {body}
+    </section>
+  );
+
+  let body: React.ReactNode = null;
+  if (found) {
+    if (layout === 'list') {
+      body = (
+        <>
+          {lists.books.length ? section('books', 'Notebooks', <Notebook className={look.mark} />, lists.books.length, <ul className={look.rows}>{lists.books.map((n, i) => row(n, i))}</ul>) : null}
+          {lists.notes.length ? section('notes', 'Notes', <FileText size={15} className={look.mark} aria-hidden="true" />, lists.notes.length, <ul className={look.rows}>{lists.notes.map((n, i) => row(n, i))}</ul>) : null}
+        </>
+      );
+    } else if (layout === 'shelf') {
+      body = (
+        <>
+          {lists.books.length
+            ? section(
+                'books',
+                'Notebooks',
+                <Notebook className={look.mark} />,
+                lists.books.length,
+                <ol className={look.shelf} aria-label="Notebooks">
+                  {lists.books.map((book, i) => (
+                    <BookCover key={book.id} book={book} index={i} onOpen={onOpen} count={journals.get(book.id)?.count ?? chaptersOf(book.body).length} journal={journals.has(book.id)} />
+                  ))}
+                </ol>,
+              )
+            : null}
+          {lists.notes.length
+            ? section('notes', 'Notes', <FileText size={15} className={look.mark} aria-hidden="true" />, lists.notes.length, <ol className={look.dense}>{lists.notes.slice(0, CARDED).map((n, i) => card(n, i, true))}</ol>)
+            : null}
+        </>
+      );
+    } else if (layout === 'library') {
+      const shelves = library(lists, pagesOf, (n) => placeOf(inBooks, n));
+      body = (
+        <>
+          {shelves.books.map(({ book, pages }) => (
+            <section key={book.id} className={look.section} aria-label={noteTitle(book.body) || 'Untitled notebook'}>
+              <button type="button" className={look.bookHead} onClick={() => onOpen(book.id)}>
+                <Notebook className={look.mark} />
+                <span className={look.bookName}>{noteTitle(book.body) || 'Untitled notebook'}</span>
+                <span className={look.count}>{pages.length}</span>
+              </button>
+              {pages.length ? <ul className={look.rows}>{pages.map((page, i) => row(page, i, true))}</ul> : <p className={look.none}>{journals.has(book.id) ? 'No entries yet.' : 'No pages yet.'}</p>}
+            </section>
+          ))}
+          {shelves.loose.length
+            ? section('loose', shelves.books.length ? 'In no notebook' : 'Notes', <FileText size={15} className={look.mark} aria-hidden="true" />, shelves.loose.length, <ul className={look.rows}>{shelves.loose.map((n, i) => row(n, i))}</ul>)
+            : null}
+        </>
+      );
+    } else if (layout === 'timeline') {
+      body = timeline(lists).map(({ span, notes: inSpan }) => section(span, SPAN_WORDS[span], null, inSpan.length, <ul className={look.rows}>{inSpan.map((n, i) => row(n, i))}</ul>));
+    } else {
+      body = (
+        <>
+          {lists.books.length ? section('books', 'Notebooks', <Notebook className={look.mark} />, lists.books.length, <ol className={styles.cards}>{lists.books.map((n, i) => card(n, i))}</ol>) : null}
+          {lists.notes.length
+            ? section('notes', 'Notes', <FileText size={15} className={look.mark} aria-hidden="true" />, lists.notes.length, <ol className={styles.cards}>{lists.notes.slice(0, CARDED).map((n, i) => card(n, i + lists.books.length))}</ol>)
+            : null}
+        </>
+      );
+    }
+  }
+  // The Cards and Shelf layouts stop at a few dozen notes; the rest are a tap away on the grid of every note.
+  const cut = (layout === 'cards' || layout === 'shelf') && lists.notes.length > CARDED;
 
   return (
     <div className={styles.screen}>
       <header ref={topBar} className={`app-headerPane ${styles.topBar}`}>
-        {/* The name is for a screen reader, which has no bar to look at; the bar shows where you are with its mark. */}
         <h1 className={styles.saidOnly}>Home</h1>
       </header>
       <div ref={scroller} className={styles.scroll}>
-        <div ref={page} className={styles.page}>
-          {/*
-            The page's grid (HomeScreen.module.css, "The page laid out wide"): a plain block on a phone, where the
-            wrappers lay out as if they were not there, and two columns, or a main and a rail, on the wider screens.
-            Each group says which it is (`data-group`) for its place on them, and the grid whether Pinned and To do
-            are a pair (`data-paired`).
-          */}
-          <div className={styles.grid} data-paired={paired ? '' : undefined}>
-            <div className={styles.head}>
-              <p className={styles.today}>{today}</p>
-              {/* The digest: a row of fragments, each a word that goes to its group. Nothing while loading, and the ghost speaks on an empty page. */}
-              {!loading && hasNotes ? (
-                <ul className={styles.digest} aria-label="Today">
-                  {phrases.map(({ text, go }) => (
-                    <li key={text}>
-                      {go ? (
-                        <button type="button" className={`app-word ${styles.digestWord}`} onClick={() => glide(go)}>
-                          {text}
-                        </button>
-                      ) : (
-                        <span>{text}</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              <WorkspaceBar onManage={setManage} />
-              <div className={styles.notices}>
-                <UpdateNotice updates={updates} />
-                <VoiceModelStatus state={voiceModel} onRetry={onRetryVoiceModel} />
-                {showAcademy && onAcademy ? <AcademyCard onOpen={onAcademy} onHide={onHideAcademy} /> : null}
-                <RefiningNotice />
+        {/* The column the layouts ask their width of, and inside it the layout: a container never answers its own queries. */}
+        <div className={styles.page}>
+          <div className={look.page} data-layout={layout}>
+            {/* The search, first: the page narrows as it is typed. Not on a blank page, which has nothing to search. */}
+            {hasNotes ? (
+              <div className={look.search} data-filled={searched || undefined}>
+                <Search size={17} strokeWidth={2.2} className={look.searchMark} aria-hidden="true" />
+                <input
+                  ref={field}
+                  type="search"
+                  className={look.field}
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search notebooks and notes"
+                  aria-label="Search notebooks and notes"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  enterKeyHint="search"
+                />
+                {searched ? (
+                  <button
+                    type="button"
+                    className={look.clear}
+                    aria-label="Clear the search"
+                    onClick={() => {
+                      setQuery('');
+                      field.current?.focus();
+                    }}
+                  >
+                    <X size={14} strokeWidth={2.4} aria-hidden="true" />
+                  </button>
+                ) : null}
               </div>
+            ) : null}
+            {hasNotes ? (
+              <div className={look.filters} role="radiogroup" aria-label="Show">
+                {HOME_FILTERS.map((each) => (
+                  <button key={each.id} type="button" role="radio" aria-checked={filter === each.id} className={look.filter} onClick={() => setFilter(each.id)}>
+                    {each.id === 'pinned' ? <Pin className={look.filterMark} /> : null}
+                    {each.label}
+                    <span className={look.filterCount}>{counts[each.id]}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <WorkspaceBar onManage={setManage} />
+            <div className={look.notices}>
+              <UpdateNotice updates={updates} />
+              <VoiceModelStatus state={voiceModel} onRetry={onRetryVoiceModel} />
             </div>
-
+  
             {!loading && !hasNotes ? (
               <div className={styles.empty}>
                 <Ghost scene={spaces.current ? 'empty-workspace' : 'no-notes'} size="lead" className={styles.emptyArt} />
                 <p className={styles.emptyLead}>{spaces.current ? `Nothing in ${spaces.current.name} yet.` : 'A blank page.'}</p>
                 <p className={styles.emptyHint}>{isAndroid ? 'Write it, or hold the side key and say it.' : 'Write it, or tap Speak and say it.'}</p>
               </div>
+            ) : !loading && hasNotes && !found ? (
+              <div className={look.nothing}>
+                <Ghost scene="search-nothing" size="small" className={look.nothingArt} />
+                <p className={look.nothingLead}>{searched ? `Nothing has “${query.trim()}”.` : filter === 'pinned' ? 'Nothing is pinned.' : 'Nothing here.'}</p>
+                {searched ? <p className={look.nothingHint}>Try fewer words, or look through All notes.</p> : null}
+              </div>
             ) : null}
-
-            {pinned.length ? (
-              <section className={styles.section} data-group="pinned" aria-labelledby="home-pinned">
-                <div className={styles.groupRow}>
-                  <h2 id="home-pinned" className={styles.group}>
-                    <Pin className={`${styles.groupMark} ${styles.groupMarkPin}`} />
-                    <span className={styles.groupName}>Pinned</span>
-                  </h2>
-                </div>
-                <ol className={styles.cards}>{pinned.map(card)}</ol>
-              </section>
+  
+            {body}
+  
+            {hasNotes ? (
+              <button type="button" className={`app-word ${styles.allNotes}`} onClick={() => onAllNotes()}>
+                <Grid className={styles.allNotesMark} />
+                {cut ? `${lists.notes.length - CARDED} more in All notes` : `All notes · ${counts.all}`}
+              </button>
             ) : null}
-
-            {/*
-              What is waiting, in one card, second on the page: its tick is the page's one in-place action, and a
-              meeting's summary writes its `- [ ]` actions here (§127). Five rows (eight in a desk's rail), most
-              recently touched note's first, each with the note it lives in and when that note was touched; "Show all"
-              opens the card to forty, which on two columns takes it out of the pair and spreads it across the page.
-              With the last one ticked, the same card holds the ghost instead, under a heading with no count and no
-              word.
-            */}
-            {open.length || allDone ? (
-              <section className={styles.section} data-group="tasks" aria-labelledby="home-tasks">
-                <div ref={tasksRow} className={styles.groupRow}>
-                  <h2 id="home-tasks" className={styles.group}>
-                    <TickBox className={styles.groupMark} />
-                    <span className={styles.groupName}>To do</span>
-                    {open.length ? (
-                      <span className={styles.count}>
-                        <span>·</span> {open.length}
-                      </span>
-                    ) : null}
-                  </h2>
-                  {open.length > caps.tasks ? (
-                    <button
-                      type="button"
-                      className={`app-word ${styles.groupWord}`}
-                      onClick={() => {
-                        holdTasks();
-                        setShowAll((was) => !was);
-                      }}
-                    >
-                      {showAll ? 'Show fewer' : `Show all ${open.length}`}
-                    </button>
-                  ) : null}
-                </div>
-                <div className={styles.todo} style={{ '--i': Math.min(pinned.length, 8) } as CSSProperties}>
-                  {open.length ? (
-                    <>
-                      <ul className={styles.tasks}>
-                        {open.slice(0, showAll ? TASKS_OPEN : caps.tasks).map((task) => (
-                          <li key={`${task.noteId}:${task.line}`} className={styles.task}>
-                            <button
-                              type="button"
-                              className={styles.box}
-                              aria-label={`Tick off ${task.text}`}
-                              onClick={() => {
-                                holdTasks();
-                                setTicked((was) => new Set(was).add(`${task.noteId}:${task.line}`));
-                                onTick(task);
-                              }}
-                            />
-                            <button type="button" className={styles.taskOpen} onClick={() => onOpen(task.noteId, task.at)}>
-                              <span className={styles.taskText}>{shortenUrls(task.text)}</span>
-                              <span className={styles.taskNote}>
-                                {titleOf.get(task.noteId)} · {when(task.touched)}
-                              </span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                      {showAll && open.length > TASKS_OPEN ? <p className={styles.more}>and {open.length - TASKS_OPEN} more in your notes</p> : null}
-                    </>
-                  ) : (
-                    <>
-                      <Ghost scene="all-ticked" size="small" className={styles.allDoneArt} />
-                      <p className={styles.allDoneWords}>Every to-do is done.</p>
-                    </>
-                  )}
-                </div>
-              </section>
-            ) : null}
-
-            {/* The tapes, as cards on a shelf (docs/DESIGN.md §127). No group while there are none. */}
-            {shelf.length ? (
-              <section className={styles.section} data-group="tapes" aria-labelledby="home-tapes">
-                <div className={styles.groupRow}>
-                  <h2 id="home-tapes" className={styles.group}>
-                    <Cassette className={styles.groupMark} />
-                    <span className={styles.groupName}>Tapes</span>
-                    {taped.length > shelf.length ? (
-                      <span className={styles.count}>
-                        <span>·</span> {taped.length}
-                      </span>
-                    ) : null}
-                  </h2>
-                  {/* Only past the shelf's eight: the count and the way to the rest, All notes with its Tapes toggle on. */}
-                  {taped.length > shelf.length ? (
-                    <button type="button" className={`app-word ${styles.groupWord}`} onClick={() => onAllNotes({ tapes: true })}>
-                      See all
-                    </button>
-                  ) : null}
-                </div>
-                <TapeShelf
-                  notes={shelf}
-                  gists={gists}
-                  onOpen={onOpen}
-                  onGetModel={onGetModel ?? onSettings}
-                  // The queue is asked for the tape's real kind: a meeting's write-up for a meeting, a recording's otherwise.
-                  onSummarize={(note) => enqueueSummary(note.id, summaryKindOf(note, meetings))}
-                  canSummarize={isTauri()}
-                />
-              </section>
-            ) : null}
-
-            {books.length ? (
-              <section className={styles.section} data-group="library" aria-labelledby="home-library">
-                <div className={styles.groupRow}>
-                  <h2 id="home-library" className={styles.group}>
-                    <Notebook className={styles.groupMark} />
-                    <span className={styles.groupName}>Notebooks</span>
-                  </h2>
-                </div>
-                <ol className={styles.cards}>{books.map((n, i) => card(n, i + pinned.length + todoBeats + shelfBeats))}</ol>
-              </section>
-            ) : null}
-
-            {recent.length ? (
-              <section className={styles.section} data-group="recent" aria-labelledby="home-recent">
-                <div className={styles.groupRow}>
-                  <h2 id="home-recent" className={styles.group}>
-                    <Clock className={styles.groupMark} />
-                    <span className={styles.groupName}>Recent</span>
-                  </h2>
-                </div>
-                <ol className={styles.cards}>{recent.map((n, i) => card(n, i + pinned.length + todoBeats + shelfBeats + books.length))}</ol>
-              </section>
-            ) : null}
-
-            {/* The way to every note: the grid page (notes/AllNotesScreen.tsx), with how many wait there. */}
-            <button type="button" className={`app-word ${styles.allNotes}`} onClick={() => onAllNotes()}>
-              <Grid className={styles.allNotesMark} />
-              All notes · {notes.filter((n) => !n.archivedAt).length}
-            </button>
           </div>
         </div>
       </div>
@@ -458,7 +280,6 @@ export function HomeScreen({
         <button type="button" className={`${styles.round} ${styles.cog}`} onClick={onSettings} aria-label="Settings">
           <Cog />
         </button>
-        {/* Search and the commands, the palette ⌘K opens on a desktop (Matt: "Add a search button to the right hand dock of buttons that opens the command pallette"). */}
         {onSearch ? (
           <button type="button" className={`${styles.round} ${styles.search}`} onClick={onSearch} aria-label="Search and commands">
             <Magnifier />
@@ -467,5 +288,54 @@ export function HomeScreen({
       </nav>
       <WorkspaceSheet which={manage} onClose={() => setManage(null)} />
     </div>
+  );
+}
+
+/**
+ * A note on one line, for the List, Library and Timeline layouts: its kind's mark, its name, how it starts, and when it
+ * was touched, with the pin and its notebook's name where it has them.
+ */
+function HomeRow({ note, index, onOpen, bookName, entries }: { note: Note; index: number; onOpen: (id: string) => void; bookName: string | null; entries?: number }) {
+  const title = noteTitle(note.body);
+  const kind = kindOf(note);
+  const Mark = kind === 'book' ? BookOpen : kind === 'canvas' ? Workflow : FileText;
+  const pages = kind === 'book' ? chaptersOf(note.body).length : 0;
+  // A journal counts its entries, from every workspace (book/journalMonths.ts), and a notebook its pages.
+  const lead = entries !== undefined ? (entries === 1 ? '1 entry' : `${entries} entries`) : kind === 'book' ? (pages === 1 ? '1 page' : `${pages} pages`) : firstLine(note.body);
+  return (
+    <li className={look.rowItem} style={{ '--i': Math.min(index, 12) } as CSSProperties}>
+      <button type="button" className={look.row} onClick={() => onOpen(note.id)}>
+        <Mark size={16} strokeWidth={2} className={look.rowMark} aria-hidden="true" />
+        <span className={look.rowText}>
+          <span className={look.rowTitle} data-untitled={title ? undefined : ''}>
+            {note.starred ? <Pin className={look.rowPin} /> : null}
+            {title ? shortenUrls(title) : 'Untitled'}
+          </span>
+          {lead || bookName ? (
+            <span className={look.rowLead}>
+              {bookName ? <span className={look.rowBook}>{bookName}</span> : null}
+              {lead ? shortenUrls(lead) : null}
+            </span>
+          ) : null}
+        </span>
+        <span className={look.rowWhen}>{when(note.updatedAt)}</span>
+      </button>
+    </li>
+  );
+}
+
+/** A notebook as a cover on the Shelf: its name large, how many pages or entries, and when it was last written in. */
+function BookCover({ book, index, onOpen, count, journal }: { book: Note; index: number; onOpen: (id: string) => void; count: number; journal: boolean }) {
+  const title = noteTitle(book.body) || 'Untitled notebook';
+  return (
+    <li className={look.coverItem} style={{ '--i': Math.min(index, 8) } as CSSProperties}>
+      <button type="button" className={look.cover} data-journal={journal || undefined} onClick={() => onOpen(book.id)}>
+        <span className={look.coverSpine} aria-hidden="true" />
+        <span className={look.coverTitle}>{title}</span>
+        <span className={look.coverMeta}>
+          {journal ? (count === 1 ? '1 entry' : `${count} entries`) : count === 1 ? '1 page' : `${count} pages`} · {when(book.updatedAt)}
+        </span>
+      </button>
+    </li>
   );
 }

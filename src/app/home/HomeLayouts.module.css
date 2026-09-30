@@ -1,0 +1,438 @@
+/*
+ * The home page's own parts (HomeScreen.tsx; docs/DESIGN.md §147): the search, the filter, the section headings, and
+ * the five layouts - Cards, List, Shelf, Library and Timeline (home/homeLayout.ts). The glass bar, the scroller, the
+ * dock and the empty page are HomeScreen.module.css's, as they were.
+ */
+
+.page {
+  display: grid;
+  gap: var(--glacier-space-3);
+  max-inline-size: 64rem;
+  margin-inline: auto;
+}
+
+/* The search: a pill of the faint ink wash, the page's first thing and its main tool. */
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  min-inline-size: 0;
+  min-block-size: var(--glacier-space-12);
+  padding-inline: var(--glacier-space-4) var(--glacier-space-2);
+  border: var(--glacier-hairline) solid var(--app-rule);
+  border-radius: var(--glacier-radius-full);
+  background: color-mix(in oklch, var(--app-ink) 4%, transparent);
+  color: var(--app-ink-3);
+}
+
+.search:focus-within {
+  border-color: var(--glacier-border-strong);
+  color: var(--app-ink-2);
+}
+
+.searchMark {
+  flex: none;
+}
+
+.field {
+  flex: 1;
+  min-inline-size: 0;
+  min-block-size: var(--glacier-space-10);
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--glacier-font-size-md);
+  color: var(--app-ink);
+  outline: none;
+  appearance: none;
+}
+
+.field::-webkit-search-cancel-button,
+.field::-webkit-search-decoration {
+  appearance: none;
+}
+
+.field::placeholder {
+  color: var(--app-ink-3);
+}
+
+.clear {
+  appearance: none;
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: var(--glacier-space-8);
+  block-size: var(--glacier-space-8);
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--glacier-radius-full);
+  background: color-mix(in oklch, var(--app-ink) 8%, transparent);
+  color: var(--app-ink-2);
+  cursor: pointer;
+}
+
+/* The filter: four words with their counts, the chosen one inked. Fits a 412px phone; scrolls sideways on a narrower one. */
+.filters {
+  display: flex;
+  gap: var(--glacier-space-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.filters::-webkit-scrollbar {
+  display: none;
+}
+
+.filter {
+  appearance: none;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  min-block-size: var(--glacier-space-10);
+  margin: 0;
+  padding-inline: var(--glacier-space-3);
+  border: var(--glacier-hairline) solid var(--app-rule);
+  border-radius: var(--glacier-radius-full);
+  background: none;
+  color: var(--app-ink-2);
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.filter[aria-checked='true'] {
+  border-color: var(--app-ink);
+  background: var(--app-ink);
+  color: var(--app-paper);
+}
+
+.filter:focus-visible,
+.clear:focus-visible,
+.row:focus-visible,
+.cover:focus-visible,
+.bookHead:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+.filterMark {
+  font-size: 1.05em;
+}
+
+.filterCount {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.65;
+}
+
+.notices:empty {
+  display: none;
+}
+
+/* A section: one quiet heading - a mark, the word, how many - then its notes. */
+.section {
+  display: grid;
+  gap: var(--glacier-space-2);
+  margin-block-start: var(--glacier-space-3);
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink-2);
+}
+
+.mark {
+  flex: none;
+  font-size: 1.1em;
+  color: var(--app-ink-3);
+}
+
+.count {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--glacier-font-weight-regular);
+  color: var(--app-ink-3);
+}
+
+/* The Shelf's notes: the dense cards, two across a phone. */
+.dense {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr));
+  gap: var(--glacier-space-3);
+}
+
+/* Rows: List, Library and Timeline. A hairline between them, the whole row a button. */
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-block: var(--glacier-hairline) solid var(--app-rule);
+}
+
+.rowItem + .rowItem {
+  border-block-start: var(--glacier-hairline) solid var(--app-rule);
+}
+
+.rowItem {
+  animation: arrive 300ms var(--glacier-ease-out, ease-out) both;
+  animation-delay: calc(var(--i, 0) * 25ms);
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.row {
+  appearance: none;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--glacier-space-3);
+  inline-size: 100%;
+  min-block-size: var(--glacier-space-12);
+  margin: 0;
+  padding: var(--glacier-space-3) var(--glacier-space-1);
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.row:hover {
+  background: color-mix(in oklch, var(--app-ink) 4%, transparent);
+}
+
+.rowMark {
+  align-self: center;
+  color: var(--app-ink-3);
+}
+
+.rowText {
+  display: grid;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.rowTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35em;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--glacier-font-size-md);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink);
+}
+
+.rowTitle[data-untitled] {
+  color: var(--app-ink-3);
+}
+
+.rowPin {
+  flex: none;
+  font-size: 0.85em;
+  color: var(--app-ink-3);
+  transform: rotate(-12deg);
+}
+
+.rowLead {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3);
+}
+
+.rowBook {
+  margin-inline-end: 0.5em;
+  color: var(--app-ink-2);
+}
+
+.rowBook::after {
+  content: ' ·';
+}
+
+.rowWhen {
+  font-size: var(--glacier-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--app-ink-3);
+  white-space: nowrap;
+}
+
+/* The Shelf: notebooks as covers along one row, a spine down the left, the name large. */
+.shelf {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 var(--glacier-space-2);
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 9.5rem;
+  gap: var(--glacier-space-3);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+}
+
+.coverItem {
+  display: flex;
+  scroll-snap-align: start;
+  animation: arrive 360ms var(--glacier-ease-out, ease-out) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+
+.cover {
+  appearance: none;
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--glacier-space-2);
+  aspect-ratio: 3 / 4;
+  margin: 0;
+  padding: var(--glacier-space-4) var(--glacier-space-3) var(--glacier-space-3) var(--glacier-space-5);
+  border: var(--glacier-hairline) solid var(--app-rule);
+  border-radius: var(--glacier-radius-sm) var(--glacier-radius-lg) var(--glacier-radius-lg) var(--glacier-radius-sm);
+  background: var(--app-paper-2);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.coverSpine {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: var(--glacier-space-2);
+  border-radius: var(--glacier-radius-sm) 0 0 var(--glacier-radius-sm);
+  background: color-mix(in oklch, var(--app-ink) 18%, transparent);
+}
+
+.cover[data-journal] .coverSpine {
+  background: color-mix(in oklch, var(--app-ink) 32%, transparent);
+}
+
+.coverTitle {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+  font-size: var(--glacier-font-size-lg);
+  line-height: 1.2;
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink);
+  overflow-wrap: anywhere;
+}
+
+.coverMeta {
+  font-size: var(--glacier-font-size-xs);
+  color: var(--app-ink-3);
+}
+
+/* The Library: each notebook's name as a heading that opens it, its pages as rows under it. */
+.bookHead {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  inline-size: 100%;
+  margin: 0;
+  padding: var(--glacier-space-1) 0;
+  border: none;
+  background: none;
+  color: var(--app-ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.bookName {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--glacier-font-size-lg);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.none {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3);
+}
+
+/* A search or filter that found nothing: a small ghost and a line. */
+.nothing {
+  display: grid;
+  justify-items: start;
+  gap: var(--glacier-space-2);
+  padding-block: var(--glacier-space-6);
+}
+
+.nothingArt {
+  color: var(--app-ink-3);
+}
+
+.nothingLead {
+  margin: 0;
+  font-size: var(--glacier-font-size-xl);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink-2);
+  overflow-wrap: anywhere;
+}
+
+.nothingHint {
+  margin: 0;
+  font-size: var(--glacier-font-size-md);
+  color: var(--app-ink-3);
+}
+
+/* Wider: the Library's notebooks two across, and the rows' layouts keep one readable column. */
+@container home-page (min-width: 44rem) {
+  .page[data-layout='library'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--glacier-space-8);
+    align-items: start;
+  }
+
+  /* Everything but the notebooks across both: the search, the filter, the notices, the notes in no notebook, the foot. */
+  .page[data-layout='library'] > :not(.section),
+  .page[data-layout='library'] > [data-section='loose'] {
+    grid-column: 1 / -1;
+  }
+
+  .page[data-layout='list'],
+  .page[data-layout='timeline'] {
+    max-inline-size: 48rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rowItem,
+  .coverItem {
+    animation: none;
+  }
+}

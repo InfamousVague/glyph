@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowUp, Feather, ListChecks, TextSearch } from '@glacier/icons';
+import { ArrowUp, Feather, ListChecks, Mic, TextSearch } from '@glacier/icons';
 import { ArchiveBox, ArrowLeft, Bin, Board, Locate, Pin, Workspace as WorkspaceIcon } from '../art/Icons.tsx';
 import { CheatSheet } from '../guide/CheatSheet.tsx';
 import { tagLabel, type GeoTag } from '../core/geotag.ts';
@@ -79,8 +79,16 @@ interface NoteSettingsProps {
     /** The journal made a notebook again: its entries stay as pages. */
     unkeep: () => void;
   };
-  /** How the note is shown, when the header has no room for its switch (a folded phone); absent, no row. */
+  /**
+   * How the note is shown: its marks or formatted, a canvas or its JSON, a notebook's index or its Markdown. The switch
+   * lived in the top bar until it moved in here with the mic (Matt: "the mic, reading vs code mode move into the more
+   * button in the header"). Absent, no row: the transcript is playing.
+   */
   view?: NoteView;
+  /** The words for the two views, the source's first: Markdown and Formatted for words; absent, those. */
+  viewWords?: { source: string; page: string };
+  /** Talk into this note, or, on a journal, speak a new entry; absent where the note's tape has its own Add. */
+  speak?: { label: string; onPress: () => void };
   /**
    * How the note looks (core/look.ts; docs/DESIGN.md §144): Plain, a page to read, or its map as a header, the last only
    * for a note with a place to draw. Absent on a canvas or a notebook, which have looks of their own.
@@ -237,6 +245,8 @@ export function NoteSettings({
   name,
   journal,
   view,
+  viewWords = { source: 'Markdown', page: 'Formatted' },
+  speak,
   onView,
   running,
   onAi,
@@ -316,6 +326,19 @@ export function NoteSettings({
   return (
     <Sheet label={`Settings for ${title || 'this note'}`} onClose={onClose} onBack={back}>
       <SheetTitle>{title || 'Untitled'}</SheetTitle>
+      {/* The mic, from the top bar: the first thing here, as it was the first thing a thumb reached there. */}
+      {speak ? (
+        <SheetGroup>
+          <SheetRow
+            icon={Mic}
+            label={speak.label}
+            onPress={() => {
+              onClose();
+              speak.onPress();
+            }}
+          />
+        </SheetGroup>
+      ) : null}
       {name ? (
         <SheetGroup>
           <SheetField label="Name" value={name.value} onChange={(e) => name.onChange(e.target.value)} placeholder={`What this ${name.kind} is called`} autoComplete="off" />
@@ -340,8 +363,8 @@ export function NoteSettings({
                 <div className={styles.viewChoice} role="radiogroup" aria-label="How the note is shown">
                   {(
                     [
-                      ['mixed', 'Markdown'],
-                      ['formatted', 'Formatted'],
+                      ['mixed', viewWords.source],
+                      ['formatted', viewWords.page],
                     ] as const
                   ).map(([value, label]) => (
                     <button key={value} type="button" role="radio" aria-checked={view === value} data-on={view === value || undefined} onClick={() => onView(value)}>

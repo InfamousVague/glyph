@@ -23,7 +23,7 @@ import styles from './JournalView.module.css';
  * journal's tab. A page planned before a notebook was kept as a journal is listed at the end under Not written yet,
  * with the index's cross to take it out; an entry's line with no note is not drawn (book/journalMonths.ts).
  *
- * The top bar's mic is Speak an entry on a journal (editor/NoteTools.tsx), so the view has one button.
+ * Speak an entry is in the note's More sheet on a journal (editor/NoteSettings.tsx), so the view has one button.
  *
  * New entry asks what the entry starts with (Matt: "I would like to see [the templates] when clicking new page on a
  * journal while the journal is open"): the journal's own template first, marked as its usual, then the other presets

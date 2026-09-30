@@ -366,6 +366,8 @@ describe('saving what is typed', () => {
     const onSpeak = vi.fn();
     show(screen(note, { onSpeak }));
     type('\nmilk');
+    // The mic is the More sheet's first row now, not a button in the top bar (docs/DESIGN.md §147).
+    act(() => button('More for this note').click());
     act(() => button('Talk into this note').click());
     await settle();
     expect(onSpeak).toHaveBeenCalledWith('n1');
@@ -463,30 +465,37 @@ describe('a rename asked from the tab', () => {
 });
 
 describe("the note's tools", () => {
-  /** The view switch: the first of the tools, whatever it is called now. */
-  const viewSwitch = () => document.querySelector<HTMLButtonElement>('header button, [data-slot] button')!;
+  /** The More sheet's Show: the two ways the note can be drawn, by their words, and which is chosen. */
+  const shows = () => [...document.querySelectorAll<HTMLButtonElement>('[aria-label="How the note is shown"] [role="radio"]')].map((r) => `${r.textContent}${r.getAttribute('aria-checked') === 'true' ? ' (on)' : ''}`);
+  const more = () => act(() => button('More for this note').click());
 
-  it('say what a press on the view switch will show, for a note of words, a canvas and a book', async () => {
+  it('are the bookmark and More alone, with the mic and the view switch in More', async () => {
     show(screen(await createNote('n1', '# Groceries')));
-    expect(viewSwitch().getAttribute('aria-label')).toBe('Showing the marks. Show the formatted note.');
-    act(() => viewSwitch().click());
-    expect(viewSwitch().getAttribute('aria-label')).toBe('Showing the formatted note. Show the marks.');
-    expect(viewSwitch().title).toBe('Formatted');
+    expect([...document.querySelectorAll('header button')].map((b) => b.getAttribute('aria-label'))).toEqual(['Bookmark this line', 'More for this note']);
+    more();
+    expect(button('Talk into this note')).toBeTruthy();
+  });
+
+  it('name the two views in More for a note of words, a canvas and a book, and switch between them', async () => {
+    show(screen(await createNote('n1', '# Groceries')));
+    more();
+    expect(shows()).toEqual(['Markdown (on)', 'Formatted']);
+    act(() => button('Formatted').click());
+    expect(shows()).toEqual(['Markdown', 'Formatted (on)']);
     unmount();
 
     show(screen(await createNote('c1', '{"nodes":[],"edges":[]}')));
-    expect(viewSwitch().getAttribute('aria-label')).toBe('Showing the canvas. Show its JSON.');
-    expect(viewSwitch().title).toBe('Canvas');
-    act(() => viewSwitch().click());
-    expect(viewSwitch().getAttribute('aria-label')).toBe('Showing the canvas as JSON. Show the canvas.');
-    expect(viewSwitch().title).toBe('JSON');
+    more();
+    expect(shows()).toEqual(['JSON', 'Canvas (on)']);
+    act(() => button('JSON').click());
+    expect(shows()).toEqual(['JSON (on)', 'Canvas']);
     unmount();
 
     show(screen(await createNote('b1', '---\nbook: true\n---\n# Trip\n\n1. [[Day one]]\n'), { hasTitle: () => true, onOpenTitle: () => {} }));
-    expect(viewSwitch().getAttribute('aria-label')).toBe('Showing the index. Show its Markdown.');
-    act(() => viewSwitch().click());
-    expect(viewSwitch().getAttribute('aria-label')).toBe('Showing the index as Markdown. Show the index.');
-    expect(viewSwitch().title).toBe('Markdown');
+    more();
+    expect(shows()).toEqual(['Markdown', 'Index (on)']);
+    act(() => button('Markdown').click());
+    expect(shows()).toEqual(['Markdown (on)', 'Index']);
   });
 
   it('are drawn in the top bar when it offers a place, and the header is left empty', async () => {
@@ -588,14 +597,20 @@ describe('a spoken note’s recording', () => {
     Element.prototype.scrollIntoView = () => undefined;
     try {
       show(screen(await spoken()));
-      const viewSwitch = () => document.querySelector<HTMLButtonElement>('header button')!;
-      expect(viewSwitch().disabled).toBe(false);
+      // The view switch is More's Show, offered only while the note's own view is up.
+      const viewSwitch = () => {
+        act(() => button('More for this note').click());
+        const there = document.querySelector('[aria-label="How the note is shown"]') !== null;
+        act(() => goBack());
+        return there;
+      };
+      expect(viewSwitch()).toBe(true);
       act(() => button('Play the recording').click());
       expect(editor().dom.closest('[hidden]')).not.toBeNull();
-      expect(viewSwitch().disabled).toBe(true);
+      expect(viewSwitch()).toBe(false);
       act(() => button('Pause the recording').click());
       expect(editor().dom.closest('[hidden]')).toBeNull();
-      expect(viewSwitch().disabled).toBe(false);
+      expect(viewSwitch()).toBe(true);
     } finally {
       Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
     }
@@ -1647,7 +1662,6 @@ describe('a film from the + beside the line', () => {
 describe('a notebook kept as a journal', () => {
   const NOTEBOOK = '---\ntitle: "Trip"\nbook: true\n---\n# Trip\n\n- [[Day one]]\n- [[Day two]]\n';
   const more = () => act(() => button('More for this note').click());
-  const viewSwitch = () => document.querySelector<HTMLButtonElement>('header button')!;
   const written = async () => {
     act(() => vi.advanceTimersByTime(400));
     await settle();
@@ -1690,8 +1704,8 @@ describe('a notebook kept as a journal', () => {
 
   it('writes the keys into the Markdown when that is the view, so the next keystroke keeps them', async () => {
     show(screen(await createNote('b1', NOTEBOOK), { hasTitle: () => true, onOpenTitle: () => {} }));
-    act(() => viewSwitch().click());
     more();
+    act(() => button('Markdown').click());
     act(() => buttonSaying(document.body, 'Keep it as a journal')!.click());
     act(() => buttonSaying(document.body, 'Make it a journal')!.click());
     act(() => goBack());
@@ -1747,11 +1761,13 @@ describe('a journal open', () => {
     show(screen(await createNote('j1', journal), { hasTitle: () => true, onOpenTitle: () => {}, noteOfTitle: (title) => (title === '2026-09-28 14.05' ? entry : undefined) }));
     expect(document.querySelector('ol[aria-label="Pages"]')).toBeNull();
     expect(document.querySelector('h2')?.textContent).toBe('September 2026');
-    // Its mic makes an entry and speaks it.
-    expect(document.querySelector('button[aria-label="Speak an entry"]')).not.toBeNull();
-    expect(document.querySelector('button[aria-label="Talk into this note"]')).toBeNull();
     expect(document.querySelector('[data-entries]')?.getAttribute('data-entries')).toBe('1');
     expect(readBookSpot('j1')).toBeNull();
+    // Its mic, in More, makes an entry and speaks it.
+    act(() => button('More for this note').click());
+    expect(buttonSaying(document.body, 'Speak an entry')).toBeTruthy();
+    expect(buttonSaying(document.body, 'Talk into this note')).toBeUndefined();
+    act(() => goBack());
     unmount();
     // An entry open writes no spot for its journal: the journal opens on itself.
     const place = { ...bookOf([{ ...entry, id: 'j1', body: journal }], '2026-09-28 14.05')!, journal: true };

@@ -79,6 +79,16 @@ export function isSidebarStyle(style: unknown): style is SidebarStyle {
   return style === 'popover' || style === 'docked';
 }
 
+/**
+ * How the home page lays out the notebooks and notes (home/homeLayout.ts `HOME_LAYOUTS`; Matt: "give me 5 different
+ * dashboard layout styles we can chose from in the settings").
+ */
+export type HomeLayout = 'cards' | 'list' | 'shelf' | 'library' | 'timeline';
+
+export function isHomeLayout(layout: unknown): layout is HomeLayout {
+  return layout === 'cards' || layout === 'list' || layout === 'shelf' || layout === 'library' || layout === 'timeline';
+}
+
 function isThemePreset(theme: unknown): theme is ThemePreset {
   return typeof theme === 'string' && theme in THEME_PRESETS;
 }
@@ -200,6 +210,8 @@ export interface Preferences {
   uiScale: UiScale;
   /** A popover or docked (`SidebarStyle`). Kept to this device, since it is about this window's width. */
   sidebarStyle: SidebarStyle;
+  /** How the home page lays out the notebooks and notes (`HomeLayout`), chosen in Settings › Appearance. */
+  homeLayout: HomeLayout;
   /**
    * The one colour a person can choose (Matt: "add ... the accent color picker"). `ink` is the app's own answer and
    * the default: Glyph is grey on purpose (app/ink.css), and with ink chosen nothing is stamped and every accent
@@ -348,6 +360,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   theme: 'dark',
   uiScale: 1,
   sidebarStyle: 'popover',
+  homeLayout: 'cards',
   accent: 'ink',
   density: 'comfortable',
   rounding: 'round',
@@ -404,6 +417,7 @@ function settle(raw: unknown): Preferences {
   // A size that is not one of the steps - another build's, or a half-written store - is the kit's own.
   if (!isUiScale(loaded.uiScale)) loaded.uiScale = DEFAULT_PREFERENCES.uiScale;
   if (!isSidebarStyle(loaded.sidebarStyle)) loaded.sidebarStyle = DEFAULT_PREFERENCES.sidebarStyle;
+  if (!isHomeLayout(loaded.homeLayout)) loaded.homeLayout = DEFAULT_PREFERENCES.homeLayout;
   // Tabs from another build, or a half-written store: anything but a list of ids is no tabs at all.
   loaded.openNotes = Array.isArray(loaded.openNotes) ? loaded.openNotes.filter((id): id is string => typeof id === 'string').slice(-MOST_TABS) : [];
   // Tab groups from another build, or a half-written store: only well-formed groups, and tabs pointing at them.

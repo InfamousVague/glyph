@@ -4,7 +4,7 @@ import type { NoteScreen } from './editor/NoteScreen.tsx';
 import type { CaptureScreen } from './capture/CaptureScreen.tsx';
 import type { Guide } from './guide/Guide.tsx';
 import type { SettingsSheet } from './settings/SettingsSheet.tsx';
-import { createNote, getNote, listNotes, setNoteArchived, setNoteRecording, updateNote, type Note } from './core/store.ts';
+import { createNote, getNote, listNotes, setNoteArchived, updateNote, type Note } from './core/store.ts';
 import { preferences, reloadPreferences, setPreferences } from './core/preferences.ts';
 import { button, buttonSaying, show, unmount, waitUntil } from '../test/render.tsx';
 import { stubResizeObserver } from '../test/stubs.ts';
@@ -72,12 +72,10 @@ vi.mock('./academy/AcademyScreen.tsx', () => ({ AcademyScreen: () => <main data-
 vi.mock('./launch/LaunchScreen.tsx', () => ({ LaunchScreen: () => null }));
 // A card's small drawing is a CodeMirror editor (notes/NotePeek.tsx), one per card: nothing the Shell decides.
 vi.mock('./notes/NotePeek.tsx', () => ({ NotePeek: () => null }));
-// The summary queue (§127 section 2) as the shelf reads it: here a tape can be made to wait for a model, for the shelf's
-// Get a model. The queue itself is the real one, which does nothing off the phone.
-const needsModel = vi.hoisted(() => new Set<string>());
+// The summary queue (§127 section 2), held quiet: the queue itself is the real one, which does nothing off the phone.
 vi.mock('./ai/summaries.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./ai/summaries.ts')>()),
-  useSummaries: () => ({ pending: new Set<string>(), native: new Set<string>(), waiting: new Set<string>(), failed: new Set<string>(), needsModel }),
+  useSummaries: () => ({ pending: new Set<string>(), native: new Set<string>(), waiting: new Set<string>(), failed: new Set<string>(), needsModel: new Set<string>() }),
   retrySummary: () => undefined,
 }));
 // The store's writes, watched: a test can see what was already kept when one was made, or have one lose a race.
@@ -159,7 +157,6 @@ afterEach(() => {
   vi.mocked(createNote).mockClear();
   vi.mocked(updateNote).mockClear();
   vi.mocked(tagEntryIfWanted).mockClear();
-  needsModel.clear();
   delete window.__glyph;
 });
 
@@ -538,6 +535,8 @@ describe('a new note, ready to type', () => {
   it('never takes a note of the person’s named like a page for the page, from the seed or inside the notebook', async () => {
     const { isTemplatesBody } = await import('./notes/ownTemplates.ts');
     await seed(['mine', '# Notes on a book\n\n- [ ] Return Middlemarch to the library']);
+    // The List layout, whose rows say how each note starts: the person's note is known from the page by its words.
+    setPreferences({ homeLayout: 'list' });
     await openApp();
     expect(document.body.textContent).toContain('Return Middlemarch to the library');
     act(() => button('Write a note').click());
@@ -754,36 +753,6 @@ describe('a capture ending', () => {
     await act(async () => seen.capture!.onFinish(made, false));
     expect(screenNow()).toBeNull();
     await waitUntil(() => expect(card('Said aloud')).toBeTruthy());
-  });
-});
-
-describe('the shelf of tapes', () => {
-  /** Recordings the recorder made, `take1` the newest. */
-  async function record(count: number): Promise<void> {
-    for (let i = count; i >= 1; i -= 1) {
-      await createNote(`take${i}`, `# Take ${i}`, 'capture');
-      await setNoteRecording(`take${i}`, 40_000, []);
-    }
-  }
-
-  it('sends the Tapes heading’s See all to All notes with only the tapes showing', async () => {
-    await record(9);
-    await openApp();
-    await waitUntil(() => expect(button('See all')).toBeTruthy());
-    act(() => button('See all').click());
-    await waitUntil(() => expect(document.querySelector('ol[aria-label="Notes"]')).not.toBeNull());
-    expect(document.querySelector('button[aria-pressed="true"]')?.textContent).toContain('Tapes · 9');
-  });
-
-  it('opens Settings at Recording’s Model card from Get a model', async () => {
-    needsModel.add('take1');
-    await record(1);
-    await openApp();
-    await waitUntil(() => expect(button('Get a model')).toBeTruthy());
-    expect(seen.settings?.open).toBe(false);
-    act(() => button('Get a model').click());
-    expect(seen.settings?.open).toBe(true);
-    expect(seen.settings?.toModel).toBeGreaterThan(0);
   });
 });
 
@@ -1402,7 +1371,8 @@ describe('a journal’s entries', () => {
     await seed(['diary', `${DIARY}- [[${title}]]\n`], ['e1', `---\ntitle: "${title}"\ndate: 2026-09-28T14:05\n---\nWords of mine.`], ['walk', '# Walk'], ['guide', '---\ntitle: "Field guide"\nbook: true\n---\n# Field guide\n']);
     await openApp();
     act(() => button('Write a note').click());
-    act(() => buttonSaying(document.body, 'Notebook')!.click());
+    // The New sheet's Notebook, not the home page's filter of the same word.
+    act(() => buttonSaying(document.querySelector('section[role="dialog"]')!, 'Notebook')!.click());
     const listed = () => [...document.querySelectorAll('ul[aria-label="Notes"] button')].map((b) => b.textContent?.trim());
     await waitUntil(() => expect(listed()).toContain('Walk'));
     expect(listed()).not.toContain(title);

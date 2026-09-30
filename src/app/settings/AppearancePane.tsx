@@ -3,8 +3,9 @@ import { hapticsAvailable, setHapticsPref, useHapticsPref } from '../core/haptic
 import { facesOf, INTERFACE_FACES, isSidebarStyle, setPreferences, themeChoice, TYPEFACES, usePreferences, type MotionSpeed, type Rounding, type SidebarStyle, type TextSize } from '../core/preferences.ts';
 import { useSidebar } from '../core/useWideScreen.ts';
 import { CODE_THEMES_DARK, CODE_THEMES_LIGHT, type CodeThemeDark, type CodeThemeLight } from '../editor/codeThemes.ts';
+import { HOME_LAYOUTS } from '../home/homeLayout.ts';
 import { AccentSwatch } from './AccentSwatch.tsx';
-import { PaneSection, SettingRow } from './kit/settingsKit.tsx';
+import { PaneSection, Pick, SettingRow } from './kit/settingsKit.tsx';
 import { ScaleCards } from './ScaleCards.tsx';
 import { ThemeCards } from './ThemeCards.tsx';
 import { TypefaceCards } from './TypefaceCards.tsx';
@@ -13,7 +14,7 @@ import { DENSITY_WORDS, optionsOf, ROUNDING_WORDS, SIZE_WORDS, SPEED_WORDS } fro
 /**
  * Appearance: how the app looks, moves and feels (Matt: "Change theme to be appearance settings and add the density
  * controller, the accent color picker and the rounding control in there as well as the other existing theme
- * options"). The page first, then its one colour, then the type, how much air it gives itself and how round its
+ * options"). The page first, then how the home page is laid out, then its one colour, then the type, how much air it gives itself and how round its
  * corners are, then the colours of code, then how it moves and how it answers a touch.
  *
  * Type, Motion and Touch were pages of their own until Matt asked to "clean up / streamline settings a bit"
@@ -54,6 +55,17 @@ export function AppearancePane() {
         <div className="setk-row">
           <ThemeCards value={prefs.theme} onValueChange={(value) => setPreferences(themeChoice(value, prefs))} />
         </div>
+      </PaneSection>
+      {/* The home page's five layouts (home/homeLayout.ts; docs/DESIGN.md §147), each a row with the sentence that draws it. */}
+      <PaneSection title="Home page" description="How the home page lays out your notebooks and notes. The search and the filter stay on top whichever you pick.">
+        {HOME_LAYOUTS.map((layout) => (
+          <SettingRow
+            key={layout.id}
+            label={layout.label}
+            hint={layout.hint}
+            control={<Pick checked={prefs.homeLayout === layout.id} label={layout.label} onPress={() => setPreferences({ homeLayout: layout.id })} />}
+          />
+        ))}
       </PaneSection>
       <PaneSection title="Accent" description="Colours the few things that mark a choice: a focus ring, a chosen segment. Ink is the app's own.">
         <AccentSwatch accent={prefs.accent} onAccent={(accent) => setPreferences({ accent })} />

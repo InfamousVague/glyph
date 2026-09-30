@@ -8358,3 +8358,48 @@ editor/blanks, fillPanel, iconDom and wispArrivals tests, the readers' tests (ho
 search, the gist, the MCP's search), the + rows, the More sheet, the palette, Privacy, and the Rust bar.
 
 Cites: §21, §122, §127, §138, §141, §142.
+
+## 147. The home page: the notebooks and the notes, searched, five ways (2026-09-30)
+
+Matt: "redesign the home page / dashboard to be easier to navigate, remove things like the todo list and other things
+focus more on displaying the books and notes in a easy way to search and look through give me 5 different dashboard
+layout styles we can chose from in the settings also redesign the top bar so that the mic, reading vs code mode move
+into the more button in the header".
+
+**What went.** The date and its digest, To do, the shelf of tapes, the Academy card, the refining notice, and the
+tiers that laid those groups out across a desk (§137, §139). home/tiers.ts, home/useColumnTier.ts, home/TapeShelf.tsx,
+home/tapeCaption.ts and home/useMeetingLive.ts went with them, as nothing else drew them. The to-dos are still in their
+notes, and a tape is still a card with its cassette in All notes, whose Tapes toggle finds every one.
+
+**What the page is.** From the top: a search field over the notebooks and the notes (notes/allNotes.ts `matches`, the
+same search as All notes), a filter of four words with their counts (All, Notebooks, Notes, Pinned), the workspaces'
+pills, and the two notices that are about the app itself (an update, the voice model). Then the notebooks and the
+notes, each newest first with the pinned ones first, never the archive, in the layout chosen. A search that finds
+nothing says so with the words searched for. The foot is the way to All notes, which counts what the Cards and Shelf
+layouts left out ("2 more in All notes") past their 48 cards. The dock is as it was. home/homeLayout.ts holds the rules
+and is pure; HomeScreen.tsx draws them, its stylesheet HomeLayouts.module.css.
+
+**The five layouts**, chosen in Settings › Appearance › Home page (a `homeLayout` preference, synced):
+
+- **Cards**, the default: the notebooks as cards, then the notes, each drawn small, as the page had them.
+- **List**: one line each, the kind's mark, the name, how it starts (its first line under its title, marks taken off)
+  or a notebook's count of pages or a journal's of entries, the notebook it is in, and when. The most on a screen.
+- **Shelf**: the notebooks as covers along a row that scrolls sideways, a spine down each, and the notes as dense cards
+  under it.
+- **Library**: each notebook's name as a heading that opens it, its pages as rows under it in its order, then the notes
+  in no notebook. Two notebooks across once the column passes 44rem.
+- **Timeline**: everything by when it was last touched: Today, Yesterday, Earlier this week, This month, Earlier.
+
+The search and the filter stay on top whichever is chosen, so a person looks the same way in all five.
+
+**The top bar.** A note's tools are the bookmark and More. The mic ("Talk into this note", or "Speak an entry" on a
+journal) is More's first row, and the view switch is its Show row, which names both views in the note's own words
+(Markdown or Formatted, JSON or Canvas, Markdown or Index). Show was already in More on a phone (§138's clean-up); the
+wide screens' copy in the bar went. A note playing its tape has neither, as before: the tape has its own Add, and the
+page is the transcript's until it stops.
+
+**Tests.** home/homeLayout.test.ts (the order, the filters, the counts, the first line, the spans, the library),
+home/HomeScreen.test.tsx (the search, the filter, each layout, the workspace, the empty page, the foot, the dock),
+settings/AppearancePane.test.tsx (the five picks), editor/NoteScreen.test.tsx (the two tools, More's mic and Show).
+
+Cites: §132, §137, §138, §139, §142.

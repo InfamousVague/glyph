@@ -71,7 +71,6 @@ import { fireNativeHaptic } from '../core/haptics.ts';
 import { useUnfold } from '../core/unfold.ts';
 import { getNote, type Note } from '../core/store.ts';
 import { setPreferences, useDarkNow, usePreferences } from '../core/preferences.ts';
-import { useWideScreen } from '../core/useWideScreen.ts';
 import type { NoteView } from './viewMode.ts';
 import type { ReviewHandoff } from '../ai/review.ts';
 import { enqueueSummary, onRecordingChanged } from '../ai/summaries.ts';
@@ -278,10 +277,6 @@ export function NoteScreen({
   const prefs = usePreferences();
   // The page's side, followed while the note is open: on System the phone may turn dark under it.
   const dark = useDarkNow(prefs.theme);
-  // The view switch has room in the header only on a wide screen (a folding phone opened out); otherwise it lives in
-  // the More sheet (Matt: "too big, it clogs up the header; hide it under a more menu that only expands when there
-  // is enough space on the screen").
-  const wide = useWideScreen();
   const chooseView = (value: NoteView) => {
     if (prefs.noteView === value) return;
     setPreferences({ noteView: value });
@@ -1071,18 +1066,7 @@ export function NoteScreen({
   const wiki = useMemo(() => (onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle, body: bodyOfTitle } : undefined), [onOpenTitle, hasTitle, bodyOfTitle]);
 
   const tools = (
-    <NoteTools
-      kind={canvas ? 'canvas' : isBook ? 'book' : 'words'}
-      page={typed ? !source : prefs.noteView === 'formatted'}
-      switchable={shown === 'raw'}
-      onSwitch={() => (typed ? showSource(!source) : chooseView(prefs.noteView === 'formatted' ? 'mixed' : 'formatted'))}
-      marked={marked}
-      onBookmark={bookmark}
-      onSpeak={tape.length > 0 ? null : speakHere}
-      // A journal's mic makes an entry and speaks it (App.tsx `speakInto`), rather than words into the index.
-      speakLabel={isJournal ? 'Speak an entry' : undefined}
-      onMore={() => setSettingsOpen(true)}
-    />
+    <NoteTools marked={marked} onBookmark={bookmark} onMore={() => setSettingsOpen(true)} />
   );
 
   return (
@@ -1333,7 +1317,9 @@ export function NoteScreen({
         onClose={() => setSettingsOpen(false)}
         name={typed ? { value: title, onChange: renameHere, kind: canvas ? 'canvas' : isJournal ? 'journal' : 'notebook' } : undefined}
         journal={journalRows}
-        view={!wide && shown === 'raw' ? (typed ? (source ? 'mixed' : 'formatted') : prefs.noteView) : undefined}
+        view={shown === 'raw' ? (typed ? (source ? 'mixed' : 'formatted') : prefs.noteView) : undefined}
+        viewWords={canvas ? { source: 'JSON', page: 'Canvas' } : isBook ? { source: 'Markdown', page: 'Index' } : undefined}
+        speak={tape.length > 0 ? undefined : { label: isJournal ? 'Speak an entry' : 'Talk into this note', onPress: speakHere }}
         onView={typed ? (next) => showSource(next === 'mixed') : chooseView}
         running={ai.runningKind}
         onAi={ai.runAi}

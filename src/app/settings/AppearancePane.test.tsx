@@ -39,7 +39,7 @@ const labels = (host: HTMLElement, card: string) =>
 
 describe('the Appearance page', () => {
   it('holds the look, the type, the motion and, on a phone, the touch, in that order', () => {
-    expect(titles(show(<AppearancePane />))).toEqual(['Page', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion', 'Touch']);
+    expect(titles(show(<AppearancePane />))).toEqual(['Page', 'Home page', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion', 'Touch']);
   });
 
   it('keeps the two size dials together in Type, beside the two faces', () => {
@@ -54,9 +54,19 @@ describe('the Appearance page', () => {
   it('has no Touch where there is no motor, and no Sidebar on a phone, where it changes nothing', () => {
     phone = false;
     const host = show(<AppearancePane />);
-    expect(titles(host)).toEqual(['Page', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion']);
+    expect(titles(host)).toEqual(['Page', 'Home page', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion']);
     expect(host.querySelector('[aria-label="Haptics"]')).toBeNull();
     expect(host.querySelector('[aria-label="Sidebar"]')).toBeNull();
+  });
+
+  it('offers the home page’s five layouts, Cards chosen at first, and writes the one picked (docs/DESIGN.md §147)', () => {
+    const host = show(<AppearancePane />);
+    expect(labels(host, 'Home page')).toEqual(['Cards', 'List', 'Shelf', 'Library', 'Timeline']);
+    const picked = () => [...host.querySelectorAll('.setk-pick[aria-checked="true"]')].map((pick) => pick.getAttribute('aria-label'));
+    expect(picked()).toEqual(['Cards']);
+    act(() => host.querySelector<HTMLElement>('.setk-pick[aria-label="Library"]')!.click());
+    expect(preferences().homeLayout).toBe('library');
+    expect(picked()).toEqual(['Library']);
   });
 
   it('offers the sidebar’s choice on a window wide enough for the sidebar, and writes it', () => {
