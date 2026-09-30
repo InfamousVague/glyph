@@ -1,9 +1,29 @@
 # ghostmarkdown.com
 
-The download page: the app icon, the name, one line, and the three ways in. Those are the Android APK, the Mac app,
-and the web app on attack.fm. The page lives in `landing/` (`landing/index.html`, `landing/site.css` and the icons,
-resized from `src-tauri/icons/icon.png`) and ships with `node scripts/deploy-landing.mjs`, one ssh login. It has no
-npm alias.
+The app's own site: everything Ghost.md does, and the ways to get it (docs/DESIGN.md §153). It was a download page -
+the icon, the name, one line, and three buttons - and is now the whole app on one page: the recorder drawn at work, the
+cues, Hey Ghost, the review with its Keep and Revert, meetings and tapes, the marks to try, the home page, journals,
+boards and canvases, privacy, the devices, the app's six themes to try on the site itself, the downloads, and questions.
+It lives in `landing/` and ships with `node scripts/deploy-landing.mjs`, one ssh login. It has no npm alias.
+
+- **The files.** `index.html` (the page), `home.css` and `home.js` (its layout and its moving parts), `site.css` (the
+  fonts, the colours and the reading column every page shares), `theme.js` (the theme a visitor picked, on every page
+  before it draws), and the icons, resized from `src-tauri/icons/icon.png`. No build: the site is this directory.
+- **Glacier.** The site is drawn from the kit's tokens, as the app is: `glacier/tokens.css` is `@glacier/tokens`'s, and
+  its type scale, spacing, radii, motion, shadows and the named themes (Dawn, Boreal, Ember) are what `home.css` and
+  `site.css` use. The colours are the app's ink (src/app/ink.css): pure grey, light or dark, or the kit's tinted greys
+  under a named theme. The two faces, Inter and JetBrains Mono, are served from `fonts/`, so a visit asks nothing of a
+  font host. `node scripts/landing-assets.mjs` copies the tokens, the fonts and the ghosts the page wears (`ghosts/`, the
+  app's masks, painted in the site's ink) from the kit and the app; run it when either changes and commit what it
+  writes.
+- **The screens** (`shots/`) are the web build's own, seeded with a handful of notes and drawn at a phone's size and a
+  desk's in the dark page: `npm run build`, `npx vite preview --port 4173`, then `node scripts/landing-shots.mjs`.
+  Take them again when the app's look changes.
+- **What it says is what the app does.** Each claim is the Guide's, the code's, or docs/store/play/FEATURES.md's; a
+  feature that changes is a sentence here to change.
+- **The stores** are one line each in `home.js` (`STORES`). Null, a store's button says Coming soon and is not a link;
+  set a listing's address there once it is live (Google Play: docs/store/PLAY_STORE.md; the App Store waits on voice
+  notes for iOS, docs/store/APP_STORE.md) and it is.
 
 - **The downloads are the release's own files.** The site's Caddy block serves `/glyph.apk`, `/glyph.dmg`,
   `/apk.json` and `/desktop.json` from `/opt/attackfm-site/glyph`, where deploy-ota.mjs publishes them. Every release

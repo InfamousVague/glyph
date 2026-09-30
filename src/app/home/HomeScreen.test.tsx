@@ -316,6 +316,14 @@ describe('the layouts', () => {
     expect(rows[3]).toContain('Milk, bread.');
   });
 
+  it('says how many cards a canvas has on its row, never the first line of its JSON', () => {
+    const board = makeNote('c', '---\ntitle: "Plan"\n---\n{"nodes":[{"id":"a","type":"text","text":"One","x":0,"y":0,"width":100,"height":60},{"id":"b","type":"text","text":"Two","x":0,"y":90,"width":100,"height":60}],"edges":[]}', { updatedAt: 9 });
+    show(page([board, makeNote('e', '---\ntitle: "Empty"\n---\n{"nodes":[],"edges":[]}', { updatedAt: 8 })]));
+    laidOut('list');
+    const rows = [...document.querySelectorAll('section li button')].map((b) => b.querySelector('[class*=rowLead]')?.textContent);
+    expect(rows).toEqual(['2 cards', 'No cards yet']);
+  });
+
   it('draws the Shelf as covers for the notebooks and small cards for the notes', () => {
     show(page(shelf));
     laidOut('shelf');

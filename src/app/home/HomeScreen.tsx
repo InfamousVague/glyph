@@ -23,6 +23,7 @@ import { UpdateNotice, VoiceModelStatus } from '../notes/Notices.tsx';
 import { useGists } from '../format/gist.ts';
 import { shortenUrls } from '../core/shortUrl.ts';
 import { bookIndex, chaptersOf, placeOf } from '../book/book.ts';
+import { canvasOf } from '../canvas/jsonCanvas.ts';
 import { journalCards } from '../book/journalMonths.ts';
 import type { OpenTask } from './dashboard.ts';
 import { cardsIn, firstLine, homeCounts, homeLists, homePlan, isBookSection, kindOf, type HomeFilter, type HomeKind, type SectionDraw } from './homeLayout.ts';
@@ -334,8 +335,20 @@ function HomeRow({
   const title = noteTitle(note.body);
   const kind = live ? 'tape' : kindOf(note);
   const pages = kind === 'book' ? chaptersOf(note.body).length : 0;
-  // A journal counts its entries, from every workspace (book/journalMonths.ts), and a notebook its pages.
-  const lead = entries !== undefined ? (entries === 1 ? '1 entry' : `${entries} entries`) : kind === 'book' ? (pages === 1 ? '1 page' : `${pages} pages`) : firstLine(note.body);
+  // A journal counts its entries, from every workspace (book/journalMonths.ts), a notebook its pages, and a canvas its
+  // cards: its first line is JSON, and a row that began "{" said nothing.
+  const cards = kind === 'canvas' ? (canvasOf(note.body)?.nodes.length ?? 0) : 0;
+  const counted = (n: number, one: string, many: string) => (n === 1 ? `1 ${one}` : `${n} ${many}`);
+  const lead =
+    entries !== undefined
+      ? counted(entries, 'entry', 'entries')
+      : kind === 'book'
+        ? counted(pages, 'page', 'pages')
+        : kind === 'canvas'
+          ? cards
+            ? counted(cards, 'card', 'cards')
+            : 'No cards yet'
+          : firstLine(note.body);
   return (
     <li className={look.rowItem} style={{ '--i': Math.min(index, 12) } as CSSProperties}>
       <Swiped swipe={swipe}>

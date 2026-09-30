@@ -8562,3 +8562,32 @@ down, a rested finger, or off, nothing), editor/NoteScreen.test.tsx (a note take
 loses what is typed).
 
 Cites: §151.
+
+## 153. ghostmarkdown.com, the whole app on one page (2026-09-30)
+
+Matt: "you have total creative liberty to use glacierUI and redesign the GhostMarkdown.com website to be a full feature
+of the app with CTA for downloading on the app stores or from the website directly".
+
+The download page was the icon, the name, one line and three buttons. The site is now the app, section by section, in
+the app's own look: ink on paper, the note's face with the Markdown's marks left dimmed, the app's ghosts as masks in
+the page's ink, and Glacier's tokens for type, spacing, radii, motion and shadows (docs/LANDING.md has the files).
+
+- **The opening** says what it is in six words, "Say it. It lands as Markdown.", and shows it: the recorder drawn at
+  work, each thing said arriving in the note in smoke, as the app writes spoken words, then settling to ink. It runs
+  only while it is on screen and the tab is in front, and holds still, the note whole, under reduced motion.
+- **The ways to get it** lead: the device in hand's first and filled (the APK on Android, the Mac app on a Mac, the web
+  app on an iPhone or iPad), the other two beside it, and the stores' buttons, which say Coming soon until a listing is
+  live (`STORES` in home.js). The versions and sizes are read from the manifests the apps update from.
+- **Every flagship feature has a section**, each with something to see or try: the cues as said and as written; Hey
+  Ghost as a recording that moves notes; the review, whose Keep and Revert work; a tape and its summary; the seven marks
+  and five effects drawn as the app draws them (the spoiler opens on a tap, the redaction lifts on focus); the home page
+  in two of its screens; journals, boards and canvases in theirs; privacy in six plain facts; the devices, with the Mac
+  in a laptop; and the six pages, System, Light, Dark, Dawn, Boreal and Ember, which retheme the site itself and are
+  kept for the privacy and delete pages too.
+- **The screens are the app's**, taken from the web build at a phone's size and a desk's (scripts/landing-shots.mjs),
+  so they are never a mock-up of something the app does not draw.
+
+Taking the desk's screen showed a canvas's row on the home page reading "{", the first line of its JSON. A canvas's
+row says how many cards it has now, "4 cards" (home/HomeScreen.tsx; a test in home/HomeScreen.test.tsx).
+
+Cites: §132, §147, §148, §151, §152.

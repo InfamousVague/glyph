@@ -2,147 +2,525 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Ghost.md</title>
-    <meta name="description" content="Ghost.md: notes you type or say, kept as plain Markdown on your own devices. Download it for Android or Mac, or open it in your browser." />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Ghost.md · Notes you type or say</title>
+    <meta name="description" content="Say a note and it lands as Markdown while you talk, transcribed by models that run on your phone. Plain .md files, kept on your own devices. For Android, Mac and the web." />
     <link rel="icon" type="image/png" href="favicon.png" />
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-    <meta property="og:title" content="Ghost.md" />
-    <meta property="og:description" content="Notes you type or say, kept as plain Markdown on your own devices." />
+    <meta property="og:title" content="Ghost.md · Notes you type or say" />
+    <meta property="og:description" content="Say a note and it lands as Markdown while you talk, transcribed on your phone." />
     <meta property="og:image" content="https://ghostmarkdown.com/icon.png" />
+    <meta name="theme-color" content="#0b0b0b" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fdfdfd" media="(prefers-color-scheme: light)" />
     <!--
-      ghostmarkdown.com: the download page (docs/LANDING.md). Dead simple on purpose: the icon, the name, one line, and
-      the three ways in. The versions and sizes are read from the same manifests the apps update from (/apk.json and
-      /desktop.json, served here from the release on attack.fm), so the page never says an old number.
+      ghostmarkdown.com (docs/LANDING.md, docs/DESIGN.md §153): everything Ghost.md does, and the ways to get it. Drawn
+      from Glacier's tokens (glacier/tokens.css) and the app's ink (site.css), with the app's own screens
+      (shots/, scripts/landing-shots.mjs) and ghosts (ghosts/, scripts/landing-assets.mjs). What it says is what the app
+      does: docs/store/play/FEATURES.md is the map, and each claim is the Guide's or the code's.
+
+      The downloads are the release's own files, and their versions and sizes are read from the manifests the apps
+      update from (/apk.json, /desktop.json), so the page never says an old number. The stores are one line each in
+      home.js (`STORES`): until a listing is live, its button says it is coming.
     -->
+    <link rel="preload" href="fonts/inter.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="glacier/tokens.css" />
     <link rel="stylesheet" href="site.css" />
-    <style>
-      /* The colours and the page's base are site.css's; this is the download page's own layout. */
-      html,
-      body {
-        min-height: 100%;
-      }
-      main {
-        min-height: 100dvh;
-        display: grid;
-        place-content: center;
-        justify-items: center;
-        gap: 22px;
-        padding: 48px 16px;
-        text-align: center;
-      }
-      .icon {
-        width: 168px;
-        height: 168px;
-        border-radius: 38px;
-        box-shadow: 0 1px 0 var(--line), 0 18px 40px -18px rgb(0 0 0 / 0.45);
-      }
-      h1 {
-        margin: 6px 0 0;
-        font-size: clamp(2.2rem, 7vw, 3rem);
-        letter-spacing: -0.03em;
-        line-height: 1;
-      }
-      .lead {
-        margin: 0;
-        max-width: 26rem;
-        font-size: 1.08rem;
-        line-height: 1.5;
-        color: var(--ink-2);
-      }
-      .ways {
-        display: grid;
-        gap: 10px;
-        width: min(100%, 22rem);
-        margin-top: 8px;
-      }
-      .way {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 14px 18px;
-        border-radius: 14px;
-        border: 1px solid var(--line);
-        color: var(--ink);
-        text-decoration: none;
-        font-weight: 600;
-      }
-      .way:hover {
-        border-color: var(--ink-2);
-      }
-      .way:focus-visible {
-        outline: 2px solid var(--ink);
-        outline-offset: 3px;
-      }
-      /* The way for the device in hand comes first and is the filled one. */
-      .way[data-first] {
-        order: -1;
-        background: var(--ink);
-        color: var(--paper);
-        border-color: var(--ink);
-      }
-      .meta {
-        font-weight: 400;
-        font-size: 0.85rem;
-        opacity: 0.7;
-        white-space: nowrap;
-      }
-      .links {
-        order: 1;
-        margin: 10px 0 0;
-        font-size: 0.85rem;
-        color: var(--ink-2);
-      }
-      .links a {
-        color: inherit;
-      }
-      .note {
-        margin: 4px 0 0;
-        max-width: 24rem;
-        font-size: 0.82rem;
-        line-height: 1.5;
-        color: var(--ink-2);
-      }
-    </style>
+    <link rel="stylesheet" href="home.css" />
+    <script src="theme.js"></script>
+    <script src="home.js" defer></script>
   </head>
   <body>
-    <main>
-      <img class="icon" src="icon.png" width="168" height="168" alt="The Ghost.md ghost, waving, on lined paper" />
-      <h1>Ghost.md</h1>
-      <p class="lead">Notes you type or say. Plain Markdown, kept on your own devices, the same on every one.</p>
-      <nav class="ways" aria-label="Get Ghost.md">
-        <a class="way" id="android" href="/glyph.apk" download>
-          <span>Download for Android</span><span class="meta" data-meta="apk"></span>
-        </a>
-        <a class="way" id="mac" href="/glyph.dmg" download>
-          <span>Download for Mac</span><span class="meta" data-meta="dmg"></span>
-        </a>
-        <a class="way" id="web" href="https://attack.fm/glyph/">
-          <span>Open in your browser</span><span class="meta">No install</span>
-        </a>
-      </nav>
-      <p class="links"><a href="privacy.html">Privacy</a> · <a href="delete-account.html">Delete your account</a></p>
-      <p class="note" id="mac-note" hidden>The Mac app is signed but not yet notarised: the first time, right-click it and choose Open.</p>
-    </main>
-    <script>
-      // The device in hand's way first. An iPhone or iPad has no app yet, so the browser is its way.
-      const ua = navigator.userAgent;
-      const first = /Android/i.test(ua) ? 'android' : /iPhone|iPad|iPod/i.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua)) ? 'web' : /Macintosh|Mac OS X/.test(ua) ? 'mac' : null;
-      if (first) document.getElementById(first).setAttribute('data-first', '');
-      if (first === 'mac') document.getElementById('mac-note').hidden = false;
+    <a class="skip" href="#main">Skip to the page</a>
 
-      // The version and size of what each button downloads, from the manifests the apps themselves update from.
-      const size = (bytes) => `${Math.round(bytes / 1e6)} MB`;
-      for (const [file, key] of [['apk.json', 'apk'], ['desktop.json', 'dmg']]) {
-        fetch(`/${file}`, { cache: 'no-store' })
-          .then((r) => (r.ok ? r.json() : null))
-          .then((m) => {
-            if (!m || !m.version) return;
-            document.querySelector(`[data-meta="${key}"]`).textContent = `${m.version} · ${size(m.bytes)}`;
-          })
-          .catch(() => undefined);
-      }
-    </script>
+    <header class="bar">
+      <nav class="bar-in" aria-label="Ghost.md">
+        <a class="brand" href="#top" aria-label="Ghost.md, to the top">
+          <img src="icon.png" width="32" height="32" alt="" />
+          <span>Ghost.md</span>
+        </a>
+        <ul class="bar-links">
+          <li><a href="#speak">Speak</a></li>
+          <li><a href="#marks">Marks</a></li>
+          <li><a href="#private">Privacy</a></li>
+          <li><a href="#everywhere">Devices</a></li>
+        </ul>
+        <a class="pill pill-ink bar-cta" href="#download">Download</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <!-- ============================================================== the opening -->
+      <section class="hero" id="top" aria-labelledby="hero-title">
+        <div class="wrap hero-grid">
+          <div class="hero-words">
+            <p class="eyebrow">Notes for people who think out loud</p>
+            <h1 id="hero-title">Say it.<br />It lands as Markdown.</h1>
+            <p class="lead">
+              Talk, and your note takes shape while you speak: the headings, lists and to-dos in place, transcribed by models that run on your phone. Every note is one
+              plain <code>.md</code> file, and it is yours.
+            </p>
+            <div class="ctas">
+              <a class="pill pill-ink pill-lg" id="hero-get" href="#download">
+                <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14" /></svg>
+                <span id="hero-get-word">Get Ghost.md</span>
+              </a>
+              <a class="pill pill-lg" href="https://attack.fm/glyph/">Open in your browser</a>
+            </div>
+            <div class="stores" data-stores>
+              <!-- Filled by home.js from `STORES`: a link once a listing is live, and "Coming soon" until then. -->
+              <span class="store" data-store="play" aria-disabled="true">
+                <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.5v17l14-8.5z" /></svg>
+                <span><small>Get it on</small>Google Play</span>
+                <em>Coming soon</em>
+              </span>
+              <span class="store" data-store="appStore" aria-disabled="true">
+                <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l-1 13H7zM9 7a3 3 0 0 1 6 0" /></svg>
+                <span><small>Download on the</small>App Store</span>
+                <em>Coming soon</em>
+              </span>
+            </div>
+            <p class="fine">No account needed. Android, Mac, and any browser. iPhone and iPad are on the way.</p>
+          </div>
+
+          <!-- The recorder, drawn: what you say, and the note it makes, line by line (home.js `hearing`). -->
+          <figure class="phone phone-live" aria-labelledby="live-caption">
+            <div class="phone-screen">
+              <div class="live-top">
+                <span class="ghost ghost-listening" aria-hidden="true"></span>
+                <span class="live-state"><span class="dot" aria-hidden="true"></span><span id="live-clock">0:00</span></span>
+                <span class="live-done">Done</span>
+              </div>
+              <p class="said" aria-live="off"><span class="said-word">You say</span><span id="said">Title: weekend trip</span></p>
+              <div class="live-page" id="live-page" aria-hidden="true">
+                <p class="md md-h1"><span class="mk"># </span>Weekend trip</p>
+                <p class="md md-h2"><span class="mk">## </span>Before we go</p>
+                <p class="md md-todo"><span class="mk">- [ ] </span>Book the cabin</p>
+                <p class="md">We need:</p>
+                <p class="md md-li"><span class="mk">- </span>Snacks</p>
+                <p class="md md-li"><span class="mk">- </span>Water</p>
+                <p class="md md-li"><span class="mk">- </span>A charger</p>
+                <p class="md md-li"><span class="mk">- </span>The good playlist</p>
+                <p class="md"><span class="mk">**</span><b>Important:</b><span class="mk">**</span> leave by ten</p>
+              </div>
+            </div>
+            <figcaption id="live-caption" class="unseen">
+              A recording in Ghost.md. Said: "Title: weekend trip. Heading, before we go. Remember to book the cabin. We need snacks, water, a charger and the good
+              playlist. Important: leave by ten." Written: a note called Weekend trip, with a heading, a to-do, a list of four, and a bold line.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- ============================================================== three steps -->
+      <section class="steps" aria-label="How a note is made">
+        <ol class="wrap steps-list">
+          <li>
+            <span class="ghost ghost-listening" aria-hidden="true"></span>
+            <h2>You talk</h2>
+            <p>Tap Speak, or hold the side key. Words appear as they are heard, laid out as they will read.</p>
+          </li>
+          <li>
+            <span class="ghost ghost-new" aria-hidden="true"></span>
+            <h2>It shapes itself</h2>
+            <p>Say "heading", "bullet point" or "remember to", and the cue becomes the mark. The cue words are taken out.</p>
+          </li>
+          <li>
+            <span class="ghost ghost-ticked" aria-hidden="true"></span>
+            <h2>It stays yours</h2>
+            <p>One <code>.md</code> file per note, on your phone, readable in any editor. Obsidian included.</p>
+          </li>
+        </ol>
+      </section>
+
+      <!-- ============================================================== speak -->
+      <section class="feature" id="speak" aria-labelledby="speak-title">
+        <div class="wrap feature-grid">
+          <div class="feature-words">
+            <p class="eyebrow">Speak</p>
+            <h2 id="speak-title">Say the shape, not just the words.</h2>
+            <p>
+              Ghost.md listens for the way people already talk about notes. A title, a heading, a list said in one breath, a to-do you mean to remember. Two seconds of quiet
+              is a new paragraph. The recording is kept as the note's tape.
+            </p>
+            <ul class="cues" aria-label="Things to say">
+              <li><q>Title: weekend trip</q><code># Weekend trip</code></li>
+              <li><q>Heading, the budget</q><code>## The budget</code></li>
+              <li><q>Bullet point, the heating</q><code>- The heating</code></li>
+              <li><q>Remember to book the cabin</q><code>- [ ] Book the cabin</code></li>
+              <li><q>Number one, passports</q><code>1. Passports</code></li>
+              <li><q>Warning callout: bring cash</q><code>&gt; [!WARNING]</code></li>
+              <li><q>Calculate four hundred plus one hundred twenty</q><code>= 400 + 120</code></li>
+              <li><q>Scratch that</q><code>Took back, with Undo</code></li>
+              <li><q>Actually, Tuesday</q><code>The last sentence, corrected</code></li>
+            </ul>
+          </div>
+          <figure class="phone">
+            <img src="shots/note.webp" width="390" height="844" loading="lazy" alt="A note called Weekend trip in Ghost.md: a heading, to-dos, a highlighted phrase, a spoiler in smoke, a list and a tip." />
+          </figure>
+        </div>
+      </section>
+
+      <!-- ============================================================== hey ghost -->
+      <section class="feature feature-flip" id="hey-ghost" aria-labelledby="ghost-title">
+        <div class="wrap feature-grid">
+          <div class="feature-words">
+            <p class="eyebrow">Hey Ghost</p>
+            <h2 id="ghost-title">Name a note, and your words go into it.</h2>
+            <p>
+              Mid-recording, say "Hey Ghost, add a note to House TODOs". The recorder switches to that note, and each thing you say lands in its list, under the heading that
+              shares its words, in the list's own style. Nothing is saved until Done, and then it opens with Undo.
+            </p>
+            <p class="quiet">Hey Ghost is heard inside a recording you started, and nowhere else. No microphone is left listening for it.</p>
+          </div>
+          <div class="convo" role="img" aria-label="Saying: Hey Ghost, add a note to House TODOs. Then: call an electrician about the light sockets. The words land as a to-do under the Electrical heading of House TODOs.">
+            <p class="bubble">Hey Ghost, add a note to House TODOs</p>
+            <p class="adding"><span class="dot" aria-hidden="true"></span> Adding to “House TODOs”</p>
+            <p class="bubble">Call an electrician about the light sockets</p>
+            <div class="mini-note">
+              <p class="md md-h1"><span class="mk"># </span>House TODOs</p>
+              <p class="md md-h2"><span class="mk">## </span>Kitchen</p>
+              <p class="md md-todo"><span class="mk">- [ ] </span>Fix the drawer runner</p>
+              <p class="md md-h2"><span class="mk">## </span>Electrical</p>
+              <p class="md md-todo landed"><span class="mk">- [ ] </span>Call an electrician about the light sockets</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================== the AI -->
+      <section class="feature" id="ai" aria-labelledby="ai-title">
+        <div class="wrap feature-grid">
+          <div class="feature-words">
+            <p class="eyebrow">The AI, on your phone</p>
+            <h2 id="ai-title">A second listen, and a read-through. Nothing leaves the phone.</h2>
+            <p>
+              When you tap Done, a larger speech model listens to the tape again and a language model reads the note through. What it would change lands as marked changes:
+              added words tinted, removed words struck through, each with Keep and Revert. Ask for Format, Summarize or Enhance any time, or say it into the note.
+            </p>
+            <ul class="facts">
+              <li><b>Whisper</b> base.en to hear you live, and small.en to listen again</li>
+              <li><b>Qwen3.5</b> 2B, 4B or 9B, or <b>Gemma 4</b> E4B, chosen in Settings</li>
+              <li>Each downloaded once when you ask, and checked byte for byte</li>
+            </ul>
+          </div>
+          <div class="review" aria-labelledby="review-title">
+            <p class="review-head"><span class="ghost ghost-working" aria-hidden="true"></span><span id="review-title">What the review found</span></p>
+            <div class="review-note">
+              <p class="md md-h2"><span class="mk">## </span>Standup</p>
+              <p class="md" data-change="1">
+                We agreed to ship <del>the thing</del><ins>the home page</ins> on Friday.
+                <span class="keep-revert" role="group" aria-label="This change">
+                  <button type="button" data-keep>Keep</button><button type="button" data-revert>Revert</button>
+                </span>
+              </p>
+              <p class="md md-todo" data-change="2">
+                <span class="mk">- [ ] </span><ins>Write the release notes</ins>
+                <span class="keep-revert" role="group" aria-label="This change">
+                  <button type="button" data-keep>Keep</button><button type="button" data-revert>Revert</button>
+                </span>
+              </p>
+              <p class="md md-todo" data-change="3">
+                <span class="mk">- [ ] </span>Ask Sam about the <del>screen shots</del><ins>screenshots</ins>
+                <span class="keep-revert" role="group" aria-label="This change">
+                  <button type="button" data-keep>Keep</button><button type="button" data-revert>Revert</button>
+                </span>
+              </p>
+            </div>
+            <p class="review-foot" id="review-left" aria-live="polite">Three changes to keep or revert. Try them.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================== tapes and meetings -->
+      <section class="feature feature-flip" id="meetings" aria-labelledby="meet-title">
+        <div class="wrap feature-grid">
+          <div class="feature-words">
+            <p class="eyebrow">Tapes and meetings</p>
+            <h2 id="meet-title">Record the meeting. Put the phone down.</h2>
+            <p>
+              Start a meeting and let the screen go off. When it ends, the phone transcribes it and writes it up in the background, while it charges or has half its battery,
+              with a summary under the title: what was said, what was decided, and your to-dos as boxes. The audio stays on the phone.
+            </p>
+            <p>Every spoken note keeps its recording as a tape at the top of the note, to play back, or to add to.</p>
+          </div>
+          <div class="tape" aria-hidden="true">
+            <div class="tape-body">
+              <span class="reel"></span>
+              <span class="tape-window"></span>
+              <span class="reel"></span>
+            </div>
+            <p class="tape-label">Standup · 0:40</p>
+            <div class="tape-summary">
+              <p class="md md-h2"><span class="mk">## </span>Summary</p>
+              <p class="md">We agreed to ship the home page on Friday.</p>
+              <p class="md md-todo"><span class="mk">- [ ] </span>Write the release notes</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================== the marks -->
+      <section class="feature marks-feature" id="marks" aria-labelledby="marks-title">
+        <div class="wrap">
+          <div class="feature-words center">
+            <p class="eyebrow">Plain Markdown, and the marks</p>
+            <h2 id="marks-title">Everything Markdown does, and a few things of its own.</h2>
+            <p>
+              Headings, lists, to-dos, tables, code, callouts, footnotes and links between notes are drawn as you type, the marks left dimmed. Then seven marks of Ghost.md's
+              own and five effects that move, each written so the note still reads anywhere.
+            </p>
+          </div>
+          <ul class="specimens" aria-label="The marks">
+            <li><button type="button" class="spoiler" aria-pressed="false" aria-label="A spoiler: tap to show it">the ending</button><code>||spoiler||</code></li>
+            <li><span class="highlight">highlight</span><code>==highlight==</code></li>
+            <li><span class="aside">an aside</span><code>%%aside%%</code></li>
+            <li><span class="unsure">probably</span><code>??unsure??</code></li>
+            <li><span class="redact" tabindex="0" aria-label="A redacted word: focus to lift it">4417</span><code>@@redact@@</code></li>
+            <li><span class="shout">shout</span><code>^^shout^^</code></li>
+            <li><span class="added">added</span><code>++added++</code></li>
+          </ul>
+          <ul class="specimens effects" aria-label="The effects">
+            <li><span class="fx fx-heat" data-text="heat">heat</span><code>🔥🔥heat🔥🔥</code></li>
+            <li><span class="fx fx-frost">frost</span><code>❄️❄️frost❄️❄️</code></li>
+            <li><span class="fx fx-wave" data-wave="a wave">a wave</span><code>🌊🌊a wave🌊🌊</code></li>
+            <li><span class="fx fx-shimmer">shimmer</span><code>✨✨shimmer✨✨</code></li>
+            <li><span class="fx fx-haunt">haunted</span><code>👻👻haunted👻👻</code></li>
+          </ul>
+          <p class="quiet center">They hold still when your device asks for less motion.</p>
+        </div>
+      </section>
+
+      <!-- ============================================================== the home page -->
+      <section class="feature" id="home" aria-labelledby="home-title">
+        <div class="wrap feature-grid">
+          <div class="feature-words">
+            <p class="eyebrow">Your notes, found</p>
+            <h2 id="home-title">Pinned first, then where you were.</h2>
+            <p>
+              The home page opens on your pinned notes, the four you touched last as cards, and everything else by when. Search every word of every note, and filter to
+              notebooks, notes, pinned, or a workspace, from one button beside the search.
+            </p>
+            <ul class="facts">
+              <li>Swipe right to pin, left to archive, and further left to delete, each step felt as a click</li>
+              <li>Pull down to sync and read your notes again</li>
+              <li>Nine layouts to choose from: cards, rows, a shelf, a library, a timeline, and mixes of them</li>
+            </ul>
+          </div>
+          <div class="phones-two">
+            <figure class="phone">
+              <img src="shots/home.webp" width="390" height="844" loading="lazy" alt="The Ghost.md home page: a search with its filters button, two pinned notes, and recent notes as cards." />
+            </figure>
+            <figure class="phone phone-back">
+              <img src="shots/filters.webp" width="390" height="844" loading="lazy" alt="The filters panel: show all, notebooks, notes or pinned, with counts, and the workspaces." />
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================== notebooks, boards, canvases -->
+      <section class="feature kinds" id="kinds" aria-labelledby="kinds-title">
+        <div class="wrap">
+          <div class="feature-words center">
+            <p class="eyebrow">More than notes</p>
+            <h2 id="kinds-title">Journals, boards and canvases, still Markdown.</h2>
+          </div>
+          <ul class="kinds-list">
+            <li>
+              <figure class="phone">
+                <img src="shots/journal.webp" width="390" height="844" loading="lazy" alt="A journal: its entries by month, each with the day, the time and how it starts." />
+              </figure>
+              <h3>Notebooks and journals</h3>
+              <p>Gather notes into a notebook with an index, and read it straight through. A journal starts each entry dated, from a template, and can keep where it was written.</p>
+            </li>
+            <li>
+              <figure class="phone">
+                <img src="shots/board.webp" width="390" height="844" loading="lazy" alt="A board: to-dos in a note, and the same items as cards in To do, In progress and Done columns." />
+              </figure>
+              <h3>Boards</h3>
+              <p>A list can be a board with cards you drag between columns. The board is a few lines of Markdown, and the items stay in the note.</p>
+            </li>
+            <li>
+              <figure class="phone">
+                <img src="shots/canvas.webp" width="390" height="844" loading="lazy" alt="A canvas: four cards joined by labelled lines, with a minimap in the corner." />
+              </figure>
+              <h3>Canvases</h3>
+              <p>Cards on a page with lines between them, saved as JSON Canvas, and framed inside any note.</p>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============================================================== private -->
+      <section class="feature private" id="private" aria-labelledby="private-title">
+        <div class="wrap">
+          <div class="feature-words center">
+            <span class="ghost ghost-signed-out big" aria-hidden="true"></span>
+            <p class="eyebrow">Private by design</p>
+            <h2 id="private-title">Your words stay yours.</h2>
+          </div>
+          <ul class="private-grid">
+            <li>
+              <h3>No account needed</h3>
+              <p>Without one, nothing of yours is on a server at all.</p>
+            </li>
+            <li>
+              <h3>Sealed before it leaves</h3>
+              <p>With sync on, notes, recordings and pictures are sealed with AES-256-GCM on the device. The server never sees a word.</p>
+            </li>
+            <li>
+              <h3>Models on the device</h3>
+              <p>The apps transcribe and think on your phone or your Mac. No cloud AI.</p>
+            </li>
+            <li>
+              <h3>Nothing listening</h3>
+              <p>The microphone is on only while you record. No analytics, no crash reports, no ads.</p>
+            </li>
+            <li>
+              <h3>Shared with a key</h3>
+              <p>A read-only link carries its key after the #, which a browser never sends to a server.</p>
+            </li>
+            <li>
+              <h3>Gone when you say</h3>
+              <p>Delete your account in the app or <a href="delete-account.html">on the web</a>, and everything it kept goes with it.</p>
+            </li>
+          </ul>
+          <p class="center quiet"><a href="privacy.html">Read the privacy policy</a></p>
+        </div>
+      </section>
+
+      <!-- ============================================================== everywhere -->
+      <section class="feature everywhere" id="everywhere" aria-labelledby="where-title">
+        <div class="wrap">
+          <div class="feature-words center">
+            <p class="eyebrow">Wherever you are</p>
+            <h2 id="where-title">Your phone, your Mac, any browser.</h2>
+          </div>
+          <figure class="laptop">
+            <img src="shots/desk.webp" width="1280" height="800" loading="lazy" alt="Ghost.md on a wide screen: the pinned notes, recent notes as a row of cards, and the day's notes below." />
+          </figure>
+          <ul class="where-grid">
+            <li>
+              <h3>Android</h3>
+              <p>Hold the side key to record, even from the lock screen, once Ghost.md is your digital assistant. On a Fold, the note unfolds with the hinge.</p>
+            </li>
+            <li>
+              <h3>Mac</h3>
+              <p>The same models run on the Mac, macOS 13.1 or later. ⌘K opens the palette, and your notes are files in Finder.</p>
+            </li>
+            <li>
+              <h3>The web</h3>
+              <p>The same editor in any browser, with the browser's own speech recognition. No install.</p>
+            </li>
+            <li>
+              <h3>Your tools</h3>
+              <p>Send list items to Notion or GitHub, and let Claude read and write your notes through its connector. It never deletes.</p>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============================================================== themes -->
+      <section class="feature themes" id="themes" aria-labelledby="themes-title">
+        <div class="wrap">
+          <div class="feature-words center">
+            <p class="eyebrow">Make it yours</p>
+            <h2 id="themes-title">Six pages to write on. Try one here.</h2>
+            <p>The app's own themes. Pick one and this site wears it too.</p>
+          </div>
+          <div class="swatches" role="radiogroup" aria-label="The page">
+            <button type="button" role="radio" class="swatch" data-theme-pick="system" aria-checked="true"><span class="sw sw-system" aria-hidden="true"></span>System</button>
+            <button type="button" role="radio" class="swatch" data-theme-pick="light" aria-checked="false"><span class="sw sw-light" aria-hidden="true"></span>Light</button>
+            <button type="button" role="radio" class="swatch" data-theme-pick="dark" aria-checked="false"><span class="sw sw-dark" aria-hidden="true"></span>Dark</button>
+            <button type="button" role="radio" class="swatch" data-theme-pick="dawn" aria-checked="false"><span class="sw sw-dawn" aria-hidden="true"></span>Dawn</button>
+            <button type="button" role="radio" class="swatch" data-theme-pick="boreal" aria-checked="false"><span class="sw sw-boreal" aria-hidden="true"></span>Boreal</button>
+            <button type="button" role="radio" class="swatch" data-theme-pick="ember" aria-checked="false"><span class="sw sw-ember" aria-hidden="true"></span>Ember</button>
+          </div>
+          <p class="center quiet">And two fonts, a text size, spacing, corners and code colours in Settings.</p>
+        </div>
+      </section>
+
+      <!-- ============================================================== download -->
+      <section class="download" id="download" aria-labelledby="download-title">
+        <div class="wrap">
+          <div class="feature-words center">
+            <span class="ghost ghost-update big" aria-hidden="true"></span>
+            <h2 id="download-title">Get Ghost.md</h2>
+            <p>Straight from here, today. The stores are on their way.</p>
+          </div>
+          <div class="ways" aria-label="Get Ghost.md">
+            <a class="way" id="android" href="/glyph.apk" download>
+              <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9h10v8a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2zM7 9a5 5 0 0 1 10 0M9.5 6.5 8 4.5m6.5 2L16 4.5M4.5 10v5m15-5v5" /></svg>
+              <span class="way-words"><b>Android</b><span data-meta="apk">The APK, from here</span></span>
+              <span class="way-go">Download</span>
+            </a>
+            <a class="way" id="mac" href="/glyph.dmg" download>
+              <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H4zM2 19h20" /></svg>
+              <span class="way-words"><b>Mac</b><span data-meta="dmg">macOS 13.1 or later</span></span>
+              <span class="way-go">Download</span>
+            </a>
+            <a class="way" id="web" href="https://attack.fm/glyph/">
+              <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm-9 9h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z" /></svg>
+              <span class="way-words"><b>In your browser</b><span>No install</span></span>
+              <span class="way-go">Open</span>
+            </a>
+          </div>
+          <div class="stores stores-center" data-stores>
+            <span class="store" data-store="play" aria-disabled="true">
+              <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3.5v17l14-8.5z" /></svg>
+              <span><small>Get it on</small>Google Play</span>
+              <em>Coming soon</em>
+            </span>
+            <span class="store" data-store="appStore" aria-disabled="true">
+              <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12l-1 13H7zM9 7a3 3 0 0 1 6 0" /></svg>
+              <span><small>Download on the</small>App Store</span>
+              <em>Coming soon</em>
+            </span>
+          </div>
+          <p class="fine center" id="mac-note" hidden>The Mac app is signed but not yet notarised: the first time, right-click it and choose Open.</p>
+        </div>
+      </section>
+
+      <!-- ============================================================== questions -->
+      <section class="faq" aria-labelledby="faq-title">
+        <div class="wrap narrow">
+          <h2 id="faq-title">Questions</h2>
+          <details>
+            <summary>Does my voice go anywhere?</summary>
+            <p>Not in the apps: Android and the Mac transcribe on the device, and the language model runs there too. The web version uses your browser's own speech recognition, and Chrome's sends your voice to Google.</p>
+          </details>
+          <details>
+            <summary>Do I need an account?</summary>
+            <p>No. An account is for syncing between your devices, and everything it syncs is sealed on the device first. You get eight recovery codes, once; nobody can reset a lost password, us included.</p>
+          </details>
+          <details>
+            <summary>Can I open my notes in other apps?</summary>
+            <p>Yes. Each note is a Markdown file named after its first line, readable in any editor and in Obsidian. The marks Ghost.md adds are written so they still read as text anywhere.</p>
+          </details>
+          <details>
+            <summary>What about iPhone and iPad?</summary>
+            <p>The iOS app is on its way; voice notes need to work there first. Until then, the web version runs in Safari.</p>
+          </details>
+          <details>
+            <summary>Which languages does it hear?</summary>
+            <p>English, for now. Every engine listens for English.</p>
+          </details>
+          <details>
+            <summary>How do I learn the marks?</summary>
+            <p>The Academy teaches them one at a time, in thirteen short lessons, and the Guide is in the app as a notebook of its own.</p>
+          </details>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap foot-in">
+        <p class="brand"><img src="icon.png" width="28" height="28" alt="" /><span>Ghost.md</span></p>
+        <ul>
+          <li><a href="privacy.html">Privacy</a></li>
+          <li><a href="delete-account.html">Delete your account</a></li>
+          <li><a href="https://attack.fm/glyph/">The web app</a></li>
+        </ul>
+      </div>
+    </footer>
   </body>
 </html>

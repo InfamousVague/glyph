@@ -1,43 +1,150 @@
 /*
- * ghostmarkdown.com's styles, shared by its three pages (docs/LANDING.md).
+ * ghostmarkdown.com's shared styles (docs/LANDING.md), on every page after the kit's tokens (glacier/tokens.css).
  *
- * The first half is what every page carries: the colours, light and dark, and
- * the page's base. The second is the reading column that privacy.html and
- * delete-account.html are set in, a copy each until this file. Its rules are
- * scoped under `.reading`, the class those two pages put on <html>, so the
- * download page (index.html), which keeps its own centred layout inline,
- * takes the colours and nothing of the column.
+ * The site is drawn from Glacier as the app is: its type scale, spacing, radii, motion and shadows are the kit's
+ * tokens, and its faces are the kit's two, Inter and JetBrains Mono, served from here (fonts/). Its colours are the
+ * app's (src/app/ink.css): ink on paper, pure grey, light or dark with the system - or one of the three named themes
+ * the app offers, Dawn, Boreal and Ember, whose tinted greys are the kit's own (`data-theme-preset`). A visitor picks
+ * one on the home page (theme.js keeps it); every page wears it.
  *
- * It lives beside the pages because the site IS this directory:
- * deploy-landing.mjs tars landing/ whole into /opt/ghostmarkdown-site, where
- * the Caddy block serves this file as /site.css like any other.
+ * The first half is what every page carries. The second is the reading column that privacy.html and
+ * delete-account.html are set in, scoped under `.reading`, the class those two pages put on <html>. The home page's
+ * own layout is home.css.
  */
 
-:root {
-  --paper: #fbfaf7;
-  --ink: #141414;
-  --ink-2: #5d5b57;
-  --line: #e4e1da;
-  color-scheme: light dark;
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('fonts/inter.woff2') format('woff2-variations');
 }
+
+@font-face {
+  font-family: 'JetBrains Mono Variable';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url('fonts/jetbrains-mono.woff2') format('woff2-variations');
+}
+
+/* ---- the greys: the app's pure ones, light, then dark; a named theme's are the kit's ---------------------------- */
+
+:root {
+  --g1: oklch(0.995 0 0);
+  --g2: oklch(0.975 0 0);
+  --g3: oklch(0.955 0 0);
+  --g4: oklch(0.925 0 0);
+  --g5: oklch(0.895 0 0);
+  --g6: oklch(0.86 0 0);
+  --g7: oklch(0.8 0 0);
+  --g8: oklch(0.7 0 0);
+  --g9: oklch(0.56 0 0);
+  --g10: oklch(0.47 0 0);
+  --g11: oklch(0.36 0 0);
+  --g12: oklch(0.16 0 0);
+  --lift: 0.55;
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --g1: oklch(0.11 0 0);
+  --g2: oklch(0.14 0 0);
+  --g3: oklch(0.17 0 0);
+  --g4: oklch(0.205 0 0);
+  --g5: oklch(0.24 0 0);
+  --g6: oklch(0.28 0 0);
+  --g7: oklch(0.34 0 0);
+  --g8: oklch(0.44 0 0);
+  --g9: oklch(0.6 0 0);
+  --g10: oklch(0.69 0 0);
+  --g11: oklch(0.8 0 0);
+  --g12: oklch(0.965 0 0);
+  --lift: 0.78;
+  color-scheme: dark;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #0d0d0d;
-    --ink: #f2f0ea;
-    --ink-2: #a19e97;
-    --line: #2a2926;
+  :root:not([data-theme='light']) {
+    --g1: oklch(0.11 0 0);
+    --g2: oklch(0.14 0 0);
+    --g3: oklch(0.17 0 0);
+    --g4: oklch(0.205 0 0);
+    --g5: oklch(0.24 0 0);
+    --g6: oklch(0.28 0 0);
+    --g7: oklch(0.34 0 0);
+    --g8: oklch(0.44 0 0);
+    --g9: oklch(0.6 0 0);
+    --g10: oklch(0.69 0 0);
+    --g11: oklch(0.8 0 0);
+    --g12: oklch(0.965 0 0);
+    --lift: 0.78;
+    color-scheme: dark;
   }
 }
+
+/* A named theme: the kit's tinted twelve steps, which it sets for Dawn, Boreal and Ember (glacier/tokens.css). */
+:root:root[data-theme-preset] {
+  --g1: var(--glacier-gray-1);
+  --g2: var(--glacier-gray-2);
+  --g3: var(--glacier-gray-3);
+  --g4: var(--glacier-gray-4);
+  --g5: var(--glacier-gray-5);
+  --g6: var(--glacier-gray-6);
+  --g7: var(--glacier-gray-7);
+  --g8: var(--glacier-gray-8);
+  --g9: var(--glacier-gray-9);
+  --g10: var(--glacier-gray-10);
+  --g11: var(--glacier-gray-11);
+  --g12: var(--glacier-gray-12);
+}
+
+/* ---- the page's colours, named as the app names them -------------------------------------------------------------- */
+
+:root {
+  --paper: var(--g1);
+  --paper-2: var(--g3);
+  --paper-3: var(--g5);
+  --rule: var(--g4);
+  --ink: var(--g12);
+  --ink-2: var(--g11);
+  --ink-3: var(--g9);
+  --ink-4: var(--g7);
+  --wash: color-mix(in oklch, var(--g12) 7%, transparent);
+  /* The highlighter's blue wash, the one colour among the marks (the app's `--app-mark`). */
+  --mark: color-mix(in oklch, oklch(0.62 0.17 250) 34%, transparent);
+  /* What privacy.html and delete-account.html were written against. */
+  --line: var(--rule);
+  --sans: var(--glacier-font-sans, 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif);
+  --mono: var(--glacier-font-mono, 'JetBrains Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace);
+}
+
 * {
   box-sizing: border-box;
 }
+
 html,
 body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--sans);
+  font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Words for a screen reader alone. */
+.unseen {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* --- the reading column: privacy.html and delete-account.html ------------ */
