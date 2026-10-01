@@ -462,6 +462,38 @@ describe('More', () => {
   });
 });
 
+describe('A database', () => {
+  it('turns More over to the ready-made databases, and one chosen is written and drawn at once', () => {
+    open();
+    press(rowSaying('More'));
+    press(rowSaying('A database'));
+    expect(words().slice(0, 3)).toEqual(['Back', 'To-dos due this week', 'Overdue to-dos']);
+    expect(words().at(-1)).toBe('Write your own');
+    press(rowSaying('A ticket board'));
+    expect(closed).toBe(1);
+    expect(view.state.doc.toString()).toBe('Lunch\n\n```query\nfrom: tickets\nshow: board\n```\n');
+  });
+
+  it('goes back to More, not the first page, with Back and the back gesture', () => {
+    open();
+    press(rowSaying('More'));
+    press(rowSaying('A database'));
+    press(rowSaying('Back'));
+    expect(closed).toBe(0);
+    expect(words()).toContain('A database');
+    press(rowSaying('A database'));
+    act(() => void goBack());
+    expect(words()).toContain('A heading');
+    expect(closed).toBe(0);
+  });
+
+  it('offers Make this a ticket only in a note that is not one', () => {
+    open();
+    press(rowSaying('More'));
+    expect(words()).toContain('Make this a ticket');
+  });
+});
+
 describe('A note', () => {
   it('asks which, by part of its title, and writes the link where the caret was', () => {
     open();

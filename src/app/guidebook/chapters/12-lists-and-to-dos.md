@@ -46,6 +46,7 @@ Off the line you are writing, each is a chip; on it, the characters are there to
 - **Tap a due date** for Today, Tomorrow, Next week (its Monday), Pick a date, which opens your phone's own calendar, and Remove. A start or scheduled date offers the same.
 - **Tap a priority** for the five and None. **Tap a person** to take them off.
 - **Press and hold a to-do** for Due date, Priority and Assign beside its other actions. Assign offers the people this note already names, and Someone new, which writes the @ for you to type a name after.
+- **The + has A to-do with a due date** under More: a to-do due tomorrow, its words ready to type over, and the date there to tap for another day.
 
 Ghost.md writes each field where Obsidian Tasks looks for it: at the end of the words, a person before the dates, and all of it before the item's bookmark, its Notion mark, a counter and its anchor, so those still end the line. A to-do's words are what a card on a board, a task sent to Notion, an issue on GitHub and the home page's To do say: the fields are left out of them, and a board card shows the due date, the priority and the people as chips of its own.
 

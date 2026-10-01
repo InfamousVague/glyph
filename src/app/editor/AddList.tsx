@@ -1,6 +1,10 @@
 import {
+  AlarmClock,
   Asterisk,
   Calculator,
+  CalendarDays,
+  CalendarPlus,
+  ChartGantt,
   ChartNoAxesCombined,
   ChevronLeft,
   ChevronRight,
@@ -14,18 +18,23 @@ import {
   Grid2x2Plus,
   Hash,
   Heading,
+  History,
   ImagePlus,
   Info,
   List,
   ListOrdered,
   ListTodo,
   Minus,
+  PencilLine,
+  Sigma,
   Sparkles,
   SquareCode,
   SquareDashed,
   SquareKanban,
   Table,
   TextQuote,
+  Ticket,
+  Users,
   Workflow,
 } from '@glacier/icons';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MutableRefObject, type ReactNode } from 'react';
@@ -34,7 +43,10 @@ import { Locate, type StrokeIcon } from '../art/Icons.tsx';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { plugins } from '../plugins/registry.ts';
-import { emptyCellsAbove, linkableTitles, moreRows, readGates, topRows, writeCanvasFrame, writeNoteLink, writeRow, type AddRow, type AddRowId } from './addRows.ts';
+import { databaseRows, emptyCellsAbove, linkableTitles, moreRows, readGates, topRows, writeCanvasFrame, writeNoteLink, writeRow, type AddRow, type AddRowId } from './addRows.ts';
+import { isBookBody } from '../book/book.ts';
+import { isCanvasBody } from '../canvas/jsonCanvas.ts';
+import { isTicket } from '../core/properties.ts';
 import { onNamingLine } from './openHeading.ts';
 import { closePlus, plusMenu, type PlusKey, type PlusOpening } from './insertPlus.ts';
 import styles from './AddList.module.css';
@@ -96,7 +108,7 @@ const GAP = 6;
 const EDGE = 8;
 const CREASE_GAP = 16;
 
-type Page = 'top' | 'more' | 'note' | 'canvas';
+type Page = 'top' | 'more' | 'database' | 'note' | 'canvas';
 
 const ICONS: Partial<Record<AddRowId, StrokeIcon>> = {
   picture: ImagePlus,
@@ -116,6 +128,8 @@ const ICONS: Partial<Record<AddRowId, StrokeIcon>> = {
   divider: Minus,
   board: SquareKanban,
   query: Database,
+  dated: CalendarPlus,
+  ticket: Ticket,
   chart: ChartNoAxesCombined,
   canvas: Workflow,
   footnote: Asterisk,
@@ -126,8 +140,26 @@ const ICONS: Partial<Record<AddRowId, StrokeIcon>> = {
   blankCells: Grid2x2Plus,
 };
 
+/** Each ready-made database's mark, by what it lists and how it is shown (core/query/templates.ts). */
+const DATABASE_ICONS: Readonly<Record<string, StrokeIcon>> = {
+  week: ListTodo,
+  late: AlarmClock,
+  people: Users,
+  month: CalendarDays,
+  board: SquareKanban,
+  tickets: Table,
+  timeline: ChartGantt,
+  recent: History,
+  count: Sigma,
+  own: PencilLine,
+};
+
 function iconFor(id: AddRowId | 'back'): ReactNode {
   if (id === 'back') return <ChevronLeft size={18} strokeWidth={2} />;
+  if (id.startsWith('query:')) {
+    const Mark = DATABASE_ICONS[id.slice('query:'.length)] ?? Database;
+    return <Mark size={18} strokeWidth={2} />;
+  }
   // The place is the app's own mark, the one on the More sheet's Add my location (editor/NoteSettings.tsx).
   if (id === 'place') return <Locate />;
   if (id.startsWith('effect:')) {
@@ -166,6 +198,8 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
         canvas: Boolean(canvases),
         // Read from the +'s line as the list opens, beside the others: a table straight above with an empty cell.
         tableAbove: emptyCellsAbove(view.state, view.state.selection.main.head) !== null,
+        // A note that is not a ticket, a notebook or a canvas can be made a ticket (docs/DESIGN.md §160).
+        ticket: madeTicket(view.state.doc.toString()),
       }),
     [onPicture, onVideo, onPlace, titles, canvases, view],
   );
@@ -182,7 +216,15 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
   }, []);
 
   const rows: (AddRow | { id: 'back'; words: string })[] =
-    page === 'top' ? topRows(gates, now, onNamingLine(view.state)) : page === 'more' ? [{ id: 'back', words: 'Back' }, ...moreRows(gates)] : [];
+    page === 'top'
+      ? topRows(gates, now, onNamingLine(view.state))
+      : page === 'more'
+        ? [{ id: 'back', words: 'Back' }, ...moreRows(gates)]
+        : page === 'database'
+          ? [{ id: 'back', words: 'Back' }, ...databaseRows()]
+          : [];
+  // Where Back goes: the ready-made databases are a page of More's, and every other page is the first's.
+  const back: Page = page === 'database' ? 'more' : 'top';
 
   /** The list closed: told to the editor first, so the × turns back and what a row writes is not read as a change under it. */
   const close = useCallback(
@@ -205,7 +247,7 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
   /** A row's press: dimmed, a step, or the list closed and then what the row does. */
   const choose = (row: AddRow | { id: 'back'; words: string }) => {
     if (row.id === 'back') {
-      go('top', 'back');
+      go(back, 'back');
       return;
     }
     const chosen = row as AddRow;
@@ -269,13 +311,13 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
     }
     if (key === 'left') {
       if (page === 'top') return false;
-      go('top', 'back');
+      go(back, 'back');
       return true;
     }
     const row = rows[active];
     if (!row) return false;
     if (key === 'right') {
-      if (!('step' in row) || row.step !== 'more') return false;
+      if (!('step' in row) || (row.step !== 'more' && row.step !== 'database')) return false;
       choose(row);
       return true;
     }
@@ -299,7 +341,7 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
     const inField = event.target instanceof HTMLInputElement;
     if (event.key === 'ArrowLeft' && page !== 'top' && !inField) {
       event.preventDefault();
-      go('top', 'back');
+      go(back, 'back');
       return;
     }
     if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && !inField && rows.length) {
@@ -309,7 +351,7 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
   };
 
   // The phone's back gesture goes back a page, as Back does, and closes the list from its first.
-  useBack(true, () => (page === 'top' ? close(true) : go('top', 'back')));
+  useBack(true, () => (page === 'top' ? close(true) : go(back, 'back')));
 
   // It closes on a press anywhere but itself and the +, and on a wheel or a drag outside it.
   useEffect(() => {
@@ -479,7 +521,7 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
           {row.words}
           {dimmed ? <span className={styles.why}>{dimmed}</span> : null}
         </span>
-        {'step' in row && row.step === 'more' ? (
+        {'step' in row && (row.step === 'more' || row.step === 'database') ? (
           <span className={styles.onward} aria-hidden="true">
             <ChevronRight size={16} strokeWidth={2} />
           </span>
@@ -488,7 +530,7 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
     );
   };
   // The doors between the pages never scroll away: Back held at the top of More, More at the foot of the first page.
-  const head = page === 'more' && rows[0]?.id === 'back' ? 0 : -1;
+  const head = (page === 'more' || page === 'database') && rows[0]?.id === 'back' ? 0 : -1;
   const foot = page === 'top' && rows.at(-1)?.id === 'more' ? rows.length - 1 : -1;
   const turned = { 'data-turn': turn ?? undefined };
 
@@ -569,4 +611,9 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
       ) : null}
     </div>
   );
+}
+
+/** Whether the note can be made a ticket: not one already, and not a notebook or a canvas, whose front matter is theirs. */
+function madeTicket(body: string): boolean {
+  return !isTicket(body) && !isBookBody(body) && !isCanvasBody(body);
 }

@@ -91,6 +91,9 @@ status's colour wherever it is drawn: the faint ink, blue, green.
   (notes/ownTemplates.ts).
 - **A ticket with no key** (a Bug report from the blank page, later put in a keyed notebook) is offered its notebook's
   next one on its panel: Give it GHO-14.
+- **Make this a ticket**, under More on the + in any note that is not one, nor a notebook or a canvas
+  (`src/app/editor/addRows.ts` `ticketPlan`): `type: ticket`, and `status: To do` where it has no status, written into
+  its front matter as one change. Its panel then offers the notebook's next key, as above.
 - **By hand**, anywhere: `type: ticket` in any note's front matter.
 
 ## The panel

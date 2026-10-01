@@ -38,6 +38,11 @@ query. The names are Dataview's and Obsidian Tasks' where they have one; `sort b
 | `total:` | fields to add up | none |
 | `limit:` | how many at most | all |
 
+Ten are ready-made on the + under More › **A database** (`src/app/core/query/templates.ts`): to-dos due this week,
+overdue to-dos, to-dos by person, to-dos on a calendar, a ticket board, open tickets with estimates, a ticket
+timeline, notes changed this week, how many to-dos are open, and Write your own. Each is drawn the moment it is
+picked; Write your own leaves its kind selected to be written over.
+
 A query that cannot be read is drawn as its lines and one sentence that says what is wrong and where: "Line 2, column
 16: After “status =”, something to compare it with: a word, a number, a date or empty." A line it does not know is
 answered with the one it probably meant ("did you mean “from”?").

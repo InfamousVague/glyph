@@ -15,6 +15,11 @@ import { TABLE_SEED, insertBlock } from './format.ts';
 import { apply, footnotePlan, formPlan, itemPlan, ownLinePlan, wordsPlan, type BlockSelect, type Plan } from './inserts.ts';
 import { lineWords, listLead } from '../core/itemSyntax.ts';
 import { queryFence } from '../core/query/fence.ts';
+import { QUERY_TEMPLATES } from '../core/query/templates.ts';
+import { isoDayAfter } from '../core/days.ts';
+import { frontMatterValue } from '../core/frontMatter.ts';
+import { isTicket, TICKET_TYPE, withProperty } from '../core/properties.ts';
+import { FIELD_EMOJI } from '../core/taskFields.ts';
 
 /**
  * What the + beside the line offers (editor/AddList.tsx draws it), whether each row is there, and what each writes.
@@ -54,6 +59,9 @@ export type AddRowId =
   | 'divider'
   | 'board'
   | 'query'
+  | `query:${string}`
+  | 'dated'
+  | 'ticket'
   | 'chart'
   | 'canvas'
   | 'footnote'
@@ -72,8 +80,8 @@ export interface AddRow {
   label?: string;
   /** Why it cannot be pressed: a choice the person made, named. */
   dimmed?: string;
-  /** A step inside the list rather than a write: More, or choosing a note or a canvas. */
-  step?: 'more' | 'note' | 'canvas';
+  /** A step inside the list rather than a write: More, the ready-made databases, or choosing a note or a canvas. */
+  step?: 'more' | 'database' | 'note' | 'canvas';
 }
 
 /**
@@ -93,6 +101,8 @@ export interface AddGates {
   effects: InlineFormat[];
   /** The +'s empty line sits straight under a table with an empty body cell: Blanks in the empty cells (docs/DESIGN.md §145). */
   tableAbove?: boolean;
+  /** The note can be made a ticket: it is not one, and not a notebook (docs/TICKETS.md). */
+  ticket?: boolean;
 }
 
 /** Whether this build can pick a picture: the phone's chooser, a browser's file input, and the Mac once its run has passed. */
@@ -115,7 +125,7 @@ export function placeRow(): AddGates['place'] {
  * A video is the screen's to say outright: it asks the binary once as it opens (core/videos.ts `canAddVideos`, an
  * Android binary of native generation 21 with the picker on its bridge) and gives the list an `onVideo` only there.
  */
-export function readGates(can: { picture: boolean; video: boolean; place: boolean; note: boolean; canvas: boolean; tableAbove?: boolean }): AddGates {
+export function readGates(can: { picture: boolean; video: boolean; place: boolean; note: boolean; canvas: boolean; tableAbove?: boolean; ticket?: boolean }): AddGates {
   return {
     picture: can.picture && canPickPicture(),
     video: can.video,
@@ -124,6 +134,7 @@ export function readGates(can: { picture: boolean; video: boolean; place: boolea
     canvas: can.canvas,
     effects: plugins.formats().filter((format) => format.look.kind === 'effect'),
     tableAbove: can.tableAbove ?? false,
+    ticket: can.ticket ?? false,
   };
 }
 
@@ -172,12 +183,15 @@ export function moreRows(gates: AddGates): AddRow[] {
     { id: 'quote', words: 'A quote' },
     { id: 'callout', words: 'A callout' },
     { id: 'choice', words: 'A choice' },
+    { id: 'dated', words: 'A to-do with a due date' },
     { id: 'code', words: 'A block of code' },
     { id: 'divider', words: 'A divider' },
     { id: 'board', words: 'A board' },
-    { id: 'query', words: 'A query' },
+    { id: 'query', words: 'A database', step: 'database' },
     { id: 'chart', words: 'A chart' },
   ];
+  // A note that is not a ticket yet, and not a notebook, can be made one: its front matter written for it (§160).
+  if (gates.ticket) rows.splice(rows.findIndex((row) => row.id === 'query') + 1, 0, { id: 'ticket', words: 'Make this a ticket' });
   if (gates.canvas) rows.push({ id: 'canvas', words: 'A canvas', step: 'canvas' });
   rows.push({ id: 'footnote', words: 'A footnote' }, { id: 'tag', words: 'A tag' }, { id: 'counter', words: 'A counter' }, { id: 'sum', words: 'A sum' });
   // A question for the AI where its answer belongs (docs/DESIGN.md §145): writing one needs no model, and one written on
@@ -228,10 +242,62 @@ export function boardSeed(doc: string): { text: string; select: BlockSelect } {
 }
 
 /**
- * A query that is useful the moment it is written (docs/QUERIES.md, docs/DESIGN.md §159): the open to-dos due within
- * the week, across every note, as a list, with "tasks" selected so it can be written over with tickets or notes.
+ * A database's page: the ready-made queries (core/query/templates.ts), each a row of its own, Write your own last
+ * (docs/DESIGN.md §160).
  */
-export const QUERY_SEED = queryFence('from: tasks\nwhere: due <= today+7\nsort: due, priority\nshow: list');
+export function databaseRows(): AddRow[] {
+  return QUERY_TEMPLATES.map((template) => ({ id: `query:${template.id}` as const, words: template.words }));
+}
+
+/**
+ * A ready-made query as a block: drawn at once with the caret on the line after it, or, for Write your own, with its
+ * kind selected to be written over, the fence's lines showing.
+ */
+export function querySeed(id: string): { text: string; select: BlockSelect } | null {
+  const template = QUERY_TEMPLATES.find((each) => `query:${each.id}` === id);
+  if (!template) return null;
+  const text = queryFence(template.lines);
+  if (!template.select) return { text, select: 'after' };
+  const from = text.indexOf(template.select);
+  return { text, select: { from, to: from + template.select.length } };
+}
+
+/** The words a dated to-do starts with, selected to be written over. */
+export const DATED_WORDS = 'To-do';
+
+/**
+ * A to-do with a due date (core/taskFields.ts; docs/DESIGN.md §158), due tomorrow, its words selected to be written
+ * over and the chip there to tap for another day: a to-do's own lead, where A to-do would put it, then the words and
+ * the day, as one change.
+ */
+export function datedPlan(state: EditorState, at: number, now: Date): Plan {
+  const base = itemPlan(state, at, 'todo');
+  const first = state.update({ changes: base.changes, selection: base.selection });
+  const caret = first.state.selection.main.head;
+  const words = `${DATED_WORDS} ${FIELD_EMOJI.due} ${isoDayAfter(now, 1)}`;
+  return { changes: first.changes.compose(first.state.changes({ from: caret, insert: words })), selection: { anchor: caret, head: caret + DATED_WORDS.length } };
+}
+
+/**
+ * The note made a ticket (docs/TICKETS.md): `type: ticket` and, where it has no status yet, `status: To do`, written
+ * into its front matter as one change, the rest of the note and the caret where they were. Its panel then offers its
+ * notebook's next key where the notebook has one (editor/tickets.ts).
+ */
+export function ticketPlan(state: EditorState): Plan | null {
+  const doc = state.doc.toString();
+  if (isTicket(doc)) return null;
+  const typed = withProperty(doc, 'type', TICKET_TYPE);
+  const next = frontMatterValue(doc, 'status') ? typed : withProperty(typed, 'status', 'To do');
+  let start = 0;
+  while (start < doc.length && start < next.length && doc[start] === next[start]) start += 1;
+  let end = doc.length;
+  let nextEnd = next.length;
+  while (end > start && nextEnd > start && doc[end - 1] === next[nextEnd - 1]) {
+    end -= 1;
+    nextEnd -= 1;
+  }
+  return { changes: { from: start, to: end, insert: next.slice(start, nextEnd) } };
+}
 
 /** What a row that writes at once writes at the caret, as a plan; null for a row that is not one of those. */
 export function planFor(view: EditorView, id: AddRowId, now = new Date()): { plan: Plan; drawn?: boolean } | { block: { text: string; select: BlockSelect } } | null {
@@ -259,7 +325,15 @@ export function planFor(view: EditorView, id: AddRowId, now = new Date()): { pla
   if (id === 'divider') return { block: { text: '---', select: 'after' } };
   if (id === 'chart') return { block: { text: CHART_SEED, select: { from: CHART_SEED.indexOf('Start'), to: CHART_SEED.indexOf('Start') + 'Start'.length } } };
   if (id === 'board') return { block: boardSeed(state.doc.toString()) };
-  if (id === 'query') return { block: { text: QUERY_SEED, select: { from: QUERY_SEED.indexOf('tasks'), to: QUERY_SEED.indexOf('tasks') + 'tasks'.length } } };
+  if (id.startsWith('query:')) {
+    const block = querySeed(id);
+    return block ? { block } : null;
+  }
+  if (id === 'dated') return { plan: datedPlan(state, at, now) };
+  if (id === 'ticket') {
+    const plan = ticketPlan(state);
+    return plan ? { plan } : null;
+  }
   if (id.startsWith('effect:')) {
     const effect = plugins.formats().find((format) => `effect:${format.name}` === id);
     if (!effect) return null;
