@@ -27,6 +27,7 @@
     <link rel="stylesheet" href="home.css" />
     <script src="theme.js"></script>
     <script src="home.js" defer></script>
+    <script src="files.js" defer></script>
     <script type="module" src="parts/parts.js"></script>
   </head>
   <body>
@@ -166,6 +167,158 @@ Done: pick-date
             <li><b>Blanks for the AI.</b> <code>{?what time does it open?}</code> is a question the phone's AI answers in place, when you ask it to.</li>
           </ul>
           <p class="fine center">Every mark, with an example to copy, is on <a href="reference.html">the formatting reference</a>. The app's Academy teaches them one at a time, by typing each.</p>
+        </div>
+      </section>
+
+      <!-- Your files: how a workspace is kept, as the library writes it (docs/LIBRARY.md, src-tauri/src/library/). The
+           files are examples in the library's own form: its block (id, created, pinned, source) first, then the page's. -->
+      <section class="band" id="files" aria-labelledby="files-title">
+        <div class="wrap">
+          <header class="band-head">
+            <p class="eyebrow">Your files</p>
+            <h2 id="files-title">Plain Markdown, all the way down.</h2>
+            <p>Every note is one <code>.md</code> file, named after its title, in its workspace's folder. Its settings are front matter at the top; everything else is words you can read. Here is a workspace called Product. Tap a file to see what is in it.</p>
+          </header>
+          <div class="files" data-files>
+            <nav class="tree" aria-label="The library's folders and files">
+              <ul>
+                <li style="--depth:0" class="tree-folder"><span class="tree-icon tree-dir" aria-hidden="true"></span><span class="tree-name">Library/</span><span class="tree-what">Every note, as a .md file</span></li><li style="--depth:1" class="tree-folder"><span class="tree-icon tree-dir" aria-hidden="true"></span><span class="tree-name">workspaces/</span></li><li style="--depth:2" class="tree-folder"><span class="tree-icon tree-dir" aria-hidden="true"></span><span class="tree-name">Product/</span><span class="tree-what">The Product workspace</span></li><li style="--depth:3"><button type="button" class="tree-file" data-file="f0" aria-label="Product.md, A notebook, its tickets numbered PRD"><span class="tree-icon tree-doc" aria-hidden="true"></span><span class="tree-name">Product.md</span><span class="tree-what">A notebook, its tickets numbered PRD</span></button></li><li style="--depth:3"><button type="button" class="tree-file" data-file="f1" aria-label="Fix the login loop.md, A ticket, PRD-11"><span class="tree-icon tree-doc" aria-hidden="true"></span><span class="tree-name">Fix the login loop.md</span><span class="tree-what">A ticket, PRD-11</span></button></li><li style="--depth:3"><button type="button" class="tree-file" data-file="f2" aria-label="Pricing page copy.md, A ticket, PRD-10"><span class="tree-icon tree-doc" aria-hidden="true"></span><span class="tree-name">Pricing page copy.md</span><span class="tree-what">A ticket, PRD-10</span></button></li><li style="--depth:3"><button type="button" class="tree-file" data-file="f3" aria-label="This sprint.md, A query, drawn as a ticket board"><span class="tree-icon tree-doc" aria-hidden="true"></span><span class="tree-name">This sprint.md</span><span class="tree-what">A query, drawn as a ticket board</span></button></li><li style="--depth:3"><button type="button" class="tree-file" data-file="f4" aria-label="Launch plan.md, A board of named to-dos"><span class="tree-icon tree-doc" aria-hidden="true"></span><span class="tree-name">Launch plan.md</span><span class="tree-what">A board of named to-dos</span></button></li><li style="--depth:3"><button type="button" class="tree-file" data-file="f5" aria-label="Standup.md, A meeting, recorded and written up"><span class="tree-icon tree-doc" aria-hidden="true"></span><span class="tree-name">Standup.md</span><span class="tree-what">A meeting, recorded and written up</span></button></li><li style="--depth:1" class="tree-folder"><span class="tree-icon tree-dir" aria-hidden="true"></span><span class="tree-name">Inbox/</span><span class="tree-what">Notes in no workspace</span></li><li style="--depth:2"><button type="button" class="tree-file" data-file="f6" aria-label="Grocery run.md, A note in no workspace"><span class="tree-icon tree-doc" aria-hidden="true"></span><span class="tree-name">Grocery run.md</span><span class="tree-what">A note in no workspace</span></button></li><li style="--depth:1" class="tree-folder"><span class="tree-icon tree-dir" aria-hidden="true"></span><span class="tree-name">.glyph/</span><span class="tree-what">Ghost.md&#x27;s own, hidden</span></li><li style="--depth:2"><button type="button" class="tree-file" data-file="o0" aria-label="index.sqlite, Not a note"><span class="tree-icon tree-data" aria-hidden="true"></span><span class="tree-name">index.sqlite</span><span class="tree-what">Not a note</span></button></li><li style="--depth:2" class="tree-folder"><span class="tree-icon tree-dir" aria-hidden="true"></span><span class="tree-name">notes/</span></li><li style="--depth:3"><button type="button" class="tree-file" data-file="o1" aria-label="e3b6d018….json, Not a note"><span class="tree-icon tree-data" aria-hidden="true"></span><span class="tree-name">e3b6d018….json</span><span class="tree-what">Not a note</span></button></li><li style="--depth:0" class="tree-folder"><span class="tree-icon tree-dir" aria-hidden="true"></span><span class="tree-name">recordings/</span><span class="tree-what">Beside the library</span></li><li style="--depth:1"><button type="button" class="tree-file" data-file="o2" aria-label="e3b6d018….wav, A tape"><span class="tree-icon tree-data" aria-hidden="true"></span><span class="tree-name">e3b6d018….wav</span><span class="tree-what">A tape</span></button></li><li style="--depth:0" class="tree-folder"><span class="tree-icon tree-dir" aria-hidden="true"></span><span class="tree-name">images/</span><span class="tree-what">Beside the library</span></li><li style="--depth:1"><button type="button" class="tree-file" data-file="o3" aria-label="2b0c4a6e….jpg, A picture"><span class="tree-icon tree-data" aria-hidden="true"></span><span class="tree-name">2b0c4a6e….jpg</span><span class="tree-what">A picture</span></button></li>
+              </ul>
+            </nav>
+            <figure class="file" aria-live="polite">
+              <figcaption class="file-path" data-file-path>workspaces/Product/Fix the login loop.md</figcaption>
+              <div class="file-body" data-file-body></div>
+            </figure>
+            <template id="file-f0" data-path="workspaces/Product/Product.md"><pre class="file-text"><code>---
+id: 0f3c9a52-8d1e-4b7a-a3c2-6e1f9b0d4a87
+created: 2026-09-24T09:12:40.118Z
+---
+---
+title: &quot;Product&quot;
+book: true
+key: PRD
+statuses: [To do, In progress, In review, Done]
+---
+# Product
+
+What we are building this quarter.
+
+- [[Sign-in page on the Mac]]
+- [[Pricing page copy]]
+- [[Fix the login loop]]
+- [[Release notes for 1.10]]
+</code></pre></template><template id="file-f1" data-path="workspaces/Product/Fix the login loop.md"><pre class="file-text"><code>---
+id: 4b8e2c1a-6f0d-4e39-9b57-1c2a8d3e5f60
+created: 2026-09-29T14:02:11.482Z
+---
+---
+type: ticket
+id: PRD-11
+status: In progress
+assignee: Sam
+priority: highest
+due: 2026-10-02
+estimate: 3
+blocked-by: &quot;[[PRD-9]]&quot;
+labels: [bug, auth]
+authors: Matt, Claude
+---
+# Fix the login loop
+
+Signing in on the phone sends you back to the sign-in page once the cookie has expired.
+
+- [x] Find where the cookie is dropped
+- [ ] Refresh it before it expires @sam 📅 2026-10-01
+- [ ] Test on a slow network
+</code></pre></template><template id="file-f2" data-path="workspaces/Product/Pricing page copy.md"><pre class="file-text"><code>---
+id: 9a1d7e33-2c4b-4f08-8e6a-5b0c3d7f2e19
+created: 2026-09-27T16:45:02.907Z
+---
+---
+type: ticket
+id: PRD-10
+status: In review
+assignee: Matt
+priority: high
+due: 2026-10-03
+estimate: 1
+---
+# Pricing page copy
+
+Three plans, said plainly.
+
+| Plan | Price | For |
+| --- | --- | --- |
+| Free | $0 | One device |
+| Sync | $4 | Every device |
+</code></pre></template><template id="file-f3" data-path="workspaces/Product/This sprint.md"><pre class="file-text"><code>---
+id: c27e5b90-1a3f-4d6c-b8e4-0f9a2d1c7b35
+created: 2026-09-30T08:20:55.310Z
+---
+# This sprint
+
+```query
+from: tickets [[Product]]
+where: status != Done
+sort: priority, due
+show: board
+```
+
+```query
+from: tickets [[Product]]
+total: estimate
+show: table
+```
+</code></pre></template><template id="file-f4" data-path="workspaces/Product/Launch plan.md"><pre class="file-text"><code>---
+id: 5e8f1c24-7b9a-4a3d-9c61-2d4e8f0b6a17
+created: 2026-09-26T11:03:47.552Z
+pinned: true
+---
+# Launch plan
+
+- [ ] Ship the pricing page ^ship-page
+- [x] Pick a launch date ^pick-date
+- [ ] Record the demo ^record-demo
+
+```board
+To do: ship-page
+In progress: record-demo
+Done: pick-date
+```
+</code></pre></template><template id="file-f5" data-path="workspaces/Product/Standup.md"><pre class="file-text"><code>---
+id: e3b6d018-4c2f-4e7b-a95d-8f1c0a3b2d64
+created: 2026-10-01T09:30:12.004Z
+source: capture
+---
+# Standup
+
+## Summary
+
+We agreed to ship the home page on Friday.
+
+- [ ] Write the release notes @matt
+- [ ] Ask Sam about the screenshots
+
+**0:04** Morning, everyone. Quick one today.
+
+**0:11** The home page is ready for review.
+</code></pre></template><template id="file-f6" data-path="Inbox/Grocery run.md"><pre class="file-text"><code>---
+id: 71a0f4c8-3e5d-4b92-8a17-6c2f9d0e1b53
+created: 2026-10-01T07:58:30.219Z
+---
+# Grocery run
+
+- [ ] Milk
+- [ ] Sourdough
+- [x] Coffee beans
+</code></pre></template><template id="file-o0" data-path="Library/.glyph/index.sqlite"><p class="file-about">The search index: a cache, rebuilt from the .md files whenever it is missing. Delete it and no writing is lost.</p></template><template id="file-o1" data-path="Library/.glyph/notes/e3b6d018….json"><p class="file-about">What a note has that is not text: its recording&#x27;s length, and the phrases that line its words up with the sound.</p></template><template id="file-o2" data-path="recordings/e3b6d018….wav"><p class="file-about">The meeting&#x27;s tape, kept beside the library, on the device.</p></template><template id="file-o3" data-path="images/2b0c4a6e….jpg"><p class="file-about">A picture a note shows, as ![](image/2b0c4a6e….jpg) in its words.</p></template>
+          </div>
+          <ul class="points">
+            <li><b>Nothing locked away.</b> The files are the notes. The index beside them is a cache, rebuilt from the files whenever it is missing.</li>
+            <li><b>Read anywhere.</b> Obsidian shows the front matter as properties, GitHub draws it as a table, and every list, table and link is ordinary Markdown.</li>
+            <li><b>Settings you can see.</b> The first block at the top is the library's: the note's id and when it was made. A ticket or a notebook has a second, its own: a ticket's fields, a notebook's key.</li>
+          </ul>
+          <p class="fine center">On Android and the Mac. In a browser, notes are kept in the browser's own storage.</p>
         </div>
       </section>
 

@@ -33,6 +33,12 @@ It lives in `landing/` and ships with `node scripts/deploy-landing.mjs`, one ssh
   as a table and a board, each with the lines that draw it; Connected is a card for Claude (what to ask it, what it
   will and will not do, the connector's address) and one for Notion. The two logos are Notion's and Claude's own,
   from Simple Icons (`brands/`), drawn inline: Claude's in its orange, Notion's in the page's ink.
+- **Your files** (2026-10-01; Matt: "an example on the website of how data is stored in plain markdown and show a
+  breakdown of files and folders for a given workspace example"): a Product workspace as the library lays it out
+  (docs/LIBRARY.md): `Library/workspaces/Product/` and its notes, `Inbox/`, the hidden `.glyph/`, and `recordings/`
+  and `images/` beside the library. A tap on a file shows it as it is on disk, the library's block (id, created,
+  pinned, source) and then the page's (a ticket's fields, a notebook's key) (`files.js`, the files' words in
+  `<template>`s beside the tree). Written by hand from the library's rules: when they change, so does this.
 - **The formatting reference** (`reference.html`, Matt: "a easy to follow reference sheet for all of the formatting
   base markdown and our custom formatting") is written by `src/landing/reference.ts` from the Academy's lessons, so
   it says what the app teaches: standard Markdown first, then each chapter's own marks, each with its characters,
