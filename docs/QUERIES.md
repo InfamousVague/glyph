@@ -105,7 +105,9 @@ Every record also has `title` (`note` reads better for a to-do: the note it is i
 - **list**: a row each, a to-do's box to tick, its fields beside it as they are drawn on its line.
 - **table**: the columns, a total row for `total:`, scrolling sideways on a phone.
 - **board**: a lane for each value of `group:`, or each status. A ticket board has every status of its notebook's
-  workflow, empty ones included, as a Jira board does. Read only: a card is moved by changing its ticket.
+  workflow, empty ones included, as a Jira board does. Read only: a card is moved by changing its ticket. Its lanes
+  are a screenful tall (24em) and scroll inside it, the wisp at their foot; the line under the board sets their
+  height as a ```board's does, written on the fence as ```` ```query height=30 ````, and a double tap takes it off.
 - **calendar**: a month, Monday first, a dot on each day for each record on it (its due day, else scheduled, start,
   or `date:`), red where something on it is late. A tap on a day lists it under the month.
 - **gantt**: a bar from each record's start to its due day, drawn by the app's own Mermaid, done grey, under way blue,

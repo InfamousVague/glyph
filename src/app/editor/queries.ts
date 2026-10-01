@@ -5,7 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { isoDay } from '../core/days.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { taskBox } from '../core/itemSyntax.ts';
-import { queryFencesIn } from '../core/query/fence.ts';
+import { queryFencesIn, withQueryHeight } from '../core/query/fence.ts';
 import { readQuery } from '../core/query/read.ts';
 import { libraryOf, recordCache, type QueryNote, type RecordCache } from '../core/query/records.ts';
 import { runQuery, type Row } from '../core/query/run.ts';
@@ -93,13 +93,15 @@ class QueryWidget extends WidgetType {
     readonly stamp: number,
     readonly today: string,
     readonly editable: boolean,
+    /** A board's lanes' height from the fence, in their ems; null for the board's own. */
+    readonly height: number | null,
     readonly options: () => QueryOptions | null,
   ) {
     super();
   }
 
   eq(other: QueryWidget): boolean {
-    return other.body === this.body && other.at === this.at && other.stamp === this.stamp && other.today === this.today && other.editable === this.editable;
+    return other.body === this.body && other.at === this.at && other.stamp === this.stamp && other.today === this.today && other.editable === this.editable && other.height === this.height;
   }
 
   get estimatedHeight(): number {
@@ -116,18 +118,18 @@ class QueryWidget extends WidgetType {
     });
     const root = createRoot(dom);
     roots.set(dom, root);
-    this.draw(root, view);
+    this.draw(root, view, dom);
     return dom;
   }
 
   updateDOM(dom: HTMLElement, view: EditorView): boolean {
     const root = roots.get(dom);
     if (!root) return false;
-    this.draw(root, view);
+    this.draw(root, view, dom);
     return true;
   }
 
-  draw(root: Root, view: EditorView): void {
+  draw(root: Root, view: EditorView, dom: HTMLElement): void {
     const options = this.options();
     const reading = readQuery(this.body);
     const result = reading.query && options ? runQuery(reading.query, libraryOf(withOpen(options.notes(), options.noteId, view.state.doc.toString()), cacheOf(view)), this.today) : null;
@@ -137,6 +139,13 @@ class QueryWidget extends WidgetType {
         problem: reading.problem,
         result,
         editable: this.editable,
+        height: this.height,
+        onHeight: (height: number | null) => {
+          // Written into the opening fence, as a board's is (editor/boards/divider.ts): one change, one undo.
+          const open = view.state.doc.lineAt(view.posAtDOM(dom));
+          const next = withQueryHeight(open.text, height);
+          if (next !== open.text) view.dispatch({ changes: { from: open.from, to: open.to, insert: next }, userEvent: 'input.query' });
+        },
         thisNote: options?.noteId ?? null,
         onEdit: () => {
           // Focused first, so the caret lands in a view that has the focus and the drawing steps aside at once.
@@ -198,7 +207,7 @@ function decorate(state: EditorState, stamp: number, today: string, options: () 
     // The caret in the fence: the lines themselves, to edit. Elsewhere, and in a view with no caret, the answer.
     if (editable && caretIn(state, from, to)) continue;
     const at = state.doc.line(Math.min(fence.from + 1, fence.to)).from;
-    builder.add(from, to, Decoration.replace({ widget: new QueryWidget(fence.body, at, stamp, today, editable, options), block: true }));
+    builder.add(from, to, Decoration.replace({ widget: new QueryWidget(fence.body, at, stamp, today, editable, fence.height, options), block: true }));
   }
   return builder.finish();
 }

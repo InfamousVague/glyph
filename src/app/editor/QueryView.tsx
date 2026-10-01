@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
 import { Check, ChevronLeft, ChevronRight, Pencil, TriangleAlert } from '@glacier/icons';
 import { inMonth, monthAfter, monthName, monthWeeks, openingMonth, type CalendarDay } from '../core/query/calendar.ts';
 import type { QueryProblem } from '../core/query/read.ts';
@@ -6,6 +6,9 @@ import { KIND_WORDS, type Cell, type Group, type QueryResult, type Row } from '.
 import { chipLook, dayLabel, daySaid, type ChipLook } from './fieldChips.ts';
 import { tagsIn } from '../core/tags.ts';
 import { drawDiagram, type Drawing } from './mermaid.ts';
+import { wispFoot, wispFootFade } from '../art/wispFoot.ts';
+import { BOARD_HEIGHT, clampHeight } from '../core/boards.ts';
+import { fireNativeHaptic } from '../core/haptics.ts';
 import styles from './QueryView.module.css';
 
 /**
@@ -26,6 +29,10 @@ interface QueryViewProps {
   /** Null where the lines cannot be read, or there is no library to read. */
   result: QueryResult | null;
   editable: boolean;
+  /** A board's lanes' height from the fence (`height=18`), in their own ems; null for the board's own. */
+  height?: number | null;
+  /** Writes a board's height into the fence, or takes it out with null. */
+  onHeight?: (height: number | null) => void;
   /** The open note, whose to-dos are ticked and reached in place. */
   thisNote: string | null;
   onEdit: () => void;
@@ -41,7 +48,7 @@ interface Acts {
   onTick: (row: Row) => void;
 }
 
-export function QueryView({ lines, problem, result, editable, onEdit, onOpen, onTick }: QueryViewProps) {
+export function QueryView({ lines, problem, result, editable, height = null, onHeight, onEdit, onOpen, onTick }: QueryViewProps) {
   if (problem || !result) {
     return (
       <section className={styles.query} aria-label="Query">
@@ -76,7 +83,7 @@ export function QueryView({ lines, problem, result, editable, onEdit, onOpen, on
       ) : result.show === 'table' ? (
         <TableView result={result} acts={acts} />
       ) : result.show === 'board' ? (
-        <BoardView result={result} acts={acts} />
+        <BoardView result={result} acts={acts} height={height} onHeight={onHeight} />
       ) : result.show === 'calendar' ? (
         <CalendarView rows={rows} acts={acts} />
       ) : result.show === 'gantt' ? (
@@ -385,26 +392,187 @@ function TableView({ result, acts }: { result: QueryResult; acts: Acts }) {
   );
 }
 
-function BoardView({ result, acts }: { result: QueryResult; acts: Acts }) {
+/**
+ * A query drawn as a board, at a height of its own, as a ```board is (editor/boards/divider.ts): the lanes are as tall
+ * as the fence's `height=`, or a screenful left to themselves, and each scrolls inside it with the wisp at its foot.
+ * Left to the tallest lane, a query of every done ticket ran the board down the page a card at a time (Matt: "The
+ * swimlanes are maximum height on the query instead of acting like board view with the split view handle").
+ */
+function BoardView({ result, acts, height, onHeight }: { result: QueryResult; acts: Acts; height: number | null; onHeight?: (height: number | null) => void }) {
+  // The height the line under the board is being dragged to, drawn while the finger moves and written when it lifts.
+  const [dragged, setDragged] = useState<number | null>(null);
+  const shown = dragged ?? height;
+  const boardRef = useRef<HTMLDivElement>(null);
   return (
-    <div className={styles.board} role="list" aria-label="Board">
-      {result.groups.map((group) => (
-        <section key={group.key || 'none'} className={styles.lane} role="listitem" aria-label={`${group.label}, ${group.rows.length}`}>
-          <GroupHead group={group} />
-          <ul className={styles.cards}>
-            {group.rows.map((row) => (
-              <li key={row.key} className={styles.card} data-done={row.category === 'done' || row.done ? '' : undefined}>
-                <span className={styles.cardTop}>
-                  <Box row={row} acts={acts} />
-                  <Name row={row} acts={acts} />
-                </span>
-                <Meta row={row} result={result} acts={acts} />
-              </li>
-            ))}
-            {group.rows.length ? null : <li className={styles.laneEmpty}>Nothing here</li>}
-          </ul>
-        </section>
-      ))}
+    <>
+      <div
+        ref={boardRef}
+        className={styles.board}
+        role="list"
+        aria-label="Board"
+        data-sized={shown !== null ? '' : undefined}
+        style={shown !== null ? ({ '--query-lane-height': `${shown}em` } as CSSProperties) : undefined}
+      >
+        {result.groups.map((group) => (
+          <section key={group.key || 'none'} className={styles.lane} role="listitem" aria-label={`${group.label}, ${group.rows.length}`}>
+            <GroupHead group={group} />
+            <LaneCards still={dragged !== null}>
+              {group.rows.map((row) => (
+                <li key={row.key} className={styles.card} data-done={row.category === 'done' || row.done ? '' : undefined}>
+                  <span className={styles.cardTop}>
+                    <Box row={row} acts={acts} />
+                    <Name row={row} acts={acts} />
+                  </span>
+                  <Meta row={row} result={result} acts={acts} />
+                </li>
+              ))}
+              {group.rows.length ? null : <li className={styles.laneEmpty}>Nothing here</li>}
+            </LaneCards>
+          </section>
+        ))}
+      </div>
+      {acts.editable && onHeight ? <HeightSplit boardRef={boardRef} height={height} onDrag={setDragged} onHeight={onHeight} /> : null}
+    </>
+  );
+}
+
+/**
+ * A lane's cards, scrolling inside the board's height: with more below than it shows, its foot fades and goes to the
+ * app's wisp, as a ```board's lane does (editor/boards/height.ts `laneFoot`). While the board's height is dragged the
+ * plain fade does, since a filter for every pixel of the drag would be made and thrown away.
+ */
+function LaneCards({ still, children }: { still: boolean; children: ReactNode }) {
+  const ref = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    const stack = ref.current;
+    if (!stack) return;
+    const foot = () => {
+      const more = stack.scrollHeight - stack.clientHeight - stack.scrollTop > 4;
+      stack.toggleAttribute('data-more', more);
+      const smoke = more && !still ? wispFoot(stack.offsetHeight, stack.offsetWidth) : null;
+      if (smoke) {
+        stack.style.filter = smoke;
+        stack.style.setProperty('--query-lane-fade', `${wispFootFade(stack.offsetHeight)}px`);
+      } else {
+        stack.style.removeProperty('filter');
+        stack.style.removeProperty('--query-lane-fade');
+      }
+    };
+    foot();
+    stack.addEventListener('scroll', foot, { passive: true });
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(foot);
+    observer?.observe(stack);
+    return () => {
+      stack.removeEventListener('scroll', foot);
+      observer?.disconnect();
+    };
+  }, [still, children]);
+  return (
+    <ul ref={ref} className={styles.cards}>
+      {children}
+    </ul>
+  );
+}
+
+/**
+ * The line under a query's board, which sets how tall its lanes are: the ```board's divider (editor/boards/divider.ts,
+ * Glacier's split-pane divider), dragged, stepped with the arrow keys, sent to either end with Home and End, and put
+ * back with a double tap. The height is the lanes' own ems, written into the fence when the finger lifts.
+ */
+function HeightSplit({
+  boardRef,
+  height,
+  onDrag,
+  onHeight,
+}: {
+  boardRef: RefObject<HTMLDivElement | null>;
+  height: number | null;
+  onDrag: (height: number | null) => void;
+  onHeight: (height: number | null) => void;
+}) {
+  const [dragging, setDragging] = useState(false);
+  /** How tall the lanes are drawn now, in their ems. */
+  const drawn = (): { ems: number; em: number } => {
+    const lane = boardRef.current?.querySelector<HTMLElement>(`.${styles.lane}`);
+    const em = lane ? parseFloat(window.getComputedStyle(lane).fontSize) || 16 : 16;
+    if (height !== null) return { ems: height, em };
+    const px = lane?.getBoundingClientRect().height ?? 0;
+    return { ems: px > 0 ? px / em : BOARD_HEIGHT.min, em };
+  };
+  const press = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 && event.pointerType === 'mouse') return;
+    event.preventDefault();
+    event.stopPropagation();
+    const { ems: from, em } = drawn();
+    const startY = event.clientY;
+    const id = event.pointerId;
+    let now = from;
+    let edge: 'min' | 'max' | null = null;
+    setDragging(true);
+    const move = (moving: PointerEvent) => {
+      if (moving.pointerId !== id) return;
+      moving.preventDefault();
+      const wanted = from + (moving.clientY - startY) / em;
+      now = clampHeight(wanted);
+      onDrag(now);
+      // A buzz at either end, as Glacier's divider gives, so the finger knows it can go no further.
+      const at = wanted <= BOARD_HEIGHT.min ? 'min' : wanted >= BOARD_HEIGHT.max ? 'max' : null;
+      if (at !== edge) {
+        edge = at;
+        if (at) fireNativeHaptic('medium');
+      }
+    };
+    const still = (touching: TouchEvent) => {
+      if (touching.cancelable) touching.preventDefault();
+    };
+    const done = (write: boolean) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+      window.removeEventListener('touchmove', still);
+      setDragging(false);
+      onDrag(null);
+      if (write && Math.abs(now - from) >= 0.5) onHeight(now);
+    };
+    const up = (lifting: PointerEvent) => {
+      if (lifting.pointerId === id) done(true);
+    };
+    const cancel = (cancelling: PointerEvent) => {
+      if (cancelling.pointerId === id) done(false);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+    window.addEventListener('touchmove', still, { passive: false });
+  };
+  const key = (event: KeyboardEvent<HTMLDivElement>) => {
+    const now = drawn().ems;
+    const next =
+      event.key === 'ArrowUp' ? now - 1 : event.key === 'ArrowDown' ? now + 1 : event.key === 'Home' ? BOARD_HEIGHT.min : event.key === 'End' ? BOARD_HEIGHT.max : null;
+    if (next === null) return;
+    event.preventDefault();
+    onHeight(clampHeight(next));
+  };
+  return (
+    <div
+      className={styles.split}
+      role="separator"
+      aria-orientation="horizontal"
+      aria-label="Board height"
+      aria-valuemin={BOARD_HEIGHT.min}
+      aria-valuemax={BOARD_HEIGHT.max}
+      aria-valuenow={height ?? undefined}
+      tabIndex={0}
+      title="Drag to resize the board"
+      data-dragging={dragging ? '' : undefined}
+      onPointerDown={press}
+      onDoubleClick={(event) => {
+        event.preventDefault();
+        onHeight(null);
+      }}
+      onKeyDown={key}
+    >
+      <span className={styles.grip} aria-hidden="true" />
     </div>
   );
 }

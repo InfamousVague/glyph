@@ -455,17 +455,91 @@
 .lane {
   scroll-snap-align: start;
   min-inline-size: 0;
+  /* A screenful left to itself, the fence's height when it has one: the cards scroll inside it (BoardView). */
+  display: flex;
+  flex-direction: column;
+  max-block-size: var(--query-lane-height, 24em);
   padding: var(--glacier-space-1) var(--glacier-space-2) var(--glacier-space-2);
   border-radius: var(--glacier-radius-md);
   background: color-mix(in oklch, var(--app-ink) 4%, transparent);
 }
 
+.board[data-sized] .lane {
+  block-size: var(--query-lane-height);
+}
+
 .cards {
   list-style: none;
   display: grid;
+  align-content: start;
   gap: var(--glacier-space-2);
   margin: 0;
   padding: 0;
+}
+
+.lane .cards {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  /* Room for the last card's shadow and the foot's fade. */
+  padding-block-end: var(--glacier-space-2);
+}
+
+/* More cards below than the lane shows: its foot fades, under the wisp where the app's wisp is on (LaneCards). */
+.lane .cards[data-more] {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--query-lane-fade, 1.2em)), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--query-lane-fade, 1.2em)), transparent);
+}
+
+/*
+ * The line under the board, which sets its height: the ```board's divider (editor/boards/theme.ts `.cm-boardSplit`),
+ * Glacier's split-pane divider - a hairline in the subtle border with a grip pill always shown, the accent while it
+ * is held or has the focus, and a finger's width of touch above and below.
+ */
+.split {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  block-size: var(--glacier-hairline, 1px);
+  margin-block: var(--glacier-space-3) var(--glacier-space-1);
+  background: var(--glacier-border-subtle, color-mix(in oklch, currentColor 14%, transparent));
+  cursor: row-resize;
+  touch-action: none;
+  transition: background-color var(--glacier-duration-fast, 120ms) var(--glacier-ease-out, ease-out);
+}
+
+.split::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block: -0.9em;
+}
+
+.split:focus-visible,
+.split[data-dragging] {
+  outline: none;
+  background: var(--glacier-accent-solid, currentColor);
+}
+
+.grip {
+  position: relative;
+  z-index: 1;
+  inline-size: var(--glacier-space-6, 1.5rem);
+  block-size: 6px;
+  border-radius: var(--glacier-radius-full, 999px);
+  background: color-mix(in oklch, currentColor 45%, transparent);
+  transition: background-color var(--glacier-duration-fast, 120ms) var(--glacier-ease-out, ease-out);
+}
+
+.split:hover .grip {
+  background: color-mix(in oklch, currentColor 70%, transparent);
+}
+
+.split:focus-visible .grip,
+.split[data-dragging] .grip {
+  background: #fff;
 }
 
 .card {
