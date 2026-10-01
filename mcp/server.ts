@@ -11,6 +11,7 @@ import { frontMatterEnd, frontMatterValue, withFrontMatterValue } from '../src/a
 import { geoTagOf, withGeoTag } from '../src/app/core/geotag.ts';
 import { plainFills } from '../src/app/core/blanks.ts';
 import { noteTitle, withoutFrontMatter } from '../src/app/core/noteTitle.ts';
+import { issueKeyOf, isTicket, ticketIdOf, TICKET_PROPERTIES } from '../src/app/core/properties.ts';
 import { titleKey } from '../src/app/core/titleKey.ts';
 import { Conflict, GlyphApiError, type GlyphAccount, type NoteRecord } from './glyph.ts';
 
@@ -27,6 +28,10 @@ import { Conflict, GlyphApiError, type GlyphAccount, type NoteRecord } from './g
  * named by its minute from the journal's template, with the words on from its time, and puts its line in the journal's
  * index, from the app's own modules (book/journal.ts, core/template.ts). `append_to_note` turns a journal down, since
  * its words are the list of its entries, and a rewrite keeps a notebook's keys as it keeps the authors and the place.
+ *
+ * A ticket is a note whose front matter says `type: ticket` (docs/DESIGN.md §157, docs/TICKETS.md): its properties are
+ * that front matter, which a rewrite keeps as the app reads it (`keepKeys`), and `read_note` finds one by its key,
+ * `GHO-12`, as a `[[GHO-12]]` in the app does.
  */
 
 /**
@@ -114,6 +119,17 @@ function keepPlace(before: string, next: string): string {
  */
 const KEPT_KEYS = ['title', 'book', 'journal', 'template', 'entry-place', 'date', 'look', 'templates'] as const;
 
+/** A notebook's keys for its tickets (book/tickets.ts): the key they are numbered by and the workflow they move through. */
+const NOTEBOOK_KEYS = ['key', 'statuses'] as const;
+
+/**
+ * A ticket's own keys (core/properties.ts `TICKET_PROPERTIES`). Its `type:` and `id:` are what make it a ticket and
+ * what its `[[GHO-12]]`s find, so they come back whenever a rewrite leaves them out. Its status, assignee and the rest
+ * come back only when the rewrite dropped the front matter whole: one that wrote front matter of its own, without a
+ * `blocked-by:`, took the wait off, and that is Claude's to do.
+ */
+const TICKET_KEYS = TICKET_PROPERTIES.map((property) => property.key);
+
 /**
  * `next` with every key of `before`'s that it lacks entirely put back, as it was written: a rewrite that dropped the
  * front matter would otherwise turn a notebook into a note with a list of links, and a journal's entry lose its name.
@@ -126,7 +142,9 @@ export function keepKeys(before: string, next: string): string {
   const lines = before.split('\n');
   const keys = lines.slice(1, Math.max(1, frontMatterEnd(lines) - 1));
   const named = isBookBody(before) || isEntryTitle(frontMatterValue(before, 'title') ?? '');
-  for (const key of KEPT_KEYS) {
+  const dropped = frontMatterEnd(next.split('\n')) === 0;
+  const ticket = isTicket(before) ? (dropped ? TICKET_KEYS : ['type', 'id']) : [];
+  for (const key of [...KEPT_KEYS, ...(isBookBody(before) ? NOTEBOOK_KEYS : []), ...ticket]) {
     if (!named && (key === 'title' || key === 'date')) continue;
     const line = keys.find((each) => new RegExp(`^\\s*${key}\\s*:`, 'i').test(each));
     if (line === undefined || frontMatterValue(before, key) === null || frontMatterValue(out, key) !== null) continue;
@@ -148,6 +166,10 @@ async function find(account: GlyphAccount, id: string | undefined, title: string
   if (title) {
     const found = await account.byTitle(title);
     if (found) return found;
+    // A ticket's key finds the ticket, as `[[GHO-12]]` does in the app (docs/DESIGN.md §157).
+    const key = issueKeyOf(title);
+    const ticket = key ? (await account.list({ archived: true })).find((r) => ticketIdOf(r.note.body) === key) : undefined;
+    if (ticket) return ticket;
     const near = (await account.list({ archived: true })).filter((r) => noteTitle(r.note.body).toLowerCase().includes(title.trim().toLowerCase()));
     if (near.length === 1) return near[0]!;
     throw new Error(
@@ -213,10 +235,10 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpSer
     'read_note',
     {
       title: 'Read a note',
-      description: 'A note in full: its markdown body and what the account knows about it. Give its id (from list_notes) or its exact title.',
+      description: 'A note in full: its markdown body and what the account knows about it. Give its id (from list_notes) or its exact title, or a ticket’s key (GHO-12).',
       inputSchema: {
         id: z.string().optional().describe('The note’s id.'),
-        title: z.string().optional().describe('The note’s title, when the id is not known.'),
+        title: z.string().optional().describe('The note’s title, when the id is not known, or a ticket’s key.'),
       },
     },
     async ({ id, title }) =>
@@ -285,7 +307,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpSer
     {
       title: 'Replace a note’s body',
       description:
-        'The whole markdown body of a note replaced with `body`. Read the note first and send it back changed: this writes from the version last read, and if another device changed the note meanwhile the write is refused and their version shown, never overwritten. For adding a line or a task to the end of a note, prefer append_to_note. A notebook’s or a journal’s list of [[links]] is its pages: a link left out of the new body takes that page or entry out of it, though its note stays. For a new journal entry use add_journal_entry.',
+        'The whole markdown body of a note replaced with `body`. Read the note first and send it back changed: this writes from the version last read, and if another device changed the note meanwhile the write is refused and their version shown, never overwritten. For adding a line or a task to the end of a note, prefer append_to_note. A notebook’s or a journal’s list of [[links]] is its pages: a link left out of the new body takes that page or entry out of it, though its note stays. For a new journal entry use add_journal_entry. A ticket’s properties are its front matter (type: ticket, id, status, assignee, priority, due, blocked-by…): keep the block and change a value to change it.',
       inputSchema: {
         id: z.string().describe('The note’s id.'),
         body: z.string().describe(`The new markdown body, whole. ${BLANKS}`),

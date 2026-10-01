@@ -39,6 +39,7 @@ import {
   Superscript,
   Table,
   Text,
+  Ticket,
   Underline,
   Workflow,
 } from '@glacier/icons';
@@ -105,7 +106,8 @@ export type Looks =
   | 'choice'
   | 'spoilerLine'
   | 'bookmark'
-  | 'place';
+  | 'place'
+  | 'ticket';
 
 export interface MarkRow {
   /** The mark itself, as a person would type it: `**`, `- [ ]`. */
@@ -283,6 +285,17 @@ const OWN: MarkGroup[] = [
         words: 'ship-page',
         looks: 'board',
         icon: LayoutGrid,
+      },
+      // A note that is a ticket, by its front matter (docs/TICKETS.md): drawn in a note as its properties, and here as
+      // the lines it is, since a cheat sheet's example has no library of tickets to draw them from.
+      {
+        symbol: 'type: ticket',
+        name: 'A ticket',
+        typed: '---\ntype: ticket\nid: GHO-12\nstatus: In progress\nassignee: Sam\n---\n# Fix the login loop',
+        words: 'GHO-12',
+        looks: 'ticket',
+        icon: Ticket,
+        note: 'Its properties are drawn as a card over its words. [[GHO-12]] in any note links to it.',
       },
     ],
   },

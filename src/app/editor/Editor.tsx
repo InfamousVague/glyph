@@ -21,6 +21,7 @@ import { headingProgress } from './headingProgress.ts';
 import { choices } from './choices.ts';
 import { linkCards } from './linkCards.ts';
 import { wikiLinks, type WikiOptions } from './wikiLinks.ts';
+import { refreshTickets, tickets } from './tickets.ts';
 import { markNotes } from './markNotes.ts';
 import { drawnTables } from './tables.ts';
 import { swipeItemAction, swipeItemTheme, type SwipeAction } from './swipeItems.ts';
@@ -342,6 +343,8 @@ export function Editor({
         choices(),
         // [[Another note]] opens that note, or makes it (editor/wikiLinks.ts).
         wikiLinks(wiki ? { known: (title) => wikiRef.current?.known(title) ?? false, open: (title, anchor) => wikiRef.current?.open(title, anchor) } : null),
+        // A ticket's front matter as its properties, and a [[GHO-12]] with the ticket's title (editor/tickets.ts).
+        peek || !wiki ? [] : tickets(() => wikiRef.current?.tickets ?? null),
         // ![[A canvas]] on a line of its own draws that canvas in a frame (editor/canvasFrames.ts). Not on a card, where
         // a note is drawn small and a canvas inside it would be a canvas inside a card inside a canvas.
         peek || !wiki
@@ -442,6 +445,11 @@ export function Editor({
   // rescans the whole note (editor/canvasFrames.ts).
   useEffect(() => {
     if (wiki?.body) view.current?.dispatch({ effects: refreshCanvasFrames.of(null) });
+  }, [wiki]);
+
+  // The same for a ticket's panel and its keys' titles: another ticket closed, a person named (editor/tickets.ts).
+  useEffect(() => {
+    if (wiki?.tickets) view.current?.dispatch({ effects: refreshTickets.of(null) });
   }, [wiki]);
 
   useEffect(() => {

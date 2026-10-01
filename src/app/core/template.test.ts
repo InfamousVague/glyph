@@ -36,6 +36,24 @@ describe('the placeholders', () => {
   });
 });
 
+describe('the next ticket’s id (docs/DESIGN.md §157)', () => {
+  const at = AT();
+  const TICKET = '---\ntype: ticket\nid: "{{next-id}}"\nstatus: To do\n---\n# {{title}}\n\nSee {{next-id}}.';
+
+  it('fills the id’s own line bare, its quotes gone, and the placeholder anywhere else as it is', () => {
+    expect(fillTemplate(TICKET, { at, nextId: 'GHO-13', title: 'Login' })).toBe('---\ntype: ticket\nid: GHO-13\nstatus: To do\n---\n# Login\n\nSee GHO-13.');
+    expect(fillTemplate("---\nid: '{{ next-id }}'\n---\n", { at, nextId: 'GHO-1' })).toBe('---\nid: GHO-1\n---\n');
+    expect(fillTemplate('---\nid: {{next-id}}\n---\n', { at, nextId: 'GHO-1' })).toBe('---\nid: GHO-1\n---\n');
+  });
+
+  it('leaves the id’s line out where there is no key, and fills the placeholder in the words with nothing', () => {
+    expect(fillTemplate(TICKET, { at, title: 'Login' })).toBe('---\ntype: ticket\nstatus: To do\n---\n# Login\n\nSee .');
+    expect(fillTemplate(TICKET, { at, nextId: null })).toBe('---\ntype: ticket\nstatus: To do\n---\n# \n\nSee .');
+    // A line of the words that looks like a key is words, not front matter, and is kept.
+    expect(fillTemplate('# Notes\n\nid: {{next-id}}', { at })).toBe('# Notes\n\nid: ');
+  });
+});
+
 describe('a format', () => {
   const format = (text: string, locale = 'en-GB', at = AT()) => inLocale(locale, () => formatStamp(at, text));
 

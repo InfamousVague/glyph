@@ -109,6 +109,46 @@ Your own template takes the placeholders Obsidian's templates use: `{{date}}` (M
 - **An entry's bar** walks the entries in the order they were written, so Previous is the entry before. Opening a journal from outside always opens the journal, where New entry is, not the entry you last read.
 - **From home** a new entry is two taps: the + and then Entry in, for the journal you wrote in last. The command palette has New entry in for up to three journals.
 
+## A notebook of tickets
+
+A notebook can keep tickets, as a Jira project does. A ticket is a note whose front matter says `type: ticket`, and its fields are the rest of that front matter:
+
+```markdown
+---
+type: ticket
+id: GHO-12
+status: In progress
+assignee: Sam
+priority: high
+due: 2026-10-03
+blocked-by: "[[GHO-9]]"
+---
+# Fix the login loop
+```
+
+Obsidian shows those lines as the note's properties and GitHub as a table over it, so a ticket is a ticket anywhere.
+
+**The key.** Give the notebook a **Ticket key** in its More sheet, under its name: two to ten capital letters and digits, starting with a letter, such as `GHO`. Its tickets are numbered `GHO-1`, `GHO-2` and on. The next number is one more than the highest any note mentions, the Trash's included, so a number is never given twice.
+
+**New ticket.** With a key, the index has New ticket beside Add a page. Name it, and choose what it starts with: just the title, a **Bug report** (Steps to reproduce, Expected, Actual) or a **Feature** (Problem, Proposal, Done when). It is a page of the notebook like any other, with the next key and the first open status, To do unless the notebook names its own.
+
+**The properties.** A ticket opens with its fields drawn as a card over its words:
+
+| Field | A tap |
+| --- | --- |
+| Status | Picks one of the notebook's statuses. Not started is grey, under way blue, done green. |
+| Assignee | Picks someone the library already names, a ticket's assignee or an `@name` in a to-do, or a name you type. |
+| Priority | Picks one of five, Highest to Lowest, or None. |
+| Due, Start | Opens the date picker. A due day that has passed is red until the ticket is done. |
+| Estimate, Labels | Typed in place: a number, and labels with commas between them. |
+| Blocked by, Parent | Picks other tickets, found by key or title as you type. |
+
+Start, Estimate, Blocked by, Parent and Labels wait behind the line under the card until you add them or the ticket has them. A ticket waiting on one that is not done says so first, with a lock. The `{}` button, or the caret moved into the lines, shows the front matter as it is written, to type in; it goes back to the card when the caret leaves.
+
+**The workflow.** A notebook's statuses are Backlog, To do, In progress, In review and Done, unless its front matter names its own, such as `statuses: [Ideas, Building, Live]`. Every status is not started, under way or done: Done, Closed, Won't do and Cancelled are done, In anything is under way, and a status the app does not know is placed by where it sits in the list.
+
+**Links by key.** `[[GHO-12]]` in any note opens that ticket, and is drawn with its title and its status's dot after it, struck through once it is done. A key no ticket has yet is drawn dashed, as a note not yet written is. A ticket's key and status show on its card, its row on the home page and its row in the index.
+
 ## Sharing, and by voice
 
 A whole notebook can be shared as one read-only link, its index and every written page: see [[Sharing a note or a notebook]]. A journal is shared an entry at a time: open the entry and share it from its More sheet.

@@ -85,6 +85,33 @@ fn files_written_by_other_apps_are_indexed_and_edits_are_picked_up() {
     assert!(library.list_notes().unwrap().is_empty(), "a file deleted elsewhere leaves the list");
 }
 
+/// A ticket's properties are the page's own front matter (docs/DESIGN.md §157), a block of its own after the library's:
+/// its `id: GHO-12` is never taken for the note's id, and a save, a pin and a synced edit leave every line of it as the
+/// page wrote it.
+#[test]
+fn a_tickets_front_matter_is_the_pages_and_is_kept_whole() {
+    let root = TempDir::new("library-ticket");
+    let mut library = Library::open_fs(&root).unwrap();
+    let ticket = "---\ntype: ticket\nid: GHO-12\nstatus: In progress\nassignee: Sam\nblocked-by: \"[[GHO-9]]\"\nlabels: [bug, ui]\n---\n# Fix the login loop\n\nIt loops.\n";
+    let saved = library.save_note("t1", ticket, "editor").unwrap();
+    assert_eq!(saved.id, "t1", "the library's id, not the ticket's key");
+    assert_eq!(saved.body, ticket, "the page sees its own block as it wrote it");
+    assert_eq!(saved.path.as_deref(), Some("Inbox/Fix the login loop.md"));
+    let text = read(&root, "Inbox/Fix the login loop.md");
+    assert!(text.starts_with("---\nid: t1\ncreated: "), "the library's own block first: {text}");
+    assert!(text.ends_with(ticket), "{text}");
+
+    library.set_starred("t1", true).unwrap();
+    let changed = ticket.replace("status: In progress", "status: Done");
+    library.save_note("t1", &changed, "editor").unwrap();
+    let again = library.get_note("t1").unwrap().unwrap();
+    assert_eq!(again.body, changed);
+    assert!(again.starred);
+    library.apply_note(&Note { body: ticket.to_string(), ..remote("t1", ticket) }).unwrap();
+    assert_eq!(library.get_note("t1").unwrap().unwrap().body, ticket, "a synced edit lands whole");
+    assert_eq!(library.list_notes().unwrap().len(), 1);
+}
+
 #[test]
 fn a_copied_file_with_the_same_id_becomes_its_own_note() {
     let root = TempDir::new("library-copy");

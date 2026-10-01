@@ -117,6 +117,10 @@ makes a note a notebook (docs/BOOKS.md); `authors:`, the names a note was writte
 (`src/app/core/authors.ts`); and `look:`, `map` or `reading`, how the note is drawn (`src/app/core/look.ts`, DESIGN
 §144). The library does not merge that block into its own. A named notebook's file therefore
 opens with two blocks, the library's and then the page's, and an app that reads only the first shows the second as text.
+A ticket's properties are that block too (`type: ticket`, its own `id: GHO-12`, its status; docs/TICKETS.md): its `id:`
+is the page's, never the library's, and a save keeps the block whole (`a_tickets_front_matter_is_the_pages_and_is_kept_whole`
+in `src-tauri/src/library/tests.rs`). A ticket written in another app with its keys in the file's only block is the
+case not handled yet: the library reads that `id:` as the note's own.
 
 Keys for a note's tags, its Notion board and its GitHub repo (`tags`, `notion-board`, `project`) are phase 4. The
 reader and writer take any top-level key, and a test in `src-tauri/src/library/frontmatter.rs` reads and writes

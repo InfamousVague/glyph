@@ -1,7 +1,8 @@
 import { bookNoteBody, chaptersOf, isBookBody } from '../book/book.ts';
-import { frontMatterValue, quotedTitle, withFrontMatterValue } from '../core/frontMatter.ts';
+import { frontMatterEnd, frontMatterValue, quotedTitle, withFrontMatterValue } from '../core/frontMatter.ts';
 import { lookOf, withLook } from '../core/look.ts';
 import { noteTitle } from '../core/noteTitle.ts';
+import { isTicket, propertiesOf, TICKET_PROPERTIES } from '../core/properties.ts';
 import type { Note } from '../core/store.ts';
 import { titleKey } from '../core/titleKey.ts';
 import { wordsOf } from '../core/untouched.ts';
@@ -30,7 +31,10 @@ import { BUILT_INS, type NoteTemplate } from './noteTemplates.ts';
  * **A page** is named by its `title:`, since its first line is the template's own heading, `# {{title}}`; its words
  * after the front matter are the template. Only `look:` passes from a page to a note made from it: its `title:`, a
  * `location:` and `place:` from where it was written, and any key the app does not know stay with the page, so a page
- * written where it was tagged never hands its place to every note made from it. A page whose words are still a built-in's
+ * written where it was tagged never hands its place to every note made from it. A ticket's page passes its ticket's keys
+ * too (docs/DESIGN.md §157): a Bug report's `type: ticket`, its status and its `id: "{{next-id}}"` are what make the
+ * note it makes a ticket, so they go with the words, in a block of their own. The page is drawn as the ticket it makes,
+ * with no key of its own, since `{{next-id}}` is none. A page whose words are still a built-in's
  * says that one's sentence and keeps its rules (A day's taken name, A map at the top's place); any other says
  * `One of your own.` A notebook's Add a page makes a page a template can be written in.
  *
@@ -64,10 +68,24 @@ export function templatesNotebookBody(pages: readonly string[]): string {
   return withFrontMatterValue(bookNoteBody(TEMPLATES_TITLE, pages), 'templates', 'true');
 }
 
-/** A built-in's page: its name as its `title:`, its mark, its look beside them, and its words. */
+/** A built-in's page: its name as its `title:`, its mark, its own keys and its look beside them, and its words. */
 export function templatePageBody(template: NoteTemplate): string {
-  const named = `---\ntitle: ${quotedTitle(template.name, template.name)}\ntemplates: page\n---\n${template.words}`;
+  const lines = template.words.split('\n');
+  const end = frontMatterEnd(lines);
+  const own = lines.slice(1, Math.max(1, end - 1)).map((line) => `${line}\n`);
+  const named = `---\ntitle: ${quotedTitle(template.name, template.name)}\ntemplates: page\n${own.join('')}---\n${lines.slice(end).join('\n')}`;
   return template.look ? withLook(named, template.look) : named;
+}
+
+/** The keys a ticket's page passes to the note made from it: a ticket's own (core/properties.ts), any case. */
+const TICKET_KEYS = new Set<string>(TICKET_PROPERTIES.map((property) => property.key));
+
+/** A page's ticket keys as they are written, for the block a ticket's template opens with; none for a page that is not a ticket. */
+function ticketBlock(body: string): string {
+  if (!isTicket(body)) return '';
+  const lines = body.split('\n');
+  const kept = propertiesOf(body).filter((property) => TICKET_KEYS.has(property.key.toLowerCase()));
+  return kept.length ? `---\n${kept.map((property) => lines[property.line]).join('\n')}\n---\n` : '';
 }
 
 /** A page added to the notebook by name: marked, its heading left open for the name a note is given. */
@@ -91,9 +109,12 @@ function pagesByTitle(notes: readonly Note[]): Map<string, Note[]> {
   return map;
 }
 
-/** A page as a template: its name, its words after the front matter, and its look alone; a built-in's rules where its words are one's. */
+/**
+ * A page as a template: its name, its words after the front matter (a ticket's keys in front of them), and its look
+ * alone; a built-in's rules where its words are one's.
+ */
 export function templateOf(page: Note): NoteTemplate {
-  const words = wordsOf(page.body);
+  const words = ticketBlock(page.body) + wordsOf(page.body);
   const look = lookOf(page.body);
   const builtIn = BUILT_INS.find((one) => one.words.trim() === words.trim() && one.look === look);
   return { id: page.id, kind: builtIn?.kind, name: noteTitle(page.body) || 'A template', sentence: builtIn?.sentence ?? OWN_SENTENCE, words, look };

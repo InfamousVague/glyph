@@ -1,4 +1,4 @@
-import { RangeSetBuilder, StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state';
+import { Facet, RangeSetBuilder, StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { shortcodesIn } from '../core/emoji.ts';
@@ -39,6 +39,9 @@ import { mathsIn } from '../core/maths.ts';
  * `look:` is not named in the folded line (docs/DESIGN.md §144): it is how the note is drawn, and the drawing says it,
  * so a new reading note would otherwise open on a band that says "look" over its display title. A block that holds only
  * `look` folds to nothing at all, and the note opens on its title; the caret moved into it still opens it.
+ *
+ * A ticket's front matter is not folded but drawn as its properties, by editor/tickets.ts, which says so through
+ * `frontMatterDrawn` (docs/DESIGN.md §157); the caret in it opens it to its lines the same way.
  */
 
 /** The words of a raised or lowered run, by node name: the highlighter gives both the same tag. */
@@ -174,6 +177,12 @@ class NoFrontWidget extends WidgetType {
 /** The editor gained or lost focus: the block is open only while it has it. */
 const focusEffect = StateEffect.define<boolean>();
 
+/**
+ * Whether another hand draws the front matter, so it is not folded here: a ticket's properties panel
+ * (editor/tickets.ts; docs/DESIGN.md §157), which steps aside for the lines itself.
+ */
+export const frontMatterDrawn = Facet.define<(state: EditorState) => boolean>();
+
 interface Fold {
   focused: boolean;
   decorations: DecorationSet;
@@ -182,6 +191,7 @@ interface Fold {
 function foldOf(state: EditorState, focused: boolean): DecorationSet {
   const front = frontMatter(state.doc);
   if (!front || !state.facet(EditorView.editable) || (focused && caretIn(state, front))) return Decoration.none;
+  if (state.facet(frontMatterDrawn).some((drawn) => drawn(state))) return Decoration.none;
   const from = state.doc.line(front.from).from;
   const to = state.doc.line(front.to).to;
   const at = state.doc.line(Math.min(front.from + 1, front.to)).from;

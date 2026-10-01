@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { canvasNoteBody } from '../canvas/jsonCanvas.ts';
 import { makeNote } from '../../test/notes.ts';
-import { button, show, typeInto, unmount } from '../../test/render.tsx';
+import { button, buttonSaying, show, typeInto, unmount } from '../../test/render.tsx';
+import { BUILT_INS } from '../notes/noteTemplates.ts';
+import { withNotebookKey } from './tickets.ts';
 import { dragGrip, layRowsOut } from '../../test/rows.ts';
 import { bookNoteBody, bookOf, chaptersOf } from './book.ts';
 import { BookBar, BookFoot } from './BookNav.tsx';
@@ -202,6 +204,40 @@ describe('the index view', () => {
   it('says so when the book has no chapters', () => {
     show(<BookView body={bookNoteBody('Trip')} title="Trip" known={() => true} open={() => {}} titles={() => []} onChange={() => {}} />);
     expect(document.body.textContent).toContain('No pages yet');
+  });
+});
+
+describe('a notebook of tickets (docs/DESIGN.md §157)', () => {
+  const KEYED = withNotebookKey(bookNoteBody('Ghost.md', ['Fix the login loop', 'Write the docs']), 'GHO');
+  const bodies: Record<string, string> = {
+    'Fix the login loop': '---\ntype: ticket\nid: GHO-12\nstatus: In progress\n---\n# Fix the login loop\n',
+    'Write the docs': '# Write the docs\n',
+  };
+  const bug = BUILT_INS.find((one) => one.kind === 'bug')!;
+  const feature = BUILT_INS.find((one) => one.kind === 'feature')!;
+
+  it('offers New ticket only with a key, and puts the ticket’s line in the index before App makes it', () => {
+    const onChange = vi.fn();
+    const openTicket = vi.fn();
+    show(<BookView body={KEYED} title="Ghost.md" known={() => true} open={() => {}} titles={() => []} onChange={onChange} openTicket={openTicket} ticketTemplates={[bug, feature]} />);
+    act(() => button('New ticket').click());
+    typeInto(document.querySelector<HTMLInputElement>('input[aria-label="New ticket’s title"]')!, 'Session cookie expires');
+    // Just the title, then the tickets' templates, each said in its sentence; no canvas for a ticket.
+    expect([...document.querySelectorAll('[role="radio"] [class*=startName]')].map((name) => name.textContent)).toEqual(['Just the title', 'Bug report', 'Feature']);
+    expect(buttonSaying(document.body, 'Add as a canvas')).toBeUndefined();
+    act(() => buttonSaying(document.body, 'Bug report')!.click());
+    act(() => button('Add and open').click());
+    expect(chaptersOf(onChange.mock.calls[0]![0] as string).map((c) => c.title)).toEqual(['Fix the login loop', 'Write the docs', 'Session cookie expires']);
+    expect(openTicket).toHaveBeenCalledWith('Session cookie expires', bug);
+    unmount();
+    show(<BookView body={bookNoteBody('Plain', [])} title="Plain" known={() => true} open={() => {}} titles={() => []} onChange={() => {}} openTicket={openTicket} />);
+    expect(buttonSaying(document.body, 'New ticket')).toBeUndefined();
+  });
+
+  it('says a page that is a ticket its key and status on its row, and nothing on a page of words', () => {
+    show(<BookView body={KEYED} title="Ghost.md" known={() => true} open={() => {}} titles={() => []} onChange={() => {}} bodyOf={(title) => bodies[title] ?? null} />);
+    const marks = [...document.querySelectorAll<HTMLElement>('ol[aria-label="Pages"] li [data-category]')];
+    expect(marks.map((mark) => [mark.textContent, mark.dataset.category])).toEqual([['GHO-12In progress', 'doing']]);
   });
 });
 

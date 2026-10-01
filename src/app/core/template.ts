@@ -1,4 +1,5 @@
 import type { Placing } from '../capture/place.ts';
+import { frontMatterEnd } from './frontMatter.ts';
 import { lineWords, listLead } from './itemSyntax.ts';
 import { clockTime, longDay } from './stamp.ts';
 
@@ -12,10 +13,18 @@ import { clockTime, longDay } from './stamp.ts';
  *   {{weekday}}   Monday
  *   {{title}}     2026-09-28 14.05            the entry's name; empty for a new note, which has none yet
  *   {{journal}}   Diary                       the journal's name
+ *   {{next-id}}   GHO-13                      the next ticket's key where the note is made (below)
  *   {{date:FORMAT}} and {{time:FORMAT}}       Moment's tokens, as Obsidian takes them, and the ISO week (below)
  *
  * Anything else is left as it was typed. A name is looked up among these by its own names only: format/prompt.ts's
  * lookup used `in`, so `{{constructor}}` or `{{toString}}` there would print a function's source.
+ *
+ * `{{next-id}}` is ours, for a ticket's template (docs/DESIGN.md §157; Matt picked tickets as notes, "Do 1, 2 and 3 in
+ * parallel"): the key a notebook with `key: GHO` gives its next ticket (book/tickets.ts), so a Bug report made there is
+ * `id: GHO-13`. A note made where there is no key has no id to give, and a front matter line that held only the
+ * placeholder, `id: "{{next-id}}"`, is left out rather than written empty; anywhere else it is filled with nothing. Its
+ * quotes are YAML's, so the template's own file reads in Obsidian, where a bare `{{` opens a map; an issue key needs
+ * none, so they go with it. Its name has a dash, which only it may.
  *
  * Words inside a format go in square brackets, as Moment and Obsidian both want them: every token letter outside
  * brackets is read, so `{{date:D MMMM at HH:mm}}` turns "at" into a meridiem and a letter ("pmt"). That rule stays
@@ -33,13 +42,31 @@ import { clockTime, longDay } from './stamp.ts';
  */
 
 /** A placeholder: its name, and a format after a colon for the two that take one. */
-const PLACEHOLDER = /\{\{\s*([A-Za-z_$][\w$]*)(?::([^{}]*))?\s*\}\}/g;
+const PLACEHOLDER = /\{\{\s*([A-Za-z_$][\w$]*|next-id)(?::([^{}]*))?\s*\}\}/g;
+
+/** A front matter line that holds only the next id, quoted or not: `id: "{{next-id}}"`. */
+const NEXT_ID_LINE = /^([ \t]*[\w.-]+[ \t]*:[ \t]*)(["']?)\{\{\s*next-id\s*\}\}\2[ \t]*$/;
+
+/** The template with its front matter's next-id lines settled: filled bare, or left out where there is no id. */
+function withNextIdLines(text: string, next: string): string {
+  const lines = text.split('\n');
+  const end = frontMatterEnd(lines);
+  if (!end) return text;
+  const keys = lines.slice(1, end - 1).flatMap((line) => {
+    const found = NEXT_ID_LINE.exec(line);
+    if (!found) return [line];
+    return next ? [`${found[1]}${next}`] : [];
+  });
+  return [lines[0], ...keys, ...lines.slice(end - 1)].join('\n');
+}
 
 /** What an entry's template is filled for: the moment, the entry's name and the journal's. */
 export interface FillFor {
   at: Date;
   title?: string;
   journal?: string;
+  /** The next ticket's key where the note is made, `GHO-13` (book/tickets.ts `nextTicketId`); absent or null for none. */
+  nextId?: string | null;
   /**
    * `{{date}}`, `{{time}}` and `{{weekday}}` already written for `at`, by a caller that fills a year of entries with
    * one set of formatters (book/journalMonths.ts). Absent, written here.
@@ -48,9 +75,11 @@ export interface FillFor {
 }
 
 /** The template with its placeholders filled for one entry. */
-export function fillTemplate(text: string, { at, title = '', journal = '', said }: FillFor): string {
-  const values: Record<string, string> = { ...(said ?? { date: longDay(at), time: clockTime(at), weekday: named(at, { weekday: 'long' }) }), title, journal };
-  return text.replace(PLACEHOLDER, (whole, name: string, format: string | undefined) => {
+export function fillTemplate(text: string, { at, title = '', journal = '', nextId, said }: FillFor): string {
+  const next = nextId ?? '';
+  const values: Record<string, string> = { ...(said ?? { date: longDay(at), time: clockTime(at), weekday: named(at, { weekday: 'long' }) }), title, journal, 'next-id': next };
+  // The id's own line first, its quotes with it, or the line gone where there is no id to give.
+  return withNextIdLines(text, next).replace(PLACEHOLDER, (whole, name: string, format: string | undefined) => {
     if (format !== undefined && format.trim()) return name === 'date' || name === 'time' ? formatStamp(at, format.trim()) : whole;
     return Object.hasOwn(values, name) ? values[name]! : whole;
   });
