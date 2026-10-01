@@ -22,10 +22,22 @@ It lives in `landing/` and ships with `node scripts/deploy-landing.mjs`, one ssh
   font host. `node scripts/landing-assets.mjs` copies the tokens, the fonts and the ghosts the page wears (`ghosts/`, the
   app's masks, painted in the site's ink) from the kit and the app; run it when either changes and commit what it
   writes.
-- **The screens** (`shots/`) are the web build's own, seeded with a handful of notes - one with the AI's changes still
+- **The screens** (`shots/`) are the web build's own, seeded with a handful of notes (and a Product notebook of
+  tickets, a query board and table, and a note of to-dos with fields, dated a day back so the home page is as it was) - one with the AI's changes still
   marked, as ai/marks.ts keeps them, and one Claude wrote - and drawn at a phone's size and a desk's in the dark page:
-  `npm run build`, `npx vite preview --port 4173`, then `node scripts/landing-shots.mjs`. Take them again when the
+  `npm run build`, `npx vite preview --port 4173`, then `node scripts/landing-shots.mjs` (`PLAYWRIGHT=` the path of `npx playwright`'s copy where there is no global one). Take them again when the
   app's look changes.
+- **Plan and Connected** (2026-10-01; Matt: "details about our custom formatting for tickets, boards, queries etc
+  and show how Claude can help manage them as well as our notion integration use real company logos"). Plan is a
+  query drawn as a ticket board on a desk's screen (`shots/query.webp`), then to-dos with fields, a ticket, a query
+  as a table and a board, each with the lines that draw it; Connected is a card for Claude (what to ask it, what it
+  will and will not do, the connector's address) and one for Notion. The two logos are Notion's and Claude's own,
+  from Simple Icons (`brands/`), drawn inline: Claude's in its orange, Notion's in the page's ink.
+- **The formatting reference** (`reference.html`, Matt: "a easy to follow reference sheet for all of the formatting
+  base markdown and our custom formatting") is written by `src/landing/reference.ts` from the Academy's lessons, so
+  it says what the app teaches: standard Markdown first, then each chapter's own marks, each with its characters,
+  what it does and an example to copy (`reference.js`). `src/landing/reference.test.ts` fails while the page is behind
+  the lessons; `WRITE_REFERENCE=1 npx vitest run src/landing/reference.test.ts` writes it again.
 - **What it says is what the app does.** Each claim is the Guide's, the code's, or docs/store/play/FEATURES.md's; a
   feature that changes is a sentence here to change.
 - **The stores** are one line each in `home.js` (`STORES`). Null, a store's button says Coming soon and is not a link;

@@ -1,0 +1,906 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Formatting reference · Ghost.md</title>
+    <meta name="description" content="Every mark a Ghost.md note can carry, on one page: standard Markdown, then to-dos with due days and people, tickets, boards, queries, maths and the rest, each with an example to copy." />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <meta name="theme-color" content="#0b0b0b" />
+    <!--
+      Written by src/landing/reference.ts from the Academy's lessons (src/app/academy/lessons.ts): change a lesson, then
+      WRITE_REFERENCE=1 npx vitest run src/landing/reference.test.ts writes this page again. Do not edit it by hand.
+    -->
+    <link rel="preload" href="fonts/inter.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="glacier/tokens.css" />
+    <link rel="stylesheet" href="site.css" />
+    <link rel="stylesheet" href="home.css" />
+    <link rel="stylesheet" href="reference.css" />
+    <script src="theme.js"></script>
+    <script src="reference.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to the page</a>
+
+    <header class="bar">
+      <nav class="bar-in" aria-label="Ghost.md">
+        <a class="brand" href="/"><img src="icon.png" width="32" height="32" alt="" /><span>Ghost.md</span></a>
+        <ul class="bar-links">
+          <li><a href="/#organise">Organise</a></li>
+          <li><a href="/#plan">Plan</a></li>
+          <li><a href="/#ai">AI</a></li>
+          <li><a href="reference.html" aria-current="page">Formatting</a></li>
+        </ul>
+        <a class="pill pill-ink bar-cta" href="/#download">Download</a>
+      </nav>
+    </header>
+
+    <main id="main" class="wrap ref">
+      <header class="ref-top">
+        <p class="eyebrow">Reference</p>
+        <h1>Every mark a note can carry.</h1>
+        <p class="lead">A note is plain Markdown. Type a mark's characters and Ghost.md draws what they mean; in any other app they still read as words. Standard Markdown comes first, then what Ghost.md adds.</p>
+        <nav class="ref-contents" aria-label="On this page">
+          <ul><li><a href="#markdown">Standard Markdown</a></li><li><a href="#more-markdown">More Markdown</a></li><li><a href="#lines-that-do-more">Lines that do more</a></li><li><a href="#links-and-places">Links and places</a></li><li><a href="#boards-and-to-dos">Boards and to-dos</a></li><li><a href="#tickets-and-queries">Tickets and queries</a></li><li><a href="#marks-and-effects">Marks and effects</a></li></ul>
+        </nav>
+      </header>
+
+        <section class="ref-section" id="markdown" aria-labelledby="markdown-title">
+          <header class="ref-head">
+            <h2 id="markdown-title">Standard Markdown</h2>
+            <p>What every Markdown app reads the same way: write these anywhere and they keep their meaning.</p>
+          </header>
+          <article class="ref-row" id="a-title">
+            <div class="ref-name">
+              <h3>A title</h3>
+              <code class="ref-symbol">#</code>
+            </div>
+            <p class="ref-what">A note usually starts with its name. One # and a space makes that line the title, and it is what the note is called in your list.</p>
+            <div class="ref-example">
+              <pre><code># Weekend trip</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="# Weekend trip" aria-label="Copy the example for A title">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-heading">
+            <div class="ref-name">
+              <h3>A heading</h3>
+              <code class="ref-symbol">##</code>
+            </div>
+            <p class="ref-what">More hashes, smaller heading: ## for a part of the note, ### for a part of that. It is how a long note gets somewhere to look.</p>
+            <div class="ref-example">
+              <pre><code>## The budget</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="## The budget" aria-label="Copy the example for A heading">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="bold">
+            <div class="ref-name">
+              <h3>Bold</h3>
+              <code class="ref-symbol">**</code>
+            </div>
+            <p class="ref-what">Two stars either side of some words make them bold. The stars themselves go once the line is written.</p>
+            <div class="ref-example">
+              <pre><code>The train leaves **Friday at noon**</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="The train leaves **Friday at noon**" aria-label="Copy the example for Bold">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="italic">
+            <div class="ref-name">
+              <h3>Italic</h3>
+              <code class="ref-symbol">_</code>
+            </div>
+            <p class="ref-what">One underscore either side leans the words over. It is quieter than bold: an aside, a name, a word said with a shrug.</p>
+            <div class="ref-example">
+              <pre><code>we could take the coast road _if the weather holds_</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="we could take the coast road _if the weather holds_" aria-label="Copy the example for Italic">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="bold-and-italic">
+            <div class="ref-name">
+              <h3>Bold and italic</h3>
+              <code class="ref-symbol">***</code>
+            </div>
+            <p class="ref-what">Three stars either side make words bold and italic at once. Keep it for the one thing that must not be missed.</p>
+            <div class="ref-example">
+              <pre><code>the deposit is ***not*** refundable</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="the deposit is ***not*** refundable" aria-label="Copy the example for Bold and italic">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="struck-through">
+            <div class="ref-name">
+              <h3>Struck through</h3>
+              <code class="ref-symbol">~~</code>
+            </div>
+            <p class="ref-what">Two squiggles either side cross the words out. Good for a plan that changed, where you still want to see what it was.</p>
+            <div class="ref-example">
+              <pre><code>we are going ~~on Thursday~~ on Friday</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="we are going ~~on Thursday~~ on Friday" aria-label="Copy the example for Struck through">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="code">
+            <div class="ref-name">
+              <h3>Code</h3>
+              <code class="ref-symbol">`</code>
+            </div>
+            <p class="ref-what">A backtick either side sets the words in the typewriter face and leaves them exactly as you typed them: a command, a filename, a password to read out.</p>
+            <div class="ref-example">
+              <pre><code>run `npm run dev` first</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="run `npm run dev` first" aria-label="Copy the example for Code">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-link">
+            <div class="ref-name">
+              <h3>A link</h3>
+              <code class="ref-symbol">[ ]( )</code>
+            </div>
+            <p class="ref-what">The words people read go in square brackets, and where they point goes in round ones after it. The note shows the words, not the address.</p>
+            <div class="ref-example">
+              <pre><code>[Ghost.md](https://attack.fm/glyph) is the app this is in</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="[Ghost.md](https://attack.fm/glyph) is the app this is in" aria-label="Copy the example for A link">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-list">
+            <div class="ref-name">
+              <h3>A list</h3>
+              <code class="ref-symbol">-</code>
+            </div>
+            <p class="ref-what">A dash and a space starts a list, one line each. Press Enter and the next line is a bullet too.</p>
+            <div class="ref-example">
+              <pre><code>- Oat milk
+- Rye bread
+- Coffee</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="- Oat milk
+- Rye bread
+- Coffee" aria-label="Copy the example for A list">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="in-order">
+            <div class="ref-name">
+              <h3>In order</h3>
+              <code class="ref-symbol">1.</code>
+            </div>
+            <p class="ref-what">A number, a dot and a space when the order is the point: steps to follow, one after another.</p>
+            <div class="ref-example">
+              <pre><code>1. Unplug it
+2. Wait a minute
+3. Plug it back in</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="1. Unplug it
+2. Wait a minute
+3. Plug it back in" aria-label="Copy the example for In order">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-to-do">
+            <div class="ref-name">
+              <h3>A to-do</h3>
+              <code class="ref-symbol">- [ ]</code>
+            </div>
+            <p class="ref-what">A dash, then a box: - [ ] and the thing to do. Tap the box in a note to tick it off, or type an x between the brackets.</p>
+            <div class="ref-example">
+              <pre><code>- [ ] Book the cabin
+- [x] Pick a date</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="- [ ] Book the cabin
+- [x] Pick a date" aria-label="Copy the example for A to-do">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-quote">
+            <div class="ref-name">
+              <h3>A quote</h3>
+              <code class="ref-symbol">&gt;</code>
+            </div>
+            <p class="ref-what">A &gt; and a space sets a line apart: somebody else’s words, or something you want to stand away from the rest.</p>
+            <div class="ref-example">
+              <pre><code>&gt; The deposit comes back in full.</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="&gt; The deposit comes back in full." aria-label="Copy the example for A quote">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-dividing-line">
+            <div class="ref-name">
+              <h3>A dividing line</h3>
+              <code class="ref-symbol">---</code>
+            </div>
+            <p class="ref-what">Three dashes on a line of their own draw a line across the note: one thing ends, another starts.</p>
+            <div class="ref-example">
+              <pre><code>Packing
+
+---
+
+On the way back</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="Packing
+
+---
+
+On the way back" aria-label="Copy the example for A dividing line">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-block-of-code">
+            <div class="ref-name">
+              <h3>A block of code</h3>
+              <code class="ref-symbol">```</code>
+            </div>
+            <p class="ref-what">Three backticks above and below a few lines keeps every one of them exactly as typed, and colours the code if you say what it is after the first three.</p>
+            <div class="ref-example">
+              <pre><code>```js
+const note = &quot;hello&quot;;
+```</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="```js
+const note = &quot;hello&quot;;
+```" aria-label="Copy the example for A block of code">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-table">
+            <div class="ref-name">
+              <h3>A table</h3>
+              <code class="ref-symbol">| |</code>
+            </div>
+            <p class="ref-what">Pipes between the cells, and a row of dashes under the first row. In a note the table is drawn as a table; a tap on it opens its pipes to change it, and it is drawn again when you leave it.</p>
+            <div class="ref-example">
+              <pre><code>| What | Packed |
+| --- | --- |
+| Tent | Yes |</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="| What | Packed |
+| --- | --- |
+| Tent | Yes |" aria-label="Copy the example for A table">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-picture">
+            <div class="ref-name">
+              <h3>A picture</h3>
+              <code class="ref-symbol">![ ]( )</code>
+            </div>
+            <p class="ref-what">An exclamation mark, what the picture shows in square brackets, and where it is in round ones. In a note you seldom type it: paste a picture, or press and hold and choose Add image, and the line is written for you.</p>
+            <div class="ref-example">
+              <pre><code>![A cassette](image/sample-tape.svg)</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="![A cassette](image/sample-tape.svg)" aria-label="Copy the example for A picture">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-footnote">
+            <div class="ref-name">
+              <h3>A footnote</h3>
+              <code class="ref-symbol">[^ ]</code>
+            </div>
+            <p class="ref-what">A caret and a name in square brackets marks the words, and a line that starts with the same mark and a colon says what it is. In a note the mark is raised, and a tap on it shows the small print.</p>
+            <div class="ref-example">
+              <pre><code>four hundred[^sam]
+
+[^sam]: Sam said so.</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="four hundred[^sam]
+
+[^sam]: Sam said so." aria-label="Copy the example for A footnote">Copy</button>
+            </div>
+          </article>
+        </section>
+
+        <section class="ref-section" id="more-markdown" aria-labelledby="more-markdown-title">
+          <header class="ref-head">
+            <h2 id="more-markdown-title">More Markdown</h2>
+            <p>Tables, pictures, footnotes, maths, callouts and diagrams.</p>
+          </header>
+          <article class="ref-row" id="a-video">
+            <div class="ref-name">
+              <h3>A video</h3>
+              <code class="ref-symbol">[![ ]( )]( )</code>
+            </div>
+            <p class="ref-what">A picture of the film’s first frame, linked to the film itself. You never type it: on Android, the + beside an empty line writes it when you choose A video. The film stays on the phone it was added on; everywhere else the still shows.</p>
+            <div class="ref-example">
+              <pre><code>[![video 0:12](image/sample-tape.svg)](video/a1b2c3.mp4)</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="[![video 0:12](image/sample-tape.svg)](video/a1b2c3.mp4)" aria-label="Copy the example for A video">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="raised">
+            <div class="ref-name">
+              <h3>Raised</h3>
+              <code class="ref-symbol">^ ^</code>
+            </div>
+            <p class="ref-what">A caret either side lifts part of a word above the line: the 2nd of June, a power in a sum.</p>
+            <div class="ref-example">
+              <pre><code>the 2^nd^ of June</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="the 2^nd^ of June" aria-label="Copy the example for Raised">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="lowered">
+            <div class="ref-name">
+              <h3>Lowered</h3>
+              <code class="ref-symbol">~ ~</code>
+            </div>
+            <p class="ref-what">One squiggle either side drops part of a word below the line, the way water is written. Two squiggles cross words out, which is a lesson of its own.</p>
+            <div class="ref-example">
+              <pre><code>H~2~O</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="H~2~O" aria-label="Copy the example for Lowered">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-definition">
+            <div class="ref-name">
+              <h3>A definition</h3>
+              <code class="ref-symbol">:</code>
+            </div>
+            <p class="ref-what">A word on one line, and its meaning on the next, starting with a colon and a space. The colon goes at the start of the meaning’s line, not after the word, which is how Markdown apps know it is a definition; drawn, it is gone and the meaning hangs under the word. It is how a glossary is written.</p>
+            <div class="ref-example">
+              <pre><code>Deposit
+: what you pay up front</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="Deposit
+: what you pay up front" aria-label="Copy the example for A definition">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="maths">
+            <div class="ref-name">
+              <h3>Maths</h3>
+              <code class="ref-symbol">$</code>
+            </div>
+            <p class="ref-what">A dollar sign either side makes a formula, drawn as one: a raised power, a fraction, a Greek letter. Two either side, alone on a line, set it in the middle of the page. With the caret on its line you see what you typed, to edit.</p>
+            <div class="ref-example">
+              <pre><code>the area is $\pi r^2$, and half is $\frac{1}{2}$</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="the area is $\pi r^2$, and half is $\frac{1}{2}$" aria-label="Copy the example for Maths">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="an-emoji">
+            <div class="ref-name">
+              <h3>An emoji</h3>
+              <code class="ref-symbol">: :</code>
+            </div>
+            <p class="ref-what">A name between colons becomes its emoji: :tada: is a party popper. The name comes back while the caret is on the line, and a name Ghost.md does not know stays as it was typed.</p>
+            <div class="ref-example">
+              <pre><code>shipped :tada:</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="shipped :tada:" aria-label="Copy the example for An emoji">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-callout">
+            <div class="ref-name">
+              <h3>A callout</h3>
+              <code class="ref-symbol">[! ]</code>
+            </div>
+            <p class="ref-what">A quote whose first line is [!NOTE] becomes a box of its own. TIP, IMPORTANT, WARNING and CAUTION work the same way.</p>
+            <div class="ref-example">
+              <pre><code>&gt; [!NOTE]
+&gt; The deposit comes back in full.</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="&gt; [!NOTE]
+&gt; The deposit comes back in full." aria-label="Copy the example for A callout">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-diagram">
+            <div class="ref-name">
+              <h3>A diagram</h3>
+              <code class="ref-symbol">```mermaid</code>
+            </div>
+            <p class="ref-what">A block of code marked mermaid is drawn as the diagram it describes: boxes, and the arrows between them. Tap a drawn diagram in a note to change its words.</p>
+            <div class="ref-example">
+              <pre><code>```mermaid
+flowchart TD
+  A[Speak] --&gt; B[Note]
+```</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="```mermaid
+flowchart TD
+  A[Speak] --&gt; B[Note]
+```" aria-label="Copy the example for A diagram">Copy</button>
+            </div>
+          </article>
+        </section>
+
+        <section class="ref-section" id="lines-that-do-more" aria-labelledby="lines-that-do-more-title">
+          <header class="ref-head">
+            <h2 id="lines-that-do-more-title">Lines that do more</h2>
+            <p>Tags, choices, counters, sums and blanks for the AI: lines whose words the note works with.</p>
+          </header>
+          <article class="ref-row" id="a-tag">
+            <div class="ref-name">
+              <h3>A tag</h3>
+              <code class="ref-symbol">#</code>
+            </div>
+            <p class="ref-what">A hash against a word, with no space between, tags the line: #web. A tag can hold a slash, #work/clients, which apps like Obsidian read as one tag inside another. A hash and a space at the start of a line is a heading instead.</p>
+            <div class="ref-example">
+              <pre><code>- [ ] Ship the pricing page #web</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="- [ ] Ship the pricing page #web" aria-label="Copy the example for A tag">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-choice">
+            <div class="ref-name">
+              <h3>A choice</h3>
+              <code class="ref-symbol">- ( )</code>
+            </div>
+            <p class="ref-what">Round brackets on a list make a choice. One in the group is picked, with an x, and a tap on another picks it and clears the rest. Try it on the one drawn below.</p>
+            <div class="ref-example">
+              <pre><code>Where do we stay?
+- ( ) Tent
+- (x) Cabin</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="Where do we stay?
+- ( ) Tent
+- (x) Cabin" aria-label="Copy the example for A choice">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-counter">
+            <div class="ref-name">
+              <h3>A counter</h3>
+              <code class="ref-symbol">[ / ]</code>
+            </div>
+            <p class="ref-what">A count and a goal in square brackets, like [3/8], is a counter. In a note a tap adds one and a hold takes one away, never past the goal.</p>
+            <div class="ref-example">
+              <pre><code>- Water [3/8]</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="- Water [3/8]" aria-label="Copy the example for A counter">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-sum">
+            <div class="ref-name">
+              <h3>A sum</h3>
+              <code class="ref-symbol">=</code>
+            </div>
+            <p class="ref-what">A line that starts with = and a space shows its answer after it. The answer is never written into the note, so it changes when a number does.</p>
+            <div class="ref-example">
+              <pre><code>= $450 + 120 * 2</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="= $450 + 120 * 2" aria-label="Copy the example for A sum">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-blank-for-the-ai">
+            <div class="ref-name">
+              <h3>A blank for the AI</h3>
+              <code class="ref-symbol">{?}</code>
+            </div>
+            <p class="ref-what">Curly brackets and a question mark ask a question where its answer belongs. A total, a date or a conversion is worked out at once. Anything else waits for Fill: the model on the phone answers with a dotted line under what it wrote, and something live, like the weather or a rate, is looked up online when you press it, with only the question sent.</p>
+            <div class="ref-example">
+              <pre><code>Days until Christmas: {?}</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="Days until Christmas: {?}" aria-label="Copy the example for A blank for the AI">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-hidden-line">
+            <div class="ref-name">
+              <h3>A hidden line</h3>
+              <code class="ref-symbol">&gt;|</code>
+            </div>
+            <p class="ref-what">A quote whose first character is a bar goes to smoke until the caret is in it: the answer to a riddle, or a code nobody should read over your shoulder.</p>
+            <div class="ref-example">
+              <pre><code>&gt;| The answer is forty-two.</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="&gt;| The answer is forty-two." aria-label="Copy the example for A hidden line">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="progress">
+            <div class="ref-name">
+              <h3>Progress</h3>
+              <code class="ref-symbol">#</code>
+            </div>
+            <p class="ref-what">Nothing to type but a heading and its to-dos: the heading counts them, “1 of 2”, and says so when they are all done.</p>
+            <div class="ref-example">
+              <pre><code>## Packing
+- [x] Tent
+- [ ] Stove</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="## Packing
+- [x] Tent
+- [ ] Stove" aria-label="Copy the example for Progress">Copy</button>
+            </div>
+          </article>
+        </section>
+
+        <section class="ref-section" id="links-and-places" aria-labelledby="links-and-places-title">
+          <header class="ref-head">
+            <h2 id="links-and-places-title">Links and places</h2>
+            <p>Another note, the bookmark you left, and a place on a map.</p>
+          </header>
+          <article class="ref-row" id="another-note">
+            <div class="ref-name">
+              <h3>Another note</h3>
+              <code class="ref-symbol">[[ ]]</code>
+            </div>
+            <p class="ref-what">Two square brackets either side of a note’s name link to that note. A name with no note yet is drawn dashed, and a tap on it makes the note.</p>
+            <div class="ref-example">
+              <pre><code>the deposit is in [[The cabin trip]]</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="the deposit is in [[The cabin trip]]" aria-label="Copy the example for Another note">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="the-bookmark">
+            <div class="ref-name">
+              <h3>The bookmark</h3>
+              <code class="ref-symbol">§§</code>
+            </div>
+            <p class="ref-what">Two section signs at the end of a line are the note’s bookmark, and the note opens there. A note has one; the bookmark button at the top of a note moves it to the line you are on.</p>
+            <div class="ref-example">
+              <pre><code>the deposit is four hundred §§</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="the deposit is four hundred §§" aria-label="Copy the example for The bookmark">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-place">
+            <div class="ref-name">
+              <h3>A place</h3>
+              <code class="ref-symbol">[ ](geo: )</code>
+            </div>
+            <p class="ref-what">A link to geo: and two numbers, alone on its line, is a place, with its map drawn under it. The + beside an empty line writes one for where you are.</p>
+            <div class="ref-example">
+              <pre><code>[Cais do Sodré, Lisbon](geo:38.7057,-9.1446)</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="[Cais do Sodré, Lisbon](geo:38.7057,-9.1446)" aria-label="Copy the example for A place">Copy</button>
+            </div>
+          </article>
+        </section>
+
+        <section class="ref-section" id="boards-and-to-dos" aria-labelledby="boards-and-to-dos-title">
+          <header class="ref-head">
+            <h2 id="boards-and-to-dos-title">Boards and to-dos</h2>
+            <p>Due days and people on a to-do, names for items, and boards made of them.</p>
+          </header>
+          <article class="ref-row" id="fields-on-a-to-do">
+            <div class="ref-name">
+              <h3>Fields on a to-do</h3>
+              <code class="ref-symbol">📅</code>
+            </div>
+            <p class="ref-what">A to-do can say when it is due, how much it matters and who it is for, in the signs Obsidian Tasks reads: 📅 and a date, ⏫ for high priority, @ before a name, and [effort:: 3] for anything else. In a note each is a chip: the date says “Tomorrow”, and goes red once it has passed. Tap one to change it, or press and hold a to-do to add one.</p>
+            <div class="ref-example">
+              <pre><code>- [ ] Fix the login loop @sam ⏫ 📅 2026-10-03</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="- [ ] Fix the login loop @sam ⏫ 📅 2026-10-03" aria-label="Copy the example for Fields on a to-do">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-name-for-an-item">
+            <div class="ref-name">
+              <h3>A name for an item</h3>
+              <code class="ref-symbol">^</code>
+            </div>
+            <p class="ref-what">A space, a caret and a name at the very end of a list item names it, so a board or a sentence can point at it. The name is drawn small and faint.</p>
+            <div class="ref-example">
+              <pre><code>- [ ] Ship the pricing page ^ship-page</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="- [ ] Ship the pricing page ^ship-page" aria-label="Copy the example for A name for an item">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="that-item-from-the-words">
+            <div class="ref-name">
+              <h3>That item, from the words</h3>
+              <code class="ref-symbol">[[#^ ]]</code>
+            </div>
+            <p class="ref-what">Two square brackets around a hash, a caret and an item’s name point at that item from anywhere in the note. A tap goes to its line.</p>
+            <div class="ref-example">
+              <pre><code>the page is waiting on [[#^ask-sam]]
+
+- Ask Sam about the copy ^ask-sam</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="the page is waiting on [[#^ask-sam]]
+
+- Ask Sam about the copy ^ask-sam" aria-label="Copy the example for That item, from the words">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-board">
+            <div class="ref-name">
+              <h3>A board</h3>
+              <code class="ref-symbol">```board</code>
+            </div>
+            <p class="ref-what">A block marked board lays named items out as columns. Each line of it is a column: its name, a colon, and the names of the items in it. The items stay in the note as they were, and dragging a card to another column moves it there.</p>
+            <div class="ref-example">
+              <pre><code>```board
+To do: ship-page
+Done: pick-date
+```
+
+- [ ] Ship the pricing page ^ship-page
+- [x] Pick a launch date ^pick-date</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="```board
+To do: ship-page
+Done: pick-date
+```
+
+- [ ] Ship the pricing page ^ship-page
+- [x] Pick a launch date ^pick-date" aria-label="Copy the example for A board">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-board-s-height">
+            <div class="ref-name">
+              <h3>A board’s height</h3>
+              <code class="ref-symbol">```board height=</code>
+            </div>
+            <p class="ref-what">Left to itself a board is as tall as its longest column. Drag the line under it to set a height, and the columns scroll inside it; the height is written on the fence as height=, in the board’s own text size. A double tap on the line takes it off again.</p>
+            <div class="ref-example">
+              <pre><code>```board height=12
+To do: ship-page
+Done: pick-date
+```
+
+- [ ] Ship the pricing page ^ship-page
+- [x] Pick a launch date ^pick-date</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="```board height=12
+To do: ship-page
+Done: pick-date
+```
+
+- [ ] Ship the pricing page ^ship-page
+- [x] Pick a launch date ^pick-date" aria-label="Copy the example for A board’s height">Copy</button>
+            </div>
+          </article>
+        </section>
+
+        <section class="ref-section" id="tickets-and-queries" aria-labelledby="tickets-and-queries-title">
+          <header class="ref-head">
+            <h2 id="tickets-and-queries-title">Tickets and queries</h2>
+            <p>Notes as tickets, and queries that list, count and lay out what matches in every note.</p>
+          </header>
+          <article class="ref-row" id="a-ticket">
+            <div class="ref-name">
+              <h3>A ticket</h3>
+              <code class="ref-symbol">type: ticket</code>
+            </div>
+            <p class="ref-what">A note whose front matter says type: ticket is a ticket. Its status, who it is for, its priority and its due day sit under that line, and are drawn as a card you tap to change. A notebook with a ticket key numbers its tickets, and [[GHO-12]] links to one by its key.</p>
+            <div class="ref-example">
+              <pre><code>---
+type: ticket
+id: GHO-12
+status: In progress
+assignee: Sam
+---
+# Fix the login loop</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="---
+type: ticket
+id: GHO-12
+status: In progress
+assignee: Sam
+---
+# Fix the login loop" aria-label="Copy the example for A ticket">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-ticket-notebook">
+            <div class="ref-name">
+              <h3>A ticket notebook</h3>
+              <code class="ref-symbol">key:</code>
+            </div>
+            <p class="ref-what">A notebook whose front matter has a key numbers the tickets made in it: key: GLY gives GLY-1, then GLY-2 and on. Make this a ticket, under More on the +, turns the note you are in into its notebook’s next ticket.</p>
+            <div class="ref-example">
+              <pre><code>---
+book: true
+key: GLY
+---
+# Glyph
+
+- [[GLY-1]]</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="---
+book: true
+key: GLY
+---
+# Glyph
+
+- [[GLY-1]]" aria-label="Copy the example for A ticket notebook">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-query">
+            <div class="ref-name">
+              <h3>A query</h3>
+              <code class="ref-symbol">```query</code>
+            </div>
+            <p class="ref-what">A fence called query lists what matches across every note: to-dos, tickets or notes. Say where from, what has to be true, and how to show it, a line each, and it is drawn as a list, a table, a board, a month or a timeline that keeps up as your notes change. More › A database, on the + beside an empty line, writes a ready-made one.</p>
+            <div class="ref-example">
+              <pre><code>```query
+from: tasks
+where: due &lt;= today+7
+show: list
+```</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="```query
+from: tasks
+where: due &lt;= today+7
+show: list
+```" aria-label="Copy the example for A query">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="narrow-it-down">
+            <div class="ref-name">
+              <h3>Narrow it down</h3>
+              <code class="ref-symbol">where:</code>
+            </div>
+            <p class="ref-what">where: keeps only what is true: status != Done, due &lt; today, priority &gt;= high, assignee = Sam, joined with and or or. sort: puts what is left in order, by one field or several.</p>
+            <div class="ref-example">
+              <pre><code>```query
+from: tickets
+where: status != Done and priority &gt;= high
+sort: due
+```</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="```query
+from: tickets
+where: status != Done and priority &gt;= high
+sort: due
+```" aria-label="Copy the example for Narrow it down">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="show-it-another-way">
+            <div class="ref-name">
+              <h3>Show it another way</h3>
+              <code class="ref-symbol">show:</code>
+            </div>
+            <p class="ref-what">show: draws the same answer as a table, a list, a board, a calendar month, a gantt timeline or a count. A query drawn as a board keeps a height as a board does: drag the line under it.</p>
+            <div class="ref-example">
+              <pre><code>```query
+from: tasks
+show: calendar
+```</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="```query
+from: tasks
+show: calendar
+```" aria-label="Copy the example for Show it another way">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="group-and-add-up">
+            <div class="ref-name">
+              <h3>Group and add up</h3>
+              <code class="ref-symbol">group:</code>
+            </div>
+            <p class="ref-what">group: gives each value of one field its own heading, or its own lane on a board. total: adds a number up, under each group and at the end: an estimate, or any field of your own.</p>
+            <div class="ref-example">
+              <pre><code>```query
+from: tickets
+group: assignee
+total: estimate
+show: table
+```</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="```query
+from: tickets
+group: assignee
+total: estimate
+show: table
+```" aria-label="Copy the example for Group and add up">Copy</button>
+            </div>
+          </article>
+        </section>
+
+        <section class="ref-section" id="marks-and-effects" aria-labelledby="marks-and-effects-title">
+          <header class="ref-head">
+            <h2 id="marks-and-effects-title">Marks and effects</h2>
+            <p>Highlights, spoilers, asides and the five effects, from the Marks plugin.</p>
+          </header>
+          <article class="ref-row" id="a-spoiler">
+            <div class="ref-name">
+              <h3>A spoiler</h3>
+              <code class="ref-symbol">||</code>
+            </div>
+            <p class="ref-what">Two bars either side turn the words to smoke until the caret is in them: the end of a film, a surprise.</p>
+            <div class="ref-example">
+              <pre><code>the ending: ||the butler did it||</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="the ending: ||the butler did it||" aria-label="Copy the example for A spoiler">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-highlight">
+            <div class="ref-name">
+              <h3>A highlight</h3>
+              <code class="ref-symbol">==</code>
+            </div>
+            <p class="ref-what">Two equals signs either side put a wash of colour behind the words, for the line you will want again.</p>
+            <div class="ref-example">
+              <pre><code>meet at ==the north gate==</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="meet at ==the north gate==" aria-label="Copy the example for A highlight">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-coloured-highlight">
+            <div class="ref-name">
+              <h3>A coloured highlight</h3>
+              <code class="ref-symbol">==( )</code>
+            </div>
+            <p class="ref-what">A colour’s name in brackets straight after a highlight changes its colour: blue, red, amber, green, teal, purple or gray.</p>
+            <div class="ref-example">
+              <pre><code>==the cabin key==(green) and ==the deadline==(red)</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="==the cabin key==(green) and ==the deadline==(red)" aria-label="Copy the example for A coloured highlight">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="an-aside">
+            <div class="ref-name">
+              <h3>An aside</h3>
+              <code class="ref-symbol">%%</code>
+            </div>
+            <p class="ref-what">Two percent signs either side make a note to yourself inside the note: smaller, quieter, leaning.</p>
+            <div class="ref-example">
+              <pre><code>the train at nine %%or the one after%%</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="the train at nine %%or the one after%%" aria-label="Copy the example for An aside">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="unsure">
+            <div class="ref-name">
+              <h3>Unsure</h3>
+              <code class="ref-symbol">??</code>
+            </div>
+            <p class="ref-what">Two question marks either side draw a dotted line under a fact to check later.</p>
+            <div class="ref-example">
+              <pre><code>the deposit is ??four hundred??</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="the deposit is ??four hundred??" aria-label="Copy the example for Unsure">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-note-on-a-mark">
+            <div class="ref-name">
+              <h3>A note on a mark</h3>
+              <code class="ref-symbol">( )</code>
+            </div>
+            <p class="ref-what">Words in brackets straight after a mark are a note on it, and a tap on the words in a note shows it. On a fact you are unsure of, it says why.</p>
+            <div class="ref-example">
+              <pre><code>??four hundred??(Sam said 400)</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="??four hundred??(Sam said 400)" aria-label="Copy the example for A note on a mark">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-redaction">
+            <div class="ref-name">
+              <h3>A redaction</h3>
+              <code class="ref-symbol">@@</code>
+            </div>
+            <p class="ref-what">Two at signs either side put a solid bar of ink over the words. It lifts while the caret is in them, so they can still be read and edited, and a share still has the words.</p>
+            <div class="ref-example">
+              <pre><code>the name on the lease is @@Sam Ortiz@@</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="the name on the lease is @@Sam Ortiz@@" aria-label="Copy the example for A redaction">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-shout">
+            <div class="ref-name">
+              <h3>A shout</h3>
+              <code class="ref-symbol">^^</code>
+            </div>
+            <p class="ref-what">Two carets either side set the words in spaced small capitals: emphasis that is not bold.</p>
+            <div class="ref-example">
+              <pre><code>bring ^^the tickets^^</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="bring ^^the tickets^^" aria-label="Copy the example for A shout">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="added">
+            <div class="ref-name">
+              <h3>Added</h3>
+              <code class="ref-symbol">++</code>
+            </div>
+            <p class="ref-what">Two plus signs either side underline what was added, the partner of struck through for what went.</p>
+            <div class="ref-example">
+              <pre><code>we leave at ~~nine~~ ++ten++</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="we leave at ~~nine~~ ++ten++" aria-label="Copy the example for Added">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="heat">
+            <div class="ref-name">
+              <h3>Heat</h3>
+              <code class="ref-symbol">🔥🔥</code>
+            </div>
+            <p class="ref-what">Two flames either side make the words bold, and the line above them wavers in the heat coming off them. An effect lifts while the caret is in its words, so they edit as plain text.</p>
+            <div class="ref-example">
+              <pre><code>The air above wavers
+🔥🔥too hot to touch🔥🔥</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="The air above wavers
+🔥🔥too hot to touch🔥🔥" aria-label="Copy the example for Heat">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="frost">
+            <div class="ref-name">
+              <h3>Frost</h3>
+              <code class="ref-symbol">❄️❄️</code>
+            </div>
+            <p class="ref-what">Two snowflakes either side turn the words cold, a rime creeping over their edges and settling.</p>
+            <div class="ref-example">
+              <pre><code>the pond is ❄️❄️frozen solid❄️❄️</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="the pond is ❄️❄️frozen solid❄️❄️" aria-label="Copy the example for Frost">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-wave">
+            <div class="ref-name">
+              <h3>A wave</h3>
+              <code class="ref-symbol">🌊🌊</code>
+            </div>
+            <p class="ref-what">Two waves either side set the words bobbing along the line, a ripple passing through them.</p>
+            <div class="ref-example">
+              <pre><code>the boat went 🌊🌊out to sea🌊🌊</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="the boat went 🌊🌊out to sea🌊🌊" aria-label="Copy the example for A wave">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-shimmer">
+            <div class="ref-name">
+              <h3>A shimmer</h3>
+              <code class="ref-symbol">✨✨</code>
+            </div>
+            <p class="ref-what">Two sparkles either side send a glint across the words every few seconds.</p>
+            <div class="ref-example">
+              <pre><code>a ✨✨silver thread✨✨</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="a ✨✨silver thread✨✨" aria-label="Copy the example for A shimmer">Copy</button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-haunting">
+            <div class="ref-name">
+              <h3>A haunting</h3>
+              <code class="ref-symbol">👻👻</code>
+            </div>
+            <p class="ref-what">Two ghosts either side make the words fade almost away and back, slowly, like something passing.</p>
+            <div class="ref-example">
+              <pre><code>and then 👻👻nobody there👻👻</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="and then 👻👻nobody there👻👻" aria-label="Copy the example for A haunting">Copy</button>
+            </div>
+          </article>
+        </section>
+
+      <p class="fine center ref-foot">Learn them one at a time, by typing each, in the app's Academy: Settings › About › Ghost.md Academy. The marks in Marks and effects come with the Marks plugin, on unless you switch it off.</p>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap foot-in">
+        <p class="brand"><img src="icon.png" width="28" height="28" alt="" /><span>Ghost.md</span></p>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="privacy.html">Privacy</a></li>
+          <li><a href="delete-account.html">Delete your account</a></li>
+        </ul>
+      </div>
+    </footer>
+  </body>
+</html>

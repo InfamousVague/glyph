@@ -15,6 +15,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const { chromium } = await import('playwright').catch(async () => {
+  // Not a dependency of the app: the copy `npx playwright` keeps, by its path in PLAYWRIGHT, else a global one.
+  if (process.env.PLAYWRIGHT) return import(process.env.PLAYWRIGHT);
   const { execSync } = await import('node:child_process');
   return import(join(execSync('npm root -g').toString().trim(), 'playwright', 'index.mjs'));
 });
@@ -72,6 +74,24 @@ const AI_MARKS = {
   },
 };
 
+/** An ISO day `days` from today, for the tickets' and the to-dos' due days. */
+const isoIn = (days) => {
+  const d = new Date(now + days * day);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+/** A ticket in the Product notebook (docs/TICKETS.md): its fields in front matter, its words under its heading. */
+const ticket = (n, title, fields, words, ago) =>
+  note(`prd-${n}`, `---\ntype: ticket\nid: PRD-${n}\n${Object.entries(fields).map(([k, v]) => `${k}: ${v}`).join('\n')}\n---\n# ${title}\n\n${words}\n`, ago);
+const TICKETS = [
+  ticket(9, 'Sign-in page on the Mac', { status: 'Done', assignee: 'Sam', priority: 'medium', estimate: 2 }, 'The Mac app signs in with the same page as the phone.', 6 * day),
+  ticket(10, 'Pricing page copy', { status: 'In review', assignee: 'Matt', priority: 'high', due: isoIn(2), estimate: 1 }, 'Three plans, said plainly.', 3 * day),
+  ticket(11, 'Fix the login loop', { status: 'In progress', assignee: 'Sam', priority: 'highest', due: isoIn(1), estimate: 3, 'blocked-by': '"[[PRD-9]]"', labels: '[bug, auth]' }, 'Signing in on the phone sends you back to the sign-in page once the cookie has expired.\n\n- [x] Find where the cookie is dropped\n- [ ] Refresh it before it expires\n- [ ] Test on a slow network', 50 * min),
+  ticket(12, 'Release notes for 1.10', { status: 'To do', assignee: 'Matt', priority: 'medium', due: isoIn(4), estimate: 1 }, 'What changed, in a line each.', 2 * day),
+  ticket(13, 'Offline search', { status: 'To do', assignee: 'Ana', priority: 'low', due: isoIn(9), estimate: 5 }, 'Search every note with no network.', 4 * day),
+  ticket(14, 'Onboarding tour', { status: 'To do', priority: 'low', estimate: 3 }, 'Five screens, skippable.', 8 * day),
+];
+
 const NOTES = [
   note('trip', '# Weekend trip\n\n## Before we go\n\n- [x] Book the cabin\n- [ ] Pick up the ==rental car==(green)\n- [ ] Charge the ||good speaker||\n\nWe need snacks, water, a charger and the good playlist:\n\n- Snacks\n- Water\n- A charger\n- The good playlist\n\n> [!TIP]\n> Leave by ten and the road is ours.\n\n| Day | Where |\n| --- | --- |\n| Sat | The lake |\n| Sun | The ridge walk |\n\nThe code for the gate is @@4417@@ and the wifi is ??probably?? the same as last year. 🔥🔥Hot springs on Sunday.🔥🔥\n', 3 * min, { starred: true }),
   note('wifi', '# Wifi password\n\nThe long one on the router.', 9 * day, { starred: true }),
@@ -107,6 +127,11 @@ const NOTES = [
   note('research', RESEARCH, 7 * min),
   note('ideas', '# Book ideas\n\nA ghost who writes notes for people who forget.', 4 * day),
   note('recipes', '# Recipes\n\nMiso soup: dashi, tofu, wakame.', 40 * day),
+  note('product', `---\ntitle: "Product"\nbook: true\nkey: PRD\nstatuses: [To do, In progress, In review, Done]\n---\n# Product\n\n${TICKETS.map((t) => `- [[${/^# (.*)$/m.exec(t.body)[1]}]]`).join('\n')}\n`, 6 * day),
+  ...TICKETS,
+  note('sprint', '# This sprint\n\n```query\nfrom: tickets [[Product]]\nshow: board\n```\n', 1.2 * day),
+  note('open', '# Open tickets\n\n```query\nfrom: tickets [[Product]]\nwhere: status != Done\nsort: priority, due\ncolumns: id, title, status, estimate\ntotal: estimate\nshow: table\n```\n', 1.3 * day),
+  note('errands', `# Errands\n\n- [ ] Renew the car insurance @matt ⏫ 📅 ${isoIn(1)}\n- [ ] Pick up the frames #home 📅 ${isoIn(3)}\n- [ ] Book the dentist @ana 🔽\n- [x] Return the library books 📅 ${isoIn(-1)}\n\nWhere do we stay?\n- ( ) Tent\n- (x) Cabin\n\nFuel and snacks:\n\n= $45 + $18 * 2\n`, 1.1 * day),
 ];
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM ?? undefined }).catch(() => chromium.launch({ executablePath: '/opt/pw-browsers/chromium' }));
@@ -163,6 +188,9 @@ for (const [title, name] of [
   ['Diary', 'journal'],
   ['Launch week', 'ai'],
   ['What people want from a notes app', 'claude'],
+  ['Fix the login loop', 'ticket'],
+  ['Open tickets', 'table'],
+  ['Errands', 'fields'],
 ]) {
   const { page, close } = await device();
   await page.getByText(title, { exact: true }).first().click();
@@ -173,6 +201,14 @@ for (const [title, name] of [
 {
   const { page, close } = await device(true);
   await shot(page, 'desk');
+  await close();
+}
+// A query drawn as a board, on a desk's screen, where its four lanes sit side by side.
+{
+  const { page, close } = await device(true);
+  await page.getByText('This sprint', { exact: true }).first().click();
+  await page.waitForTimeout(1800);
+  await shot(page, 'query');
   await close();
 }
 await browser.close();

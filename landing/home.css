@@ -497,6 +497,187 @@ code {
   border-radius: 1rem;
 }
 
+/* ---- plan: the marks, each with the screen it draws and the lines that draw it --------------------------------- */
+
+.laptop-plan {
+  margin-block: 0 clamp(2.5rem, 6vw, 4rem);
+  padding: 0;
+}
+
+.laptop-plan .laptop {
+  border-radius: 1rem;
+  padding-block-end: 0.6rem;
+}
+
+.laptop-plan .laptop img {
+  border-radius: 0.5rem;
+}
+
+.laptop-plan .laptop::after {
+  display: none;
+}
+
+.laptop-plan figcaption {
+  margin-block-start: var(--glacier-space-4, 1rem);
+}
+
+/* Like the shelf: a row to scroll through on a phone, four across where there is room. */
+.marks {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(78%, 17rem);
+  gap: var(--glacier-space-5, 1.25rem);
+  margin: 0 calc(var(--gutter) * -1);
+  padding: 0 var(--gutter) var(--glacier-space-3, 0.75rem);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--gutter);
+  list-style: none;
+}
+
+.marks li {
+  display: grid;
+  grid-template-rows: auto auto auto 1fr;
+  align-content: start;
+  min-inline-size: 0;
+  scroll-snap-align: start;
+}
+
+.marks h3 {
+  margin: var(--glacier-space-4, 1rem) 0 0.2rem;
+  font-size: var(--glacier-font-size-md, 1rem);
+}
+
+.marks p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+}
+
+@media (min-width: 900px) {
+  .marks {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+}
+
+/* The lines that draw it: the characters themselves, in the typewriter face. */
+.mark-code {
+  align-self: start;
+  margin: var(--glacier-space-3, 0.75rem) 0 0;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-md, 0.6rem);
+  background: color-mix(in oklch, var(--ink) 4%, var(--paper));
+  font-size: 0.8rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+
+.points code,
+.mark-code code {
+  font-family: var(--mono, ui-monospace, monospace);
+  /* The characters as they are typed: JetBrains Mono's ligatures drew != as one sign, which is not what to type. */
+  font-variant-ligatures: none;
+}
+
+/* ---- connected: Claude and Notion, each under its own mark ---------------------------------------------------------- */
+
+.duo {
+  display: grid;
+  gap: var(--glacier-space-5, 1.25rem);
+}
+
+@media (min-width: 900px) {
+  .duo {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.brand-card {
+  display: grid;
+  gap: var(--glacier-space-4, 1rem);
+  min-inline-size: 0;
+  padding: clamp(1.25rem, 3vw, 1.75rem);
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-xl, 1.25rem);
+  background: var(--paper);
+}
+
+.brand-card > p {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.brand-head {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.brand-head h3 {
+  margin: 0;
+  font-size: clamp(1.15rem, 2.4vw, 1.4rem);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.brand-mark {
+  flex: none;
+  inline-size: 2.4rem;
+  block-size: 2.4rem;
+}
+
+/* Each in its own colour: Claude's orange, Notion's ink. */
+.brand-claude {
+  fill: #d97757;
+}
+
+.brand-notion {
+  fill: var(--ink);
+}
+
+.asks {
+  display: grid;
+  gap: var(--glacier-space-3, 0.75rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.asks li {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--glacier-radius-lg, 1rem);
+  background: color-mix(in oklch, var(--ink) 4%, var(--paper));
+}
+
+.asks q {
+  color: var(--ink);
+  font-weight: 600;
+  quotes: '\201C' '\201D';
+}
+
+.asks span {
+  color: var(--ink-2);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+}
+
+.brand-card .connect {
+  margin: 0;
+}
+
+.brand-card .points-stack {
+  margin: 0;
+}
+
 /* ---- private ----------------------------------------------------------------------------------------------------- */
 
 .facts {

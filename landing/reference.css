@@ -1,0 +1,193 @@
+/*
+ * The formatting reference (reference.html, written by src/landing/reference.ts): each mark a row, its name and
+ * characters, what it does, and an example to copy. Three columns where there is room, stacked on a phone.
+ */
+
+.ref {
+  padding-block: clamp(2.5rem, 7vw, 4.5rem) clamp(3rem, 8vw, 5rem);
+}
+
+.ref-top {
+  max-inline-size: 46rem;
+  margin-block-end: clamp(2rem, 5vw, 3rem);
+}
+
+.ref-top h1 {
+  margin: 0;
+  font-size: clamp(2.1rem, 5vw, 3.2rem);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  font-weight: 750;
+  text-wrap: balance;
+}
+
+.ref-top .lead {
+  margin: var(--glacier-space-4, 1rem) 0 0;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+/* The contents: a chip for each section, Markdown apart from Ghost.md's own. */
+.ref-contents {
+  display: grid;
+  gap: 0.4rem;
+  margin-block-start: var(--glacier-space-6, 1.5rem);
+}
+
+.ref-contents p {
+  margin: 0.4rem 0 0;
+  font-size: var(--glacier-font-size-xs, 0.8rem);
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.ref-contents ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ref-contents a {
+  display: inline-block;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-full, 999px);
+  color: var(--ink);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  text-decoration: none;
+}
+
+.ref-contents a:hover {
+  background: color-mix(in oklch, var(--ink) 6%, var(--paper));
+}
+
+.ref-section {
+  padding-block: clamp(1.75rem, 4vw, 2.5rem) 0;
+  scroll-margin-block-start: 5rem;
+}
+
+.ref-head {
+  padding-block-end: var(--glacier-space-3, 0.75rem);
+  border-block-end: 1px solid var(--rule);
+}
+
+.ref-head h2 {
+  margin: 0;
+  font-size: clamp(1.4rem, 3vw, 1.8rem);
+  letter-spacing: -0.025em;
+}
+
+.ref-head p {
+  margin: 0.3rem 0 0;
+  color: var(--ink-2);
+}
+
+.ref-row {
+  display: grid;
+  gap: 0.6rem 1.5rem;
+  padding-block: var(--glacier-space-4, 1rem);
+  border-block-end: 1px solid var(--rule);
+  scroll-margin-block-start: 5rem;
+}
+
+@media (min-width: 900px) {
+  .ref-row {
+    grid-template-columns: minmax(0, 11rem) minmax(0, 1.1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.ref-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.6rem;
+}
+
+@media (min-width: 900px) {
+  .ref-name {
+    flex-direction: column;
+    align-items: start;
+  }
+}
+
+.ref-name h3 {
+  margin: 0;
+  font-size: var(--glacier-font-size-md, 1rem);
+}
+
+.ref-symbol,
+.ref-example code {
+  font-family: var(--mono, ui-monospace, monospace);
+  /* The characters as they are typed: ligatures drew != and <= as single signs. */
+  font-variant-ligatures: none;
+}
+
+.ref-symbol {
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--glacier-radius-sm, 0.35rem);
+  background: color-mix(in oklch, var(--ink) 7%, var(--paper));
+  font-size: 0.85rem;
+  color: var(--ink);
+  white-space: pre;
+}
+
+.ref-what {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  line-height: 1.55;
+}
+
+.ref-example {
+  position: relative;
+  min-inline-size: 0;
+}
+
+.ref-example pre {
+  margin: 0;
+  padding: 0.7rem 4.2rem 0.7rem 0.85rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-md, 0.6rem);
+  background: color-mix(in oklch, var(--ink) 4%, var(--paper));
+  font-size: 0.82rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+
+.ref-copy {
+  position: absolute;
+  inset-block-start: 0.45rem;
+  inset-inline-end: 0.45rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-full, 999px);
+  background: var(--paper);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--glacier-font-size-xs, 0.8rem);
+  cursor: pointer;
+}
+
+.ref-copy:hover {
+  color: var(--ink);
+}
+
+.ref-copy[data-copied] {
+  color: var(--ink);
+  border-color: var(--ink-3);
+}
+
+.ref-foot {
+  margin-block-start: clamp(2rem, 5vw, 3rem);
+}
+
+.bar-links a[aria-current='page'] {
+  color: var(--ink);
+  font-weight: 600;
+}
