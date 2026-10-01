@@ -144,7 +144,8 @@ entry-place: true
 - **The templates:** the date and the time (the default), just the time, a morning page, a day's to-dos, and your
   own. Placeholders are Obsidian's: `{{date}}` (the home page's long day, "Monday 28 September"), `{{time}}` (a
   24-hour clock, as meeting titles have), `{{weekday}}`, `{{title}}`, `{{journal}}`, and Moment's tokens after a colon,
-  words in square brackets. Looked up by their own names only, so `{{constructor}}` is left as typed. The day and the
+  words in square brackets. And one of Ghost.md's, `{{next-id}}`, for a ticket's template: the next key of the notebook
+  the note is made in, `GHO-13`, with an `id:` line that holds only it left out where there is no key (Tickets, below). Looked up by their own names only, so `{{constructor}}` is left as typed. The day and the
   time come from `src/app/core/stamp.ts`, which the + writes its date with.
 - **Making one:** the New notebook sheet's Journal choice, with the template, a preview of an entry made now, and
   the place switch, whose default is this device's Tag new notes. Or a notebook kept as a journal from its More
@@ -176,6 +177,27 @@ entry-place: true
   notebook's pages leave entries out. A journal is shared an entry at a
   time (docs/SHARING.md). Two devices adding lines between syncs merge (docs/SYNC.md). Claude writes an entry with
   `add_journal_entry` (docs/MCP.md).
+
+## Tickets
+
+A notebook can number tickets, as a Jira project does (docs/TICKETS.md, docs/DESIGN.md §157). Its **Ticket key**, in
+its More sheet, writes `key: GHO` beside `book: true`; with one, the index offers **New ticket** beside Add a page, and
+a ticket made there is a page like any other, its line in the index, its note `type: ticket` with the next id,
+`GHO-13`, and the workflow's first open status. The workflow is the notebook's `statuses: [Backlog, To do, Doing,
+Done]`, written by hand, or Backlog, To do, In progress, In review, Done. The next number is one past the highest any
+note names, the Trash's too, so none is given twice. A page that is a ticket says its key and status on its row.
+
+```markdown
+---
+title: "Ghost.md"
+book: true
+key: GHO
+---
+# Ghost.md
+
+- [[Fix the login loop]]
+- [[Fix the session cookie]]
+```
 
 ## Chapter numbers
 
@@ -225,6 +247,7 @@ toggle aren't drawn. It no longer lists the workspace's other notes.
 | `src/app/core/template.ts` | a template filled (`fillTemplate`, `formatStamp`), and where a spoken entry's words go (`openEnd`) |
 | `src/app/book/journalMonths.ts` | the entries by month, a row's words, the bar's time order, a journal's card and the aside's month |
 | `src/app/core/untouched.ts` | the record of an entry nobody has written in yet, on this device, and of a new note given words from its blank page (DESIGN §144) |
+| `src/app/book/tickets.ts` | a notebook's tickets: its key, the next id, the first open status, a new ticket's body, which notebook a ticket is in; pure |
 | `src/app/notes/ownTemplates.ts` | the Templates notebook your own templates are kept in: found by `templates: true`, its pages as the blank page's cards, kept out of Recent and To do |
 | `src/app/book/JournalView.tsx`, `src/app/book/TemplatePicker.tsx` | a journal drawn, and the template's choice with its preview and the place switch |
 | `src/app/core/stamp.ts` | a moment as words: `stamp`, `clockTime`, `longDay` |

@@ -14,6 +14,7 @@ deploys, the signing keys and a move to another domain.
 | [MARKDOWN.md](MARKDOWN.md) | Every mark the editor parses and draws, the ones added and the ones left out on purpose, and how each is said while recording, where one can be. | Adding or changing a mark, or checking that a note still reads as Markdown elsewhere. |
 | [BOARDS.md](BOARDS.md) | Kanban boards written in Markdown: the anchor on an item, the `board` fence, the rules a board keeps, and boards on a phone. | Touching `src/app/core/boards/`, `src/app/editor/boards/`, or anything that writes an anchor. |
 | [BOOKS.md](BOOKS.md) | A notebook (a book until §142) as a note whose body is its index: the shape, the views, journals of dated entries, chapter numbers, and where the code is. | Working on notebooks, journals, the aside, or chapter numbers. |
+| [TICKETS.md](TICKETS.md) | Tickets as notes: `type: ticket` front matter, a notebook's key and the next number, the workflow, New ticket and its templates, the properties panel, and `[[GHO-12]]` as a link. | Working on `src/app/book/tickets.ts`, `src/app/editor/tickets.ts`, or anything that reads a ticket's front matter. |
 | [CANVAS.md](CANVAS.md) | Canvases in JSON Canvas 1.0: Matt's fifteen choices, the format, the seven slices built, what is not, and where the code is. | Working on `src/app/canvas/`, or checking a canvas still opens in Obsidian. |
 
 ## Notes on disk, between devices, and out
@@ -64,6 +65,7 @@ A topic page's own history is in these entries:
 | MARKDOWN.md | §3 (the editor core), §23, §29e (the item mark), "Every mark, side by side", "Mermaid diagrams, drawn", §116, §127 |
 | BOARDS.md | "Boards, written in markdown", "The board a list is already on", "A board's cards get a menu", "A tick can put an item on the board", "A board holds its height", §127 |
 | BOOKS.md | §70, §72, §74, §77, §78, §80, §87, §120, §127, §142 |
+| TICKETS.md | §156 (the grammar), §157 |
 | CANVAS.md | §56, §62, §83 |
 | LIBRARY.md | §5 (the store before it), §42, §100 |
 | SYNC.md, LIVE.md | no entry of their own: the pages are the record. §86 is the pictures' part |

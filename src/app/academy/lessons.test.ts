@@ -80,6 +80,7 @@ describe('Ghost.md Academy’s lessons', () => {
     expect(passes('itemRef', 'after [[#^kayak]]')).toBe(true);
     expect(passes('bookmark', 'start reading here §§')).toBe(true);
     expect(passes('board', '```board\nLater: kayak\n```')).toBe(true);
+    expect(passes('ticket', '---\nTYPE: Ticket\nstatus: Doing\n---\nKayak trip')).toBe(true);
     expect(passes('spoiler', 'it was ||Sam|| all along')).toBe(true);
     expect(passes('highlight', 'the ==gate code==')).toBe(true);
     expect(passes('tint', 'the ==gate code==(amber)')).toBe(true);
@@ -139,6 +140,9 @@ describe('Ghost.md Academy’s lessons', () => {
     expect(passes('itemRef', 'see [[Packing list]]')).toBe(false);
     expect(passes('bookmark', 'one section sign §')).toBe(false);
     expect(passes('board', '```\nLater: kayak\n```')).toBe(false);
+    // A ticket with no status yet, and the line anywhere but the front matter, are not the lesson's.
+    expect(passes('ticket', '---\ntype: ticket\n---\nKayak trip')).toBe(false);
+    expect(passes('ticket', 'Kayak trip\n\ntype: ticket\nstatus: To do')).toBe(false);
     expect(passes('spoiler', 'a |single| bar')).toBe(false);
     expect(passes('highlight', 'a =single= sign')).toBe(false);
     expect(passes('tint', 'a ==plain== highlight')).toBe(false);

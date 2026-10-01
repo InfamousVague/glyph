@@ -18,7 +18,7 @@ Once it is connected, ask Claude in words. Behind them are nine tools, and a ten
 | Tool | What it does |
 | --- | --- |
 | `list_notes` | Your notes, newest change first: id, title, dates, pinned, archived, folder, a line of preview. `query` narrows by title. |
-| `read_note` | One note in full, by id or by title. |
+| `read_note` | One note in full, by id or by title, or a ticket by its key, `GHO-12` (docs/TICKETS.md). |
 | `search_notes` | Notes whose words contain something, with a snippet around the match. |
 | `create_note` | A new note from markdown, with a title as its heading. Every mark the app draws works: headings, lists, `- [ ]` to-dos, tables, boards. |
 | `update_note` | A note's whole body replaced. |
@@ -165,7 +165,10 @@ sees the words of the notes it reads, as it sees anything you paste into it, inc
 written (its `location:` and `place:` front matter, DESIGN §134); `update_note` keeps that across a rewrite that
 dropped it, as it keeps the authors, the keys that make a note a notebook, a journal or an entry (`title:`,
 `book:`, `journal:`, `template:`, `entry-place:` and `date:`), the one that makes it your Templates notebook or one of
-its pages (`templates:`), and how the note looks (`look:`, DESIGN §144) unless the new body gives one of its own.
+its pages (`templates:`), and how the note looks (`look:`, DESIGN §144) unless the new body gives one of its own. A
+ticket (DESIGN §157) keeps its `type:` and `id:` through any rewrite, and its other properties through one that dropped
+the front matter whole; front matter Claude writes itself is what it meant, so a status changed or a `blocked-by:`
+taken off stays so. A notebook keeps the `key:` its tickets are numbered by and its `statuses:`.
 
 ## Where the pieces are
 

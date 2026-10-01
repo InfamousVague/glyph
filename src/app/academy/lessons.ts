@@ -16,6 +16,7 @@ import { glyphMarkdown } from '../editor/language.ts';
 import { isTint, notePattern, notesIn } from '../editor/markNotes.ts';
 import { sumOnLine } from '../editor/sums.ts';
 import { tagsIn } from '../core/tags.ts';
+import { ticketOf } from '../core/properties.ts';
 import { wikiLinksIn } from '../editor/wikiLinks.ts';
 import { plugins } from '../plugins/registry.ts';
 import { videoOfLine } from '../core/videoRefs.ts';
@@ -622,6 +623,19 @@ export const LESSONS: Lesson[] = [
     passes: (text) => boardsIn(text).length > 0,
     praise: 'That is a board.',
     hint: 'Three backticks and board, a line like To do: ship-page, then three backticks, and an item named ^ship-page.',
+  },
+  {
+    id: 'ticket',
+    chapter: 'Pointing somewhere',
+    symbol: 'type: ticket',
+    rows: ['A ticket'],
+    title: 'A ticket',
+    teach: 'A note whose front matter says type: ticket is a ticket. Its status, who it is for, its priority and its due day sit under that line, and are drawn as a card you tap to change. A notebook with a ticket key numbers its tickets, and [[GHO-12]] links to one by its key.',
+    example: '---\ntype: ticket\nid: GHO-12\nstatus: In progress\nassignee: Sam\n---\n# Fix the login loop',
+    task: 'Make a note a ticket, with a status.',
+    passes: (text) => Boolean(ticketOf(text)?.status),
+    praise: 'That note is a ticket.',
+    hint: 'At the very top: three dashes, type: ticket, status: To do, then three dashes again.',
   },
 
   // ---- Marks and effects: the Marks plugin's, each switched off with it --------------------------------------------
