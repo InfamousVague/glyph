@@ -16,6 +16,14 @@
   display: grid;
   place-items: center;
   overflow: hidden;
+  /*
+   * A margin all round the action, and a container to measure: the gap is as
+   * tall as its row, so the action asks how tall that is (below). Its size is
+   * the row's and the swipe's, never its own content's, so size containment
+   * costs nothing.
+   */
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  container: swipe-gap / size;
   pointer-events: none;
   color: var(--glacier-text-muted);
   background: var(--app-wash, var(--glacier-surface-sunken));
@@ -177,13 +185,87 @@
   white-space: nowrap;
 }
 
-/* A row one line tall (the home page's pinned lines): the picture a size down, and its word beside it rather than under. */
-.frame[data-compact] .action {
-  grid-auto-flow: column;
-  align-items: center;
-  gap: var(--glacier-space-2);
+/*
+ * A row too short to stack the picture over its word (Matt, of the timeline's
+ * rows: "the padding isnt enough around the archive icon it's right against
+ * the edges"). A card's gap is tall enough to stack them; a row of a title and
+ * a line of words is not. So here the picture is a size down with its word
+ * beside it, the further-along line under the word and the pair centred on the
+ * picture. The picture keeps to the row's edge, following it as Mail's actions
+ * do, and the words fade in once the gap is wide enough to hold them whole,
+ * rather than a pair wider than the gap being cut off at both ends.
+ */
+@container swipe-gap (height < 5.25rem) {
+  .action {
+    inline-size: 100%;
+    min-inline-size: 0;
+    grid-template-columns: auto auto;
+    grid-template-rows: 1fr auto auto 1fr;
+    justify-content: start;
+    justify-items: start;
+    align-items: center;
+    column-gap: var(--glacier-space-2);
+    row-gap: 0;
+  }
+
+  .badge {
+    grid-row: 1 / -1;
+    grid-column: 1;
+    inline-size: 2.25rem;
+    block-size: 2.25rem;
+  }
+
+  .icon {
+    font-size: 1.15rem;
+  }
+
+  .label {
+    grid-row: 2;
+    grid-column: 2;
+  }
+
+  .more {
+    grid-row: 3;
+    grid-column: 2;
+  }
+
+  /* The action's own, so they outrank the plain .label and .more further down. */
+  .action > .label,
+  .action > .more {
+    opacity: 0;
+    transition: opacity 120ms var(--glacier-ease-out, ease-out);
+  }
+
+  /* Swiped to the right, the gap is on the row's left: the picture at its right edge, the words before it. */
+  .behind[data-side='start'] .action {
+    justify-content: end;
+    justify-items: end;
+  }
+
+  .behind[data-side='start'] .badge {
+    grid-column: 2;
+  }
+
+  .behind[data-side='start'] .label,
+  .behind[data-side='start'] .more {
+    grid-column: 1;
+    text-align: end;
+  }
 }
 
+@container swipe-gap (height < 5.25rem) and (width >= 7rem) {
+  .action > .label {
+    opacity: 1;
+  }
+}
+
+@container swipe-gap (height < 5.25rem) and (width >= 9.5rem) {
+  .action > .more {
+    opacity: 0.7;
+  }
+}
+
+/* A row one line tall (the home page's pinned lines): the picture a size down again, and only its word beside it. */
 .frame[data-compact] .badge {
   inline-size: 2rem;
   block-size: 2rem;

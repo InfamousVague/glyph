@@ -8530,6 +8530,14 @@ the page's scroll, and one that starts in the phone's back-gesture edge is the s
 A card's frame is cut to its corners; a line one row tall shows the picture and its word side by side, since one
 above the other is taller than the line.
 
+**A short row's gap** (2026-10-01; Matt, of the timeline: "the padding isnt enough around the archive icon it's right
+against the edges"). The action was drawn the one way, the picture over its word with the further-along line under
+that, about 76 pixels, and a row of a title and a line of words is about 74: it filled the gap to the edge. The gap now
+keeps a margin all round, and measures itself (a size container, notes/SwipeRow.module.css): under 5.25rem tall the
+picture is a size down with its word beside it. It keeps to the row's edge as the row slides, as Mail's actions do,
+and the words fade in only once the gap holds them whole, the word first and the further-along line after, rather
+than a pair wider than the gap cut off at both ends. A card's gap is tall enough, and stays as it was.
+
 **Tests.** notes/swipe.test.ts (a note's swipes, pinned and not; the detents), home/HomeScreen.test.tsx (a row pinned,
 archived, and deleted pulled further, with the motor's clicks at each detent, heavier for Delete, and its ticks on the
 way; springing back and never opening; the cards and the pinned lines; no swipe without the page's actions).
