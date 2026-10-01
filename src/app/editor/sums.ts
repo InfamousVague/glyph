@@ -1,7 +1,7 @@
 import { syntaxTree } from '@codemirror/language';
 import { RangeSetBuilder, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
-import { MARKER } from '../core/itemSyntax.ts';
+import { sumOnLine } from '../core/sums.ts';
 import { forEachVisibleLine } from './lines.ts';
 
 /**
@@ -14,124 +14,12 @@ import { forEachVisibleLine } from './lines.ts';
  * anywhere and a changed number is answered at once. Only arithmetic: numbers, `+ - * /`, `^` for powers, `%` after
  * a number for a percent, and brackets. A currency sign or thousands commas come back on the answer. Anything else - a word, a
  * sum that can't be done - draws nothing.
+ *
+ * The arithmetic is core/sums.ts's since 2026-09-30, where a query's totals read it too (docs/DESIGN.md §158); it is
+ * said again from here for the callers that have always found it here.
  */
 
-/** The start of a line, past an indent, a bullet and a quote mark, then `=` and a space. */
-const LEAD = new RegExp(String.raw`^(\s*(?:${MARKER}\s+)?(?:>\s*)?)=\s+(.+)$`);
-const CURRENCY = /[$€£¥₹]/;
-
-type Token = { kind: 'num'; value: number } | { kind: 'op'; value: string };
-
-function tokens(expr: string): Token[] | null {
-  const out: Token[] = [];
-  const text = expr.replace(/\s+/g, '');
-  let i = 0;
-  while (i < text.length) {
-    const rest = text.slice(i);
-    const number = /^[$€£¥₹]?(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?%?/.exec(rest);
-    if (number) {
-      const digits = number[1]!.replace(/,/g, '') + (number[2] ?? '');
-      let value = Number(digits);
-      if (number[0].endsWith('%')) value /= 100;
-      out.push({ kind: 'num', value });
-      i += number[0].length;
-      continue;
-    }
-    const op = /^[-+*/^()×÷]/.exec(rest);
-    if (!op) return null;
-    out.push({ kind: 'op', value: op[0] === '×' ? '*' : op[0] === '÷' ? '/' : op[0] });
-    i += 1;
-  }
-  return out;
-}
-
-/** A small precedence-climbing evaluator: no `eval`, nothing but numbers in and a number out. */
-function evaluate(list: Token[]): number | null {
-  let at = 0;
-  const peek = () => list[at];
-  const take = () => list[at++];
-  const isOp = (value: string) => {
-    const token = peek();
-    return token?.kind === 'op' && token.value === value;
-  };
-  const primary = (): number | null => {
-    if (isOp('-')) {
-      take();
-      const value = power();
-      return value === null ? null : -value;
-    }
-    if (isOp('+')) {
-      take();
-      return power();
-    }
-    if (isOp('(')) {
-      take();
-      const value = sum();
-      if (!isOp(')')) return null;
-      take();
-      return value;
-    }
-    const token = take();
-    return token?.kind === 'num' ? token.value : null;
-  };
-  const power = (): number | null => {
-    const base = primary();
-    if (base === null) return null;
-    if (!isOp('^')) return base;
-    take();
-    const exponent = power();
-    return exponent === null ? null : base ** exponent;
-  };
-  const product = (): number | null => {
-    let value = power();
-    while (value !== null && (isOp('*') || isOp('/'))) {
-      const op = (take() as { value: string }).value;
-      const right = power();
-      if (right === null) return null;
-      value = op === '*' ? value * right : value / right;
-    }
-    return value;
-  };
-  const sum = (): number | null => {
-    let value = product();
-    while (value !== null && (isOp('+') || isOp('-'))) {
-      const op = (take() as { value: string }).value;
-      const right = product();
-      if (right === null) return null;
-      value = op === '+' ? value + right : value - right;
-    }
-    return value;
-  };
-  const value = sum();
-  return value !== null && at === list.length && Number.isFinite(value) ? value : null;
-}
-
-/** The answer to a sum as it should read, or null when the text isn't one. */
-export function answer(expr: string): string | null {
-  const list = tokens(expr);
-  // A sum has at least one operator between numbers: `= 450` alone is a number, not a question.
-  if (!list || !list.some((t) => t.kind === 'op' && t.value !== '(' && t.value !== ')')) return null;
-  const value = evaluate(list);
-  if (value === null) return null;
-  const sign = CURRENCY.exec(expr)?.[0] ?? '';
-  const grouped = /\d,\d{3}/.test(expr) || Boolean(sign);
-  const rounded = Math.round(value * 100) / 100;
-  const decimals = sign && !Number.isInteger(rounded) ? 2 : 0;
-  const text = Math.abs(rounded).toLocaleString('en-US', {
-    useGrouping: grouped,
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: sign ? 2 : 6,
-  });
-  return `${rounded < 0 ? '−' : ''}${sign}${text}`;
-}
-
-/** The sum on a line, if the line is one: where its expression starts, and its answer. */
-export function sumOnLine(text: string): { answer: string } | null {
-  const found = LEAD.exec(text);
-  if (!found) return null;
-  const result = answer(found[2] ?? '');
-  return result === null ? null : { answer: result };
-}
+export { answer, sumOnLine } from '../core/sums.ts';
 
 class AnswerWidget extends WidgetType {
   constructor(readonly text: string) {
