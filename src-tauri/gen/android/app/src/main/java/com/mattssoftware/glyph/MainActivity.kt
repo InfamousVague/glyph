@@ -39,6 +39,7 @@ import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.Lifecycle
 import com.mattssoftware.glyph.location.LocationAccess
 import com.mattssoftware.glyph.media.VideoPick
+import com.mattssoftware.glyph.files.ExportTarget
 import org.json.JSONObject
 import java.io.FileOutputStream
 import java.util.Locale
@@ -194,6 +195,7 @@ class MainActivity : TauriActivity() {
   override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
     super.onActivityResult(requestCode, resultCode, data)
     if (VideoPick.answered(this, requestCode, resultCode, data, ::tellVideo)) return
+    if (ExportTarget.answered(this, requestCode, resultCode, data, ::tellExport)) return
     if (requestCode != REQUEST_PICTURE) return
     val uri = data?.data
     if (resultCode != RESULT_OK || uri == null) {
@@ -225,6 +227,16 @@ class MainActivity : TauriActivity() {
   private fun tellVideo(json: String) {
     val wv = webView ?: return
     val script = "window.__glyph && window.__glyph.video && window.__glyph.video(${JSONObject.quote(json)})"
+    runOnUiThread { wv.evaluateJavascript(script, null) }
+  }
+
+  /**
+   * Where an export goes, `window.__glyph.exportTarget(json)` (core/exportAll.ts): the descriptor of the file the
+   * picker made, `{ cancelled }` or `{ error }` (files/ExportTarget.kt). Native generation 22.
+   */
+  private fun tellExport(json: String) {
+    val wv = webView ?: return
+    val script = "window.__glyph && window.__glyph.exportTarget && window.__glyph.exportTarget(${JSONObject.quote(json)})"
     runOnUiThread { wv.evaluateJavascript(script, null) }
   }
 
@@ -772,6 +784,22 @@ class MainActivity : TauriActivity() {
      */
     @JavascriptInterface
     fun pickVideo(): String = VideoPick.start(this@MainActivity, ::tellVideo)
+
+    /**
+     * Where to export everything (native generation 22; files/ExportTarget.kt): the system's picker, making a zip of
+     * this name wherever is chosen, a USB drive among the places. "started"; the descriptor arrives as an
+     * `exportTarget` event, and so does a picker that would not open, as `{ error }`.
+     */
+    @JavascriptInterface
+    fun chooseExport(name: String): String = ExportTarget.start(this@MainActivity, name, ::tellExport)
+
+    /** The export failed or was stopped: the half-written file the picker made goes. */
+    @JavascriptInterface
+    fun discardExport() = ExportTarget.discard(this@MainActivity)
+
+    /** The export is whole, and the file stays. */
+    @JavascriptInterface
+    fun exportDone() = ExportTarget.done()
 
     /**
      * What is on the clipboard, for the editor's own Paste (its press-and-hold

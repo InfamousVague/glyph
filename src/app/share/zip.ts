@@ -9,6 +9,18 @@ export interface ZipFile {
   bytes: Uint8Array;
 }
 
+/**
+ * A moment as a zip's MS-DOS time and date, on the local clock, which is what a zip holds: two-second steps, 1980 on.
+ * Without one every entry read as 1980-00-00, a date no reader shows sensibly.
+ */
+export function dosTime(at: Date): { time: number; date: number } {
+  if (at.getFullYear() < 1980) return { time: 0, date: (1 << 5) | 1 };
+  return {
+    time: (at.getHours() << 11) | (at.getMinutes() << 5) | (at.getSeconds() >> 1),
+    date: ((at.getFullYear() - 1980) << 9) | ((at.getMonth() + 1) << 5) | at.getDate(),
+  };
+}
+
 let table: Uint32Array | null = null;
 
 /** CRC-32, the one zip asks for. */
@@ -26,9 +38,10 @@ export function crc32(bytes: Uint8Array): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-/** The files as one zip. Names are written in UTF-8 (the flag says so), so a title in any script survives. */
-export function zipFiles(files: readonly ZipFile[]): Uint8Array<ArrayBuffer> {
+/** The files as one zip, each `dated`. Names are written in UTF-8 (the flag says so), so a title in any script survives. */
+export function zipFiles(files: readonly ZipFile[], dated = new Date()): Uint8Array<ArrayBuffer> {
   const encoder = new TextEncoder();
+  const { time, date } = dosTime(dated);
   const locals: Uint8Array[] = [];
   const centrals: Uint8Array[] = [];
   let offset = 0;
@@ -41,6 +54,8 @@ export function zipFiles(files: readonly ZipFile[]): Uint8Array<ArrayBuffer> {
     l.setUint16(4, 20, true);
     l.setUint16(6, 0x0800, true);
     l.setUint16(8, 0, true);
+    l.setUint16(10, time, true);
+    l.setUint16(12, date, true);
     l.setUint32(14, crc, true);
     l.setUint32(18, file.bytes.length, true);
     l.setUint32(22, file.bytes.length, true);
@@ -52,6 +67,8 @@ export function zipFiles(files: readonly ZipFile[]): Uint8Array<ArrayBuffer> {
     c.setUint16(4, 20, true);
     c.setUint16(6, 20, true);
     c.setUint16(8, 0x0800, true);
+    c.setUint16(12, time, true);
+    c.setUint16(14, date, true);
     c.setUint32(16, crc, true);
     c.setUint32(20, file.bytes.length, true);
     c.setUint32(24, file.bytes.length, true);

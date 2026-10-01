@@ -8,7 +8,7 @@ publish = false
 name = "glyph_host_tests"
 path = "src/lib.rs"
 
-# Exactly the dependencies store.rs, llm/command.rs and llm/prompt.rs use, at the versions
+# Exactly the dependencies store.rs, llm/command.rs, llm/prompt.rs and export.rs use, at the versions
 # src-tauri/Cargo.toml pins. Nothing else: adding a dependency here that the
 # real crate does not have would make these tests prove something else.
 [dependencies]
@@ -20,3 +20,6 @@ uuid = { version = "1.26.1", features = ["v4"] }
 # marks (src/llm/prompt.rs `render_template`): Jinja, with Python's methods.
 minijinja = { version = "2.24", features = ["loop_controls", "json"] }
 minijinja-contrib = { version = "2.24", default-features = false, features = ["pycompat"] }
+# The export's archive (src/export.rs), as src-tauri pins it.
+zip = { version = "8.6", default-features = false, features = ["deflate-flate2"] }
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }

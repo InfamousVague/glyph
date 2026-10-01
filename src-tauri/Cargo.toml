@@ -81,6 +81,13 @@ encoding_rs = "0.8"
 # marks (src/llm/prompt.rs `render_template`): Jinja, with Python's methods.
 minijinja = { version = "2.24", features = ["loop_controls", "json"] }
 minijinja-contrib = { version = "2.24", default-features = false, features = ["pycompat"] }
+# Everything the app keeps, as one zip on a USB drive or wherever a person
+# chooses (src/export.rs, docs/DESIGN.md §167): deflate for the words, stored
+# for the media, zip64 past 4 GB, written as a stream so a descriptor Android's
+# picker hands over will do. flate2 is named for its pure-Rust backend, which
+# zip leaves to the crate that uses it.
+zip = { version = "8.6", default-features = false, features = ["deflate-flate2"] }
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
 # The model download. 0.12 with rustls-tls on purpose, and NOT the 0.13 that
 # tauri already carries: native-tls resolves to OpenSSL on Android and will not
 # cross-compile (AttackFM learned this), and 0.13's rustls feature brings
@@ -110,6 +117,9 @@ jni = "0.21"
 # left in the shared list where a mobile build would trip over it.
 [target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]
 tauri-plugin-decorum = "1"
+# The save panel the Mac's export opens (src/export_commands.rs), where a USB
+# drive is one of the places. A phone's export goes through Android's own picker.
+tauri-plugin-dialog = "2"
 
 # The Objective-C runtime, for the one thing the window API has no word for on
 # iOS: making the window KEY once the scene attaches it, without which the

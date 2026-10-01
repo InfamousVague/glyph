@@ -49,3 +49,14 @@ export async function webGet(name: string): Promise<Blob | null> {
     request.onerror = () => resolve(null);
   });
 }
+
+/** Every picture's name, for an export of everything (core/exportAll.ts); none when there is no store to look in. */
+export async function webNames(): Promise<string[]> {
+  const d = await db().catch(() => null);
+  if (!d) return [];
+  return new Promise((resolve) => {
+    const request = d.transaction(STORE).objectStore(STORE).getAllKeys();
+    request.onsuccess = () => resolve(request.result.filter((key): key is string => typeof key === 'string').sort());
+    request.onerror = () => resolve([]);
+  });
+}

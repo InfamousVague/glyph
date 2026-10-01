@@ -9107,3 +9107,55 @@ mark's characters do. A caret before the box or at the words keeps the control. 
 with the caret inside, and none in code.
 
 Cites: §156, §158.
+
+## 167. Everything, as one zip on a USB drive (2026-10-01)
+
+Matt: "Please add a feature that allows me to plug in a USB drive and export the entire app onto a folder or zip file
+with ghostmarkdown_<datetime>.7z or something". Settings › Account has an Export card after Location, with one row,
+**Export everything**, signed in or out.
+
+**A zip, not a 7z.** A Mac, Windows, Android's Files app and every Linux desktop open a zip with nothing installed; a
+7z needs an app on all of them. It is named `ghostmarkdown_2026-10-01_21-42-05.zip` on the device's own clock (no
+colon, which a FAT drive will not hold), and holds one folder of that name, so opening it makes a folder, not a
+scatter of files. "A folder" is what opening it gives.
+
+**What is in it** (src-tauri/src/export.rs). `Library/` as docs/LIBRARY.md has it, every note a Markdown file in its
+folders, with `.glyph/library.json` and each recording's phrases; `images/`, `video/` and `recordings/`; the page's
+`README.txt`, which says what each folder is, and `settings.json`, the preferences, plugins and workspaces; and a
+`manifest.json` with the date, the binary's and the page's versions and the counts. Left out: the index (a cache,
+rebuilt from the files, with its journal files), a save or a download under way (fsx.rs's `.<hex>.tmp`, `.part`),
+the models (gigabytes, downloaded again), a meeting's write-up under way, the over-the-air builds, and anything that
+signs in: the account's session, the sync key, the Notion and GitHub tokens. A drive is easily lost.
+
+**Written as a stream.** Words are deflated and media stored as they are (they are compressed already, and a WAV
+barely shrinks); Zip64 takes over past 4 GB. Checked here with a 4.4 GB film: `unzip -t` and Python's zipfile read it
+whole, UTF-8 names included. A stream needs no seek, so one writer serves both apps:
+
+- **The Mac** (`export_save`): the system's save panel (tauri-plugin-dialog, called from Rust, so no page permission
+  names it), a USB drive among its places, and the archive written to the file chosen.
+- **Android** (`export_fd`): the activity opens the system's picker to make the file (files/ExportTarget.kt,
+  ACTION_CREATE_DOCUMENT, no permission asked), opens it, and hands the page its descriptor
+  (`window.__glyph.exportTarget`), which the page passes to Rust. Nothing is built in the phone's storage first, so a
+  library with gigabytes of films needs no room for a second copy. The descriptor is taken only when it is a new,
+  empty, plain file outside the app's own storage (export.rs `adopt_descriptor`); a number passed by mistake is
+  refused and never closed, so it cannot write over the index or a recording or end a pipe of the WebView's.
+- **A browser** zips the notes and pictures it keeps on the page (share/zip.ts), and saves it through the browser's
+  save picker where there is one, else as a download.
+
+**Its words.** While it runs, a callout says how far it has got ("Exporting, 1.2 GB of 3.4 GB. Keep Ghost.md open,
+and the drive plugged in.") with a bar and Stop; after, what it wrote. A failure is said as what happened to the
+drive: full; formatted as FAT32, which stops at 4 GB; taken out; read-only. A failed or stopped export takes its
+half-written file away, so the drive holds only an archive that opens. One export runs at a time. An iPhone says it
+cannot yet; a binary before native generation 22 says to update.
+
+**Native generation 22**, gated on the page (`EXPORT_GENERATION` in core/exportAll.ts), so `BUNDLE_REQUIRES` stays
+at 19: the export needs the new binary on the Mac and on Android, and nothing else does.
+
+**Tests.** export.rs, run by tools/host-tests: what is listed and left out, the archive read back with its folder,
+compression and manifest, a stop, the drive's failures in words, the name, the zip's clock, and the descriptor
+taken or refused (and left open). core/exportAll.test.ts: the name, the settings without a secret, the README, each
+platform's way, Android's picker handshake with the file kept or taken away, the Mac's panel and its progress, and a
+browser's zip. The whole Tauri crate type-checks and passes clippy on Linux (desktop); the Android branch and the
+Kotlin are not compiled here, with no Android SDK in this container.
+
+Cites: §141, §157, §163.
