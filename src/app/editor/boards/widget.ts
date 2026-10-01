@@ -4,6 +4,7 @@ import { markOf, unmarked } from '../../core/itemLinks.ts';
 import { openCardMenu } from './cardMenu.ts';
 import { landCard, stepCard, takeOffCard, tickCard } from './cardEdits.ts';
 import { openComposer } from './composer.ts';
+import { cardFields } from './fields.ts';
 import { heightSplit, sized } from './divider.ts';
 import { holdToDrag } from './drag.ts';
 import type { DrawnBoard } from './drawn.ts';
@@ -216,7 +217,9 @@ export class BoardWidget extends WidgetType {
       badge.append(icon(mark.name === 'notion' ? 'notion' : 'link', '0.95em'));
     }
 
-    box.append(words, ...(badge ? [badge] : []), moves);
+    // The item's due day, priority and people, as chips of the card's own under its words (editor/boards/fields.ts).
+    const fields = card.item ? cardFields(view, card.item) : null;
+    box.append(words, ...(fields ? [fields] : []), ...(badge ? [badge] : []), moves);
     holdToDrag(box, card, (column, index) => landCard(view, this.board, card, column, index));
     return box;
   }

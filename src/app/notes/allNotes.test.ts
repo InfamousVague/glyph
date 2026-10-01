@@ -22,6 +22,16 @@ describe('what the search finds', () => {
     expect(matches(makeNote('b', 'A ??doubt??(check with Sam)'), 'sam')).toBe(true);
   });
 
+  it('finds a to-do’s priority by its name, and its person and day as written (docs/DESIGN.md §158)', () => {
+    const sprint = makeNote('a', '# Sprint\n\n- [ ] Fix the login loop @sam ⏫ 📅 2026-10-03\n- [ ] Tidy up 🔽');
+    expect(matches(sprint, 'high priority')).toBe(true);
+    expect(matches(sprint, 'login high')).toBe(true);
+    expect(matches(sprint, 'low')).toBe(true);
+    expect(matches(sprint, 'lowest')).toBe(false);
+    expect(matches(sprint, 'sam 2026-10-03')).toBe(true);
+    expect(matches(makeNote('b', 'Inline code `⏫` is not a priority'), 'high')).toBe(false);
+  });
+
   it('shows every note for a blank search', () => {
     expect(matches(makeNote('a', '# Trip'), '')).toBe(true);
     expect(matches(makeNote('a', '# Trip'), '   ')).toBe(true);

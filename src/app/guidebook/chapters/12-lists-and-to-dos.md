@@ -1,6 +1,6 @@
 # Lists and to-dos
 
-_Bullets, numbered steps and things to do: how to write them, tick them, find every open one, and turn a list into a board._
+_Bullets, numbered steps and things to do: how to write them, tick them, give them a due date, a priority and a person, find every open one, and turn a list into a board._
 
 ## The kinds of list
 
@@ -27,6 +27,28 @@ If the to-do is a card on a board, ticking it moves the card to Done, and cleari
 
 Choices sit on list lines too: `- ( ) Tent`, a group of them side by side, one of which can be picked. Counters, `[3/8]`, can sit anywhere in a line, a list item's most often: a tap adds one, a hold takes one away. [[Tags, footnotes and the small marks]] has them.
 
+## When it is due, how much it matters, who it is for
+
+A to-do can carry a due date, a priority and a person, written after its words in the signs Obsidian Tasks reads, so the same line is a task with a due date in Obsidian too.
+
+| Type | You get |
+|---|---|
+| `📅 2026-10-03` | A due date. Drawn as **Tomorrow**, **Sat 3 Oct**, the year only when it is not this one. Red once it has passed and the box is not ticked, amber on the day, quiet once it is ticked |
+| `🔺` `⏫` `🔼` `🔽` `⏬` | A priority, highest to lowest. Drawn as a small mark, chevrons up or down |
+| `@sam` | A person. Drawn with their initial in a ring. `@sam-ortiz` is Sam Ortiz |
+| `🛫 2026-10-02`, `⏳ 2026-10-05` | A start date and a scheduled date, drawn quieter: **Starts tomorrow**, **Scheduled Mon 5 Oct** |
+| `✅ 2026-09-30` | The day it was done, as Obsidian Tasks writes it when you tick one there |
+| `🔁 every week` | A repeat, kept with the to-do. Ghost.md does not make the next one yet |
+| `[effort:: 3]` | Anything else, by name, as Dataview writes it |
+
+Off the line you are writing, each is a chip; on it, the characters are there to edit. Tags stay tags: `- [ ] Fix the login loop @sam #bug ⏫ 📅 2026-10-03` is a to-do with a person, a tag, a priority and a due date.
+
+- **Tap a due date** for Today, Tomorrow, Next week (its Monday), Pick a date, which opens your phone's own calendar, and Remove. A start or scheduled date offers the same.
+- **Tap a priority** for the five and None. **Tap a person** to take them off.
+- **Press and hold a to-do** for Due date, Priority and Assign beside its other actions. Assign offers the people this note already names, and Someone new, which writes the @ for you to type a name after.
+
+Ghost.md writes each field where Obsidian Tasks looks for it: at the end of the words, a person before the dates, and all of it before the item's bookmark, its Notion mark, a counter and its anchor, so those still end the line. A to-do's words are what a card on a board, a task sent to Notion, an issue on GitHub and the home page's To do say: the fields are left out of them, and a board card shows the due date, the priority and the people as chips of its own.
+
 ## Progress under a heading
 
 A heading with to-dos under it says how many are done, after its words: **3 of 7**, and **All 7 done** when every box is ticked. Nothing is typed and nothing is written into the note. The count runs to the next heading of the same level or higher, so a `##` counts the to-dos in its `###` sections too. A heading with no to-dos under it says nothing.
@@ -42,7 +64,7 @@ The workspace chosen at the top decides which notes it reads. The archive is lef
 
 ## By voice
 
-While recording, “Bullet point”, “Check box”, “Remember to …” and a list said in one breath all make lists as you talk ([[Saying the marks]]). To add to another note's list without opening it, say it: “Add oat milk and rye bread to Groceries.” The words go into the list they fit, in its own style, bullets, numbers or boxes, as you say them, and the note opens with an Undo when you tap Done. In a note with several lists, a thing goes under the heading that shares its words; a to-do goes to a to-do list ([[Spoken commands]]). A new list can be made by voice too: “Make a new list called Packing with toothbrush, socks and charger”, said first, shows a card at Done, and **Create** makes the note.
+While recording, “Bullet point”, “Check box”, “Remember to …” and a list said in one breath all make lists as you talk ([[Saying the marks]]). Say a field at the end of an item and it is written as one: “Remember to call the plumber due Friday, high priority” is `- [ ] Call the plumber ⏫ 📅` and Friday's date, and “… for Sam” or “… assigned to Sam” puts `@Sam` on it. To add to another note's list without opening it, say it: “Add oat milk and rye bread to Groceries.” The words go into the list they fit, in its own style, bullets, numbers or boxes, as you say them, and the note opens with an Undo when you tap Done. In a note with several lists, a thing goes under the heading that shares its words; a to-do goes to a to-do list ([[Spoken commands]]). A new list can be made by voice too: “Make a new list called Packing with toothbrush, socks and charger”, said first, shows a card at Done, and **Create** makes the note.
 
 ## Linked to Notion or GitHub
 
@@ -72,6 +94,8 @@ A list is plain Markdown, so it reads anywhere.
 | `1. Unplug it` | A numbered list |
 | `- ( ) Tent` | A bullet that starts with brackets |
 | `[3/8]` | The words `[3/8]` |
+| `📅 2026-10-03`, `⏫` | A task with a due date and a priority in Obsidian with the Tasks plugin; the signs, as written, elsewhere |
+| `@sam`, `[effort:: 3]` | The words as written; Dataview reads `[effort:: 3]` as a field |
 | `^ship-page` | A block id in apps that have them, plain words in the rest |
 | A board | A block of code naming its columns, above a list that is still all there |
 | **3 of 7** after a heading | Nothing: it was never written |

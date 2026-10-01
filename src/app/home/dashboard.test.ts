@@ -61,6 +61,11 @@ describe('the home page', () => {
     expect(tickedTasks([makeNote('c', '- [ ] only open', { updatedAt: 1 })])).toBe(0);
   });
 
+  it('says a to-do by its words, without its fields, and leaves out one that is only fields (docs/DESIGN.md §158)', () => {
+    const tasks = openTasks([makeNote('n', '- [ ] Call the plumber @matt ⏫ 📅 2026-10-03\n- [ ] 📅 2026-10-04', { updatedAt: 1 })]);
+    expect(tasks.map((t) => t.text)).toEqual(['Call the plumber']);
+  });
+
   it('takes brackets glued to the words as words, as the note draws them (core/itemSyntax.ts)', () => {
     expect(openTasks([makeNote('n', '- [ ]Buy milk\n- [ ] Real', { updatedAt: 1 })]).map((t) => t.text)).toEqual(['Real']);
     expect(tickedTasks([makeNote('n', '- [x]Done\n- [x](https://example.com/x)', { updatedAt: 1 })])).toBe(0);

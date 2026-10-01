@@ -2,10 +2,13 @@ import type { ComponentType } from 'react';
 import {
   Anchor,
   Asterisk,
+  AtSign,
   Baseline,
   Bold,
   Bookmark,
   Calculator,
+  CalendarDays,
+  ChevronsUp,
   CircleDot,
   Code,
   EyeOff,
@@ -38,11 +41,13 @@ import {
   Subscript,
   Superscript,
   Table,
+  Tag,
   Text,
   Ticket,
   Underline,
   Workflow,
 } from '@glacier/icons';
+import { isoDayAfter } from '../core/days.ts';
 import { plugins } from '../plugins/registry.ts';
 
 /**
@@ -107,7 +112,8 @@ export type Looks =
   | 'spoilerLine'
   | 'bookmark'
   | 'place'
-  | 'ticket';
+  | 'ticket'
+  | 'field';
 
 export interface MarkRow {
   /** The mark itself, as a person would type it: `**`, `- [ ]`. */
@@ -143,6 +149,12 @@ export interface MarkGroup {
   rows: MarkRow[];
 }
 
+/**
+ * The due date a to-do's example carries: two days on from the day the app opened, so the chip it draws says a day
+ * to come ("Sat 3 Oct") rather than going red the week after the example was written (docs/DESIGN.md §158).
+ */
+const SOON = isoDayAfter(new Date(), 2);
+
 /** The marks the app itself knows, in the order the page shows them. */
 const OWN: MarkGroup[] = [
   {
@@ -169,6 +181,12 @@ const OWN: MarkGroup[] = [
       { symbol: '1.', name: 'In order', typed: '1. Unplug it\n2. Wait a minute', words: 'Unplug it', looks: 'number', icon: ListOrdered, say: '“number one”, “first”' },
       { symbol: '- [ ]', name: 'A to-do', typed: '- [ ] Book the cabin', words: 'Book the cabin', looks: 'todo', icon: ListTodo, say: '“remember to”, “check box”' },
       { symbol: '- [x]', name: 'Done', typed: '- [x] Call Sam', words: 'Call Sam', looks: 'done', icon: SquareCheckBig, say: '“done task: …”' },
+      // A to-do's fields, in Obsidian Tasks' own signs and Dataview's brackets, drawn as chips (core/taskFields.ts,
+      // editor/taskFields.ts, docs/DESIGN.md §158).
+      { symbol: '📅', name: 'A due date', typed: `- [ ] Book the cabin 📅 ${SOON}`, words: 'Book the cabin', looks: 'field', icon: CalendarDays, say: '“due Friday”' },
+      { symbol: '⏫', name: 'A priority', typed: '- [ ] Fix the gate ⏫', words: 'Fix the gate', looks: 'field', icon: ChevronsUp, say: '“high priority”, “urgent”' },
+      { symbol: '@', name: 'A person', typed: '- [ ] Book the cabin @sam', words: 'sam', looks: 'field', icon: AtSign, say: '“for Sam”' },
+      { symbol: '[ :: ]', name: 'A field by name', typed: '- [ ] Ask about the budget [effort:: 3]', words: '3', looks: 'field', icon: Tag },
       { symbol: '- ( )', name: 'A choice', typed: 'Where do we stay?\n- ( ) Tent\n- (x) Cabin', words: 'Cabin', looks: 'choice', icon: CircleDot, say: '“option: tent”, “picked option: cabin”' },
       { symbol: '[ / ]', name: 'A counter', typed: '- Water [3/8]', words: '3/8', looks: 'counter', icon: Gauge, say: '“counter three of eight”' },
       { symbol: '=', name: 'A sum', typed: '= $450 + 120 * 2', words: '$690', looks: 'sum', icon: Calculator, say: '“calculate: four hundred plus one hundred twenty”' },

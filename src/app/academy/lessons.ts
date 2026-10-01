@@ -17,6 +17,7 @@ import { isTint, notePattern, notesIn } from '../editor/markNotes.ts';
 import { sumOnLine } from '../editor/sums.ts';
 import { tagsIn } from '../core/tags.ts';
 import { ticketOf } from '../core/properties.ts';
+import { fieldsIn } from '../core/taskFields.ts';
 import { wikiLinksIn } from '../editor/wikiLinks.ts';
 import { plugins } from '../plugins/registry.ts';
 import { videoOfLine } from '../core/videoRefs.ts';
@@ -530,6 +531,19 @@ export const LESSONS: Lesson[] = [
     passes: line(/^[ \t]*>\|[ \t]*\S/m),
     praise: 'Hidden in smoke.',
     hint: 'A > and a bar, with no space between, then the line: >| like this.',
+  },
+  {
+    id: 'fields',
+    chapter: 'Lines that do more',
+    symbol: '📅',
+    rows: ['A due date', 'A priority', 'A person', 'A field by name'],
+    title: 'Fields on a to-do',
+    teach: 'A to-do can say when it is due, how much it matters and who it is for, in the signs Obsidian Tasks reads: 📅 and a date, ⏫ for high priority, @ before a name, and [effort:: 3] for anything else. In a note each is a chip: the date says “Tomorrow”, and goes red once it has passed. Tap one to change it, or press and hold a to-do to add one.',
+    example: '- [ ] Fix the login loop @sam ⏫ 📅 2026-10-03',
+    task: 'Give a to-do a due date, a priority or a person.',
+    passes: (text) => fieldsIn(text).some((field) => field.kind === 'date' || field.kind === 'priority' || field.kind === 'person' || field.kind === 'inline'),
+    praise: 'That to-do has a field.',
+    hint: 'After the words, @ and a name is the quickest: - [ ] Book the cabin @sam. A date is 📅 then 2026-10-03.',
   },
   {
     id: 'progress',

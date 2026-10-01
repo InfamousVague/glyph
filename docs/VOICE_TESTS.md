@@ -55,7 +55,13 @@ phrases without "Hey Ghost", and what stays words without it: a sentence that so
 none of, "go to work", and a sentence into a note that opens with a run's words. The suite plays the live reader
 only, so 116 and 118 check what is written as it is said; what the reader at Done makes of the same words is
 instruction.test.ts's and CaptureScreen.test.tsx's. 066 kept its lines and its recording, and now expects the Glyph
-note written to. Their audio is to be made with Matt's cases; next is 119.
+note written to. Their audio is to be made with Matt's cases.
+
+**A to-do's fields.** 119 to 124 say a due day, a priority and a person at the end of an item (DESIGN §158): "due
+Friday", "due tomorrow, high priority", "for Sam, due the third of October", "urgent, assigned to Matt", "Due next
+week." said a breath after the item, and what stays words, a present "for Sam" and a rent "due soon". A day is
+counted from the day the suite runs, so those with a date are held by `match`, to any day in the right place. Their
+audio is to be made with Matt's cases; next is 125.
 
 **To record again.** These scripts changed with §126, most of them by losing the "Yes." that confirmed a command, and
 058 by gaining "Glyph, new note.", so their recordings still say the old lines. Each carries `rerecord` in

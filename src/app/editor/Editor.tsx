@@ -15,6 +15,7 @@ import { extendedMarkdown } from './extended.ts';
 import { footnotes } from './footnotes.ts';
 import { taskToggle } from './taskToggle.ts';
 import { tags } from './tags.ts';
+import { taskFields } from './taskFields.ts';
 import { counters } from './counters.ts';
 import { sums } from './sums.ts';
 import { headingProgress } from './headingProgress.ts';
@@ -319,6 +320,9 @@ export function Editor({
         footnotes(),
         // #tags drawn as small chips (editor/tags.ts).
         tags(),
+        // A to-do's due day, priority, people and named fields drawn as chips, a tap on one opening its menu
+        // (editor/taskFields.ts).
+        taskFields(),
         // [3/8] counters, `= 450 + 120` sums, "3 of 7" after a heading, and `- ( )` choices (editor/counters.ts, sums.ts,
         // headingProgress.ts, choices.ts).
         counters(),

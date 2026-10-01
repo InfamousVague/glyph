@@ -149,6 +149,18 @@ describe('what a card says', () => {
   });
 });
 
+describe('an item with fields on a board (docs/DESIGN.md §158)', () => {
+  it('says its words without its fields, which the card draws as chips', () => {
+    expect(cardText('Fix the login loop @sam #bug ⏫ 📅 2026-10-03')).toBe('Fix the login loop #bug');
+    expect(cardText('Water the plants 🔁 every week [effort:: 3]')).toBe('Water the plants');
+  });
+
+  it('is named by its words, never by a person or a day', () => {
+    expect(anchorFor('Call @sam 📅 2026-10-03', [])).toBe('call');
+    expect(anchorFor('Fix the login loop ⏫', [])).toBe('fix-login-loop');
+  });
+});
+
 describe('choices and counters on a board', () => {
   it('reads a choice as an item with no box, its words after the choice\u2019s own', () => {
     expect(itemOnLine('- ( ) Pick the red one ^red')).toEqual({ id: 'red', text: 'Pick the red one', done: null, line: 0 });

@@ -1,8 +1,10 @@
+import { isoDay } from '../core/days.ts';
 import type { Segment } from '../core/store.ts';
 import { capitalise } from '../core/text.ts';
 import { isTitleShaped, localBlocks, NUMBER_CUE, ORDINAL_START, renderBlocks, STANDALONE_CUE, TITLE_CUE, type Block } from './spoken/blocks.ts';
 import { codeBlocksIn, withCodeBlocksWhole } from './spoken/codeBlocks.ts';
 import { finishLines, liftFootnotes, spokenExtras } from './spoken/extras.ts';
+import { onlyFields, withSpokenFields } from './spoken/fields.ts';
 import { spokenInlineMarkup } from './spoken/inline.ts';
 import { announcesList, inlineNumbering, itemOf, itemShaped, leadsList, opensItem } from './spoken/lists.ts';
 import { BREAK_MARK } from './spoken/standIns.ts';
@@ -29,7 +31,8 @@ import { stripEnd } from './spoken/words.ts';
  * through the rule families in spoken/ - inline marks (inline.ts), the marks said inside a sentence (extras.ts),
  * numbers and sums (numbers.ts), lists (lists.ts), code blocks (codeBlocks.ts), and the block cues and how blocks are
  * written out (blocks.ts). What spans sentences is held here: a cue said alone, an item phrase waiting for its item,
- * a list announced, the title.
+ * a list announced, the title. Last, an item's fields said at the end of it, "due Friday", "high priority", "for Sam",
+ * are written as its fields (fields.ts, docs/DESIGN.md §158).
  */
 
 // A phrase with its times is the stored note's shape (core/store.ts); passed on for the recorder's modules.
@@ -184,7 +187,15 @@ export interface RenderOptions {
    * `## heading` there rather than a second title mid-note.
    */
   titled?: boolean;
+  /**
+   * The day a spoken "due Friday" counts from (spoken/fields.ts): the person's own day, read from the clock unless a
+   * caller says otherwise, as a test does.
+   */
+  today?: string;
 }
+
+/** The blocks that are list items, whose fields are said at their end: a to-do, a done one, a bullet, a step. */
+const FIELDED = new Set<Block['kind']>(['task', 'done', 'bullet', 'number']);
 
 /**
  * Committed segments and an optional in-progress phrase, rendered to markdown.
@@ -195,7 +206,7 @@ export interface RenderOptions {
 export function renderNote(
   segments: readonly Segment[],
   partial = '',
-  { titled = true }: RenderOptions = {},
+  { titled = true, today = isoDay(new Date()) }: RenderOptions = {},
 ): RenderedNote {
   const paragraphs = withCodeBlocksWhole(toParagraphs(segments));
   const plain = paragraphs.join('\n\n');
@@ -237,7 +248,8 @@ export function renderNote(
   };
 
   paragraphs.forEach((paragraph) => {
-    paragraphStarts.add(blocks.length);
+    const paragraphStart = blocks.length;
+    paragraphStarts.add(paragraphStart);
     for (const piece of codeBlocksIn(paragraph)) {
       if (piece.kind === 'fence') {
         blocks.push(piece);
@@ -322,6 +334,13 @@ export function renderNote(
           return;
         }
 
+        // "Due Friday." or "High priority." a breath after an item: the item's field, not a sentence of its own.
+        const before = blocks[blocks.length - 1];
+        if (before && blocks.length > paragraphStart && FIELDED.has(before.kind) && onlyFields(sentence.text, today)) {
+          blocks[blocks.length - 1] = { ...before, text: `${before.text} ${stripEnd(sentence.text)}` } as Block;
+          return;
+        }
+
         const ordinalRun = firstOrdinal >= 0 && sentenceIndex >= firstOrdinal;
         const made = localBlocks(sentence.text, ordinalRun);
         // A short plain sentence under an open list is its next item. Only
@@ -357,8 +376,11 @@ export function renderNote(
   // A "the next item is" that nothing followed: it was words.
   if (pendingItem !== null) blocks.push({ kind: 'para', text: pendingItem });
 
+  // An item's due day, priority and person, said at its end, written as its fields.
+  const fielded = blocks.map((block) => (FIELDED.has(block.kind) ? ({ ...block, text: withSpokenFields(block.text, today) } as Block) : block));
+
   const notes = footnotes.map((note, index) => `[^${index + 1}]: ${note}`).join('\n');
-  const laidOut = renderBlocks(blocks, paragraphStarts);
+  const laidOut = renderBlocks(fielded, paragraphStarts);
   const body = finishLines(notes ? `${laidOut}${laidOut ? '\n\n' : ''}${notes}` : laidOut);
   let markdown = title ? `# ${title}${body ? `\n\n${body}` : ''}` : body;
 

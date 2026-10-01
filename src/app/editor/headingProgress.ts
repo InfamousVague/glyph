@@ -1,6 +1,7 @@
 import { RangeSetBuilder, type Text, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { listLead } from '../core/itemSyntax.ts';
+import { withoutFields } from '../core/taskFields.ts';
 import { forEachLineOutsideFences } from './lines.ts';
 
 /**
@@ -15,6 +16,7 @@ import { forEachLineOutsideFences } from './lines.ts';
  * or higher, so a `##` counts its `###` sections too. When every box is ticked it says so. A heading with no to-dos
  * under it says nothing. A box with no words is not a to-do yet, as the home page's To do card reads it
  * (home/dashboard.ts `openTasks`): a journal's day of to-dos starts with one empty box, and its headings said "0 of 1".
+ * Nor is a box with only a due day or a person after it: fields are not words (core/taskFields.ts).
  */
 
 const HEADING = /^ {0,3}(#{1,6})\s+\S/;
@@ -46,7 +48,8 @@ export function headingCounts(doc: Text): HeadingCount[] {
       return;
     }
     const lead = listLead(text);
-    if (lead?.done != null && text.slice(lead.wordsAt).trim()) {
+    // A box with only fields after it, `- [ ] 📅 2026-10-03`, has nothing to do yet either (docs/DESIGN.md §158).
+    if (lead?.done != null && withoutFields(text.slice(lead.wordsAt))) {
       for (const h of open) {
         h.total += 1;
         if (lead.done) h.done += 1;

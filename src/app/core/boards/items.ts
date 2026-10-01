@@ -1,5 +1,6 @@
 import { readableWords } from '../blanks.ts';
 import { ANCHOR_NAME, COUNTER, anchorSpan, listLead, taskBox, withoutAnchor, withoutBookmark } from '../itemSyntax.ts';
+import { withoutFields } from '../taskFields.ts';
 
 /**
  * The items a board points at: a list item read as a card's item - its anchor, its words, its box - the anchor made
@@ -113,8 +114,9 @@ const FILLER = new Set(
  * filler ("To do") keep them rather than come out empty.
  */
 export function anchorFor(text: string, taken: readonly string[]): string {
+  // A due day or a person is not what the item is called: "Call @sam 📅 2026-10-03" is `call`, not `call-sam-2026`.
   const words = withoutBookmark(
-    text
+    withoutFields(text)
       // A link is named by its words, not by where it points: [notion](https://…) anchors as "notion", never as a URL.
       .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
       // A counter is a count kept on the item, and the bookmark a place in the note: neither is part of its name.
@@ -168,10 +170,13 @@ export function refFor(id: string): string {
  * An item's words as a card says them: links by their own words, not by where they point, a pointer at another item
  * by its anchor, and the marks that would be drawn as bold or code taken off. The note keeps every character; this
  * is only what the card shows.
+ *
+ * Its fields are not its words (core/taskFields.ts, docs/DESIGN.md §158): a due day, a priority and a person are the
+ * card's chips (editor/boards/fields.ts), so "Fix the login loop @sam ⏫ 📅 2026-10-03" says "Fix the login loop".
  */
 export function cardText(text: string): string {
   // A filled blank as its answer's words and a blank as its question (docs/DESIGN.md §145): no card shows a bracket.
-  return withoutBookmark(readableWords(text))
+  return withoutBookmark(readableWords(withoutFields(text)))
     .replace(REF, '^$1')
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/<((?:https?|mailto):[^>]+)>/g, '$1')

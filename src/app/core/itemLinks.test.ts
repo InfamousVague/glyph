@@ -171,6 +171,24 @@ describe('the same line read the same way everywhere (core/itemSyntax.ts)', () =
   });
 });
 
+describe('an item with fields (core/taskFields.ts, docs/DESIGN.md §158)', () => {
+  const line = '- [ ] Fix the login loop @sam #bug ⏫ 📅 2026-10-03';
+
+  it('is sent by its words, without its person, priority or day, and keeps its tags', () => {
+    expect(unsentItems(line)).toEqual([{ line: 1, text: 'Fix the login loop #bug' }]);
+    expect(itemWords(`${line} [notion](https://n.so/a) ^login`)).toBe('Fix the login loop #bug');
+  });
+
+  it('keeps every field in the line when the mark goes on, the mark after them', () => {
+    expect(linkedLine(line, 'https://n.so/a')).toBe(`${line} [notion](https://n.so/a)`);
+    expect(markOf(`${line} [notion](https://n.so/a)`)).toEqual({ name: 'notion', url: 'https://n.so/a' });
+  });
+
+  it('is not a task while it is only fields', () => {
+    expect(unsentItems('- [ ] 📅 2026-10-03 @sam')).toEqual([]);
+  });
+});
+
 describe('an item the AI filled, or one still asking (docs/DESIGN.md §145)', () => {
   const filled = '- [ ] ??Turn off the water and fit the new washer??(Qwen3.5 4B from memory, 2026-09-28. Asked: the next step)';
 

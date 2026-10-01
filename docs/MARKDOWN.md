@@ -187,6 +187,29 @@ from a list of ideas.
   counters and anchor), one per note. The note opens there; the header's bookmark button moves it to the line being
   read, or takes it off that line. Drawn as a small ribbon. (`src/app/editor/bookmarkLine.ts`)
 - **Tapping a box.** `- [ ]` and `- [x]` tick and clear on a tap of the box itself. (`src/app/editor/taskToggle.ts`)
+- **Fields on a to-do — `- [ ] Fix the login loop @sam #bug ⏫ 📅 2026-10-03`.** Added 2026-09-30 (DESIGN §156, §158).
+  Obsidian Tasks' own signs, so the line is a task with a due date there too: `📅` due, `🛫` start, `⏳` scheduled,
+  `✅` done, `➕` created and `❌` cancelled, each followed by an ISO day; `🔺 ⏫ 🔼 🔽 ⏬` for highest to lowest
+  priority; `🔁` and a rule in words for a repeat, kept and not yet acted on; Tasks' `🆔`, `⛔` and `🏁` read and kept.
+  A person is `@sam` (an at sign after a space or an opening bracket, then a letter; not an address, `@2pm` or a
+  redaction's `@@`), `@sam-ortiz` for two words. Anything else is Dataview's `[key:: value]`, and Dataview's own
+  `[due:: 2026-10-03]` stands for the date where there is no `📅`. Read anywhere in a line's words but code, an
+  address, a note link's title, maths, HTML, a redaction and the front matter (`src/app/core/taskFields.ts`). Off the
+  caret's line each is drawn as a chip: the due day as **Today**, **Tomorrow** or **Sat 3 Oct** (the device's own
+  language, the year only when it is not this one), red once it has passed and the box is not ticked, amber on the
+  day, quiet once ticked; the other days quieter with their word, **Starts tomorrow**; a priority as Jira's chevrons
+  with its name for a screen reader; a person with their initial in a ring; a repeat with its mark; a named field with
+  its key quiet. On the caret's line the characters are there to edit (`src/app/editor/taskFields.ts`,
+  `src/app/editor/fieldChips.ts`). A tap on a due, start or scheduled day opens press and hold's band on Today,
+  Tomorrow, Next week (its Monday), Pick a date (the phone's own date picker) and Remove; on a priority, the five and
+  None; on a person, Remove. Press and hold on any list item offers **Due date**, **Priority** and **Assign** (the
+  people the note names, and Someone new) beside its other actions (`src/app/editor/FieldItems.tsx`). The app writes
+  a field where Tasks reads it: Tasks' signs in a run at the end of the words in Tasks' order, a person or a named
+  field before that run, all before the bookmark, the mark, a counter and the anchor. A to-do's words leave its fields
+  out wherever they are its title: a task sent to Notion or an issue to GitHub, a board card (which shows the due day,
+  the priority and the people as chips of its own), the home page's To do, and progress under a heading, which counts
+  no box that has only fields after it. Search finds a priority by its name, "high priority". Another app shows the
+  signs as written, and Obsidian with the Tasks plugin reads the dates and priorities.
 - **Places — `[Cais do Sodré, Lisbon](geo:38.7057,-9.1446)`.** A plain link to a `geo:` address (RFC 5870), alone on
   its line, with or without a list's or a quote's lead: what the + beside the line writes for A place. The map card is
   drawn under it, live on the note screen (tiles only with the map switch on and Local only off), quiet until asked on
@@ -262,6 +285,7 @@ a pause either side ("…, new line, …"), so a sentence that only mentions the
 | `[^1]` and its line | footnote Sam said so end footnote |
 | `??words??(why)` | … end unsure, note Sam said so, end note |
 | `- [x]` | done task: … ("checked box" is heard for "check box", so it stays an open to-do) |
+| `📅`, `⏫`, `@Sam` on an item | … due Friday, … high priority (or urgent), … for Sam (or assigned to Sam), at the end of the item (`src/app/capture/spoken/fields.ts`, days in words `src/app/core/dayWords.ts`) |
 | `Term` / `: meaning` | define deposit as what you pay up front |
 | `:tada:` | emoji party popper (the shortcode, or a spoken name for it) |
 | ```` ``` ```` block | code block in bash … end code block, a line for each sentence, kept whole across pauses |
@@ -287,5 +311,8 @@ a comment and front matter are typed.
   from, and whether it is on this phone; `src/app/editor/videos.ts` — its card, full screen, and its fold.
 - `src/app/editor/inserts.ts` — where an insert goes, above.
 - `src/app/editor/markNotes.ts` — a note in brackets after a mark, and the panel a tap opens.
+- `src/app/core/taskFields.ts` — a to-do's fields read and written; `src/app/editor/taskFields.ts` and
+  `src/app/editor/fieldChips.ts` — their chips; `src/app/editor/fieldMenu.ts` and `src/app/editor/FieldItems.tsx` — what a
+  tap and press and hold do with them; `src/app/capture/spoken/fields.ts` — saying them.
 - `src/app/guide/marks.ts` — the rows of the guide's marks page and the cheat sheet, read from the same place the
   editor reads its marks.
