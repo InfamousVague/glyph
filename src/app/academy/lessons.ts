@@ -437,7 +437,7 @@ export const LESSONS: Lesson[] = [
     symbol: ':',
     rows: ['A definition'],
     title: 'A definition',
-    teach: 'A word on one line, and its meaning on the next after a colon and a space. It is how a glossary is written.',
+    teach: 'A word on one line, and its meaning on the next, starting with a colon and a space. The colon goes at the start of the meaning’s line, not after the word, which is how Markdown apps know it is a definition; drawn, it is gone and the meaning hangs under the word. It is how a glossary is written.',
     example: 'Deposit\n: what you pay up front',
     task: 'Define a word.',
     passes: line(/^[ \t]*[^\s:].*\n[ \t]{0,3}:[ \t]+\S/m),

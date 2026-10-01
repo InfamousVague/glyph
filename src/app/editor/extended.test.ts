@@ -78,6 +78,19 @@ describe('a definition list', () => {
     expect(html).toContain('cm-definition');
   });
 
+  it('hides the colon that writes the meaning, but not on the caret’s line', () => {
+    // The caret starts at the top, on the term: the meaning's line reads without its colon.
+    const away = new EditorView({ state: EditorState.create({ doc: 'Deposit\n: what you pay up front', extensions: [glyphMarkdown([], []), extendedMarkdown()] }), parent: document.body });
+    expect(away.contentDOM.querySelector('.cm-definition')?.textContent).toBe('what you pay up front');
+    away.destroy();
+    const view = new EditorView({
+      state: EditorState.create({ doc: 'Deposit\n: what you pay up front', selection: { anchor: 12 }, extensions: [glyphMarkdown([], []), extendedMarkdown()] }),
+      parent: document.body,
+    });
+    expect(view.contentDOM.querySelector('.cm-definition')?.textContent).toBe(': what you pay up front');
+    view.destroy();
+  });
+
   it('leaves a colon that starts an ordinary line alone', () => {
     expect(drawn('Words\n\n:not a definition').html).not.toContain('cm-definition');
   });

@@ -21,7 +21,7 @@ import { mathsIn } from '../core/maths.ts';
  *
  *   x^2^  H~2~O            raised and lowered runs
  *   > [!NOTE]              a callout, GitHub's own spelling
- *   Term / : the meaning   a definition list, as PHP Markdown Extra writes it
+ *   Term / : the meaning   a definition list, as PHP Markdown Extra writes it; the colon hidden off the caret's line
  *   ---\ntitle: …\n---     front matter, which read as a horizontal rule before
  *   $x^2$  $$ … $$         maths, set as code rather than drawn: a renderer is 280 KB the phone does not need
  *   :tada:                 a shortcode, drawn as its emoji (core/emoji.ts)
@@ -234,10 +234,16 @@ function decorate(state: EditorState, from: number, to: number): DecorationSet {
     const line = state.doc.line(n);
     if (front && n >= front.from && n <= front.to) continue;
 
-    // A definition under its term: the line hangs off its colon, and the term above it is set apart.
+    // A definition under its term: the meaning hangs under the term, which is set apart. Its colon is how it is
+    // written, not how it reads, so off the caret's line it goes, as a heading's hashes do; on it, it is there to edit
+    // (Matt, of the Academy's lesson: "Should the colon be after the label instead of on the next line?").
     const definition = DEFINITION.exec(line.text);
     if (definition) {
       marks.push({ from: line.from, to: line.from, deco: Decoration.line({ class: 'cm-definition' }) });
+      if (!caretLines.has(n)) {
+        const lead = (definition[1] ?? '').length + (/^\s+/.exec(definition[2] ?? '')?.[0].length ?? 0);
+        marks.push({ from: line.from, to: line.from + lead, deco: Decoration.replace({}) });
+      }
       const above = n > 1 ? state.doc.line(n - 1) : null;
       if (above && above.text.trim() && !DEFINITION.test(above.text)) {
         marks.push({ from: above.from, to: above.from, deco: Decoration.line({ class: 'cm-term' }) });
@@ -357,7 +363,8 @@ const theme = EditorView.baseTheme({
 
   // A definition hangs under its term, the way a glossary sets one.
   '.cm-term': { fontWeight: 'var(--glacier-font-weight-semibold, 600)' },
-  '.cm-definition': { paddingInlineStart: '1.2em' },
+  // On the line itself, so a room that takes a line's padding away (guide/MarkExample.module.css `.room`) keeps the hang.
+  '.cm-line.cm-definition': { paddingInlineStart: '1.2em' },
 
   // Maths, as code: the delimiters stay, because they are what makes it maths.
   '.cm-maths': { fontFamily: 'var(--glacier-font-mono)', fontSize: '0.92em', color: 'var(--app-ink-2, var(--glacier-text))' },

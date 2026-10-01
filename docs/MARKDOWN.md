@@ -113,7 +113,8 @@ marker with no definition stays plain words — it is a typo, and drawing it as 
 ### Definition lists — `Term` / `: the meaning`
 
 For the glossary note everybody keeps. The term is set apart, the meaning hangs under it, and both degrade to two
-readable lines anywhere else.
+readable lines anywhere else. The colon opens the meaning's line, as PHP Markdown Extra and Pandoc write it (`Term:
+meaning` on one line is a sentence); off the caret's line it is hidden, as a heading's hashes are.
 
 ### Emoji — `:tada:` → 🎉
 
