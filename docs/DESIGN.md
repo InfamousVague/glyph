@@ -9083,3 +9083,27 @@ keeping its own. The emoji stay what a to-do is written with, Obsidian Tasks' ch
 Obsidian; they are never what the app draws. Tested in editor/TicketPanel.test.tsx.
 
 Cites: §157, §158, §159.
+
+## 166. Checkboxes and radios drawn over their own characters (2026-10-01)
+
+Matt: "for checkboxes and radios render a large UI component where the [ ] or (x) would be but make them take up the
+same physical space in the note". A to-do's box was its three characters in the accent and the monospace face, and a
+choice's the same; now each is drawn as a control (editor/boxControls.ts): a rounded checkbox, filled with the accent
+and a check when ticked, and a ring with a dot when a choice is picked. Each is 1.3em, larger than the letters it
+stands on and narrower than their three-character width.
+
+**The same space.** The characters are not replaced: they stay in the line, transparent, and the control is drawn
+over them, centred in their width. So the line is exactly as long as it was (measured in the browser: every box
+31.4px wide, drawn or typed), and everything built on the characters still holds: a wrapped item hangs under its first
+word (glyphLines.ts measures the characters), a tap ticks or picks where it did (taskToggle.ts, choices.ts), a
+selection and a copy take the characters, and Markdown and Formatted draw the same. A replacing widget would have
+kept the width only by measuring, and would have kept the caret out of the brackets.
+
+**Writing one by hand.** While the caret or a selection is inside the three characters, they show as typed, as a
+mark's characters do. A caret before the box or at the words keeps the control. Nothing is drawn in code, where
+`- [ ]` is characters.
+
+**Tests.** editor/boxControls.test.ts: every box and choice found with its state, the characters kept, revealed only
+with the caret inside, and none in code.
+
+Cites: §156, §158.
