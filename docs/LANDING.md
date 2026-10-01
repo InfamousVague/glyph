@@ -39,6 +39,11 @@ It lives in `landing/` and ships with `node scripts/deploy-landing.mjs`, one ssh
   and `images/` beside the library. A tap on a file shows it as it is on disk, the library's block (id, created,
   pinned, source) and then the page's (a ticket's fields, a notebook's key) (`files.js`, the files' words in
   `<template>`s beside the tree). Written by hand from the library's rules: when they change, so does this.
+- **Icons are Lucide's**, the app's own set (`@glacier/icons` proxies lucide-react; Matt: "use lucide icons for both,
+  add iconography across the whole website"): `icons.svg` is a sprite of every icon the pages name, drawn as
+  `<svg class="i"><use href="icons.svg#i-folder"/></svg>` in the text's ink. `node scripts/landing-icons.mjs` writes
+  it from lucide-react's own data and the names in `landing/*.html`, and stops on a name Lucide does not have; run it
+  after adding an icon to a page. The reference page's marks wear the icon the app's cheat sheet gives each one.
 - **The formatting reference** (`reference.html`, Matt: "a easy to follow reference sheet for all of the formatting
   base markdown and our custom formatting") is written by `src/landing/reference.ts` from the Academy's lessons, so
   it says what the app teaches: standard Markdown first, then each chapter's own marks, each with its characters,

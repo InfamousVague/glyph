@@ -177,6 +177,7 @@ code {
   font-size: var(--glacier-font-size-md, 1rem);
 }
 
+/* Every icon is Lucide's, from the site's sprite (icons.svg, scripts/landing-icons.mjs), in the text's own ink. */
 .i {
   inline-size: 1.15em;
   block-size: 1.15em;
@@ -497,6 +498,38 @@ code {
   border-radius: 1rem;
 }
 
+
+/* An icon before a band's eyebrow, a card's heading, a lead in bold, a section's name. */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.eyebrow .i {
+  inline-size: 1.05em;
+  block-size: 1.05em;
+}
+
+.with-i {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.with-i .i {
+  inline-size: 1.1em;
+  block-size: 1.1em;
+  color: var(--ink-2);
+}
+
+.i-lead {
+  inline-size: 1em;
+  block-size: 1em;
+  margin-inline-end: 0.4rem;
+  vertical-align: -0.14em;
+}
+
 /* ---- plan: the marks, each with the screen it draws and the lines that draw it --------------------------------- */
 
 .laptop-plan {
@@ -677,29 +710,17 @@ code {
   text-align: end;
 }
 
-/* A folder, a Markdown file, and a file that is not a note, each a small shape in the ink. */
-.tree-icon {
-  flex: none;
-  inline-size: 0.8rem;
-  block-size: 0.95rem;
+/* Lucide's folder and file icons (icons.svg): a folder in the ink, a file a step quieter. */
+.tree .tree-icon {
+  inline-size: 1rem;
+  block-size: 1rem;
   align-self: center;
-  border: 1.5px solid var(--ink-3);
-  border-radius: 2px;
+  stroke-width: 1.75;
+  color: var(--ink-2);
 }
 
-.tree-dir {
-  block-size: 0.7rem;
-  inline-size: 0.95rem;
-  border-radius: 1px 3px 2px 2px;
-  background: color-mix(in oklch, var(--ink) 12%, transparent);
-}
-
-.tree-doc {
-  border-color: var(--ink-2);
-}
-
-.tree-data {
-  border-style: dashed;
+.tree-folder .tree-icon {
+  color: var(--ink);
 }
 
 .file {

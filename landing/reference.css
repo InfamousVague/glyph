@@ -51,7 +51,9 @@
 }
 
 .ref-contents a {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   padding: 0.35rem 0.8rem;
   border: 1px solid var(--rule);
   border-radius: var(--glacier-radius-full, 999px);
@@ -75,6 +77,9 @@
 }
 
 .ref-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
   margin: 0;
   font-size: clamp(1.4rem, 3vw, 1.8rem);
   letter-spacing: -0.025em;
@@ -115,8 +120,15 @@
 }
 
 .ref-name h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   margin: 0;
   font-size: var(--glacier-font-size-md, 1rem);
+}
+
+.ref-icon {
+  color: var(--ink-2);
 }
 
 .ref-symbol,
@@ -149,7 +161,7 @@
 
 .ref-example pre {
   margin: 0;
-  padding: 0.7rem 4.2rem 0.7rem 0.85rem;
+  padding: 0.7rem 5.4rem 0.7rem 0.85rem;
   border: 1px solid var(--rule);
   border-radius: var(--glacier-radius-md, 0.6rem);
   background: color-mix(in oklch, var(--ink) 4%, var(--paper));
@@ -161,6 +173,9 @@
 }
 
 .ref-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   position: absolute;
   inset-block-start: 0.45rem;
   inset-inline-end: 0.45rem;
@@ -172,6 +187,11 @@
   font: inherit;
   font-size: var(--glacier-font-size-xs, 0.8rem);
   cursor: pointer;
+}
+
+.ref-copy .i {
+  inline-size: 0.95em;
+  block-size: 0.95em;
 }
 
 .ref-copy:hover {

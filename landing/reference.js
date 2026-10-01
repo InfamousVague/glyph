@@ -7,13 +7,14 @@ document.addEventListener('click', async (event) => {
   if (!button) return;
   try {
     await navigator.clipboard.writeText(button.getAttribute('data-copy-text') ?? '');
-    button.textContent = 'Copied';
+    const words = button.querySelector('span') ?? button;
+    words.textContent = 'Copied';
     button.setAttribute('data-copied', '');
     setTimeout(() => {
-      button.textContent = 'Copy';
+      words.textContent = 'Copy';
       button.removeAttribute('data-copied');
     }, 1600);
   } catch {
-    button.textContent = 'Select it';
+    (button.querySelector('span') ?? button).textContent = 'Select it';
   }
 });
