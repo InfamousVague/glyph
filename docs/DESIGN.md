@@ -8676,3 +8676,91 @@ lists both ways, quoting that comes back as it went, statuses, keys and the next
 evening and London's clock change), core/frontMatter.test.ts (YAML's escapes), core/tags.test.ts (moved).
 
 Cites: §145.
+
+## 159. Fields on a to-do: chips, a tap to change one, and saying them (2026-09-30)
+
+Matt: "What other notion and jira like features can we code with custom markdown to add to our app like tickets and
+such", and of the eight ideas, "Do 1, 2 and 3 in parallel". This is the first: a to-do's due date, priority and
+person, proposed as `- [ ] Fix the login loop 📅 2026-10-03 ⏫ @sam #bug ^login-loop`, "due, priority and person as
+chips: overdue red, @sam as a person", and "due Friday" or "for Sam" said to write the field. The grammar is §156's
+(core/taskFields.ts), which writes the proposal's line as `@sam #bug ⏫ 📅 2026-10-03` so Obsidian Tasks still reads
+its date; this section is what the app draws from it, what a tap and a press do, and what the recorder hears.
+
+**Chips** (editor/taskFields.ts, editor/fieldChips.ts). Off the caret's line each field is a small chip in a tag's size
+and weight; on it, the characters are there to edit, as a shortcode's emoji and a place's name are. The due day is
+named from today: Today, Tomorrow, Yesterday, else "Sat 3 Oct", the year only when it is not this one, in the device's
+own language as every other date in the app is, so an American phone says "Sat, Oct 3". It is in the red ramp once it
+has passed and the box is not ticked, in amber on the day, and in the third ink once the box is ticked or a ✅ day is
+on the line, since a finished thing is not late. Start, scheduled, done, created and cancelled days are quieter,
+unfilled, each with its word ("Starts tomorrow"). A priority is Jira's chevrons, two up for highest to two down for
+lowest, in red, amber, blue and the third ink, its name for a screen reader. A person is their initial in a purple
+ring and the name as written, `@sam-ortiz` shown as "sam ortiz". A repeat is a small repeat mark and its words; a
+named field is its value with its key quieter before it; Dataview's own `[due:: …]` is drawn as the due day it stands
+for. Tasks' 🆔, ⛔ and 🏁 are left as written: ids for Obsidian to follow, which nothing here acts on. Nothing is drawn
+in code, an address, HTML, a comment, maths, a blank's question or the front matter. A chip is an inline block, so it
+is given `text-indent: 0`: a list item's line hangs off its marker with a negative indent, which a chip inherited and
+pulled its own words out of its box by, the first thing the phone-sized shots showed.
+
+**A tap changes it, through the menu the note already has.** Not a new kind of menu: a tap on a due, start or
+scheduled day, a priority or a person opens press and hold's band (editor/ContextMenu.tsx) at the chip, on that
+field's page (editor/FieldItems.tsx), in the band's own hand. A day offers Today, Tomorrow, Next week, Pick a date and,
+when it has one, Remove, the day it has lit. Priority offers the five, the most urgent first in the chips' own marks,
+and None. A person offers Remove. The chip is drawn by CodeMirror and the band by React, so the tap reaches the band as
+an event on the editor's element (editor/fieldMenu.ts `FIELD_TAP`), as a press and hold reaches it as the browser's
+`contextmenu`. The press is kept from the editor as the suggestion pill's is, so the caret stays and the keyboard does
+not rise; and the editor is given its focus back after a choice only where it had it. A chip with no menu - a repeat,
+a named field, a done day - is the editor's: a tap puts the caret on its line, where it is the characters again.
+Pick a date is the phone's own picker, a native date input opened with `showPicker` from the press itself. The input
+is the page's, not the band's: the band closes on a press as every row's does, and the keyboard going down can scroll
+the page, which closes it too, so an input inside it would be gone before the picker answered.
+
+**Adding one.** Of the places a line's actions are offered, the + beside the line is for an empty line only, and a
+linked line's drawer is a Notion task's; a list item's are press and hold's. So on a list item the band now offers
+**Due date**, **Priority** and **Assign** after Move down, each turning the band to its page with Back to the actions.
+Assign offers the people the note already names, each lit where they are on the line and pressed on and off, the band
+staying open for a second, and Someone new, which writes the at sign where a person goes and leaves the caret after it.
+Next week is the Monday of next week, a week that starts on a Monday, as a British calendar's does: the day a thing put
+off to next week is looked at again (core/dayWords.ts `nextWeek`, which the voice's "next week" is too).
+
+**Saying them** (capture/spoken/fields.ts, core/dayWords.ts). While a list item is spoken - a to-do, a done one, a
+bullet, a step, or an item added to another note's list - a due day, a priority and a person said at its end are
+taken off its words and written as its fields: "remember to call the plumber due Friday, high priority, for Sam" is
+`- [ ] Call the plumber @Sam ⏫ 📅` and Friday. High precision, as every spoken rule is (capture/markdown.ts), since a
+false field takes words out of what was said: a cue is read only at the end of an item, in any order, each kind once.
+"Due" needs a day it can read after it (today, tomorrow, a weekday, "next Friday", next week, the weekend, "in two
+weeks", "the third of October", "October 3rd", "the third"), so "the rent is due soon" is words. A priority is
+"high priority", "top priority" (highest), "low priority" and the rest, "priority high", or "urgent" (high). A person
+is "for" or "assigned to" and one or two capitalised words, since Whisper writes a name with a capital, so "for now"
+and "for dinner" are words; not a weekday, a month or a holiday ("for Friday" is when, not who); and not after a thing
+given or booked, "a present for Sam", "flights for Lisbon", which is who it is for or where. "Due next week." or "High
+priority." said on its own a breath after an item belongs to that item; "For Sam." on its own does not, since it may
+be the start of something else. A weekday is the next one, today included; "next Friday" is the Friday of next week; a
+date with no year is the next one. An item that is nothing but a cue, "Urgent.", stays the words it was. The day is
+counted from the person's own day when the take is rendered (core/days.ts).
+
+**An item's words leave its fields out** wherever they are its title or its card: a task sent to Notion or an issue to
+GitHub (core/itemLinks.ts, which reads the words for finding the item again the same way, so a send still marks its
+line), a board's card (core/boards/items.ts `cardText`), an anchor made for an item ("Call @sam 📅 2026-10-03" is
+`call`), the home page's open to-dos, and progress under a heading, which counts no box with only fields after it.
+Tags stay words. A board card shows the due day, the priority and the people as chips of its own, at the start of its
+footer under the words (editor/boards/fields.ts), and a tap on one opens the band for the item's line. The preview a
+note card draws is the note's own editor, so it draws the chips too, with no taps. Search finds a priority by its name,
+"high priority", since nobody types the sign; a person and a day are found as written.
+
+**Not done.** The Notion plugin sends a task's title and nothing else, so the due day is not sent as the task's date:
+that would need the board's date property read when the board is chosen, and the swipe's send to carry its line. A
+repeat is kept and drawn, and ticking one does not make the next. A board card's own menu has no rows for fields:
+its chips open the band instead.
+
+**Tests.** editor/fieldChips.test.ts (each field's look, days named in British, the tones), editor/taskFields.test.ts
+(chips over a real editor: the caret's line as written, nothing in code, front matter or a blank, a tap told to the
+menu and the caret kept), editor/fieldMenu.test.ts (the days offered, the people named, each edit one undo, the date
+picker), editor/FieldItems.test.tsx (the band's pages through ContextMenu, from a chip and from the line's actions),
+editor/boards/fields.test.ts (a card's words and chips), core/dayWords.test.ts, capture/spoken/fields.test.ts, cases in
+capture/markdown.test.ts and capture/listAppend.test.ts, voice tests 119 to 124 (voice-tests/suite.json), and the
+words left out in core/itemLinks.test.ts, core/boards/items.test.ts, editor/headingProgress.test.ts,
+home/dashboard.test.ts and notes/allNotes.test.ts. The cheat sheet has four rows (a due date, a priority, a person, a
+field by name), taught by one Academy lesson, Fields on a to-do; the Guide's Lists and to-dos has a section, Saying
+the marks its cues, and Boards made of list items the card's chips. docs/MARKDOWN.md and docs/BOARDS.md say the same.
+
+Cites: §127, §145, §156.

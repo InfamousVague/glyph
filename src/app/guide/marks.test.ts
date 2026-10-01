@@ -135,6 +135,12 @@ const SAID: Record<string, readonly { said: readonly string[]; writes: string }[
     { said: ['The trip.', 'Check box: book the cabin.'], writes: '- [ ] Book the cabin' },
   ],
   Done: [{ said: ['The trip.', 'Done task: call Sam.'], writes: '- [x] Call Sam' }],
+  'A due date': [{ said: ['The trip.', 'Remember to book the cabin due Friday.'], writes: '- [ ] Book the cabin 📅 ' }],
+  'A priority': [
+    { said: ['The trip.', 'Remember to fix the gate, high priority.'], writes: '- [ ] Fix the gate ⏫' },
+    { said: ['The trip.', 'Remember to fix the gate, urgent.'], writes: '- [ ] Fix the gate ⏫' },
+  ],
+  'A person': [{ said: ['The trip.', 'Remember to book the cabin for Sam.'], writes: '- [ ] Book the cabin @Sam' }],
   'A choice': [{ said: ['The trip.', 'Option: tent.', 'Picked option: cabin.'], writes: '- ( ) Tent\n- (x) Cabin' }],
   'A counter': [{ said: ['The trip.', 'Water counter three of eight.'], writes: 'Water [3/8]' }],
   'A sum': [{ said: ['The trip.', 'Calculate: four hundred plus one hundred twenty.'], writes: '= 400 + 120' }],

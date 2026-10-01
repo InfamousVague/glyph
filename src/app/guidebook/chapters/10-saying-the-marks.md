@@ -55,6 +55,11 @@ The first sentence of a new note is still read as a possible title. Said first, 
 | “Done task: pay the deposit.” | `- [x] Pay the deposit` |
 | “Option: tent.” “Picked option: cabin.” | `- ( ) Tent` and `- (x) Cabin` |
 | “Bullet point: drink water, counter zero of eight.” | `- Drink water [0/8]` |
+| “Remember to call the plumber due Friday.” | `- [ ] Call the plumber 📅` and Friday's date |
+| “Check box: fix the gate, high priority.” (or “urgent”, “top priority”, “low priority”) | `- [ ] Fix the gate ⏫` |
+| “Remember to book the venue for Sam.” (or “assigned to Sam”) | `- [ ] Book the venue @Sam` |
+
+A due date, a priority and a person are heard at the end of an item, in any order, and only there: “due” needs a day after it that can be read (“today”, “tomorrow”, “Friday”, “next Friday”, “next week”, “the third of October”), and a person needs a name, so “the rent is due soon”, “a present for Sam” and “for now” stay words. “Due next week.” said on its own straight after an item is that item's due date.
 
 ## Words that stand out
 

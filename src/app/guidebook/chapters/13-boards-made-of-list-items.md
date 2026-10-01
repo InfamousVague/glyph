@@ -31,7 +31,7 @@ When Ghost.md names an item itself, it takes the first three words that carry me
 
 ## A card is its item
 
-A card shows its item's words, without their Markdown, in three lines at most. A to-do is a card with a box. A bullet or a numbered step is a card with a dot: something on the board that is not work to finish.
+A card shows its item's words, without their Markdown, in three lines at most. A to-do is a card with a box. A bullet or a numbered step is a card with a dot: something on the board that is not work to finish. An item's due date, priority and people ([[Lists and to-dos]]) are chips at the foot of its card, red once the date has passed; tap one to change it, as on the line.
 
 | On a card | What happens |
 | --- | --- |

@@ -166,6 +166,13 @@ at from a column, from a sentence, or from another note.
   is said aloud, since the board is often off the screen.
 - A card says its item's words with the markdown taken off — a link reads as its own words, not its URL — and shows
   three lines at most. The note below always has the whole thing.
+- An item's fields (`src/app/core/taskFields.ts`, DESIGN §159) are not its words: `- [ ] Fix the login loop @sam #bug
+  ⏫ 📅 2026-10-03 ^login` is a card that says "Fix the login loop #bug", with the person, the priority and the due day
+  as chips at the start of its footer, under the words and before the plugin's mark and the arrows
+  (`src/app/editor/boards/fields.ts`), drawn as the line draws them: the day red once it has passed, every chip quiet
+  once the card is ticked. A recurrence, a start day or a named field is the line's to show, not the card's. A tap on
+  a chip opens press and hold's band on that field's page for the item's line, as a tap on the line's chip does. An
+  anchor made for an item is made from its words alone: "Call @sam 📅 2026-10-03" is `call`.
 
 ## By voice
 
