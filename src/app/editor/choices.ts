@@ -95,6 +95,10 @@ const theme = EditorView.baseTheme({
   '.cm-choiceBox': {
     color: 'var(--glacier-accent-text, currentColor)',
     fontWeight: '500',
+    // One width picked or not, as a to-do's box is (editor/markdown.module.css `.taskMarker`): in the prose face `( )`
+    // is narrower than `(x)`, so the empty one looked pinched and the words beside it jumped on a tap (Matt: "show even
+    // space inside the empty one as the filled one").
+    fontFamily: 'var(--glacier-font-mono)',
     cursor: 'pointer',
   },
 });
