@@ -20,7 +20,7 @@ export const manifest: PluginManifest = {
     { kind: 'notes', why: 'Claude reads and writes the notes of your account once you sign it in: from outside the phone, through the sync service, never through this app.' },
     { kind: 'network', why: 'Claude talks to Ghost.md’s sync service and nothing else. This page only carries the instructions.' },
   ],
-  hosts: ['attack.fm'],
+  hosts: ['ghostmarkdown.com'],
   storage: [],
 };
 

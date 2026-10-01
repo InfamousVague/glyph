@@ -80,7 +80,7 @@ const SERVICE = 'glyph-api';
 /** Must match GLYPH_API_BIND in server/glyph-api.service. */
 const PORT = 8796;
 const STAGE = '.glyph-api-stage';
-const API = 'https://attack.fm/glyph/api';
+const API = 'https://ghostmarkdown.com/glyph/api';
 
 /** .env, with the token and the Notion credentials checked for shape as well as presence. */
 function loadServerEnv() {

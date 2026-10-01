@@ -1,5 +1,5 @@
 # glyph-mcp: Claude's hosted MCP server for Glyph accounts (mcp/hosted.ts, docs/MCP.md), reached through glyph-api at
-# attack.fm/glyph/api/mcp.
+# ghostmarkdown.com/glyph/api/mcp (attack.fm stays a working alias).
 #
 # Installed by scripts/deploy-server.mjs beside glyph-api, which rewrites this file on every deploy - edit it here,
 # not on the box. The same shape as glyph-api.service: the same system user, loopback only, the same hardening.
@@ -15,10 +15,10 @@ Wants=network-online.target
 
 [Service]
 Environment=GLYPH_MCP_BIND=127.0.0.1:18820
-Environment=GLYPH_MCP_ISSUER=https://attack.fm/glyph/api/mcp
+Environment=GLYPH_MCP_ISSUER=https://ghostmarkdown.com/glyph/api/mcp
 # The sync service on loopback, for this process; and as a person's browser reaches it, for the sign-in page.
 Environment=GLYPH_API=http://127.0.0.1:8796/glyph/api
-Environment=GLYPH_API_PUBLIC=https://attack.fm/glyph/api
+Environment=GLYPH_API_PUBLIC=https://ghostmarkdown.com/glyph/api
 Environment=NODE_ENV=production
 ExecStart=/usr/bin/node /opt/glyph-api/mcp/glyph-mcp-hosted.mjs
 User=glyph

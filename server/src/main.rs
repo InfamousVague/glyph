@@ -66,11 +66,13 @@ const DEFAULT_BIND: &str = "127.0.0.1:8796";
 /// `https://tauri.localhost` when a window sets `useHttpsScheme` - Glyph's
 /// `tauri.conf.json` does not, so the phone is the http one today, and the
 /// https one is here so flipping that flag does not silently cut the app off.
-/// iOS and macOS use `tauri://localhost`. The web build at attack.fm/glyph/ is
-/// same-origin and needs no entry. ghostmarkdown.com is the one website: the reader page for shared notes is served
-/// there (scripts/deploy-landing.mjs), and reads a share from this service by its id. The Vite dev server
-/// (`vite.config.ts`, port 5250) is not listed: `allowed_origin` lets in a dev server at any local port.
-const ORIGINS: &[&str] = &["http://tauri.localhost", "https://tauri.localhost", "tauri://localhost", "https://ghostmarkdown.com"];
+/// iOS and macOS use `tauri://localhost`. The service answers at ghostmarkdown.com now, with attack.fm kept as a
+/// working alias (Matt: move the connection to the ghostmarkdown.com TLD): the web build is still served from
+/// attack.fm/glyph/, so that page reaches ghostmarkdown.com's API cross-origin and attack.fm has to be let in;
+/// a page served from ghostmarkdown.com is same-origin. The reader page for shared notes (scripts/deploy-landing.mjs)
+/// is on ghostmarkdown.com and reads a share by its id. The Vite dev server (`vite.config.ts`, port 5250) is not
+/// listed: `allowed_origin` lets in a dev server at any local port.
+const ORIGINS: &[&str] = &["http://tauri.localhost", "https://tauri.localhost", "tauri://localhost", "https://ghostmarkdown.com", "https://attack.fm"];
 
 /// Whether a page may call this service from the browser: one of `ORIGINS`,
 /// or a dev server on this machine at any port (`http://localhost:5255`,

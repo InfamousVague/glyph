@@ -1,12 +1,12 @@
 /**
  * The one way the page talks to Glyph's account and sync service (server/src/accounts.rs, server/src/sync.rs).
  *
- * Served from attack.fm for now (Matt: "for now just use attack.fm domains"), and one setting away from anywhere else:
+ * Served from ghostmarkdown.com, with attack.fm kept as a working alias (Matt: move the connection to the ghostmarkdown.com TLD); and one setting away from anywhere else:
  * `VITE_GLYPH_API` at build time. Errors come back as the service words them, `{ error }`, so what the person reads is
  * what the service meant.
  */
 
-export const API_BASE: string = (import.meta.env.VITE_GLYPH_API as string | undefined)?.replace(/\/+$/, '') || 'https://attack.fm/glyph/api';
+export const API_BASE: string = (import.meta.env.VITE_GLYPH_API as string | undefined)?.replace(/\/+$/, '') || 'https://ghostmarkdown.com/glyph/api';
 
 /** A request the service refused, with its status and its own words. */
 export class ApiError extends Error {

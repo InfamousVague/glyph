@@ -10,10 +10,10 @@ export const manifest: PluginManifest = {
   standard: true,
   permissions: [
     { kind: 'notes', why: 'Turns a sent item’s words into a link to its task, in the note it came from.' },
-    { kind: 'network', why: 'Signs in through attack.fm and sends tasks to Notion. Only the items you send go.' },
+    { kind: 'network', why: 'Signs in through ghostmarkdown.com and sends tasks to Notion. Only the items you send go.' },
     { kind: 'native', why: 'Keeps your Notion sign-in inside the app, where no page can read it.' },
   ],
-  hosts: ['api.notion.com', 'attack.fm'],
+  hosts: ['api.notion.com', 'ghostmarkdown.com'],
   native: { generation: 12, commands: ['notion_save_account', 'notion_account', 'notion_disconnect', 'notion_request'] },
   storage: ['glyph-notion-links', 'glyph-notion-signin', 'glyph-notion-tasks'],
 };

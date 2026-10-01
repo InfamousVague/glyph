@@ -20,7 +20,7 @@ With Local only on, the page is hidden and this device stops syncing, so what Cl
 
 ### Hosted
 
-1. **Add the server to Claude.** In claude.ai or Claude Desktop: Settings › Connectors › Add custom connector, with the address `https://attack.fm/glyph/api/mcp`. In Claude Code, one line: `claude mcp add --transport http glyph https://attack.fm/glyph/api/mcp`
+1. **Add the server to Claude.** In claude.ai or Claude Desktop: Settings › Connectors › Add custom connector, with the address `https://ghostmarkdown.com/glyph/api/mcp`. In Claude Code, one line: `claude mcp add --transport http glyph https://ghostmarkdown.com/glyph/api/mcp`
 2. **Sign in on the page that opens.** It says "Let Claude use your notes." Give your handle and password and choose **Allow**.
 3. **Ask in words.** "What's in my Groceries note?" "Add 'book the ferry' as a task to my Trip plan."
 
@@ -33,7 +33,7 @@ The connection lasts about a week from the moment you sign in, whether you use i
 Get the file, sign in once, and tell Claude where it is:
 
 ```
-curl -fsSL https://attack.fm/glyph/mcp/glyph-mcp.mjs -o ~/glyph-mcp.mjs
+curl -fsSL https://ghostmarkdown.com/glyph/mcp/glyph-mcp.mjs -o ~/glyph-mcp.mjs
 node ~/glyph-mcp.mjs login <your handle>
 claude mcp add glyph -- node ~/glyph-mcp.mjs
 ```

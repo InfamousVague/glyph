@@ -59,7 +59,7 @@ The session is kept in `session.json` in `~/.config/glyph-mcp` (under `XDG_CONFI
 
 ## Serving it hosted
 
-`mcp/hosted.ts` is an express app. `mcp/hosted-main.ts` starts it, and every ten minutes sweeps away whatever has run out. It is reached at `https://attack.fm/glyph/api/mcp`, through `server/src/mcp_proxy.rs`.
+`mcp/hosted.ts` is an express app. `mcp/hosted-main.ts` starts it, and every ten minutes sweeps away whatever has run out. It is reached at `https://ghostmarkdown.com/glyph/api/mcp` (attack.fm is a working alias), through `server/src/mcp_proxy.rs`.
 
 OAuth 2.1 comes from the MCP SDK's own handlers: dynamic client registration, the authorisation code with PKCE (S256), refresh tokens and revocation. The discovery documents live under the same path.
 
@@ -97,7 +97,7 @@ From Node 19, WebCrypto is on `globalThis` already. On Node 18 it is not, and im
 - `mcp/dist/glyph-mcp.mjs`, built from `main.ts` for Node 20, to run on a person's own machine
 - `mcp/dist/glyph-mcp-hosted.mjs`, built from `hosted-main.ts` for Node 18, with the sign-in page's typeface folded in
 
-`node scripts/deploy-ota.mjs --mcp` publishes the local bundle at `https://attack.fm/glyph/mcp/glyph-mcp.mjs`. `scripts/deploy-server.mjs` ships the hosted one.
+`node scripts/deploy-ota.mjs --mcp` publishes the local bundle at `https://ghostmarkdown.com/glyph/mcp/glyph-mcp.mjs`. `scripts/deploy-server.mjs` ships the hosted one.
 
 ## Tests
 

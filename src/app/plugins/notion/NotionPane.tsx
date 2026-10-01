@@ -107,7 +107,7 @@ export function NotionPane() {
         </PaneSection>
       ) : null}
 
-      <SettingsFootnote>Signing in goes through attack.fm to finish the handshake with Notion. Your notes never do.</SettingsFootnote>
+      <SettingsFootnote>Signing in goes through ghostmarkdown.com to finish the handshake with Notion. Your notes never do.</SettingsFootnote>
     </>
   );
 }

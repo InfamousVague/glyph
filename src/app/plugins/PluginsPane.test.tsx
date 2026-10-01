@@ -26,8 +26,8 @@ describe('Settings › Plugins', () => {
   });
 
   it('says what a plugin may reach in one line, and the reasons a press away', () => {
-    expect(reachLine(notion)).toBe('Your notes · The internet (api.notion.com, attack.fm) · Built-in app commands');
-    expect(reachLine(claude)).toBe('Your notes · The internet (attack.fm)');
+    expect(reachLine(notion)).toBe('Your notes · The internet (api.notion.com, ghostmarkdown.com) · Built-in app commands');
+    expect(reachLine(claude)).toBe('Your notes · The internet (ghostmarkdown.com)');
     const pane = show(<PluginsPane />);
     const card = cardOf(pane, 'Claude')!;
     expect(card.textContent).toContain(reachLine(claude));
