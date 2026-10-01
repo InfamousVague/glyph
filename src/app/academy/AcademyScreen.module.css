@@ -146,7 +146,9 @@
   font-size: var(--glacier-font-size-sm);
   line-height: var(--glacier-leading-md);
   color: var(--app-ink);
-  white-space: pre;
+  /* Wrapped, never cut off: a video's line is longer than a phone is wide, and a scroll hid the end of it. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .task {

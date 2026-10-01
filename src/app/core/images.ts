@@ -7,6 +7,7 @@ import { hasNativeGeneration } from './nativeGeneration.ts';
 import { isMacApp } from './platform.ts';
 import { invoke, isTauri } from './tauri.ts';
 import { webGet, webPut } from './webImages.ts';
+import sampleTape from '../art/samples/tape.svg?url';
 
 /**
  * Pictures in notes.
@@ -169,6 +170,14 @@ export function pickImage(): Promise<string | null> {
 /** Fires when a browser picture has been loaded from storage and `imageUrl` will now answer for it. */
 export const IMAGE_READY = 'glyph:image-ready';
 
+/**
+ * Pictures the app carries itself, by name, for the examples that show one: the Academy's picture and video lessons
+ * and the cheat sheet's rows (academy/lessons.ts, guide/marks.ts). A name no note's own picture has, since a picture
+ * added to a note is named by a random id (`saveImageFile`). Matt, of the video lesson: "doesn't show the image after
+ * show me", when the example named a picture no phone had.
+ */
+export const SAMPLE_PICTURES: Readonly<Record<string, string>> = { 'sample-tape.svg': sampleTape };
+
 /** Pictures the phone or the Mac was given by sync this run, by name, each with a number that changes when it lands. */
 const arrived = new Map<string, number>();
 
@@ -229,6 +238,8 @@ function imageArrived(name: string): void {
  * picture fetched from storage and `IMAGE_READY` fired when it is there.
  */
 export function imageUrl(name: string): string {
+  const sample = SAMPLE_PICTURES[name];
+  if (sample) return sample;
   if (isTauri()) {
     // A picture that arrived by sync after the page asked for it: a fresh address, so the page asks again rather than
     // keeping the failed load. The `img` scheme reads only the path (src-tauri/src/images.rs), so the query is ignored.

@@ -276,9 +276,9 @@ const OWN: MarkGroup[] = [
         looks: 'table',
         icon: Table,
       },
-      { symbol: '![ ]( )', name: 'A picture', typed: '![A cassette](image/tape.jpg)', words: 'A cassette', looks: 'picture', icon: Image },
+      { symbol: '![ ]( )', name: 'A picture', typed: '![A cassette](image/sample-tape.svg)', words: 'A cassette', looks: 'picture', icon: Image },
       // Written by the +, never typed: a still of the film's first frame, linked to the film (core/videoRefs.ts). It is drawn here as its still.
-      { symbol: '[![ ]( )]( )', name: 'A video', typed: '[![video 0:12](image/tape.jpg)](video/a1b2c3.mp4)', words: 'video 0:12', looks: 'picture', icon: Film },
+      { symbol: '[![ ]( )]( )', name: 'A video', typed: '[![video 0:12](image/sample-tape.svg)](video/a1b2c3.mp4)', words: 'video 0:12', looks: 'picture', icon: Film },
       { symbol: '```', name: 'A block of code', typed: '```js\nconst note = "hello";\n```', words: 'const note = "hello";', looks: 'fence', icon: SquareCode, say: '“code block in bash” … “end code block”' },
       {
         symbol: '[! ]',
