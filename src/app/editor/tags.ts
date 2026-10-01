@@ -4,41 +4,13 @@ import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate
 import { forEachVisibleLine } from './lines.ts';
 import { inQuietText } from './syntax.ts';
 import { blankMatches } from '../core/blanks.ts';
+import { tagsIn } from '../core/tags.ts';
 
 /**
- * Tags on list items, and anywhere else in a line (Matt: "add ability to make tags on list items"):
- *
- *   - [ ] Ship the pricing page #web #launch
- *
- * Written the way Obsidian and Bear write them, so a note reads the same elsewhere: a `#` straight against a letter,
- * then letters, digits, `_`, `-` or `/` (for `#work/clients`). A `#` with a space after it is a heading, a `#` inside
- * a word or a link is part of that, and nothing inside code is a tag. Drawn as a small quiet chip, the `#` kept.
- *
- * On a linked item, tags go with the words, before the mark and the anchor: `- [ ] Ship it #web [notion](…) ^ship`.
+ * Tags drawn: a small quiet chip on each, the `#` kept (Matt: "add ability to make tags on list items"). What a tag is
+ * is core/tags.ts, which a query reads too (docs/DESIGN.md §156); here is only where one is drawn. Nothing inside
+ * code, an address, front matter, HTML, a comment or maths is a tag, which is the parser's to say.
  */
-
-/** A tag: after the line's start or a space or an opening bracket, `#`, a letter, then the rest of the name. */
-const TAG = /(^|[\s([{])(#[\p{L}][\p{L}\p{N}_/-]*)/gu;
-
-export interface Tag {
-  /** The `#` and the name. */
-  from: number;
-  to: number;
-  /** The name without the `#`, lower-cased: how two tags are compared. */
-  name: string;
-}
-
-/** Every tag in `text`, counting positions from `offset`. A trailing `-` or `/` is punctuation, not the name. */
-export function tagsIn(text: string, offset = 0): Tag[] {
-  const found: Tag[] = [];
-  TAG.lastIndex = 0;
-  for (let match = TAG.exec(text); match; match = TAG.exec(text)) {
-    const written = (match[2] ?? '').replace(/[-/]+$/, '');
-    const from = offset + match.index + (match[1] ?? '').length;
-    found.push({ from, to: from + written.length, name: written.slice(1).toLowerCase() });
-  }
-  return found;
-}
 
 const chip = Decoration.mark({ class: 'cm-tag' });
 

@@ -15,7 +15,7 @@ import { headingCounts } from '../editor/headingProgress.ts';
 import { glyphMarkdown } from '../editor/language.ts';
 import { isTint, notePattern, notesIn } from '../editor/markNotes.ts';
 import { sumOnLine } from '../editor/sums.ts';
-import { tagsIn } from '../editor/tags.ts';
+import { tagsIn } from '../core/tags.ts';
 import { wikiLinksIn } from '../editor/wikiLinks.ts';
 import { plugins } from '../plugins/registry.ts';
 import { videoOfLine } from '../core/videoRefs.ts';

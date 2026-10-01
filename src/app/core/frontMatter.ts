@@ -77,9 +77,24 @@ export function frontMatterValue(body: string, key: string): string | null {
   const pattern = new RegExp(`${keyStart(key)}\\s*(.*?)\\s*$`, 'i');
   for (const line of lines.slice(1, end - 1)) {
     const m = pattern.exec(line);
-    if (m) return (m[1] ?? '').replace(/^(["'])(.*)\1$/, '$2');
+    if (m) return unquoted(m[1] ?? '');
   }
   return null;
+}
+
+/**
+ * A value as written with its quotes taken off, the way YAML reads them: in double quotes `\"` is a quote and `\\` a
+ * backslash, in single quotes `''` is one quote, and a value in neither is as it is. Every reader of a value takes them
+ * off here (core/properties.ts too), so a ticket's `blocked-by: "[[GHO-9]]"` and a canvas's `title: "Map"` read alike.
+ * Until 2026-09-30 the escapes were left in, which no note the app writes had: `quotedTitle` makes a quote in a title
+ * a single one, so nothing it wrote reads differently now.
+ */
+export function unquoted(value: string): string {
+  const double = /^"(.*)"$/.exec(value);
+  if (double) return (double[1] ?? '').replace(/\\(["\\])/g, '$1');
+  const single = /^'(.*)'$/.exec(value);
+  if (single) return (single[1] ?? '').replace(/''/g, "'");
+  return value;
 }
 
 /**

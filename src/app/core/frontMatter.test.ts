@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FENCE, FRONT_MATTER_LINES, frontMatterEnd, frontMatterOffset, frontMatterValue, quotedTitle, withFrontMatterTitle, withFrontMatterValue } from './frontMatter.ts';
+import { FENCE, FRONT_MATTER_LINES, frontMatterEnd, frontMatterOffset, frontMatterValue, quotedTitle, unquoted, withFrontMatterTitle, withFrontMatterValue } from './frontMatter.ts';
 import { noteTitle } from './store.ts';
 
 /** A block of `count` keys between two fences, then a line of words. */
@@ -60,6 +60,19 @@ describe('a front matter value read', () => {
     expect(frontMatterValue('---\nbook: true\nsome words about it\n---\n# B', 'book')).toBeNull();
     expect(frontMatterValue(keys(39).join('\n'), 'key0')).toBeNull();
     expect(frontMatterValue(keys(38).join('\n'), 'key0')).toBe('value');
+  });
+
+  // Until 2026-09-30 the escapes were left in: a ticket's `title: "Say \"hi\""` from Obsidian read with its backslashes.
+  it('takes the quotes off as YAML does, escapes and all', () => {
+    expect(frontMatterValue('---\ntitle: "Say \\"hi\\""\n---\n', 'title')).toBe('Say "hi"');
+    expect(frontMatterValue("---\ntitle: 'It''s here'\n---\n", 'title')).toBe("It's here");
+    expect(unquoted('"[[GHO-9]]"')).toBe('[[GHO-9]]');
+    expect(unquoted('"C:\\\\notes"')).toBe('C:\\notes');
+    expect(unquoted("'say \"hi\"'")).toBe('say "hi"');
+    expect(unquoted("Won't do")).toBe("Won't do");
+    expect(unquoted('"half')).toBe('"half');
+    expect(unquoted('""')).toBe('');
+    expect(unquoted(`"Say 'hi''there"`)).toBe("Say 'hi''there");
   });
 });
 

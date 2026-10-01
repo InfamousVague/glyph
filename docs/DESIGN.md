@@ -8628,3 +8628,51 @@ each workspace wears its colour. The marks are the second ink, a step up from th
 picture now and not an empty space held for one (home/HomeFilters.tsx `ShowMark`; a test in home/HomeScreen.test.tsx).
 
 Cites: §148.
+
+## 156. Fields, tickets and queries: the grammar they share (2026-09-30)
+
+Matt: "What other notion and jira like features can we code with custom markdown to add to our app like tickets and
+such". Of the eight ideas that came back he picked three, "Do 1, 2 and 3 in parallel": fields on a to-do, tickets as
+notes, and a query fence that lays them out as a table, a list, a board, a calendar or a gantt. Each has a section of
+its own after this one. This one is the grammar all three read, written first and alone, so that none of them writes a
+second copy of it: one grammar per syntax, in one pure module, tested line by line (core/itemSyntax.ts says why).
+
+**Fields on a to-do** (core/taskFields.ts). Obsidian Tasks' own signs, so the line is a task in Obsidian too: 📅 due,
+🛫 start, ⏳ scheduled, ✅ done, ➕ created and ❌ cancelled, each followed by an ISO day; 🔺 ⏫ 🔼 🔽 ⏬ for the five
+priorities; 🔁 and a rule in words for a recurrence, kept and not yet acted on; Tasks' 🆔, ⛔ and 🏁 read and kept. A
+person is ours, `@sam`: an at sign after the start, a space or an opening bracket, then a letter, so an address, a
+redaction's `@@` and `@2pm` are not people. Any other field is Dataview's `[key:: value]`, which a query can ask for by
+name, and Dataview's own `[due:: …]` stands for the date where there is no 📅. Fields are read anywhere in the words,
+as Dataview reads them, but not in code, an address, a note link's title, maths, HTML or a redaction (core/blanks.ts
+`quietRanges`). They are written where Tasks reads them: at the end of the words, in Tasks' order, a person or a
+named field before that run, since Tasks stops at the first thing that is not one of its fields. The proposal's own
+example, `📅 2026-10-03 ⏫ @sam #bug`, reads here, but Tasks sees only words in it, so the app writes
+`@sam #bug ⏫ 📅 2026-10-03`. All of it goes before the item's tail (the bookmark, the mark, a counter, the anchor), so
+the tail is still the tail: a board still finds its card and a Notion mark is still the mark. `withoutFields` gives
+the words alone, for a card and for a title sent to Notion or GitHub.
+
+**A ticket's properties** (core/properties.ts). Front matter read as named values, in order, through
+`frontMatterEnd` and nothing else. That rule takes no YAML list written down the page, so a list is written across,
+`["[[GHO-9]]", "[[GHO-10]]"]`, and read that way or with commas, as `authors:` is. A value YAML would misread - a
+colon and a space, a ` #`, a leading `[`, `@` or quote - is quoted when written, and every value comes back as it went
+in. A ticket is `type: ticket`; its keys and what each holds (a status, a person, a priority, a day, a number, links,
+a list) are listed once for a panel and a query to share. The workflow is Backlog, To do, In progress, In review, Done
+unless the notebook gives its own `statuses:`, and every status stands somewhere, as Jira groups them: not started,
+under way, or done (Done, Closed, Won't do and Cancelled all finished with). A notebook's `key: GHO` numbers its
+tickets: the next is one more than the highest number anything still names, so a number is never given twice.
+
+**Days** (core/days.ts). A day is kept as its ten characters, so two compare as text, and it is the person's own day
+by the device's clock: `toISOString` says it is tomorrow in New York at half past eleven at night. Days on and days
+between are counted on the calendar, where no clock change moves them.
+
+**What moved for it.** The tag's grammar left the editor for core/tags.ts, since a query's `from: #bug` reads notes
+the editor never opened (editor/tags.ts draws from it). A front matter value's quotes come off as YAML's do, escapes
+and all (core/frontMatter.ts `unquoted`), for every reader. The fills' queue writes its date with core/days.ts.
+
+**Tests.** core/taskFields.test.ts (every sign, every place a person is and is not, the quiet words, Tasks' order
+however the fields are added, the tail kept, and a line Obsidian Tasks still reads its due date from after the app has
+written a person, a named field, a priority and a recurrence into it), core/properties.test.ts (front matter edges,
+lists both ways, quoting that comes back as it went, statuses, keys and the next id), core/days.test.ts (New York's
+evening and London's clock change), core/frontMatter.test.ts (YAML's escapes), core/tags.test.ts (moved).
+
+Cites: §145.

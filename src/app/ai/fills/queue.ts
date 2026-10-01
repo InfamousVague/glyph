@@ -1,6 +1,7 @@
 import type { ToastOptions } from '@glacier/react';
 import { learntUntil, modelName } from '../../core/ai.ts';
 import { BLANK, type Blank, blanksIn, type FillSource } from '../../core/blanks.ts';
+import { isoDay } from '../../core/days.ts';
 import { deviceFlag } from '../../core/deviceFlag.ts';
 import { externalStore } from '../../core/externalStore.ts';
 import { failureText } from '../../core/failure.ts';
@@ -536,8 +537,6 @@ interface Ready {
   /** Who wrote the words, when not the model: the app, for a forecast or a rate it wrote from the source's own data. */
   by?: string;
 }
-
-const isoDay = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
 /** The note and the blank an answer is checked against: an asked-again mark read as the blank it was. */
 function asAsked(target: Target, blank: Blank, text: string): { note: string; blank: Blank } {

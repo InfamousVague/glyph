@@ -11,7 +11,7 @@ import { headingCounts } from '../editor/headingProgress.ts';
 import { glyphMarkdown } from '../editor/language.ts';
 import { isTint, notePattern, notesIn } from '../editor/markNotes.ts';
 import { sumOnLine } from '../editor/sums.ts';
-import { tagsIn } from '../editor/tags.ts';
+import { tagsIn } from './tags.ts';
 import { wikiLinksIn } from '../editor/wikiLinks.ts';
 import { MARKS } from '../plugins/marks/index.tsx';
 import { BUILT_IN } from '../plugins/registry.ts';
