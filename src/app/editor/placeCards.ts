@@ -2,7 +2,8 @@ import { RangeSetBuilder, StateEffect, StateField, type EditorState, type Extens
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { Suspense, createElement, lazy, useState } from 'react';
 import type { GeoTag } from '../core/geotag.ts';
-import { placeOfLine } from '../core/placeRefs.ts';
+import type { MapSize } from './MapCard.tsx';
+import { placeOfLine, topPlaceLine } from '../core/placeRefs.ts';
 import { onPreferences, preferences } from '../core/preferences.ts';
 import { forEachLineOutsideFences, inFence, selectedLines } from './lines.ts';
 import { mountReact } from './reactMount.ts';
@@ -27,6 +28,10 @@ import { mountReact } from './reactMount.ts';
  *
  * The card's component is fetched only when a place is drawn: a shared page mostly has none, and the card would
  * otherwise ride in the chunk it shares with the app.
+ *
+ * A place at the very top of a note, its first line or the one under its title (core/placeRefs.ts `topPlaceLine`), is
+ * drawn as the note's header instead: the map across the column at a map note's height (editor/MapCard.tsx `header`),
+ * since a place put first is what the note is about (GLY-3, docs/DESIGN.md §163).
  */
 
 export type PlaceMode = 'live' | 'ask' | 'off';
@@ -42,13 +47,13 @@ export function placeLook(mode: Exclude<PlaceMode, 'off'>, prefs: { localOnly: b
 const MapCard = lazy(() => import('./MapCard.tsx').then((module) => ({ default: module.MapCard })));
 
 /** The card, and the reader's "Show the map" turning it into a map: the only state a place card keeps. */
-function PlaceMap({ tag, look, dark }: { tag: GeoTag; look: ReturnType<typeof placeLook>; dark: boolean }) {
+function PlaceMap({ tag, look, dark, size }: { tag: GeoTag; look: ReturnType<typeof placeLook>; dark: boolean; size: MapSize }) {
   const [asked, setAsked] = useState(false);
   const mode = look.mode === 'ask' && asked ? 'map' : look.mode;
   return createElement(
     Suspense,
     { fallback: null },
-    createElement(MapCard, { tag, mode, quietWhy: look.quietWhy, dark, where: false, onShow: () => setAsked(true), className: 'cm-placeMap' }),
+    createElement(MapCard, { tag, mode, quietWhy: look.quietWhy, dark, size, where: false, onShow: () => setAsked(true), className: 'cm-placeMap' }),
   );
 }
 
@@ -59,6 +64,8 @@ class PlaceWidget extends WidgetType {
     readonly tag: GeoTag,
     readonly look: ReturnType<typeof placeLook>,
     readonly dark: boolean,
+    /** The card, or the note's header for a place at its very top. */
+    readonly size: MapSize = 'card',
   ) {
     super();
   }
@@ -66,24 +73,29 @@ class PlaceWidget extends WidgetType {
   eq(other: PlaceWidget): boolean {
     const a = this.tag;
     const b = other.tag;
-    return a.lat === b.lat && a.lon === b.lon && a.place === b.place && a.rough === b.rough && other.look.mode === this.look.mode && other.look.quietWhy === this.look.quietWhy && other.dark === this.dark;
+    return a.lat === b.lat && a.lon === b.lon && a.place === b.place && a.rough === b.rough && other.look.mode === this.look.mode && other.look.quietWhy === this.look.quietWhy && other.dark === this.dark && other.size === this.size;
   }
 
-  /** The card's own height (7.2rem, 9.6rem from 600px wide) and the room around it, so the note does not jump as it draws. */
+  /**
+   * The card's own height (7.2rem, 9.6rem from 600px wide), or the header's (10rem, 16rem), and the room around it,
+   * so the note does not jump as it draws.
+   */
   get estimatedHeight(): number {
-    if (typeof window === 'undefined') return 110;
+    if (typeof window === 'undefined') return this.size === 'header' ? 170 : 110;
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-    return (window.innerWidth >= 600 ? 8 : 6) * rem + 0.85 * rem;
+    const wide = window.innerWidth >= 600;
+    return (this.size === 'header' ? (wide ? 16 : 10) : wide ? 9.6 : 7.2) * rem + 0.85 * rem;
   }
 
   toDOM(): HTMLElement {
     const wrap = document.createElement('div');
     wrap.className = 'cm-placeCard';
     wrap.dataset.mode = this.look.mode;
+    wrap.dataset.size = this.size;
     const box = document.createElement('div');
     box.className = 'cm-placeCardBox';
     wrap.append(box);
-    unmounts.set(wrap, mountReact(box, createElement(PlaceMap, { tag: this.tag, look: this.look, dark: this.dark })));
+    unmounts.set(wrap, mountReact(box, createElement(PlaceMap, { tag: this.tag, look: this.look, dark: this.dark, size: this.size })));
     return wrap;
   }
 
@@ -104,9 +116,11 @@ export const refreshPlaceCards = StateEffect.define<null>();
 function cardsOf(state: EditorState, mode: Exclude<PlaceMode, 'off'>, dark: boolean): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const look = placeLook(mode, preferences());
+  // The note's first lines, as far as a place at its top could be: front matter can run to 40.
+  const top = topPlaceLine(state.doc.sliceString(0, state.doc.line(Math.min(state.doc.lines, 48)).to).split('\n'));
   forEachLineOutsideFences(state.doc, (line) => {
     const place = placeOfLine(line.text);
-    if (place) builder.add(line.to, line.to, Decoration.widget({ widget: new PlaceWidget(place.tag, look, dark), block: true, side: 1 }));
+    if (place) builder.add(line.to, line.to, Decoration.widget({ widget: new PlaceWidget(place.tag, look, dark, line.number === top ? 'header' : 'card'), block: true, side: 1 }));
   });
   return builder.finish();
 }
@@ -200,8 +214,11 @@ const theme = EditorView.baseTheme({
   },
   // The card's own height held while its component arrives, so nothing under it moves when it does.
   '.cm-placeCardBox': { minBlockSize: '7.2rem', maxInlineSize: '32rem' },
+  // A place at the very top: the header, as wide as the column up to a reader's 48rem, as a map note's is.
+  '.cm-placeCard[data-size="header"] .cm-placeCardBox': { minBlockSize: '10rem', maxInlineSize: '48rem' },
   '@media (min-width: 600px)': {
     '.cm-placeCardBox': { minBlockSize: '9.6rem' },
+    '.cm-placeCard[data-size="header"] .cm-placeCardBox': { minBlockSize: '16rem' },
   },
 });
 

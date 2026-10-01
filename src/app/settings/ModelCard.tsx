@@ -7,6 +7,7 @@ import { fireNativeHaptic } from '../core/haptics.ts';
 import { isAndroid } from '../core/platform.ts';
 import { setPreferences, usePreferences } from '../core/preferences.ts';
 import { PaneSection, Pick, RowAction, SettingRow, SettingsCallout } from './kit/settingsKit.tsx';
+import { cannotRun } from '../core/runnable.ts';
 
 /**
  * The model: which language model writes the summaries and the review, and Format, Summarize and Enhance on a note,
@@ -80,7 +81,7 @@ export function ModelCard() {
             <SettingRow
               key={model.id}
               label={model.name}
-              hint={`${model.about} ${gb(model.bytes)}.`}
+              hint={here && cannotRun(model.id) ? `Can’t run in this version of Ghost.md. ${model.about} ${gb(model.bytes)}.` : `${model.about} ${gb(model.bytes)}.`}
               value={
                 removable ? (
                   <RowAction onPress={() => removeTapped(model.id)}>{armed === model.id ? 'Tap again' : 'Remove'}</RowAction>

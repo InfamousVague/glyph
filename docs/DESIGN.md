@@ -8992,3 +8992,118 @@ drawing it; and of the emoji lesson: "it should appear when :smile: is done".
 - **The caret's line only counts in a view being typed in** (`editor/extended.ts` `decorate`): a read-only view or one
   without the focus has its caret at the top, unseen, and an emoji, a definition's colon and the like on the first line
   stayed as typed there - the Academy's preview, a note just opened. Now they are drawn until somebody is typing.
+
+## 163. The tickets' first pass: a model that would not run, and a place at the top as the header (2026-10-01)
+
+Matt: "Use the glyph connector … and work through the open issues assign yourself on them as well". The Glyph
+notebook (§157) held eighty tickets, GLY-1 to GLY-80, moved from the old board; seventy-five were Done and five To do.
+Each was set to In progress with Claude as its assignee through the connector before it was worked, and Done, with a
+line saying what changed and where, when it was.
+
+**GLY-1, pull to refresh on a note,** had shipped already (§152): closed with a pointer to it.
+
+**GLY-2, "Summarizing doesn't work, it fails every time with 'summary didn't come'", and GLY-5, "FFI error when
+trying to fill details like {?weather in Tokyo Japan}", were one fault.** §145 had found it and left it: Gemma 4
+E4B could not run at all, every request answering "cannot apply the chat template: ffi error -1". llama.cpp renders a
+conversation from templates it recognises by a few characters each (`<|im_start|>` for Qwen's ChatML,
+`<start_of_turn>` for Gemma 2 and 3) and answers -1 for any other; llama-cpp-2 reports that as "ffi error -1", and
+Gemma 4's template is none of them. With Gemma 4 chosen, every summary failed three times and was given up ("The
+summary didn't come"), and every fill said the error. Two fixes, one for the binary and one for the page, since a
+binary is a new install and the page can go over the air today:
+
+- **The engine renders the template itself** (src-tauri/src/llm/prompt.rs `render_template`, generate.rs). Where
+  llama.cpp does not know a template, the model's own Jinja, `tokenizer.chat_template` in its file, is rendered with
+  minijinja and Python's string methods (`minijinja-contrib`'s pycompat), with the variables Hugging Face's renderer
+  gives it: the messages, the generation prompt, the BOS and EOS tokens as their text (the tokenizer, which parses
+  special tokens, reads them back as tokens), and `enable_thinking`; `raise_exception` and `strftime_now` are there.
+  A template that refuses a system turn (Gemma 2's raises) is rendered again with the system prompt at the head of
+  the user's turn. The rendering is cut at the sentinel as before (`frame`), so the prefix is still snapshotted.
+  Tested in tools/host-tests against ChatML as Jinja (matching llama.cpp's own rendering), Gemma 3's and Gemma 2's
+  templates, and a template in marks llama.cpp has no name for, written with `namespace`, `break`, `.strip()`,
+  `tojson` and a thinking switch. The engine's files compile against the pinned llama-cpp-2 with no warnings. Not
+  run on a phone with Gemma 4 here: the container cannot reach Hugging Face for the file.
+- **The page passes over a model this binary cannot run** (core/runnable.ts). A run that fails on its chat template
+  remembers the model against the binary's version, and `modelFor` chooses from the other models on the phone while
+  there is one, so the next summary, fill and phone write-up (its config is sent again) go to a Qwen. A write-up the
+  phone failed that way marks it too (ai/summaries.ts `refreshJobStates`). The failure is said as "Gemma 4 E4B can't
+  run in this version of Ghost.md. Choose another model in Settings › AI, or install the newest Ghost.md.", and
+  Settings › AI says "Can't run in this version of Ghost.md." under it. A newer binary is asked again. With only the
+  failing model on the phone, it is still the one tried, so the failure is still said.
+
+**GLY-3, "Map location when placed at the very top of a note should produce a full screen header of the map instead
+of the slim card".** A map note's look (§144) draws where the note was written as its header; a place line put at the
+top was still the slim card. Now a place on the note's first line with words, or on the one straight after it (a
+note's first line is its title), is drawn as the header: the same MapCard at its `header` size, across the column up
+to 48rem, 10rem tall on a phone and 16rem from 600px (core/placeRefs.ts `topPlaceLine`, editor/placeCards.ts). Words
+put above it make it the card again, as a place further down is.
+
+**Tests.** core/runnable.test.ts, core/ai.test.tsx (the worded failure, the model remembered), core/placeRefs.test.ts
+and editor/placeCards.test.ts (the top place and the card below it), and the Rust templates in
+src-tauri/src/llm/prompt.rs, run by tools/host-tests.
+
+Cites: §144, §145, §152, §157.
+
+## 164. A specification under About, held to the code (2026-10-01)
+
+**GLY-4, "Add specification page under the settings page, it should strictly define all our custom AI fills, and
+custom markdown format extensions as well as a link to the official base markdown spec".** The cheat sheet (§138)
+teaches what to type; nothing said exactly what the app reads. Settings › About › Help has a sixth row,
+**Specification**, a sub-page as the cheat sheet is (settings/SpecPane.tsx).
+
+- **The base, linked.** CommonMark and GitHub Flavored Markdown, opened in the browser, then the two places the
+  editor differs from a renderer's defaults: setext headings are off and HTML is shown as text.
+- **Every extension, defined.** In parts: what other apps share (links between notes, tags, item anchors, callouts,
+  footnotes, definition lists, raised and lowered, maths, emoji, diagrams, fields on a to-do), the Marks plugin's own
+  marks, the app's own lines and blocks (counter, sum, choice, progress, bookmark, place, video, board, ticket,
+  query), the AI fills (a blank, what answers it and in what order, a filled answer's note), the front matter keys
+  the app reads, and template placeholders. Each says how it is written, the rule, and how any other app shows the
+  same characters.
+- **Held to the code three ways** (settings/specification.ts). Where one pattern is the rule (a tag, an anchor, a
+  counter, a choice, the bookmark, maths, a place, a blank, a filled answer's note), the page shows the pattern the
+  app runs, imported from the module that runs it, so it cannot drift; `TAG` is exported from core/tags.ts for it.
+  Every mark the cheat sheet teaches is covered by a definition, and a test fails when a new one arrives without one.
+  And each shown pattern is tested against the entry's own example.
+- **Found by Settings' search** by each definition's name and its part's title, not by the characters (the cheat sheet
+  is found by those, and an example's words, a board's `height=`, would answer searches meant for other pages). A name
+  a page draws its own way is marked `data-findable`, which `findSetting` now reads beside the kit's rows. So "ai"
+  finds the AI fills on every device, where it found nothing on one with no model.
+
+**Tests.** settings/specification.test.ts; AboutPane.test.tsx and SettingsSheet.test.tsx for the row, the sub-page
+and the search.
+
+Cites: §138, §156, §157, §158, §159, §163.
+
+## 165. Priorities drawn with the kit's icons, never the emoji (2026-10-01)
+
+Matt: "for priorities use icons from glacierui not emoji". A to-do's chip, the field menu and a query's cell already
+drew Jira's chevrons from @glacier/icons; the ticket panel still put the emoji before a priority's name and on each row
+of its sheet. It now draws the same chevrons in the same colours (red for highest and high, amber for medium, blue for
+low, quiet for lowest), from one map (editor/fieldChips.ts `PRIORITY_ICON`), which the field menu now shares rather than
+keeping its own. The emoji stay what a to-do is written with, Obsidian Tasks' characters, so a note reads the same in
+Obsidian; they are never what the app draws. Tested in editor/TicketPanel.test.tsx.
+
+Cites: §157, §158, §159.
+
+## 166. Checkboxes and radios drawn over their own characters (2026-10-01)
+
+Matt: "for checkboxes and radios render a large UI component where the [ ] or (x) would be but make them take up the
+same physical space in the note". A to-do's box was its three characters in the accent and the monospace face, and a
+choice's the same; now each is drawn as a control (editor/boxControls.ts): a rounded checkbox, filled with the accent
+and a check when ticked, and a ring with a dot when a choice is picked. Each is 1.3em, larger than the letters it
+stands on and narrower than their three-character width.
+
+**The same space.** The characters are not replaced: they stay in the line, transparent, and the control is drawn
+over them, centred in their width. So the line is exactly as long as it was (measured in the browser: every box
+31.4px wide, drawn or typed), and everything built on the characters still holds: a wrapped item hangs under its first
+word (glyphLines.ts measures the characters), a tap ticks or picks where it did (taskToggle.ts, choices.ts), a
+selection and a copy take the characters, and Markdown and Formatted draw the same. A replacing widget would have
+kept the width only by measuring, and would have kept the caret out of the brackets.
+
+**Writing one by hand.** While the caret or a selection is inside the three characters, they show as typed, as a
+mark's characters do. A caret before the box or at the words keeps the control. Nothing is drawn in code, where
+`- [ ]` is characters.
+
+**Tests.** editor/boxControls.test.ts: every box and choice found with its state, the characters kept, revealed only
+with the caret inside, and none in code.
+
+Cites: §156, §158.

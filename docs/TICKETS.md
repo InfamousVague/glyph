@@ -105,7 +105,7 @@ and Start, Estimate, Blocked by, Parent and Labels where it has them or once Mor
 - **Status** from the notebook's workflow, each with its category's colour.
 - **Assignee** from the people the library already names, every ticket's assignee and every `@person` in a to-do, the
   most named first (`peopleIn`), or a name typed; or No one.
-- **Priority**, one of the five, or None.
+- **Priority**, one of the five, each with its mark, the chevrons a to-do's chip draws (never its emoji), or None.
 - **Due** and **Start** from the phone's own date picker, said as Today, Tomorrow or Sat 3 Oct; a due day passed is
   red while the ticket is not done.
 - **Estimate** and **Labels** typed in place, written when the field is left.

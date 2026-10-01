@@ -1,4 +1,4 @@
-import { BookOpen, BookOpenText, GraduationCap, ListChecks, Shapes } from '@glacier/icons';
+import { BookOpen, BookOpenText, FileCode, GraduationCap, ListChecks, Shapes } from '@glacier/icons';
 import { useToast } from '@glacier/react';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { storeOf, type Updates } from '../core/ota.ts';
@@ -18,7 +18,8 @@ import { buildLine } from './updateLines.ts';
  * where it was eight, five of them "Add …": the cheat sheet and the four examples are pages of their own behind two
  * of them (Settings' sub-pages, back to About), and "How to talk to Ghost.md", which promised voice cues and opened the
  * set-up walkthrough, is named for what it opens. The privacy policy and its two lines went to Account's Privacy
- * card, where sync and shared links already were.
+ * card, where sync and shared links already were. The specification joined them as a sixth (GLY-4, §164), a page
+ * behind its row as the cheat sheet is.
  *
  * The version is also the door to the developer tools - seven presses on it, the way Android's own are unlocked, with
  * a countdown from the third press so somebody who knows the gesture knows it is working.
@@ -77,6 +78,12 @@ export function AboutPane({ updates, onGuide, onGuideBook, onAcademy, onOpen }: 
           onPress={() => onGuide()}
         />
         <SettingRow icon={<ListChecks size={20} />} label="Cheat sheet" hint="Every mark you can type, and what it looks like, on one page." onPress={() => onOpen({ id: 'cheatsheet' })} />
+        <SettingRow
+          icon={<FileCode size={20} />}
+          label="Specification"
+          hint="Exactly how every extension and AI fill is written, and the standard Markdown under them."
+          onPress={() => onOpen({ id: 'spec' })}
+        />
         <SettingRow
           icon={<BookOpenText size={20} />}
           label={GUIDE_TITLE}

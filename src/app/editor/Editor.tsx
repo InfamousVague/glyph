@@ -22,6 +22,7 @@ import { counters } from './counters.ts';
 import { sums } from './sums.ts';
 import { headingProgress } from './headingProgress.ts';
 import { choices } from './choices.ts';
+import { drawnBoxes } from './boxControls.ts';
 import { linkCards } from './linkCards.ts';
 import { wikiLinks, type WikiOptions } from './wikiLinks.ts';
 import { refreshTickets, tickets } from './tickets.ts';
@@ -353,6 +354,9 @@ export function Editor({
         peek ? [] : fillPanel(),
         headingProgress(),
         choices(),
+        // A to-do's box and a choice's round box drawn as a large checkbox and radio over their own characters, which
+        // keep their space (editor/boxControls.ts).
+        drawnBoxes(),
         // [[Another note]] opens that note, or makes it (editor/wikiLinks.ts).
         wikiLinks(wiki ? { known: (title) => wikiRef.current?.known(title) ?? false, open: (title, anchor) => wikiRef.current?.open(title, anchor) } : null),
         // A ticket's front matter as its properties, and a [[GHO-12]] with the ticket's title (editor/tickets.ts).

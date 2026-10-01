@@ -189,27 +189,6 @@ code {
   stroke-linejoin: round;
 }
 
-/* ---- the app's ghosts: its masks, painted in the page's ink ------------------------------------------------------- */
-
-.ghost {
-  display: block;
-  inline-size: 6rem;
-  aspect-ratio: 1;
-  margin: 0 auto var(--glacier-space-2, 0.5rem);
-  background: currentColor;
-  color: var(--ink);
-  -webkit-mask: var(--ghost) center / contain no-repeat;
-  mask: var(--ghost) center / contain no-repeat;
-}
-
-.ghost-signed-out {
-  --ghost: url('ghosts/signed-out-not-syncing.webp');
-}
-
-.ghost-update {
-  --ghost: url('ghosts/an-update-is-ready.webp');
-}
-
 /* ---- the opening ------------------------------------------------------------------------------------------------- */
 
 .hero {

@@ -84,11 +84,25 @@ describe('a value picked', () => {
   it('writes a priority by its name, or takes it off', () => {
     const host = draw();
     act(() => valueOf(host, 'Priority').querySelector('button')!.click());
-    act(() => sheetRow('⏫').click());
+    // "High" alone: Highest starts the same way.
+    act(() => [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find((button) => button.textContent === 'High')!.click());
     expect(write).toHaveBeenLastCalledWith('priority', 'high');
     act(() => valueOf(host, 'Priority').querySelector('button')!.click());
     act(() => sheetRow('None').click());
     expect(write).toHaveBeenLastCalledWith('priority', null);
+  });
+
+  it('draws a priority as the kit’s chevrons in its colour, never the emoji it is written with', () => {
+    const host = draw(FRONT.replace('due:', 'priority: highest\ndue:'));
+    const value = valueOf(host, 'Priority');
+    expect(value.textContent).toBe('Highest');
+    expect(value.querySelector('[data-tone="highest"] svg')).not.toBeNull();
+    act(() => value.querySelector('button')!.click());
+    const rows = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].slice(0, 5);
+    expect(rows.map((row) => row.textContent)).toEqual(['Highest', 'High', 'Medium', 'Low', 'Lowest']);
+    expect(rows.map((row) => row.querySelector('[data-tone]')?.getAttribute('data-tone'))).toEqual(['highest', 'high', 'medium', 'low', 'lowest']);
+    expect(rows.every((row) => row.querySelector('svg'))).toBe(true);
+    expect(document.body.textContent).not.toMatch(/🔺|⏫|🔼|🔽|⏬/u);
   });
 
   it('writes a person the library names, or one typed', () => {

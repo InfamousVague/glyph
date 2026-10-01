@@ -16,7 +16,7 @@
  */
 
 /** A tag: after the line's start or a space or an opening bracket, `#`, a letter, then the rest of the name. */
-const TAG = /(^|[\s([{])(#[\p{L}][\p{L}\p{N}_/-]*)/gu;
+export const TAG = /(^|[\s([{])(#[\p{L}][\p{L}\p{N}_/-]*)/gu;
 
 export interface Tag {
   /** The `#` and the name. */

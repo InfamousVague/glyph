@@ -3,12 +3,7 @@ import {
   CalendarDays,
   CalendarSearch,
   CalendarX,
-  ChevronDown,
   ChevronLeft,
-  ChevronUp,
-  ChevronsDown,
-  ChevronsUp,
-  Equal,
   Sun,
   Sunrise,
   UserMinus,
@@ -21,7 +16,7 @@ import { fireNativeHaptic } from '../core/haptics.ts';
 import { PRIORITIES, samePerson, type PriorityName } from '../core/taskFields.ts';
 import { capitalise } from '../core/text.ts';
 import { useRedraw } from '../core/useRedraw.ts';
-import { personShown } from './fieldChips.ts';
+import { personShown, PRIORITY_ICON } from './fieldChips.ts';
 import { dayChoices, lineFields, peopleIn, pickDay, setLineField, setLinePerson, startPerson, todayIs, type FieldPage } from './fieldMenu.ts';
 import { MenuItem, MenuWord, type MenuIcon } from './MenuBand.tsx';
 import styles from './ContextMenu.module.css';
@@ -43,14 +38,6 @@ import own from './FieldItems.module.css';
  * stays so a second can be added. The editor gets its focus back only where it had it: a chip tapped on a note being
  * read must not raise the keyboard.
  */
-
-const PRIORITY_ICON: Record<PriorityName, MenuIcon> = {
-  highest: ChevronsUp,
-  high: ChevronUp,
-  medium: Equal,
-  low: ChevronDown,
-  lowest: ChevronsDown,
-};
 
 const DAY_ICON = { today: Sun, tomorrow: Sunrise, 'next-week': CalendarDays } as const;
 

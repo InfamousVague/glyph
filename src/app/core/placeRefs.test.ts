@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GEO_AUTOLINK, GEO_DEFINITION, GEO_LINK, cleanPlaceName, hasPlaces, placeLines, placeMarkdown, placeOfLine, withoutPlaces } from './placeRefs.ts';
+import { cleanPlaceName, GEO_AUTOLINK, GEO_DEFINITION, GEO_LINK, hasPlaces, placeLines, placeMarkdown, placeOfLine, topPlaceLine, withoutPlaces } from './placeRefs.ts';
 
 /**
  * A place written into a note's words (core/placeRefs.ts): the line the + beside the line writes, read back in every
@@ -129,5 +129,28 @@ describe('the forms', () => {
     expect(`x ${CAIS} y`.match(GEO_LINK)).toHaveLength(1);
     expect('<geo:1,2>'.match(GEO_AUTOLINK)).toHaveLength(1);
     expect('[c]: geo:1,2'.match(GEO_DEFINITION)).toHaveLength(1);
+  });
+});
+
+describe('a place at the very top of a note', () => {
+  const PLACE = '[Cais do Sodré, Lisbon](geo:38.7057,-9.1446)';
+  const top = (body: string) => topPlaceLine(body.split('\n'));
+
+  it('is the first line with words, or the one straight after it, under the title', () => {
+    expect(top(PLACE)).toBe(1);
+    expect(top(`# Lisbon\n\n${PLACE}\n\nWords.`)).toBe(3);
+    expect(top(`Lisbon\n${PLACE}`)).toBe(2);
+    expect(top(`\n\n# Lisbon\n${PLACE}`)).toBe(4);
+  });
+
+  it('counts from after the front matter', () => {
+    expect(top(`---\nlook: reading\n---\n# Lisbon\n${PLACE}`)).toBe(5);
+  });
+
+  it('is not a place further down, nor one in fenced code', () => {
+    expect(top(`# Lisbon\nWe met at\n${PLACE}`)).toBeNull();
+    expect(top(`# Lisbon\n\`\`\`\n${PLACE}\n\`\`\``)).toBeNull();
+    expect(top('# Lisbon\nNo place here.')).toBeNull();
+    expect(top('')).toBeNull();
   });
 });

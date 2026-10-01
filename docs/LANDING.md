@@ -19,9 +19,9 @@ It lives in `landing/` and ships with `node scripts/deploy-landing.mjs`, one ssh
   its type scale, spacing, radii, motion, shadows and the named themes (Dawn, Boreal, Ember) are what `home.css` and
   `site.css` use. The colours are the app's ink (src/app/ink.css): pure grey, light or dark, or the kit's tinted greys
   under a named theme. The two faces, Inter and JetBrains Mono, are served from `fonts/`, so a visit asks nothing of a
-  font host. `node scripts/landing-assets.mjs` copies the tokens, the fonts and the ghosts the page wears (`ghosts/`, the
-  app's masks, painted in the site's ink) from the kit and the app; run it when either changes and commit what it
-  writes.
+  font host. `node scripts/landing-assets.mjs` copies the tokens and the fonts from the kit; run it when the kit
+  changes and commit what it writes. The page wears none of the app's ghosts: the two over Private and Get Ghost.md
+  went on 2026-10-01 (Matt: "Remove the two ghost mascot images from the website towards the bottom").
 - **The screens** (`shots/`) are the web build's own, seeded with a handful of notes (and a Product notebook of
   tickets, a query board and table, and a note of to-dos with fields, dated a day back so the home page is as it was) - one with the AI's changes still
   marked, as ai/marks.ts keeps them, and one Claude wrote - and drawn at a phone's size and a desk's in the dark page:
