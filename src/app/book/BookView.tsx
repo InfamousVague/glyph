@@ -1,11 +1,14 @@
 import { useMemo, useRef, useState, type RefObject } from 'react';
-import { BookOpen, Check, ChevronDown, ChevronUp, GripVertical, List, Plus, Workflow, X } from '@glacier/icons';
+import { BookOpen, Check, ChevronDown, ChevronUp, GripVertical, List, Plus, Ticket, Workflow, X } from '@glacier/icons';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
 import { authorsAcross } from '../core/authors.ts';
 import { Byline } from '../authors/Byline.tsx';
 import { bodyWithoutTitle, bookWords, chaptersOf, numbered, toggledTitle, withChapter, withChapterAt, withChapterMoved, withoutChapter } from './book.ts';
 import { CanvasMark } from './CanvasMark.tsx';
+import { notebookKey } from '../core/properties.ts';
+import type { NoteTemplate } from '../notes/noteTemplates.ts';
+import { TicketMark } from '../notes/TicketMark.tsx';
 import { Editor } from '../editor/Editor.tsx';
 import type { VideoMode } from '../editor/videos.ts';
 import { isDarkNow, usePreferences } from '../core/preferences.ts';
@@ -33,6 +36,12 @@ import styles from './BookView.module.css';
  *
  * Given `spot`, the view keeps where the book was left (book/bookSpot.ts): a book left reading straight through opens
  * reading straight through, scrolled back to the chapter and the line it was at.
+ *
+ * A notebook with a ticket key (`key: GHO`; book/tickets.ts, docs/DESIGN.md §157) makes tickets as well as pages: New
+ * ticket, beside Add a page, asks for the title and what the ticket starts with - just the title, or a ticket's
+ * template, a Bug report or a Feature - and puts its line in the index as a page's is, then App makes the ticket with
+ * the notebook's next key and its workflow's first open status. A page that is a ticket says its key and status on
+ * its row (notes/TicketMark.tsx).
  */
 
 interface BookViewProps {
@@ -62,6 +71,13 @@ interface BookViewProps {
   readOnly?: boolean;
   /** Dark or light, where the page decides rather than the preference (the reader page follows the reader's system). */
   dark?: boolean;
+  /**
+   * Makes a ticket by that title in this notebook and opens it (App.tsx), from a ticket's template or none: New ticket,
+   * offered while the notebook has a key. Absent, no such button.
+   */
+  openTicket?: (title: string, template: NoteTemplate | null) => void;
+  /** The templates a ticket can start from, a Bug report and a Feature among them (notes/noteTemplates.ts). */
+  ticketTemplates?: readonly NoteTemplate[];
   /** The book note's id and the page it scrolls in, to keep where it was left (book/bookSpot.ts); absent, nothing is kept. */
   spot?: { id: string; page: RefObject<HTMLElement | null> };
   /** Whose film cards these are (editor/videos.ts): a shared page's say only a still is shared. The owner's by default. */
@@ -77,7 +93,7 @@ export function BookWords({ words, known, open, dark, videos = 'still' }: { word
   );
 }
 
-export function BookView({ body, known, open, titles, title, onChange, bodyOf, openCanvas, openNew, readOnly = false, dark: darkGiven, spot, videos = 'still' }: BookViewProps) {
+export function BookView({ body, known, open, titles, title, onChange, bodyOf, openCanvas, openNew, openTicket, ticketTemplates = NO_TEMPLATES, readOnly = false, dark: darkGiven, spot, videos = 'still' }: BookViewProps) {
   const isCanvas = (name: string) => {
     const found = bodyOf?.(name);
     return !!found && isCanvasBody(found);
@@ -89,7 +105,9 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
   // only when a body changed: `bodyOf` is a new function on every draw of App, and a journal of a year has a page a day.
   const pageBodies = useSameList(chapters.map((c) => bodyOf?.(c.title) ?? ''));
   const authors = useMemo(() => authorsAcross([body, ...pageBodies]), [body, pageBodies]);
-  const [adding, setAdding] = useState<'new' | 'existing' | null>(null);
+  const [adding, setAdding] = useState<'new' | 'existing' | 'ticket' | null>(null);
+  /** The notebook's ticket key, where it has one: New ticket is offered only then. */
+  const ticketKey = useMemo(() => notebookKey(body), [body]);
   /** Where the book was left, read once as it opens: reading straight through is picked up where it was. */
   const [left, setLeft] = useState(() => {
     const was = spot ? readBookSpot(spot.id) : null;
@@ -129,6 +147,17 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
     if (asCanvas && openCanvas) openCanvas(name);
     else if (template && openNew) openNew(name, template);
     else open(name);
+  };
+  /** A ticket named in its form, into the index as a page is, then made by App and opened. */
+  const addTicket = () => {
+    const name = draft.trim();
+    if (!name || !openTicket) return;
+    const template = ticketTemplates.find((each) => each.id === start) ?? null;
+    onChange(withChapter(body, name));
+    setDraft('');
+    setStart(JUST_THE_TITLE.id);
+    setAdding(null);
+    openTicket(name, template);
   };
   const togglePick = (name: string) => setPicked((was) => toggledTitle(was, name));
   const addPicked = () => {
@@ -251,6 +280,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
                     {canvas ? <CanvasMark /> : null}
                   </span>
                   {there ? null : <span className={styles.waiting}>not written yet</span>}
+                  {there && !canvas ? <TicketMark body={bodyOf?.(chapter.title) ?? ''} notebook={body} /> : null}
                 </button>
                 {readOnly ? null : (
                 <span className={styles.tools}>
@@ -281,18 +311,19 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
             </button>
           </div>
         ) : null
-      ) : adding === 'new' ? (
+      ) : adding === 'new' || adding === 'ticket' ? (
         <form
           className={styles.add}
           onSubmit={(event) => {
             event.preventDefault();
-            addNew();
+            if (adding === 'ticket') addTicket();
+            else addNew();
           }}
         >
           <input
             className={styles.field}
-            aria-label="New page's title"
-            placeholder="Page title"
+            aria-label={adding === 'ticket' ? 'New ticket’s title' : "New page's title"}
+            placeholder={adding === 'ticket' ? 'What needs doing' : 'Page title'}
             value={draft}
             autoFocus
             onChange={(event) => setDraft(event.target.value)}
@@ -304,11 +335,15 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
               }
             }}
           />
-          {openNew ? <PageStarts chosen={start} onChoose={setStart} title={draft.trim()} notebook={title} /> : null}
+          {adding === 'ticket' ? (
+            <PageStarts chosen={start} onChoose={setStart} label="Start the ticket with" starts={ticketLines(ticketKey, draft.trim(), ticketTemplates)} />
+          ) : openNew ? (
+            <PageStarts chosen={start} onChoose={setStart} label="Start the page with" starts={pageLines(draft.trim(), title)} />
+          ) : null}
           <button type="submit" className={styles.action} disabled={!draft.trim()}>
             Add and open
           </button>
-          {openCanvas ? (
+          {openCanvas && adding === 'new' ? (
             <button type="button" className={styles.action} disabled={!draft.trim()} onClick={() => addNew(true)}>
               <Workflow size={16} aria-hidden="true" /> Add as a canvas
             </button>
@@ -356,6 +391,11 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
           <button type="button" className={styles.action} onClick={() => setAdding('new')}>
             <Plus size={16} aria-hidden="true" /> Add a page
           </button>
+          {openTicket && ticketKey ? (
+            <button type="button" className={styles.action} onClick={() => setAdding('ticket')}>
+              <Ticket size={16} aria-hidden="true" /> New ticket
+            </button>
+          ) : null}
           <button type="button" className={styles.action} onClick={() => setAdding('existing')}>
             <BookOpen size={16} aria-hidden="true" /> Add a note you have
           </button>
@@ -370,6 +410,9 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
   );
 }
 
+/** No ticket templates, as one list, so the default is the same list on every draw. */
+const NO_TEMPLATES: readonly NoteTemplate[] = [];
+
 function noop(): void {
   // Read-only: nothing typed comes back.
 }
@@ -382,13 +425,31 @@ function useSameList(list: readonly string[]): readonly string[] {
   return kept.current;
 }
 
+/** One way a page or a ticket can start, as Start with lists it: its name, and how it starts, on one line. */
+interface StartRow {
+  id: string;
+  name: string;
+  line: string;
+}
+
+/** A page's ways to start: just the title, then the templates, each with a line of how it would start this minute. */
+function pageLines(title: string, notebook: string): StartRow[] {
+  const now = new Date();
+  return pageStarts().map((each) => ({ id: each.id, name: each.name, line: each.text ? startLine(each.text, notebook, now) : title || 'The page’s title, and nothing under it' }));
+}
+
+/** A ticket's ways to start: its key and title alone, then each ticket's template, said in its sentence. */
+function ticketLines(key: string | null, title: string, templates: readonly NoteTemplate[]): StartRow[] {
+  const alone = `${key ? `${key}-…` : 'Its key'}, ${title ? `“${title}”` : 'its title'} and its status, and nothing under them`;
+  return [{ id: JUST_THE_TITLE.id, name: JUST_THE_TITLE.name, line: alone }, ...templates.map((each) => ({ id: each.id, name: each.name, line: each.sentence }))];
+}
+
 /**
  * What a new page starts with, under its title in Add a page: just the title, chosen until another is, then the
  * templates, each with a line of how it would start this minute. A tap chooses; Add and open makes the page from it.
+ * New ticket's the same way, its templates the tickets' (Bug report, Feature), each said in its sentence.
  */
-function PageStarts({ chosen, onChoose, title, notebook }: { chosen: string; onChoose: (id: string) => void; title: string; notebook: string }) {
-  const now = new Date();
-  const starts = pageStarts();
+function PageStarts({ chosen, onChoose, label, starts }: { chosen: string; onChoose: (id: string) => void; label: string; starts: readonly StartRow[] }) {
   const rows = useRef<(HTMLButtonElement | null)[]>([]);
   /*
    * One stop for Tab, on the chosen row, and the arrows move the choice and the focus together, as a radio group does
@@ -400,7 +461,7 @@ function PageStarts({ chosen, onChoose, title, notebook }: { chosen: string; onC
     rows.current[to]?.focus();
   };
   return (
-    <div className={styles.starts} role="radiogroup" aria-label="Start the page with">
+    <div className={styles.starts} role="radiogroup" aria-label={label}>
       <p className={styles.startsTitle}>Start with</p>
       {starts.map((each, n) => (
         <button
@@ -425,7 +486,7 @@ function PageStarts({ chosen, onChoose, title, notebook }: { chosen: string; onC
           }}
         >
           <span className={styles.startName}>{each.name}</span>
-          <span className={styles.startLine}>{each.text ? startLine(each.text, notebook, now) : title || 'The page’s title, and nothing under it'}</span>
+          <span className={styles.startLine}>{each.line}</span>
         </button>
       ))}
     </div>

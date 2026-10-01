@@ -24,7 +24,7 @@ import {
 
 const DAY = BUILT_INS[0]!;
 const MAP = BUILT_INS.find((one) => one.kind === 'map')!;
-/** The six built-ins' pages, and a notebook naming them, made at `at`. */
+/** The eight built-ins' pages, and a notebook naming them, made at `at`. */
 function seeded(at = 1000, id = 'tpl') {
   const pages = BUILT_INS.map((template, i) => makeNote(`${id}-${template.kind}`, templatePageBody(template), { createdAt: at + i }));
   return [makeNote(id, templatesNotebookBody(BUILT_INS.map((one) => one.name)), { createdAt: at + 10 }), ...pages];
@@ -80,6 +80,16 @@ describe('the templates it holds', () => {
     expect(lookOf(template.words)).toBeNull();
   });
 
+  it('pass on a ticket’s keys with its words, so a Bug report’s page still makes a ticket and is still a Bug report', () => {
+    const BUG = BUILT_INS.find((one) => one.kind === 'bug')!;
+    const body = templatePageBody(BUG);
+    // One block, the page's own keys and the ticket's together, so the page reads as one note anywhere.
+    expect(body).toBe('---\ntitle: "Bug report"\ntemplates: page\ntype: ticket\nid: "{{next-id}}"\nstatus: To do\n---\n# {{title}}\n\n## Steps to reproduce\n\n1. \n\n## Expected\n\n## Actual\n');
+    expect(templateOf(makeNote('bug', body))).toMatchObject({ kind: 'bug', words: BUG.words, sentence: BUG.sentence });
+    // A page that is no ticket passes no `status:` of its own.
+    expect(templateOf(makeNote('p', '---\ntitle: "Mood"\ntemplates: page\nstatus: calm\n---\n# {{title}}\n')).words).toBe('# {{title}}\n');
+  });
+
   it('read two notebooks made on two devices oldest first, and a page named twice once', () => {
     const one = seeded(1000, 'one');
     const two = [makeNote('two', templatesNotebookBody(['A walk', 'A day']), { createdAt: 5000 }), makeNote('walk', newTemplatePageBody('A walk'), { createdAt: 5001 })];
@@ -102,7 +112,7 @@ describe('a note of the person’s named like a page', () => {
 
   it('is never taken for the page: the seed makes the page beside it, and the card is the page’s', () => {
     const plan = seedPlan([MINE]);
-    expect('pages' in plan && plan.pages.map((one) => one.kind)).toEqual(['day', 'meeting', 'checklist', 'book', 'map', 'reading']);
+    expect('pages' in plan && plan.pages.map((one) => one.kind)).toEqual(['day', 'meeting', 'checklist', 'book', 'map', 'reading', 'bug', 'feature']);
     const notes = [...seeded(), MINE];
     expect(templatesOf(notes)?.find((one) => one.name === 'Notes on a book')).toMatchObject({ id: 'tpl-book', kind: 'book' });
     expect(templatePages(notes).has('mine')).toBe(false);
@@ -127,15 +137,15 @@ describe('a note of the person’s named like a page', () => {
 });
 
 describe('the seed', () => {
-  it('opens a notebook there is, makes all six and the notebook the first time, and only what is missing after a cut', () => {
+  it('opens a notebook there is, makes all eight and the notebook the first time, and only what is missing after a cut', () => {
     const notes = seeded();
     expect(seedPlan(notes)).toEqual({ open: notes[0] });
     const first = seedPlan([]);
-    expect('pages' in first && first.pages.map((one) => one.kind)).toEqual(['day', 'meeting', 'checklist', 'book', 'map', 'reading']);
+    expect('pages' in first && first.pages.map((one) => one.kind)).toEqual(['day', 'meeting', 'checklist', 'book', 'map', 'reading', 'bug', 'feature']);
     // Cut short after three pages: those are there, so only the rest and the notebook.
     const cut = seeded().slice(1, 4);
     const again = seedPlan(cut);
-    expect('pages' in again && again.pages.map((one) => one.kind)).toEqual(['book', 'map', 'reading']);
+    expect('pages' in again && again.pages.map((one) => one.kind)).toEqual(['book', 'map', 'reading', 'bug', 'feature']);
     expect('pages' in again && again.index).toBe(templatesNotebookBody(BUILT_INS.map((one) => one.name)));
   });
 });

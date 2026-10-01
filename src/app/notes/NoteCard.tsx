@@ -11,6 +11,7 @@ import { hasMarks } from '../ai/marks.ts';
 import { shortenUrls } from '../core/shortUrl.ts';
 import { ArchiveBox, Pin } from '../art/Icons.tsx';
 import { BookPlaceMark } from './BookPlaceMark.tsx';
+import { TicketMark } from './TicketMark.tsx';
 import { NotePeek } from './NotePeek.tsx';
 import { SwipeRow } from './SwipeRow.tsx';
 import type { SwipeAction } from './swipe.ts';
@@ -47,6 +48,8 @@ export interface NoteCardProps {
   gist?: string;
   /** The book this note is a page of (book/book.ts `placeOf`), when it is one. */
   place?: BookPlace | null;
+  /** The notebook it is a page of, said or not, whose workflow a ticket's status is placed in; absent, `place`'s. */
+  notebook?: string;
   /** A journal's entries, newest first (book/journalMonths.ts `journalCards`), when the note is a journal. */
   entries?: JournalCard;
   /** A step smaller, with the pin and the archive said on the card itself. */
@@ -55,7 +58,7 @@ export interface NoteCardProps {
   swipe?: { start: SwipeAction[]; end: SwipeAction[]; onAction: (id: string) => void };
 }
 
-export function NoteCard({ note, index, onOpen, gist, place, entries, dense = false, swipe }: NoteCardProps) {
+export function NoteCard({ note, index, onOpen, gist, place, notebook, entries, dense = false, swipe }: NoteCardProps) {
   const title = noteTitle(note.body);
   const book = isBookBody(note.body);
   const journal = book && isJournalBody(note.body);
@@ -109,8 +112,9 @@ export function NoteCard({ note, index, onOpen, gist, place, entries, dense = fa
             </>
           ) : (
             <>
-              {/* A page of a book says which (docs/BOOKS.md). */}
+              {/* A page of a book says which (docs/BOOKS.md), and a ticket its key and status (docs/DESIGN.md §157). */}
               {place ? <BookPlaceMark place={place} /> : null}
+              <TicketMark body={note.body} notebook={notebook ?? place?.book.body} />
               {/* What the note is about, when the phone has written it; the preview under it is the note itself. */}
               {gist ? <span className={styles.gist}>{gist}</span> : null}
               <NotePeek body={note.body} className={styles.peek} />

@@ -473,6 +473,17 @@
   content: ' ·';
 }
 
+/* A ticket's key and status (notes/TicketMark.tsx), before how it starts. */
+.rowTicket {
+  margin-inline-end: 0.5em;
+  vertical-align: bottom;
+}
+
+.rowTicket::after {
+  content: '·';
+  color: var(--app-ink-3);
+}
+
 .rowWhen {
   font-size: var(--glacier-font-size-xs);
   font-variant-numeric: tabular-nums;

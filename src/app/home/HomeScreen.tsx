@@ -14,6 +14,8 @@ import { useWispEdge } from '../art/wispEdge.ts';
 import { Ghost } from '../art/Ghost.tsx';
 import { Cassette, Clock, Cog, Grid, Magnifier, Notebook, Pin, Plus } from '../art/Icons.tsx';
 import { NoteCard } from '../notes/NoteCard.tsx';
+import { TicketMark } from '../notes/TicketMark.tsx';
+import { isTicket } from '../core/properties.ts';
 import { PullToRefresh } from '../notes/PullToRefresh.tsx';
 import { SwipeRow } from '../notes/SwipeRow.tsx';
 import { isNoteSwipe, noteSwipes, type NoteSwipe } from '../notes/swipe.ts';
@@ -133,10 +135,10 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
   const swipe = (note: Note) => (onSwipe ? { ...noteSwipes(note), onAction: (id: string) => isNoteSwipe(id) && onSwipe(note, id) } : undefined);
   // A card or a row names the notebook a page is in, but not under that notebook's own heading.
   const card = (note: Note, dense = false, inBook = false) => (
-    <NoteCard key={note.id} note={note} index={order++} onOpen={onOpen} gist={gists[note.id]} place={inBook ? null : placeOf(inBooks, note)} entries={journals.get(note.id)} dense={dense} swipe={swipe(note)} />
+    <NoteCard key={note.id} note={note} index={order++} onOpen={onOpen} gist={gists[note.id]} place={inBook ? null : placeOf(inBooks, note)} notebook={placeOf(inBooks, note)?.book.body} entries={journals.get(note.id)} dense={dense} swipe={swipe(note)} />
   );
   const row = (note: Note, inBook = false) => (
-    <HomeRow key={note.id} note={note} index={order++} onOpen={onOpen} bookName={inBook ? null : (placeOf(inBooks, note)?.title ?? null)} entries={journals.get(note.id)?.count} live={note.id === recording} swipe={swipe(note)} />
+    <HomeRow key={note.id} note={note} index={order++} onOpen={onOpen} bookName={inBook ? null : (placeOf(inBooks, note)?.title ?? null)} notebook={placeOf(inBooks, note)?.book.body} entries={journals.get(note.id)?.count} live={note.id === recording} swipe={swipe(note)} />
   );
   const drawn = (notes: Note[], draw: SectionDraw, inBook = false) => {
     if (draw === 'rows') return <ul className={look.rows}>{notes.map((n) => row(n, inBook))}</ul>;
@@ -144,7 +146,7 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
       return (
         <ul className={look.lines}>
           {notes.map((n) => (
-            <HomeLine key={n.id} note={n} index={order++} onOpen={onOpen} bookName={placeOf(inBooks, n)?.title ?? null} live={n.id === recording} swipe={swipe(n)} />
+            <HomeLine key={n.id} note={n} index={order++} onOpen={onOpen} bookName={placeOf(inBooks, n)?.title ?? null} notebook={placeOf(inBooks, n)?.book.body} live={n.id === recording} swipe={swipe(n)} />
           ))}
         </ul>
       );
@@ -313,13 +315,14 @@ function TapeWords({ note, live }: { note: Note; live: boolean }) {
 
 /**
  * A note on one line, for every layout that draws rows (List, Timeline, Spotlight, Shelf and timeline, Library): its kind's mark, its name, how it starts, and when it
- * was touched, with the pin and its notebook's name where it has them.
+ * was touched, with the pin and its notebook's name where it has them, and a ticket's key and status (docs/DESIGN.md §157).
  */
 function HomeRow({
   note,
   index,
   onOpen,
   bookName,
+  notebook,
   entries,
   live = false,
   swipe,
@@ -328,6 +331,8 @@ function HomeRow({
   index: number;
   onOpen: (id: string) => void;
   bookName: string | null;
+  /** The notebook it is a page of, whose workflow a ticket's status is placed in. */
+  notebook?: string;
   entries?: number;
   live?: boolean;
   swipe?: Swipe;
@@ -359,9 +364,10 @@ function HomeRow({
               {note.starred ? <Pin className={look.rowPin} /> : null}
               {title ? shortenUrls(title) : 'Untitled'}
             </span>
-            {lead || bookName || kind === 'tape' ? (
+            {lead || bookName || kind === 'tape' || isTicket(note.body) ? (
               <span className={look.rowLead}>
                 {bookName ? <span className={look.rowBook}>{bookName}</span> : null}
+                <TicketMark body={note.body} notebook={notebook} className={look.rowTicket} />
                 <TapeWords note={note} live={live} />
                 {lead ? shortenUrls(lead) : null}
               </span>
@@ -378,7 +384,7 @@ function HomeRow({
  * A note on one short line, for Spotlight's pinned notes: its kind's mark, its name, the notebook it is in, and when.
  * No pin, since the list is the pinned ones, and no line of how it starts: the list is for finding a note by its name.
  */
-function HomeLine({ note, index, onOpen, bookName, live = false, swipe }: { note: Note; index: number; onOpen: (id: string) => void; bookName: string | null; live?: boolean; swipe?: Swipe }) {
+function HomeLine({ note, index, onOpen, bookName, notebook, live = false, swipe }: { note: Note; index: number; onOpen: (id: string) => void; bookName: string | null; notebook?: string; live?: boolean; swipe?: Swipe }) {
   const title = noteTitle(note.body);
   const kind = live ? 'tape' : kindOf(note);
   return (
@@ -390,6 +396,7 @@ function HomeLine({ note, index, onOpen, bookName, live = false, swipe }: { note
             {title ? shortenUrls(title) : 'Untitled'}
           </span>
           {bookName ? <span className={look.lineBook}>{bookName}</span> : null}
+          <TicketMark body={note.body} notebook={notebook} />
           <TapeWords note={note} live={live} />
           <span className={look.rowWhen}>{when(note.updatedAt)}</span>
         </button>

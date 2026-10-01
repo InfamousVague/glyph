@@ -448,6 +448,18 @@ describe('the layouts', () => {
     expect(diary.textContent).toContain('2 entries');
   });
 
+  it('says a ticket’s key and status on its card, its row and its line, the status in its notebook’s workflow (docs/DESIGN.md §157)', () => {
+    const book = makeNote('book', '---\ntitle: "Ghost.md"\nbook: true\nkey: GHO\nstatuses: [Ideas, Building, Live]\n---\n# Ghost.md\n\n- [[Fix the login loop]]\n', { updatedAt: now - 5000 });
+    const ticket = makeNote('t', '---\ntype: ticket\nid: GHO-12\nstatus: Live\n---\n# Fix the login loop\n', { updatedAt: now, starred: true });
+    const plain = makeNote('p', '# Groceries\n\n- milk', { updatedAt: now - 1000 });
+    const marks = () => [...document.querySelectorAll<HTMLElement>('section li [data-category]')].map((mark) => [mark.textContent, mark.dataset.category]);
+    show(page([book, ticket, plain]));
+    expect(marks()).toContainEqual(['GHO-12Live', 'done']);
+    laidOut('list');
+    expect(marks()).toContainEqual(['GHO-12Live', 'done']);
+    expect(marks().filter(([words]) => words?.includes('Groceries'))).toEqual([]);
+  });
+
   it('draws forty-eight cards at most, and sends the rest to All notes', () => {
     const many = Array.from({ length: 50 }, (_, i) => makeNote(`n${i}`, `# Note ${i}`, { updatedAt: now - i * 1000 }));
     show(page(many));

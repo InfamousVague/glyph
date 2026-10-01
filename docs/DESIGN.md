@@ -8676,3 +8676,67 @@ lists both ways, quoting that comes back as it went, statuses, keys and the next
 evening and London's clock change), core/frontMatter.test.ts (YAML's escapes), core/tags.test.ts (moved).
 
 Cites: §145.
+
+## 157. Tickets as notes (2026-09-30)
+
+Matt: "What other notion and jira like features can we code with custom markdown to add to our app like tickets and
+such", and of the eight ideas, "Do 1, 2 and 3 in parallel". This is the second: a ticket is a note whose front matter
+says `type: ticket`, numbered by its notebook like a Jira issue, drawn with its properties as Notion draws a page's,
+and linked by its key. The grammar is §156's (core/properties.ts); this is what is built on it. The whole of it is
+docs/TICKETS.md.
+
+**The notebook's key.** A notebook takes `key: GHO` from its More sheet, as Ticket key, under its name: typed in any
+case, written in capitals the moment it is a key, and what is wrong said while it is not (book/tickets.ts
+`keyProblem`, `withNotebookKey`; editor/NoteSettings.tsx). Not a journal's. With a key, its index offers New ticket
+beside Add a page (book/BookView.tsx): a title and what it starts with. The line goes into the index first, as a page's
+does, and App makes the ticket (App.tsx `openTicketWithin`): `type: ticket`, the next id, and the workflow's first
+open status, To do in the default since Backlog is where a ticket waits rather than starts (`firstOpenStatus`). The
+next id is one past the highest number any note names, read from the store, the Trash included, at the press, so a
+number is never given twice and nothing keeps a counter that two devices would have to agree on.
+
+**The templates.** A Bug report and a Feature join the six built-ins (notes/noteTemplates.ts): a blank page's cards, a
+Templates notebook's pages, and New ticket's choices. Their words open with the ticket's own front matter, and the
+filler gained `{{next-id}}` (core/template.ts): the notebook's next key where the note is made, and, where there is
+none, its `id:` line left out rather than written empty. Front matter is not words, so the card, the untouched record
+and the caret all measure the words after it, as a look's key always was. A template's page carries the ticket's keys
+in its one block, and passes them to the note it makes (notes/ownTemplates.ts), so your own Bug report is still one; a
+page is drawn as the ticket it makes, with no key of its own. A ticket made with no key is offered its notebook's next
+on its panel.
+
+**The panel.** For a ticket, the folded front matter (§134) gives way to a panel (editor/tickets.ts; extended.ts
+`frontMatterDrawn`): the key, then Status, Assignee, Priority and Due always, and Start, Estimate, Blocked by, Parent
+and Labels where set or behind More (editor/TicketPanel.tsx, editor/ticketRows.ts). Statuses from the notebook's
+workflow, in their category's colour; people the library already names, assignees and `@people` both, the most named
+first, or one typed; the five priorities and None; the phone's own date picker under a day said as Today or Sat 3 Oct,
+red once due has passed; an estimate and labels typed in place; other tickets found by key or title and linked by key.
+Each pick is the smallest change to the front matter through `withProperty`, so one Undo takes it back and the key
+keeps its case. A ticket waiting on one not done leads with a lock and the ticket. The caret in the block, the panel's
+`{}` or its quiet line of other keys shows the lines, as every drawn block steps aside (drawnBlock.ts); a press on a
+value keeps the caret out, as a board's card does. A view that cannot be edited draws it with nothing to pick. Only
+where the screen gave the library's tickets (`WikiOptions.tickets`, App's shell/useTickets.ts): a card's small note
+and a shared page draw the front matter as before.
+
+**Keys as links.** `[[GHO-12]]` opens the ticket with that key, in any case: App's titles gained the tickets' keys,
+after the titles, so a note called "GHO-12" still wins and a key nobody has is a link waiting to be written. The link
+is drawn with the ticket's title after it, its status's dot, struck once done, but not inside front matter, where it is
+a line of keys. Claude's `read_note` finds a ticket by its key the same way (mcp/server.ts).
+
+**Where it is listed.** A ticket's key and status, small and in the status's colour, on home's cards, rows and lines
+and a notebook's index rows (notes/TicketMark.tsx), its status placed in its notebook's workflow.
+
+**Kept.** A rewrite through the MCP server that dropped the front matter whole gets a ticket's keys back; one that wrote
+its own keeps it, and gets back only `type:` and `id:` (`keepKeys`). A notebook keeps `key:` and `statuses:`. The
+library on disk keeps a ticket's block whole after its own, its `id:` never taken for the note's (a Rust test). The
+cost: a ticket written in another app with its keys in the file's only block has that `id:` read as the note's
+identity by the library; it is left for when the library merges a page's block into its own (docs/LIBRARY.md).
+
+**Tests.** book/tickets.test.ts (the key and its problems, the next id past the Trash, the first open status, a new
+ticket's body with and without a template, a ticket's notebook by index and by key, finding by key or title, waits,
+people), core/template.test.ts (`{{next-id}}` filled bare or its line left out), notes/noteTemplates.test.ts and
+ownTemplates.test.ts (the two tickets, made and kept as pages), editor/ticketRows.test.ts, editor/tickets.test.ts (the
+panel in place of the fold, stepping aside, the smallest change, a key's title and its redraw), editor/TicketPanel.test.tsx
+(every picker's write), book/BookView.test.tsx (New ticket, a row's mark), editor/NoteScreen.test.tsx (the key on the
+More sheet, a pick written into the note), home/HomeScreen.test.tsx, App.test.tsx (New ticket's id past the Trash and
+its status in a custom workflow; a key opening its ticket), mcp/server.test.ts, and src-tauri/src/library/tests.rs.
+
+Cites: §134, §142, §144, §156.

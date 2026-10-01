@@ -1,0 +1,53 @@
+/*
+ * A ticket's key and status where it is listed (TicketMark.tsx): one quiet line at the size a page's notebook is said
+ * at (BookPlaceMark.module.css), the key in the mono face it is written in, the status's dot in its category's colour,
+ * and the status's words in that colour too once it is under way or done.
+ */
+.mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  min-inline-size: 0;
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-regular);
+  color: var(--glacier-text-muted);
+  white-space: nowrap;
+}
+
+.key {
+  font-family: var(--glacier-font-mono);
+  letter-spacing: 0.02em;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-1);
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dot {
+  flex: none;
+  inline-size: 0.55em;
+  block-size: 0.55em;
+  border-radius: 50%;
+  background: var(--app-ink-4);
+}
+
+.mark[data-category='doing'] .status {
+  color: var(--glacier-blue-11);
+}
+
+.mark[data-category='doing'] .dot {
+  background: var(--glacier-blue-9);
+}
+
+.mark[data-category='done'] .status {
+  color: var(--glacier-green-11);
+}
+
+.mark[data-category='done'] .dot {
+  background: var(--glacier-green-9);
+}

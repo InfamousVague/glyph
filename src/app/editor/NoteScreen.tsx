@@ -21,13 +21,15 @@ import { BookView } from '../book/BookView.tsx';
 import { JournalView } from '../book/JournalView.tsx';
 import { isBookBody, isJournalBody, type BookPlace } from '../book/book.ts';
 import { entryPlaceOf, templateOf, withEntryPlace, withJournal, withoutJournal, withTemplate, type JournalWriter } from '../book/journal.ts';
+import { withNotebookKey } from '../book/tickets.ts';
+import type { TicketOptions } from './tickets.ts';
 import { forgetUntouched, isFresh, isUntouched, keepFresh, rememberUntouched, spoilFresh, untouchedRecord } from '../core/untouched.ts';
 import { lookOf, withLook, type Look } from '../core/look.ts';
 import { nameOffers } from '../core/noteNames.ts';
 import { setLiveTitle } from '../core/liveTitles.ts';
 import { isGuideBook } from '../guidebook/guidebook.ts';
 import { writeBookSpot } from '../book/bookSpot.ts';
-import { frontMatterOffset, withFrontMatterTitle } from '../core/frontMatter.ts';
+import { frontMatterOffset, frontMatterValue, withFrontMatterTitle } from '../core/frontMatter.ts';
 import { geoTagOf, sameTag, tagOf, withGeoTag, type GeoTag } from '../core/geotag.ts';
 import {
   canAskPlace,
@@ -203,6 +205,13 @@ interface NoteScreenProps {
   landing?: CaptureLanding & { key: number };
   /** Settings at the Model card: a press of the AI with no model on the phone offers it. */
   onGetModel?: () => void;
+  /**
+   * The library's tickets (editor/tickets.ts; docs/DESIGN.md §157): a ticket's front matter drawn as its properties, a
+   * `[[GHO-12]]` with its title, and a notebook with a key making its tickets (`onNewTicket`, with `ticketTemplates`).
+   */
+  tickets?: TicketOptions;
+  onNewTicket?: (title: string, notebook: string, template: NoteTemplate | null) => void;
+  ticketTemplates?: readonly NoteTemplate[];
 }
 
 /** Nothing taken, for a screen given no titles. */
@@ -275,6 +284,9 @@ export function NoteScreen({
   templates,
   onTemplates,
   onGetModel,
+  tickets,
+  onNewTicket,
+  ticketTemplates,
 }: NoteScreenProps) {
   const prefs = usePreferences();
   // The page's side, followed while the note is open: on System the phone may turn dark under it.
@@ -454,6 +466,8 @@ export function NoteScreen({
           unkeep: () => writeNotebook(withoutJournal),
         }
       : undefined;
+  /** A notebook's ticket key (book/tickets.ts; docs/DESIGN.md §157), written as its other keys are. Not a journal's. */
+  const ticketKey = journalRows && !isJournal ? { value: frontMatterValue(bookBody, 'key') ?? '', onChange: (typed: string) => writeNotebook((was) => withNotebookKey(was, typed)) } : undefined;
   const paging = isBook && !source;
   const typed = !!canvas || isBook;
   const showSource = (next: boolean) => {
@@ -1076,7 +1090,7 @@ export function NoteScreen({
    * it (editor/Editor.tsx), and this screen draws several times a second while a tape plays. The object is new whenever
    * App draws, since App makes its lookups afresh each time it does; that covers every change to the notes, and more.
    */
-  const wiki = useMemo(() => (onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle, body: bodyOfTitle } : undefined), [onOpenTitle, hasTitle, bodyOfTitle]);
+  const wiki = useMemo(() => (onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle, body: bodyOfTitle, tickets } : undefined), [onOpenTitle, hasTitle, bodyOfTitle, tickets]);
 
   const tools = (
     <NoteTools marked={marked} onBookmark={bookmark} onMore={() => setSettingsOpen(true)} />
@@ -1238,6 +1252,8 @@ export function NoteScreen({
               open={(t) => (onOpenWithin ?? onOpenTitle)?.(t)}
               openCanvas={onNewCanvas}
               openNew={onNewPage ? (t, template) => onNewPage(t, template) : undefined}
+              openTicket={onNewTicket ? (t, template) => onNewTicket(t, bookBody, template) : undefined}
+              ticketTemplates={ticketTemplates}
               titles={pageTitles ?? allTitles ?? (() => [])}
               bodyOf={bodyOfTitle}
               spot={{ id: note.id, page }}
@@ -1332,6 +1348,7 @@ export function NoteScreen({
         onClose={() => setSettingsOpen(false)}
         name={typed ? { value: title, onChange: renameHere, kind: canvas ? 'canvas' : isJournal ? 'journal' : 'notebook' } : undefined}
         journal={journalRows}
+        ticketKey={ticketKey}
         view={shown === 'raw' ? (typed ? (source ? 'mixed' : 'formatted') : prefs.noteView) : undefined}
         viewWords={canvas ? { source: 'JSON', page: 'Canvas' } : isBook ? { source: 'Markdown', page: 'Index' } : undefined}
         speak={tape.length > 0 ? undefined : { label: isJournal ? 'Speak an entry' : 'Talk into this note', onPress: speakHere }}

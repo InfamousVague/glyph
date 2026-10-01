@@ -1797,6 +1797,52 @@ describe('a notebook kept as a journal', () => {
   });
 });
 
+describe('tickets (docs/DESIGN.md §157)', () => {
+  const NOTEBOOK = '---\ntitle: "Ghost.md"\nbook: true\n---\n# Ghost.md\n\n- [[Fix the login loop]]\n';
+  const more = () => act(() => button('More for this note').click());
+  const written = async () => {
+    act(() => vi.advanceTimersByTime(400));
+    await settle();
+    return saved().at(-1) ?? '';
+  };
+
+  it('takes a notebook’s ticket key on its More sheet, in capitals, and says what is wrong with one that is not a key', async () => {
+    show(screen(await createNote('b1', NOTEBOOK), { hasTitle: () => true, onOpenTitle: () => {} }));
+    more();
+    const field = document.querySelector<HTMLInputElement>('input[placeholder="GHO"]')!;
+    typeInto(field, 'g');
+    expect(document.body.textContent).toContain('Two letters at least, like GHO.');
+    typeInto(field, 'gho');
+    expect(field.value).toBe('GHO');
+    expect(document.body.textContent).toContain('Its tickets are numbered GHO-1, GHO-2 and on.');
+    expect(await written()).toBe('---\ntitle: "Ghost.md"\nbook: true\nkey: GHO\n---\n# Ghost.md\n\n- [[Fix the login loop]]\n');
+    // Taken off for nothing.
+    typeInto(field, '');
+    expect(await written()).toBe(NOTEBOOK);
+  });
+
+  it('offers no key on a journal or a note of words', async () => {
+    show(screen(await createNote('j1', '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n'), { hasTitle: () => true, onOpenTitle: () => {} }));
+    more();
+    expect(document.querySelector('input[placeholder="GHO"]')).toBeNull();
+    unmount();
+    show(screen(await createNote('n1', '# Groceries')));
+    more();
+    expect(document.querySelector('input[placeholder="GHO"]')).toBeNull();
+  });
+
+  it('draws a ticket’s front matter as its panel where the library’s tickets are given, and writes a pick into the note', async () => {
+    const tickets = { statuses: () => ['To do', 'Doing', 'Done'], people: () => [], choices: () => [], find: () => null, open: () => {} };
+    show(screen(await createNote('t1', '---\ntype: ticket\nid: GHO-12\nstatus: To do\n---\n# Fix the login loop\n'), { hasTitle: () => true, onOpenTitle: () => {}, tickets }));
+    await settle();
+    const panel = document.querySelector<HTMLElement>('.cm-ticketPanel')!;
+    expect(panel.textContent).toContain('GHO-12');
+    act(() => panel.querySelector<HTMLButtonElement>('[aria-haspopup="dialog"]')!.click());
+    act(() => buttonSaying(document.body, 'Doing')!.click());
+    expect(await written()).toBe('---\ntype: ticket\nid: GHO-12\nstatus: Doing\n---\n# Fix the login loop\n');
+  });
+});
+
 describe('a journal open', () => {
   it('is drawn as its entries by month rather than a numbered index, and keeps no spot for them', async () => {
     const journal = '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n\n- [[2026-09-28 14.05]]\n';
@@ -2092,7 +2138,8 @@ describe('how a note looks', () => {
   });
 });
 
-describe('the templates on a new note’s blank page', () => {
+// Eight cards, each the note's own editor drawn one after another, take a while on a slow machine: a longer wait.
+describe('the templates on a new note’s blank page', { timeout: 45_000 }, () => {
   const cardFor = (id: string) => document.querySelector<HTMLButtonElement>(`[data-template="${id}"]`);
   const fresh = async (id: string, over: Partial<Parameters<typeof NoteScreen>[0]> = {}) => {
     const { markFresh } = await import('../core/untouched.ts');

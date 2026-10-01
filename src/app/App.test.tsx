@@ -515,18 +515,18 @@ describe('a new note, ready to type', () => {
     // In the blank note's tab: a note left with no words leaves nothing, its tab included.
     expect(tabs()).not.toContain(left);
     const bodies = vi.mocked(createNote).mock.calls.slice(made).map((call) => call[1]);
-    // The six pages, the last first so a list read newest first reads them in order, then the notebook.
-    expect(bodies).toHaveLength(7);
-    expect(bodies[0]).toContain('title: "A page to read"');
-    expect(bodies[5]).toContain('title: "A day"');
-    expect(isTemplatesBody(bodies[6]!)).toBe(true);
+    // The eight pages, the last first so a list read newest first reads them in order, then the notebook.
+    expect(bodies).toHaveLength(9);
+    expect(bodies[0]).toContain('title: "Feature"');
+    expect(bodies[7]).toContain('title: "A day"');
+    expect(isTemplatesBody(bodies[8]!)).toBe(true);
     const book = seen.note!.note.id;
     // From then on a blank page's cards are its pages, and a second press opens the same notebook.
     await blank();
-    expect(seen.note!.templates?.map((one) => one.name)).toEqual(['A day', 'A meeting', 'A checklist', 'Notes on a book', 'A map at the top', 'A page to read']);
+    expect(seen.note!.templates?.map((one) => one.name)).toEqual(['A day', 'A meeting', 'A checklist', 'Notes on a book', 'A map at the top', 'A page to read', 'Bug report', 'Feature']);
     await act(async () => seen.note!.onTemplates!());
     await waitUntil(() => expect(seen.note!.note.id).toBe(book));
-    expect(vi.mocked(createNote).mock.calls.length).toBe(made + 8);
+    expect(vi.mocked(createNote).mock.calls.length).toBe(made + 10);
     // A page added from inside it is a template's page, marked and named by its title.
     await act(async () => seen.note!.onOpenWithin!('A walk'));
     await waitUntil(() => expect(seen.note!.note.body).toBe('---\ntitle: "A walk"\ntemplates: page\n---\n# {{title}}\n\n'));
@@ -545,9 +545,9 @@ describe('a new note, ready to type', () => {
     const made = vi.mocked(createNote).mock.calls.length;
     await act(async () => seen.note!.onTemplates!());
     await waitUntil(() => expect(isTemplatesBody(seen.note!.note.body)).toBe(true));
-    // All six pages, the one sharing the person's note's name too.
+    // All eight pages, the one sharing the person's note's name too.
     expect(vi.mocked(createNote).mock.calls.slice(made).map((call) => call[1]).filter((body) => body.includes('title: "Notes on a book"'))).toHaveLength(1);
-    expect(vi.mocked(createNote).mock.calls.length).toBe(made + 7);
+    expect(vi.mocked(createNote).mock.calls.length).toBe(made + 9);
     // Inside the notebook its line is the page. Everywhere else the name is the person's note, still on home.
     await act(async () => seen.note!.onOpenWithin!('Notes on a book'));
     await waitUntil(() => expect(seen.note!.note.body).toContain('templates: page'));
@@ -574,11 +574,11 @@ describe('a new note, ready to type', () => {
       press();
       press();
     });
-    await waitUntil(() => expect(vi.mocked(createNote).mock.calls.length).toBe(made + 7));
+    await waitUntil(() => expect(vi.mocked(createNote).mock.calls.length).toBe(made + 9));
     await act(async () => {
       await Promise.resolve();
     });
-    expect(vi.mocked(createNote).mock.calls.length).toBe(made + 7);
+    expect(vi.mocked(createNote).mock.calls.length).toBe(made + 9);
     // A notebook's page pickers offer the person's notes, not the templates.
     const offered = seen.note!.pageTitles!();
     expect(offered).toContain('Apples');
@@ -808,6 +808,41 @@ describe('a notebook’s new page', () => {
     expect(noteShown()).not.toBeNull();
     // In the notebook's tab, which the page takes, as a page opened from the index does.
     expect(tabs()).toEqual([noteShown()]);
+  });
+});
+
+describe('a notebook’s tickets (docs/DESIGN.md §157)', () => {
+  const NOTEBOOK = '---\ntitle: "Ghost.md"\nbook: true\nkey: GHO\nstatuses: [Ideas, Building, Live]\n---\n# Ghost.md\n\n- [[Fix the login loop]]\n';
+  const LOOP = '---\ntype: ticket\nid: GHO-12\nstatus: Building\n---\n# Fix the login loop\n';
+
+  it('makes a New ticket with the notebook’s next key, its first open status and the template picked', async () => {
+    const { BUILT_INS } = await import('./notes/noteTemplates.ts');
+    // A number named only in the Trash is not given again.
+    const { trashNote } = await import('./core/trash.ts');
+    await seed(['book', NOTEBOOK], ['loop', LOOP], ['old', '# Old\n\nWas GHO-20.']);
+    trashNote('old');
+    await openApp();
+    act(() => card('Ghost.md').click());
+    expect(seen.note!.ticketTemplates?.map((one) => one.name)).toEqual(['Bug report', 'Feature']);
+    await act(async () => seen.note!.onNewTicket!('Session cookie expires', NOTEBOOK, BUILT_INS.find((one) => one.kind === 'bug')!));
+    await waitUntil(() => expect(noteShown()).not.toBe('book'));
+    const made = (await getNote(noteShown()!))!;
+    expect(made.body).toBe('---\ntype: ticket\nid: GHO-21\nstatus: Ideas\n---\n# Session cookie expires\n\n## Steps to reproduce\n\n1. \n\n## Expected\n\n## Actual\n');
+    expect(tabs()).toEqual([noteShown()]);
+  });
+
+  it('opens [[GHO-12]] as the ticket with that key, and draws its panel from the library', async () => {
+    await seed(['book', NOTEBOOK], ['loop', LOOP], ['words', '# Standup\n\nSee [[GHO-12]].']);
+    await openApp();
+    act(() => card('Standup').click());
+    expect(seen.note!.hasTitle!('GHO-12')).toBe(true);
+    expect(seen.note!.hasTitle!('GHO-99')).toBe(false);
+    expect(seen.note!.tickets?.find('gho-12')).toEqual({ key: 'GHO-12', title: 'Fix the login loop', status: 'Building', category: 'doing' });
+    await act(async () => seen.note!.onOpenTitle!('GHO-12'));
+    expect(noteShown()).toBe('loop');
+    // The ticket's own workflow is its notebook's, and it is no choice of its own.
+    expect(seen.note!.tickets?.statuses()).toEqual(['Ideas', 'Building', 'Live']);
+    expect(seen.note!.tickets?.choices().map((choice) => choice.key)).toEqual([]);
   });
 });
 

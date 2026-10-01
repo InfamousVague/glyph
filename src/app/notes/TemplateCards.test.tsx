@@ -48,10 +48,10 @@ afterEach(() => {
 });
 
 describe('the template cards', () => {
-  it('are six buttons, each named by its template and described by its sentence, and a press chooses it', () => {
+  it('are eight buttons, each named by its template and described by its sentence, and a press chooses it', () => {
     const chosen: string[] = [];
     show(<TemplateCards at={AT} taken={new Set()} onChoose={(template) => chosen.push(template.id)} />);
-    expect(cards().map((one) => one.dataset.template)).toEqual(['day', 'meeting', 'checklist', 'book', 'map', 'reading']);
+    expect(cards().map((one) => one.dataset.template)).toEqual(['day', 'meeting', 'checklist', 'book', 'map', 'reading', 'bug', 'feature']);
     expect(cards().every((one) => one.tagName === 'BUTTON')).toBe(true);
     expect(card('meeting').getAttribute('aria-label')).toBe('A meeting');
     expect(said('meeting')).toBe('Named for this minute, with who was there, notes and to-dos.');
@@ -137,11 +137,11 @@ describe('the template cards', () => {
   it('leave it out where the device can never say where it is: the Mac, or a browser with no geolocation', () => {
     device.mac = true;
     show(<TemplateCards at={AT} taken={new Set()} onChoose={() => undefined} />);
-    expect(cards().map((one) => one.dataset.template)).toEqual(['day', 'meeting', 'checklist', 'book', 'reading']);
+    expect(cards().map((one) => one.dataset.template)).toEqual(['day', 'meeting', 'checklist', 'book', 'reading', 'bug', 'feature']);
     unmount();
     device.mac = false;
     Reflect.deleteProperty(navigator, 'geolocation');
     show(<TemplateCards at={AT} taken={new Set()} onChoose={() => undefined} />);
-    expect(cards()).toHaveLength(5);
+    expect(cards()).toHaveLength(7);
   });
 });

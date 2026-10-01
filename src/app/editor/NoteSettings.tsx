@@ -5,7 +5,7 @@ import { CheatSheet } from '../guide/CheatSheet.tsx';
 import { tagLabel, type GeoTag } from '../core/geotag.ts';
 import type { LocateFailure } from '../core/location.ts';
 import { useWorkspaces, workspaceOf } from '../core/workspaces.ts';
-import { SheetField, SheetGroup, SheetHeading, SheetRow, SheetTitle } from '../plugins/kit.tsx';
+import { SheetField, SheetGroup, SheetHeading, SheetNote, SheetRow, SheetTitle } from '../plugins/kit.tsx';
 import { plugins } from '../plugins/registry.ts';
 import { usePlugins } from '../plugins/hooks.ts';
 import type { NoteEditing, NoteLink } from '../plugins/types.ts';
@@ -16,6 +16,7 @@ import { WorkspacePicker } from './WorkspacePicker.tsx';
 import { ShareRows } from '../share/ShareRows.tsx';
 import { DEFAULT_TEMPLATE, PLACE_SENTENCE, templateSentence } from '../book/journal.ts';
 import { TemplatePicker } from '../book/TemplatePicker.tsx';
+import { keyProblem } from '../book/tickets.ts';
 import { preferences } from '../core/preferences.ts';
 import type { NoteView } from './viewMode.ts';
 import type { Look } from '../core/look.ts';
@@ -37,6 +38,10 @@ import styles from './NoteSettings.module.css';
  * A notebook can be kept as a journal from here, and a journal changed or made a notebook again (docs/DESIGN.md
  * §142): a row under its name opens a page of the sheet with what each entry starts with (book/TemplatePicker.tsx).
  * Keeping it as a journal leaves every page where it is; the journal's view orders them by when each was written.
+ *
+ * A notebook takes a ticket key under its name, `GHO` (docs/DESIGN.md §157): its new tickets are numbered from it, as a
+ * Jira project's are, and its index offers New ticket (book/BookView.tsx). Typed in capitals or not, written as capitals
+ * the moment it is a key, and said what is wrong with while it is not one.
  *
  * A sheet from the bottom over a dimmed note, where a thumb already is (editor/Sheet.tsx). The links are shown before
  * they work so a note can be found where they will be; each says what it will do.
@@ -79,6 +84,8 @@ interface NoteSettingsProps {
     /** The journal made a notebook again: its entries stay as pages. */
     unkeep: () => void;
   };
+  /** A notebook's ticket key (book/tickets.ts), as its front matter says it, and its write; absent on anything else. */
+  ticketKey?: { value: string; onChange: (typed: string) => void };
   /**
    * How the note is shown: its marks or formatted, a canvas or its JSON, a notebook's index or its Markdown. The switch
    * lived in the top bar until it moved in here with the mic (Matt: "the mic, reading vs code mode move into the more
@@ -196,6 +203,36 @@ const CheatSheetIcon = () => <ListChecks size={18} strokeWidth={2.2} />;
 /** A journal's mark, the pen an entry is written with, as the + sheet's entry row wears it. */
 const JournalIcon = () => <Feather size={18} strokeWidth={2.2} />;
 
+/**
+ * A notebook's ticket key, typed: written whenever what is typed is a key (core/properties.ts `PROJECT_KEY`) or nothing,
+ * which takes it off, and what is wrong with it said under it while it is neither.
+ */
+function TicketKeyField({ ticketKey }: { ticketKey: NonNullable<NoteSettingsProps['ticketKey']> }) {
+  const [typed, setTyped] = useState(ticketKey.value);
+  const problem = keyProblem(typed);
+  const key = typed.trim().toUpperCase();
+  return (
+    <>
+      <SheetGroup>
+        <SheetField
+          label="Ticket key"
+          value={typed}
+          placeholder="GHO"
+          autoComplete="off"
+          autoCapitalize="characters"
+          spellCheck={false}
+          onChange={(event) => {
+            const next = event.target.value.toUpperCase();
+            setTyped(next);
+            if (keyProblem(next) === null) ticketKey.onChange(next);
+          }}
+        />
+      </SheetGroup>
+      <SheetNote>{problem ?? (key ? `Its tickets are numbered ${key}-1, ${key}-2 and on. [[${key}-1]] links to the first.` : 'Give it a key, and New ticket numbers its tickets, like a Jira project.')}</SheetNote>
+    </>
+  );
+}
+
 /** A journal's page of the sheet: what its entries start with, then keeping it as one, or making it a notebook again. */
 function JournalPage({ journal, name }: { journal: NonNullable<NoteSettingsProps['journal']>; name: string }) {
   // A notebook's choice is a draft until it is kept; a journal's is written as it is made.
@@ -244,6 +281,7 @@ export function NoteSettings({
   onMakeBoard,
   name,
   journal,
+  ticketKey,
   view,
   viewWords = { source: 'Markdown', page: 'Formatted' },
   speak,
@@ -351,6 +389,7 @@ export function NoteSettings({
           ) : null}
         </SheetGroup>
       ) : null}
+      {name && ticketKey ? <TicketKeyField ticketKey={ticketKey} /> : null}
 
       {onFind || onMakeBoard || (view && onView) || look ? (
         <>

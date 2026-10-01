@@ -71,6 +71,10 @@ import { useTrail } from './shell/useTrail.ts';
 import { useVisibleNotes } from './shell/useVisibleNotes.ts';
 import { dropLiveTitles } from './core/liveTitles.ts';
 import { isTemplatePageBody, isTemplatesBody, newTemplatePageBody, seedPlan, templatePageBody, templatePages, templatesOf } from './notes/ownTemplates.ts';
+import { newTicketBody, nextTicketId } from './book/tickets.ts';
+import { statusesOf } from './core/properties.ts';
+import { fillNoteTemplate, type NoteTemplate } from './notes/noteTemplates.ts';
+import { ticketTemplatesOf, useTickets } from './shell/useTickets.ts';
 import { isMacApp } from './core/platform.ts';
 
 /**
@@ -273,6 +277,8 @@ function Shell() {
   };
   const closeTab = (id: string) => closeTabs([id]);
 
+  // The library's tickets (shell/useTickets.ts; docs/DESIGN.md §157): `[[GHO-12]]` finds the ticket by its key too.
+  const tickets = useTickets(shownNotes, notes, screen.name === 'note' ? screen.note.id : null, (target) => void openTitle(target));
   /*
    * Every note by its title as a link matches it (core/titleKey.ts), the first of any two that share one, as a search
    * down the list would find: built once per change to the notes. A notebook's index asks after every page on every
@@ -287,8 +293,13 @@ function Shell() {
       const key = titleKey(noteTitle(note.body));
       if (key && !map.has(key)) map.set(key, note);
     }
+    // A ticket's key where no note is called that: a title someone wrote is still theirs.
+    for (const entry of tickets.entries) {
+      const key = entry.ticket.id ? titleKey(entry.ticket.id) : '';
+      if (key && !map.has(key)) map.set(key, entry.note);
+    }
     return map;
-  }, [shownNotes]);
+  }, [shownNotes, tickets.entries]);
   /** The note by that title in the library, as a `[[link]]` names it (editor/wikiLinks.ts), or undefined. */
   const titled = (title: string) => {
     const key = titleKey(title);
@@ -420,6 +431,21 @@ function Shell() {
     }
     const notebook = screen.name === 'note' ? noteTitle(screen.note.body) : '';
     void openTitleFrom(title, undefined, (named) => pageBody(named, template, notebook));
+  };
+  /**
+   * A ticket made in a notebook, from its index's New ticket (book/BookView.tsx; docs/DESIGN.md §157): the notebook's
+   * next key, read across every note the store has, the Trash's too, so no number is given twice; its workflow's first
+   * open status; and its template filled for it, or its title alone (book/tickets.ts `newTicketBody`). A note by that
+   * title already written opens as it is, as a page's does.
+   */
+  const openTicketWithin = (title: string, notebook: string, template: NoteTemplate | null) => {
+    tabs.replaceNext(shown);
+    void (async () => {
+      const all = await listNotes().catch(() => notes);
+      const id = nextTicketId(notebook, all.map((n) => n.body));
+      const words = template ? fillNoteTemplate(template, new Date(), takenTitles, { nextId: id, title }).body : undefined;
+      await openTitleFrom(title, undefined, (named) => newTicketBody(named, { id, statuses: statusesOf(notebook), words }));
+    })();
   };
   /** A canvas by that title opened from a book's index, made first if there is none (book/BookView.tsx). */
   const openCanvasWithin = (title: string) => {
@@ -939,6 +965,9 @@ function Shell() {
         onOpenWithin={openTitleWithin}
         onNewCanvas={openCanvasWithin}
         onNewPage={openPageWithin}
+        tickets={tickets.options}
+        onNewTicket={openTicketWithin}
+        ticketTemplates={ticketTemplatesOf(ownTemplates)}
         book={placeInBook(screen.note)}
         bodyOfTitle={bodyOfTitle}
         noteOfTitle={titled}

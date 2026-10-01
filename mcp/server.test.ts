@@ -173,6 +173,32 @@ describe('writing', () => {
     expect((await service.stored('d'))?.note.body).toContain('templates: page');
   });
 
+  it('keeps a ticket’s front matter through a rewrite that dropped it, and only its type and key through one that wrote its own (docs/DESIGN.md §157)', async () => {
+    const { service, call } = await connected();
+    const ticket = '---\ntype: ticket\nid: GHO-12\nstatus: In progress\nassignee: Sam\nblocked-by: "[[GHO-9]]"\n---\n# Fix the login loop\n\nIt loops.\n';
+    await service.deviceWrites(aNote('t', ticket));
+    await call('update_note', { id: 't', body: '# Fix the login loop\n\nIt loops after the cookie expires.\n' });
+    expect((await service.stored('t'))?.note.body).toBe(
+      '---\ntype: ticket\nid: GHO-12\nstatus: In progress\nassignee: Sam\nblocked-by: "[[GHO-9]]"\nauthors: matt, Claude\n---\n# Fix the login loop\n\nIt loops after the cookie expires.\n',
+    );
+    // Front matter of Claude's own is what it meant: the wait taken off stays off, the status it set stays set.
+    await call('update_note', { id: 't', body: '---\nstatus: Done\nassignee: Sam\n---\n# Fix the login loop\n\nFixed.\n' });
+    expect((await service.stored('t'))?.note.body).toBe('---\nstatus: Done\nassignee: Sam\ntype: ticket\nid: GHO-12\nauthors: matt, Claude\n---\n# Fix the login loop\n\nFixed.\n');
+    // A notebook keeps the key its tickets are numbered by, and its workflow.
+    await service.deviceWrites(aNote('b', '---\ntitle: "Ghost.md"\nbook: true\nkey: GHO\nstatuses: [Ideas, Live]\n---\n# Ghost.md\n\n- [[Fix the login loop]]\n'));
+    await call('update_note', { id: 'b', body: '# Ghost.md\n\n- [[Fix the login loop]]\n- [[Write the docs]]\n' });
+    expect((await service.stored('b'))?.note.body).toContain('key: GHO\nstatuses: [Ideas, Live]\n');
+  });
+
+  it('reads a ticket by its key, in any case, as a link to it finds it', async () => {
+    const { service, call } = await connected();
+    await service.deviceWrites(aNote('t', '---\ntype: ticket\nid: GHO-12\nstatus: To do\n---\n# Fix the login loop\n'));
+    const read = async (title: string) => (JSON.parse((await call('read_note', { title })).text) as { id: string }).id;
+    expect(await read('GHO-12')).toBe('t');
+    expect(await read('gho-12')).toBe('t');
+    expect((await call('read_note', { title: 'GHO-13' })).text).toBe('No note titled "GHO-13". Use list_notes or search_notes to find it.');
+  });
+
   it('says in the rewrite’s description that a notebook’s links are its pages', async () => {
     const { client } = await connected();
     const { tools } = await client.listTools();

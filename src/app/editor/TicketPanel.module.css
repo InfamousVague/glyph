@@ -1,0 +1,361 @@
+/*
+ * A ticket's properties over its words (TicketPanel.tsx, editor/tickets.ts; docs/DESIGN.md §157): a card in the page's
+ * tinted surface, the key on its first line in the mono face the front matter was set in, then a name and a value a
+ * row, Notion's way. The app's own face and size, not the note's, since it is the app's drawing of the note's keys.
+ * A status wears its category's colour on a dot: not started the faint ink, under way blue, finished green, as a
+ * board's lanes and Jira's categories read. A due day that has passed is red, today's amber.
+ */
+
+.panel {
+  margin-block: var(--glacier-space-1) var(--glacier-space-3);
+  padding: var(--glacier-space-3) var(--glacier-space-4) var(--glacier-space-2);
+  border: 1px solid var(--app-rule);
+  border-radius: var(--glacier-radius-lg);
+  background: var(--app-paper-2);
+  font-family: var(--glacier-font-sans);
+  font-size: var(--glacier-font-size-sm);
+  line-height: 1.4;
+  color: var(--app-ink);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin-block-end: var(--glacier-space-2);
+  color: var(--app-ink-3);
+}
+
+.key {
+  font-family: var(--glacier-font-mono);
+  font-weight: var(--glacier-font-weight-semibold);
+  letter-spacing: 0.02em;
+  color: var(--app-ink-2);
+}
+
+/* A ticket with no key yet, offered its notebook's next. */
+.give {
+  appearance: none;
+  margin: 0;
+  padding: 0 var(--glacier-space-2);
+  border: 1px solid var(--app-rule);
+  border-radius: var(--glacier-radius-full);
+  background: var(--app-paper);
+  color: var(--app-ink-2);
+  font: inherit;
+  font-size: var(--glacier-font-size-xs);
+  cursor: pointer;
+}
+
+/* Small round buttons with an icon: the lines as text, a day taken off, a link changed. */
+.asText,
+.clear,
+.edit {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--glacier-space-1);
+  margin: 0;
+  padding: var(--glacier-space-1);
+  border: 0;
+  border-radius: var(--glacier-radius-full);
+  background: transparent;
+  color: var(--app-ink-3);
+  font: inherit;
+  cursor: pointer;
+}
+
+.asText {
+  margin-inline-start: auto;
+}
+
+.asText:hover,
+.clear:hover,
+.edit:hover {
+  color: var(--app-ink);
+  background: color-mix(in oklch, currentColor 8%, transparent);
+}
+
+.edit {
+  padding-inline: var(--glacier-space-2);
+}
+
+/* What it waits on, first: a lock and the ticket, in amber, a tap away. */
+.waiting {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--glacier-space-1) var(--glacier-space-2);
+  margin: 0 0 var(--glacier-space-2);
+  padding: var(--glacier-space-1) var(--glacier-space-2);
+  border-radius: var(--glacier-radius-md);
+  background: color-mix(in oklch, var(--glacier-amber-9) 14%, transparent);
+  color: var(--glacier-amber-11);
+}
+
+.waitOn {
+  appearance: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--glacier-space-1);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: var(--glacier-font-weight-semibold);
+  text-align: start;
+  cursor: pointer;
+}
+
+.waitTitle {
+  font-weight: var(--glacier-font-weight-regular);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rows {
+  display: grid;
+  grid-template-columns: minmax(5.5em, max-content) minmax(0, 1fr);
+  column-gap: var(--glacier-space-3);
+  margin: 0;
+}
+
+.row {
+  display: contents;
+}
+
+.name {
+  align-self: center;
+  color: var(--app-ink-3);
+}
+
+.value {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  min-block-size: 2.25em;
+  margin: 0;
+}
+
+/* A value: its words on a quiet ground a tap shows, stepped out so its words line up with the column. */
+.chip {
+  appearance: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  max-inline-size: 100%;
+  min-block-size: 1.9em;
+  margin: 0 0 0 calc(var(--glacier-space-2) * -1);
+  padding: 0 var(--glacier-space-2);
+  border: 0;
+  border-radius: var(--glacier-radius-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+button.chip,
+.day .chip {
+  cursor: pointer;
+}
+
+button.chip:hover,
+.day .chip:hover {
+  background: color-mix(in oklch, currentColor 7%, transparent);
+}
+
+.chip[data-empty] {
+  color: var(--app-ink-4);
+}
+
+.chip[data-due='overdue'] {
+  color: var(--glacier-red-11);
+}
+
+.chip[data-due='today'] {
+  color: var(--glacier-amber-11);
+}
+
+.dot {
+  flex: none;
+  inline-size: 0.6em;
+  block-size: 0.6em;
+  border-radius: 50%;
+  background: var(--app-ink-4);
+}
+
+.dot[data-category='doing'] {
+  background: var(--glacier-blue-9);
+}
+
+.dot[data-category='done'] {
+  background: var(--glacier-green-9);
+}
+
+/* A person: the first letter of their name in a small round. */
+.avatar {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.5em;
+  block-size: 1.5em;
+  border-radius: 50%;
+  background: color-mix(in oklch, var(--glacier-teal-9) 22%, transparent);
+  color: var(--glacier-teal-11);
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.day {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-1);
+  min-inline-size: 0;
+}
+
+/* The phone's own date field, over the words and unseen: a tap on the day is a tap on it. */
+.dayInput {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.typed {
+  appearance: none;
+  inline-size: 100%;
+  min-block-size: 1.9em;
+  margin: 0 0 0 calc(var(--glacier-space-2) * -1);
+  padding: 0 var(--glacier-space-2);
+  border: 0;
+  border-radius: var(--glacier-radius-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.typed:hover,
+.typed:focus {
+  outline: none;
+  background: color-mix(in oklch, currentColor 7%, transparent);
+}
+
+.typed::placeholder {
+  color: var(--app-ink-4);
+}
+
+.links {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--glacier-space-1);
+  min-inline-size: 0;
+}
+
+/* Room left beside the last for its pencil, so a long title is cut rather than putting the pencil on a line alone. */
+.link {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-1);
+  max-inline-size: calc(100% - 3em);
+  overflow: hidden;
+  min-block-size: 1.75em;
+  margin: 0;
+  padding: 0 var(--glacier-space-2);
+  border: 1px solid var(--app-rule);
+  border-radius: var(--glacier-radius-full);
+  background: var(--app-paper);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.link[data-waiting] {
+  border-color: color-mix(in oklch, var(--glacier-amber-9) 45%, transparent);
+  color: var(--glacier-amber-11);
+}
+
+.linkKey {
+  flex: none;
+  white-space: nowrap;
+  font-family: var(--glacier-font-mono);
+  font-size: var(--glacier-font-size-xs);
+  color: var(--app-ink-3);
+}
+
+.link[data-waiting] .linkKey {
+  color: inherit;
+}
+
+.linkTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.linkTitle:empty {
+  display: none;
+}
+
+.empty {
+  color: var(--app-ink-4);
+}
+
+/* Under the rows: the properties still to add, and the keys a ticket does not have, quiet and in the mono face. */
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--glacier-space-1) var(--glacier-space-3);
+  margin-block-start: var(--glacier-space-1);
+  padding-block-start: var(--glacier-space-2);
+  border-block-start: 1px solid var(--app-rule);
+}
+
+.more,
+.others {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-1);
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--glacier-space-1) 0;
+  border: 0;
+  background: transparent;
+  color: var(--app-ink-3);
+  font: inherit;
+  font-size: var(--glacier-font-size-xs);
+  text-align: start;
+  cursor: pointer;
+}
+
+.others {
+  font-family: var(--glacier-font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.more:hover,
+.others:hover {
+  color: var(--app-ink);
+}
