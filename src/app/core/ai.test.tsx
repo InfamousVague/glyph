@@ -192,6 +192,17 @@ describe('a run', () => {
     expect(unlistened).toBe(1);
   });
 
+  it('says a model whose chat template this build cannot apply in words, and remembers it to pass it over', async () => {
+    answers.set('ai_generate', () => {
+      throw new Error('cannot apply the chat template: ffi error -1');
+    });
+    const run = generate({ ...options, model: 'gemma-4-e4b', onProgress: () => undefined });
+    await expect(run.done).rejects.toThrow('Gemma 4 E4B can’t run in this version of Ghost.md. Choose another model in Settings › AI, or install the newest Ghost.md.');
+    // Remembered against this binary's version, read once a page load.
+    await vi.waitFor(() => expect(JSON.parse(localStorage.getItem('glyph-models-cannot-run') ?? '{}')).toHaveProperty('gemma-4-e4b'));
+    localStorage.removeItem('glyph-models-cannot-run');
+  });
+
   it('is cancelled by its own id, and each run has one of its own', async () => {
     answers.set('ai_generate', () => new Promise(() => undefined));
     const one = generate({ ...options, onProgress: () => undefined });

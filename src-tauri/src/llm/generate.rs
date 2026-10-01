@@ -133,9 +133,21 @@ pub(super) fn generate<'m>(
             .map_err(|e| error("the system prompt", &e))?,
         LlamaChatMessage::new("user".into(), prompt::SENTINEL.into()).map_err(|e| error("the note", &e))?,
     ];
-    let rendered = model
-        .apply_chat_template(&template, &messages, true)
-        .map_err(|e| error("cannot apply the chat template", &e))?;
+    // llama.cpp renders the templates it knows by their marks; one it does not (Gemma 4's, GLY-2 and GLY-5) is
+    // rendered from the model's own Jinja instead (prompt.rs `render_template`), so the model runs at all.
+    let rendered = match model.apply_chat_template(&template, &messages, true) {
+        Ok(rendered) => rendered,
+        Err(builtin) => {
+            let source = model
+                .meta_val_str("tokenizer.chat_template")
+                .map_err(|e| error(&format!("cannot apply the chat template ({builtin}), and the model has none to read"), &e))?;
+            // The special tokens' own text (`<bos>`), which the tokenizer reads back as those tokens.
+            let text = |token: LlamaToken| model.token_to_piece(token, &mut encoding_rs::UTF_8.new_decoder(), true, None).unwrap_or_default();
+            let system = prompt::system_text(&request.system, request.context.as_deref());
+            prompt::render_template(&source, &system, prompt::SENTINEL, &text(model.token_bos()), &text(model.token_eos()), request.think)
+                .map_err(|e| Failure::Error(format!("cannot apply the chat template ({builtin}): {e}")))?
+        }
+    };
     // An empty thought switches reasoning off; a request that wants it gets none.
     let framed = prompt::frame(&rendered, thinks && !request.think).map_err(Failure::Error)?;
     counts.thinking = thinks && request.think;

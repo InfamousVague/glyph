@@ -71,12 +71,13 @@ export function searchSettings<S extends SearchableSection>(sections: S[], query
 }
 
 /**
- * The element on a section's page that names a setting: a row's label, a card's title, or the page's hero line. Read
+ * The element on a section's page that names a setting: a row's label, a card's title, the page's hero line, or a name
+ * a page draws its own way and marks `data-findable` (the specification's definitions, settings/SpecPane.tsx). Read
  * from the page as drawn, so a setting that isn't on it just now (signed out, say) opens the page and nothing more.
  */
 export function findSetting(page: ParentNode, name: string): HTMLElement | null {
   const want = fold(name).trim();
-  const candidates = page.querySelectorAll<HTMLElement>('.setk-row__label, .setk__title, .setk-hero__title');
+  const candidates = page.querySelectorAll<HTMLElement>('.setk-row__label, .setk__title, .setk-hero__title, [data-findable]');
   for (const candidate of candidates) {
     if (fold(candidate.textContent ?? '').trim() === want) return candidate;
   }

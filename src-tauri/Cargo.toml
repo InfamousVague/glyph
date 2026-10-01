@@ -77,6 +77,10 @@ llama-cpp-2 = { version = "=0.1.156", default-features = false, features = ["and
 # llama.cpp hands tokens back as bytes that can split a UTF-8 character; the
 # decoder carries the half between tokens. Already in the tree through reqwest.
 encoding_rs = "0.8"
+# A model's own chat template, rendered when llama.cpp does not know it by its
+# marks (src/llm/prompt.rs `render_template`): Jinja, with Python's methods.
+minijinja = { version = "2.24", features = ["loop_controls", "json"] }
+minijinja-contrib = { version = "2.24", default-features = false, features = ["pycompat"] }
 # The model download. 0.12 with rustls-tls on purpose, and NOT the 0.13 that
 # tauri already carries: native-tls resolves to OpenSSL on Android and will not
 # cross-compile (AttackFM learned this), and 0.13's rustls feature brings

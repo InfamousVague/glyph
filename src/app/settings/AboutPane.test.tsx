@@ -130,12 +130,14 @@ describe('Help on About', () => {
   });
 
   // Changed on purpose (docs/DESIGN.md §138): eight rows, five of them "Add …", are five, two of them pages.
-  it('is five rows, the cheat sheet and the examples each opening its own page', () => {
+  it('is six rows, the cheat sheet, the specification and the examples each opening its own page', () => {
     const { host, onOpen } = about();
     const help = [...host.querySelectorAll('section')].find((s) => s.querySelector('.setk__title')?.textContent === 'Help')!;
-    expect([...help.querySelectorAll('.setk-row__label')].map((l) => l.textContent)).toEqual(['Ghost.md Academy', 'The welcome walkthrough', 'Cheat sheet', 'Ghost.md: The Guide', 'Examples']);
+    expect([...help.querySelectorAll('.setk-row__label')].map((l) => l.textContent)).toEqual(['Ghost.md Academy', 'The welcome walkthrough', 'Cheat sheet', 'Specification', 'Ghost.md: The Guide', 'Examples']);
     press(row(host, 'Cheat sheet'));
     expect(onOpen).toHaveBeenLastCalledWith({ id: 'cheatsheet' });
+    press(row(host, 'Specification'));
+    expect(onOpen).toHaveBeenLastCalledWith({ id: 'spec' });
     press(row(host, 'Examples'));
     expect(onOpen).toHaveBeenLastCalledWith({ id: 'examples' });
   });

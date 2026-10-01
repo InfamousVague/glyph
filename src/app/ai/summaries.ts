@@ -7,6 +7,7 @@ import { failureText } from '../core/failure.ts';
 import { answerHost, writeUpOnHost } from '../core/host.ts';
 import { preferences } from '../core/preferences.ts';
 import { recordingJobState, takeRecordingResult, type RecordingJobState } from '../core/recordings.ts';
+import { cannotRun, isTemplateFailure, markCannotRun } from '../core/runnable.ts';
 import { readStored, writeStored } from '../core/stored.ts';
 import { getNote, NOTES_CHANGED, noteTitle, updateNote } from '../core/store.ts';
 import { syncNow, syncSettled } from '../core/sync/engine.ts';
@@ -391,6 +392,15 @@ async function refreshJobStates(): Promise<void> {
   for (const before of was) {
     const after = jobStates.find((s) => s.id === before.id);
     if (before.phase === 'listening' && after && after.phase !== 'listening') for (const listener of recordingListeners) listener(before.id);
+  }
+  // A write-up the phone could not start on its model's chat template (GLY-2): that model is remembered as one this
+  // binary cannot run, and the phone's write-up is told the model it should use instead (core/runnable.ts).
+  if (jobStates.some((s) => s.phase === 'failed' && isTemplateFailure(s.error ?? ''))) {
+    const model = modelFor(presentIds(await listModels().catch(() => [])), preferences().formatModel);
+    if (model && !cannotRun(model)) {
+      await markCannotRun(model);
+      await sendJobConfig().catch(() => undefined);
+    }
   }
 }
 

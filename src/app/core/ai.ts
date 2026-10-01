@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { MEETING_GENERATION } from '../capture/meeting.ts';
 import { listenTo } from './events.ts';
 import { failureText } from './failure.ts';
+import { isTemplateFailure, markCannotRun } from './runnable.ts';
 import { hasNativeGeneration } from './nativeGeneration.ts';
 import { preferences } from './preferences.ts';
 import { invoke, isTauri } from './tauri.ts';
@@ -313,6 +314,14 @@ export function generate(options: RunOptions): Run {
           thinkBudget: options.thinkBudget ?? 0,
         },
       });
+    } catch (failure) {
+      // A model whose chat template this binary cannot apply cannot run at all here: it is remembered, so the next run
+      // goes to another model on the phone, and said in words a person can act on (core/runnable.ts).
+      if (isTemplateFailure(failureText(failure))) {
+        void markCannotRun(options.model);
+        throw new Error(`${modelSpec(options.model)?.name ?? 'This model'} can’t run in this version of Ghost.md. Choose another model in Settings › AI, or install the newest Ghost.md.`, { cause: failure });
+      }
+      throw failure;
     } finally {
       unlisten?.();
       unlisten = null;

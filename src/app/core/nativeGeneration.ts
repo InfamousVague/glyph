@@ -40,6 +40,18 @@ export function nativeGeneration(): Promise<number> {
   return asked;
 }
 
+let versioned: Promise<string> | null = null;
+
+/** This binary's own version (`0.12.0`), or '' in a browser or when the binary will not say. */
+export function binaryVersion(): Promise<string> {
+  if (!isTauri()) return Promise.resolve('');
+  versioned ??= invoke<{ nativeVersion?: string } | null>('ota_status').then(
+    (status) => status?.nativeVersion ?? '',
+    () => '',
+  );
+  return versioned;
+}
+
 /** Whether this binary is generation `wanted` or newer: false in a browser, for any generation above 0. */
 export async function hasNativeGeneration(wanted: number): Promise<boolean> {
   return (await nativeGeneration()) >= wanted;

@@ -236,11 +236,11 @@ describe('the list of sections', () => {
 });
 
 describe('the sub-pages', () => {
-  it('are each switched-on plugin’s page, the cheat sheet and the examples, off the list, each with its parent', () => {
+  it('are each switched-on plugin’s page, the cheat sheet, the specification and the examples, off the list, each with its parent', () => {
     const host = settings();
     const hidden = handed.filter((s) => s.listed === false).map((s) => `${s.id} < ${s.parent}`);
-    expect(hidden).toEqual(['plugin:notion < plugins', 'plugin:github < plugins', 'plugin:claude < plugins', 'cheatsheet < about', 'examples < about']);
-    for (const label of ['Notion', 'GitHub', 'Claude', 'Cheat sheet', 'Examples']) expect(labels(host)).not.toContain(label);
+    expect(hidden).toEqual(['plugin:notion < plugins', 'plugin:github < plugins', 'plugin:claude < plugins', 'cheatsheet < about', 'spec < about', 'examples < about']);
+    for (const label of ['Notion', 'GitHub', 'Claude', 'Cheat sheet', 'Specification', 'Examples']) expect(labels(host)).not.toContain(label);
   });
 
   it('drop a plugin’s page when it is switched off', async () => {
@@ -552,9 +552,10 @@ describe('the search', () => {
   const TAPES = 'storage space';
   /**
    * The model's, where a model runs (the Android app and the Mac). Formatting was listed everywhere before, with only an
-   * empty state off Android, and Developer's "Choose your model" with it.
+   * empty state off Android, and Developer's "Choose your model" with it. "ai" finds the specification's AI fills on
+   * every device since GLY-4, as the fills are written the same way everywhere.
    */
-  const MODEL = 'ai download llm Choose';
+  const MODEL = 'download llm Choose';
   /** The haptics', where there is a motor. Feel's own word "vibration" found Feel before on a device with no motor. */
   const MOTOR = 'vibration Haptics vibrate buzz touch';
   /** What's new's, which About does not draw on an iPhone, where the App Store says it. Listed before, it lit nothing. */

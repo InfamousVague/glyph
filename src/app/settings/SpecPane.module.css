@@ -1,0 +1,81 @@
+/*
+ * The specification (SpecPane.tsx): a heading and a line for each part, then a card for each definition, its
+ * characters in a sunken block, the rule, how other apps show it, and the pattern folded away under it.
+ */
+
+.section {
+  margin-block-start: var(--glacier-space-6);
+}
+
+.title {
+  margin: 0 0 var(--glacier-space-1);
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-semibold);
+  letter-spacing: var(--app-tracking-caps);
+  text-transform: uppercase;
+  color: var(--glacier-text-subtle);
+}
+
+.intro {
+  margin: 0 0 var(--glacier-space-3);
+  font-size: var(--glacier-font-size-sm);
+  color: var(--glacier-text-muted);
+}
+
+.entries {
+  display: grid;
+  gap: var(--glacier-space-3);
+}
+
+.entry {
+  display: grid;
+  gap: var(--glacier-space-2);
+  min-inline-size: 0;
+  padding: var(--glacier-space-3);
+  border: var(--glacier-hairline) solid color-mix(in oklch, currentColor 10%, transparent);
+  border-radius: var(--glacier-radius-lg);
+  background: color-mix(in oklch, currentColor 4%, var(--glacier-bg));
+}
+
+.name {
+  margin: 0;
+  font-size: var(--glacier-font-size-md);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.written {
+  margin: 0;
+  padding: var(--glacier-space-2);
+  overflow-x: auto;
+  border-radius: var(--glacier-radius-md);
+  background: var(--glacier-surface-sunken);
+  color: var(--glacier-text-muted);
+  font-family: var(--glacier-font-mono);
+  font-size: var(--glacier-font-size-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.rule {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  line-height: 1.5;
+}
+
+.elsewhere {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--glacier-text-muted);
+}
+
+.label {
+  font-size: var(--glacier-font-size-xs);
+  letter-spacing: var(--app-tracking-caps);
+  text-transform: uppercase;
+  color: var(--glacier-text-subtle);
+}
+
+.pattern summary {
+  cursor: pointer;
+  margin-block-end: var(--glacier-space-2);
+}

@@ -3,6 +3,7 @@ import { modelSpec, useModels, type Download, type ModelInfo } from '../core/ai.
 import { hasNativeGeneration, nativeGeneration } from '../core/nativeGeneration.ts';
 import { isIOS } from '../core/platform.ts';
 import { preferences, usePreferences } from '../core/preferences.ts';
+import { runnable } from '../core/runnable.ts';
 import { isTauri } from '../core/tauri.ts';
 
 /**
@@ -24,6 +25,8 @@ import { isTauri } from '../core/tauri.ts';
  * Which model runs is decided here too: the one chosen in Settings when it is
  * on the phone, else the biggest that is no bigger than it, else the smallest
  * there is. One model, one pass (Matt), so there is always exactly one answer.
+ * A model this binary cannot run is passed over while another is on the phone
+ * (core/runnable.ts).
  */
 
 /** The binary generation that has `ai_generate`. */
@@ -50,7 +53,8 @@ function sizeOf(id: string): number {
  * biggest no bigger than it, else the smallest there is; null with none.
  */
 export function modelFor(present: readonly string[], chosen: string): string | null {
-  const here = [...new Set(present)];
+  // A model this binary has been found unable to run is passed over while another is there (core/runnable.ts).
+  const here = runnable([...new Set(present)]);
   if (!here.length) return null;
   if (here.includes(chosen)) return chosen;
   const ceiling = sizeOf(chosen);

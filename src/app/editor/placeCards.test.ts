@@ -66,6 +66,22 @@ describe('a map card under a place line', () => {
   });
 });
 
+describe('a place at the very top of a note', () => {
+  it('is drawn as the note’s header, and a place further down as the card', () => {
+    const view = mount(`# Lisbon\n${CAIS}\n\nWe walked down to\n${CAIS}`, 'live');
+    expect([...cards(view)].map((card) => (card as HTMLElement).dataset.size)).toEqual(['header', 'card']);
+    view.destroy();
+  });
+
+  it('becomes the card once words are put above it', () => {
+    const view = mount(`${CAIS}\nWords`, 'live');
+    expect((cards(view)[0] as HTMLElement).dataset.size).toBe('header');
+    view.dispatch({ changes: { from: 0, insert: '# Lisbon\nA day out\n' } });
+    expect((cards(view)[0] as HTMLElement).dataset.size).toBe('card');
+    view.destroy();
+  });
+});
+
 describe('what the card draws', () => {
   it('on the note screen: the map where tiles may be fetched, quiet with the reason where not', () => {
     expect(placeLook('live', { localOnly: false, mapTiles: true })).toEqual({ mode: 'map' });

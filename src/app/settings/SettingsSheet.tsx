@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { BookOpen, CircleUser, FlaskConical, Info, Mic, Puzzle, Shapes, SunMoon, Terminal } from '@glacier/icons';
+import { BookOpen, CircleUser, FileCode, FlaskConical, Info, Mic, Puzzle, Shapes, SunMoon, Terminal } from '@glacier/icons';
 import { useAccount } from '../core/account/account.ts';
 import { syncSummary, useSyncStatus } from '../core/sync/engine.ts';
 import { AccountPane } from './AccountPane.tsx';
@@ -26,6 +26,8 @@ import { findable as developerFindable } from './DeveloperPane.findable.ts';
 import { ExamplesPane } from './ExamplesPane.tsx';
 import { findable as examplesFindable } from './ExamplesPane.findable.ts';
 import { RecordingPane } from './RecordingPane.tsx';
+import { SpecPane } from './SpecPane.tsx';
+import { findable as specFindable } from './SpecPane.findable.ts';
 import { findable as recordingFindable } from './RecordingPane.findable.ts';
 import { SettingsScreen, type SettingsSection, type SettingsTarget } from './SettingsScreen.tsx';
 import { TestResultsPane } from './TestResultsPane.tsx';
@@ -233,6 +235,19 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       content: <CheatSheet />,
       // Marks only: the cues are the guide's to teach (guide/CheatSheet.tsx), so the line no longer promises them.
       summary: 'Every mark you can type',
+      group: 2,
+      listed: false,
+      parent: 'about',
+    },
+    {
+      id: 'spec',
+      label: 'Specification',
+      // GLY-4: the definition of every extension and AI fill, with the base specifications linked (docs/DESIGN.md §164).
+      words: 'markdown spec commonmark gfm syntax extensions fills reference',
+      settings: specFindable(),
+      icon: <FileCode size={16} />,
+      content: <SpecPane />,
+      summary: 'Every extension and fill, defined',
       group: 2,
       listed: false,
       parent: 'about',

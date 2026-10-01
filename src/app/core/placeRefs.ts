@@ -1,3 +1,4 @@
+import { frontMatterEnd } from './frontMatter.ts';
 import { coordsText, type GeoTag } from './geotag.ts';
 import { lineWords } from './itemSyntax.ts';
 
@@ -113,6 +114,25 @@ export function placeLines(body: string): (PlaceLine & { line: number })[] {
     if (place) found.push({ ...place, line: index + 1 });
   });
   return found;
+}
+
+/**
+ * The place line at the very top of a note, counting from 1, which is drawn as the note's header rather than the slim
+ * card (editor/placeCards.ts; GLY-3, Matt: "Map location when placed at the very top of a note should produce a full
+ * screen header of the map instead of the slim card"). The very top is the note's first line with words, after its
+ * front matter, or the line with words straight after that one, since a note's first line is its title and a place
+ * put at the top goes under it. Null where neither is a place.
+ */
+export function topPlaceLine(lines: readonly string[]): number | null {
+  let seen = 0;
+  for (let index = frontMatterEnd(lines); index < lines.length && seen < 2; index += 1) {
+    const text = lines[index] ?? '';
+    if (!text.trim()) continue;
+    if (FENCE.test(text)) return null;
+    if (placeOfLine(text)) return index + 1;
+    seen += 1;
+  }
+  return null;
 }
 
 /** Whether a line's words are only links (or pictures) to `geo:` addresses: the line goes whole. */
