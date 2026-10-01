@@ -12,10 +12,10 @@
 //! base64url of SHA-256 of `verifier`). Nothing is written to disk and nothing
 //! about a workspace is logged. `refresh` swaps a refresh token the same way.
 //!
-//!   GET  /glyph/api/notion/start?state&challenge  -> 302 to Notion
-//!   GET  /glyph/api/notion/callback?code&state     -> a page to go back to Ghost.md
-//!   POST /glyph/api/notion/claim  { state, verifier }  -> tokens | 202 pending | 404
-//!   POST /glyph/api/notion/refresh { refreshToken }    -> tokens
+//!   GET  /api/notion/start?state&challenge  -> 302 to Notion
+//!   GET  /api/notion/callback?code&state     -> a page to go back to Ghost.md
+//!   POST /api/notion/claim  { state, verifier }  -> tokens | 202 pending | 404
+//!   POST /api/notion/refresh { refreshToken }    -> tokens
 //!
 //! Configured by NOTION_CLIENT_ID and NOTION_CLIENT_SECRET in the service's
 //! root-owned environment file; without them every route says sign-in is not
@@ -42,7 +42,7 @@ use crate::wire::{base64url, error};
 
 const AUTHORIZE: &str = "https://api.notion.com/v1/oauth/authorize";
 const TOKEN: &str = "https://api.notion.com/v1/oauth/token";
-const DEFAULT_REDIRECT: &str = "https://attack.fm/glyph/api/notion/callback";
+const DEFAULT_REDIRECT: &str = "https://attack.fm/api/notion/callback";
 
 /// How long a sign-in can take from `start` to `claim`.
 const PENDING_TTL: Duration = Duration::from_secs(10 * 60);
@@ -316,10 +316,10 @@ async fn refresh(State(notion): State<Arc<Notion>>, ConnectInfo(peer): ConnectIn
 /// The four routes, with their own state; merged into glyph-api's router.
 pub fn router(notion: Arc<Notion>) -> Router {
     Router::new()
-        .route("/glyph/api/notion/start", get(start))
-        .route("/glyph/api/notion/callback", get(callback))
-        .route("/glyph/api/notion/claim", post(claim))
-        .route("/glyph/api/notion/refresh", post(refresh))
+        .route("/api/notion/start", get(start))
+        .route("/api/notion/callback", get(callback))
+        .route("/api/notion/claim", post(claim))
+        .route("/api/notion/refresh", post(refresh))
         .with_state(notion)
 }
 
@@ -342,7 +342,7 @@ mod tests {
     }
 
     fn claim_request(verifier: &str) -> Request<Body> {
-        Request::post("/glyph/api/notion/claim")
+        Request::post("/api/notion/claim")
             .header(header::CONTENT_TYPE, "application/json")
             .body(Body::from(json!({ "state": STATE, "verifier": verifier }).to_string()))
             .unwrap()
@@ -357,14 +357,14 @@ mod tests {
     #[tokio::test]
     async fn start_says_so_when_sign_in_is_not_set_up() {
         let notion = Notion::new(String::new(), String::new(), DEFAULT_REDIRECT.into());
-        let uri = format!("/glyph/api/notion/start?state={STATE}&challenge={}", challenge_of(VERIFIER));
+        let uri = format!("/api/notion/start?state={STATE}&challenge={}", challenge_of(VERIFIER));
         let response = service(notion).oneshot(Request::get(uri).body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
 
     #[tokio::test]
     async fn start_sends_the_browser_to_notion_with_the_state() {
-        let uri = format!("/glyph/api/notion/start?state={STATE}&challenge={}", challenge_of(VERIFIER));
+        let uri = format!("/api/notion/start?state={STATE}&challenge={}", challenge_of(VERIFIER));
         let response = service(configured()).oneshot(Request::get(uri).body(Body::empty()).unwrap()).await.unwrap();
         assert!(response.status().is_redirection());
         let location = response.headers().get(header::LOCATION).unwrap().to_str().unwrap();
@@ -376,7 +376,7 @@ mod tests {
     #[tokio::test]
     async fn claim_waits_for_the_callback_and_answers_only_the_right_verifier() {
         let notion = configured();
-        let uri = format!("/glyph/api/notion/start?state={STATE}&challenge={}", challenge_of(VERIFIER));
+        let uri = format!("/api/notion/start?state={STATE}&challenge={}", challenge_of(VERIFIER));
         service(notion.clone()).oneshot(Request::get(uri).body(Body::empty()).unwrap()).await.unwrap();
 
         let wrong = service(notion.clone()).oneshot(claim_request("someone-else-0123456789abcdefghijklmnop")).await.unwrap();
@@ -399,7 +399,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_callback_for_an_unknown_sign_in_is_told_it_expired() {
-        let uri = format!("/glyph/api/notion/callback?code=abc&state={STATE}");
+        let uri = format!("/api/notion/callback?code=abc&state={STATE}");
         let response = service(configured()).oneshot(Request::get(uri).body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), StatusCode::GONE);
     }
@@ -443,7 +443,7 @@ mod tests {
     }
 
     fn start_uri(state: &str) -> String {
-        format!("/glyph/api/notion/start?state={state}&challenge={}", challenge_of(VERIFIER))
+        format!("/api/notion/start?state={state}&challenge={}", challenge_of(VERIFIER))
     }
 
     #[tokio::test]
@@ -454,7 +454,7 @@ mod tests {
         let notion = swapping_at(&url);
         service(notion.clone()).oneshot(get(start_uri(STATE))).await.unwrap();
 
-        let page = service(notion.clone()).oneshot(get(format!("/glyph/api/notion/callback?code=the-code&state={STATE}"))).await.unwrap();
+        let page = service(notion.clone()).oneshot(get(format!("/api/notion/callback?code=the-code&state={STATE}"))).await.unwrap();
         let (status, html) = body_of(page).await;
         assert_eq!(status, StatusCode::OK);
         assert!(html.contains("<h1>Connected</h1>"), "{html}");
@@ -485,13 +485,13 @@ mod tests {
         let (url, swaps) = notion_answering(StatusCode::OK, json!({})).await;
         let notion = swapping_at(&url);
         service(notion.clone()).oneshot(get(start_uri(STATE))).await.unwrap();
-        let page = service(notion.clone()).oneshot(get(format!("/glyph/api/notion/callback?error=access_denied&state={STATE}"))).await.unwrap();
+        let page = service(notion.clone()).oneshot(get(format!("/api/notion/callback?error=access_denied&state={STATE}"))).await.unwrap();
         let (status, html) = body_of(page).await;
         assert_eq!(status, StatusCode::OK);
         assert!(html.contains("<h1>Not connected</h1>") && html.contains("You cancelled the sign-in."), "{html}");
         assert!(swaps.lock().unwrap().is_empty(), "nothing to swap");
         // A second callback for a sign-in that has its answer is an old link.
-        let late = service(notion.clone()).oneshot(get(format!("/glyph/api/notion/callback?code=abc&state={STATE}"))).await.unwrap();
+        let late = service(notion.clone()).oneshot(get(format!("/api/notion/callback?code=abc&state={STATE}"))).await.unwrap();
         assert_eq!(late.status(), StatusCode::GONE);
         let (status, body) = body_of(service(notion).oneshot(claim_request(VERIFIER)).await.unwrap()).await;
         assert_eq!((status, body), (StatusCode::BAD_REQUEST, r#"{"error":"You cancelled the sign-in."}"#.to_string()));
@@ -500,7 +500,7 @@ mod tests {
     #[tokio::test]
     async fn refresh_swaps_a_refresh_token_and_passes_notion_s_refusal_on_in_its_own_words() {
         let refresh = |token: &str| {
-            Request::post("/glyph/api/notion/refresh")
+            Request::post("/api/notion/refresh")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(json!({ "refreshToken": token }).to_string()))
                 .unwrap()

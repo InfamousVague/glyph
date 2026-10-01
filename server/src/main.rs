@@ -1,13 +1,13 @@
 //! glyph-api: Ghost.md's service on attack.fm - accounts, end-to-end encrypted sync, shared links, live typing's relay,
 //! Notion sign-in and the door to Claude's hosted MCP server - and the voice-note formatting route it began as.
 //!
-//!   /glyph/api/v1/*          accounts and end-to-end encrypted sync, see `accounts.rs`, `sync.rs`
-//!   /glyph/api/v1/shares/*   notes and books shared by their links, see `shares.rs`
-//!   /glyph/api/v1/live       live sync's relay, a WebSocket passing sealed edits, see `live.rs`
-//!   /glyph/api/notion/*      Notion sign-in, see `notion.rs`
-//!   /glyph/api/mcp/*         Claude's hosted MCP server, running beside this one, see `mcp_proxy.rs`
-//!   GET  /glyph/api/health   the service is up, and whether the format route's model is, see `health` below
-//!   POST /glyph/api/format   annotations for a transcript, which nothing in the app asks for any more, see `format.rs`
+//!   /api/v1/*          accounts and end-to-end encrypted sync, see `accounts.rs`, `sync.rs`
+//!   /api/v1/shares/*   notes and books shared by their links, see `shares.rs`
+//!   /api/v1/live       live sync's relay, a WebSocket passing sealed edits, see `live.rs`
+//!   /api/notion/*      Notion sign-in, see `notion.rs`
+//!   /api/mcp/*         Claude's hosted MCP server, running beside this one, see `mcp_proxy.rs`
+//!   GET  /api/health   the service is up, and whether the format route's model is, see `health` below
+//!   POST /api/format   annotations for a transcript, which nothing in the app asks for any more, see `format.rs`
 //!
 //! This file owns startup and the wiring every route shares: the environment, the router the routes are merged into,
 //! the CORS layer around all of them and the origins it lets in, and the JSON answer for a route or a method that is
@@ -21,7 +21,8 @@
 //! glyph-api.service sets GLYPH_API_BIND, OLLAMA_URL and GLYPH_API_DATA, and its env file the token and Notion's client
 //! id and secret; GLYPH_API_MODEL, GLYPH_MCP_UPSTREAM and NOTION_REDIRECT_URI are left at their defaults.
 //!
-//! Caddy routes `/glyph/api/*` here; the prefix is not stripped, so the routes carry it.
+//! Caddy routes `/api/*` here (ghostmarkdown.com passes it as is; the attack.fm alias strips its `/glyph` first), so
+//! the routes carry `/api`.
 
 mod accounts;
 mod format;
@@ -90,7 +91,7 @@ fn allowed_origin(origin: &[u8]) -> bool {
     })
 }
 
-/// `GET /glyph/api/health`, with no token: the service is up, and whether the format route's model is. The deploy polls
+/// `GET /api/health`, with no token: the service is up, and whether the format route's model is. The deploy polls
 /// it on loopback before it keeps a new binary, and reads it from outside after every ship, so it is the service's
 /// answer rather than the format route's, and outlives that route; only the model's two fields are the route's.
 async fn health(State(app): State<Arc<format::App>>) -> Json<serde_json::Value> {
@@ -122,7 +123,7 @@ fn router(app: Arc<format::App>, accounts: Option<Arc<accounts::Accounts>>) -> R
         .max_age(Duration::from_secs(600));
     let notion = notion::Notion::from_env();
     let mut routes = Router::new()
-        .route("/glyph/api/health", get(health))
+        .route("/api/health", get(health))
         .with_state(app.clone())
         .merge(format::router(app))
         .merge(notion::router(notion));
@@ -233,7 +234,7 @@ mod tests {
     async fn answers_the_preflight_the_authorization_header_triggers() {
         let preflight = Request::builder()
             .method(Method::OPTIONS)
-            .uri("/glyph/api/format")
+            .uri("/api/format")
             .header(header::ORIGIN, "http://tauri.localhost")
             .header(header::ACCESS_CONTROL_REQUEST_METHOD, "POST")
             .header(header::ACCESS_CONTROL_REQUEST_HEADERS, "authorization,content-type")
@@ -249,11 +250,11 @@ mod tests {
 
     #[tokio::test]
     async fn a_foreign_origin_gets_no_cors_grant_and_errors_carry_one_for_ours() {
-        let foreign = Request::get("/glyph/api/health").header(header::ORIGIN, "https://evil.example").body(Body::empty()).unwrap();
+        let foreign = Request::get("/api/health").header(header::ORIGIN, "https://evil.example").body(Body::empty()).unwrap();
         let response = service().oneshot(foreign).await.unwrap();
         assert!(response.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).is_none());
 
-        let mut ours = request(Method::POST, "/glyph/api/format", None, Some(json!({ "text": "hi" })));
+        let mut ours = request(Method::POST, "/api/format", None, Some(json!({ "text": "hi" })));
         ours.headers_mut().insert(header::ORIGIN, HeaderValue::from_static("tauri://localhost"));
         let response = service().oneshot(ours).await.unwrap();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -272,7 +273,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_dev_server_on_another_port_is_granted_too() {
-        let mut request = request(Method::POST, "/glyph/api/format", None, Some(json!({ "text": "hi" })));
+        let mut request = request(Method::POST, "/api/format", None, Some(json!({ "text": "hi" })));
         request.headers_mut().insert(header::ORIGIN, HeaderValue::from_static("http://localhost:5255"));
         let response = service().oneshot(request).await.unwrap();
         assert_eq!(response.headers()[header::ACCESS_CONTROL_ALLOW_ORIGIN], "http://localhost:5255");
@@ -280,7 +281,7 @@ mod tests {
 
     #[tokio::test]
     async fn health_needs_no_token_and_reports_ollama_honestly() {
-        let response = service().oneshot(Request::get("/glyph/api/health").body(Body::empty()).unwrap()).await.unwrap();
+        let response = service().oneshot(Request::get("/api/health").body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
         let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         assert_eq!(serde_json::from_slice::<serde_json::Value>(&bytes).unwrap(), json!({ "ok": true, "model": "test-model", "ollama": false }));
@@ -288,11 +289,11 @@ mod tests {
 
     #[tokio::test]
     async fn unknown_routes_and_methods_answer_in_json() {
-        let response = service().oneshot(Request::get("/glyph/api/nope").body(Body::empty()).unwrap()).await.unwrap();
+        let response = service().oneshot(Request::get("/api/nope").body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
         let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         assert_eq!(serde_json::from_slice::<serde_json::Value>(&bytes).unwrap(), json!({ "error": "no such route" }));
-        let response = service().oneshot(Request::get("/glyph/api/format").body(Body::empty()).unwrap()).await.unwrap();
+        let response = service().oneshot(Request::get("/api/format").body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
         let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         assert!(serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["error"].is_string());

@@ -11,19 +11,19 @@
 //!   key, and nothing it stores can read a note.
 //! - **Sign-in is rate limited**, per address and per handle. AttackFM's registry has no limit on it.
 //!
-//!   GET  /glyph/api/v1/pubkey            the key tokens are signed with
-//!   POST /glyph/api/v1/signup            a new account, with its wrapped key and its recovery sheet
-//!   POST /glyph/api/v1/login             by password: the token, and the key wrapped under the password
-//!   POST /glyph/api/v1/login/challenge   a nonce for a device to sign
-//!   POST /glyph/api/v1/login/device      by device key: the token
-//!   POST /glyph/api/v1/login/recovery    by recovery code, spent: the token, and the key wrapped under that code
-//!   POST /glyph/api/v1/refresh           a fresh token for a live one
-//!   POST /glyph/api/v1/device            another device for the signed-in account
-//!   GET  /glyph/api/v1/keys              the key wrapped under the password
-//!   PUT  /glyph/api/v1/password          a new password (a new login hash, the key wrapped anew)
-//!   GET  /glyph/api/v1/recovery          how many codes are left
-//!   POST /glyph/api/v1/recovery          a new sheet of codes
-//!   DELETE /glyph/api/v1/account         the account and everything it keeps here, with the password
+//!   GET  /api/v1/pubkey            the key tokens are signed with
+//!   POST /api/v1/signup            a new account, with its wrapped key and its recovery sheet
+//!   POST /api/v1/login             by password: the token, and the key wrapped under the password
+//!   POST /api/v1/login/challenge   a nonce for a device to sign
+//!   POST /api/v1/login/device      by device key: the token
+//!   POST /api/v1/login/recovery    by recovery code, spent: the token, and the key wrapped under that code
+//!   POST /api/v1/refresh           a fresh token for a live one
+//!   POST /api/v1/device            another device for the signed-in account
+//!   GET  /api/v1/keys              the key wrapped under the password
+//!   PUT  /api/v1/password          a new password (a new login hash, the key wrapped anew)
+//!   GET  /api/v1/recovery          how many codes are left
+//!   POST /api/v1/recovery          a new sheet of codes
+//!   DELETE /api/v1/account         the account and everything it keeps here, with the password
 //!
 //! This file owns the service itself - the signing key, issuing and checking tokens, the sign-in limits, and the
 //! `Claims` extractor every signed-in route in the crate opens with - and the route table. The routes are beside it:
@@ -196,17 +196,17 @@ async fn pubkey(State(accounts): State<Arc<Accounts>>) -> Response {
 
 pub fn router(accounts: Arc<Accounts>) -> Router {
     Router::new()
-        .route("/glyph/api/v1/pubkey", get(pubkey))
-        .route("/glyph/api/v1/signup", post(ways_in::signup))
-        .route("/glyph/api/v1/login", post(ways_in::login))
-        .route("/glyph/api/v1/login/challenge", post(ways_in::challenge))
-        .route("/glyph/api/v1/login/device", post(ways_in::login_device))
-        .route("/glyph/api/v1/login/recovery", post(ways_in::login_recovery))
-        .route("/glyph/api/v1/refresh", post(account::refresh))
-        .route("/glyph/api/v1/device", post(account::add_device))
-        .route("/glyph/api/v1/keys", get(account::keys))
-        .route("/glyph/api/v1/password", put(account::password))
-        .route("/glyph/api/v1/recovery", get(account::recovery_left).post(account::recovery_replace))
-        .route("/glyph/api/v1/account", delete(account::delete_account))
+        .route("/api/v1/pubkey", get(pubkey))
+        .route("/api/v1/signup", post(ways_in::signup))
+        .route("/api/v1/login", post(ways_in::login))
+        .route("/api/v1/login/challenge", post(ways_in::challenge))
+        .route("/api/v1/login/device", post(ways_in::login_device))
+        .route("/api/v1/login/recovery", post(ways_in::login_recovery))
+        .route("/api/v1/refresh", post(account::refresh))
+        .route("/api/v1/device", post(account::add_device))
+        .route("/api/v1/keys", get(account::keys))
+        .route("/api/v1/password", put(account::password))
+        .route("/api/v1/recovery", get(account::recovery_left).post(account::recovery_replace))
+        .route("/api/v1/account", delete(account::delete_account))
         .with_state(accounts)
 }

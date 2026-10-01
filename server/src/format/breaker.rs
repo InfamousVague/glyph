@@ -1,6 +1,6 @@
 //! The rest the format route gives the model after a call that could not finish.
 //!
-//! Only `/glyph/api/format` asks the model anything, so this lives with it rather than with the service's shared
+//! Only `/api/format` asks the model anything, so this lives with it rather than with the service's shared
 //! limits in guard.rs: a rate limit is about how often a client may ask, and this is about whether the model is worth
 //! asking at all.
 

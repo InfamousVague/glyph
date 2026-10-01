@@ -40,20 +40,18 @@ const withCaddy = process.argv.includes('--caddy');
 if (!existsSync(join(LANDING, 'index.html'))) fail('No landing/index.html to ship.');
 
 // The release dir's parent, so /glyph/mcp/glyph-mcp.mjs resolves to ${RELEASE}/mcp/glyph-mcp.mjs on this domain.
-const RELEASE_PARENT = RELEASE.replace(/\/glyph$/, '');
-
 const BLOCK = `
 ${DOMAIN} {
 	encode zstd gzip
 	# The whole Glyph API on this domain (accounts, end-to-end sync, Notion sign-in, the live relay and Claude's MCP
-	# connector), handed to glyph-api on loopback exactly as the attack.fm block does (server/src/mcp_proxy.rs,
-	# server/glyph-api.service). Moving the connection to the ghostmarkdown.com TLD; attack.fm stays a working alias.
-	handle /glyph/api/* {
+	# connector at /api/mcp), handed to glyph-api on loopback (server/src/main.rs serves /api/* now, server/src/
+	# mcp_proxy.rs). This is the TLD the connection moves to; attack.fm stays a working alias by stripping /glyph.
+	handle /api/* {
 		reverse_proxy 127.0.0.1:8796
 	}
-	# Claude's one-file local connector, published to the release dir by deploy-ota.mjs --mcp.
-	handle /glyph/mcp/* {
-		root * ${RELEASE_PARENT}
+	# Claude's one-file local connector, published to the release dir's mcp/ by deploy-ota.mjs --mcp.
+	handle /mcp/* {
+		root * ${RELEASE}
 		header Cache-Control "no-cache"
 		file_server
 	}

@@ -150,7 +150,7 @@ impl Harness {
 
     /// A new account with a password, `device`'s key and a recovery sheet; its token.
     pub async fn signup(&self, handle: &str, device: &SigningKey) -> String {
-        let (status, body) = self.call(Method::POST, "/glyph/api/v1/signup", None, Some(signup_body(handle, Some(device)))).await;
+        let (status, body) = self.call(Method::POST, "/api/v1/signup", None, Some(signup_body(handle, Some(device)))).await;
         assert_eq!(status, StatusCode::OK, "{body}");
         body["token"].as_str().unwrap().to_string()
     }

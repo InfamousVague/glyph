@@ -101,7 +101,7 @@ struct Auth {
 
 pub fn router(accounts: Arc<Accounts>) -> Router {
     let live = Arc::new(Live { accounts, hub: Mutex::new(Hub::default()), next: AtomicU64::new(1) });
-    Router::new().route("/glyph/api/v1/live", get(upgrade)).with_state(live)
+    Router::new().route("/api/v1/live", get(upgrade)).with_state(live)
 }
 
 /// A WebSocket is not covered by CORS, so a page's origin is checked here: the apps' own origins, as the HTTP routes

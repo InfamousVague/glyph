@@ -27,7 +27,7 @@ import { host } from './manifest.ts';
  * commands and two keys in the manifest are all it can reach.
  */
 
-const API = 'https://ghostmarkdown.com/glyph/api/notion';
+const API = 'https://ghostmarkdown.com/api/notion';
 const LINKS_KEY = 'glyph-notion-links';
 const SIGN_IN_KEY = 'glyph-notion-signin';
 

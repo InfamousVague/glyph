@@ -6,7 +6,7 @@ account and add and update notes as well as read them, be detailed and make sure
 
 It works for any Ghost.md account, and it comes two ways:
 
-- **Hosted** (the easy one): Claude connects to `https://ghostmarkdown.com/glyph/api/mcp`, you sign in on a page once, and
+- **Hosted** (the easy one): Claude connects to `https://ghostmarkdown.com/api/mcp`, you sign in on a page once, and
   that is all. Nothing to install. While you are signed in, Ghost.md's server holds your account key in memory (below).
 - **On your own computer**: one file you run with Node, which keeps your key on your machine and the server never
   sees it. For anyone who would rather keep end-to-end encryption whole.
@@ -50,10 +50,10 @@ Copy, and an instructions drawer with the steps for either way, each command wit
 
 ## Setting it up: hosted
 
-Add `https://ghostmarkdown.com/glyph/api/mcp` to Claude as a remote MCP server. Where that is:
+Add `https://ghostmarkdown.com/api/mcp` to Claude as a remote MCP server. Where that is:
 
 - **claude.ai and Claude Desktop**: Settings › Connectors › Add custom connector, with that URL.
-- **Claude Code**: `claude mcp add --transport http glyph https://ghostmarkdown.com/glyph/api/mcp`
+- **Claude Code**: `claude mcp add --transport http glyph https://ghostmarkdown.com/api/mcp`
 - **Any other MCP client** that speaks HTTP with OAuth: the same URL.
 
 Claude opens a Ghost.md page in your browser: sign in with your handle and password, and you are back in Claude with
@@ -75,7 +75,7 @@ Changing your Ghost.md password does not end it: disconnect to be sure.
 You need Node.js 20 or newer (`node --version`), and the server as one file:
 
 ```bash
-curl -fsSL https://ghostmarkdown.com/glyph/mcp/glyph-mcp.mjs -o ~/glyph-mcp.mjs
+curl -fsSL https://ghostmarkdown.com/mcp/glyph-mcp.mjs -o ~/glyph-mcp.mjs
 ```
 
 Sign in once. The password is typed at the prompt and is not stored; what is stored is what a signed-in phone
@@ -141,7 +141,7 @@ node glyph-mcp.mjs logout           forget the session
 node glyph-mcp.mjs                  serve (what Claude runs)
 ```
 
-`GLYPH_API` points the server at another sync service (the default is `https://attack.fm/glyph/api`);
+`GLYPH_API` points the server at another sync service (the default is `https://ghostmarkdown.com/api`);
 `GLYPH_MCP_HOME` moves the session file (the default is `~/.config/glyph-mcp`).
 
 ## What it keeps, and where the key lives
@@ -181,15 +181,15 @@ taken off stays so. A notebook keeps the `key:` its tickets are numbered by and 
 | `mcp/hosted.ts`, `mcp/hosted-main.ts` | the hosted server: OAuth with the SDK's handlers, MCP over HTTP, and its start-up from the environment; run on the box as `glyph-mcp.service` (`server/glyph-mcp.service`) |
 | `mcp/loginPage.ts` | the hosted server's sign-in page, whose own script derives the password's halves and unwraps the key in the browser |
 | `mcp/hostedStore.ts` | what the hosted server holds in memory, and when it lets go: clients, sign-in requests, codes, sessions and tokens |
-| `server/src/mcp_proxy.rs` | glyph-api hands `/glyph/api/mcp` on to it, so the shared Caddy configuration is untouched |
+| `server/src/mcp_proxy.rs` | glyph-api hands `/api/mcp` on to it, so the shared Caddy configuration is untouched |
 | `scripts/deploy-server.mjs` | ships both services in one session; `--mcp-only` ships just the hosted server, and either way glyph-mcp is restarted only when its file changed, since a restart signs everyone out |
 | `scripts/build-mcp.mjs` | the build, `npm run mcp:build`: two files into mcp/dist, `glyph-mcp.mjs` for a person's Node 20 and `glyph-mcp-hosted.mjs` for the box's Node 18. It imports esbuild, which package.json does not name: it arrives with Vite |
-| `scripts/deploy-ota.mjs --mcp` | publishes the local file at https://ghostmarkdown.com/glyph/mcp/glyph-mcp.mjs; `scripts/deploy-server.mjs` ships the hosted one |
+| `scripts/deploy-ota.mjs --mcp` | publishes the local file at https://ghostmarkdown.com/mcp/glyph-mcp.mjs; `scripts/deploy-server.mjs` ships the hosted one |
 | `mcp/testKit.ts` | what the tests share: a note as another device wrote it, a tool's words, and an account in memory with Claude connected |
 | `mcp/glyph.test.ts` | the client against a sync service stood in for in memory: sign-in, renewal, reading, writing, the conflict |
 | `mcp/server.test.ts`, `mcp/cli.test.ts`, `mcp/loginPage.test.ts`, `mcp/webcrypto.test.ts` | the tools, the commands, the sign-in page's script, and WebCrypto on an old Node |
 | `mcp/hosted.test.ts` | the hosted server connected to as Claude connects: the client library's own OAuth flow, the page, tokens, refresh, the tools, and a week's idleness ending the session |
-| `mcp/mcp.e2e.test.ts` | a phone (the app's own sync code), the built local server over stdio, and the built hosted server over HTTP with the full sign-in, all on one real glyph-api: `GLYPH_MCP_E2E=1 VITE_GLYPH_API=http://127.0.0.1:<port>/glyph/api npx vitest run mcp.e2e` |
+| `mcp/mcp.e2e.test.ts` | a phone (the app's own sync code), the built local server over stdio, and the built hosted server over HTTP with the full sign-in, all on one real glyph-api: `GLYPH_MCP_E2E=1 VITE_GLYPH_API=http://127.0.0.1:<port>/api npx vitest run mcp.e2e` |
 
 ## How it was proven
 

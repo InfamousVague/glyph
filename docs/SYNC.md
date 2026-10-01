@@ -4,7 +4,7 @@ Ghost.md accounts, and notes, settings, recordings and pictures kept the same on
 encrypted**: the server holds copies it cannot read. Matt's brief (2026-09-16): "make a tauri/desktop version and add
 account signup to keep notes in sync across devices, copy the mechanisms on attack.fm". His choices: an account of its
 own (not the attack.fm one), end-to-end encryption, and notes + settings + recordings from the start. Served from
-`attack.fm/glyph/api` for now. The page takes the address from one build setting, `VITE_GLYPH_API`, for accounts,
+`ghostmarkdown.com/api` now (attack.fm stays a working alias). The page takes the address from one build setting, `VITE_GLYPH_API`, for accounts,
 sync, shares and the live relay; Notion's sign-in and Claude's MCP server name it on their own (README, "Moving to
 another domain").
 
@@ -55,7 +55,7 @@ Not titles, not folders, not a word of any note, not settings, not a second of a
 
 ## The wire
 
-All under `/glyph/api/v1/`, bearer token where signed in, JSON unless said. `login` values are 64 hex characters;
+All under `/api/v1/`, bearer token where signed in, JSON unless said. `login` values are 64 hex characters;
 `wrapped` values and blobs are base64url.
 
 ```
@@ -88,7 +88,7 @@ HEAD recordings/<id>              the same headers, no body
 
 Deleting the account deletes everything the service keeps for it: its notes, settings, recordings and pictures, its
 shared links, its devices and its recovery codes (Settings › Account › Delete account, or the page
-`landing/delete-account.html`). The same `/glyph/api/v1/` holds the shared links (`shares`, docs/SHARING.md) and the
+`landing/delete-account.html`). The same `/api/v1/` holds the shared links (`shares`, docs/SHARING.md) and the
 live relay (`live`, docs/LIVE.md).
 
 The HEAD has no route of its own: axum answers it through the GET, which reads the whole file to send only its
@@ -153,7 +153,7 @@ minute per address and 10 per handle.
   without a server) and `src/app/core/sync/prefs.test.ts`, with `src/app/core/account/account.test.ts` and
   `src/app/core/account/keystore.test.ts`; the devices they sync are made by `src/test/syncDevice.ts`.
   `src/app/core/sync/sync.e2e.test.ts` runs two devices against a real `glyph-api`
-  (`GLYPH_SYNC_E2E=<data dir> VITE_GLYPH_API=http://127.0.0.1:<port>/glyph/api`). The server's side is
+  (`GLYPH_SYNC_E2E=<data dir> VITE_GLYPH_API=http://127.0.0.1:<port>/api`). The server's side is
   `server/src/sync_tests.rs`.
 
 ## Claude, as a device

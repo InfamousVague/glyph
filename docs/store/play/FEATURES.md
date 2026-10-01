@@ -169,7 +169,7 @@ Link previews ask the linked site for its title, and can be switched off.
   opens Finder. **The web app** at attack.fm/glyph: the same editor, the browser's speech recognition, no models.
 - **Notion and GitHub**: list items become tasks or issues (swipe left, the quiet word, press and hold, or Send
   list); a ticked box and a finished task agree both ways; a linked repo is read into a briefing for the model.
-- **Claude**: an MCP connector, hosted at attack.fm/glyph/api/mcp or run on your own computer; list, read, search,
+- **Claude**: an MCP connector, hosted at ghostmarkdown.com/api/mcp or run on your own computer; list, read, search,
   make, rewrite, append, pin or archive, never delete; signs as Claude.
 - **The Academy**: thirteen lessons, one mark at a time, with the note's own editor drawing what you type. **The
   Guide**: Settings › About › Add Ghost.md: The Guide, 44 chapters as notes in your library. **The cheat sheet**.

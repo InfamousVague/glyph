@@ -62,7 +62,7 @@ It lives in `landing/` and ships with `node scripts/deploy-landing.mjs`, one ssh
 - **Shared notes open here too.** Share links are `ghostmarkdown.com/read.html#…` (`src/app/share/share.ts`). The block also
   serves `/read.html`, `/assets/*` and `/favicon.svg` from the release, so the reader is always the latest release's.
   The share service allows this origin (`server/src/main.rs` `ORIGINS`). The web app itself stays on attack.fm, since
-  this domain doesn't route `/glyph/api`.
+  this domain doesn't route `/api`.
 - **The privacy policy and the delete-account page are here**, linked from the page's foot:
   `landing/privacy.html` and `landing/delete-account.html`. They are the addresses given to Play Console and App Store
   Connect (docs/store/PLAY_STORE.md), and Settings › Account › Privacy policy opens the first. Changing either is a

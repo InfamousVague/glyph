@@ -3,8 +3,8 @@ import { CAN_DO, guides, LOCAL_FILE_URL, MCP_URL } from './steps.ts';
 
 describe('the words of Settings › Claude', () => {
   it('points Claude at the MCP server beside this build’s sync service, and at the one-file server published beside the app', () => {
-    expect(MCP_URL).toMatch(/\/glyph\/api\/mcp$/);
-    expect(LOCAL_FILE_URL).toMatch(/\/glyph\/mcp\/glyph-mcp\.mjs$/);
+    expect(MCP_URL).toMatch(/\/api\/mcp$/);
+    expect(LOCAL_FILE_URL).toMatch(/\/mcp\/glyph-mcp\.mjs$/);
     expect(new URL(MCP_URL).origin).toBe(new URL(LOCAL_FILE_URL).origin);
   });
 

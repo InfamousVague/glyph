@@ -70,8 +70,8 @@ function transport(events: LiveEvents, token: () => string | null = () => 'tok')
 
 describe('the relay transport', () => {
   it('finds the relay beside the service', () => {
-    expect(liveUrl('https://attack.fm/glyph/api')).toBe('wss://attack.fm/glyph/api/v1/live');
-    expect(liveUrl('http://127.0.0.1:8796/glyph/api')).toBe('ws://127.0.0.1:8796/glyph/api/v1/live');
+    expect(liveUrl('https://attack.fm/api')).toBe('wss://attack.fm/api/v1/live');
+    expect(liveUrl('http://127.0.0.1:8796/api')).toBe('ws://127.0.0.1:8796/api/v1/live');
   });
 
   it('signs in with its first frame, and says nothing else until the relay is ready', () => {

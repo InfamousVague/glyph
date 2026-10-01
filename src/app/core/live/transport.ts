@@ -27,7 +27,7 @@ export interface LiveTransport {
   close(): void;
 }
 
-/** The relay's address, from the service's: `https://attack.fm/glyph/api` becomes `wss://attack.fm/glyph/api/v1/live`. */
+/** The relay's address, from the service's: `https://attack.fm/api` becomes `wss://attack.fm/api/v1/live`. */
 export function liveUrl(apiBase: string): string {
   return `${apiBase.replace(/^http(s?):\/\//, (_, secure: string) => `ws${secure}://`)}/v1/live`;
 }

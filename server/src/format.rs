@@ -1,4 +1,4 @@
-//! `POST /glyph/api/format`: the service's first job, the server half of voice-note formatting - which the app no
+//! `POST /api/format`: the service's first job, the server half of voice-note formatting - which the app no
 //! longer asks for.
 //!
 //! Matt holds the side key, talks, and Whisper on the phone transcribes him
@@ -8,7 +8,7 @@
 //! breaks - each one an exact piece of what he said. The phone applied them.
 //! Nothing here returns prose, and nothing here can change a word of the note.
 //!
-//!   POST /glyph/api/format   { "text" }  ->  annotations, model, elapsedMs
+//!   POST /api/format   { "text" }  ->  annotations, model, elapsedMs
 //!
 //! Since 0.6.0 the phone formats with its spoken cues and its own rules only, and nothing in the app calls the route
 //! (docs/DESIGN.md §13). It still runs, behind its token, and the deploy still checks it answers
@@ -142,7 +142,7 @@ impl App {
 
 /// The route, with its state; merged into glyph-api's router.
 pub fn router(app: Arc<App>) -> Router {
-    Router::new().route("/glyph/api/format", post(format)).with_state(app)
+    Router::new().route("/api/format", post(format)).with_state(app)
 }
 
 /// Whether an `Authorization` header carries exactly this bearer token.
@@ -293,7 +293,7 @@ mod tests {
     }
 
     fn post(body: impl Into<Body>, token: Option<&str>) -> Request<Body> {
-        let mut request = Request::post("/glyph/api/format").header(header::CONTENT_TYPE, "application/json");
+        let mut request = Request::post("/api/format").header(header::CONTENT_TYPE, "application/json");
         if let Some(token) = token {
             request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
         }

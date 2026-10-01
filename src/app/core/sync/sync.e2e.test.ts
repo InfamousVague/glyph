@@ -14,7 +14,7 @@ import { syncPrefs, type PrefsContext } from './prefs.ts';
 /**
  * Two devices and one account, against a real glyph-api (server/): run with
  *
- *   GLYPH_SYNC_E2E=<the server's data folder> VITE_GLYPH_API=http://127.0.0.1:<port>/glyph/api npx vitest run sync.e2e
+ *   GLYPH_SYNC_E2E=<the server's data folder> VITE_GLYPH_API=http://127.0.0.1:<port>/api npx vitest run sync.e2e
  *
  * Skipped otherwise. Every run makes a fresh account.
  */

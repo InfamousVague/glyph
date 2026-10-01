@@ -8,7 +8,7 @@ _Two devices with one note open, a keystroke crossing in milliseconds, and a rel
 
 ## The relay
 
-`server/src/live.rs` is a WebSocket at `/glyph/api/v1/live`. A browser cannot put an `Authorization` header on a WebSocket, so the socket signs in with its first frame, `{ t: "auth", token }`, within ten seconds. The server checks that token with the same verifier every HTTP route uses. The token never rides in a URL, where an access log would keep it.
+`server/src/live.rs` is a WebSocket at `/api/v1/live`. A browser cannot put an `Authorization` header on a WebSocket, so the socket signs in with its first frame, `{ t: "auth", token }`, within ten seconds. The server checks that token with the same verifier every HTTP route uses. The token never rides in a URL, where an access log would keep it.
 
 | Direction | Frame | Meaning |
 |---|---|---|
