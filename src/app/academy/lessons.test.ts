@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { markGroups } from '../guide/marks.ts';
 import { MARKS } from '../plugins/marks/index.tsx';
 import { plugins } from '../plugins/registry.ts';
-import { CHAPTERS, LESSONS, lessonsIn, lessonsNow, readProgress, writeProgress } from './lessons.ts';
+import { CHAPTER_ABOUT, CHAPTERS, LESSONS, lessonsIn, lessonsNow, readProgress, readSkipStandard, writeProgress, writeSkipStandard } from './lessons.ts';
 
 const passes = (id: string, text: string) => {
   const lesson = LESSONS.find((one) => one.id === id);
@@ -166,6 +166,42 @@ describe('Ghost.md Academy’s lessons', () => {
     expect(passes('haunt', '👻boo👻')).toBe(false);
   });
 
+  it('goes further with boards and queries: a height, a key, where, show, group and total', () => {
+    expect(passes('boardHeight', '```board\nTo do: a\n```')).toBe(false);
+    expect(passes('boardHeight', '```board height=20\nTo do: a\n```')).toBe(true);
+    expect(passes('notebookKey', '---\nbook: true\n---\n# Glyph')).toBe(false);
+    expect(passes('notebookKey', '---\nkey: GLY\n---\n# Not a notebook')).toBe(false);
+    expect(passes('notebookKey', '---\ntitle: Work\nbook: true\nkey: WRK\n---\n# Work')).toBe(true);
+    expect(passes('queryWhere', '```query\nfrom: tasks\n```')).toBe(false);
+    expect(passes('queryWhere', '```query\nfrom: tasks\nwhere: due < today\n```')).toBe(true);
+    // A line the query cannot read is not yet a where.
+    expect(passes('queryWhere', '```query\nfrom: tasks\nwher: due < today\n```')).toBe(false);
+    expect(passes('queryShow', '```query\nfrom: tasks\nshow: list\n```')).toBe(false);
+    expect(passes('queryShow', '```query\nfrom: tickets\nshow: gantt\n```')).toBe(true);
+    expect(passes('queryGroup', '```query\nfrom: tickets\n```')).toBe(false);
+    expect(passes('queryGroup', '```query\nfrom: tickets\ngroup: status\n```')).toBe(true);
+    expect(passes('queryGroup', '```query\nfrom: tickets\ntotal: estimate\n```')).toBe(true);
+  });
+
+  it('says what every chapter is about', () => {
+    for (const chapter of CHAPTERS) expect(CHAPTER_ABOUT[chapter].length, chapter).toBeGreaterThan(20);
+  });
+
+  it('leaves standard Markdown out for a person who knows it, and only that', () => {
+    const skipping = lessonsNow(true);
+    expect(skipping.some((lesson) => lesson.standard)).toBe(false);
+    expect(lessonsIn('Markdown basics', skipping)).toEqual([]);
+    // Every Markdown basics lesson is standard; the marks only Ghost.md draws are still taught.
+    expect(lessonsIn('Markdown basics').every((lesson) => lesson.standard)).toBe(true);
+    expect(skipping.map((lesson) => lesson.id)).toEqual(expect.arrayContaining(['callout', 'diagram', 'board', 'query', 'tag']));
+    expect(skipping.length + LESSONS.filter((lesson) => lesson.standard).length).toBe(LESSONS.length);
+    expect(readSkipStandard()).toBe(false);
+    writeSkipStandard(true);
+    expect(readSkipStandard()).toBe(true);
+    localStorage.setItem('glyph-academy-skip-standard', 'not json');
+    expect(readSkipStandard()).toBe(false);
+  });
+
   it('knows a to-do the way the note does: a box after any marker, with a space after it (core/itemSyntax.ts)', () => {
     expect(passes('todo', '1. [ ] ring the site')).toBe(true);
     expect(passes('todo', '* [x] rang the site')).toBe(true);
@@ -195,7 +231,8 @@ describe('the Academy and the cheat sheet', () => {
   });
 
   it('writes each lesson’s mark as the cheat sheet writes it', () => {
-    for (const lesson of LESSONS) {
+    // A lesson that goes further with another's mark (a board's height, a query's where:) has no row of its own.
+    for (const lesson of LESSONS.filter((one) => one.rows.length)) {
       const row = rows().find((one) => one.name === lesson.rows[0]);
       expect(row?.symbol, lesson.id).toBe(lesson.symbol);
     }

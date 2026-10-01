@@ -37,11 +37,11 @@ import { videoOfLine } from '../core/videoRefs.ts';
  * checks are forgiving on purpose: extra lines, other marks and different words are all fine, since a person
  * learning is usually trying things.
  *
- * Markdown basics came first; the chapters after it are the extra stuff, and together they teach every row of the
- * cheat sheet (guide/marks.ts), each row by exactly one lesson (`rows`), which lessons.test.ts holds them to. A check
- * reads what was typed the way the note does wherever the note has a reader of its own: the parser for a mark it
- * parses (`parsed`), and the editor's own finders for the marks drawn by what a line says - a tag, a counter, a sum,
- * a choice. A lesson for a plugin's mark (`needs`) is offered only while that mark is switched on, as the cheat
+ * Markdown basics came first; the chapters after it are the extra stuff (DESIGN §161), and together they teach every
+ * row of the cheat sheet (guide/marks.ts), each row by exactly one lesson (`rows`), which lessons.test.ts holds them
+ * to. A check reads what was typed the way the note does wherever the note has a reader of its own: the parser for a
+ * mark it parses (`parsed`), and the editor's own finders for the marks drawn by what a line says - a tag, a counter,
+ * a sum, a choice. A lesson for a plugin's mark (`needs`) is offered only while that mark is switched on, as the cheat
  * sheet shows its row only then.
  *
  * Pure, so every lesson's own example is a test that its check passes (academy/lessons.test.ts). The marks
@@ -55,8 +55,16 @@ export interface Lesson {
   title: string;
   /** The mark itself, as the cheat sheet writes it (guide/marks.ts): `**`, `- [ ]`. */
   symbol: string;
-  /** The cheat sheet's rows this lesson teaches, by name (guide/marks.ts `MarkRow.name`); the first is its own. */
+  /**
+   * The cheat sheet's rows this lesson teaches, by name (guide/marks.ts `MarkRow.name`); the first is its own. Empty
+   * for a lesson that goes further with a mark another lesson owns: a board's height, a query's where:.
+   */
   rows: readonly string[];
+  /**
+   * Markdown any app reads the same way, left out for a person who says they know it already (Matt: "the option to
+   * skip default markdown if the user doesn't want to learn that"). Ghost.md's own marks are always taught.
+   */
+  standard?: true;
   /** The plugin mark it needs switched on, by name (plugins/marks/index.tsx); without it, the lesson is not offered. */
   needs?: string;
   /** What it does, in a line or two. */
@@ -73,8 +81,19 @@ export interface Lesson {
   hint: string;
 }
 
-export const CHAPTERS = ['Markdown basics', 'More Markdown', 'Lines that do more', 'Pointing somewhere', 'Marks and effects'] as const;
+export const CHAPTERS = ['Markdown basics', 'More Markdown', 'Lines that do more', 'Links and places', 'Boards and to-dos', 'Tickets and queries', 'Marks and effects'] as const;
 export type Chapter = (typeof CHAPTERS)[number];
+
+/** What each chapter is about, said on the contents and at the head of the chapter. */
+export const CHAPTER_ABOUT: Readonly<Record<Chapter, string>> = {
+  'Markdown basics': 'Headings, bold, lists, links and to-dos: what every Markdown app reads the same way.',
+  'More Markdown': 'Tables, pictures, footnotes, maths, callouts and diagrams.',
+  'Lines that do more': 'Tags, choices, counters, sums and blanks for the AI: lines whose words the note works with.',
+  'Links and places': 'Another note, the bookmark you left, and a place on a map.',
+  'Boards and to-dos': 'Due days and people on a to-do, names for items, and boards made of them.',
+  'Tickets and queries': 'Notes as tickets, and queries that list, count and lay out what matches in every note.',
+  'Marks and effects': 'Highlights, spoilers, asides and the five effects, from the Marks plugin.',
+};
 
 /** A line of its own, anywhere in what was typed. */
 const line = (pattern: RegExp) => (text: string) => pattern.test(text);
@@ -116,12 +135,24 @@ function footnoted(text: string): boolean {
   return footnotesIn(text).some((note) => marks.includes(note.name));
 }
 
+/** Every query fence in what was typed that reads, as its query. */
+function queriesIn(text: string) {
+  return queryFencesIn(text).flatMap((fence) => readQuery(fence.body).query ?? []);
+}
+
+/** A notebook with a ticket key: `book: true` and `key:` in its front matter. */
+function ticketNotebook(text: string): boolean {
+  const front = /^---\n([\s\S]*?)\n---(?:\n|$)/.exec(text)?.[1];
+  return Boolean(front && /^book:\s*true\s*$/m.test(front) && /^key:\s*[A-Za-z][A-Za-z0-9]{0,9}\s*$/m.test(front));
+}
+
 export const LESSONS: Lesson[] = [
   // ---- Markdown basics: what every Markdown app reads the same way ----------------------------------------------
   {
     id: 'title',
     chapter: 'Markdown basics',
     symbol: '#',
+    standard: true,
     rows: ['Title'],
     title: 'A title',
     teach: 'A note usually starts with its name. One # and a space makes that line the title, and it is what the note is called in your list.',
@@ -135,6 +166,7 @@ export const LESSONS: Lesson[] = [
     id: 'heading',
     chapter: 'Markdown basics',
     symbol: '##',
+    standard: true,
     rows: ['Heading', 'Smaller heading'],
     title: 'A heading',
     teach: 'More hashes, smaller heading: ## for a part of the note, ### for a part of that. It is how a long note gets somewhere to look.',
@@ -150,6 +182,7 @@ export const LESSONS: Lesson[] = [
     id: 'bold',
     chapter: 'Markdown basics',
     symbol: '**',
+    standard: true,
     rows: ['Bold'],
     title: 'Bold',
     teach: 'Two stars either side of some words make them bold. The stars themselves go once the line is written.',
@@ -163,6 +196,7 @@ export const LESSONS: Lesson[] = [
     id: 'italic',
     chapter: 'Markdown basics',
     symbol: '_',
+    standard: true,
     rows: ['Italic'],
     title: 'Italic',
     teach: 'One underscore either side leans the words over. It is quieter than bold: an aside, a name, a word said with a shrug.',
@@ -178,6 +212,7 @@ export const LESSONS: Lesson[] = [
     id: 'both',
     chapter: 'Markdown basics',
     symbol: '***',
+    standard: true,
     rows: ['Both'],
     title: 'Bold and italic',
     teach: 'Three stars either side make words bold and italic at once. Keep it for the one thing that must not be missed.',
@@ -191,6 +226,7 @@ export const LESSONS: Lesson[] = [
     id: 'struck',
     chapter: 'Markdown basics',
     symbol: '~~',
+    standard: true,
     rows: ['Struck through'],
     title: 'Struck through',
     teach: 'Two squiggles either side cross the words out. Good for a plan that changed, where you still want to see what it was.',
@@ -204,6 +240,7 @@ export const LESSONS: Lesson[] = [
     id: 'code',
     chapter: 'Markdown basics',
     symbol: '`',
+    standard: true,
     rows: ['Code'],
     title: 'Code',
     teach: 'A backtick either side sets the words in the typewriter face and leaves them exactly as you typed them: a command, a filename, a password to read out.',
@@ -217,6 +254,7 @@ export const LESSONS: Lesson[] = [
     id: 'link',
     chapter: 'Markdown basics',
     symbol: '[ ]( )',
+    standard: true,
     rows: ['A link'],
     title: 'A link',
     teach: 'The words people read go in square brackets, and where they point goes in round ones after it. The note shows the words, not the address.',
@@ -230,6 +268,7 @@ export const LESSONS: Lesson[] = [
     id: 'list',
     chapter: 'Markdown basics',
     symbol: '-',
+    standard: true,
     rows: ['A list'],
     title: 'A list',
     teach: 'A dash and a space starts a list, one line each. Press Enter and the next line is a bullet too.',
@@ -243,6 +282,7 @@ export const LESSONS: Lesson[] = [
     id: 'number',
     chapter: 'Markdown basics',
     symbol: '1.',
+    standard: true,
     rows: ['In order'],
     title: 'In order',
     teach: 'A number, a dot and a space when the order is the point: steps to follow, one after another.',
@@ -256,6 +296,7 @@ export const LESSONS: Lesson[] = [
     id: 'todo',
     chapter: 'Markdown basics',
     symbol: '- [ ]',
+    standard: true,
     rows: ['A to-do', 'Done'],
     title: 'A to-do',
     teach: 'A dash, then a box: - [ ] and the thing to do. Tap the box in a note to tick it off, or type an x between the brackets.',
@@ -269,6 +310,7 @@ export const LESSONS: Lesson[] = [
     id: 'quote',
     chapter: 'Markdown basics',
     symbol: '>',
+    standard: true,
     rows: ['A quote'],
     title: 'A quote',
     teach: 'A > and a space sets a line apart: somebody else’s words, or something you want to stand away from the rest.',
@@ -282,6 +324,7 @@ export const LESSONS: Lesson[] = [
     id: 'rule',
     chapter: 'Markdown basics',
     symbol: '---',
+    standard: true,
     rows: ['A dividing line'],
     title: 'A dividing line',
     teach: 'Three dashes on a line of their own draw a line across the note: one thing ends, another starts.',
@@ -295,6 +338,7 @@ export const LESSONS: Lesson[] = [
     id: 'fence',
     chapter: 'Markdown basics',
     symbol: '```',
+    standard: true,
     rows: ['A block of code'],
     title: 'A block of code',
     teach: 'Three backticks above and below a few lines keeps every one of them exactly as typed, and colours the code if you say what it is after the first three.',
@@ -305,11 +349,12 @@ export const LESSONS: Lesson[] = [
     hint: 'Three backticks on their own line, your code, then three more.',
   },
 
-  // ---- More Markdown: marks most Markdown apps read, which a note draws too ---------------------------------------
+  // ---- More Markdown: tables, pictures and the marks most Markdown apps know -----------------------------------
   {
     id: 'table',
     chapter: 'More Markdown',
     symbol: '| |',
+    standard: true,
     rows: ['A table'],
     title: 'A table',
     teach: 'Pipes between the cells, and a row of dashes under the first row. In a note the table is drawn as a table; a tap on it opens its pipes to change it, and it is drawn again when you leave it.',
@@ -323,6 +368,7 @@ export const LESSONS: Lesson[] = [
     id: 'picture',
     chapter: 'More Markdown',
     symbol: '![ ]( )',
+    standard: true,
     rows: ['A picture'],
     title: 'A picture',
     teach: 'An exclamation mark, what the picture shows in square brackets, and where it is in round ones. In a note you seldom type it: paste a picture, or press and hold and choose Add image, and the line is written for you.',
@@ -375,6 +421,7 @@ export const LESSONS: Lesson[] = [
     id: 'footnote',
     chapter: 'More Markdown',
     symbol: '[^ ]',
+    standard: true,
     rows: ['A footnote'],
     title: 'A footnote',
     teach: 'A caret and a name in square brackets marks the words, and a line that starts with the same mark and a colon says what it is. In a note the mark is raised, and a tap on it shows the small print.',
@@ -450,7 +497,7 @@ export const LESSONS: Lesson[] = [
     hint: 'Three backticks and mermaid, then flowchart TD, then a line like A --> B, then three backticks.',
   },
 
-  // ---- Lines that do more: plain characters a note does something with -------------------------------------------
+  // ---- Lines that do more: a line whose words the note works with ------------------------------------------------
   {
     id: 'tag',
     chapter: 'Lines that do more',
@@ -535,19 +582,6 @@ export const LESSONS: Lesson[] = [
     hint: 'A > and a bar, with no space between, then the line: >| like this.',
   },
   {
-    id: 'fields',
-    chapter: 'Lines that do more',
-    symbol: '📅',
-    rows: ['A due date', 'A priority', 'A person', 'A field by name'],
-    title: 'Fields on a to-do',
-    teach: 'A to-do can say when it is due, how much it matters and who it is for, in the signs Obsidian Tasks reads: 📅 and a date, ⏫ for high priority, @ before a name, and [effort:: 3] for anything else. In a note each is a chip: the date says “Tomorrow”, and goes red once it has passed. Tap one to change it, or press and hold a to-do to add one.',
-    example: '- [ ] Fix the login loop @sam ⏫ 📅 2026-10-03',
-    task: 'Give a to-do a due date, a priority or a person.',
-    passes: (text) => fieldsIn(text).some((field) => field.kind === 'date' || field.kind === 'priority' || field.kind === 'person' || field.kind === 'inline'),
-    praise: 'That to-do has a field.',
-    hint: 'After the words, @ and a name is the quickest: - [ ] Book the cabin @sam. A date is 📅 then 2026-10-03.',
-  },
-  {
     id: 'progress',
     chapter: 'Lines that do more',
     symbol: '#',
@@ -561,10 +595,10 @@ export const LESSONS: Lesson[] = [
     hint: 'A heading, then a line like - [ ] Stove under it.',
   },
 
-  // ---- Pointing somewhere: another note, an item, a place in this one ----------------------------------------------
+  // ---- Links and places: another note, the bookmark, a place on a map ------------------------------------------
   {
     id: 'wiki',
-    chapter: 'Pointing somewhere',
+    chapter: 'Links and places',
     symbol: '[[ ]]',
     rows: ['Another note'],
     title: 'Another note',
@@ -576,34 +610,8 @@ export const LESSONS: Lesson[] = [
     hint: 'Two square brackets either side of the name: [[The cabin trip]].',
   },
   {
-    id: 'anchor',
-    chapter: 'Pointing somewhere',
-    symbol: '^',
-    rows: ['A name for an item'],
-    title: 'A name for an item',
-    teach: 'A space, a caret and a name at the very end of a list item names it, so a board or a sentence can point at it. The name is drawn small and faint.',
-    example: '- [ ] Ship the pricing page ^ship-page',
-    task: 'Name an item on a list.',
-    passes: (text) => itemsIn(text).length > 0,
-    praise: 'That item has a name.',
-    hint: 'At the end of the item, a space, a caret and a name with no spaces: ^ship-page.',
-  },
-  {
-    id: 'itemRef',
-    chapter: 'Pointing somewhere',
-    symbol: '[[#^ ]]',
-    rows: ['That item, from the words'],
-    title: 'That item, from the words',
-    teach: 'Two square brackets around a hash, a caret and an item’s name point at that item from anywhere in the note. A tap goes to its line.',
-    example: 'the page is waiting on [[#^ask-sam]]\n\n- Ask Sam about the copy ^ask-sam',
-    task: 'Point at a named item from a sentence.',
-    passes: (text) => refsIn(text).length > 0,
-    praise: 'That points at the item.',
-    hint: 'Two square brackets around #^ and the name: [[#^ask-sam]].',
-  },
-  {
     id: 'bookmark',
-    chapter: 'Pointing somewhere',
+    chapter: 'Links and places',
     symbol: '§§',
     rows: ['The bookmark'],
     title: 'The bookmark',
@@ -616,7 +624,7 @@ export const LESSONS: Lesson[] = [
   },
   {
     id: 'place',
-    chapter: 'Pointing somewhere',
+    chapter: 'Links and places',
     symbol: '[ ](geo: )',
     rows: ['A place'],
     title: 'A place',
@@ -627,13 +635,54 @@ export const LESSONS: Lesson[] = [
     praise: 'That is a place, with its map.',
     hint: 'Its name in square brackets, then geo: and the two numbers in round ones: [Home](geo:51.5074,-0.1278).',
   },
+
+  // ---- Boards and to-dos: fields on a to-do, named items, and boards made of them --------------------------------
+  {
+    id: 'fields',
+    chapter: 'Boards and to-dos',
+    symbol: '📅',
+    rows: ['A due date', 'A priority', 'A person', 'A field by name'],
+    title: 'Fields on a to-do',
+    teach: 'A to-do can say when it is due, how much it matters and who it is for, in the signs Obsidian Tasks reads: 📅 and a date, ⏫ for high priority, @ before a name, and [effort:: 3] for anything else. In a note each is a chip: the date says “Tomorrow”, and goes red once it has passed. Tap one to change it, or press and hold a to-do to add one.',
+    example: '- [ ] Fix the login loop @sam ⏫ 📅 2026-10-03',
+    task: 'Give a to-do a due date, a priority or a person.',
+    passes: (text) => fieldsIn(text).some((field) => field.kind === 'date' || field.kind === 'priority' || field.kind === 'person' || field.kind === 'inline'),
+    praise: 'That to-do has a field.',
+    hint: 'After the words, @ and a name is the quickest: - [ ] Book the cabin @sam. A date is 📅 then 2026-10-03.',
+  },
+  {
+    id: 'anchor',
+    chapter: 'Boards and to-dos',
+    symbol: '^',
+    rows: ['A name for an item'],
+    title: 'A name for an item',
+    teach: 'A space, a caret and a name at the very end of a list item names it, so a board or a sentence can point at it. The name is drawn small and faint.',
+    example: '- [ ] Ship the pricing page ^ship-page',
+    task: 'Name an item on a list.',
+    passes: (text) => itemsIn(text).length > 0,
+    praise: 'That item has a name.',
+    hint: 'At the end of the item, a space, a caret and a name with no spaces: ^ship-page.',
+  },
+  {
+    id: 'itemRef',
+    chapter: 'Boards and to-dos',
+    symbol: '[[#^ ]]',
+    rows: ['That item, from the words'],
+    title: 'That item, from the words',
+    teach: 'Two square brackets around a hash, a caret and an item’s name point at that item from anywhere in the note. A tap goes to its line.',
+    example: 'the page is waiting on [[#^ask-sam]]\n\n- Ask Sam about the copy ^ask-sam',
+    task: 'Point at a named item from a sentence.',
+    passes: (text) => refsIn(text).length > 0,
+    praise: 'That points at the item.',
+    hint: 'Two square brackets around #^ and the name: [[#^ask-sam]].',
+  },
   {
     id: 'board',
-    chapter: 'Pointing somewhere',
+    chapter: 'Boards and to-dos',
     symbol: '```board',
     rows: ['A board'],
     title: 'A board',
-    teach: 'A block marked board lays named items out as columns. Each line of it is a column: its name, a colon, and the names of the items in it. The items stay in the note as they were.',
+    teach: 'A block marked board lays named items out as columns. Each line of it is a column: its name, a colon, and the names of the items in it. The items stay in the note as they were, and dragging a card to another column moves it there.',
     example: '```board\nTo do: ship-page\nDone: pick-date\n```\n\n- [ ] Ship the pricing page ^ship-page\n- [x] Pick a launch date ^pick-date',
     task: 'Make a board with a column or two.',
     passes: (text) => boardsIn(text).length > 0,
@@ -641,8 +690,23 @@ export const LESSONS: Lesson[] = [
     hint: 'Three backticks and board, a line like To do: ship-page, then three backticks, and an item named ^ship-page.',
   },
   {
+    id: 'boardHeight',
+    chapter: 'Boards and to-dos',
+    symbol: '```board height=',
+    rows: [],
+    title: 'A board’s height',
+    teach: 'Left to itself a board is as tall as its longest column. Drag the line under it to set a height, and the columns scroll inside it; the height is written on the fence as height=, in the board’s own text size. A double tap on the line takes it off again.',
+    example: '```board height=12\nTo do: ship-page\nDone: pick-date\n```\n\n- [ ] Ship the pricing page ^ship-page\n- [x] Pick a launch date ^pick-date',
+    task: 'Give a board a height of its own.',
+    passes: (text) => boardsIn(text).some((board) => board.height !== null),
+    praise: 'That board keeps its height.',
+    hint: 'After the word board on the first line, a space and height= with a number: ```board height=12.',
+  },
+
+  // ---- Tickets and queries: notes as tickets, and what matches across every note ---------------------------------
+  {
     id: 'ticket',
-    chapter: 'Pointing somewhere',
+    chapter: 'Tickets and queries',
     symbol: 'type: ticket',
     rows: ['A ticket'],
     title: 'A ticket',
@@ -654,17 +718,69 @@ export const LESSONS: Lesson[] = [
     hint: 'At the very top: three dashes, type: ticket, status: To do, then three dashes again.',
   },
   {
+    id: 'notebookKey',
+    chapter: 'Tickets and queries',
+    symbol: 'key:',
+    rows: [],
+    title: 'A ticket notebook',
+    teach: 'A notebook whose front matter has a key numbers the tickets made in it: key: GLY gives GLY-1, then GLY-2 and on. Make this a ticket, under More on the +, turns the note you are in into its notebook’s next ticket.',
+    example: '---\nbook: true\nkey: GLY\n---\n# Glyph\n\n- [[GLY-1]]',
+    task: 'Make a notebook with a ticket key.',
+    passes: (text) => ticketNotebook(text),
+    praise: 'Its tickets will be numbered by that key.',
+    hint: 'At the very top: three dashes, book: true, key: and two to five capital letters, then three dashes again.',
+  },
+  {
     id: 'query',
-    chapter: 'Pointing somewhere',
+    chapter: 'Tickets and queries',
     symbol: '```query',
     rows: ['A query'],
     title: 'A query',
-    teach: 'A fence called query lists what matches across every note: to-dos, tickets or notes. Say where from, what has to be true, and how to show it, a line each, and it is drawn as a list, a table, a board, a month or a timeline that keeps up as your notes change.',
+    teach: 'A fence called query lists what matches across every note: to-dos, tickets or notes. Say where from, what has to be true, and how to show it, a line each, and it is drawn as a list, a table, a board, a month or a timeline that keeps up as your notes change. More › A database, on the + beside an empty line, writes a ready-made one.',
     example: '```query\nfrom: tasks\nwhere: due <= today+7\nshow: list\n```',
     task: 'Write a query that lists your open to-dos.',
     passes: (text) => queryFencesIn(text).some((fence) => readQuery(fence.body).query?.kind === 'tasks'),
     praise: 'Every open to-do, in one place.',
     hint: 'Three backticks and query, then from: tasks on the next line, then three backticks to close it.',
+  },
+  {
+    id: 'queryWhere',
+    chapter: 'Tickets and queries',
+    symbol: 'where:',
+    rows: [],
+    title: 'Narrow it down',
+    teach: 'where: keeps only what is true: status != Done, due < today, priority >= high, assignee = Sam, joined with and or or. sort: puts what is left in order, by one field or several.',
+    example: '```query\nfrom: tickets\nwhere: status != Done and priority >= high\nsort: due\n```',
+    task: 'Write a query with a where: line.',
+    passes: (text) => queriesIn(text).some((query) => query.where !== null),
+    praise: 'Only what matches.',
+    hint: 'Inside a query fence, a line like where: status != Done.',
+  },
+  {
+    id: 'queryShow',
+    chapter: 'Tickets and queries',
+    symbol: 'show:',
+    rows: [],
+    title: 'Show it another way',
+    teach: 'show: draws the same answer as a table, a list, a board, a calendar month, a gantt timeline or a count. A query drawn as a board keeps a height as a board does: drag the line under it.',
+    example: '```query\nfrom: tasks\nshow: calendar\n```',
+    task: 'Show a query as a board, a table, a calendar or a timeline.',
+    passes: (text) => queriesIn(text).some((query) => query.show !== null && query.show !== 'list'),
+    praise: 'The same answer, drawn another way.',
+    hint: 'Inside a query fence, a line like show: board, or show: calendar.',
+  },
+  {
+    id: 'queryGroup',
+    chapter: 'Tickets and queries',
+    symbol: 'group:',
+    rows: [],
+    title: 'Group and add up',
+    teach: 'group: gives each value of one field its own heading, or its own lane on a board. total: adds a number up, under each group and at the end: an estimate, or any field of your own.',
+    example: '```query\nfrom: tickets\ngroup: assignee\ntotal: estimate\nshow: table\n```',
+    task: 'Group a query, or add something up.',
+    passes: (text) => queriesIn(text).some((query) => query.group !== null || query.total.length > 0),
+    praise: 'Grouped and counted.',
+    hint: 'Inside a query fence, a line like group: status, or total: estimate.',
   },
 
   // ---- Marks and effects: the Marks plugin's, each switched off with it --------------------------------------------
@@ -866,10 +982,13 @@ export const LESSONS: Lesson[] = [
   },
 ];
 
-/** The lessons on offer now: every one whose plugin mark, where it needs one, is switched on. */
-export function lessonsNow(): Lesson[] {
+/**
+ * The lessons on offer now: every one whose plugin mark, where it needs one, is switched on; and without standard
+ * Markdown, for a person who knows it already (`readSkipStandard`).
+ */
+export function lessonsNow(skipStandard = false): Lesson[] {
   const on = new Set(plugins.formats().map((format) => format.name));
-  return LESSONS.filter((lesson) => !lesson.needs || on.has(lesson.needs));
+  return LESSONS.filter((lesson) => (!lesson.needs || on.has(lesson.needs)) && !(skipStandard && lesson.standard));
 }
 
 /** The lessons of a chapter, in the order they are taught, from `from` (every lesson, unless told). */
@@ -887,4 +1006,15 @@ export function readProgress(): Set<string> {
 /** Not kept, progress still counts for this visit. */
 export function writeProgress(done: ReadonlySet<string>): void {
   writeStored(KEY, [...done]);
+}
+
+/** Whether a person has said they know Markdown already, kept between visits. */
+const SKIP_KEY = 'glyph-academy-skip-standard';
+
+export function readSkipStandard(): boolean {
+  return readStored<boolean>(SKIP_KEY, false, (value) => value === true);
+}
+
+export function writeSkipStandard(skip: boolean): void {
+  writeStored(SKIP_KEY, skip);
 }

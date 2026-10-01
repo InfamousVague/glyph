@@ -5,6 +5,8 @@
 
 .playground {
   display: grid;
+  /* One column no wider than the card: a board or a query's lanes scroll inside the note shown, not past the card. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--glacier-space-3);
   padding: var(--glacier-space-4);
   border-radius: var(--glacier-radius-lg);
@@ -14,6 +16,7 @@
 
 .part {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--glacier-space-2);
   min-inline-size: 0;
 }
@@ -63,6 +66,7 @@
  */
 .shown {
   composes: room from '../guide/MarkExample.module.css';
+  min-inline-size: 0;
   min-block-size: 3em;
   padding-block-start: var(--glacier-space-3);
   border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);

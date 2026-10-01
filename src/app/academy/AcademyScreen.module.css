@@ -271,3 +271,112 @@
   text-overflow: ellipsis;
   color: var(--app-ink-3);
 }
+
+/* ---- the contents ---------------------------------------------------------------------------------------------- */
+
+.go {
+  justify-self: start;
+}
+
+/* The switch for a person who knows Markdown already: its words, and Glacier's switch at the end of the row. */
+.skip {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  padding: var(--glacier-space-3);
+  border: 1px solid var(--app-rule);
+  border-radius: var(--glacier-radius-lg);
+  cursor: pointer;
+}
+
+.skipWords {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.skipName {
+  color: var(--app-ink);
+  font-weight: var(--glacier-font-weight-medium);
+}
+
+.skipSaid {
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-md);
+  color: var(--app-ink-3);
+}
+
+.chapters {
+  display: grid;
+  gap: 1px;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chapterRow {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  inline-size: 100%;
+  min-block-size: var(--glacier-space-12);
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  border: none;
+  border-radius: var(--glacier-radius-md);
+  background: none;
+  color: var(--app-ink);
+  text-align: start;
+  cursor: pointer;
+}
+
+.chapterRow:hover:not(:disabled) {
+  background: color-mix(in oklch, currentColor 6%, transparent);
+}
+
+.chapterRow:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.chapterNumber {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 1.8em;
+  block-size: 1.8em;
+  border-radius: var(--glacier-radius-full);
+  background: color-mix(in oklch, currentColor 10%, transparent);
+  font-size: var(--glacier-font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.chapterNumber[data-done] {
+  background: var(--app-ink);
+  color: var(--app-paper);
+}
+
+.chapterWords {
+  display: grid;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.chapterTitle {
+  font-weight: var(--glacier-font-weight-medium);
+}
+
+.chapterAbout {
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-md);
+  color: var(--app-ink-3);
+}
+
+.chapterCount {
+  flex: none;
+  font-size: var(--glacier-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--app-ink-3);
+}

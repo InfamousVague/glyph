@@ -8953,3 +8953,28 @@ editor/AddList.test.tsx (More to A database and back to More, by Back and the ba
 to-dos and Boards made of list items say where they are; docs/QUERIES.md and docs/TICKETS.md too.
 
 Cites: §156, §157, §158, §159.
+
+## 161. The Academy in chapters, with standard Markdown to skip (2026-10-01)
+
+Matt: "Rework the ghost.md academy so that there is the option to skip default markdown if the user doesn't want to
+learn that, additionally make sure it's up to date with the latest features like boards and query's. Make chapters in
+the lesson as well".
+
+- **It opens on its contents** (`academy/AcademyScreen.tsx` `Contents`), not at a lesson: seven chapters, each with a
+  line on what it covers (`CHAPTER_ABOUT`) and how much of it is learned, a tap to start one at its first lesson not
+  learned, and Start or Continue for the first lesson not learned anywhere. Learned everything, it is the summary.
+- **"I know Markdown already"** is a Glacier switch on the contents, kept (`glyph-academy-skip-standard`). It leaves
+  out every lesson marked `standard`, which is what any Markdown app reads the same way: all of Markdown basics, and
+  a table, a picture and a footnote from More Markdown. Ghost.md's own marks (a video, a callout, a diagram, maths,
+  everything after) are always taught. Markdown basics then reads Skipped and cannot be opened; the count is of what
+  is left.
+- **A chapter ends on a page of its own** (`ChapterEnd`): its lessons with their ticks, each to take again, and Next:
+  the following chapter that has lessons on offer, or Done at the last. A lesson's head says which chapter it is:
+  "Chapter 5 · Boards and to-dos · 2 of 5". Back from a lesson or a chapter's end is the contents; from the contents,
+  out.
+- **The chapters**: Markdown basics, More Markdown, Lines that do more, Links and places, Boards and to-dos (fields
+  on a to-do, a name for an item, that item from the words, a board, a board's height), Tickets and queries (a
+  ticket, a ticket notebook's key, a query, where:, show:, group: and total:), Marks and effects. The old Pointing
+  somewhere is split between the middle three.
+- **A lesson can go further with a mark another owns** (`rows: []`): a board's height, a notebook's key, a query's
+  where:, show: and group:. The cheat sheet still has one row per mark, taught by exactly one lesson.

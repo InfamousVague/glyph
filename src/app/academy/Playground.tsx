@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Editor } from '../editor/Editor.tsx';
+import type { WikiOptions } from '../editor/wikiLinks.ts';
 import { isDarkNow, usePreferences } from '../core/preferences.ts';
 import styles from './Playground.module.css';
 
@@ -14,6 +15,10 @@ import styles from './Playground.module.css';
  * The bottom half is the note's own editor, read-only and formatted (guide/MarkExample.tsx does the same for the
  * cheat sheet): the real marks drawn by the real app, so what is learned here is what a note does. It is redrawn as
  * the words change, which is the whole point - a star typed is a word gone bold underneath.
+ *
+ * A ```query is drawn too, over a library of one note: what is typed (`PAGE`). So the query lesson's to-dos are the
+ * ones written under it in the field, and `show: calendar` is a month, not the fence's lines. Links go nowhere: the
+ * page is to play on, and has no other notes to open.
  */
 export function Playground({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
   const field = useRef<HTMLTextAreaElement>(null);
@@ -73,6 +78,7 @@ export function Playground({ value, onChange, placeholder }: { value: string; on
               assist={false}
               readOnly
               grow
+              wiki={PAGE}
               display="formatted"
             />
           ) : (
@@ -83,6 +89,16 @@ export function Playground({ value, onChange, placeholder }: { value: string; on
     </div>
   );
 }
+
+/**
+ * The playground's library: no other notes, and the page itself, which the editor reads as it is (editor/queries.ts
+ * `withOpen`) under an id no note has.
+ */
+const PAGE: WikiOptions = {
+  known: () => false,
+  open: () => undefined,
+  queries: { notes: () => [], noteId: 'academy-playground', open: () => undefined, tick: () => undefined },
+};
 
 /** The editor asks for somewhere to send changes; a read-only one never has any. */
 const keep = (_value: string) => undefined;
