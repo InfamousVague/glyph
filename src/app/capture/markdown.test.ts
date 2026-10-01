@@ -586,6 +586,30 @@ describe('spoken addresses and names', () => {
   });
 });
 
+describe('a to-do’s fields said at its end', () => {
+  /** Thursday 1 October 2026, the day the fields count from (spoken/fields.ts, docs/DESIGN.md §159). */
+  const on = { today: '2026-10-01' };
+
+  it('writes a due day, a priority and a person as the item’s fields', () => {
+    expect(renderNote(spoken('I need to call the plumber due Friday.'), '', on).markdown).toBe('- [ ] Call the plumber 📅 2026-10-02');
+    expect(renderNote(spoken('Check box, fix the login loop, due tomorrow, high priority.'), '', on).markdown).toBe('- [ ] Fix the login loop ⏫ 📅 2026-10-02');
+    expect(renderNote(spoken('Bullet point, renew the passport, urgent, assigned to Matt.'), '', on).markdown).toBe('- Renew the passport @Matt ⏫');
+    expect(renderNote(spoken('To do: book the venue for Sam, due the third of October.'), '', on).markdown).toBe('- [ ] Book the venue @Sam 📅 2026-10-03');
+  });
+
+  it('takes "Due next week." said a breath after an item as that item’s', () => {
+    expect(renderNote(spoken('I need to send the invoice.', 'Due next week.'), '', on).markdown).toBe('- [ ] Send the invoice 📅 2026-10-05');
+    expect(renderNote(spoken('Remember to back up the laptop.', 'High priority.'), '', on).markdown).toBe('- [ ] Back up the laptop ⏫');
+  });
+
+  it('leaves prose, a "for" that is not who, and a lone cue as words', () => {
+    expect(renderNote(spoken('The rent is due on Friday.'), '', { ...on, titled: false }).markdown).toBe('The rent is due on Friday.');
+    expect(renderNote(spoken('I need to buy a present for Sam.'), '', on).markdown).toBe('- [ ] Buy a present for Sam');
+    expect(renderNote(spoken('I need to call the bank.', 'For Sam.'), '', on).markdown).toBe('- [ ] Call the bank\n\nFor Sam.');
+    expect(renderNote(spoken('Due Friday.', 'We should talk.'), '', { ...on, titled: false }).markdown).toBe('Due Friday. We should talk.');
+  });
+});
+
 describe('a meeting’s transcript', () => {
   /** The cases the Rust twin reads too (src-tauri/src/transcript.rs), so the two cannot drift. */
   const fixture = JSON.parse(readFileSync(join(process.cwd(), 'src/app/capture/paragraphs.fixture.json'), 'utf8')) as { name: string; segments: Segment[]; paragraphs: string[] }[];

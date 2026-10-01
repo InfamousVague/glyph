@@ -1,9 +1,11 @@
+import { isoDay } from '../core/days.ts';
 import { frontMatterEnd } from '../core/frontMatter.ts';
 import { noteTitle } from '../core/noteTitle.ts';
 import { listLead, type ListLead } from '../core/itemSyntax.ts';
 import { capitalise } from '../core/text.ts';
 import { appendBlock } from './appendBody.ts';
 import { titleKind } from './noteFind.ts';
+import { withSpokenFields } from './spoken/fields.ts';
 import { enumeration } from './spoken/lists.ts';
 
 /**
@@ -217,12 +219,14 @@ export function itemText(text: string): string {
  * `body` with `items` on the end of its last list, or of the list `near`
  * belongs in when it has several. `asTasks` shapes a list that has to be
  * started (a note with no list yet). Answers the new body and
- * the lines added, for showing them land.
+ * the lines added, for showing them land. An item's due day, priority and
+ * person said at its end ("call the plumber due Friday") are written as its
+ * fields (spoken/fields.ts, docs/DESIGN.md §159), counted from `today`.
  */
 export function appendToList(
   body: string,
   items: readonly string[],
-  { asTasks = false, near }: { asTasks?: boolean; near?: string } = {},
+  { asTasks = false, near, today = isoDay(new Date()) }: { asTasks?: boolean; near?: string; today?: string } = {},
 ): { body: string; added: string[] } {
   const texts = items.map(itemText).filter(Boolean);
   if (!texts.length) return { body, added: [] };
@@ -230,14 +234,17 @@ export function appendToList(
   const run = runFor(lines, runsOf(lines), near);
 
   if (!run) {
-    const added = texts.map((text) => `${asTasks ? '- [ ] ' : '- '}${text}`);
+    const added = texts.map((text) => withSpokenFields(`${asTasks ? '- [ ] ' : '- '}${text}`, today));
     return { body: appendBlock(body, added.join('\n')), added };
   }
 
   let number = run.style.kind === 'number' ? run.style.next : 0;
   const box = run.style.task ? '[ ] ' : '';
   const added = texts.map((text) =>
-    run.style.kind === 'number' ? `${run.indent}${number++}${run.style.delimiter} ${box}${text}` : `${run.indent}${run.style.mark} ${box}${text}`,
+    withSpokenFields(
+      run.style.kind === 'number' ? `${run.indent}${number++}${run.style.delimiter} ${box}${text}` : `${run.indent}${run.style.mark} ${box}${text}`,
+      today,
+    ),
   );
   const next = [...lines.slice(0, run.last + 1), ...added, ...lines.slice(run.last + 1)];
   return { body: next.join('\n'), added };

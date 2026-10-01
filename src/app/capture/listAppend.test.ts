@@ -41,6 +41,13 @@ describe('adding spoken items to a note’s list', () => {
     expect(appendToList('- [ ]', ['first thing']).added).toEqual(['- [ ] First thing']);
   });
 
+  it('writes a due day, a priority or a person said at an item’s end as its fields', () => {
+    const today = '2026-10-01';
+    expect(appendToList('# House\n\n- [ ] Fix the tap', ['call the plumber due Friday.'], { today }).added).toEqual(['- [ ] Call the plumber 📅 2026-10-02']);
+    expect(appendToList('', ['renew the passport, urgent, for Sam'], { asTasks: true, today }).added).toEqual(['- [ ] Renew the passport @Sam ⏫']);
+    expect(appendToList('1. Build', ['ship it by Friday'], { today }).added).toEqual(['2. Ship it by Friday']);
+  });
+
   it('knows a list however it is spaced or numbered', () => {
     expect(appendToList('# Ideas\n\n-\tTabbed\n-  Spaced', ['more']).body).toBe('# Ideas\n\n-\tTabbed\n-  Spaced\n- More');
     expect(appendToList('1000. The thousandth', ['next']).added).toEqual(['1001. Next']);
