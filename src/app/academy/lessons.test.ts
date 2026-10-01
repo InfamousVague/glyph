@@ -148,7 +148,7 @@ describe('Ghost.md Academy’s lessons', () => {
     expect(passes('tint', 'a ==plain== highlight')).toBe(false);
     expect(passes('aside', 'fifty %')).toBe(false);
     expect(passes('unsure', 'really?')).toBe(false);
-    // A colour is not a note, and a mark with nothing after it is not one either.
+    // A color is not a note, and a mark with nothing after it is not one either.
     expect(passes('markNote', 'the ==gate code==(amber)')).toBe(false);
     expect(passes('markNote', 'about ??six miles??')).toBe(false);
     // One at sign is an address, and a bar needs its other end.

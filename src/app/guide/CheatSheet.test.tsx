@@ -48,7 +48,7 @@ describe('the cheat sheet', () => {
     typeInto(find(el), '||');
     expect(cards(el)).toEqual(['Spoiler']);
     typeInto(find(el), 'cabin key');
-    expect(cards(el)).toEqual(expect.arrayContaining(['Spoiler', 'A coloured highlight']));
+    expect(cards(el)).toEqual(expect.arrayContaining(['Spoiler', 'A colored highlight']));
   });
 
   it('puts the chips away while finding, says so when nothing matches, and clears', () => {

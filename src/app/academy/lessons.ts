@@ -122,7 +122,7 @@ function nodesIn(text: string): Set<string> {
 /** True when the note's parser finds a `name` node in what was typed: the mark, read the way the note reads it. */
 const parsed = (name: string) => (text: string) => nodesIn(text).has(name);
 
-/** A mark written with a note in brackets after it: a colour for a highlight (`tint`), or else a note on the mark. */
+/** A mark written with a note in brackets after it: a color for a highlight (`tint`), or else a note on the mark. */
 function noted(text: string, tint: boolean): boolean {
   const formats = plugins.formats();
   const pattern = notePattern(formats);
@@ -341,7 +341,7 @@ export const LESSONS: Lesson[] = [
     standard: true,
     rows: ['A block of code'],
     title: 'A block of code',
-    teach: 'Three backticks above and below a few lines keeps every one of them exactly as typed, and colours the code if you say what it is after the first three.',
+    teach: 'Three backticks above and below a few lines keeps every one of them exactly as typed, and colors the code if you say what it is after the first three.',
     example: '```js\nconst note = "hello";\n```',
     task: 'Write a block with a line or two of code in it.',
     passes: (text) => /^[ \t]*(?:```|~~~)/m.test(text) && (text.match(/^[ \t]*(?:```|~~~)/gm)?.length ?? 0) >= 2,
@@ -536,7 +536,7 @@ export const LESSONS: Lesson[] = [
     title: 'A counter',
     teach: 'A count and a goal in square brackets, like [3/8], is a counter. In a note a tap adds one and a hold takes one away, never past the goal.',
     example: '- Water [3/8]',
-    task: 'Count something towards a goal.',
+    task: 'Count something toward a goal.',
     passes: (text) => countersIn(text).length > 0,
     praise: 'That is a counter.',
     hint: 'Two numbers with a slash between, in square brackets: [0/8].',
@@ -805,7 +805,7 @@ export const LESSONS: Lesson[] = [
     rows: ['Highlight'],
     needs: 'Highlight',
     title: 'A highlight',
-    teach: 'Two equals signs either side put a wash of colour behind the words, for the line you will want again.',
+    teach: 'Two equals signs either side put a wash of color behind the words, for the line you will want again.',
     example: 'meet at ==the north gate==',
     task: 'Highlight something.',
     passes: parsed('Highlight'),
@@ -816,15 +816,15 @@ export const LESSONS: Lesson[] = [
     id: 'tint',
     chapter: 'Marks and effects',
     symbol: '==( )',
-    rows: ['A coloured highlight'],
+    rows: ['A colored highlight'],
     needs: 'Highlight',
-    title: 'A coloured highlight',
-    teach: 'A colour’s name in brackets straight after a highlight changes its colour: blue, red, amber, green, teal, purple or gray.',
+    title: 'A colored highlight',
+    teach: 'A color’s name in brackets straight after a highlight changes its color: blue, red, amber, green, teal, purple or gray.',
     example: '==the cabin key==(green) and ==the deadline==(red)',
-    task: 'Highlight something in a colour.',
+    task: 'Highlight something in a color.',
     passes: (text) => noted(text, true),
-    praise: 'In colour.',
-    hint: 'A highlight, then the colour in brackets with no space: ==this==(green).',
+    praise: 'In color.',
+    hint: 'A highlight, then the color in brackets with no space: ==this==(green).',
   },
   {
     id: 'aside',

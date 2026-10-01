@@ -144,7 +144,7 @@ export function referencePage(): string {
       <nav class="bar-in" aria-label="Ghost.md">
         <a class="brand" href="/"><img src="icon.png" width="32" height="32" alt="" /><span>Ghost.md</span></a>
         <ul class="bar-links">
-          <li><a href="/#organise">Organise</a></li>
+          <li><a href="/#organize">Organize</a></li>
           <li><a href="/#plan">Plan</a></li>
           <li><a href="/#ai">AI</a></li>
           <li><a href="reference.html" aria-current="page">Formatting</a></li>

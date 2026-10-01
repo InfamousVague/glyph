@@ -1,6 +1,6 @@
 /*
  * The page a visitor picked on ghostmarkdown.com's home page (home.js), put on <html> before anything is drawn, on
- * every page: System follows the device; Light and Dark are the app's pure greys; Dawn, Boreal and Ember are the kit's
+ * every page: System follows the device; Light and Dark are the app's pure grays; Dawn, Boreal and Ember are the kit's
  * named themes (site.css). Kept in this browser only, and a page without it simply follows the system.
  */
 (function () {

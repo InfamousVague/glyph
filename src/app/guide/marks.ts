@@ -358,7 +358,7 @@ export function markGroups(): MarkGroup[] {
   // A colour named after a highlight, which is the same brackets saying something else (plugins/marks/index.tsx).
   const tinted: MarkRow = {
     symbol: '==( )',
-    name: 'A coloured highlight',
+    name: 'A colored highlight',
     typed: '==the cabin key==(green) and ==the deadline==(red)',
     words: 'the cabin key',
     looks: 'tint',
