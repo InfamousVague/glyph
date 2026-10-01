@@ -8919,3 +8919,37 @@ number), and the + menu's A query (editor/addRows.test.ts). The cheat sheet has 
 lesson; the Guide's Boards made of list items has a section.
 
 Cites: §156, §157, §158.
+
+## 160. Ready-made databases, a dated to-do and a ticket, on the + (2026-10-01)
+
+Matt: "Give me an example database to copy and make templates for databases on the + menu as well as the other new
+stuff". The three features of §156 to §159 were each reachable only by knowing their syntax, bar a query's one seed:
+a person who has never written `where: due <= today+7` would not write it. So the + offers them as things to pick.
+
+**A database** (More › A database, editor/addRows.ts, editor/AddList.tsx) is now a page of its own, as More is the
+first page's, with Back at its top going back to More rather than the first page, by the back gesture and the Left key
+too. On it, ten ready-made queries (core/query/templates.ts): to-dos due this week, overdue to-dos, to-dos by person,
+to-dos on a calendar, a ticket board, open tickets with their estimates and a total, a ticket timeline, notes changed
+this week, how many to-dos are open, and Write your own. They name no notebook, tag or person, so each finds something
+in any library the moment it is put in, or says plainly that nothing matches yet; and they are written the way
+docs/QUERIES.md teaches, so the lines behind the pencil are an example of the grammar as much as a database. Each is
+written as a block with the caret on the line after it, so it is drawn at once rather than showing its lines; Write
+your own is the one left open, its kind selected to be written over. Each row wears what it shows: a list, an alarm
+clock for the late ones, people, a calendar, a board, a table, a gantt, the history, a sum, a pencil.
+
+**A to-do with a due date** (More, after A choice): a to-do where A to-do would put one, its words "To-do" selected
+to be written over and `📅` tomorrow after them, as one change and one undo (`datedPlan`). Tomorrow, because a thing
+written down now is most often for tomorrow, and the chip is there to tap for any other day (§158).
+
+**Make this a ticket** (More, after A database, in a note that is not a ticket, a notebook or a canvas): `type:
+ticket`, and `status: To do` where the note has no status, written into its front matter as one change, the caret and
+the words where they were (`ticketPlan`). The panel then draws, and offers the notebook's next key where it has one
+(§157's Give it GHO-14).
+
+**Tests.** core/query/templates.test.ts (each reads, runs, and is shown as its row says, over the queries' library
+fixture), editor/addRows.test.ts (the page's rows, a template drawn at once and Write your own open, the dated to-do
+and its one undo, the ticket's front matter with and without a status, and the row only where it can be one), and
+editor/AddList.test.tsx (More to A database and back to More, by Back and the back gesture). The Guide's Lists and
+to-dos and Boards made of list items say where they are; docs/QUERIES.md and docs/TICKETS.md too.
+
+Cites: §156, §157, §158, §159.

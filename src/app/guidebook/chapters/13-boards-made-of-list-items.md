@@ -93,7 +93,7 @@ show: list
 
 That is every open to-do due this week, wherever it is written, each with its due day and its note. `from:` says what to list, `tasks`, `tickets` or `notes`, and where from: a `#tag`, a `[[notebook]]`, an `@person`. `where:` says what has to be true: `status != Done`, `priority >= high`, `due < today`. `show:` draws it as a `list`, a `table`, a `board`, a `calendar`, a `gantt` or a `count`, and `total: estimate` adds a column up.
 
-It keeps up as your notes change. Tap a name to open it, or a box to tick that to-do in its own note. The pencil at its top shows the lines again, and a line it cannot read is shown with a sentence saying what is wrong. The + has **A query** under More.
+It keeps up as your notes change. Tap a name to open it, or a box to tick that to-do in its own note. The pencil at its top shows the lines again, and a line it cannot read is shown with a sentence saying what is wrong. The + has **A database** under More: to-dos due this week, overdue ones, to-dos by person or on a calendar, a ticket board, open tickets with their estimates, a ticket timeline, notes changed this week, a count, or one to write yourself. Each is drawn the moment you pick it, and its lines are there behind the pencil to change.
 
 ## Read next
 

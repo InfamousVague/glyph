@@ -109,10 +109,11 @@ describe('the list’s rows', () => {
       'A quote',
       'A callout',
       'A choice',
+      'A to-do with a due date',
       'A block of code',
       'A divider',
       'A board',
-      'A query',
+      'A database',
       'A chart',
       'A canvas',
       'A footnote',
@@ -206,7 +207,43 @@ describe('what each row writes on an empty line', () => {
     expect(written('code')).toBe('Lunch\n\n```\n|\n```');
     expect(written('callout')).toBe('Lunch\n\n> [!NOTE]\n> |');
     expect(written('chart')).toBe('Lunch\n\n```mermaid\nflowchart LR\n  A[[Start]] --> B[Then]\n  B --> C[Done]\n```');
-    expect(written('query')).toBe('Lunch\n\n```query\nfrom: [tasks]\nwhere: due <= today+7\nsort: due, priority\nshow: list\n```');
+  });
+
+  it('a database as a page of ready-made ones, each drawn at once, and Write your own with its kind to write over', () => {
+    expect(rows.moreRows(gates()).find((row) => row.id === 'query')).toEqual({ id: 'query', words: 'A database', step: 'database' });
+    expect(rows.databaseRows().map((row) => row.words)).toEqual([
+      'To-dos due this week',
+      'Overdue to-dos',
+      'To-dos by person',
+      'To-dos on a calendar',
+      'A ticket board',
+      'Open tickets, with estimates',
+      'A ticket timeline',
+      'Notes changed this week',
+      'How many to-dos are open',
+      'Write your own',
+    ]);
+    expect(written('query:board')).toBe('Lunch\n\n```query\nfrom: tickets\nshow: board\n```\n|');
+    expect(written('query:own')).toBe('Lunch\n\n```query\nfrom: [tasks]\nwhere: due <= today+7\nsort: due, priority\nshow: list\n```');
+    expect(rows.querySeed('query:nothing')).toBeNull();
+  });
+
+  it('a to-do with a due date, due tomorrow, its words to write over', () => {
+    expect(written('dated')).toBe('Lunch\n- [ ] [To-do] 📅 2026-09-29');
+    expect(written('dated', 'Lunch\n- [ ] ')).toBe('Lunch\n- [ ] [To-do] 📅 2026-09-29');
+    // One undo takes the whole of it away.
+    const view = viewOf('Lunch\n');
+    rows.writeRow(view, 'dated', NOW);
+    undo(view);
+    expect(view.state.doc.toString()).toBe('Lunch\n');
+  });
+
+  it('a note made a ticket, its front matter written for it, a status kept where it has one', () => {
+    expect(written('ticket', '# Fix the login loop\n\nIt loops.')).toBe('---\ntype: ticket\nstatus: To do\n---\n# Fix the login loop\n\nIt loops.|');
+    expect(written('ticket', '---\ntitle: "Plan"\nstatus: In review\n---\n# Plan')).toBe('---\ntitle: "Plan"\nstatus: In review\ntype: ticket\n---\n# Plan|');
+    expect(rows.writeRow(viewOf('---\ntype: ticket\n---\n# Done already'), 'ticket', NOW)).toBe(false);
+    expect(rows.moreRows(gates()).map((row) => row.id)).not.toContain('ticket');
+    expect(rows.moreRows(gates({ ticket: true })).map((row) => row.id)).toContain('ticket');
   });
 
   it('a board as Make a board writes one, its card named by an anchor nothing else has', () => {
