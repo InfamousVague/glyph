@@ -84,9 +84,11 @@ describe('a definition list', () => {
     expect(away.contentDOM.querySelector('.cm-definition')?.textContent).toBe('what you pay up front');
     away.destroy();
     const view = new EditorView({
-      state: EditorState.create({ doc: 'Deposit\n: what you pay up front', selection: { anchor: 12 }, extensions: [glyphMarkdown([], []), extendedMarkdown()] }),
+      state: EditorState.create({ doc: 'Deposit\n: what you pay up front', extensions: [glyphMarkdown([], []), extendedMarkdown()] }),
       parent: document.body,
     });
+    view.focus();
+    view.dispatch({ selection: { anchor: 12 } });
     expect(view.contentDOM.querySelector('.cm-definition')?.textContent).toBe(': what you pay up front');
     view.destroy();
   });
@@ -119,12 +121,25 @@ describe('an emoji shortcode', () => {
     view.destroy();
   });
 
-  it('comes back as words while the caret is on its line', () => {
+  it('comes back as words while the caret is on its line, in a view being typed in', () => {
     const view = new EditorView({
       state: EditorState.create({ doc: 'party :tada: time', selection: { anchor: 2 }, extensions: [glyphMarkdown([], []), extendedMarkdown()] }),
       parent: document.body,
     });
+    // Not focused, nobody is typing: the caret at the top is unseen, and the emoji is drawn (the Academy's preview).
+    expect(view.contentDOM.querySelector('.cm-emoji')).toBeTruthy();
+    view.focus();
+    view.dispatch({ selection: { anchor: 3 } });
     expect(view.contentDOM.querySelector('.cm-emoji')).toBeNull();
+    view.destroy();
+  });
+
+  it('is drawn on the first line of a read-only view', () => {
+    const view = new EditorView({
+      state: EditorState.create({ doc: 'shipped :tada:', extensions: [glyphMarkdown([], []), extendedMarkdown(), EditorState.readOnly.of(true), EditorView.editable.of(false)] }),
+      parent: document.body,
+    });
+    expect(view.contentDOM.querySelector('.cm-emoji')?.textContent).toBe('🎉');
     view.destroy();
   });
 

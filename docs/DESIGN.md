@@ -8978,3 +8978,17 @@ the lesson as well".
   somewhere is split between the middle three.
 - **A lesson can go further with a mark another owns** (`rows: []`): a board's height, a notebook's key, a query's
   where:, show: and group:. The cheat sheet still has one row per mark, taught by exactly one lesson.
+
+## 162. Maths drawn by KaTeX, and marks drawn in a view nobody is typing in (2026-10-01)
+
+Matt, of the Academy's maths lesson: "should the maths be formatted any special way or do something?", then "yes" to
+drawing it; and of the emoji lesson: "it should appear when :smile: is done".
+
+- **A formula is drawn** (`editor/mathsDrawn.ts`): `$…$` in its line, `$$…$$` alone on a line or between two lines of
+  `$$` set in the middle of the page, by KaTeX. KaTeX was already in the app through Mermaid; it is imported, with its
+  stylesheet, the first time a note has a formula, so startup is unchanged and it draws offline. With the caret on its
+  line (or in its block) a formula is what was typed, set as code. One KaTeX cannot read stays as typed, dotted under,
+  what is wrong said in its title. Found by core/maths.ts, so prices stay prices, and never in code or front matter.
+- **The caret's line only counts in a view being typed in** (`editor/extended.ts` `decorate`): a read-only view or one
+  without the focus has its caret at the top, unseen, and an emoji, a definition's colon and the like on the first line
+  stayed as typed there - the Academy's preview, a note just opened. Now they are drawn until somebody is typing.

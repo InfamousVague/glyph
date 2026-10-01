@@ -35,7 +35,7 @@ tree.
 | Footnotes `[^1]`           | yes    | yes   | The marker raised and quiet, what it says on a tap; the definition set as small print. A marker with no definition stays plain, because it is a typo |
 | Definition lists           | yes    | yes   | `Term` then `: the meaning`; the term set apart, the meaning hanging under it |
 | Front matter               | yes    | yes   | Drawn as quiet keys rather than a rule, and the note is named by its `title:`; a ticket's as its properties |
-| Math `$x$`, `$$x$$`        | yes    | yes   | Set as code, delimiters and all. No renderer: KaTeX is ~280 KB the phone doesn't need |
+| Math `$x$`, `$$x$$`        | yes    | yes   | Drawn as the formula by KaTeX, fetched the first time; as typed on the caret's line |
 | Mermaid ```` ```mermaid ```` | as a code block | yes | Added 2026-09-17: drawn as the diagram it describes (`src/app/editor/mermaid.ts`), the fence tapped to edit. Mermaid itself, every diagram type, loaded the first time a note has one; a diagram that cannot be drawn stays as its text |
 | Queries ```` ```query ```` | as a code block | yes | Added 2026-10-01: drawn as what it finds across every note - a table, a list, a board, a month, a gantt or a count - the fence tapped to edit (`src/app/editor/queries.ts`, docs/QUERIES.md). Another app shows its lines |
 | Wiki links `[[Note]]`      | yes    | yes   | Opens that note; a title with no note is drawn dashed, and tapping it makes the note and opens it. `[[Note#^anchor]]` splits on the first `#`; `[[#^anchor]]` is a place in this note, drawn with the anchors (`src/app/editor/boards/anchors.ts`) |
@@ -137,8 +137,10 @@ quoted (`blocked-by: "[[GHO-9]]"`), and `[[GHO-12]]` anywhere links to the ticke
 
 ### Maths — `$x^2$`, `$$ … $$`
 
-Set as code, delimiters and all, so it reads as what it is. No renderer: KaTeX is around 280 KB for something a notes
-app meets a few times a year. If someone wants it drawn, that is a plugin.
+Drawn as the formula by KaTeX (`src/app/editor/mathsDrawn.ts`): `$x^2 + y$` in its line, `$$ … $$` alone on a line or
+on lines of its own set apart in the middle of the page. With the caret on its line it is what was typed, set as code,
+to edit. KaTeX came into the app with Mermaid, so this adds only its stylesheet and fonts, and it is fetched the
+first time a note has a formula. One KaTeX cannot read stays as typed, dotted under, saying what is wrong.
 
 Found by Pandoc's rule (`src/app/core/maths.ts`): an opening `$` has a character that is not a space straight after
 it, a closing `$` has one straight before it and no digit after it, and a `$` after a backslash is a dollar. So

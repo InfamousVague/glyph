@@ -11,6 +11,7 @@ import { inlineImages } from './images.ts';
 import { doneSync } from './doneSync.ts';
 import { linkedRows, type LinkMenus } from './linkedRows.ts';
 import { shortLinks } from './links.ts';
+import { drawnMaths } from './mathsDrawn.ts';
 import { extendedMarkdown } from './extended.ts';
 import { footnotes } from './footnotes.ts';
 import { taskToggle } from './taskToggle.ts';
@@ -317,6 +318,8 @@ export function Editor({
         glyphLines,
         // Superscript, subscript and GitHub callouts, drawn as what they are (editor/extended.ts).
         extendedMarkdown(),
+        // Maths drawn as its formula off the caret's line, by KaTeX, fetched the first time a note has any (editor/mathsDrawn.ts).
+        drawnMaths(),
         // [^a] raised and quiet, its words on a tap (editor/footnotes.ts).
         footnotes(),
         // #tags drawn as small chips (editor/tags.ts).

@@ -215,9 +215,12 @@ export function frontMatterFolded(state: EditorState): boolean {
   return state.field(frontFold).decorations.size > 0;
 }
 
-function decorate(state: EditorState, from: number, to: number): DecorationSet {
+function decorate(state: EditorState, from: number, to: number, editing: boolean): DecorationSet {
   const marks: { from: number; to: number; deco: Decoration }[] = [];
-  const caretLines = new Set(state.selection.ranges.map((range) => state.doc.lineAt(range.head).number));
+  // The lines the caret is on, whose marks are shown as typed, to edit: none in a view nobody is typing in - a read-only
+  // one, or one without the focus - whose caret sits at the top unseen. There a shortcode on the first line stayed
+  // its name (Matt, of the Academy's emoji lesson: "it should appear when :smile: is done").
+  const caretLines = new Set(editing ? state.selection.ranges.map((range) => state.doc.lineAt(range.head).number) : []);
 
   // The note's own front matter, which the parser reads as a rule and a run of words.
   const front = frontMatter(state.doc);
@@ -386,12 +389,12 @@ export function extendedMarkdown(): Extension {
         }
 
         update(update: ViewUpdate) {
-          if (update.docChanged || update.viewportChanged || update.selectionSet) this.decorations = this.build(update.view);
+          if (update.docChanged || update.viewportChanged || update.selectionSet || update.focusChanged) this.decorations = this.build(update.view);
         }
 
         private build(view: EditorView): DecorationSet {
           const { from, to } = view.viewport;
-          return decorate(view.state, from, to);
+          return decorate(view.state, from, to, view.hasFocus && view.state.facet(EditorView.editable));
         }
       },
       { decorations: (value) => value.decorations },
