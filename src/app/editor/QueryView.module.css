@@ -465,7 +465,7 @@
 }
 
 .board[data-sized] .lane {
-  block-size: var(--query-lane-height);
+  block-size: var(--query-lane-height, 24em);
 }
 
 .cards {
