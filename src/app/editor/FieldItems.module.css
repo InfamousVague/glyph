@@ -1,0 +1,26 @@
+/*
+ * A to-do's fields on the press-and-hold menu's band (editor/FieldItems.tsx): the band's own rows
+ * (ContextMenu.module.css), and a priority's mark in its chip's colour (editor/fieldChips.ts), so the choice looks
+ * like what it writes. Lit, a row is printed in reverse and its mark takes the paper with it.
+ */
+
+.field[data-tone='highest'] svg,
+.field[data-tone='high'] svg {
+  color: var(--glacier-red-11);
+}
+
+.field[data-tone='medium'] svg {
+  color: var(--glacier-amber-11);
+}
+
+.field[data-tone='low'] svg {
+  color: var(--glacier-blue-11);
+}
+
+.field[data-tone='lowest'] svg {
+  color: var(--app-ink-3);
+}
+
+.field[data-lit] svg {
+  color: inherit;
+}

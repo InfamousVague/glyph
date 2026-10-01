@@ -3,6 +3,7 @@ import { entryPages } from '../book/journal.ts';
 import { readableWords } from '../core/blanks.ts';
 import { itemOnLine, itemWords } from '../core/boards.ts';
 import { taskBox } from '../core/itemSyntax.ts';
+import { withoutFields } from '../core/taskFields.ts';
 import type { SummariesState, SummaryKind } from '../ai/summaries.ts';
 import type { Note } from '../core/store.ts';
 import { guidePages, isGuideBook } from '../guidebook/guidebook.ts';
@@ -124,7 +125,8 @@ export function openTasks(notes: readonly Note[]): OpenTask[] {
       // A filled answer as its words, and a blank as its question (docs/DESIGN.md §145): "Tick off ??Turn off…??(Qwen3.5
       // 4B from memory, …)" was read aloud whole.
       const words = itemWords(line);
-      const text = words === null ? undefined : readableWords(words).trim();
+      // Its words without its fields (core/taskFields.ts, docs/DESIGN.md §159): "Call the plumber", not "… @matt 📅 …".
+      const text = words === null ? undefined : readableWords(withoutFields(words)).trim();
       if (!text) return;
       tasks.push({ noteId: note.id, line: index, text, at: itemOnLine(line)?.id, touched: note.updatedAt });
     });

@@ -27,6 +27,10 @@ describe('progress under a heading', () => {
     expect(headingCounts(doc(['## To do', '- [ ] ', '- [x]   ', '- [ ] Call Sam'].join('\n')))).toEqual([{ line: 1, done: 0, total: 1 }]);
   });
 
+  it('counts no box whose only words are fields (docs/DESIGN.md §159)', () => {
+    expect(headingCounts(doc(['## To do', '- [ ] 📅 2026-10-03', '- [ ] @sam ⏫', '- [ ] Call Sam 📅 2026-10-03'].join('\n')))).toEqual([{ line: 1, done: 0, total: 1 }]);
+  });
+
   it('ignores boxes and headings inside code', () => {
     const note = doc(['## Code', '```', '# not a heading', '- [ ] not a to-do', '```', '- [ ] real'].join('\n'));
     expect(headingCounts(note)).toEqual([{ line: 1, done: 0, total: 1 }]);

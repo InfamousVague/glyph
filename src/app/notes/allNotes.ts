@@ -1,6 +1,7 @@
 import { plainFills } from '../core/blanks.ts';
 import { readStoredText, writeStoredText } from '../core/stored.ts';
 import { noteTitle, type Note } from '../core/store.ts';
+import { fieldsIn } from '../core/taskFields.ts';
 
 /**
  * The rules behind the All notes page (notes/AllNotesScreen.tsx): which notes it shows, in what order, and what a
@@ -42,6 +43,22 @@ export function hasTape(note: Note): boolean {
 /** Words that count as having no title, so a note with none sorts after the named ones. */
 const untitled = (note: Note) => noteTitle(note.body).trim() === '';
 
+/** A priority's sign (core/taskFields.ts): a note with none has no priority to name. */
+const PRIORITY_SIGN = /🔺|⏫|🔼|🔽|⏬/u;
+
+/**
+ * What a note's to-dos' priorities say in words, for a search to find (core/taskFields.ts, docs/DESIGN.md §159): "high
+ * priority" for a ⏫, as its chip says it, since nobody types the sign into a search. A person and a day are found as
+ * they are written, `sam` and `2026-10-03`.
+ */
+function priorityWords(body: string): string {
+  if (!PRIORITY_SIGN.test(body)) return '';
+  return fieldsIn(body)
+    .filter((span) => span.kind === 'priority')
+    .map((span) => `${span.value} priority`)
+    .join(' ');
+}
+
 /**
  * Whether a note has every word of the query, in its title or its body, whatever the case. Words rather than the
  * whole phrase, so "trip packing" finds a note with those two words anywhere in it.
@@ -50,7 +67,7 @@ export function matches(note: Note, query: string): boolean {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return true;
   // A filled blank's hidden bracket (core/blanks.ts) is not the note's words: "memory" or "Asked" finds no note for it.
-  const text = plainFills(note.body).toLowerCase();
+  const text = `${plainFills(note.body)} ${priorityWords(note.body)}`.toLowerCase();
   return words.every((word) => text.includes(word));
 }
 

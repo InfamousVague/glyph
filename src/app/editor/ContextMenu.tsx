@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpToLine, ClipboardPaste, Copy, CopyPlus, ImagePlus, LayoutGrid, Link, Scissors, SquareKanban, TextSearch, TextSelect, Trash2, Type } from '@glacier/icons';
+import { ArrowDownToLine, ArrowUpToLine, CalendarDays, ClipboardPaste, Copy, CopyPlus, Flag, ImagePlus, LayoutGrid, Link, Scissors, SquareKanban, TextSearch, TextSelect, Trash2, Type, UserPlus } from '@glacier/icons';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { EditorView } from '@codemirror/view';
 import { useBack } from '../core/back.ts';
@@ -7,6 +7,8 @@ import { itemWords } from '../core/itemLinks.ts';
 import { deleteSelection, duplicateSelection, moveLines } from './format.ts';
 import { boardMadeWords, boardOffers, joinBoard, makeListBoard, selectBoard } from './boardActions.ts';
 import { clipboardReadable, readClipboard, writeClipboard, type Clipboard } from './clipboard.ts';
+import { FieldItems } from './FieldItems.tsx';
+import { takesFields, useFieldTaps, type FieldPage } from './fieldMenu.ts';
 import { MenuBand, MenuItem } from './MenuBand.tsx';
 import { usePressAndHold, type Held } from './pressAndHold.ts';
 import { StyleItems } from './StyleItems.tsx';
@@ -24,7 +26,9 @@ import styles from './ContextMenu.module.css';
  * Reading the clipboard is the one thing the page cannot do here (editor/clipboard.ts), so Paste appears only where
  * the activity answers `GlyphHost.readClipboard` or the browser can read; the keyboard's own paste works either way.
  *
- * Style turns the menu over to the formatting, in the same band (editor/StyleItems.tsx).
+ * Style turns the menu over to the formatting, in the same band (editor/StyleItems.tsx). On a list item, Due date,
+ * Priority and Assign turn it over to that field's choices (editor/FieldItems.tsx), and a tap on a field's chip opens
+ * the menu at the chip on its page (editor/taskFields.ts, docs/DESIGN.md §159).
  *
  * The menu's own pointerdown is prevented, so a press on it never takes the editor's focus or the selection the action
  * is about. Every action closes the menu before it runs and gives the editor its focus back after. It goes on a touch
@@ -49,6 +53,11 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, onFind, send 
   const [open, setOpen] = useState<Held | null>(null);
   /** The menu's words, or its styles. */
   const [styling, setStyling] = useState(false);
+  /**
+   * A page of a to-do's fields, for which line, whether Back leads to the line's actions (it was asked for from them,
+   * not from a chip), and whether the editor had its focus to give back.
+   */
+  const [fields, setFields] = useState<{ page: FieldPage; line: number; back: boolean; refocus: boolean } | null>(null);
   const menu = useRef<HTMLDivElement>(null);
   const pasteable = clipboardReadable();
 
@@ -59,9 +68,19 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, onFind, send 
     view,
     useCallback((held: Held) => {
       setStyling(false);
+      setFields(null);
       setOpen(held);
     }, []),
   );
+
+  // A chip tapped: the menu at the chip, on its field's page.
+  useFieldTaps(view, (tap) => {
+    if (!view) return;
+    const { head } = view.state.selection.main;
+    setStyling(false);
+    setFields({ page: tap.page, line: tap.line, back: false, refocus: view.hasFocus });
+    setOpen({ x: tap.x, y: tap.y, from: head, to: head });
+  });
 
   // It leaves on a touch anywhere else, a scroll, or the back gesture.
   useEffect(() => {
@@ -101,7 +120,7 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, onFind, send 
     if (top < margin) top = open.y + 40;
     element.style.left = `${left}px`;
     element.style.top = `${top}px`;
-  }, [open, styling]);
+  }, [open, styling, fields]);
 
   if (!open || !view) return null;
 
@@ -175,6 +194,13 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, onFind, send 
     run(view);
   };
 
+  /** A field's page for the caret's line, from the line's own actions. */
+  const fieldPage = (page: FieldPage) => () => {
+    fireNativeHaptic('selection');
+    setFields({ page, line: caretLine.number, back: true, refocus: view.hasFocus });
+  };
+  const fieldsHere = !view.state.readOnly && takesFields(caretLine.text);
+
   const listToBoard = () => {
     if (!boards.list) return;
     const made = makeListBoard(view, boards.list);
@@ -195,12 +221,14 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, onFind, send 
       ref={menu}
       className={styles.menu}
       role="menu"
-      aria-label={styling ? 'Styles' : 'Note actions'}
+      aria-label={fields ? 'Fields' : styling ? 'Styles' : 'Note actions'}
       // A press on the menu must not take the editor's focus or its selection.
       onPointerDown={(event) => event.preventDefault()}
     >
       <MenuBand>
-        {styling ? (
+        {fields ? (
+          <FieldItems view={view} line={fields.line} page={fields.page} onBack={fields.back ? () => setFields(null) : undefined} onClose={close} refocus={fields.refocus} />
+        ) : styling ? (
           <StyleItems view={view} onBack={() => setStyling(false)} onClose={close} />
         ) : (
           <>
@@ -229,6 +257,10 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, onFind, send 
             <MenuItem icon={Trash2} label="Delete" onPress={act(whole(deleteSelection))} />
             <MenuItem icon={ArrowUpToLine} label="Move up" onPress={act(whole((target) => moveLines(target, -1)))} />
             <MenuItem icon={ArrowDownToLine} label="Move down" onPress={act(whole((target) => moveLines(target, 1)))} />
+            {/* A list item's fields: when it is due, how much it matters, who it is for (editor/FieldItems.tsx). */}
+            {fieldsHere ? <MenuItem icon={CalendarDays} label="Due date" onPress={fieldPage({ kind: 'date', key: 'due' })} /> : null}
+            {fieldsHere ? <MenuItem icon={Flag} label="Priority" onPress={fieldPage({ kind: 'priority' })} /> : null}
+            {fieldsHere ? <MenuItem icon={UserPlus} label="Assign" onPress={fieldPage({ kind: 'assign' })} /> : null}
             {boards.joinable ? <MenuItem icon={LayoutGrid} label="Add to board" onPress={act(putOnBoard)} /> : null}
             {boards.list ? <MenuItem icon={SquareKanban} label="Board from list" onPress={act(listToBoard)} /> : null}
             {send && lineWords ? <MenuItem icon={Link} label={send.label} onPress={act(() => send.run(lineWords))} /> : null}

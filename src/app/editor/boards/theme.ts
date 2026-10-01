@@ -221,12 +221,13 @@ export const boardTheme = EditorView.baseTheme({
   /*
    * A card is a small grid (Matt: "the cards themselves can have the text go full width and we can move the notion icon
    * to the right more"): the tick and the words on the first row, the words taking every bit of width the card has,
-   * and under them a footer that sits right - the plugin's mark, then the two arrows.
+   * and under them a footer that sits right - the plugin's mark, then the two arrows - with the item's fields at its
+   * start, under the words (editor/boards/fields.ts).
    */
   '.cm-boardCard': {
     display: 'grid',
     gridTemplateColumns: 'auto 1fr auto auto',
-    gridTemplateAreas: '"tick words words words" ". . linked moves"',
+    gridTemplateAreas: '"tick words words words" ". fields linked moves"',
     alignItems: 'start',
     columnGap: '0.55em',
     rowGap: '0.15em',
@@ -372,6 +373,17 @@ export const boardTheme = EditorView.baseTheme({
     placeItems: 'center',
     color: 'var(--app-ink-3, var(--glacier-text-muted))',
     opacity: '0.8',
+  },
+  // The item's fields under its words, at the footer's start, wrapping before they reach the mark and the arrows.
+  '.cm-boardFields': {
+    gridArea: 'fields',
+    alignSelf: 'center',
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.3em',
+    minInlineSize: '0',
+    fontSize: '0.88em',
   },
   '.cm-boardMoves': { gridArea: 'moves', display: 'flex', gap: '0', marginInlineEnd: '-0.1em' },
   '.cm-boardMove': {

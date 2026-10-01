@@ -35,6 +35,7 @@
 
 import { hasBlank, readableWords } from './blanks.ts';
 import { COUNTER_IN_WORDS, ITEM_TAIL, MARK_NAME, MARK_URL, listLead, withoutBookmark } from './itemSyntax.ts';
+import { withoutFields } from './taskFields.ts';
 
 /**
  * A list item's line in two: what opens it (the indent, the marker, and a to-do's or a choice's box, as
@@ -64,10 +65,12 @@ function anchorOff(text: string): { body: string; anchor: string } {
 
 /**
  * What an item says, for a title or for finding it again: no counters, which are a count kept on the item rather than
- * part of its name, and no bookmark. A choice's box is already off, with the lead it belongs to.
+ * part of its name, and no bookmark. A choice's box is already off, with the lead it belongs to. No fields either
+ * (core/taskFields.ts, docs/DESIGN.md §159): a task sent to Notion or an issue to GitHub is titled "Fix the login
+ * loop", not "Fix the login loop @sam ⏫ 📅 2026-10-03", and an item that is only fields is not a task to send.
  */
 function said(text: string): string {
-  return withoutBookmark(readableWords(text).replace(COUNTERS, '')).replace(/\s+/g, ' ').trim();
+  return withoutBookmark(readableWords(withoutFields(text)).replace(COUNTERS, '')).replace(/\s+/g, ' ').trim();
 }
 
 /** Words with an anchor put back after them, one space between. */
