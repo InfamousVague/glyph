@@ -1,4 +1,4 @@
-import { answer as sumAnswer } from '../editor/sums.ts';
+import { answer as sumAnswer } from './sums.ts';
 import { askingWords, type Asking, type Blank, plainFills } from './blanks.ts';
 import { frontMatterEnd } from './frontMatter.ts';
 import { listLead, taskBox } from './itemSyntax.ts';
