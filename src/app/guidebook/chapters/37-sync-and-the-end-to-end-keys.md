@@ -33,7 +33,7 @@ On a device, the account key is a non-extractable CryptoKey in IndexedDB (`src/a
 
 ## Ways in, and staying in
 
-`src/app/core/account/account.ts` holds the flows. `api.ts` is the page's one way to call the service, at `https://attack.fm/glyph/api/v1/`.
+`src/app/core/account/account.ts` holds the flows. `api.ts` is the page's one way to call the service, at `https://attack.fm/api/v1/`.
 
 - **Sign-up** sends the handle, the login half, the wrapped key, eight recovery entries and this device's public key. The server refuses an account without a whole recovery sheet, because end to end it is the only way back in.
 - **Password.** `POST login` answers with a token and the wrapped key, which is unwrapped on the device.

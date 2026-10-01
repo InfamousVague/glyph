@@ -1,7 +1,7 @@
-//! `/glyph/api/mcp` handed on to the hosted MCP server (mcp/hosted.ts, docs/MCP.md), which runs beside this
+//! `/api/mcp` handed on to the hosted MCP server (mcp/hosted.ts, docs/MCP.md), which runs beside this
 //! service on loopback as `glyph-mcp.service`.
 //!
-//! Caddy sends everything under `/glyph/api/` here, and the Caddyfile is shared by four sites and edited by hand
+//! Caddy sends everything under `/api/` here, and the Caddyfile is shared by four sites and edited by hand
 //! with care (scripts/deploy-server.mjs says why), so the MCP server is reached through this route rather than a
 //! route of its own: the request goes on as it came, with its method, path, query, headers and body, and the answer
 //! comes back the same way, streamed. The hosted server's own sign-in pages, discovery documents and tokens all live
@@ -51,7 +51,7 @@ impl Upstream {
 }
 
 pub fn router(upstream: Arc<Upstream>) -> Router {
-    Router::new().route("/glyph/api/mcp", any(forward)).route("/glyph/api/mcp/{*rest}", any(forward)).with_state(upstream)
+    Router::new().route("/api/mcp", any(forward)).route("/api/mcp/{*rest}", any(forward)).with_state(upstream)
 }
 
 async fn forward(State(up): State<Arc<Upstream>>, request: Request) -> Response {
@@ -98,7 +98,7 @@ mod tests {
             let auth = headers.get("authorization").and_then(|v| v.to_str().ok()).unwrap_or("none").to_string();
             (StatusCode::CREATED, [("x-seen-auth", auth), ("www-authenticate", "Bearer resource_metadata=\"x\"".to_string())], Json(serde_json::json!({ "got": body }))).into_response()
         }
-        let app = Router::new().route("/glyph/api/mcp", post(echo)).route("/glyph/api/mcp/{*rest}", any(|req: Request| async move { format!("path {}", req.uri()) }));
+        let app = Router::new().route("/api/mcp", post(echo)).route("/api/mcp/{*rest}", any(|req: Request| async move { format!("path {}", req.uri()) }));
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
@@ -117,13 +117,13 @@ mod tests {
     async fn carries_the_request_and_the_answer_across_whole() {
         let front = proxied(&stand_in().await).await;
         let client = reqwest::Client::new();
-        let answer = client.post(format!("{front}/glyph/api/mcp")).header("authorization", "Bearer tok").body("{\"hello\":1}").send().await.unwrap();
+        let answer = client.post(format!("{front}/api/mcp")).header("authorization", "Bearer tok").body("{\"hello\":1}").send().await.unwrap();
         assert_eq!(answer.status(), StatusCode::CREATED);
         assert_eq!(answer.headers().get("x-seen-auth").unwrap(), "Bearer tok");
         assert_eq!(answer.headers().get("www-authenticate").unwrap(), "Bearer resource_metadata=\"x\"");
         assert_eq!(answer.text().await.unwrap(), "{\"got\":\"{\\\"hello\\\":1}\"}");
-        let under = client.get(format!("{front}/glyph/api/mcp/.well-known/openid-configuration?x=1")).send().await.unwrap();
-        assert_eq!(under.text().await.unwrap(), "path /glyph/api/mcp/.well-known/openid-configuration?x=1");
+        let under = client.get(format!("{front}/api/mcp/.well-known/openid-configuration?x=1")).send().await.unwrap();
+        assert_eq!(under.text().await.unwrap(), "path /api/mcp/.well-known/openid-configuration?x=1");
     }
 
     #[tokio::test]
@@ -133,14 +133,14 @@ mod tests {
             let seen = format!("x-custom={} proxy-authorization={}", saw("x-custom"), saw("proxy-authorization"));
             ([("proxy-authenticate", "Basic realm=\"hop\""), ("x-kept", "yes")], seen).into_response()
         }
-        let app = Router::new().route("/glyph/api/mcp", any(shows));
+        let app = Router::new().route("/api/mcp", any(shows));
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let upstream = format!("http://{}", listener.local_addr().unwrap());
         tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
         let front = proxied(&upstream).await;
 
         let answer = reqwest::Client::new()
-            .get(format!("{front}/glyph/api/mcp"))
+            .get(format!("{front}/api/mcp"))
             .header("x-custom", "1")
             .header("proxy-authorization", "Basic c2VjcmV0")
             .send()
@@ -155,24 +155,24 @@ mod tests {
     async fn a_request_past_four_megabytes_is_refused_before_it_is_passed_on() {
         // A stand-in that takes any size and says how much arrived, so the only limit in the way is the proxy's.
         let app = Router::new()
-            .route("/glyph/api/mcp", post(|body: axum::body::Bytes| async move { format!("{} bytes", body.len()) }))
+            .route("/api/mcp", post(|body: axum::body::Bytes| async move { format!("{} bytes", body.len()) }))
             .layer(axum::extract::DefaultBodyLimit::disable());
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let upstream = format!("http://{}", listener.local_addr().unwrap());
         tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
         let front = proxied(&upstream).await;
 
-        let answer = reqwest::Client::new().post(format!("{front}/glyph/api/mcp")).body(vec![b'a'; MOST_BYTES + 1]).send().await.unwrap();
+        let answer = reqwest::Client::new().post(format!("{front}/api/mcp")).body(vec![b'a'; MOST_BYTES + 1]).send().await.unwrap();
         assert_eq!(answer.status(), StatusCode::PAYLOAD_TOO_LARGE);
         assert_eq!(answer.text().await.unwrap(), r#"{"error":"that request is too large"}"#);
-        let answer = reqwest::Client::new().post(format!("{front}/glyph/api/mcp")).body(vec![b'a'; MOST_BYTES]).send().await.unwrap();
+        let answer = reqwest::Client::new().post(format!("{front}/api/mcp")).body(vec![b'a'; MOST_BYTES]).send().await.unwrap();
         assert_eq!(answer.text().await.unwrap(), format!("{MOST_BYTES} bytes"), "four megabytes exactly is carried whole");
     }
 
     #[tokio::test]
     async fn says_so_when_the_server_is_not_there() {
         let front = proxied("http://127.0.0.1:1").await;
-        let answer = reqwest::Client::new().post(format!("{front}/glyph/api/mcp")).send().await.unwrap();
+        let answer = reqwest::Client::new().post(format!("{front}/api/mcp")).send().await.unwrap();
         assert_eq!(answer.status(), StatusCode::BAD_GATEWAY);
         assert_eq!(answer.headers()["content-type"], "application/json");
         assert_eq!(answer.text().await.unwrap(), r#"{"error":"Claude's server is not running here right now"}"#, "every route's error shape");

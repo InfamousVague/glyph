@@ -7,7 +7,7 @@ code-side blockers found in the audit are fixed (DESIGN §113).
 
 - **Delete account**, in the app (Settings › Account › Delete account, with the password) and on the web
   (`landing/delete-account.html`, the URL Play asks for). The server deletes the account and everything it keeps:
-  notes, recordings, pictures, settings, shared links, devices, recovery codes (`DELETE /glyph/api/v1/account`).
+  notes, recordings, pictures, settings, shared links, devices, recovery codes (`DELETE /api/v1/account`).
 - **Privacy policy** at `landing/privacy.html`, linked from Settings › Account › Privacy policy.
 - **A Play build** (`GLYPH_STORE=play`): no APK self-update and no `REQUEST_INSTALL_PACKAGES` (Play forbids both). The
   web bundle still updates over the air. That is JavaScript in the WebView, which Play allows.
@@ -17,7 +17,7 @@ code-side blockers found in the audit are fixed (DESIGN §113).
 - **targetSdk 36** (Play's floor from 31 August 2026). The Android TV entries Tauri's template added are gone.
 - **Deployed, 2026-09-25:** glyph-api with the delete endpoint, the landing's privacy and delete-account pages
   (`node scripts/deploy-landing.mjs`), and an OTA with the Delete account button (1.7.2-11; 1.8.0-12 is live now).
-  Checked that day from outside: both pages answer at ghostmarkdown.com, and `/glyph/api/v1/account` answers 405 to a
+  Checked that day from outside: both pages answer at ghostmarkdown.com, and `/api/v1/account` answers 405 to a
   GET, where a route that does not exist answers 404.
 
 Build the upload:

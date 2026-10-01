@@ -1,12 +1,12 @@
 # glyph-api, the server
 
-_One Rust binary behind attack.fm/glyph/api: accounts, sealed sync, shared links, the live relay, Notion's code swap and the door to Claude._
+_One Rust binary behind attack.fm/api: accounts, sealed sync, shared links, the live relay, Notion's code swap and the door to Claude._
 
 ## The route map
 
 `server/src/main.rs` merges every router into one, wraps them all in one CORS layer, and answers a route or method that does not exist in JSON.
 
-| Path under `/glyph/api/` | What it serves | File |
+| Path under `/api/` | What it serves | File |
 |---|---|---|
 | `v1/pubkey`, `v1/signup`, the `v1/login` routes, `v1/refresh`, `v1/device`, `v1/keys`, `v1/password`, `v1/recovery`, `v1/account` | accounts and session tokens | `accounts.rs`, `accounts/` |
 | `v1/notes`, `v1/prefs`, `v1/recordings/{id}` | end-to-end encrypted sync | `sync.rs` |
@@ -71,11 +71,11 @@ A pending sign-in lives ten minutes, and at most 256 are held at once. `claim` a
 
 ## The door to Claude
 
-`mcp_proxy.rs` passes anything under `/glyph/api/mcp` to the hosted connector running beside the service. It forwards the method, path, query, headers and body, leaves out hop-by-hop headers, and streams the answer back. A body over 4 MB is refused. If the connector is not running, the answer is a 502 that says so. The proxy exists so the connector's sign-in pages, discovery documents and tokens can live under a prefix the web server already sends here.
+`mcp_proxy.rs` passes anything under `/api/mcp` to the hosted connector running beside the service. It forwards the method, path, query, headers and body, leaves out hop-by-hop headers, and streams the answer back. A body over 4 MB is refused. If the connector is not running, the answer is a 502 that says so. The proxy exists so the connector's sign-in pages, discovery documents and tokens can live under a prefix the web server already sends here.
 
 ## The route nobody calls
 
-`POST /glyph/api/format` took a transcript and answered with annotations (a title, phrases to bold, action items) for the phone to apply. Since 0.6.0 the phone formats with spoken cues and its own rules, and no client calls the route. It still runs, behind its own bearer token, one model call at a time with a hard time budget. The binary will not start at all without that token, 32 characters or longer. `format.rs` lists what taking the route out would touch beyond its own files: `health` reports its model, `main.rs`'s CORS tests and the test fixtures lean on it, and the deploy checks both `health` and the route's 401.
+`POST /api/format` took a transcript and answered with annotations (a title, phrases to bold, action items) for the phone to apply. Since 0.6.0 the phone formats with spoken cues and its own rules, and no client calls the route. It still runs, behind its own bearer token, one model call at a time with a hard time budget. The binary will not start at all without that token, 32 characters or longer. `format.rs` lists what taking the route out would touch beyond its own files: `health` reports its model, `main.rs`'s CORS tests and the test fixtures lean on it, and the deploy checks both `health` and the route's 401.
 
 ## One SQLite file
 
@@ -107,7 +107,7 @@ The web app at attack.fm/glyph is same-origin and needs no entry. The layer wrap
 
 ## Deleting an account
 
-`DELETE /glyph/api/v1/account` takes the password's login half. It counts against the sign-in limit, since it is one more way to try a password. A wrong password gets 403 rather than 401, because the session itself is fine.
+`DELETE /api/v1/account` takes the password's login half. It counts against the sign-in limit, since it is one more way to try a password. A wrong password gets 403 rather than 401, because the session itself is fine.
 
 `store/accounts.rs` deletes the account row, and the cascades take its devices, recovery codes, notes, settings, shares and file rows. Its recordings folder is removed too.
 

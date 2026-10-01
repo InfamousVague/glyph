@@ -463,7 +463,7 @@ into Android's microphone prompt. Samples captured before the model has loaded a
 replayed, so the first words are never lost to warm-up.
 
 > **Removed in 0.6.0.** The server pass below is gone: capture formats with the spoken cues and the
-> local rules in `markdown.ts` only, and the page no longer calls `/glyph/api/format`. glyph-api
+> local rules in `markdown.ts` only, and the page no longer calls `/api/format`. glyph-api
 > still runs on the box, unused. Kept as the record of what was built.
 
 **Formatting is annotation, on attack.fm, by Ollama.** The box runs Ollama with local models
@@ -484,7 +484,7 @@ unformatted while it waits.
 | Speech to markdown | `src/app/capture/markdown.ts` |
 | Annotation client | `src/app/capture/annotate.ts` |
 | Screen | `src/app/capture/CaptureScreen.tsx` |
-| Server | `server/`, `scripts/deploy-server.mjs`, `https://attack.fm/glyph/api/format` |
+| Server | `server/`, `scripts/deploy-server.mjs`, `https://ghostmarkdown.com/api/format` |
 | Model files | `https://attack.fm/glyph/models/` |
 
 Develop the capture screen without a phone at `http://localhost:5250/?capture&simulate`.
@@ -2153,7 +2153,7 @@ choices, briefly:
   sign-in page says so. `mcp/hosted.ts` is the same tools behind OAuth 2.1 with the SDK's own handlers (dynamic
   registration, PKCE, refresh, revocation), sessions as maps in RAM, and MCP over plain HTTP, one request one
   answer. It runs beside glyph-api as `glyph-mcp.service` on the box's own Node 18, and glyph-api hands
-  `/glyph/api/mcp` on to it (`server/src/mcp_proxy.rs`): the shared Caddyfile, edited by hand with care, stays as it
+  `/api/mcp` on to it (`server/src/mcp_proxy.rs`): the shared Caddyfile, edited by hand with care, stays as it
   is, and the discovery documents live under that path, where the client library looks once the root ones answer
   404 (which attack.fm's do). The whole flow is tested as Claude's own client library runs it.
 - **The sign-in page is the app's** (Matt: "redo the plugin page with better iconography and typography usage"):
@@ -4332,7 +4332,7 @@ Store's, and every place user data leaves a device. The two plans are docs/store
 was fixed:
 
 **Delete account.** Both stores require it for any app that makes accounts.
-- **The server:** `DELETE /glyph/api/v1/account` (accounts.rs, store.rs `delete_account`).
+- **The server:** `DELETE /api/v1/account` (accounts.rs, store.rs `delete_account`).
   - It asks for the password's login half. A phone left unlocked shouldn't be able to lose its owner's account.
   - A wrong password is a 403, not a 401, since a 401 reads as signed out. It counts against sign-in's rate limits.
   - It deletes the account row, and the tables cascade from it: devices, recovery codes, notes, settings, shares (every

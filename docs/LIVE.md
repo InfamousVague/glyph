@@ -17,7 +17,7 @@ now. Live sync is only for what two devices have open at the same moment.
 
 ## The pieces
 
-**The relay** - `server/src/live.rs`, a WebSocket at `/glyph/api/v1/live`. It knows accounts and rooms and nothing
+**The relay** - `server/src/live.rs`, a WebSocket at `/api/v1/live`. It knows accounts and rooms and nothing
 else. A browser cannot put an `Authorization` header on a WebSocket, so the socket authenticates with its first frame,
 `{ "t": "auth", "token": … }`, checked by the same verifier every other route uses - and a token never rides in a URL,
 where logs would keep it. The whole protocol, as the header of `server/src/live.rs` has it:

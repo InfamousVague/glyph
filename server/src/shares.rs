@@ -6,10 +6,10 @@
 //! service keeps only ciphertext it cannot open, the same promise sync makes. The owner writes it again as they edit
 //! (the reader sees the edits), and takes it down to make the link go dead.
 //!
-//!   PUT    /glyph/api/v1/shares/{id}   { blob }  the owner's share, made or written again
-//!   DELETE /glyph/api/v1/shares/{id}             the owner's share, taken down
-//!   GET    /glyph/api/v1/shares                  the owner's shares: ids and when each was last written
-//!   GET    /glyph/api/v1/shares/{id}             anyone: the ciphertext, and when it was written
+//!   PUT    /api/v1/shares/{id}   { blob }  the owner's share, made or written again
+//!   DELETE /api/v1/shares/{id}             the owner's share, taken down
+//!   GET    /api/v1/shares                  the owner's shares: ids and when each was last written
+//!   GET    /api/v1/shares/{id}             anyone: the ciphertext, and when it was written
 //!
 //! An id is the device's own - 128 random bits, base64url - so the link can be made before anything is sent, and one
 //! share's id says nothing about another's. Reading is open, so it is rate-limited by address; writing is the owner's.
@@ -115,9 +115,9 @@ async fn read_share(State(shares): State<Arc<Shares>>, ConnectInfo(peer): Connec
 
 pub fn router(accounts: Arc<Accounts>) -> Router {
     Router::new()
-        .route("/glyph/api/v1/shares", get(list_shares))
+        .route("/api/v1/shares", get(list_shares))
         .route(
-            "/glyph/api/v1/shares/{id}",
+            "/api/v1/shares/{id}",
             get(read_share).put(put_share).delete(delete_share).layer(DefaultBodyLimit::max(SHARE_LIMIT + 1024)),
         )
         .with_state(Shares::new(accounts))

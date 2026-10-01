@@ -95,10 +95,10 @@ Sharing needs an account (Settings › Account), since the server keeps a share 
 
 | Route | Who | Does |
 | --- | --- | --- |
-| `PUT /glyph/api/v1/shares/{id}` | the owner, signed in | stores or replaces the sealed blob |
-| `DELETE /glyph/api/v1/shares/{id}` | the owner, signed in | removes it; another account's id does nothing |
-| `GET /glyph/api/v1/shares/{id}` | anyone | the sealed blob, `Cache-Control: no-store` |
-| `GET /glyph/api/v1/shares` | the owner, signed in | the owner's share ids, each with when it was last written (`updated`) |
+| `PUT /api/v1/shares/{id}` | the owner, signed in | stores or replaces the sealed blob |
+| `DELETE /api/v1/shares/{id}` | the owner, signed in | removes it; another account's id does nothing |
+| `GET /api/v1/shares/{id}` | anyone | the sealed blob, `Cache-Control: no-store` |
+| `GET /api/v1/shares` | the owner, signed in | the owner's share ids, each with when it was last written (`updated`) |
 
 | Limit | Value |
 | --- | --- |
@@ -148,7 +148,7 @@ original.
 Settings › Account lists every shared note and notebook (`src/app/settings/SharedLinks.tsx`), from whichever device
 shared it, with Copy and Stop. Two devices changing their settings at once can lose one's list, since the settings
 sync as one blob and the later write wins. The share itself stays up, so the list also asks the server which shares
-the account holds (`GET /glyph/api/v1/shares`). One no device lists, and not written for ten minutes, is counted and
+the account holds (`GET /api/v1/shares`). One no device lists, and not written for ten minutes, is counted and
 can be taken down. The ten minutes are there because a share another device made just now may not have synced yet.
 
 ## Opening the app from a link

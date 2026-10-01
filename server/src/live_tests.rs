@@ -47,7 +47,7 @@ impl Server {
     /// A new account, signed up the way a device does it; answers its token.
     async fn account(&self, handle: &str) -> String {
         let body: Value = reqwest::Client::new()
-            .post(format!("http://{}/glyph/api/v1/signup", self.addr))
+            .post(format!("http://{}/api/v1/signup", self.addr))
             .json(&signup_body(handle, None))
             .send()
             .await
@@ -59,7 +59,7 @@ impl Server {
     }
 
     fn url(&self) -> String {
-        format!("ws://{}/glyph/api/v1/live", self.addr)
+        format!("ws://{}/api/v1/live", self.addr)
     }
 
     /// A device on the socket, signed in: answers it and its connection id.

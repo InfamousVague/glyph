@@ -10,7 +10,7 @@
  * nothing in the app asks for it any more. The service is a
  * Rust binary cross-compiled here with cargo-zigbuild, because the box has no
  * cargo - the same recipe PrettyCardboard's redeploy uses - and it runs as
- * `glyph-api.service` on 127.0.0.1:8796 behind Caddy's `/glyph/api/*` route.
+ * `glyph-api.service` on 127.0.0.1:8796 behind Caddy's `/api/*` route.
  *
  * What a run does, and every step is safe to repeat:
  *
@@ -80,7 +80,7 @@ const SERVICE = 'glyph-api';
 /** Must match GLYPH_API_BIND in server/glyph-api.service. */
 const PORT = 8796;
 const STAGE = '.glyph-api-stage';
-const API = 'https://ghostmarkdown.com/glyph/api';
+const API = 'https://ghostmarkdown.com/api';
 
 /** .env, with the token and the Notion credentials checked for shape as well as presence. */
 function loadServerEnv() {
@@ -222,7 +222,7 @@ $SUDO systemctl restart ${SERVICE} || true
 
 healthy=
 for _ in $(seq 1 20); do
-  if curl -fsS -m 5 http://127.0.0.1:${PORT}/glyph/api/health >/dev/null 2>&1; then healthy=1; break; fi
+  if curl -fsS -m 5 http://127.0.0.1:${PORT}/api/health >/dev/null 2>&1; then healthy=1; break; fi
   sleep 0.5
 done
 if [ -z "$healthy" ]; then
@@ -237,7 +237,7 @@ fi
 fi
 mcp_healthy=
 for _ in $(seq 1 20); do
-  if curl -fsS -m 5 http://127.0.0.1:${MCP_PORT}/glyph/api/mcp/health >/dev/null 2>&1; then mcp_healthy=1; break; fi
+  if curl -fsS -m 5 http://127.0.0.1:${MCP_PORT}/api/mcp/health >/dev/null 2>&1; then mcp_healthy=1; break; fi
   sleep 0.5
 done
 if [ -z "$mcp_healthy" ]; then
@@ -247,10 +247,10 @@ rm -rf "$STAGE"
 echo "STAMP $stamp"
 echo "BACKUP \${backup:-none}"
 echo "ACTIVE $($SUDO systemctl is-active ${SERVICE})"
-echo "LOOPBACK $(curl -s -m 5 http://127.0.0.1:${PORT}/glyph/api/health)"
+echo "LOOPBACK $(curl -s -m 5 http://127.0.0.1:${PORT}/api/health)"
 echo "MCP_ACTIVE $($SUDO systemctl is-active ${MCP_SERVICE})"
 echo "MCP_CHANGED \${mcp_changed:-0}"
-echo "MCP_LOOPBACK $(curl -s -m 5 http://127.0.0.1:${MCP_PORT}/glyph/api/mcp/health)"
+echo "MCP_LOOPBACK $(curl -s -m 5 http://127.0.0.1:${MCP_PORT}/api/mcp/health)"
 `;
 
 /**
@@ -321,8 +321,8 @@ const [healthBody, healthCode] = [health.stdout.slice(0, health.stdout.lastIndex
 if (healthCode !== '200') {
   fail(
     `${API}/health answered ${healthCode}. The service is up on loopback, so this is the route: ` +
-      `/etc/caddy/Caddyfile needs "handle /glyph/api/* { reverse_proxy 127.0.0.1:${PORT} }" in the attack.fm block, ` +
-      'before the catch-all handle.',
+      `ghostmarkdown.com's block needs "handle /api/* { reverse_proxy 127.0.0.1:${PORT} }" (scripts/deploy-landing.mjs --caddy adds it), ` +
+      `and the attack.fm alias needs "handle /glyph/api/* { uri strip_prefix /glyph\\n reverse_proxy 127.0.0.1:${PORT} }" so /glyph/api/* reaches the server's /api/*, both before the catch-all handle.`,
   );
 }
 let parsed;

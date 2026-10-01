@@ -122,7 +122,7 @@ describe('settings kept the same on every device', () => {
     const service = await fakeService(ACCOUNT);
     const token = service.signedIn();
     const blob = await seal(service.accountKey, { theme: 'dawn', fromTheFuture: true }, 'prefs');
-    await service.fetcher('https://fake.test/glyph/api/v1/prefs', { method: 'PUT', headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify({ base: 0, blob }) });
+    await service.fetcher('https://fake.test/api/v1/prefs', { method: 'PUT', headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify({ base: 0, blob }) });
     const phone = device(service);
     expect(await phone.sync()).toBe(true);
     expect(phone.prefs.theme).toBe('dawn');

@@ -6,7 +6,7 @@
  * what the service meant.
  */
 
-export const API_BASE: string = (import.meta.env.VITE_GLYPH_API as string | undefined)?.replace(/\/+$/, '') || 'https://ghostmarkdown.com/glyph/api';
+export const API_BASE: string = (import.meta.env.VITE_GLYPH_API as string | undefined)?.replace(/\/+$/, '') || 'https://ghostmarkdown.com/api';
 
 /** A request the service refused, with its status and its own words. */
 export class ApiError extends Error {

@@ -14,7 +14,7 @@ import { WebSocketTransport, liveUrl } from './transport.ts';
 /**
  * Two devices typing into one note through a real relay (server/src/live.rs), with real sockets and real sealing:
  *
- *   GLYPH_LIVE_E2E=<the server's data folder> VITE_GLYPH_API=http://127.0.0.1:<port>/glyph/api npx vitest run live.e2e
+ *   GLYPH_LIVE_E2E=<the server's data folder> VITE_GLYPH_API=http://127.0.0.1:<port>/api npx vitest run live.e2e
  *
  * Skipped otherwise. Every run makes a fresh account.
  */

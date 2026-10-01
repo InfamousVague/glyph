@@ -6,13 +6,13 @@
 //! every device writes notes here, not only the server, so a note is written from the revision it was last seen at,
 //! exactly as the settings blob is.
 //!
-//!   GET    /glyph/api/v1/notes?since=&limit=   the feed: every note written after `since`
-//!   PUT    /glyph/api/v1/notes/{id}            { base, blob } a note, or 409 with the one that won
-//!   DELETE /glyph/api/v1/notes/{id}            { base } a deletion, the same way
-//!   GET    /glyph/api/v1/prefs                 the settings
-//!   PUT    /glyph/api/v1/prefs                 { base, blob }
-//!   GET    /glyph/api/v1/recordings/{id}       a recording's or a picture's bytes, its revision in `x-glyph-rev`
-//!   PUT    /glyph/api/v1/recordings/{id}?base= a recording's or a picture's bytes
+//!   GET    /api/v1/notes?since=&limit=   the feed: every note written after `since`
+//!   PUT    /api/v1/notes/{id}            { base, blob } a note, or 409 with the one that won
+//!   DELETE /api/v1/notes/{id}            { base } a deletion, the same way
+//!   GET    /api/v1/prefs                 the settings
+//!   PUT    /api/v1/prefs                 { base, blob }
+//!   GET    /api/v1/recordings/{id}       a recording's or a picture's bytes, its revision in `x-glyph-rev`
+//!   PUT    /api/v1/recordings/{id}?base= a recording's or a picture's bytes
 //!
 //! The recordings routes carry pictures too (an `i-<ext>-<stem>` id, docs/SYNC.md): they were named for the audio
 //! that came first. A device asks whether it has a picture's latest with a HEAD, which axum answers through the GET
@@ -197,11 +197,11 @@ async fn put_recording(
 
 pub fn router(accounts: Arc<Accounts>) -> Router {
     Router::new()
-        .route("/glyph/api/v1/notes", get(feed))
-        .route("/glyph/api/v1/notes/{id}", axum::routing::put(put_note).delete(delete_note))
-        .route("/glyph/api/v1/prefs", get(get_prefs).put(put_prefs))
+        .route("/api/v1/notes", get(feed))
+        .route("/api/v1/notes/{id}", axum::routing::put(put_note).delete(delete_note))
+        .route("/api/v1/prefs", get(get_prefs).put(put_prefs))
         .route(
-            "/glyph/api/v1/recordings/{id}",
+            "/api/v1/recordings/{id}",
             get(get_recording).put(put_recording).layer(DefaultBodyLimit::max(RECORDING_LIMIT)),
         )
         .with_state(accounts)
