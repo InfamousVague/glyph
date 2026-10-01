@@ -16,6 +16,9 @@ import styles from './Playground.module.css';
  * cheat sheet): the real marks drawn by the real app, so what is learned here is what a note does. It is redrawn as
  * the words change, which is the whole point - a star typed is a word gone bold underneath.
  *
+ * A to-do's box and a choice's take a tap here as they do in a note (`boxTaps`), and the change goes back into the
+ * field above, so a choice is learned by picking one and the words show the x move.
+ *
  * A ```query is drawn too, over a library of one note: what is typed (`PAGE`). So the query lesson's to-dos are the
  * ones written under it in the field, and `show: calendar` is a month, not the fence's lines. Links go nowhere: the
  * page is to play on, and has no other notes to open.
@@ -73,10 +76,11 @@ export function Playground({ value, onChange, placeholder }: { value: string; on
           {value.trim() ? (
             <Editor
               value={value}
-              onChange={keep}
+              onChange={onChange}
               dark={isDarkNow(prefs.theme)}
               assist={false}
               readOnly
+              boxTaps
               grow
               wiki={PAGE}
               display="formatted"
@@ -100,5 +104,3 @@ const PAGE: WikiOptions = {
   queries: { notes: () => [], noteId: 'academy-playground', open: () => undefined, tick: () => undefined },
 };
 
-/** The editor asks for somewhere to send changes; a read-only one never has any. */
-const keep = (_value: string) => undefined;

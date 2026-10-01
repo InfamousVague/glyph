@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
+import { boxTapsWhileReadOnly } from './boxTaps.ts';
 import { choices } from './choices.ts';
 import { taskToggle } from './taskToggle.ts';
 
@@ -110,6 +111,13 @@ describe('a tap on a choice’s round box', () => {
     const locked = open(doc, choices(), true);
     tap(locked, 35, 30);
     expect(locked.state.doc.toString()).toBe(doc);
+  });
+
+  it('picks one in a view that cannot be typed in but whose boxes take a tap: the Academy’s preview', () => {
+    const on = open(doc, [choices(), taskToggle(), boxTapsWhileReadOnly.of(true)], true);
+    tap(on, 35, 30);
+    expect(on.state.doc.line(2).text).toBe('- (x) Tent');
+    expect(on.state.doc.line(3).text).toBe('- ( ) Cabin');
   });
 
   it('draws each round box as one, the picked one marked', () => {

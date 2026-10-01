@@ -12,6 +12,7 @@ import { doneSync } from './doneSync.ts';
 import { linkedRows, type LinkMenus } from './linkedRows.ts';
 import { shortLinks } from './links.ts';
 import { drawnMaths } from './mathsDrawn.ts';
+import { boxTapsWhileReadOnly } from './boxTaps.ts';
 import { extendedMarkdown } from './extended.ts';
 import { footnotes } from './footnotes.ts';
 import { taskToggle } from './taskToggle.ts';
@@ -106,6 +107,8 @@ interface EditorProps {
   onView?: (view: EditorView | null) => void;
   /** No typing: the document is being written by something else, as during a capture. */
   readOnly?: boolean;
+  /** Read-only, but a to-do's box and a choice's still take a tap, sent out through onChange (editor/boxTaps.ts). */
+  boxTaps?: boolean;
   /**
    * Swiping a list item left runs a plugin's action on it (editor/swipeItems.ts):
    * the action on offer right now, or null. Read at swipe time, through a ref.
@@ -237,6 +240,7 @@ export function Editor({
   onImageError,
   onView,
   readOnly = false,
+  boxTaps = false,
   swipeAction,
   suggest,
   linkMenus,
@@ -395,7 +399,7 @@ export function Editor({
         EditorView.lineWrapping,
         assistSlot.current.of(EditorView.contentAttributes.of(assist ? PROSE_ATTRS : PLAIN_ATTRS)),
         themeSlot.current.of(glyphTheme(dark)),
-        readOnlySlot.current.of(readOnlyExtensions(readOnly)),
+        readOnlySlot.current.of(readOnlyExtensions(readOnly, boxTaps)),
         displaySlot.current.of(noteView(display)),
         lookSlot.current.of(lookExtensions(look)),
         // Find and replace's marks (find.ts): nothing until a search is running.
@@ -477,8 +481,8 @@ export function Editor({
   }, [assist]);
 
   useEffect(() => {
-    view.current?.dispatch({ effects: readOnlySlot.current.reconfigure(readOnlyExtensions(readOnly)) });
-  }, [readOnly]);
+    view.current?.dispatch({ effects: readOnlySlot.current.reconfigure(readOnlyExtensions(readOnly, boxTaps)) });
+  }, [readOnly, boxTaps]);
 
   // The note's recording arrives after the note does, and goes when it is removed.
   useEffect(() => {
@@ -581,6 +585,6 @@ function lookExtensions(look: Look | null) {
  * which is what keeps a phone's keyboard from rising over a note that is being
  * dictated rather than typed.
  */
-function readOnlyExtensions(readOnly: boolean) {
-  return [EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)];
+function readOnlyExtensions(readOnly: boolean, boxTaps = false) {
+  return [EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly), boxTapsWhileReadOnly.of(readOnly && boxTaps)];
 }

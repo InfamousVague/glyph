@@ -1,3 +1,4 @@
+import { Facet } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 
 /**
@@ -9,9 +10,17 @@ import type { EditorView } from '@codemirror/view';
 /** How far outside the drawn box a tap still counts, in px: a box is small under a thumb. */
 const SLOP_PX = 8;
 
-/** Whether `event` is a plain press - the main button, no modifier - in a note that can be changed. */
+/**
+ * A view that cannot be typed in whose boxes still take a tap: the Academy's preview (academy/Playground.tsx), where
+ * a choice is learned by picking one (Matt: "I cant click to select different radios"). The tap's change goes out
+ * through the editor's onChange like any other, back to the words it was drawn from.
+ */
+export const boxTapsWhileReadOnly = Facet.define<boolean, boolean>({ combine: (values) => values.some(Boolean) });
+
+/** Whether `event` is a plain press - the main button, no modifier - in a note that can be changed, or whose boxes can. */
 export function plainPress(event: MouseEvent, view: EditorView): boolean {
-  return event.button === 0 && !view.state.readOnly && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey;
+  const changeable = !view.state.readOnly || view.state.facet(boxTapsWhileReadOnly);
+  return event.button === 0 && changeable && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey;
 }
 
 /** Whether a tap at `x`, `y` lands on the characters `from`-`to`, or near enough to them. */

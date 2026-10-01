@@ -517,7 +517,7 @@ export const LESSONS: Lesson[] = [
     symbol: '- ( )',
     rows: ['A choice'],
     title: 'A choice',
-    teach: 'Round brackets on a list make a choice. One in the group is picked, with an x; in a note a tap picks one and clears the rest.',
+    teach: 'Round brackets on a list make a choice. One in the group is picked, with an x, and a tap on another picks it and clears the rest. Try it on the one drawn below.',
     example: 'Where do we stay?\n- ( ) Tent\n- (x) Cabin',
     task: 'Write a choice with two options.',
     passes: (text) => {
@@ -525,7 +525,7 @@ export const LESSONS: Lesson[] = [
       for (let n = 1; n <= doc.lines; n += 1) if (choiceOn(doc, n)) return true;
       return false;
     },
-    praise: 'That is a choice: tap one in a note to pick it.',
+    praise: 'That is a choice: tap one below to pick it.',
     hint: 'A dash, a space, then ( ) with a space between the brackets.',
   },
   {
