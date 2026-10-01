@@ -9072,3 +9072,14 @@ teaches what to type; nothing said exactly what the app reads. Settings › Abou
 and the search.
 
 Cites: §138, §156, §157, §158, §159, §163.
+
+## 165. Priorities drawn with the kit's icons, never the emoji (2026-10-01)
+
+Matt: "for priorities use icons from glacierui not emoji". A to-do's chip, the field menu and a query's cell already
+drew Jira's chevrons from @glacier/icons; the ticket panel still put the emoji before a priority's name and on each row
+of its sheet. It now draws the same chevrons in the same colours (red for highest and high, amber for medium, blue for
+low, quiet for lowest), from one map (editor/fieldChips.ts `PRIORITY_ICON`), which the field menu now shares rather than
+keeping its own. The emoji stay what a to-do is written with, Obsidian Tasks' characters, so a note reads the same in
+Obsidian; they are never what the app draws. Tested in editor/TicketPanel.test.tsx.
+
+Cites: §157, §158, §159.

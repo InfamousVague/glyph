@@ -202,6 +202,29 @@ button.chip:hover,
   background: var(--glacier-green-9);
 }
 
+/* A priority: the kit's chevrons, coloured as a to-do's chip colours them (editor/fieldChips.ts). */
+.priority {
+  display: inline-flex;
+  flex: none;
+}
+
+.priority[data-tone='highest'],
+.priority[data-tone='high'] {
+  color: var(--glacier-red-11);
+}
+
+.priority[data-tone='medium'] {
+  color: var(--glacier-amber-11);
+}
+
+.priority[data-tone='low'] {
+  color: var(--glacier-blue-11);
+}
+
+.priority[data-tone='lowest'] {
+  color: var(--app-ink-3);
+}
+
 /* A person: the first letter of their name in a small round. */
 .avatar {
   flex: none;

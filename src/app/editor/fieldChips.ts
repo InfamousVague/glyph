@@ -55,8 +55,12 @@ const DAY_WORD: Record<Exclude<DateKey, 'due'>, string> = { start: 'Starts', sch
 /** Dataview's names for the days, read as the emoji's are (core/taskFields.ts `fieldsOf`). */
 const DATAVIEW_DAYS: Readonly<Record<string, DateKey>> = { due: 'due', start: 'start', scheduled: 'scheduled', created: 'created', completion: 'done', cancelled: 'cancelled' };
 
-/** Each priority's mark: Jira's chevrons, two up for the most urgent and two down for the least. */
-const PRIORITY_ICON: Record<PriorityName, LucideIcon> = {
+/**
+ * Each priority's mark: Jira's chevrons, two up for the most urgent and two down for the least. The kit's icons, never
+ * the emoji they are written with (Matt: "for priorities use icons from glacierui not emoji"), wherever a priority is
+ * drawn: a chip, the field menu, a query's cell and a ticket's panel.
+ */
+export const PRIORITY_ICON: Record<PriorityName, LucideIcon> = {
   highest: ChevronsUp,
   high: ChevronUp,
   medium: Equal,

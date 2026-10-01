@@ -4,8 +4,9 @@ import { Braces, Lock, Pencil, Plus, Ticket as TicketMark, X } from '@glacier/ic
 import { waitingOn, type TicketChoice } from '../book/tickets.ts';
 import { isoDay } from '../core/days.ts';
 import { DEFAULT_STATUSES, propertiesOf, propertyList, statusCategory, TICKET_PROPERTIES, ticketOf, type StatusCategory } from '../core/properties.ts';
-import { PRIORITIES, priorityOf, samePerson } from '../core/taskFields.ts';
+import { PRIORITIES, priorityOf, samePerson, type PriorityName } from '../core/taskFields.ts';
 import { SheetField, SheetGroup, SheetRow, SheetTitle } from '../plugins/kit.tsx';
+import { PRIORITY_ICON } from './fieldChips.ts';
 import { Sheet } from './Sheet.tsx';
 import { dayLabel, dueState, hiddenRows, linksValue, linkTo, otherKeys, panelRows, type PanelKey } from './ticketRows.ts';
 import type { TicketOptions } from './tickets.ts';
@@ -48,6 +49,24 @@ const DoingDot = () => <span className={styles.dot} data-category="doing" aria-h
 const DoneDot = () => <span className={styles.dot} data-category="done" aria-hidden="true" />;
 const DOTS: Record<StatusCategory, ComponentType> = { todo: TodoDot, doing: DoingDot, done: DoneDot };
 
+/** A priority's mark, the kit's chevrons in its chip's colour (editor/fieldChips.ts `PRIORITY_ICON`), never its emoji. */
+function PriorityMark({ name }: { name: PriorityName }) {
+  const Icon = PRIORITY_ICON[name];
+  return (
+    <span className={styles.priority} data-tone={name} aria-hidden="true">
+      <Icon size={16} strokeWidth={2.6} />
+    </span>
+  );
+}
+
+/** The same marks as components with nothing to pass, for the sheet's rows to wear as their icon. */
+const HighestMark = () => <PriorityMark name="highest" />;
+const HighMark = () => <PriorityMark name="high" />;
+const MediumMark = () => <PriorityMark name="medium" />;
+const LowMark = () => <PriorityMark name="low" />;
+const LowestMark = () => <PriorityMark name="lowest" />;
+const PRIORITY_MARKS: Record<PriorityName, ComponentType> = { highest: HighestMark, high: HighMark, medium: MediumMark, low: LowMark, lowest: LowestMark };
+
 export function TicketPanel({ front, options, editable, write, openLines }: TicketPanelProps) {
   const [more, setMore] = useState(false);
   const [picking, setPicking] = useState<Picking | null>(null);
@@ -89,7 +108,8 @@ export function TicketPanel({ front, options, editable, write, openLines }: Tick
         const priority = priorityOf(ticket.priority);
         return (
           <Value onPress={pick('priority')} label="Priority" empty={!priority}>
-            {priority ? `${priority.emoji} ${priority.label}` : 'Empty'}
+            {priority ? <PriorityMark name={priority.name} /> : null}
+            {priority ? priority.label : 'Empty'}
           </Value>
         );
       }
@@ -330,7 +350,7 @@ function Picker({ what, ticket, statuses, options, write, onClose }: { what: Pic
         <SheetTitle>Priority</SheetTitle>
         <SheetGroup>
           {PRIORITIES.map((priority) => (
-            <SheetRow key={priority.name} label={`${priority.emoji}  ${priority.label}`} chosen={ticket.priority === priority.name} onPress={() => chose('priority', priority.name)} />
+            <SheetRow key={priority.name} icon={PRIORITY_MARKS[priority.name]} label={priority.label} chosen={ticket.priority === priority.name} onPress={() => chose('priority', priority.name)} />
           ))}
           <SheetRow label="None" chosen={!ticket.priority} onPress={() => chose('priority', null)} />
         </SheetGroup>
