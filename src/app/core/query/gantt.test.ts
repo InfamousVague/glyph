@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ganttOf, ganttWords } from './gantt.ts';
+import { ganttOf, ganttWords, ticksFor } from './gantt.ts';
 import type { Group, Row } from './run.ts';
 
 /*
@@ -50,7 +50,23 @@ describe('the bars', () => {
   it('runs a bar from its start to the end of its due day, and a bar of one day where it has one of them', () => {
     const { code, placed } = ganttOf([group('', [row({ start: '2026-10-01', due: '2026-10-03' }), row({ name: 'Due only', due: '2026-10-07' }), row({ name: 'Start only', start: '2026-10-09' })])], 'To-dos');
     expect(placed).toBe(3);
-    expect(code.split('\n').slice(3)).toEqual(['  section To-dos', '  Ship it :2026-10-01, 2026-10-04', '  Due only :2026-10-07, 2026-10-08', '  Start only :2026-10-09, 2026-10-10']);
+    // Not grouped: no section, so the bars have the room a section's name would take.
+    expect(code.split('\n').slice(5)).toEqual(['  Ship it :2026-10-01, 2026-10-04', '  Due only :2026-10-07, 2026-10-08', '  Start only :2026-10-09, 2026-10-10']);
+  });
+
+  it('is laid out for a phone, in a directive any Mermaid reads, its ticks as far apart as the bars span', () => {
+    const { code } = ganttOf([group('', [row({ start: '2026-10-01', due: '2026-10-03' })])]);
+    const lines = code.split('\n');
+    expect(lines[0]).toMatch(/^%%\{init: \{"gantt":\{"leftPadding":8,"rightPadding":16,/);
+    expect(lines.slice(1, 5)).toEqual(['gantt', '  dateFormat YYYY-MM-DD', '  axisFormat %e', '  tickInterval 1day']);
+    expect(ganttOf([group('Doing', [row({ due: '2026-10-01' })]), group('Done', [row({ due: '2026-11-20' })])]).code).toContain('"leftPadding":80');
+  });
+
+  it('spaces its ticks a day, a week or a month apart', () => {
+    expect(ticksFor(7)).toEqual({ tick: '1day', axis: '%e' });
+    expect(ticksFor(30)).toEqual({ tick: '1week', axis: '%e %b' });
+    expect(ticksFor(200)).toEqual({ tick: '1month', axis: '%b' });
+    expect(ticksFor(900)).toEqual({ tick: '3month', axis: '%b %Y' });
   });
 
   it('turns a start after the due day round, and leaves out a record with neither', () => {

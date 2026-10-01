@@ -23,6 +23,7 @@ import { choices } from './choices.ts';
 import { linkCards } from './linkCards.ts';
 import { wikiLinks, type WikiOptions } from './wikiLinks.ts';
 import { refreshTickets, tickets } from './tickets.ts';
+import { queries, refreshQueries } from './queries.ts';
 import { markNotes } from './markNotes.ts';
 import { drawnTables } from './tables.ts';
 import { swipeItemAction, swipeItemTheme, type SwipeAction } from './swipeItems.ts';
@@ -349,6 +350,8 @@ export function Editor({
         wikiLinks(wiki ? { known: (title) => wikiRef.current?.known(title) ?? false, open: (title, anchor) => wikiRef.current?.open(title, anchor) } : null),
         // A ticket's front matter as its properties, and a [[GHO-12]] with the ticket's title (editor/tickets.ts).
         peek || !wiki ? [] : tickets(() => wikiRef.current?.tickets ?? null),
+        // A ```query fence drawn as what it finds in the library (editor/queries.ts): its lines where there is none.
+        peek || !wiki ? [] : queries(() => wikiRef.current?.queries ?? null),
         // ![[A canvas]] on a line of its own draws that canvas in a frame (editor/canvasFrames.ts). Not on a card, where
         // a note is drawn small and a canvas inside it would be a canvas inside a card inside a canvas.
         peek || !wiki
@@ -455,6 +458,14 @@ export function Editor({
   useEffect(() => {
     if (wiki?.tickets) view.current?.dispatch({ effects: refreshTickets.of(null) });
   }, [wiki]);
+
+  // And every query in the note: any note changed may change what one finds (editor/queries.ts). Told by a new set of
+  // queries' options, which is new only when the notes are (shell/useQueries.ts), not by every new `wiki`, which is
+  // new whenever App draws: a query is run over the whole library, and need not be run when nothing it reads moved.
+  const queryOptions = wiki?.queries;
+  useEffect(() => {
+    if (queryOptions) view.current?.dispatch({ effects: refreshQueries.of(null) });
+  }, [queryOptions]);
 
   useEffect(() => {
     view.current?.dispatch({

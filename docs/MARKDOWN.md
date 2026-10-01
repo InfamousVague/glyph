@@ -37,6 +37,7 @@ tree.
 | Front matter               | yes    | yes   | Drawn as quiet keys rather than a rule, and the note is named by its `title:`; a ticket's as its properties |
 | Math `$x$`, `$$x$$`        | yes    | yes   | Set as code, delimiters and all. No renderer: KaTeX is ~280 KB the phone doesn't need |
 | Mermaid ```` ```mermaid ```` | as a code block | yes | Added 2026-09-17: drawn as the diagram it describes (`src/app/editor/mermaid.ts`), the fence tapped to edit. Mermaid itself, every diagram type, loaded the first time a note has one; a diagram that cannot be drawn stays as its text |
+| Queries ```` ```query ```` | as a code block | yes | Added 2026-10-01: drawn as what it finds across every note - a table, a list, a board, a month, a gantt or a count - the fence tapped to edit (`src/app/editor/queries.ts`, docs/QUERIES.md). Another app shows its lines |
 | Wiki links `[[Note]]`      | yes    | yes   | Opens that note; a title with no note is drawn dashed, and tapping it makes the note and opens it. `[[Note#^anchor]]` splits on the first `#`; `[[#^anchor]]` is a place in this note, drawn with the anchors (`src/app/editor/boards/anchors.ts`) |
 
 A highlight can be given a colour by name, in the same brackets a note uses: `==the cabin key==(green)`, from the

@@ -10,7 +10,7 @@ import { categoryOf, compareValues, fieldLabel, groupKey, groupValues, isEmpty, 
 /**
  * A query run over the library (core/query/records.ts): the records it reads from, those its tests pass, in its order,
  * as many as its limit, in its groups, with its totals, as the cells a table, a list, a board, a calendar, a gantt or
- * a count draws (editor/queries/, docs/QUERIES.md, docs/DESIGN.md §158). Everything a drawing needs is answered here
+ * a count draws (editor/queries/, docs/QUERIES.md, docs/DESIGN.md §159). Everything a drawing needs is answered here
  * as plain data, so the drawing is only drawing, and a result can be compared by what it says.
  *
  * The defaults are what make `from: #bug` alone a useful query:

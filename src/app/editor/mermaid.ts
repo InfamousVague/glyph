@@ -72,7 +72,7 @@ function darkNow(): boolean {
 }
 
 /** What a drawn diagram is: its picture, or why there is none. */
-type Drawing = { svg: string } | { failed: string };
+export type Drawing = { svg: string } | { failed: string };
 
 /** Diagrams already drawn, by what they say and which way they are painted: scrolling past one redraws nothing. */
 const drawn = new Map<string, Drawing>();
@@ -107,6 +107,7 @@ async function render(code: string, dark: boolean): Promise<Drawing> {
       // Labels are the note's own words, but a note can come from anywhere: no HTML out of a diagram, ever.
       securityLevel: 'strict',
       theme: dark ? 'dark' : 'neutral',
+      themeVariables: dark ? DARK_GANTT : {},
       fontFamily: 'inherit',
     });
     id += 1;
@@ -120,6 +121,38 @@ async function render(code: string, dark: boolean): Promise<Drawing> {
 }
 
 let id = 0;
+
+/**
+ * A gantt's bars on a dark page. Mermaid's dark theme draws the words on and beside a finished, an under-way or a late
+ * bar in a near-black ink, marked important, so beside its bar they vanished into the page; here every bar is dark
+ * enough to carry light words, and its edge says which it is: under way blue, late red, finished grey. A light page
+ * keeps Mermaid's own, whose dark words read on it. Used by a gantt in a note and by a query shown as one
+ * (core/query/gantt.ts).
+ */
+const DARK_GANTT = {
+  taskBkgColor: '#33373d',
+  taskBorderColor: '#7a828c',
+  taskTextColor: '#ececec',
+  taskTextLightColor: '#ececec',
+  taskTextDarkColor: '#ececec',
+  taskTextOutsideColor: '#cfcfcf',
+  activeTaskBkgColor: '#1d3f63',
+  activeTaskBorderColor: '#5b9be0',
+  doneTaskBkgColor: '#2a2a2a',
+  doneTaskBorderColor: '#5c5c5c',
+  critBkgColor: '#5c1d1f',
+  critBorderColor: '#e5484d',
+  gridColor: '#3a3a3a',
+  todayLineColor: '#e5484d',
+};
+
+/**
+ * A diagram that is not a fence of its own, drawn as one is: a query shown as a gantt (editor/QueryView.tsx,
+ * core/query/gantt.ts), in the colours the app is painted now, cached by what it says and queued behind the others.
+ */
+export function drawDiagram(code: string): Promise<Drawing> {
+  return draw(code, darkNow());
+}
 
 /**
  * How tall each diagram was drawn, by what it says (editor/heightMemory.ts): a diagram is drawn after the note is laid

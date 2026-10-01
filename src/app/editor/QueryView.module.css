@@ -1,0 +1,674 @@
+/*
+ * A query's answer in a note (QueryView.tsx, editor/queries.ts; docs/DESIGN.md §159): a card in the page's tinted
+ * surface, as a ticket's panel is, in the app's own face and size, since it is the app's drawing and not the note's
+ * words. A quiet head says what it lists and how many. Rows are a thumb's height on a phone; a table and a board scroll
+ * sideways inside the card rather than the note. A status wears its category's dot - not started the faint ink, under
+ * way blue, finished green - and a due day that has passed is red, today's amber, as everywhere else.
+ */
+
+.query {
+  margin-block: var(--glacier-space-1) var(--glacier-space-3);
+  padding: var(--glacier-space-2) var(--glacier-space-3) var(--glacier-space-3);
+  border: 1px solid var(--app-rule);
+  border-radius: var(--glacier-radius-lg);
+  background: var(--app-paper-2);
+  font-family: var(--glacier-font-sans);
+  font-size: var(--glacier-font-size-sm);
+  line-height: 1.4;
+  color: var(--app-ink);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  min-block-size: var(--glacier-space-8);
+  color: var(--app-ink-3);
+}
+
+.title {
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.count {
+  font-size: var(--glacier-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--app-ink-3);
+}
+
+.edit,
+.turn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--glacier-space-8);
+  block-size: var(--glacier-space-8);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--glacier-radius-full);
+  background: transparent;
+  color: var(--app-ink-3);
+  font: inherit;
+  cursor: pointer;
+}
+
+.edit {
+  margin-inline-start: auto;
+}
+
+.edit:hover,
+.turn:hover {
+  color: var(--app-ink);
+  background: color-mix(in oklch, currentColor 8%, transparent);
+}
+
+.edit:focus-visible,
+.turn:focus-visible,
+.name:focus-visible,
+.box:focus-visible,
+.dayCell:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring, var(--app-ink-2));
+  outline-offset: 1px;
+}
+
+/* A query that cannot be read: its lines as typed, and the sentence that says what is wrong. */
+.lines {
+  margin: 0;
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  border-radius: var(--glacier-radius-md);
+  background: var(--app-paper);
+  font-family: var(--glacier-font-mono);
+  font-size: var(--glacier-font-size-xs);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--app-ink-2);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.problem {
+  display: flex;
+  gap: var(--glacier-space-2);
+  margin: var(--glacier-space-2) 0 0;
+  color: var(--glacier-amber-11);
+}
+
+.problemMark {
+  flex: none;
+  margin-block-start: 0.2em;
+}
+
+.warning,
+.empty {
+  margin: var(--glacier-space-1) 0;
+  color: var(--app-ink-3);
+}
+
+.totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--glacier-space-4);
+  margin: var(--glacier-space-2) 0 0;
+  color: var(--app-ink-3);
+}
+
+.totals strong {
+  color: var(--app-ink);
+  font-weight: var(--glacier-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- a list ----------------------------------------------------------------------------------------- */
+
+.groups {
+  display: grid;
+  gap: var(--glacier-space-3);
+}
+
+.group + .group {
+  margin-block-start: var(--glacier-space-2);
+}
+
+.groupHead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--glacier-space-2);
+  padding-block: var(--glacier-space-1);
+  color: var(--app-ink-2);
+}
+
+.groupLabel {
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.groupTotal {
+  font-size: var(--glacier-font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--app-ink-3);
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--glacier-space-2);
+  min-block-size: var(--glacier-space-10);
+  padding-block: var(--glacier-space-1);
+  border-block-start: 1px solid var(--app-rule);
+}
+
+.rows > .row:first-child {
+  border-block-start: 0;
+}
+
+.rowBody {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--glacier-space-2);
+  row-gap: var(--glacier-space-1);
+  flex: 1;
+  min-inline-size: 0;
+  padding-block: var(--glacier-space-1);
+}
+
+/* A record's name: the button that opens it, as words, not as a button. */
+.name {
+  appearance: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--glacier-space-2);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--glacier-radius-sm);
+  background: none;
+  color: var(--app-ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.name:hover .nameWords {
+  text-decoration: underline;
+  text-decoration-color: var(--app-ink-4);
+  text-underline-offset: 0.2em;
+}
+
+.nameWords {
+  overflow-wrap: anywhere;
+}
+
+.name[data-done] .nameWords {
+  color: var(--app-ink-3);
+  text-decoration: line-through;
+  text-decoration-color: var(--app-ink-4);
+}
+
+.key {
+  flex: none;
+  font-family: var(--glacier-font-mono);
+  font-size: var(--glacier-font-size-xs);
+  letter-spacing: 0.02em;
+  color: var(--app-ink-3);
+}
+
+/* A to-do's box, ticked where it is written: a thumb's target round a small square. */
+.box {
+  appearance: none;
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 1.15em;
+  block-size: 1.15em;
+  margin: calc(var(--glacier-space-1) + 0.15em) 0 0;
+  padding: 0;
+  border: 1.5px solid var(--app-ink-3);
+  border-radius: var(--glacier-radius-sm);
+  background: transparent;
+  color: var(--app-paper);
+  cursor: pointer;
+}
+
+/* The target is bigger than the square, so a finger finds it. */
+.box::after {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--glacier-space-2));
+}
+
+.box[data-done] {
+  border-color: var(--app-ink-2);
+  background: var(--app-ink-2);
+}
+
+.box:disabled {
+  cursor: default;
+}
+
+.meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--glacier-space-2);
+  min-inline-size: 0;
+  font-size: var(--glacier-font-size-xs);
+  color: var(--app-ink-2);
+}
+
+.metaCell {
+  display: inline-flex;
+  align-items: baseline;
+}
+
+.inNote {
+  color: var(--app-ink-3);
+}
+
+/* ---- the cells --------------------------------------------------------------------------------------- */
+
+.none {
+  color: var(--app-ink-4);
+}
+
+.number {
+  font-variant-numeric: tabular-nums;
+}
+
+.day {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.day[data-tone='overdue'] {
+  color: var(--glacier-red-11);
+}
+
+.day[data-tone='today'] {
+  color: var(--glacier-amber-11);
+}
+
+.priority,
+.people,
+.list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--glacier-space-1);
+}
+
+.item {
+  white-space: nowrap;
+}
+
+.item + .item::before {
+  content: ', ';
+  margin-inline-start: -0.25em;
+}
+
+.yes {
+  vertical-align: -0.15em;
+  color: var(--app-ink-2);
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-1);
+  white-space: nowrap;
+}
+
+.dot {
+  flex: none;
+  inline-size: 0.55em;
+  block-size: 0.55em;
+  border-radius: 50%;
+  background: var(--app-ink-4);
+}
+
+.status[data-category='doing'] {
+  color: var(--glacier-blue-11);
+}
+
+.status[data-category='doing'] .dot {
+  background: var(--glacier-blue-9);
+}
+
+.status[data-category='done'] {
+  color: var(--glacier-green-11);
+}
+
+.status[data-category='done'] .dot {
+  background: var(--glacier-green-9);
+}
+
+/* ---- a table ------------------------------------------------------------------------------------------ */
+
+.tableScroll {
+  overflow-x: auto;
+  margin-inline: calc(-1 * var(--glacier-space-3));
+  padding-inline: var(--glacier-space-3);
+  overscroll-behavior-x: contain;
+}
+
+/* As wide as its columns, at least the card's: a table squeezed to the card wrapped its chips onto two lines. */
+.table {
+  inline-size: max-content;
+  min-inline-size: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.table .priority,
+.table .people,
+.table .list {
+  flex-wrap: nowrap;
+}
+
+.table th,
+.table td {
+  padding: var(--glacier-space-2) var(--glacier-space-3) var(--glacier-space-2) 0;
+  border-block-end: 1px solid var(--app-rule);
+  text-align: start;
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+
+.table thead th {
+  padding-block: var(--glacier-space-1);
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink-3);
+}
+
+.table tbody tr:last-child th,
+.table tbody tr:last-child td {
+  border-block-end: 0;
+}
+
+.table tfoot td {
+  border-block-start: 1px solid var(--app-rule);
+  border-block-end: 0;
+  color: var(--app-ink-3);
+}
+
+/* The name's column takes what is left, and wraps rather than pushing the others off the card. */
+.table .nameCell {
+  min-inline-size: 10rem;
+  font-weight: var(--glacier-font-weight-regular);
+  white-space: normal;
+}
+
+.nameCellInner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--glacier-space-2);
+}
+
+.nameCellInner .box {
+  margin-block-start: 0.15em;
+}
+
+.keyCell {
+  font-family: var(--glacier-font-mono);
+  font-size: var(--glacier-font-size-xs);
+  letter-spacing: 0.02em;
+  color: var(--app-ink-2);
+}
+
+.table tr[data-done] td {
+  color: var(--app-ink-3);
+}
+
+/* ---- a board ------------------------------------------------------------------------------------------ */
+
+.board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(13rem, 1fr);
+  gap: var(--glacier-space-3);
+  overflow-x: auto;
+  margin-inline: calc(-1 * var(--glacier-space-3));
+  padding: 0 var(--glacier-space-3) var(--glacier-space-1);
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--glacier-space-3);
+  overscroll-behavior-x: contain;
+}
+
+.lane {
+  scroll-snap-align: start;
+  min-inline-size: 0;
+  padding: var(--glacier-space-1) var(--glacier-space-2) var(--glacier-space-2);
+  border-radius: var(--glacier-radius-md);
+  background: color-mix(in oklch, var(--app-ink) 4%, transparent);
+}
+
+.cards {
+  list-style: none;
+  display: grid;
+  gap: var(--glacier-space-2);
+  margin: 0;
+  padding: 0;
+}
+
+.card {
+  display: grid;
+  gap: var(--glacier-space-1);
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  border: 1px solid var(--app-rule);
+  border-radius: var(--glacier-radius-md);
+  background: var(--app-paper);
+}
+
+.card[data-done] {
+  background: transparent;
+}
+
+.cardTop {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--glacier-space-2);
+}
+
+.cardTop .box {
+  margin-block-start: 0.15em;
+}
+
+.laneEmpty {
+  padding: var(--glacier-space-2);
+  font-size: var(--glacier-font-size-xs);
+  color: var(--app-ink-4);
+}
+
+/* ---- a calendar --------------------------------------------------------------------------------------- */
+
+.calendar {
+  display: grid;
+  gap: var(--glacier-space-2);
+}
+
+.monthBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.monthName {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--glacier-space-2);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.month {
+  display: grid;
+  gap: 2px;
+}
+
+.week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.weekday {
+  padding-block: var(--glacier-space-1);
+  font-size: var(--glacier-font-size-xs);
+  text-align: center;
+  color: var(--app-ink-3);
+}
+
+.dayCell {
+  appearance: none;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  justify-items: center;
+  align-items: start;
+  gap: 2px;
+  min-block-size: var(--glacier-space-10);
+  margin: 0;
+  padding: var(--glacier-space-1) 0;
+  border: 0;
+  border-radius: var(--glacier-radius-sm);
+  background: var(--app-paper);
+  color: var(--app-ink);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.dayCell[data-out] {
+  background: transparent;
+  color: var(--app-ink-4);
+}
+
+.dayCell[data-today] .date {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: 1.6em;
+  block-size: 1.6em;
+  border-radius: var(--glacier-radius-full);
+  background: var(--app-ink);
+  color: var(--app-paper);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.dayCell[data-picked] {
+  box-shadow: inset 0 0 0 1.5px var(--app-ink-2);
+}
+
+.date {
+  font-size: var(--glacier-font-size-xs);
+  line-height: 1.6;
+}
+
+.dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.625rem;
+  color: var(--app-ink-2);
+}
+
+.pip {
+  inline-size: 0.4rem;
+  block-size: 0.4rem;
+  border-radius: 50%;
+  background: var(--app-ink-2);
+}
+
+.dots[data-late] {
+  color: var(--glacier-red-11);
+}
+
+.dots[data-late] .pip {
+  background: var(--glacier-red-9);
+}
+
+.dayList {
+  padding-block-start: var(--glacier-space-1);
+}
+
+.dayListHead {
+  margin: 0;
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink-2);
+}
+
+/* ---- a gantt and a count -------------------------------------------------------------------------------- */
+
+/*
+ * Mermaid's own drawing, quieted for the card: the axis in the third ink, its lines in the rule, and no band behind a
+ * section. The bars' colours are Mermaid's theme's (editor/mermaid.ts). Its stylesheet is scoped to the drawing's id,
+ * so these are marked important to be heard over it.
+ */
+.gantt {
+  padding-inline: 0 !important;
+  overflow-x: auto;
+}
+
+.gantt :global(.tick) text {
+  fill: var(--app-ink-3) !important;
+}
+
+.gantt :global(.tick) line {
+  stroke: var(--app-rule) !important;
+}
+
+.gantt :global(.section0),
+.gantt :global(.section1),
+.gantt :global(.section2),
+.gantt :global(.section3) {
+  fill: transparent !important;
+}
+
+.gantt :global(.sectionTitle) {
+  fill: var(--app-ink-2) !important;
+}
+
+.countView {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--glacier-space-2);
+  margin: 0;
+}
+
+.bigNumber {
+  font-size: var(--glacier-font-size-3xl, 2rem);
+  font-weight: var(--glacier-font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.countWords {
+  color: var(--app-ink-2);
+}
+
+.countWords strong {
+  color: var(--app-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board {
+    scroll-behavior: auto;
+  }
+}

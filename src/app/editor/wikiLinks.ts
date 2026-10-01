@@ -1,6 +1,7 @@
 import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import type { TicketOptions } from './tickets.ts';
+import type { QueryOptions } from './queries.ts';
 
 /**
  * A link from one note to another, written the way every notes app writes it (docs/MARKDOWN.md):
@@ -65,6 +66,8 @@ export interface WikiOptions {
   body?: (title: string) => string | null;
   /** The library's tickets, for a ticket's panel and a `[[GHO-12]]`'s title (editor/tickets.ts); absent, neither is drawn. */
   tickets?: TicketOptions;
+  /** The library a ```query reads, and how to reach and tick what it lists (editor/queries.ts); absent, it stays as its lines. */
+  queries?: QueryOptions;
 }
 
 function decorate(state: EditorState, known: (title: string) => boolean): DecorationSet {

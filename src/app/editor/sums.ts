@@ -15,7 +15,7 @@ import { forEachVisibleLine } from './lines.ts';
  * a number for a percent, and brackets. A currency sign or thousands commas come back on the answer. Anything else - a word, a
  * sum that can't be done - draws nothing.
  *
- * The arithmetic is core/sums.ts's since 2026-09-30, where a query's totals read it too (docs/DESIGN.md §158); it is
+ * The arithmetic is core/sums.ts's since 2026-09-30, where a query's totals read it too (docs/DESIGN.md §159); it is
  * said again from here for the callers that have always found it here.
  */
 

@@ -268,9 +268,14 @@ describe('a gantt', () => {
   it('is Mermaid’s gantt text, a bar from start to due, done and overdue marked', () => {
     const result = run('from: tickets\nshow: gantt');
     expect(result.gantt?.placed).toBe(2);
-    expect(result.gantt?.code).toBe(
-      ['gantt', '  dateFormat YYYY-MM-DD', '  axisFormat %e %b', '  section Tickets', '  GHO-2 Pricing page :2026-10-10, 2026-10-11', '  GHO-1 Fix the login loop :active, crit, 2026-09-28, 2026-10-04'].join('\n'),
-    );
+    expect(result.gantt?.code.split('\n').slice(1)).toEqual([
+      'gantt',
+      '  dateFormat YYYY-MM-DD',
+      '  axisFormat %e %b',
+      '  tickInterval 1week',
+      '  GHO-2 Pricing page :2026-10-10, 2026-10-11',
+      '  GHO-1 Fix the login loop :active, crit, 2026-09-28, 2026-10-04',
+    ]);
   });
 
   it('is nothing where no record has a day', () => {

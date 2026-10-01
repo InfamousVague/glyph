@@ -75,6 +75,8 @@ import { newTicketBody, nextTicketId } from './book/tickets.ts';
 import { statusesOf } from './core/properties.ts';
 import { fillNoteTemplate, type NoteTemplate } from './notes/noteTemplates.ts';
 import { ticketTemplatesOf, useTickets } from './shell/useTickets.ts';
+import { useQueries } from './shell/useQueries.ts';
+import { tickedBody } from './core/query/tick.ts';
 import { isMacApp } from './core/platform.ts';
 
 /**
@@ -279,6 +281,12 @@ function Shell() {
 
   // The library's tickets (shell/useTickets.ts; docs/DESIGN.md §157): `[[GHO-12]]` finds the ticket by its key too.
   const tickets = useTickets(shownNotes, notes, screen.name === 'note' ? screen.note.id : null, (target) => void openTitle(target));
+  // The library a ```query reads (shell/useQueries.ts; docs/DESIGN.md §159): what it lists opens, and its to-dos tick.
+  const queries = useQueries(
+    shownNotes,
+    (id, line) => openNoteAt(id, line),
+    (id, line, source, done) => void tickFromQuery(id, line, source, done),
+  );
   /*
    * Every note by its title as a link matches it (core/titleKey.ts), the first of any two that share one, as a search
    * down the list would find: built once per change to the notes. A notebook's index asks after every page on every
@@ -966,6 +974,7 @@ function Shell() {
         onNewCanvas={openCanvasWithin}
         onNewPage={openPageWithin}
         tickets={tickets.options}
+        queries={queries}
         onNewTicket={openTicketWithin}
         ticketTemplates={ticketTemplatesOf(ownTemplates)}
         book={placeInBook(screen.note)}
@@ -991,6 +1000,28 @@ function Shell() {
    * A to-do ticked on the home page: that one line of its note rewritten with its box ticked (core/boards.ts
    * `setItemDone`, the same change the editor's tick makes), and the notes read again.
    */
+  /**
+   * A note a query listed, opened: the note itself, or a to-do's note at its line (editor/useLandAt.ts `line:`), in a
+   * tab of its own as a link opens one.
+   */
+  const openNoteAt = (id: string, line: number | null) => {
+    if (line === null) return openNote(id);
+    tabs.replaceNext(null);
+    const note = notes.find((n) => n.id === id);
+    if (note) setScreen({ name: 'note', note, at: `line:${line + 1}` });
+    setDrawer(false);
+  };
+  /*
+   * A to-do in another note ticked from a query: that note as the store has it now, its box turned and its boards
+   * settled (core/query/tick.ts), and the notes read again. A line the note no longer has is left alone.
+   */
+  const tickFromQuery = async (id: string, line: number, source: string, done: boolean) => {
+    const note = await getNote(id);
+    const next = note ? tickedBody(note.body, line, source, done) : null;
+    if (!note || next === null || next === note.body) return;
+    await updateNote(id, next, note.revision ?? 1);
+    await refresh();
+  };
   const tickTask = async (task: OpenTask) => {
     const note = notes.find((n) => n.id === task.noteId);
     const lines = note?.body.split('\n');

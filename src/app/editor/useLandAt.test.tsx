@@ -49,6 +49,25 @@ describe('landing on an item', () => {
     expect(view.state.selection.main.head).toBe(doc.indexOf('eggs ^') + 'eggs'.length);
   });
 
+  it('lands on a line by its number, for a to-do a query listed that has no anchor', () => {
+    const doc = '# Groceries\n- [ ] milk 📅 2026-10-04\n- [ ] eggs';
+    editor(doc);
+    show(<Landing at="line:2" />);
+    act(() => vi.advanceTimersByTime(0));
+    // At the end of its words, which its fields are part of.
+    expect(view.state.selection.main.head).toBe(doc.indexOf('\n- [ ] eggs'));
+  });
+
+  it('waits for a line the note has not got yet, and lands once its words arrive', () => {
+    editor('');
+    show(<Landing at="line:3" />);
+    act(() => vi.advanceTimersByTime(300));
+    const doc = '# Groceries\n- [ ] milk\n- [ ] eggs';
+    act(() => view.dispatch({ changes: { from: 0, insert: doc } }));
+    act(() => vi.advanceTimersByTime(100));
+    expect(view.state.selection.main.head).toBe(doc.length);
+  });
+
   it('lands once the words arrive after the editor', () => {
     editor('');
     show(<Landing at="eggs" />);

@@ -5,7 +5,7 @@ import { cardText, itemOnLine } from '../boards/items.ts';
 import { isoDay } from '../days.ts';
 import { frontMatterEnd } from '../frontMatter.ts';
 import { itemWords } from '../itemLinks.ts';
-import { taskBox } from '../itemSyntax.ts';
+import { lineWords, taskBox } from '../itemSyntax.ts';
 import { noteTitle } from '../noteTitle.ts';
 import { DEFAULT_STATUSES, isTicket, issueKeyOf, propertiesOf, propertyList, statusesOf, ticketIdOf, ticketOf, type Ticket } from '../properties.ts';
 import { tagsIn } from '../tags.ts';
@@ -14,7 +14,7 @@ import { titleKey } from '../titleKey.ts';
 
 /**
  * What a query reads: every note as a record, and every to-do in them as a record of its own (docs/QUERIES.md,
- * docs/DESIGN.md §158). Matt asked for "notion and jira like features … like tickets and such", and a query is the
+ * docs/DESIGN.md §159). Matt asked for "notion and jira like features … like tickets and such", and a query is the
  * database view over them; this is the database.
  *
  * A note is one record, and a ticket is a note whose front matter says `type: ticket` (core/properties.ts), read with
@@ -188,8 +188,9 @@ function readNote(body: string): ReadNote {
     if (index < front || fenced.has(index + 1)) return;
     const box = taskBox(line);
     if (!box) return;
+    // What it says leaves its fields out (core/itemLinks.ts `itemWords`); its fields are read from its line's own words.
     const words = itemWords(line) ?? '';
-    const fields = fieldsOf(words);
+    const fields = fieldsOf(lineWords(line));
     const text = cardText(withoutFields(words));
     // A box with nothing after it is a to-do still to be written, not one to list.
     if (!text && !words.trim()) return;
@@ -324,7 +325,7 @@ export function libraryOf(notes: readonly QueryNote[], cache: RecordCache = reco
 
 /**
  * The note `[[title]]` names in the library: by its title, as a link finds it, or a ticket by its key, as
- * `[[GHO-12]]` does (docs/DESIGN.md §156). Null where it names none.
+ * `[[GHO-12]]` does (docs/DESIGN.md §157). Null where it names none.
  */
 export function noteNamed(library: Library, title: string): LibraryNote | null {
   return library.byTitle.get(titleKey(title)) ?? library.byTicket.get(issueKeyOf(title) ?? '') ?? null;

@@ -112,6 +112,7 @@ describe('the list’s rows', () => {
       'A block of code',
       'A divider',
       'A board',
+      'A query',
       'A chart',
       'A canvas',
       'A footnote',
@@ -205,6 +206,7 @@ describe('what each row writes on an empty line', () => {
     expect(written('code')).toBe('Lunch\n\n```\n|\n```');
     expect(written('callout')).toBe('Lunch\n\n> [!NOTE]\n> |');
     expect(written('chart')).toBe('Lunch\n\n```mermaid\nflowchart LR\n  A[[Start]] --> B[Then]\n  B --> C[Done]\n```');
+    expect(written('query')).toBe('Lunch\n\n```query\nfrom: [tasks]\nwhere: due <= today+7\nsort: due, priority\nshow: list\n```');
   });
 
   it('a board as Make a board writes one, its card named by an anchor nothing else has', () => {

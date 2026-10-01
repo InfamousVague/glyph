@@ -14,6 +14,7 @@ import type { InlineFormat } from '../plugins/types.ts';
 import { TABLE_SEED, insertBlock } from './format.ts';
 import { apply, footnotePlan, formPlan, itemPlan, ownLinePlan, wordsPlan, type BlockSelect, type Plan } from './inserts.ts';
 import { lineWords, listLead } from '../core/itemSyntax.ts';
+import { queryFence } from '../core/query/fence.ts';
 
 /**
  * What the + beside the line offers (editor/AddList.tsx draws it), whether each row is there, and what each writes.
@@ -52,6 +53,7 @@ export type AddRowId =
   | 'code'
   | 'divider'
   | 'board'
+  | 'query'
   | 'chart'
   | 'canvas'
   | 'footnote'
@@ -173,6 +175,7 @@ export function moreRows(gates: AddGates): AddRow[] {
     { id: 'code', words: 'A block of code' },
     { id: 'divider', words: 'A divider' },
     { id: 'board', words: 'A board' },
+    { id: 'query', words: 'A query' },
     { id: 'chart', words: 'A chart' },
   ];
   if (gates.canvas) rows.push({ id: 'canvas', words: 'A canvas', step: 'canvas' });
@@ -224,6 +227,12 @@ export function boardSeed(doc: string): { text: string; select: BlockSelect } {
   return { text, select: { from, to: from + words.length } };
 }
 
+/**
+ * A query that is useful the moment it is written (docs/QUERIES.md, docs/DESIGN.md §159): the open to-dos due within
+ * the week, across every note, as a list, with "tasks" selected so it can be written over with tickets or notes.
+ */
+export const QUERY_SEED = queryFence('from: tasks\nwhere: due <= today+7\nsort: due, priority\nshow: list');
+
 /** What a row that writes at once writes at the caret, as a plan; null for a row that is not one of those. */
 export function planFor(view: EditorView, id: AddRowId, now = new Date()): { plan: Plan; drawn?: boolean } | { block: { text: string; select: BlockSelect } } | null {
   const state = view.state;
@@ -250,6 +259,7 @@ export function planFor(view: EditorView, id: AddRowId, now = new Date()): { pla
   if (id === 'divider') return { block: { text: '---', select: 'after' } };
   if (id === 'chart') return { block: { text: CHART_SEED, select: { from: CHART_SEED.indexOf('Start'), to: CHART_SEED.indexOf('Start') + 'Start'.length } } };
   if (id === 'board') return { block: boardSeed(state.doc.toString()) };
+  if (id === 'query') return { block: { text: QUERY_SEED, select: { from: QUERY_SEED.indexOf('tasks'), to: QUERY_SEED.indexOf('tasks') + 'tasks'.length } } };
   if (id.startsWith('effect:')) {
     const effect = plugins.formats().find((format) => `effect:${format.name}` === id);
     if (!effect) return null;

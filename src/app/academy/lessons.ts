@@ -17,6 +17,8 @@ import { isTint, notePattern, notesIn } from '../editor/markNotes.ts';
 import { sumOnLine } from '../editor/sums.ts';
 import { tagsIn } from '../core/tags.ts';
 import { ticketOf } from '../core/properties.ts';
+import { queryFencesIn } from '../core/query/fence.ts';
+import { readQuery } from '../core/query/read.ts';
 import { fieldsIn } from '../core/taskFields.ts';
 import { wikiLinksIn } from '../editor/wikiLinks.ts';
 import { plugins } from '../plugins/registry.ts';
@@ -650,6 +652,19 @@ export const LESSONS: Lesson[] = [
     passes: (text) => Boolean(ticketOf(text)?.status),
     praise: 'That note is a ticket.',
     hint: 'At the very top: three dashes, type: ticket, status: To do, then three dashes again.',
+  },
+  {
+    id: 'query',
+    chapter: 'Pointing somewhere',
+    symbol: '```query',
+    rows: ['A query'],
+    title: 'A query',
+    teach: 'A fence called query lists what matches across every note: to-dos, tickets or notes. Say where from, what has to be true, and how to show it, a line each, and it is drawn as a list, a table, a board, a month or a timeline that keeps up as your notes change.',
+    example: '```query\nfrom: tasks\nwhere: due <= today+7\nshow: list\n```',
+    task: 'Write a query that lists your open to-dos.',
+    passes: (text) => queryFencesIn(text).some((fence) => readQuery(fence.body).query?.kind === 'tasks'),
+    praise: 'Every open to-do, in one place.',
+    hint: 'Three backticks and query, then from: tasks on the next line, then three backticks to close it.',
   },
 
   // ---- Marks and effects: the Marks plugin's, each switched off with it --------------------------------------------

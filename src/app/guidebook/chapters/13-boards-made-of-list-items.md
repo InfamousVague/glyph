@@ -81,6 +81,20 @@ On a board's own Speak, a lane is named like a heading of the note: "Hey Ghost, 
 
 A card is moved by dragging it, and a board is made with More › **Make a board**: "Hey Ghost, move the coffee to Done" moves no card, and "Hey Ghost, make this a board" makes no board. Said into a note's own Speak, words like these go to the AI as a spoken ask about that note, and anything it writes lands as marked changes you can undo ([[Spoken asks and the review]]). Said as a new recording, they are kept as its words. [[Spoken commands]] has what the recorder carries out.
 
+## A query: what matches, from every note
+
+A board holds the items of one note. A query lists what matches in all of them. Write a fence called `query`, then a line or two:
+
+```query
+from: tasks
+where: due <= today+7
+show: list
+```
+
+That is every open to-do due this week, wherever it is written, each with its due day and its note. `from:` says what to list, `tasks`, `tickets` or `notes`, and where from: a `#tag`, a `[[notebook]]`, an `@person`. `where:` says what has to be true: `status != Done`, `priority >= high`, `due < today`. `show:` draws it as a `list`, a `table`, a `board`, a `calendar`, a `gantt` or a `count`, and `total: estimate` adds a column up.
+
+It keeps up as your notes change. Tap a name to open it, or a box to tick that to-do in its own note. The pencil at its top shows the lines again, and a line it cannot read is shown with a sentence saying what is wrong. The + has **A query** under More.
+
 ## Read next
 
 - [[Notebooks, and reading one through]]

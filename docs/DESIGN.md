@@ -8836,3 +8836,86 @@ field by name), taught by one Academy lesson, Fields on a to-do; the Guide's Lis
 the marks its cues, and Boards made of list items the card's chips. docs/MARKDOWN.md and docs/BOARDS.md say the same.
 
 Cites: §127, §145, §156.
+
+## 159. A query: the database view, written as a fence (2026-10-01)
+
+Matt: "What other notion and jira like features can we code with custom markdown to add to our app like tickets and
+such", and of the eight ideas, "Do 1, 2 and 3 in parallel". This is the third, proposed as a fence of a few lines,
+`from: #bug`, `where: status != Done`, `sort: priority, due`, `show: table`, drawn as a table, a list, a board, a
+calendar or a gantt, with totals that reuse a sum's arithmetic, and "a code block, like the board fence" in any other
+app. It reads the other two: a ticket is §157's front matter, a to-do's fields are §158's, both through §156's grammar
+and never a second parser. docs/QUERIES.md is the grammar written down for a person; this is why it is this one.
+
+**Built in two halves.** The three were built at once by three agents on the shared grammar. The query's agent was
+stopped by a rate limit with the pure half written and untested (read, records, values, run, gantt, and the sums'
+arithmetic moved to core so a total and a sum agree); the tests, the drawing and this were finished by hand. Its tests
+found two things worth keeping: a gantt bar whose start was written after its due day ran one day instead of between
+the two, and, once the fields' half had merged, a query read every to-do's fields as empty, since core/itemLinks.ts
+`itemWords` had learned to leave fields out of what an item says. A to-do's fields are now read from its line's own
+words (`lineWords`), and what it says from `itemWords`.
+
+**The grammar** (core/query/read.ts). One clause to a line, each left out for its default, the names Dataview's and
+Tasks' where they have one (`from`, `where`, `sort`, `group`, `limit`, and `sort by:`, `group by:`), so a person who
+has written those reads this. `from:` is a kind first (`notes`, `tickets`, `tasks`), then `#tag`, `[[note]]`,
+`@person` and `"words"`, side by side for all, with `or`, `not`, a dash and brackets. `where:` is tests joined by `and`
+before `or`, `not` and brackets; a field alone is a test that it says something. Words need no quotes, so `status =
+In progress` reads as written, and a status with `and` in it is quoted. A field's name is Dataview's form
+(core/taskFields.ts `fieldKey`), and the names Dataview and a person also use are read as the app's (`completed` is
+`checked`, `people` is `assignee`). A query that cannot be read is never half run: its first problem is answered at
+its line and column in a sentence a person can act on, and a line it does not know offers the one within two letters.
+
+**The values** (core/query/values.ts) are why the words mean what a person meant. A priority compares by rank, the
+most urgent the greatest, and none sits between medium and low as Tasks sorts it. A status compares by its place in
+the workflow, the notebook's own `statuses:` or the default, so `status < Done` is the open ones in order. A number is
+read as a sum reads one. A person is one person however written. A list is equal to anything it holds, a tag holding
+the tags inside it. Anything compared with a field that says nothing is false but `!=`, as Dataview has it, so
+`due < today` never lists the undated, and a field no record has is empty rather than an error, since a query may name
+any front matter key there is.
+
+**The defaults** (core/query/run.ts) make one line useful. A tasks query lists the open ones unless it asks about being
+done. Notes come the last changed first; tickets the most urgent, then the soonest due, then by key; to-dos the
+soonest due, then the most urgent; nothing in a field last, whichever way. A ticket board has every status of its
+workflow as a lane, empty ones and all, as a Jira board does. A table is the default for tickets, a list for the rest.
+
+**The library** (core/query/records.ts, shell/useQueries.ts). Every note a screen shows, less the archive and the
+templates' pages, the open note as its editor has it, so a to-do typed under a query of to-dos is in it at once. A
+note's reading is kept by its id while its words stay the same, one cache per editor, so a keystroke reads one note
+again and not the library.
+
+**Drawn** (editor/queries.ts, editor/QueryView.tsx). In place of the fence while the caret is elsewhere, as a board, a
+table and a diagram are (editor/drawnBlock.ts); the pencil at its head puts the caret in its lines. A card in the
+page's tinted surface, as a ticket's panel is, in the app's face, with a quiet head of what it lists and how many. A
+cell is drawn as its value: a due day by when it is and red once late, a priority as the fields' chevrons, a person in
+their ring, a status with its category's dot, a ticket's key in mono, a tag as a tag - the looks a field has on its
+line and a ticket has in a list, so a thing reads the same wherever it is. A month is a grid of days with a dot for
+each record and the picked day's records under it; a gantt is Mermaid's, through the diagrams' own cached, queued,
+themed path. It is drawn again when the note changes, when App hands new notes, and at midnight, when `today` moves.
+
+Three things the phone-sized shots showed. A block widget's width decides the editor's, and a table's columns made
+every line of the note as wide as the table: the query takes the board's measure of the note's width
+(`--cm-board-room`) and scrolls inside it. A table squeezed to the card wrapped a chip onto two lines, so it is as wide
+as its columns and scrolls. And Mermaid's dark theme draws the words on and beside a finished, an under-way or a late
+bar in a near-black ink marked important, so beside its bar they vanished: a dark page now gives Mermaid a gantt
+palette of dark bars that carry light words, edged by what they are, which mends a gantt written in a note too.
+
+**A tap.** A name opens its note or ticket; a to-do opens its note at its line, a landing by number (`line:N`,
+editor/useLandAt.ts) since most to-dos have no anchor, or, in this note, puts the caret there. A to-do's box ticks it
+where it is written: in this note with the tap on a box's own edit (editor/taskToggle.ts `toggleBox`), its boards
+settled in the same undo; in another through App, the store's copy changed by core/query/tick.ts, which finds the line
+where the query read it or by its words if the note has moved, settles that note's boards the same way, and leaves a
+line that is gone alone rather than tick the wrong one. Nothing else a query draws writes anything.
+
+**Not done.** A board is read only: a card is moved by changing its ticket or its box, not by dragging it across, which
+would mean a status written into a note the query is not in. A calendar's day does not make a to-do. A query does not
+query the Trash or the archive.
+
+**Tests.** core/query/read.test.ts (every clause, the defaults, the words, each problem at its place),
+core/query/run.test.ts over a library fixture (the records, from:, where: by kind, the order, the limit, the cells,
+boards, groups and totals, the gantt's text), core/query/gantt.test.ts, calendar.test.ts, fence.test.ts,
+tick.test.ts, core/sums.test.ts, editor/queries.test.ts (drawn over a real editor: each way to show it, live as it is
+typed and as the library changes, the problem's sentence, the lines with the caret in them, no pencil and no tick
+where it cannot be edited, and what each tap does here and in another note), editor/useLandAt.test.tsx (a line by its
+number), and the + menu's A query (editor/addRows.test.ts). The cheat sheet has a row, A query, taught by an Academy
+lesson; the Guide's Boards made of list items has a section.
+
+Cites: §156, §157, §158.

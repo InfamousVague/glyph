@@ -13,7 +13,7 @@ import { MARKER } from './itemSyntax.ts';
  *
  * Here in core/ and not beside the drawing since 2026-09-30, because a reader away from the editor needs the same
  * answer (Matt asked for "notion and jira like features", and a query's `total: estimate` was one, docs/DESIGN.md
- * §158): the estimates a query lists are added as a sum of them would be, `$1,200` read the way a sum reads it and the
+ * §159): the estimates a query lists are added as a sum of them would be, `$1,200` read the way a sum reads it and the
  * total written the way a sum writes its answer, so the two never disagree about the same numbers. core/fillFacts.ts
  * works a note's own totals out with it too. Pure, and it imports nothing that draws, so the MCP server can bundle it.
  */

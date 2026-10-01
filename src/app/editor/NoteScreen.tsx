@@ -23,6 +23,7 @@ import { isBookBody, isJournalBody, type BookPlace } from '../book/book.ts';
 import { entryPlaceOf, templateOf, withEntryPlace, withJournal, withoutJournal, withTemplate, type JournalWriter } from '../book/journal.ts';
 import { withNotebookKey } from '../book/tickets.ts';
 import type { TicketOptions } from './tickets.ts';
+import type { QueryOptions } from './queries.ts';
 import { forgetUntouched, isFresh, isUntouched, keepFresh, rememberUntouched, spoilFresh, untouchedRecord } from '../core/untouched.ts';
 import { lookOf, withLook, type Look } from '../core/look.ts';
 import { nameOffers } from '../core/noteNames.ts';
@@ -210,6 +211,11 @@ interface NoteScreenProps {
    * `[[GHO-12]]` with its title, and a notebook with a key making its tickets (`onNewTicket`, with `ticketTemplates`).
    */
   tickets?: TicketOptions;
+  /**
+   * The library a ```query fence reads, and how to open and tick what it finds (editor/queries.ts; docs/DESIGN.md
+   * §159). The note's own id is put in here, so the query reads this note as it is being typed.
+   */
+  queries?: Omit<QueryOptions, 'noteId'>;
   onNewTicket?: (title: string, notebook: string, template: NoteTemplate | null) => void;
   ticketTemplates?: readonly NoteTemplate[];
 }
@@ -285,6 +291,7 @@ export function NoteScreen({
   onTemplates,
   onGetModel,
   tickets,
+  queries,
   onNewTicket,
   ticketTemplates,
 }: NoteScreenProps) {
@@ -1090,7 +1097,11 @@ export function NoteScreen({
    * it (editor/Editor.tsx), and this screen draws several times a second while a tape plays. The object is new whenever
    * App draws, since App makes its lookups afresh each time it does; that covers every change to the notes, and more.
    */
-  const wiki = useMemo(() => (onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle, body: bodyOfTitle, tickets } : undefined), [onOpenTitle, hasTitle, bodyOfTitle, tickets]);
+  const noteQueries = useMemo(() => (queries ? { ...queries, noteId: note.id } : undefined), [queries, note.id]);
+  const wiki = useMemo(
+    () => (onOpenTitle && hasTitle ? { known: hasTitle, open: onOpenTitle, body: bodyOfTitle, tickets, queries: noteQueries } : undefined),
+    [onOpenTitle, hasTitle, bodyOfTitle, tickets, noteQueries],
+  );
 
   const tools = (
     <NoteTools marked={marked} onBookmark={bookmark} onMore={() => setSettingsOpen(true)} />

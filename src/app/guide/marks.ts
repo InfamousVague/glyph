@@ -11,6 +11,7 @@ import {
   ChevronsUp,
   CircleDot,
   Code,
+  Database,
   EyeOff,
   Film,
   Gauge,
@@ -113,7 +114,8 @@ export type Looks =
   | 'bookmark'
   | 'place'
   | 'ticket'
-  | 'field';
+  | 'field'
+  | 'query';
 
 export interface MarkRow {
   /** The mark itself, as a person would type it: `**`, `- [ ]`. */
@@ -314,6 +316,17 @@ const OWN: MarkGroup[] = [
         looks: 'ticket',
         icon: Ticket,
         note: 'Its properties are drawn as a card over its words. [[GHO-12]] in any note links to it.',
+      },
+      // A query (docs/QUERIES.md): drawn in a note as what it finds across the library, and here as the lines it is,
+      // since a cheat sheet's example has no library to read.
+      {
+        symbol: '```query',
+        name: 'A query',
+        typed: '```query\nfrom: tickets #bug\nwhere: status != Done\nshow: board\n```',
+        words: 'from: tickets #bug',
+        looks: 'query',
+        icon: Database,
+        note: 'Drawn as what it finds in every note: a table, a list, a board, a month, a timeline or a count. Tap the pencil to change it.',
       },
     ],
   },

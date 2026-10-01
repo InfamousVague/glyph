@@ -27,16 +27,23 @@ const TRIES = 24;
 /** How many times the landing is measured and made, the first included. */
 const LANDINGS = 4;
 
-/** Lands on `at` (`^anchor` or `anchor`) in `view`, scrolling `page` to put it under `header`. Nothing without one. */
+/**
+ * Lands on `at` in `view`, scrolling `page` to put it under `header`: an item by its anchor (`^anchor` or `anchor`), or
+ * a line by its number, `line:12`, counting from 1, for a to-do a query listed that has no anchor (editor/queries.ts).
+ * Nothing without one.
+ */
 export function useLandAt(at: string | undefined, view: EditorView | null, page: RefObject<HTMLElement | null>, header: RefObject<HTMLElement | null>): void {
   useEffect(() => {
     const anchor = at?.replace(/^\^/, '');
     if (!anchor || !view) return undefined;
+    const numbered = /^line:(\d+)$/.exec(anchor);
+    // A line by its number is there once the note has that many lines: its words may still be arriving.
+    const find = () => (numbered ? (Number(numbered[1]) >= 1 && Number(numbered[1]) <= view.state.doc.lines && view.state.doc.length ? { line: Number(numbered[1]) } : null) : itemAt(view.state.doc.toString(), anchor));
     const timers: number[] = [];
     let tries = 0;
     let landed = 0;
     const land = () => {
-      const item = itemAt(view.state.doc.toString(), anchor);
+      const item = find();
       const scroller = page.current;
       if (item && scroller) {
         const line = view.state.doc.line(Math.min(item.line, view.state.doc.lines));
