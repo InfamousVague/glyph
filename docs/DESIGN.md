@@ -9233,9 +9233,261 @@ status in words as before.
 Measured in the preview at 1280, 820 and 412 wide: a table's In progress picked as Done wrote `status: Done` into
 GHO-1 and its board followed; an index's To do picked as In progress wrote `status: In progress` into GHO-2.
 
-## 172. A new library's examples, and a note's menu on a right-click (2026-10-02)
+## 170. Notifications (2026-10-02)
 
-(§170 and §171 are kept for notifications and organizations, landing from another branch.)
+Matt, in the brief that is §171's: "implement a full notification system and put the invites in there with an inline
+accept and deny also wire up existing features to notifications where it makes sense so that we see things like
+claude creating a new note or making edits etc, there should be a notifications section in settings in order to
+customize the notifications we receive".
+
+Until now the app told a person things only as they happened and only where they stood: a toast for a voice command's
+note with Undo, "Summarized …" with Open, a fill landed (shell/useHousekeeping.ts); and two rows that reach the phone
+itself, About's "Update alerts" and Recording's "Tell me when a meeting is written up". Nothing was kept, nothing
+reached another device, and no account could tell another anything. The feed is the thing that can: what the
+service knows about a team, and what the account knows about itself, in one list the bell counts. The whole of it,
+the wire and the limits, is docs/TEAMS.md; this is why it is shaped as it is.
+
+**One table, two shapes.** A notification is a row in `notifications`, keyed by account and id and fed on the
+account's one write counter. A row the service writes - an invitation, who joined or left, a rename - carries its
+kind, who caused it, the organization and a small plaintext body, because the service is the one that knows and
+another account caused it; that is the only shape an invitation can take without new key material (§171). A row the
+account writes about itself - Claude's writes through the connector, a meeting written up, a note kept twice - carries
+a blob sealed under the account key as `{ kind, ...details }` with `notification:<id>` as its associated data, as a
+note is sealed under `note:<id>`. The review asked whether `kind` belonged in the seal, since a column alone could be
+relabelled by anyone who can write the file and a `note-edited` drawn as `summary-written` would defeat a mute; so
+the kind rides inside, the client trusts it over the column, and the column stays for the service's pruning and the
+device's unread count, which never opens a seal.
+
+**On the account's counter, read state included.** The feed takes `accounts.rev` through `Store::next_rev` inside
+every write's transaction, as notes, settings and recordings do, and pages by the notes feed's cursor rule, so a
+device resumes it exactly as it resumes notes. Read and hidden live on the server rather than in a device flag, so
+that a row read on the phone is read on the Mac: every change to a row - read, hidden, an invitation answered - takes
+a new revision and the row is fed again, hidden rows included, as deletions ride the notes feed; a device applies a
+fed row only when its revision is above its copy's. Pruning orders by `created_at`, never by revision, which a read
+mark moves. The cost, which the review named and the privacy lists now say: the server learns when each
+notification was read or hidden, where before it saw when things change and never when they are looked at. It is
+polled as the first step of the sync pass, before the notes, so a note a row names has arrived by the time the row is
+drawn; fetched again at once after an inline answer and when the page opens; no nudge over the live relay in this
+slice, since the relay keeps only a socket count per account and the client holds no socket unless a note is live,
+and an unknown frame is dropped by every client already, so a nudge can come later without a wire change.
+
+**What the person does here is theirs at once.** A read, a hide, Mark all read and an invitation's answer apply
+locally and queue a mark, replayed at the start of the next pass and dropped when the service confirms it; while a
+mark is pending the local state wins over any fed row that still lacks it, since a page fetched before the mark landed
+would otherwise undo a tap. Mark all read carries this device's cursor (`before`), so it marks only what was shown.
+An answer refused as "You were not invited." was given on another device: the mark is dropped and the feed fetched
+again. The answer is keyed by the organization, not the row (`answerInvite(orgId, accept)`), so the Organizations
+page can answer an invited row it has no notification id for.
+
+**Opened lazily.** The design first opened sealed rows as they arrived and kept them in memory; the review found that
+after a reload nothing arrives, so every row of Claude's would draw without its title until a pass happened to come,
+and that one bad blob opened inside the pass would stop the cursor at its page for ever. So a sealed row is opened at
+draw time, memoised by id, never in the pass: until then, and for one that will not open, it is drawn by its kind
+alone, "Claude edited a note", and the bell counts from the plaintext fields.
+
+**Which events.** The kinds table (docs/TEAMS.md) is the judgement Matt asked for in "where it makes sense". The
+service writes nine kinds about a team. Claude's five come from the connector's side, since the service cannot tell:
+the note is ciphertext and a token carries no device, and a write Claude makes is indistinguishable on the wire from
+a phone's. The other way, each device noticing a known AI's name arriving in a note's authors, was turned down: it
+fires once per device, only for a signed write, and never for a client that signs nothing. `note-edited` carries a
+line diff, `{ added, removed, first, at }`, because the review found "Claude edited Trip to Lisbon" had nothing to
+open onto - the app keeps no note history, and `update_note` holds both bodies at the moment of the write and threw
+the difference away; now the row reads "· 2 lines changed", the first changed line sits under it, and the note opens
+at that line's anchor. `add_journal_entry` makes two writes and one row; the Claude rules note is announced only when
+it is made, not on every connect. The app's own two: `summary-written` where a recording's summary lands
+(ai/summaries.ts `said`, before the toast's gates, so a row lands whether or not the toast is shown) and
+`sync-conflict` where a pass keeps a copy, by a hook on the sync context (`onConflict`) rather than a field on the
+pass's outcome, which ten test literals compare whole. Voice commands and fills are the person's own act and already
+toasted, so they are not recorded.
+
+**Four switches, synced; no phone row.** Settings › Notifications has team, claude, summaries and conflicts, and a
+row to mute each organization, kept in the synced settings as every chosen setting is (last writer wins, and a mute is
+a tap to choose again); every row is still written and the page filters. An invitation has no switch: off, the inviter
+would wait for an answer that could not come. The design had a row for the phone's own notifications; the review
+showed it promised what nothing could do - the host has only permission calls, no `notify()`, and no sync runs while
+the app is closed - so the row is gone and the pane's footer says what is true: "Ghost.md looks when it opens; the
+bell shows what arrived." The native piece (a `notify` host call and a worker that polls the plaintext kinds) is a
+follow-up. The summaries row's hint, "Here, in the list; the phone's own notification is under Recording", keeps the
+two rows that read as one thing apart; "Update alerts" and the meeting row stay where they were.
+
+**Listed beside Account, in coral.** The pane is a listed section in group 0, after Account, since both are about
+what reaches you; coral was one of the two hues `settings.css` defined and nothing used. The row's summary is "n of 4
+on", Plugins' shape, rather than an unread count, which would couple the sheet to the feed. The label arrays
+SettingsSheet.test.tsx pins each grow by one.
+
+**The bell and the page.** A bell ring in the tab row after the two arrows and before the slot, whose unread state is
+`data-on` with a 6px ink dot and no number - the bar's rings are monochrome and nothing in it carries a figure; the
+count lives on the page's head and the Settings row. The Notifications page is a `Screen` like All notes (a place,
+with the tab row): a row per notification with the kind's icon from the kit, its sentence (`sentenceOf`, the one
+place the words live) and when; an invitation's row has Accept and Decline, one `InviteActions` component shared
+with the Organizations page and the home page's card for the newest pending invitation whose organization is in the
+list; a note kind opens the note, `note-edited` at its first changed line; an organization kind opens the
+organization; Mark all read, pull to refresh, the ghost when empty. Muted categories and muted organizations are not
+drawn. Signed out, or under Local only, the page explains with the Account `GoWord` idiom.
+
+**Limits.** Three hundred rows kept per account, pruned inside the write transaction by age, the read-or-hidden first
+and never a pending invitation, so a flood of self rows (an MCP session editing note after note, sixty posts a minute
+allowed) cannot push an unanswered invitation out; read-or-hidden rows go after sixty days. A post is 8 KB of blob in
+a 16 KB body, and idempotent: an id the account already has answers its stored revision and writes nothing, so a
+retry after a lost answer makes no second row. A kind the service makes cannot be posted.
+
+**Not yet.** The service ships before the page (§171), so a 404 whose body is the service's `no such route`, or no
+service body, is "not yet" and the step is quiet; every other 404 is an answer in the service's words. One helper,
+`notYet`, for the pass, the pages and the connector.
+
+**Measured.** TODO(integrator): the Notifications page at 412 and 1280 (the head's count, a row's height, an
+invitation's Accept and Decline in a row, the ghost when empty); the bell's dot at 412 (size and offset); the
+Notifications pane's "n of 4 on" and its footer at 412; which build, which engine, and the shots' folder.
+
+**Tests.** Server: notifications_tests.rs (a post read back and a repeat landing once; the kinds and the limits; read
+marks and hiding fed again with a new revision; the cursor rule; one account never seeing another's; three hundred
+kept with the read ones first and never a pending invitation; sixty a minute) and store/notifications.rs's own.
+Client: core/notifications/feed.test.ts (two devices converging on read and hidden; a mark kept over a row fed before
+it landed; an invitation answered inline and answered elsewhere; the two 404s; a sealed row opened lazily, never
+stalling, trusted for its kind), kinds.test.ts (the sentences), record.test.ts (sealed, unsent on failure and sent by
+the next pass, idempotent, nothing without a key, kept here under Local only), core/sync/engine.test.tsx (the order
+of the pass), core/account/api.test.ts (`notYet`), core/ids.test.ts, core/preferences.test.ts and sync/prefs.test.ts
+(the switches, settled and travelling), reset.test.ts (the feed's key goes). Screens: NotificationsScreen.test.tsx,
+NotificationsPane.test.tsx, SettingsSheet.test.tsx (the label arrays, the findables, the summary), App.test.tsx.
+Connector: mcp/server.test.ts (a notification after each write, none after a refused write, the tool still answering
+when the post fails) and mcp/hosted.test.ts (the hosted author's name rides in the payload).
+
+Cites: §113, §127, §138, §143, §164, §171, §173.
+
+## 171. Organizations (2026-10-02)
+
+Matt: "build the ability to create teams in the app. We should be able to create an organization in order to add
+users as team members by handle, adding a team member should show them an invite, while doing this also implement a
+full notification system and put the invites in there with an inline accept and deny also wire up existing features
+to notifications where it makes sense so that we see things like claude creating a new note or making edits etc,
+there should be a notifications section in settings in order to customize the notifications we receive. There should
+be a way to view an organization. Organizations should also get their own workspace automatically, when on the
+organization view make a new settings screen copying the same layout and stuff from the normal settings page but make
+it tailored towards organization features." The spelling is organization, his word and the app's (Summarize); the
+code says `org`. The notifications half is §170; the model, the wire, every refusal sentence and the limits are
+docs/TEAMS.md.
+
+**Plaintext, and said so.** Nothing could be shared across accounts before this: the only keys are the account key,
+which never leaves a device except wrapped, and Ed25519 signing keys. An invitation by handle with an inline accept
+needs the service to know the organization and who is in it, so an organization's name, hue, members' handles, roles
+and invitation states are plaintext on the service, as handles already are, and the notes stay per account and sealed.
+The other two shapes were weighed and left: an organization key wrapped per member under a new per-account
+encryption key is true end-to-end for a team's notes and names but a new crypto design, a membership-aware relay and
+an org-owned feed; a secret carried out of band, as a share link carries its key after the `#`, needs a second channel
+to deliver it, which contradicts "add by handle". The four places the app states its promise - docs/SYNC.md, the
+privacy policy, the Play data-safety answers and the Guide's chapters 19 and 26 - now say what an organization puts in
+the clear, and that the server learns when a notification was read.
+
+**Not shared yet, and the screen says so.** "Organizations should also get their own workspace automatically": each
+member's devices get a workspace named after the organization, in its hue, the moment they join. It is not a shared
+note store - the filing map is per-person settings, and a note filed in it is sealed under its owner's key - and the
+review found that a member who files a note there expects teammates to see it and sees nothing. So the Workspace
+section's footer and the Members hero say it in Matt's register: "Notes filed here stay yours for now; sharing them
+with the team comes next." The organization key above is the follow-up.
+
+**Inviting by handle resolves the handle.** `POST orgs/{id}/members { handle }` answers 404 "No one has that handle."
+when nobody has it. Every way in was written so that asking reveals nothing about which handles exist, and signup's
+"That handle is taken." was the one leak; this is the second, and the first a signed-in account gets. Matt was told
+the two shapes - confirm the handle, or answer "invited" either way and withdraw an unanswered invitation later - and
+did not object to the first, which is the one that makes the form usable. The price is paid in the limiter: thirty
+invitations an hour per inviting account and per address, per hour rather than per minute, spent before the lookup so
+a refused attempt still costs; and docs/TEAMS.md names the oracle in one sentence. "They are already a member." is a
+second, smaller tell, counted the same way.
+
+**One owner, who has joined, at all times.** The roles are owner, admin and member. The review found the first draft
+could leave an organization with no owner (an admin removing the owner, or the owner demoting themself), or with an
+owner who had not joined (a hand-over to an invitee): nobody could then rename, hand over or delete it, and the rule on
+deleting an account no longer held anyone, so the organization was immortal. The invariant is kept in store/orgs.rs
+and nowhere else: nobody removes the owner (403 "Hand the organization over first."), an admin may remove only members
+and invitees (403 "Only the owner can remove an admin."), the owner's own role changes only by a hand-over (the same
+403), a hand-over to someone who has not joined is 409 "They have not joined yet.", and `role: 'owner'` set on a
+member is one transaction that makes the old owner an admin. Deleting an account is refused inside `delete_account`'s
+own transaction - not a check before a separate delete, which an acceptance could slip between - while the account
+owns an organization anyone else is in, joined or invited: 403 "Hand over or delete your organizations first."; an
+organization whose only row is its owner's goes with the account, and in the same transaction every organization the
+account had joined is told it left. Only `account_id` and `owner_id` cascade: `invited_by` and `from_id` are SET
+NULL, so an inviter leaving the service takes nobody with them and a row in someone else's feed keeps everything but
+its sender, which reads as "Someone".
+
+**An invitation's life.** The review found a write into a stranger's feed with no cap and no memory: any account could
+push a fresh card onto someone's home page twenty times a minute and, in a quarter of an hour, evict every real row.
+So inviting someone already invited refreshes `since` and writes no new row; declining keeps the row as `declined`
+for a day and the same organization cannot ask again ("They declined; ask again tomorrow."), after which the same
+`invite` row flips back to pending - one per person per organization, ever; an invitee may have twenty waiting across
+every organization; an organization holds fifty rows, joined and invited; pruning never takes a pending invitation.
+An organization that dies settles every pending invitation as declined and hidden in the same transaction, since a
+pending row with a dead Accept was the other thing the review found, and the home card draws only invitations whose
+organization is in the current list. A withdrawn invitation is settled the same way and nobody else is told.
+
+**The workspace's id is `org-<orgId>`.** The design had each device mint an id and mark the workspace with an `org`
+field; the review traced what last-writer-wins settings do to that: two devices make two workspaces for one
+organization, the loser's filings are dropped when the other blob wins, and a build from before this rewrites the
+settings without the field (`asWorkspace` rebuilds `{ id, name, hue }`), so the reconcile finds no mark and makes a
+second "Ghost" beside the first. The id is the truth now: every device of every member makes the same one, a filing
+keyed by it survives whichever blob wins, the mark is read from the prefix on every read and never trusted from
+storage, and the reconcile is idempotent. It runs after a 200 list only, over rows with state `member`: a list that
+did not arrive - offline, the deploy gap's 404, a 500 - leaves the workspaces and the cached list as they were, since
+reading a failure as "no organizations" would unfile every member's notes and push that to their other devices; and
+it runs outside `applyingRemote`, so its change is pushed by `syncSoon` rather than waiting for the next pass. On disk
+the folder is `orgs/<name>` (`folderFor` takes the workspace, not its name, so the type system found every caller),
+`addWorkspace` dedupes names among personal workspaces only, the hue follows the organization and its swatch is not
+offered, Rename and Remove refuse it, and the pill, chip and folder row carry `data-org` with a small mark before the
+name, so two "Ghost" pills can be told apart.
+
+**Not told what you did.** The service writes a rename, a removal or a deletion to the other members only, as the app
+toasts a voice command rather than recording it; who accepted hears nothing of their own acceptance; the asker hears
+`invite-accepted` (or the owner, if the asker has since left) and everyone else `member-joined`. Every server body
+carries the organization's `name` at the time, and the live name is joined at read time only while the reader is
+still a member, so someone removed does not go on reading every later rename through their old rows.
+
+**The view is a settings screen, landed on Members.** "There should be a way to view an organization", and then "when
+on the organization view make a new settings screen copying the same layout": the organization is a `Screen`,
+`{ name: 'organization'; orgId; from? }`, drawn by `OrganizationSheet` as a second `SettingsScreen` with `title` (the
+organization's name) and `search: false`, since five sections need no search pill. The review's point was that on a
+phone a SettingsScreen opens on its list, so "view an organization" would have shown five rows and not one member; so
+it opens landed on Members through `goTo`, and Members begins with a hero - name, hue chip, member count, your role -
+then the list with role chips and state, invite by handle, remove, and the owner's role change and hand-over. The
+sections are General (name and hue, editable for the owner and an admin), Members, Workspace (the workspace, its
+"stay yours for now" sentence, and a way to the notes filed in it), Notifications (mute this organization) and Leave
+or Delete last, in the danger tone. Back from Members steps to the section list; from there back closes. `title`
+threads to every hard-coded "Settings" word in SettingsScreen.tsx and to `backWord`'s root, so the head and the
+dialogs name the organization. Opened from Settings › Account › Organizations, `from: 'settings'` makes its close
+reopen Settings on the Organizations page and its head read "← Organizations", since the personal sheet is a boolean
+that had closed under it and a person opening three organizations would otherwise walk the list three times. It is
+also opened from an organization workspace's pill (second tap), "Edit {current}" on the home filters, a folder's "…"
+in the tree, and any organization notification.
+
+**Where organizations are made.** Settings › Account › Organizations is a sub-page of Account (`listed: false`,
+`parent: 'account'`, the first under it), a row between Sync and Shared links: the organizations you are in with
+role and member count, an invited one with Accept and Decline, and New organization (a name, then the organization
+opens). The review found four taps under a page about signing in a long way to a first team, so "New organization"
+also sits beside "New workspace" in the home page's filters when signed in.
+
+**Deploy order.** glyph-api first, on Matt's word, then after the login gap the web OTA with `--mcp` and the hosted
+connector; the page tolerates the gap in one direction through `notYet` (§170), and the deploy's probe fails when
+`GET /api/v1/orgs` without a token is not a 401, since an old binary answers 404.
+
+**Measured.** TODO(integrator): the Organization screen at 412 (the Members hero's height, a member row with its role
+chip, the invite field) and in the split view at 1280; the Organizations page under Account at 412; the org
+workspace's pill with its mark at 412; which build, which engine, and the shots' folder.
+
+**Tests.** Server: orgs_tests.rs (made, listed, read, renamed and deleted by its owner; a name, a hue, a role and an
+id checked before anything is looked up; a stranger's one 404 from every route; an invitation telling the invitee and
+an acceptance telling the asker and the rest; declining settling, telling the asker and making the organization wait
+a day; every invitation refusal in its words; the owner invariant through the routes; a rename reaching every member
+once with a former member keeping the old name; deleting an organization settling its invitations; an asker deleting
+their account leaving the invitee a member, and an owner with others refused; the limits on owning, inviting and
+changing), store/orgs.rs's own, and every new route in sync_tests.rs's
+`every_signed_in_route_refuses_in_the_same_words`. Client: core/orgs/orgs.test.ts (the calls in the service's words;
+the reconcile on a list that arrived and only then, over members only, one workspace per organization across devices
+with no filing lost; the list kept per account and forgotten on signing out), core/workspaces.test.ts,
+core/noteFolders.test.ts (`orgs/<name>`), reset.test.ts (the list's key goes). Screens: OrganizationSheet.test.tsx,
+AccountPane.test.tsx (the row and the sub-page), SettingsScreen.test.tsx (`title`, `search`), sectionSteps.test.ts
+(`backWord`'s root), HomeScreen.test.tsx (the invitation card), App.test.tsx.
+
+Cites: §42, §100, §138, §143, §170.
+
+## 172. A new library's examples, and a note's menu on a right-click (2026-10-02)
 
 Matt: "Please pre populate new accounts with an example board, example tickets (3) example journal and an example with
 all the formatting, add context menus so i can right click on desktop to delete a note".

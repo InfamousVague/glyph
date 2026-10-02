@@ -35,6 +35,7 @@ Signed in, the Account page holds these rows.
 | **Live typing (trial)** | See [[Live typing]]. |
 | **Password and recovery codes** | **Change password** asks for the current password and a new one. **Make new recovery codes instead**, then **Make new codes**, makes a fresh sheet of eight, shown once; the old sheet stops working. Both ask for the current password. |
 | **Sign out** | "Your notes stay on this device." The session and this device's keys go; the notes stay where they are. |
+| **Organizations** | Under the Sync card. The teams you are in, with your role in each and how many have joined; an invitation waiting, with Accept and Decline on its row; and **New organization**, which asks for a name and opens the organization. More under Organizations, below. |
 
 Changing the password changes nothing else. No note is sealed again, and your other devices stay signed in.
 
@@ -50,6 +51,8 @@ If you forget the password, a device that is still signed in keeps syncing. Chan
 - **A device keeps the key where the app can use it but cannot copy it out.**
 
 The server sees your handle, a random id for each note, which notes have a recording, each picture's name and file type (a picture added in the app has a random name), when each changed, how big each is and how many there are, and which kind of device each of yours is ("Android", "Mac"). It never sees a title, a folder, a word of a note, a setting or a second of a recording.
+
+An organization is the exception, and on purpose: an invitation has to reach another account, so the server sees an organization's name and colour, who is in it by handle and in what role, who invited whom and when, and, for a day, that someone declined. Of your notifications it sees the kind and the time of each, who caused it and which organization for the ones it writes itself (with the few words in them, such as the organization's name), and when you read or hid each one, so that follows you to your other devices. The ones about your own notes, Claude's edits, a meeting written up or a note kept twice, are sealed like a note: the server sees that Claude edited something, not what. Inviting a handle nobody has answers "No one has that handle.": that is the one place a signed-in account can learn whether a handle exists, and it is limited to thirty invitations an hour.
 
 The one place your key is ever held away from your own devices is the hosted Claude connector: in its memory only, and only while you keep it connected ([[Claude on your notes]]).
 
@@ -68,7 +71,7 @@ Nobody can reset your password, not even the people who run the service. Forget 
 
 One sync runs at a time. Asking while one runs queues one more after it.
 
-What travels: notes, their recordings and pictures, the trash, your workspaces, the notes open as tabs and their groups, your shared links, and the settings that describe you (the page and its spacing, text size, fonts, link previews, code colours, how notes are shown, the recording choices, the animations). What stays on each device: the accent colour, size, corners, the sidebar docked or popped over, haptics, Local only, the model you downloaded, which plugins are on, which workspace you are looking at, Live typing and the developer settings. A browser syncs notes and pictures, and keeps no recordings.
+What travels: notes, their recordings and pictures, the trash, your workspaces, the notes open as tabs and their groups, your shared links, your notification switches and the organizations you have muted, and the settings that describe you (the page and its spacing, text size, fonts, link previews, code colours, how notes are shown, the recording choices, the animations). An organization's workspace is not sent as such: every device makes the same one from the organization itself, so it is there on each the moment you join. What stays on each device: the accent colour, size, corners, the sidebar docked or popped over, haptics, Local only, the model you downloaded, which plugins are on, which workspace you are looking at, Live typing and the developer settings. A browser syncs notes and pictures, and keeps no recordings.
 
 Settings are one set for the whole account. If two devices change them at the same moment, the later one wins.
 
@@ -96,11 +99,23 @@ At the top: your handle, **End-to-end encrypted**, and how sync stands.
 
 Any other failure is said in its own words. The Account row in the Settings list carries the same news in one line: your handle, then "synced 4 min ago".
 
-Below come **Shared links** ([[Sharing a note or a notebook]]) and **Delete account**.
+Below come **Organizations**, **Shared links** ([[Sharing a note or a notebook]]) and **Delete account**.
+
+## Organizations
+
+An organization is a team: a name, a colour, and people by handle. Make one from **Settings › Account › Organizations › New organization**, or from **New organization** beside New workspace in the home page's filters. You are its owner.
+
+**Inviting someone.** Open the organization, and under Members give a handle. They are told "No one has that handle." if nobody has it, and "They are already a member." if they are. Otherwise the person sees your invitation at once on their next sync: a dot on the bell, a row on their Notifications page with **Accept** and **Decline**, a card on their home page, and the organization under their own Account › Organizations. Asking again before they answer sends nothing new. If they decline, the organization has to wait a day before asking them again, and they can have twenty invitations waiting at most.
+
+**Roles.** The owner can rename the organization, pick its colour, change anyone's role, hand it over and delete it. An admin can invite, and remove members and people still invited. A member can leave. There is always exactly one owner: nobody can remove the owner ("Hand the organization over first."), an admin cannot remove an admin, and to hand over the owner sets someone who has joined to owner, becoming an admin themself.
+
+**The workspace.** The moment you join, a workspace named after the organization and in its colour is on every device of yours, with a small mark before its name wherever workspaces are drawn. Notes filed there stay your own: nobody else in the organization sees them. The screen says so: "Notes filed here stay yours for now; sharing them with the team comes next." If you leave, are removed, or the organization is deleted, the workspace goes and the notes in it are left unfiled, never deleted.
+
+**What you are told.** Everyone in an organization hears when someone joins, leaves or is removed, when it is renamed and when it is deleted; the person who did it is not told their own news. The organization can be muted under Settings › Notifications, or from its own Notifications section.
 
 ## Deleting the account
 
-Settings › Account › **Delete account**. The page says what goes, then asks for your password; tap **Delete my account**. At once and for good, the service deletes the account and its handle, your synced notes with their recordings and pictures, your settings, every link you have shared (which stops opening), your devices' keys and your recovery codes. Your other devices sign out the next time they start. The notes on this device stay, and the page says so: "Your account is deleted. The notes on this device are still here."
+Settings › Account › **Delete account**. The page says what goes, then asks for your password; tap **Delete my account**. At once and for good, the service deletes the account and its handle, your synced notes with their recordings and pictures, your settings, every link you have shared (which stops opening), your devices' keys and your recovery codes, your notifications and your place in every organization, whose other members are told you left. While you own an organization that anyone else is in, it is refused with "Hand over or delete your organizations first."; an organization with nobody else in it goes with the account. Your other devices sign out the next time they start. The notes on this device stay, and the page says so: "Your account is deleted. The notes on this device are still here."
 
 ## Read next
 

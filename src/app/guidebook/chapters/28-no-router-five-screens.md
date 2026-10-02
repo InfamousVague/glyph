@@ -37,9 +37,9 @@ The kit's styles are read straight from `vendor/@glacier`, not copied into `src/
 
 The module then starts `followShares()`, which sends a changed share again a few seconds after a save, and renders `<App />` inside `StrictMode` into an emptied `#root`.
 
-## Five screens
+## Five screens, now eight
 
-`App` is a `HapticsProvider`, a `ToastProvider` and the `Shell`. The Shell's one piece of routing state is a `Screen`, from `shell/screen.ts`:
+`App` is a `HapticsProvider`, a `ToastProvider` and the `Shell`. The Shell's one piece of routing state is a `Screen`, from `shell/screen.ts`. There were five when this chapter was named; a meeting's screen, Notifications and an organization's have joined them since:
 
 | `name` | What it is | A place? |
 |---|---|---|
@@ -47,11 +47,14 @@ The module then starts `followShares()`, which sends a changed share again a few
 | `notes` | All notes, as a grid of cards (`notes/AllNotesScreen.tsx`) | Yes |
 | `note` | One note, perhaps with an `^anchor` to land on, a spoken ask to run, or a review | Yes |
 | `capture` | A recording, keyed by `Date.now()` so each one is a fresh mount | No |
+| `meeting` | A meeting the phone's own service is recording (`capture/MeetingScreen.tsx`): the cassette turning, Done and Discard, and no note words, since the side key can open it over the lock screen | No |
 | `academy` | Ghost.md Academy, which teaches a mark at a time | No |
+| `notifications` | The account's notifications, newest first, with Accept and Decline on an invitation's row; opened from the bell | Yes |
+| `organization` | One organization, by its id: Settings' own layout with the organization's name as its title, opened on Members. `from: 'settings'` means it was opened from Account › Organizations, so closing it reopens Settings there | No |
 
 The home page is still named `list`, from the days when the home page was the notes list.
 
-A place is somewhere a person goes. Places carry the tab row, they are what the back and forward arrows walk, and on a wide window they take a pane beside the sidebar. A capture and the Academy each take the whole window, and each has its own way out.
+A place is somewhere a person goes. Places carry the tab row, they are what the back and forward arrows walk, and on a wide window they take a pane beside the sidebar. A capture, a meeting, the Academy and an organization's screen each take the whole window, and each has its own way out.
 
 Everything else is a sheet or a card over whichever screen is up, held beside `screen` in the Shell: Settings, the welcome guide, the + sheet, the New notebook sheet (`NewBookSheet`), what's new, the notes drawer, the aside, the palette and the launch screen.
 
@@ -82,7 +85,7 @@ The parts of the Shell that are machines of their own live in `shell/`, one hook
 
 ## The chrome
 
-- **The tab row** is `notes/NoteTabs.tsx` in `.app-tabBar`, drawn once by the Shell on every place, the same on each. The screens know nothing about it: `--app-safe-top` carries its height, and `useRootStamp('tabs', …)` says `on`, or `rows` when a second row of tabs is showing. Its first row holds home, the sidebar's icon, back and forward, a slot for the screen's own buttons and, when there is something to show, the aside's icon. The second row holds the open tabs with the + after the last one, and is not drawn at all when nothing is open.
+- **The tab row** is `notes/NoteTabs.tsx` in `.app-tabBar`, drawn once by the Shell on every place, the same on each. The screens know nothing about it: `--app-safe-top` carries its height, and `useRootStamp('tabs', …)` says `on`, or `rows` when a second row of tabs is showing. Its first row holds home, the sidebar's icon, back and forward, the bell, which wears a small dot while something unread waits and opens Notifications, a slot for the screen's own buttons and, when there is something to show, the aside's icon. The second row holds the open tabs with the + after the last one, and is not drawn at all when nothing is open.
 - **The dock** is the home page's floating column of buttons (`home/HomeScreen.tsx`): write, Speak, Settings, and Search once the palette has handed back its opener.
 - **The sidebar** is one tree, `notes/NoteTree.tsx`, shown two ways. By default it is a popover card, `notes/NotesDrawer.tsx`. Docked is a column beside the note: it is chosen in Settings, and only possible when `useSidebar()` in `core/useWideScreen.ts` says the window fits two panes. That means at least 660px wide, and at least 600px tall unless there is a mouse. While a field has the focus the height keeps its last answer, so the keyboard rising on an opened Fold cannot move the note into another pane and so close the keyboard again.
 - **The aside** shows a notebook's index while the notebook or one of its pages is open, or a run of numbered chapters that have no notebook (`aside/aside.ts`). Anywhere else it holds nothing, and neither it nor its toggle is drawn.

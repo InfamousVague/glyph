@@ -9,8 +9,8 @@
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <!--
       The privacy policy the App Store and Google Play listings link to (docs/store/). Written from what the code does
-      (docs/SYNC.md, SHARING.md, LIVE.md, MCP.md, and the data inventory in docs/DESIGN.md §113): change it when that
-      changes, and move the date. Styled as the download page is (index.html), with a reading column.
+      (docs/SYNC.md, SHARING.md, LIVE.md, MCP.md, TEAMS.md, and the data inventory in docs/DESIGN.md §113): change it
+      when that changes, and move the date. Styled as the download page is (index.html), with a reading column.
     -->
     <link rel="stylesheet" href="glacier/tokens.css" />
     <link rel="stylesheet" href="site.css" />
@@ -24,7 +24,7 @@
       </header>
 
       <h1>Privacy</h1>
-      <p class="muted">Last updated 28 September 2026</p>
+      <p class="muted">Last updated 2 October 2026</p>
 
       <p>
         Ghost.md is a notes app made by Matt Wisniewski ("we", "us"). This page says what happens to your notes and your
@@ -37,6 +37,10 @@
           <li>Your notes are files on your device. You don't need an account to use Ghost.md.</li>
           <li>In the apps, what you say is turned into text on your device. Your voice isn't sent anywhere to be transcribed.</li>
           <li>If you make an account to sync, everything is encrypted on your device before it's sent, so we can't read it.</li>
+          <li>
+            If you join a team (an organization), its name and who is in it are kept in the clear, so teammates can be invited
+            by handle. Your notes stay encrypted.
+          </li>
           <li>No ads, no analytics, no tracking, and we never sell or share your data.</li>
           <li>You can delete your account, and everything it keeps on our servers, from the app at any time.</li>
         </ul>
@@ -76,6 +80,32 @@
         We don't store your IP address with your account. Our service uses it briefly, in memory, to limit repeated sign-in
         attempts. Our web server keeps ordinary access logs (IP address, time and the address requested) for security and
         troubleshooting, and we don't use them for anything else.
+      </p>
+
+      <h2>Organizations and notifications (optional)</h2>
+      <p>
+        You can make an organization, a team, and invite other Ghost.md accounts to it by handle. So that an invitation can reach
+        another account, an organization is not encrypted the way your notes are. For each organization you make or join, our
+        service stores and can see: its name and colour, who owns it, when it was made, and who is in it by handle, each with
+        their role (owner, admin or member), whether they have joined or are invited, who invited them and when. If someone
+        declines an invitation, that is kept for a day so the organization can't ask them again at once.
+      </p>
+      <p>
+        Inviting someone tells you whether a handle exists ("No one has that handle."). That is the one place a signed-in account
+        can learn this, and it is limited to thirty invitations an hour per account and per network address.
+      </p>
+      <p>
+        Your account also has a list of notifications. For those the service writes itself (an invitation, someone joining or
+        leaving a team, a rename), it can see the kind, when, who caused it, which organization, and the few words in it, such
+        as the organization's name. For those your own devices or a connected AI assistant write about your own notes (a note
+        the assistant created or edited, a meeting written up, a note kept twice by a sync), the contents are encrypted on the
+        device like a note, and the service sees only the kind and the time. For every notification, the service can see when
+        you read it and whether you hid it, so that follows you across your devices. Which notifications you see is a setting in
+        Settings › Notifications; an invitation is always shown.
+      </p>
+      <p>
+        An organization's workspace on your devices holds your own notes, which stay encrypted and are not shared with the
+        team. Sharing notes inside an organization is not built yet.
       </p>
 
       <h2>Shared links</h2>
@@ -174,8 +204,11 @@
       <p>
         To delete your account, open Ghost.md, go to <strong>Settings › Account › Delete account</strong>, and enter your password.
         This deletes, at once and for good, your account and everything it keeps on our servers: your synced notes, recordings,
-        pictures and settings, your shared links, your devices and your recovery codes. Your other devices are signed out. The
-        notes on your device stay, because they're your files. <a href="delete-account.html">More on deleting your account</a>.
+        pictures and settings, your shared links, your devices and your recovery codes, your notifications, and your place in
+        every organization (the organizations you had joined are told you left). While you own an organization that anyone
+        else is in, the app asks you to hand it over or delete it first; an organization with nobody else in it is deleted with
+        your account. Your other devices are signed out. The notes on your device stay, because they're your files.
+        <a href="delete-account.html">More on deleting your account</a>.
       </p>
       <p>Without an account, nothing of yours is on our servers. Uninstalling the app removes its files from your device.</p>
 

@@ -38,6 +38,21 @@ registered with, then its `initialize` clientInfo. A rewrite never drops an auth
 draws the authors as a byline: on the note, gathered across a notebook in its index, and on a shared page. A known
 AI wears a spark, and anyone else their initial.
 
+**Notifications.** Each write Claude makes is told to the account's own notifications feed (docs/TEAMS.md), so the
+bell on your phone lights and the Notifications page reads "Claude edited Trip to Lisbon · 2 lines changed". After a
+write lands - `create_note`, `update_note`, `append_to_note`, `add_journal_entry`, `add_rule`, and the Claude rules
+note the first time it is made - the server posts one self notification, `POST notifications { id, kind, blob }`,
+sealed under the account key exactly as the note was, with `notification:<id>` as its context and the kind inside the
+seal: `note-created` carries `{ noteId, title, by }`; `note-edited` a line diff, `{ noteId, title, by, added,
+removed, first, at }` - how many lines came and went, the first changed line (at most 120 characters) and its anchor,
+so the row opens the note at that line; `note-appended` `{ noteId, title, by, lines, first }`; `journal-entry`
+`{ noteId, title, by, journal, first }`; `rule-added` `{ noteId, title, by, first }`. `by` is the author the tool
+resolved, as above, or `Claude` when the connection gave no name. The sync service sees only the kind and the time:
+the title and the lines are inside the seal. The post is best effort and never the tool's answer: a write refused by
+the service (another device's words, below) posts nothing, and a post that fails - a sync service without the route
+yet, which answers 404 `no such route` - is swallowed with a `glyph-mcp:` line on stderr and the tool still answers.
+The app's own switch for these rows is Settings › Notifications › Claude.
+
 Every tool reads the account fresh before it acts, so Claude sees what your phone last wrote. A write goes from the
 version just read: if another device changed the note in between, the service refuses the write and Claude is shown
 that device's words instead, never over them. That is the rule the app itself lives by (docs/SYNC.md).
@@ -184,8 +199,8 @@ taken off stays so. A notebook keeps the `key:` its tickets are numbered by and 
 
 | | |
 | --- | --- |
-| `mcp/glyph.ts` | the account as a client: sign-in, the session's renewal, the note feed opened into a cache, writes sealed as the app seals them, and the conflict rule |
-| `mcp/server.ts` | the tools: eleven everywhere, and `sign_out_everywhere` on the hosted server |
+| `mcp/glyph.ts` | the account as a client: sign-in, the session's renewal, the note feed opened into a cache, writes sealed as the app seals them, the conflict rule, and the self notification posted after a write (`postNotification`) |
+| `mcp/server.ts` | the tools: eleven everywhere, and `sign_out_everywhere` on the hosted server; each writing tool tells the feed what it wrote |
 | `mcp/main.ts`, `mcp/cli.ts` | the command: its entry point, and login, status, logout and serve |
 | `mcp/webcrypto.ts` | WebCrypto on whatever Node runs it: the box's Node 18 has no global `crypto` until it is put there |
 | `mcp/hosted.ts`, `mcp/hosted-main.ts` | the hosted server: OAuth with the SDK's handlers, MCP over HTTP, and its start-up from the environment; run on the box as `glyph-mcp.service` (`server/glyph-mcp.service`) |
