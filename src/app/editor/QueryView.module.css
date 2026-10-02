@@ -63,6 +63,11 @@
   margin-inline-start: auto;
 }
 
+/* The build and edit buttons sit together at the right, not an auto-margin apart. */
+.edit + .edit {
+  margin-inline-start: 0;
+}
+
 /*
  * The view switcher: a segmented control of the ways a query can be drawn (editor/QueryView.tsx), the current one
  * raised like a database's view tabs. Held to the right beside the pencil; it scrolls sideways rather than wrap where
