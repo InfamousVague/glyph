@@ -100,11 +100,14 @@ describe('the top bar', () => {
     expect(ringing.hasAttribute('data-on')).toBe(true);
     expect(ringing.hasAttribute('data-unread')).toBe(true);
     expect(ringing.textContent).toBe('');
-    // On its own page the bell is the ring alone, as Home's is on the home page.
+    // With its drawer open the bell is lit and says so; it is the drawer's toggle, which a press outside it skips.
+    expect(ringing.getAttribute('aria-expanded')).toBe('false');
     rerender(bar({ onGoBack: () => undefined, onGoOn: () => undefined, onNotifications, atNotifications: true }));
-    expect(button('Notifications').getAttribute('aria-current')).toBe('page');
+    expect(button('Notifications').getAttribute('aria-expanded')).toBe('true');
+    expect(button('Notifications').hasAttribute('data-on')).toBe(true);
+    expect(button('Notifications').hasAttribute('data-notifications-toggle')).toBe(true);
     expect(button('Notifications').hasAttribute('data-unread')).toBe(false);
-    // No bell at all without the page to open.
+    // No bell at all without the drawer to open.
     rerender(bar({}));
     expect(() => button('Notifications')).toThrow();
   });

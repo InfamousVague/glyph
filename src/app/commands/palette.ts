@@ -79,7 +79,7 @@ export interface PaletteDoing {
   cheatSheet: () => void;
   guide: () => void;
   academy: () => void;
-  /** The Notifications page (notes/NotificationsScreen.tsx), and Settings › Account › Organizations (docs/TEAMS.md). */
+  /** The notifications drawer (notes/NotificationsDrawer.tsx), and Settings › Account › Organizations (docs/TEAMS.md). */
   notifications: () => void;
   organizations: () => void;
   chooseWorkspace: (id: string | null) => void;

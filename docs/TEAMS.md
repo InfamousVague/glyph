@@ -94,7 +94,7 @@ revision, which a read mark changes.
 **The sync pass** pulls notifications first, then notes, then settings, then the organizations (`core/sync/engine.ts`
 `once`): notifications before notes so a note a notification names has arrived by the time its row is drawn;
 organizations after the settings and outside `applyingRemote`, so the workspace the list makes or drops is pushed a
-moment later. The feed is fetched again at once after an inline answer and when the Notifications page opens
+moment later. The feed is fetched again at once after an inline answer and when the notifications drawer opens
 (`syncNotificationsNow`, the same one-at-a-time door, without the notes). There is no live-relay nudge in this slice,
 and nothing fetches while the app is closed.
 
@@ -318,7 +318,7 @@ its create branch - sealed with the same id maker and the same seal, best effort
 `glyph-mcp:` line on stderr, the tool still answers, and no row follows a refused (409) write. The author is the one
 `authored` resolved, or `Claude` (docs/MCP.md).
 
-**The screens** are DESIGN §170 and §171: the bell in the tab row, the Notifications page, Settings › Notifications,
+**The screens** are DESIGN §170 and §171: the bell in the tab row, the notifications drawer under it (§174), Settings › Notifications,
 Settings › Account › Organizations, and the Organization screen, which is a second `SettingsScreen` with a `title` and
 no search, opened on Members.
 

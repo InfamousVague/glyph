@@ -5,7 +5,7 @@ import type { CaptureScreen } from './capture/CaptureScreen.tsx';
 import type { Guide } from './guide/Guide.tsx';
 import type { SettingsSheet } from './settings/SettingsSheet.tsx';
 import type { OrganizationSheet } from './settings/OrganizationSheet.tsx';
-import type { NotificationsScreen } from './notes/NotificationsScreen.tsx';
+import type { NotificationsDrawer } from './notes/NotificationsDrawer.tsx';
 import { createNote, getNote, listNotes, setNoteArchived, updateNote, type Note } from './core/store.ts';
 import { preferences, reloadPreferences, setPreferences } from './core/preferences.ts';
 import { button, buttonSaying, show, unmount, waitUntil } from '../test/render.tsx';
@@ -32,7 +32,7 @@ type CaptureProps = ComponentProps<typeof CaptureScreen>;
 type GuideProps = ComponentProps<typeof Guide>;
 type SettingsProps = ComponentProps<typeof SettingsSheet>;
 type OrganizationProps = ComponentProps<typeof OrganizationSheet>;
-type NotificationsProps = ComponentProps<typeof NotificationsScreen>;
+type NotificationsProps = ComponentProps<typeof NotificationsDrawer>;
 
 /** The props each stubbed screen was last drawn with, for the test to press what the screen would. */
 const seen = vi.hoisted(() => ({
@@ -75,10 +75,10 @@ vi.mock('./settings/OrganizationSheet.tsx', () => ({
     return <div data-screen="organization" data-org={props.orgId} data-from={props.from ?? ''} />;
   },
 }));
-vi.mock('./notes/NotificationsScreen.tsx', () => ({
-  NotificationsScreen: (props: NotificationsProps) => {
+vi.mock('./notes/NotificationsDrawer.tsx', () => ({
+  NotificationsDrawer: (props: NotificationsProps) => {
     seen.notifications = props;
-    return <main data-screen="notifications" />;
+    return <div data-drawer="notifications" />;
   },
 }));
 // A sync pass runs before the guide is added; the test sees when.
@@ -804,16 +804,23 @@ describe('a capture ending', () => {
 
 /** Organizations and notifications (docs/TEAMS.md): the two new screens, where each opens from and comes back to. */
 describe('the bell, and an organization’s screen', () => {
-  it('opens the Notifications page from the bell, over the home page’s pane with the tab row kept, and the arrow goes home', async () => {
+  it('opens the notifications drawer from the bell over the page that is up, which stays, and the bell closes it again', async () => {
     await seed(['a', '# Apples']);
     await openApp();
+    const drawer = () => document.querySelector('[data-drawer="notifications"]');
     expect(button('Notifications').hasAttribute('data-unread')).toBe(false);
     act(() => button('Notifications').click());
-    expect(screenNow()?.dataset.screen).toBe('notifications');
-    expect(root.dataset.tabs).toBe('on');
-    expect(button('Notifications').getAttribute('aria-current')).toBe('page');
-    act(() => seen.notifications!.onBack());
+    expect(drawer()).not.toBeNull();
+    expect(button('Notifications').getAttribute('aria-expanded')).toBe('true');
+    // A drawer, not a page: the home page is still the screen under it.
     expect(document.querySelector('nav[aria-label="New note"]')).not.toBeNull();
+    expect(root.dataset.tabs).toBe('on');
+    act(() => button('Notifications').click());
+    expect(drawer()).toBeNull();
+    expect(button('Notifications').getAttribute('aria-expanded')).toBe('false');
+    act(() => button('Notifications').click());
+    act(() => seen.notifications!.onClose());
+    expect(drawer()).toBeNull();
     // A note a row named opens at the line the edit landed on.
     act(() => button('Notifications').click());
     act(() => seen.notifications!.onOpenNote('a', 'line:3'));
@@ -848,7 +855,7 @@ describe('the bell, and an organization’s screen', () => {
     expect(document.querySelector('nav[aria-label="New note"]')).not.toBeNull();
   });
 
-  it('offers both from the palette: Notifications as the page, Organizations as Settings on that page', async () => {
+  it('offers both from the palette: Notifications as the drawer, Organizations as Settings on that page', async () => {
     await seed(['a', '# Apples']);
     await openApp();
     const run = (words: string) => {
@@ -860,7 +867,7 @@ describe('the bell, and an organization’s screen', () => {
     expect(document.querySelector('[data-screen="settings"]')?.getAttribute('data-to-page')).toBe('organizations');
     act(() => seen.settings!.onClose());
     run('Notifications');
-    expect(screenNow()?.dataset.screen).toBe('notifications');
+    expect(document.querySelector('[data-drawer="notifications"]')).not.toBeNull();
   });
 });
 

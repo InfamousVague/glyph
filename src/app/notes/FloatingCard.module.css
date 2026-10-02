@@ -47,6 +47,14 @@
   transform-origin: top right;
 }
 
+/*
+ * Wider, for the notifications' rows of sentences (notes/NotificationsDrawer.tsx): 26rem on a desktop, and on a phone
+ * the window less a margin each side, never its whole width (Matt: "don't render 100% width").
+ */
+.card[data-wide] {
+  inline-size: min(26rem, calc(100vw - var(--app-safe-left) - var(--app-safe-right) - var(--glacier-space-6)));
+}
+
 @keyframes drawerIn {
   from {
     opacity: 0;

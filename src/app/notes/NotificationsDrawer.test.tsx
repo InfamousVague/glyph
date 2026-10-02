@@ -5,10 +5,9 @@ import type { Notification } from '../core/notifications/kinds.ts';
 import { button, buttonSaying, show, unmount, waitUntil } from '../../test/render.tsx';
 import { stubResizeObserver } from '../../test/stubs.ts';
 
-// The kit asks matchMedia as it loads; the page's wisp watches the bar's size, which jsdom never lays out.
+// The kit asks matchMedia as it loads.
 await vi.hoisted(async () => (await import('../../test/stubs.ts')).stubMatchMedia());
 stubResizeObserver();
-vi.mock('../art/wispEdge.ts', () => ({ useWispEdge: () => undefined }));
 
 // Signed in as matt, with the account key when a test seals a row for it.
 let session: Session | null = null;
@@ -30,14 +29,14 @@ vi.mock('../core/sync/engine.ts', async (importOriginal) => ({
   },
 }));
 
-const { NotificationsScreen } = await import('./NotificationsScreen.tsx');
+const { NotificationsDrawer } = await import('./NotificationsDrawer.tsx');
 const { feedState, forgetNotifications, forgetOpened, updateFeed, withFed } = await import('../core/notifications/feed.ts');
 const { forgetOrgs, saveOrgs } = await import('../core/orgs/orgs.ts');
 const { DEFAULT_PREFERENCES, setPreferences } = await import('../core/preferences.ts');
 const { newAccountKey, seal } = await import('../core/sync/crypto.ts');
 
 /**
- * The Notifications page (docs/TEAMS.md): the rows the feed holds, newest first and only the wanted ones, the count
+ * The notifications drawer (docs/TEAMS.md), the floating card under the bell: the rows the feed holds, newest first and only the wanted ones, the count
  * and Mark all read in its head, an invitation's Accept and Decline, a row about a note opening the note and one
  * about an organization opening the organization, the ghost when there is nothing, and the signed-out words.
  */
@@ -53,13 +52,13 @@ function fed(row: Partial<Notification> & { kind: Notification['kind'] }): Notif
   return item;
 }
 
-type Props = Parameters<typeof NotificationsScreen>[0];
+type Props = Parameters<typeof NotificationsDrawer>[0];
 const page = (over: Partial<Props> = {}) =>
-  show(<NotificationsScreen onBack={() => undefined} onOpenNote={() => undefined} onOpenOrganization={() => undefined} onAccount={() => undefined} {...over} />);
+  show(<NotificationsDrawer onClose={() => undefined} onOpenNote={() => undefined} onOpenOrganization={() => undefined} onAccount={() => undefined} {...over} />);
 
 const rows = () => [...document.querySelectorAll<HTMLElement>('ol[aria-label="Notifications"] li')];
 const sentences = () => rows().map((li) => li.querySelector('[class*=sentence]')?.textContent);
-const count = () => document.querySelector('h1 span')?.textContent ?? null;
+const count = () => document.querySelector('h2 span')?.textContent ?? null;
 
 beforeEach(() => {
   localStorage.clear();
@@ -128,7 +127,8 @@ describe('a row', () => {
     const blob = await seal(key, details, 'notification:e1');
     fed({ id: 'e1', kind: 'note-edited', blob });
     const onOpenNote = vi.fn();
-    page({ onOpenNote });
+    const onClose = vi.fn();
+    page({ onOpenNote, onClose });
     // Drawn by its kind while the seal opens, then with its words and the line under them.
     expect(sentences()).toEqual(['Claude edited a note']);
     await waitUntil(() => expect(sentences()).toEqual(['Claude edited Trip to Lisbon · 2 lines changed']));
@@ -136,6 +136,8 @@ describe('a row', () => {
     expect(rows()[0]?.querySelector('[data-kind]')).toBeNull();
     act(() => rows()[0]!.querySelector('button')!.click());
     expect(onOpenNote).toHaveBeenCalledWith('trip', 'line:4');
+    // The drawer goes behind the note it opened.
+    expect(onClose).toHaveBeenCalledOnce();
     expect(feedState(7).items.e1?.readAt).not.toBeNull();
   });
 
@@ -188,10 +190,16 @@ describe('signed out, or Local only', () => {
     expect(document.querySelector('ol')).toBeNull();
   });
 
-  it('goes home from its arrow', () => {
-    const onBack = vi.fn();
-    page({ onBack });
-    act(() => button('Back to home').click());
-    expect(onBack).toHaveBeenCalledOnce();
+  it('closes from its cross, and from a press outside it but not on the bell that opened it', () => {
+    const onClose = vi.fn();
+    page({ onClose });
+    expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Notifications');
+    act(() => button('Close notifications').click());
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('is a card of its own width, not the window’s (docs/DESIGN.md §174)', () => {
+    page();
+    expect(document.querySelector('[role="dialog"]')?.hasAttribute('data-wide')).toBe(true);
   });
 });

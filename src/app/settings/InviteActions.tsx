@@ -7,7 +7,7 @@ import styles from './InviteActions.module.css';
 /**
  * Accept and Decline, inline, for an invitation to an organization (docs/TEAMS.md; Matt: "adding a team member should
  * show them an invite ... put the invites in there with an inline accept and deny"). One pair of words, drawn wherever
- * an invitation is: the row on the Notifications page (notes/NotificationsScreen.tsx), the card on the home page
+ * an invitation is: the row in the notifications drawer (notes/NotificationsDrawer.tsx), the card on the home page
  * (notes/Notices.tsx) and the row on Settings › Account › Organizations (OrganizationsPane.tsx), so the three cannot
  * drift apart.
  *

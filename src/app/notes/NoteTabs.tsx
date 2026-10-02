@@ -78,10 +78,11 @@ interface NoteTabsProps {
    */
   organizations?: readonly { id: string; name: string; hue: string | null }[];
   onOrganization?: (orgId: string) => void;
-  /** The Notifications page (notes/NotificationsScreen.tsx), from the bell before More; absent, and there is no bell. */
+  /** Opens or closes the notifications drawer (notes/NotificationsDrawer.tsx), from the bell before More; absent, and there is no bell. */
   onNotifications?: () => void;
   /** Whether something unread and wanted has arrived: the bell wears its ring and a dot (core/notifications/feed.ts `unreadCount`). */
   unread?: boolean;
+  /** Whether the notifications drawer is open: the bell is lit and says it is expanded. */
   atNotifications?: boolean;
   /**
    * A canvas renamed from its tab (Matt: "I also need a way to rename canvases maybe through the tabs context
@@ -261,7 +262,9 @@ export function NoteTabs({
             onClick={onNotifications}
             aria-label={unread ? 'Notifications, something new' : 'Notifications'}
             title="Notifications"
-            aria-current={atNotifications ? 'page' : undefined}
+            aria-haspopup="dialog"
+            aria-expanded={atNotifications}
+            data-notifications-toggle
             data-on={unread || atNotifications || undefined}
             data-unread={unread || undefined}
           >

@@ -9571,3 +9571,32 @@ Recording's search words lose "The side key" (`RecordingPane.findable.ts`); Appe
 the wisp through the words, is a different thing and stays.
 
 Cites: §18, §43, §47.
+
+## 174. Notifications in a drawer under the bell (2026-10-02)
+
+Matt: "revamp the notifications make it all in a drawer instead of full screen, also the items in the list are clipped
+right now. and don't render 100% width".
+
+§170's notifications were a page in the pane, drawn where All notes is, with the tab row over it. They are now the
+floating card the notes drawer and the aside already are (notes/FloatingCard.tsx), hung at the right under the bell
+(notes/NotificationsDrawer.tsx, which was NotificationsScreen.tsx): the page that was up stays where it was and live
+beside the card, and a tap outside it, Escape, the phone's back gesture, its cross or the bell again closes it. The
+bell is its toggle (`data-notifications-toggle`, `aria-expanded`), lit while it is open. Opening a note or an
+organization from a row closes the drawer behind it. The `notifications` Screen is gone (shell/screen.ts); the
+palette, a `ghostmd://notifications` place link and an organization's screen open the drawer through App's
+`showNotifications` as before.
+
+**Its width.** `wide` on the floating card: 26rem on a desktop, and on a phone the window less a margin each side
+(385px at 412), never the window's width. The page version took the pane's whole width.
+
+**Its rows.** A row is a grid of the kind's mark, the words and when. The words column takes what is left and wraps,
+so a long organization's name or note title breaks onto the next line rather than running off the card; the line
+Claude changed is held to two lines (`line-clamp`), where it was one cut with an ellipsis; when keeps a column of its
+own; Accept and Decline sit under the words and may wrap. The head is the name with the unread count, Mark all read
+and a close, over a hairline, with the rows scrolling under it inside the card. The ghost for "Nothing yet" is the
+small one. The page's own top bar, its wisp at the head and its pull to refresh went with it: the drawer takes the
+feed again each time it opens, as the page did.
+
+Measured in the preview with a fake session and five rows: at 1280 the card is 416px at the right under the bell; at
+412 it is 385px, and no row is wider than its card.
+

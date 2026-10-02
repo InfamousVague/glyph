@@ -4,7 +4,8 @@ import styles from './FloatingCard.module.css';
 
 /**
  * A card that floats over the note, hung from the top bar's icon that opened it: the notes drawer at the left
- * (notes/NotesDrawer.tsx) and the aside at the right (aside/Aside.tsx `AsideCard`; Matt: "the new right hand sidebar
+ * (notes/NotesDrawer.tsx), the aside at the right (aside/Aside.tsx `AsideCard`) and the notifications under the bell
+ * (notes/NotificationsDrawer.tsx; Matt: "the new right hand sidebar
  * doesn't match the floating left sidebar"). The page stays live beside it rather than behind a scrim; the card
  * closes on a tap outside it, on Escape and the phone's back gesture (core/back.ts), and on whatever its contents
  * close it for.
@@ -15,9 +16,11 @@ import styles from './FloatingCard.module.css';
  *
  * Drawn only while it is open: the caller mounts it, and its going is the close.
  */
-export function FloatingCard({ side = 'start', label, toggle, onClose, children }: {
+export function FloatingCard({ side = 'start', wide = false, label, toggle, onClose, children }: {
   /** Which edge of the window it hangs at: the start for the drawer, the end for the aside. */
   side?: 'start' | 'end';
+  /** A little wider than the drawer's, for rows of sentences: the notifications (notes/NotificationsDrawer.tsx). */
+  wide?: boolean;
   /** What a screen reader calls the card. */
   label: string;
   /** A selector for the icon that opened it, which a press outside the card does not count. */
@@ -42,7 +45,7 @@ export function FloatingCard({ side = 'start', label, toggle, onClose, children 
   }, [toggle, onClose]);
   return (
     <div className={styles.over}>
-      <div ref={card} className={styles.card} data-side={side === 'end' ? 'end' : undefined} role="dialog" aria-modal="false" aria-label={label}>
+      <div ref={card} className={styles.card} data-side={side === 'end' ? 'end' : undefined} data-wide={wide || undefined} role="dialog" aria-modal="false" aria-label={label}>
         {children}
       </div>
     </div>

@@ -74,8 +74,6 @@ export type Screen =
     }
   /** Glyph Academy: markdown taught a mark at a time, open from Settings whenever it is wanted (academy/). */
   | { name: 'academy' }
-  /** The notifications feed (notes/NotificationsScreen.tsx): from the bell in the top bar. */
-  | { name: 'notifications' }
   /**
    * An organization's own screen (settings/OrganizationSheet.tsx). Opened from Settings › Account › Organizations
    * (`from: 'settings'`) its head says so and closing reopens Settings on that page; from a workspace's pill, the home
@@ -114,12 +112,12 @@ export function placeOf(screen: Screen): Place | null {
 
 /**
  * Whether a screen is one of the places, which carry the app's tab row (app.css .app-tabBar) and take a pane beside
- * the sidebar on a wide window: the three on the trail, the Notifications page, which is drawn where All notes is
- * (its bell is in that bar), and an organization, whose screen is drawn over the home page in that pane. A capture
+ * the sidebar on a wide window: the three on the trail, and an organization, whose screen is drawn over the home page in
+ * that pane. The notifications are a drawer over any of them (notes/NotificationsDrawer.tsx), not a screen. A capture
  * and the Academy take the whole window, and the way out of them is their own.
  */
 export function isPlace(screen: Screen): boolean {
-  return placeOf(screen) !== null || screen.name === 'notifications' || screen.name === 'organization';
+  return placeOf(screen) !== null || screen.name === 'organization';
 }
 
 /** The id of the note on screen, or null when the screen is not a note. */

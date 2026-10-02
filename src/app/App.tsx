@@ -4,7 +4,7 @@ import { HapticsProvider, ToastProvider, useToast } from '@glacier/react';
 import { UpdateNotice } from './notes/Notices.tsx';
 import { HomeScreen } from './home/HomeScreen.tsx';
 import { AllNotesScreen } from './notes/AllNotesScreen.tsx';
-import { NotificationsScreen } from './notes/NotificationsScreen.tsx';
+import { NotificationsDrawer } from './notes/NotificationsDrawer.tsx';
 import { OrganizationSheet } from './settings/OrganizationSheet.tsx';
 import { unreadCount, useNotifications } from './core/notifications/feed.ts';
 import type { OpenTask } from './home/dashboard.ts';
@@ -204,6 +204,8 @@ function Shell() {
   const voiceModel = useVoiceModel();
 
   const [drawer, setDrawer] = useState(false);
+  /** The notifications drawer under the bell (notes/NotificationsDrawer.tsx), over whatever screen is up. */
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   // The docked sidebar, shown or hidden by the top bar's icon (core/useWideScreen.ts `readSidebarShown`).
   const [sidebarShown, setSidebarShown] = useState(readSidebarShown);
   const toggleDock = () => {
@@ -1102,10 +1104,13 @@ function Shell() {
   const leaveOrganization = () => {
     if (screen.name === 'organization') setScreen({ name: 'list' });
   };
-  /** The Notifications page (notes/NotificationsScreen.tsx), from the bell in the top bar or the palette. */
+  /**
+   * The notifications drawer (notes/NotificationsDrawer.tsx), from the palette, a place link or an organization's
+   * screen: over whatever screen is up, which stays where it was. The bell toggles it.
+   */
   const showNotifications = () => {
     setDrawer(false);
-    setScreen({ name: 'notifications' });
+    setNotificationsOpen(true);
   };
   // Whether the bell rings: something unread the person asked to see (core/notifications/feed.ts `unreadCount`).
   const feed = useNotifications();
@@ -1119,20 +1124,6 @@ function Shell() {
       tapes={screen.name === 'notes' && screen.tapes === true}
       onRefresh={pullRefresh}
       onOrganization={openOrganization}
-    />
-  );
-  const notificationsPage = (
-    <NotificationsScreen
-      onBack={() => void backToList()}
-      // A note Claude edited opens at its first changed line, as a link into a note does (shell/screen.ts `at`).
-      onOpenNote={(id, at) => {
-        if (!at) return openNoteWhereLeft(id);
-        const note = notes.find((n) => n.id === id);
-        if (note) setScreen({ name: 'note', note, at });
-        else openNoteWhereLeft(id);
-      }}
-      onOpenOrganization={openOrganization}
-      onAccount={() => setSettings(true)}
     />
   );
   /*
@@ -1340,7 +1331,10 @@ function Shell() {
             onGoOn={goOn}
             canGoBack={walk.canBack}
             canGoOn={walk.canOn}
-            onNotifications={showNotifications}
+            onNotifications={() => {
+              setDrawer(false);
+              setNotificationsOpen((open) => !open);
+            }}
             onOrganizations={() => {
               // Settings › Account › Organizations, which says what teams need when signed out.
               leaveOrganization();
@@ -1351,7 +1345,7 @@ function Shell() {
             organizations={memberOrgs}
             onOrganization={(orgId) => openOrganization(orgId)}
             unread={unread}
-            atNotifications={screen.name === 'notifications'}
+            atNotifications={notificationsOpen}
             onRename={renameNote}
             onDelete={(id) => {
               const note = notes.find((each) => each.id === id);
@@ -1422,7 +1416,7 @@ function Shell() {
             </aside>
           ) : null}
           <main className="app-notePane">
-            {noteScreen ?? (screen.name === 'notes' ? allNotes : screen.name === 'notifications' ? notificationsPage : (organization ?? home))}
+            {noteScreen ?? (screen.name === 'notes' ? allNotes : (organization ?? home))}
           </main>
           {/* The right-hand aside as a column beside a docked sidebar: a book's index, or a run of chapters (aside/Aside.tsx). */}
           {asideDocked && asideBody ? (
@@ -1432,8 +1426,23 @@ function Shell() {
           ) : null}
         </div>
       ) : (
-        (noteScreen ?? (screen.name === 'notes' ? allNotes : screen.name === 'notifications' ? notificationsPage : (organization ?? home)))
+        (noteScreen ?? (screen.name === 'notes' ? allNotes : (organization ?? home)))
       )}
+      {/* The notifications, the same card at the right under the bell (notes/NotificationsDrawer.tsx). */}
+      {notificationsOpen ? (
+        <NotificationsDrawer
+          onClose={() => setNotificationsOpen(false)}
+          // A note Claude edited opens at its first changed line, as a link into a note does (shell/screen.ts `at`).
+          onOpenNote={(id, at) => {
+            if (!at) return openNoteWhereLeft(id);
+            const note = notes.find((n) => n.id === id);
+            if (note) setScreen({ name: 'note', note, at });
+            else openNoteWhereLeft(id);
+          }}
+          onOpenOrganization={openOrganization}
+          onAccount={() => setSettings(true)}
+        />
+      ) : null}
       {/* With the sidebar a floating card, the aside is the same card at the right (aside/Aside.tsx `AsideCard`). */}
       {asideShown && !asideDocked && asideBody ? (
         <AsideCard content={asideBody} onOpen={openNoteWithin} onOpenTitle={openTitleWithin} onClose={toggleAside} />
