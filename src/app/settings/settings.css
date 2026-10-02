@@ -211,6 +211,16 @@
   font-size: var(--app-action);
 }
 
+/*
+ * On the Mac, Settings is drawn over the app's tab bar, so its first row met the traffic lights, which sit where that
+ * bar's controls begin (app.css `data-titlebar='overlay'`): the back word and the screen's name were under them (Matt:
+ * "on desktop we need to shift down the content on settings as the buttons and stuff render under the traffic
+ * lights"). There it starts below the lights' own row, and that row drags the window, as the tab bar does.
+ */
+:root[data-titlebar='overlay'] .settingsScreen__head {
+  padding-block-start: calc(2.25rem + var(--glacier-space-1));
+}
+
 .settingsScreen__headWord {
   color: var(--glacier-text);
 }

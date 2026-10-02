@@ -467,7 +467,7 @@ export function SettingsScreen({ open, onClose, sections, goTo, title = 'Setting
     const sub = shown !== null && current !== shown.id;
     return (
       <div ref={root} className="settingsScreen" role="dialog" aria-modal="true" aria-label={title} data-layout="split" data-view="pane" data-direction={direction}>
-        <header className="settingsScreen__head">
+        <header className="settingsScreen__head" data-tauri-drag-region>
           {sub ? (
             <button type="button" className="app-word settingsScreen__headWord" onClick={back}>
               <ArrowLeft /> {backWord(sections, shown, title)}
@@ -499,7 +499,7 @@ export function SettingsScreen({ open, onClose, sections, goTo, title = 'Setting
       {active ? (
         <>
           {/* The way back names where it goes: "Settings" over a pane, its parent's name over a sub-page. */}
-          <header className="settingsScreen__head">
+          <header className="settingsScreen__head" data-tauri-drag-region>
             <button type="button" className="app-word settingsScreen__headWord" onClick={back}>
               <ArrowLeft /> {backWord(sections, active, title)}
             </button>
@@ -518,7 +518,7 @@ export function SettingsScreen({ open, onClose, sections, goTo, title = 'Setting
             spent a third of the first page saying so. The arrow still leaves for the notes, which is what it is
             told to say aloud.
           */}
-          <header className="settingsScreen__head">{wayOut}</header>
+          <header className="settingsScreen__head" data-tauri-drag-region>{wayOut}</header>
           {search}
           {/* The list ends in air: a left swipe still goes back into the page just left, without a line saying so. */}
           <nav ref={scroller} className="settingsScreen__list" key="list" aria-label={looking ? `${title} found` : `${title} sections`}>
