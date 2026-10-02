@@ -5,7 +5,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { isoDay } from '../core/days.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { taskBox } from '../core/itemSyntax.ts';
-import { queryFencesIn, withQueryHeight } from '../core/query/fence.ts';
+import { queryFencesIn, withQueryHeight, withShow } from '../core/query/fence.ts';
+import type { ShowAs } from '../core/query/read.ts';
 import { readQuery } from '../core/query/read.ts';
 import { libraryOf, recordCache, type QueryNote, type RecordCache } from '../core/query/records.ts';
 import { runQuery, type Row } from '../core/query/run.ts';
@@ -147,6 +148,17 @@ class QueryWidget extends WidgetType {
           if (next !== open.text) view.dispatch({ changes: { from: open.from, to: open.to, insert: next }, userEvent: 'input.query' });
         },
         thisNote: options?.noteId ?? null,
+        onShow: (show: ShowAs) => {
+          // The view switcher writes one thing - the body's show: line - and keeps from: and where: (core/query/fence.ts).
+          // Found again on the live doc by the opening fence's line, so a change made meanwhile does not write the wrong body.
+          const open = view.state.doc.lineAt(view.posAtDOM(dom));
+          const fence = queryFencesIn(view.state.doc.toString()).find((each) => each.from === open.number);
+          if (!fence || fence.to <= fence.from + 1) return;
+          const bodyFrom = view.state.doc.line(fence.from + 1).from;
+          const bodyTo = view.state.doc.line(fence.to - 1).to;
+          const next = withShow(fence.body, show);
+          if (next !== fence.body) view.dispatch({ changes: { from: bodyFrom, to: bodyTo, insert: next }, userEvent: 'input.query' });
+        },
         onEdit: () => {
           // Focused first, so the caret lands in a view that has the focus and the drawing steps aside at once.
           view.focus();

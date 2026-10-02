@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
-import { Check, ChevronLeft, ChevronRight, Pencil, TriangleAlert } from '@glacier/icons';
+import { useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
+import { CalendarDays, ChartGantt, Check, ChevronLeft, ChevronRight, List as ListIcon, Pencil, Sigma, SquareKanban, Table as TableIcon, TriangleAlert, type IconProps } from '@glacier/icons';
 import { inMonth, monthAfter, monthName, monthWeeks, openingMonth, type CalendarDay } from '../core/query/calendar.ts';
-import type { QueryProblem } from '../core/query/read.ts';
+import { SHOWS, type QueryProblem, type ShowAs } from '../core/query/read.ts';
 import { KIND_WORDS, type Cell, type Group, type QueryResult, type Row } from '../core/query/run.ts';
 import { chipLook, dayLabel, daySaid, type ChipLook } from './fieldChips.ts';
 import { tagsIn } from '../core/tags.ts';
@@ -33,6 +33,8 @@ interface QueryViewProps {
   height?: number | null;
   /** Writes a board's height into the fence, or takes it out with null. */
   onHeight?: (height: number | null) => void;
+  /** Switches how the query is drawn, writing its `show:` line; absent where the lines cannot be edited. */
+  onShow?: (show: ShowAs) => void;
   /** The open note, whose to-dos are ticked and reached in place. */
   thisNote: string | null;
   onEdit: () => void;
@@ -48,7 +50,7 @@ interface Acts {
   onTick: (row: Row) => void;
 }
 
-export function QueryView({ lines, problem, result, editable, height = null, onHeight, onEdit, onOpen, onTick }: QueryViewProps) {
+export function QueryView({ lines, problem, result, editable, height = null, onHeight, onShow, onEdit, onOpen, onTick }: QueryViewProps) {
   if (problem || !result) {
     return (
       <section className={styles.query} aria-label="Query">
@@ -72,7 +74,7 @@ export function QueryView({ lines, problem, result, editable, height = null, onH
   const empty = result.matched === 0 && result.show !== 'count';
   return (
     <section className={styles.query} aria-label={`Query: ${words}`} data-show={result.show}>
-      <Head title={words} count={count} editable={editable} onEdit={onEdit} />
+      <Head title={words} count={count} editable={editable} onEdit={onEdit} show={result.show} onShow={onShow} />
       {result.warnings.map((warning) => (
         <p key={warning} className={styles.warning}>
           {warning}
@@ -98,12 +100,67 @@ export function QueryView({ lines, problem, result, editable, height = null, onH
   );
 }
 
-/** The quiet head: what the query lists, how many, and the pencil that shows its lines. */
-function Head({ title, count, editable, onEdit }: { title: string; count: string | null; editable: boolean; onEdit: () => void }) {
+/** The ways a query can be shown, for the switcher: each with its mark and a word, in the order docs/QUERIES.md teaches. */
+const VIEWS: Readonly<Record<ShowAs, { icon: ComponentType<IconProps>; label: string }>> = {
+  table: { icon: TableIcon, label: 'Table' },
+  list: { icon: ListIcon, label: 'List' },
+  board: { icon: SquareKanban, label: 'Board' },
+  calendar: { icon: CalendarDays, label: 'Calendar' },
+  gantt: { icon: ChartGantt, label: 'Timeline' },
+  count: { icon: Sigma, label: 'Count' },
+};
+
+/**
+ * The quiet head: what the query lists, how many, a switcher for how it is drawn, and the pencil that shows its lines.
+ * The switcher writes only the `show:` line (editor/queries.ts `onShow`), so a list becomes a board or a table with
+ * its `from:` and `where:` kept, the way a database's view tabs do; it is there only where the lines can be edited.
+ */
+function Head({
+  title,
+  count,
+  editable,
+  onEdit,
+  show,
+  onShow,
+}: {
+  title: string;
+  count: string | null;
+  editable: boolean;
+  onEdit: () => void;
+  show?: ShowAs;
+  onShow?: (show: ShowAs) => void;
+}) {
   return (
     <header className={styles.head}>
       <span className={styles.title}>{title}</span>
       {count !== null ? <span className={styles.count}>{count}</span> : null}
+      {editable && show && onShow ? (
+        <div className={styles.views} role="group" aria-label="How to show the query">
+          {SHOWS.map((way) => {
+            const Icon = VIEWS[way].icon;
+            const here = way === show;
+            return (
+              <button
+                key={way}
+                type="button"
+                className={styles.view}
+                data-here={here ? '' : undefined}
+                aria-pressed={here}
+                aria-label={`Show as a ${VIEWS[way].label.toLowerCase()}`}
+                title={VIEWS[way].label}
+                onClick={() => {
+                  if (!here) {
+                    fireNativeHaptic('selection');
+                    onShow(way);
+                  }
+                }}
+              >
+                <Icon size="1em" strokeWidth={2.2} aria-hidden="true" />
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
       {editable ? (
         <button type="button" className={styles.edit} onClick={onEdit} aria-label="Edit the query" title="Edit the query">
           <Pencil size="1em" strokeWidth={2.2} aria-hidden="true" />

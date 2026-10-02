@@ -63,6 +63,66 @@
   margin-inline-start: auto;
 }
 
+/*
+ * The view switcher: a segmented control of the ways a query can be drawn (editor/QueryView.tsx), the current one
+ * raised like a database's view tabs. Held to the right beside the pencil; it scrolls sideways rather than wrap where
+ * a narrow note has no room for all six.
+ */
+.views {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  margin-inline-start: auto;
+  padding: 2px;
+  border-radius: var(--glacier-radius-full);
+  background: color-mix(in oklch, var(--app-ink-3) 10%, transparent);
+  max-inline-size: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.views::-webkit-scrollbar {
+  display: none;
+}
+
+/* Beside the switcher, the pencil sits right next to it rather than an edge away. */
+.views + .edit {
+  margin-inline-start: var(--glacier-space-1);
+}
+
+.view {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  inline-size: var(--glacier-space-6);
+  block-size: var(--glacier-space-6);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--glacier-radius-full);
+  background: transparent;
+  color: var(--app-ink-3);
+  font: inherit;
+  cursor: pointer;
+}
+
+.view:hover {
+  color: var(--app-ink);
+}
+
+.view[data-here] {
+  color: var(--app-ink);
+  background: var(--glacier-bg);
+  box-shadow: 0 1px 2px color-mix(in srgb, #000 16%, transparent);
+}
+
+.view:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring, var(--app-ink-2));
+  outline-offset: 1px;
+}
+
 .edit:hover,
 .turn:hover {
   color: var(--app-ink);

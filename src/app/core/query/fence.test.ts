@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { queryFence, queryFencesIn, withQueryHeight } from './fence.ts';
+import { queryFence, queryFencesIn, withQueryHeight, withShow } from './fence.ts';
 
 /* Where a note's query fences are (core/query/fence.ts). */
 
@@ -47,5 +47,16 @@ describe('query fences', () => {
     expect(withQueryHeight('```query height=20', 31.5)).toBe('```query height=31.5');
     expect(withQueryHeight('~~~query height=20 wide=yes', null)).toBe('~~~query wide=yes');
     expect(withQueryHeight('```board', 20)).toBe('```board');
+  });
+
+  it('switches the show line in the body, keeping from and where, and adds one where there is none', () => {
+    expect(withShow('from: tickets\nwhere: status != Done\nshow: list', 'board')).toBe('from: tickets\nwhere: status != Done\nshow: board');
+    // Its spacing is left as it was; a line with none gets the default space.
+    expect(withShow('from: tasks\nshow:list', 'table')).toBe('from: tasks\nshow:table');
+    expect(withShow('from: tasks\nSHOW:   calendar', 'count')).toBe('from: tasks\nshow:   count');
+    // No show line (which reads as a table): one is added at the end.
+    expect(withShow('from: notes\nwhere: updated >= today-7', 'list')).toBe('from: notes\nwhere: updated >= today-7\nshow: list');
+    // Only the first show line is touched.
+    expect(withShow('show: list\nshow: table', 'board')).toBe('show: board\nshow: table');
   });
 });

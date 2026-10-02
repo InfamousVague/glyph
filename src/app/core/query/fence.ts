@@ -1,4 +1,5 @@
 import { clampHeight } from '../boards/fence.ts';
+import type { ShowAs } from './read.ts';
 
 /**
  * Where each ```query fence in a note is, and what it says (docs/QUERIES.md, docs/DESIGN.md §159): the editor draws
@@ -65,6 +66,29 @@ export function withQueryHeight(openLine: string, height: number | null): string
   const rest = (open[2] ?? '').replace(HEIGHT, ' ').replace(/\s+/g, ' ').trim();
   const settings = [height === null ? '' : `height=${clampHeight(height)}`, rest].filter(Boolean).join(' ');
   return `${start}${settings ? ` ${settings}` : ''}`;
+}
+
+/** A query's `show:` line, however it is spaced; its value is the way it is drawn. */
+const SHOW_LINE = /^(\s*)show(\s*):(\s*)(.*)$/i;
+
+/**
+ * A query's lines with `show:` set to `show`, for the view switcher on a drawn query (editor/QueryView.tsx): the one
+ * thing the segmented control changes, so a list becomes a board or a table with its `from:` and `where:` kept. The
+ * first `show:` line's value is replaced, its spacing left as it was; a query with none (which reads as a table) gets
+ * one added at the end. Pure, over the body between the fences.
+ */
+export function withShow(body: string, show: ShowAs): string {
+  const lines = body.split('\n');
+  let set = false;
+  const next = lines.map((line) => {
+    if (set) return line;
+    const found = SHOW_LINE.exec(line);
+    if (!found) return line;
+    set = true;
+    return `${found[1]}show${found[2]}:${found[3]}${show}`;
+  });
+  if (!set) next.push(`show: ${show}`);
+  return next.join('\n');
 }
 
 /** A query fence with `body` in it, as the + writes one: three backticks, the word, the lines, three backticks. */
