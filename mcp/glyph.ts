@@ -336,6 +336,37 @@ export class GlyphAccount {
   }
 
   /**
+   * The account's synced settings (core/sync/prefs.ts, docs/SYNC.md): one object sealed under the account key with
+   * `prefs` as its context, and the revision it was written at. Every key is kept as it came, known to this client or
+   * not, so a write here never drops a setting a newer app added.
+   */
+  async readPrefs(): Promise<{ rev: number; prefs: Record<string, unknown> }> {
+    const { rev, blob } = await this.call<{ rev: number; blob: string | null }>('GET', 'prefs');
+    const opened = blob ? await open<unknown>(await this.accountKey(), blob, 'prefs') : null;
+    return { rev, prefs: opened && typeof opened === 'object' && !Array.isArray(opened) ? (opened as Record<string, unknown>) : {} };
+  }
+
+  /**
+   * The settings changed by `change` and written from the revision just read, as a device writes them. Another device
+   * writing in between is refused by the service (409); the settings are read again and `change` applied to theirs,
+   * once. Settings are last-writer-wins as a whole object, so this reads, changes one thing and writes straight back.
+   */
+  async changePrefs(change: (prefs: Record<string, unknown>) => Record<string, unknown>): Promise<Record<string, unknown>> {
+    for (let attempt = 0; ; attempt += 1) {
+      const { rev, prefs } = await this.readPrefs();
+      const next = change(structuredClone(prefs));
+      const blob = await seal(await this.accountKey(), next, 'prefs');
+      try {
+        await this.call<{ rev: number }>('PUT', 'prefs', { base: rev, blob });
+        return next;
+      } catch (failure) {
+        if (attempt === 0 && failure instanceof GlyphApiError && failure.status === 409) continue;
+        throw failure;
+      }
+    }
+  }
+
+  /**
    * One notification of what was just written, to the account's own feed: `{ kind, ...details }` sealed under the
    * account key as `notification:<id>` - the id a short one, as the service asks (core/ids.ts `shortId`) - and posted
    * as the app posts its own (core/notifications/feed.ts `postSelfRow`; the service takes the same id twice as once).
