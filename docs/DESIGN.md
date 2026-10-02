@@ -9092,12 +9092,18 @@ choice's the same; now each is drawn as a control (editor/boxControls.ts): a rou
 and a check when ticked, and a ring with a dot when a choice is picked. Each is 1.3em, larger than the letters it
 stands on and narrower than their three-character width.
 
-**The same space.** The characters are not replaced: they stay in the line, transparent, and the control is drawn
-over them, centred in their width. So the line is exactly as long as it was (measured in the browser: every box
-31.4px wide, drawn or typed), and everything built on the characters still holds: a wrapped item hangs under its first
-word (glyphLines.ts measures the characters), a tap ticks or picks where it did (taskToggle.ts, choices.ts), a
-selection and a copy take the characters, and Markdown and Formatted draw the same. A replacing widget would have
-kept the width only by measuring, and would have kept the caret out of the brackets.
+**The same space.** The box is one widget drawn in place of the three characters, holding those characters inside it,
+transparent, so it is exactly as wide as they are with nothing to measure, and the control is centred in their width.
+The characters are still in the document, so a copy and the Markdown view take them, a wrapped item hangs under its
+first word (glyphLines.ts measures them), and a tap ticks or picks where it did (taskToggle.ts, choices.ts). It gives
+way to the characters while the caret or a selection touches them — the edges included, since a replaced widget has
+no inside for the caret to land in — so a box can still be written by hand.
+
+**One widget, not a mark (2026-10-01).** It was first a `mark` over the characters with the box drawn as a `::before`.
+A toggle's edit splits the characters into two text runs, and the mark could be drawn over both, so for the length of
+the fill's transition the box appeared twice (Matt: "the checkboxes duplicate when clicking during the animation").
+A single widget cannot split; updating it in place when it is ticked (`updateDOM`) rather than building it again keeps
+the fill's animation and never draws the box twice.
 
 **Writing one by hand.** While the caret or a selection is inside the three characters, they show as typed, as a
 mark's characters do. A caret before the box or at the words keeps the control. Nothing is drawn in code, where

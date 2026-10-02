@@ -22,29 +22,31 @@ describe('boxes drawn as controls', () => {
   it('finds every to-do’s box and choice, ticked or picked, over their own three characters', () => {
     const s = state('- [ ] Milk\n- [x] Eggs\n* [X] Bread\n- ( ) Tent\n- (x) Cabin\n1. ( ) a step\nPlain [ ] words');
     expect(all(s, false)).toEqual([
-      { from: 2, to: 5, kind: 'task', on: false },
-      { from: 13, to: 16, kind: 'task', on: true },
-      { from: 24, to: 27, kind: 'task', on: true },
-      { from: 36, to: 39, kind: 'choice', on: false },
-      { from: 47, to: 50, kind: 'choice', on: true },
+      { from: 2, to: 5, kind: 'task', on: false, text: '[ ]' },
+      { from: 13, to: 16, kind: 'task', on: true, text: '[x]' },
+      { from: 24, to: 27, kind: 'task', on: true, text: '[X]' },
+      { from: 36, to: 39, kind: 'choice', on: false, text: '( )' },
+      { from: 47, to: 50, kind: 'choice', on: true, text: '(x)' },
     ]);
   });
 
-  it('leaves the characters as typed while the caret or a selection is inside them, and only then', () => {
+  it('gives way to the characters while the caret or a selection touches them, so a replaced box can still be edited', () => {
     const doc = '- [ ] Milk';
-    // Inside the brackets: shown as typed.
+    // Inside the brackets, and a selection across them: shown as typed.
     expect(all(state(doc, 3))).toEqual([]);
     expect(all(state(doc, 0, 4))).toEqual([]);
-    // Before the box and at the words: still the control.
-    expect(all(state(doc, 2))).toHaveLength(1);
-    expect(all(state(doc, 5))).toHaveLength(1);
+    // At either edge (the caret cannot land inside a replaced widget, so the edges reveal it for editing).
+    expect(all(state(doc, 2))).toEqual([]);
+    expect(all(state(doc, 5))).toEqual([]);
+    // Clear of the three characters: still the control.
+    expect(all(state(doc, 1))).toHaveLength(1);
     expect(all(state(doc, 6))).toHaveLength(1);
     // A note without the caret draws every box.
     expect(all(state(doc, 3), false)).toHaveLength(1);
   });
 
   it('draws nothing in code, where a box is characters', () => {
-    expect(all(state('```\n- [ ] not a to-do\n- ( ) nor a choice\n```\n- [ ] a to-do', 0), false)).toEqual([{ from: 47, to: 50, kind: 'task', on: false }]);
+    expect(all(state('```\n- [ ] not a to-do\n- ( ) nor a choice\n```\n- [ ] a to-do', 0), false)).toEqual([{ from: 47, to: 50, kind: 'task', on: false, text: '[ ]' }]);
   });
 
   it('keeps the characters in the line, so it is as long as it was, and marks each box with its kind and state', () => {
