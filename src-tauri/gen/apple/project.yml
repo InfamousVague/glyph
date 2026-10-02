@@ -13,6 +13,9 @@ settingGroups:
       PRODUCT_NAME: Glyph
       PRODUCT_BUNDLE_IDENTIFIER: com.mattssoftware.glyph
       DEVELOPMENT_TEAM: F6ZAL7ANAD
+      # Xcode makes and keeps the profiles, with the team's App Store Connect key handed in by `tauri ios build`
+      # (APPLE_API_KEY, APPLE_API_ISSUER, APPLE_API_KEY_PATH), as AttackFM's builds are signed.
+      CODE_SIGN_STYLE: Automatic
 targetTemplates:
   app:
     type: application
@@ -63,6 +66,9 @@ targets:
     settings:
       base:
         ENABLE_BITCODE: false
+        # iPhone only, for the first App Store version (Matt, 2026-10-02): an iPad build is asked for iPad screenshots
+        # and reviewed on an iPad too (docs/store/APP_STORE.md).
+        TARGETED_DEVICE_FAMILY: "1"
         ARCHS: [arm64]
         VALID_ARCHS: arm64 
         LIBRARY_SEARCH_PATHS[arch=x86_64]: $(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)

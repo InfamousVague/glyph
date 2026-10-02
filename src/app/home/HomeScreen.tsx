@@ -60,7 +60,8 @@ interface HomeScreenProps {
   loading: boolean;
   onOpen: (id: string, at?: string) => void;
   onNew: () => void;
-  onCapture: () => void;
+  /** Speak: left out where nothing records (the iPhone app, core/platform.ts `recordsVoice`), and Speak with it. */
+  onCapture?: () => void;
   onSettings: () => void;
   /** Settings at the Model card. Kept for the callers; the page no longer offers it. */
   onGetModel?: () => void;
@@ -241,7 +242,7 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
               <div className={styles.empty}>
                 <Ghost scene={spaces.current ? 'empty-workspace' : 'no-notes'} size="lead" className={styles.emptyArt} />
                 <p className={styles.emptyLead}>{spaces.current ? `Nothing in ${spaces.current.name} yet.` : 'A blank page.'}</p>
-                <p className={styles.emptyHint}>{isAndroid ? 'Write it, or hold the side key and say it.' : 'Write it, or tap Speak and say it.'}</p>
+                <p className={styles.emptyHint}>{isAndroid ? 'Write it, or hold the side key and say it.' : onCapture ? 'Write it, or tap Speak and say it.' : 'Tap + to write it.'}</p>
               </div>
             ) : !loading && hasNotes && !found ? (
               <div className={look.nothing}>
@@ -268,10 +269,12 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
         <button type="button" className={`${styles.round} ${styles.add}`} onClick={onNew} aria-label="Write a note">
           <Plus />
         </button>
-        <button type="button" className={`app-pill ${styles.speak}`} onClick={onCapture} aria-label="Speak a voice note">
-          <Mic size={18} strokeWidth={2.2} aria-hidden="true" />
-          <span className={styles.speakWord}>Speak</span>
-        </button>
+        {onCapture ? (
+          <button type="button" className={`app-pill ${styles.speak}`} onClick={onCapture} aria-label="Speak a voice note">
+            <Mic size={18} strokeWidth={2.2} aria-hidden="true" />
+            <span className={styles.speakWord}>Speak</span>
+          </button>
+        ) : null}
         <button type="button" className={`${styles.round} ${styles.cog}`} onClick={onSettings} aria-label="Settings">
           <Cog />
         </button>

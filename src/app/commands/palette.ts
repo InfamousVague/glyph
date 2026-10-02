@@ -67,8 +67,9 @@ export interface PaletteDoing {
   newJournal?: () => void;
   /** A new entry in that journal, as its New entry makes one. */
   newEntry?: (journalId: string) => void;
-  speak: () => void;
-  speakInto: (id: string) => void;
+  /** Speak a new note, and talk into this one: absent where nothing records (core/platform.ts `recordsVoice`), no such commands. */
+  speak?: () => void;
+  speakInto?: (id: string) => void;
   closeTab: (id: string) => void;
   showList: () => void;
   /** The All notes grid (notes/AllNotesScreen.tsx). */
@@ -145,10 +146,13 @@ export function paletteCommands(world: PaletteWorld, doing: PaletteDoing, query 
   if (note) {
     const name = titleOf(note);
     // On a journal the mic is Speak an entry: an entry made and spoken, never words into the index (App.tsx `speakInto`).
-    add(
-      { id: 'note:speak', label: note.journal ? 'Speak an entry' : 'Talk into this note', group: 'This note', keywords: note.journal ? 'record voice dictate mic journal diary entry' : 'record voice dictate mic' },
-      () => doing.speakInto(note.id),
-    );
+    const { speakInto } = doing;
+    if (speakInto) {
+      add(
+        { id: 'note:speak', label: note.journal ? 'Speak an entry' : 'Talk into this note', group: 'This note', keywords: note.journal ? 'record voice dictate mic journal diary entry' : 'record voice dictate mic' },
+        () => speakInto(note.id),
+      );
+    }
     add(
       { id: 'note:view', label: world.view === 'mixed' ? 'Show it formatted' : 'Show the marks', group: 'This note', keywords: 'markdown formatted preview read' },
       () => doing.setView(world.view === 'mixed' ? 'formatted' : 'mixed'),
@@ -205,7 +209,8 @@ export function paletteCommands(world: PaletteWorld, doing: PaletteDoing, query 
       add({ id: `entry:${journal.id}`, label: `New entry in ${titleOf(journal)}`, group: 'Notes', keywords: 'journal diary today write entry' }, () => newEntry(journal.id));
     }
   }
-  add({ id: 'speak', label: 'Speak a new note', group: 'Notes', keywords: 'record voice dictate mic talk' }, () => doing.speak());
+  const { speak } = doing;
+  if (speak) add({ id: 'speak', label: 'Speak a new note', group: 'Notes', keywords: 'record voice dictate mic talk' }, () => speak());
   add({ id: 'list', label: 'Home', group: 'Notes', keywords: 'home list back dashboard start' }, () => doing.showList());
   add({ id: 'notes', label: 'All notes', group: 'Notes', keywords: 'browse every grid cards library search archive' }, () => doing.browseNotes());
 

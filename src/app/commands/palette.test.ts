@@ -53,6 +53,17 @@ describe('what the palette offers', () => {
     expect(ids(list).some((id) => id.startsWith('note:') || id.startsWith('tab:') || id.startsWith('space:'))).toBe(false);
   });
 
+  // The iPhone app records nothing yet (core/platform.ts `recordsVoice`): App hands no speaking, and none is offered.
+  it('offers no speaking where nothing records', () => {
+    const acts = doing();
+    delete acts.speak;
+    delete acts.speakInto;
+    const list = ids(paletteCommands(world({ note: { id: 'n1', title: 'Weekend trip' } }), acts));
+    expect(list).not.toContain('speak');
+    expect(list).not.toContain('note:speak');
+    expect(list).toEqual(expect.arrayContaining(['new', 'note:view']));
+  });
+
   it("offers a note's own commands only over a note", () => {
     const over = world({ note: { id: 'n1', title: 'Weekend trip' }, pinned: true });
     const list = ids(paletteCommands(over, doing()));

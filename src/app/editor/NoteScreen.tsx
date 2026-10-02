@@ -142,8 +142,11 @@ interface NoteScreenProps {
   note: Note;
   onBack: () => void;
   onDelete: (id: string) => void;
-  /** Talk into this note: the recorder, aimed here, and back here after. */
-  onSpeak: (id: string) => void;
+  /**
+   * Talk into this note: the recorder, aimed here, and back here after. Left out where nothing records (the iPhone app,
+   * core/platform.ts `recordsVoice`), and the note's mic and its recording's Add with it.
+   */
+  onSpeak?: (id: string) => void;
   onPin: (note: Note) => void;
   onArchive: (note: Note) => void;
   /** Opens the note by that title, making it where there is none: what a [[link]] in the words does. */
@@ -1083,12 +1086,14 @@ export function NoteScreen({
   /** Every canvas among the notes, for More's A canvas: a frame of it drawn in the words (editor/canvasFrames.ts). */
   const canvasTitles = allTitles && bodyOfTitle ? () => allTitles().filter((t) => isCanvasBody(bodyOfTitle(t) ?? '')) : undefined;
 
-  const speakHere = () => {
-    // A new take replaces a removed recording's file, so its Undo would no longer be true.
-    forgetRemoved();
-    flush();
-    onSpeak(note.id);
-  };
+  const speakHere = onSpeak
+    ? () => {
+        // A new take replaces a removed recording's file, so its Undo would no longer be true.
+        forgetRemoved();
+        flush();
+        onSpeak(note.id);
+      }
+    : undefined;
 
   // Where the app's bar wants this screen's controls, if it is there to hold them (core/topBarTools.ts).
   const toolsSlot = useTopBarTools();
@@ -1394,7 +1399,7 @@ export function NoteScreen({
         name={typed ? { value: title, onChange: renameHere, kind: canvas ? 'canvas' : isJournal ? 'journal' : 'notebook' } : undefined}
         journal={journalRows}
         ticketKey={ticketKey}
-        speak={tape.length > 0 ? undefined : { label: isJournal ? 'Speak an entry' : 'Talk into this note', onPress: speakHere }}
+        speak={tape.length > 0 || !speakHere ? undefined : { label: isJournal ? 'Speak an entry' : 'Talk into this note', onPress: speakHere }}
         running={ai.runningKind}
         onAi={ai.runAi}
         blanks={settingsOpen && view ? fillPlanOf(view.state) : { count: 0, online: [] }}

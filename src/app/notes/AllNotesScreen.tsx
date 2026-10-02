@@ -4,7 +4,7 @@ import type { Note } from '../core/store.ts';
 import { inWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
 import { useBack } from '../core/back.ts';
 import { useGlideToTop } from '../core/glideToTop.ts';
-import { isAndroid } from '../core/platform.ts';
+import { isAndroid, recordsVoice } from '../core/platform.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { Ghost } from '../art/Ghost.tsx';
 import { ArchiveBox, Cassette } from '../art/Icons.tsx';
@@ -169,7 +169,7 @@ export function AllNotesScreen({ notes, loading, onOpen, onBack, tapes: tapesAtF
             <div className={styles.empty}>
               <Ghost scene={spaces.current ? 'empty-workspace' : 'no-notes'} size="lead" className={styles.emptyArt} />
               <p className={styles.emptyLead}>{spaces.current ? `Nothing in ${spaces.current.name} yet.` : 'A blank page.'}</p>
-              <p className={styles.emptyHint}>{isAndroid ? 'Write it, or hold the side key and say it.' : 'Write it, or tap Speak and say it.'}</p>
+              <p className={styles.emptyHint}>{isAndroid ? 'Write it, or hold the side key and say it.' : recordsVoice ? 'Write it, or tap Speak and say it.' : 'Tap + to write it.'}</p>
             </div>
           ) : searched && shown.length === 0 ? (
             <div className={styles.empty}>

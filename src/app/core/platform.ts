@@ -44,6 +44,14 @@ export const isAndroid = /Android/i.test(userAgent());
 export const isNativeMobile = isTauri() && isMobile;
 
 /**
+ * Whether this build records: all but the iPhone app, which has no voice engine yet (whisper and its models are not
+ * built for iOS, docs/store/APP_STORE.md). Its first App Store version is notes only (Matt, 2026-10-02: "Notes-only
+ * first version"), so every way into a recording - Speak, a note's mic, a tape's Add, the palette's - is left out
+ * there rather than offered and failing, and the voice model is not looked for.
+ */
+export const recordsVoice = !(isTauri() && isIOS);
+
+/**
  * The Mac app: a Tauri webview on a Macintosh that is not a phone in a Mac's clothes. Its WebView never answers a
  * position request (core/location.ts says why), and its title bar is the window's (below).
  */

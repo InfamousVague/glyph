@@ -87,7 +87,7 @@ import { orgsState, useOrgs } from './core/orgs/orgs.ts';
 import { tickedBody } from './core/query/tick.ts';
 import { movedBody } from './core/query/move.ts';
 import type { RecordKind } from './core/query/records.ts';
-import { isMacApp } from './core/platform.ts';
+import { isMacApp, recordsVoice } from './core/platform.ts';
 
 /**
  * The whole app: which screen is up, and everything drawn over it.
@@ -980,7 +980,7 @@ function Shell() {
         note={screen.note}
         onBack={() => void backToList()}
         onDelete={removeNote}
-        onSpeak={speakInto}
+        onSpeak={recordsVoice ? speakInto : undefined}
         onPin={(n) => actions.pin(n)}
         at={screen.at}
         ask={screen.ask}
@@ -1169,7 +1169,7 @@ function Shell() {
         if (note) setScreen({ name: 'note', note, at });
       }}
       onNew={() => setNewSheet(true)}
-      onCapture={speak}
+      onCapture={recordsVoice ? speak : undefined}
       onSettings={() => setSettings(true)}
       onGetModel={() => {
         setSettings(true);
@@ -1272,8 +1272,7 @@ function Shell() {
     newNotebook: newBook,
     newJournal,
     newEntry: (journalId: string) => void newEntry(journalId),
-    speak,
-    speakInto,
+    ...(recordsVoice ? { speak, speakInto } : {}),
     closeTab,
     showList: () => void backToList(),
     browseNotes: showAllNotes,
@@ -1434,7 +1433,7 @@ function Shell() {
                 onNew={() => setNewSheet(true)}
                 onCommands={openCommands ?? undefined}
                 onSettings={() => setSettings(true)}
-                onSpeak={speak}
+                onSpeak={recordsVoice ? speak : undefined}
                 notices={notices}
                 trashed={trashedNotes}
                 onRestore={actions.restore}
@@ -1520,10 +1519,14 @@ function Shell() {
           setDrawer(false);
           setSettings(true);
         }}
-        onSpeak={() => {
-          setDrawer(false);
-          speak();
-        }}
+        onSpeak={
+          recordsVoice
+            ? () => {
+                setDrawer(false);
+                speak();
+              }
+            : undefined
+        }
         onCommands={
           openCommands
             ? () => {

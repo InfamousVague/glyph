@@ -1,9 +1,11 @@
-import { FileText, Mic, RefreshCw } from '@glacier/icons';
+import { FileText, ListChecks, Mic, RefreshCw } from '@glacier/icons';
 import { WispText } from '../../art/WispText.tsx';
+import { recordsVoice } from '../../core/platform.ts';
 import styles from '../Guide.module.css';
 
+// The iPhone app records nothing yet (core/platform.ts `recordsVoice`), so it promises lists rather than a voice.
 const POINTS = [
-  { icon: Mic, label: 'Say it or type it' },
+  recordsVoice ? { icon: Mic, label: 'Say it or type it' } : { icon: ListChecks, label: 'Lists, to-dos and boards' },
   { icon: FileText, label: 'Plain Markdown files' },
   { icon: RefreshCw, label: 'The same on every device' },
 ] as const;
@@ -20,7 +22,7 @@ export function Welcome() {
       <h1 className={styles.title}>
         <WispText text="Welcome to Ghost.md" pace={16} />
       </h1>
-      <p className={styles.lead}>Notes you type or say. Plain Markdown, kept on your own devices, the same on every one.</p>
+      <p className={styles.lead}>{recordsVoice ? 'Notes you type or say.' : 'Notes you type.'} Plain Markdown, kept on your own devices, the same on every one.</p>
       <ul className={styles.promises} aria-label="What Ghost.md does">
         {POINTS.map(({ icon: Icon, label }, index) => (
           <li key={label} className={styles.promise} style={{ animationDelay: `${420 + index * 120}ms` }}>

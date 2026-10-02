@@ -727,4 +727,12 @@ describe('the rest of the page', () => {
     act(() => button('Search and commands').click());
     expect(onSearch).toHaveBeenCalledTimes(1);
   });
+
+  // The iPhone app records nothing yet (core/platform.ts `recordsVoice`): App hands the page no Speak.
+  it('leaves Speak out of the dock, and out of the empty page’s hint, where nothing records', () => {
+    show(page([], { onCapture: undefined }));
+    expect(document.querySelector('button[aria-label="Speak a voice note"]')).toBeNull();
+    expect(button('Write a note')).toBeTruthy();
+    expect(document.querySelector('[class*="emptyHint"]')?.textContent).toBe('Tap + to write it.');
+  });
 });

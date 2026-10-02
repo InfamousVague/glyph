@@ -46,10 +46,15 @@ vi.mock('./imageShrink.ts', () => ({
 
 /** The Mac app: a Tauri page with no GlyphHost, whose file input the system's open panel answers. */
 let mac = false;
+/** Android, whose activity has the picker (GlyphHost.pickImage); an iPhone has none, and takes the file input. */
+let android = false;
 vi.mock('./platform.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./platform.ts')>()),
   get isMacApp() {
     return mac;
+  },
+  get isAndroid() {
+    return android;
   },
 }));
 
@@ -79,6 +84,7 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 beforeEach(() => {
   native = false;
   mac = false;
+  android = false;
   unopenable = false;
   generation = 18;
   invoked.length = 0;
@@ -164,6 +170,7 @@ describe('a picture in a browser', () => {
 describe('a picture on the phone', () => {
   beforeEach(() => {
     native = true;
+    android = true;
   });
 
   it('refuses a paste on a binary too old to take one, and sends the shrunk bytes to one that can', async () => {
@@ -237,6 +244,21 @@ describe('a picture on the phone', () => {
     window.__glyph?.image?.('not json');
     await expect(garbled).rejects.toThrow('The picture could not be read.');
     expect(invoked).toEqual([]);
+  });
+});
+
+// The iPhone app has no GlyphHost: asking it for Android's picker only said "This build cannot add pictures yet". Its
+// web view answers the file input with the photo library, the camera and the files (docs/store/APP_STORE.md).
+describe('a picture on the iPhone', () => {
+  it('is chosen through the file input and filed by Rust as bytes, as on the Mac', async () => {
+    native = true;
+    generation = 20;
+    answers.set('save_image_data', { name: 'from-iphone.jpg' });
+    const { opened } = chooseFile(new File([new Uint8Array(8)], 'IMG_0042.jpg', { type: 'image/jpeg' }));
+    expect(await pickImage()).toBe('from-iphone.jpg');
+    expect(opened).toHaveLength(1);
+    expect(opened[0]!.accept).toBe('image/*');
+    expect(invoked).toEqual([{ command: 'save_image_data', args: { base64: Buffer.from(SHRUNK).toString('base64') } }]);
   });
 });
 

@@ -49,7 +49,8 @@ interface NoteTapeProps {
   title: string;
   tape: Tape;
   /** Talk more into the note: the recorder, aimed at it, appending to the tape. */
-  onSpeak: () => void;
+  /** Record more into the note; left out where nothing records (core/platform.ts `recordsVoice`), and Add with it. */
+  onSpeak?: () => void;
   /** Take the recording off the note (the screen offers Undo). */
   onRemove: () => void;
   /** The note holds voice memos, which play from this recording: Remove asks first, and says so. */
@@ -126,10 +127,12 @@ export function NoteTape({ note, title: typed, tape, onSpeak, onRemove, hasMemos
           {tape.playing ? 'Pause' : 'Play'}
         </button>
         <span className={styles.edits}>
-          <button type="button" className={`app-word ${styles.edit}`} onClick={onSpeak} aria-label="Record more into this note">
-            <Mic size={15} strokeWidth={2.2} aria-hidden="true" />
-            Add
-          </button>
+          {onSpeak ? (
+            <button type="button" className={`app-word ${styles.edit}`} onClick={onSpeak} aria-label="Record more into this note">
+              <Mic size={15} strokeWidth={2.2} aria-hidden="true" />
+              Add
+            </button>
+          ) : null}
           {asking ? (
             <button type="button" className={`app-word ${styles.edit}`} onClick={() => setAsking(false)} aria-label="Keep this note's recording">
               Keep

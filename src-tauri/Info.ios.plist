@@ -57,6 +57,12 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Ghost.md uses the microphone while you record a voice note, and turns what you say into text on this device.</string>
 
+	<!-- Adding a picture to a note uses the page's file input (core/images.ts
+	     `pickImage`), whose menu on an iPhone offers Take Photo beside the
+	     photo library: the camera opens only for that, at the person's tap. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Ghost.md uses the camera when you take a photo to add to a note.</string>
+
 	<!-- The name under the icon. project.yml's PRODUCT_NAME is still Glyph
 	     (the ids stay glyph), so without this the home screen says Glyph. -->
 	<key>CFBundleDisplayName</key>

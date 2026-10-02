@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { failureText } from '../core/failure.ts';
+import { recordsVoice } from '../core/platform.ts';
 import { isTauri } from '../core/tauri.ts';
 import { ensureModel } from './engine.ts';
 
@@ -29,12 +30,13 @@ export type VoiceModelState =
   | { kind: 'failed'; message: string };
 
 export function useVoiceModel(): { state: VoiceModelState; retry: () => void } {
-  const [state, setState] = useState<VoiceModelState>(() => (isTauri() ? { kind: 'checking' } : { kind: 'unsupported' }));
+  // The iPhone app records nothing yet (core/platform.ts `recordsVoice`): no model is looked for, and none is missed.
+  const [state, setState] = useState<VoiceModelState>(() => (isTauri() && recordsVoice ? { kind: 'checking' } : { kind: 'unsupported' }));
   const running = useRef(false);
   const ready = useRef(false);
 
   const fetchModel = useCallback(async () => {
-    if (!isTauri() || running.current || ready.current) return;
+    if (!isTauri() || !recordsVoice || running.current || ready.current) return;
     running.current = true;
     try {
       await ensureModel((received, total) => setState({ kind: 'downloading', received, total }));

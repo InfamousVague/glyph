@@ -4,7 +4,7 @@ import { answerHost } from './host.ts';
 import { randomId } from './ids.ts';
 import { shrink } from './imageShrink.ts';
 import { hasNativeGeneration } from './nativeGeneration.ts';
-import { isMacApp } from './platform.ts';
+import { isAndroid, isMacApp } from './platform.ts';
 import { invoke, isTauri } from './tauri.ts';
 import { webGet, webPut } from './webImages.ts';
 import sampleTape from '../art/samples/tape.svg?url';
@@ -158,13 +158,14 @@ async function pickWeb(): Promise<string | null> {
 // ---- both ---------------------------------------------------------------------------------
 
 /**
- * Let the person choose a picture; answers its name, or null if they chose none. The phone's own chooser through the
- * activity; everywhere else, the Mac app included, the page's file input, which the Mac answers with its open panel
- * and whose picture goes to Rust as bytes (`save_image_data`). The Mac has no GlyphHost, so asking it for the phone's
- * picker only ever said "This build cannot add pictures yet".
+ * Let the person choose a picture; answers its name, or null if they chose none. Android's own chooser through the
+ * activity; everywhere else, the Mac and the iPhone included, the page's file input, which the Mac answers with its
+ * open panel and the iPhone with its photo library, camera and files, and whose picture goes to Rust as bytes
+ * (`save_image_data`). Neither has a GlyphHost, so asking them for Android's picker only ever said "This build cannot
+ * add pictures yet".
  */
 export function pickImage(): Promise<string | null> {
-  return isTauri() && !isMacApp ? pickNative() : pickWeb();
+  return isTauri() && isAndroid ? pickNative() : pickWeb();
 }
 
 /** Fires when a browser picture has been loaded from storage and `imageUrl` will now answer for it. */
