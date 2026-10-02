@@ -27,7 +27,7 @@ let library: QueryNote[];
 let options: QueryOptions;
 beforeEach(() => {
   library = [SHOP, TICKET];
-  options = { notes: () => library, noteId: 'here', open: vi.fn(), tick: vi.fn() };
+  options = { notes: () => library, noteId: 'here', open: vi.fn(), tick: vi.fn(), move: vi.fn() };
 });
 
 const views: EditorView[] = [];
@@ -141,6 +141,30 @@ describe('a tap in a drawn query', () => {
     const view = await open(fence('from: tasks'));
     await act(async () => drawn(view)[0]!.querySelector<HTMLButtonElement>('[aria-label="Tick Milk"]')!.click());
     expect(options.tick).toHaveBeenCalledWith('shop', 2, `- [ ] Milk 📅 ${day(-1)} @sam`, true);
+  });
+
+  it('moves a ticket to the lane its card is dragged to, through the screen', async () => {
+    const view = await open(fence('from: tickets\nshow: board'));
+    const query = drawn(view)[0]!;
+    const card = [...query.querySelectorAll<HTMLElement>('li[data-movable]')].find((li) => li.textContent?.includes('Fix the login loop'))!;
+    const target = [...query.querySelectorAll<HTMLElement>('[role="listitem"]')].find((lane) => lane.getAttribute('aria-label') === 'In review, 0')!;
+    // The pointer lands on the "In review" lane, whichever pixel it is over.
+    const realFrom = document.elementFromPoint;
+    document.elementFromPoint = () => target;
+    try {
+      const ptr = (type: string, x: number) => {
+        const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: 0, button: 0 });
+        Object.defineProperty(event, 'pointerType', { value: 'mouse' });
+        Object.defineProperty(event, 'pointerId', { value: 1 });
+        return event;
+      };
+      await act(async () => card.dispatchEvent(ptr('pointerdown', 0)));
+      await act(async () => window.dispatchEvent(ptr('pointermove', 40)));
+      await act(async () => window.dispatchEvent(ptr('pointerup', 40)));
+    } finally {
+      document.elementFromPoint = realFrom;
+    }
+    expect(options.move).toHaveBeenCalledWith('gho1', expect.any(Number), expect.any(String), 'ticket', 'status', 'In review');
   });
 
   it('ticks a to-do in this note in the note itself, and puts the caret on one it opens', async () => {

@@ -43,6 +43,8 @@ interface QueryViewProps {
   onEdit: () => void;
   onOpen: (row: Row) => void;
   onTick: (row: Row) => void;
+  /** A card dragged to another lane of a board: its grouped field set to the lane's value, or cleared with null. */
+  onMove: (row: Row, value: string | null) => void;
 }
 
 /** What a row and a cell need from the query's drawing to act and to name days. */
@@ -51,9 +53,10 @@ interface Acts {
   editable: boolean;
   onOpen: (row: Row) => void;
   onTick: (row: Row) => void;
+  onMove: (row: Row, value: string | null) => void;
 }
 
-export function QueryView({ lines, problem, result, editable, height = null, onHeight, onBody, onEdit, onOpen, onTick }: QueryViewProps) {
+export function QueryView({ lines, problem, result, editable, height = null, onHeight, onBody, onEdit, onOpen, onTick, onMove }: QueryViewProps) {
   const [building, setBuilding] = useState(false);
   if (problem || !result) {
     return (
@@ -71,7 +74,7 @@ export function QueryView({ lines, problem, result, editable, height = null, onH
       </section>
     );
   }
-  const acts: Acts = { today: result.today, editable, onOpen, onTick };
+  const acts: Acts = { today: result.today, editable, onOpen, onTick, onMove };
   const words = KIND_WORDS[result.kind];
   const count = result.shown < result.matched ? `${result.shown} of ${result.matched}` : String(result.matched);
   const rows = result.groups.flatMap((group) => group.rows);
@@ -494,16 +497,115 @@ function TableView({ result, acts }: { result: QueryResult; acts: Acts }) {
 }
 
 /**
+ * The value a lane writes to the grouped field when a card is dropped in it: a status' own text, or null to clear the
+ * field in the "No …" lane. Only a status or a plain text field is written from what the lane shows; a day, a priority
+ * or a person is drawn, not the value it is stored as, so a board grouped by one is not one cards can be dragged across
+ * (`boardMovable`).
+ */
+function laneValue(group: Group): string | null {
+  if (!group.key) return null;
+  if (group.cell?.kind === 'status' || group.cell?.kind === 'text') return group.cell.text;
+  return null;
+}
+
+/** Whether a board's cards can be dragged between its lanes: it is grouped, editable, and every lane can be written. */
+function boardMovable(result: QueryResult, editable: boolean): boolean {
+  return editable && !!result.group && result.groups.every((group) => !group.key || group.cell?.kind === 'status' || group.cell?.kind === 'text');
+}
+
+/** The group key of the lane under the pointer, or null where it is over no lane. '' is the "No …" lane, still a key. */
+function laneKeyAt(x: number, y: number): string | null {
+  const el = typeof document.elementFromPoint === 'function' ? document.elementFromPoint(x, y) : null;
+  const lane = el?.closest<HTMLElement>('[data-lane-key]');
+  return lane ? (lane.dataset.laneKey ?? null) : null;
+}
+
+/** How far a finger may wander before a press is a scroll, not the start of a drag, and how long a touch holds to lift a card. */
+const DRAG_SLOP = 8;
+const HOLD_MS = 320;
+
+/**
  * A query drawn as a board, at a height of its own, as a ```board is (editor/boards/divider.ts): the lanes are as tall
  * as the fence's `height=`, or a screenful left to themselves, and each scrolls inside it with the wisp at its foot.
  * Left to the tallest lane, a query of every done ticket ran the board down the page a card at a time (Matt: "The
  * swimlanes are maximum height on the query instead of acting like board view with the split view handle").
+ *
+ * A card is dragged between lanes where the board can be written (`boardMovable`; Matt: "be able to click and drag
+ * items between lanes"): a long press on a touch lifts it so a scroll of the lane is not mistaken for a pick-up, a
+ * small move does on a mouse, and dropping it on another lane sets the grouped field to that lane's value (the queue
+ * takes it, editor/queries.ts `onMove`). A ghost follows the pointer while it moves, and the lane under it is lit.
  */
 function BoardView({ result, acts, height, onHeight }: { result: QueryResult; acts: Acts; height: number | null; onHeight?: (height: number | null) => void }) {
   // The height the line under the board is being dragged to, drawn while the finger moves and written when it lifts.
   const [dragged, setDragged] = useState<number | null>(null);
   const shown = dragged ?? height;
   const boardRef = useRef<HTMLDivElement>(null);
+
+  const movable = boardMovable(result, acts.editable);
+  const laneValues = useMemo(() => new Map(result.groups.map((group) => [group.key, laneValue(group)])), [result.groups]);
+  // The card being carried, the lane it is over, and the ghost's place; cleared when it is dropped or let go.
+  const [carrying, setCarrying] = useState<{ key: string; from: string } | null>(null);
+  const [over, setOver] = useState<string | null>(null);
+  const [ghost, setGhost] = useState<{ x: number; y: number; label: string } | null>(null);
+  const teardown = useRef<(() => void) | null>(null);
+  useEffect(() => () => teardown.current?.(), []);
+
+  const startDrag = (event: ReactPointerEvent<HTMLLIElement>, row: Row, from: string) => {
+    if (!movable) return;
+    if (event.button !== 0 && event.pointerType === 'mouse') return;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let active = false;
+    let hold: number | null = null;
+    const lift = () => {
+      active = true;
+      hold = null;
+      fireNativeHaptic('selection');
+      setCarrying({ key: row.key, from });
+      setGhost({ x: startX, y: startY, label: row.name });
+    };
+    const move = (moving: PointerEvent) => {
+      const dx = moving.clientX - startX;
+      const dy = moving.clientY - startY;
+      if (!active) {
+        if (moving.pointerType === 'mouse') {
+          if (Math.hypot(dx, dy) > DRAG_SLOP) lift();
+          else return;
+        } else {
+          // A touch that wanders before the hold is a scroll of the lane, not a pick-up.
+          if (Math.hypot(dx, dy) > DRAG_SLOP) stop(false);
+          return;
+        }
+      }
+      moving.preventDefault();
+      setGhost({ x: moving.clientX, y: moving.clientY, label: row.name });
+      const key = laneKeyAt(moving.clientX, moving.clientY);
+      setOver(key !== null && key !== from ? key : null);
+    };
+    const up = (ending: PointerEvent) => {
+      const landed = active ? laneKeyAt(ending.clientX, ending.clientY) : null;
+      stop(true);
+      if (landed !== null && landed !== from) acts.onMove(row, laneValues.get(landed) ?? null);
+    };
+    const stop = (dropped: boolean) => {
+      if (hold) window.clearTimeout(hold);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+      teardown.current = null;
+      setCarrying(null);
+      setOver(null);
+      setGhost(null);
+      void dropped;
+    };
+    const cancel = () => stop(false);
+    window.addEventListener('pointermove', move, { passive: false });
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+    teardown.current = () => stop(false);
+    if (event.pointerType !== 'mouse') hold = window.setTimeout(lift, HOLD_MS);
+  };
+
   return (
     <>
       <div
@@ -512,14 +614,29 @@ function BoardView({ result, acts, height, onHeight }: { result: QueryResult; ac
         role="list"
         aria-label="Board"
         data-sized={shown !== null ? '' : undefined}
+        data-dragging={carrying ? '' : undefined}
         style={shown !== null ? ({ '--query-lane-height': `${shown}em` } as CSSProperties) : undefined}
       >
         {result.groups.map((group) => (
-          <section key={group.key || 'none'} className={styles.lane} role="listitem" aria-label={`${group.label}, ${group.rows.length}`}>
+          <section
+            key={group.key || 'none'}
+            className={styles.lane}
+            role="listitem"
+            aria-label={`${group.label}, ${group.rows.length}`}
+            data-lane-key={movable ? group.key : undefined}
+            data-over={movable && over === group.key && carrying?.from !== group.key ? '' : undefined}
+          >
             <GroupHead group={group} />
             <LaneCards still={dragged !== null}>
               {group.rows.map((row) => (
-                <li key={row.key} className={styles.card} data-done={row.category === 'done' || row.done ? '' : undefined}>
+                <li
+                  key={row.key}
+                  className={styles.card}
+                  data-done={row.category === 'done' || row.done ? '' : undefined}
+                  data-movable={movable ? '' : undefined}
+                  data-carrying={carrying?.key === row.key ? '' : undefined}
+                  onPointerDown={movable ? (event) => startDrag(event, row, group.key) : undefined}
+                >
                   <KeyLine id={row.id} />
                   <span className={styles.cardTop}>
                     <Box row={row} acts={acts} />
@@ -533,6 +650,14 @@ function BoardView({ result, acts, height, onHeight }: { result: QueryResult; ac
           </section>
         ))}
       </div>
+      {ghost
+        ? createPortal(
+            <div className={styles.dragGhost} style={{ left: `${ghost.x}px`, top: `${ghost.y}px` }} aria-hidden="true">
+              {ghost.label}
+            </div>,
+            document.body,
+          )
+        : null}
       {acts.editable && onHeight ? <HeightSplit boardRef={boardRef} height={height} onDrag={setDragged} onHeight={onHeight} /> : null}
     </>
   );

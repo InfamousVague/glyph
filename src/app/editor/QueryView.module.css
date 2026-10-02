@@ -634,6 +634,47 @@
   background: transparent;
 }
 
+/* A card that can be dragged to another lane (BoardView): a grab hand, and no text selection as it is carried. */
+.card[data-movable] {
+  cursor: grab;
+}
+
+.board[data-dragging],
+.board[data-dragging] .card {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* The card being carried stays in place, dimmed, while its ghost follows the pointer. */
+.card[data-carrying] {
+  opacity: 0.4;
+}
+
+/* The lane the pointer is over, ready to take the card: its own ink, a touch stronger, with a dashed edge. */
+.lane[data-over] {
+  background: color-mix(in oklch, var(--app-ink) 9%, transparent);
+  outline: 1px dashed color-mix(in oklch, var(--app-ink) 35%, transparent);
+  outline-offset: -1px;
+}
+
+/* The ghost under the pointer while a card is dragged: the record's name on the paper, lifted with a shadow. */
+.dragGhost {
+  position: fixed;
+  z-index: 40;
+  transform: translate(0.6rem, 0.4rem);
+  max-inline-size: 16rem;
+  padding: var(--glacier-space-1) var(--glacier-space-3);
+  border: 1px solid var(--app-rule);
+  border-radius: var(--glacier-radius-md);
+  background: var(--app-paper);
+  box-shadow: var(--glacier-shadow-md, 0 6px 20px rgb(0 0 0 / 25%));
+  font-size: var(--glacier-font-size-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
 .cardTop {
   display: flex;
   align-items: flex-start;

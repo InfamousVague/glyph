@@ -7,8 +7,10 @@ import { fireNativeHaptic } from '../core/haptics.ts';
 import { taskBox } from '../core/itemSyntax.ts';
 import { queryFencesIn, withQueryHeight } from '../core/query/fence.ts';
 import { readQuery } from '../core/query/read.ts';
-import { libraryOf, recordCache, type QueryNote, type RecordCache } from '../core/query/records.ts';
+import { libraryOf, recordCache, type QueryNote, type RecordCache, type RecordKind } from '../core/query/records.ts';
 import { runQuery, type Row } from '../core/query/run.ts';
+import { withProperty } from '../core/properties.ts';
+import { withField } from '../core/taskFields.ts';
 import { caretIn, focusMoved, trackFocus } from './drawnBlock.ts';
 import { fieldChipTheme } from './fieldChips.ts';
 import { QueryView } from './QueryView.tsx';
@@ -46,6 +48,12 @@ export interface QueryOptions {
   open: (noteId: string, line: number | null) => void;
   /** Ticks or clears a to-do in another note: its line as the query read it, and the line's words to find it by. */
   tick: (noteId: string, line: number, source: string, done: boolean) => void;
+  /**
+   * Moves a record to another lane of a board in another note: its grouped field set to the lane's value, or cleared
+   * with null. A ticket's or record's front matter, or a to-do's inline field, found by its line and words (core/query/
+   * move.ts).
+   */
+  move: (noteId: string, line: number, source: string, kind: RecordKind, field: string, value: string | null) => void;
 }
 
 /** The library changed: every query is run and drawn again. */
@@ -185,6 +193,29 @@ class QueryWidget extends WidgetType {
           const text = view.state.doc.line(line);
           const box = taskBox(text.text);
           if (box) view.dispatch(toggleBox(view.state, { from: text.from + box.at, done: box.done }));
+        },
+        onMove: (row: Row, value: string | null) => {
+          // The field the board groups by, set to the lane the card was dropped in (editor/QueryView.tsx). In another
+          // note it goes through the screen as a tick does; in this one it is written into the editor, so the live doc
+          // and the drawing stay in step.
+          const field = result?.group;
+          if (!field || !this.editable) return;
+          fireNativeHaptic('selection');
+          if (row.noteId !== options?.noteId) {
+            options?.move(row.noteId, row.line, row.source, row.kind, field, value);
+            return;
+          }
+          if (row.kind === 'task') {
+            const line = lineOf(view.state, row);
+            if (line === null) return;
+            const text = view.state.doc.line(line);
+            const next = withField(text.text, field, value);
+            if (next !== text.text) view.dispatch({ changes: { from: text.from, to: text.to, insert: next }, userEvent: 'input.query' });
+            return;
+          }
+          const body = view.state.doc.toString();
+          const next = withProperty(body, field, value);
+          if (next !== body) view.dispatch({ changes: { from: 0, to: body.length, insert: next }, userEvent: 'input.query' });
         },
       }),
     );

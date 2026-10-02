@@ -101,6 +101,6 @@ export function Playground({ value, onChange, placeholder }: { value: string; on
 const PAGE: WikiOptions = {
   known: () => false,
   open: () => undefined,
-  queries: { notes: () => [], noteId: 'academy-playground', open: () => undefined, tick: () => undefined },
+  queries: { notes: () => [], noteId: 'academy-playground', open: () => undefined, tick: () => undefined, move: () => undefined },
 };
 

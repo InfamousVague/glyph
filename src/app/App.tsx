@@ -77,6 +77,8 @@ import { fillNoteTemplate, type NoteTemplate } from './notes/noteTemplates.ts';
 import { ticketTemplatesOf, useTickets } from './shell/useTickets.ts';
 import { useQueries } from './shell/useQueries.ts';
 import { tickedBody } from './core/query/tick.ts';
+import { movedBody } from './core/query/move.ts';
+import type { RecordKind } from './core/query/records.ts';
 import { isMacApp } from './core/platform.ts';
 
 /**
@@ -286,6 +288,7 @@ function Shell() {
     shownNotes,
     (id, line) => openNoteAt(id, line),
     (id, line, source, done) => void tickFromQuery(id, line, source, done),
+    (id, line, source, kind, field, value) => void moveFromQuery(id, line, source, kind, field, value),
   );
   /*
    * Every note by its title as a link matches it (core/titleKey.ts), the first of any two that share one, as a search
@@ -1018,6 +1021,17 @@ function Shell() {
   const tickFromQuery = async (id: string, line: number, source: string, done: boolean) => {
     const note = await getNote(id);
     const next = note ? tickedBody(note.body, line, source, done) : null;
+    if (!note || next === null || next === note.body) return;
+    await updateNote(id, next, note.revision ?? 1);
+    await refresh();
+  };
+  /*
+   * A card dragged to another lane of a board, in a note that is not the one on screen: its grouped field set to the
+   * lane's value, or cleared (core/query/move.ts), and the notes read again. A line or note gone is left alone.
+   */
+  const moveFromQuery = async (id: string, line: number, source: string, kind: RecordKind, field: string, value: string | null) => {
+    const note = await getNote(id);
+    const next = note ? movedBody(note.body, line, source, kind, field, value) : null;
     if (!note || next === null || next === note.body) return;
     await updateNote(id, next, note.revision ?? 1);
     await refresh();
