@@ -11,6 +11,7 @@ import { frontMatterEnd, frontMatterValue, withFrontMatterValue } from '../src/a
 import { geoTagOf, withGeoTag } from '../src/app/core/geotag.ts';
 import { plainFills } from '../src/app/core/blanks.ts';
 import { noteTitle, withoutFrontMatter } from '../src/app/core/noteTitle.ts';
+import { isOrgWorkspace } from '../src/app/core/orgs/types.ts';
 import { issueKeyOf, isTicket, ticketIdOf, TICKET_PROPERTIES } from '../src/app/core/properties.ts';
 import { titleKey } from '../src/app/core/titleKey.ts';
 import { Conflict, GlyphApiError, type GlyphAccount, type NoteRecord } from './glyph.ts';
@@ -158,6 +159,24 @@ export function rulesInstructions(rulesBody: string): string {
     '',
     rulesBody.trim(),
   ].join('\n');
+}
+
+/**
+ * The workspaces and their filings as the synced settings hold them (core/preferences.ts `workspaces`, core/workspaces.ts):
+ * the list, and which workspace each note is filed in. Anything malformed is no workspace at all, as the app reads it,
+ * and a filing that names no listed workspace is not one.
+ */
+function workspacesIn(prefs: Record<string, unknown>): { list: { id: string; name: string; hue?: string }[]; notes: Record<string, string> } {
+  const held = (prefs.workspaces && typeof prefs.workspaces === 'object' ? prefs.workspaces : {}) as { list?: unknown; notes?: unknown };
+  const list = (Array.isArray(held.list) ? held.list : []).filter(
+    (w): w is { id: string; name: string; hue?: string } => Boolean(w) && typeof (w as { id?: unknown }).id === 'string' && typeof (w as { name?: unknown }).name === 'string',
+  );
+  const ids = new Set(list.map((w) => w.id));
+  const notes: Record<string, string> = {};
+  if (held.notes && typeof held.notes === 'object') {
+    for (const [note, id] of Object.entries(held.notes as Record<string, unknown>)) if (typeof id === 'string' && ids.has(id)) notes[note] = id;
+  }
+  return { list, notes };
 }
 
 function iso(ms: number): string {
@@ -561,6 +580,74 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
           ...(archived === undefined ? {} : { archivedAt: archived ? (note.archivedAt ?? Date.now()) : null }),
         }));
         return text({ note: summary(written) });
+      }),
+  );
+
+  server.registerTool(
+    'list_workspaces',
+    {
+      title: 'List workspaces',
+      description:
+        'The workspaces notes can be filed under, as the app lists them: id, name, whether it is an organization’s, and how many notes are filed in it. An organization’s workspace is made by the app for each organization the person is a member of.',
+      inputSchema: {},
+    },
+    async () =>
+      guarded(async () => {
+        const { list, notes } = workspacesIn((await account.readPrefs()).prefs);
+        const counts = new Map<string, number>();
+        for (const id of Object.values(notes)) counts.set(id, (counts.get(id) ?? 0) + 1);
+        return text({ count: list.length, workspaces: list.map((w) => ({ id: w.id, name: w.name, organization: isOrgWorkspace(w), notes: counts.get(w.id) ?? 0 })) });
+      }),
+  );
+
+  server.registerTool(
+    'file_notes',
+    {
+      title: 'File notes in a workspace',
+      description:
+        'Files notes under a workspace (an organization’s or a personal one), as a note’s Workspace setting in the app does: each note is in at most one, so filing moves it from any other. `workspace` is a name or id from list_workspaces; set `unfile` instead to take the notes out of every workspace. Only an existing workspace: this never makes one.',
+      inputSchema: {
+        ids: z.array(z.string()).min(1).max(500).describe('The notes’ ids, from list_notes or search_notes.'),
+        workspace: z.string().optional().describe('The workspace’s name (case-insensitive) or id.'),
+        unfile: z.boolean().optional().describe('Take the notes out of whatever workspace they are in.'),
+      },
+    },
+    async ({ ids, workspace, unfile }) =>
+      guarded(async () => {
+        if (Boolean(unfile) === Boolean(workspace?.trim())) return failed('Say one of: a workspace to file the notes in, or unfile.');
+        await account.pull();
+        const found: NoteRecord[] = [];
+        const missing: string[] = [];
+        for (const id of new Set(ids)) {
+          const record = await account.get(id);
+          if (record) found.push(record);
+          else missing.push(id);
+        }
+        if (!found.length) return failed(`None of those notes is in this account: ${missing.join(', ')}.`);
+        let into: { id: string; name: string } | null = null;
+        await account.changePrefs((prefs) => {
+          const { list, notes } = workspacesIn(prefs);
+          if (!unfile) {
+            const want = workspace!.trim();
+            const byId = list.find((w) => w.id === want);
+            const byName = list.filter((w) => w.name.trim().toLowerCase() === want.toLowerCase());
+            if (!byId && byName.length > 1) throw new Error(`More than one workspace is called “${want}”: give its id (${byName.map((w) => w.id).join(', ')}).`);
+            into = byId ?? byName[0] ?? null;
+            if (!into) throw new Error(`No workspace is called “${want}”. These are: ${list.map((w) => w.name).join(', ') || 'none'}.`);
+          }
+          for (const record of found) {
+            if (into) notes[record.note.id] = into.id;
+            else delete notes[record.note.id];
+          }
+          const held = (prefs.workspaces && typeof prefs.workspaces === 'object' ? prefs.workspaces : {}) as Record<string, unknown>;
+          return { ...prefs, workspaces: { ...held, list, notes } };
+        });
+        const chosen = into as { id: string; name: string } | null;
+        return text({
+          workspace: chosen ? { id: chosen.id, name: chosen.name } : null,
+          [chosen ? 'filed' : 'unfiled']: found.map((r) => ({ id: r.note.id, title: noteTitle(r.note.body) || 'Untitled' })),
+          ...(missing.length ? { missing } : {}),
+        });
       }),
   );
 

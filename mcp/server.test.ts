@@ -322,7 +322,7 @@ describe('the account', () => {
     const status = JSON.parse((await call('account_status')).text) as Record<string, unknown>;
     expect(status).toEqual({ handle: 'matt', service: 'https://fake.test/glyph/api', notes: 2, archived: 1, pinned: 1, changedSinceLastRead: 2, connections: 1 });
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name)).toEqual(['list_notes', 'read_note', 'search_notes', 'create_note', 'update_note', 'append_to_note', 'add_journal_entry', 'set_note_flags', 'get_rules', 'add_rule', 'account_status']);
+    expect(tools.map((t) => t.name)).toEqual(['list_notes', 'read_note', 'search_notes', 'create_note', 'update_note', 'append_to_note', 'add_journal_entry', 'set_note_flags', 'list_workspaces', 'file_notes', 'get_rules', 'add_rule', 'account_status']);
   });
 
   it('asks the hosted server’s caller when an entry was written, since its clock is not the person’s', async () => {
@@ -544,5 +544,84 @@ describe('a rewrite as a line diff', () => {
     expect(lineDiff('---\nlook: reading\n---\n# Plan\n\nOld.', '---\nlook: reading\nauthors: matt, Claude\n---\n# Plan\n\nNew.')).toEqual({ added: 1, removed: 1, first: 'New.', at: 'line:7' });
     // A long line is cut to what a notification carries.
     expect(lineDiff('', 'x'.repeat(200)).first).toHaveLength(120);
+  });
+});
+
+describe('workspaces', () => {
+  /** Matt's settings as a phone left them: a theme, an organization's workspace, a personal one, one note filed. */
+  async function withWorkspaces() {
+    const kit = await connected();
+    await kit.service.deviceWrites(aNote('a', '# HelloTrade pricing'));
+    await kit.service.deviceWrites(aNote('b', '# HelloTrade roadmap'));
+    await kit.service.deviceWrites(aNote('c', '# Groceries'));
+    await kit.account.changePrefs(() => ({
+      theme: 'dark',
+      somethingNewer: { kept: true },
+      workspaces: { list: [{ id: 'org-Q1', name: 'Hello Trade', hue: 'sea' }, { id: 'w1', name: 'Home' }], notes: { c: 'w1', gone: 'nowhere' } },
+    }));
+    return kit;
+  }
+
+  it('lists them with what they are and how many notes each holds', async () => {
+    const { call } = await withWorkspaces();
+    expect(JSON.parse((await call('list_workspaces')).text)).toEqual({
+      count: 2,
+      workspaces: [
+        { id: 'org-Q1', name: 'Hello Trade', organization: true, notes: 0 },
+        { id: 'w1', name: 'Home', organization: false, notes: 1 },
+      ],
+    });
+  });
+
+  it('files notes by the workspace’s name, moving them from any other, and keeps every other setting', async () => {
+    const { call, account } = await withWorkspaces();
+    const answer = JSON.parse((await call('file_notes', { ids: ['a', 'b', 'c', 'zz'], workspace: 'hello trade' })).text);
+    expect(answer).toEqual({
+      workspace: { id: 'org-Q1', name: 'Hello Trade' },
+      filed: [
+        { id: 'a', title: 'HelloTrade pricing' },
+        { id: 'b', title: 'HelloTrade roadmap' },
+        { id: 'c', title: 'Groceries' },
+      ],
+      missing: ['zz'],
+    });
+    const { prefs } = await account.readPrefs();
+    expect(prefs.theme).toBe('dark');
+    expect(prefs.somethingNewer).toEqual({ kept: true });
+    // A filing naming no workspace was never one, and is not written back.
+    expect((prefs.workspaces as { notes: unknown }).notes).toEqual({ a: 'org-Q1', b: 'org-Q1', c: 'org-Q1' });
+    await call('file_notes', { ids: ['c'], unfile: true });
+    expect(((await account.readPrefs()).prefs.workspaces as { notes: unknown }).notes).toEqual({ a: 'org-Q1', b: 'org-Q1' });
+  });
+
+  it('never makes a workspace, and says which there are, or which of two of a name it means', async () => {
+    const { call, account } = await withWorkspaces();
+    expect(await call('file_notes', { ids: ['a'], workspace: 'Acme' })).toEqual({ isError: true, text: 'No workspace is called “Acme”. These are: Hello Trade, Home.' });
+    expect(await call('file_notes', { ids: ['a'] })).toEqual({ isError: true, text: 'Say one of: a workspace to file the notes in, or unfile.' });
+    expect(await call('file_notes', { ids: ['zz'], workspace: 'Home' })).toEqual({ isError: true, text: 'None of those notes is in this account: zz.' });
+    await account.changePrefs((prefs) => ({ ...prefs, workspaces: { list: [{ id: 'w1', name: 'Home' }, { id: 'w2', name: 'home' }], notes: {} } }));
+    expect((await call('file_notes', { ids: ['a'], workspace: 'Home' })).text).toBe('More than one workspace is called “Home”: give its id (w1, w2).');
+    expect(JSON.parse((await call('file_notes', { ids: ['a'], workspace: 'w2' })).text).workspace).toEqual({ id: 'w2', name: 'home' });
+  });
+
+  it('writes from the settings another device just wrote, not over them', async () => {
+    const { call, account, service } = await withWorkspaces();
+    let raced = false;
+    const real = service.fetcher;
+    // A phone changes the theme between this client's read and its write, once.
+    (account as unknown as { hooks: { fetcher: typeof fetch } }).hooks.fetcher = async (input, init) => {
+      if (!raced && init?.method === 'PUT' && String(input).endsWith('/prefs')) {
+        raced = true;
+        const { rev, prefs } = await account.readPrefs();
+        const { seal } = await import('../src/app/core/sync/crypto.ts');
+        await real(String(input), { ...init, body: JSON.stringify({ base: rev, blob: await seal(service.accountKey, { ...prefs, theme: 'light' }, 'prefs') }) });
+      }
+      return real(input, init);
+    };
+    await call('file_notes', { ids: ['a'], workspace: 'Home' });
+    const { prefs } = await account.readPrefs();
+    expect(raced).toBe(true);
+    expect(prefs.theme).toBe('light');
+    expect((prefs.workspaces as { notes: Record<string, string> }).notes.a).toBe('w1');
   });
 });
