@@ -93,7 +93,7 @@ mod tests {
         let folder = dir.path().join("recordings").join(a.id.to_string());
         let names: Vec<String> = std::fs::read_dir(&folder).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
         assert_eq!(names, vec!["n1.bin".to_string()], "only the stored recording, no .part beside it");
-        s.delete_account(a.id).unwrap();
+        s.delete_account(a.id, 99).unwrap();
         assert!(!folder.exists());
         assert_eq!(s.recording(a.id, "n1"), None);
     }
