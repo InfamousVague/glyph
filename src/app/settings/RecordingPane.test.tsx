@@ -37,8 +37,6 @@ vi.mock('../core/platform.ts', async (importOriginal) => ({
     return android;
   },
 }));
-// The Model card is ModelCard.test.tsx's; here it is only a card with its title, on the pages that have it.
-vi.mock('./ModelCard.tsx', () => ({ ModelCard: () => <section className="setk"><div className="setk__title">Model</div></section> }));
 
 const { RecordingPane } = await import('./RecordingPane.tsx');
 const { savedHeight, saveHeight } = await import('../capture/sideKey.ts');
@@ -46,8 +44,9 @@ const { preferences, setPreferences, DEFAULT_PREFERENCES } = await import('../co
 
 /**
  * Recording's page: its switches write the preferences the recorder reads, and in the app the side key can be moved
- * from Ghost.md's guess to where the key really is, and put back. Its cards since docs/DESIGN.md §138: While
- * recording, After recording, Summaries as three picks, the Model, Meetings, Tapes and the side key, last.
+ * from Ghost.md's guess to where the key really is, and put back. Its cards: While recording, After recording,
+ * Summaries as three picks, Meetings, Tapes and the side key, last. The Model moved to its own AI section
+ * (settings/AiPane.tsx), so it is no longer here.
  */
 
 const titles = (host: HTMLElement) => [...host.querySelectorAll('.setk__title')].map((title) => title.textContent);
@@ -73,7 +72,7 @@ describe('the Recording page', () => {
   });
 
   it('holds its cards in order on an Android phone, the side key last', () => {
-    expect(titles(show(<RecordingPane />))).toEqual(['While recording', 'After recording', 'Summaries', 'Model', 'Tapes', 'The side key']);
+    expect(titles(show(<RecordingPane />))).toEqual(['While recording', 'After recording', 'Summaries', 'Tapes', 'The side key']);
   });
 
   it('offers Ghost.md’s guess back only once the side key has been moved, and forgets the move', () => {
@@ -90,20 +89,20 @@ describe('the Recording page', () => {
     expect(host.textContent).not.toContain('Use Ghost.md’s guess');
   });
 
-  it('has no side key to place in a browser, nor on the Mac, and no model or tapes in a browser', () => {
+  it('has no side key to place in a browser, nor on the Mac, and no tapes in a browser', () => {
     native = false;
     android = false;
     const browser = show(<RecordingPane />);
     expect(titles(browser)).toEqual(['While recording', 'After recording', 'Summaries']);
     native = true;
     const mac = show(<RecordingPane />);
-    expect(titles(mac)).toEqual(['While recording', 'After recording', 'Summaries', 'Model', 'Tapes']);
+    expect(titles(mac)).toEqual(['While recording', 'After recording', 'Summaries', 'Tapes']);
     // The side key is not the Mac's to press.
     expect(mac.textContent).toContain("Saves after four seconds of quiet, once you've started talking. Done still works.");
     expect(mac.textContent).not.toContain('side key');
   });
 
-  it('says this Mac where the work is done on the Mac, as its Model card does, and the phone on a phone', () => {
+  it('says this Mac where the work is done on the Mac, and the phone on a phone', () => {
     native = true;
     android = false;
     const mac = show(<RecordingPane />);
@@ -157,7 +156,7 @@ describe('Meetings', () => {
     const { Pane, prefs } = await freshPage();
     const host = show(<Pane />);
     await waitUntil(() => expect(titles(host)).toContain('Meetings'));
-    expect(titles(host)).toEqual(['While recording', 'After recording', 'Summaries', 'Model', 'Meetings', 'Tapes', 'The side key']);
+    expect(titles(host)).toEqual(['While recording', 'After recording', 'Summaries', 'Meetings', 'Tapes', 'The side key']);
     // Settings' contract with the meetings drawn, the one state SettingsSheet.test.tsx cannot draw (its binary answers no
     // generation): every name the search lists for the page is on it, so a hit lights something.
     const { findable } = await import('./RecordingPane.findable.ts');

@@ -167,20 +167,20 @@ describe('the list of sections', () => {
     expect(names('theme')).not.toContain('Haptics');
   });
 
-  it('on an Android phone, has Recording beside Appearance and Plugins, and the haptics on Appearance', () => {
+  it('on an Android phone, has Recording and AI beside Appearance and Plugins, and the haptics on Appearance', () => {
     native = true;
     android = true;
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Appearance', 'Recording', 'Plugins', 'About']);
+    expect(labels(host)).toEqual(['Account', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
     expect([...host.querySelectorAll('.settingsScreen__cluster')].map((card) => [...card.querySelectorAll('.settingsScreen__rowLabel')].map((l) => l.textContent))).toEqual([
       ['Account'],
-      ['Appearance', 'Recording', 'Plugins'],
+      ['Appearance', 'Recording', 'AI', 'Plugins'],
       ['About'],
     ]);
     expect(names('theme')).toContain('Haptics');
   });
 
-  it('on an Android phone, lists Recording’s rows for the search, each by its own name, the model among them', () => {
+  it('on an Android phone, lists Recording’s rows for the search, each by its own name, the model gone to AI', () => {
     native = true;
     android = true;
     settings();
@@ -189,33 +189,38 @@ describe('the list of sections', () => {
       'Review after recording',
       'Better words',
       'Summaries',
-      'Model',
       'Tell me when a meeting is written up',
       'Write up straight away',
       'Tapes',
       'Remove audio older than a month',
       'The side key',
     ]);
+    // The model and its own-fill switch are the AI section's now.
+    expect(names('ai')).toEqual(['Model', 'Fill blanks on their own']);
   });
 
-  it('in a browser on an Android phone, has Recording for the side key and the words, without the model, the meetings or the tapes', () => {
+  it('in a browser on an Android phone, has Recording for the side key and the words, without the AI section, the meetings or the tapes', () => {
     android = true;
     const host = settings();
     expect(labels(host)).toEqual(['Account', 'Appearance', 'Recording', 'Plugins', 'About']);
     expect(names('recording')).toEqual(['Stop when I go quiet', 'Review after recording', 'Better words', 'Summaries', 'The side key']);
+    // No model runs in a browser, so no AI section.
+    expect(section('ai')).toBeUndefined();
   });
 
-  it('on an iPhone, is the four a browser has: no Recording, where no model runs', () => {
+  it('on an iPhone, is the four a browser has: no Recording and no AI, where no model runs', () => {
     native = true;
     iphone = true;
     expect(labels(settings())).toEqual(['Account', 'Appearance', 'Plugins', 'About']);
+    expect(section('ai')).toBeUndefined();
   });
 
-  it('on the Mac, has Recording too, for the better words, the summaries and the model, without the side key', () => {
+  it('on the Mac, has Recording and AI too, the recording for the better words and the summaries, without the side key', () => {
     native = true;
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Appearance', 'Recording', 'Plugins', 'About']);
-    expect(names('recording')).toEqual(['Stop when I go quiet', 'Review after recording', 'Better words', 'Summaries', 'Model', 'Tapes', 'Remove audio older than a month']);
+    expect(labels(host)).toEqual(['Account', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
+    expect(names('recording')).toEqual(['Stop when I go quiet', 'Review after recording', 'Better words', 'Summaries', 'Tapes', 'Remove audio older than a month']);
+    expect(names('ai')).toEqual(['Model', 'Fill blanks on their own']);
   });
 
   it('grows Developer and Test results once developer mode is on, on a card of their own', () => {
@@ -308,12 +313,12 @@ describe('the sub-pages', () => {
 });
 
 describe('the targets', () => {
-  // Changed on purpose (docs/DESIGN.md §138): it opened on Formatting, which is Recording's Model card now.
-  it('open on Recording with the Model card lit when the shelf’s Get a model asks for it', async () => {
+  // Opened on Formatting before §138, then Recording's Model card; the model has its own AI section now.
+  it('open on AI with the Model card lit when the shelf’s Get a model asks for it', async () => {
     native = true;
     android = true;
     const host = settings(0, Date.now());
-    expect(host.querySelector('.settingsScreen__display')?.textContent).toBe('Recording');
+    expect(host.querySelector('.settingsScreen__display')?.textContent).toBe('AI');
     await waitUntil(() => expect(host.querySelector('[data-found] .setk__title')?.textContent).toBe('Model'));
   });
 
@@ -350,25 +355,35 @@ describe('the readings', () => {
     expect(reading(settings(), 'Appearance')).toBe('Dark · Fira Code · Larger · Plex · Tight · Square');
   });
 
-  // Changed on purpose (docs/DESIGN.md §138): the model's line was Formatting's, and Formatting is Recording's card. The
-  // model comes first and says no "on the phone", so the line fits the split view's column.
-  it('say the model that writes a take up, and what it takes to get, then what a take becomes, under Recording', async () => {
+  // What a take becomes, under Recording, now that the model's line moved to AI.
+  it('say what a take becomes under Recording, and leave the model to AI', async () => {
     native = true;
     android = true;
     setPreferences({ refine: true });
-    expect(reading(settings(), 'Recording')).toBe('Qwen3.5 4B, 2.7 GB to get · better words');
+    expect(reading(settings(), 'Recording')).toBe('Better words');
     unmount();
     setPreferences({ refine: false });
-    expect(reading(settings(), 'Recording')).toBe('Qwen3.5 4B, 2.7 GB to get · words as heard');
+    expect(reading(settings(), 'Recording')).toBe('Words as heard');
+    unmount();
+    // A browser on an Android phone: the same, and no AI section to read.
+    native = false;
+    setPreferences({ refine: true });
+    const host = settings();
+    expect(reading(host, 'Recording')).toBe('Better words');
+    expect(section('ai')).toBeUndefined();
+  });
+
+  // The model the AI runs, and what it takes to get: the model first and no "on the phone", so the line fits the
+  // split view's column.
+  it('say the model the AI runs, and what it takes to get, under AI', async () => {
+    native = true;
+    android = true;
+    setPreferences({ refine: true });
+    expect(reading(settings(), 'AI')).toBe('Qwen3.5 4B, 2.7 GB to get');
     unmount();
     catalogue = [{ id: 'qwen3.5-4b', file: 'qwen3.5-4b.gguf', bytes: 2_740_937_888, present: true, path: '/models/qwen3.5-4b.gguf' }];
     const host = settings();
-    await waitUntil(() => expect(reading(host, 'Recording')).toBe('Qwen3.5 4B · words as heard'));
-    unmount();
-    // A browser on an Android phone has no model to fetch: what a take becomes, alone.
-    native = false;
-    setPreferences({ refine: true });
-    expect(reading(settings(), 'Recording')).toBe('Better words');
+    await waitUntil(() => expect(reading(host, 'AI')).toBe('Qwen3.5 4B'));
   });
 
   it('say Local only after the account under Account while it holds the sync off', () => {
@@ -582,8 +597,8 @@ describe('the search', () => {
 
   /** Where a search for what was there before lands now, section/setting (a section alone when its name is found). */
   const MOVED: [string, string][] = [
-    ['formatting', 'recording/Model'],
-    ['choose your model', 'recording/Model'],
+    ['formatting', 'ai/Model'],
+    ['choose your model', 'ai/Model'],
     ['local only', 'account/Local only'],
     ['link previews', 'account/Link previews'],
     ['privacy policy', 'account/Privacy policy'],

@@ -9,16 +9,16 @@ import styles from '../Guide.module.css';
  * Which model the AI runs, asked up front like the theme: the choice is a
  * row per model with its size, the chosen one printed in reverse. Choosing
  * only sets the preference; the bytes come from the word under the list, now,
- * or from Get in Settings › Recording › Model later, so a phone on wifi tonight
+ * or from Get in Settings › AI › Model later, so a phone on wifi tonight
  * is ready tomorrow. Asking the AI on a note with no model on the phone says it
  * needs one and fetches nothing (ai/available.ts), so the line says where to
  * get it rather than promising a download. Changeable any time on that card
  * (settings/ModelCard.tsx, which was the Formatting page until
- * docs/DESIGN.md §138).
+ * docs/DESIGN.md §138, then Recording's, then AI's).
  *
  * The line under the rows reads the download only in the app, and not on an
  * iPhone: in a browser there is nothing to fetch, an iPhone runs no model
- * (ai/available.ts) and has no Recording page to send anyone to, and a row
+ * (ai/available.ts) and has no AI page to send anyone to, and a row
  * still sets the preference either way.
  */
 export function Model() {

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { BookOpen, CircleUser, FileCode, FlaskConical, Info, Mic, Puzzle, Shapes, SunMoon, Terminal } from '@glacier/icons';
+import { BookOpen, CircleUser, FileCode, FlaskConical, Info, Mic, Puzzle, Shapes, Sparkles, SunMoon, Terminal } from '@glacier/icons';
 import { useAccount } from '../core/account/account.ts';
 import { syncSummary, useSyncStatus } from '../core/sync/engine.ts';
 import { AccountPane } from './AccountPane.tsx';
 import { findable as accountFindable } from './AccountPane.findable.ts';
 import { gb, modelName, modelSpec, useModels } from '../core/ai.ts';
 import { hapticsAvailable } from '../core/haptics.ts';
-import { isAndroid, isMobile } from '../core/platform.ts';
+import { isAndroid, isIOS, isMobile } from '../core/platform.ts';
 import { storeOf, type Updates } from '../core/ota.ts';
 import { DEFAULT_PREFERENCES, facesOf, usePreferences } from '../core/preferences.ts';
 import { isTauri } from '../core/tauri.ts';
@@ -26,6 +26,8 @@ import { findable as developerFindable } from './DeveloperPane.findable.ts';
 import { ExamplesPane } from './ExamplesPane.tsx';
 import { findable as examplesFindable } from './ExamplesPane.findable.ts';
 import { RecordingPane } from './RecordingPane.tsx';
+import { AiPane } from './AiPane.tsx';
+import { findable as aiFindable } from './AiPane.findable.ts';
 import { SpecPane } from './SpecPane.tsx';
 import { findable as specFindable } from './SpecPane.findable.ts';
 import { findable as recordingFindable } from './RecordingPane.findable.ts';
@@ -40,13 +42,14 @@ import { reportSummary } from '../diag/testReport.ts';
  * screen that lists them (SettingsScreen). The readings come from the same
  * stores the panes edit, so a row can never disagree with its pane.
  *
- * Five rows on a phone since docs/DESIGN.md §138 (Matt: "also see if you can clean up / streamline settings a bit"),
- * on one screen with air under them, in four cards: who you are and what leaves the phone (Account); how it looks,
- * moves and feels (Appearance), what happens to a recording and the model that writes it up (Recording), and what
- * reaches beyond the phone (Plugins); the app itself (About); and the hidden pages (Developer, Test results). It was
- * twelve rows over two screens. Recording is listed on Android, where there is a side key, and on the Mac, which
- * records through Speak and runs the better words and the summaries (§127 section 2); the hidden pages only once
- * unlocked.
+ * The rows on a phone since docs/DESIGN.md §138 (Matt: "also see if you can clean up / streamline settings a bit"),
+ * on one screen with air under them: who you are and what leaves the phone (Account); how it looks, moves and feels
+ * (Appearance), what happens to a recording (Recording), the model and how it fills a note (AI), and what reaches
+ * beyond the phone (Plugins); the app itself (About); and the hidden pages (Developer, Test results). It was twelve
+ * rows over two screens. Recording is listed on Android, where there is a side key, and on the Mac, which records
+ * through Speak and runs the better words and the summaries (§127 section 2). AI is listed where a model runs: the app
+ * on Android and the Mac, never a browser or an iPhone (Matt: "move the Model sections into an AI setting section").
+ * The hidden pages only once unlocked.
  *
  * Sub-pages are sections too, off the list (`listed: false`) and still searched, each stepping back to its parent:
  * a switched-on plugin's own page behind its Plugins card, and the cheat sheet and the examples behind About's Help.
@@ -79,8 +82,8 @@ interface SettingsSheetProps {
    */
   toCheatSheet?: number;
   /**
-   * Asked from outside to open at Recording's Model card, lit: the home page's "Get a model" and its digest's phrase
-   * send people there for a language model (home/TapeShelf.tsx, home/dashboard.ts). The same shape as `toCheatSheet`.
+   * Asked from outside to open at the AI section's Model card, lit: the home page's "Get a model" and its digest's
+   * phrase send people there for a language model (home/TapeShelf.tsx, home/dashboard.ts). Same shape as `toCheatSheet`.
    */
   toModel?: number;
 }
@@ -102,26 +105,25 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
   useEffect(() => {
     if (toCheatSheet) setGoTo({ id: 'cheatsheet', nonce: toCheatSheet });
   }, [toCheatSheet]);
-  // Opened from the shelf's "Get a model": the sheet comes up on Recording with the Model card lit, where it is fetched.
+  // Opened from the shelf's "Get a model": the sheet comes up on AI with the Model card lit, where it is fetched.
   useEffect(() => {
-    if (toModel) setGoTo({ id: 'recording', setting: 'Model', nonce: toModel });
+    if (toModel) setGoTo({ id: 'ai', setting: 'Model', nonce: toModel });
   }, [toModel]);
 
-  // Where a recorder with a model behind it runs: Android, and the Mac app (§127 section 2).
+  // Where a recorder runs: Android, and the Mac app (§127 section 2).
   const recording = isAndroid || (isTauri() && !isMobile);
+  // Where a model runs: the app on Android and the Mac, never a browser or an iPhone (ai/available.ts). The AI section
+  // is listed there, with the Model card.
+  const aiRuns = isTauri() && !isIOS;
   const chosenModel = modelSpec(prefs.formatModel);
   const modelHere = models.find((m) => m.id === prefs.formatModel)?.present ?? false;
+  // What a take becomes now that the model moved to AI: better words, or the words as heard.
+  const recordingSummary = prefs.refine ? 'Better words' : 'Words as heard';
   /**
-   * The model that writes a take up, with what it takes to get when it is not here (Formatting's reading until §138),
-   * then what a take becomes. The model first and no "on the phone": the split view's column is 20rem, and the longer
-   * line lost its end there. Where there is no model to fetch (a browser on a phone), what a take becomes alone.
+   * The model the AI runs, with what it takes to get when it is not here (Formatting's reading until §138). No "on the
+   * phone": the split view's column is 20rem, and the longer line lost its end there.
    */
-  const take = prefs.refine ? 'better words' : 'words as heard';
-  const recordingSummary = isTauri()
-    ? `${modelName(prefs.formatModel)}${modelHere ? '' : `, ${gb(chosenModel?.bytes ?? 0)} to get`} · ${take}`
-    : prefs.refine
-      ? 'Better words'
-      : 'Words as heard';
+  const aiSummary = `${modelName(prefs.formatModel)}${modelHere ? '' : `, ${gb(chosenModel?.bytes ?? 0)} to get`}`;
 
   const sections: SettingsSection[] = [
     // Who you are, first and on its own card (Matt: "move account to top of settings section"): it is what a person
@@ -173,6 +175,22 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
             icon: <Mic size={16} />,
             content: <RecordingPane />,
             summary: recordingSummary,
+            group: 1,
+          },
+        ]
+      : []),
+    // The model and how it fills a note: its own section where a model runs (Matt: "move the Model sections into an AI
+    // setting section"). The app on Android and the Mac, never a browser or an iPhone, where none runs.
+    ...(aiRuns
+      ? [
+          {
+            id: 'ai',
+            label: 'AI',
+            words: 'model llm fill blanks format summarize enhance',
+            settings: aiFindable(),
+            icon: <Sparkles size={16} />,
+            content: <AiPane />,
+            summary: aiSummary,
             group: 1,
           },
         ]

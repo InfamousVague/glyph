@@ -15,20 +15,18 @@ import { listNotes, type Note } from '../core/store.ts';
 import { isTauri } from '../core/tauri.ts';
 import { headStatus } from '../tapes/useTape.ts';
 import { PaneSection, Pick, RowAction, SettingRow } from './kit/settingsKit.tsx';
-import { ModelCard } from './ModelCard.tsx';
 import { oldTapes, tapeBytes, tapeSize, tapesHere } from './tapes.ts';
 
 /**
- * Recording: the microphone, what happens to a take, the model that writes it up, and the side key. Listed on Android
- * and on the Mac (SettingsSheet.tsx): the Mac records through Speak, runs the better words and the summaries, and its
- * rows had no home there before (docs/DESIGN.md §127 section 2). The side key's card is Android's alone, and last,
- * since it is set once.
+ * Recording: the microphone, what happens to a take, and the side key. Listed on Android and on the Mac
+ * (SettingsSheet.tsx): the Mac records through Speak, runs the better words and the summaries, and its rows had no home
+ * there before (docs/DESIGN.md §127 section 2). The side key's card is Android's alone, and last, since it is set once.
  *
  * Cards since docs/DESIGN.md §138 (Matt: "also see if you can clean up / streamline settings a bit"): While recording
- * (it was "The side key" on Android, a title over rows about quiet and the review), After recording, the Summaries as
- * three picks with a hint each (a segmented control's middle label, "Meetings and long voice notes", did not fit at
- * 412), and the Model (ModelCard.tsx), which was the Formatting page: it writes the summaries and the review, so it
- * sits beside them. In the app only, where there are models to fetch.
+ * (it was "The side key" on Android, a title over rows about quiet and the review), After recording, and the Summaries
+ * as three picks with a hint each (a segmented control's middle label, "Meetings and long voice notes", did not fit at
+ * 412). The model that writes a take up moved to its own AI section (settings/AiPane.tsx; Matt: "move the Model
+ * sections into an AI setting section"); the summaries and the review still read as what it does with a take.
  *
  * Meetings (§127 section 4), on an Android phone with the service that records them (native generation 20): whether
  * the phone may say when a meeting is written up, and when it is written up with the app closed. And Tapes (§127
@@ -99,7 +97,6 @@ export function RecordingPane() {
           />
         ))}
       </PaneSection>
-      {isTauri() ? <ModelCard /> : null}
       {isAndroid && meetings === true ? <Meetings /> : null}
       {isTauri() ? <Tapes canRemove={meetings} /> : null}
       {isAndroid ? <SideKeyPlace /> : null}
