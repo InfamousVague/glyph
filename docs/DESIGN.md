@@ -9335,9 +9335,17 @@ retry after a lost answer makes no second row. A kind the service makes cannot b
 service body, is "not yet" and the step is quiet; every other 404 is an answer in the service's words. One helper,
 `notYet`, for the pass, the pages and the connector.
 
-**Measured.** TODO(integrator): the Notifications page at 412 and 1280 (the head's count, a row's height, an
-invitation's Accept and Decline in a row, the ghost when empty); the bell's dot at 412 (size and offset); the
-Notifications pane's "n of 4 on" and its footer at 412; which build, which engine, and the shots' folder.
+**Measured.** On the branch at d2da88dc, a `vite build` served by `vite preview` on 127.0.0.1:5280 (alice) and
+localhost:5280 (bob) against the branch's glyph-api on 127.0.0.1:18799, in the desktop app's browser pane
+(Chromium), two accounts made through Settings › Account. At 412×915 the bell is a 39px ring at x 189 with its
+6px dot 6px in from the top and the right; the page's head reads "Notifications" at 19.4px with the count pill,
+"Mark all read" 104×54 at the right; an invitation's row is 367 wide at x 22 and 99 tall with the sentence over
+two lines, "Accepted" under it and the date at the end. At 1280×900 the bell is 46px at x 243, the list 768 wide
+at x 26, and a row 75 tall ("bob accepted your invitation to Ghost team · 6 min ago"). The flow, live: alice
+invited bob by handle, bob's bell lit on the page's open, Accept settled the row and lit alice's bell on her
+next launch, and bob's "Ghost team" workspace appeared in his filters with the org mark. Two defects found on
+that run and fixed before merging: the service answered its moments in seconds (a member "since January 21"),
+and an answered invitation stayed unread. No shots folder was kept; the measurements were read live.
 
 **Tests.** Server: notifications_tests.rs (a post read back and a repeat landing once; the kinds and the limits; read
 marks and hiding fed again with a new revision; the cursor rule; one account never seeing another's; three hundred
@@ -9467,9 +9475,16 @@ also sits beside "New workspace" in the home page's filters when signed in.
 connector; the page tolerates the gap in one direction through `notYet` (§170), and the deploy's probe fails when
 `GET /api/v1/orgs` without a token is not a 401, since an old binary answers 404.
 
-**Measured.** TODO(integrator): the Organization screen at 412 (the Members hero's height, a member row with its role
-chip, the invite field) and in the split view at 1280; the Organizations page under Account at 412; the org
-workspace's pill with its mark at 412; which build, which engine, and the shots' folder.
+**Measured.** The same run as §170. At 412×915 the organization's section list sits under "← Organizations":
+General 56, Members 65, Workspace 64, Notifications 65 and Leave 56 tall, each 367 wide at x 22, in three cards
+as Settings' are; Members opens on the hero (the hue round, "Ghost team", "2 members · You are member") over the
+D1 sentence and the rows "alice Owner — owner since 6 min ago" and "bob Member — You, joined 4 min ago". At
+1280×900 the split view keeps the list beside the pane; the owner's Members pane adds the invite field and, once
+bob is invited, his row "Invited by alice" with Withdraw and the status line "bob is invited. They see it in
+their notifications." Under Account › Organizations at 412: "Ghost team — Member · 2 members" and the New
+organization card. In the home filters at 1280 the org's pill wears the mark beside "Every workspace", with "New
+organization" under "New workspace". The org screen refetches its members only when it opens, so alice's open
+Members pane still read "bob Invited" after bob accepted until it was opened again.
 
 **Tests.** Server: orgs_tests.rs (made, listed, read, renamed and deleted by its owner; a name, a hue, a role and an
 id checked before anything is looked up; a stranger's one 404 from every route; an invitation telling the invitee and
