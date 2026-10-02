@@ -26,7 +26,7 @@ fn harness() -> Harness {
 fn harness_and_accounts(label: &str) -> (Harness, Arc<Accounts>) {
     let dir = TempDir::new(label);
     let accounts = accounts_in(dir.path());
-    (Harness { service: service(Some(accounts.clone())), dir }, accounts)
+    (Harness { service: service(Some(accounts.clone())), accounts: accounts.clone(), dir }, accounts)
 }
 
 /// A device key as a device sends it: its public half, base64url.

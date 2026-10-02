@@ -1,5 +1,6 @@
 //! Accounts and what speaks for them: the `accounts` row itself, the device keys that may sign in without a password,
-//! and the recovery codes - and deleting an account, which takes everything else it keeps here with it.
+//! and the recovery codes - and deleting an account, which takes everything else it keeps here with it, once the
+//! organizations it is in have been told and the ones it owns are found empty.
 //!
 //! What arrives as a password is already a login secret a device derived, and what is kept of it is its Argon2 hash
 //! (src/accounts/credentials.rs); the account key is kept only wrapped. So a row here says who an account is, never what is in it.
@@ -17,6 +18,22 @@ pub struct Account {
     pub wrapped: String,
 }
 
+/// Why an account was not deleted.
+#[derive(Debug, PartialEq, Eq)]
+pub enum DeleteAccount {
+    /// It owns an organization someone else is in, joined or invited (store/orgs.rs): hand it over or delete it
+    /// first, so nobody's organization vanishes under them.
+    OwnsOrganizations,
+    /// Something below the rules failed.
+    Failed,
+}
+
+impl From<rusqlite::Error> for DeleteAccount {
+    fn from(_: rusqlite::Error) -> Self {
+        DeleteAccount::Failed
+    }
+}
+
 impl Store {
     /// An account as `ACCOUNT_SELECT` reads it.
     fn account_row(r: &Row<'_>) -> rusqlite::Result<Account> {
@@ -29,6 +46,11 @@ impl Store {
 
     pub fn account_by_id(&self, id: i64) -> Option<Account> {
         self.one(&format!("{ACCOUNT_SELECT} WHERE id = ?1"), params![id], Self::account_row)
+    }
+
+    /// The id behind a handle, inside another write's transaction (an invitation, store/orgs.rs).
+    pub(super) fn account_in(conn: &Connection, handle: &str) -> rusqlite::Result<Option<i64>> {
+        conn.query_row("SELECT id FROM accounts WHERE handle = ?1", params![handle], |r| r.get(0)).optional()
     }
 
     /// A new account with everything it starts with, in one transaction: a signup is all there or not there at all.
@@ -66,15 +88,26 @@ impl Store {
         Ok(())
     }
 
-    /// An account and everything it keeps here, gone (Settings > Account > Delete account). The one row goes, and the
-    /// tables that hang from it cascade: its devices, its recovery codes, its notes, its settings, its shares (so every
-    /// link it made reads nothing from then on) and its recordings' rows. Then its recordings' files. Whether there was
-    /// an account to delete.
-    pub fn delete_account(&self, id: i64) -> rusqlite::Result<bool> {
-        let gone = self.lock().execute("DELETE FROM accounts WHERE id = ?1", params![id])? > 0;
+    /// An account and everything it keeps here, gone (Settings > Account > Delete account). Refused, inside the one
+    /// transaction, while it owns an organization anyone else is in: the check and the deletion are not two calls an
+    /// acceptance could slip between. Then the organizations it had joined are told it left, and the one row goes, and
+    /// the tables that hang from it cascade: its devices, its recovery codes, its notes, its settings, its shares (so
+    /// every link it made reads nothing from then on), its recordings' rows, its organization rows and its
+    /// notifications; an organization it owned alone goes with it. Then its recordings' files. Whether there was an
+    /// account to delete.
+    pub fn delete_account(&self, id: i64, now: i64) -> Result<bool, DeleteAccount> {
+        let mut conn = self.lock();
+        let tx = conn.transaction()?;
+        if Self::owns_org_with_others(&tx, id)? {
+            return Err(DeleteAccount::OwnsOrganizations);
+        }
+        Self::leave_every_org(&tx, id, now)?;
+        let gone = tx.execute("DELETE FROM accounts WHERE id = ?1", params![id])? > 0;
+        tx.commit()?;
+        drop(conn);
         let folder = self.recordings.join(id.to_string());
         if folder.exists() {
-            std::fs::remove_dir_all(&folder).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+            std::fs::remove_dir_all(&folder).map_err(|_| DeleteAccount::Failed)?;
         }
         Ok(gone)
     }
@@ -200,9 +233,9 @@ mod tests {
     #[test]
     fn deleting_an_account_answers_whether_there_was_one_with_or_without_a_recordings_folder() {
         let (s, a, _dir) = fixture();
-        assert_eq!(s.delete_account(a.id).ok(), Some(true), "no recording was ever kept, so there is no folder to remove");
+        assert_eq!(s.delete_account(a.id, 300), Ok(true), "no recording was ever kept, so there is no folder to remove");
         assert!(s.account_by_id(a.id).is_none());
         assert!(s.device_keys(a.id).is_empty() && s.recovery_codes_left(a.id) == 0, "its devices and codes cascade");
-        assert_eq!(s.delete_account(a.id).ok(), Some(false), "a second delete finds nothing");
+        assert_eq!(s.delete_account(a.id, 301), Ok(false), "a second delete finds nothing");
     }
 }

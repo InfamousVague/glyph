@@ -108,6 +108,17 @@ impl<K: Eq + std::hash::Hash> RateLimiter<K> {
         }
     }
 
+    /// A limiter counted by the hour: `per_hour` at once, and the bucket refilled over an hour rather than a minute.
+    /// For the invitation route (src/orgs.rs), whose thirty is an hour's worth: a minute's bucket of thirty would let
+    /// eighteen hundred through in the hour.
+    pub fn per_hour(per_hour: u32, now: Instant) -> Self {
+        Self {
+            held: Mutex::new(Held { buckets: HashMap::new(), last_prune: now }),
+            capacity: f64::from(per_hour),
+            per_second: f64::from(per_hour) / 3600.0,
+        }
+    }
+
     /// Spend one request for `key`, if it has one left.
     ///
     /// A poisoned lock REFUSES. Nothing below can panic while holding it, so
@@ -197,6 +208,19 @@ mod tests {
 
         let other: IpAddr = "198.51.100.1".parse().unwrap();
         assert!(limiter.take(other, start), "one address's burst is not another's");
+    }
+
+    #[test]
+    fn an_hourly_limiter_spends_its_burst_and_earns_one_back_in_two_minutes() {
+        let start = Instant::now();
+        let limiter = RateLimiter::<i64>::per_hour(30, start);
+        for i in 0..30 {
+            assert!(limiter.take(7, start), "invitation {i} of the hour's thirty");
+        }
+        assert!(!limiter.take(7, start), "the thirty-first in the same instant");
+        assert!(!limiter.take(7, start + Duration::from_secs(60)), "a minute buys half of one");
+        assert!(limiter.take(7, start + Duration::from_secs(120)), "two minutes buy exactly one");
+        assert!(!limiter.take(7, start + Duration::from_secs(120)));
     }
 
     #[test]

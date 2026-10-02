@@ -97,8 +97,8 @@ async fn nothing_is_read_or_written_without_a_token_or_across_accounts() {
     assert!(feed["items"].as_array().unwrap().is_empty(), "another account's notes are not in this feed");
 }
 
-/// Every signed-in route, accounts', sync's and shares' alike, and the one extractor they share (accounts.rs `Claims`):
-/// the same two refusals, word for word, whichever router answers.
+/// Every signed-in route - accounts', sync's, shares', organizations' and notifications' alike - and the one extractor
+/// they share (accounts.rs `Claims`): the same two refusals, word for word, whichever router answers.
 #[tokio::test]
 async fn every_signed_in_route_refuses_in_the_same_words() {
     let h = harness();
@@ -122,6 +122,19 @@ async fn every_signed_in_route_refuses_in_the_same_words() {
         (Method::GET, "/api/v1/shares".to_string(), None),
         (Method::PUT, format!("/api/v1/shares/{id}"), Some(json!({ "blob": "YQ" }))),
         (Method::DELETE, format!("/api/v1/shares/{id}"), None),
+        (Method::POST, "/api/v1/orgs".to_string(), Some(json!({ "name": "Ghost" }))),
+        (Method::GET, "/api/v1/orgs".to_string(), None),
+        (Method::GET, format!("/api/v1/orgs/{id}"), None),
+        (Method::PUT, format!("/api/v1/orgs/{id}"), Some(json!({ "name": "Ghost" }))),
+        (Method::DELETE, format!("/api/v1/orgs/{id}"), None),
+        (Method::POST, format!("/api/v1/orgs/{id}/members"), Some(json!({ "handle": "sam" }))),
+        (Method::DELETE, format!("/api/v1/orgs/{id}/members/sam"), None),
+        (Method::PUT, format!("/api/v1/orgs/{id}/members/sam"), Some(json!({ "role": "admin" }))),
+        (Method::POST, format!("/api/v1/orgs/{id}/invite"), Some(json!({ "accept": true }))),
+        (Method::GET, "/api/v1/notifications?since=0".to_string(), None),
+        (Method::POST, "/api/v1/notifications".to_string(), Some(json!({ "id": id, "kind": "note-edited", "blob": "YQ" }))),
+        (Method::POST, "/api/v1/notifications/read".to_string(), Some(json!({ "all": true }))),
+        (Method::PUT, format!("/api/v1/notifications/{id}"), Some(json!({ "read": true }))),
     ];
     for (method, path, body) in routes {
         let (status, answer) = h.call(method.clone(), &path, None, body.clone()).await;

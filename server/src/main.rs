@@ -3,6 +3,8 @@
 //!
 //!   /api/v1/*          accounts and end-to-end encrypted sync, see `accounts.rs`, `sync.rs`
 //!   /api/v1/shares/*   notes and books shared by their links, see `shares.rs`
+//!   /api/v1/orgs/*     organizations: teams invited by handle, see `orgs.rs`
+//!   /api/v1/notifications/*  what an account is told, as a feed, see `notifications.rs`
 //!   /api/v1/live       live sync's relay, a WebSocket passing sealed edits, see `live.rs`
 //!   /api/notion/*      Notion sign-in, see `notion.rs`
 //!   /api/mcp/*         Claude's hosted MCP server, running beside this one, see `mcp_proxy.rs`
@@ -32,6 +34,8 @@ mod notion;
 mod store;
 mod live;
 mod mcp_proxy;
+mod notifications;
+mod orgs;
 mod shares;
 mod sync;
 mod wire;
@@ -43,6 +47,10 @@ mod sync_tests;
 mod shares_tests;
 #[cfg(test)]
 mod live_tests;
+#[cfg(test)]
+mod orgs_tests;
+#[cfg(test)]
+mod notifications_tests;
 
 use axum::extract::State;
 use axum::http::{header, HeaderValue, Method, StatusCode};
@@ -107,7 +115,7 @@ async fn method_not_allowed() -> Response {
 }
 
 /// Every route, merged: health and the format route, Notion, then - when the service has somewhere to keep them -
-/// accounts, sync, shares and the relay, then the MCP proxy, all inside one CORS layer.
+/// accounts, sync, shares, organizations, notifications and the relay, then the MCP proxy, all inside one CORS layer.
 fn router(app: Arc<format::App>, accounts: Option<Arc<accounts::Accounts>>) -> Router {
     // The layer wraps every route, so a preflight is answered before method
     // routing sees it (an OPTIONS to a POST-only route would otherwise be a
@@ -134,6 +142,9 @@ fn router(app: Arc<format::App>, accounts: Option<Arc<accounts::Accounts>>) -> R
             .merge(sync::router(accounts.clone()))
             // Notes and books shared by their links (docs/SHARING.md): the same accounts own them.
             .merge(shares::router(accounts.clone()))
+            // Organizations and the notifications feed (docs/TEAMS.md): the same accounts, invited by handle.
+            .merge(orgs::router(accounts.clone()))
+            .merge(notifications::router(accounts.clone()))
             // Live sync's relay (docs/LIVE.md): the same accounts, a socket instead of requests.
             .merge(live::router(accounts));
     }

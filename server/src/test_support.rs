@@ -123,16 +123,20 @@ pub fn request(method: Method, path: &str, token: Option<&str>, body: Option<Val
     .unwrap()
 }
 
-/// The service with accounts, driven in memory, and the folder its recordings go to.
+/// The service with accounts, driven in memory, and the folder its recordings go to. The accounts are kept too, for
+/// a test that seeds past a route's limit through the store (fifty rows in an organization, three hundred
+/// notifications) and then meets the limit through the route.
 pub struct Harness {
     pub service: Router,
+    pub accounts: Arc<Accounts>,
     pub dir: TempDir,
 }
 
 impl Harness {
     pub fn new(label: &str) -> Self {
         let dir = TempDir::new(label);
-        Harness { service: service(Some(accounts_in(dir.path()))), dir }
+        let accounts = accounts_in(dir.path());
+        Harness { service: service(Some(accounts.clone())), accounts, dir }
     }
 
     /// One request, answered: its status, its headers and its body's bytes.

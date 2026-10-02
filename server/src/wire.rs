@@ -14,6 +14,8 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::Engine;
 use serde_json::json;
 use std::ops::RangeInclusive;
 
@@ -36,6 +38,13 @@ pub fn base64url(s: &str, len: RangeInclusive<usize>) -> bool {
     len.contains(&s.len()) && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
 }
 
+/// A fresh id, as a device makes one (src/app/core/ids.ts, which makes a share's and a notification's): 128 random
+/// bits as 22 base64url characters. The service makes an organization's id and the id of every notification row it
+/// writes; `base64url(id, 1..=64)` is what it accepts back.
+pub fn fresh_id() -> String {
+    URL_SAFE_NO_PAD.encode(rand::random::<[u8; 16]>())
+}
+
 /// Now, in unix seconds: what tokens are issued and checked against, and what rows are stamped with. A clock before
 /// 1970 reads as 0 rather than failing a request over it.
 pub fn now_secs() -> i64 {
@@ -54,6 +63,13 @@ mod tests {
         assert_eq!(response.headers()["content-type"], "application/json");
         let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         assert_eq!(&bytes[..], br#"{"error":"That handle is taken."}"#);
+    }
+
+    #[test]
+    fn a_fresh_id_is_twenty_two_characters_of_the_alphabet_and_never_the_same_twice() {
+        let (a, b) = (fresh_id(), fresh_id());
+        assert!(base64url(&a, 22..=22), "{a}");
+        assert_ne!(a, b);
     }
 
     #[test]

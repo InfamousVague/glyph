@@ -8,6 +8,7 @@
 use super::credentials::{device_label, hash_login, sheet, valid_login, valid_wrapped, verify_login, CodeBody};
 use super::{signed_in, Accounts, RECOVERY_CODES};
 use crate::identity::Claims;
+use crate::store::DeleteAccount;
 use crate::wire::{error, now_secs};
 use axum::extract::{ConnectInfo, State};
 use axum::http::{HeaderMap, StatusCode};
@@ -106,8 +107,10 @@ pub struct DeleteAccountBody {
 }
 
 /// `DELETE v1/account`. The account and everything it keeps here: its notes, settings, recordings and pictures,
-/// shared links, devices and recovery codes (store/accounts.rs `delete_account`). What is on a device stays on the device. The
-/// password check is counted against sign-in's limits, as it is one more way to try a password.
+/// shared links, devices, recovery codes, notifications and organization rows (store/accounts.rs `delete_account`),
+/// unless it owns an organization anyone else is in, which is theirs to hand over or delete first. What is on a
+/// device stays on the device. The password check is counted against sign-in's limits, as it is one more way to try a
+/// password.
 pub async fn delete_account(
     State(accounts): State<Arc<Accounts>>,
     ConnectInfo(peer): ConnectInfo<SocketAddr>,
@@ -123,8 +126,9 @@ pub async fn delete_account(
     if !account.login_hash.is_empty() && !verify_login(&body.login_secret, &account.login_hash) {
         return Err(error(StatusCode::FORBIDDEN, "That is not the password."));
     }
-    match accounts.store.delete_account(account.id) {
+    match accounts.store.delete_account(account.id, now_secs()) {
         Ok(_) => Ok(Json(json!({ "deleted": true })).into_response()),
-        Err(_) => Err(error(StatusCode::INTERNAL_SERVER_ERROR, "The account could not be deleted. Nothing was lost; try again.")),
+        Err(DeleteAccount::OwnsOrganizations) => Err(error(StatusCode::FORBIDDEN, "Hand over or delete your organizations first.")),
+        Err(DeleteAccount::Failed) => Err(error(StatusCode::INTERNAL_SERVER_ERROR, "The account could not be deleted. Nothing was lost; try again.")),
     }
 }

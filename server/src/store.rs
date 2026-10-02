@@ -10,8 +10,9 @@
 //!
 //! This file owns the schema, the one connection, and what every query goes through. Each table's queries are in the
 //! file named for what they keep - `store/accounts.rs` (accounts, their devices and recovery codes), `store/notes.rs`,
-//! `store/prefs.rs`, `store/shares.rs` and `store/recordings.rs` - each an `impl Store` of its own, so a caller still
-//! holds one `Store`.
+//! `store/prefs.rs`, `store/shares.rs`, `store/recordings.rs`, `store/orgs.rs` (organizations and who is in them) and
+//! `store/notifications.rs` (what each account is told) - each an `impl Store` of its own, so a caller still holds one
+//! `Store`.
 //!
 //! THE SCHEMA ONLY GROWS BY TABLES. It is `CREATE TABLE IF NOT EXISTS` and nothing else: a new table reaches the box on
 //! the next start (shares did), and a new column on a table that is already there does not. The first column added
@@ -20,11 +21,18 @@
 
 mod accounts;
 mod notes;
+mod notifications;
+mod orgs;
 mod prefs;
 mod recordings;
 mod shares;
 
+pub use accounts::DeleteAccount;
 pub use notes::NoteRow;
+#[cfg(test)]
+pub use notifications::KEPT;
+pub use notifications::{NotificationRow, NotificationWrite, SERVER_KINDS};
+pub use orgs::{InviteCaps, Member, Org, OrgRow, OrgWrite, Role};
 pub use shares::ShareWrite;
 
 use rusqlite::{params, Connection, OptionalExtension, Params, Row};
@@ -99,6 +107,54 @@ CREATE TABLE IF NOT EXISTS recordings (
     updated_at INTEGER NOT NULL,
     PRIMARY KEY (account_id, id)
 );
+-- An organization (server/src/orgs.rs, docs/TEAMS.md): its name and hue in the clear, as handles are, and who owns
+-- it. It goes with its owner's account, which `delete_account` refuses while anyone else is in it.
+CREATE TABLE IF NOT EXISTS orgs (
+    id         TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    hue        TEXT,
+    owner_id   INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS orgs_by_owner ON orgs(owner_id);
+-- Who is in an organization: a row per account, joined ('member'), asked ('invited'), or asked and refused
+-- ('declined', kept for a day so the asking cannot be repeated at once). The row goes with the organization and with
+-- the account; who invited them is only a reference, cleared if the inviter's account goes, so an inviter leaving
+-- the service takes nobody with them.
+CREATE TABLE IF NOT EXISTS org_members (
+    org_id     TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    role       TEXT NOT NULL,
+    state      TEXT NOT NULL,
+    invited_by INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+    since      INTEGER NOT NULL,
+    PRIMARY KEY (org_id, account_id)
+);
+CREATE INDEX IF NOT EXISTS org_members_by_account ON org_members(account_id);
+-- What an account is told (server/src/notifications.rs): one table, two shapes. A row the service wrote - an
+-- invitation, a team change - carries its kind, who caused it, the organization and a small plaintext body; a row a
+-- device wrote about its own account carries a blob sealed under the account key, which the service cannot read.
+-- Every row takes the account's write counter, as notes do, so a device reads them from the same kind of feed, and a
+-- change to one (read, hidden, answered) takes a new value and is fed again. Keyed by account and id, as notes are,
+-- so a device's repeat of a post it was not answered on finds its own row. `from_id` is cleared, not cascaded, when
+-- the account that caused a row is deleted: the row is the reader's, not the cause's.
+CREATE TABLE IF NOT EXISTS notifications (
+    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    id         TEXT NOT NULL,
+    rev        INTEGER NOT NULL,
+    kind       TEXT NOT NULL,
+    from_id    INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+    org_id     TEXT,
+    body       TEXT,
+    blob       TEXT,
+    state      TEXT,
+    created_at INTEGER NOT NULL,
+    read_at    INTEGER,
+    hidden     INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (account_id, id)
+);
+CREATE INDEX IF NOT EXISTS notifications_by_rev ON notifications(account_id, rev);
+CREATE INDEX IF NOT EXISTS notifications_by_org ON notifications(org_id, kind);
 "#;
 
 /// Why a write made from a revision did not happen: the one stored had moved on, and `W` is what won - a note, the
@@ -188,8 +244,8 @@ impl Store {
 
     // --- the write counter ------------------------------------------------------
 
-    /// The account's next revision, taken inside a write's transaction. One counter serves notes, settings and
-    /// recordings alike, which is why the feed is `rev > since` rather than a count of notes.
+    /// The account's next revision, taken inside a write's transaction. One counter serves notes, settings,
+    /// recordings and notifications alike, which is why the feed is `rev > since` rather than a count of notes.
     fn next_rev(tx: &rusqlite::Transaction<'_>, account: i64) -> rusqlite::Result<i64> {
         tx.execute("UPDATE accounts SET rev = rev + 1 WHERE id = ?1", params![account])?;
         tx.query_row("SELECT rev FROM accounts WHERE id = ?1", params![account], |r| r.get(0))

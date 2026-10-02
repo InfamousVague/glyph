@@ -56,6 +56,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post, put};
 use axum::{Json, Router};
 use challenges::Challenges;
+pub use credentials::valid_handle;
 use serde_json::json;
 use std::net::IpAddr;
 use std::sync::Arc;

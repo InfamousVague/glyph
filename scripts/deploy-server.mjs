@@ -344,6 +344,12 @@ const unauthorised = curl([
 if (unauthorised !== '401') fail(`a POST without the token answered ${unauthorised}, expected 401.`);
 ok('a request without the token is refused (401)');
 
+// Organizations and notifications (docs/TEAMS.md): a signed-in route, so with no token it answers 401 once it is
+// there, and "no such route" 404 from a binary that predates it - the one the page reads as "not yet".
+const orgsUnsigned = curl(['-o', '/dev/null', '-w', '%{http_code}', `${API}/v1/orgs`]).stdout;
+if (orgsUnsigned !== '401') fail(`GET ${API}/v1/orgs without a token answered ${orgsUnsigned}, expected 401: the organizations routes are not up.`);
+ok('organizations and notifications answer (401 without a token)');
+
 // Sign in with Notion: with the app's credentials installed, the start route
 // sends the browser on to Notion's consent page. The Location is not printed.
 if (env.NOTION_CLIENT_ID) {
