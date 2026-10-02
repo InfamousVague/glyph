@@ -667,7 +667,7 @@
   border: 1px solid var(--app-rule);
   border-radius: var(--glacier-radius-md);
   background: var(--app-paper);
-  box-shadow: var(--glacier-shadow-md, 0 6px 20px rgb(0 0 0 / 25%));
+  box-shadow: var(--app-float-shadow);
   font-size: var(--glacier-font-size-sm);
   white-space: nowrap;
   overflow: hidden;
