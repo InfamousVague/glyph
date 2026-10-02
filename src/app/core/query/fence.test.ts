@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { queryFence, queryFencesIn, withQueryHeight, withShow } from './fence.ts';
+import { clauseValue, queryFence, queryFencesIn, withClause, withQueryHeight, withShow } from './fence.ts';
 
 /* Where a note's query fences are (core/query/fence.ts). */
 
@@ -58,5 +58,18 @@ describe('query fences', () => {
     expect(withShow('from: notes\nwhere: updated >= today-7', 'list')).toBe('from: notes\nwhere: updated >= today-7\nshow: list');
     // Only the first show line is touched.
     expect(withShow('show: list\nshow: table', 'board')).toBe('show: board\nshow: table');
+  });
+
+  it('reads and sets any clause for the builder, keeping the lines it does not touch', () => {
+    const body = 'from: tasks\nwhere: due <= today+7\nsort: due, priority\nshow: list';
+    expect(clauseValue(body, 'from')).toBe('tasks');
+    expect(clauseValue(body, 'where')).toBe('due <= today+7');
+    expect(clauseValue(body, 'group')).toBeNull();
+    // Set from, keeping where/sort/show.
+    expect(withClause(body, 'from', 'tickets')).toBe('from: tickets\nwhere: due <= today+7\nsort: due, priority\nshow: list');
+    // Add a group line where there is none.
+    expect(withClause(body, 'group', 'status')).toBe('from: tasks\nwhere: due <= today+7\nsort: due, priority\nshow: list\ngroup: status');
+    // Take the where line off (Everything), leaving the rest.
+    expect(withClause(body, 'where', null)).toBe('from: tasks\nsort: due, priority\nshow: list');
   });
 });

@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
-import { CalendarDays, ChartGantt, Check, ChevronLeft, ChevronRight, List as ListIcon, Pencil, Sigma, SquareKanban, Table as TableIcon, TriangleAlert, type IconProps } from '@glacier/icons';
+import { createPortal } from 'react-dom';
+import { CalendarDays, ChartGantt, Check, ChevronLeft, ChevronRight, List as ListIcon, Pencil, Sigma, SlidersHorizontal, SquareKanban, Table as TableIcon, TriangleAlert, type IconProps } from '@glacier/icons';
 import { inMonth, monthAfter, monthName, monthWeeks, openingMonth, type CalendarDay } from '../core/query/calendar.ts';
+import { withShow } from '../core/query/fence.ts';
 import { SHOWS, type QueryProblem, type ShowAs } from '../core/query/read.ts';
+import { QueryBuilder } from './QueryBuilder.tsx';
 import { KIND_WORDS, type Cell, type Group, type QueryResult, type Row } from '../core/query/run.ts';
 import { chipLook, dayLabel, daySaid, type ChipLook } from './fieldChips.ts';
 import { tagsIn } from '../core/tags.ts';
@@ -33,8 +36,8 @@ interface QueryViewProps {
   height?: number | null;
   /** Writes a board's height into the fence, or takes it out with null. */
   onHeight?: (height: number | null) => void;
-  /** Switches how the query is drawn, writing its `show:` line; absent where the lines cannot be edited. */
-  onShow?: (show: ShowAs) => void;
+  /** Writes the whole fence body back, one clause changed: the view switcher and the builder. Absent where the lines cannot be edited. */
+  onBody?: (body: string) => void;
   /** The open note, whose to-dos are ticked and reached in place. */
   thisNote: string | null;
   onEdit: () => void;
@@ -50,7 +53,8 @@ interface Acts {
   onTick: (row: Row) => void;
 }
 
-export function QueryView({ lines, problem, result, editable, height = null, onHeight, onShow, onEdit, onOpen, onTick }: QueryViewProps) {
+export function QueryView({ lines, problem, result, editable, height = null, onHeight, onBody, onEdit, onOpen, onTick }: QueryViewProps) {
+  const [building, setBuilding] = useState(false);
   if (problem || !result) {
     return (
       <section className={styles.query} aria-label="Query">
@@ -74,7 +78,15 @@ export function QueryView({ lines, problem, result, editable, height = null, onH
   const empty = result.matched === 0 && result.show !== 'count';
   return (
     <section className={styles.query} aria-label={`Query: ${words}`} data-show={result.show}>
-      <Head title={words} count={count} editable={editable} onEdit={onEdit} show={result.show} onShow={onShow} />
+      <Head
+        title={words}
+        count={count}
+        editable={editable}
+        onEdit={onEdit}
+        show={result.show}
+        onShow={onBody ? (way) => onBody(withShow(lines, way)) : undefined}
+        onBuild={onBody ? () => setBuilding(true) : undefined}
+      />
       {result.warnings.map((warning) => (
         <p key={warning} className={styles.warning}>
           {warning}
@@ -96,6 +108,20 @@ export function QueryView({ lines, problem, result, editable, height = null, onH
         <ListView result={result} acts={acts} />
       )}
       {result.totals.length && result.show !== 'table' && result.show !== 'count' ? <Totals totals={result.totals} /> : null}
+      {building && onBody
+        ? createPortal(
+            <QueryBuilder
+              body={lines}
+              onBody={onBody}
+              onLines={() => {
+                setBuilding(false);
+                onEdit();
+              }}
+              onClose={() => setBuilding(false)}
+            />,
+            document.body,
+          )
+        : null}
     </section>
   );
 }
@@ -122,6 +148,7 @@ function Head({
   onEdit,
   show,
   onShow,
+  onBuild,
 }: {
   title: string;
   count: string | null;
@@ -129,6 +156,7 @@ function Head({
   onEdit: () => void;
   show?: ShowAs;
   onShow?: (show: ShowAs) => void;
+  onBuild?: () => void;
 }) {
   return (
     <header className={styles.head}>
@@ -160,6 +188,11 @@ function Head({
             );
           })}
         </div>
+      ) : null}
+      {editable && onBuild ? (
+        <button type="button" className={styles.edit} onClick={onBuild} aria-label="Build the query" title="Build the query">
+          <SlidersHorizontal size="1em" strokeWidth={2.2} aria-hidden="true" />
+        </button>
       ) : null}
       {editable ? (
         <button type="button" className={styles.edit} onClick={onEdit} aria-label="Edit the query" title="Edit the query">

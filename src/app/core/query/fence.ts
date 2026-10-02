@@ -68,27 +68,47 @@ export function withQueryHeight(openLine: string, height: number | null): string
   return `${start}${settings ? ` ${settings}` : ''}`;
 }
 
-/** A query's `show:` line, however it is spaced; its value is the way it is drawn. */
-const SHOW_LINE = /^(\s*)show(\s*):(\s*)(.*)$/i;
+/** A query line for a clause, however it is spaced: `(indent)(name)(space):(space)(value)`. */
+function clauseLine(clause: string): RegExp {
+  return new RegExp(`^(\\s*)(${clause})(\\s*):(\\s*)(.*)$`, 'i');
+}
+
+/** A clause's value in the body (`from`, `where`, `group`, `show`…), trimmed; null where the clause has no line. */
+export function clauseValue(body: string, clause: string): string | null {
+  const re = clauseLine(clause);
+  for (const line of body.split('\n')) {
+    const found = re.exec(line);
+    if (found) return (found[5] ?? '').trim();
+  }
+  return null;
+}
 
 /**
- * A query's lines with `show:` set to `show`, for the view switcher on a drawn query (editor/QueryView.tsx): the one
- * thing the segmented control changes, so a list becomes a board or a table with its `from:` and `where:` kept. The
- * first `show:` line's value is replaced, its spacing left as it was; a query with none (which reads as a table) gets
- * one added at the end. Pure, over the body between the fences.
+ * A query's body with one clause set, removed (null), or added: the first line for the clause has its value replaced
+ * with its spacing left as it was, null takes the line out, and a clause with no line gets one at the end. The
+ * keyword is written lower case, as docs/QUERIES.md teaches. Pure; this is how the view switcher and the builder change
+ * a drawn query without the person learning the grammar (editor/QueryView.tsx, editor/QueryBuilder.tsx).
  */
-export function withShow(body: string, show: ShowAs): string {
-  const lines = body.split('\n');
+export function withClause(body: string, clause: string, value: string | null): string {
+  const re = clauseLine(clause);
+  const next: string[] = [];
   let set = false;
-  const next = lines.map((line) => {
-    if (set) return line;
-    const found = SHOW_LINE.exec(line);
-    if (!found) return line;
+  for (const line of body.split('\n')) {
+    const found = set ? null : re.exec(line);
+    if (!found) {
+      next.push(line);
+      continue;
+    }
     set = true;
-    return `${found[1]}show${found[2]}:${found[3]}${show}`;
-  });
-  if (!set) next.push(`show: ${show}`);
+    if (value !== null) next.push(`${found[1]}${clause}${found[3]}:${found[4]}${value}`);
+  }
+  if (!set && value !== null) next.push(`${clause}: ${value}`);
   return next.join('\n');
+}
+
+/** A query's body with `show:` set, for the view switcher: a list becomes a board or a table with from: and where: kept. */
+export function withShow(body: string, show: ShowAs): string {
+  return withClause(body, 'show', show);
 }
 
 /** A query fence with `body` in it, as the + writes one: three backticks, the word, the lines, three backticks. */
