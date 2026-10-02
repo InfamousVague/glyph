@@ -1,8 +1,11 @@
 # Ghost.md on the App Store
 
-The plan for listing the iPhone and iPad app, as of 2026-09-24. **The iOS app isn't ready to submit.** Voice notes don't
-work on iOS yet, and a notes app whose main feature fails on every launch would be rejected (guidelines 2.1 and 4.2).
-Everything else Apple asks for is fixed or listed below (DESIGN §113).
+**2026-10-02: the first version goes to review notes only and iPhone only** (Matt chose both that day). Voice still
+does not work on iOS, so the iPhone app leaves out every way into a recording (`core/platform.ts` `recordsVoice`) and
+does not look for the voice model, and its listing (docs/store/apple/listing.md) says nothing of voice. Build 1.10.0
+was signed, uploaded and processed (VALID) and is attached to version 1.10.0 of the app record, Ghost Markdown
+(6818598896), with the listing, seven screenshots, the category, the age rating, a free price and availability set
+through the App Store Connect API. What follows the 2026-09-24 plan below is how that build was made.
 
 ## Already done
 
@@ -69,3 +72,37 @@ Everything else Apple asks for is fixed or listed below (DESIGN §113).
 | 4.8 | Sign in with Apple, if you offer social logins | Ghost.md accounts are its own; the plugins are connections, not ways to sign in |
 | 2.5.2 | No downloaded code that changes the app | iOS has no over-the-air bundles (`ota_check` refuses there) |
 | 3.1 | In-app purchase for paid features | Nothing is paid |
+
+## Building and uploading, as done on 2026-10-02
+
+Xcode 27.0 (Swift 6.4), Tauri CLI 2.11, from a worktree at main:
+
+1. Signing is automatic with the team's App Store Connect key: `tauri ios build` hands it to `xcodebuild` as
+   `-allowProvisioningUpdates` with the key when `APPLE_API_KEY`, `APPLE_API_ISSUER` and `APPLE_API_KEY_PATH` are set.
+   Map them from the shared key file (`ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_PATH` in
+   `~/.config/mattssoftware/signing/asc-api.env`). Xcode made the "iOS Team Store Provisioning Profile:
+   com.mattssoftware.glyph" itself. `project.yml` says `CODE_SIGN_STYLE: Automatic` and `TARGETED_DEVICE_FAMILY: "1"`.
+2. `node scripts/ios-clean.mjs && npx tauri ios build --export-method app-store-connect`.
+3. Three things broke on the way, each fixed or worked around:
+   - `zip` and `minijinja` were listed for every target but iOS, while `export.rs` and `llm/prompt.rs`, which are built
+     on iOS, use them. They are shared dependencies now (src-tauri/Cargo.toml).
+   - The Swift packages under swift-rs (Tauri's, the haptics and opener plugins'): Xcode 27's SwiftPM keeps the
+     `@_cdecl` symbols local, and swift-rs 1.0.8 globalizes only a package's own. SwiftRs's three
+     (`release_object`, `retain_object`, `string_from_bytes`) stayed local in every archive and the link failed. The
+     workaround: `rustup component add llvm-tools` (swift-rs needs its llvm-objcopy), then in
+     `target/aarch64-apple-ios/release/build/tauri-*/out/swift-rs/Tauri/` run llvm-objcopy
+     `--globalize-symbol=_release_object --globalize-symbol=_retain_object --globalize-symbol=_string_from_bytes` on
+     `release/libTauri.a`, then `xcrun ranlib` on it (the archive's index must list them, or the member is never
+     loaded), then delete `deps/libtauri-*.rlib` and `.fingerprint/tauri-*` for that hash so the tauri crate compiles
+     again and bundles the patched archive (a static library is bundled into the rlib). A first build can also record
+     its search path before SwiftPM has written the archive; deleting that build script's `.fingerprint` entry runs it
+     again. A lasting fix is a patched swift-rs (`[patch.crates-io]`) that globalizes SwiftRs's symbols in Tauri's
+     archive and re-indexes it.
+   - The export's `rsync -E` failed when Homebrew's rsync came first in PATH: run the export with `/usr/bin` first
+     (`xcodebuild -exportArchive` with `method app-store-connect` and the same key flags).
+4. The checks AttackFM's `testflight.command` makes, all passed: version and build 1.10.0, `UIDeviceFamily` [1],
+   signed by Apple Distribution: Matt Wisniewski (F6ZAL7ANAD), every dist asset named in the binary (379 of 379),
+   both URL schemes, the scene delegate, the camera and microphone strings, `ITSAppUsesNonExemptEncryption` false.
+5. `xcrun altool --validate-app` then `--upload-app -t ios --apiKey ... --apiIssuer ...`.
+
+The next version's build number must be higher than 1.10.0.

@@ -15,9 +15,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.1.0</string>
+	<string>1.10.0</string>
 	<key>CFBundleVersion</key>
-	<string>0.1.0</string>
+	<string>1.10.0</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
@@ -66,15 +66,20 @@
 			<string>com.mattssoftware.glyph</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>ghostmd</string>
 				<string>glyph</string>
 			</array>
 		</dict>
 	</array>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Glyph uses the microphone only while you hold the capture button, to turn what you say into a note.</string>
+	<string>Ghost.md uses the microphone while you record a voice note, and turns what you say into text on this device.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Ghost.md uses the camera when you take a photo to add to a note.</string>
+	<key>CFBundleDisplayName</key>
+	<string>Ghost.md</string>
 </dict>
 </plist>
