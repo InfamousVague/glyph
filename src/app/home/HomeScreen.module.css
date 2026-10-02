@@ -152,6 +152,35 @@
   box-shadow: 0 8px 28px color-mix(in srgb, #000 22%, transparent);
 }
 
+/*
+ * The ghost blur around the dock (GLY-81, Matt: "Show ghost blur / wisp effect we use under the header around the
+ * floating dock"). A halo behind the dock that blurs what scrolls under it and fades that blur out radially, the
+ * same soft dissolve the header gives content going up to smoke (art/wispEdge.ts), so nothing is hard-cut at the
+ * pill's edge. A paper wash over the same halo takes the content toward the page's own colour as it nears the dock,
+ * which is the smoke. It sits behind the dock's glass (`z-index: -1` in the dock's own stacking context, which is
+ * already above the scroller), takes no taps, and is a still effect, so reduced motion and both themes are unchanged.
+ */
+.dock::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -2.4rem;
+  border-radius: var(--glacier-radius-full);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--glacier-bg) 55%, transparent), transparent 72%);
+  -webkit-mask-image: radial-gradient(closest-side, #000 26%, transparent 78%);
+  mask-image: radial-gradient(closest-side, #000 26%, transparent 78%);
+  pointer-events: none;
+}
+
+/* The glass itself is reached only where there is a backdrop filter to layer; without one, the halo is the paper wash alone. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .dock::before {
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--glacier-bg) 80%, transparent), transparent 74%);
+  }
+}
+
 
 /*
  * Speak is the screen's one ink pill: the thing Glyph is for, where the thumb
