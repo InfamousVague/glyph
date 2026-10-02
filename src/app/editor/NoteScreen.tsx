@@ -73,6 +73,8 @@ import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { useUnfold } from '../core/unfold.ts';
 import { getNote, type Note } from '../core/store.ts';
+import { noteTitle } from '../core/noteTitle.ts';
+import { titleKey } from '../core/titleKey.ts';
 import { syncWithin } from '../core/sync/engine.ts';
 import { PullToRefresh } from '../notes/PullToRefresh.tsx';
 import { setPreferences, useDarkNow, usePreferences } from '../core/preferences.ts';
@@ -1275,6 +1277,17 @@ export function NoteScreen({
               titles={pageTitles ?? allTitles ?? (() => [])}
               bodyOf={bodyOfTitle}
               spot={{ id: note.id, page }}
+              // A page's ticket status picked in the index, written into that page through the queries' writer (App.tsx
+              // `moveFromQuery`, core/query/move.ts), which reads the library again after (docs/DESIGN.md §169).
+              setStatus={
+                queries
+                  ? (page, status) => {
+                      const key = titleKey(page);
+                      const found = queries.notes().find((each) => titleKey(noteTitle(each.body)) === key);
+                      if (found) queries.move(found.id, -1, '', 'ticket', 'status', status);
+                    }
+                  : undefined
+              }
               onChange={(next) => {
                 setBookBody(next);
                 onChange(next);

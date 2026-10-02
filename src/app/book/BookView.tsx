@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import { BookOpen, Check, ChevronDown, ChevronUp, GripVertical, List, Plus, Ticket, Workflow, X } from '@glacier/icons';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
@@ -6,9 +7,10 @@ import { authorsAcross } from '../core/authors.ts';
 import { Byline } from '../authors/Byline.tsx';
 import { bodyWithoutTitle, bookWords, chaptersOf, numbered, toggledTitle, withChapter, withChapterAt, withChapterMoved, withoutChapter } from './book.ts';
 import { CanvasMark } from './CanvasMark.tsx';
-import { notebookKey } from '../core/properties.ts';
+import { notebookKey, statusesOf, ticketOf } from '../core/properties.ts';
+import { FieldPicker } from '../editor/FieldPicker.tsx';
 import type { NoteTemplate } from '../notes/noteTemplates.ts';
-import { TicketMark } from '../notes/TicketMark.tsx';
+import { TicketMark, TicketStatusButton } from '../notes/TicketMark.tsx';
 import { Editor } from '../editor/Editor.tsx';
 import type { VideoMode } from '../editor/videos.ts';
 import { isDarkNow, usePreferences } from '../core/preferences.ts';
@@ -69,6 +71,12 @@ interface BookViewProps {
    * and reading straight through stay. The reader page (src/read/Reader.tsx) draws a shared book with this.
    */
   readOnly?: boolean;
+  /**
+   * Sets a page's ticket status, or takes it off with null (NoteScreen.tsx, through the queries' writer): a tap on a
+   * ticket's status in the index opens its workflow's sheet (editor/FieldPicker.tsx; docs/DESIGN.md §169). Absent, the
+   * status is drawn and not pressed.
+   */
+  setStatus?: (title: string, status: string | null) => void;
   /** Dark or light, where the page decides rather than the preference (the reader page follows the reader's system). */
   dark?: boolean;
   /**
@@ -93,7 +101,9 @@ export function BookWords({ words, known, open, dark, videos = 'still' }: { word
   );
 }
 
-export function BookView({ body, known, open, titles, title, onChange, bodyOf, openCanvas, openNew, openTicket, ticketTemplates = NO_TEMPLATES, readOnly = false, dark: darkGiven, spot, videos = 'still' }: BookViewProps) {
+export function BookView({ body, known, open, titles, title, onChange, bodyOf, openCanvas, openNew, openTicket, ticketTemplates = NO_TEMPLATES, readOnly = false, dark: darkGiven, spot, videos = 'still', setStatus }: BookViewProps) {
+  /** The page whose status sheet is open, by its title. */
+  const [statusOf, setStatusOf] = useState<string | null>(null);
   const isCanvas = (name: string) => {
     const found = bodyOf?.(name);
     return !!found && isCanvasBody(found);
@@ -280,10 +290,11 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
                     {canvas ? <CanvasMark /> : null}
                   </span>
                   {there ? null : <span className={styles.waiting}>not written yet</span>}
-                  {there && !canvas ? <TicketMark body={bodyOf?.(chapter.title) ?? ''} notebook={body} /> : null}
+                  {there && !canvas ? <TicketMark body={bodyOf?.(chapter.title) ?? ''} notebook={body} keyOnly={!readOnly && !!setStatus} /> : null}
                 </button>
                 {readOnly ? null : (
                 <span className={styles.tools}>
+                  {there && !canvas && setStatus ? <TicketStatusButton body={bodyOf?.(chapter.title) ?? ''} notebook={body} onPress={() => setStatusOf(chapter.title)} /> : null}
                   <button type="button" className={styles.tool} aria-label={`Move ${chapter.title} up`} disabled={i === 0} onClick={() => onChange(withChapterMoved(body, chapter.title, -1))}>
                     <ChevronUp size={16} aria-hidden="true" />
                   </button>
@@ -300,6 +311,22 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
           })}
         </ol>
       )}
+      {statusOf && setStatus
+        ? (() => {
+            const workflow = statusesOf(body);
+            const ticket = ticketOf(bodyOf?.(statusOf) ?? '', workflow);
+            return createPortal(
+              <FieldPicker
+                pick={{ kind: 'status', value: ticket?.status ?? null, workflow }}
+                label="Status"
+                record={ticket?.id ? `${ticket.id} · ${statusOf}` : statusOf}
+                onClose={() => setStatusOf(null)}
+                onPick={(status) => setStatus(statusOf, status)}
+              />,
+              document.body,
+            );
+          })()
+        : null}
 
       {words.after ? <BookWords words={words.after} known={known} open={open} dark={dark} videos={videos} /> : null}
 

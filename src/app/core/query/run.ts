@@ -67,6 +67,8 @@ export interface Row {
   /** A to-do's box; null for a note. */
   done: boolean | null;
   category: StatusCategory;
+  /** The workflow its status moves through (its notebook's `statuses:`, or the default): what a status picker offers. */
+  workflow: readonly string[];
   cells: Cell[];
   /** The day it is on a calendar: its due day, else its scheduled day, its start, or its note's `date:`. */
   day: string | null;
@@ -275,6 +277,7 @@ function rowOf(record: QueryRecord, columns: readonly Column[], today: string): 
     id,
     done: record.done,
     category,
+    workflow: record.workflow,
     cells: columns.map((column) => cellOf(valueOf(record, column.field), column.field, today, !done)),
     day: DAY_FIELDS.map((field) => dayOf(record, field)).find((found) => found !== null) ?? null,
     start: dayOf(record, 'start'),

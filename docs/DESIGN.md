@@ -9183,3 +9183,53 @@ all.
 §166 stays as the record of what was tried, and why it went.
 
 Cites: §166.
+
+## 169. Values you can press: pickers for a query's and an index's fields (2026-10-02)
+
+Matt: "make parts of query boards and stuff intractable, I'd like to be able to click things like done labels in order
+to change the status and just have more interactivity with data in the tables queries and index's use modals with
+iconography and color".
+
+A query (§159) drew its records' values and wrote nothing but a ticked box and, since the board's drag, a card's lane.
+Now every value a person sets is a button where the note can be edited: a status, a priority, a person and a due, start
+or scheduled day, in a table's cell, a list's line and a board's card (`editor/QueryView.tsx` `Picked`). A press opens
+a sheet of its choices (`editor/FieldPicker.tsx`), the app's one bottom sheet (`editor/Sheet.tsx`) with the kit's rows,
+and the choice is written where the record is. Which sheet a field opens, and with what it holds now, is
+`editor/fieldPicks.ts` `pickOf`, pure and tested; a title, a tag, a note's name, an estimate and a day the app keeps
+(`created`, `updated`) open nothing.
+
+**Marks and colours.** Each choice wears a mark in its colour, and the cells wear the same ones, so the sheet reads as
+the row it was opened from:
+
+- **A status** by where it stands in its workflow (`statusLook`): a dashed ring for a backlog (Backlog, Later, Someday,
+  Icebox), a ring not started, a dot under way in blue, an eye in review in purple, a tick done in green. In a cell it
+  is a pill tinted in its colour, where it was a dot and words. A status the workflow does not name is offered too, so
+  the one a record has is never missing from its sheet; No status takes it off.
+- **A priority** in Jira's chevrons, the colours its chip has on a line (`editor/fieldChips.ts`); None.
+- **A person** as their initial on a round of their own hue, one of six from the kit's scales, the same for a name
+  however it is written (`hueOf`): the people the library names, the most named first (`book/tickets.ts` `peopleIn`,
+  now read from any `{ body }`), a name typed, and No one. Read only when the sheet opens, since it reads every note.
+- **A day**: Today under the sun, Tomorrow under a sunrise, Next week under the calendar, Pick a date (the phone's own
+  calendar, `editor/fieldMenu.ts` `pickDay`), and Remove in red where there is one.
+- **A to-do's status** is its box: To do or Done, which ticks or clears it (`onTick`) only where that is a change.
+
+**One writer.** The board's drag (`onMove`) and a picked value (`onSet`) go through one function in
+`editor/queries.ts`, `setField`: into the editor for a record in this note, one change and one undo; through the screen
+for one in another (`QueryOptions.move`, App's `moveFromQuery`, `core/query/move.ts`), which reads the notes again. A
+to-do's person is not a named field but its `@people`, so `withTaskField` takes off whoever is there and puts the one
+picked on; anything else on a line goes through `withField` as before. A row carries its workflow now (`Row.workflow`),
+so a status's sheet offers its own notebook's statuses rather than the default.
+
+**Not a drag.** A press on a value stops at the value: it never starts a board's card being carried (`startDrag`),
+whose own press on the card is unchanged.
+
+**The index.** A notebook's index (`book/BookView.tsx`) had each ticket's key and status in quiet words inside the row's
+button. Where the index can be changed, the key stays there and the status becomes a pill of its own among the row's
+tools, which opens the same sheet on the notebook's workflow (`notes/TicketMark.tsx` `TicketStatusButton`), written
+through the queries' writer by the page's title (`NoteScreen.tsx` `setStatus`). On a phone the pill is its mark alone
+in its colour: beside the tools, its words left "Pricing pa…" of a title at 412 wide. Read only, the index draws the
+status in words as before.
+
+Measured in the preview at 1280, 820 and 412 wide: a table's In progress picked as Done wrote `status: Done` into
+GHO-1 and its board followed; an index's To do picked as In progress wrote `status: In progress` into GHO-2.
+

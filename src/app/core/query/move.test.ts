@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { movedBody } from './move.ts';
+import { movedBody, withTaskField } from './move.ts';
 
 describe('a card dragged into another lane', () => {
   const TICKET = '---\ntype: ticket\nid: GHO-1\nstatus: In progress\npriority: high\n---\n# Fix the login loop\n';
@@ -30,5 +30,26 @@ describe('a card dragged into another lane', () => {
 
   it('leaves a to-do alone when its line is gone', () => {
     expect(movedBody('# Board\n\n- [ ] Milk\n', 2, '- [ ] Bread', 'task', 'stage', 'Doing')).toBeNull();
+  });
+});
+
+describe('a field picked for a to-do', () => {
+  it('replaces its person with the one picked, as a person is written on a line', () => {
+    expect(withTaskField('- [ ] Milk @sam 📅 2026-10-04', 'assignee', 'Alex')).toBe('- [ ] Milk @Alex 📅 2026-10-04');
+    expect(withTaskField('- [ ] Milk', 'assignee', 'Sam')).toBe('- [ ] Milk @Sam');
+  });
+
+  it('takes every person off with null, and leaves the rest of the line', () => {
+    expect(withTaskField('- [ ] Milk @sam @alex ⏫', 'assignee', null)).toBe('- [ ] Milk ⏫');
+  });
+
+  it('writes any other field through the line’s own writer', () => {
+    expect(withTaskField('- [ ] Milk', 'priority', 'high')).toBe('- [ ] Milk ⏫');
+    expect(withTaskField('- [ ] Milk 📅 2026-10-04', 'due', null)).toBe('- [ ] Milk');
+  });
+
+  it('is what a query writes into another note', () => {
+    const body = '# Shop\n\n- [ ] Milk @sam\n';
+    expect(movedBody(body, 2, '- [ ] Milk @sam', 'task', 'assignee', 'Priya')).toBe('# Shop\n\n- [ ] Milk @Priya\n');
   });
 });

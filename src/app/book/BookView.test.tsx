@@ -239,6 +239,28 @@ describe('a notebook of tickets (docs/DESIGN.md §157)', () => {
     const marks = [...document.querySelectorAll<HTMLElement>('ol[aria-label="Pages"] li [data-category]')];
     expect(marks.map((mark) => [mark.textContent, mark.dataset.category])).toEqual([['GHO-12In progress', 'doing']]);
   });
+
+  it('changes a ticket’s status from its row: a pill that opens the workflow’s sheet (docs/DESIGN.md §169)', () => {
+    const setStatus = vi.fn();
+    show(<BookView body={KEYED} title="Ghost.md" known={() => true} open={() => {}} titles={() => []} onChange={() => {}} bodyOf={(title) => bodies[title] ?? null} setStatus={setStatus} />);
+    // The key stays on the row's title; the status is a button of its own beside it, and a page of words has none.
+    expect(document.querySelectorAll('button[aria-label^="Status:"]')).toHaveLength(1);
+    const pill = button('Status: In progress. Change it');
+    expect(pill.dataset.category).toBe('doing');
+    act(() => pill.click());
+    const sheet = document.querySelector<HTMLElement>('[role="dialog"]')!;
+    expect(sheet.getAttribute('aria-label')).toBe('Status');
+    expect(sheet.textContent).toContain('GHO-12 · Fix the login loop');
+    act(() => [...sheet.querySelectorAll<HTMLButtonElement>('button')].find((row) => row.textContent?.trim() === 'In review')!.click());
+    expect(setStatus).toHaveBeenCalledWith('Fix the login loop', 'In review');
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('draws the status as words, not a button, where the index cannot change it', () => {
+    show(<BookView body={KEYED} title="Ghost.md" known={() => true} open={() => {}} titles={() => []} onChange={() => {}} bodyOf={(title) => bodies[title] ?? null} readOnly setStatus={vi.fn()} />);
+    expect(document.querySelector('button[aria-label^="Status:"]')).toBeNull();
+    expect(document.querySelector('ol[aria-label="Pages"]')?.textContent).toContain('In progress');
+  });
 });
 
 describe('reading straight through', () => {

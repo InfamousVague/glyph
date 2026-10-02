@@ -1,0 +1,105 @@
+/*
+ * The marks a field picker's rows wear (editor/FieldPicker.tsx), each in its colour: a status in its category's - the
+ * faint ink not started, blue under way, purple in review, green done - a priority in its chip's (editor/fieldChips.ts),
+ * a person's initial on a round of their own hue, and the days in the accent. The same marks a query's cells draw
+ * (editor/QueryView.module.css), so a status reads the same in the sheet as in the row it was tapped on.
+ */
+
+.mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  line-height: 0;
+  color: var(--app-ink-3);
+}
+
+.mark[data-status='backlog'],
+.mark[data-status='todo'] {
+  color: var(--app-ink-3);
+}
+
+.mark[data-status='doing'] {
+  color: var(--glacier-blue-11);
+}
+
+.mark[data-status='review'] {
+  color: var(--glacier-purple-11);
+}
+
+.mark[data-status='done'] {
+  color: var(--glacier-green-11);
+}
+
+.mark[data-priority='highest'],
+.mark[data-priority='high'] {
+  color: var(--glacier-red-11);
+}
+
+.mark[data-priority='medium'] {
+  color: var(--glacier-amber-11);
+}
+
+.mark[data-priority='low'] {
+  color: var(--glacier-blue-11);
+}
+
+.mark[data-priority='lowest'] {
+  color: var(--app-ink-3);
+}
+
+.mark[data-tone='day'] {
+  color: var(--glacier-accent-11);
+}
+
+.mark[data-tone='danger'] {
+  color: var(--glacier-red-11);
+}
+
+.mark[data-tone='quiet'] {
+  color: var(--app-ink-3);
+}
+
+/* A person: their initial on a round of their own hue, the same hue wherever they are listed (`hueOf`). */
+.avatar {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.35em;
+  block-size: 1.35em;
+  border-radius: 50%;
+  font-size: 0.85em;
+  font-weight: 650;
+  line-height: 1;
+  color: var(--glacier-gray-11);
+  background: var(--glacier-gray-3);
+}
+
+.avatar[data-hue='blue'] {
+  color: var(--glacier-blue-11);
+  background: var(--glacier-blue-3);
+}
+
+.avatar[data-hue='purple'] {
+  color: var(--glacier-purple-11);
+  background: var(--glacier-purple-3);
+}
+
+.avatar[data-hue='green'] {
+  color: var(--glacier-green-11);
+  background: var(--glacier-green-3);
+}
+
+.avatar[data-hue='amber'] {
+  color: var(--glacier-amber-11);
+  background: var(--glacier-amber-3);
+}
+
+.avatar[data-hue='red'] {
+  color: var(--glacier-red-11);
+  background: var(--glacier-red-3);
+}
+
+.avatar[data-hue='teal'] {
+  color: var(--glacier-teal-11);
+  background: var(--glacier-teal-3);
+}

@@ -5,13 +5,15 @@ import { inMonth, monthAfter, monthName, monthWeeks, openingMonth, type Calendar
 import { withShow } from '../core/query/fence.ts';
 import { SHOWS, type QueryProblem, type ShowAs } from '../core/query/read.ts';
 import { QueryBuilder } from './QueryBuilder.tsx';
-import { KIND_WORDS, type Cell, type Group, type QueryResult, type Row } from '../core/query/run.ts';
+import { KIND_WORDS, type Cell, type Column, type Group, type QueryResult, type Row } from '../core/query/run.ts';
 import { chipLook, dayLabel, daySaid, type ChipLook } from './fieldChips.ts';
 import { tagsIn } from '../core/tags.ts';
 import { drawDiagram, type Drawing } from './mermaid.ts';
 import { wispFoot, wispFootFade } from '../art/wispFoot.ts';
 import { BOARD_HEIGHT, clampHeight } from '../core/boards.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
+import { FieldPicker, StatusIcon } from './FieldPicker.tsx';
+import { pickOf, picksField, statusLook, type FieldPick } from './fieldPicks.ts';
 import styles from './QueryView.module.css';
 
 /**
@@ -23,6 +25,12 @@ import styles from './QueryView.module.css';
  * chevrons, a person with their initial in a ring, a status with its category's dot - the same looks a field has on
  * its line (editor/fieldChips.ts) and a ticket has in a list (notes/TicketMark.tsx), so a thing reads the same
  * wherever it is shown. The name of a record is the button that opens it; a to-do's box ticks it.
+ *
+ * **A value is a button** where the note can be edited (docs/DESIGN.md §169; Matt: "I'd like to be able to click things
+ * like done labels in order to change the status … use modals with iconography and color"): a status, a priority, a
+ * person and a due, start or scheduled day, in a table's cell, a list's line or a board's card, opens a sheet of its
+ * choices (editor/FieldPicker.tsx), each in its mark and colour, and the one picked is written where the record is
+ * (`onSet`), as a card dragged to another lane is. A to-do's status is its box: To do or Done.
  */
 
 interface QueryViewProps {
@@ -45,6 +53,10 @@ interface QueryViewProps {
   onTick: (row: Row) => void;
   /** A card dragged to another lane of a board: its grouped field set to the lane's value, or cleared with null. */
   onMove: (row: Row, value: string | null) => void;
+  /** One field of a record set to a value picked in a sheet, or taken off with null. Absent, nothing is picked. */
+  onSet?: (row: Row, field: string, value: string | null) => void;
+  /** The people the library names, the most named first: who a person's sheet offers. Read when it opens. */
+  people?: () => readonly string[];
 }
 
 /** What a row and a cell need from the query's drawing to act and to name days. */
@@ -54,10 +66,22 @@ interface Acts {
   onOpen: (row: Row) => void;
   onTick: (row: Row) => void;
   onMove: (row: Row, value: string | null) => void;
+  /** Whether a record's field opens a sheet to pick it from; and opening it. */
+  pickable: (row: Row, field: string) => boolean;
+  pick: (row: Row, column: Column, cell: Cell) => void;
 }
 
-export function QueryView({ lines, problem, result, editable, height = null, onHeight, onBody, onEdit, onOpen, onTick, onMove }: QueryViewProps) {
+/** A sheet open on one record's field. */
+interface Picking {
+  row: Row;
+  field: string;
+  label: string;
+  pick: FieldPick;
+}
+
+export function QueryView({ lines, problem, result, editable, height = null, onHeight, onBody, onEdit, onOpen, onTick, onMove, onSet, people }: QueryViewProps) {
   const [building, setBuilding] = useState(false);
+  const [picking, setPicking] = useState<Picking | null>(null);
   if (problem || !result) {
     return (
       <section className={styles.query} aria-label="Query">
@@ -74,7 +98,21 @@ export function QueryView({ lines, problem, result, editable, height = null, onH
       </section>
     );
   }
-  const acts: Acts = { today: result.today, editable, onOpen, onTick, onMove };
+  const canPick = editable && !!onSet;
+  const acts: Acts = {
+    today: result.today,
+    editable,
+    onOpen,
+    onTick,
+    onMove,
+    pickable: (row, field) => canPick && picksField(row, field),
+    pick: (row, column, cell) => {
+      const pick = pickOf(row, column.field, cell, result.today, people ?? (() => []));
+      if (!pick) return;
+      fireNativeHaptic('selection');
+      setPicking({ row, field: column.field, label: column.label, pick });
+    },
+  };
   const words = KIND_WORDS[result.kind];
   const count = result.shown < result.matched ? `${result.shown} of ${result.matched}` : String(result.matched);
   const rows = result.groups.flatMap((group) => group.rows);
@@ -121,6 +159,27 @@ export function QueryView({ lines, problem, result, editable, height = null, onH
                 onEdit();
               }}
               onClose={() => setBuilding(false)}
+            />,
+            document.body,
+          )
+        : null}
+      {picking && onSet
+        ? createPortal(
+            <FieldPicker
+              pick={picking.pick}
+              label={picking.label}
+              record={picking.row.id ? `${picking.row.id} · ${picking.row.name}` : picking.row.name}
+              onClose={() => setPicking(null)}
+              onPick={(value) => {
+                const { row, field, pick } = picking;
+                fireNativeHaptic('selection');
+                // A to-do's status is its box: ticked or cleared, only where that is a change.
+                if (pick.kind === 'box') {
+                  if ((value === 'done') !== pick.done) onTick(row);
+                  return;
+                }
+                onSet(row, field, value);
+              }}
             />,
             document.body,
           )
@@ -314,12 +373,39 @@ function Chip({ look, words = true }: { look: ChipLook; words?: boolean }) {
   );
 }
 
-function StatusCell({ cell }: { cell: Extract<Cell, { kind: 'status' }> }) {
+/** A status as a pill in its category's colour, with its mark (editor/FieldPicker.tsx `statusLook`). */
+function StatusCell({ cell, workflow }: { cell: Extract<Cell, { kind: 'status' }>; workflow?: readonly string[] }) {
   return (
-    <span className={styles.status} data-category={cell.category}>
-      <span className={styles.dot} aria-hidden="true" />
+    <span className={styles.status} data-category={cell.category} data-look={statusLook(cell.text, workflow)}>
+      <StatusIcon look={statusLook(cell.text, workflow)} size="0.95em" />
       {cell.text}
     </span>
+  );
+}
+
+/**
+ * A value that opens its sheet where it can be picked (`Acts.pick`), drawn as itself inside a quiet button; drawn as
+ * itself alone where it cannot. Its press is its own: it never starts a board's card being carried (`startDrag`).
+ */
+function Picked({ row, column, cell, acts, children }: { row: Row; column: Column; cell: Cell; acts: Acts; children: ReactNode }) {
+  if (!acts.pickable(row, column.field)) return <>{children}</>;
+  const said = cell.kind === 'empty' ? 'none' : cell.kind === 'status' ? cell.text : cell.kind === 'priority' ? cell.name : cell.kind === 'people' ? cell.names.join(', ') : cell.kind === 'day' ? cell.day : '';
+  return (
+    <button
+      type="button"
+      className={styles.picked}
+      data-empty={cell.kind === 'empty' ? '' : undefined}
+      aria-haspopup="dialog"
+      aria-label={`${column.label}: ${said}. Change it`}
+      title={`Change ${column.label.toLowerCase()}`}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        acts.pick(row, column, cell);
+      }}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -327,7 +413,7 @@ function StatusCell({ cell }: { cell: Extract<Cell, { kind: 'status' }> }) {
  * A cell, drawn as what it holds. `quiet` is a row that is finished with, whose days are not late; `brief` is a list's
  * or a card's line of them, where a priority is its mark alone and an empty cell is nothing at all.
  */
-function CellView({ cell, field, today, quiet, brief }: { cell: Cell; field: string; today: string; quiet: boolean; brief: boolean }): ReactNode {
+function CellView({ cell, field, today, quiet, brief, workflow }: { cell: Cell; field: string; today: string; quiet: boolean; brief: boolean; workflow?: readonly string[] }): ReactNode {
   switch (cell.kind) {
     case 'empty':
       return brief ? null : <span className={styles.none} aria-label="None">–</span>;
@@ -354,7 +440,7 @@ function CellView({ cell, field, today, quiet, brief }: { cell: Cell; field: str
       ) : null;
     }
     case 'status':
-      return <StatusCell cell={cell} />;
+      return <StatusCell cell={cell} workflow={workflow} />;
     case 'people':
       return (
         <span className={styles.people}>
@@ -399,7 +485,9 @@ function Meta({ row, result, acts }: { row: Row; result: QueryResult; acts: Acts
     <span className={styles.meta}>
       {shown.map(({ column, cell }) => (
         <span key={column.field} className={styles.metaCell} data-field={column.field}>
-          <CellView cell={cell} field={column.field} today={acts.today} quiet={quiet} brief />
+          <Picked row={row} column={column} cell={cell} acts={acts}>
+            <CellView cell={cell} field={column.field} today={acts.today} quiet={quiet} brief workflow={row.workflow} />
+          </Picked>
         </span>
       ))}
       {note?.kind === 'text' ? <span className={styles.inNote}>{note.text}</span> : null}
@@ -468,7 +556,9 @@ function TableView({ result, acts }: { result: QueryResult; acts: Acts }) {
                           </th>
                         ) : (
                           <td key={column.field} data-field={column.field}>
-                            <CellView cell={row.cells[index]!} field={column.field} today={acts.today} quiet={quiet} brief={false} />
+                            <Picked row={row} column={column} cell={row.cells[index]!} acts={acts}>
+                              <CellView cell={row.cells[index]!} field={column.field} today={acts.today} quiet={quiet} brief={false} workflow={row.workflow} />
+                            </Picked>
                           </td>
                         ),
                       )}

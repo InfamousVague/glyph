@@ -110,7 +110,8 @@ Every record also has `title` (`note` reads better for a to-do: the note it is i
 - **list**: a row each, a to-do's box to tick, its fields beside it as they are drawn on its line.
 - **table**: the columns, a total row for `total:`, scrolling sideways on a phone.
 - **board**: a lane for each value of `group:`, or each status. A ticket board has every status of its notebook's
-  workflow, empty ones included, as a Jira board does. Read only: a card is moved by changing its ticket. Its lanes
+  workflow, empty ones included, as a Jira board does. A card is dragged to another lane to set the field the board
+  groups by (a long press lifts it on a phone). Its lanes
   are a screenful tall (24em) and scroll inside it, the wisp at their foot; the line under the board sets their
   height as a ```board's does, written on the fence as ```` ```query height=30 ````, and a double tap takes it off.
 - **calendar**: a month, Monday first, a dot on each day for each record on it (its due day, else scheduled, start,
@@ -123,6 +124,22 @@ A tap on a name opens it: a note or a ticket, or a to-do's note at its line (in 
 A to-do's box ticks it where it is written, and a board in that note moves its card with it, as a tap on the box
 itself does. The pencil at the query's head puts the caret in its lines.
 
+**A value is a button** where the note can be edited (docs/DESIGN.md §169). A status, a priority, a person (`assignee`)
+and a due, start or scheduled day, in a table's cell, a list's line or a board's card, opens a sheet of its choices,
+each with its mark in its colour:
+
+| Field | The sheet | Written as |
+| --- | --- | --- |
+| `status` | the record's workflow (its notebook's `statuses:`), a dashed ring for a backlog, a ring not started, a blue dot under way, a purple eye in review, a green tick done; No status | a ticket's front matter |
+| `status` of a to-do | To do, Done | its box, ticked or cleared |
+| `priority` | the five, in their chevrons' colours; None | a ticket's front matter, a to-do's `⏫` |
+| `assignee` | the people the library names, each on a round of their own hue; a name typed; No one | a ticket's front matter, a to-do's `@sam` |
+| `due`, `start`, `scheduled` | Today, Tomorrow, Next week, Pick a date (the phone's calendar), Remove | a ticket's front matter, a to-do's `📅` |
+
+A value picked for a record in another note is written there and the notes read again, as a card dragged to another
+lane is; in this note it is written into the editor, one change, one undo. A notebook's index does the same for its
+tickets: each row's status is a pill that opens its workflow's sheet (on a phone, its mark alone).
+
 ## Where the code is
 
 - `src/app/core/query/read.ts`: the grammar, and the sentence for a query that cannot be read.
@@ -134,3 +151,5 @@ itself does. The pencil at the query's head puts the caret in its lines.
 - `src/app/core/sums.ts`: the arithmetic a total shares with a sum.
 - `src/app/editor/queries.ts`, `QueryView.tsx`: the fence drawn in a note. `src/app/shell/useQueries.ts`: the library
   App hands it.
+- `src/app/editor/FieldPicker.tsx`, `fieldPicks.ts`: the sheet a value is picked from, and which sheet a field opens.
+  `src/app/core/query/move.ts`: a field written into another note, a to-do's on its line.

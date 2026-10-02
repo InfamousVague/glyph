@@ -1,5 +1,5 @@
 import { withProperty } from '../properties.ts';
-import { withField } from '../taskFields.ts';
+import { fieldsOf, withAssignee, withField } from '../taskFields.ts';
 import type { RecordKind } from './records.ts';
 
 /**
@@ -12,13 +12,26 @@ import type { RecordKind } from './records.ts';
  * them; a line that is gone is left alone (null), rather than the wrong one written. A write that changes nothing gives
  * the body back unchanged. Pure.
  */
+/**
+ * A to-do's line with one field set, or cleared with null, through the one writer of a line's fields (core/taskFields.ts
+ * `withField`). Its assignee is its people, written `@sam`, not a named field: setting it takes off whoever is there
+ * and puts the one named on, so a query's person picker replaces the person as a ticket's does.
+ */
+export function withTaskField(line: string, field: string, value: string | null): string {
+  if (field.toLowerCase() === 'assignee') {
+    const cleared = fieldsOf(line).assignees.reduce((out, name) => withAssignee(out, name, false), line);
+    return value ? withAssignee(cleared, value) : cleared;
+  }
+  return withField(line, field, value);
+}
+
 export function movedBody(body: string, line: number, source: string, kind: RecordKind, field: string, value: string | null): string | null {
   if (kind === 'task') {
     const lines = body.split('\n');
     const at = lines[line] === source ? line : lines.indexOf(source);
     const text = lines[at];
     if (at < 0 || text === undefined) return null;
-    const next = withField(text, field, value);
+    const next = withTaskField(text, field, value);
     if (next === text) return body;
     lines[at] = next;
     return lines.join('\n');

@@ -15,6 +15,7 @@ const row = (name: string, day: string | null): Row => ({
   id: null,
   done: false,
   category: 'todo',
+  workflow: [],
   cells: [],
   day,
   start: null,

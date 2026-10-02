@@ -213,7 +213,7 @@ export function waitingOn<T extends { category: StatusCategory }>(ticket: Ticket
  * as it was written most, an assignee's spelling before a handle's, so "Sam Ortiz" rather than `Sam-Ortiz`. What the
  * Assignee picker offers before anything is typed.
  */
-export function peopleIn(notes: readonly Note[]): string[] {
+export function peopleIn(notes: readonly Pick<Note, 'body'>[]): string[] {
   const counts = new Map<string, { count: number; names: Map<string, number> }>();
   const meet = (name: string, weight: number) => {
     const clean = name.trim().replace(/^@+/, '');

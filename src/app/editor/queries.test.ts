@@ -48,6 +48,12 @@ async function open(doc: string, given: QueryOptions | null = options, editable 
 }
 
 const drawn = (view: EditorView) => [...view.dom.querySelectorAll<HTMLElement>('.cm-query')];
+/** A row of the open picker sheet, by its label: its words without its mark or its tick. */
+const sheetRow = (label: string) => {
+  const sheet = document.querySelector<HTMLElement>('[role="dialog"]');
+  const said = (button: HTMLButtonElement) => [...button.children].find((child) => !child.hasAttribute('aria-hidden'))?.firstChild?.textContent?.trim();
+  return [...(sheet?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find((button) => said(button) === label)!;
+};
 const fence = (lines: string) => `# This week\n\n\`\`\`query\n${lines}\n\`\`\`\n`;
 
 describe('a query in a note', () => {
@@ -177,5 +183,45 @@ describe('a tap in a drawn query', () => {
     const other = await open(`${fence('from: tasks')}\n- [ ] Post the letter\n`);
     await act(async () => [...drawn(other)[0]!.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.includes('Post the letter'))!.click());
     expect(other.state.doc.lineAt(other.state.selection.main.head).text).toBe('- [ ] Post the letter');
+  });
+
+  it('picks a ticket’s status from its cell, and writes it in its own note through the screen', async () => {
+    const view = await open(fence('from: tickets'));
+    await act(async () => drawn(view)[0]!.querySelector<HTMLButtonElement>('button[aria-label^="Status: In progress"]')!.click());
+    expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Status');
+    await act(async () => sheetRow('Done').click());
+    expect(options.move).toHaveBeenCalledWith('gho1', -1, '', 'ticket', 'status', 'Done');
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('picks a to-do’s priority and person in this note, on its own line', async () => {
+    const view = await open(`${fence('from: tasks\nshow: table')}\n- [ ] Call the plumber\n`);
+    const rowOf = () => [...drawn(view)[0]!.querySelectorAll('tr')].find((tr) => tr.textContent?.includes('Call the plumber'))!;
+    await act(async () => rowOf().querySelector<HTMLButtonElement>('button[aria-label^="Priority: none"]')!.click());
+    await act(async () => sheetRow('High').click());
+    expect(view.state.doc.toString()).toContain('- [ ] Call the plumber ⏫');
+    await act(async () => rowOf().querySelector<HTMLButtonElement>('button[aria-label^="Assignee: none"]')!.click());
+    // The people the library names are offered: Milk's @sam.
+    await act(async () => sheetRow('sam').click());
+    expect(view.state.doc.toString()).toContain('- [ ] Call the plumber @sam ⏫');
+    expect(options.move).not.toHaveBeenCalled();
+  });
+
+  it('picks a card’s priority on a board, without carrying the card', async () => {
+    const view = await open(fence('from: tickets\nshow: board'));
+    const card = [...drawn(view)[0]!.querySelectorAll<HTMLElement>('li[data-movable]')].find((li) => li.textContent?.includes('Fix the login loop'))!;
+    const priority = card.querySelector<HTMLButtonElement>('button[aria-label^="Priority: high"]')!;
+    await act(async () => priority.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 })));
+    expect(card.hasAttribute('data-carrying')).toBe(false);
+    await act(async () => priority.click());
+    await act(async () => sheetRow('Highest').click());
+    expect(options.move).toHaveBeenCalledWith('gho1', -1, '', 'ticket', 'priority', 'highest');
+  });
+
+  it('picks nothing where the note cannot be edited', async () => {
+    const view = await open(fence('from: tickets'), options, false);
+    expect(drawn(view)[0]!.querySelector('[aria-haspopup="dialog"]')).toBeNull();
+    // The status is still drawn, in its colour, as words.
+    expect(drawn(view)[0]!.textContent).toContain('In progress');
   });
 });

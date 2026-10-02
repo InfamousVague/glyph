@@ -407,35 +407,73 @@
   color: var(--app-ink-2);
 }
 
+/*
+ * A status, as a pill in its category's colour with its mark (editor/FieldPicker.tsx): the faint ink not started, blue
+ * under way, purple in review, green done. The same marks and colours as the sheet it is picked from.
+ */
 .status {
   display: inline-flex;
   align-items: center;
-  gap: var(--glacier-space-1);
+  gap: 0.35em;
+  padding: 0.1em 0.55em 0.1em 0.4em;
+  border-radius: var(--glacier-radius-full);
   white-space: nowrap;
-}
-
-.dot {
-  flex: none;
-  inline-size: 0.55em;
-  block-size: 0.55em;
-  border-radius: 50%;
-  background: var(--app-ink-4);
+  color: var(--app-ink-2);
+  background: color-mix(in srgb, var(--app-ink-4) 18%, transparent);
 }
 
 .status[data-category='doing'] {
   color: var(--glacier-blue-11);
+  background: color-mix(in srgb, var(--glacier-blue-9) 14%, transparent);
 }
 
-.status[data-category='doing'] .dot {
-  background: var(--glacier-blue-9);
+.status[data-look='review'] {
+  color: var(--glacier-purple-11);
+  background: color-mix(in srgb, var(--glacier-purple-9) 14%, transparent);
 }
 
 .status[data-category='done'] {
   color: var(--glacier-green-11);
+  background: color-mix(in srgb, var(--glacier-green-9) 14%, transparent);
 }
 
-.status[data-category='done'] .dot {
-  background: var(--glacier-green-9);
+/*
+ * A value that opens its sheet (QueryView.tsx `Picked`): the value drawn as ever, in a button that says it can be
+ * pressed only as the pointer comes over it, so a table of values still reads as a table and not a wall of buttons.
+ * An empty one is a faint dash that becomes a plus to add one.
+ */
+.picked {
+  display: inline-flex;
+  align-items: center;
+  max-inline-size: 100%;
+  margin: -0.15em -0.3em;
+  padding: 0.15em 0.3em;
+  border: 0;
+  border-radius: var(--glacier-radius-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 120ms ease;
+}
+
+.picked:hover {
+  background: color-mix(in srgb, var(--app-ink-4) 16%, transparent);
+}
+
+.picked:active {
+  background: color-mix(in srgb, var(--app-ink-4) 26%, transparent);
+}
+
+.picked:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 1px;
+}
+
+.picked[data-empty]:hover .none {
+  color: var(--app-ink-2);
 }
 
 /* ---- a table ------------------------------------------------------------------------------------------ */

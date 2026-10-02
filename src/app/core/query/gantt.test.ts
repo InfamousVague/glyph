@@ -18,6 +18,7 @@ const row = (over: Partial<Row>): Row => ({
   id: null,
   done: false,
   category: 'todo',
+  workflow: [],
   cells: [],
   day: null,
   start: null,

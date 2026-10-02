@@ -10,7 +10,8 @@ import { readQuery } from '../core/query/read.ts';
 import { libraryOf, recordCache, type QueryNote, type RecordCache, type RecordKind } from '../core/query/records.ts';
 import { runQuery, type Row } from '../core/query/run.ts';
 import { withProperty } from '../core/properties.ts';
-import { withField } from '../core/taskFields.ts';
+import { withTaskField } from '../core/query/move.ts';
+import { peopleIn } from '../book/tickets.ts';
 import { caretIn, focusMoved, trackFocus } from './drawnBlock.ts';
 import { fieldChipTheme } from './fieldChips.ts';
 import { QueryView } from './QueryView.tsx';
@@ -35,7 +36,10 @@ import { toggleBox } from './taskToggle.ts';
  * **What a tap does.** A note or a ticket opens; a to-do opens its note at its line, or, in this note, puts the caret
  * there. A to-do's box ticks it where it is written: in this note with the same edit a tap on the box makes
  * (editor/taskToggle.ts `toggleBox`, its boards settled in the same undo), and in another through the screen
- * (`QueryOptions.tick`, core/query/tick.ts). Nothing else in a drawn query writes anything.
+ * (`QueryOptions.tick`, core/query/tick.ts). A card dragged to another lane sets the field the board groups by, and a
+ * value picked from its sheet - a status, a priority, a person, a day (editor/FieldPicker.tsx, docs/DESIGN.md §169) -
+ * sets that field: both through one writer (`setField` below), into the editor for this note and through the screen
+ * (`QueryOptions.move`, core/query/move.ts) for another. Nothing else in a drawn query writes anything.
  */
 
 /** What the screen hands the editor for its queries: the library, and how to reach and tick what a query lists. */
@@ -140,6 +144,31 @@ class QueryWidget extends WidgetType {
   draw(root: Root, view: EditorView, dom: HTMLElement): void {
     const options = this.options();
     const reading = readQuery(this.body);
+    /**
+     * One field of a record set, or taken off with null: a card's lane, or a value picked from its sheet. In another note
+     * it goes through the screen as a tick does; in this one it is written into the editor, so the live doc and the
+     * drawing stay in step - a to-do's on its line (`withTaskField`, its person as `@name`), a note's or a ticket's in its
+     * front matter.
+     */
+    const setField = (row: Row, field: string, value: string | null) => {
+      if (!this.editable) return;
+      fireNativeHaptic('selection');
+      if (row.noteId !== options?.noteId) {
+        options?.move(row.noteId, row.line, row.source, row.kind, field, value);
+        return;
+      }
+      if (row.kind === 'task') {
+        const line = lineOf(view.state, row);
+        if (line === null) return;
+        const text = view.state.doc.line(line);
+        const next = withTaskField(text.text, field, value);
+        if (next !== text.text) view.dispatch({ changes: { from: text.from, to: text.to, insert: next }, userEvent: 'input.query' });
+        return;
+      }
+      const body = view.state.doc.toString();
+      const next = withProperty(body, field, value);
+      if (next !== body) view.dispatch({ changes: { from: 0, to: body.length, insert: next }, userEvent: 'input.query' });
+    };
     const result = reading.query && options ? runQuery(reading.query, libraryOf(withOpen(options.notes(), options.noteId, view.state.doc.toString()), cacheOf(view)), this.today) : null;
     root.render(
       createElement(QueryView, {
@@ -195,28 +224,12 @@ class QueryWidget extends WidgetType {
           if (box) view.dispatch(toggleBox(view.state, { from: text.from + box.at, done: box.done }));
         },
         onMove: (row: Row, value: string | null) => {
-          // The field the board groups by, set to the lane the card was dropped in (editor/QueryView.tsx). In another
-          // note it goes through the screen as a tick does; in this one it is written into the editor, so the live doc
-          // and the drawing stay in step.
-          const field = result?.group;
-          if (!field || !this.editable) return;
-          fireNativeHaptic('selection');
-          if (row.noteId !== options?.noteId) {
-            options?.move(row.noteId, row.line, row.source, row.kind, field, value);
-            return;
-          }
-          if (row.kind === 'task') {
-            const line = lineOf(view.state, row);
-            if (line === null) return;
-            const text = view.state.doc.line(line);
-            const next = withField(text.text, field, value);
-            if (next !== text.text) view.dispatch({ changes: { from: text.from, to: text.to, insert: next }, userEvent: 'input.query' });
-            return;
-          }
-          const body = view.state.doc.toString();
-          const next = withProperty(body, field, value);
-          if (next !== body) view.dispatch({ changes: { from: 0, to: body.length, insert: next }, userEvent: 'input.query' });
+          // The field the board groups by, set to the lane the card was dropped in (editor/QueryView.tsx).
+          if (result?.group) setField(row, result.group, value);
         },
+        onSet: (row: Row, field: string, value: string | null) => setField(row, field, value),
+        // Read when a person's sheet opens, not on every draw: it reads every note.
+        people: () => (options ? peopleIn(withOpen(options.notes(), options.noteId, view.state.doc.toString())) : []),
       }),
     );
   }
