@@ -9,6 +9,7 @@ import { preferences } from '../core/preferences.ts';
 import { recordingJobState, takeRecordingResult, type RecordingJobState } from '../core/recordings.ts';
 import { cannotRun, isTemplateFailure, markCannotRun } from '../core/runnable.ts';
 import { readStored, writeStored } from '../core/stored.ts';
+import { record } from '../core/notifications/record.ts';
 import { getNote, NOTES_CHANGED, noteTitle, updateNote } from '../core/store.ts';
 import { syncNow, syncSettled } from '../core/sync/engine.ts';
 import { isTauri } from '../core/tauri.ts';
@@ -677,11 +678,17 @@ async function write(job: SummaryJob, text: string, ask: SummaryAsk, recordingMs
   return 'wait';
 }
 
-/** "Summarized" with Open, when the page is visible: for the page's jobs, and for a native one only where the phone could not say it itself. */
+/**
+ * A summary landed in its note: a row in the feed, on every device, for a person who was not looking (docs/TEAMS.md,
+ * "Kinds"); and "Summarized" with Open, when the page is visible - for the page's jobs, and for a native one only
+ * where the phone could not say it itself.
+ */
 function said(job: SummaryJob, body: string): void {
+  const done = { id: job.id, title: noteTitle(body) || 'Untitled' };
+  void record('summary-written', { noteId: done.id, title: done.title });
   if (typeof document === 'undefined' || document.visibilityState !== 'visible') return;
   if (job.native && canNotifyNow()) return;
-  onSummarized?.({ id: job.id, title: noteTitle(body) || 'Untitled' });
+  onSummarized?.(done);
 }
 
 function finish(job: SummaryJob): void {

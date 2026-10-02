@@ -204,6 +204,40 @@ export function isWriteUp(value: unknown): value is WriteUp {
   return typeof value === 'string' && (WRITE_UPS as readonly string[]).includes(value);
 }
 
+/**
+ * Which notifications reach the feed and the bell (core/notifications/kinds.ts; Matt: "there should be a notifications
+ * section in settings in order to customize the notifications we receive"): one switch per category, and the
+ * organizations whose team news is muted. An invitation is not switchable, since whoever sent it is waiting. Every
+ * row is still written to the account - these decide what is drawn and counted, on every device, so they travel
+ * (core/sync/prefs.ts).
+ */
+export interface NotificationPrefs {
+  /** Team news: who joined, left, was removed, a rename, a deletion, an invitation answered. */
+  team: boolean;
+  /** Claude's writes through the MCP server. */
+  claude: boolean;
+  /** A meeting written up. */
+  summaries: boolean;
+  /** A note kept twice by a sync. */
+  conflicts: boolean;
+  /** Organizations whose team news is not drawn, by id. */
+  mutedOrgs: string[];
+}
+
+export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = { team: true, claude: true, summaries: true, conflicts: true, mutedOrgs: [] };
+
+/** Notification switches as stored, made whole: a switch is on unless it was written off, and only ids are muted. */
+function readNotificationPrefs(raw: unknown): NotificationPrefs {
+  const held = raw && typeof raw === 'object' ? (raw as Partial<Record<keyof NotificationPrefs, unknown>>) : {};
+  return {
+    team: held.team !== false,
+    claude: held.claude !== false,
+    summaries: held.summaries !== false,
+    conflicts: held.conflicts !== false,
+    mutedOrgs: Array.isArray(held.mutedOrgs) ? held.mutedOrgs.filter((id): id is string => typeof id === 'string') : [],
+  };
+}
+
 /** How much longer (above 1) or shorter (below 1) every animation runs at a speed. */
 const MOTION_SCALE: Record<MotionSpeed, number> = { relaxed: 1.6, normal: 1, brisk: 0.6 };
 
@@ -372,6 +406,8 @@ export interface Preferences {
    * look-up switch is: it makes this phone spin up the model on its own, which is the phone's to decide.
    */
   autoFill: boolean;
+  /** Which notifications are drawn and counted (`NotificationPrefs`): Settings › Notifications. */
+  notifications: NotificationPrefs;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -415,6 +451,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   tagNewNotes: true,
   lookUpBlanks: true,
   autoFill: true,
+  notifications: DEFAULT_NOTIFICATION_PREFS,
 };
 
 const STORAGE_KEY = 'glyph-preferences';
@@ -490,6 +527,8 @@ function settle(raw: unknown): Preferences {
   if (typeof loaded.syncMeetingRecordings !== 'boolean') loaded.syncMeetingRecordings = DEFAULT_PREFERENCES.syncMeetingRecordings;
   if (typeof loaded.lookUpBlanks !== 'boolean') loaded.lookUpBlanks = DEFAULT_PREFERENCES.lookUpBlanks;
   if (typeof loaded.autoFill !== 'boolean') loaded.autoFill = DEFAULT_PREFERENCES.autoFill;
+  // The notification switches from another build, or a half-written store: each on unless written off.
+  loaded.notifications = readNotificationPrefs(loaded.notifications);
   // An accent or a rounding this build does not have - one from an older store, where the accent was a colour the
   // app never used, or from a newer phone - is the app's own rather than a name nothing can draw.
   if (!isAccent(loaded.accent)) loaded.accent = DEFAULT_PREFERENCES.accent;

@@ -7,6 +7,9 @@ import { externalStore } from '../externalStore.ts';
 import { failureText } from '../failure.ts';
 import { imageBytes, keepImage } from '../images.ts';
 import { hasNativeGeneration } from '../nativeGeneration.ts';
+import { feedState, forgetNotifications, syncNotifications, updateFeed } from '../notifications/feed.ts';
+import { record } from '../notifications/record.ts';
+import { forgetOrgs, saveOrgs, syncOrgs } from '../orgs/orgs.ts';
 import { isIOS } from '../platform.ts';
 import { onPreferences, preferences, setPreferences } from '../preferences.ts';
 import { recordingDigest } from '../recordings.ts';
@@ -23,6 +26,12 @@ import { syncPrefs, type PrefsState } from './prefs.ts';
  * A sync runs when the app starts signed in, when it comes back to the front, a moment after a note or a setting
  * changes, and every few minutes while it is open. One runs at a time; a request while one is running queues exactly
  * one more. Nothing runs without an account key on the device, or with "Nothing leaves the phone" on.
+ *
+ * A pass is four steps in this order: the notifications, the notes, the settings, the organizations (docs/TEAMS.md,
+ * D4). Notifications before notes, so that a note a notification names has arrived by the time its row is drawn;
+ * organizations after the settings and outside `applyingRemote`, so the workspace the list makes or drops is pushed
+ * a moment later rather than on the next pass. The two new steps are quiet against a service that does not have
+ * their routes yet (core/account/api.ts `notYet`), and leave the status to the notes.
  */
 
 /** Native generation that has `store_apply` and `sync_put_file`. */
@@ -102,9 +111,11 @@ export function hasUnsyncedChanges(note: Note): boolean {
   return !known || known.mark !== mark(note);
 }
 
-/** Forgets what this device knew of an account's sync: for signing out. */
+/** Forgets what this device knew of an account's sync: for signing out. The feed and the organizations are theirs to forget. */
 function forgetSync(accountId: number): void {
   for (const part of ['notes', 'prefs']) writeStored(stateKey(accountId, part), null);
+  forgetNotifications(accountId);
+  forgetOrgs(accountId);
 }
 
 /** Signs out and forgets this device's sync bookkeeping for the account. The notes stay. */
@@ -178,28 +189,53 @@ async function nativeReady(): Promise<boolean> {
 
 // --- running ----------------------------------------------------------------------------------
 
-let running: Promise<void> | null = null;
-let again = false;
+/** What a pass covers: everything, or only the notifications and the organizations, which an inline answer changes. */
+type Parts = 'all' | 'notifications';
 
-/** Syncs now, or right after the sync already running. */
-export function syncNow(): Promise<void> {
+let running: Promise<void> | null = null;
+/** The pass asked for while one was running, if any: one more, covering the most anybody asked. */
+let queued: Parts | null = null;
+
+function widen(was: Parts | null, asked: Parts): Parts {
+  return was === 'all' || asked === 'all' ? 'all' : 'notifications';
+}
+
+/** One pass of `parts` now, or right after the pass already running. */
+function run(parts: Parts): Promise<void> {
   if (running) {
-    again = true;
+    queued = widen(queued, parts);
     return running;
   }
   running = (async () => {
     try {
-      do {
-        again = false;
-        await once();
-      } while (again);
+      let next: Parts | null = parts;
+      while (next) {
+        await once(next);
+        next = queued;
+        queued = null;
+      }
     } catch (failure) {
       setStatus({ phase: 'error', message: failureText(failure) });
     } finally {
       running = null;
+      queued = null;
     }
   })();
   return running;
+}
+
+/** Syncs now, or right after the sync already running. */
+export function syncNow(): Promise<void> {
+  return run('all');
+}
+
+/**
+ * The notifications and the organizations now, through the same one-at-a-time door: after an invitation is answered
+ * inline, and when the Notifications page opens. The notes are not swept, which on a phone with a thousand of them
+ * is the cost of a pass.
+ */
+export function syncNotificationsNow(): Promise<void> {
+  return run('notifications');
 }
 
 /**
@@ -219,11 +255,25 @@ export function syncSettled(): Promise<void> {
   return running ?? Promise.resolve();
 }
 
-async function once(): Promise<void> {
+async function once(parts: Parts): Promise<void> {
   const session = accountState().session;
   const key = session ? await accountKey().catch(() => null) : null;
   if (!session || !key || preferences().localOnly) {
     setStatus({ phase: 'off', message: null });
+    return;
+  }
+  const { token, accountId } = session;
+  const feed = () => syncNotifications({ token, read: () => feedState(accountId), update: (fn) => updateFeed(accountId, fn) });
+  const orgs = () => syncOrgs({ token, save: (state) => saveOrgs(accountId, state) });
+  if (parts === 'notifications') {
+    // The notes' status stands: this is the feed and the list, and says nothing on the Account row unless it fails.
+    try {
+      await feed();
+      await orgs();
+    } catch (failure) {
+      if (failure instanceof ApiError && failure.status === 401) await resume().catch(() => undefined);
+      setStatus({ phase: 'error', message: failureText(failure) });
+    }
     return;
   }
   if (!(await nativeReady())) {
@@ -232,6 +282,8 @@ async function once(): Promise<void> {
   }
   setStatus({ phase: 'syncing', message: null });
   try {
+    await feed();
+
     const notesKey = stateKey(session.accountId, 'notes');
     const outcome = await syncNotes({
       token: session.token,
@@ -249,6 +301,8 @@ async function once(): Promise<void> {
       get syncMeetingRecordings() {
         return preferences().syncMeetingRecordings;
       },
+      // A note kept twice is worth a row in the feed: the person has two copies to look at (docs/TEAMS.md, "Kinds").
+      onConflict: (copy) => void record('sync-conflict', copy),
     });
     if (outcome.changed) announceNotesChanged();
 
@@ -266,6 +320,7 @@ async function once(): Promise<void> {
     } finally {
       applyingRemote = false;
     }
+    await orgs();
     setStatus({ phase: 'idle', lastAt: Date.now(), message: null, conflicts: outcome.conflicts, unsent: outcome.unsent, unsentReason: outcome.reason });
   } catch (failure) {
     if (failure instanceof ApiError && failure.status === 401) {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { randomId } from './ids.ts';
+import { isShortId, randomId, shortId, SHORT_ID_LENGTH } from './ids.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -24,5 +24,19 @@ describe('a fresh id', () => {
   it('still answers where there is no crypto at all', () => {
     vi.stubGlobal('crypto', undefined);
     expect(randomId()).toMatch(/^n-[0-9a-z]+-[0-9a-z]{1,8}$/);
+  });
+});
+
+describe('a short id', () => {
+  it('is twenty-two base64url characters, and never the same twice', () => {
+    const made = shortId();
+    expect(made).toHaveLength(SHORT_ID_LENGTH);
+    expect(made).toMatch(/^[A-Za-z0-9_-]{22}$/);
+    expect(isShortId(made)).toBe(true);
+    expect(shortId()).not.toBe(made);
+    // Shorter, longer, or holding a character base64url does not: not one.
+    expect(isShortId(made.slice(1))).toBe(false);
+    expect(isShortId(`${made}A`)).toBe(false);
+    expect(isShortId(`${made.slice(1)}+`)).toBe(false);
   });
 });

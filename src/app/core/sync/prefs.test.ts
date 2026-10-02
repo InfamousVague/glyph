@@ -118,6 +118,16 @@ describe('settings kept the same on every device', () => {
     expect(desk.prefs).toMatchObject({ writeUp: 'now', syncMeetingRecordings: true });
   });
 
+  it('carry which notifications are drawn and which organizations are muted', async () => {
+    const service = await fakeService(ACCOUNT);
+    const phone = device(service);
+    phone.set({ notifications: { team: true, claude: false, summaries: true, conflicts: true, mutedOrgs: ['o1'] } });
+    await phone.sync();
+    const desk = device(service);
+    await desk.sync();
+    expect(desk.prefs.notifications).toEqual({ team: true, claude: false, summaries: true, conflicts: true, mutedOrgs: ['o1'] });
+  });
+
   it('ignore what a newer build wrote that this one does not know', async () => {
     const service = await fakeService(ACCOUNT);
     const token = service.signedIn();

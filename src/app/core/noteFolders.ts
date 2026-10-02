@@ -1,5 +1,7 @@
+import { isOrgWorkspace } from './orgs/types.ts';
 import { applyNote, getNote, announceNotesChanged } from './store.ts';
 import { isTauri } from './tauri.ts';
+import type { Workspace } from './workspaces.ts';
 
 /**
  * A note's workspace decides which folder holds its file.
@@ -18,12 +20,21 @@ import { isTauri } from './tauri.ts';
  * The workspace's name becomes a folder name, so it is cleaned the way a file name is: the characters a folder
  * cannot hold go, and a name that cleans away to nothing leaves the note where it is rather than making a folder
  * called nothing.
+ *
+ * An organization's workspace (core/orgs/types.ts) files under `orgs/<the organization>/` instead: its name is
+ * another account's choice, and a personal workspace may be called the same (docs/TEAMS.md, D5). The folder is
+ * decided from the workspace, not from a name, so no caller can file an organization's note under `workspaces/`.
  */
 
 /** Where notes with no workspace live: the library's own landing folder (library/mod.rs `INBOX`). */
 const INBOX = 'Inbox';
 /** The folder the workspaces' folders sit in, as Matt asked for it. */
 const WORKSPACES = 'workspaces';
+/** The folder the organizations' workspaces' folders sit in. */
+const ORGS = 'orgs';
+
+/** The workspace a note is filed in, as far as its folder cares: the id says whose it is, the name what it is called. */
+export type Filed = Pick<Workspace, 'id' | 'name'>;
 
 /** A workspace's name as a folder name: what a file name may not hold is dropped, and the ends are trimmed. */
 export function folderName(name: string): string {
@@ -36,10 +47,10 @@ export function folderName(name: string): string {
 }
 
 /** The folder a note belongs in: its workspace's, or the inbox with no workspace. Null when the name is unusable. */
-export function folderFor(workspace: string | null): string | null {
+export function folderFor(workspace: Filed | null): string | null {
   if (workspace === null) return INBOX;
-  const folder = folderName(workspace);
-  return folder ? `${WORKSPACES}/${folder}` : null;
+  const folder = folderName(workspace.name);
+  return folder ? `${isOrgWorkspace(workspace) ? ORGS : WORKSPACES}/${folder}` : null;
 }
 
 /** The file's own name, without the folders: `workspaces/Home/Weekend trip.md` is `Weekend trip.md`. */
@@ -55,7 +66,7 @@ function fileName(path: string): string {
  * nothing, or a library that refuses the move because something is already called that. The note's words are never
  * touched - only where the file sits.
  */
-export async function fileNoteInFolder(noteId: string, workspace: string | null): Promise<void> {
+export async function fileNoteInFolder(noteId: string, workspace: Filed | null): Promise<void> {
   const folder = folderFor(workspace);
   if (folder !== null) await fileNoteAt(noteId, folder);
 }
@@ -76,6 +87,6 @@ async function fileNoteAt(noteId: string, folder: string): Promise<void> {
 }
 
 /** The same for several notes at once: a workspace renamed, or taken away. */
-export async function fileNotesInFolder(noteIds: readonly string[], workspace: string | null): Promise<void> {
+export async function fileNotesInFolder(noteIds: readonly string[], workspace: Filed | null): Promise<void> {
   for (const id of noteIds) await fileNoteInFolder(id, workspace);
 }

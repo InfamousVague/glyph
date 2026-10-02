@@ -146,6 +146,8 @@ function signedInWithBookkeeping(): void {
   localStorage.setItem('glyph-account-session', JSON.stringify({ token: 't', handle: 'sam', accountId: 7 }));
   localStorage.setItem('glyph-sync-7-notes', JSON.stringify({ cursor: 9, notes: { n1: { rev: 3, mark: 'x' } }, files: {} }));
   localStorage.setItem('glyph-sync-7-prefs', JSON.stringify({ rev: 2, seen: null }));
+  localStorage.setItem('glyph-sync-7-notifications', JSON.stringify({ cursor: 3, items: {}, marks: [], unsent: [] }));
+  localStorage.setItem('glyph-sync-7-orgs', JSON.stringify({ list: [], at: 1 }));
   localStorage.setItem('glyph-sync-3-notes', JSON.stringify({ cursor: 4, notes: { n2: { rev: 1, mark: 'y' } }, files: {} }));
 }
 
