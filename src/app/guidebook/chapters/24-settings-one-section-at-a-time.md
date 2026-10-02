@@ -4,13 +4,13 @@ _Every section of Settings in the order the list shows them, with what each sett
 
 ## Finding your way
 
-Settings opens on a list of five sections: **Account**, **Appearance**, **Recording**, **Plugins** and **About**. Recording is there in the Android app and on the Mac, where a recorder has a model behind it, so the web version lists four. On a phone, each opens as a page of its own: the back gesture or a swipe to the right steps out, and a swipe to the left goes back in. On a wide window, a Mac or a folding phone opened out, Settings is a split view with the sections down the left.
+Settings opens on a list of seven sections: **Account**, **Notifications**, **Appearance**, **Recording**, **AI**, **Plugins** and **About**. Recording and AI are there in the Android app and on the Mac, where a recorder has a model behind it, so the web version lists five. On a phone, each opens as a page of its own: the back gesture or a swipe to the right steps out, and a swipe to the left goes back in. On a wide window, a Mac or a folding phone opened out, Settings is a split view with the sections down the left.
 
-A few pages open from a row on another page rather than from the list: a plugin's own page from its card on Plugins, and the cheat sheet and Examples from About. Over one of those, the way back names the page it came from, "← Plugins" or "← About", and back steps there first. In the split view the page it came from stays marked in the column.
+A few pages open from a row on another page rather than from the list: Organizations from Account, a plugin's own page from its card on Plugins, and the cheat sheet, Specification and Examples from About. Over one of those, the way back names the page it came from, "← Account", "← Plugins" or "← About", and back steps there first. In the split view the page it came from stays marked in the column.
 
 **Search settings**, at the top of the list, finds a section or a single setting inside one, the pages behind a row included. Every word you type has to start a word of what it finds, in any order, so "sm ed" finds Smoke at the edges. A result opens its page and lights the setting for a moment. Enter opens the first result, and on a keyboard ⌘F or Ctrl+F goes to the field.
 
-Two things elsewhere open Settings at a card, lit the same way. The words "Local only", where a page says it is holding something off, open Account at the Privacy card. **Get a model** on the home page opens Recording at the Model card.
+Two things elsewhere open Settings at a card, lit the same way. The words "Local only", where a page says it is holding something off, open Account at the Privacy card. **Get a model** on the home page opens AI at the Model card.
 
 Some rows appear only where they mean something: Recording on Android and the Mac, the side key and the meetings on Android, the sidebar on a wide window, Touch where there is a motor, and a plugin's page while the plugin is on.
 
@@ -18,7 +18,7 @@ Some rows appear only where they mean something: Recording on Android and the Ma
 
 Who you are, and what leaves the device.
 
-Signed out, it opens on **Sign in**, with **Create an account** and **Lost the password**, which takes a recovery code, below it, then the **Privacy** and **Location** cards. Signed in, the **Sync** card has **Sync now**, **Sync meeting recordings** (off, so a meeting's audio stays on the device that recorded it), **Live typing (trial)** (off until you switch it on, for this device only, from the next note you open), **Password and recovery codes**, and **Sign out**, which leaves your notes on the device. Then **Shared links**, once you have shared something, with a Copy and a Stop for each note and notebook. Then Privacy and Location, and **Delete account** last. While Local only is on, a line at the top says nothing syncs, and its "Local only" brings the Privacy card into view. More in [[Accounts, sync and the key you hold]].
+Signed out, it opens on **Sign in**, with **Create an account** and **Lost the password**, which takes a recovery code, below it, then the **Privacy** and **Location** cards. Signed in, the **Sync** card has **Sync now**, **Sync meeting recordings** (off, so a meeting's audio stays on the device that recorded it), **Live typing (trial)** (off until you switch it on, for this device only, from the next note you open), **Password and recovery codes**, and **Sign out**, which leaves your notes on the device. Then **Organizations**: the teams you are in, an invitation waiting with its Accept and Decline, and New organization, each opening the organization's own screen ([[Accounts, sync and the key you hold]]). Then **Shared links**, once you have shared something, with a Copy and a Stop for each note and notebook. Then Privacy and Location, and **Delete account** last. While Local only is on, a line at the top says nothing syncs, and its "Local only" brings the Privacy card into view. More in [[Accounts, sync and the key you hold]].
 
 ### Privacy
 
@@ -37,6 +37,20 @@ Signed out, it opens on **Sign in**, with **Create an account** and **Lost the p
 | Tag new notes with my location | On | Every note you make on this device starts with where you were, typed or spoken. It stays on this device. If location is refused, it stays on and new notes are not tagged until location is allowed, and the card says so. |
 
 Local only holds all three off.
+
+## Notifications
+
+What reaches the bell in the tab row and the Notifications page. The row in the list says how many of the four are on, "4 of 4 on".
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| Team | On | Who joined, left or was removed from an organization you are in, a rename, a deletion, and an invitation of yours answered. |
+| Claude | On | A note Claude created, edited or added to through the connector, an entry it wrote in a journal, a rule it added. |
+| Summaries | On | A meeting written up, here in the list. The phone's own notification for that is under Recording. |
+| Conflicts | On | A note kept twice because two devices had changed it. |
+| Mute an organization | | A row for each organization you are in, once there is one: its team news is not shown or counted. The organization's own screen has the same switch. |
+
+An invitation has no switch: it is always shown, since the person who sent it is waiting. These switches travel with your account. Under the card: "Ghost.md looks when it opens; the bell shows what arrived." Nothing is fetched while the app is closed, and there is no phone notification for these yet.
 
 ## Appearance
 
@@ -75,9 +89,10 @@ In the Android app and on the Mac.
 | Tell me when a meeting is written up | | On Android. **Allow** asks for notifications, and the row then says On. |
 | Write up straight away | Off | On Android. Off, a meeting is written up when the phone is charging or above half. On, straight away, which uses more of the battery. |
 | Remove audio older than a month | | Two taps, the first arming it. Every word and phrase stays and only the audio goes. Under the card, how much room your tapes take. |
-| The side key | Ghost.md's guess | On Android, last on the page. A Height slider moves the rings to sit beside your key. Once you have moved it, **Reset** beside Use Ghost.md's guess puts it back. |
 
-The **Model** card chooses the model that writes the summaries and the review, and Format, Summarize and Enhance on a note. Each model is listed once. **Get** downloads one, with the bytes shown as they arrive, and a model that is here can be picked, with **Remove** beside it, which takes two taps: Remove, then Tap again. The one in use says In use and has no Remove: pick another first. When it is the only one here there is nothing to pick, so it has Remove too. If the chosen model is not here, the one standing in for it is the one in use. Under the card, how much the models take. Qwen3.5 2B is quick, Qwen3.5 4B is the balance and the default, Qwen3.5 9B is the most careful and wants 12 GB of memory, and Gemma 4 E4B is a different voice. More in [[The models on your phone]].
+## AI
+
+In the Android app and on the Mac. The **Model** card chooses the model that writes the summaries and the review, and Format, Summarize and Enhance on a note. Each model is listed once. **Get** downloads one, with the bytes shown as they arrive, and a model that is here can be picked, with **Remove** beside it, which takes two taps: Remove, then Tap again. The one in use says In use and has no Remove: pick another first. When it is the only one here there is nothing to pick, so it has Remove too. If the chosen model is not here, the one standing in for it is the one in use. Under the card, how much the models take. Qwen3.5 2B is quick, Qwen3.5 4B is the balance and the default, Qwen3.5 9B is the most careful and wants 12 GB of memory, and Gemma 4 E4B is a different voice. The card also holds the switch for filling a note's blanks on their own once typing stops. More in [[The models on your phone]].
 
 ## Plugins
 
@@ -99,8 +114,9 @@ Signed in, the settings about you are the same on every device. The ones about t
 | --- | --- |
 | Page, Spacing, Text size, both fonts, Code colours | Accent, Scale, Sidebar, Rounding |
 | Link previews, Map on a tagged note, Place names | Local only, Tag new notes with my location |
-| Stop when I go quiet, Review after recording, Better words, Summaries, Write up straight away, Sync meeting recordings | The chosen model and the models downloaded, the side key |
+| Stop when I go quiet, Review after recording, Better words, Summaries, Write up straight away, Sync meeting recordings | The chosen model and the models downloaded |
 | Animation speed, Ghostly typing, Smoke at the edges, Ripples while recording | Haptics, Live typing, Update alerts |
+| The four Notifications switches, and the organizations you have muted | |
 | How notes are shown, your open tabs and their groups, workspaces, the trash, your shared links | Each plugin's switch, and what it keeps: boards, repos, tokens, the Notion sign-in |
 
 ## Developer mode

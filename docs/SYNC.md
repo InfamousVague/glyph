@@ -23,9 +23,13 @@ AttackFM's registry (`AttackFM/server/crates/registry`, `crates/identity`) is th
 | Rate limits | none on login | **added**: per address and per handle |
 | Encryption | none | **end to end**, below |
 
-Not copied: AttackFM's friends, invites, shares and presence, its pairing codes, and the review-box backdoor.
-Ghost.md has shared links of its own, a different thing under the same word (docs/SHARING.md), and live typing
-(docs/LIVE.md).
+Not copied: AttackFM's friends, shares and presence, its pairing codes, and the review-box backdoor. Ghost.md has
+shared links of its own, a different thing under the same word (docs/SHARING.md), live typing (docs/LIVE.md), and,
+since 2026-10-02, organizations with invitations by handle and a notifications feed (docs/TEAMS.md). The invitations
+differ from AttackFM's: they are to a named team, not between friends; an organization's name, hue, members' handles
+and roles are plaintext on the service, as handles already are, while the notes stay sealed per account; and the
+feed carries two shapes in one table, the service's own rows about a team in the clear and the account's own rows
+(Claude's writes, a summary, a conflict) sealed under the account key.
 
 ## Keys
 
@@ -51,7 +55,12 @@ Nothing the server stores can be read without a key it never sees.
   and the notes on the server can never be read again. The sign-up screen says so, and shows the recovery codes once.
 
 What the server can see: the handle, when things change, how many notes and how big, and note ids (random UUIDs).
-Not titles, not folders, not a word of any note, not settings, not a second of audio.
+Not titles, not folders, not a word of any note, not settings, not a second of audio. With organizations
+(docs/TEAMS.md) it also sees an organization's name and hue, who is in it by handle and in what role, who invited whom
+and when, and each notification's kind, time, sender, organization and small body for the kinds it makes itself; for
+every notification, sealed ones included, when it was read and whether it is hidden; and, once, whether a handle
+exists, told to a signed-in account that invites it (404 "No one has that handle.", thirty an hour per account and
+per address). A self-made notification's payload - the note's title, the lines Claude changed - it cannot read.
 
 ## The wire
 
@@ -84,26 +93,48 @@ PUT  prefs           { base, blob }                                      -> { re
 PUT  recordings/<id>?base=<rev>   octet-stream                           -> { rev } | 409 { rev }
 GET  recordings/<id>              octet-stream, the rev in x-glyph-rev
 HEAD recordings/<id>              the same headers, no body
+
+POST   orgs                          { name, hue? }                       -> 201 { org }           (docs/TEAMS.md has the shapes, the refusals and the limits)
+GET    orgs                                                               -> { orgs: [OrgRow] }
+GET    orgs/<id>                                                          -> { org } | 404
+PUT    orgs/<id>                     { name?, hue? }                      -> { org }
+DELETE orgs/<id>                                                          -> { deleted: true }
+POST   orgs/<id>/members             { handle }                           -> { member } | 404 | 409
+DELETE orgs/<id>/members/<handle>                                         -> { removed: true }
+PUT    orgs/<id>/members/<handle>    { role }                             -> { member }
+POST   orgs/<id>/invite              { accept }                           -> { org } | { declined: true }
+
+GET    notifications?since=<rev>&limit=                                   -> { rev, items: [Notification], more }
+POST   notifications                 { id, kind, blob }                   -> { rev }   (a self kind, sealed; idempotent by id)
+POST   notifications/read            { ids?, all?, before? }              -> { rev }
+PUT    notifications/<id>            { read?, hidden? }                   -> { rev }
 ```
 
 Deleting the account deletes everything the service keeps for it: its notes, settings, recordings and pictures, its
-shared links, its devices and its recovery codes (Settings › Account › Delete account, or the page
-`landing/delete-account.html`). The same `/api/v1/` holds the shared links (`shares`, docs/SHARING.md) and the
-live relay (`live`, docs/LIVE.md).
+shared links, its devices and its recovery codes, its organization rows and its notifications (Settings › Account ›
+Delete account, or the page `landing/delete-account.html`). It is refused, inside the same transaction, while the
+account owns an organization anyone else is in: 403 "Hand over or delete your organizations first."; an organization
+whose only row is its owner's goes with the account, and every organization the account had joined is told it left
+(docs/TEAMS.md). The same `/api/v1/` holds the shared links (`shares`, docs/SHARING.md), the live relay (`live`,
+docs/LIVE.md), and the organizations and notifications (`orgs`, `notifications`, docs/TEAMS.md).
 
 The HEAD has no route of its own: axum answers it through the GET, which reads the whole file to send only its
 headers. The client asks it of every picture a pass settles.
 
 One `rev` counter per account, bumped by every write, is the feed's cursor. A note's own `rev` is the counter at its
 last write, and a push names the `rev` it was made from (`base`); a push whose base is not the note's current `rev`
-lost a race and gets the winner back. A note the server has never seen is accepted whatever the base.
+lost a race and gets the winner back. A note the server has never seen is accepted whatever the base. The
+notifications feed rides the same counter: a row written to an account, by the service or by one of its devices,
+takes the account's next `rev`, and so does every change to one (read, hidden, an invitation answered), so the row
+is fed again and the state follows the person across devices.
 
 The `recordings` route holds every synced file, by an id the client makes: `r-<note id>` for a note's recording (WAV),
 `i-<ext>-<stem>` for a picture `<stem>.<ext>`.
 
 What is sealed, and under which associated data: a note as `{ v: 1, note, recording?, images? }` under `note:<id>`
 (`recording` is a hash of the WAV, `images` the picture names the body uses); the synced settings under `prefs`; a
-file under `file:<its id>`.
+file under `file:<its id>`; a notification the account makes for itself as `{ kind, ...details }` under
+`notification:<id>`, with the kind inside the seal so nothing outside it can relabel the row (docs/TEAMS.md).
 
 Limits: a note blob 1.4 MB and prefs 350 KB (as base64), a file 64 MB, 500 notes a page; sign-in 20 attempts a
 minute per address and 10 per handle.
@@ -144,14 +175,22 @@ minute per address and 10 per handle.
   own.
 - `src/app/core/sync/engine.ts` — runs a pass on launch, on return to the app, a few seconds after a note or setting
   changes, and every five minutes; one at a time. Nothing runs without the account key, or with Local only on
-  (Settings › Account › Privacy).
+  (Settings › Account › Privacy). A pass is four steps: the notifications, the notes, the settings, the organizations.
+- `src/app/core/notifications/` and `src/app/core/orgs/` — the two new steps (docs/TEAMS.md): the feed, read from
+  the cursor with the pending marks replayed first and the self rows not yet posted sent again; and the list of
+  organizations, after which the organization workspaces are brought into line with it. Both are quiet against a
+  service that does not have their routes yet (`notYet`, `core/account/api.ts`), and each keeps its own per-account
+  key, `glyph-sync-<accountId>-notifications` and `-orgs`, forgotten with the rest on sign-out.
 - Native: `store_apply` writes a note whole, with its own times, pin, archive, folder and sidecar
   (`library::Library::apply_note`), and `sync_put_file` keeps a synced recording or picture under its own name;
   **native generation 16**. An older app doesn't sync, and the Account page says so.
 - Tests, in the default run: `src/app/core/sync/crypto.test.ts`, `src/app/core/sync/notes.test.ts` (the merge rules),
-  `src/app/core/sync/engine.test.tsx` (when a pass runs), `src/app/core/sync/pictures.test.ts` (`settlePictures`,
-  without a server) and `src/app/core/sync/prefs.test.ts`, with `src/app/core/account/account.test.ts` and
-  `src/app/core/account/keystore.test.ts`; the devices they sync are made by `src/test/syncDevice.ts`.
+  `src/app/core/sync/engine.test.tsx` (when a pass runs, and in what order), `src/app/core/sync/pictures.test.ts`
+  (`settlePictures`, without a server) and `src/app/core/sync/prefs.test.ts`, with
+  `src/app/core/account/account.test.ts` and `src/app/core/account/keystore.test.ts`; the devices they sync are made
+  by `src/test/syncDevice.ts`. The notifications and the organizations have
+  `src/app/core/notifications/feed.test.ts` (two devices converging on what was read and hidden) and
+  `src/app/core/orgs/orgs.test.ts` (the reconcile, on a list that arrived and only then).
   `src/app/core/sync/sync.e2e.test.ts` runs two devices against a real `glyph-api`
   (`GLYPH_SYNC_E2E=<data dir> VITE_GLYPH_API=http://127.0.0.1:<port>/api`). The server's side is
   `server/src/sync_tests.rs`.

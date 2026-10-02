@@ -26,6 +26,7 @@ deploys, the signing keys and a move to another domain.
 | [SYNC.md](SYNC.md) | Accounts and end-to-end encrypted sync: the keys, the wire, the client's passes, and Claude as one more device. | Changing the account, sync, or anything the server stores. |
 | [LIVE.md](LIVE.md) | Live typing between two devices through a relay: the protocol, the seeding trap, and how it lives with the pass sync. | Touching `src/app/core/live/` or `server/src/live.rs`. |
 | [SHARING.md](SHARING.md) | Read-only share links: the link and its key, what is shared, the server's routes, the reader page, and saved copies. | Working on `src/app/share/`, the reader page, or `server/src/shares.rs`. |
+| [TEAMS.md](TEAMS.md) | Organizations, invitations and notifications: the roles and the one owner rule, the invitation by handle, the organization's workspace (not shared yet), the feed on the account's write counter, the wire, every refusal sentence, the limits, the kinds, and what of it the server can see. | Touching `src/app/core/orgs/`, `src/app/core/notifications/`, `server/src/orgs.rs`, `server/src/notifications.rs`, the Notifications or Organization screens, or anything that says what the server sees. |
 
 ## Reaching outside the app
 
@@ -57,7 +58,7 @@ Sections 1 to 12 are the original contract, written on 2026-09-11 before a line 
 decision, dated, usually with Matt's words and what was measured. Cite an entry by its number and its title, "DESIGN
 §42 (The library)", because the numbers are not unique: §30, §49, §50 and §119 each name two entries, and 34 entries
 have no number at all, such as "Claude on the account: the MCP server". Never renumber. A new entry goes at the end,
-after the highest number (§127 today).
+after the highest number (§173 today).
 
 A topic page's own history is in these entries:
 
@@ -71,6 +72,7 @@ A topic page's own history is in these entries:
 | CANVAS.md | §56, §62, §83 |
 | LIBRARY.md | §5 (the store before it), §42, §100 |
 | SYNC.md, LIVE.md | no entry of their own: the pages are the record. §86 is the pictures' part |
+| TEAMS.md | §170 (Notifications), §171 (Organizations) |
 | SHARING.md | §75, §81, §82, §88, §89, §96, §142 |
 | PLUGINS.md | §37, "The marks are one plugin", "One GitHub plugin", §127 |
 | MCP.md | "Claude on the account: the MCP server", §73, §142 |
