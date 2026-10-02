@@ -251,14 +251,24 @@ function Box({ row, acts }: { row: Row; acts: Acts }) {
   );
 }
 
-/** A record's name, the button that opens it: a ticket's key before it, its tags as tags, a finished one struck through. */
-function Name({ row, acts }: { row: Row; acts: Acts }) {
+/**
+ * A record's name, the button that opens it: its tags as tags, a finished one struck through, a ticket's key before it
+ * unless `hideKey` (a list's row and a board's card draw the key on its own line above the title instead, so the title
+ * takes the full width rather than being pushed right of the key, Matt: "having it to the right makes a bunch of space
+ * on the left that's unused").
+ */
+function Name({ row, acts, hideKey }: { row: Row; acts: Acts; hideKey?: boolean }) {
   return (
     <button type="button" className={styles.name} data-done={row.category === 'done' || row.done ? '' : undefined} onClick={() => acts.onOpen(row)}>
-      {row.id ? <span className={styles.key}>{row.id}</span> : null}
+      {!hideKey && row.id ? <span className={styles.key}>{row.id}</span> : null}
       <span className={styles.nameWords}>{withTags(row.name || 'Untitled')}</span>
     </button>
   );
+}
+
+/** A ticket's key on a line of its own, above the title on a list's row and a board's card. */
+function KeyLine({ id }: { id: string | null }) {
+  return id ? <span className={styles.cardKey}>{id}</span> : null;
 }
 
 /** Words with their tags drawn as the editor draws a tag (editor/tags.ts), so `Milk #dairy` reads as it does on its line. */
@@ -407,7 +417,8 @@ function ListView({ result, acts }: { result: QueryResult; acts: Acts }) {
               <li key={row.key} className={styles.row} data-kind={row.kind}>
                 <Box row={row} acts={acts} />
                 <span className={styles.rowBody}>
-                  <Name row={row} acts={acts} />
+                  <KeyLine id={row.id} />
+                  <Name row={row} acts={acts} hideKey />
                   <Meta row={row} result={result} acts={acts} />
                 </span>
               </li>
@@ -509,9 +520,10 @@ function BoardView({ result, acts, height, onHeight }: { result: QueryResult; ac
             <LaneCards still={dragged !== null}>
               {group.rows.map((row) => (
                 <li key={row.key} className={styles.card} data-done={row.category === 'done' || row.done ? '' : undefined}>
+                  <KeyLine id={row.id} />
                   <span className={styles.cardTop}>
                     <Box row={row} acts={acts} />
-                    <Name row={row} acts={acts} />
+                    <Name row={row} acts={acts} hideKey />
                   </span>
                   <Meta row={row} result={result} acts={acts} />
                 </li>

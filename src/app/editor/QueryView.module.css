@@ -294,6 +294,20 @@
   color: var(--app-ink-3);
 }
 
+/*
+ * A ticket's key on its own line above the title, on a list's row and a board's card: the title then takes the full
+ * width instead of being pushed to the right of the key. Full-width in the row's flex (`flex-basis: 100%`); its own
+ * row in the card's grid (editor/QueryView.module.css `.card`).
+ */
+.cardKey {
+  flex-basis: 100%;
+  font-family: var(--glacier-font-mono);
+  font-size: var(--glacier-font-size-xs);
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  color: var(--app-ink-3);
+}
+
 /* A to-do's box, ticked where it is written: a thumb's target round a small square. */
 .box {
   appearance: none;
