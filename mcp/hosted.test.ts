@@ -114,9 +114,10 @@ describe('Claude connecting to the hosted server', () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name)).toContain('append_to_note');
 
-    // The tools work on the account, through the key the page handed over.
+    // The tools work on the account, through the key the page handed over. Connecting made the "Claude rules" note, so
+    // it is there, newest, beside the account's own notes (mcp/server.ts ensureRulesNote).
     const listed = JSON.parse(asText(await client.callTool({ name: 'list_notes', arguments: {} }))) as { notes: { title: string }[] };
-    expect(listed.notes.map((n) => n.title)).toEqual(['Groceries']);
+    expect(listed.notes.map((n) => n.title)).toEqual(['Claude rules', 'Groceries']);
     const added = JSON.parse(asText(await client.callTool({ name: 'append_to_note', arguments: { title: 'Groceries', text: 'bread', as: 'item' } }))) as { added: string[] };
     expect(added.added).toEqual(['- Bread']);
     // Written with Claude, so Claude is among its authors, after the account's own (core/authors.ts): the name its app
@@ -126,7 +127,7 @@ describe('Claude connecting to the hosted server', () => {
     // An hour on, the access token has run out: the library refreshes it by itself and carries on.
     clock.now += 61 * 60 * 1000;
     const status = JSON.parse(asText(await client.callTool({ name: 'account_status', arguments: {} }))) as { handle: string; notes: number };
-    expect(status).toMatchObject({ handle: 'matt', notes: 1 });
+    expect(status).toMatchObject({ handle: 'matt', notes: 2 });
     expect(memory.saved?.access_token).toBeTruthy();
     await client.close();
   });

@@ -14,7 +14,7 @@ import { failureText } from '../src/app/core/failure.ts';
 import { GlyphAccount, GlyphApiError, importAccountKey } from './glyph.ts';
 import { CODE_MS, hostedStore, newToken, REQUEST_MS, SCOPE, type Session } from './hostedStore.ts';
 import { loginPage } from './loginPage.ts';
-import { buildServer, VERSION } from './server.ts';
+import { buildServer, DEFAULT_RULES, ensureRulesNote, rulesInstructions, VERSION } from './server.ts';
 
 /**
  * The MCP server hosted on the box, for everyone (docs/MCP.md, "Hosted"): Claude connects to
@@ -248,6 +248,14 @@ export function hostedApp(options: HostedOptions) {
     // The app says who it is once, when it connects: kept for the requests after, which come to fresh servers.
     const initialize = (req.body as { method?: string; params?: { clientInfo?: { name?: string; title?: string } } } | undefined) ?? {};
     if (initialize.method === 'initialize' && initialize.params?.clientInfo) session.client = { ...initialize.params.clientInfo };
+    // On connect, make the person's "Claude rules" note if it is not there, and hand it to the AI as the server's
+    // instructions so it follows their standing requests. Only on initialize: later requests do not carry instructions,
+    // and a rules note that cannot be read (offline) must not stop a connection, so it falls back to the default text.
+    let instructions: string | undefined;
+    if (initialize.method === 'initialize') {
+      const rules = await ensureRulesNote(session.account).catch(() => null);
+      instructions = rulesInstructions(rules?.note.body ?? DEFAULT_RULES);
+    }
     const server = buildServer(session.account, {
               client: () => session.client,
               // The connections this account has: every session signed in with its handle, this one included.
@@ -259,7 +267,9 @@ export function hostedApp(options: HostedOptions) {
                 for (const id of ids) endSession(id);
                 return ids.length;
               },
-            });
+            },
+            { instructions },
+          );
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
     res.on('close', () => {
       void transport.close();

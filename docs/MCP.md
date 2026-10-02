@@ -13,7 +13,7 @@ It works for any Ghost.md account, and it comes two ways:
 
 ## What it can do
 
-Once it is connected, ask Claude in words. Behind them are nine tools, and a tenth on the hosted server:
+Once it is connected, ask Claude in words. Behind them are eleven tools, and a twelfth on the hosted server:
 
 | Tool | What it does |
 | --- | --- |
@@ -25,6 +25,8 @@ Once it is connected, ask Claude in words. Behind them are nine tools, and a ten
 | `append_to_note` | Words added the way the app's own "add task" adds them: a task or an item joins the note's list, in the list's style; a paragraph goes on the end. Not a journal, whose words are the list of its entries: it says to use the next tool. |
 | `add_journal_entry` | An entry in a journal (a notebook kept as a journal, DESIGN §142), as the app writes one: a note named by the minute, "2026-09-28 14.05", started from the journal's template, with the words going on from its time line or into its to-do list, and its line added to the journal. `at` is the person's local time, `YYYY-MM-DDTHH:MM`; left out, the time where the local server runs, and the hosted one asks for it, since its clock is not yours. Never a place. |
 | `set_note_flags` | Pin or archive a note, or undo either. |
+| `get_rules` | The "Claude rules" note: your standing instructions for Claude on this account. Made, pinned, the first time it is wanted. |
+| `add_rule` | Records a standing or repeated request into the "Claude rules" note, so Claude keeps doing it: for when you say to always, from now on, or again do something. |
 | `account_status` | Which account this is, where its sync service is, how many notes it holds, and how many Claude connections it has. |
 | `sign_out_everywhere` | Hosted only. Ends every Claude connection to the account - every Claude account and computer signed in to it, this one included; each signs in again on the page. |
 
@@ -43,6 +45,14 @@ that device's words instead, never over them. That is the rule the app itself li
 A note Claude makes or changes reaches every signed-in device at its next sync, exactly as one typed on a phone would.
 There is no delete: archive a note instead (`set_note_flags`), which the app can undo. Emptying the trash is a thing
 you do in the app.
+
+**The Claude rules.** Your account keeps a note called **Claude rules**: your standing instructions for Claude when it
+works here. It is made (and pinned) the first time Claude connects, seeded with what the note is for and a sensible
+default you can keep or change (`mcp/server.ts` `ensureRulesNote`, `DEFAULT_RULES`). On connect it is handed to Claude
+as the server's MCP instructions, so Claude follows it without being asked and can re-read it any time with `get_rules`.
+When you ask Claude to always, from now on, or again do something, it writes that standing request into the note with
+`add_rule`, under a "Standing requests" heading, so it is not lost the next time you connect. It is a note like any
+other: edit it in the app to change the rules, or archive it to clear them.
 
 These steps are also in the app: the Claude plugin's page (Settings › Plugins › Claude) carries the address with a
 Copy, and an instructions drawer with the steps for either way, each command with its own Copy
@@ -175,7 +185,7 @@ taken off stays so. A notebook keeps the `key:` its tickets are numbered by and 
 | | |
 | --- | --- |
 | `mcp/glyph.ts` | the account as a client: sign-in, the session's renewal, the note feed opened into a cache, writes sealed as the app seals them, and the conflict rule |
-| `mcp/server.ts` | the tools: eight everywhere, and `sign_out_everywhere` on the hosted server |
+| `mcp/server.ts` | the tools: eleven everywhere, and `sign_out_everywhere` on the hosted server |
 | `mcp/main.ts`, `mcp/cli.ts` | the command: its entry point, and login, status, logout and serve |
 | `mcp/webcrypto.ts` | WebCrypto on whatever Node runs it: the box's Node 18 has no global `crypto` until it is put there |
 | `mcp/hosted.ts`, `mcp/hosted-main.ts` | the hosted server: OAuth with the SDK's handlers, MCP over HTTP, and its start-up from the environment; run on the box as `glyph-mcp.service` (`server/glyph-mcp.service`) |
@@ -200,7 +210,7 @@ taken off stays so. A notebook keeps the `key:` its tickets are numbered by and 
   words.
 - **Against a real glyph-api** (`mcp/mcp.e2e.test.ts`): a phone, run by the app's own `syncNotes`, writes a note; the
   client signs in with the password and reads it; what the client makes and edits is on the phone after one sync,
-  with nothing copied twice. Then the built file is started over stdio as Claude starts it, its eight tools listed,
+  with nothing copied twice. Then the built file is started over stdio as Claude starts it, its eleven tools listed,
   and each one called: list, status, create with a title, append an item and a task, read by title, search, replace,
   archive - and all of it on the phone afterwards.
 - **By hand** on a local service: `login` with a password, the session file written mode 600 with the token, key and

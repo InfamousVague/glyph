@@ -321,7 +321,7 @@ describe('the account', () => {
     const status = JSON.parse((await call('account_status')).text) as Record<string, unknown>;
     expect(status).toEqual({ handle: 'matt', service: 'https://fake.test/glyph/api', notes: 2, archived: 1, pinned: 1, changedSinceLastRead: 2, connections: 1 });
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name)).toEqual(['list_notes', 'read_note', 'search_notes', 'create_note', 'update_note', 'append_to_note', 'add_journal_entry', 'set_note_flags', 'account_status']);
+    expect(tools.map((t) => t.name)).toEqual(['list_notes', 'read_note', 'search_notes', 'create_note', 'update_note', 'append_to_note', 'add_journal_entry', 'set_note_flags', 'get_rules', 'add_rule', 'account_status']);
   });
 
   it('asks the hosted server’s caller when an entry was written, since its clock is not the person’s', async () => {
@@ -374,5 +374,39 @@ describe('where a note was written, as the tools see it', () => {
     // A rewrite that says where itself is left as it says.
     await call('update_note', { id: 'a', body: '---\nlocation: 48.8566,2.3522\n---\n# Plan\n\nMoved.' });
     expect((await service.stored('a'))?.note.body).toBe('---\nlocation: 48.8566,2.3522\nauthors: matt, Claude\n---\n# Plan\n\nMoved.');
+  });
+});
+
+describe('the Claude rules note', () => {
+  it('is made, pinned, the first time get_rules is called, and the same one comes back after', async () => {
+    const { call, service } = await connected();
+    const first = JSON.parse((await call('get_rules')).text) as { id: string; title: string; pinned: boolean; body: string };
+    expect(first.title).toBe('Claude rules');
+    expect(first.pinned).toBe(true);
+    expect(first.body).toContain('# Claude rules');
+    expect(first.body).toContain('## Ticket management');
+    expect(first.body).toContain('## Standing requests');
+    // Authored by the account and Claude, as every write it makes is.
+    expect((await service.stored(first.id))?.note.body.startsWith('---\nauthors: matt, Claude\n---')).toBe(true);
+    // Called again it finds the one it made, not a second.
+    const again = JSON.parse((await call('get_rules')).text) as { id: string };
+    expect(again.id).toBe(first.id);
+    const titles = (JSON.parse((await call('list_notes')).text) as { notes: { title: string }[] }).notes.map((n) => n.title);
+    expect(titles.filter((t) => t === 'Claude rules').length).toBe(1);
+  });
+
+  it('adds a standing request under the Standing requests heading, the placeholder gone, and makes the note if needed', async () => {
+    const { call, service } = await connected();
+    const added = JSON.parse((await call('add_rule', { rule: 'Always  use   British spelling' })).text) as { added: string; note: { id: string } };
+    expect(added.added).toBe('Always use British spelling');
+    const body = (await service.stored(added.note.id))!.note.body;
+    expect(body).toContain('## Standing requests\n\n- Always use British spelling');
+    expect(body).not.toContain('_Claude adds repeated requests here._');
+    // A second rule joins the list, and there is still one rules note.
+    await call('add_rule', { rule: 'Write dates as YYYY-MM-DD' });
+    const after = (await service.stored(added.note.id))!.note.body;
+    expect(after).toContain('- Always use British spelling\n- Write dates as YYYY-MM-DD');
+    const titles = (JSON.parse((await call('list_notes')).text) as { notes: { title: string }[] }).notes.map((n) => n.title);
+    expect(titles.filter((t) => t === 'Claude rules').length).toBe(1);
   });
 });

@@ -5,7 +5,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { failureText } from '../src/app/core/failure.ts';
 import { DEFAULT_API, GlyphAccount, GlyphApiError, type StoredSession } from './glyph.ts';
-import { buildServer, VERSION } from './server.ts';
+import { buildServer, DEFAULT_RULES, ensureRulesNote, rulesInstructions, VERSION } from './server.ts';
 import { ensureWebCrypto } from './webcrypto.ts';
 
 /**
@@ -159,7 +159,9 @@ export async function runCli(argv: readonly string[], io: CliIo): Promise<void> 
     case undefined:
     case 'serve': {
       const account = await openAccount();
-      const server = buildServer(account);
+      // Make the "Claude rules" note if it is not there, and hand it to the AI as this server's instructions.
+      const rules = await ensureRulesNote(account).catch(() => null);
+      const server = buildServer(account, undefined, { instructions: rulesInstructions(rules?.note.body ?? DEFAULT_RULES) });
       await server.connect(io.transport ? io.transport() : new StdioServerTransport());
       io.err(`glyph-mcp ${VERSION}: serving ${account.handle}'s notes over stdio.\n`);
       return;

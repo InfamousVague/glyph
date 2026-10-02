@@ -42,6 +42,67 @@ const BLANKS = 'A {?question} is a blank for Ghost.md’s model to fill on the p
 
 export const VERSION = '1.0.0';
 
+/**
+ * The note that holds the person's standing instructions for Claude on this account (Matt: "bake in the Claude rules as
+ * a note once we connect MCP and have Claude add repeated requests to rules"). It is made the first time Claude connects
+ * (`ensureRulesNote`), handed to Claude as the server's MCP instructions at connect (`rulesInstructions`), read back on
+ * demand (get_rules), and added to when the person makes a standing request (add_rule, `withRule`).
+ */
+export const RULES_TITLE = 'Claude rules';
+
+/** The rules a fresh account starts with: what the note is for, and one sensible default a person can keep or change. */
+export const DEFAULT_RULES = `# ${RULES_TITLE}
+
+Your standing instructions when you work on this Ghost.md account through the connector. Read them and follow them in everything you do here. When the person asks you to always, again, or from now on do something, add it here with add_rule so it sticks.
+
+## Ticket management
+- Track work in Ghost: file it as a ticket (a note whose front matter says \`type: ticket\`) in the tickets notebook, and move its status as the work goes.
+- When a ticket is finished, set its status to **In review** and assign it to the account's owner — leave Done to them, so they review it first.
+
+## Standing requests
+
+_Claude adds repeated requests here._
+`;
+
+/** The heading a standing request is added under, so add_rule's lines gather in one place rather than scatter. */
+const RULES_SECTION = '## Standing requests';
+
+/**
+ * `body` with `rule` added as a line under the Standing requests heading, the heading made the first time. The
+ * placeholder line the default note carries is dropped once there is a real rule under it.
+ */
+export function withRule(body: string, rule: string): string {
+  const line = `- ${rule.trim().replace(/\s+/g, ' ')}`;
+  const trimmed = body.replace(/\s+$/, '');
+  const cleaned = trimmed.replace(/\n_Claude adds repeated requests here\._\s*$/, '');
+  if (new RegExp(`^${RULES_SECTION.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'm').test(cleaned)) return `${cleaned}\n${line}\n`;
+  return `${cleaned}\n\n${RULES_SECTION}\n\n${line}\n`;
+}
+
+/**
+ * The "Claude rules" note, made (pinned) the first time it is wanted. Reads the account fresh first, so a note made on
+ * the phone is seen rather than a second one created. `seedAuthor` names the AI as its co-author when it is made new.
+ */
+export async function ensureRulesNote(account: GlyphAccount, seedAuthor = 'Claude'): Promise<NoteRecord> {
+  await account.pull();
+  const found = await account.byTitle(RULES_TITLE);
+  if (found) return found;
+  return account.create(withAuthor(DEFAULT_RULES, seedAuthor, account.handle), { pinned: true });
+}
+
+/** The MCP instructions a connection carries: what the connector is, that a rules note governs it, and the rules themselves. */
+export function rulesInstructions(rulesBody: string): string {
+  return [
+    'Ghost.md connector — these tools read and change the notes in this person’s Ghost.md account (list, search, read, create, update, append, journal entries, pin and archive). Each tool reads the account fresh, and a write is refused, never applied, if another device changed the note first.',
+    '',
+    `This account keeps a “${RULES_TITLE}” note: the person’s standing instructions for you here. Follow them in everything you do, and re-read them any time with get_rules. When the person asks you to always, again, or from now on do something — a repeated or standing request — record it with add_rule so it is not lost.`,
+    '',
+    'Their rules right now:',
+    '',
+    rulesBody.trim(),
+  ].join('\n');
+}
+
 function iso(ms: number): string {
   return new Date(ms).toISOString();
 }
@@ -194,8 +255,8 @@ export interface HostedHooks {
   client?: () => { name?: string; title?: string } | undefined;
 }
 
-export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpServer {
-  const server = new McpServer({ name: 'glyph', version: VERSION });
+export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options?: { instructions?: string }): McpServer {
+  const server = new McpServer({ name: 'glyph', version: VERSION }, options?.instructions ? { instructions: options.instructions } : undefined);
   /**
    * The words with this AI among the note's authors (core/authors.ts): the name it gave, else what its app called itself
    * when it connected (Claude's is "claude-ai"), after the account's own handle on a note that named nobody. With no
@@ -427,6 +488,41 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks): McpSer
           ...(archived === undefined ? {} : { archivedAt: archived ? (note.archivedAt ?? Date.now()) : null }),
         }));
         return text({ note: summary(written) });
+      }),
+  );
+
+  server.registerTool(
+    'get_rules',
+    {
+      title: 'Read the Claude rules',
+      description:
+        'The “Claude rules” note: the person’s standing instructions for you on this account. Read it to follow their conventions; it is also handed to you when you connect. Made, pinned, if it does not exist yet.',
+      inputSchema: {},
+    },
+    async () =>
+      guarded(async () => {
+        const note = await ensureRulesNote(account, aiName(undefined, server.server.getClientVersion() ?? hosted?.client?.()) ?? 'Claude');
+        return text(whole(note));
+      }),
+  );
+
+  server.registerTool(
+    'add_rule',
+    {
+      title: 'Add a standing rule',
+      description:
+        'Record a standing or repeated request into the “Claude rules” note, so you keep doing it on this account. Use it when the person asks you to always, from now on, or again do something. One instruction per call, written in your own words as a rule for yourself; it is added under the note’s Standing requests.',
+      inputSchema: {
+        rule: z.string().min(1).describe('The standing instruction to remember, as one line.'),
+        author: authorField,
+      },
+    },
+    async ({ rule, author }) =>
+      guarded(async () => {
+        if (!rule.trim()) return failed('Say the rule to remember.');
+        const note = await ensureRulesNote(account, aiName(undefined, server.server.getClientVersion() ?? hosted?.client?.()) ?? 'Claude');
+        const written = await account.edit(note.note.id, (n) => ({ ...n, body: authored(withRule(n.body, rule), author) }));
+        return text({ added: rule.trim().replace(/\s+/g, ' '), note: summary(written) });
       }),
   );
 
