@@ -1,5 +1,4 @@
-import { HOLD_MS } from '../../core/gestures.ts';
-import { fireNativeHaptic } from '../../core/haptics.ts';
+import { holdDrag, liftGhost, type Ghost } from '../../core/holdDrag.ts';
 import type { Card } from '../../core/boards.ts';
 import { EDGE, noteScroller } from './scrolling.ts';
 
@@ -13,15 +12,14 @@ import { EDGE, noteScroller } from './scrolling.ts';
  * module only ever moves the page's own elements, and never the note.
  */
 
-/** How far a finger resting on a card may stray before the hold (core/gestures.ts `HOLD_MS`) is up. */
-const SLOP = 10;
 /** How fast a held card near an edge (`EDGE`) rolls the board, a lane or the note along. */
 const EDGE_STEP = 14;
 
 /**
  * Press and hold, then drag: the card is lifted under the finger, a gap opens where it would land, and letting go
  * writes it there. Before the hold is up the finger still scrolls the board, which is why nothing is taken over
- * until the card is actually lifted.
+ * until the card is actually lifted. The gesture is the app's one way of carrying a thing (core/holdDrag.ts), shared
+ * with a query's board and rows and a notebook's pages, so they all pick up and carry alike.
  */
 export function holdToDrag(card: HTMLElement, held: Card, land: (column: number, index: number) => void): void {
   card.addEventListener('pointerdown', (event: PointerEvent) => {
@@ -33,64 +31,29 @@ export function holdToDrag(card: HTMLElement, held: Card, land: (column: number,
     if (!board) return;
     // The card answers its own press and hold: the note's long-press menu is for the words, not for a card.
     event.stopPropagation();
-    const startX = event.clientX;
-    const startY = event.clientY;
     let lift: Lift | null = null;
-    let timer = window.setTimeout(() => {
-      timer = 0;
-      lift = pickUp(board, card, held, startX, startY);
-    }, HOLD_MS);
-
-    const move = (moving: PointerEvent) => {
-      if (moving.pointerId !== event.pointerId) return;
-      if (!lift) {
-        // Moved before the hold was up: the finger is scrolling the board, so the card is left alone.
-        if (Math.hypot(moving.clientX - startX, moving.clientY - startY) > SLOP && timer) {
-          window.clearTimeout(timer);
-          timer = 0;
-          done();
-        }
-        return;
-      }
-      moving.preventDefault();
-      dragTo(lift, moving.clientX, moving.clientY);
-    };
-    const up = (lifting: PointerEvent) => {
-      if (lifting.pointerId !== event.pointerId) return;
-      const landed = lift;
-      const column = landed?.column ?? 0;
-      const index = Math.max(0, landed?.index ?? 0);
-      done();
-      if (landed) land(column, index);
-    };
-    const cancel = (cancelling: PointerEvent) => {
-      if (cancelling.pointerId === event.pointerId) done();
-    };
-    // Held, a finger's movement is the drag and not a scroll. `touch-action` is read when the finger goes down, so
-    // setting it at pick-up is too late for this touch: the browser would take the next move as a pan and cancel
-    // the pointer. A touchmove that is not passive can still refuse the pan, as long as the card is held.
-    const still = (touching: TouchEvent) => {
-      if (lift && touching.cancelable) touching.preventDefault();
-    };
-    const done = () => {
-      if (timer) window.clearTimeout(timer);
-      timer = 0;
-      if (lift) putDown(lift);
-      lift = null;
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-      window.removeEventListener('pointercancel', cancel);
-      window.removeEventListener('touchmove', still);
-    };
-
-    // The moves are heard on the window, not the card. The drag moves the card to where it would land, and a node
-    // moved in the page loses the pointer it had captured: from then on the moves, the lift and the cancel went to
-    // whatever was under the finger, the card never heard them, and it was left held with its copy on the screen.
-    // Nor is the pointer captured at all: captured, a mouse's click went to the card instead of the tick box in it.
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-    window.addEventListener('pointercancel', cancel);
-    window.addEventListener('touchmove', still, { passive: false });
+    holdDrag(event, {
+      lift: (x, y) => {
+        lift = pickUp(board, card, held, x, y);
+      },
+      move: (x, y) => {
+        if (lift) dragTo(lift, x, y);
+      },
+      drop: () => {
+        const landed = lift;
+        if (!landed) return;
+        const column = landed.column;
+        const index = Math.max(0, landed.index);
+        // Put down first, then written: the note's change draws the board again from what it says.
+        putDown(landed);
+        lift = null;
+        land(column, index);
+      },
+      end: () => {
+        if (lift) putDown(lift);
+        lift = null;
+      },
+    });
   });
 }
 
@@ -104,9 +67,8 @@ export function holdToDrag(card: HTMLElement, held: Card, land: (column: number,
 interface Lift {
   board: HTMLElement;
   card: HTMLElement;
-  ghost: HTMLElement;
-  dx: number;
-  dy: number;
+  /** The copy following the finger (core/holdDrag.ts `liftGhost`). */
+  ghost: Ghost;
   column: number;
   index: number;
   /** Where the finger is, for placing the gap again while something scrolls under a finger that is still. */
@@ -122,23 +84,11 @@ interface Lift {
 
 function pickUp(board: HTMLElement, card: HTMLElement, held: Card, x: number, y: number): Lift {
   const box = card.getBoundingClientRect();
-  const ghost = card.cloneNode(true) as HTMLElement;
-  ghost.classList.add('cm-boardGhost');
-  ghost.style.inlineSize = `${box.width}px`;
-  ghost.style.transform = `translate(${box.left}px, ${box.top}px)`;
   // The copy is drawn over the whole page, so it lives outside the note - but the board's look is written under the
   // editor's own classes (EditorView.baseTheme), so it goes in a layer that carries them. Straight on the body it had
   // no look at all, and was drawn a screen below the finger.
   const editor = board.closest<HTMLElement>('.cm-editor');
-  const layer = document.createElement('div');
-  layer.className = editor?.className ?? '';
-  layer.style.cssText = 'position:fixed;inset:0;z-index:40;pointer-events:none;background:none;border:none;outline:none;display:block';
-  // The board's type, since the copy is no longer inside the board that sets it.
-  const face = window.getComputedStyle(board);
-  layer.style.font = face.font;
-  layer.style.color = face.color;
-  layer.append(ghost);
-  document.body.append(layer);
+  const ghost = liftGhost(card, x, y, { layerClass: editor?.className ?? '', ghostClass: 'cm-boardGhost' });
 
   card.dataset.lifted = '';
   card.style.blockSize = `${box.height}px`;
@@ -146,8 +96,7 @@ function pickUp(board: HTMLElement, card: HTMLElement, held: Card, x: number, y:
   card.style.touchAction = 'none';
   board.dataset.holding = '';
 
-  fireNativeHaptic('selection');
-  const lift: Lift = { board, card, ghost, dx: x - box.left, dy: y - box.top, column: held.column, index: 0, x, y, scroll: 0, rise: 0, rising: null };
+  const lift: Lift = { board, card, ghost, column: held.column, index: 0, x, y, scroll: 0, rise: 0, rising: null };
   dragTo(lift, x, y);
   return lift;
 }
@@ -156,7 +105,7 @@ function pickUp(board: HTMLElement, card: HTMLElement, held: Card, x: number, y:
 function dragTo(lift: Lift, x: number, y: number): void {
   lift.x = x;
   lift.y = y;
-  lift.ghost.style.transform = `translate(${x - lift.dx}px, ${y - lift.dy}px)`;
+  lift.ghost.follow(x, y);
 
   const box = lift.board.getBoundingClientRect();
   const edge = x < box.left + EDGE ? -EDGE_STEP : x > box.right - EDGE ? EDGE_STEP : 0;
@@ -250,7 +199,7 @@ function putDown(lift: Lift): void {
   if (lift.scroll) cancelAnimationFrame(lift.scroll);
   if (lift.rise) cancelAnimationFrame(lift.rise);
   // The layer the copy was drawn in goes with it.
-  (lift.ghost.parentElement ?? lift.ghost).remove();
+  lift.ghost.remove();
   delete lift.card.dataset.lifted;
   lift.card.style.removeProperty('block-size');
   lift.card.style.removeProperty('touch-action');

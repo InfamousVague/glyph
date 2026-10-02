@@ -11,7 +11,9 @@ import { tagsIn } from '../core/tags.ts';
 import { drawDiagram, type Drawing } from './mermaid.ts';
 import { wispFoot, wispFootFade } from '../art/wispFoot.ts';
 import { BOARD_HEIGHT, clampHeight } from '../core/boards.ts';
+import { noteScroller } from './boards/scrolling.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
+import { useCarry, type Carry, type Spot } from '../core/useCarry.ts';
 import { FieldPicker, StatusIcon } from './FieldPicker.tsx';
 import { pickOf, picksField, statusLook, type FieldPick } from './fieldPicks.ts';
 import styles from './QueryView.module.css';
@@ -385,7 +387,7 @@ function StatusCell({ cell, workflow }: { cell: Extract<Cell, { kind: 'status' }
 
 /**
  * A value that opens its sheet where it can be picked (`Acts.pick`), drawn as itself inside a quiet button; drawn as
- * itself alone where it cannot. Its press is its own: it never starts a board's card being carried (`startDrag`).
+ * itself alone where it cannot. Its press is its own: it never starts a board's card being carried (`carryPress`).
  */
 function Picked({ row, column, cell, acts, children }: { row: Row; column: Column; cell: Cell; acts: Acts; children: ReactNode }) {
   if (!acts.pickable(row, column.field)) return <>{children}</>;
@@ -498,25 +500,32 @@ function Meta({ row, result, acts }: { row: Row; result: QueryResult; acts: Acts
 // ---- the ways a query is shown ---------------------------------------------------------------------
 
 function ListView({ result, acts }: { result: QueryResult; acts: Acts }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // Grouped and writable, a row is carried to another group as a board's card is (`useLaneCarry`).
+  const lanes = useLaneCarry(result, acts, noteRoller(ref));
   return (
-    <div className={styles.groups}>
-      {result.groups.map((group) => (
-        <div key={group.key || 'all'} className={styles.group}>
-          {result.group ? <GroupHead group={group} /> : null}
-          <ul className={styles.rows}>
-            {group.rows.map((row) => (
-              <li key={row.key} className={styles.row} data-kind={row.kind}>
-                <Box row={row} acts={acts} />
-                <span className={styles.rowBody}>
-                  <KeyLine id={row.id} />
-                  <Name row={row} acts={acts} hideKey />
-                  <Meta row={row} result={result} acts={acts} />
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
+    <div ref={ref} className={styles.groups}>
+      {result.groups.map((group) => {
+        const gap = lanes.gapIn(group);
+        return (
+          <div key={group.key || 'all'} className={styles.group} {...lanes.lane(group)}>
+            {result.group ? <GroupHead group={group} /> : null}
+            <ul className={styles.rows}>
+              {lanes.shown(group).map((row) => (
+                <li key={row.key} className={styles.row} data-kind={row.kind} {...lanes.thing(row, group)}>
+                  <Box row={row} acts={acts} />
+                  <span className={styles.rowBody}>
+                    <KeyLine id={row.id} />
+                    <Name row={row} acts={acts} hideKey />
+                    <Meta row={row} result={result} acts={acts} />
+                  </span>
+                </li>
+              ))}
+              {gap !== null ? <li className={styles.row} data-drag-gap="" aria-hidden="true" style={{ blockSize: `${gap}px` }} /> : null}
+            </ul>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -525,64 +534,75 @@ function TableView({ result, acts }: { result: QueryResult; acts: Acts }) {
   const totals = new Map(result.totals.map((total) => [total.field, total.text]));
   // A total for a field that is not a column is said under the table instead.
   const outside = result.totals.filter((total) => !result.columns.some((column) => column.field === total.field));
+  const ref = useRef<HTMLDivElement>(null);
+  // Grouped and writable, a row is carried to another group as a board's card is (`useLaneCarry`).
+  const lanes = useLaneCarry(result, acts, noteRoller(ref));
   return (
-    <>
-      {result.groups.map((group) => (
-        <div key={group.key || 'all'} className={styles.group}>
-          {result.group ? <GroupHead group={group} /> : null}
-          <div className={styles.tableScroll}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  {result.columns.map((column) => (
-                    <th key={column.field} scope="col" data-field={column.field}>
-                      {column.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {group.rows.map((row) => {
-                  const quiet = row.category === 'done' || row.done === true;
-                  return (
-                    <tr key={row.key} data-done={quiet ? '' : undefined}>
-                      {result.columns.map((column, index) =>
-                        index === result.opens ? (
-                          <th key={column.field} scope="row" className={styles.nameCell}>
-                            <span className={styles.nameCellInner}>
-                              <Box row={row} acts={acts} />
-                              <Name row={{ ...row, id: column.field === 'title' && result.columns.some((each) => each.field === 'id') ? null : row.id }} acts={acts} />
-                            </span>
-                          </th>
-                        ) : (
-                          <td key={column.field} data-field={column.field}>
-                            <Picked row={row} column={column} cell={row.cells[index]!} acts={acts}>
-                              <CellView cell={row.cells[index]!} field={column.field} today={acts.today} quiet={quiet} brief={false} workflow={row.workflow} />
-                            </Picked>
-                          </td>
-                        ),
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-              {!result.group && result.columns.some((column) => totals.has(column.field)) ? (
-                <tfoot>
+    <div ref={ref} className={styles.tables}>
+      {result.groups.map((group) => {
+        const gap = lanes.gapIn(group);
+        return (
+          <div key={group.key || 'all'} className={styles.group} {...lanes.lane(group)}>
+            {result.group ? <GroupHead group={group} /> : null}
+            <div className={styles.tableScroll}>
+              <table className={styles.table}>
+                <thead>
                   <tr>
-                    {result.columns.map((column, index) => (
-                      <td key={column.field} data-field={column.field}>
-                        {totals.has(column.field) ? <strong className={styles.number}>{totals.get(column.field)}</strong> : index === 0 ? 'Total' : null}
-                      </td>
+                    {result.columns.map((column) => (
+                      <th key={column.field} scope="col" data-field={column.field}>
+                        {column.label}
+                      </th>
                     ))}
                   </tr>
-                </tfoot>
-              ) : null}
-            </table>
+                </thead>
+                <tbody>
+                  {lanes.shown(group).map((row) => {
+                    const quiet = row.category === 'done' || row.done === true;
+                    return (
+                      <tr key={row.key} data-done={quiet ? '' : undefined} {...lanes.thing(row, group)}>
+                        {result.columns.map((column, index) =>
+                          index === result.opens ? (
+                            <th key={column.field} scope="row" className={styles.nameCell}>
+                              <span className={styles.nameCellInner}>
+                                <Box row={row} acts={acts} />
+                                <Name row={{ ...row, id: column.field === 'title' && result.columns.some((each) => each.field === 'id') ? null : row.id }} acts={acts} />
+                              </span>
+                            </th>
+                          ) : (
+                            <td key={column.field} data-field={column.field}>
+                              <Picked row={row} column={column} cell={row.cells[index]!} acts={acts}>
+                                <CellView cell={row.cells[index]!} field={column.field} today={acts.today} quiet={quiet} brief={false} workflow={row.workflow} />
+                              </Picked>
+                            </td>
+                          ),
+                        )}
+                      </tr>
+                    );
+                  })}
+                  {gap !== null ? (
+                    <tr data-drag-gap="" aria-hidden="true" style={{ blockSize: `${gap}px` }}>
+                      <td colSpan={result.columns.length} />
+                    </tr>
+                  ) : null}
+                </tbody>
+                {!result.group && result.columns.some((column) => totals.has(column.field)) ? (
+                  <tfoot>
+                    <tr>
+                      {result.columns.map((column, index) => (
+                        <td key={column.field} data-field={column.field}>
+                          {totals.has(column.field) ? <strong className={styles.number}>{totals.get(column.field)}</strong> : index === 0 ? 'Total' : null}
+                        </td>
+                      ))}
+                    </tr>
+                  </tfoot>
+                ) : null}
+              </table>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
       {outside.length || (result.group && result.totals.length) ? <Totals totals={result.group ? result.totals : outside} /> : null}
-    </>
+    </div>
   );
 }
 
@@ -610,9 +630,62 @@ function laneKeyAt(x: number, y: number): string | null {
   return lane ? (lane.dataset.laneKey ?? null) : null;
 }
 
-/** How far a finger may wander before a press is a scroll, not the start of a drag, and how long a touch holds to lift a card. */
-const DRAG_SLOP = 8;
-const HOLD_MS = 320;
+/**
+ * A press on a card or a row that may start carrying it (core/useCarry.ts): not one on its tick box, which ticks, nor on
+ * a field's picker, which stops its own press. The card answers its own press and hold: the note's long-press menu is
+ * for the words, not for a card.
+ */
+function carryPress<T>(carry: Carry<T>, event: ReactPointerEvent<HTMLElement>, item: T, from: Spot): void {
+  if ((event.target as Element | null)?.closest?.('[role="checkbox"], input, select, textarea')) return;
+  event.stopPropagation();
+  carry.press(event, item, from);
+}
+
+/** Where a query's card or row would land: the lane under the pointer, in no order of the person's (its `sort:`'s). */
+function laneSpotAt(x: number, y: number): Spot | null {
+  const key = laneKeyAt(x, y);
+  return key === null ? null : { lane: key, index: -1 };
+}
+
+/**
+ * A query's things carried between its groups - a board's cards, a grouped list's or table's rows - by the app's one
+ * drag (core/useCarry.ts), dropped by setting the grouped field to the group's value (editor/queries.ts `onMove`).
+ * `shown` is a group's things as drawn while one is carried: the carried one stays in its group as the gap while it is
+ * held over it, and leaves it for the gap `gapIn` says to open in another.
+ */
+function useLaneCarry(result: QueryResult, acts: Acts, scrollers: () => { element: HTMLElement; axis: 'x' | 'y' }[]) {
+  const movable = boardMovable(result, acts.editable);
+  const laneValues = useMemo(() => new Map(result.groups.map((group) => [group.key, laneValue(group)])), [result.groups]);
+  const carry = useCarry<Row>({
+    spotAt: laneSpotAt,
+    onDrop: (row, _from, to) => acts.onMove(row, laneValues.get(to.lane) ?? null),
+    scrollers,
+  });
+  const { carried, over } = carry;
+  return {
+    carry,
+    movable,
+    shown: (group: Group) => group.rows.filter((row) => !(carried?.item.key === row.key && over?.lane !== group.key)),
+    gapIn: (group: Group) => (!!carried && over?.lane === group.key && carried.from.lane !== group.key ? carried.height : null),
+    /** A thing's own attributes: carried from its group by a press and hold, and drawn as the gap while it is. */
+    thing: (row: Row, group: Group) => ({
+      'data-movable': movable ? '' : undefined,
+      'data-drag-gap': carried?.item.key === row.key ? '' : undefined,
+      onPointerDown: movable ? (event: ReactPointerEvent<HTMLElement>) => carryPress(carry, event, row, { lane: group.key, index: -1 }) : undefined,
+    }),
+    /** A group's own attributes: where a carried thing is dropped, outlined while one is held over it. */
+    lane: (group: Group) => ({
+      'data-lane-key': movable ? group.key : undefined,
+      'data-over': carried && over?.lane === group.key ? '' : undefined,
+    }),
+  };
+}
+
+/** What rolls along while a row is carried: the note the query is drawn in. */
+const noteRoller = (ref: RefObject<HTMLElement | null>) => () => {
+  const note = ref.current ? noteScroller(ref.current) : null;
+  return note ? [{ element: note, axis: 'y' as const }] : [];
+};
 
 /**
  * A query drawn as a board, at a height of its own, as a ```board is (editor/boards/divider.ts): the lanes are as tall
@@ -621,9 +694,10 @@ const HOLD_MS = 320;
  * swimlanes are maximum height on the query instead of acting like board view with the split view handle").
  *
  * A card is dragged between lanes where the board can be written (`boardMovable`; Matt: "be able to click and drag
- * items between lanes"): a long press on a touch lifts it so a scroll of the lane is not mistaken for a pick-up, a
- * small move does on a mouse, and dropping it on another lane sets the grouped field to that lane's value (the queue
- * takes it, editor/queries.ts `onMove`). A ghost follows the pointer while it moves, and the lane under it is lit.
+ * items between lanes"), by the app's one drag, as a ```board's card is (core/useCarry.ts; Matt: "the same mechanism
+ * as ... board view"): press and hold to lift, a copy of the card in the air, the card itself the gap it would leave in
+ * the lane it would land in, the lanes and the board rolling at their edges. Dropped on another lane, its grouped
+ * field is set to that lane's value (editor/queries.ts `onMove`).
  */
 function BoardView({ result, acts, height, onHeight }: { result: QueryResult; acts: Acts; height: number | null; onHeight?: (height: number | null) => void }) {
   // The height the line under the board is being dragged to, drawn while the finger moves and written when it lifts.
@@ -631,70 +705,13 @@ function BoardView({ result, acts, height, onHeight }: { result: QueryResult; ac
   const shown = dragged ?? height;
   const boardRef = useRef<HTMLDivElement>(null);
 
-  const movable = boardMovable(result, acts.editable);
-  const laneValues = useMemo(() => new Map(result.groups.map((group) => [group.key, laneValue(group)])), [result.groups]);
-  // The card being carried, the lane it is over, and the ghost's place; cleared when it is dropped or let go.
-  const [carrying, setCarrying] = useState<{ key: string; from: string } | null>(null);
-  const [over, setOver] = useState<string | null>(null);
-  const [ghost, setGhost] = useState<{ x: number; y: number; label: string } | null>(null);
-  const teardown = useRef<(() => void) | null>(null);
-  useEffect(() => () => teardown.current?.(), []);
-
-  const startDrag = (event: ReactPointerEvent<HTMLLIElement>, row: Row, from: string) => {
-    if (!movable) return;
-    if (event.button !== 0 && event.pointerType === 'mouse') return;
-    const startX = event.clientX;
-    const startY = event.clientY;
-    let active = false;
-    let hold: number | null = null;
-    const lift = () => {
-      active = true;
-      hold = null;
-      fireNativeHaptic('selection');
-      setCarrying({ key: row.key, from });
-      setGhost({ x: startX, y: startY, label: row.name });
-    };
-    const move = (moving: PointerEvent) => {
-      const dx = moving.clientX - startX;
-      const dy = moving.clientY - startY;
-      if (!active) {
-        if (moving.pointerType === 'mouse') {
-          if (Math.hypot(dx, dy) > DRAG_SLOP) lift();
-          else return;
-        } else {
-          // A touch that wanders before the hold is a scroll of the lane, not a pick-up.
-          if (Math.hypot(dx, dy) > DRAG_SLOP) stop(false);
-          return;
-        }
-      }
-      moving.preventDefault();
-      setGhost({ x: moving.clientX, y: moving.clientY, label: row.name });
-      const key = laneKeyAt(moving.clientX, moving.clientY);
-      setOver(key !== null && key !== from ? key : null);
-    };
-    const up = (ending: PointerEvent) => {
-      const landed = active ? laneKeyAt(ending.clientX, ending.clientY) : null;
-      stop(true);
-      if (landed !== null && landed !== from) acts.onMove(row, laneValues.get(landed) ?? null);
-    };
-    const stop = (dropped: boolean) => {
-      if (hold) window.clearTimeout(hold);
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-      window.removeEventListener('pointercancel', cancel);
-      teardown.current = null;
-      setCarrying(null);
-      setOver(null);
-      setGhost(null);
-      void dropped;
-    };
-    const cancel = () => stop(false);
-    window.addEventListener('pointermove', move, { passive: false });
-    window.addEventListener('pointerup', up);
-    window.addEventListener('pointercancel', cancel);
-    teardown.current = () => stop(false);
-    if (event.pointerType !== 'mouse') hold = window.setTimeout(lift, HOLD_MS);
-  };
+  // Across the board at its sides, and up and down the lane the card is held in at its top and foot.
+  const lanes = useLaneCarry(result, acts, () => {
+    const board = boardRef.current;
+    if (!board) return [];
+    return [{ element: board, axis: 'x' as const }, ...[...board.querySelectorAll<HTMLElement>('[data-lane-key] ul')].map((element) => ({ element, axis: 'y' as const }))];
+  });
+  const { carried } = lanes.carry;
 
   return (
     <>
@@ -704,50 +721,33 @@ function BoardView({ result, acts, height, onHeight }: { result: QueryResult; ac
         role="list"
         aria-label="Board"
         data-sized={shown !== null ? '' : undefined}
-        data-dragging={carrying ? '' : undefined}
+        data-dragging={carried ? '' : undefined}
         style={shown !== null ? ({ '--query-lane-height': `${shown}em` } as CSSProperties) : undefined}
       >
-        {result.groups.map((group) => (
-          <section
-            key={group.key || 'none'}
-            className={styles.lane}
-            role="listitem"
-            aria-label={`${group.label}, ${group.rows.length}`}
-            data-lane-key={movable ? group.key : undefined}
-            data-over={movable && over === group.key && carrying?.from !== group.key ? '' : undefined}
-          >
-            <GroupHead group={group} />
-            <LaneCards still={dragged !== null}>
-              {group.rows.map((row) => (
-                <li
-                  key={row.key}
-                  className={styles.card}
-                  data-done={row.category === 'done' || row.done ? '' : undefined}
-                  data-movable={movable ? '' : undefined}
-                  data-carrying={carrying?.key === row.key ? '' : undefined}
-                  onPointerDown={movable ? (event) => startDrag(event, row, group.key) : undefined}
-                >
-                  <KeyLine id={row.id} />
-                  <span className={styles.cardTop}>
-                    <Box row={row} acts={acts} />
-                    <Name row={row} acts={acts} hideKey />
-                  </span>
-                  <Meta row={row} result={result} acts={acts} />
-                </li>
-              ))}
-              {group.rows.length ? null : <li className={styles.laneEmpty}>Nothing here</li>}
-            </LaneCards>
-          </section>
-        ))}
+        {result.groups.map((group) => {
+          const shownRows = lanes.shown(group);
+          const gap = lanes.gapIn(group);
+          return (
+            <section key={group.key || 'none'} className={styles.lane} role="listitem" aria-label={`${group.label}, ${group.rows.length}`} {...lanes.lane(group)}>
+              <GroupHead group={group} />
+              <LaneCards still={dragged !== null}>
+                {shownRows.map((row) => (
+                  <li key={row.key} className={styles.card} data-done={row.category === 'done' || row.done ? '' : undefined} {...lanes.thing(row, group)}>
+                    <KeyLine id={row.id} />
+                    <span className={styles.cardTop}>
+                      <Box row={row} acts={acts} />
+                      <Name row={row} acts={acts} hideKey />
+                    </span>
+                    <Meta row={row} result={result} acts={acts} />
+                  </li>
+                ))}
+                {gap !== null ? <li className={styles.card} data-drag-gap="" aria-hidden="true" style={{ blockSize: `${gap}px` }} /> : null}
+                {shownRows.length || gap !== null ? null : <li className={styles.laneEmpty}>Nothing here</li>}
+              </LaneCards>
+            </section>
+          );
+        })}
       </div>
-      {ghost
-        ? createPortal(
-            <div className={styles.dragGhost} style={{ left: `${ghost.x}px`, top: `${ghost.y}px` }} aria-hidden="true">
-              {ghost.label}
-            </div>,
-            document.body,
-          )
-        : null}
       {acts.editable && onHeight ? <HeightSplit boardRef={boardRef} height={height} onDrag={setDragged} onHeight={onHeight} /> : null}
     </>
   );

@@ -38,7 +38,7 @@
   cursor: default;
 }
 
-/* The grip a row is dragged by (rowDrag.ts): a finger's hold or a mouse's press lifts the row. */
+/* The grip a row is dragged by (rowDrag.ts): pressed and held, by a finger or a mouse, it lifts the row. */
 .grip {
   display: inline-grid;
   place-items: center;
@@ -48,8 +48,14 @@
   touch-action: none;
 }
 
-/* A row lifted by its grip: off the page, over the rows making room for it. */
+/* A row lifted by its grip: its copy is in the air (core/holdDrag.ts), and the row is the gap it would leave, standing
+   where it would land - the look every carried thing's gap has (app.css `[data-drag-gap]`). */
 .lifts[data-lifted] {
-  background: color-mix(in srgb, var(--glacier-bg) 88%, var(--glacier-text) 6%);
-  box-shadow: 0 6px 18px rgb(0 0 0 / 25%);
+  background: color-mix(in oklch, currentColor 4%, transparent);
+  outline: 1px dashed color-mix(in oklch, currentColor 30%, transparent);
+  outline-offset: -1px;
+}
+
+.lifts[data-lifted] > * {
+  visibility: hidden;
 }

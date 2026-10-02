@@ -683,11 +683,6 @@
   -webkit-user-select: none;
 }
 
-/* The card being carried stays in place, dimmed, while its ghost follows the pointer. */
-.card[data-carrying] {
-  opacity: 0.4;
-}
-
 /* The lane the pointer is over, ready to take the card: its own ink, a touch stronger, with a dashed edge. */
 .lane[data-over] {
   background: color-mix(in oklch, var(--app-ink) 9%, transparent);
@@ -695,22 +690,22 @@
   outline-offset: -1px;
 }
 
-/* The ghost under the pointer while a card is dragged: the record's name on the paper, lifted with a shadow. */
-.dragGhost {
-  position: fixed;
-  z-index: 40;
-  transform: translate(0.6rem, 0.4rem);
-  max-inline-size: 16rem;
-  padding: var(--glacier-space-1) var(--glacier-space-3);
-  border: 1px solid var(--app-rule);
+/* A grouped table's groups, laid out as if they were the query's own (TableView holds them to roll the note). */
+.tables {
+  display: contents;
+}
+
+/* A grouped list's or table's group the pointer is over, ready to take the row. */
+.group[data-over] {
   border-radius: var(--glacier-radius-md);
-  background: var(--app-paper);
-  box-shadow: var(--app-float-shadow);
-  font-size: var(--glacier-font-size-sm);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  pointer-events: none;
+  background: color-mix(in oklch, var(--app-ink) 6%, transparent);
+  outline: 1px dashed color-mix(in oklch, var(--app-ink) 35%, transparent);
+  outline-offset: 2px;
+}
+
+.row[data-movable],
+.table tr[data-movable] {
+  cursor: grab;
 }
 
 .cardTop {

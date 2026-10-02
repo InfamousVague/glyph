@@ -428,6 +428,41 @@ body {
   display: none;
 }
 
+/*
+ * A thing carried by the app's one drag (core/holdDrag.ts): the copy in the air under the pointer, and the gap the
+ * thing leaves where it would land - the look a ```board's card has always had (editor/boards/theme.ts
+ * `.cm-boardGhost`, `[data-lifted]`), so a query's cards and rows and a notebook's pages are carried alike.
+ */
+.app-dragGhost {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  margin: 0;
+  pointer-events: none;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 28%);
+  opacity: 0.96;
+}
+
+[data-drag-gap] {
+  background: color-mix(in oklch, currentColor 4%, transparent);
+  border-style: dashed !important;
+  outline: 1px dashed color-mix(in oklch, currentColor 30%, transparent);
+  outline-offset: -1px;
+  overflow: hidden;
+}
+
+[data-drag-gap] > * {
+  visibility: hidden;
+}
+
+/* While something is carried: no text is picked up on the way, and the pointer says what is happening. */
+:root[data-dragging],
+:root[data-dragging] * {
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: grabbing !important;
+}
+
 :root[data-titlebar='overlay'] .app-dragBar {
   display: block;
   position: fixed;

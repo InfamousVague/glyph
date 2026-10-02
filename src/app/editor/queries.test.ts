@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { isoDay, isoDayAfter } from '../core/days.ts';
+import { HOLD_MS } from '../core/gestures.ts';
 import type { QueryNote } from '../core/query/records.ts';
 import { glyphMarkdown } from './language.ts';
 import { queries, refreshQueries, type QueryOptions } from './queries.ts';
@@ -165,12 +166,46 @@ describe('a tap in a drawn query', () => {
         return event;
       };
       await act(async () => card.dispatchEvent(ptr('pointerdown', 0)));
+      // Pressed and held, as a ```board's card is (core/holdDrag.ts): only a wait as long as the hold, never a race.
+      await act(async () => new Promise((done) => setTimeout(done, HOLD_MS + 30)));
+      expect(document.querySelector('.app-dragGhost')?.textContent).toContain('Fix the login loop');
       await act(async () => window.dispatchEvent(ptr('pointermove', 40)));
+      // Held over another lane, the card leaves its own for the gap in that one.
+      expect(target.querySelector('[data-drag-gap]')).not.toBeNull();
       await act(async () => window.dispatchEvent(ptr('pointerup', 40)));
     } finally {
       document.elementFromPoint = realFrom;
     }
     expect(options.move).toHaveBeenCalledWith('gho1', expect.any(Number), expect.any(String), 'ticket', 'status', 'In review');
+    expect(document.querySelector('.app-dragGhost')).toBeNull();
+  });
+
+  it.each(['list', 'table'])('moves a ticket to the group its row is dragged to in a grouped %s, by the same drag', async (show) => {
+    // A second ticket, so there is another group to carry it to.
+    library = [...library, { id: 'gho2', body: '---\ntype: ticket\nid: GHO-2\nstatus: Done\n---\n# Ship the fix\n', createdAt: 0, updatedAt: 0 }];
+    const view = await open(fence(`from: tickets\ngroup: status\nshow: ${show}`));
+    const query = drawn(view)[0]!;
+    const row = [...query.querySelectorAll<HTMLElement>('[data-movable]')].find((li) => li.textContent?.includes('Fix the login loop'))!;
+    expect(row).toBeDefined();
+    const target = [...query.querySelectorAll<HTMLElement>('[data-lane-key]')].find((group) => group.dataset.laneKey !== row.closest<HTMLElement>('[data-lane-key]')!.dataset.laneKey)!;
+    const realFrom = document.elementFromPoint;
+    document.elementFromPoint = () => target;
+    try {
+      const ptr = (type: string, y: number) => {
+        const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: 0, clientY: y, button: 0 });
+        Object.defineProperty(event, 'pointerType', { value: 'mouse' });
+        Object.defineProperty(event, 'pointerId', { value: 1 });
+        return event;
+      };
+      await act(async () => row.dispatchEvent(ptr('pointerdown', 0)));
+      await act(async () => new Promise((done) => setTimeout(done, HOLD_MS + 30)));
+      await act(async () => window.dispatchEvent(ptr('pointermove', 60)));
+      expect(target.querySelector('[data-drag-gap]')).not.toBeNull();
+      await act(async () => window.dispatchEvent(ptr('pointerup', 60)));
+    } finally {
+      document.elementFromPoint = realFrom;
+    }
+    expect(options.move).toHaveBeenCalledWith('gho1', expect.any(Number), expect.any(String), 'ticket', 'status', 'Done');
   });
 
   it('ticks a to-do in this note in the note itself, and puts the caret on one it opens', async () => {

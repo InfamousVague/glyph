@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, useRef, type ReactElement } from 'react';
 import { show, unmount } from '../../test/render.tsx';
-import { layRowsOut, onGrip } from '../../test/rows.ts';
+import { holdGrip, layRowsOut, onGrip } from '../../test/rows.ts';
 import { ROW_HOLD_MS, useRowDrag } from './rowDrag.ts';
 
 /**
- * Rows dragged by their grip: a mouse lifts at once, a finger after a hold - and a finger that moves before the
- * hold is scrolling, not dragging. The row's new place comes back on release, and only when it changed.
+ * Rows dragged by their grip, by the app's one drag (core/holdDrag.ts): a mouse and a finger both lift after a hold -
+ * and one that moves before the hold is scrolling, not dragging. The row's new place comes back on release, and only
+ * when it changed.
  */
 
 function Rows({ onMove }: { onMove: (from: number, to: number) => void }) {
@@ -46,16 +47,23 @@ afterEach(() => {
 const grip = (name: string) => document.querySelector<HTMLElement>(`[data-grip="${name}"]`)!;
 
 describe('rows dragged by their grip', () => {
-  it('lifts at once under a mouse, follows it, and lands where it is let go', () => {
+  it('lifts after a hold under a mouse, a copy follows it, and it lands where it is let go', () => {
     const onMove = vi.fn();
     showRows(<Rows onMove={onMove} />);
     onGrip(grip('a'), 'pointerdown', 20);
+    expect(document.querySelector('li[data-lifted]')).toBeNull();
+    onGrip(grip('a'), 'pointerup', 20);
+    holdGrip(grip('a'), 20);
     expect(document.querySelector('li[data-lifted]')?.textContent).toBe('a');
+    // The copy in the air is the row's own, outside the list.
+    expect(document.querySelector('.app-dragGhost')?.textContent).toBe('a');
     onGrip(grip('a'), 'pointermove', 110);
-    expect(document.querySelector('li[data-lifted]')?.getAttribute('style')).toContain('translateY(90px)');
+    // The gap stands where the row would land: two rows down.
+    expect(document.querySelector('li[data-lifted]')?.getAttribute('style')).toContain('translateY(80px)');
     onGrip(grip('a'), 'pointerup', 110);
     expect(onMove).toHaveBeenCalledWith(0, 2);
     expect(document.querySelector('li[data-lifted]')).toBeNull();
+    expect(document.querySelector('.app-dragGhost')).toBeNull();
   });
 
   it('under a finger, lifts only after the hold, and a move before it is a scroll', () => {
@@ -85,7 +93,7 @@ describe('rows dragged by their grip', () => {
   it('says nothing when a row is let go where it was', () => {
     const onMove = vi.fn();
     showRows(<Rows onMove={onMove} />);
-    onGrip(grip('c'), 'pointerdown', 100);
+    holdGrip(grip('c'), 100);
     onGrip(grip('c'), 'pointermove', 104);
     onGrip(grip('c'), 'pointerup', 104);
     expect(onMove).not.toHaveBeenCalled();
@@ -96,13 +104,13 @@ describe('rows dragged by their grip', () => {
     showRows(<Rows onMove={onMove} />);
     const styleOf = (name: string) => document.querySelector<HTMLElement>(`[data-grip="${name}"]`)!.closest('li')!.getAttribute('style') ?? '';
     // Down: a's middle (20) moved 130px is 150, past the middles of b, c and d, which each move up a row.
-    onGrip(grip('a'), 'pointerdown', 20);
+    holdGrip(grip('a'), 20);
     onGrip(grip('a'), 'pointermove', 150);
     expect(['b', 'c', 'd'].map(styleOf).every((style) => style.includes('translateY(-40px)'))).toBe(true);
     onGrip(grip('a'), 'pointerup', 150);
     expect(onMove).toHaveBeenLastCalledWith(0, 3);
     // Up: d's middle (140) moved 130px is 10, above the middles of a, b and c, which each move down a row.
-    onGrip(grip('d'), 'pointerdown', 140);
+    holdGrip(grip('d'), 140);
     onGrip(grip('d'), 'pointermove', 10);
     expect(['a', 'b', 'c'].map(styleOf).every((style) => style.includes('translateY(40px)'))).toBe(true);
     onGrip(grip('d'), 'pointerup', 10);
@@ -112,12 +120,12 @@ describe('rows dragged by their grip', () => {
   it('lands past the last row as the last, and a cancelled drag moves nothing', () => {
     const onMove = vi.fn();
     showRows(<Rows onMove={onMove} />);
-    onGrip(grip('b'), 'pointerdown', 60);
+    holdGrip(grip('b'), 60);
     onGrip(grip('b'), 'pointermove', 900);
     onGrip(grip('b'), 'pointerup', 900);
     expect(onMove).toHaveBeenCalledWith(1, 3);
     onMove.mockClear();
-    onGrip(grip('b'), 'pointerdown', 60);
+    holdGrip(grip('b'), 60);
     onGrip(grip('b'), 'pointermove', 900);
     onGrip(grip('b'), 'pointercancel', 900);
     expect(onMove).not.toHaveBeenCalled();
