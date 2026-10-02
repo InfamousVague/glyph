@@ -63,6 +63,7 @@ export type AddRowId =
   | 'dated'
   | 'ticket'
   | 'chart'
+  | 'formula'
   | 'canvas'
   | 'footnote'
   | 'tag'
@@ -80,8 +81,8 @@ export interface AddRow {
   label?: string;
   /** Why it cannot be pressed: a choice the person made, named. */
   dimmed?: string;
-  /** A step inside the list rather than a write: More, the ready-made databases, or choosing a note or a canvas. */
-  step?: 'more' | 'database' | 'note' | 'canvas';
+  /** A step inside the list rather than a write: More, the ways to start a board, the ready-made databases, or choosing a note or a canvas. */
+  step?: 'more' | 'board' | 'database' | 'note' | 'canvas';
 }
 
 /**
@@ -160,7 +161,13 @@ export function timeWords(now: Date, naming: boolean): { words: string; label: s
   return { words: name, label: `The date and time as a name, ${name}` };
 }
 
-/** The list's first page: the seven things, as far as this screen can do them, and More. `naming`: the caret is on the line that names the note. */
+/**
+ * The list's first page: the things reached for most, as far as this screen can do them, and More. The phone's own
+ * come first (a picture, a video, a place, the time), then the data trio made of words - a table, a board, a database -
+ * since those are the Notion and Jira features people came for and they were a step down in More before (Matt: make
+ * "queries and boards and stuff easier to create"), then a link to a note and a to-do. `naming`: the caret is on the
+ * line that names the note.
+ */
 export function topRows(gates: AddGates, now: Date, naming = false): AddRow[] {
   const rows: AddRow[] = [];
   if (gates.picture) rows.push({ id: 'picture', words: 'A picture' });
@@ -168,13 +175,19 @@ export function topRows(gates: AddGates, now: Date, naming = false): AddRow[] {
   if (gates.place !== 'absent') rows.push({ id: 'place', words: 'A place', ...(gates.place === 'dimmed' ? { dimmed: 'Local only is on.' } : {}) });
   rows.push({ id: 'time', ...timeWords(now, naming) });
   rows.push({ id: 'table', words: 'A table' });
+  rows.push({ id: 'board', words: 'A board', step: 'board' });
+  rows.push({ id: 'query', words: 'A database', step: 'database' });
   if (gates.note) rows.push({ id: 'note', words: 'A note', step: 'note' });
   rows.push({ id: 'todo', words: 'A to-do' });
   rows.push({ id: 'more', words: 'More', step: 'more' });
   return rows;
 }
 
-/** More: the forms a line takes, the blocks, and the small marks, each with a seed. */
+/**
+ * More: the forms a line takes, the blocks, and the small marks, each with a seed. A board and a database are on the
+ * first page now, not here (editor/addRows.ts `topRows`); what is left is the rest a note is made of. A diagram
+ * (Mermaid) and a formula (KaTeX) are the two that had no row of their own before.
+ */
 export function moreRows(gates: AddGates): AddRow[] {
   const rows: AddRow[] = [
     { id: 'heading', words: 'A heading' },
@@ -186,12 +199,11 @@ export function moreRows(gates: AddGates): AddRow[] {
     { id: 'dated', words: 'A to-do with a due date' },
     { id: 'code', words: 'A block of code' },
     { id: 'divider', words: 'A divider' },
-    { id: 'board', words: 'A board' },
-    { id: 'query', words: 'A database', step: 'database' },
-    { id: 'chart', words: 'A chart' },
+    { id: 'chart', words: 'A diagram' },
+    { id: 'formula', words: 'A formula' },
   ];
   // A note that is not a ticket yet, and not a notebook, can be made one: its front matter written for it (§160).
-  if (gates.ticket) rows.splice(rows.findIndex((row) => row.id === 'query') + 1, 0, { id: 'ticket', words: 'Make this a ticket' });
+  if (gates.ticket) rows.splice(rows.findIndex((row) => row.id === 'divider') + 1, 0, { id: 'ticket', words: 'Make this a ticket' });
   if (gates.canvas) rows.push({ id: 'canvas', words: 'A canvas', step: 'canvas' });
   rows.push({ id: 'footnote', words: 'A footnote' }, { id: 'tag', words: 'A tag' }, { id: 'counter', words: 'A counter' }, { id: 'sum', words: 'A sum' });
   // A question for the AI where its answer belongs (docs/DESIGN.md §145): writing one needs no model, and one written on
@@ -218,6 +230,11 @@ export const CALLOUT_SEED = '> [!NOTE]\n> ';
 /** A block of code with nothing in it yet, the caret inside. */
 export const CODE_SEED = '```\n\n```';
 /**
+ * A formula on its own, drawn by KaTeX (editor/mathsDrawn.ts): a `$$` block with nothing in it yet, the caret on the
+ * empty line between the fences, where the maths is typed. The row the Guide answered "yes" to formatting specially.
+ */
+export const FORMULA_SEED = '$$\n\n$$';
+/**
  * A chart that reads as one at a glance: three boxes in a row with arrows between, in Mermaid, the canvas's own chart
  * card (canvas/edits.ts `CHART_CARD`), with "Start" selected to be written over.
  */
@@ -239,6 +256,19 @@ export function boardSeed(doc: string): { text: string; select: BlockSelect } {
   const text = `${fence}\n\n${item}`;
   const from = text.length - item.length + '- [ ] '.length;
   return { text, select: { from, to: from + words.length } };
+}
+
+/**
+ * A board's page: the two ways to start one, so the two kinds of board are a single choice rather than a name to guess
+ * between (Matt: make boards "easier to create"). Fresh columns is a `board` fence of its own (`boardSeed`); From your
+ * tickets is the ready-made ticket board, a query grouped into lanes (core/query/templates.ts `board`), which fills
+ * itself from the library and turns into any other view with the switcher on it (editor/QueryView.tsx).
+ */
+export function boardRows(): AddRow[] {
+  return [
+    { id: 'board', words: 'Fresh columns' },
+    { id: 'query:board', words: 'From your tickets' },
+  ];
 }
 
 /**
@@ -322,6 +352,7 @@ export function planFor(view: EditorView, id: AddRowId, now = new Date()): { pla
   if (id === 'table') return { block: TABLE_SEED };
   if (id === 'callout') return { block: { text: CALLOUT_SEED, select: { from: CALLOUT_SEED.length } } };
   if (id === 'code') return { block: { text: CODE_SEED, select: { from: 4 } } };
+  if (id === 'formula') return { block: { text: FORMULA_SEED, select: { from: 3 } } };
   if (id === 'divider') return { block: { text: '---', select: 'after' } };
   if (id === 'chart') return { block: { text: CHART_SEED, select: { from: CHART_SEED.indexOf('Start'), to: CHART_SEED.indexOf('Start') + 'Start'.length } } };
   if (id === 'board') return { block: boardSeed(state.doc.toString()) };

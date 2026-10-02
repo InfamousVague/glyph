@@ -123,9 +123,9 @@ afterEach(() => {
 });
 
 describe('the list', () => {
-  it('holds the seven things in a browser, less the video, and More', () => {
+  it('holds the first page in a browser, less the video, and More', () => {
     open();
-    expect(words()).toEqual(['A picture', 'A place', expect.stringMatching(/2026|20\d\d/), 'A table', 'A note', 'A to-do', 'More']);
+    expect(words()).toEqual(['A picture', 'A place', expect.stringMatching(/2026|20\d\d/), 'A table', 'A board', 'A database', 'A note', 'A to-do', 'More']);
     expect(document.getElementById('add-list')?.getAttribute('role')).toBe('menu');
   });
 
@@ -141,7 +141,7 @@ describe('the list', () => {
 
   it('holds no row the screen cannot do', () => {
     open({ onPicture: undefined, onPlace: undefined, titles: undefined });
-    expect(words().filter((row) => !/\d/.test(row ?? ''))).toEqual(['A table', 'A to-do', 'More']);
+    expect(words().filter((row) => !/\d/.test(row ?? ''))).toEqual(['A table', 'A board', 'A database', 'A to-do', 'More']);
   });
 
   it('writes the time its row says, even pressed after the minute has turned and before the row has', () => {
@@ -440,7 +440,7 @@ describe('More', () => {
     press(rowSaying('More'));
     press(rowSaying('Back'));
     expect(closed).toBe(0);
-    expect(words()).toEqual(['A picture', 'A place', expect.stringMatching(/2026|20\d\d/), 'A table', 'A note', 'A to-do', 'More']);
+    expect(words()).toEqual(['A picture', 'A place', expect.stringMatching(/2026|20\d\d/), 'A table', 'A board', 'A database', 'A note', 'A to-do', 'More']);
   });
 
   it('goes back a page with the phone’s back gesture, and closes from the first page', () => {
@@ -462,10 +462,37 @@ describe('More', () => {
   });
 });
 
-describe('A database', () => {
-  it('turns More over to the ready-made databases, and one chosen is written and drawn at once', () => {
+describe('A board', () => {
+  it('opens the two ways to start a board from the first page', () => {
     open();
-    press(rowSaying('More'));
+    press(rowSaying('A board'));
+    expect(words()).toEqual(['Back', 'Fresh columns', 'From your tickets']);
+  });
+
+  it('writes a fresh board of columns at once', () => {
+    open();
+    press(rowSaying('A board'));
+    press(rowSaying('Fresh columns'));
+    expect(closed).toBe(1);
+    expect(view.state.doc.toString()).toContain('```board');
+  });
+
+  it('writes a ticket board from the library, and turns back to the first page with Back', () => {
+    open();
+    press(rowSaying('A board'));
+    press(rowSaying('Back'));
+    expect(closed).toBe(0);
+    expect(words()).toContain('A to-do');
+    press(rowSaying('A board'));
+    press(rowSaying('From your tickets'));
+    expect(closed).toBe(1);
+    expect(view.state.doc.toString()).toBe('Lunch\n\n```query\nfrom: tickets\nshow: board\n```\n');
+  });
+});
+
+describe('A database', () => {
+  it('opens the ready-made databases from the first page, and one chosen is written and drawn at once', () => {
+    open();
     press(rowSaying('A database'));
     expect(words().slice(0, 3)).toEqual(['Back', 'To-dos due this week', 'Overdue to-dos']);
     expect(words().at(-1)).toBe('Write your own');
@@ -474,16 +501,15 @@ describe('A database', () => {
     expect(view.state.doc.toString()).toBe('Lunch\n\n```query\nfrom: tickets\nshow: board\n```\n');
   });
 
-  it('goes back to More, not the first page, with Back and the back gesture', () => {
+  it('goes back to the first page with Back and the back gesture', () => {
     open();
-    press(rowSaying('More'));
     press(rowSaying('A database'));
     press(rowSaying('Back'));
     expect(closed).toBe(0);
-    expect(words()).toContain('A database');
+    expect(words()).toContain('A to-do');
     press(rowSaying('A database'));
     act(() => void goBack());
-    expect(words()).toContain('A heading');
+    expect(words()).toContain('A to-do');
     expect(closed).toBe(0);
   });
 

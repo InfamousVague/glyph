@@ -5,7 +5,6 @@ import {
   CalendarDays,
   CalendarPlus,
   ChartGantt,
-  ChartNoAxesCombined,
   ChevronLeft,
   ChevronRight,
   CircleDot,
@@ -25,12 +24,14 @@ import {
   ListOrdered,
   ListTodo,
   Minus,
+  Network,
   PencilLine,
   Sigma,
   Sparkles,
   SquareCode,
   SquareDashed,
   SquareKanban,
+  SquareRadical,
   Table,
   TextQuote,
   Ticket,
@@ -43,7 +44,7 @@ import { Locate, type StrokeIcon } from '../art/Icons.tsx';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { plugins } from '../plugins/registry.ts';
-import { databaseRows, emptyCellsAbove, linkableTitles, moreRows, readGates, topRows, writeCanvasFrame, writeNoteLink, writeRow, type AddRow, type AddRowId } from './addRows.ts';
+import { boardRows, databaseRows, emptyCellsAbove, linkableTitles, moreRows, readGates, topRows, writeCanvasFrame, writeNoteLink, writeRow, type AddRow, type AddRowId } from './addRows.ts';
 import { isBookBody } from '../book/book.ts';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { isTicket } from '../core/properties.ts';
@@ -108,7 +109,7 @@ const GAP = 6;
 const EDGE = 8;
 const CREASE_GAP = 16;
 
-type Page = 'top' | 'more' | 'database' | 'note' | 'canvas';
+type Page = 'top' | 'more' | 'board' | 'database' | 'note' | 'canvas';
 
 const ICONS: Partial<Record<AddRowId, StrokeIcon>> = {
   picture: ImagePlus,
@@ -130,7 +131,8 @@ const ICONS: Partial<Record<AddRowId, StrokeIcon>> = {
   query: Database,
   dated: CalendarPlus,
   ticket: Ticket,
-  chart: ChartNoAxesCombined,
+  chart: Network,
+  formula: SquareRadical,
   canvas: Workflow,
   footnote: Asterisk,
   tag: Hash,
@@ -220,11 +222,13 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
       ? topRows(gates, now, onNamingLine(view.state))
       : page === 'more'
         ? [{ id: 'back', words: 'Back' }, ...moreRows(gates)]
-        : page === 'database'
-          ? [{ id: 'back', words: 'Back' }, ...databaseRows()]
-          : [];
-  // Where Back goes: the ready-made databases are a page of More's, and every other page is the first's.
-  const back: Page = page === 'database' ? 'more' : 'top';
+        : page === 'board'
+          ? [{ id: 'back', words: 'Back' }, ...boardRows()]
+          : page === 'database'
+            ? [{ id: 'back', words: 'Back' }, ...databaseRows()]
+            : [];
+  // Where Back goes: every step page is reached from the first now (a board, a database, a note, a canvas, More).
+  const back: Page = 'top';
 
   /** The list closed: told to the editor first, so the × turns back and what a row writes is not read as a change under it. */
   const close = useCallback(
@@ -317,7 +321,7 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
     const row = rows[active];
     if (!row) return false;
     if (key === 'right') {
-      if (!('step' in row) || (row.step !== 'more' && row.step !== 'database')) return false;
+      if (!('step' in row) || (row.step !== 'more' && row.step !== 'board' && row.step !== 'database')) return false;
       choose(row);
       return true;
     }
@@ -521,7 +525,7 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
           {row.words}
           {dimmed ? <span className={styles.why}>{dimmed}</span> : null}
         </span>
-        {'step' in row && (row.step === 'more' || row.step === 'database') ? (
+        {'step' in row && (row.step === 'more' || row.step === 'board' || row.step === 'database') ? (
           <span className={styles.onward} aria-hidden="true">
             <ChevronRight size={16} strokeWidth={2} />
           </span>
@@ -529,8 +533,8 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
       </button>
     );
   };
-  // The doors between the pages never scroll away: Back held at the top of More, More at the foot of the first page.
-  const head = (page === 'more' || page === 'database') && rows[0]?.id === 'back' ? 0 : -1;
+  // The doors between the pages never scroll away: Back held at the top of a step page, More at the foot of the first.
+  const head = (page === 'more' || page === 'board' || page === 'database') && rows[0]?.id === 'back' ? 0 : -1;
   const foot = page === 'top' && rows.at(-1)?.id === 'more' ? rows.length - 1 : -1;
   const turned = { 'data-turn': turn ?? undefined };
 

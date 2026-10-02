@@ -67,9 +67,12 @@ afterEach(() => {
 });
 
 describe('the list’s rows', () => {
-  it('are the seven things, the phone’s first, then More', () => {
+  it('lead with the phone’s things, then the data trio (table, board, database), then a note and a to-do, then More', () => {
     const top = rows.topRows(gates({ video: true }), NOW);
-    expect(top.map((row) => row.words)).toEqual(['A picture', 'A video', 'A place', stamp(NOW), 'A table', 'A note', 'A to-do', 'More']);
+    expect(top.map((row) => row.words)).toEqual(['A picture', 'A video', 'A place', stamp(NOW), 'A table', 'A board', 'A database', 'A note', 'A to-do', 'More']);
+    // A board and a database are steps now, not direct writes (editor/AddList.tsx opens their page).
+    expect(top.find((row) => row.id === 'board')?.step).toBe('board');
+    expect(top.find((row) => row.id === 'query')?.step).toBe('database');
   });
 
   it('say the time as it will be written, and read it aloud with the month in full', () => {
@@ -92,7 +95,7 @@ describe('the list’s rows', () => {
 
   it('leave out what the screen cannot do', () => {
     const top = rows.topRows(gates({ picture: false, place: 'absent', note: false }), NOW);
-    expect(top.map((row) => row.id)).toEqual(['time', 'table', 'todo', 'more']);
+    expect(top.map((row) => row.id)).toEqual(['time', 'table', 'board', 'query', 'todo', 'more']);
   });
 
   it('dim a place under Local only, and say why', () => {
@@ -112,9 +115,8 @@ describe('the list’s rows', () => {
       'A to-do with a due date',
       'A block of code',
       'A divider',
-      'A board',
-      'A database',
-      'A chart',
+      'A diagram',
+      'A formula',
       'A canvas',
       'A footnote',
       'A tag',
@@ -207,10 +209,21 @@ describe('what each row writes on an empty line', () => {
     expect(written('code')).toBe('Lunch\n\n```\n|\n```');
     expect(written('callout')).toBe('Lunch\n\n> [!NOTE]\n> |');
     expect(written('chart')).toBe('Lunch\n\n```mermaid\nflowchart LR\n  A[[Start]] --> B[Then]\n  B --> C[Done]\n```');
+    // A formula is a $$ block drawn by KaTeX, the caret on the empty line between its fences.
+    expect(written('formula')).toBe('Lunch\n\n$$\n|\n$$');
+  });
+
+  it('a board as a page of the two ways to start one', () => {
+    expect(rows.boardRows().map((row) => ({ id: row.id, words: row.words }))).toEqual([
+      { id: 'board', words: 'Fresh columns' },
+      { id: 'query:board', words: 'From your tickets' },
+    ]);
+    // Neither way is in More any more; the board and the database are steps on the first page.
+    expect(rows.moreRows(gates()).map((row) => row.id)).not.toContain('board');
+    expect(rows.moreRows(gates()).map((row) => row.id)).not.toContain('query');
   });
 
   it('a database as a page of ready-made ones, each drawn at once, and Write your own with its kind to write over', () => {
-    expect(rows.moreRows(gates()).find((row) => row.id === 'query')).toEqual({ id: 'query', words: 'A database', step: 'database' });
     expect(rows.databaseRows().map((row) => row.words)).toEqual([
       'To-dos due this week',
       'Overdue to-dos',
