@@ -1333,6 +1333,12 @@ function Shell() {
             canGoBack={walk.canBack}
             canGoOn={walk.canOn}
             onNotifications={showNotifications}
+            onOrganizations={() => {
+              // Settings › Account › Organizations, which says what teams need when signed out.
+              leaveOrganization();
+              setSettings(true);
+              setToPage({ id: 'organizations', nonce: Date.now() });
+            }}
             unread={unread}
             atNotifications={screen.name === 'notifications'}
             onRename={renameNote}

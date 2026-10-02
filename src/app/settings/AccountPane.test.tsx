@@ -100,23 +100,17 @@ describe('Signed out', () => {
 });
 
 describe('Signed in', () => {
-  it('has Sync, then Organizations, Privacy, Location and Export, then Delete account', () => {
+  it('has Sync, then Privacy, Location and Export, then Delete account', () => {
     const host = show(<AccountPane />);
     expect(titles(host)).toEqual(['Sync', 'Privacy', 'Location', 'Export']);
-    const places = placesOf(host, ['Sync now', 'Organizations', 'Local only', 'Map on a tagged note', 'Export everything', 'Delete account']);
+    const places = placesOf(host, ['Sync now', 'Local only', 'Map on a tagged note', 'Export everything', 'Delete account']);
     expect(places.every((place) => place >= 0)).toBe(true);
     expect([...places].sort((a, b) => a - b)).toEqual(places);
   });
 
-  // The teams the account is in (docs/TEAMS.md): a row to the sub-page, between Sync and Shared links, signed in only.
-  it('opens the Organizations sub-page from its row, which a signed-out page does not have', () => {
-    const onOpen = vi.fn();
-    const host = show(<AccountPane onOpen={onOpen} />);
-    act(() => buttonSaying(host, 'Organizations')!.click());
-    expect(onOpen).toHaveBeenCalledWith({ id: 'organizations' });
-    host.remove();
-    session = null;
-    expect(buttonSaying(show(<AccountPane onOpen={onOpen} />), 'Organizations')).toBeUndefined();
+  // Organizations are a row of their own in Settings' list now, not on this page.
+  it('has no Organizations row', () => {
+    expect(buttonSaying(show(<AccountPane />), 'Organizations')).toBeUndefined();
   });
 
   it('says Local only holds the sync off, and the words go to its card', () => {

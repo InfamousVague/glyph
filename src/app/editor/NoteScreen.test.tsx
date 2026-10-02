@@ -509,18 +509,23 @@ describe('a rename asked from the tab', () => {
 
 describe("the note's tools", () => {
   const more = () => act(() => button('More for this note').click());
+  // The bookmark is a row in More now (Matt: "put bookmark in the more menu").
+  const bookmarkFromMore = (label: string) => {
+    more();
+    act(() => buttonSaying(document.body, label)!.click());
+  };
   /** The view switch's label, which says what is showing and what a press shows: the header's first button. */
   const viewLabel = () => document.querySelector('header button')?.getAttribute('aria-label');
 
-  it('are the view switch, the bookmark and More, with the mic in More', async () => {
+  it('are the view switch and More, with the bookmark and the mic in More', async () => {
     show(screen(await createNote('n1', '# Groceries')));
     expect([...document.querySelectorAll('header button')].map((b) => b.getAttribute('aria-label'))).toEqual([
       'Showing the marks. Show the formatted note.',
-      'Bookmark this line',
       'More for this note',
     ]);
     more();
     expect(button('Talk into this note')).toBeTruthy();
+    expect(buttonSaying(document.body, 'Bookmark this line')).toBeTruthy();
   });
 
   it('switches between the two views from the header, for a note of words, a canvas and a book', async () => {
@@ -558,12 +563,10 @@ describe("the note's tools", () => {
     show(screen(await createNote('n1', '# Groceries\nmilk')));
     const view = editor();
     act(() => view.dispatch({ selection: { anchor: view.state.doc.length } }));
-    act(() => button('Bookmark this line').click());
+    bookmarkFromMore('Bookmark this line');
     expect(view.state.doc.toString()).toContain('§§');
     expect(document.body.textContent).toContain('Bookmarked at');
-    const again = button('Move the bookmark to this line, or take it off here');
-    expect(again.getAttribute('aria-pressed')).toBe('true');
-    act(() => again.click());
+    bookmarkFromMore('Move or remove the bookmark');
     expect(view.state.doc.toString()).not.toContain('§§');
     expect(document.body.textContent).toContain('Bookmark taken off.');
   });
@@ -577,7 +580,7 @@ describe("the note's tools", () => {
     Object.defineProperty(page, 'scrollTop', { configurable: true, value: 100 });
     Object.defineProperty(page, 'clientHeight', { configurable: true, value: 800 });
     act(() => view.dispatch({ selection: { anchor: view.state.doc.line(3).from } }));
-    act(() => button('Bookmark this line').click());
+    bookmarkFromMore('Bookmark this line');
     expect(view.state.doc.line(3).text).toContain('§§');
     expect(view.state.doc.line(1).text).not.toContain('§§');
     expect(document.body.textContent).toContain('Bookmarked at “eggs”.');
@@ -585,7 +588,7 @@ describe("the note's tools", () => {
 
   it('asks for words before a bookmark on an empty note', async () => {
     show(screen(await createNote('n1', '')));
-    act(() => button('Bookmark this line').click());
+    bookmarkFromMore('Bookmark this line');
     expect(document.body.textContent).toContain('Write something first, then bookmark the line.');
   });
 });

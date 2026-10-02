@@ -163,7 +163,8 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       summary: `${syncSummary(account.session?.handle ?? null, syncStatus)}${prefs.localOnly ? ' · Local only' : ''}`,
       group: 0,
     },
-    // The teams the account is in (docs/TEAMS.md): behind Account's row, signed in; one sentence signed out.
+    // The teams the account is in (docs/TEAMS.md): its own row under Account (Matt: "make an organizations tab under
+    // account in the sidebar instead of nesting it inside the account page"); one sentence signed out.
     {
       id: 'organizations',
       label: 'Organizations',
@@ -173,8 +174,6 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       content: <OrganizationsPane onOpen={go} onOrganization={onOrganization} />,
       summary: account.session ? `${orgs.list.filter((row) => row.state === 'member').length} joined` : 'Signed out',
       group: 0,
-      listed: false,
-      parent: 'account',
     },
     // What reaches you (docs/TEAMS.md, D8 and D9): beside Account on the first card, in the coral the shell kept free.
     {

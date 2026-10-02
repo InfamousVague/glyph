@@ -104,6 +104,22 @@
   flex: none;
 }
 
+/* The bar's last place, after Organizations and the bell: a screen's More (core/topBarTools.ts `useTopBarTail`). */
+.tail {
+  flex: none;
+  display: flex;
+  align-items: center;
+}
+
+.tail:empty {
+  display: none;
+}
+
+.tail button {
+  pointer-events: auto;
+  flex: none;
+}
+
 /* The sidebar's button and the two arrows: one ring each, the same as every other round control in the app. */
 .sidebar,
 .step {

@@ -79,11 +79,17 @@ describe('the top bar', () => {
   });
 
   // The bell (docs/TEAMS.md): after the two arrows, a dot and no number while something unread waits.
-  it('rings a bell after the arrows that opens the notifications, with a dot while something is unread', () => {
+  it('rings a bell at the right end, after Organizations, that opens the notifications, with a dot while something is unread', () => {
     const onNotifications = vi.fn();
-    show(bar({ onGoBack: () => undefined, onGoOn: () => undefined, onNotifications }));
+    const onOrganizations = vi.fn();
+    show(bar({ onGoBack: () => undefined, onGoOn: () => undefined, onNotifications, onOrganizations }));
     const bell = button('Notifications');
-    expect(bell.previousElementSibling?.getAttribute('aria-label')).toBe('Forward again');
+    // Organizations, then the bell, then the screen's More (Matt: "make an organizations entrypoint as a group of
+    // users icon next to the bell, move the notification bell all the way to the right just before the vertical dots").
+    expect(bell.previousElementSibling?.getAttribute('aria-label')).toBe('Organizations');
+    expect(bell.nextElementSibling?.className).toContain('tail');
+    act(() => button('Organizations').click());
+    expect(onOrganizations).toHaveBeenCalledOnce();
     expect(bell.hasAttribute('data-on')).toBe(false);
     expect(bell.hasAttribute('data-unread')).toBe(false);
     expect(bell.textContent).toBe('');

@@ -1,12 +1,12 @@
 import { useCallback, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Bell, PanelLeft, Plus, X } from '@glacier/icons';
+import { ArrowLeft, ArrowRight, Bell, PanelLeft, Plus, Users, X } from '@glacier/icons';
 import { newGroup, NO_GROUPS, renameGroup, toggleGroup, type TabGroups } from './tabGroups.ts';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { isBookBody } from '../book/book.ts';
 import { noteTitle, type Note } from '../core/store.ts';
 import { useWorkspaces } from '../core/workspaces.ts';
 import { titleNow, useLiveTitles } from '../core/liveTitles.ts';
-import { setTopBarTools } from '../core/topBarTools.ts';
+import { setTopBarTail, setTopBarTools } from '../core/topBarTools.ts';
 import { House } from '../art/Icons.tsx';
 import { scrollSideways } from '../core/scrollSideways.ts';
 import { GroupChip } from './GroupChip.tsx';
@@ -67,7 +67,9 @@ interface NoteTabsProps {
   onGoOn?: () => void;
   canGoBack?: boolean;
   canGoOn?: boolean;
-  /** The Notifications page (notes/NotificationsScreen.tsx), from the bell after the arrows; absent, and there is no bell. */
+  /** Your organizations (Settings › Account › Organizations), from the people icon before the bell; absent, and there is none. */
+  onOrganizations?: () => void;
+  /** The Notifications page (notes/NotificationsScreen.tsx), from the bell before More; absent, and there is no bell. */
   onNotifications?: () => void;
   /** Whether something unread and wanted has arrived: the bell wears its ring and a dot (core/notifications/feed.ts `unreadCount`). */
   unread?: boolean;
@@ -99,6 +101,7 @@ export function NoteTabs({
   canGoBack = false,
   canGoOn = false,
   onNotifications,
+  onOrganizations,
   unread = false,
   atNotifications = false,
   onNew,
@@ -160,6 +163,7 @@ export function NoteTabs({
    * that owns those buttons fills it, because they hold the editor's state and cannot be lifted up here without it.
    */
   const slot = useCallback((element: HTMLDivElement | null) => setTopBarTools(element), []);
+  const tailSlot = useCallback((element: HTMLDivElement | null) => setTopBarTail(element), []);
 
   if (!onSidebar && !onGoBack && tabs.length === 0) return null;
   return (
@@ -204,7 +208,18 @@ export function NoteTabs({
           </button>
         </>
       ) : null}
-        {/* The bell, after the arrows: on while something unread waits, a dot and no number; its page is open, a ring. */}
+        {/* The screen's own controls (Matt: "Move the controls for the note into the topbar"). */}
+        <div ref={slot} className={styles.slot} />
+        {/*
+          Organizations, then the bell, at the right end just before the screen's More (Matt: "make an organizations
+          entrypoint as a group of users icon next to the bell, move the notification bell all the way to the right
+          just before the vertical dots more menu"). The bell is on while something unread waits: a dot, no number.
+        */}
+        {onOrganizations ? (
+          <button type="button" className={styles.sidebar} onClick={onOrganizations} aria-label="Organizations" title="Organizations">
+            <Users size={19} strokeWidth={2.1} aria-hidden="true" />
+          </button>
+        ) : null}
         {onNotifications ? (
           <button
             type="button"
@@ -219,8 +234,8 @@ export function NoteTabs({
             <Bell size={19} strokeWidth={2.1} aria-hidden="true" />
           </button>
         ) : null}
-        {/* The screen's own controls, at the far end (Matt: "Move the controls for the note into the topbar"). */}
-        <div ref={slot} className={styles.slot} />
+        {/* The screen's last control, its More, after the bell. */}
+        <div ref={tailSlot} className={styles.tail} />
         {/* The aside's toggle, last of all: the sidebar's icon reversed (Matt: "a sidebar toggle on the right with the icon reversed"). */}
         {onAside ? (
           <button

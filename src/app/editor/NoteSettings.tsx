@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowUp, Feather, ListChecks, Mic, TextSearch } from '@glacier/icons';
+import { ArrowUp, Bookmark, Feather, ListChecks, Mic, TextSearch } from '@glacier/icons';
 import { ArchiveBox, ArrowLeft, Bin, Board, Locate, Pin, Workspace as WorkspaceIcon } from '../art/Icons.tsx';
 import { CheatSheet } from '../guide/CheatSheet.tsx';
 import { tagLabel, type GeoTag } from '../core/geotag.ts';
@@ -57,6 +57,11 @@ interface NoteSettingsProps {
   onPin: () => void;
   onArchive: () => void;
   onDelete: () => void;
+  /**
+   * The bookmark, moved here from the bar (Matt: "put bookmark in the more menu"): set at the caret's line, moved, or
+   * taken off (editor/useBookmark.ts). Absent while the transcript is showing.
+   */
+  bookmark?: { marked: boolean; onPress: () => void };
   /** Opens find and replace in the note; absent where the note can't be searched (the transcript is showing). */
   onFind?: () => void;
   /** Lays the note's list out as a board (core/boards.ts); absent where there is nothing to make one of. */
@@ -189,6 +194,7 @@ function AskField({ onAsk }: { onAsk: (instruction: string) => void }) {
 
 /** The two drawn icons from the kit, at the weight the sheet's own are drawn: the rings size every icon to 18 px. */
 const FindIcon = () => <TextSearch size={18} strokeWidth={2.2} />;
+const BookmarkIcon = () => <Bookmark size={18} strokeWidth={2.2} />;
 const CheatSheetIcon = () => <ListChecks size={18} strokeWidth={2.2} />;
 /** A journal's mark, the pen an entry is written with, as the + sheet's entry row wears it. */
 const JournalIcon = () => <Feather size={18} strokeWidth={2.2} />;
@@ -268,6 +274,7 @@ export function NoteSettings({
   onArchive,
   onDelete,
   onFind,
+  bookmark,
   onMakeBoard,
   name,
   journal,
@@ -378,7 +385,7 @@ export function NoteSettings({
       ) : null}
       {name && ticketKey ? <TicketKeyField ticketKey={ticketKey} /> : null}
 
-      {onFind || onMakeBoard || look ? (
+      {onFind || onMakeBoard || look || bookmark ? (
         <>
           <SheetHeading>Reading it</SheetHeading>
           <SheetGroup>
@@ -400,6 +407,14 @@ export function NoteSettings({
                   ))}
                 </div>
               </div>
+            ) : null}
+            {bookmark ? (
+              <SheetRow
+                icon={BookmarkIcon}
+                label={bookmark.marked ? 'Move or remove the bookmark' : 'Bookmark this line'}
+                hint={bookmark.marked ? 'Moves it to the line the caret is on, or takes it off when it is already there.' : 'Marks the line the caret is on, to come back to.'}
+                onPress={bookmark.onPress}
+              />
             ) : null}
             {onFind ? <SheetRow icon={FindIcon} label="Find and replace" onPress={onFind} /> : null}
             {/* A list laid out as columns, in the note's own words (docs/BOARDS.md). */}

@@ -1,6 +1,6 @@
 import { Ghost } from '../art/Ghost.tsx';
 import { createPortal } from 'react-dom';
-import { useTopBarTools } from '../core/topBarTools.ts';
+import { useTopBarTail, useTopBarTools } from '../core/topBarTools.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '@glacier/react';
 import { EditorSelection } from '@codemirror/state';
@@ -93,7 +93,7 @@ import { AiStrip } from '../ai/AiStrip.tsx';
 import { AtWork } from '../scene/AtWork.tsx';
 import { boardMadeWords } from './boardActions.ts';
 import { itemSend, lineOffers, noteEditing } from './notePlugins.ts';
-import { NoteTools, type NoteKind } from './NoteTools.tsx';
+import { NoteMore, NoteTools, type NoteKind } from './NoteTools.tsx';
 import { useBookmark } from './useBookmark.ts';
 import { useLandAt } from './useLandAt.ts';
 import { useLanding } from './useLanding.ts';
@@ -1092,6 +1092,8 @@ export function NoteScreen({
 
   // Where the app's bar wants this screen's controls, if it is there to hold them (core/topBarTools.ts).
   const toolsSlot = useTopBarTools();
+  // And the bar's end, after its Organizations and bell, where More goes when the bar is there.
+  const tailSlot = useTopBarTail();
 
   /*
    * The links for the editor, one object across this screen's own draws - a tape's playhead moving, a sheet opening -
@@ -1113,7 +1115,7 @@ export function NoteScreen({
   const onPage = typed ? !source : prefs.noteView === 'formatted';
   const switchView = () => (typed ? showSource(onPage) : chooseView(onPage ? 'mixed' : 'formatted'));
   const tools = (
-    <NoteTools kind={viewKind} page={onPage} switchable={shown === 'raw'} onSwitch={switchView} marked={marked} onBookmark={bookmark} onMore={() => setSettingsOpen(true)} />
+    <NoteTools kind={viewKind} page={onPage} switchable={shown === 'raw'} onSwitch={switchView} onMore={() => setSettingsOpen(true)} more={!(toolsSlot && tailSlot)} />
   );
 
   return (
@@ -1136,6 +1138,7 @@ export function NoteScreen({
         )}
       </header>
       {toolsSlot ? createPortal(tools, toolsSlot) : null}
+      {toolsSlot && tailSlot ? createPortal(<NoteMore onMore={() => setSettingsOpen(true)} />, tailSlot) : null}
       {/* The model at work on this note, and what it did: under the header, over the page (ai/AiStrip.tsx). */}
       <div className={styles.stripHolder}>
         <AiStrip noteId={note.id} onUndo={ai.undoRun} onHeight={onStripHeight} marks={ai.marks && view ? { count: ai.marks, keepAll: () => keepAllChanges(view) } : undefined} stage={ai.reviewStage} />
@@ -1377,6 +1380,17 @@ export function NoteScreen({
         pinned={pinned}
         editing={editing}
         onClose={() => setSettingsOpen(false)}
+        bookmark={
+          shown === 'raw'
+            ? {
+                marked,
+                onPress: () => {
+                  setSettingsOpen(false);
+                  bookmark();
+                },
+              }
+            : undefined
+        }
         name={typed ? { value: title, onChange: renameHere, kind: canvas ? 'canvas' : isJournal ? 'journal' : 'notebook' } : undefined}
         journal={journalRows}
         ticketKey={ticketKey}

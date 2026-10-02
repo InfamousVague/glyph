@@ -1,8 +1,8 @@
-import { BookOpen, Bookmark, Code, EllipsisVertical } from '@glacier/icons';
+import { BookOpen, Code, EllipsisVertical } from '@glacier/icons';
 import styles from './NoteScreen.module.css';
 
 /**
- * The note's tools: the view switch, the bookmark and More. The mic stays in More (editor/NoteSettings.tsx), but the
+ * The note's tools: the view switch and More; the bookmark and the mic are in More (editor/NoteSettings.tsx), but the
  * view switch came back to the header (Matt: "move the toggle between markdown and reading view back into the header"),
  * where it was before docs/DESIGN.md §147 moved it in. The note screen draws them in its header, or - wherever the
  * app's top bar is there to take them - puts them into the bar with a portal (core/topBarTools.ts), because they hold
@@ -24,10 +24,18 @@ interface NoteToolsProps {
   /** The switch works: the note's own view is up, not the transcript while the tape plays. */
   switchable: boolean;
   onSwitch: () => void;
-  /** The note has a bookmark (editor/useBookmark.ts). */
-  marked: boolean;
-  onBookmark: () => void;
   onMore: () => void;
+  /** False when More is drawn on its own, at the bar's end after the bell (core/topBarTools.ts `useTopBarTail`). */
+  more?: boolean;
+}
+
+/** More for this note: the view's look, the bookmark, the mic, the AI's runs, pin, archive, links, delete (NoteSettings). */
+export function NoteMore({ onMore }: { onMore: () => void }) {
+  return (
+    <button type="button" className={`${styles.cog} ${styles.more}`} onClick={onMore} aria-label="More for this note">
+      <EllipsisVertical size={20} strokeWidth={2.6} aria-hidden="true" />
+    </button>
+  );
 }
 
 /** The switch's words: what it says it is showing and what a press shows, and its short title. */
@@ -37,7 +45,7 @@ function viewSwitchWords(kind: NoteKind, page: boolean): { label: string; title:
   return page ? { label: 'Showing the formatted note. Show the marks.', title: 'Formatted' } : { label: 'Showing the marks. Show the formatted note.', title: 'Markdown' };
 }
 
-export function NoteTools({ kind, page, switchable, onSwitch, marked, onBookmark, onMore }: NoteToolsProps) {
+export function NoteTools({ kind, page, switchable, onSwitch, onMore, more = true }: NoteToolsProps) {
   const { label, title } = viewSwitchWords(kind, page);
   return (
     <div className={styles.tools}>
@@ -51,29 +59,8 @@ export function NoteTools({ kind, page, switchable, onSwitch, marked, onBookmark
       <button type="button" className={styles.cog} disabled={!switchable} onClick={onSwitch} aria-label={label} title={title}>
         {page ? <BookOpen size={20} strokeWidth={2.1} aria-hidden="true" /> : <Code size={20} strokeWidth={2.1} aria-hidden="true" />}
       </button>
-      <button
-        type="button"
-        className={`${styles.cog} ${styles.bookmark} app-gold`}
-        data-on={marked || undefined}
-        onClick={onBookmark}
-        aria-pressed={marked}
-        aria-label={marked ? 'Move the bookmark to this line, or take it off here' : 'Bookmark this line'}
-      >
-        {/*
-          The same outline and 33% wash as every other filled icon in the app, set or not (Matt: "the bookmark icon on the
-          note should have the outline with semitransparent fill"). app.css gives it that; nothing here overrides it.
-
-          It was solid once set, which read as a different kind of icon from everything beside it. Whether a bookmark is
-          set is said by `aria-pressed` and the button's label, and on the page by the ribbon on the marked line - and,
-          since the mark on the page went gold (Matt: "Make the bookmark icon on the note yellow / gold instead of white so
-          it stands out"), by the button going gold with it (NoteScreen.module.css `.bookmark[data-on]`).
-        */}
-        <Bookmark size={20} strokeWidth={2.1} aria-hidden="true" />
-      </button>
-      {/* More for this note: the view's look, the mic, the AI's runs, pin, archive, links, delete (NoteSettings). */}
-      <button type="button" className={`${styles.cog} ${styles.more}`} onClick={onMore} aria-label="More for this note">
-        <EllipsisVertical size={20} strokeWidth={2.6} aria-hidden="true" />
-      </button>
+      {/* The bookmark went into More (Matt: "put bookmark in the more menu"); More itself ends the bar. */}
+      {more ? <NoteMore onMore={onMore} /> : null}
     </div>
   );
 }
