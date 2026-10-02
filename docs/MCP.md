@@ -13,7 +13,7 @@ It works for any Ghost.md account, and it comes two ways:
 
 ## What it can do
 
-Once it is connected, ask Claude in words. Behind them are eleven tools, and a twelfth on the hosted server:
+Once it is connected, ask Claude in words. Behind them are thirteen tools, and a fourteenth on the hosted server:
 
 | Tool | What it does |
 | --- | --- |
@@ -25,6 +25,8 @@ Once it is connected, ask Claude in words. Behind them are eleven tools, and a t
 | `append_to_note` | Words added the way the app's own "add task" adds them: a task or an item joins the note's list, in the list's style; a paragraph goes on the end. Not a journal, whose words are the list of its entries: it says to use the next tool. |
 | `add_journal_entry` | An entry in a journal (a notebook kept as a journal, DESIGN §142), as the app writes one: a note named by the minute, "2026-09-28 14.05", started from the journal's template, with the words going on from its time line or into its to-do list, and its line added to the journal. `at` is the person's local time, `YYYY-MM-DDTHH:MM`; left out, the time where the local server runs, and the hosted one asks for it, since its clock is not yours. Never a place. |
 | `set_note_flags` | Pin or archive a note, or undo either. |
+| `list_workspaces` | The workspaces notes are filed under, as the app lists them: id, name, whether it is an organization's (`org-<orgId>`, made by the app for each organization you are a member of, docs/TEAMS.md), and how many notes each holds. |
+| `file_notes` | Notes filed under a workspace by its name or id, as a note's Workspace setting does in the app, moving them from any other; or `unfile` to take them out. Only an existing workspace: it never makes one, so an organization's appears once the app has synced the organization. |
 | `get_rules` | The "Claude rules" note: your standing instructions for Claude on this account. Made, pinned, the first time it is wanted. |
 | `add_rule` | Records a standing or repeated request into the "Claude rules" note, so Claude keeps doing it: for when you say to always, from now on, or again do something. |
 | `account_status` | Which account this is, where its sync service is, how many notes it holds, and how many Claude connections it has. |
@@ -52,6 +54,14 @@ the title and the lines are inside the seal. The post is best effort and never t
 the service (another device's words, below) posts nothing, and a post that fails - a sync service without the route
 yet, which answers 404 `no such route` - is swallowed with a `glyph-mcp:` line on stderr and the tool still answers.
 The app's own switch for these rows is Settings › Notifications › Claude.
+
+**Workspaces.** Which workspace a note is filed in is not part of the note: it is one of the synced settings
+(core/sync/prefs.ts), a single object sealed under the account key, `workspaces: { list, notes }`, the second a map of
+note id to workspace id. `file_notes` reads the settings with their revision, changes only that map, and writes the
+whole object back from the revision it read (`GlyphAccount.changePrefs`), keeping every other setting as it came,
+known to this client or not. If another device wrote its settings in between, the service refuses the write and the
+change is made again on theirs, once. Filing is per person, as in the app: an organization's workspace files your
+copy of a note, and does not share it with the organization's other members.
 
 Every tool reads the account fresh before it acts, so Claude sees what your phone last wrote. A write goes from the
 version just read: if another device changed the note in between, the service refuses the write and Claude is shown
@@ -200,7 +210,7 @@ taken off stays so. A notebook keeps the `key:` its tickets are numbered by and 
 | | |
 | --- | --- |
 | `mcp/glyph.ts` | the account as a client: sign-in, the session's renewal, the note feed opened into a cache, writes sealed as the app seals them, the conflict rule, and the self notification posted after a write (`postNotification`) |
-| `mcp/server.ts` | the tools: eleven everywhere, and `sign_out_everywhere` on the hosted server; each writing tool tells the feed what it wrote |
+| `mcp/server.ts` | the tools: thirteen everywhere, and `sign_out_everywhere` on the hosted server; each writing tool tells the feed what it wrote |
 | `mcp/main.ts`, `mcp/cli.ts` | the command: its entry point, and login, status, logout and serve |
 | `mcp/webcrypto.ts` | WebCrypto on whatever Node runs it: the box's Node 18 has no global `crypto` until it is put there |
 | `mcp/hosted.ts`, `mcp/hosted-main.ts` | the hosted server: OAuth with the SDK's handlers, MCP over HTTP, and its start-up from the environment; run on the box as `glyph-mcp.service` (`server/glyph-mcp.service`) |
