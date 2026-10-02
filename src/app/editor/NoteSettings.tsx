@@ -18,7 +18,6 @@ import { DEFAULT_TEMPLATE, PLACE_SENTENCE, templateSentence } from '../book/jour
 import { TemplatePicker } from '../book/TemplatePicker.tsx';
 import { keyProblem } from '../book/tickets.ts';
 import { preferences } from '../core/preferences.ts';
-import type { NoteView } from './viewMode.ts';
 import type { Look } from '../core/look.ts';
 import { Sheet } from './Sheet.tsx';
 import styles from './NoteSettings.module.css';
@@ -86,14 +85,6 @@ interface NoteSettingsProps {
   };
   /** A notebook's ticket key (book/tickets.ts), as its front matter says it, and its write; absent on anything else. */
   ticketKey?: { value: string; onChange: (typed: string) => void };
-  /**
-   * How the note is shown: its marks or formatted, a canvas or its JSON, a notebook's index or its Markdown. The switch
-   * lived in the top bar until it moved in here with the mic (Matt: "the mic, reading vs code mode move into the more
-   * button in the header"). Absent, no row: the transcript is playing.
-   */
-  view?: NoteView;
-  /** The words for the two views, the source's first: Markdown and Formatted for words; absent, those. */
-  viewWords?: { source: string; page: string };
   /** Talk into this note, or, on a journal, speak a new entry; absent where the note's tape has its own Add. */
   speak?: { label: string; onPress: () => void };
   /**
@@ -109,7 +100,6 @@ interface NoteSettingsProps {
    * the public sources its live blanks would be looked up at. The row shows only with one.
    */
   blanks?: { count: number; online: string[] };
-  onView?: (view: NoteView) => void;
   /**
    * Where the note was written (core/geotag.ts, core/location.ts): its tag, whether a fix can be asked for here and
    * why not, whether the place's name would be asked for, why the last automatic tag did not come, and the two
@@ -282,10 +272,7 @@ export function NoteSettings({
   name,
   journal,
   ticketKey,
-  view,
-  viewWords = { source: 'Markdown', page: 'Formatted' },
   speak,
-  onView,
   running,
   onAi,
   blanks = { count: 0, online: [] },
@@ -391,28 +378,11 @@ export function NoteSettings({
       ) : null}
       {name && ticketKey ? <TicketKeyField ticketKey={ticketKey} /> : null}
 
-      {onFind || onMakeBoard || (view && onView) || look ? (
+      {onFind || onMakeBoard || look ? (
         <>
           <SheetHeading>Reading it</SheetHeading>
           <SheetGroup>
             {/* Rows of choices, not rows to press: marked for their look, never `aria-disabled`, which said their radios were off. */}
-            {view && onView ? (
-              <div className={styles.row} data-choice>
-                <span className={styles.label}>Show</span>
-                <div className={styles.viewChoice} role="radiogroup" aria-label="How the note is shown">
-                  {(
-                    [
-                      ['mixed', viewWords.source],
-                      ['formatted', viewWords.page],
-                    ] as const
-                  ).map(([value, label]) => (
-                    <button key={value} type="button" role="radio" aria-checked={view === value} data-on={view === value || undefined} onClick={() => onView(value)}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
             {look ? (
               <div className={styles.row} data-choice>
                 <span className={styles.label}>Look</span>

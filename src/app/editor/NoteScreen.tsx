@@ -91,7 +91,7 @@ import { AiStrip } from '../ai/AiStrip.tsx';
 import { AtWork } from '../scene/AtWork.tsx';
 import { boardMadeWords } from './boardActions.ts';
 import { itemSend, lineOffers, noteEditing } from './notePlugins.ts';
-import { NoteTools } from './NoteTools.tsx';
+import { NoteTools, type NoteKind } from './NoteTools.tsx';
 import { useBookmark } from './useBookmark.ts';
 import { useLandAt } from './useLandAt.ts';
 import { useLanding } from './useLanding.ts';
@@ -1103,8 +1103,15 @@ export function NoteScreen({
     [onOpenTitle, hasTitle, bodyOfTitle, tickets, noteQueries],
   );
 
+  // The view switch, back in the header (Matt: "move the toggle between markdown and reading view back into the
+  // header"). What it shows and what a press does is the screen's: a canvas or a book is its page or its source
+  // (`showSource`), a plain note its formatted text or its marks (`chooseView`); it works only while the note's own
+  // view is up, not the transcript during a tape.
+  const viewKind: NoteKind = canvas ? 'canvas' : isBook ? 'book' : 'words';
+  const onPage = typed ? !source : prefs.noteView === 'formatted';
+  const switchView = () => (typed ? showSource(onPage) : chooseView(onPage ? 'mixed' : 'formatted'));
   const tools = (
-    <NoteTools marked={marked} onBookmark={bookmark} onMore={() => setSettingsOpen(true)} />
+    <NoteTools kind={viewKind} page={onPage} switchable={shown === 'raw'} onSwitch={switchView} marked={marked} onBookmark={bookmark} onMore={() => setSettingsOpen(true)} />
   );
 
   return (
@@ -1360,10 +1367,7 @@ export function NoteScreen({
         name={typed ? { value: title, onChange: renameHere, kind: canvas ? 'canvas' : isJournal ? 'journal' : 'notebook' } : undefined}
         journal={journalRows}
         ticketKey={ticketKey}
-        view={shown === 'raw' ? (typed ? (source ? 'mixed' : 'formatted') : prefs.noteView) : undefined}
-        viewWords={canvas ? { source: 'JSON', page: 'Canvas' } : isBook ? { source: 'Markdown', page: 'Index' } : undefined}
         speak={tape.length > 0 ? undefined : { label: isJournal ? 'Speak an entry' : 'Talk into this note', onPress: speakHere }}
-        onView={typed ? (next) => showSource(next === 'mixed') : chooseView}
         running={ai.runningKind}
         onAi={ai.runAi}
         blanks={settingsOpen && view ? fillPlanOf(view.state) : { count: 0, online: [] }}

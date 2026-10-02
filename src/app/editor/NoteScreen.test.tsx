@@ -508,37 +508,38 @@ describe('a rename asked from the tab', () => {
 });
 
 describe("the note's tools", () => {
-  /** The More sheet's Show: the two ways the note can be drawn, by their words, and which is chosen. */
-  const shows = () => [...document.querySelectorAll<HTMLButtonElement>('[aria-label="How the note is shown"] [role="radio"]')].map((r) => `${r.textContent}${r.getAttribute('aria-checked') === 'true' ? ' (on)' : ''}`);
   const more = () => act(() => button('More for this note').click());
+  /** The view switch's label, which says what is showing and what a press shows: the header's first button. */
+  const viewLabel = () => document.querySelector('header button')?.getAttribute('aria-label');
 
-  it('are the bookmark and More alone, with the mic and the view switch in More', async () => {
+  it('are the view switch, the bookmark and More, with the mic in More', async () => {
     show(screen(await createNote('n1', '# Groceries')));
-    expect([...document.querySelectorAll('header button')].map((b) => b.getAttribute('aria-label'))).toEqual(['Bookmark this line', 'More for this note']);
+    expect([...document.querySelectorAll('header button')].map((b) => b.getAttribute('aria-label'))).toEqual([
+      'Showing the marks. Show the formatted note.',
+      'Bookmark this line',
+      'More for this note',
+    ]);
     more();
     expect(button('Talk into this note')).toBeTruthy();
   });
 
-  it('name the two views in More for a note of words, a canvas and a book, and switch between them', async () => {
+  it('switches between the two views from the header, for a note of words, a canvas and a book', async () => {
     show(screen(await createNote('n1', '# Groceries')));
-    more();
-    expect(shows()).toEqual(['Markdown (on)', 'Formatted']);
-    act(() => button('Formatted').click());
-    expect(shows()).toEqual(['Markdown', 'Formatted (on)']);
+    expect(viewLabel()).toBe('Showing the marks. Show the formatted note.');
+    act(() => button('Showing the marks. Show the formatted note.').click());
+    expect(viewLabel()).toBe('Showing the formatted note. Show the marks.');
     unmount();
 
     show(screen(await createNote('c1', '{"nodes":[],"edges":[]}')));
-    more();
-    expect(shows()).toEqual(['JSON', 'Canvas (on)']);
-    act(() => button('JSON').click());
-    expect(shows()).toEqual(['JSON (on)', 'Canvas']);
+    expect(viewLabel()).toBe('Showing the canvas. Show its JSON.');
+    act(() => button('Showing the canvas. Show its JSON.').click());
+    expect(viewLabel()).toBe('Showing the canvas as JSON. Show the canvas.');
     unmount();
 
     show(screen(await createNote('b1', '---\nbook: true\n---\n# Trip\n\n1. [[Day one]]\n'), { hasTitle: () => true, onOpenTitle: () => {} }));
-    more();
-    expect(shows()).toEqual(['Markdown', 'Index (on)']);
-    act(() => button('Markdown').click());
-    expect(shows()).toEqual(['Markdown (on)', 'Index']);
+    expect(viewLabel()).toBe('Showing the index. Show its Markdown.');
+    act(() => button('Showing the index. Show its Markdown.').click());
+    expect(viewLabel()).toBe('Showing the index as Markdown. Show the index.');
   });
 
   it('are drawn in the top bar when it offers a place, and the header is left empty', async () => {
@@ -640,12 +641,11 @@ describe('a spoken note’s recording', () => {
     Element.prototype.scrollIntoView = () => undefined;
     try {
       show(screen(await spoken()));
-      // The view switch is More's Show, offered only while the note's own view is up.
+      // The view switch is the header's first button, and works only while the note's own view is up: while the
+      // transcript plays it is there but disabled.
       const viewSwitch = () => {
-        act(() => button('More for this note').click());
-        const there = document.querySelector('[aria-label="How the note is shown"]') !== null;
-        act(() => goBack());
-        return there;
+        const btn = document.querySelector<HTMLButtonElement>('header button');
+        return btn !== null && btn.getAttribute('aria-label')?.startsWith('Showing') === true && !btn.disabled;
       };
       expect(viewSwitch()).toBe(true);
       act(() => button('Play the recording').click());
@@ -1747,8 +1747,9 @@ describe('a notebook kept as a journal', () => {
 
   it('writes the keys into the Markdown when that is the view, so the next keystroke keeps them', async () => {
     show(screen(await createNote('b1', NOTEBOOK), { hasTitle: () => true, onOpenTitle: () => {} }));
+    // The view switch is the header's now: show the book's Markdown, then keep it as a journal from More.
+    act(() => button('Showing the index. Show its Markdown.').click());
     more();
-    act(() => button('Markdown').click());
     act(() => buttonSaying(document.body, 'Keep it as a journal')!.click());
     act(() => buttonSaying(document.body, 'Make it a journal')!.click());
     act(() => goBack());

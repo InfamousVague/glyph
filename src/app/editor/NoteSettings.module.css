@@ -304,8 +304,9 @@
 }
 
 /*
- * How the note is shown, when the header has no room for it, and how it looks: a row of words, the chosen one filled
- * (NoteScreen's switch). The row itself is not pressed, its words are.
+ * How the note looks - Plain, Reading, or its map (core/look.ts): a row of words, the chosen one filled. The switch
+ * between Markdown and the formatted note is the header's (editor/NoteTools.tsx); this is left for the look. The row
+ * itself is not pressed, its words are.
  */
 .row[data-choice] {
   justify-content: space-between;

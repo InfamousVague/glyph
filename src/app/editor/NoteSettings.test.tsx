@@ -51,16 +51,12 @@ describe('the More sheet', () => {
   });
 
   it('shows Reading it only where it has a row, and each row does its one thing', () => {
+    // The Markdown/Formatted switch is the header's now (editor/NoteTools.tsx); the sheet keeps Find and the look.
     show(<NoteSettings {...sheet()} />);
     expect(document.body.textContent).not.toContain('Reading it');
     const onFind = vi.fn();
-    const onView = vi.fn();
-    rerender(<NoteSettings {...sheet({ onFind, view: 'mixed', onView })} />);
+    rerender(<NoteSettings {...sheet({ onFind })} />);
     expect(document.body.textContent).toContain('Reading it');
-    const markdown = document.querySelector('[role="radio"][aria-checked="true"]');
-    expect(markdown?.textContent).toBe('Markdown');
-    act(() => button('Formatted').click());
-    expect(onView).toHaveBeenCalledWith('formatted');
     act(() => button('Find and replace').click());
     expect(onFind).toHaveBeenCalledTimes(1);
   });
