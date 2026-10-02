@@ -191,10 +191,6 @@ from a list of ideas.
   counters and anchor), one per note. The note opens there; the header's bookmark button moves it to the line being
   read, or takes it off that line. Drawn as a small ribbon. (`src/app/editor/bookmarkLine.ts`)
 - **Tapping a box.** `- [ ]` and `- [x]` tick and clear on a tap of the box itself. (`src/app/editor/taskToggle.ts`)
-- **Boxes drawn as controls.** A to-do's `[ ]` and `[x]` are drawn as a large checkbox, a choice's `( )` and `(x)` as
-  a radio, over their own three characters, which stay in the line in the monospace face and keep its space: nothing
-  beside them moves, and a wrapped item still hangs under its words. With the caret inside the brackets they show as
-  typed. Not in code. (`src/app/editor/boxControls.ts`, DESIGN §166)
 - **Fields on a to-do — `- [ ] Fix the login loop @sam #bug ⏫ 📅 2026-10-03`.** Added 2026-09-30 (DESIGN §156, §158).
   Obsidian Tasks' own signs, so the line is a task with a due date there too: `📅` due, `🛫` start, `⏳` scheduled,
   `✅` done, `➕` created and `❌` cancelled, each followed by an ISO day; `🔺 ⏫ 🔼 🔽 ⏬` for highest to lowest

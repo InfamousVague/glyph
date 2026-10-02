@@ -9165,3 +9165,21 @@ browser's zip. The whole Tauri crate type-checks and passes clippy on Linux (des
 Kotlin are not compiled here, with no Android SDK in this container.
 
 Cites: §141, §157, §163.
+
+## 168. Back to the characters: `[ ]` and `( )` as typed, still tapped (2026-10-02)
+
+Matt, after living with §166: "Go back to making the checkboxes and radios actual symbols and stuff the checkboxes look
+good but they're hard to interact with and I think the plain text but interact able is better". The drawn checkbox and
+radio are gone (editor/boxControls.ts and its test are deleted, and the editor no longer loads them). A to-do's box is
+its characters again, `[ ]` and `[x]` in the accent and the monospace face (markdown.module.css `.taskMarker`), and a
+choice's `( )` and `(x)` the same (choices.ts), as they were before §166.
+
+Nothing about the tap changed, because it never belonged to the drawing: a tap on the three characters, or within a
+thumb's slop of them, still ticks a box or picks a choice (taskToggle.ts, choices.ts, boxTaps.ts), and the caret goes
+into the brackets like any other characters, which is what the drawn control made hard: it had to give way to the
+characters before they could be touched, and as one widget (§166's second form) it had no inside for the caret at
+all.
+
+§166 stays as the record of what was tried, and why it went.
+
+Cites: §166.
