@@ -27,8 +27,8 @@ import { host } from './manifest.ts';
  * commands and two keys in the manifest are all it can reach.
  */
 
-// The live server serves this under /glyph/api (the bare /api binary is not deployed yet); matches core/account/api.ts.
-const API = 'https://ghostmarkdown.com/glyph/api/notion';
+// The API lives at /api now (the /glyph/api base still works via the server's compat strip); matches core/account/api.ts.
+const API = 'https://ghostmarkdown.com/api/notion';
 const LINKS_KEY = 'glyph-notion-links';
 const SIGN_IN_KEY = 'glyph-notion-signin';
 
