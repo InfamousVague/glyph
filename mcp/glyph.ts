@@ -1,7 +1,9 @@
 import type { SignedIn } from '../src/app/core/account/account.ts';
+import { notYet } from '../src/app/core/account/notYet.ts';
 import { failureText } from '../src/app/core/failure.ts';
-import { randomId } from '../src/app/core/ids.ts';
+import { randomId, shortId } from '../src/app/core/ids.ts';
 import { imageNames } from '../src/app/core/imageRefs.ts';
+import type { Details, DetailsOf, SelfKind } from '../src/app/core/notifications/kinds.ts';
 import { noteTitle } from '../src/app/core/noteTitle.ts';
 import type { Note } from '../src/app/core/store.ts';
 import { derive, fromBase64Url, open, passwordSalt, ROUNDS, seal, toBase64Url, unwrap } from '../src/app/core/sync/crypto.ts';
@@ -20,6 +22,13 @@ import type { FeedItem, NotePayload } from '../src/app/core/sync/notes.ts';
  * and the same `base` on every write - and it never overwrites what it has not read: a write another device beat is
  * refused by the service, and comes back here as a `Conflict` carrying that device's note. A note is never lost to a
  * race, which is the rule the app lives by too.
+ *
+ * What Claude wrote is told to the account as well (docs/TEAMS.md; Matt: "wire up existing features to notifications
+ * where it makes sense so that we see things like claude creating a new note or making edits"): after a write lands,
+ * `postNotification` seals a notification under the same account key, as the app seals its own
+ * (core/notifications/record.ts), and posts it. Best effort, every time: a notification that does not land - a
+ * service from before the route, a limit, a bad answer - is a line on stderr and nothing else, since the note was
+ * written and that is what the tool answers about.
  */
 
 export interface StoredSession {
@@ -324,5 +333,24 @@ export class GlyphAccount {
     // on some device, is then fetched by every other one (app core/sync/notes.ts), and one the words dropped goes.
     const images = imageNames(note.body);
     return this.write({ rev: current.rev, note, recording: current.recording, images }, current.rev);
+  }
+
+  /**
+   * One notification of what was just written, to the account's own feed: `{ kind, ...details }` sealed under the
+   * account key as `notification:<id>` - the id a short one, as the service asks (core/ids.ts `shortId`) - and posted
+   * as the app posts its own (core/notifications/feed.ts `postSelfRow`; the service takes the same id twice as once).
+   * Never throws: the write it tells of has landed, so a post that does not is written to stderr as a `glyph-mcp:`
+   * line, one per failure, and the tool's answer is unchanged. A service without the route yet (docs/TEAMS.md,
+   * "Not yet") says so in that line rather than reading as a fault.
+   */
+  async postNotification<K extends SelfKind>(kind: K, details: DetailsOf<K>): Promise<void> {
+    const id = shortId();
+    try {
+      const payload = { kind, ...details } as Details;
+      const blob = await seal(await this.accountKey(), payload, `notification:${id}`);
+      await this.call<{ rev: number }>('POST', 'notifications', { id, kind, blob });
+    } catch (failure) {
+      process.stderr.write(`glyph-mcp: ${notYet(failure) ? `the sync service has no notifications yet; ${kind} not told` : `the ${kind} notification was not posted: ${failureText(failure)}`}\n`);
+    }
   }
 }

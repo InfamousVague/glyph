@@ -1,6 +1,7 @@
 // @vitest-environment node
-import { describe, expect, it } from 'vitest';
-import { aNote, connected, WRITTEN } from './testKit.ts';
+import { describe, expect, it, vi } from 'vitest';
+import { lineDiff } from './server.ts';
+import { aNote, connected, told, WRITTEN } from './testKit.ts';
 
 /**
  * The tools themselves, called as Claude calls them, against an account on the sync service in memory: what each
@@ -408,5 +409,140 @@ describe('the Claude rules note', () => {
     expect(after).toContain('- Always use British spelling\n- Write dates as YYYY-MM-DD');
     const titles = (JSON.parse((await call('list_notes')).text) as { notes: { title: string }[] }).notes.map((n) => n.title);
     expect(titles.filter((t) => t === 'Claude rules').length).toBe(1);
+  });
+});
+
+describe('what the account is told of Claude’s writes (docs/TEAMS.md)', () => {
+  it('tells of a note made, as a sealed notification with a short id, naming the note and who wrote it', async () => {
+    const { service, call } = await connected();
+    const made = JSON.parse((await call('create_note', { title: 'Packing', body: '- tent' })).text) as { created: { id: string } };
+    const rows = await told(service);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.id).toMatch(/^[A-Za-z0-9_-]{22}$/);
+    expect(rows[0]!.kind).toBe('note-created');
+    expect(rows[0]!.details).toEqual({ kind: 'note-created', noteId: made.created.id, title: 'Packing', by: 'Claude' });
+    // The row the service keeps is the plaintext kind and the seal, nothing of the note in the clear.
+    const kept = service.feed.get(rows[0]!.id)!;
+    expect(kept.kind).toBe('note-created');
+    expect(JSON.stringify(kept)).not.toContain('Packing');
+    // A name Claude gives rides as the writer.
+    await call('create_note', { body: '# Mine\n\nWords.', author: 'Sonnet' });
+    expect((await told(service))[1]!.details).toMatchObject({ kind: 'note-created', title: 'Mine', by: 'Sonnet' });
+  });
+
+  it('tells of a rewrite as a line diff, with the first changed line and where the note screen lands on it', async () => {
+    const { service, call } = await connected();
+    await service.deviceWrites(aNote('a', '---\nauthors: matt, Ada\n---\n# Plan\n\nOld words.\nKept.'));
+    await call('update_note', { id: 'a', body: '# Plan\n\nNew words.\nKept.\nAnd more.' });
+    const [edited] = await told(service);
+    // The authors line Claude added is its signature, not an edit; the words are counted, and `at` is a line of the
+    // body as written, front matter included: `---`, `authors`, `---`, `# Plan`, blank, then the changed line.
+    expect(edited!.details).toEqual({ kind: 'note-edited', noteId: 'a', title: 'Plan', by: 'Claude', added: 3, removed: 2, first: 'New words.', at: 'line:6' });
+  });
+
+  it('counts a change in a ticket’s front matter as the edit it is', async () => {
+    const { service, call } = await connected();
+    await service.deviceWrites(aNote('t', '---\ntype: ticket\nid: GHO-12\nstatus: In progress\n---\n# Fix the login loop\n'));
+    await call('update_note', { id: 't', body: '---\ntype: ticket\nid: GHO-12\nstatus: Done\n---\n# Fix the login loop\n' });
+    expect((await told(service))[0]!.details).toMatchObject({ kind: 'note-edited', added: 1, removed: 1, first: 'status: Done', at: 'line:4' });
+  });
+
+  it('tells of words added, with how many lines and the first, and of a journal entry with its journal', async () => {
+    const { service, call } = await connected();
+    await service.deviceWrites(aNote('a', '# Trip\n\n- [ ] Book the cabin'));
+    await call('append_to_note', { id: 'a', text: 'pack the charger', as: 'task' });
+    await service.deviceWrites(aNote('j', '---\ntitle: "Diary"\nbook: true\njournal: true\n---\n# Diary\n'));
+    const entry = JSON.parse((await call('add_journal_entry', { journal: 'Diary', text: 'Walked along the river.\nThen home.', at: '2026-09-28T14:05' })).text) as { created: { id: string } };
+    const rows = await told(service);
+    expect(rows.map((r) => r.kind)).toEqual(['note-appended', 'journal-entry']);
+    expect(rows[0]!.details).toEqual({ kind: 'note-appended', noteId: 'a', title: 'Trip', by: 'Claude', lines: 1, first: '- [ ] Pack the charger' });
+    expect(rows[1]!.details).toEqual({ kind: 'journal-entry', noteId: entry.created.id, title: '2026-09-28 14.05', by: 'Claude', journal: 'Diary', first: 'Walked along the river.' });
+  });
+
+  it('tells of the rules note once, when it is made, and of each rule added', async () => {
+    const { service, call } = await connected();
+    await call('get_rules');
+    await call('get_rules');
+    const added = JSON.parse((await call('add_rule', { rule: 'Always  use   British spelling' })).text) as { note: { id: string } };
+    const rows = await told(service);
+    expect(rows.map((r) => r.kind)).toEqual(['note-created', 'rule-added']);
+    expect(rows[0]!.details).toEqual({ kind: 'note-created', noteId: added.note.id, title: 'Claude rules', by: 'Claude' });
+    expect(rows[1]!.details).toEqual({ kind: 'rule-added', noteId: added.note.id, title: 'Claude rules', by: 'Claude', first: 'Always use British spelling' });
+  });
+
+  it('tells of nothing when another device got to the note first', async () => {
+    let before: (() => Promise<void>) | null = null;
+    const { service, call } = await connected({
+      hooks: {
+        fetcher: (service) => async (input, init) => {
+          if (init?.method === 'PUT' && before) {
+            const step = before;
+            before = null;
+            await step();
+          }
+          return service.fetcher(input, init);
+        },
+      },
+    });
+    await service.deviceWrites(aNote('a', '# Plan\n\nMine.'));
+    before = async () => {
+      await service.deviceWrites(aNote('a', '# Plan\n\nThe phone’s.'));
+    };
+    expect((await call('update_note', { id: 'a', body: '# Plan\n\nClaude’s.' })).isError).toBe(true);
+    expect(await told(service)).toEqual([]);
+  });
+
+  it('still answers for the write when the notification cannot be posted, saying so on stderr only', async () => {
+    let answer: { status: number; body: string } | null = null;
+    const { service, call } = await connected({
+      hooks: {
+        fetcher: (service) => async (input, init) => {
+          if (answer && init?.method === 'POST' && String(input).endsWith('/v1/notifications')) return new Response(answer.body, { status: answer.status, headers: { 'Content-Type': 'application/json' } });
+          return service.fetcher(input, init);
+        },
+      },
+    });
+    const said = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    try {
+      answer = { status: 500, body: '{"error":"That could not be stored."}' };
+      const made = JSON.parse((await call('create_note', { title: 'Packing', body: '- tent' })).text) as { created: { id: string; title: string } };
+      expect(made.created.title).toBe('Packing');
+      expect((await service.stored(made.created.id))?.note.body).toContain('# Packing');
+      // A service from before the route (docs/TEAMS.md, "Not yet") reads as that, not as a fault.
+      answer = { status: 404, body: '{"error":"no such route"}' };
+      expect(JSON.parse((await call('append_to_note', { id: made.created.id, text: 'stove', as: 'item' })).text)).toMatchObject({ added: ['- Stove'] });
+      expect(await told(service)).toEqual([]);
+      expect(said.mock.calls.map((c) => String(c[0]))).toEqual([
+        'glyph-mcp: the note-created notification was not posted: That could not be stored.\n',
+        'glyph-mcp: the sync service has no notifications yet; note-appended not told\n',
+      ]);
+    } finally {
+      said.mockRestore();
+    }
+  });
+
+  it('names Claude as the writer when the connection gave no name to go on', async () => {
+    const { service, call } = await connected({ clientName: '' });
+    await call('create_note', { title: 'Packing', body: '- tent' });
+    expect((await told(service))[0]!.details).toMatchObject({ by: 'Claude' });
+    // The note itself names nobody then, as before: the notification's fallback is its own.
+    const id = (await told(service))[0]!.details.noteId;
+    expect((await service.stored(id))?.note.body).toBe('# Packing\n\n- tent');
+  });
+});
+
+describe('a rewrite as a line diff', () => {
+  it('leaves the shared top and bottom out, picks the first telling line, and places it in the written body', () => {
+    expect(lineDiff('a\nb\nc', 'a\nB\nc')).toEqual({ added: 1, removed: 1, first: 'B', at: 'line:2' });
+    expect(lineDiff('a\nb', 'a\nb\n\nc')).toEqual({ added: 2, removed: 0, first: 'c', at: 'line:4' });
+    // Nothing added: the first removed line is named, and the landing is where it was, now the next line.
+    expect(lineDiff('a\nb\nc', 'a\nc')).toEqual({ added: 0, removed: 1, first: 'b', at: 'line:2' });
+    expect(lineDiff('a\nb', 'a')).toEqual({ added: 0, removed: 1, first: 'b', at: 'line:1' });
+    expect(lineDiff('a', 'a')).toEqual({ added: 0, removed: 0, first: '', at: 'line:1' });
+    // The signature is not an edit, whether it made the block or joined one; a line after it is placed past it.
+    expect(lineDiff('# Plan\n\nOld.', '---\nauthors: matt, Claude\n---\n# Plan\n\nNew.')).toEqual({ added: 1, removed: 1, first: 'New.', at: 'line:6' });
+    expect(lineDiff('---\nlook: reading\n---\n# Plan\n\nOld.', '---\nlook: reading\nauthors: matt, Claude\n---\n# Plan\n\nNew.')).toEqual({ added: 1, removed: 1, first: 'New.', at: 'line:7' });
+    // A long line is cut to what a notification carries.
+    expect(lineDiff('', 'x'.repeat(200)).first).toHaveLength(120);
   });
 });

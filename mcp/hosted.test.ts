@@ -8,7 +8,7 @@ import { toBase64Url } from '../src/app/core/sync/crypto.ts';
 import { fakeService, FAST } from '../src/test/fakeService.ts';
 import { freePort } from './freePort.ts';
 import { hostedApp } from './hosted.ts';
-import { aNote, asText, ClaudeMemory, completeSignIn, playSignInPage, readSignInPage } from './testKit.ts';
+import { aNote, asText, ClaudeMemory, completeSignIn, playSignInPage, readSignInPage, told } from './testKit.ts';
 
 /**
  * The hosted server, connected to as Claude connects: the client library's own OAuth flow (discovery from the 401,
@@ -123,6 +123,16 @@ describe('Claude connecting to the hosted server', () => {
     // Written with Claude, so Claude is among its authors, after the account's own (core/authors.ts): the name its app
     // connected with, remembered from the connect though each request comes to a fresh server.
     expect((await service.stored('n1'))?.note.body).toBe('---\nauthors: matt, Claude\n---\n# Groceries\n\nWe need:\n- eggs\n- milk\n- Bread');
+    // And the account is told of both writes (docs/TEAMS.md), sealed under the key the page handed over, with that
+    // remembered name as the writer: the rules note made on connect, then the words added.
+    const rows = await told(service);
+    expect(rows.map((r) => [r.kind, r.details.kind])).toEqual([
+      ['note-created', 'note-created'],
+      ['note-appended', 'note-appended'],
+    ]);
+    expect(rows[0]!.details).toMatchObject({ title: 'Claude rules', by: 'Claude' });
+    expect(rows[1]!.details).toEqual({ kind: 'note-appended', noteId: 'n1', title: 'Groceries', by: 'Claude', lines: 1, first: '- Bread' });
+    expect(rows.every((r) => /^[A-Za-z0-9_-]{22}$/.test(r.id))).toBe(true);
 
     // An hour on, the access token has run out: the library refreshes it by itself and carries on.
     clock.now += 61 * 60 * 1000;
