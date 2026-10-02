@@ -326,9 +326,37 @@ pub const NOT_THE_FILE: &str = "That isn’t the file the picker made.";
 /// A descriptor Android's picker opened on the file it made, as a file this process owns; or why it is not one to
 /// write to (export_commands.rs `export_fd`). Taken only when it is a new, empty, plain file outside the app's own
 /// storage (`own`): a number passed by mistake, which named the index or a recording or a pipe of the WebView's, is
-/// refused and left open, never written over or closed. Unix only, which Android is; Linux has the same
-/// `/proc/self/fd`, so the tests run anywhere.
+/// refused and left open, never written over or closed. Unix only, which Android is; the descriptor's path is
+/// resolved per platform (`fd_path`), so the tests run on the phone and the dev machine alike.
 #[cfg(unix)]
+/// The path a descriptor points at, so `adopt_descriptor` can check where it is and its tests run on both the phone
+/// and the dev machine: `/proc/self/fd` on Linux and Android, `F_GETPATH` on macOS. Elsewhere there is no portable
+/// way, so a descriptor cannot be adopted.
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn fd_path(fd: i32) -> Option<PathBuf> {
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    {
+        std::fs::read_link(format!("/proc/self/fd/{fd}")).ok()
+    }
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::unix::ffi::OsStringExt;
+        let mut buf = vec![0u8; libc::PATH_MAX as usize];
+        // F_GETPATH writes the descriptor's path into a PATH_MAX buffer, NUL-terminated.
+        if unsafe { libc::fcntl(fd, libc::F_GETPATH, buf.as_mut_ptr().cast::<libc::c_char>()) } == -1 {
+            return None;
+        }
+        let len = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+        buf.truncate(len);
+        Some(PathBuf::from(std::ffi::OsString::from_vec(buf)))
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "android", target_os = "macos")))]
+    {
+        let _ = fd;
+        None
+    }
+}
+
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]
 pub fn adopt_descriptor(fd: i32, own: &[PathBuf]) -> Result<std::fs::File, String> {
     use std::mem::ManuallyDrop;
@@ -336,8 +364,8 @@ pub fn adopt_descriptor(fd: i32, own: &[PathBuf]) -> Result<std::fs::File, Strin
     if fd < 3 {
         return Err(NOT_THE_FILE.into());
     }
-    // `/proc/self/fd` first: a number that names nothing is refused before anything is made of it.
-    let target = std::fs::read_link(format!("/proc/self/fd/{fd}")).map_err(|_| NOT_THE_FILE.to_string())?;
+    // The path the descriptor points at first: a number that names nothing is refused before anything is made of it.
+    let target = fd_path(fd).ok_or_else(|| NOT_THE_FILE.to_string())?;
     // Looked at without being owned: dropping this closes nothing.
     let peek = ManuallyDrop::new(unsafe { std::fs::File::from_raw_fd(fd) });
     let meta = peek.metadata().map_err(|_| NOT_THE_FILE.to_string())?;
