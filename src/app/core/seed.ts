@@ -3,16 +3,17 @@ import { boardNoteBody } from './boardNote.ts';
 import { howCanvasBody } from '../canvas/howCanvas.ts';
 import { sampleCanvasBody } from '../canvas/sampleCanvas.ts';
 import { sampleImageBlob, sampleNoteBody } from './sampleNote.ts';
+import { exampleJournal, exampleNotebookBody, exampleTicketBodies, todayFor } from './starterNotes.ts';
 import { storedFlag } from './stored.ts';
 import { createNote, newNoteId, type Note } from './store.ts';
 
 /**
- * The sample note's arrival (core/sampleNote.ts). A fresh library, with no
- * notes in it, gets it once, so the first thing a new person opens shows
- * every mark the app draws; a library that already has notes is left alone
- * and marked done, so an update never drops a note on someone. Settings >
- * About adds one on request at any time, which is how Matt sees it on a phone
- * full of notes.
+ * The starter notes' arrival. A fresh library, with no notes in it, gets them once: the sample note with every mark
+ * the app draws (core/sampleNote.ts), the example board (core/boardNote.ts), a notebook of three example tickets and a
+ * journal with its first entry (core/starterNotes.ts; docs/DESIGN.md §172; Matt: "pre populate new accounts with an
+ * example board, example tickets (3) example journal and an example with all the formatting"). A library that already
+ * has notes is left alone and marked done, so an update never drops a note on someone. Settings > About > Examples adds
+ * the sample note and the board on request at any time, which is how Matt sees them on a phone full of notes.
  *
  * The mark is a key in localStorage, the way the guide's is, and a reset
  * clears it with the rest (core/reset.ts).
@@ -63,15 +64,28 @@ export async function addHowCanvas(): Promise<Note> {
 }
 
 /**
- * The sample note for a fresh library only: made when the library holds
- * `noteCount` of nothing and it has never been made; a library with notes
- * is marked done and left as it is. Answers the note made, or null.
+ * The examples a fresh library starts with, beside the sample note: the three tickets and their notebook, the board,
+ * and the journal's entry and then the journal, so the journal's index names a note that is there. Made oldest first,
+ * so the sample note, made after them, is the newest and leads Recent.
+ */
+async function addStarterExamples(now: Date = new Date()): Promise<void> {
+  for (const ticket of exampleTicketBodies(todayFor(now))) await createNote(newNoteId(), ticket.body, 'editor');
+  await createNote(newNoteId(), exampleNotebookBody(), 'editor');
+  await addBoardNote();
+  const journal = exampleJournal(now);
+  await createNote(newNoteId(), journal.entry, 'editor');
+  await createNote(newNoteId(), journal.journal, 'editor');
+}
+
+/**
+ * The starter notes for a fresh library only: made when the library holds `noteCount` of nothing and they have never
+ * been made; a library with notes is marked done and left as it is. Marked done before anything is made, so a second
+ * pass while the first is writing makes nothing twice. Answers the sample note, made last, or null.
  */
 export async function seedSampleNote(noteCount: number): Promise<Note | null> {
   if (sampleNoteSeeded()) return null;
-  if (noteCount > 0) {
-    markSeeded();
-    return null;
-  }
+  markSeeded();
+  if (noteCount > 0) return null;
+  await addStarterExamples();
   return addSampleNote();
 }

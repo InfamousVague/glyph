@@ -19,6 +19,7 @@ import { isTicket } from '../core/properties.ts';
 import { PullToRefresh } from '../notes/PullToRefresh.tsx';
 import { SwipeRow } from '../notes/SwipeRow.tsx';
 import { isNoteSwipe, noteSwipes, type NoteSwipe } from '../notes/swipe.ts';
+import { onNoteContextMenu } from '../notes/noteMenu.ts';
 import { when } from '../notes/when.ts';
 import { WorkspaceSheet } from '../notes/WorkspaceSheet.tsx';
 import { UpdateNotice, VoiceModelStatus } from '../notes/Notices.tsx';
@@ -355,7 +356,7 @@ function HomeRow({
             : 'No cards yet'
           : firstLine(note.body);
   return (
-    <li className={look.rowItem} style={{ '--i': Math.min(index, 12) } as CSSProperties}>
+    <li className={look.rowItem} style={{ '--i': Math.min(index, 12) } as CSSProperties} onContextMenu={onNoteContextMenu(note.id)}>
       <Swiped swipe={swipe}>
         <button type="button" className={look.row} onClick={() => onOpen(note.id)}>
           <KindMark kind={kind} />
@@ -388,7 +389,7 @@ function HomeLine({ note, index, onOpen, bookName, notebook, live = false, swipe
   const title = noteTitle(note.body);
   const kind = live ? 'tape' : kindOf(note);
   return (
-    <li className={look.rowItem} style={{ '--i': Math.min(index, 12) } as CSSProperties}>
+    <li className={look.rowItem} style={{ '--i': Math.min(index, 12) } as CSSProperties} onContextMenu={onNoteContextMenu(note.id)}>
       <Swiped swipe={swipe} compact>
         <button type="button" className={look.line} onClick={() => onOpen(note.id)}>
           <KindMark kind={kind} />
@@ -409,7 +410,7 @@ function HomeLine({ note, index, onOpen, bookName, notebook, live = false, swipe
 function BookCover({ book, index, onOpen, count, journal }: { book: Note; index: number; onOpen: (id: string) => void; count: number; journal: boolean }) {
   const title = noteTitle(book.body) || 'Untitled notebook';
   return (
-    <li className={look.coverItem} style={{ '--i': Math.min(index, 8) } as CSSProperties}>
+    <li className={look.coverItem} style={{ '--i': Math.min(index, 8) } as CSSProperties} onContextMenu={onNoteContextMenu(book.id)}>
       <button type="button" className={look.cover} data-journal={journal || undefined} onClick={() => onOpen(book.id)}>
         <span className={look.coverSpine} aria-hidden="true" />
         <span className={look.coverTitle}>{title}</span>

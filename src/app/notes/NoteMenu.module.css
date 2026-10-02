@@ -1,0 +1,14 @@
+/*
+ * Delete in a note's menu and a tab's (notes/NoteMenu.tsx, notes/TabMenus.tsx), in the one red the app has. The kit's
+ * MenuItem paints `data-danger` with its danger text, which this app's ink leaves near white, so the row and its icon
+ * are given the red here, past the kit's own rule.
+ */
+.danger[data-danger],
+.danger[data-danger] svg {
+  color: var(--glacier-red-11);
+}
+
+.danger[data-danger]:hover,
+.danger[data-danger]:focus-visible {
+  background: color-mix(in srgb, var(--glacier-red-9) 14%, transparent);
+}

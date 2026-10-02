@@ -10,6 +10,7 @@ import { BookPlaceMark } from './BookPlaceMark.tsx';
 import { NotePeek } from './NotePeek.tsx';
 import { WorkspaceSheet } from './WorkspaceSheet.tsx';
 import { ARCHIVE_FOLDER, noteTree, readClosed, readCompact, readTrashOpen, writeClosed, writeCompact, writeTrashOpen } from './tree.ts';
+import { onNoteContextMenu } from './noteMenu.ts';
 import styles from './NoteTree.module.css';
 
 /**
@@ -124,7 +125,7 @@ export function NoteTree({
     const title = noteTitle(note.body);
     const place = placeOf(inBooks, note);
     return (
-      <li key={note.id}>
+      <li key={note.id} onContextMenu={onNoteContextMenu(note.id)}>
         <button
           type="button"
           className={styles.row}

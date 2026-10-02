@@ -3,6 +3,7 @@ import { capitalise } from '../core/text.ts';
 import { WORKSPACE_HUES } from '../core/workspaces.ts';
 import { joinGroup, leaveGroup, membersOf, recolourGroup, ungroup, type TabGroup, type TabGroups } from './tabGroups.ts';
 import styles from './NoteTabs.module.css';
+import menu from './NoteMenu.module.css';
 
 /**
  * The two menus of the tab row (notes/NoteTabs.tsx): a tab's, and a group chip's. A mouse opens either with a
@@ -14,7 +15,7 @@ import styles from './NoteTabs.module.css';
  * more place for them to drift.
  */
 
-/** What a tab's menu does: rename a canvas or a book, group it, take it out of its group, close it. */
+/** What a tab's menu does: rename a canvas or a book, group it, take it out of its group, close it, delete its note. */
 export function TabMenu({
   noteId,
   title,
@@ -24,6 +25,7 @@ export function TabMenu({
   onNewGroup,
   onGroups,
   onCloseTab,
+  onDeleteNote,
 }: {
   noteId: string;
   title: string;
@@ -34,6 +36,8 @@ export function TabMenu({
   onNewGroup: () => void;
   onGroups: (next: TabGroups) => void;
   onCloseTab: () => void;
+  /** The tab's note to the Trash, with an Undo; absent, the menu has no Delete. */
+  onDeleteNote?: () => void;
 }) {
   const groupId = groups.of[noteId];
   const others = groups.list.filter((g) => g.id !== groupId);
@@ -53,6 +57,11 @@ export function TabMenu({
       {groupId ? <MenuItem onSelect={() => onGroups(leaveGroup(groups, noteId))}>Remove from group</MenuItem> : null}
       <MenuSeparator />
       <MenuItem onSelect={onCloseTab}>Close tab</MenuItem>
+      {onDeleteNote ? (
+        <MenuItem danger className={menu.danger} onSelect={onDeleteNote}>
+          Delete note
+        </MenuItem>
+      ) : null}
     </Menu>
   );
 }

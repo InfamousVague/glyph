@@ -9233,3 +9233,41 @@ status in words as before.
 Measured in the preview at 1280, 820 and 412 wide: a table's In progress picked as Done wrote `status: Done` into
 GHO-1 and its board followed; an index's To do picked as In progress wrote `status: In progress` into GHO-2.
 
+## 172. A new library's examples, and a note's menu on a right-click (2026-10-02)
+
+(§170 and §171 are kept for notifications and organizations, landing from another branch.)
+
+Matt: "Please pre populate new accounts with an example board, example tickets (3) example journal and an example with
+all the formatting, add context menus so i can right click on desktop to delete a note".
+
+**The starter notes.** A fresh library got one note, the sample with every mark the app draws (core/sampleNote.ts). It
+now gets eight, once, the same way and under the same mark (core/seed.ts `seedSampleNote`, the `glyph-sample-note`
+flag), so a library that already has notes is never given any:
+
+- the example board, Launch week (core/boardNote.ts);
+- a notebook, Example project, with the ticket key EX, and its three tickets (core/starterNotes.ts): EX-1 Plan the
+  first release, Done; EX-2 Fix the sign-in loop, In progress, Sam's, highest, due in two days; EX-3 Write the welcome
+  page, To do, due in a week, blocked by EX-2, so its lock shows. One in each kind of status, so the index's pills
+  (§169) show all three colours, and each with a short paragraph and its to-dos;
+- a journal, Journal, with its first entry named by the minute it was made, filled from the journal's default
+  template, as New entry fills one (App.tsx);
+- the sample note, made last so it is the newest and leads Recent.
+
+Each is written by the functions the app uses when a person makes one (`bookNoteBody`, `withNotebookKey`,
+`newTicketBody`, `journalNoteBody`, `withEntry`, `entryBody`, `fillTemplate`), so they open, change and sync as
+anything made by hand, and deleting one takes nothing else with it. The mark is now set before anything is made, so a
+second pass while the first is still writing makes nothing twice.
+
+**A note's menu.** A mouse's right-click on a note's card (notes/NoteCard.tsx, the home page's grids and All notes), a
+home page row, line or notebook cover (home/HomeScreen.tsx) and a sidebar row (notes/NoteTree.tsx) opens a menu at the
+pointer (notes/NoteMenu.tsx): Open, Pin or Unpin, Archive or Unarchive, and Delete in the danger tone. Each does what
+the card's swipe does (§151) through the same actions: Delete closes the note's tab and puts it in the Trash with an
+Undo (notes/useNoteActions.ts), so a right-click is never a way to lose a note. The tab row's own menu (notes/
+TabMenus.tsx) gains Delete note, the same delete.
+
+One menu for the app, mounted once by App.tsx, and opened through a small store (notes/noteMenu.ts): a list only says
+which note and where the pointer was. Drawn with the kit's Menu, as the tab menus are, hung from a point of no size
+where the pointer was, in a layer on the body. Not the kit's ContextMenu, which also opens on a touch's long press: on a
+phone that press is a card's swipe and a tab's drag, so only a mouse opens this menu (`byMouse`: the event's
+`pointerType`, or, where a WebView does not say, a screen whose pointer is fine and can hover).
+

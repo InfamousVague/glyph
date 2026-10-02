@@ -18,7 +18,9 @@ vi.mock('./images.ts', async (importOriginal) => ({
 }));
 
 const { addCanvasNote, seedSampleNote, sampleNoteSeeded } = await import('./seed.ts');
-const { listNotes } = await import('./store.ts');
+const { listNotes, noteTitle } = await import('./store.ts');
+const { isTicket, ticketIdOf } = await import('./properties.ts');
+const { chaptersOf, isJournalBody } = await import('../book/book.ts');
 
 beforeEach(() => {
   localStorage.clear();
@@ -32,7 +34,22 @@ describe('the sample note', () => {
     expect(note?.body).toContain('(image/smoke.jpg)');
     expect(sampleNoteSeeded()).toBe(true);
     expect(await seedSampleNote(0)).toBeNull();
-    expect(await listNotes()).toHaveLength(1);
+    // With the starter examples (core/starterNotes.ts): three tickets, their notebook, the board, a journal and its entry.
+    expect(await listNotes()).toHaveLength(8);
+  });
+
+  it('brings the starter examples with it, the sample note newest so it leads Recent (docs/DESIGN.md §172)', async () => {
+    const note = await seedSampleNote(0);
+    const notes = await listNotes();
+    const titles = notes.map((n) => noteTitle(n.body));
+    expect(titles[0]).toBe(noteTitle(note!.body));
+    for (const title of ['Example project', 'Plan the first release', 'Fix the sign-in loop', 'Write the welcome page', 'Launch week', 'Journal']) expect(titles).toContain(title);
+    const tickets = notes.filter((n) => isTicket(n.body));
+    expect(tickets.map((n) => ticketIdOf(n.body)).sort()).toEqual(['EX-1', 'EX-2', 'EX-3']);
+    const journal = notes.find((n) => isJournalBody(n.body))!;
+    // The journal's one entry is a note that is there.
+    const [entry] = chaptersOf(journal.body);
+    expect(titles).toContain(entry!.title);
   });
 
   it('never arrives in a library that already has notes, and is not waiting for the day it is empty', async () => {

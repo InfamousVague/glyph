@@ -59,6 +59,7 @@ import { NewSheet } from './notes/NewSheet.tsx';
 import { chooseWorkspace, fileNewNote, fileNote, useWorkspaces, workspaceOf } from './core/workspaces.ts';
 import { holdFor, setPendingTag, tagEntryIfWanted, tagNewNotesIfWanted, willLocate } from './core/location.ts';
 import { useNoteActions } from './notes/useNoteActions.ts';
+import { NoteMenuHost } from './notes/NoteMenu.tsx';
 import { isPlace, isRecording, noteOnScreen, placeOf, type Screen } from './shell/screen.ts';
 import { useCaptureRoute } from './shell/useCaptureRoute.ts';
 import { useAppLinks } from './shell/useAppLinks.ts';
@@ -1029,6 +1030,11 @@ function Shell() {
    * A card dragged to another lane of a board, in a note that is not the one on screen: its grouped field set to the
    * lane's value, or cleared (core/query/move.ts), and the notes read again. A line or note gone is left alone.
    */
+  /** A note deleted from its menu (notes/NoteMenu.tsx) or its tab's: its tab closed, and into the Trash with an Undo, as a swipe deletes. */
+  const deleteFromMenu = (note: Note) => {
+    tabs.drop(note.id);
+    actions.remove(note);
+  };
   const moveFromQuery = async (id: string, line: number, source: string, kind: RecordKind, field: string, value: string | null) => {
     const note = await getNote(id);
     const next = note ? movedBody(note.body, line, source, kind, field, value) : null;
@@ -1235,9 +1241,24 @@ function Shell() {
             canGoBack={walk.canBack}
             canGoOn={walk.canOn}
             onRename={renameNote}
+            onDelete={(id) => {
+              const note = notes.find((each) => each.id === id);
+              if (note) deleteFromMenu(note);
+            }}
           />
         </div>
       ) : null}
+      {/* A note's menu at the pointer, on a mouse's right-click on its card, row or line (notes/NoteMenu.tsx). */}
+      <NoteMenuHost
+        notes={notes}
+        onOpen={(note) => openNoteWhereLeft(note.id)}
+        onPin={(note) => actions.pin(note)}
+        onArchive={(note, archived) => {
+          if (archived) tabs.drop(note.id);
+          actions.archive(note, archived);
+        }}
+        onDelete={deleteFromMenu}
+      />
       {/* The wisp edge's filter, for every view that scrolls under a header (art/wispEdge.ts). */}
       <WispEdgeFilter />
       {screen.name === 'capture' ? (

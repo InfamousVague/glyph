@@ -17,6 +17,7 @@ import { SwipeRow } from './SwipeRow.tsx';
 import type { SwipeAction } from './swipe.ts';
 import { when } from './when.ts';
 import styles from './NoteCard.module.css';
+import { onNoteContextMenu } from './noteMenu.ts';
 
 /**
  * A note as a card: its title, what it is about when the phone has written that (format/gist.ts), the note itself
@@ -69,7 +70,7 @@ export function NoteCard({ note, index, onOpen, gist, place, notebook, entries, 
   const part = journal ? ['entry', 'entries'] : ['page', 'pages'];
   const where = geoTagOf(note.body)?.place ?? null;
   return (
-    <li key={note.id} className={styles.item} data-dense={dense || undefined} style={{ '--i': Math.min(index, 8) } as CSSProperties}>
+    <li key={note.id} className={styles.item} data-dense={dense || undefined} style={{ '--i': Math.min(index, 8) } as CSSProperties} onContextMenu={onNoteContextMenu(note.id)}>
       <Swiped swipe={swipe}>
         <button type="button" className={styles.card} onClick={() => onOpen(note.id)}>
           <span className={styles.title} data-untitled={title ? undefined : ''}>

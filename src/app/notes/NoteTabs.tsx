@@ -38,6 +38,8 @@ interface NoteTabsProps {
   activeId: string;
   onOpen: (id: string) => void;
   onClose: (id: string) => void;
+  /** Deletes a tab's note, to the Trash with an Undo: the tab's menu's Delete note (docs/DESIGN.md §172). */
+  onDelete?: (id: string) => void;
   /** A new note in a new tab: the + at the end of the row, as a browser and Obsidian have it. */
   onNew?: () => void;
   /** Chrome-style groups over the tabs (notes/tabGroups.ts); the tabs arrive already drawn in their groups' order. */
@@ -78,6 +80,7 @@ export function NoteTabs({
   activeId,
   onOpen,
   onClose,
+  onDelete,
   onSidebar,
   sidebarOpen,
   onAside,
@@ -348,6 +351,7 @@ export function NoteTabs({
                     onNewGroup={() => startGroup(note.id)}
                     onGroups={change}
                     onCloseTab={() => onClose(note.id)}
+                    onDeleteNote={onDelete ? () => onDelete(note.id) : undefined}
                   />
                 ) : null}
               </span>,
