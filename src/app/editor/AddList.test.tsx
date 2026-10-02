@@ -520,6 +520,44 @@ describe('A database', () => {
   });
 });
 
+describe('the / command palette', () => {
+  const filter = () => document.querySelector<HTMLInputElement>('#add-list input')!;
+  const type = (text: string) => {
+    const input = filter();
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!;
+    setter.call(input, text);
+    act(() => input.dispatchEvent(new Event('input', { bubbles: true })));
+  };
+
+  it('opens straight onto a filter field and the whole flat list, steps and all', () => {
+    open({}, 'slash');
+    expect(filter().placeholder).toBe('Type to filter');
+    const all = words();
+    expect(all).toContain('A board');
+    expect(all).toContain('A database');
+    expect(all).toContain('A diagram');
+    expect(all).toContain('A formula');
+    expect(all).not.toContain('More');
+  });
+
+  it('narrows the list as the filter is typed', () => {
+    open({}, 'slash');
+    type('formula');
+    expect(words()).toEqual(['A formula']);
+    type('nothing at all');
+    expect(words()).toEqual([]);
+    expect(document.querySelector('#add-list')?.textContent).toContain('Nothing by that name.');
+  });
+
+  it('writes the match on Enter, at the caret', () => {
+    open({}, 'slash');
+    type('divider');
+    act(() => filter().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })));
+    expect(closed).toBe(1);
+    expect(view.state.doc.toString()).toContain('---');
+  });
+});
+
 describe('A note', () => {
   it('asks which, by part of its title, and writes the link where the caret was', () => {
     open();

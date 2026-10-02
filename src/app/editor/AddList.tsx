@@ -44,7 +44,7 @@ import { Locate, type StrokeIcon } from '../art/Icons.tsx';
 import { useBack } from '../core/back.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { plugins } from '../plugins/registry.ts';
-import { boardRows, databaseRows, emptyCellsAbove, linkableTitles, moreRows, readGates, topRows, writeCanvasFrame, writeNoteLink, writeRow, type AddRow, type AddRowId } from './addRows.ts';
+import { allRows, boardRows, databaseRows, emptyCellsAbove, linkableTitles, moreRows, readGates, topRows, writeCanvasFrame, writeNoteLink, writeRow, type AddRow, type AddRowId } from './addRows.ts';
 import { isBookBody } from '../book/book.ts';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { isTicket } from '../core/properties.ts';
@@ -109,7 +109,7 @@ const GAP = 6;
 const EDGE = 8;
 const CREASE_GAP = 16;
 
-type Page = 'top' | 'more' | 'board' | 'database' | 'note' | 'canvas';
+type Page = 'top' | 'all' | 'more' | 'board' | 'database' | 'note' | 'canvas';
 
 const ICONS: Partial<Record<AddRowId, StrokeIcon>> = {
   picture: ImagePlus,
@@ -177,14 +177,15 @@ const rowId = (id: string) => `add-${id.replace(/[^a-z0-9-]/gi, '-')}`;
 export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace, onVideo, titles, canvases, own }: AddListProps) {
   const card = useRef<HTMLDivElement>(null);
   const rowsBox = useRef<HTMLDivElement>(null);
-  const [page, setPage] = useState<Page>('top');
+  // `/` on an empty line opens straight onto the filterable palette of everything (editor/insertPlus.ts by 'slash').
+  const [page, setPage] = useState<Page>(opening.by === 'slash' ? 'all' : 'top');
   const [turn, setTurn] = useState<'forward' | 'back' | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [looking, setLooking] = useState('');
   const [more, setMore] = useState('');
-  // The editor keeps the focus unless the + was opened from the keyboard; a fine pointer lights the first row, so the
-  // keys have a place to start from.
-  const driven = opening.by !== 'keyboard';
+  // The editor keeps the focus unless the list took it: the keyboard on the + itself, or `/`, which focuses the
+  // palette's filter. A fine pointer lights the first row, so the keys have a place to start from.
+  const driven = opening.by !== 'keyboard' && opening.by !== 'slash';
   const [active, setActive] = useState(opening.by === 'touch' ? -1 : 0);
   // Whether a key moved the lit row last, rather than the pointer or the list opening: only then is it ringed.
   const [keyed, setKeyed] = useState(false);
@@ -220,13 +221,16 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
   const rows: (AddRow | { id: 'back'; words: string })[] =
     page === 'top'
       ? topRows(gates, now, onNamingLine(view.state))
-      : page === 'more'
-        ? [{ id: 'back', words: 'Back' }, ...moreRows(gates)]
-        : page === 'board'
-          ? [{ id: 'back', words: 'Back' }, ...boardRows()]
-          : page === 'database'
-            ? [{ id: 'back', words: 'Back' }, ...databaseRows()]
-            : [];
+      : page === 'all'
+        ? filterRows(allRows(gates, now, onNamingLine(view.state)), looking)
+        : page === 'more'
+          ? [{ id: 'back', words: 'Back' }, ...moreRows(gates)]
+          : page === 'board'
+            ? [{ id: 'back', words: 'Back' }, ...boardRows()]
+            : page === 'database'
+              ? [{ id: 'back', words: 'Back' }, ...databaseRows()]
+              : [];
+  const palette = page === 'all';
   // Where Back goes: every step page is reached from the first now (a board, a database, a note, a canvas, More).
   const back: Page = 'top';
 
@@ -290,11 +294,17 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
   // Gone from the page: the editor hears the list closed, however it closed.
   useEffect(() => () => closePlus(view), [view]);
 
-  // Opened from the keyboard, the focus is in the list: on its first row, and again on each page.
+  // Opened from the keyboard, the focus is in the list: on its first row, and again on each page. The palette keeps the
+  // focus in its filter field instead (its own autoFocus), so typing filters rather than moving the focus off it.
   useEffect(() => {
-    if (driven || page === 'note' || page === 'canvas') return;
+    if (driven || palette || page === 'note' || page === 'canvas') return;
     card.current?.querySelector<HTMLButtonElement>(`[data-index="${Math.max(0, active)}"]`)?.focus();
-  }, [driven, page, active]);
+  }, [driven, palette, page, active]);
+
+  // Filtering the palette lights its first match, so Enter takes the obvious one.
+  useEffect(() => {
+    if (palette) setActive(0);
+  }, [palette, looking]);
 
   const move = (by: number) => {
     if (!rows.length) return;
@@ -507,13 +517,13 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
         id={rowId(row.id)}
         className={styles.row}
         data-index={index}
-        data-active={(driven && index === active) || undefined}
-        tabIndex={driven ? -1 : index === Math.max(0, active) ? 0 : -1}
+        data-active={((driven || palette) && index === active) || undefined}
+        tabIndex={driven || palette ? -1 : index === Math.max(0, active) ? 0 : -1}
         aria-disabled={dimmed ? true : undefined}
         aria-label={'label' in row ? row.label : undefined}
         onClick={() => choose(row)}
         onPointerEnter={(event) => {
-          if (!driven || event.pointerType !== 'mouse') return;
+          if ((!driven && !palette) || event.pointerType !== 'mouse') return;
           setKeyed(false);
           setActive(index);
         }}
@@ -545,7 +555,7 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
       id={LIST_ID}
       role={step ? 'group' : 'menu'}
       aria-label={step ? (page === 'note' ? 'Which note?' : 'Which canvas?') : 'Add to this note'}
-      data-keys={(driven && keyed) || undefined}
+      data-keys={(driven && keyed) || palette || undefined}
       // A press on the list must not take the editor's focus or its caret, for a mouse as for a finger.
       onPointerDown={(event) => {
         if (!(event.target instanceof HTMLInputElement)) event.preventDefault();
@@ -603,6 +613,33 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
                 ) : null}
               </ul>
             </>
+          ) : palette ? (
+            <>
+              <input
+                className={styles.field}
+                autoFocus
+                value={looking}
+                placeholder="Type to filter"
+                aria-label="Filter what to add"
+                aria-controls={LIST_ID}
+                aria-activedescendant={rows[active] ? rowId(rows[active].id) : undefined}
+                onChange={(event) => setLooking(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    move(1);
+                  } else if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    move(-1);
+                  } else if (event.key === 'Enter') {
+                    event.preventDefault();
+                    const row = rows[active] ?? rows[0];
+                    if (row) choose(row);
+                  }
+                }}
+              />
+              {rows.length ? rows.map((row, index) => menuRow(row, index)) : <p className={styles.none}>Nothing by that name.</p>}
+            </>
           ) : (
             rows.map((row, index) => (index === head || index === foot ? null : menuRow(row, index)))
           )}
@@ -615,6 +652,13 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
       ) : null}
     </div>
   );
+}
+
+/** The palette's rows that match what is typed, by their words or their read-aloud label; all of them when nothing is. */
+function filterRows(rows: AddRow[], looking: string): AddRow[] {
+  const q = looking.trim().toLowerCase();
+  if (!q) return rows;
+  return rows.filter((row) => row.words.toLowerCase().includes(q) || (row.label?.toLowerCase().includes(q) ?? false));
 }
 
 /** Whether the note can be made a ticket: not one already, and not a notebook or a canvas, whose front matter is theirs. */

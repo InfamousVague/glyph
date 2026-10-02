@@ -61,8 +61,8 @@ export interface PlusOpening {
   button: HTMLElement;
   /** The line the + was beside, counting from 1. */
   line: number;
-  /** A fine pointer (the Mac), a finger, or the keyboard on the + itself (focus goes into the list). */
-  by: 'pointer' | 'touch' | 'keyboard';
+  /** A fine pointer (the Mac), a finger, the keyboard on the + itself, or `/` typed on an empty line (focus goes into the list). */
+  by: 'pointer' | 'touch' | 'keyboard' | 'slash';
 }
 
 export interface PlusHooks {
@@ -190,6 +190,8 @@ function plusView(hooks: PlusHooks) {
       private leaveTimer = 0;
       private pointer: string | null = null;
       private gone = false;
+      /** The invisible anchor a `/` menu is placed against, at the caret; removed when that menu closes. */
+      private slashEl: HTMLElement | null = null;
 
       constructor(readonly view: EditorView) {
         const button = document.createElement('button');
@@ -231,8 +233,44 @@ function plusView(hooks: PlusHooks) {
         this.reconsider(false);
       }
 
+      /**
+       * `/` typed on an empty line opens the list as a command palette at the caret (Matt: make the structured types
+       * "easier to create"). The `/` is not inserted; the list takes the focus into its filter (editor/AddList.tsx by
+       * 'slash'), so what is typed next filters it rather than landing in the note. An invisible anchor at the caret is
+       * what the card is placed against, as the + button is for the gutter menu; it is removed when the menu closes.
+       */
+      openSlash(): boolean {
+        if (this.gone || plusOpen(this.view) || !hooks.allowed()) return false;
+        const state = this.view.state;
+        const main = state.selection.main;
+        if (!main.empty) return false;
+        const line = state.doc.lineAt(main.head);
+        if (line.text.trim() !== '') return false;
+        const coords = this.view.coordsAtPos(main.head);
+        if (!coords) return false;
+        const scroller = this.view.scrollDOM.getBoundingClientRect();
+        const el = document.createElement('div');
+        el.setAttribute('aria-hidden', 'true');
+        el.style.position = 'absolute';
+        el.style.width = '0';
+        el.style.height = `${Math.max(1, coords.bottom - coords.top)}px`;
+        el.style.left = `${coords.left - scroller.left + this.view.scrollDOM.scrollLeft}px`;
+        el.style.top = `${coords.top - scroller.top + this.view.scrollDOM.scrollTop}px`;
+        el.style.pointerEvents = 'none';
+        this.view.scrollDOM.appendChild(el);
+        this.slashEl = el;
+        hooks.onOpen({ button: el, line: line.number, by: 'slash' });
+        return true;
+      }
+
+      private dropSlash() {
+        this.slashEl?.remove();
+        this.slashEl = null;
+      }
+
       update(update: ViewUpdate) {
         const open = update.state.field(menuField, false) != null;
+        if (!open && this.slashEl) this.dropSlash();
         this.button.setAttribute('aria-expanded', String(open));
         if (open) {
           // The list is up: the + stays, a ×, whatever the rules say. What the person does in the note closes it.
@@ -251,6 +289,7 @@ function plusView(hooks: PlusHooks) {
         window.clearTimeout(this.settleTimer);
         window.clearTimeout(this.leaveTimer);
         this.view.scrollDOM.removeEventListener('pointermove', this.hover);
+        this.dropSlash();
         this.button.remove();
       }
 
@@ -476,7 +515,23 @@ const plusTheme = EditorView.baseTheme({
   },
 });
 
+/** `/` typed on an empty line opens the list as a command palette at the caret; the plugin does the opening. */
+function slashKeys(plugin: ReturnType<typeof plusView>): Extension {
+  return Prec.highest(
+    EditorView.domEventHandlers({
+      keydown(event, view) {
+        if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey || event.isComposing) return false;
+        if (plusOpen(view)) return false;
+        const opened = view.plugin(plugin)?.openSlash() ?? false;
+        if (opened) event.preventDefault();
+        return opened;
+      },
+    }),
+  );
+}
+
 /** The + beside an empty line, and what opens its list: only the note screen installs it (editor/Editor.tsx `plus`). */
 export function insertPlus(hooks: PlusHooks): Extension {
-  return [menuField, shownField, plusLineClass, menuAttributes, plusView(hooks), menuKeys(hooks), plusTheme];
+  const plugin = plusView(hooks);
+  return [menuField, shownField, plusLineClass, menuAttributes, plugin, menuKeys(hooks), slashKeys(plugin), plusTheme];
 }

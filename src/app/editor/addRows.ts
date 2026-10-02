@@ -184,6 +184,15 @@ export function topRows(gates: AddGates, now: Date, naming = false): AddRow[] {
 }
 
 /**
+ * Every row the slash menu can reach, in one flat list to filter by typing (editor/AddList.tsx, the `/` command
+ * palette): the first page's things without More, then everything More holds. The steps (a board, a database, a note,
+ * a canvas) are here too, so `/board` finds the board page. `now`/`naming` are the time row's, as on the first page.
+ */
+export function allRows(gates: AddGates, now: Date, naming = false): AddRow[] {
+  return [...topRows(gates, now, naming).filter((row) => row.id !== 'more'), ...moreRows(gates)];
+}
+
+/**
  * More: the forms a line takes, the blocks, and the small marks, each with a seed. A board and a database are on the
  * first page now, not here (editor/addRows.ts `topRows`); what is left is the rest a note is made of. A diagram
  * (Mermaid) and a formula (KaTeX) are the two that had no row of their own before.
