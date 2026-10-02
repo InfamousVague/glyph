@@ -49,6 +49,9 @@ export const accountState = shown.get;
 
 export const useAccount = shown.use;
 
+/** Called after every change to the session or the key's presence, for a store kept per account; answers the way to stop. */
+export const onAccount = shown.subscribe;
+
 /** Tells the page what this device holds now: the session, and whether the account key is here. */
 async function settleState(deps: Deps, session: Session | null): Promise<void> {
   writeSession(session);

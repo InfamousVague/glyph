@@ -2,7 +2,10 @@ import { useSyncExternalStore } from 'react';
 import { externalStore } from './externalStore.ts';
 import { onPreferences, preferences, setPreferences } from './preferences.ts';
 import { fileNoteInFolder, fileNotesInFolder } from './noteFolders.ts';
+import { isOrgWorkspace, orgIdOf, orgWorkspaceId } from './orgs/types.ts';
 import { readStored, readStoredText, writeStoredText } from './stored.ts';
+
+export { isOrgWorkspace, orgIdOf, orgWorkspaceId };
 
 /**
  * Workspaces: a name a note can be filed under, and the list shown one
@@ -22,6 +25,15 @@ import { readStored, readStoredText, writeStoredText } from './stored.ts';
  * (core/store.ts), and a column there is a native change ("Where a workspace
  * lives", below). The archive is not filtered: it is the place to find
  * anything.
+ *
+ * An organization gets a workspace of its own on every member's devices (Matt: "Organizations should also get their
+ * own workspace automatically"; docs/TEAMS.md, D5). It is a workspace like any other to the pills, the folders and
+ * the filing, with the deterministic id `org-<orgId>` (core/orgs/types.ts), so every device makes the same one and
+ * a filing keyed by it survives whichever device's settings win. Its name and hue follow the organization
+ * (core/orgs/orgs.ts reconciles them after every list), so renaming, re-colouring and removing it by hand are
+ * refused here: `ensureOrgWorkspace`, `renameOrgWorkspace` and `dropOrgWorkspace` are the way. A personal
+ * workspace may share its name: `addWorkspace` dedupes among the personal ones only. The notes filed in it are
+ * still this person's own (docs/TEAMS.md, D1): sharing them with the team comes next.
  */
 
 /**
@@ -42,6 +54,8 @@ export interface Workspace {
   name: string;
   /** Its colour, worn by its pill and its tag on a note. Absent is `ink`, the app's own. */
   hue?: WorkspaceHue;
+  /** The organization it stands for, by id (`isOrgWorkspace`); absent for a personal one. Read from the id, never kept. */
+  org?: string;
 }
 
 export interface Workspaces {
@@ -76,9 +90,20 @@ const changes = externalStore(0);
 let sheet: Sheet | null = null;
 let snapshot: Workspaces | null = null;
 
-/** A workspace as it is kept, with a hue this build does not know - and ink, which is no hue - read as none. */
+/** A hue as a workspace wears it: one this build does not know, and ink, which is no hue, read as none. */
+function wornHue(hue: unknown): WorkspaceHue | undefined {
+  return isHue(hue) && hue !== 'ink' ? hue : undefined;
+}
+
+/**
+ * A workspace as it is kept, with a hue this build does not know - and ink, which is no hue - read as none. The
+ * organization is read from the id alone: a build before organizations rewrites a workspace as `{ id, name, hue }`
+ * and would strip any field, but it keeps the id.
+ */
 function asWorkspace(w: { id: string; name: string; hue?: unknown }): Workspace {
-  return isHue(w.hue) && w.hue !== 'ink' ? { id: w.id, name: w.name, hue: w.hue } : { id: w.id, name: w.name };
+  const hue = wornHue(w.hue);
+  const org = orgIdOf(w.id);
+  return { id: w.id, name: w.name, ...(hue ? { hue } : {}), ...(org ? { org } : {}) };
 }
 
 /** The filings in `notes` that point at one of `list`'s workspaces. */
@@ -193,22 +218,28 @@ function freshId(taken: readonly Workspace[]): string {
   }
 }
 
-/** A new workspace called `name`, in `hue`, or the one already called that; null for an empty name. */
+/**
+ * A new workspace called `name`, in `hue`, or the personal one already called that; null for an empty name. An
+ * organization's workspace of that name is not the one: a person's "Ghost" and the team's "Ghost" are two places.
+ */
 export function addWorkspace(name: string, hue: WorkspaceHue = 'ink'): Workspace | null {
   const clean = tidy(name);
   if (!clean) return null;
   const { list, notes, current: chosen } = current();
-  const had = list.find((w) => w.name.toLowerCase() === clean.toLowerCase());
+  const had = list.find((w) => !isOrgWorkspace(w) && w.name.toLowerCase() === clean.toLowerCase());
   if (had) return had;
   const made: Workspace = hue === 'ink' ? { id: freshId(list), name: clean } : { id: freshId(list), name: clean, hue };
   write({ list: [...list, made], notes, current: chosen });
   return made;
 }
 
-/** That workspace in `hue`; `ink` takes its colour off again. Unknown workspace, or unknown hue: nothing happens. */
+/**
+ * That workspace in `hue`; `ink` takes its colour off again. Unknown workspace, or unknown hue: nothing happens. Nor
+ * for an organization's workspace, whose hue is the organization's (`renameOrgWorkspace`).
+ */
 export function setWorkspaceHue(id: string, hue: WorkspaceHue): void {
   const { list, notes, current: chosen } = current();
-  if (!isHue(hue) || !list.some((w) => w.id === id)) return;
+  if (!isHue(hue) || !list.some((w) => w.id === id) || isOrgWorkspace({ id })) return;
   write({
     list: list.map((w) => (w.id === id ? (hue === 'ink' ? { id: w.id, name: w.name } : { ...w, hue }) : w)),
     notes,
@@ -216,34 +247,99 @@ export function setWorkspaceHue(id: string, hue: WorkspaceHue): void {
   });
 }
 
-export function renameWorkspace(id: string, name: string): void {
-  const clean = tidy(name);
-  const { list, notes, current: chosen } = current();
-  if (!clean || !list.some((w) => w.id === id)) return;
-  write({ list: list.map((w) => (w.id === id ? { ...w, name: clean } : w)), notes, current: chosen });
-  // The folder is named after the workspace, so renaming one moves its notes into a folder of the new name.
-  void fileNotesInFolder(
-    Object.entries(notes)
-      .filter(([, where]) => where === id)
-      .map(([note]) => note),
-    clean,
-  );
+/** The notes filed in workspace `id`, from the sheet's filings. */
+function filedIn(notes: Readonly<Record<string, string>>, id: string): string[] {
+  return Object.entries(notes)
+    .filter(([, where]) => where === id)
+    .map(([note]) => note);
 }
 
-/** Removes the workspace; its notes are simply not filed any more, and the list shows all notes if it was chosen. */
+/** Renames the workspace. Not an organization's, whose name is the organization's (`renameOrgWorkspace`). */
+export function renameWorkspace(id: string, name: string): void {
+  if (isOrgWorkspace({ id })) return;
+  rename(id, name);
+}
+
+function rename(id: string, name: string): void {
+  const clean = tidy(name);
+  const { list, notes, current: chosen } = current();
+  const was = list.find((w) => w.id === id);
+  if (!clean || !was) return;
+  const renamed: Workspace = { ...was, name: clean };
+  write({ list: list.map((w) => (w.id === id ? renamed : w)), notes, current: chosen });
+  // The folder is named after the workspace, so renaming one moves its notes into a folder of the new name.
+  void fileNotesInFolder(filedIn(notes, id), renamed);
+}
+
+/**
+ * Removes the workspace; its notes are simply not filed any more, and the list shows all notes if it was chosen.
+ * Not an organization's, which goes when the person leaves it (`dropOrgWorkspace`).
+ */
 export function removeWorkspace(id: string): void {
+  if (isOrgWorkspace({ id })) return;
+  remove(id);
+}
+
+function remove(id: string): void {
   const { list, notes, current: chosen } = current();
   // Its notes are not filed any more, so their files go back to the inbox.
-  void fileNotesInFolder(
-    Object.entries(notes)
-      .filter(([, where]) => where === id)
-      .map(([note]) => note),
-    null,
-  );
+  void fileNotesInFolder(filedIn(notes, id), null);
   if (!list.some((w) => w.id === id)) return;
   const kept: Record<string, string> = {};
   for (const [note, where] of Object.entries(notes)) if (where !== id) kept[note] = where;
   write({ list: list.filter((w) => w.id !== id), notes: kept, current: chosen === id ? null : chosen });
+}
+
+// --- an organization's workspace -----------------------------------------------------------
+
+/** What of an organization its workspace follows: its id, its name, and its hue (null for the app's own ink). */
+export interface OrgLike {
+  id: string;
+  name: string;
+  hue?: string | null;
+}
+
+/**
+ * The organization's workspace, made if this device has none: `org-<orgId>`, named and coloured after it. Found, it
+ * is brought up to date the same way, so a list taken from the service can be applied without looking first
+ * (core/orgs/orgs.ts). A row with that id from a build before organizations is adopted as it is.
+ */
+export function ensureOrgWorkspace(org: OrgLike): Workspace {
+  const id = orgWorkspaceId(org.id);
+  const had = current().list.find((w) => w.id === id);
+  if (had) {
+    renameOrgWorkspace(org);
+    return current().list.find((w) => w.id === id) ?? had;
+  }
+  const { list, notes, current: chosen } = current();
+  const hue = wornHue(org.hue);
+  const made: Workspace = { id, name: tidy(org.name) || org.name, ...(hue ? { hue } : {}), org: org.id };
+  write({ list: [...list, made], notes, current: chosen });
+  return made;
+}
+
+/** The organization's workspace renamed and re-coloured with it; nothing happens when this device has none. */
+export function renameOrgWorkspace(org: OrgLike): void {
+  const id = orgWorkspaceId(org.id);
+  const { list, notes, current: chosen } = current();
+  const was = list.find((w) => w.id === id);
+  if (!was) return;
+  const hue = wornHue(org.hue);
+  if (was.hue !== hue) {
+    const recoloured: Workspace = { ...was, name: was.name, ...(hue ? { hue } : {}) };
+    if (!hue) delete recoloured.hue;
+    write({ list: list.map((w) => (w.id === id ? recoloured : w)), notes, current: chosen });
+  }
+  const clean = tidy(org.name);
+  if (clean && clean !== was.name) rename(id, clean);
+}
+
+/**
+ * The organization's workspace gone, as when the person leaves it or it is deleted: its notes are unfiled, never
+ * deleted (docs/TEAMS.md, D5), and their files go back to the inbox.
+ */
+export function dropOrgWorkspace(orgId: string): void {
+  remove(orgWorkspaceId(orgId));
 }
 
 /**
@@ -261,7 +357,7 @@ export function fileNote(noteId: string, id: string | null): void {
   if (id === null) delete next[noteId];
   else next[noteId] = id;
   write({ list, notes: next, current: chosen });
-  void fileNoteInFolder(noteId, id === null ? null : (list.find((w) => w.id === id)?.name ?? null));
+  void fileNoteInFolder(noteId, id === null ? null : (list.find((w) => w.id === id) ?? null));
 }
 
 /** A note just made: filed in the chosen workspace, if there is one and the note is not filed yet. */

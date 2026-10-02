@@ -3,13 +3,17 @@ import { preferences, reloadPreferences, setPreferences } from './preferences.ts
 import {
   addWorkspace,
   chooseWorkspace,
+  dropOrgWorkspace,
+  ensureOrgWorkspace,
   fileNewNote,
   fileNote,
   forgetNote,
   inWorkspace,
+  isOrgWorkspace,
   onWorkspaces,
   reloadWorkspaces,
   removeWorkspace,
+  renameOrgWorkspace,
   renameWorkspace,
   setWorkspaceHue,
   workspaceOf,
@@ -196,5 +200,83 @@ describe('a workspace’s colour', () => {
     expect(workspaces().list[0]).toEqual({ id: 'w-2', name: 'Old' });
     // And it is carried into the preferences without one.
     expect(preferences().workspaces.list).toEqual([{ id: 'w-2', name: 'Old' }]);
+  });
+});
+
+describe('an organization’s workspace', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    reloadPreferences();
+    reloadWorkspaces();
+  });
+
+  const ghost = { id: 'abc', name: 'Ghost', hue: 'sea' };
+
+  it('has the organization’s id, name and hue, and is made once however many times it is asked for', () => {
+    const made = ensureOrgWorkspace(ghost);
+    expect(made).toEqual({ id: 'org-abc', name: 'Ghost', hue: 'sea', org: 'abc' });
+    expect(isOrgWorkspace(made)).toBe(true);
+    expect(ensureOrgWorkspace(ghost)).toEqual(made);
+    expect(workspaces().list).toEqual([made]);
+    // No hue, or one this build does not know, is the app's own ink.
+    expect(ensureOrgWorkspace({ id: 'def', name: 'Boo', hue: null })).toEqual({ id: 'org-def', name: 'Boo', org: 'def' });
+    expect(ensureOrgWorkspace({ id: 'ghi', name: 'Eek', hue: 'octarine' })).toEqual({ id: 'org-ghi', name: 'Eek', org: 'ghi' });
+  });
+
+  it('follows the organization’s name and hue, and keeps its filings through a rename', () => {
+    ensureOrgWorkspace(ghost);
+    fileNote('n1', 'org-abc');
+    renameOrgWorkspace({ id: 'abc', name: 'Spectre', hue: null });
+    expect(workspaces().list[0]).toEqual({ id: 'org-abc', name: 'Spectre', org: 'abc' });
+    expect(workspaceOf('n1')?.id).toBe('org-abc');
+    ensureOrgWorkspace({ id: 'abc', name: 'Spectre', hue: 'rose' });
+    expect(workspaces().list[0]?.hue).toBe('rose');
+    // One this device has not got is nothing to rename.
+    renameOrgWorkspace({ id: 'zzz', name: 'Nobody' });
+    expect(workspaces().list).toHaveLength(1);
+  });
+
+  it('is refused the personal rename, hue and removal: those are the organization’s', () => {
+    ensureOrgWorkspace(ghost);
+    renameWorkspace('org-abc', 'Mine');
+    setWorkspaceHue('org-abc', 'rose');
+    removeWorkspace('org-abc');
+    expect(workspaces().list).toEqual([{ id: 'org-abc', name: 'Ghost', hue: 'sea', org: 'abc' }]);
+  });
+
+  it('goes when the person leaves, its notes unfiled and the filter cleared', () => {
+    ensureOrgWorkspace(ghost);
+    fileNote('n1', 'org-abc');
+    chooseWorkspace('org-abc');
+    dropOrgWorkspace('abc');
+    expect(workspaces()).toEqual({ list: [], of: {}, current: null });
+    dropOrgWorkspace('abc');
+    expect(workspaces().list).toEqual([]);
+  });
+
+  it('may share its name with a personal workspace, which is deduped among the personal ones only', () => {
+    ensureOrgWorkspace(ghost);
+    const mine = addWorkspace('ghost')!;
+    expect(mine.id).toMatch(/^w-/);
+    expect(isOrgWorkspace(mine)).toBe(false);
+    expect(addWorkspace('Ghost')).toBe(mine);
+    expect(workspaces().list).toHaveLength(2);
+  });
+
+  it('is known by its id alone, so a build that stripped the marker, or another device, still reads it as the organization’s', () => {
+    setPreferences({ workspaces: { list: [{ id: 'org-abc', name: 'Ghost' }, { id: 'w-1', name: 'Home' }], notes: { n1: 'org-abc' } } });
+    reloadWorkspaces();
+    expect(workspaces().list).toEqual([
+      { id: 'org-abc', name: 'Ghost', org: 'abc' },
+      { id: 'w-1', name: 'Home' },
+    ]);
+    // Adopted as it is: no second "Ghost".
+    expect(ensureOrgWorkspace({ id: 'abc', name: 'Ghost' })).toEqual({ id: 'org-abc', name: 'Ghost', org: 'abc' });
+    expect(workspaces().list).toHaveLength(2);
+    expect(workspaceOf('n1')?.org).toBe('abc');
+    // A marker written by another device is never what decides.
+    setPreferences({ workspaces: { list: [{ id: 'w-2', name: 'Fake', org: 'abc' } as { id: string; name: string }], notes: {} } });
+    reloadWorkspaces();
+    expect(workspaces().list[0]).toEqual({ id: 'w-2', name: 'Fake' });
   });
 });

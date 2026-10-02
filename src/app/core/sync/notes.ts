@@ -6,6 +6,7 @@ import { toHex } from '../bytes.ts';
 import { failureText } from '../failure.ts';
 import { randomId } from '../ids.ts';
 import { imageNames } from '../imageRefs.ts';
+import { noteTitle } from '../noteTitle.ts';
 import type { Note } from '../store.ts';
 import { isSharedLive } from '../live/shared.ts';
 import { open, openBytes, seal, sealBytes, type Bytes } from './crypto.ts';
@@ -81,6 +82,8 @@ export interface SyncContext {
   /** Which notes are meetings (core/preferences.ts `meetings`): their audio stays here unless `syncMeetingRecordings`. */
   meetings?: Readonly<Record<string, number>>;
   syncMeetingRecordings?: boolean;
+  /** Told of each copy kept because both sides had changed a note: the copy's id and title (core/notifications/record.ts). */
+  onConflict?(copy: { noteId: string; title: string }): void;
 }
 
 /** The most a recording may be to travel: the service's own limit (server/src/sync.rs), about 35 minutes of 16 kHz PCM. */
@@ -435,9 +438,10 @@ async function merge(ctx: SyncContext, item: FeedItem, local: Note | undefined, 
     // Changed on both sides and not the same: this device's version is kept as a note of its own.
     const full = (await ctx.notes.get(item.id)) ?? local;
     // The recording is filed under the note's id, which the other version keeps; the copy is the words.
-    await ctx.notes.apply({ ...full, id: copyId(), path: undefined, recordingMs: null, segments: null });
+    const copy = await ctx.notes.apply({ ...full, id: copyId(), path: undefined, recordingMs: null, segments: null });
     outcome.conflicts += 1;
     outcome.changed += 1;
+    ctx.onConflict?.({ noteId: copy.id, title: noteTitle(copy.body) || 'Untitled' });
   }
   await fetchFilesOf(ctx, payload);
   const applied = local && mark(local) === mark(theirs) ? local : await ctx.notes.apply(theirs);

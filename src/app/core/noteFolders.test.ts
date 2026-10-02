@@ -23,6 +23,10 @@ function note(path: string | undefined): Note {
   return makeNote('n1', '# Weekend trip', path === undefined ? {} : { path });
 }
 
+/** A personal workspace called `name`, and an organization's. */
+const HOME = { id: 'w-home', name: 'Home' };
+const GHOST = { id: 'org-abc', name: 'Ghost' };
+
 describe('the folder a note is filed in', () => {
   beforeEach(() => {
     applied.length = 0;
@@ -31,17 +35,28 @@ describe('the folder a note is filed in', () => {
   });
 
   it('names a folder after the workspace, and the inbox for none', () => {
-    expect(folderFor('Home')).toBe('workspaces/Home');
+    expect(folderFor(HOME)).toBe('workspaces/Home');
     expect(folderFor(null)).toBe('Inbox');
     // What a file name cannot hold goes, and a name that cleans away to nothing is no folder at all.
     expect(folderName('Work/Clients: 2026?')).toBe('WorkClients 2026');
-    expect(folderFor('  ///  ')).toBeNull();
-    expect(folderFor('..')).toBeNull();
+    expect(folderFor({ id: 'w-1', name: '  ///  ' })).toBeNull();
+    expect(folderFor({ id: 'w-1', name: '..' })).toBeNull();
+  });
+
+  it('files an organization’s workspace under orgs/, apart from a personal workspace of the same name', () => {
+    expect(folderFor(GHOST)).toBe('orgs/Ghost');
+    expect(folderFor({ id: 'w-ghost', name: 'Ghost' })).toBe('workspaces/Ghost');
+    // The organization's name is another account's choice, and is cleaned like any other.
+    expect(folderFor({ id: 'org-abc', name: '../Ghost: 2026' })).toBe('orgs/Ghost 2026');
+    expect(folderFor({ id: 'org-abc', name: '..' })).toBeNull();
   });
 
   it('moves the file into the workspace folder, keeping its name', async () => {
-    await fileNoteInFolder('n1', 'Home');
+    await fileNoteInFolder('n1', HOME);
     expect(applied.map((n) => n.path)).toEqual(['workspaces/Home/Weekend trip.md']);
+    applied.length = 0;
+    await fileNoteInFolder('n1', GHOST);
+    expect(applied.map((n) => n.path)).toEqual(['orgs/Ghost/Weekend trip.md']);
   });
 
   it('moves it back to the inbox when it leaves a workspace', async () => {
@@ -51,24 +66,24 @@ describe('the folder a note is filed in', () => {
   });
 
   it('leaves the words alone and asks for nothing it cannot do', async () => {
-    await fileNoteInFolder('n1', 'Home');
+    await fileNoteInFolder('n1', HOME);
     expect(applied[0]?.body).toBe('# Weekend trip');
     applied.length = 0;
 
     // Already there: nothing to ask for.
     stored = note('workspaces/Home/Weekend trip.md');
-    await fileNoteInFolder('n1', 'Home');
+    await fileNoteInFolder('n1', HOME);
     expect(applied).toEqual([]);
 
     // A draft, or a binary too old to have paths: no file to move.
     stored = note(undefined);
-    await fileNoteInFolder('n1', 'Home');
+    await fileNoteInFolder('n1', HOME);
     expect(applied).toEqual([]);
 
     // A browser has no library at all.
     stored = note('Inbox/Weekend trip.md');
     native = false;
-    await fileNoteInFolder('n1', 'Home');
+    await fileNoteInFolder('n1', HOME);
     expect(applied).toEqual([]);
   });
 });

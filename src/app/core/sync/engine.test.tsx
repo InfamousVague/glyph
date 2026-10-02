@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeNote } from '../../../test/notes.ts';
 import { show, unmount } from '../../../test/render.tsx';
 import type { Session } from '../account/keystore.ts';
+import type { NotificationsContext } from '../notifications/feed.ts';
+import type { OrgsContext } from '../orgs/orgs.ts';
 import type { Outcome, SyncContext } from './notes.ts';
 import type { PrefsContext } from './prefs.ts';
 
@@ -48,6 +50,23 @@ let prefsPass: (ctx: PrefsContext) => Promise<boolean> = async () => false;
 vi.mock('./prefs.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./prefs.ts')>()),
   syncPrefs: (ctx: PrefsContext) => prefsPass(ctx),
+}));
+/** The notifications and organizations steps, likewise stand-ins; what each forgets on signing out is the real thing. */
+let feedPass: (ctx: NotificationsContext) => Promise<boolean> = async () => true;
+vi.mock('../notifications/feed.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../notifications/feed.ts')>()),
+  syncNotifications: (ctx: NotificationsContext) => feedPass(ctx),
+}));
+let orgsPass: (ctx: OrgsContext) => Promise<null> = async () => null;
+vi.mock('../orgs/orgs.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../orgs/orgs.ts')>()),
+  syncOrgs: (ctx: OrgsContext) => orgsPass(ctx),
+}));
+const recorded: { kind: string; details: unknown }[] = [];
+vi.mock('../notifications/record.ts', () => ({
+  record: async (kind: string, details: unknown) => {
+    recorded.push({ kind, details });
+  },
 }));
 
 let native = false;
@@ -114,6 +133,9 @@ beforeEach(async () => {
   invoked.length = 0;
   notesPass = async () => ({ changed: 0, conflicts: 0, unsent: 0, reason: null });
   prefsPass = async () => false;
+  feedPass = async () => true;
+  orgsPass = async () => null;
+  recorded.length = 0;
   resume.mockClear();
   signOut.mockClear();
   deleteAccount.mockClear();
@@ -147,6 +169,90 @@ describe('a pass', () => {
     expect(order).toBe('notes prefs');
     expect(status).toEqual({ phase: 'idle', lastAt: 50_000, message: null, conflicts: 2, unsent: 0, unsentReason: null });
     expect(passes[0]).toMatchObject({ token: 't1', key });
+  });
+
+  it('takes the notifications before the notes, and the organizations after the settings', async () => {
+    const order: string[] = [];
+    feedPass = async (ctx) => {
+      order.push('notifications');
+      expect(ctx.token).toBe('t1');
+      return true;
+    };
+    notesPass = async () => {
+      order.push('notes');
+      return { changed: 0, conflicts: 0, unsent: 0, reason: null };
+    };
+    prefsPass = async () => {
+      order.push('prefs');
+      return false;
+    };
+    orgsPass = async (ctx) => {
+      order.push('orgs');
+      expect(ctx.token).toBe('t1');
+      return null;
+    };
+    await act(() => engine.syncNow());
+    expect(order).toEqual(['notifications', 'notes', 'prefs', 'orgs']);
+    expect(status?.phase).toBe('idle');
+  });
+
+  it('hands the notifications step the feed as it is at each step, kept under the account', async () => {
+    feedPass = async (ctx) => {
+      ctx.update((state) => ({ ...state, cursor: 12 }));
+      expect(ctx.read().cursor).toBe(12);
+      return true;
+    };
+    await act(() => engine.syncNow());
+    expect(JSON.parse(localStorage.getItem('glyph-sync-7-notifications') ?? 'null')).toMatchObject({ cursor: 12 });
+  });
+
+  it('records a note kept twice as a notification, with the copy’s id and title', async () => {
+    notesPass = async (ctx) => {
+      ctx.onConflict?.({ noteId: 'n-copy', title: 'Trip to Lisbon' });
+      return { changed: 1, conflicts: 1, unsent: 0, reason: null };
+    };
+    await act(() => engine.syncNow());
+    expect(recorded).toEqual([{ kind: 'sync-conflict', details: { noteId: 'n-copy', title: 'Trip to Lisbon' } }]);
+  });
+
+  it('runs the notifications and the organizations alone when asked, leaving the notes’ status as it was', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(50_000);
+    await act(() => engine.syncNow());
+    const order: string[] = [];
+    feedPass = async () => {
+      order.push('notifications');
+      return true;
+    };
+    orgsPass = async () => {
+      order.push('orgs');
+      return null;
+    };
+    await act(() => engine.syncNotificationsNow());
+    expect(order).toEqual(['notifications', 'orgs']);
+    expect(passes).toHaveLength(1);
+    expect(status).toMatchObject({ phase: 'idle', lastAt: 50_000 });
+    // A failure there is still said.
+    feedPass = async () => {
+      throw new ApiError(500, 'The service is down.');
+    };
+    await act(() => engine.syncNotificationsNow());
+    expect(status).toMatchObject({ phase: 'error', message: 'The service is down.' });
+  });
+
+  it('runs a full pass when both kinds were asked for while one was running', async () => {
+    const held = heldPass();
+    const first = engine.syncNow();
+    await flush();
+    const light = engine.syncNotificationsNow();
+    const full = engine.syncNow();
+    expect(light).toBe(first);
+    expect(full).toBe(first);
+    notesPass = async () => ({ changed: 0, conflicts: 0, unsent: 0, reason: null });
+    held.release();
+    await act(() => first);
+    // The queued pass covered the most anybody asked: the notes ran twice.
+    expect(passes).toHaveLength(2);
   });
 
   it('says how many notes it could not send and why, and hands the pass which notes are meetings and whether their audio goes', async () => {
@@ -378,6 +484,8 @@ describe('this device and the account', () => {
   it('forgets what it knew of the account when signing out, and keeps the notes', async () => {
     localStorage.setItem('glyph-sync-7-notes', '{"cursor":9}');
     localStorage.setItem('glyph-sync-7-prefs', '{"rev":2}');
+    localStorage.setItem('glyph-sync-7-notifications', '{"cursor":3,"items":{},"marks":[],"unsent":[]}');
+    localStorage.setItem('glyph-sync-7-orgs', '{"list":[],"at":1}');
     localStorage.setItem('glyph-sync-8-notes', '{"cursor":1}');
     await store.createNote('kept', '# Kept');
     await act(() => engine.syncNow());
@@ -385,6 +493,8 @@ describe('this device and the account', () => {
     expect(signOut).toHaveBeenCalledTimes(1);
     expect(localStorage.getItem('glyph-sync-7-notes')).toBeNull();
     expect(localStorage.getItem('glyph-sync-7-prefs')).toBeNull();
+    expect(localStorage.getItem('glyph-sync-7-notifications')).toBeNull();
+    expect(localStorage.getItem('glyph-sync-7-orgs')).toBeNull();
     expect(localStorage.getItem('glyph-sync-8-notes')).not.toBeNull();
     expect(status).toEqual({ phase: 'off', lastAt: null, message: null, conflicts: 0, unsent: 0, unsentReason: null });
     expect(await store.getNote('kept')).not.toBeNull();

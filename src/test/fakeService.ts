@@ -1,7 +1,12 @@
 import type { SignedIn } from '../app/core/account/account.ts';
+import { NO_SUCH_ROUTE } from '../app/core/account/api.ts';
+import { shortId } from '../app/core/ids.ts';
+import { isSelfKind, type Kind, type Notification } from '../app/core/notifications/kinds.ts';
+import type { Member, Org, OrgRow, Role } from '../app/core/orgs/types.ts';
 import type { Note } from '../app/core/store.ts';
 import { derive, fromBase64Url, newAccountKey, open, passwordSalt, seal, wrap, type Bytes } from '../app/core/sync/crypto.ts';
 import type { FeedItem, NotePayload } from '../app/core/sync/notes.ts';
+import { WORKSPACE_HUES } from '../app/core/workspaces.ts';
 
 /**
  * Glyph's account and sync service in memory, for tests: the routes, revisions and refusals of
@@ -11,16 +16,25 @@ import type { FeedItem, NotePayload } from '../app/core/sync/notes.ts';
  *
  * One account at most, as a device only ever knows one: already there (`fakeService({ handle, password })`, the
  * account a test signs in to), or made by a signup through the fetcher (`fakeService()`, for the account flows
- * themselves). Its feed of notes, its settings and its recordings share one revision counter, as the server's do.
+ * themselves). Its feed of notes, its settings, its recordings and its notifications share one revision counter, as
+ * the server's do. Other people exist only as `peers`: handles that resolve for an invitation without being the
+ * account, and never call anything.
  *
- * What it does NOT do: rate limits, and the shape checks on ids and blobs - those are the server's own, tested in
+ * The organizations and notifications routes (server/src/orgs.rs, notifications.rs; docs/TEAMS.md) are here with
+ * the server's refusals in its own words, since the client is built on telling those apart from a route the service
+ * does not have yet: `{ teams: false }` plays that older service, answering every one of them `no such route`. What
+ * the server would write into OTHER accounts' feeds goes nowhere here, since the one account is always the caller;
+ * `notifies(row)` plays a row the server wrote into this account's feed, and `invited(name, by)` an organization a
+ * peer invited the account to.
+ *
+ * What it does NOT do: rate limits, and most shape checks on ids and blobs - those are the server's own, tested in
  * server/src. And it never holds the account key the way the server never does, with one exception it says out loud:
  * for an account it was given a password for, it made the key itself, so it can play "another device" - sealing a
  * note as the app seals one (`deviceWrites`) and opening what a client wrote (`stored`).
  *
  * The MCP's tests (mcp/glyph.test.ts, mcp/hosted.test.ts) and the app's (core/sync/pictures.test.ts,
- * core/account/account.test.ts, core/sync/prefs.test.ts) all use this one; there were two copies, and they had
- * started to answer differently.
+ * core/account/account.test.ts, core/sync/prefs.test.ts, core/notifications/feed.test.ts, core/orgs/orgs.test.ts)
+ * all use this one; there were two copies, and they had started to answer differently.
  */
 
 /** PBKDF2 rounds for a test: the real 600 000 are for a person's password, not for a test that makes ten accounts. */
@@ -49,12 +63,40 @@ interface Account {
 export interface FakeServiceOptions {
   /** False: a HEAD never reaches the service, and the fetch throws as a browser's does when something drops it. */
   head?: boolean;
+  /** False: a service from before organizations, answering every orgs and notifications route `no such route`. */
+  teams?: boolean;
+  /** Handles that resolve for an invitation without being the account (`'sam'` by default). */
+  peers?: string[];
 }
+
+/** A row of an organization as the service keeps it: who, their role, and whether they joined, wait, or declined. */
+interface Row {
+  handle: string;
+  role: Role;
+  state: 'member' | 'invited' | 'declined';
+  since: number;
+  invitedBy: string | null;
+}
+
+interface StoredOrg {
+  id: string;
+  name: string;
+  hue: string | null;
+  createdAt: number;
+  /** By handle, lower-cased. */
+  rows: Map<string, Row>;
+}
+
+/** The most rows an organization holds, and the most invitations one account may have waiting (docs/TEAMS.md). */
+const ORG_ROWS = 50;
+const PENDING_INVITES = 20;
+/** How long after declining the same organization may not ask again. */
+const DECLINE_GAP_MS = 24 * 60 * 60_000;
 
 const encoder = new TextEncoder();
 
 /** The service in memory. `seed`: an account it already holds, signed up with that password. */
-export async function fakeService(seed?: { handle: string; password: string }, { head = true }: FakeServiceOptions = {}) {
+export async function fakeService(seed?: { handle: string; password: string }, { head = true, teams = true, peers = ['sam'] }: FakeServiceOptions = {}) {
   let account: Account | null = null;
   if (seed) {
     const key = await newAccountKey();
@@ -64,6 +106,9 @@ export async function fakeService(seed?: { handle: string; password: string }, {
   const notes = new Map<string, Stored>();
   const files = new Map<string, { rev: number; bytes: Bytes }>();
   let prefs: { rev: number; blob: string } | null = null;
+  const orgs = new Map<string, StoredOrg>();
+  /** The account's notifications, by id. */
+  const feed = new Map<string, Notification>();
   let counter = 0;
   const tokens = new Set<string>();
   const nonces = new Set<string>();
@@ -87,8 +132,70 @@ export async function fakeService(seed?: { handle: string; password: string }, {
     notes.clear();
     files.clear();
     prefs = null;
+    orgs.clear();
+    feed.clear();
     counter = 0;
     tokens.clear();
+  };
+
+  // --- organizations and notifications, as the server keeps them ---
+
+  const lower = (handle: string) => handle.trim().toLowerCase();
+  /** A handle as the service knows it: the account's, or a peer's; null for nobody. */
+  const resolve = (handle: unknown): string | null => {
+    const wanted = lower(String(handle ?? ''));
+    if (!wanted) return null;
+    if (account && lower(account.handle) === wanted) return account.handle;
+    return peers.find((peer) => lower(peer) === wanted) ?? null;
+  };
+  const isHue = (hue: unknown) => hue === null || (typeof hue === 'string' && (WORKSPACE_HUES as readonly string[]).includes(hue));
+  const rowOf = (org: StoredOrg, handle: string) => org.rows.get(lower(handle)) ?? null;
+  const joined = (org: StoredOrg) => [...org.rows.values()].filter((r) => r.state === 'member');
+  const memberJson = (r: Row): Member => ({ handle: r.handle, role: r.role, state: r.state === 'declined' ? 'invited' : r.state, since: r.since, invitedBy: r.invitedBy });
+  const orgJson = (org: StoredOrg, me: Row): Org => ({
+    id: org.id,
+    name: org.name,
+    hue: org.hue,
+    role: me.role,
+    state: me.state === 'declined' ? 'invited' : me.state,
+    invitedBy: me.invitedBy,
+    createdAt: org.createdAt,
+    members: [...org.rows.values()].filter((r) => r.state !== 'declined').map(memberJson),
+  });
+  const rowJson = (org: StoredOrg, me: Row): OrgRow => ({
+    id: org.id,
+    name: org.name,
+    hue: org.hue,
+    role: me.role,
+    state: me.state === 'declined' ? 'invited' : me.state,
+    members: joined(org).length,
+    invitedBy: me.invitedBy,
+    createdAt: org.createdAt,
+  });
+  /** A row written into the account's feed by the service, at a new revision: what `notifies` plays. */
+  const fed = (row: Partial<Notification> & { kind: Kind }): Notification => {
+    const item: Notification = { id: shortId(), at: Date.now(), readAt: null, hidden: false, ...row, rev: nextRev() };
+    feed.set(item.id, item);
+    return item;
+  };
+  /** The account's pending invitation to `org`, as a feed row, if there is one. */
+  const pendingInvite = (orgId: string) => [...feed.values()].find((n) => n.kind === 'invite' && n.org?.id === orgId && n.state === 'pending') ?? null;
+  /** A change to a feed row takes a new revision, so every device is fed it again. */
+  const touch = (item: Notification, change: Partial<Notification>) => {
+    const next = { ...item, ...change, rev: nextRev() };
+    feed.set(item.id, next);
+    return next;
+  };
+  /** An organization made by a peer, with the account invited to it: the one way an invitation reaches the account. */
+  const inviteAccount = (name: string, by: string): StoredOrg => {
+    const org: StoredOrg = { id: shortId(), name, hue: null, createdAt: Date.now(), rows: new Map() };
+    org.rows.set(lower(by), { handle: by, role: 'owner', state: 'member', since: org.createdAt, invitedBy: null });
+    if (account) {
+      org.rows.set(lower(account.handle), { handle: account.handle, role: 'member', state: 'invited', since: Date.now(), invitedBy: by });
+      fed({ kind: 'invite', from: by, org: { id: org.id, name }, body: { name }, state: 'pending' });
+    }
+    orgs.set(org.id, org);
+    return org;
   };
 
   const fetcher: typeof fetch = async (input, init) => {
@@ -204,6 +311,173 @@ export async function fakeService(seed?: { handle: string; password: string }, {
       return json(200, { rev: prefs.rev });
     }
 
+    // --- organizations and notifications (docs/TEAMS.md) ---
+    if (/^(orgs|notifications)(\/|$)/.test(path)) {
+      // A service from before these routes: the one 404 the client reads as "not yet".
+      if (!teams) return refuse(404, NO_SUCH_ROUTE);
+      const me = mine.handle;
+      /** The organization at `id` and the account's row in it; null for one the account is not in. */
+      const inOrg = (id: string, states: Row['state'][] = ['member']) => {
+        const org = orgs.get(id);
+        const row = org ? rowOf(org, me) : null;
+        return org && row && states.includes(row.state) ? { org, row } : null;
+      };
+
+      if (method === 'POST' && path === 'orgs') {
+        const name = String(body.name ?? '').trim();
+        if (!name || name.length > 60) return refuse(400, 'An organization’s name is 1 to 60 characters.');
+        if (!isHue(body.hue ?? null)) return refuse(400, 'That is not one of the hues.');
+        if ([...orgs.values()].filter((o) => rowOf(o, me)?.role === 'owner').length >= 20) return refuse(409, 'You own as many organizations as you can.');
+        const org: StoredOrg = { id: shortId(), name, hue: (body.hue as string | null | undefined) ?? null, createdAt: Date.now(), rows: new Map() };
+        const owner: Row = { handle: me, role: 'owner', state: 'member', since: org.createdAt, invitedBy: null };
+        org.rows.set(lower(me), owner);
+        orgs.set(org.id, org);
+        return json(201, { org: orgJson(org, owner) });
+      }
+      if (method === 'GET' && path === 'orgs') {
+        const rows: OrgRow[] = [];
+        for (const org of orgs.values()) {
+          const row = rowOf(org, me);
+          if (row && row.state !== 'declined') rows.push(rowJson(org, row));
+        }
+        return json(200, { orgs: rows });
+      }
+      const one = /^orgs\/([^/]+)$/.exec(path);
+      if (one) {
+        const found = inOrg(decodeURIComponent(one[1]!));
+        if (!found) return refuse(404, 'No such organization.');
+        const { org, row } = found;
+        if (method === 'GET') return json(200, { org: orgJson(org, row) });
+        if (method === 'PUT') {
+          if (row.role === 'member') return refuse(403, 'Only the owner or an admin can change the organization.');
+          if (body.name !== undefined) {
+            const name = String(body.name).trim();
+            if (!name || name.length > 60) return refuse(400, 'An organization’s name is 1 to 60 characters.');
+            org.name = name;
+          }
+          if (body.hue !== undefined) {
+            if (!isHue(body.hue)) return refuse(400, 'That is not one of the hues.');
+            org.hue = body.hue as string | null;
+          }
+          return json(200, { org: orgJson(org, row) });
+        }
+        if (method === 'DELETE') {
+          if (row.role !== 'owner') return refuse(403, 'Only the owner can delete the organization.');
+          orgs.delete(org.id);
+          return json(200, { deleted: true });
+        }
+      }
+      const members = /^orgs\/([^/]+)\/members(?:\/([^/]+))?$/.exec(path);
+      if (members) {
+        const found = inOrg(decodeURIComponent(members[1]!));
+        if (!found) return refuse(404, 'No such organization.');
+        const { org, row } = found;
+        if (method === 'POST' && members[2] === undefined) {
+          if (row.role === 'member') return refuse(403, 'Only the owner or an admin can invite.');
+          const handle = resolve(body.handle);
+          if (!handle) return refuse(404, 'No one has that handle.');
+          const had = rowOf(org, handle);
+          if (had?.state === 'member') return refuse(409, 'They are already a member.');
+          if (had?.state === 'declined' && Date.now() - had.since < DECLINE_GAP_MS) return refuse(409, 'They declined; ask again tomorrow.');
+          if (had?.state === 'invited') {
+            // A pending invitation is refreshed, not doubled.
+            had.since = Date.now();
+            had.invitedBy = me;
+            return json(200, { member: memberJson(had) });
+          }
+          const waiting = [...orgs.values()].filter((o) => rowOf(o, handle)?.state === 'invited').length;
+          if (waiting >= PENDING_INVITES) return refuse(409, 'They have as many invitations waiting as they can.');
+          if ([...org.rows.values()].filter((r) => r.state !== 'declined').length >= ORG_ROWS) return refuse(409, 'The organization is full.');
+          const invited: Row = { handle, role: 'member', state: 'invited', since: Date.now(), invitedBy: me };
+          org.rows.set(lower(handle), invited);
+          return json(200, { member: memberJson(invited) });
+        }
+        if (members[2] !== undefined) {
+          const target = rowOf(org, decodeURIComponent(members[2]));
+          if (!target || target.state === 'declined') return refuse(404, 'No one by that handle is in this organization.');
+          if (method === 'DELETE') {
+            const self = lower(target.handle) === lower(me);
+            if (target.role === 'owner') return refuse(403, 'Hand the organization over first.');
+            if (!self) {
+              if (row.role === 'member') return refuse(403, 'Only the owner or an admin can remove a member.');
+              if (target.role === 'admin' && row.role !== 'owner') return refuse(403, 'Only the owner can remove an admin.');
+            }
+            org.rows.delete(lower(target.handle));
+            return json(200, { removed: true });
+          }
+          if (method === 'PUT') {
+            if (row.role !== 'owner') return refuse(403, 'Only the owner can change a role.');
+            if (lower(target.handle) === lower(me)) return refuse(403, 'Hand the organization over first.');
+            if (target.state === 'invited') return refuse(409, 'They have not joined yet.');
+            const role = body.role;
+            if (role !== 'owner' && role !== 'admin' && role !== 'member') return refuse(400, 'A role is owner, admin or member.');
+            if (role === 'owner') row.role = 'admin';
+            target.role = role;
+            return json(200, { member: memberJson(target) });
+          }
+        }
+      }
+      const invite = /^orgs\/([^/]+)\/invite$/.exec(path);
+      if (invite && method === 'POST') {
+        const found = inOrg(decodeURIComponent(invite[1]!), ['invited']);
+        if (!found) return refuse(404, 'You were not invited.');
+        const { org, row } = found;
+        const notice = pendingInvite(org.id);
+        if (body.accept === true) {
+          row.state = 'member';
+          row.since = Date.now();
+          if (notice) touch(notice, { state: 'accepted' });
+          return json(200, { org: orgJson(org, row) });
+        }
+        row.state = 'declined';
+        row.since = Date.now();
+        if (notice) touch(notice, { state: 'declined' });
+        return json(200, { declined: true });
+      }
+
+      if (method === 'GET' && path === 'notifications') {
+        const since = Number(url.searchParams.get('since') ?? 0);
+        const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') ?? 100)));
+        const newer = [...feed.values()].filter((n) => n.rev > since).sort((a, b) => a.rev - b.rev);
+        const items = newer.slice(0, limit);
+        const more = newer.length > items.length;
+        // The cursor is the last row given when there is more to come, and the account's head when there is not.
+        return json(200, { rev: more ? items[items.length - 1]!.rev : counter, items, more });
+      }
+      if (method === 'POST' && path === 'notifications') {
+        const id = String(body.id ?? '');
+        if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return refuse(400, 'That is not an id.');
+        if (!isSelfKind(body.kind)) return refuse(400, 'Only your own kinds can be posted.');
+        if (typeof body.blob !== 'string' || !body.blob || body.blob.length > 8 * 1024) return refuse(400, 'A notification’s blob is up to 8 KB.');
+        // An id this account already has: the same answer, and nothing written (a retry after a lost answer).
+        const had = feed.get(id);
+        if (had) return json(200, { rev: had.rev });
+        const made = fed({ id, kind: body.kind, blob: body.blob });
+        return json(200, { rev: made.rev });
+      }
+      if (method === 'POST' && path === 'notifications/read') {
+        const ids = Array.isArray(body.ids) ? new Set(body.ids.map(String)) : null;
+        const before = typeof body.before === 'number' ? body.before : Number.POSITIVE_INFINITY;
+        for (const item of [...feed.values()]) {
+          const wanted = body.all === true ? item.rev <= before : (ids?.has(item.id) ?? false);
+          if (wanted && item.readAt === null) touch(item, { readAt: Date.now() });
+        }
+        return json(200, { rev: counter });
+      }
+      const row = /^notifications\/([^/]+)$/.exec(path);
+      if (row && method === 'PUT') {
+        const item = feed.get(decodeURIComponent(row[1]!));
+        if (!item) return refuse(404, 'No such notification.');
+        const change: Partial<Notification> = {};
+        if (body.read === true && item.readAt === null) change.readAt = Date.now();
+        if (body.read === false) change.readAt = null;
+        if (typeof body.hidden === 'boolean') change.hidden = body.hidden;
+        const next = Object.keys(change).length ? touch(item, change) : item;
+        return json(200, { rev: next.rev });
+      }
+      return refuse(404, `No route ${method} ${path}`);
+    }
+
     const file = /^recordings\/([^/]+)$/.exec(path);
     if (file) {
       const id = file[1]!;
@@ -269,6 +543,26 @@ export async function fakeService(seed?: { handle: string; password: string }, {
     /** How many recovery codes the account has left unspent. */
     codesLeft(): number {
       return account?.recovery.size ?? 0;
+    },
+    /** The account's notifications as stored, by id: each row at the revision it was last written. */
+    feed,
+    /** The organizations as stored, by id, with their rows by handle. */
+    orgs,
+    /** The handles that resolve for an invitation without being the account. */
+    peers,
+    /** A row the service wrote into the account's feed - another account's doing - at a new revision. Answers it. */
+    notifies(row: Partial<Notification> & { kind: Kind }): Notification {
+      return fed(row);
+    },
+    /** An organization `by` (a peer) made and invited the account to: the invitation lands in the feed. Answers the organization's id. */
+    invited(name: string, by: string = peers[0] ?? 'sam'): string {
+      return inviteAccount(name, by).id;
+    },
+    /** The account's row in an organization, as the service holds it; null when it has none. */
+    rowIn(orgId: string): { role: Role; state: 'member' | 'invited' | 'declined' } | null {
+      const org = orgs.get(orgId);
+      const row = org && account ? rowOf(org, account.handle) : null;
+      return row ? { role: row.role, state: row.state } : null;
     },
   };
 }

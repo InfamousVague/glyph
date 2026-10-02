@@ -130,6 +130,12 @@ describe('a store written by another build, or half written', () => {
     expect(launchWith({ workspaces: 'none' }).workspaces).toEqual({ list: [], notes: {} });
   });
 
+  it('reads the notification switches as on unless written off, and mutes only ids', () => {
+    expect(launchWith({ notifications: { team: false, mutedOrgs: ['o1', 7, null] } }).notifications).toEqual({ team: false, claude: true, summaries: true, conflicts: true, mutedOrgs: ['o1'] });
+    expect(launchWith({ notifications: 'all' }).notifications).toEqual(DEFAULT_PREFERENCES.notifications);
+    expect(launchWith({}).notifications).toEqual({ team: true, claude: true, summaries: true, conflicts: true, mutedOrgs: [] });
+  });
+
   it('keeps the trash only as ids with a time', () => {
     expect(launchWith({ trash: { a: 10, b: 'yesterday', c: null } }).trash).toEqual({ a: 10 });
     expect(launchWith({ trash: 'none' }).trash).toEqual({});

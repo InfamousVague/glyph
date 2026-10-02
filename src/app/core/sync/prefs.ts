@@ -55,6 +55,8 @@ const SYNCED_PREFS = [
   'meetings',
   // The notes shared by a link, with their keys: listed, followed and stopped from any device (share/share.ts).
   'shares',
+  // Which notifications are drawn and counted, and which organizations are muted: chosen once for every device.
+  'notifications',
 ] as const satisfies readonly (keyof Preferences)[];
 
 export type SyncedPrefs = Pick<Preferences, (typeof SYNCED_PREFS)[number]>;
