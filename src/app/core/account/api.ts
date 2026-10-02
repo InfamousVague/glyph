@@ -6,7 +6,10 @@
  * what the service meant.
  */
 
-export const API_BASE: string = (import.meta.env.VITE_GLYPH_API as string | undefined)?.replace(/\/+$/, '') || 'https://ghostmarkdown.com/api';
+// The live server still serves the API under /glyph/api (the /api/* routes exist in source but that server binary is not
+// deployed yet); the bare /api path 404s, which failed every client's sync on boot. Back to the working /glyph prefix on
+// the ghostmarkdown.com TLD until the new server binary and its Caddy route are deployed, then this moves to /api.
+export const API_BASE: string = (import.meta.env.VITE_GLYPH_API as string | undefined)?.replace(/\/+$/, '') || 'https://ghostmarkdown.com/glyph/api';
 
 /** A request the service refused, with its status and its own words. */
 export class ApiError extends Error {

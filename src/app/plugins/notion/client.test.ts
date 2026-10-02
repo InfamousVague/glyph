@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * it for the page's life.
  */
 
-const API = 'https://ghostmarkdown.com/api/notion';
+const API = 'https://ghostmarkdown.com/glyph/api/notion';
 const SIGN_IN_KEY = 'glyph-notion-signin';
 const LINKS_KEY = 'glyph-notion-links';
 
