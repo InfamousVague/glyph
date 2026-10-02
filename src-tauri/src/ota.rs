@@ -214,7 +214,12 @@ pub use install::peek;
 /// `save_video` and `discard_picked`; the `vid` scheme playing a film in ranges by seek (ranged.rs); `delete_note`
 /// and a daily sweep taking the films no note names, and a launch sweep of what waits in `picked/`; the reset taking
 /// `video/` and `picked/`; and the manifest's backup rules keeping `video/` out of Google's cloud backup.
-pub const NATIVE_GENERATION: u32 = 21;
+///
+/// 22: everything the app keeps as one zip on a USB drive or wherever a person chooses (docs/DESIGN.md §167):
+/// `export_save`, the Mac's save panel (tauri-plugin-dialog) and the archive written there; `export_fd`, the archive
+/// written into the document Android's picker made, through the activity's `GlyphHost.chooseExport`, answered as
+/// `window.__glyph.exportTarget`, and `GlyphHost.discardExport`; `export_cancel`; the `export://progress` event.
+pub const NATIVE_GENERATION: u32 = 22;
 
 /// What the page built from THIS tree needs. vite.config.ts reads this line
 /// with a regex and stamps it into `ota.json`, so keep it a literal. Nothing in

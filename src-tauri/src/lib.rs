@@ -123,6 +123,11 @@ mod recording_commands;
 #[cfg(target_os = "android")]
 mod recording_jobs;
 
+// Everything the app keeps as one zip, on a USB drive or wherever a person chooses (native generation 22):
+// export.rs writes it, export_commands.rs is the Mac's save panel and Android's picker.
+mod export;
+mod export_commands;
+
 // The window fixes one platform needs: iOS's key window, macOS's traffic lights.
 mod platform;
 
@@ -149,6 +154,9 @@ pub fn run() {
     // position on a phone, and the plugin is not built for those targets.
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_decorum::init());
+    // The Mac's save panel, for the export (export_commands.rs). Asked from Rust only, so no page permission names it.
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_dialog::init());
 
     builder
         .setup(|app| {
@@ -167,6 +175,7 @@ pub fn run() {
             links::install(app);
             // Off the main thread, after the library: what waits in picked/ and the films no note names.
             videos::install(app);
+            export_commands::install(app);
 
             #[cfg(target_os = "ios")]
             platform::ensure_key_window(app.handle());
@@ -197,6 +206,9 @@ pub fn run() {
             images::save_image_data,
             videos::save_video,
             videos::discard_picked,
+            export_commands::export_save,
+            export_commands::export_fd,
+            export_commands::export_cancel,
             capture_commands::models::capture_model_status,
             capture_commands::models::capture_fetch_model,
             capture_commands::models::capture_refine_model_status,

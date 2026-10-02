@@ -64,6 +64,9 @@ pub mod command;
 #[path = "../../../src-tauri/src/llm/prompt.rs"]
 pub mod prompt;
 
+#[path = "../../../src-tauri/src/export.rs"]
+pub mod export;
+
 // The transcript a meeting's write-up puts into a note's body, the twin of
 // the page's `toParagraphs`; Tauri-free so the write-up can run with no Tauri
 // in the process, and so its fixture test runs here.

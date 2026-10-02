@@ -215,6 +215,19 @@ lists the library as a place of its own
 It's read-only there: another app can open, copy and share a note, but can't change one behind the library's back,
 where the index and sync wouldn't see it. `.glyph/` is hidden.
 
+## Exporting everything
+
+Settings › Account › Export › **Export everything** writes the whole library, and everything beside it a note shows
+or plays, as one zip, `ghostmarkdown_<date>_<time>.zip` on the device's clock (DESIGN §167). On the Mac the save
+panel asks where, and on Android the system's picker does; a USB drive plugged in is one of the places either way.
+Inside is one folder of the archive's name: `Library/` as it is here (with `.glyph/library.json` and the phrases in
+`.glyph/notes/`, but not `index.sqlite`, which is rebuilt from the files), `images/`, `video/` and `recordings/`, a
+`settings.json` with the page's settings (no account, password or token), a `manifest.json`, and a `README.txt` that
+says what each folder is. The models, the write-ups under way, the over-the-air builds and `notion.json` stay behind.
+`src-tauri/src/export.rs` writes it, as a stream, so Android's picker hands Rust the new file's descriptor and nothing
+is built on the phone first; a failed or stopped export takes its half-written file away again. A browser zips the
+notes and pictures it keeps.
+
 ## Phases
 
 1. **Built (1.3.0, native generation 15).** This spec, and the library in Rust behind the store commands the page

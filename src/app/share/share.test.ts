@@ -3,7 +3,7 @@ import { makeNote } from '../../test/notes.ts';
 import { noteTitle } from '../core/store.ts';
 import { bookNoteBody, chaptersOf } from '../book/book.ts';
 import { forkShared, newShareId, newShareKey, openShare, readShareLink, sealShare, shareLink, sharedAsFile, sharedOf, sharesPlace, sharesPlaces, withPictures, type Shared } from './share.ts';
-import { crc32, zipFiles } from './zip.ts';
+import { crc32, dosTime, zipFiles } from './zip.ts';
 
 describe('a share sealed by its link', () => {
   it('opens with its own key and with no other, and the link carries both halves after the #', async () => {
@@ -70,6 +70,16 @@ describe('the zip', () => {
     expect(crc32(new TextEncoder().encode('The quick brown fox jumps over the lazy dog'))).toBe(0x414fa339);
     const zip = zipFiles([{ name: 'a.md', bytes: new TextEncoder().encode('hi') }]);
     expect(new DataView(zip.buffer).getUint32(14, true)).toBe(crc32(new TextEncoder().encode('hi')));
+  });
+
+  it('dates each file on the local clock, where it read as 1980-00-00 before', () => {
+    const at = new Date(2026, 9, 1, 21, 42, 5);
+    expect(dosTime(at)).toEqual({ time: (21 << 11) | (42 << 5) | 2, date: (46 << 9) | (10 << 5) | 1 });
+    const zip = new DataView(zipFiles([{ name: 'a.md', bytes: new Uint8Array([1]) }], at).buffer);
+    // The local header's time and date, and the central directory's (after the local entry: 30 bytes, the name, the byte).
+    expect([zip.getUint16(10, true), zip.getUint16(12, true)]).toEqual([dosTime(at).time, dosTime(at).date]);
+    expect([zip.getUint16(35 + 12, true), zip.getUint16(35 + 14, true)]).toEqual([dosTime(at).time, dosTime(at).date]);
+    expect(dosTime(new Date(1970, 0, 1))).toEqual({ time: 0, date: 33 });
   });
 });
 

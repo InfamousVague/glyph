@@ -25,6 +25,12 @@ function privacy(app: boolean): SettingsFindable[] {
   ];
 }
 
+/** The Export card's (ExportCard.tsx, docs/DESIGN.md §167): everything as one zip, onto a USB drive. */
+const EXPORT: SettingsFindable[] = [
+  { name: 'Export', words: 'backup usb drive zip archive' },
+  { name: 'Export everything', words: 'backup back up usb drive stick zip archive copy save all notes' },
+];
+
 /** The Location card's, which was a page of its own (Settings › Location) until §138, with that page's words. */
 const LOCATION: SettingsFindable[] = [
   { name: 'Location', words: 'map place where geotag gps' },
@@ -45,6 +51,7 @@ export function findable(signedIn: boolean, app = false): SettingsFindable[] {
         { name: 'Shared links', words: 'share publish read' },
         ...PRIVACY,
         ...LOCATION,
+        ...EXPORT,
         { name: 'Delete account', words: 'remove close erase data' },
       ]
     : [
@@ -53,5 +60,6 @@ export function findable(signedIn: boolean, app = false): SettingsFindable[] {
         { name: 'Lost the password', words: 'forgot recovery code reset' },
         ...PRIVACY,
         ...LOCATION,
+        ...EXPORT,
       ];
 }

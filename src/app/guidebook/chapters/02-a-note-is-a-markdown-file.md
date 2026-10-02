@@ -58,6 +58,16 @@ To see the folder, use **Browse files**, the folder button in the sidebar's top 
 
 In a browser tab there is no folder. Notes are kept in that browser's own storage, and pictures in its database, on that computer only unless you sign in and sync.
 
+## Taking everything with you
+
+**Settings › Account › Export everything** puts all of it in one zip: every note as its `.md` file in its folders, the pictures, films and recordings beside them, and your settings. It is named for when you made it, such as `ghostmarkdown_2026-10-01_21-42-05.zip`, and opens as a folder of that name on any computer or phone, with a README that says what each folder is.
+
+- **On Android**, plug in a USB drive first. The phone's own picker asks where the zip goes, and the drive is one of its places, beside Downloads.
+- **On a Mac**, the save panel asks, and a USB drive is on its side.
+- **In a browser**, it holds the notes and pictures that browser keeps.
+
+While it runs, Settings says how far it has got, and Stop ends it. A zip that did not finish is taken away again, so the drive only ever holds one that opens. A drive formatted as FAT32 cannot hold a file over 4 GB; if yours says so, use one formatted as exFAT. The AI and voice models are not in it (they download again), and neither is anything that signs you in. Exporting needs the newest Ghost.md on the phone and the Mac (an older one says to update), and is not on iPhone yet.
+
 ## A file changed somewhere else
 
 Ghost.md checks the files against its index whenever it reads the list or opens a note. A file changed by another app is read again, a new `.md` file joins the list, and one that has gone leaves it.

@@ -47,6 +47,11 @@ interface GlyphInbound {
   notified?: Handler;
   /** Android answered the location prompt (native generation 20): the page reads `locationAccess` again (core/location.ts). */
   location?: Handler;
+  /**
+   * Where an export goes (native generation 22; files/ExportTarget.kt): `{ fd, name }` for the file the picker made,
+   * `{ cancelled: true }` or `{ error }` (core/exportAll.ts).
+   */
+  exportTarget?: (json: string) => void;
 }
 
 interface GlyphHostBridge {
@@ -127,6 +132,13 @@ interface GlyphHostBridge {
   requestLocation?(): void;
   /** Opens the app's own page in the phone's settings, where a blocked location is allowed again; true if it opened. */
   openLocationSettings?(): boolean;
+  // The export of everything (native generation 22; files/ExportTarget.kt). Optional for the same reason.
+  /** Opens the system's picker to make a zip of this name, a USB drive among its places: "started", or why not. */
+  chooseExport?(name: string): string;
+  /** The export failed or was stopped: the half-written file goes. */
+  discardExport?(): void;
+  /** The export is whole: the file stays. */
+  exportDone?(): void;
 }
 
 declare global {
