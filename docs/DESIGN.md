@@ -9600,3 +9600,56 @@ feed again each time it opens, as the page did.
 Measured in the preview with a fake session and five rows: at 1280 the card is 416px at the right under the bell; at
 412 it is 385px, and no row is wider than its card.
 
+## 175. An organization's dashboard, with its settings behind a cog (2026-10-02)
+
+Matt: "Design and deploy a dashboard for organizations when clicking an organization in the header don't take me to
+the settings, instead, take me to this dashboard page and have a organization settings icon on that".
+
+§171 made the organization's view its settings: a second SettingsScreen landed on Members. An organization now has a
+page of its own, `notes/OrganizationScreen.tsx`, and the `organization` Screen is that page (`{ name: 'organization';
+orgId }`, the `from` gone); the settings became an overlay over whatever is up, held beside `screen` in the Shell as
+the personal Settings are (`orgSettings` in App.tsx).
+
+**What opens which.** Looking at a team opens the dashboard: the tab row's organizations icon, a notification about
+it, a `ghostmd://org/<id>` link, an invitation accepted on the home page, one just made from the home filters, and a
+second tap on its workspace's pill. Editing opens the settings: the dashboard's cog, the edit words on
+its workspace (Edit on the home filters, a folder's "…", the workspace's sheet) and Settings › Account › Organizations.
+From the cog they open on their list of sections, since the page under them already shows the team, and their head
+names the organization as the place it goes back to (`from: 'dashboard'`, `closeWord`), not "Back to your notes";
+from Settings they open on Members and close back to Settings, as before. Left or deleted from its settings, the
+dashboard has nothing to show, so closing goes home.
+
+**The page.** Built as All notes is: the glass bar with the arrow home, the organization's name with its colour, and
+the cog at the bar's end (`aria-label` "Organization settings"); under it the scroller with its smoke and a pull to
+refresh. With more than one organization, a row of pills moves between them. The hero is the colour's round, the
+name, "2 members · You are owner" and the sentence that notes filed there stay yours for now (D1), with New note,
+which makes a note already filed in its workspace and opens it ready to type, and, for an owner or an admin, Invite,
+which brings the invite field into view and focuses it. Then three sections: **Notes**, the six newest filed in its
+workspace as the home page's cards, with All N to the home page on that workspace; **Members**, each with an initial,
+the handle, the role's chip and "You, owner since …" or "Invited by …", and the invite field for an owner or an admin,
+whose refusals are the service's own sentences; and **Activity**, the organization's own news from the feed (joined,
+left, removed, renamed, a role changed, an invitation answered), eight at most, with a way to the notifications. On a
+window 44rem wide the members stand in a column beside the notes and the activity (`grid-template-areas`, rows `auto
+1fr` so a long members column never pushes the activity down). Invited and not yet in, the page is the invitation
+with Accept and Decline; gone from the list, it says so; signed out or under Local only, it says why, with a word to
+Account. The members are read when the page opens, when the organization's news arrives and on a pull, so someone
+who accepts while the page is open is a member a moment later.
+
+**Two things found on the way.** Accepting an only invitation from the home page did nothing visible: the pass that
+delivers the answer takes the list of organizations again, the card is drawn only while the invitation is open, so
+it went mid-pass, and InviteActions told its page only while it was still drawn. It now tells the page of a
+delivered answer either way; only its own words wait on being drawn. The home page's test held its fake pass so the
+page is drawn again before it ends, as the network holds a real one, and fails without the fix. And on a phone the
+home page was 19px wider than the window: the dock's halo (GLY-81's ghost blur, `inset: -2.4rem`) spilled past the
+edge, and a focus slid the whole app sideways. `.screen` clips its sideways overflow (`overflow-x: clip`, not
+`hidden`, so it is no scroller); the halo is cut only where it was past the window.
+
+Measured in the preview against a local glyph-api with two accounts: alice made Ghost team and invited bob from the
+dashboard (the member list said "bob Invited"); bob's accept on his home card opened Design crit's dashboard at 412px,
+2 members, the document 412 wide; alice's dashboard showed bob as a member and "bob accepted your invitation to Ghost
+team" under Activity. Tests: OrganizationScreen.test.tsx (the hero and members, the cog, New note, filed notes, the
+invite's refusal and success, a member without invite, the activity's filter, the invitation, the pills, gone,
+signed out), App.test.tsx (the cog over the dashboard and back, a pill to another, Settings' route), the
+OrganizationSheet case for the cog, and HomeScreen.test.tsx's only invitation.
+
+Cites: §170, §171, §174.

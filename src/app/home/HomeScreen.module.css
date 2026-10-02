@@ -9,6 +9,13 @@
   position: relative;
   block-size: 100dvh;
   background: var(--glacier-bg);
+  /*
+   * Nothing drawn here widens the window. The dock's halo reaches 2.4rem past the dock, which stands only a gutter in
+   * from the edge, so on a phone it spilled past it: the document grew 20px wider than the screen, and a focus or a
+   * swipe on the bar slid the whole app sideways. `clip`, not `hidden`, so the page is still no scroller and nothing
+   * sticky in it changes; the halo is cut only where it was past the window anyway.
+   */
+  overflow-x: clip;
 }
 
 /*

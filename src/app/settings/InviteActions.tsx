@@ -21,7 +21,11 @@ import styles from './InviteActions.module.css';
 
 interface InviteActionsProps {
   orgId: string;
-  /** After the pass that carried the answer, however it went: the page may want to move on (open the organization, say). */
+  /**
+   * After the pass that delivered the answer: the page may want to move on (open the organization, say). Called even
+   * when the answer took these words away with it, as it does on the home page, whose card is drawn only while the
+   * invitation is open, and in Settings, whose row leaves the invitations once the pass takes the list again.
+   */
   onAnswered?: (accepted: boolean) => void;
 }
 
@@ -41,16 +45,15 @@ export function InviteActions({ orgId, onAnswered }: InviteActionsProps) {
     setProblem(null);
     answerInvite(orgId, accept);
     await syncNotificationsNow();
-    if (!alive.current) return;
     // Still queued after the pass: the service refused it, or could not be reached; its words say which.
     const session = accountState().session;
     const left = session ? feedState(session.accountId).marks.some((mark) => 'org' in mark && mark.org === orgId) : false;
-    setPending(false);
-    if (left) {
-      setProblem(syncStatusNow().message ?? 'Not sent yet. It goes with the next sync.');
-      return;
+    // Only the words' own state waits on their still being drawn; the page hears of a delivered answer either way.
+    if (alive.current) {
+      setPending(false);
+      if (left) setProblem(syncStatusNow().message ?? 'Not sent yet. It goes with the next sync.');
     }
-    onAnswered?.(accept);
+    if (!left) onAnswered?.(accept);
   };
 
   return (

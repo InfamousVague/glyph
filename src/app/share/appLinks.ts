@@ -22,8 +22,8 @@ export function readNoteLink(link: string): string | null {
 }
 
 /**
- * Two more places a link can name since organizations (docs/TEAMS.md): the Notifications page, `ghostmd://notifications`,
- * and an organization's screen, `ghostmd://org/<id>`, the id as the service makes one. Null for any other link.
+ * Two more places a link can name since organizations (docs/TEAMS.md): the notifications drawer, `ghostmd://notifications`,
+ * and an organization's dashboard, `ghostmd://org/<id>`, the id as the service makes one. Null for any other link.
  */
 export function readPlaceLink(link: string): { place: 'notifications' } | { place: 'organization'; orgId: string } | null {
   const trimmed = link.trim();

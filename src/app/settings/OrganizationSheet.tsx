@@ -31,8 +31,9 @@ import styles from './OrganizationsPane.module.css';
  * as a reset is (DeveloperPane.tsx). The service's refusals are shown in its own words under the row that asked.
  *
  * Opened from Settings › Account › Organizations (`from: 'settings'`), its head reads "← Organizations" and closing
- * reopens Settings on that page (App.tsx); from anywhere else - a workspace's pill, the home filters, a folder's menu,
- * a notification - closing goes back to the notes. The personal Settings sheet is never open at the same time.
+ * reopens Settings on that page (App.tsx); from the organization's dashboard's cog (`from: 'dashboard'`), closing
+ * finds the dashboard again; from anywhere else - the home filters, a folder's menu, the workspace's sheet - closing
+ * goes back to the notes. The personal Settings sheet is never open at the same time.
  *
  * What the organization's workspace is, and is not yet, is said on Members and on Workspace: notes filed there stay
  * the person's own for now (docs/TEAMS.md, D1); sharing them with the team is the next slice.
@@ -40,11 +41,20 @@ import styles from './OrganizationsPane.module.css';
 
 interface OrganizationSheetProps {
   orgId: string;
-  /** Opened from Settings › Account › Organizations: the head says so, and closing goes back there. */
-  from?: 'settings';
+  /**
+   * Opened from Settings › Account › Organizations: the head says so, and closing goes back there. From the
+   * organization's dashboard (notes/OrganizationScreen.tsx), closing finds the dashboard again, so the head's word is
+   * the organization's name said as the place it goes, not "Back to your notes".
+   */
+  from?: 'settings' | 'dashboard';
   onClose: () => void;
   /** The notes filed in the organization's workspace: the home page with that workspace chosen. */
   onNotes: () => void;
+  /**
+   * Land on Members as it opens (the default), or on the list of sections: from the organization's dashboard
+   * (notes/OrganizationScreen.tsx), whose page already shows the team, the cog opens the settings themselves.
+   */
+  landOnMembers?: boolean;
 }
 
 /** How long a leave or a delete stays armed after its first tap, as a reset does. */
@@ -306,7 +316,7 @@ function TwiceRow({ icon, label, hint, word, busyWord, onDo }: { icon: ReactNode
 
 // --- the screen ----------------------------------------------------------------------------
 
-export function OrganizationSheet({ orgId, from, onClose, onNotes }: OrganizationSheetProps) {
+export function OrganizationSheet({ orgId, from, onClose, onNotes, landOnMembers = true }: OrganizationSheetProps) {
   const account = useAccount();
   const prefs = usePreferences();
   const { list } = useOrgs();
@@ -315,7 +325,7 @@ export function OrganizationSheet({ orgId, from, onClose, onNotes }: Organizatio
   const [org, setOrg] = useState<Org | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   // Landed on Members, once, as the screen opens (docs/TEAMS.md, D6): the team first, the settings behind it.
-  const [goTo, setGoTo] = useState<(SettingsTarget & { nonce: number }) | null>(() => ({ id: 'members', nonce: Date.now() }));
+  const [goTo, setGoTo] = useState<(SettingsTarget & { nonce: number }) | null>(() => (landOnMembers ? { id: 'members', nonce: Date.now() } : null));
 
   /** The organization in full, read again after every change here: the members, and the kept row with them. */
   const read = useCallback(async () => {
@@ -332,7 +342,7 @@ export function OrganizationSheet({ orgId, from, onClose, onNotes }: Organizatio
     void read();
   }, [account.session, read, row?.state]);
   // Another organization: landed on its Members again.
-  useEffect(() => setGoTo({ id: 'members', nonce: Date.now() }), [orgId]);
+  useEffect(() => setGoTo(landOnMembers ? { id: 'members', nonce: Date.now() } : null), [orgId, landOnMembers]);
 
   const me = account.session?.handle ?? '';
   const name = row?.name ?? org?.name ?? 'Organization';
@@ -470,7 +480,7 @@ export function OrganizationSheet({ orgId, from, onClose, onNotes }: Organizatio
       goTo={goTo}
       title={name}
       search={false}
-      closeWord={from === 'settings' ? 'Organizations' : undefined}
+      closeWord={from === 'settings' ? 'Organizations' : from === 'dashboard' ? name : undefined}
     />
   );
 }

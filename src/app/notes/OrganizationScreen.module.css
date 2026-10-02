@@ -1,0 +1,500 @@
+/*
+ * An organization's dashboard (OrganizationScreen.tsx): a glass bar with the way home, the organization's name in its
+ * colour and the cog to its settings; under it the hero, then the notes filed in its workspace, its members and its
+ * activity. Built as All notes is (AllNotesScreen.module.css), so it feels like the same app, with the home page's
+ * cards (HomeScreen.module.css `.cards`) and its quiet headings. The organization's colour is worn
+ * where a workspace's is (ink.css `[data-hue]`): its round, its pill, and nowhere else.
+ */
+
+.screen {
+  composes: screen from '../home/HomeScreen.module.css';
+}
+
+.scroll {
+  block-size: 100%;
+  /* Under the bar, which is a pane over this (app.css .app-headerPane; art/wispEdge.ts sets `--wisp-under`), and clear of it. */
+  padding-block-start: calc(max(var(--wisp-under, 0px), var(--app-safe-top)) + var(--glacier-space-4));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
+  padding-block-end: calc(var(--app-safe-bottom) + var(--glacier-space-10));
+}
+
+/* The bar: the arrow home, the organization's name with its colour, and the cog at the end. */
+.topBar {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  padding-inline: var(--app-gutter-start) var(--app-gutter-end);
+  padding-block: calc(var(--app-safe-top) + var(--glacier-space-2)) var(--glacier-space-2);
+}
+
+.back {
+  composes: back from './AllNotesScreen.module.css';
+}
+
+.title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  min-inline-size: 0;
+  margin: 0;
+  font-size: var(--glacier-font-size-lg);
+  font-weight: var(--glacier-font-weight-semibold);
+  letter-spacing: var(--app-tracking-title);
+  color: var(--app-ink);
+}
+
+.titleHue {
+  flex: none;
+  inline-size: 0.6em;
+  block-size: 0.6em;
+  border-radius: var(--glacier-radius-full);
+  background: var(--app-space, var(--app-ink-3));
+}
+
+.titleName {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The cog: one ring like the top bar's, the organization's settings behind it. */
+.cog {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: calc(var(--glacier-space-10) * 0.88);
+  block-size: calc(var(--glacier-space-10) * 0.88);
+  padding: 0;
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-full);
+  background: color-mix(in oklch, var(--app-ink) 4%, transparent);
+  color: var(--app-ink);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cog:hover {
+  background: color-mix(in oklch, var(--app-ink) 8%, transparent);
+}
+
+.cog:active svg {
+  transform: scale(0.92);
+}
+
+.cog:focus-visible,
+.pill:focus-visible,
+.action:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}
+
+/* The page spans the pane, as the home page's does; its own width is what the wide layout below asks. */
+.page {
+  container: org-page / inline-size;
+}
+
+/* Signed out, or Local only: one sentence in the quiet ink, with its word in ink that goes to Account. */
+.held {
+  margin: var(--glacier-space-4) 0 0;
+  font-size: var(--glacier-font-size-md);
+  line-height: var(--glacier-leading-md);
+  color: var(--app-ink-2);
+}
+
+.problem {
+  margin: var(--glacier-space-3) 0 0;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-2);
+}
+
+/* Gone from the list: a small ghost and two lines, as the home page says it found nothing. */
+.gone {
+  padding-block: var(--glacier-space-6);
+}
+
+.goneArt {
+  display: block;
+  margin-block-end: var(--glacier-space-4);
+  color: var(--app-ink-3);
+}
+
+.goneLead {
+  margin: 0;
+  font-size: var(--glacier-font-size-xl);
+  font-weight: var(--glacier-font-weight-semibold);
+  letter-spacing: var(--app-tracking-title);
+  color: var(--glacier-text-subtle);
+}
+
+.goneHint {
+  margin: var(--glacier-space-2) 0 0;
+  font-size: var(--glacier-font-size-md);
+  color: var(--glacier-text-muted);
+}
+
+/* The other organizations: pills in a row that scrolls sideways, the one on screen pressed in. */
+.switcher {
+  display: flex;
+  gap: var(--glacier-space-2);
+  margin-block-end: var(--glacier-space-4);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.switcher::-webkit-scrollbar {
+  display: none;
+}
+
+.pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.35em 0.85em;
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-full);
+  background: none;
+  color: var(--app-ink-2);
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pill[aria-current='page'] {
+  border-color: var(--app-ink-2);
+  background: color-mix(in oklch, var(--app-ink) 6%, transparent);
+  color: var(--app-ink);
+  cursor: default;
+}
+
+.pillHue {
+  inline-size: 0.55em;
+  block-size: 0.55em;
+  border-radius: var(--glacier-radius-full);
+  background: var(--app-space, var(--app-ink-3));
+}
+
+.pillNote {
+  font-size: var(--glacier-font-size-xs);
+  color: var(--app-ink-3);
+}
+
+/*
+ * The hero: the organization's colour as a round, its name a step under the page title's, how many and what you
+ * are, the workspace's sentence, and New note and Invite. A card in the home page's material, the words beside the
+ * round, the two things to do under them on a phone and at the end on a wide window.
+ */
+.hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--glacier-space-3) var(--glacier-space-4);
+  align-items: center;
+  padding: var(--glacier-space-5);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-lg);
+  background: color-mix(in oklch, var(--app-ink) 3%, transparent);
+}
+
+.heroHue {
+  inline-size: 3.25rem;
+  block-size: 3.25rem;
+  border-radius: var(--glacier-radius-full);
+  background: var(--app-space, var(--app-ink-3));
+}
+
+.heroWords {
+  min-inline-size: 0;
+}
+
+.heroName {
+  margin: 0;
+  font-size: var(--glacier-font-size-2xl);
+  line-height: 1.15;
+  font-weight: var(--glacier-font-weight-semibold);
+  letter-spacing: var(--app-tracking-title);
+  color: var(--app-ink);
+  overflow-wrap: anywhere;
+}
+
+.heroMeta {
+  margin: var(--glacier-space-1) 0 0;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-2);
+}
+
+.heroNote {
+  margin: var(--glacier-space-2) 0 0;
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  color: var(--app-ink-3);
+}
+
+.heroActions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--glacier-space-2);
+}
+
+/* A thing to do: a pill with the kit's mark, the app's ink on its faint wash. */
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  min-block-size: 2.25rem;
+  padding: 0 1em;
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-full);
+  background: color-mix(in oklch, var(--app-ink) 5%, transparent);
+  color: var(--app-ink);
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.action:hover {
+  background: color-mix(in oklch, var(--app-ink) 9%, transparent);
+}
+
+.action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* The groups: one column on a phone; past 44rem the members stand beside the notes and the activity. */
+.grid {
+  display: grid;
+  gap: var(--glacier-space-8);
+  margin-block-start: var(--glacier-space-8);
+}
+
+.section {
+  display: grid;
+  gap: var(--glacier-space-3);
+  align-content: start;
+  min-inline-size: 0;
+}
+
+.headRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--glacier-space-3);
+}
+
+/* A group's heading, as the home page's are: small, in the second ink, with the kit's mark and a count. */
+.heading {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink-2);
+}
+
+.mark {
+  flex: none;
+  color: var(--app-ink-3);
+}
+
+.count {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--glacier-font-weight-regular);
+  color: var(--app-ink-3);
+}
+
+.more {
+  flex: none;
+  color: var(--app-ink-2);
+  font-size: var(--glacier-font-size-sm);
+  white-space: nowrap;
+}
+
+.cards {
+  composes: cards from '../home/HomeScreen.module.css';
+}
+
+.none {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  color: var(--app-ink-3);
+}
+
+/* The members: a list with a hairline between rows, an initial in a round, the handle and its role, since when. */
+.members,
+.activity {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.reading {
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3);
+}
+
+.member {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  padding-block: var(--glacier-space-3);
+  border-block-end: var(--glacier-hairline) solid var(--app-rule);
+  animation: rise 360ms var(--glacier-ease-out) both;
+  animation-delay: calc(var(--i, 0) * 28ms);
+}
+
+.avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  border-radius: var(--glacier-radius-full);
+  background: color-mix(in oklch, var(--app-ink) 8%, transparent);
+  color: var(--app-ink);
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.member[data-state='invited'] .avatar {
+  background: none;
+  border: var(--glacier-hairline) dashed var(--app-ink-3);
+  color: var(--app-ink-3);
+}
+
+.memberWords {
+  display: grid;
+  gap: 0.15em;
+  min-inline-size: 0;
+}
+
+.handle {
+  font-size: var(--glacier-font-size-md);
+  font-weight: var(--glacier-font-weight-medium);
+  color: var(--app-ink);
+  overflow-wrap: anywhere;
+}
+
+.role {
+  composes: role from '../settings/OrganizationsPane.module.css';
+}
+
+.since {
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3);
+}
+
+/* The invite field, under the members: the field and Invite on one line, the service's answer under them. */
+.invite {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--glacier-space-2);
+  align-items: center;
+  margin-block-start: var(--glacier-space-1);
+}
+
+.inviteSaid {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-2);
+}
+
+/* The activity: a mark, the sentence, and when, a row each, the unread ones in ink and the rest in the quiet ink. */
+.news {
+  display: flex;
+  align-items: baseline;
+  gap: var(--glacier-space-3);
+  padding-block: var(--glacier-space-3);
+  border-block-end: var(--glacier-hairline) solid var(--app-rule);
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-2);
+  animation: rise 360ms var(--glacier-ease-out) both;
+  animation-delay: calc(var(--i, 0) * 28ms);
+}
+
+.news[data-unread] {
+  color: var(--app-ink);
+}
+
+.newsMark {
+  flex: none;
+  align-self: center;
+  display: grid;
+  color: var(--app-ink-3);
+}
+
+.newsWords {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.when {
+  flex: none;
+  font-size: var(--glacier-font-size-xs);
+  color: var(--app-ink-3);
+  white-space: nowrap;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .member,
+  .news {
+    animation: none;
+  }
+}
+
+/*
+ * The page laid out wide: past 44rem the hero puts its two things to do at its end, and the members take a rail a
+ * third of the page wide beside the notes and the activity, as To do stands beside the home page's groups.
+ */
+@container org-page (min-width: 44rem) {
+  .hero {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .heroActions {
+    grid-column: auto;
+    justify-content: flex-end;
+  }
+
+  .grid {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    /* The members' rail runs down both rows; what it is taller by goes to the second, so the activity follows the notes. */
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      'notes members'
+      'activity members';
+    column-gap: var(--glacier-space-10);
+    align-items: start;
+  }
+
+  .section[data-group='notes'] {
+    grid-area: notes;
+  }
+
+  .section[data-group='members'] {
+    grid-area: members;
+  }
+
+  .section[data-group='activity'] {
+    grid-area: activity;
+  }
+}

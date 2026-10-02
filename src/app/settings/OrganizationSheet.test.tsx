@@ -55,8 +55,8 @@ async function sam(orgId: string, joined: boolean): Promise<void> {
   }
 }
 
-const sheet = (orgId: string, over: Partial<{ from: 'settings'; onClose: () => void; onNotes: () => void }> = {}) =>
-  show(<OrganizationSheet orgId={orgId} onClose={over.onClose ?? (() => undefined)} onNotes={over.onNotes ?? (() => undefined)} from={over.from} />);
+const sheet = (orgId: string, over: Partial<{ from: 'settings' | 'dashboard'; landOnMembers: boolean; onClose: () => void; onNotes: () => void }> = {}) =>
+  show(<OrganizationSheet orgId={orgId} onClose={over.onClose ?? (() => undefined)} onNotes={over.onNotes ?? (() => undefined)} from={over.from} landOnMembers={over.landOnMembers} />);
 
 const display = (host: HTMLElement) => host.querySelector('.settingsScreen__display')?.textContent ?? null;
 const headWord = (host: HTMLElement) => host.querySelector('.settingsScreen__headWord')?.textContent?.trim();
@@ -125,6 +125,19 @@ describe('the screen', () => {
     const host = sheet(id, { from: 'settings', onClose });
     act(() => host.querySelector<HTMLButtonElement>('.settingsScreen__headWord')!.click());
     expect(headWord(host)).toBe('Organizations');
+    act(() => host.querySelector<HTMLButtonElement>('.settingsScreen__headWord')!.click());
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('opens on its sections from the dashboard’s cog, its head the organization’s name, which closes back to it', async () => {
+    const onClose = vi.fn();
+    const id = await ghost();
+    const host = sheet(id, { from: 'dashboard', landOnMembers: false, onClose });
+    expect(display(host)).toBeNull();
+    expect(labels(host)).toContain('Members');
+    // The word is the place it goes, the dashboard, named as the organization is; not "Back to your notes".
+    expect(headWord(host)).toBe('Ghost');
+    expect(host.querySelector('.settingsScreen__headWord')?.hasAttribute('aria-label')).toBe(false);
     act(() => host.querySelector<HTMLButtonElement>('.settingsScreen__headWord')!.click());
     expect(onClose).toHaveBeenCalledOnce();
   });

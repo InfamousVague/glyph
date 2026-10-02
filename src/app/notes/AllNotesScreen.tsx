@@ -44,14 +44,16 @@ interface AllNotesScreenProps {
   tapes?: boolean;
   /** A pull down from the top (notes/PullToRefresh.tsx): a sync, and the notes read again. */
   onRefresh?: () => Promise<unknown>;
-  /** An organization's own screen, from its workspace's pill (docs/TEAMS.md). */
+  /** An organization's dashboard (notes/OrganizationScreen.tsx), from its workspace's pill tapped again (docs/TEAMS.md). */
   onOrganization?: (orgId: string) => void;
+  /** An organization's settings (settings/OrganizationSheet.tsx), from its workspace's sheet; absent, the dashboard. */
+  onOrganizationSettings?: (orgId: string) => void;
 }
 
 /** How many of the cards on the page have their gist written (format/gist.ts): the first screens of them, not every note there is. */
 const GISTED = 24;
 
-export function AllNotesScreen({ notes, loading, onOpen, onBack, tapes: tapesAtFirst = false, onRefresh, onOrganization }: AllNotesScreenProps) {
+export function AllNotesScreen({ notes, loading, onOpen, onBack, tapes: tapesAtFirst = false, onRefresh, onOrganization, onOrganizationSettings }: AllNotesScreenProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const topBar = useRef<HTMLElement>(null);
   const field = useRef<HTMLInputElement>(null);
@@ -187,7 +189,7 @@ export function AllNotesScreen({ notes, loading, onOpen, onBack, tapes: tapesAtF
         </div>
       </div>
       {onRefresh ? <PullToRefresh scroller={scroller} onRefresh={onRefresh} /> : null}
-      <WorkspaceSheet which={manage} onClose={() => setManage(null)} onOrganization={onOrganization} />
+      <WorkspaceSheet which={manage} onClose={() => setManage(null)} onOrganization={onOrganizationSettings ?? onOrganization} />
     </div>
   );
 }

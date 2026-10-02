@@ -18,7 +18,7 @@ Some rows appear only where they mean something: Recording on Android and the Ma
 
 Who you are, and what leaves the device.
 
-Signed out, it opens on **Sign in**, with **Create an account** and **Lost the password**, which takes a recovery code, below it, then the **Privacy** and **Location** cards. Signed in, the **Sync** card has **Sync now**, **Sync meeting recordings** (off, so a meeting's audio stays on the device that recorded it), **Live typing (trial)** (off until you switch it on, for this device only, from the next note you open), **Password and recovery codes**, and **Sign out**, which leaves your notes on the device. Then **Organizations**: the teams you are in, an invitation waiting with its Accept and Decline, and New organization, each opening the organization's own screen ([[Accounts, sync and the key you hold]]). Then **Shared links**, once you have shared something, with a Copy and a Stop for each note and notebook. Then Privacy and Location, and **Delete account** last. While Local only is on, a line at the top says nothing syncs, and its "Local only" brings the Privacy card into view. More in [[Accounts, sync and the key you hold]].
+Signed out, it opens on **Sign in**, with **Create an account** and **Lost the password**, which takes a recovery code, below it, then the **Privacy** and **Location** cards. Signed in, the **Sync** card has **Sync now**, **Sync meeting recordings** (off, so a meeting's audio stays on the device that recorded it), **Live typing (trial)** (off until you switch it on, for this device only, from the next note you open), **Password and recovery codes**, and **Sign out**, which leaves your notes on the device. Then **Organizations**: the teams you are in, an invitation waiting with its Accept and Decline, and New organization, each opening the organization's settings ([[Accounts, sync and the key you hold]]). Then **Shared links**, once you have shared something, with a Copy and a Stop for each note and notebook. Then Privacy and Location, and **Delete account** last. While Local only is on, a line at the top says nothing syncs, and its "Local only" brings the Privacy card into view. More in [[Accounts, sync and the key you hold]].
 
 ### Privacy
 
@@ -40,7 +40,7 @@ Local only holds all three off.
 
 ## Notifications
 
-What reaches the bell in the tab row and the Notifications page. The row in the list says how many of the four are on, "4 of 4 on".
+What reaches the bell in the tab row and the notifications under it. The row in the list says how many of the four are on, "4 of 4 on".
 
 | Setting | Default | What it does |
 | --- | --- | --- |
@@ -48,7 +48,7 @@ What reaches the bell in the tab row and the Notifications page. The row in the 
 | Claude | On | A note Claude created, edited or added to through the connector, an entry it wrote in a journal, a rule it added. |
 | Summaries | On | A meeting written up, here in the list. The phone's own notification for that is under Recording. |
 | Conflicts | On | A note kept twice because two devices had changed it. |
-| Mute an organization | | A row for each organization you are in, once there is one: its team news is not shown or counted. The organization's own screen has the same switch. |
+| Mute an organization | | A row for each organization you are in, once there is one: its team news is not shown or counted. The organization's own settings have the same switch. |
 
 An invitation has no switch: it is always shown, since the person who sent it is waiting. These switches travel with your account. Under the card: "Ghost.md looks when it opens; the bell shows what arrived." Nothing is fetched while the app is closed, and there is no phone notification for these yet.
 

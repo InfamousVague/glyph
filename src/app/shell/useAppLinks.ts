@@ -11,8 +11,8 @@ import { readShareLink } from '../share/share.ts';
  *   Mac, which the native side keeps until asked (share/appLinks.ts), and again whenever one arrives while it runs.
  * - A note link, `ghostmd://note/<id>`: the tap on the notification that a meeting was written up (docs/DESIGN.md
  *   §127 section 5). Opened where the note was left, its summary applied first when one is waiting (App.tsx).
- * - A place link, `ghostmd://notifications` or `ghostmd://org/<id>` (docs/TEAMS.md): the Notifications page, or an
- *   organization's screen, for whatever the phone will one day raise about them.
+ * - A place link, `ghostmd://notifications` or `ghostmd://org/<id>` (docs/TEAMS.md): the notifications drawer, or an
+ *   organization's dashboard, for whatever the phone will one day raise about them.
  *
  * All wait for the notes to be read, so a copy lands in a library that is there and a note opened is one the list
  * has. `fork`, `openNote` and `openPlace` are read when a link arrives rather than when the listener was set up.

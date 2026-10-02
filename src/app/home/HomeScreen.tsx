@@ -84,14 +84,16 @@ interface HomeScreenProps {
   showAcademy?: boolean;
   onAcademy?: () => void;
   onHideAcademy?: () => void;
-  /** An organization's own screen (settings/OrganizationSheet.tsx): from its workspace, from a new one, from an invitation accepted. */
+  /** An organization's dashboard (notes/OrganizationScreen.tsx): from a new one, from an invitation accepted. */
   onOrganization?: (orgId: string) => void;
+  /** An organization's settings (settings/OrganizationSheet.tsx): from "Edit" on its workspace; absent, the dashboard. */
+  onOrganizationSettings?: (orgId: string) => void;
 }
 
 /** How many of the first cards get a line written under their titles (format/gist.ts), the rest waiting for a scroll. */
 const GISTED = 16;
 
-export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSettings, onSearch, onAllNotes, onSwipe, onRefresh, voiceModel, onRetryVoiceModel, updates, onOrganization }: HomeScreenProps) {
+export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSettings, onSearch, onAllNotes, onSwipe, onRefresh, voiceModel, onRetryVoiceModel, updates, onOrganization, onOrganizationSettings }: HomeScreenProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const topBar = useRef<HTMLElement>(null);
   useWispEdge(scroller, 'home', topBar, { foot: true });
@@ -228,7 +230,7 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
         <div className={styles.page}>
           <div className={look.page} data-layout={layout}>
             {/* The search first, the page narrowing as it is typed, and its filters beside it. Not on a blank page. */}
-            {tools ? <HomeFilters query={query} onQuery={setQuery} filter={filter} onFilter={setFilter} counts={counts} onManage={setManage} onNewOrganization={makeOrg} onOrganization={onOrganization} /> : null}
+            {tools ? <HomeFilters query={query} onQuery={setQuery} filter={filter} onFilter={setFilter} counts={counts} onManage={setManage} onNewOrganization={makeOrg} onOrganization={onOrganizationSettings ?? onOrganization} /> : null}
             <div className={look.notices}>
               <UpdateNotice updates={updates} />
               <InviteNotice onOpen={onOrganization} />
@@ -287,7 +289,7 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
           // The sheet was opened from the filters' panel, which closed for it: the keyboard goes back to their button.
           scroller.current?.querySelector<HTMLButtonElement>('button[aria-haspopup="dialog"]')?.focus({ preventScroll: true });
         }}
-        onOrganization={onOrganization}
+        onOrganization={onOrganizationSettings ?? onOrganization}
       />
       {makeOrg && onOrganization ? <NewOrganizationSheet open={newOrg} onClose={() => setNewOrg(false)} onMade={onOrganization} /> : null}
     </div>

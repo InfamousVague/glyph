@@ -9,16 +9,17 @@ import { ALL_NOTES, notePlace, type Place } from '../notes/visited.ts';
  * Which screen is up: the one piece of state the app would have bought a router to hold (App.tsx says why it did
  * not).
  *
- * Eight screens, each a member of one union: the home page, the All notes grid, a note, a capture, a meeting being
- * recorded by the phone's service, the Academy, the Notifications page and an organization (docs/TEAMS.md, D6).
- * Everything else a person sees - Settings, the guide, the + sheet, the sidebar's card, the aside, the palette - is a
- * sheet or a card over whichever of these is up, and is held beside it in the Shell rather than in here.
+ * Seven screens, each a member of one union: the home page, the All notes grid, a note, a capture, a meeting being
+ * recorded by the phone's service, the Academy and an organization's dashboard (docs/TEAMS.md, D6). Everything else a
+ * person sees - Settings and an organization's settings, the notifications drawer, the guide, the + sheet, the
+ * sidebar's card, the aside, the palette - is a sheet or a card over whichever of these is up, and is held beside it in
+ * the Shell rather than in here.
  *
- * Four of the eight are places (notes/visited.ts): the home page, the grid, a note and the Notifications page are
+ * Four of the seven are places (notes/visited.ts): the home page, the grid, a note and an organization's dashboard are
  * where a person goes, so they are where the tab row is drawn and where a wide window splits into panes; the first
- * three are on the trail the arrows walk. A capture, a meeting, the Academy and an organization are things a person
- * is doing, each the whole screen with its own way out - an organization's is the Settings surface, which is its own
- * overlay. The questions below are asked of every render, so they live beside the union and not in the Shell's body.
+ * three are on the trail the arrows walk. A capture, a meeting and the Academy are things a person is doing, each the
+ * whole screen with its own way out. The questions below are asked of every render, so they live beside the union and
+ * not in the Shell's body.
  */
 
 export type Screen =
@@ -75,11 +76,11 @@ export type Screen =
   /** Glyph Academy: markdown taught a mark at a time, open from Settings whenever it is wanted (academy/). */
   | { name: 'academy' }
   /**
-   * An organization's own screen (settings/OrganizationSheet.tsx). Opened from Settings › Account › Organizations
-   * (`from: 'settings'`) its head says so and closing reopens Settings on that page; from a workspace's pill, the home
-   * filters, a folder's menu or a notification, closing goes back to the notes.
+   * An organization's dashboard (notes/OrganizationScreen.tsx): its members, the notes filed in its workspace and its
+   * news, with its settings behind a cog. From the top bar's picker, a notification about it, an invitation accepted,
+   * one just made, its workspace's pill or a link; its arrow and the phone's back gesture go home.
    */
-  | { name: 'organization'; orgId: string; from?: 'settings' };
+  | { name: 'organization'; orgId: string };
 
 /**
  * A capture, fresh: from the side key (`fromAssistant`) or a Speak button, into `noteId` when it was one note's, at
@@ -100,8 +101,8 @@ export function isRecording(screen: Screen): boolean {
 }
 
 /**
- * Where on the trail a screen is: the home page, the grid, or a note. A capture, the Academy, an organization and the
- * Notifications page are none: the arrows never walk into the feed, whose way out is its own arrow home.
+ * Where on the trail a screen is: the home page, the grid, or a note. A capture, the Academy and an organization's
+ * dashboard are none: the arrows never walk into them, whose way out is their own arrow home.
  */
 export function placeOf(screen: Screen): Place | null {
   if (screen.name === 'note') return notePlace(screen.note.id);
@@ -112,9 +113,9 @@ export function placeOf(screen: Screen): Place | null {
 
 /**
  * Whether a screen is one of the places, which carry the app's tab row (app.css .app-tabBar) and take a pane beside
- * the sidebar on a wide window: the three on the trail, and an organization, whose screen is drawn over the home page in
- * that pane. The notifications are a drawer over any of them (notes/NotificationsDrawer.tsx), not a screen. A capture
- * and the Academy take the whole window, and the way out of them is their own.
+ * the sidebar on a wide window: the three on the trail, and an organization's dashboard, drawn where All notes is. The
+ * notifications are a drawer over any of them (notes/NotificationsDrawer.tsx), not a screen. A capture and the Academy
+ * take the whole window, and the way out of them is their own.
  */
 export function isPlace(screen: Screen): boolean {
   return placeOf(screen) !== null || screen.name === 'organization';

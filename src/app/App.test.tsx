@@ -6,6 +6,7 @@ import type { Guide } from './guide/Guide.tsx';
 import type { SettingsSheet } from './settings/SettingsSheet.tsx';
 import type { OrganizationSheet } from './settings/OrganizationSheet.tsx';
 import type { NotificationsDrawer } from './notes/NotificationsDrawer.tsx';
+import type { OrganizationScreen } from './notes/OrganizationScreen.tsx';
 import { createNote, getNote, listNotes, setNoteArchived, updateNote, type Note } from './core/store.ts';
 import { preferences, reloadPreferences, setPreferences } from './core/preferences.ts';
 import { button, buttonSaying, show, unmount, waitUntil } from '../test/render.tsx';
@@ -33,6 +34,7 @@ type GuideProps = ComponentProps<typeof Guide>;
 type SettingsProps = ComponentProps<typeof SettingsSheet>;
 type OrganizationProps = ComponentProps<typeof OrganizationSheet>;
 type NotificationsProps = ComponentProps<typeof NotificationsDrawer>;
+type DashboardProps = ComponentProps<typeof OrganizationScreen>;
 
 /** The props each stubbed screen was last drawn with, for the test to press what the screen would. */
 const seen = vi.hoisted(() => ({
@@ -42,6 +44,7 @@ const seen = vi.hoisted(() => ({
   settings: null as SettingsProps | null,
   organization: null as OrganizationProps | null,
   notifications: null as NotificationsProps | null,
+  dashboard: null as DashboardProps | null,
 }));
 
 vi.mock('./editor/NoteScreen.tsx', () => ({
@@ -68,7 +71,7 @@ vi.mock('./settings/SettingsSheet.tsx', () => ({
     return props.open ? <div data-screen="settings" data-to-page={props.toPage?.id ?? ''} /> : null;
   },
 }));
-// The organization's screen and the Notifications page (docs/TEAMS.md) have their own tests against the service in memory.
+// An organization's settings and dashboard, and the notifications drawer (docs/TEAMS.md), have their own tests against the service in memory.
 vi.mock('./settings/OrganizationSheet.tsx', () => ({
   OrganizationSheet: (props: OrganizationProps) => {
     seen.organization = props;
@@ -79,6 +82,12 @@ vi.mock('./notes/NotificationsDrawer.tsx', () => ({
   NotificationsDrawer: (props: NotificationsProps) => {
     seen.notifications = props;
     return <div data-drawer="notifications" />;
+  },
+}));
+vi.mock('./notes/OrganizationScreen.tsx', () => ({
+  OrganizationScreen: (props: DashboardProps) => {
+    seen.dashboard = props;
+    return <main data-screen="dashboard" data-org={props.orgId} />;
   },
 }));
 // A sync pass runs before the guide is added; the test sees when.
@@ -802,7 +811,7 @@ describe('a capture ending', () => {
   });
 });
 
-/** Organizations and notifications (docs/TEAMS.md): the two new screens, where each opens from and comes back to. */
+/** Organizations and notifications (docs/TEAMS.md): the drawer, an organization's dashboard and its settings, where each opens from and comes back to. */
 describe('the bell, and an organization’s screen', () => {
   it('opens the notifications drawer from the bell over the page that is up, which stays, and the bell closes it again', async () => {
     await seed(['a', '# Apples']);
@@ -844,15 +853,44 @@ describe('the bell, and an organization’s screen', () => {
     expect(document.querySelector('[data-screen="settings"]')?.getAttribute('data-to-page')).toBe('organizations');
   });
 
-  it('opens an organization from a notification row with nothing to come back to but the notes', async () => {
+  // Matt: "when clicking an organization in the header don't take me to the settings, instead, take me to this
+  // dashboard page and have a organization settings icon on that".
+  it('opens an organization’s dashboard from a notification row, its cog the settings over it, and its arrow home', async () => {
     await openApp();
     act(() => button('Notifications').click());
     act(() => seen.notifications!.onOpenOrganization('org-2'));
-    expect(screenNow()?.dataset.screen).toBe('organization');
-    expect(screenNow()?.dataset.from).toBe('');
+    expect(screenNow()?.dataset.screen).toBe('dashboard');
+    expect(screenNow()?.dataset.org).toBe('org-2');
+    // A place, as All notes is: the tab row stays.
+    expect(root.dataset.tabs).toBe('on');
+    expect(document.querySelector('[data-screen="organization"]')).toBeNull();
+    // The cog: the organization's settings over the dashboard, opened on their list, and closing finds it again.
+    act(() => seen.dashboard!.onSettings());
+    expect(document.querySelector('[data-screen="organization"]')?.getAttribute('data-org')).toBe('org-2');
+    expect(seen.organization!.landOnMembers).toBe(false);
+    expect(seen.organization!.from).toBe('dashboard');
     act(() => seen.organization!.onClose());
-    expect(document.querySelector('[data-screen="settings"]')).toBeNull();
+    expect(document.querySelector('[data-screen="organization"]')).toBeNull();
+    expect(screenNow()?.dataset.screen).toBe('dashboard');
+    act(() => seen.dashboard!.onBack());
     expect(document.querySelector('nav[aria-label="New note"]')).not.toBeNull();
+  });
+
+  it('moves from one organization’s dashboard to another’s by its pill, the settings following the one on screen', async () => {
+    await openApp();
+    act(() => button('Notifications').click());
+    act(() => seen.notifications!.onOpenOrganization('org-2'));
+    act(() => seen.dashboard!.onOpenOrganization('org-3'));
+    expect(screenNow()?.dataset.screen).toBe('dashboard');
+    expect(screenNow()?.dataset.org).toBe('org-3');
+    act(() => seen.dashboard!.onSettings());
+    expect(document.querySelector('[data-screen="organization"]')?.getAttribute('data-org')).toBe('org-3');
+    // From Settings › Organizations the settings open on Members, and closing goes back there.
+    act(() => seen.organization!.onClose());
+    act(() => seen.dashboard!.onBack());
+    act(() => button('Settings').click());
+    act(() => seen.settings!.onOrganization!('org-3'));
+    expect(seen.organization!.landOnMembers).toBe(true);
   });
 
   it('offers both from the palette: Notifications as the drawer, Organizations as Settings on that page', async () => {

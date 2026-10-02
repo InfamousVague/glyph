@@ -39,12 +39,20 @@ vi.mock('../core/account/account.ts', async (importOriginal) => ({
   useAccount: () => ({ session: who.session, unlocked: who.session !== null }),
   accountKey: async () => null,
 }));
-// The pass an answered invitation asks for: it confirms the answer, as the service would.
+// The pass an answered invitation asks for: it confirms the answer, as the service would, and takes the list of
+// organizations again, where one accepted is now one the account is in - which takes the home page's card away. A
+// test can hold the pass there, as the network holds a real one, so the page is drawn again before it ends.
+const pass = vi.hoisted(() => ({ held: false, end: null as (() => void) | null }));
 vi.mock('../core/sync/engine.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../core/sync/engine.ts')>()),
   syncNotificationsNow: async () => {
-    const { updateFeed } = await import('../core/notifications/feed.ts');
+    const { feedState, updateFeed } = await import('../core/notifications/feed.ts');
+    const { orgsState, saveOrgs } = await import('../core/orgs/orgs.ts');
+    const accepted = feedState(7).marks.flatMap((mark) => ('org' in mark && mark.answer ? [mark.org] : []));
     updateFeed(7, (state) => ({ ...state, marks: [] }));
+    const kept = orgsState();
+    saveOrgs(7, { ...kept, list: kept.list.map((row) => (accepted.includes(row.id) ? { ...row, state: 'member' as const } : row)) });
+    if (pass.held) await new Promise<void>((resolve) => (pass.end = resolve));
   },
 }));
 // The glide back to the top asks whether motion is reduced; jsdom has no matchMedia.
@@ -611,6 +619,23 @@ describe('organizations', () => {
     expect(card.textContent).toContain('sam invited you to Ghost');
     expect(card.textContent).not.toContain('Gone');
     await act(async () => button('Accept', card).click());
+    expect(onOrganization).toHaveBeenCalledWith('o1');
+  });
+
+  it('opens the organization an only invitation was accepted to, though the accepting takes its card away', async () => {
+    signIn();
+    saveOrgs(7, { list: [{ id: 'o1', name: 'Ghost', hue: null, role: 'member', state: 'invited', members: 1, invitedBy: 'sam', createdAt: 1 }], at: 1 });
+    invite('n1', 'o1', 'Ghost', now - day);
+    const onOrganization = vi.fn();
+    show(page(shelf, { onOrganization }));
+    pass.held = true;
+    await act(async () => button('Accept', document.querySelector<HTMLElement>('[data-notice="invite"]')!).click());
+    pass.held = false;
+    // The pass made matt a member, and the page was drawn again before it ended: the card has gone.
+    expect(document.querySelector('[data-notice="invite"]')).toBeNull();
+    expect(onOrganization).not.toHaveBeenCalled();
+    // The page is told all the same when the pass ends, and opens the organization.
+    await act(async () => pass.end?.());
     expect(onOrganization).toHaveBeenCalledWith('o1');
   });
 

@@ -14,7 +14,8 @@ automatically, when on the organization view make a new settings screen copying 
 normal settings page but make it tailored towards organization features."
 
 The spelling is **organization**, Matt's word and the app's (Summarize); the code says `org`, `orgs`,
-`Organization*`. The decisions and their reasons are DESIGN §170 (Notifications) and §171 (Organizations). This page
+`Organization*`. The decisions and their reasons are DESIGN §170 (Notifications), §171 (Organizations) and §175 (an
+organization's dashboard). This page
 says what is true of the code: the server under `server/src/orgs.rs`, `notifications.rs` and their stores, the
 client under `src/app/core/orgs/` and `src/app/core/notifications/`, the MCP server's part in `mcp/`.
 
@@ -318,9 +319,12 @@ its create branch - sealed with the same id maker and the same seal, best effort
 `glyph-mcp:` line on stderr, the tool still answers, and no row follows a refused (409) write. The author is the one
 `authored` resolved, or `Claude` (docs/MCP.md).
 
-**The screens** are DESIGN §170 and §171: the bell in the tab row, the notifications drawer under it (§174), Settings › Notifications,
-Settings › Account › Organizations, and the Organization screen, which is a second `SettingsScreen` with a `title` and
-no search, opened on Members.
+**The screens** are DESIGN §170, §171 and §175: the bell in the tab row, the notifications drawer under it (§174),
+Settings › Notifications, Settings › Account › Organizations, an organization's dashboard (`notes/OrganizationScreen.tsx`,
+the `organization` Screen: its notes, its members and its news, opened from the tab row's organizations icon, a
+notification, an invitation accepted or one just made), and its settings (`settings/OrganizationSheet.tsx`), a second
+`SettingsScreen` with a `title` and no search, over whatever is up: from the dashboard's cog on its sections, from
+Settings › Account › Organizations on Members, and from the edit words on its workspace.
 
 **Deploy order** (D11): glyph-api first, then after the login gap the web OTA with `--mcp` and the hosted connector,
 with `notYet` carrying the page across the gap. The hosted connector's restart signs its sessions out, as any restart
@@ -339,7 +343,7 @@ of it does.
   `record.test.ts`, `src/app/core/ids.test.ts`, `src/app/core/account/api.test.ts` (`notYet`), and the cases added to
   `workspaces.test.ts`, `noteFolders.test.ts`, `preferences.test.ts`, `sync/prefs.test.ts`, `reset.test.ts` and
   `sync/engine.test.tsx` (the order of the pass).
-- The screens and the MCP server's part have their own tests, named in DESIGN §170 and §171.
+- The screens and the MCP server's part have their own tests, named in DESIGN §170, §171 and §175.
 
 ## Not in this slice
 

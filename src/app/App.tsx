@@ -6,6 +6,7 @@ import { HomeScreen } from './home/HomeScreen.tsx';
 import { AllNotesScreen } from './notes/AllNotesScreen.tsx';
 import { NotificationsDrawer } from './notes/NotificationsDrawer.tsx';
 import { OrganizationSheet } from './settings/OrganizationSheet.tsx';
+import { OrganizationScreen } from './notes/OrganizationScreen.tsx';
 import { unreadCount, useNotifications } from './core/notifications/feed.ts';
 import type { OpenTask } from './home/dashboard.ts';
 import { setItemDone } from './core/boards.ts';
@@ -82,7 +83,7 @@ import { statusesOf } from './core/properties.ts';
 import { fillNoteTemplate, type NoteTemplate } from './notes/noteTemplates.ts';
 import { ticketTemplatesOf, useTickets } from './shell/useTickets.ts';
 import { useQueries } from './shell/useQueries.ts';
-import { useOrgs } from './core/orgs/orgs.ts';
+import { orgsState, useOrgs } from './core/orgs/orgs.ts';
 import { tickedBody } from './core/query/tick.ts';
 import { movedBody } from './core/query/move.ts';
 import type { RecordKind } from './core/query/records.ts';
@@ -401,7 +402,7 @@ function Shell() {
   useAppLinks(loading, {
     fork: forkFromLink,
     openNote: openNoteFromLink,
-    // The Notifications page, or an organization's screen (docs/TEAMS.md), for whatever the phone will raise about them.
+    // The notifications drawer, or an organization's dashboard (docs/TEAMS.md), for whatever the phone will raise about them.
     openPlace: (place) => (place.place === 'notifications' ? showNotifications() : openOrganization(place.orgId)),
   });
 
@@ -1079,30 +1080,53 @@ function Shell() {
     setScreen({ name: 'notes', ...(options?.tapes ? { tapes: true } : {}) });
   };
   /*
-   * An organization's own screen (settings/OrganizationSheet.tsx; docs/TEAMS.md, D6), from its workspace's pill, the
-   * home filters, a folder's menu, a notification, or Settings › Account › Organizations. The personal Settings sheet
-   * closes first: two Settings surfaces are never open at once. Opened from Settings, closing reopens Settings on the
-   * Organizations page, so three organizations looked at are not three walks through Account.
+   * An organization, two ways (docs/TEAMS.md, D6). Its page is its dashboard (notes/OrganizationScreen.tsx; Matt:
+   * "Design and deploy a dashboard for organizations when clicking an organization in the header don't take me to the
+   * settings, instead, take me to this dashboard page and have a organization settings icon on that"): from the top
+   * bar's picker, a notification about it, an invitation accepted, one just made, its workspace's pill or a link. Its
+   * settings (settings/OrganizationSheet.tsx) are an overlay over whatever is up, as the personal Settings are: from
+   * the dashboard's cog, from the edit words on its workspace (the home filters, a folder's menu, the workspace's
+   * sheet), or from Settings › Organizations. The personal Settings close first: two Settings surfaces are never open
+   * at once. Opened from Settings, closing reopens Settings on the Organizations page.
    */
   // The organizations you belong to (not the invitations), for the top bar's picker: the account's kept list.
   const orgState = useOrgs();
   const memberOrgs = useMemo(() => orgState.list.filter((org) => org.state === 'member'), [orgState.list]);
-  const openOrganization = (orgId: string, from?: 'settings') => {
+  const [orgSettings, setOrgSettings] = useState<{ orgId: string; from?: 'settings' | 'dashboard' } | null>(null);
+  const openOrganization = (orgId: string) => {
     setSettings(false);
     setDrawer(false);
-    setScreen({ name: 'organization', orgId, ...(from ? { from } : {}) });
+    setOrgSettings(null);
+    setScreen({ name: 'organization', orgId });
   };
-  const closeOrganization = () => {
-    const from = screen.name === 'organization' ? screen.from : undefined;
-    setScreen({ name: 'list' });
+  const openOrganizationSettings = (orgId: string, from?: 'settings' | 'dashboard') => {
+    setSettings(false);
+    setDrawer(false);
+    setOrgSettings({ orgId, ...(from ? { from } : {}) });
+  };
+  const closeOrganizationSettings = () => {
+    const from = orgSettings?.from;
+    const orgId = orgSettings?.orgId;
+    setOrgSettings(null);
+    // Left or deleted from its settings: its dashboard has nothing to show, so the way out is home.
+    if (orgId && screen.name === 'organization' && screen.orgId === orgId && !orgsState().list.some((row) => row.id === orgId)) setScreen({ name: 'list' });
     if (from === 'settings') {
       setToPage({ id: 'organizations', nonce: Date.now() });
       setSettings(true);
     }
   };
-  /** An organization's screen left for the notes, when something else is about to open over the home page. */
-  const leaveOrganization = () => {
-    if (screen.name === 'organization') setScreen({ name: 'list' });
+  /** An organization's settings closed, when another Settings surface is about to open. */
+  const leaveOrganization = () => setOrgSettings(null);
+  /** A new note filed in an organization's workspace, from its dashboard: made, filed there, opened ready to type. */
+  const newNoteIn = async (workspaceId: string) => {
+    tabs.replaceNext(null);
+    await showMade('', {
+      caret: 0,
+      before: (made) => {
+        markFresh(made.id);
+        fileNote(made.id, workspaceId);
+      },
+    });
   };
   /**
    * The notifications drawer (notes/NotificationsDrawer.tsx), from the palette, a place link or an organization's
@@ -1124,6 +1148,7 @@ function Shell() {
       tapes={screen.name === 'notes' && screen.tapes === true}
       onRefresh={pullRefresh}
       onOrganization={openOrganization}
+      onOrganizationSettings={openOrganizationSettings}
     />
   );
   /*
@@ -1175,24 +1200,28 @@ function Shell() {
         setAcademyCard(false);
       }}
       onOrganization={openOrganization}
+      onOrganizationSettings={openOrganizationSettings}
     />
   );
-  /** The organization's screen over the home page, so closing it finds the page already there. */
-  const organization =
+  /** An organization's dashboard (notes/OrganizationScreen.tsx), drawn where All notes and the notifications are. */
+  const organizationPage =
     screen.name === 'organization' ? (
-      <>
-        {home}
-        <OrganizationSheet
-          key={screen.orgId}
-          orgId={screen.orgId}
-          from={screen.from}
-          onClose={closeOrganization}
-          onNotes={() => {
-            chooseWorkspace(orgWorkspaceId(screen.orgId));
-            void backToList();
-          }}
-        />
-      </>
+      <OrganizationScreen
+        key={screen.orgId}
+        orgId={screen.orgId}
+        notes={shownNotes}
+        onBack={() => void backToList()}
+        onOpenNote={openNoteWhereLeft}
+        onNewNote={() => void newNoteIn(orgWorkspaceId(screen.orgId))}
+        onAllNotes={() => {
+          chooseWorkspace(orgWorkspaceId(screen.orgId));
+          void backToList();
+        }}
+        onSettings={() => openOrganizationSettings(screen.orgId, 'dashboard')}
+        onOpenOrganization={openOrganization}
+        onNotifications={showNotifications}
+        onAccount={() => setSettings(true)}
+      />
     ) : null;
 
   /*
@@ -1411,12 +1440,12 @@ function Shell() {
                 onRestore={actions.restore}
                 onDestroy={actions.destroy}
                 onEmptyTrash={() => void actions.emptyTrash(trashedNotes)}
-                onOrganization={openOrganization}
+                onOrganization={openOrganizationSettings}
               />
             </aside>
           ) : null}
           <main className="app-notePane">
-            {noteScreen ?? (screen.name === 'notes' ? allNotes : (organization ?? home))}
+            {noteScreen ?? (screen.name === 'notes' ? allNotes : (organizationPage ?? home))}
           </main>
           {/* The right-hand aside as a column beside a docked sidebar: a book's index, or a run of chapters (aside/Aside.tsx). */}
           {asideDocked && asideBody ? (
@@ -1426,7 +1455,7 @@ function Shell() {
           ) : null}
         </div>
       ) : (
-        (noteScreen ?? (screen.name === 'notes' ? allNotes : (organization ?? home)))
+        (noteScreen ?? (screen.name === 'notes' ? allNotes : (organizationPage ?? home)))
       )}
       {/* The notifications, the same card at the right under the bell (notes/NotificationsDrawer.tsx). */}
       {notificationsOpen ? (
@@ -1479,7 +1508,7 @@ function Shell() {
         onRestore={actions.restore}
         onDestroy={actions.destroy}
         onEmptyTrash={() => void actions.emptyTrash(trashedNotes)}
-        onOrganization={openOrganization}
+        onOrganization={openOrganizationSettings}
         activeId={shown}
         onOpen={openNoteWhereLeft}
         onNew={() => {
@@ -1532,8 +1561,23 @@ function Shell() {
         toCheatSheet={toCheatSheet}
         toModel={toModel}
         toPage={toPage}
-        onOrganization={(orgId) => openOrganization(orgId, 'settings')}
+        onOrganization={(orgId) => openOrganizationSettings(orgId, 'settings')}
       />
+      {/* An organization's settings, over whatever is up: its dashboard, the notes, or Settings' own list (closed first). */}
+      {orgSettings ? (
+        <OrganizationSheet
+          key={orgSettings.orgId}
+          orgId={orgSettings.orgId}
+          from={orgSettings.from}
+          landOnMembers={orgSettings.from === 'settings'}
+          onClose={closeOrganizationSettings}
+          onNotes={() => {
+            chooseWorkspace(orgWorkspaceId(orgSettings.orgId));
+            setOrgSettings(null);
+            void backToList();
+          }}
+        />
+      ) : null}
       {/*
         Not over a capture. The side key can arrive while the guide is open -
         most often BECAUSE of it, testing step 2 - and a guide drawn over the
