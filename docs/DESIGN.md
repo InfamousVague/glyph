@@ -9682,3 +9682,26 @@ lists, search, a title and the status leaving it out; read by its id, saying so;
 said apart; a rules note in the Trash not the rules) and the tool list.
 
 Cites: "Claude on the account: the MCP server".
+
+## 177. Clearing notifications, and Mark all read that reaches every row (2026-10-02)
+
+Matt: "I cant clear out old notifications from 17 mins ago and older".
+
+Two things stood in the way. The drawer (§174) had no way to clear a row at all: only Mark all read, which keeps the
+rows. And Mark all read marked the rows at or below the device's cursor (core/notifications/feed.ts), which is right for
+the service but not for what the drawer shows: a row held above the cursor, fed by a page whose cursor never landed,
+stayed unread through every press.
+
+- **Mark all read** now marks everything the device holds: `before` is the greater of the cursor and the highest
+  revision among its rows. The service reads it as "everything this device had seen", as before.
+- **A row's cross** clears it (`hide`): hidden here at once and on every device once the service has the mark. With a
+  mouse the cross shows as the pointer comes over the row or the keyboard reaches it; on a touch screen it is always
+  there, faint.
+- **Clear all**, in the drawer's head beside Mark all read, clears every row shown (`hideAll`, one change; the service
+  hides a row at a time, so each is its own mark, replayed by the next pass). It leaves an invitation still waiting for
+  its answer, and such a row has no cross: it is the one place to answer it. The word goes when nothing is left to
+  clear.
+
+Measured in the preview with a fake session, four rows held above the cursor: Mark all read left none unread, and Clear
+all left the waiting invitation alone.
+

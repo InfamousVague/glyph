@@ -107,7 +107,11 @@
   padding: 0;
 }
 
+/* A row: the body that opens it, the cross that clears it beside it, and an invitation's answers under both. */
 .row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   border-block-end: var(--glacier-hairline) solid var(--app-rule);
   animation: rowRise 260ms var(--glacier-ease-out) both;
   animation-delay: calc(var(--i, 0) * 24ms);
@@ -230,6 +234,7 @@
 
 /* Accept and Decline under an invitation's words, lined up with them past the mark, and free to wrap. */
 .actions {
+  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   gap: var(--glacier-space-2);
@@ -262,4 +267,44 @@
   font-size: var(--glacier-font-size-sm);
   line-height: var(--glacier-leading-sm);
   color: var(--app-ink-3);
+}
+
+/*
+ * The cross that clears a row (NotificationsDrawer.tsx `Row`): beside the time, faint. With a mouse it shows as the
+ * pointer comes over the row or the keyboard reaches it; on a touch screen, which has no hover, it is always there.
+ */
+.clear {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  margin-block-start: var(--glacier-space-2);
+  border: 0;
+  border-radius: var(--glacier-radius-full);
+  background: transparent;
+  color: var(--app-ink-3);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.clear:hover {
+  background: color-mix(in oklch, var(--app-ink) 8%, transparent);
+  color: var(--app-ink);
+}
+
+.clear:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 1px;
+}
+
+@media (hover: hover) {
+  .clear {
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+
+  .row:hover .clear,
+  .row:focus-within .clear {
+    opacity: 1;
+  }
 }

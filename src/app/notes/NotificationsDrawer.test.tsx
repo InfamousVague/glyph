@@ -202,4 +202,22 @@ describe('signed out, or Local only', () => {
     page();
     expect(document.querySelector('[role="dialog"]')?.hasAttribute('data-wide')).toBe(true);
   });
+
+  it('clears a row with its cross, and every row but a waiting invitation with Clear all', () => {
+    fed({ kind: 'invite', from: 'sam', org: { id: 'o1', name: 'Ghost' }, body: { name: 'Ghost' }, state: 'pending' });
+    fed({ kind: 'member-joined', from: 'priya', org: { id: 'o2', name: 'Boo' }, body: { name: 'Boo' } });
+    fed({ kind: 'summary-written' });
+    fed({ kind: 'member-left', from: 'alex', org: { id: 'o2', name: 'Boo' }, body: { name: 'Boo' } });
+    page();
+    expect(rows()).toHaveLength(4);
+    // A waiting invitation has no cross: its row is where it is answered.
+    expect(rows().filter((li) => li.querySelector('button[aria-label^="Clear:"]'))).toHaveLength(3);
+    act(() => rows()[0]!.querySelector<HTMLButtonElement>('button[aria-label^="Clear:"]')!.click());
+    expect(rows()).toHaveLength(3);
+    act(() => buttonSaying(document.body, 'Clear all')!.click());
+    expect(rows()).toHaveLength(1);
+    expect(rows()[0]?.dataset.kind).toBe('invite');
+    // Nothing left to clear: the word goes.
+    expect(buttonSaying(document.body, 'Clear all')).toBeUndefined();
+  });
 });

@@ -1,7 +1,7 @@
 import { useEffect, useReducer, type CSSProperties, type ReactNode } from 'react';
-import { AudioLines, BookOpen, CheckCheck, Crown, FilePlus, ListPlus, Mail, PenLine, Pencil, ScrollText, Trash2, TriangleAlert, UserCheck, UserMinus, UserPlus, UserX, X } from '@glacier/icons';
+import { AudioLines, BookOpen, BrushCleaning, CheckCheck, Crown, FilePlus, ListPlus, Mail, PenLine, Pencil, ScrollText, Trash2, TriangleAlert, UserCheck, UserMinus, UserPlus, UserX, X } from '@glacier/icons';
 import { useAccount } from '../core/account/account.ts';
-import { isWanted, markAllRead, markRead, onNotifications, openDetails, unreadCount, useNotifications } from '../core/notifications/feed.ts';
+import { hide, hideAll, isWanted, markAllRead, markRead, onNotifications, openDetails, unreadCount, useNotifications } from '../core/notifications/feed.ts';
 import { detailOf, sentenceOf, type Kind, type Notification } from '../core/notifications/kinds.ts';
 import { useOrgs } from '../core/orgs/orgs.ts';
 import { usePreferences } from '../core/preferences.ts';
@@ -23,7 +23,7 @@ import styles from './NotificationsDrawer.module.css';
  * window's width: the page stays live beside it, and a tap outside it, Escape, the back gesture or the bell again
  * closes it.
  *
- * Its head is the name with the count of unread, Mark all read, and a close; under it the rows scroll inside the card.
+ * Its head is the name with the count of unread, Mark all read, Clear all, and a close; under it the rows scroll inside the card.
  * A row is its kind's mark, its sentence (core/notifications/kinds.ts `sentenceOf`, the one place the words live) wrapped
  * whole, the first line Claude changed under it on up to two lines, and when. An invitation carries Accept and Decline
  * inline (settings/InviteActions.tsx). A row about a note opens the note - an edit at its first changed line - and a
@@ -79,6 +79,8 @@ export function NotificationsDrawer({ onClose, onOpenNote, onOpenOrganization, o
   useEffect(() => onNotifications(redraw), []);
   const shown = all.filter((n) => isWanted(n, prefs.notifications));
   const unread = unreadCount(prefs.notifications, all);
+  // What Clear all takes: every row shown but an invitation still waiting for its answer, which would go with no way back to it.
+  const clearable = shown.filter((n) => !isPendingInvite(n));
   const signedIn = Boolean(account.session);
   const held = !signedIn || prefs.localOnly;
 
@@ -114,6 +116,12 @@ export function NotificationsDrawer({ onClose, onOpenNote, onOpenOrganization, o
             <button type="button" className={`app-word ${styles.readAll}`} onClick={markAllRead}>
               <CheckCheck size={15} strokeWidth={2.2} aria-hidden="true" />
               Mark all read
+            </button>
+          ) : null}
+          {clearable.length ? (
+            <button type="button" className={`app-word ${styles.readAll}`} onClick={() => hideAll(clearable.map((n) => n.id))}>
+              <BrushCleaning size={15} strokeWidth={2.2} aria-hidden="true" />
+              Clear all
             </button>
           ) : null}
           <button type="button" className={styles.close} onClick={onClose} aria-label="Close notifications" title="Close">
@@ -159,7 +167,7 @@ export function NotificationsDrawer({ onClose, onOpenNote, onOpenOrganization, o
           ) : (
             <ol className={styles.rows} aria-label="Notifications">
               {shown.map((n, i) => (
-                <Row key={n.id} n={n} index={i} onOpen={() => open(n)} />
+                <Row key={n.id} n={n} index={i} onOpen={() => open(n)} onClear={isPendingInvite(n) ? undefined : () => hide(n.id)} />
               ))}
             </ol>
           )}
@@ -169,8 +177,14 @@ export function NotificationsDrawer({ onClose, onOpenNote, onOpenOrganization, o
   );
 }
 
-/** One notification: its mark, its sentence and the line under it, when, and Accept and Decline for an invitation. */
-function Row({ n, index, onOpen }: { n: Notification; index: number; onOpen: () => void }) {
+/** An invitation not yet answered: never cleared, since its row is the one place to answer it. */
+const isPendingInvite = (n: Notification) => n.kind === 'invite' && n.state === 'pending';
+
+/**
+ * One notification: its mark, its sentence and the line under it, when, and Accept and Decline for an invitation; and a
+ * cross that clears it out of the list (`onClear`), there on a hover with a mouse and always, faint, on a touch screen.
+ */
+function Row({ n, index, onOpen, onClear }: { n: Notification; index: number; onOpen: () => void; onClear?: () => void }) {
   const opened = openDetails(n);
   const sentence = sentenceOf(n, opened);
   const detail = detailOf(opened);
@@ -187,6 +201,11 @@ function Row({ n, index, onOpen }: { n: Notification; index: number; onOpen: () 
         </span>
         <span className={styles.when}>{when(n.at)}</span>
       </button>
+      {onClear ? (
+        <button type="button" className={styles.clear} onClick={onClear} aria-label={`Clear: ${sentence}`} title="Clear">
+          <X size={14} strokeWidth={2.4} aria-hidden="true" />
+        </button>
+      ) : null}
       {pending && n.org ? (
         <div className={styles.actions}>
           <InviteActions orgId={n.org.id} />

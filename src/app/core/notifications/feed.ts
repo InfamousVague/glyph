@@ -250,15 +250,33 @@ export function markRead(id: string): void {
   markHere({ id, read: true });
 }
 
-/** Every row this device had been fed read: those at or below its cursor, which is what the page had shown. */
+/**
+ * Every row this device holds read: those at or below the highest revision it has been fed, which is what the drawer
+ * shows. It was the cursor alone, and a row held above the cursor - fed by a page whose cursor never landed - stayed
+ * unread through every press (Matt: "I cant clear out old notifications from 17 mins ago and older").
+ */
 export function markAllRead(): void {
   const session = accountState().session;
   if (!session) return;
-  markHere({ all: true, before: feedState(session.accountId).cursor });
+  const state = feedState(session.accountId);
+  const highest = Object.values(state.items).reduce((most, item) => Math.max(most, item.rev), 0);
+  markHere({ all: true, before: Math.max(state.cursor, highest) });
 }
 
+/** One row cleared out of the list: hidden here at once, and on every device once the service has the mark. */
 export function hide(id: string): void {
   markHere({ id, hidden: true });
+}
+
+/**
+ * Rows cleared out of the list together, as one change: the drawer's Clear all. The service hides a row at a time
+ * (`PUT notifications/{id}`), so each is its own mark, replayed by the next pass.
+ */
+export function hideAll(ids: readonly string[]): void {
+  const session = accountState().session;
+  if (!session || !ids.length) return;
+  const now = Date.now();
+  updateFeed(session.accountId, (state) => ids.reduce((next, id) => withMark(next, { id, hidden: true }, now), state));
 }
 
 /**

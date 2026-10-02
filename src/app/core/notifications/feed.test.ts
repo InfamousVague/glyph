@@ -328,6 +328,41 @@ describe('what the page reads', () => {
     expect(service.rowIn(orgId)?.state).toBe('declined');
   });
 
+  it('marks every row it holds read, one held above its cursor included (docs/DESIGN.md §177)', async () => {
+    const service = await fakeService(ACCOUNT);
+    service.notifies({ kind: 'member-joined', from: 'sam', id: 'a' });
+    service.notifies({ kind: 'member-joined', from: 'priya', id: 'b' });
+    const phone = device(service);
+    await phone.sync();
+    // A row fed by a page whose cursor never landed: above the cursor this device holds.
+    const above = { ...phone.state.items.b!, rev: phone.state.cursor + 5 };
+    feed.saveFeed(7, { ...phone.state, items: { ...phone.state.items, b: above } });
+    feed.markAllRead();
+    expect(feed.notifications().every((n) => n.readAt !== null)).toBe(true);
+    expect(feed.feedState(7).marks).toEqual([{ all: true, before: phone.state.cursor + 5 }]);
+  });
+
+  it('clears several rows out of the list as one change, each hidden on the service by the next pass', async () => {
+    const service = await fakeService(ACCOUNT);
+    service.notifies({ kind: 'member-joined', from: 'sam', id: 'a' });
+    service.notifies({ kind: 'member-joined', from: 'priya', id: 'b' });
+    service.notifies({ kind: 'member-joined', from: 'alex', id: 'c' });
+    const phone = device(service);
+    await phone.sync();
+    feed.saveFeed(7, phone.state);
+    feed.hideAll(['a', 'b']);
+    expect(feed.notifications().map((n) => n.id)).toEqual(['c']);
+    expect(feed.feedState(7).marks).toEqual([
+      { id: 'a', hidden: true },
+      { id: 'b', hidden: true },
+    ]);
+    await feed.syncNotifications({ token: service.signedIn(), read: () => feed.feedState(7), update: (fn) => feed.updateFeed(7, fn), fetcher: service.fetcher });
+    expect(feed.feedState(7).marks).toEqual([]);
+    expect(service.feed.get('a')).toMatchObject({ hidden: true });
+    expect(service.feed.get('b')).toMatchObject({ hidden: true });
+    expect(service.feed.get('c')).toMatchObject({ hidden: false });
+  });
+
   it('forgets an account’s feed, and keeps another’s', async () => {
     feed.saveFeed(7, { ...feed.emptyFeed(), cursor: 4 });
     feed.saveFeed(8, { ...feed.emptyFeed(), cursor: 9 });
