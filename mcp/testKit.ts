@@ -2,8 +2,9 @@ import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { OAuthClientInformationFull, OAuthClientMetadata, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js';
+import type { Details } from '../src/app/core/notifications/kinds.ts';
 import type { Note } from '../src/app/core/store.ts';
-import { derive, passwordSalt, toBase64Url, unwrap } from '../src/app/core/sync/crypto.ts';
+import { derive, open, passwordSalt, toBase64Url, unwrap } from '../src/app/core/sync/crypto.ts';
 import { fakeService, FAST, type FakeService } from '../src/test/fakeService.ts';
 import { makeNote } from '../src/test/notes.ts';
 import { GlyphAccount, type Hooks } from './glyph.ts';
@@ -34,15 +35,26 @@ export function asText(result: Awaited<ReturnType<Client['callTool']>>): string 
 export const API = 'https://fake.test/glyph/api';
 
 /**
- * Matt's account on a fresh service in memory, signed in as the MCP client signs in, and Claude connected to the
- * server's tools. `hooks` reach the account (a fetcher that steps in, say); `hosted` makes it the hosted server.
+ * What the account was told of Claude's writes (docs/TEAMS.md): every self notification in the service's feed, in the
+ * order it was written, opened with the account key as a device of the account opens one. The id rides with it, so a
+ * test can see its shape.
  */
-export async function connected({ hooks = {}, hosted }: { hooks?: Omit<Hooks, 'fetcher'> & { fetcher?: (service: FakeService) => typeof fetch }; hosted?: HostedHooks } = {}) {
+export async function told(service: FakeService): Promise<{ id: string; kind: string; details: Details }[]> {
+  const rows = [...service.feed.values()].filter((n) => n.blob).sort((a, b) => a.rev - b.rev);
+  return Promise.all(rows.map(async (n) => ({ id: n.id, kind: n.kind, details: await open<Details>(service.accountKey, n.blob!, `notification:${n.id}`) })));
+}
+
+/**
+ * Matt's account on a fresh service in memory, signed in as the MCP client signs in, and Claude connected to the
+ * server's tools. `hooks` reach the account (a fetcher that steps in, say); `hosted` makes it the hosted server;
+ * `clientName` is what Claude's app calls itself when it connects (an empty one connects with no name to go on).
+ */
+export async function connected({ hooks = {}, hosted, clientName = 'claude-ai' }: { hooks?: Omit<Hooks, 'fetcher'> & { fetcher?: (service: FakeService) => typeof fetch }; hosted?: HostedHooks; clientName?: string } = {}) {
   const service = await fakeService({ handle: 'matt', password: 'correct horse' });
   const session = await GlyphAccount.signIn(API, 'matt', 'correct horse', { rounds: FAST, fetcher: service.fetcher });
   const { fetcher, ...rest } = hooks;
   const account = new GlyphAccount(session, { ...rest, fetcher: fetcher ? fetcher(service) : service.fetcher });
-  const client = new Client({ name: 'claude-ai', version: '0' });
+  const client = new Client({ name: clientName, version: '0' });
   const [ours, theirs] = InMemoryTransport.createLinkedPair();
   await Promise.all([buildServer(account, hosted).connect(theirs), client.connect(ours)]);
   /** A tool called, and what it said: its words, and whether it said them as a refusal. */

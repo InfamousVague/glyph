@@ -32,6 +32,12 @@ import { Conflict, GlyphApiError, type GlyphAccount, type NoteRecord } from './g
  * A ticket is a note whose front matter says `type: ticket` (docs/DESIGN.md §157, docs/TICKETS.md): its properties are
  * that front matter, which a rewrite keeps as the app reads it (`keepKeys`), and `read_note` finds one by its key,
  * `GHO-12`, as a `[[GHO-12]]` in the app does.
+ *
+ * Each write is told to the account once it has landed (docs/TEAMS.md; Matt: "we see things like claude creating a
+ * new note or making edits"): a sealed notification of its kind - note-created, note-edited with a line diff,
+ * note-appended, journal-entry, rule-added - naming the note and who wrote it, posted after the write and never
+ * after a refusal (`GlyphAccount.postNotification`, best effort). The "Claude rules" note is told of only when it is
+ * made, not each time a connection finds it.
  */
 
 /**
@@ -79,6 +85,54 @@ export function withRule(body: string, rule: string): string {
   return `${cleaned}\n\n${RULES_SECTION}\n\n${line}\n`;
 }
 
+/** At most this many characters of a line ride in a notification: the first changed line, shown under its sentence. */
+const FIRST_CHARS = 120;
+
+/** The first line of `text` that says anything, trimmed, cut to what a notification carries. */
+function firstLine(text: string): string {
+  return (text.split('\n').find((line) => line.trim()) ?? '').trim().slice(0, FIRST_CHARS);
+}
+
+/** What a note-edited notification says of a rewrite (core/notifications/kinds.ts `Details`). */
+export interface LineDiff {
+  added: number;
+  removed: number;
+  first: string;
+  /** Where the first change is, as the note screen lands on it: `line:<n>`, counting the written body's lines from 1. */
+  at: string;
+}
+
+/**
+ * A rewrite as a line diff: the lines that came and went between `before` and `after`, with the lines both share at
+ * the top and the bottom left out, the first changed line that says anything (an added one, else a removed one), and
+ * its place in `after` as the app's note screen takes one (editor/useLandAt.ts `line:<n>`, the body's lines from 1,
+ * front matter included: a query's to-do opens its note the same way). The `authors:` line is the connector's own
+ * signature (core/authors.ts), not an edit, so it is taken off both sides first; a status moved in a ticket's front
+ * matter is an edit, and counts. "Claude edited Trip to Lisbon · 2 lines changed" is this diff's two counts added.
+ */
+export function lineDiff(before: string, after: string): LineDiff {
+  const lines = after.split('\n');
+  const was = withFrontMatterValue(before, 'authors', null).split('\n');
+  const now = withFrontMatterValue(after, 'authors', null).split('\n');
+  // The signature off `after` took a run of lines out of its top (the one line, or the whole block it alone made):
+  // a line of `now` from there on is that many further down the written body.
+  const dropped = lines.length - now.length;
+  let shift = 0;
+  while (shift < now.length && lines[shift] === now[shift]) shift += 1;
+  const place = (index: number) => `line:${(index < shift ? index : index + dropped) + 1}`;
+  let head = 0;
+  while (head < was.length && head < now.length && was[head] === now[head]) head += 1;
+  let tail = 0;
+  while (tail < was.length - head && tail < now.length - head && was[was.length - 1 - tail] === now[now.length - 1 - tail]) tail += 1;
+  const came = now.slice(head, now.length - tail);
+  const went = was.slice(head, was.length - tail);
+  const telling = came.findIndex((line) => line.trim());
+  const first = telling >= 0 ? came[telling]! : (went.find((line) => line.trim()) ?? '');
+  // A pure removal lands where the lines were, which is now the next line, or the last when they were the end.
+  const at = place(telling >= 0 ? head + telling : Math.min(head, Math.max(0, now.length - 1)));
+  return { added: came.length, removed: went.length, first: first.trim().slice(0, FIRST_CHARS), at };
+}
+
 /**
  * The "Claude rules" note, made (pinned) the first time it is wanted. Reads the account fresh first, so a note made on
  * the phone is seen rather than a second one created. `seedAuthor` names the AI as its co-author when it is made new.
@@ -87,7 +141,10 @@ export async function ensureRulesNote(account: GlyphAccount, seedAuthor = 'Claud
   await account.pull();
   const found = await account.byTitle(RULES_TITLE);
   if (found) return found;
-  return account.create(withAuthor(DEFAULT_RULES, seedAuthor, account.handle), { pinned: true });
+  const made = await account.create(withAuthor(DEFAULT_RULES, seedAuthor, account.handle), { pinned: true });
+  // Told of once, when it is made: a connection that finds it has written nothing.
+  await account.postNotification('note-created', { noteId: made.note.id, title: RULES_TITLE, by: seedAuthor });
+  return made;
 }
 
 /** The MCP instructions a connection carries: what the connector is, that a rules note governs it, and the rules themselves. */
@@ -258,14 +315,22 @@ export interface HostedHooks {
 export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options?: { instructions?: string }): McpServer {
   const server = new McpServer({ name: 'glyph', version: VERSION }, options?.instructions ? { instructions: options.instructions } : undefined);
   /**
-   * The words with this AI among the note's authors (core/authors.ts): the name it gave, else what its app called itself
-   * when it connected (Claude's is "claude-ai"), after the account's own handle on a note that named nobody. With no
-   * name to go on the words are left as they came.
+   * This AI's name (core/authors.ts): the name it gave, else what its app called itself when it connected (Claude's
+   * is "claude-ai"); null with nothing to go on.
+   */
+  const authorName = (said: string | undefined): string | null => aiName(said, server.server.getClientVersion() ?? hosted?.client?.());
+  /**
+   * The words with this AI among the note's authors, after the account's own handle on a note that named nobody. With
+   * no name to go on the words are left as they came.
    */
   const authored = (body: string, said: string | undefined): string => {
-    const name = aiName(said, server.server.getClientVersion() ?? hosted?.client?.());
+    const name = authorName(said);
     return name ? withAuthor(body, name, account.handle) : body;
   };
+  /** Who a notification says wrote: the author's name, or Claude when a connection gave none (docs/TEAMS.md). */
+  const by = (said: string | undefined): string => authorName(said) ?? 'Claude';
+  /** A note's title as a notification names it, as the list does. */
+  const titled = (record: NoteRecord): string => noteTitle(record.note.body) || 'Untitled';
   const authorField = z
     .string()
     .optional()
@@ -359,6 +424,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
         const words = heading && !/^#\s/.test(body.trimStart()) ? `# ${heading}\n\n${body.trim()}` : body;
         if (!words.trim()) return failed('A note needs some words.');
         const made = await account.create(authored(words, author), { pinned: Boolean(pinned) });
+        await account.postNotification('note-created', { noteId: made.note.id, title: titled(made), by: by(author) });
         return text({ created: whole(made) });
       }),
   );
@@ -381,7 +447,12 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
         if (!body.trim()) return failed('A note needs some words. To remove a note, archive it with set_note_flags.');
         // The authors the note had stay, whatever the new body says: a rewrite doesn't take anyone off. Nor where
         // it was written, nor the keys that make it a notebook, a journal or an entry.
-        const written = await account.edit(id, (note) => ({ ...note, body: authored(keepPlace(note.body, keepAuthors(note.body, keepKeys(note.body, body))), author) }));
+        let before = '';
+        const written = await account.edit(id, (note) => {
+          before = note.body;
+          return { ...note, body: authored(keepPlace(note.body, keepAuthors(note.body, keepKeys(note.body, body))), author) };
+        });
+        await account.postNotification('note-edited', { noteId: id, title: titled(written), by: by(author), ...lineDiff(before, written.note.body) });
         return text({ updated: whole(written) });
       }),
   );
@@ -413,6 +484,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
           added = placed.added;
           return { ...note, body: authored(placed.body, author) };
         });
+        await account.postNotification('note-appended', { noteId: written.note.id, title: titled(written), by: by(author), lines: added.length, first: firstLine(added[0] ?? '') });
         return text({ added, note: summary(written) });
       }),
   );
@@ -463,6 +535,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
         // entry never came is an entry's name with no note, which the journal does not draw.
         const listed = await account.edit(target.note.id, (note) => ({ ...note, body: withEntry(note.body, title) }));
         const made = await account.create(authored(body, author));
+        await account.postNotification('journal-entry', { noteId: made.note.id, title, by: by(author), journal: name, first: firstLine(words) });
         return text({ created: whole(made), journal: summary(listed) });
       }),
   );
@@ -501,7 +574,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     },
     async () =>
       guarded(async () => {
-        const note = await ensureRulesNote(account, aiName(undefined, server.server.getClientVersion() ?? hosted?.client?.()) ?? 'Claude');
+        const note = await ensureRulesNote(account, by(undefined));
         return text(whole(note));
       }),
   );
@@ -520,9 +593,11 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     async ({ rule, author }) =>
       guarded(async () => {
         if (!rule.trim()) return failed('Say the rule to remember.');
-        const note = await ensureRulesNote(account, aiName(undefined, server.server.getClientVersion() ?? hosted?.client?.()) ?? 'Claude');
+        const note = await ensureRulesNote(account, by(undefined));
         const written = await account.edit(note.note.id, (n) => ({ ...n, body: authored(withRule(n.body, rule), author) }));
-        return text({ added: rule.trim().replace(/\s+/g, ' '), note: summary(written) });
+        const added = rule.trim().replace(/\s+/g, ' ');
+        await account.postNotification('rule-added', { noteId: note.note.id, title: RULES_TITLE, by: by(author), first: added.slice(0, FIRST_CHARS) });
+        return text({ added, note: summary(written) });
       }),
   );
 
