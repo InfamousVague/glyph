@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, useState } from 'react';
-import { reloadPreferences } from '../core/preferences.ts';
-import { addWorkspace, chooseWorkspace, ensureOrgWorkspace, useWorkspaces, type Workspace, type WorkspaceHue } from '../core/workspaces.ts';
+import { preferences, reloadPreferences } from '../core/preferences.ts';
+import { addWorkspace, chooseWorkspace, ensureOrgWorkspace, fileNote, useWorkspaces, workspaceOf, workspaces, type Workspace, type WorkspaceHue } from '../core/workspaces.ts';
 import { button, buttonSaying, show, typeInto } from '../../test/render.tsx';
 import { WorkspaceBar } from './WorkspaceBar.tsx';
 import { WorkspaceSheet } from './WorkspaceSheet.tsx';
@@ -68,7 +68,7 @@ describe('the workspace sheet', () => {
     expect(spaces.current).toMatchObject({ name: 'Garden', hue: 'moss' });
   });
 
-  it('renames one, recolours it as the colour is tapped, and removes it', () => {
+  it('renames one, recolours it as the colour is tapped, and deletes it', () => {
     const kitchen = addWorkspace('Kitchen')!;
     chooseWorkspace(kitchen.id);
     show(<Home />);
@@ -81,8 +81,40 @@ describe('the workspace sheet', () => {
     act(() => void sheet()!.querySelector('input')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
     expect(spaces.list[0]?.name).toBe('Pantry');
     act(() => button('Pantry').click());
-    act(() => buttonSaying(sheet()!, 'Remove workspace')!.click());
+    act(() => buttonSaying(sheet()!, 'Delete workspace')!.click());
+    // Asked first: with no notes in it, only whether to delete it.
+    expect(spaces.list).toHaveLength(1);
+    expect(sheet()!.textContent).toContain('There are no notes in it.');
+    act(() => buttonSaying(sheet()!, 'Delete workspace')!.click());
     expect(spaces.list).toEqual([]);
+  });
+
+  it('asks what becomes of the notes: kept and unfiled, or moved to the Trash with it', () => {
+    const kitchen = addWorkspace('Kitchen')!;
+    fileNote('n1', kitchen.id);
+    fileNote('n2', kitchen.id);
+    const host = show(<WorkspaceSheet which={kitchen} onClose={() => undefined} />);
+    act(() => buttonSaying(host, 'Delete workspace')!.click());
+    expect(host.textContent).toContain('What happens to its 2 notes?');
+    // Cancel goes back, and nothing is gone.
+    act(() => buttonSaying(host, 'Cancel')!.click());
+    expect(workspaces().list).toHaveLength(1);
+    act(() => buttonSaying(host, 'Delete workspace')!.click());
+    act(() => buttonSaying(host, 'Delete, and move the notes to Trash')!.click());
+    expect(workspaces().list).toEqual([]);
+    expect(Object.keys(preferences().trash).sort()).toEqual(['n1', 'n2']);
+  });
+
+  it('keeps the notes, unfiled, when asked to', () => {
+    const kitchen = addWorkspace('Kitchen')!;
+    fileNote('n1', kitchen.id);
+    const host = show(<WorkspaceSheet which={kitchen} onClose={() => undefined} />);
+    act(() => buttonSaying(host, 'Delete workspace')!.click());
+    expect(host.textContent).toContain('What happens to its 1 note?');
+    act(() => buttonSaying(host, 'Delete, keep the notes')!.click());
+    expect(workspaces().list).toEqual([]);
+    expect(workspaceOf('n1')).toBeNull();
+    expect(preferences().trash).toEqual({});
   });
 });
 
@@ -116,7 +148,7 @@ describe('an organization’s workspace', () => {
     const host = show(<WorkspaceSheet which={spaces.list[0]!} onClose={() => undefined} onOrganization={onOrganization} />);
     expect(host.querySelector('input')).toBeNull();
     expect(host.querySelector('[role="radiogroup"]')).toBeNull();
-    expect(buttonSaying(host, 'Remove workspace')).toBeUndefined();
+    expect(buttonSaying(host, 'Delete workspace')).toBeUndefined();
     expect(buttonSaying(host, 'Rename')).toBeUndefined();
     expect(host.textContent).toContain('Notes filed here stay yours for now.');
     act(() => buttonSaying(host, 'Organization settings')!.click());

@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
-import { addWorkspace, chooseWorkspace, removeWorkspace, renameWorkspace, setWorkspaceHue, type Workspace, type WorkspaceHue } from '../core/workspaces.ts';
+import { addWorkspace, chooseWorkspace, deleteWorkspace, notesInWorkspace, renameWorkspace, setWorkspaceHue, type Workspace, type WorkspaceHue } from '../core/workspaces.ts';
 import { SheetField, SheetGroup, SheetHeading, SheetNote, SheetRow, SheetTitle } from '../plugins/kit.tsx';
 import { WorkspaceSwatch } from './WorkspaceSwatch.tsx';
 import { Sheet } from '../editor/Sheet.tsx';
 import { OrgMark } from './OrgMark.tsx';
 
 /**
- * A workspace's sheet, from the row on the list: a name to add, or the name
- * of one to change, a colour for its pill, and Remove under it. In the note's
+ * A workspace's sheet, from the row on the list or Settings › Workspaces: a
+ * name to add, or the name of one to change, a colour for its pill, and Delete
+ * under it, which asks what becomes of its notes - kept and unfiled, or put in
+ * the Trash with it (Matt: "I need a way to delete workspaces"). In the note's
  * settings' own look. A new one is chosen as it is made, so the list lands in
  * it with nothing in it yet and the + at the foot writes the first note there.
  *
@@ -23,9 +25,12 @@ export function WorkspaceSheet({ which, onClose, onOrganization }: { which: Work
   const editing = which && which !== 'new' ? which : null;
   const [name, setName] = useState('');
   const [hue, setHue] = useState<WorkspaceHue>('ink');
+  // Delete pressed: the sheet asks what becomes of the notes before anything goes.
+  const [deleting, setDeleting] = useState(false);
   useEffect(() => {
     setName(editing?.name ?? '');
     setHue(editing?.hue ?? 'ink');
+    setDeleting(false);
   }, [editing, which]);
   if (!which) return null;
 
@@ -48,6 +53,32 @@ export function WorkspaceSheet({ which, onClose, onOrganization }: { which: Work
             }}
             disabled={!onOrganization}
           />
+        </SheetGroup>
+      </Sheet>
+    );
+  }
+
+  if (editing && deleting) {
+    const notes = notesInWorkspace(editing.id);
+    const count = notes.length === 1 ? 'its 1 note' : `its ${notes.length} notes`;
+    const done = (trashNotes: boolean) => {
+      deleteWorkspace(editing.id, { trashNotes });
+      onClose();
+    };
+    return (
+      <Sheet label={`Delete ${editing.name}`} onClose={onClose}>
+        <SheetTitle>Delete {editing.name}?</SheetTitle>
+        <SheetNote>{notes.length ? `What happens to ${count}?` : 'There are no notes in it.'}</SheetNote>
+        <SheetGroup>
+          {notes.length ? (
+            <>
+              <SheetRow label="Delete, keep the notes" hint="They stay, just not filed in a workspace." onPress={() => done(false)} />
+              <SheetRow label="Delete, and move the notes to Trash" hint="They can be restored from the Trash until it is emptied." danger onPress={() => done(true)} />
+            </>
+          ) : (
+            <SheetRow label="Delete workspace" danger onPress={() => done(false)} />
+          )}
+          <SheetRow label="Cancel" onPress={() => setDeleting(false)} />
         </SheetGroup>
       </Sheet>
     );
@@ -98,15 +129,7 @@ export function WorkspaceSheet({ which, onClose, onOrganization }: { which: Work
       </SheetGroup>
       {editing ? (
         <SheetGroup>
-          <SheetRow
-            label="Remove workspace"
-            hint="Its notes stay; they just aren’t filed."
-            danger
-            onPress={() => {
-              removeWorkspace(editing.id);
-              onClose();
-            }}
-          />
+          <SheetRow label="Delete workspace" hint="Asks what happens to its notes first." danger onPress={() => setDeleting(true)} />
         </SheetGroup>
       ) : null}
     </Sheet>

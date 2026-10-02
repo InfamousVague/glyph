@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Bell, BookOpen, CircleUser, FileCode, FlaskConical, Info, Mic, Puzzle, Shapes, Sparkles, SunMoon, Terminal, Users } from '@glacier/icons';
+import { Bell, BookOpen, CircleUser, FileCode, FlaskConical, Folder, Info, Mic, Puzzle, Shapes, Sparkles, SunMoon, Terminal, Users } from '@glacier/icons';
 import { useAccount } from '../core/account/account.ts';
 import { syncSummary, useSyncStatus } from '../core/sync/engine.ts';
 import { AccountPane } from './AccountPane.tsx';
@@ -8,6 +8,8 @@ import { NotificationsPane } from './NotificationsPane.tsx';
 import { findable as notificationsFindable } from './NotificationsPane.findable.ts';
 import { OrganizationsPane } from './OrganizationsPane.tsx';
 import { findable as organizationsFindable } from './OrganizationsPane.findable.ts';
+import { WorkspacesPane } from './WorkspacesPane.tsx';
+import { findable as workspacesFindable } from './WorkspacesPane.findable.ts';
 import { CATEGORIES } from '../core/notifications/kinds.ts';
 import { useOrgs } from '../core/orgs/orgs.ts';
 import { gb, modelName, modelSpec, useModels } from '../core/ai.ts';
@@ -42,6 +44,10 @@ import { TestResultsPane } from './TestResultsPane.tsx';
 import { updatesSummary } from './updateLines.ts';
 import { ACCENT_WORDS, DENSITY_WORDS, FACE_WORDS, ROUNDING_WORDS, SIZE_WORDS, THEME_WORDS } from './words.ts';
 import { reportSummary } from '../diag/testReport.ts';
+import { useWorkspaces } from '../core/workspaces.ts';
+
+/** Workspaces' row in the list: how many there are. */
+const workspaceSummary = (count: number) => (count === 0 ? 'None yet' : count === 1 ? '1 workspace' : `${count} workspaces`);
 
 /**
  * Settings: the sections and their live one-line readings, handed to the
@@ -130,6 +136,8 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
   }, [toPage]);
   // The organizations the account is in: whether Notifications has any to mute, for its search.
   const orgs = useOrgs();
+  // The workspaces, for their row's count (WorkspacesPane.tsx).
+  const spaces = useWorkspaces();
   const hasOrgs = orgs.list.some((row) => row.state === 'member');
 
   // Where a recorder runs: Android, and the Mac app (§127 section 2).
@@ -173,6 +181,18 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       icon: <Users size={16} />,
       content: <OrganizationsPane onOpen={go} onOrganization={onOrganization} />,
       summary: account.session ? `${orgs.list.filter((row) => row.state === 'member').length} joined` : 'Signed out',
+      group: 0,
+    },
+    // Every workspace, to rename, colour or delete (Matt: "I need a way to delete workspaces"): beside Organizations,
+    // whose workspaces it lists too.
+    {
+      id: 'workspaces',
+      label: 'Workspaces',
+      words: 'workspace folders spaces delete remove rename colour color',
+      settings: workspacesFindable(),
+      icon: <Folder size={16} />,
+      content: <WorkspacesPane onOrganization={onOrganization} />,
+      summary: workspaceSummary(spaces.list.length),
       group: 0,
     },
     // What reaches you (docs/TEAMS.md, D8 and D9): beside Account on the first card, in the coral the shell kept free.

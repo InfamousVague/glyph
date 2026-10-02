@@ -176,7 +176,7 @@ export function NoteTree({
               type="button"
               className={styles.folderMore}
               onClick={() => (extra.space?.org && onOrganization ? onOrganization(extra.space.org) : setManage(extra.space ?? null))}
-              aria-label={extra.space.org ? `${extra.space.name}, organization settings` : `Rename, recolour or remove ${extra.space.name}`}
+              aria-label={extra.space.org ? `${extra.space.name}, organization settings` : `Rename, recolour or delete ${extra.space.name}`}
             >
               <Ellipsis size={16} strokeWidth={2.2} aria-hidden="true" />
             </button>

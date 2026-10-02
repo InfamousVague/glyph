@@ -77,7 +77,7 @@ describe('the sidebar’s folders', () => {
     act(() => button('Ghost, organization settings').click());
     expect(onOrganization).toHaveBeenCalledWith('o1');
     expect(document.querySelector('[role="dialog"]')).toBeNull();
-    act(() => button('Rename, recolour or remove Kitchen').click());
+    act(() => button('Rename, recolour or delete Kitchen').click());
     expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Kitchen');
   });
 

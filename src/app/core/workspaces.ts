@@ -280,6 +280,27 @@ export function removeWorkspace(id: string): void {
   remove(id);
 }
 
+/** The notes filed in workspace `id` that are not already in the trash: what deleting it would ask about. */
+export function notesInWorkspace(id: string): string[] {
+  const held = preferences().trash;
+  return filedIn(current().notes, id).filter((note) => !(note in held));
+}
+
+/**
+ * Deletes the workspace (Matt: "I need a way to delete workspaces"), asked each time what becomes of its notes: kept,
+ * and only unfiled, as `removeWorkspace` leaves them - or put in the trash with it, where they wait to be restored or
+ * emptied like any deleted note (core/trash.ts). Nothing is deleted for good here. Not an organization's, which goes
+ * when the person leaves it (`dropOrgWorkspace`).
+ */
+export function deleteWorkspace(id: string, { trashNotes }: { trashNotes: boolean }): void {
+  if (isOrgWorkspace({ id })) return;
+  if (trashNotes) {
+    const now = Date.now();
+    setPreferences({ trash: { ...preferences().trash, ...Object.fromEntries(notesInWorkspace(id).map((note) => [note, now])) } });
+  }
+  remove(id);
+}
+
 function remove(id: string): void {
   const { list, notes, current: chosen } = current();
   // Its notes are not filed any more, so their files go back to the inbox.
