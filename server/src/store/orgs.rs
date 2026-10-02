@@ -327,7 +327,7 @@ impl Store {
             return Err(OrgWrite::OwnerOnly);
         }
         let name = Self::org_name(&tx, org)?;
-        Self::settle_invites(&tx, org)?;
+        Self::settle_invites(&tx, org, now)?;
         let others = Self::members_but(&tx, org, &[actor])?;
         Self::tell(&tx, &others, &Notice { kind: "org-deleted", from: Some(actor), org, body: json!({ "name": name }), state: None }, now)?;
         tx.execute("DELETE FROM orgs WHERE id = ?1", params![org])?;
@@ -408,7 +408,7 @@ impl Store {
         }
         if target.state == INVITED {
             tx.execute("DELETE FROM org_members WHERE org_id = ?1 AND account_id = ?2", params![org, target.account])?;
-            Self::settle_invite(&tx, target.account, org, DECLINED, true)?;
+            Self::settle_invite(&tx, target.account, org, DECLINED, true, now)?;
             tx.commit()?;
             return Ok(());
         }
@@ -470,7 +470,7 @@ impl Store {
         let body = json!({ "name": name });
         if accept {
             tx.execute("UPDATE org_members SET state = 'member', role = 'member', since = ?3 WHERE org_id = ?1 AND account_id = ?2", params![org, account, now])?;
-            Self::settle_invite(&tx, account, org, "accepted", false)?;
+            Self::settle_invite(&tx, account, org, "accepted", false, now)?;
             Self::notify(&tx, asker, &Notice { kind: "invite-accepted", from: Some(account), org, body: body.clone(), state: None }, now)?;
             let others = Self::members_but(&tx, org, &[account, asker])?;
             Self::tell(&tx, &others, &Notice { kind: "member-joined", from: Some(account), org, body, state: None }, now)?;
@@ -479,7 +479,7 @@ impl Store {
             Ok(joined)
         } else {
             tx.execute("UPDATE org_members SET state = 'declined', since = ?3 WHERE org_id = ?1 AND account_id = ?2", params![org, account, now])?;
-            Self::settle_invite(&tx, account, org, DECLINED, false)?;
+            Self::settle_invite(&tx, account, org, DECLINED, false, now)?;
             Self::notify(&tx, asker, &Notice { kind: "invite-declined", from: Some(account), org, body, state: None }, now)?;
             tx.commit()?;
             Ok(None)

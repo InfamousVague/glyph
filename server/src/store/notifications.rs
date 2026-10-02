@@ -262,7 +262,9 @@ impl Store {
 
     /// An account's pending invitation to `org`, answered or withdrawn: its state, hidden when it is nothing to look
     /// at any more (the organization gone, the invitation withdrawn), fed again under a new revision.
-    pub(super) fn settle_invite(tx: &Transaction<'_>, account: i64, org: &str, state: &str, hidden: bool) -> rusqlite::Result<()> {
+    /// An answered invitation is read as well as settled: the person tapped it, and a dot that stayed on the bell after
+    /// Accept (seen on the first two-account run) said otherwise until the next feed page undid the device's own mark.
+    pub(super) fn settle_invite(tx: &Transaction<'_>, account: i64, org: &str, state: &str, hidden: bool, now: i64) -> rusqlite::Result<()> {
         let pending: Option<String> = tx
             .query_row(
                 "SELECT id FROM notifications WHERE account_id = ?1 AND org_id = ?2 AND kind = 'invite' AND state = 'pending'",
@@ -272,18 +274,21 @@ impl Store {
             .optional()?;
         if let Some(id) = pending {
             let rev = Self::next_rev(tx, account)?;
-            tx.execute("UPDATE notifications SET state = ?3, hidden = ?4, rev = ?5 WHERE account_id = ?1 AND id = ?2", params![account, id, state, i64::from(hidden), rev])?;
+            tx.execute(
+                "UPDATE notifications SET state = ?3, hidden = ?4, rev = ?5, read_at = COALESCE(read_at, ?6) WHERE account_id = ?1 AND id = ?2",
+                params![account, id, state, i64::from(hidden), rev, now],
+            )?;
         }
         Ok(())
     }
 
     /// Every pending invitation to `org`, settled as declined and hidden: the organization is going.
-    pub(super) fn settle_invites(tx: &Transaction<'_>, org: &str) -> rusqlite::Result<()> {
+    pub(super) fn settle_invites(tx: &Transaction<'_>, org: &str, now: i64) -> rusqlite::Result<()> {
         let mut stmt = tx.prepare("SELECT account_id FROM notifications WHERE org_id = ?1 AND kind = 'invite' AND state = 'pending'")?;
         let invited: Vec<i64> = stmt.query_map(params![org], |r| r.get(0))?.filter_map(Result::ok).collect();
         drop(stmt);
         for account in invited {
-            Self::settle_invite(tx, account, org, "declined", true)?;
+            Self::settle_invite(tx, account, org, "declined", true, now)?;
         }
         Ok(())
     }

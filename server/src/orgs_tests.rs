@@ -166,6 +166,7 @@ async fn inviting_by_handle_tells_the_invitee_and_accepting_tells_the_asker_and_
     assert_eq!((body["org"]["id"].clone(), body["org"]["role"].clone(), body["org"]["state"].clone(), body["org"]["members"].as_array().unwrap().len()), (json!(id), json!("member"), json!("member"), 2));
     let settled = &feed(&h, &sam).await[0];
     assert_eq!((settled["state"].clone(), settled["hidden"].clone()), (json!("accepted"), json!(false)));
+    assert!(settled["readAt"].is_i64(), "an invitation the person answered is read: the bell's dot goes with the tap");
     assert!(settled["rev"].as_i64() > row["rev"].as_i64(), "fed again under a new revision");
     let told = of_kind(&h, &matt, "invite-accepted").await;
     assert_eq!((told.len(), told[0]["from"].clone(), told[0]["org"]["name"].clone()), (1, json!("sam"), json!("Ghost")));
