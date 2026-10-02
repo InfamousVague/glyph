@@ -37,7 +37,7 @@ export function ClaudePane() {
         <SettingRow icon={<Laptop size={16} />} label="On your own computer" hint="One file, run with Node. Your key never leaves the machine." onPress={() => setGuide('local')} />
       </PaneSection>
 
-      <PaneSection title="What Claude can do" description="Ask in words. Behind them are eight tools, and every one reads your notes fresh before it acts, so Claude sees what your phone last wrote.">
+      <PaneSection title="What Claude can do" description="Ask in words. Behind them are the connector's tools, and every one reads your notes fresh before it acts, so Claude sees what your phone last wrote.">
         {CAN_DO.map((tool) => (
           <SettingRow key={tool.name} label={tool.name} hint={tool.words} />
         ))}

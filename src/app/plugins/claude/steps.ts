@@ -95,7 +95,7 @@ export function guides(handle: string | null): Guide[] {
   ];
 }
 
-/** What Claude can do once connected: the eight tools (mcp/server.ts), in words. */
+/** What Claude can do once connected: the tools (mcp/server.ts), in words. */
 export const CAN_DO: { name: string; words: string }[] = [
   { name: 'Read a note', words: 'One note in full, by its title.' },
   { name: 'List your notes', words: 'Newest change first, with a line of each.' },
@@ -103,6 +103,7 @@ export const CAN_DO: { name: string; words: string }[] = [
   { name: 'Make a note', words: 'From markdown, with a title. Every Ghost.md mark works: lists, to-dos, tables, boards.' },
   { name: 'Add to a note', words: 'A task or an item joins the note’s list in its own style; a paragraph goes on the end.' },
   { name: 'Rewrite a note', words: 'The whole body replaced, never over a change another device made in between.' },
-  { name: 'Pin or archive', words: 'Either, and undo either. There is no delete: archiving is what it can do, and you can undo it here.' },
+  { name: 'Pin or archive', words: 'Either, and undo either.' },
+  { name: 'Delete a note', words: 'Into the Trash, as deleting here does, and back out of it. Emptying the Trash is yours alone.' },
   { name: 'Say which account', words: 'Whose notes these are, and how many.' },
 ];

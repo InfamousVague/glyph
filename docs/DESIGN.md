@@ -9653,3 +9653,32 @@ signed out), App.test.tsx (the cog over the dashboard and back, a pill to anothe
 OrganizationSheet case for the cog, and HomeScreen.test.tsx's only invitation.
 
 Cites: §170, §171, §174.
+
+## 176. Claude can delete notes, as far as the Trash (2026-10-02)
+
+Matt: "clean up the extra claude rules delete them, add the ability for claude to delete notes".
+
+The connector had no delete on purpose ("Claude on the account: the MCP server", 2026-09-18): archiving was what it
+could do, because the app could undo it. It now has `delete_notes` and `restore_notes` (mcp/server.ts), and they go
+exactly as far as the app's own Delete: the Trash (core/trash.ts), a synced setting of note ids and when each went in.
+A deleted note leaves the lists, search and links on every device at their next sync and waits, whole, in the sidebar's
+Trash folder; the app or `restore_notes` brings it back to where it was, its workspace, pin and archive untouched.
+Emptying the Trash, the only delete for good, stays the person's, in the app. So Claude's delete is as undoable as an
+archive, and means what the person means by delete.
+
+The other tools now know the trash. `list_notes` leaves it out, and lists it alone with `in_trash`, the most recently
+deleted first, for `restore_notes`; `search_notes` leaves it out; a title finds only notes out of it, as a link in the
+app does, while an id still reads a trashed note, which then says `inTrash`; `account_status` counts it apart; and a
+"Claude rules" note in the Trash is never the rules (the same day's fix made the rules the oldest live note of that
+title, f1f13732).
+
+The settings are written as `file_notes` writes them (`changePrefs`): read with their revision, only `trash` changed,
+written back, and read again and redone once if another device wrote in between. A note deleted twice keeps its first
+time, and the answer says which notes were already in the Trash, or not in it to restore. No notification is posted
+for a delete: the feed's kinds are the service's to know, and a new one is a glyph-api change.
+
+Tests: mcp/server.test.ts "deleting notes, to the Trash" (moved with every other setting kept and the note whole; the
+lists, search, a title and the status leaving it out; read by its id, saying so; restored; twice, and never deleted,
+said apart; a rules note in the Trash not the rules) and the tool list.
+
+Cites: "Claude on the account: the MCP server".

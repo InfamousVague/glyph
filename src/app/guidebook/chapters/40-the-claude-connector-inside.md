@@ -29,17 +29,24 @@ All of this is `mcp/glyph.ts`.
 
 | Tool | What it does |
 |---|---|
-| `list_notes` | notes, newest change first, with an optional title filter and archived notes on request; 50 by default, up to 500 |
-| `read_note` | one note in full, by id, by exact title, or by the only title that contains the words |
+| `list_notes` | notes, newest change first, with an optional title filter and archived notes on request, leaving out the Trash, or the Trash alone with `in_trash`; 50 by default, up to 500 |
+| `read_note` | one note in full, by id, by exact title, or by the only title that contains the words; a note in the Trash only by its id |
 | `search_notes` | notes whose words contain the query, with a snippet around the first match; 20 by default, up to 200 |
 | `create_note` | a new note from Markdown; a `title` becomes a `# ` heading if the body has none |
 | `update_note` | replaces the whole body, from the version last read; an empty body is refused |
 | `append_to_note` | places a task, an item or a paragraph the way the app's "add task" does |
+| `add_journal_entry` | an entry in a journal, named by the minute and started from its template, its line added to the journal |
 | `set_note_flags` | pins or archives a note, or undoes either |
+| `delete_notes` | moves notes to the Trash: their ids into the synced `trash` setting, as the app's Delete writes it |
+| `restore_notes` | takes notes back out of the Trash |
+| `list_workspaces` | the workspaces, an organization's among them, with how many notes each holds |
+| `file_notes` | files notes under an existing workspace, or takes them out of every one |
+| `get_rules` | the "Claude rules" note, made and pinned the first time it is wanted |
+| `add_rule` | a standing request added to the "Claude rules" note |
 | `account_status` | which account, which service, how many notes, and how many connections |
 | `sign_out_everywhere` | hosted only: ends every Claude connection to the account |
 
-Every build has the first eight. The ninth is added only when the hosted server hands in its hooks. There is no delete tool: archiving takes a note out of the list, and the app can undo it.
+Every build has all but `sign_out_everywhere`, which is added only when the hosted server hands in its hooks. Delete goes no further than the Trash, a synced setting the app reads, so the app or `restore_notes` can undo it; emptying the Trash stays in the app.
 
 A note the connector creates, rewrites or adds to names the AI in its `authors:` front matter. Pinning or archiving leaves the authors alone. If the note named nobody before, the account's own handle goes first (`withAuthor` in `core/authors.ts`). The AI's name is the tool's `author` argument, or else the name the client gave when it connected (`aiName` reads `claude-ai` as Claude). A rewrite never drops an author the note already had.
 

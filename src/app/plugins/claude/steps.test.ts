@@ -23,8 +23,9 @@ describe('the words of Settings › Claude', () => {
     expect(signIn(null)).toBe('node ~/glyph-mcp.mjs login <your handle>');
   });
 
-  it('says what the eight tools do, one row each', () => {
-    expect(CAN_DO).toHaveLength(8);
-    expect(new Set(CAN_DO.map((t) => t.name)).size).toBe(8);
+  it('says what the tools do, one row each, a delete that goes only as far as the Trash among them', () => {
+    expect(CAN_DO).toHaveLength(9);
+    expect(new Set(CAN_DO.map((t) => t.name)).size).toBe(9);
+    expect(CAN_DO.find((t) => t.name === 'Delete a note')?.words).toContain('Emptying the Trash is yours alone.');
   });
 });

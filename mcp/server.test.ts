@@ -322,9 +322,9 @@ describe('the account', () => {
     await service.deviceWrites(aNote('a', '# One', { starred: true }));
     await service.deviceWrites(aNote('b', '# Two', { archivedAt: WRITTEN }));
     const status = JSON.parse((await call('account_status')).text) as Record<string, unknown>;
-    expect(status).toEqual({ handle: 'matt', service: 'https://fake.test/glyph/api', notes: 2, archived: 1, pinned: 1, changedSinceLastRead: 2, connections: 1 });
+    expect(status).toEqual({ handle: 'matt', service: 'https://fake.test/glyph/api', notes: 2, inTrash: 0, archived: 1, pinned: 1, changedSinceLastRead: 2, connections: 1 });
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name)).toEqual(['list_notes', 'read_note', 'search_notes', 'create_note', 'update_note', 'append_to_note', 'add_journal_entry', 'set_note_flags', 'list_workspaces', 'file_notes', 'get_rules', 'add_rule', 'account_status']);
+    expect(tools.map((t) => t.name)).toEqual(['list_notes', 'read_note', 'search_notes', 'create_note', 'update_note', 'append_to_note', 'add_journal_entry', 'set_note_flags', 'delete_notes', 'restore_notes', 'list_workspaces', 'file_notes', 'get_rules', 'add_rule', 'account_status']);
   });
 
   it('asks the hosted server’s caller when an entry was written, since its clock is not the person’s', async () => {
@@ -650,5 +650,54 @@ describe('workspaces', () => {
     expect(raced).toBe(true);
     expect(prefs.theme).toBe('light');
     expect((prefs.workspaces as { notes: Record<string, string> }).notes.a).toBe('w1');
+  });
+});
+
+// Matt: "add the ability for claude to delete notes". Into the trash, as the app's Delete does (core/trash.ts): a
+// synced setting, the note whole until the person empties the trash in the app.
+describe('deleting notes, to the Trash', () => {
+  async function withNotes() {
+    const kit = await connected();
+    await kit.service.deviceWrites(aNote('a', '# Plan\n\nThe words.', { updatedAt: WRITTEN + 2 }));
+    await kit.service.deviceWrites(aNote('b', '# Shopping\n\nMilk.', { updatedAt: WRITTEN + 1 }));
+    await kit.account.changePrefs(() => ({ theme: 'dark', trash: { old: WRITTEN } }));
+    return kit;
+  }
+  const titlesOf = (answer: { text: string }) => (JSON.parse(answer.text) as { notes: { title: string }[] }).notes.map((n) => n.title);
+
+  it('moves notes to the Trash, keeping every other setting and the note itself, and the lists leave them out', async () => {
+    const { call, account, service } = await withNotes();
+    expect(JSON.parse((await call('delete_notes', { ids: ['a', 'zz'] })).text)).toEqual({ deleted: [{ id: 'a', title: 'Plan' }], missing: ['zz'] });
+    const { prefs } = await account.readPrefs();
+    expect(prefs.theme).toBe('dark');
+    expect(Object.keys(prefs.trash as object).sort()).toEqual(['a', 'old']);
+    expect((await service.stored('a'))?.note.body).toBe('# Plan\n\nThe words.');
+    expect(titlesOf(await call('list_notes'))).toEqual(['Shopping']);
+    expect(titlesOf(await call('list_notes', { in_trash: true }))).toEqual(['Plan']);
+    expect(titlesOf(await call('search_notes', { query: 'words' }))).toEqual([]);
+    // By its id it is still read, and says where it is; by its title it is not found, as a link in the app would not.
+    expect(JSON.parse((await call('read_note', { id: 'a' })).text)).toMatchObject({ id: 'a', inTrash: true });
+    expect((await call('read_note', { title: 'Plan' })).isError).toBe(true);
+    expect(JSON.parse((await call('account_status')).text)).toMatchObject({ notes: 1, inTrash: 1 });
+  });
+
+  it('restores them to where they were, and says which were not there to move', async () => {
+    const { call } = await withNotes();
+    await call('delete_notes', { ids: ['a'] });
+    expect(JSON.parse((await call('delete_notes', { ids: ['a', 'b'] })).text)).toEqual({ deleted: [{ id: 'b', title: 'Shopping' }], alreadyInTrash: [{ id: 'a', title: 'Plan' }] });
+    expect(JSON.parse((await call('restore_notes', { ids: ['a'] })).text)).toEqual({ restored: [{ id: 'a', title: 'Plan' }] });
+    expect(titlesOf(await call('list_notes'))).toEqual(['Plan']);
+    expect(JSON.parse((await call('restore_notes', { ids: ['a', 'b'] })).text)).toEqual({ restored: [{ id: 'b', title: 'Shopping' }], notInTrash: [{ id: 'a', title: 'Plan' }] });
+    expect(titlesOf(await call('list_notes'))).toEqual(['Plan', 'Shopping']);
+    expect(await call('delete_notes', { ids: ['zz'] })).toEqual({ isError: true, text: 'None of those notes is in this account: zz.' });
+  });
+
+  it('never takes a Claude rules note in the Trash for the rules', async () => {
+    const { call, account, service } = await connected();
+    await service.deviceWrites(aNote('gone', '# Claude rules\n\nDeleted.', { createdAt: WRITTEN - 2000 }));
+    await account.changePrefs((prefs) => ({ ...prefs, trash: { gone: WRITTEN } }));
+    const rules = JSON.parse((await call('get_rules')).text) as { id: string; body: string };
+    expect(rules.id).not.toBe('gone');
+    expect(rules.body).toContain('## Standing requests');
   });
 });

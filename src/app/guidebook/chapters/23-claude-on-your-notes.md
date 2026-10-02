@@ -53,10 +53,11 @@ The password is typed at the prompt and never stored. What is kept is what a sig
 | Rewrite a note | `update_note` | The whole body replaced. |
 | Add to a note | `append_to_note` | A task or an item joins the note's list in its own style, as the app's own adding does. A paragraph goes on the end. |
 | Pin or archive | `set_note_flags` | Either one, and undo either. |
+| Delete a note | `delete_notes` | Into the Trash, as deleting one here does. `restore_notes` brings it back. |
 | Say which account | `account_status` | Whose notes these are, how many, and how many Claude connections the account has. |
 | Sign out everywhere | `sign_out_everywhere` | Hosted only. Ends every Claude connection to the account, this one included. Each signs in again on the page. |
 
-There is no delete. Claude can archive a note, which you can undo in the app. Emptying the trash is yours alone.
+Claude's delete only moves a note to the Trash: it waits in the sidebar's Trash folder, where you can restore it, and Claude can restore it too. Emptying the Trash, which deletes for good, is yours alone.
 
 ## Never over another device
 

@@ -17,7 +17,7 @@ Once it is connected, ask Claude in words. Behind them are thirteen tools, and a
 
 | Tool | What it does |
 | --- | --- |
-| `list_notes` | Your notes, newest change first: id, title, dates, pinned, archived, folder, a line of preview. `query` narrows by title. |
+| `list_notes` | Your notes, newest change first: id, title, dates, pinned, archived, folder, a line of preview. `query` narrows by title. Notes in the Trash are left out; `in_trash` lists them instead, the most recently deleted first. |
 | `read_note` | One note in full, by id or by title, or a ticket by its key, `GHO-12` (docs/TICKETS.md). |
 | `search_notes` | Notes whose words contain something, with a snippet around the match. |
 | `create_note` | A new note from markdown, with a title as its heading. Every mark the app draws works: headings, lists, `- [ ]` to-dos, tables, boards. |
@@ -25,6 +25,8 @@ Once it is connected, ask Claude in words. Behind them are thirteen tools, and a
 | `append_to_note` | Words added the way the app's own "add task" adds them: a task or an item joins the note's list, in the list's style; a paragraph goes on the end. Not a journal, whose words are the list of its entries: it says to use the next tool. |
 | `add_journal_entry` | An entry in a journal (a notebook kept as a journal, DESIGN §142), as the app writes one: a note named by the minute, "2026-09-28 14.05", started from the journal's template, with the words going on from its time line or into its to-do list, and its line added to the journal. `at` is the person's local time, `YYYY-MM-DDTHH:MM`; left out, the time where the local server runs, and the hosted one asks for it, since its clock is not yours. Never a place. |
 | `set_note_flags` | Pin or archive a note, or undo either. |
+| `delete_notes` | Notes moved to the Trash, as deleting a note in the app does: a synced setting (`core/trash.ts`), the note itself whole until you empty the Trash in the app. |
+| `restore_notes` | Notes taken back out of the Trash, to where they were. |
 | `list_workspaces` | The workspaces notes are filed under, as the app lists them: id, name, whether it is an organization's (`org-<orgId>`, made by the app for each organization you are a member of, docs/TEAMS.md), and how many notes each holds. |
 | `file_notes` | Notes filed under a workspace by its name or id, as a note's Workspace setting does in the app, moving them from any other; or `unfile` to take them out. Only an existing workspace: it never makes one, so an organization's appears once the app has synced the organization. |
 | `get_rules` | The "Claude rules" note: your standing instructions for Claude on this account. Made, pinned, the first time it is wanted. |
@@ -68,8 +70,9 @@ version just read: if another device changed the note in between, the service re
 that device's words instead, never over them. That is the rule the app itself lives by (docs/SYNC.md).
 
 A note Claude makes or changes reaches every signed-in device at its next sync, exactly as one typed on a phone would.
-There is no delete: archive a note instead (`set_note_flags`), which the app can undo. Emptying the trash is a thing
-you do in the app.
+Deleting moves a note to the Trash, never further (`delete_notes`): it leaves the lists, search and links, here and in
+the app, and `restore_notes` or the app's Trash folder brings it back. Emptying the Trash, which deletes for good, is a
+thing you do in the app. A note in the Trash is found only by its id, and `read_note` says where it is.
 
 **The Claude rules.** Your account keeps a note called **Claude rules**: your standing instructions for Claude when it
 works here. It is made (and pinned) the first time Claude connects, seeded with what the note is for and a sensible

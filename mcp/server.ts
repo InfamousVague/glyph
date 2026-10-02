@@ -135,15 +135,15 @@ export function lineDiff(before: string, after: string): LineDiff {
 }
 
 /**
- * The rules note among `records`: the oldest live note of that title, ignoring case. An archived one is put away, not
- * the rules, and several are still an answer: `byTitle` answers none for a title two notes share, and the rules were
- * found that way, so an account with a hand-made "Claude rules" beside an archived "Claude Rules" had another made by
- * every connection (Matt: "Claude is creating a new Claude Rules file over and over instead of reusing the existing
- * one").
+ * The rules note among `records`: the oldest live note of that title, ignoring case. An archived one is put away and
+ * one in the trash is deleted, so neither is the rules; and several are still an answer: `byTitle` answers none for a
+ * title two notes share, and the rules were found that way, so an account with a hand-made "Claude rules" beside an
+ * archived "Claude Rules" had another made by every connection (Matt: "Claude is creating a new Claude Rules file over
+ * and over instead of reusing the existing one").
  */
-export function rulesNoteIn(records: readonly NoteRecord[]): NoteRecord | null {
+export function rulesNoteIn(records: readonly NoteRecord[], trash: Readonly<Record<string, number>> = {}): NoteRecord | null {
   const want = RULES_TITLE.toLowerCase();
-  const live = records.filter((record) => !record.note.archivedAt && noteTitle(record.note.body).toLowerCase() === want);
+  const live = records.filter((record) => !record.note.archivedAt && !(record.note.id in trash) && noteTitle(record.note.body).toLowerCase() === want);
   live.sort((a, b) => a.note.createdAt - b.note.createdAt || (a.note.id < b.note.id ? -1 : a.note.id > b.note.id ? 1 : 0));
   return live[0] ?? null;
 }
@@ -170,7 +170,7 @@ export async function ensureRulesNote(account: GlyphAccount, seedAuthor = 'Claud
 
 async function findOrMakeRules(account: GlyphAccount, seedAuthor: string): Promise<NoteRecord> {
   await account.pull();
-  const found = rulesNoteIn(await account.list());
+  const found = rulesNoteIn(await account.list(), await trashOf(account));
   if (found) return found;
   const made = await account.create(withAuthor(DEFAULT_RULES, seedAuthor, account.handle), { pinned: true });
   // Told of once, when it is made: a connection that finds it has written nothing.
@@ -207,6 +207,25 @@ function workspacesIn(prefs: Record<string, unknown>): { list: { id: string; nam
     for (const [note, id] of Object.entries(held.notes as Record<string, unknown>)) if (typeof id === 'string' && ids.has(id)) notes[note] = id;
   }
   return { list, notes };
+}
+
+/**
+ * The notes in the trash, by id, with when each went in (core/trash.ts): a synced setting, as the app keeps it, so a
+ * note deleted on the phone is in the trash here and one deleted here is in the phone's Trash folder. A note in it is
+ * whole until the person empties the trash in the app. Anything malformed is not in it, as the app reads it.
+ */
+function trashIn(prefs: Record<string, unknown>): Record<string, number> {
+  const held = prefs.trash;
+  const trash: Record<string, number> = {};
+  if (held && typeof held === 'object' && !Array.isArray(held)) {
+    for (const [id, at] of Object.entries(held as Record<string, unknown>)) if (typeof at === 'number') trash[id] = at;
+  }
+  return trash;
+}
+
+/** The account's trash, read fresh. */
+async function trashOf(account: GlyphAccount): Promise<Record<string, number>> {
+  return trashIn((await account.readPrefs()).prefs);
 }
 
 function iso(ms: number): string {
@@ -331,13 +350,17 @@ async function find(account: GlyphAccount, id: string | undefined, title: string
     throw new Error(`No note with the id ${id}. Use list_notes to find it.`);
   }
   if (title) {
-    const found = await account.byTitle(title);
-    if (found) return found;
+    // Only the notes out of the trash answer to a title, as only they answer to a link in the app.
+    const trash = await trashOf(account);
+    const notes = (await account.list({ archived: true })).filter((r) => !(r.note.id in trash));
+    const want = title.trim().toLowerCase();
+    const exact = notes.filter((r) => noteTitle(r.note.body).toLowerCase() === want);
+    if (exact.length === 1) return exact[0]!;
     // A ticket's key finds the ticket, as `[[GHO-12]]` does in the app (docs/DESIGN.md §157).
     const key = issueKeyOf(title);
-    const ticket = key ? (await account.list({ archived: true })).find((r) => ticketIdOf(r.note.body) === key) : undefined;
+    const ticket = key ? notes.find((r) => ticketIdOf(r.note.body) === key) : undefined;
     if (ticket) return ticket;
-    const near = (await account.list({ archived: true })).filter((r) => noteTitle(r.note.body).toLowerCase().includes(title.trim().toLowerCase()));
+    const near = notes.filter((r) => noteTitle(r.note.body).toLowerCase().includes(want));
     if (near.length === 1) return near[0]!;
     throw new Error(
       near.length
@@ -390,19 +413,24 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     {
       title: 'List notes',
       description:
-        'The notes in this Ghost.md account, newest change first: id, title, dates, pinned, archived, folder and a line of preview. Optionally only those whose title contains `query`. Reads the account fresh first.',
+        'The notes in this Ghost.md account, newest change first: id, title, dates, pinned, archived, folder and a line of preview. Optionally only those whose title contains `query`. Notes in the Trash are left out; `in_trash` lists them instead. Reads the account fresh first.',
       inputSchema: {
         query: z.string().optional().describe('Only notes whose title contains this (case-insensitive).'),
         include_archived: z.boolean().optional().describe('Include archived notes. Off by default.'),
+        in_trash: z.boolean().optional().describe('List the notes in the Trash instead, the most recently deleted first: what restore_notes can bring back.'),
         limit: z.number().int().min(1).max(500).optional().describe('At most this many, default 50.'),
       },
     },
-    async ({ query, include_archived, limit }) =>
+    async ({ query, include_archived, in_trash, limit }) =>
       guarded(async () => {
         await account.pull();
+        const trash = await trashOf(account);
         const want = query?.trim().toLowerCase();
-        const notes = (await account.list({ archived: Boolean(include_archived) })).filter((r) => !want || noteTitle(r.note.body).toLowerCase().includes(want));
-        return text({ count: notes.length, notes: notes.slice(0, limit ?? 50).map(summary) });
+        const pool = in_trash
+          ? (await account.list({ archived: true })).filter((r) => r.note.id in trash).sort((a, b) => trash[b.note.id]! - trash[a.note.id]!)
+          : (await account.list({ archived: Boolean(include_archived) })).filter((r) => !(r.note.id in trash));
+        const notes = pool.filter((r) => !want || noteTitle(r.note.body).toLowerCase().includes(want));
+        return text({ count: notes.length, notes: notes.slice(0, limit ?? 50).map((r) => (in_trash ? { ...summary(r), deleted: iso(trash[r.note.id]!) } : summary(r))) });
       }),
   );
 
@@ -410,7 +438,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     'read_note',
     {
       title: 'Read a note',
-      description: 'A note in full: its markdown body and what the account knows about it. Give its id (from list_notes) or its exact title, or a ticket’s key (GHO-12).',
+      description: 'A note in full: its markdown body and what the account knows about it. Give its id (from list_notes) or its exact title, or a ticket’s key (GHO-12). A note in the Trash is found only by its id, and says so.',
       inputSchema: {
         id: z.string().optional().describe('The note’s id.'),
         title: z.string().optional().describe('The note’s title, when the id is not known, or a ticket’s key.'),
@@ -419,7 +447,9 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     async ({ id, title }) =>
       guarded(async () => {
         await account.pull();
-        return text(whole(await find(account, id, title)));
+        const record = await find(account, id, title);
+        const deleted = (await trashOf(account))[record.note.id];
+        return text({ ...whole(record), ...(deleted ? { inTrash: true, deleted: iso(deleted) } : {}) });
       }),
   );
 
@@ -427,7 +457,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     'search_notes',
     {
       title: 'Search notes',
-      description: 'Notes whose words contain `query` (case-insensitive), each with a snippet around the first match. Titles and bodies both count.',
+      description: 'Notes whose words contain `query` (case-insensitive), each with a snippet around the first match. Titles and bodies both count; notes in the Trash do not.',
       inputSchema: {
         query: z.string().min(1).describe('What to look for.'),
         include_archived: z.boolean().optional(),
@@ -437,8 +467,10 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     async ({ query, include_archived, limit }) =>
       guarded(async () => {
         await account.pull();
+        const trash = await trashOf(account);
         const want = query.trim().toLowerCase();
         const hits = (await account.list({ archived: Boolean(include_archived) }))
+          .filter((record) => !(record.note.id in trash))
           .map((record) => {
             // A filled blank's hidden bracket is not the note's words (docs/DESIGN.md §145): its answer is found, the
             // bracket's "memory" and "Asked" are not, as in the app's own search.
@@ -613,6 +645,67 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
       }),
   );
 
+  /**
+   * Notes into the trash, or back out of it, in one write of the settings, as the app's Delete and Restore do
+   * (core/trash.ts; Matt: "add the ability for claude to delete notes"). Never for good: the note stays whole until the
+   * person empties the trash in the app, so whatever Claude deletes, restore_notes or the Trash folder brings back.
+   */
+  const trashing = async (ids: string[], into: boolean) => {
+    await account.pull();
+    const found: NoteRecord[] = [];
+    const missing: string[] = [];
+    for (const id of new Set(ids)) {
+      const record = await account.get(id);
+      if (record) found.push(record);
+      else missing.push(id);
+    }
+    if (!found.length) return failed(`None of those notes is in this account: ${missing.join(', ')}.`);
+    let unmoved: NoteRecord[] = [];
+    await account.changePrefs((prefs) => {
+      const trash = trashIn(prefs);
+      // Already where it was asked to go: deleted twice keeps the first time, restored when it was never deleted.
+      unmoved = found.filter((record) => (record.note.id in trash) === into);
+      const now = Date.now();
+      for (const record of found) {
+        if (!into) delete trash[record.note.id];
+        else if (!(record.note.id in trash)) trash[record.note.id] = now;
+      }
+      return { ...prefs, trash };
+    });
+    const listed = (records: NoteRecord[]) => records.map((record) => ({ id: record.note.id, title: titled(record) }));
+    const moved = found.filter((record) => !unmoved.includes(record));
+    return text({
+      [into ? 'deleted' : 'restored']: listed(moved),
+      ...(unmoved.length ? { [into ? 'alreadyInTrash' : 'notInTrash']: listed(unmoved) } : {}),
+      ...(missing.length ? { missing } : {}),
+    });
+  };
+
+  server.registerTool(
+    'delete_notes',
+    {
+      title: 'Delete notes',
+      description:
+        'Moves notes to the Trash, as deleting a note in the app does: they leave the lists, search and links, and wait in the Trash for the person. Nothing is deleted for good: emptying the Trash is the person’s alone, in the app, and restore_notes takes a note back out. For a note that should only be out of the way, archive it instead (set_note_flags).',
+      inputSchema: {
+        ids: z.array(z.string()).min(1).max(500).describe('The notes’ ids, from list_notes or search_notes.'),
+      },
+    },
+    async ({ ids }) => guarded(() => trashing(ids, true)),
+  );
+
+  server.registerTool(
+    'restore_notes',
+    {
+      title: 'Restore notes from the Trash',
+      description: 'Takes notes back out of the Trash, to where they were: their workspace, pin and archive were never touched. Their ids come from list_notes with in_trash.',
+      inputSchema: {
+        ids: z.array(z.string()).min(1).max(500).describe('The notes’ ids, from list_notes with in_trash.'),
+      },
+    },
+    async ({ ids }) => guarded(() => trashing(ids, false)),
+  );
+
   server.registerTool(
     'list_workspaces',
     {
@@ -728,11 +821,14 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     async () =>
       guarded(async () => {
         const { changed } = await account.pull();
-        const notes = await account.list({ archived: true });
+        const trash = await trashOf(account);
+        const all = await account.list({ archived: true });
+        const notes = all.filter((r) => !(r.note.id in trash));
         return text({
           handle: account.handle,
           service: account.api,
           notes: notes.length,
+          inTrash: all.length - notes.length,
           archived: notes.filter((r) => r.note.archivedAt).length,
           pinned: notes.filter((r) => r.note.starred).length,
           changedSinceLastRead: changed,
