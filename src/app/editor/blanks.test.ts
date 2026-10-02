@@ -4,15 +4,18 @@ import { EditorView } from '@codemirror/view';
 import { MARKS } from '../plugins/marks/index.tsx';
 import { parseWhole } from '../../test/syntaxTree.ts';
 import { forgetFills } from '../ai/fills/queue.ts';
-import { blanks, blanksField, editorBlanks, fillAll, fillableBlanks, PAUSE_MS, type BlankHooks } from './blanks.ts';
+import { blanks, blanksField, editorBlanks, fillAll, fillableBlanks, idleFillable, PAUSE_MS, PAUSE_SETTLE_MS, type BlankHooks } from './blanks.ts';
 import { glyphMarkdown } from './language.ts';
 import { noteView } from './viewMode.ts';
+import { reloadPreferences, setPreferences } from '../core/preferences.ts';
 
 const views: EditorView[] = [];
 afterEach(() => {
   views.splice(0).forEach((v) => v.destroy());
   forgetFills();
   vi.useRealTimers();
+  setPreferences({ autoFill: true });
+  reloadPreferences();
 });
 
 /** Hooks as the note screen gives them, on Monday 28 September 2026 in London. */
@@ -164,5 +167,43 @@ describe('Fill the blanks', () => {
     const view = editor('# {?}\n\nToo few words.', given);
     expect(fillAll(view)).toBe(0);
     expect(given.said).toEqual(['Write a few lines first. The title is made from them.']);
+  });
+});
+
+describe('filling on their own once the typing stops', () => {
+  it('offers every blank the phone can answer, less a title with too little under it', () => {
+    const view = editor('# {?}\n\nCheapest on {?which day}\n\nWeather in Lisbon today: {?weather}\n\nThe capital is {?}.');
+    // The empty title blank is left out: a press would only refuse it with a sentence.
+    expect(idleFillable(view, new Set()).blanks.map((b) => b.question)).toEqual(['which day', 'weather', '']);
+  });
+
+  it('leaves the blank the caret still sits in, and any already tried, alone', () => {
+    const view = editor('Cheapest on {?which day} and {?which airport}', hooks(), { anchor: 16 });
+    view.focus();
+    view.dispatch({ selection: { anchor: 16 } });
+    if (view.hasFocus) expect(idleFillable(view, new Set()).blanks.map((b) => b.question)).toEqual(['which airport']);
+    expect(idleFillable(view, new Set(['which airport\u00000'])).blanks.map((b) => b.question)).toEqual(view.hasFocus ? [] : ['which day']);
+  });
+
+  it('stands down where the model can’t run, or with the setting off', () => {
+    expect(idleFillable(editor('Cheapest on {?which day}', hooks({ canFill: () => false })), new Set()).blanks).toEqual([]);
+    const view = editor('Cheapest on {?which day}');
+    setPreferences({ autoFill: false });
+    expect(idleFillable(view, new Set()).blanks).toEqual([]);
+  });
+
+  it('presses them a few seconds after the hands stop, once', () => {
+    vi.useFakeTimers();
+    const given = hooks();
+    const view = editor('Cheapest on ', given, { anchor: 12 });
+    view.focus();
+    view.dispatch({ changes: { from: 12, insert: '{?which day}' }, selection: { anchor: 24 }, userEvent: 'input.type' });
+    vi.advanceTimersByTime(PAUSE_MS + 10);
+    expect(given.pressed).toEqual([]);
+    vi.advanceTimersByTime(PAUSE_SETTLE_MS);
+    expect((given.pressed[0] as { question: string }[]).map((t) => t.question)).toEqual(['which day']);
+    // Pressing it is remembered, so a later rest leaves it alone rather than pressing the same blank again.
+    vi.advanceTimersByTime(PAUSE_MS + PAUSE_SETTLE_MS + 10);
+    expect(given.pressed).toHaveLength(1);
   });
 });

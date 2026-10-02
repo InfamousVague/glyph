@@ -363,6 +363,15 @@ export interface Preferences {
    * device talks to the network stays with the device (core/sync/prefs.ts).
    */
   lookUpBlanks: boolean;
+  /**
+   * Fill the blanks on their own: a few seconds after the typing stops, every blank the phone can answer and hasn't
+   * been asked yet is pressed in the background, so a `{?weather in Tokyo}` fills itself without reaching for the pill
+   * (Matt: "automatically in the background start spinning up the process to fill ... a few seconds go by without it
+   * being modified or the user typing"). On by default, and only where the pill would draw (editor/blanks.ts
+   * `canFill`): never a browser, never iOS, never under Local only for a live look-up. Kept on the device, as the
+   * look-up switch is: it makes this phone spin up the model on its own, which is the phone's to decide.
+   */
+  autoFill: boolean;
 }
 
 export const DEFAULT_PREFERENCES: Preferences = {
@@ -405,6 +414,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   placeNames: true,
   tagNewNotes: true,
   lookUpBlanks: true,
+  autoFill: true,
 };
 
 const STORAGE_KEY = 'glyph-preferences';
@@ -479,6 +489,7 @@ function settle(raw: unknown): Preferences {
   if (!isWriteUp(loaded.writeUp)) loaded.writeUp = DEFAULT_PREFERENCES.writeUp;
   if (typeof loaded.syncMeetingRecordings !== 'boolean') loaded.syncMeetingRecordings = DEFAULT_PREFERENCES.syncMeetingRecordings;
   if (typeof loaded.lookUpBlanks !== 'boolean') loaded.lookUpBlanks = DEFAULT_PREFERENCES.lookUpBlanks;
+  if (typeof loaded.autoFill !== 'boolean') loaded.autoFill = DEFAULT_PREFERENCES.autoFill;
   // An accent or a rounding this build does not have - one from an older store, where the accent was a colour the
   // app never used, or from a newer phone - is the app's own rather than a name nothing can draw.
   if (!isAccent(loaded.accent)) loaded.accent = DEFAULT_PREFERENCES.accent;

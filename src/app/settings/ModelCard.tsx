@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Download } from '@glacier/icons';
-import { ProgressBar } from '@glacier/react';
+import { ProgressBar, Switch } from '@glacier/react';
 import { modelFor } from '../ai/available.ts';
 import { gb, MODEL_LIMITS, MODELS, modelSpec, useModels } from '../core/ai.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
-import { isAndroid } from '../core/platform.ts';
+import { isAndroid, isIOS } from '../core/platform.ts';
+import { isTauri } from '../core/tauri.ts';
 import { setPreferences, usePreferences } from '../core/preferences.ts';
 import { PaneSection, Pick, RowAction, SettingRow, SettingsCallout } from './kit/settingsKit.tsx';
 import { cannotRun } from '../core/runnable.ts';
@@ -103,6 +104,13 @@ export function ModelCard() {
             />
           );
         })}
+        {isTauri() && !isIOS ? (
+          <SettingRow
+            label="Fill blanks on their own"
+            hint="A few seconds after you stop typing, blanks the phone can answer fill themselves, so you needn’t reach for Fill. Press it any time instead."
+            control={<Switch aria-label="Fill blanks on their own" checked={prefs.autoFill} onCheckedChange={(autoFill) => setPreferences({ autoFill })} />}
+          />
+        ) : null}
       </PaneSection>
     </>
   );

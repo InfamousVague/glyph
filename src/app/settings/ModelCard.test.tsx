@@ -66,7 +66,8 @@ describe('the Model card', () => {
     present = ['qwen3.5-2b'];
     const host = show(<ModelCard />);
     expect([...host.querySelectorAll('.setk__title')].map((t) => t.textContent)).toEqual(['Model']);
-    expect([...host.querySelectorAll('.setk-row__label')].map((l) => l.textContent)).toEqual(['Qwen3.5 2B', 'Qwen3.5 4B', 'Qwen3.5 9B', 'Gemma 4 E4B']);
+    // Every model once, then the switch for filling blanks on their own (editor/blanks.ts).
+    expect([...host.querySelectorAll('.setk-row__label')].map((l) => l.textContent)).toEqual(['Qwen3.5 2B', 'Qwen3.5 4B', 'Qwen3.5 9B', 'Gemma 4 E4B', 'Fill blanks on their own']);
   });
 
   it('offers Get for a model not here, and a choice for one that is, with what they take in the footer', () => {

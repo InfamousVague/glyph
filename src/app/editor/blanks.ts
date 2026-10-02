@@ -5,6 +5,7 @@ import { BookOpenText, Calculator, CalendarDays, Globe, Hourglass, LoaderCircle,
 import type { Tree } from '@lezer/common';
 import { blankMatches, type Blank, fillsIn, WIKI_LINK } from '../core/blanks.ts';
 import { externalStore } from '../core/externalStore.ts';
+import { preferences } from '../core/preferences.ts';
 import { frontMatterOffset } from '../core/frontMatter.ts';
 import type { FactIcon } from '../core/fillFacts.ts';
 import { mathsIn } from '../core/maths.ts';
@@ -206,6 +207,33 @@ export function fillPlanOf(state: EditorState): { count: number; online: string[
 export function fillAll(view: EditorView): number {
   const all = editorBlanks(view.state);
   return pressBlanks(view, fillableBlanks(view.state), all);
+}
+
+/**
+ * The blanks the idle auto-fill would press now (`autoFill`, `PAUSE_SETTLE_MS` after the hands stop): every blank the
+ * phone can answer that hasn't been run, hasn't a past outcome, and isn't the one the caret still sits in, less a model
+ * blank with too little under it for a title (which a press would only refuse, with a sentence). `tried` are the keys
+ * this note has already auto-pressed while open, so a blank the person cleared by hand is left alone. Empty - nothing
+ * waiting, or auto-fill is off, or the pill would not draw here - tells the timer to stand down.
+ */
+export function idleFillable(view: EditorView, tried: ReadonlySet<string>): { blanks: Blank[]; all: Blank[] } {
+  const { state } = view;
+  const hooks = state.facet(blankHooks);
+  const text = state.doc.toString();
+  if (!hooks || !hooks.canFill() || !state.facet(EditorView.editable) || !preferences().autoFill || !text.includes('{?')) return { blanks: [], all: [] };
+  const all = editorBlanks(state);
+  const noteId = hooks.noteId();
+  const options = laneOptions(hooks);
+  const head = state.selection.main.head;
+  const caretInside = state.facet(EditorView.editable) && view.hasFocus;
+  const blanks = all.filter((blank) => {
+    const key = keyOf(all, blank);
+    if (tried.has(key) || fillStatus(noteId, key) || fillOutcome(noteId, key)) return false;
+    if (caretInside && head > blank.from + 1 && head < blank.to) return false;
+    const lane = laneOf(blank, text, options);
+    return fillable(lane) && !(lane.lane === 'model' && lane.info.tooShort);
+  });
+  return { blanks, all };
 }
 
 // ---- how each blank is drawn -----------------------------------------------------------------------------------
@@ -474,6 +502,9 @@ export const openNoteBlanks = externalStore<{ noteId: string; count: number } | 
 /** How long the hands rest on the caret's line before its icon, words and pill come back. */
 export const PAUSE_MS = 700;
 
+/** How long the whole note rests, after the pause, before the blanks that can answer fill themselves (`autoFill`). */
+export const PAUSE_SETTLE_MS = 2500;
+
 const plugin = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
@@ -483,6 +514,9 @@ const plugin = ViewPlugin.fromClass(
     private readonly unsubscribe: () => void;
 
     private counting = 0;
+    private settle = 0;
+    /** Keys this note has already auto-pressed while open, so a cleared blank is not filled again under the person. */
+    private readonly autoTried = new Set<string>();
 
     constructor(readonly view: EditorView) {
       const drawn = draw(view, this.idle);
@@ -490,6 +524,25 @@ const plugin = ViewPlugin.fromClass(
       this.tick(drawn.minutely);
       this.unsubscribe = subscribeFills(() => queueMicrotask(() => this.redraw()));
       this.count();
+      this.rest();
+    }
+
+    /**
+     * The idle auto-fill, set going whenever the note changes and when it opens: once the whole note has rested past
+     * the pause, every blank the phone can answer and hasn't been asked is pressed in the background (`idleFillable`).
+     * A press that fails leaves an outcome, and a blank the person clears is remembered in `autoTried`, so neither is
+     * pressed again - auto-fill is a one-off hand, not a nag.
+     */
+    private rest(): void {
+      window.clearTimeout(this.settle);
+      if (!this.view.state.facet(EditorView.editable) || !preferences().autoFill) return;
+      this.settle = window.setTimeout(() => {
+        if (!this.view.dom.isConnected) return;
+        const { blanks, all } = idleFillable(this.view, this.autoTried);
+        if (!blanks.length) return;
+        for (const blank of blanks) this.autoTried.add(keyOf(all, blank));
+        pressBlanks(this.view, blanks, all);
+      }, PAUSE_MS + PAUSE_SETTLE_MS);
     }
 
     /** The open note's count of blanks for Fill, told half a second after the typing stops. */
@@ -526,7 +579,10 @@ const plugin = ViewPlugin.fromClass(
           this.redraw();
         }, PAUSE_MS);
       }
-      if (update.docChanged) this.count();
+      if (update.docChanged) {
+        this.count();
+        this.rest();
+      }
       const asked = update.transactions.some((tr) => tr.effects.some((e) => e.is(blanksRedraw)));
       const viewFlipped = update.startState.facet(formattedView) !== update.state.facet(formattedView);
       if (update.docChanged || update.selectionSet || update.viewportChanged || update.focusChanged || asked || viewFlipped || syntaxTree(update.startState) !== syntaxTree(update.state)) {
@@ -540,6 +596,7 @@ const plugin = ViewPlugin.fromClass(
       window.clearTimeout(this.pause);
       window.clearTimeout(this.minute);
       window.clearTimeout(this.counting);
+      window.clearTimeout(this.settle);
       this.unsubscribe();
       const hooks = this.view.state.facet(blankHooks);
       if (hooks && openNoteBlanks.get()?.noteId === hooks.noteId()) openNoteBlanks.set(null);

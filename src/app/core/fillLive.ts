@@ -54,6 +54,8 @@ export function liveWords(kind: LiveKind, year?: number): string {
 
 const WHEN_NOW = /\b(today|tonight|tomorrow|now|this week|this weekend|right now|at the moment)\b/i;
 const WEATHER = /\b(weather|forecast|rain|raining|rainy|snow|snowing|temperature|sunny|windy|warm|cold|hot|degrees)\b/i;
+/** Weather asked of the past, which the model keeps as history rather than a forecast: "what was the weather", "back in 1990". */
+const WEATHER_WAS = /\b(was|were|used to|back in|years? ago)\b/i;
 // "Cheapest" is a price too: "Cheapest flight to Lisbon today" is a fare now. "Flights are cheapest to Tokyo on" has
 // no word for now, and stays general advice for the model.
 const PRICE = /\b(price|prices|cost|costs|fare|fares|how much|cheapest|cheaper|cheap|dearest)\b/i;
@@ -91,7 +93,12 @@ export function cannotKnow(blank: Blank, text: string, learntUntil: number): Liv
 export function screen(asking: Asking, learntUntil: number): Live | null {
   const all = pieces(asking);
   const any = (test: (piece: string) => boolean) => all.some(test);
-  if (any((p) => WEATHER.test(p) && WHEN_NOW.test(p) && !inIf(p, WEATHER))) return { kind: 'weather', words: liveWords('weather') };
+  // Weather is the weather now unless an "if" makes it a plan or the past tense makes it history: a time word, or just a
+  // place named ("weather in Tokyo"), routes it to a live look-up. Before, with no time word it went to the model, which
+  // has no internet, so it never filled (Matt: "weather in Tokyo never fills on mobile"). The place a forecast needs is
+  // read the same way the look-up reads it (`placeAsked`); with none and no time word it stays the model's.
+  const weatherPiece = all.find((p) => WEATHER.test(p) && !inIf(p, WEATHER) && !WEATHER_WAS.test(p));
+  if (weatherPiece && (WHEN_NOW.test(weatherPiece) || placeAsked(asking))) return { kind: 'weather', words: liveWords('weather') };
   if (moneyAsked(asking) || any((p) => /\bexchange rates?\b|\brate of exchange\b/i.test(p))) return { kind: 'money', words: liveWords('money') };
   if (any((p) => MARKET.test(p) && MARKET_WHAT.test(p))) return { kind: 'markets', words: liveWords('markets') };
   if (any((p) => PRICE.test(p) && PRICE_NOW.test(p))) return { kind: 'prices', words: liveWords('prices') };

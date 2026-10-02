@@ -9,6 +9,11 @@ const asking = (text: string) => askingWords(blanksIn(text).at(-1)!, text);
 describe('what the model can’t know offline', () => {
   it('refuses the scenarios that need something live or newer', () => {
     expect(live('Weather in Lisbon today: {?weather}')).toBe('weather');
+    // A place named is enough for the weather, with no word for now: "weather in Tokyo" means now, and went to the
+    // model before (Matt: it never fills on mobile).
+    expect(live('Weather in Lisbon: {?}')).toBe('weather');
+    expect(live('The weather in Tokyo is {?}')).toBe('weather');
+    expect(live('The forecast for New York: {?}')).toBe('weather');
     expect(live('A return flight London to Tokyo costs {?price today}')).toBe('prices');
     // Found by the shots: a fare asked with "cheapest" went to the model, which could only say it did not know.
     expect(live('Cheapest flight to Lisbon today: {?}')).toBe('prices');
@@ -38,6 +43,9 @@ describe('what the model can’t know offline', () => {
       'If it rains tomorrow what do we do? {?}',
       'The latest check-out time is {?}',
       'Our 2026 trip: flights are cheapest on {?}',
+      // Past weather is a thing the model may know; only "now" needs the live look-up.
+      'The weather in Tokyo back in 1990 was {?}',
+      'What was the weather in Lisbon on our wedding day? {?}',
     ]) {
       expect(live(text), text).toBeNull();
     }
