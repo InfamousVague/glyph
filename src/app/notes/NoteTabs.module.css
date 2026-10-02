@@ -62,6 +62,15 @@
 }
 
 /*
+ * The Mac's native traffic lights sit at the window's top-left, on this control row (app.css `data-titlebar`). The
+ * first button clears them by the room reserved for the lights; the tab row below is not pushed, so it still spans the
+ * full width (Matt: "the lights should be on a different row than the tabs").
+ */
+:global(:root[data-titlebar='overlay']) .top {
+  padding-inline-start: var(--app-traffic-lights, 0px);
+}
+
+/*
  * A narrow phone carries seven rings on this line - the sidebar, the two arrows and the note's four - and at 360px
  * they came to ten pixels more than the row, which cut the last one. The rings keep their size, because they are
  * what a thumb aims at; the air between them gives instead.

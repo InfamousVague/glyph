@@ -333,11 +333,22 @@ body {
    * glyph inside it on one line, so the ground wins: it is the edge a person sees, especially with a mouse, where
    * the ground is drawn under the pointer. The glyph sits its own half-inset in, as a button's glyph does everywhere.
    */
-  /* The bar keeps the page's gutter at the end, and at the start the same gutter plus room for the Mac's traffic
-     lights (`--app-traffic-lights`, nothing elsewhere), so the sidebar button clears them (Matt: inline, no wasted space). */
-  padding-inline: calc(var(--app-bar-start) + var(--app-traffic-lights, 0px)) var(--app-gutter-end);
+  /* The bar keeps the page's gutter at both ends. The Mac's traffic lights get their room on the control row alone
+     (notes/NoteTabs.module.css `.top`), not here, so the tab row still spans the full width (Matt: "the tabs ... are
+     spaced over for the traffic lights though the lights should be on a different row than the tabs"). */
+  padding-inline: var(--app-bar-start) var(--app-gutter-end);
   /* Nothing of its own to paint: the header pane under it is the glass, and its own children take the taps. */
   pointer-events: none;
+}
+
+/*
+ * The Mac bar sits tighter at the top than a phone's, which keeps the air for the status bar under the notch (Matt:
+ * "the top padding on the header on desktop can be less"). The [data-split] variant outranks the wide-window rule
+ * below, so the tighter top holds on either layout.
+ */
+:root[data-titlebar='overlay'] .app-tabBar,
+:root[data-titlebar='overlay'][data-split] .app-tabBar {
+  padding-block-start: var(--glacier-space-1);
 }
 
 /*

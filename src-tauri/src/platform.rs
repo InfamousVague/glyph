@@ -58,7 +58,7 @@ pub fn place_traffic_lights(app: &tauri::App) {
     use tauri::Manager;
     use tauri_plugin_decorum::WebviewWindowExt;
     if let Some(main) = app.get_webview_window("main") {
-        const INSET: (f32, f32) = (16.0, 27.0);
+        const INSET: (f32, f32) = (16.0, 39.0);
         let _ = main.set_traffic_lights_inset(INSET.0, INSET.1);
         let win = main.clone();
         main.on_window_event(move |event| {
