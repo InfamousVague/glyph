@@ -1426,7 +1426,10 @@ function Shell() {
             // The list underneath loaded while the guide was up; ask again now it shows.
             void refresh();
           }}
-          onTry={speak}
+          onAcademy={() => {
+            guide.close();
+            setScreen({ name: 'academy' });
+          }}
         />
       ) : null}
     </>

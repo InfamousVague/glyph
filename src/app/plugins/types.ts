@@ -194,7 +194,7 @@ export interface InlineFormat {
    * the formatting is typed only, and the guide says so.
    */
   cue?: string;
-  /** One line on what it is for, for the guide's marks page: "A dotted line under a fact to check later." */
+  /** One line on what it is for, for the cheat sheet's table of marks (guide/MarksTable.tsx): "A dotted line under a fact to check later." */
   about?: string;
   /** Its own mark on the Style page, where a plugin brings several: the plugin's icon otherwise. */
   icon?: StrokeIcon;

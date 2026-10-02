@@ -3,8 +3,8 @@
  * (talking up close), about five times a second (capture/audio.ts `onLevel`).
  *
  * The recorder already writes it to a custom property for the meter on Done.
- * Drawings that do more than scale with it (the side key's rings, which are
- * sent out by the voice) subscribe here instead of polling a style.
+ * Drawings that do more than scale with it (the rings behind the mic, which
+ * are sent out by the voice, VoiceWaves.tsx) subscribe here instead of polling a style.
  */
 
 const listeners = new Set<(level: number) => void>();

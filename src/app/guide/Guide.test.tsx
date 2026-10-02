@@ -22,8 +22,7 @@ const layout = {
 const watcher = globalThis.IntersectionObserver;
 beforeAll(() => {
   stubResizeObserver();
-  // A screen watcher that never reports, so the marks page's examples keep their placeholder words
-  // (guide/MarkExample.tsx): without one, every row builds its editor at once, fifty of them.
+  // A screen watcher that never reports: nothing in the guide's pages waits on one, and jsdom has none.
   globalThis.IntersectionObserver = class StillWatcher {
     observe(): void {}
     unobserve(): void {}
@@ -34,8 +33,6 @@ beforeAll(() => {
   } as unknown as typeof IntersectionObserver;
   Object.defineProperty(HTMLElement.prototype, 'scrollHeight', { configurable: true, get: () => (long ? 2000 : 400) });
   Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => 400 });
-  // The side-key page's rings: no canvas in this document, and the layer mounts empty.
-  HTMLCanvasElement.prototype.getContext = (() => null) as unknown as HTMLCanvasElement['getContext'];
 });
 afterAll(() => {
   for (const [name, was] of Object.entries(layout)) if (was) Object.defineProperty(HTMLElement.prototype, name, was);
@@ -52,7 +49,7 @@ afterEach(() => {
 const at = (page: (typeof GUIDE_PAGES)[number]) => GUIDE_PAGES.indexOf(page);
 
 function guide(index: number, extra: { tooSoon?: boolean } = {}) {
-  const calls = { onIndex: vi.fn(), onClose: vi.fn(), onTry: vi.fn() };
+  const calls = { onIndex: vi.fn(), onClose: vi.fn(), onAcademy: vi.fn() };
   const el = show(<Guide index={index} {...calls} {...extra} />);
   return { el, ...calls, again: (next: number) => rerender(<Guide index={next} {...calls} {...extra} />) };
 }
@@ -105,16 +102,17 @@ describe('the walkthrough', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('says where the reader is, and offers Skip until the last page, which offers Close and Try it', () => {
-    const { el, onClose, onTry, again } = guide(at('theme'));
+  it('says where the reader is, and offers Skip until the last page, which offers Close, the Academy and Start', () => {
+    const { el, onClose, onAcademy, again } = guide(at('theme'));
     expect(el.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe(`Page ${at('theme') + 1} of ${GUIDE_PAGES.length}`);
     press(button('Skip', el));
     expect(onClose).toHaveBeenCalledTimes(1);
     again(GUIDE_PAGES.length - 1);
-    expect(el.textContent).toContain('A few habits.');
-    press(button('Try it', el));
+    expect(el.textContent).toContain('Learn it, or just start.');
+    press(button('Take the Ghost.md Academy', el));
+    expect(onAcademy).toHaveBeenCalledTimes(1);
+    press(button('Start', el));
     expect(onClose).toHaveBeenCalledTimes(2);
-    expect(onTry).toHaveBeenCalledTimes(1);
     expect(button('Close', el)).toBeTruthy();
   });
 
@@ -125,17 +123,11 @@ describe('the walkthrough', () => {
     expect(calm.el.textContent).not.toContain('Not yet, finish reading.');
   });
 
-  it('draws the side key’s rings only on the side-key page, outside the page that scrolls', () => {
-    const { el, again } = guide(at('sidekey'));
-    const rings = el.querySelector('[data-testid="side-key-waves"]');
-    expect(rings).not.toBeNull();
-    expect(pageOf(el).contains(rings)).toBe(false);
-    // Off Android, the page says how to start a voice note instead of which rows to tap.
-    expect(el.textContent).toContain('Start a voice note with Speak.');
-    // Not before it (Matt: "remove the animation … until we get to that step"), and not after.
-    for (const page of GUIDE_PAGES.filter((name) => name !== 'sidekey')) {
+  it('teaches no page of marks and no habits: those are the Academy’s', () => {
+    const { el, again } = guide(0);
+    for (const page of GUIDE_PAGES) {
       again(at(page));
-      expect(el.querySelector('[data-testid="side-key-waves"]'), page).toBeNull();
+      expect(el.textContent, page).not.toMatch(/Every mark, side by side|A few habits|side key/);
     }
   });
 });

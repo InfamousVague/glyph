@@ -5,10 +5,10 @@ import { stubResizeObserver } from '../../test/stubs.ts';
 
 // The kit asks the window's resolution as it loads, before any of the imports below reach it.
 await vi.hoisted(async () => (await import('../../test/stubs.ts')).stubMatchMedia());
-// The side key's rings watch their box; jsdom has no observer.
+// The kit's controls watch their boxes; jsdom has no observer.
 stubResizeObserver();
 
-// On Android, where there is a side key to place, on the Mac, or in a browser, where there is none.
+// On Android, on the Mac, or in a browser.
 let native = true;
 let android = true;
 /** The binary: which generation it is, and the audio it was asked to remove. */
@@ -39,14 +39,12 @@ vi.mock('../core/platform.ts', async (importOriginal) => ({
 }));
 
 const { RecordingPane } = await import('./RecordingPane.tsx');
-const { savedHeight, saveHeight } = await import('../capture/sideKey.ts');
 const { preferences, setPreferences, DEFAULT_PREFERENCES } = await import('../core/preferences.ts');
 
 /**
- * Recording's page: its switches write the preferences the recorder reads, and in the app the side key can be moved
- * from Ghost.md's guess to where the key really is, and put back. Its cards: While recording, After recording,
- * Summaries as three picks, Meetings, Tapes and the side key, last. The Model moved to its own AI section
- * (settings/AiPane.tsx), so it is no longer here.
+ * Recording's page: its switches write the preferences the recorder reads. Its cards: While recording, After
+ * recording, Summaries as three picks, Meetings and Tapes. The Model moved to its own AI section (settings/AiPane.tsx),
+ * and the side key's card went with the rings it placed (docs/DESIGN.md §173), so neither is here.
  */
 
 const titles = (host: HTMLElement) => [...host.querySelectorAll('.setk__title')].map((title) => title.textContent);
@@ -71,25 +69,13 @@ describe('the Recording page', () => {
     expect(preferences().refine).toBe(!refine);
   });
 
-  it('holds its cards in order on an Android phone, the side key last', () => {
-    expect(titles(show(<RecordingPane />))).toEqual(['While recording', 'After recording', 'Summaries', 'Tapes', 'The side key']);
+  it('holds its cards in order on an Android phone, with no card for the side key', () => {
+    const host = show(<RecordingPane />);
+    expect(titles(host)).toEqual(['While recording', 'After recording', 'Summaries', 'Tapes']);
+    expect(host.textContent).not.toContain('Side key height');
   });
 
-  it('offers Ghost.md’s guess back only once the side key has been moved, and forgets the move', () => {
-    let host = show(<RecordingPane />);
-    expect(titles(host)).toContain('The side key');
-    expect(host.textContent).not.toContain('Use Ghost.md’s guess');
-    saveHeight(0.62);
-    host = show(<RecordingPane />);
-    // The slider stands where the key was moved to, as a percentage of the edge.
-    const slider = host.querySelector<HTMLElement>('[aria-label="Side key height"]')!;
-    expect(slider.getAttribute('aria-valuenow') ?? (slider as HTMLInputElement).value).toBe('62');
-    act(() => button('Reset', host).click());
-    expect(savedHeight()).toBeNull();
-    expect(host.textContent).not.toContain('Use Ghost.md’s guess');
-  });
-
-  it('has no side key to place in a browser, nor on the Mac, and no tapes in a browser', () => {
+  it('has no tapes in a browser, and nothing of the side key on the Mac', () => {
     native = false;
     android = false;
     const browser = show(<RecordingPane />);
@@ -156,7 +142,7 @@ describe('Meetings', () => {
     const { Pane, prefs } = await freshPage();
     const host = show(<Pane />);
     await waitUntil(() => expect(titles(host)).toContain('Meetings'));
-    expect(titles(host)).toEqual(['While recording', 'After recording', 'Summaries', 'Meetings', 'Tapes', 'The side key']);
+    expect(titles(host)).toEqual(['While recording', 'After recording', 'Summaries', 'Meetings', 'Tapes']);
     // Settings' contract with the meetings drawn, the one state SettingsSheet.test.tsx cannot draw (its binary answers no
     // generation): every name the search lists for the page is on it, so a hit lights something.
     const { findable } = await import('./RecordingPane.findable.ts');

@@ -1,5 +1,5 @@
 import { Ghost } from '../art/Ghost.tsx';
-import { Square } from '@glacier/icons';
+import { Mic, Square } from '@glacier/icons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBack } from '../core/back.ts';
 import { failureText } from '../core/failure.ts';
@@ -36,9 +36,8 @@ import { withoutLead } from '../core/itemSyntax.ts';
 import { plugins } from '../plugins/registry.ts';
 import { starters, tipInPause, TIP_AFTER_MS, type Tip } from './tips.ts';
 import { SayCard } from './SayCard.tsx';
-import { SideKeyWaves } from './SideKeyWaves.tsx';
 import { publishVoiceLevel } from './voiceLevel.ts';
-import { useSideKeySpot } from './sideKey.ts';
+import { VoiceWaves } from './VoiceWaves.tsx';
 import { LivePage } from './LivePage.tsx';
 import { counter } from './tape.ts';
 import { ListLanding, NoteChoiceCard } from './CaptureCards.tsx';
@@ -222,7 +221,8 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
   const quiet = useRef(preferences().quietStop && !meetingFromStart ? new QuietWatch(QUIET_STOP_MS) : null);
   /** Whether this phone stops a recording when the side key is pressed (generation 12). */
   const [pressStops, setPressStops] = useState(false);
-  const spot = useSideKeySpot();
+  /** The mic drawn in the top line: where the voice's rings rise from (VoiceWaves.tsx). */
+  const micRef = useRef<HTMLSpanElement>(null);
 
   /** The notes a spoken "add to …" can name, most recent first; loaded as the capture opens. */
   const candidates = useRef<NamedNote[]>([]);
@@ -1252,8 +1252,11 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
 
   return (
     <div className={styles.screen} data-phase={phase} ref={screenRef}>
-      {fromAssistant && (phase === 'starting' || phase === 'listening') ? <SideKeyWaves spot={spot} /> : null}
+      {phase === 'starting' || phase === 'listening' ? <VoiceWaves anchor={micRef} /> : null}
       <div ref={topRef} className={`app-headerPane ${styles.top}`} role="status" aria-live="polite">
+        <span ref={micRef} className={styles.mic} aria-hidden="true">
+          <Mic size={14} strokeWidth={2.4} />
+        </span>
         {status ? (
           <span className={styles.where}>{status}</span>
         ) : (

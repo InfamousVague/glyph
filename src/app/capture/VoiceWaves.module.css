@@ -1,22 +1,18 @@
-/* The rings (SideKeyWaves.tsx): over the whole screen, or inside a preview box. */
+/* The rings (VoiceWaves.tsx): over the whole screen, centred on the mic in the recorder's top line. */
 .waves {
   position: fixed;
   inset: 0;
-  /* Over the recorder's page, its tips and its buttons (all at z-index 1), under its top line (3); never in the way of a touch. */
+  /* Over the recorder's page, its tips and its buttons (all at z-index 1), under its top line (3), so the mic sits in front of them; never in the way of a touch. */
   z-index: 2;
   pointer-events: none;
   overflow: hidden;
-}
-
-.waves[data-contained] {
-  position: absolute;
 }
 
 .waves svg {
   display: block;
 }
 
-/* A ring the voice sent out (SideKeyWaves.tsx): its size, brightness and life are animated from there. */
+/* A ring the voice sent out (VoiceWaves.tsx): its size, brightness and life are animated from there. */
 .ring {
   fill: none;
   stroke: var(--app-ink-3);

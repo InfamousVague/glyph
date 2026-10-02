@@ -3,16 +3,11 @@ import { renderNote } from '../capture/markdown.ts';
 import { setLinkTitles } from '../capture/spoken/extras.ts';
 import { setSpokenFormats } from '../capture/spoken/inline.ts';
 import { markGroups } from './marks.ts';
-import { GUIDE_PAGES } from './pages.ts';
 import { BUILT_IN, plugins } from '../plugins/registry.ts';
 
 const rows = () => markGroups().flatMap((group) => group.rows);
 
 describe('the guide’s table of marks', () => {
-  it('has a page of its own in the walkthrough', () => {
-    expect(GUIDE_PAGES.indexOf('marks')).toBeGreaterThan(0);
-  });
-
   it('shows every mark the app writes, each with its own example', () => {
     const symbols = rows().map((row) => row.symbol);
     for (const mark of ['**', '_', '~~', '`', '#', '##', '-', '1.', '- [ ]', '>', '---', '| |', '![ ]( )', '```', '[ ]( )']) {
@@ -25,7 +20,7 @@ describe('the guide’s table of marks', () => {
     expect(new Set(rows().map((row) => row.name)).size).toBe(rows().length);
   });
 
-  it('gives every mark an icon, which is what both pages lead the row with', () => {
+  it('gives every mark an icon, which is what the cheat sheet and the Academy lead the row with', () => {
     for (const row of rows()) expect(row.icon, row.name).toBeTruthy();
   });
 

@@ -9271,3 +9271,36 @@ where the pointer was, in a layer on the body. Not the kit's ContextMenu, which 
 phone that press is a card's swipe and a tab's drag, so only a mouse opens this menu (`byMouse`: the event's
 `pointerType`, or, where a WebView does not say, a screen whose pointer is fine and can hover).
 
+## 173. The walkthrough hands over; the rings move behind the mic (2026-10-02)
+
+Matt, in one message and a follow-up: "Remove the 'start a voice note with speak' step from the signup process, move
+the ripple waves effect to show behind the mic icon in app when recording, remove the settings section for the side
+button ripple position too" and "remove the 'every mark, side by side' section, and for the 'a few habits' instead show
+the option to learn about markdown and other stuff, take the ghost.md academy or 'start'".
+
+**Four pages.** The walkthrough is Welcome, the theme, the model, and a last page that hands over (`guide/pages.ts`,
+`guide/pages/Start.tsx`): "Learn it, or just start." The marks, the words you can say, boards, canvases and the rest
+are the Academy's, and the page offers it as a pill under its words; Start, in the dock where Try it was, closes the
+guide and lands on the home page, which offers the Academy again to anyone who started writing first (the card on the home page,
+`academy/banner.ts`). The side-key page (§47, §18), the marks page and the habits page are deleted, with the shapes, the waves and
+the tables that were only theirs: `guide/pages/SideKey.tsx`, `Marks.tsx`, `Tips.tsx`, `guide/SideKeyWaves.tsx`,
+`guide/waves.ts`, `guide/sideKeys.ts`, `guide/assistant.ts`, and `art/Shapes.tsx`'s phone. The table of side keys
+lives on in Matt's Notion ("Side keys on flagship phones") as a record; nothing in the app reads it. The voice cues are
+taught beside each mark on the cheat sheet alone now (`guide/MarksTable.tsx`'s "say" line), and `guide/phrases.ts`'s
+examples still hold the recorder to them in `guide/guide.test.ts`.
+
+**Too soon** (`guide/tooSoon.ts`) is measured from the last page instead of the side-key page: every page before it
+is reading, and a launch by the key while the guide was left on one still brings the guide back with its line. The
+side key is behind the developer flag either way (since 2026-09-28), so this is the rare case kept honest, not a path.
+
+**The rings.** The recorder's rings rose from the screen's edge where the phone's side key was guessed to be, only
+for a recording the key had started (`capture/sideKey.ts`, `capture/SideKeyWaves.tsx`, §43), and Recording in
+Settings carried a card, "The side key", to slide the guess into place. All of that goes. The top line of the recorder
+now begins with a microphone (`CaptureScreen.tsx`, `.mic`), a mark that the mic is live, and the rings rise from
+behind it for every recording, Speak's and the key's alike (`capture/VoiceWaves.tsx`): the layer measures the mic's
+box and centres its rings there, so there is nothing to guess and nothing to set. The voice still sends them out
+(`capture/voiceLevel.ts` `paceRings`, §43), in the faintest ink, under the top line so the mic sits in front of them.
+Recording's search words lose "The side key" (`RecordingPane.findable.ts`); Appearance's "Ripples while recording",
+the wisp through the words, is a different thing and stays.
+
+Cites: §18, §43, §47.

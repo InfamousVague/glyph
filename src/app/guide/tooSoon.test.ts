@@ -20,14 +20,13 @@ describe('leaving the guide too soon', () => {
     expect(launchedTooSoon(false)).toBe(true);
   });
 
-  it('is not too soon from the side-key page on, where the key is asked for', () => {
+  it('is not too soon on the last page, where the guide has handed over', () => {
     markGuideStarted();
-    rememberGuidePage(GUIDE_PAGES.indexOf('sidekey'));
-    expect(launchedTooSoon(false)).toBe(false);
     rememberGuidePage(GUIDE_PAGES.length - 1);
     expect(launchedTooSoon(false)).toBe(false);
     expect(isReadingPage(0)).toBe(true);
-    expect(isReadingPage(GUIDE_PAGES.indexOf('sidekey'))).toBe(false);
+    expect(isReadingPage(GUIDE_PAGES.indexOf('model'))).toBe(true);
+    expect(isReadingPage(GUIDE_PAGES.length - 1)).toBe(false);
   });
 
   it('forgets everything when the guide is finished, and shrugs at bad storage', () => {

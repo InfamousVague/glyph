@@ -2,9 +2,9 @@ import type { ReactNode } from 'react';
 import styles from '../Guide.module.css';
 
 /**
- * The two pieces more than one guide page is built of: a row of a choice asked up front (the theme page's, the model
- * page's), and a numbered step with its line of explanation (the side-key page's, the habits page's). One of each, so
- * a chosen row is marked the same way on every page that asks.
+ * The piece more than one guide page is built of: a row of a choice asked up front (the theme page's, the model
+ * page's), so a chosen row is marked the same way on every page that asks. The numbered step that was here went with
+ * the side-key page and the habits page (docs/DESIGN.md §173).
  */
 
 interface ChoiceProps {
@@ -37,16 +37,5 @@ export function Choice({ label, hint, on, onPick, swatch, swatchClass, swatchNam
         <span className={styles.note}>{hint}</span>
       </span>
     </button>
-  );
-}
-
-/** One step of a page's numbered list: what to do, anything that shows how, and then the line that says why. */
-export function Step({ title, note, children }: { title: string; note?: string; children?: ReactNode }) {
-  return (
-    <li>
-      <h2 className={styles.stepTitle}>{title}</h2>
-      {children}
-      {note ? <p className={styles.note}>{note}</p> : null}
-    </li>
   );
 }

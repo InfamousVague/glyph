@@ -2,7 +2,6 @@ import { BookOpen, BookOpenText, FileCode, GraduationCap, ListChecks, Shapes } f
 import { useToast } from '@glacier/react';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { storeOf, type Updates } from '../core/ota.ts';
-import { isAndroid } from '../core/platform.ts';
 import { GUIDE_CHAPTERS, GUIDE_TITLE } from '../guidebook/guidebook.ts';
 import { ReleasesSection, UpdatesSection } from './AboutUpdates.tsx';
 import { countKnock, KNOCKS_WANTED, setDeveloperMode } from './developerMode.ts';
@@ -66,15 +65,11 @@ export function AboutPane({ updates, onGuide, onGuideBook, onAcademy, onOpen }: 
           hint="Markdown taught a mark at a time. It shows you one, you type your own, and you watch it format."
           onPress={() => onAcademy()}
         />
-        {/* What guide/pages.ts shows: off Android the side-key page is the one that says to start a note with Speak. */}
+        {/* What guide/pages.ts shows: four pages, the last of which offers the Academy. */}
         <SettingRow
           icon={<BookOpen size={20} />}
           label="The welcome walkthrough"
-          hint={
-            isAndroid
-              ? 'The pages from the first launch: the theme, the model, the side key, the marks and a few habits.'
-              : 'The pages from the first launch: the theme, the model, Speak, the marks and a few habits.'
-          }
+          hint="The pages from the first launch: the theme, the model, and where the rest is taught."
           onPress={() => onGuide()}
         />
         <SettingRow icon={<ListChecks size={20} />} label="Cheat sheet" hint="Every mark you can type, and what it looks like, on one page." onPress={() => onOpen({ id: 'cheatsheet' })} />

@@ -63,7 +63,6 @@
   margin-inline: calc(-1 * var(--glacier-space-2));
 }
 
-
 .page {
   flex: 1;
   min-block-size: 0;
@@ -194,61 +193,11 @@
   max-inline-size: 32ch;
 }
 
-.done {
-  margin: var(--glacier-space-4) 0 0;
-  font-size: var(--glacier-font-size-lg);
-  font-weight: var(--glacier-font-weight-semibold);
-  color: var(--glacier-success-text);
-}
-
-.steps {
-  list-style: none;
-  margin: var(--glacier-space-6) 0 0;
-  padding: 0;
-  counter-reset: step;
-}
-
-.steps > li {
-  counter-increment: step;
-  position: relative;
-  padding: var(--glacier-space-5) 0 var(--glacier-space-5) 2.2em;
-  border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
-}
-
-/* The step number, set in the heading's size so it reads as part of the line. */
-.steps > li::before {
-  content: counter(step);
-  position: absolute;
-  inset-inline-start: 0;
-  inset-block-start: var(--glacier-space-5);
-  font-size: var(--glacier-font-size-xl);
-  line-height: 1.25;
-  font-weight: var(--glacier-font-weight-bold);
-  color: var(--glacier-text-subtle);
-  font-variant-numeric: tabular-nums;
-}
-
 .stepTitle {
   margin: 0;
   font-size: var(--glacier-font-size-xl);
   line-height: 1.25;
   letter-spacing: var(--app-tracking-title);
-  font-weight: var(--glacier-font-weight-semibold);
-}
-
-.path {
-  margin: var(--glacier-space-2) 0 0;
-  font-size: var(--glacier-font-size-md);
-  line-height: 1.6;
-  color: var(--glacier-text-muted);
-}
-
-.sep {
-  color: var(--glacier-text-subtle);
-}
-
-.target {
-  color: var(--glacier-text);
   font-weight: var(--glacier-font-weight-semibold);
 }
 
@@ -284,7 +233,6 @@
   padding-block: var(--glacier-space-8) calc(var(--app-safe-bottom) + var(--glacier-space-3));
   pointer-events: none;
 }
-
 
 .nav {
   pointer-events: auto;
@@ -358,14 +306,6 @@
   .nudge[data-shown] svg {
     animation: none;
   }
-}
-
-/* The record dot, in paper on the ink pill. */
-.dot {
-  inline-size: 0.5em;
-  block-size: 0.5em;
-  border-radius: var(--glacier-radius-full);
-  background: currentColor;
 }
 
 /* --- the theme page ------------------------------------------------------ */
@@ -471,4 +411,12 @@
   letter-spacing: -0.01em;
   color: var(--app-ink-2);
   text-shadow: 0 0 18px color-mix(in oklch, var(--app-ink) 30%, transparent);
+}
+
+/* The last page's other way out (pages/Start.tsx): the Academy, under the words. */
+.learn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin-top: var(--glacier-space-6);
 }

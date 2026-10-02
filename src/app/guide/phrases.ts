@@ -5,13 +5,13 @@ import { renderNote, type Segment } from '../capture/markdown.ts';
  * promises about talking.
  *
  * The guide once drew these as a page of its own, rendered by the real
- * speech-to-markdown rules. That page went (the marks page draws every mark
- * with the note's editor now, guide/MarksTable.tsx), but its promises stayed:
- * the Tips page's habits (guide/pages/Tips.tsx) and the "say" line beside each
- * mark (guide/marks.ts). So the examples stay too, as what guide.test.ts runs
- * through the capture screen's own rules (`renderNote`) - a rule that
- * REGRESSES fails a test instead of the guide quietly teaching something that
- * no longer works.
+ * speech-to-markdown rules; then a marks page drew every mark with the note's
+ * editor and a habits page kept the promises in words. Both pages went on
+ * 2026-10-02 (docs/DESIGN.md §173), and the promises are the cheat sheet's
+ * now: the "say" line beside each mark (guide/marks.ts, guide/MarksTable.tsx).
+ * So the examples stay too, as what guide.test.ts runs through the capture
+ * screen's own rules (`renderNote`) - a rule that REGRESSES fails a test
+ * instead of the sheet quietly teaching something that no longer works.
  *
  * Only cues src/app/capture/markdown.ts implements belong here: the note is
  * shaped by what was said and nothing else.

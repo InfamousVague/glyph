@@ -6,11 +6,11 @@
  * Developer's "Choose your model" until docs/DESIGN.md §138, which took the
  * row away: Recording's Model card is the same choice.
  *
- * The order is load-bearing past the dots: every page before 'sidekey' is a
- * reading page, where a press of the side key is someone who has not finished
- * (guide/tooSoon.ts), so a page put in before it changes which launches the
- * guide refuses.
+ * The order is load-bearing past the dots: every page before the last is a
+ * reading page, where a launch by the side key is someone who has not finished
+ * (guide/tooSoon.ts). The side-key page, the marks and the habits went on
+ * 2026-10-02 (docs/DESIGN.md §173): the last page hands over to the Academy.
  */
-export const GUIDE_PAGES = ['welcome', 'theme', 'model', 'sidekey', 'marks', 'tips'] as const;
+export const GUIDE_PAGES = ['welcome', 'theme', 'model', 'start'] as const;
 
 export type GuidePage = (typeof GUIDE_PAGES)[number];

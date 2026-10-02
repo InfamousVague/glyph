@@ -8,11 +8,11 @@ import { GUIDE_PAGES } from './pages.ts';
  * side too early, so reload with a warning about it being too soon". The
  * guide is shown once, on the first launch, and closed with Skip or from its
  * last page (shell/useGuide.ts). A launch before that, with the guide
- * started and left on a page before the side-key page, is someone who held
- * the key on page one: the app comes up on the guide again with one line at
- * the top of it (Guide.tsx says so in a line of its own) and does not start a recording. From the
- * side-key page on, a press of the key is what the page asks for, and it
- * records as it always did.
+ * started and left on a page before the last, is someone who held the key
+ * on page one: the app comes up on the guide again with one line at the top
+ * of it (Guide.tsx says so in a line of its own) and does not start a
+ * recording. On the last page the guide has handed over (pages/Start.tsx),
+ * and a press of the key records as it always did.
  *
  * Two keys next to `glyph-guide-seen`: that the guide has been started, and
  * the page it was last on. Both go when the guide is finished.
@@ -22,8 +22,8 @@ import { GUIDE_PAGES } from './pages.ts';
 const STARTED = 'glyph-guide-started';
 const PAGE = 'glyph-guide-page';
 
-/** The first page that expects the side key. Pages before it are reading. */
-const SIDE_KEY_PAGE = GUIDE_PAGES.indexOf('sidekey');
+/** The page that hands over. Pages before it are reading. */
+const LAST_PAGE = GUIDE_PAGES.length - 1;
 
 /** The guide is on screen for the first time. */
 export function markGuideStarted(): void {
@@ -49,9 +49,9 @@ export function guidePageLeftAt(): number {
   return Number.isFinite(page) && page >= 0 ? Math.floor(page) : 0;
 }
 
-/** Whether a page is one the reader should still be reading: before the side-key page. */
+/** Whether a page is one the reader should still be reading: before the last. */
 export function isReadingPage(index: number): boolean {
-  return index < SIDE_KEY_PAGE;
+  return index < LAST_PAGE;
 }
 
 /**

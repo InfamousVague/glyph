@@ -5,24 +5,21 @@ import { useWispEdge } from '../art/wispEdge.ts';
 import { useBack } from '../core/back.ts';
 import { useSwipeNav } from '../core/swipe.ts';
 import { GUIDE_PAGES as PAGES, type GuidePage as Page } from './pages.ts';
-import { Marks } from './pages/Marks.tsx';
 import { Model } from './pages/Model.tsx';
-import { SideKey } from './pages/SideKey.tsx';
+import { Start } from './pages/Start.tsx';
 import { Theme } from './pages/Theme.tsx';
-import { Tips } from './pages/Tips.tsx';
 import { Welcome } from './pages/Welcome.tsx';
-import { SideKeyWaves } from './SideKeyWaves.tsx';
 import { useBottomNudge } from './useBottomNudge.ts';
 import styles from './Guide.module.css';
 
 /**
- * The walkthrough: what Ghost.md is, how it looks, which model it runs, the side key, every mark, and how to talk.
+ * The walkthrough: what Ghost.md is, how it looks, which model it runs, and where the rest is taught.
  *
- * Shown once on first launch and any time from Settings. Six pages set as type, like the rest of the app, with Back
+ * Shown once on first launch and any time from Settings. Four pages set as type, like the rest of the app, with Back
  * and Next where the thumb is. This is the frame they share - the dots saying where the reader is, Skip, the dock,
  * the back gesture and the swipes - and each page is its own component in guide/pages/, in the order guide/pages.ts
- * names them. The side-key page is the one that matters most (guide/pages/SideKey.tsx); the marks page draws every
- * example with the note's own editor (guide/MarksTable.tsx), so what it shows is what a note does.
+ * names them. The last page hands over to the Academy (guide/pages/Start.tsx); the side-key page, the marks and the
+ * habits that followed it went on 2026-10-02 (docs/DESIGN.md §173).
  */
 
 interface GuideProps {
@@ -34,19 +31,19 @@ interface GuideProps {
   index: number;
   onIndex: (index: number) => void;
   onClose: () => void;
-  /** Start a voice note from the last page. */
-  onTry: () => void;
+  /** The last page's other way out: the Academy, for the rest. */
+  onAcademy: () => void;
   /** The reader held the side key before the guide got to it (tooSoon.ts): one line says so, at the top of the page. */
   tooSoon?: boolean;
 }
 
-/** Each page's words, by its name. */
-const VIEWS: Record<Page, ComponentType> = { welcome: Welcome, theme: Theme, model: Model, sidekey: SideKey, marks: Marks, tips: Tips };
+/** Each reading page's words, by its name; the last page takes a handler, and is drawn by name below. */
+const VIEWS: Record<Exclude<Page, 'start'>, ComponentType> = { welcome: Welcome, theme: Theme, model: Model };
 
-export function Guide({ index, onIndex: setIndex, onClose, onTry, tooSoon }: GuideProps) {
+export function Guide({ index, onIndex: setIndex, onClose, onAcademy, tooSoon }: GuideProps) {
   const page: Page = PAGES[index] ?? 'welcome';
   const last = index === PAGES.length - 1;
-  const View = VIEWS[page];
+  const View = page === 'start' ? null : VIEWS[page];
 
   const pageRef = useRef<HTMLDivElement>(null);
   const { atBottom, due: nudgeReady, words: nudge } = useBottomNudge(pageRef, page);
@@ -86,13 +83,6 @@ export function Guide({ index, onIndex: setIndex, onClose, onTry, tooSoon }: Gui
         </button>
       </header>
 
-      {/*
-        The rings from the side key wait for its page, where the key is the subject (Matt: "remove the animation … until we
-        get to that step"). Drawn here, outside the scrolling page, so they stay put while it scrolls (Matt: "the ripples
-        should stay where they are and not scroll with the page"); inside it, the page's wisp edge (a filter) would make
-        their fixed position scroll along.
-      */}
-      {page === 'sidekey' ? <SideKeyWaves /> : null}
       <div ref={pageRef} className={styles.page} key={page}>
         {/* The reader held the side key before the guide got to it (tooSoon.ts): one line, out of smoke like the rest. */}
         {tooSoon ? (
@@ -100,7 +90,7 @@ export function Guide({ index, onIndex: setIndex, onClose, onTry, tooSoon }: Gui
             <WispText text="Not yet, finish reading." pace={18} />
           </p>
         ) : null}
-        <View />
+        {View ? <View /> : <Start onAcademy={onAcademy} />}
       </div>
 
       <nav className={styles.dock} aria-label="Guide">
@@ -132,13 +122,9 @@ export function Guide({ index, onIndex: setIndex, onClose, onTry, tooSoon }: Gui
               data-shown={atBottom || undefined}
               aria-hidden={!atBottom}
               tabIndex={atBottom ? 0 : -1}
-              onClick={() => {
-                onClose();
-                onTry();
-              }}
+              onClick={onClose}
             >
-              <span className={styles.dot} aria-hidden="true" />
-              Try it
+              Start
             </button>
           ) : (
             <button

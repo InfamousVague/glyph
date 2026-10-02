@@ -6,7 +6,7 @@ import { stubResizeObserver } from '../../test/stubs.ts';
 
 // The kit asks the window's resolution as it loads, before any of the imports below reach it.
 await vi.hoisted(async () => (await import('../../test/stubs.ts')).stubMatchMedia());
-// The side key's rings on Recording watch their box; jsdom has no observer.
+// The kit's controls watch their boxes; jsdom has no observer.
 stubResizeObserver();
 
 // In the app or in a browser, on Android, an iPhone or neither, as each test says. The binary has the models a test
@@ -193,17 +193,16 @@ describe('the list of sections', () => {
       'Write up straight away',
       'Tapes',
       'Remove audio older than a month',
-      'The side key',
     ]);
     // The model and its own-fill switch are the AI section's now.
     expect(names('ai')).toEqual(['Model', 'Fill blanks on their own']);
   });
 
-  it('in a browser on an Android phone, has Recording for the side key and the words, without the AI section, the meetings or the tapes', () => {
+  it('in a browser on an Android phone, has Recording for the words, without the AI section, the meetings or the tapes', () => {
     android = true;
     const host = settings();
     expect(labels(host)).toEqual(['Account', 'Appearance', 'Recording', 'Plugins', 'About']);
-    expect(names('recording')).toEqual(['Stop when I go quiet', 'Review after recording', 'Better words', 'Summaries', 'The side key']);
+    expect(names('recording')).toEqual(['Stop when I go quiet', 'Review after recording', 'Better words', 'Summaries']);
     // No model runs in a browser, so no AI section.
     expect(section('ai')).toBeUndefined();
   });
@@ -215,7 +214,7 @@ describe('the list of sections', () => {
     expect(section('ai')).toBeUndefined();
   });
 
-  it('on the Mac, has Recording and AI too, the recording for the better words and the summaries, without the side key', () => {
+  it('on the Mac, has Recording and AI too, the recording for the better words and the summaries', () => {
     native = true;
     const host = settings();
     expect(labels(host)).toEqual(['Account', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
@@ -530,7 +529,7 @@ describe('the search', () => {
     ember Accent colour color highlight Spacing density compact padding roomy tight Size scale zoom interface Sidebar dock column
     popover notes list Corners rounding radius round square Code syntax highlighting colours colors Recording voice microphone mic
     dictate Stop when I go quiet silence auto stop Review after recording check transcript Better words refine clean up Summaries
-    summary write-up minutes Where the side key is button height position hardware Write up battery charging Tell me when a meeting
+    summary write-up minutes Write up battery charging Tell me when a meeting
     is written up notification alert Your tapes tapes storage space Location map place where geotag gps Map on a tagged note
     openstreetmap tiles Place names nominatim address geocode Tag new notes with my location automatic Formatting ai model Local
     only offline network internet nothing leaves the phone Model download llm Feel motion movement vibration Animation speed fast
@@ -556,8 +555,6 @@ describe('the search', () => {
    */
   /** Recording's: no recorder in a browser on a computer, or on an iPhone. */
   const RECORDER = 'microphone mic dictate Stop go quiet silence stop Review after transcript Better refine clean Summaries summary write-up minutes';
-  /** The side key's, Android's alone. */
-  const SIDE_KEY = 'button height hardware';
   /**
    * The meetings', the Android app's with the service. A browser on an Android phone listed them before and never drew
    * them: there is no meeting service in a page.
@@ -577,10 +574,10 @@ describe('the search', () => {
   const RELEASES = "What's changelog releases";
   const LOSSES: Record<string, string> = {
     'the Android app': '',
-    'the Mac app': [SIDE_KEY, MEETINGS, MOTOR].join(' '),
-    'the iPhone app': [RECORDER, SIDE_KEY, MEETINGS, TAPES, MODEL, RELEASES].join(' '),
+    'the Mac app': [MEETINGS, MOTOR].join(' '),
+    'the iPhone app': [RECORDER, MEETINGS, TAPES, MODEL, RELEASES].join(' '),
     'a browser on an Android phone': [MEETINGS, TAPES, MODEL, MOTOR].join(' '),
-    'a browser': [RECORDER, SIDE_KEY, MEETINGS, TAPES, MODEL, MOTOR].join(' '),
+    'a browser': [RECORDER, MEETINGS, TAPES, MODEL, MOTOR].join(' '),
   };
 
   it('on each device, finds nothing only for a setting that device does not have', () => {
@@ -609,8 +606,6 @@ describe('the search', () => {
     ['animations', 'theme/Motion'],
     ['size', 'theme/Scale'],
     ['haptics', 'theme/Haptics'],
-    ['where the side key', 'recording/The side key'],
-    ['where the side key is', 'recording/The side key'],
     ['write up', 'recording/Write up straight away'],
     ['your tapes', 'recording/Tapes'],
     ['how to talk to ghost.md', 'about/The welcome walkthrough'],

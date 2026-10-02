@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Slider, Switch } from '@glacier/react';
+import { Switch } from '@glacier/react';
 import { MEETING_GENERATION } from '../capture/meeting.ts';
 import { canNotifyNow, useCanNotify } from '../capture/meetingLive.ts';
-import { defaultHeight, saveHeight, savedHeight, useSideKeySpot } from '../capture/sideKey.ts';
-import { SideKeyWaves } from '../capture/SideKeyWaves.tsx';
 import { failureText } from '../core/failure.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { requestNotifications } from '../core/host.ts';
@@ -18,9 +16,10 @@ import { PaneSection, Pick, RowAction, SettingRow } from './kit/settingsKit.tsx'
 import { oldTapes, tapeBytes, tapeSize, tapesHere } from './tapes.ts';
 
 /**
- * Recording: the microphone, what happens to a take, and the side key. Listed on Android and on the Mac
- * (SettingsSheet.tsx): the Mac records through Speak, runs the better words and the summaries, and its rows had no home
- * there before (docs/DESIGN.md §127 section 2). The side key's card is Android's alone, and last, since it is set once.
+ * Recording: the microphone and what happens to a take. Listed on Android and on the Mac (SettingsSheet.tsx): the Mac
+ * records through Speak, runs the better words and the summaries, and its rows had no home there before
+ * (docs/DESIGN.md §127 section 2). The side key's card, Android's alone, went on 2026-10-02 with the rings it placed
+ * (docs/DESIGN.md §173).
  *
  * Cards since docs/DESIGN.md §138 (Matt: "also see if you can clean up / streamline settings a bit"): While recording
  * (it was "The side key" on Android, a title over rows about quiet and the review), After recording, and the Summaries
@@ -99,7 +98,6 @@ export function RecordingPane() {
       </PaneSection>
       {isAndroid && meetings === true ? <Meetings /> : null}
       {isTauri() ? <Tapes canRemove={meetings} /> : null}
-      {isAndroid ? <SideKeyPlace /> : null}
     </>
   );
 }
@@ -230,77 +228,6 @@ function Tapes({ canRemove }: { canRemove: boolean | null }) {
         // known (null), it says nothing.
         disabledReason={canRemove === false ? 'Update Ghost.md to remove audio here.' : undefined}
       />
-    </PaneSection>
-  );
-}
-
-/**
- * Where the side key is, for the rings the recorder sends from it. Android
- * does not say where a phone's buttons are, so Glyph guesses from the model
- * and this lets the guess be moved: drag until the glow sits beside the key.
- */
-function SideKeyPlace() {
-  const [height, setHeight] = useState<number | null>(() => savedHeight());
-  const [fallback, setFallback] = useState(0.4);
-  useEffect(() => {
-    let live = true;
-    void defaultHeight().then((value) => {
-      if (live) setFallback(value);
-    });
-    return () => {
-      live = false;
-    };
-  }, []);
-  const shown = height ?? fallback;
-  const spot = useSideKeySpot(shown);
-  return (
-    <PaneSection title="The side key" description="The recorder sends rings from the side key while you talk. If the glow isn't beside your key, slide it there.">
-      {/* A phone's outline, upright, with the rings coming from its key. Inline so settings.css stays the kit's. */}
-      <div
-        style={{
-          position: 'relative',
-          inlineSize: '6.5rem',
-          blockSize: '12rem',
-          margin: 'var(--glacier-space-2) auto var(--glacier-space-3)',
-          border: '2px solid var(--app-ink-3, var(--glacier-border-strong))',
-          borderRadius: '1.1rem',
-          overflow: 'hidden',
-        }}
-      >
-        <SideKeyWaves spot={spot} contained />
-      </div>
-      <SettingRow
-        label="Height"
-        layout="stacked"
-        control={
-          <Slider
-            aria-label="Side key height"
-            min={0}
-            max={100}
-            step={1}
-            value={Math.round(shown * 100)}
-            onValueChange={(value) => {
-              setHeight(value / 100);
-              saveHeight(value / 100);
-            }}
-          />
-        }
-      />
-      {height !== null ? (
-        <SettingRow
-          label="Use Ghost.md's guess"
-          control={
-            <RowAction
-              onPress={() => {
-                setHeight(null);
-                saveHeight(null);
-              }}
-            >
-              Reset
-            </RowAction>
-          }
-        />
-      ) : null}
     </PaneSection>
   );
 }

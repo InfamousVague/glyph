@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { prefersStill } from '../core/motion.ts';
-import { origin, type Spot } from './sideKey.ts';
-import styles from './SideKeyWaves.module.css';
+import styles from './VoiceWaves.module.css';
 import { onVoiceLevel, paceRings, type RingPacer } from './voiceLevel.ts';
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -9,46 +8,54 @@ const SVG = 'http://www.w3.org/2000/svg';
 const MOST_RINGS = 9;
 
 /**
- * Rings rising from where the side key is, while a recording from the side
- * key runs: a picture of sound, and a pointer at the key that stops it.
+ * Rings rising from behind the microphone in the recorder's top line while a
+ * recording runs: a picture of sound, and a mark that the mic is live.
  *
- * The rings start just outside the screen's edge beside the key, so what
- * shows is arcs opening into the screen, the way sound leaves a speaker.
+ * They rose from the screen's edge beside the side key before, and only for a
+ * recording the key had started: the app guessed where the key was from the
+ * phone's model and a Settings card let the guess be moved. Matt: "move the
+ * ripple waves effect to show behind the mic icon in app when recording", so
+ * they are every recording's now, and their source is the mic drawn in the top
+ * line (`anchor`), measured where it is - nothing to guess and nothing to set.
  * In the page's faintest ink, over the words and under the top line, so the
- * page's text never hides them (Matt: "the waves that come from me talking
- * get lost behind content on the page"). Nothing marks the key itself: a glow
- * there read as a stray dot ("a strange dot near the center that isn't
- * needed").
+ * line and its mic sit in front of them.
  *
  * The voice sends them out (Matt: "make the ripple … react to the levels of my
  * voice as I record the note"). In a pause, one faint ring every 2.7 seconds,
  * so the screen shows it is listening; talking, rings go out as often as five
  * a second, each wider, brighter, thicker and quicker the louder the voice
- * (voiceLevel.ts `paceRings`). Rings
- * are added and animated straight in the DOM (Web Animations), never through
- * a React render. Decoration only. With reduced motion three rings stand still.
- *
- * `contained` draws inside its parent instead of over the whole screen, for
- * the preview in Settings.
+ * (voiceLevel.ts `paceRings`). Rings are added and animated straight in the
+ * DOM (Web Animations), never through a React render. Decoration only. With
+ * reduced motion three rings stand still.
  */
-export function SideKeyWaves({ spot, contained = false }: { spot: Spot; contained?: boolean }) {
+export function VoiceWaves({ anchor }: { anchor: RefObject<HTMLElement | null> }) {
   const box = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const [at, setAt] = useState({ x: 0, y: 0 });
 
+  // The layer's size, and the mic's centre in it: the layer is fixed to the viewport, so the mic's viewport box is its place.
   useEffect(() => {
     const el = box.current;
     if (!el) return undefined;
-    const measure = () => setSize({ width: el.clientWidth, height: el.clientHeight });
+    const measure = () => {
+      setSize({ width: el.clientWidth, height: el.clientHeight });
+      const mic = anchor.current?.getBoundingClientRect();
+      if (mic) setAt({ x: mic.left + mic.width / 2, y: mic.top + mic.height / 2 });
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+    if (anchor.current) observer.observe(anchor.current);
+    window.addEventListener('resize', measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [anchor]);
 
   const { width, height } = size;
-  const at = origin(spot, width, height, contained ? 4 : 12);
   // Far enough to cross most of the screen's width, never the whole screen.
-  const reach = contained ? Math.max(width, height) * 0.9 : Math.min(Math.max(width, height) * 0.5, width * 1.1);
+  const reach = Math.min(Math.max(width, height) * 0.5, width * 1.1);
   const rings = useRef<SVGGElement>(null);
   const still = prefersStill();
 
@@ -92,12 +99,7 @@ export function SideKeyWaves({ spot, contained = false }: { spot: Spot; containe
   }, [width, height, at.x, at.y, reach, still]);
 
   return (
-    <div
-      ref={box}
-      className={styles.waves}
-      data-contained={contained ? '' : undefined}
-      aria-hidden="true"
-    >
+    <div ref={box} className={styles.waves} aria-hidden="true" data-testid="voice-waves">
       {width > 0 ? (
         <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
           <g ref={rings}>

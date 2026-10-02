@@ -16,8 +16,8 @@ import styles from './CheatSheet.module.css';
  * smoke and the code block the real highlighter).
  *
  * The rows are `guide/marks.ts` still, so a plugin switched off is not promised here and a new mark arrives on its
- * own. The voice cues are left to the guide, which teaches them: beside each mark on its marks page
- * (guide/MarksTable.tsx) and in its habits (guide/pages/Tips.tsx).
+ * own. The voice cues are taught here alone now, beside each mark (guide/MarksTable.tsx, the "say" line): the
+ * walkthrough's marks page and its habits went on 2026-10-02 (docs/DESIGN.md §173).
  */
 export function CheatSheet() {
   const groups = useMemo(() => markGroups(), []);

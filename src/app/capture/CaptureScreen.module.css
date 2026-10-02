@@ -29,6 +29,14 @@
   color: var(--app-ink-3);
 }
 
+/* The microphone, first on the line: a mark that the mic is live, and where the voice's rings rise from (VoiceWaves.tsx). */
+.mic {
+  flex: none;
+  display: inline-flex;
+  align-self: center;
+  color: var(--app-ink-2);
+}
+
 .where {
   min-inline-size: 0;
   overflow: hidden;
@@ -390,7 +398,7 @@
   }
 }
 
-/* Above the side key's rings (SideKeyWaves), which are behind everything. */
+/* Above the voice's rings (VoiceWaves.tsx), which are behind everything but the top line. */
 .body,
 .diagnostics,
 .route,
