@@ -124,6 +124,10 @@ function slot(defs: SVGDefsElement, id: string, seed: number): Smoke {
   });
 }
 
+// Plain inline spans, so the line's kerning and wrapping are exactly what they are without the smoke. Made once: a
+// theme made again for every editor is mounted again for every editor (editor/textPanel.ts).
+const smokeTheme = EditorView.baseTheme({ '.cm-wispFormat': {} });
+
 export function wispFormat(formats: readonly InlineFormat[]): Extension {
   const names = new Map<string, number>();
   for (const format of formats) if (format.look.kind === 'wisp') names.set(format.name, format.delimiter.length);
@@ -209,7 +213,5 @@ export function wispFormat(formats: readonly InlineFormat[]): Extension {
     },
     { decorations: (plugin) => plugin.decorations },
   );
-  // Plain inline spans, so the line's kerning and wrapping are exactly what they are without the smoke.
-  const theme = EditorView.baseTheme({ '.cm-wispFormat': {} });
-  return [plugin, theme];
+  return [plugin, smokeTheme];
 }

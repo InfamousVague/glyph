@@ -23,7 +23,7 @@ const SELECTION_PAPER = ['oklch(0.995 0 0)', 'oklch(0.11 0 0)'] as const;
  * change, because CodeMirror's own base theme has `&dark` rules of its own and
  * it should agree with the app about which one is in force.
  */
-export const glyphTheme = (dark: boolean) =>
+const themeFor = (dark: boolean) =>
   EditorView.theme(
     {
       '&': {
@@ -83,3 +83,13 @@ export const glyphTheme = (dark: boolean) =>
     },
     { dark },
   );
+
+/**
+ * Made once for each page, light and dark, and shared by every editor. style-mod never takes a theme's rules out of the
+ * document and writes its whole sheet again at each mount, so a theme made for every editor made each new editor slower
+ * than the one before it: NoteScreen.test.tsx's later tests parsed a sheet of 1.4 MB, the same rules over and over, at
+ * every editor they drew, and one timed out on a loaded machine (2026-10-02). A theme is made once (editor/textPanel.ts).
+ */
+const THEMES = [themeFor(false), themeFor(true)] as const;
+
+export const glyphTheme = (dark: boolean) => THEMES[dark ? 1 : 0];

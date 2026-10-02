@@ -310,45 +310,47 @@ const tapped = ViewPlugin.fromClass(
   },
 );
 
+const panelTheme = EditorView.baseTheme({
+  [`.${PANEL}`]: {
+    position: 'absolute',
+    zIndex: '30',
+    maxInlineSize: 'min(22rem, 86vw)',
+    padding: '0.55em 0.75em 0.6em',
+    borderRadius: 'var(--glacier-radius-lg, 0.75rem)',
+    background: 'var(--app-paper-2, var(--glacier-surface))',
+    border: '1px solid var(--app-rule, var(--glacier-border-subtle))',
+    boxShadow: '0 6px 20px rgb(0 0 0 / 0.18)',
+    font: 'inherit',
+    fontSize: '0.84em',
+    lineHeight: '1.4',
+    color: 'var(--app-ink-2, currentColor)',
+  },
+  [`.${PANEL} p`]: { margin: '0 0 0.35em' },
+  '.cm-fillPanelHead': { display: 'flex', alignItems: 'center', gap: '0.4em', color: 'var(--app-ink, currentColor)', fontWeight: '600' },
+  '.cm-fillPanelIcon': { display: 'inline-flex', inlineSize: '1em', blockSize: '1em', flex: 'none' },
+  '.cm-fillPanelIcon svg': { inlineSize: '1em', blockSize: '1em' },
+  '.cm-fillPanelActions': { display: 'flex', flexWrap: 'wrap', gap: '0.2em 0.9em', marginBlockStart: '0.45em' },
+  '.cm-fillPanelActions button': {
+    appearance: 'none',
+    border: 'none',
+    background: 'transparent',
+    padding: '0.3em 0',
+    font: 'inherit',
+    color: 'var(--app-ink, currentColor)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.35em',
+    cursor: 'pointer',
+    WebkitTapHighlightColor: 'transparent',
+  },
+});
+
 /** The panel, its look, and its tap on a filled answer. */
 export function fillPanel(): Extension {
   return [
     Prec.high(tapped),
     panelOpener.of((view, at) => void openFillPanel(view, at)),
     EditorView.domEventHandlers({ scroll: (_event, view) => void close(view) }),
-    EditorView.baseTheme({
-      [`.${PANEL}`]: {
-        position: 'absolute',
-        zIndex: '30',
-        maxInlineSize: 'min(22rem, 86vw)',
-        padding: '0.55em 0.75em 0.6em',
-        borderRadius: 'var(--glacier-radius-lg, 0.75rem)',
-        background: 'var(--app-paper-2, var(--glacier-surface))',
-        border: '1px solid var(--app-rule, var(--glacier-border-subtle))',
-        boxShadow: '0 6px 20px rgb(0 0 0 / 0.18)',
-        font: 'inherit',
-        fontSize: '0.84em',
-        lineHeight: '1.4',
-        color: 'var(--app-ink-2, currentColor)',
-      },
-      [`.${PANEL} p`]: { margin: '0 0 0.35em' },
-      '.cm-fillPanelHead': { display: 'flex', alignItems: 'center', gap: '0.4em', color: 'var(--app-ink, currentColor)', fontWeight: '600' },
-      '.cm-fillPanelIcon': { display: 'inline-flex', inlineSize: '1em', blockSize: '1em', flex: 'none' },
-      '.cm-fillPanelIcon svg': { inlineSize: '1em', blockSize: '1em' },
-      '.cm-fillPanelActions': { display: 'flex', flexWrap: 'wrap', gap: '0.2em 0.9em', marginBlockStart: '0.45em' },
-      '.cm-fillPanelActions button': {
-        appearance: 'none',
-        border: 'none',
-        background: 'transparent',
-        padding: '0.3em 0',
-        font: 'inherit',
-        color: 'var(--app-ink, currentColor)',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '0.35em',
-        cursor: 'pointer',
-        WebkitTapHighlightColor: 'transparent',
-      },
-    }),
+    panelTheme,
   ];
 }

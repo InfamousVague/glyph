@@ -253,72 +253,70 @@ const tableField = StateField.define<DecorationSet>({
   provide: (field) => EditorView.decorations.from(field),
 });
 
+const tableTheme = EditorView.baseTheme({
+  '.cm-glyphTableWrap': {
+    overflowX: 'auto',
+    margin: '0.35em 0',
+    // A block widget is not a line, so it has no line's gutter: the same one, by hand.
+    paddingInline: 'var(--app-gutter, 1rem)',
+    cursor: 'text',
+    WebkitOverflowScrolling: 'touch',
+  },
+  '.cm-glyphTable': {
+    borderCollapse: 'collapse',
+    fontSize: '0.92em',
+    lineHeight: '1.35',
+    minInlineSize: '60%',
+  },
+  // Words break between words, never inside one: a column is as wide as its
+  // longest word, a long cell wraps at a comfortable measure, and a table
+  // wider than the screen scrolls sideways in its wrap.
+  '.cm-glyphTable th, .cm-glyphTable td': {
+    padding: '0.35em 0.7em',
+    border: '1px solid var(--glacier-border-subtle, rgba(127,127,127,0.3))',
+    textAlign: 'start',
+    verticalAlign: 'top',
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'normal',
+    wordBreak: 'normal',
+    maxInlineSize: '18em',
+  },
+  '.cm-glyphTable th': {
+    whiteSpace: 'nowrap',
+    fontWeight: '700',
+    background: 'var(--app-paper-2, var(--glacier-surface-sunken, transparent))',
+  },
+  // The grow toolbar under a drawn table: two quiet buttons, a step quieter than the words.
+  '.cm-tableTools': {
+    display: 'flex',
+    gap: '0.4em',
+    margin: '0.35em 0 0',
+  },
+  '.cm-tableGrow': {
+    appearance: 'none',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25em',
+    padding: '0.2em 0.6em',
+    border: '1px solid var(--glacier-border-subtle, rgba(127,127,127,0.3))',
+    borderRadius: 'var(--glacier-radius-full, 999px)',
+    background: 'transparent',
+    color: 'var(--app-ink-3, currentColor)',
+    font: 'inherit',
+    fontSize: '0.8em',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  '.cm-tableGrow:hover': {
+    color: 'var(--app-ink, currentColor)',
+    background: 'color-mix(in oklch, currentColor 8%, transparent)',
+  },
+  '.cm-tableGrow:focus-visible': {
+    outline: '2px solid var(--glacier-focus-ring, var(--app-ink-2, currentColor))',
+    outlineOffset: '1px',
+  },
+});
+
 export function drawnTables(): Extension {
-  return [
-    trackFocus,
-    tableField,
-    EditorView.baseTheme({
-      '.cm-glyphTableWrap': {
-        overflowX: 'auto',
-        margin: '0.35em 0',
-        // A block widget is not a line, so it has no line's gutter: the same one, by hand.
-        paddingInline: 'var(--app-gutter, 1rem)',
-        cursor: 'text',
-        WebkitOverflowScrolling: 'touch',
-      },
-      '.cm-glyphTable': {
-        borderCollapse: 'collapse',
-        fontSize: '0.92em',
-        lineHeight: '1.35',
-        minInlineSize: '60%',
-      },
-      // Words break between words, never inside one: a column is as wide as its
-      // longest word, a long cell wraps at a comfortable measure, and a table
-      // wider than the screen scrolls sideways in its wrap.
-      '.cm-glyphTable th, .cm-glyphTable td': {
-        padding: '0.35em 0.7em',
-        border: '1px solid var(--glacier-border-subtle, rgba(127,127,127,0.3))',
-        textAlign: 'start',
-        verticalAlign: 'top',
-        whiteSpace: 'pre-wrap',
-        overflowWrap: 'normal',
-        wordBreak: 'normal',
-        maxInlineSize: '18em',
-      },
-      '.cm-glyphTable th': {
-        whiteSpace: 'nowrap',
-        fontWeight: '700',
-        background: 'var(--app-paper-2, var(--glacier-surface-sunken, transparent))',
-      },
-      // The grow toolbar under a drawn table: two quiet buttons, a step quieter than the words.
-      '.cm-tableTools': {
-        display: 'flex',
-        gap: '0.4em',
-        margin: '0.35em 0 0',
-      },
-      '.cm-tableGrow': {
-        appearance: 'none',
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '0.25em',
-        padding: '0.2em 0.6em',
-        border: '1px solid var(--glacier-border-subtle, rgba(127,127,127,0.3))',
-        borderRadius: 'var(--glacier-radius-full, 999px)',
-        background: 'transparent',
-        color: 'var(--app-ink-3, currentColor)',
-        font: 'inherit',
-        fontSize: '0.8em',
-        cursor: 'pointer',
-        whiteSpace: 'nowrap',
-      },
-      '.cm-tableGrow:hover': {
-        color: 'var(--app-ink, currentColor)',
-        background: 'color-mix(in oklch, currentColor 8%, transparent)',
-      },
-      '.cm-tableGrow:focus-visible': {
-        outline: '2px solid var(--glacier-focus-ring, var(--app-ink-2, currentColor))',
-        outlineOffset: '1px',
-      },
-    }),
-  ];
+  return [trackFocus, tableField, tableTheme];
 }

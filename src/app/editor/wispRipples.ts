@@ -93,6 +93,10 @@ function slot(defs: SVGDefsElement, id: string, seed: number): Slot {
   return { noise, sway, bend, blur };
 }
 
+// Plain inline spans, so the line's kerning and wrapping are exactly what they are without the ripple. Made once: a
+// theme made again for every editor is mounted again for every editor (editor/textPanel.ts).
+const rippleTheme = EditorView.baseTheme({ '.cm-wispRipple': {} });
+
 export function wispRipples(source: RippleSource): Extension {
   if (prefersStill()) return [];
   const plugin = ViewPlugin.fromClass(
@@ -173,6 +177,5 @@ export function wispRipples(source: RippleSource): Extension {
     },
     { decorations: (plugin) => plugin.decorations },
   );
-  // Plain inline spans, so the line's kerning and wrapping are exactly what they are without the ripple.
-  return [plugin, EditorView.baseTheme({ '.cm-wispRipple': {} })];
+  return [plugin, rippleTheme];
 }

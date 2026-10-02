@@ -101,6 +101,23 @@ describe('the editor', () => {
     mount({ value, readOnly: true, places: 'ask' });
     expect(document.querySelectorAll('.cm-placeCard')).toHaveLength(1);
   });
+
+  it('adds nothing to the page’s styles for the next editor: every theme is made once, not for each editor', () => {
+    // style-mod keeps every theme it is handed and writes its whole sheet again at each mount, so a theme made for
+    // each editor grew the sheet without end, and each editor drew slower than the one before it (glyphTheme.ts).
+    const sheet = () => [...document.querySelectorAll('style')].map((style) => style.textContent).join('');
+    const drawn = () => {
+      const ripples = { subscribe: () => () => undefined };
+      for (const props of [{ value: '| a |\n| - |\n| 1 |' }, { dark: true, ripples }, { peek: true, readOnly: true }]) {
+        mount(props);
+        unmount();
+      }
+    };
+    drawn();
+    const first = sheet();
+    drawn();
+    expect(sheet()).toBe(first);
+  });
 });
 
 describe('the caret kept out of the foot smoke', () => {

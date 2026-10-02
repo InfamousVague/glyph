@@ -370,6 +370,24 @@ const heatMeasured = StateEffect.define<null>();
 
 let instances = 0;
 
+/**
+ * Plain inline spans for the filters, so the words wrap and kern as they would with no effect on them; the frost's ice,
+ * a colour for each page; and each letter effect's own CSS. Made once and shared by every editor: a theme made again
+ * for every editor is mounted again for every editor (editor/textPanel.ts).
+ */
+const effectsTheme = EditorView.baseTheme({
+  '.cm-textEffect': {},
+  '.cm-textEffectAbove': {},
+  '&dark .cm-effectFrostIce': { floodColor: '#cdeaff' },
+  '&light .cm-effectFrostIce': { floodColor: '#5aa6da' },
+});
+const effectThemes = new Map<TextEffectName, Extension>();
+function effectTheme(name: TextEffectName, spec: Parameters<typeof EditorView.baseTheme>[0]): Extension {
+  let theme = effectThemes.get(name);
+  if (!theme) effectThemes.set(name, (theme = EditorView.baseTheme(spec)));
+  return theme;
+}
+
 export function textEffects(formats: readonly InlineFormat[]): Extension {
   const looks = new Map<string, EffectLook>();
   for (const format of formats) {
@@ -534,17 +552,9 @@ export function textEffects(formats: readonly InlineFormat[]): Extension {
     },
     { decorations: (plugin) => plugin.decorations },
   );
-  // Plain inline spans for the filters, so the words wrap and kern as they would with no effect on them; the letter
-  // effects' own CSS; and the frost's ice, a colour for each page.
   const letterThemes = [...used].flatMap((name) => {
     const effect: TextEffect = TEXT_EFFECTS[name];
-    return effect.kind === 'letters' || effect.kind === 'rising' ? [EditorView.baseTheme(effect.theme)] : [];
+    return effect.kind === 'letters' || effect.kind === 'rising' ? [effectTheme(name, effect.theme)] : [];
   });
-  const theme = EditorView.baseTheme({
-    '.cm-textEffect': {},
-    '.cm-textEffectAbove': {},
-    '&dark .cm-effectFrostIce': { floodColor: '#cdeaff' },
-    '&light .cm-effectFrostIce': { floodColor: '#5aa6da' },
-  });
-  return [plugin, theme, ...letterThemes];
+  return [plugin, effectsTheme, ...letterThemes];
 }
