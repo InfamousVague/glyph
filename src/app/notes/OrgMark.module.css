@@ -1,0 +1,10 @@
+/* The organization's mark before a workspace's name (OrgMark.tsx): a touch under the text's size, in the words' own colour. */
+.mark {
+  flex: none;
+  inline-size: 0.9em;
+  block-size: 0.9em;
+  margin-inline-end: 0.35em;
+  vertical-align: -0.1em;
+  color: currentColor;
+  opacity: 0.85;
+}

@@ -365,6 +365,69 @@ describe('a sub-page', () => {
   });
 });
 
+/**
+ * The same screen as an organization's (docs/TEAMS.md, D6; settings/OrganizationSheet.tsx): its name in place of
+ * "Settings" everywhere the word stood, no search over its few sections, and a head that can say where closing goes.
+ */
+describe('a screen called something else', () => {
+  it('wears its title over the list, in the head’s way out, in its label and in what the search says', () => {
+    const onClose = vi.fn();
+    host = show(<SettingsScreen open onClose={onClose} sections={sections} title="Ghost" />);
+    expect(host.querySelector('.settingsScreen')?.getAttribute('aria-label')).toBe('Ghost');
+    expect(host.querySelector('.settingsScreen__headWord')?.textContent?.trim()).toBe('Ghost');
+    expect(host.querySelector('.settingsScreen__headWord')?.getAttribute('aria-label')).toBe('Back to your notes');
+    expect(host.querySelector('input[aria-label="Search Ghost"]')).not.toBeNull();
+    type('nothing like it');
+    expect(host.querySelector('.settingsScreen__none')?.textContent).toBe('Nothing in Ghost matches “nothing like it”.');
+    type('');
+    act(() => rowFor('Animations').click());
+    expect(host.querySelector('.settingsScreen__headWord')?.textContent?.trim()).toBe('Ghost');
+    act(() => host.querySelector<HTMLButtonElement>('.settingsScreen__headWord')!.click());
+    act(() => host.querySelector<HTMLButtonElement>('.settingsScreen__headWord')!.click());
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('draws no search when told not to, on a phone and on a wide window, and ⌘F then goes nowhere', () => {
+    host = show(<SettingsScreen open onClose={() => {}} sections={sections} title="Ghost" search={false} />);
+    expect(host.querySelector('input[type="search"]')).toBeNull();
+    expect(labels()).toEqual(['Type', 'Animations']);
+    const find = new KeyboardEvent('keydown', { key: 'f', metaKey: true, bubbles: true, cancelable: true });
+    act(() => window.dispatchEvent(find));
+    expect(find.defaultPrevented).toBe(false);
+    unmount();
+    wide = true;
+    try {
+      host = show(<SettingsScreen open onClose={() => {}} sections={sections} title="Ghost" search={false} />);
+      expect(host.querySelector('input[type="search"]')).toBeNull();
+      expect(display()).toBe('Type');
+      expect(host.querySelector('.settingsScreen__headWord')?.textContent?.trim()).toBe('Ghost');
+    } finally {
+      wide = false;
+    }
+  });
+
+  it('says where closing goes when told, in place of its name, on a phone and on a wide window', () => {
+    const onClose = vi.fn();
+    host = show(<SettingsScreen open onClose={onClose} sections={sections} title="Ghost" closeWord="Organizations" />);
+    expect(host.querySelector('.settingsScreen__headWord')?.textContent?.trim()).toBe('Organizations');
+    expect(host.querySelector('.settingsScreen__headWord')?.getAttribute('aria-label')).toBeNull();
+    // Over a pane the head still steps back to the list, and names the screen.
+    act(() => rowFor('Type').click());
+    expect(host.querySelector('.settingsScreen__headWord')?.textContent?.trim()).toBe('Ghost');
+    act(() => host.querySelector<HTMLButtonElement>('.settingsScreen__headWord')!.click());
+    act(() => host.querySelector<HTMLButtonElement>('.settingsScreen__headWord')!.click());
+    expect(onClose).toHaveBeenCalledOnce();
+    unmount();
+    wide = true;
+    try {
+      host = show(<SettingsScreen open onClose={onClose} sections={sections} title="Ghost" closeWord="Organizations" />);
+      expect(host.querySelector('.settingsScreen__headWord')?.textContent?.trim()).toBe('Organizations');
+    } finally {
+      wide = false;
+    }
+  });
+});
+
 describe('a target', () => {
   it('opens a page at a setting named with it, scrolled to and lit as a search hit is', () => {
     vi.useFakeTimers();

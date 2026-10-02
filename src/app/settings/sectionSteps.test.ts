@@ -49,6 +49,13 @@ describe('back', () => {
     expect(backWord(sections, sections.find((s) => s.id === 'theme')!)).toBe('Settings');
     expect(backWord(sections, null)).toBe('Settings');
   });
+
+  it('names the screen itself as the root over a pane, when it is not Settings: an organization’s own screen', () => {
+    expect(backWord(sections, sections.find((s) => s.id === 'theme')!, 'Ghost')).toBe('Ghost');
+    expect(backWord(sections, null, 'Ghost')).toBe('Ghost');
+    // A sub-page still steps to its parent, whatever the screen is called.
+    expect(backWord(sections, sections.find((s) => s.id === 'plugin:notion')!, 'Ghost')).toBe('Plugins');
+  });
 });
 
 describe('forward', () => {

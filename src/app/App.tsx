@@ -4,6 +4,9 @@ import { HapticsProvider, ToastProvider, useToast } from '@glacier/react';
 import { UpdateNotice } from './notes/Notices.tsx';
 import { HomeScreen } from './home/HomeScreen.tsx';
 import { AllNotesScreen } from './notes/AllNotesScreen.tsx';
+import { NotificationsScreen } from './notes/NotificationsScreen.tsx';
+import { OrganizationSheet } from './settings/OrganizationSheet.tsx';
+import { unreadCount, useNotifications } from './core/notifications/feed.ts';
 import type { OpenTask } from './home/dashboard.ts';
 import { setItemDone } from './core/boards.ts';
 import { NoteScreen } from './editor/NoteScreen.tsx';
@@ -56,7 +59,7 @@ import { inTimeOrder } from './book/journalMonths.ts';
 import { whereLeft } from './book/bookSpot.ts';
 import { NewBookSheet } from './book/NewBookSheet.tsx';
 import { NewSheet } from './notes/NewSheet.tsx';
-import { chooseWorkspace, fileNewNote, fileNote, useWorkspaces, workspaceOf } from './core/workspaces.ts';
+import { chooseWorkspace, fileNewNote, fileNote, orgWorkspaceId, useWorkspaces, workspaceOf } from './core/workspaces.ts';
 import { holdFor, setPendingTag, tagEntryIfWanted, tagNewNotesIfWanted, willLocate } from './core/location.ts';
 import { useNoteActions } from './notes/useNoteActions.ts';
 import { NoteMenuHost } from './notes/NoteMenu.tsx';
@@ -138,6 +141,8 @@ function Shell() {
   const [settings, setSettings] = useState(false);
   /** Settings asked to open at the cheat sheet, from the Academy: the moment it was asked for, or 0. */
   const [toCheatSheet, setToCheatSheet] = useState(0);
+  /** Settings asked to open at a page by its id: Organizations, when an organization's screen opened from there closes. */
+  const [toPage, setToPage] = useState<{ id: string; nonce: number } | null>(null);
   // The shelf's "Get a model" (home/TapeShelf.tsx): Settings open at Recording's Model card, where a language model is fetched.
   const [toModel, setToModel] = useState(0);
 
@@ -386,7 +391,12 @@ function Shell() {
     await refresh();
     openNoteWhereLeft(id);
   };
-  useAppLinks(loading, { fork: forkFromLink, openNote: openNoteFromLink });
+  useAppLinks(loading, {
+    fork: forkFromLink,
+    openNote: openNoteFromLink,
+    // The Notifications page, or an organization's screen (docs/TEAMS.md), for whatever the phone will raise about them.
+    openPlace: (place) => (place.place === 'notifications' ? showNotifications() : openOrganization(place.orgId)),
+  });
 
   /**
    * A `[[link]]` tapped: the note by that title, or a new note that starts with it as its heading, so a link is a
@@ -1061,8 +1071,61 @@ function Shell() {
     setDrawer(false);
     setScreen({ name: 'notes', ...(options?.tapes ? { tapes: true } : {}) });
   };
+  /*
+   * An organization's own screen (settings/OrganizationSheet.tsx; docs/TEAMS.md, D6), from its workspace's pill, the
+   * home filters, a folder's menu, a notification, or Settings › Account › Organizations. The personal Settings sheet
+   * closes first: two Settings surfaces are never open at once. Opened from Settings, closing reopens Settings on the
+   * Organizations page, so three organizations looked at are not three walks through Account.
+   */
+  const openOrganization = (orgId: string, from?: 'settings') => {
+    setSettings(false);
+    setDrawer(false);
+    setScreen({ name: 'organization', orgId, ...(from ? { from } : {}) });
+  };
+  const closeOrganization = () => {
+    const from = screen.name === 'organization' ? screen.from : undefined;
+    setScreen({ name: 'list' });
+    if (from === 'settings') {
+      setToPage({ id: 'organizations', nonce: Date.now() });
+      setSettings(true);
+    }
+  };
+  /** An organization's screen left for the notes, when something else is about to open over the home page. */
+  const leaveOrganization = () => {
+    if (screen.name === 'organization') setScreen({ name: 'list' });
+  };
+  /** The Notifications page (notes/NotificationsScreen.tsx), from the bell in the top bar or the palette. */
+  const showNotifications = () => {
+    setDrawer(false);
+    setScreen({ name: 'notifications' });
+  };
+  // Whether the bell rings: something unread the person asked to see (core/notifications/feed.ts `unreadCount`).
+  const feed = useNotifications();
+  const unread = unreadCount(prefs.notifications, feed) > 0;
   const allNotes = (
-    <AllNotesScreen notes={shownNotes} loading={loading} onOpen={openNoteWhereLeft} onBack={() => void backToList()} tapes={screen.name === 'notes' && screen.tapes === true} onRefresh={pullRefresh} />
+    <AllNotesScreen
+      notes={shownNotes}
+      loading={loading}
+      onOpen={openNoteWhereLeft}
+      onBack={() => void backToList()}
+      tapes={screen.name === 'notes' && screen.tapes === true}
+      onRefresh={pullRefresh}
+      onOrganization={openOrganization}
+    />
+  );
+  const notificationsPage = (
+    <NotificationsScreen
+      onBack={() => void backToList()}
+      // A note Claude edited opens at its first changed line, as a link into a note does (shell/screen.ts `at`).
+      onOpenNote={(id, at) => {
+        if (!at) return openNoteWhereLeft(id);
+        const note = notes.find((n) => n.id === id);
+        if (note) setScreen({ name: 'note', note, at });
+        else openNoteWhereLeft(id);
+      }}
+      onOpenOrganization={openOrganization}
+      onAccount={() => setSettings(true)}
+    />
   );
   /*
    * The home page (home/HomeScreen.tsx): the start page on every screen (Matt: "Add a 'home' button to take us to a
@@ -1112,8 +1175,26 @@ function Shell() {
         dismissAcademyBanner();
         setAcademyCard(false);
       }}
+      onOrganization={openOrganization}
     />
   );
+  /** The organization's screen over the home page, so closing it finds the page already there. */
+  const organization =
+    screen.name === 'organization' ? (
+      <>
+        {home}
+        <OrganizationSheet
+          key={screen.orgId}
+          orgId={screen.orgId}
+          from={screen.from}
+          onClose={closeOrganization}
+          onNotes={() => {
+            chooseWorkspace(orgWorkspaceId(screen.orgId));
+            void backToList();
+          }}
+        />
+      </>
+    ) : null;
 
   /*
    * The command palette (commands/palette.ts): what Glyph can do right now, and how. Built here because this is where
@@ -1170,13 +1251,24 @@ function Shell() {
     browseNotes: showAllNotes,
     back: goBack,
     forward: goOn,
-    settings: () => setSettings(true),
+    // From the palette over an organization's screen, Settings replaces it: the two surfaces are never open at once.
+    settings: () => {
+      leaveOrganization();
+      setSettings(true);
+    },
     cheatSheet: () => {
+      leaveOrganization();
       setSettings(true);
       setToCheatSheet(Date.now());
     },
     guide: () => guide.show(0),
     academy: () => setScreen({ name: 'academy' }),
+    notifications: showNotifications,
+    organizations: () => {
+      leaveOrganization();
+      setSettings(true);
+      setToPage({ id: 'organizations', nonce: Date.now() });
+    },
     chooseWorkspace,
     fileNote,
     setView: (view: NoteView) => setPreferences({ noteView: view }),
@@ -1240,6 +1332,9 @@ function Shell() {
             onGoOn={goOn}
             canGoBack={walk.canBack}
             canGoOn={walk.canOn}
+            onNotifications={showNotifications}
+            unread={unread}
+            atNotifications={screen.name === 'notifications'}
             onRename={renameNote}
             onDelete={(id) => {
               const note = notes.find((each) => each.id === id);
@@ -1305,11 +1400,12 @@ function Shell() {
                 onRestore={actions.restore}
                 onDestroy={actions.destroy}
                 onEmptyTrash={() => void actions.emptyTrash(trashedNotes)}
+                onOrganization={openOrganization}
               />
             </aside>
           ) : null}
           <main className="app-notePane">
-            {noteScreen ?? (screen.name === 'notes' ? allNotes : home)}
+            {noteScreen ?? (screen.name === 'notes' ? allNotes : screen.name === 'notifications' ? notificationsPage : (organization ?? home))}
           </main>
           {/* The right-hand aside as a column beside a docked sidebar: a book's index, or a run of chapters (aside/Aside.tsx). */}
           {asideDocked && asideBody ? (
@@ -1319,7 +1415,7 @@ function Shell() {
           ) : null}
         </div>
       ) : (
-        (noteScreen ?? (screen.name === 'notes' ? allNotes : home))
+        (noteScreen ?? (screen.name === 'notes' ? allNotes : screen.name === 'notifications' ? notificationsPage : (organization ?? home)))
       )}
       {/* With the sidebar a floating card, the aside is the same card at the right (aside/Aside.tsx `AsideCard`). */}
       {asideShown && !asideDocked && asideBody ? (
@@ -1357,6 +1453,7 @@ function Shell() {
         onRestore={actions.restore}
         onDestroy={actions.destroy}
         onEmptyTrash={() => void actions.emptyTrash(trashedNotes)}
+        onOrganization={openOrganization}
         activeId={shown}
         onOpen={openNoteWhereLeft}
         onNew={() => {
@@ -1408,6 +1505,8 @@ function Shell() {
         }}
         toCheatSheet={toCheatSheet}
         toModel={toModel}
+        toPage={toPage}
+        onOrganization={(orgId) => openOrganization(orgId, 'settings')}
       />
       {/*
         Not over a capture. The side key can arrive while the guide is open -

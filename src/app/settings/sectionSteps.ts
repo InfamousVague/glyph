@@ -62,9 +62,12 @@ export function stepForward<S extends SectionPlace>(sections: readonly S[], acti
   return from === activeId ? left : null;
 }
 
-/** The word in the head over a page, for where back goes: the parent's name over a sub-page, else "Settings". */
-export function backWord<S extends SectionPlace>(sections: readonly S[], active: S | null): string {
-  return parentOf(sections, active ?? undefined)?.label ?? 'Settings';
+/**
+ * The word in the head over a page, for where back goes: the parent's name over a sub-page, else the screen's own,
+ * `root` - "Settings", or an organization's name over its screen (settings/OrganizationSheet.tsx).
+ */
+export function backWord<S extends SectionPlace>(sections: readonly S[], active: S | null, root = 'Settings'): string {
+  return parentOf(sections, active ?? undefined)?.label ?? root;
 }
 
 /** The row that is current in the split view's column while `shown` is on the right: its parent's for a sub-page. */

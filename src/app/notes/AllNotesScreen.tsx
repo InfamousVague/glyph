@@ -44,12 +44,14 @@ interface AllNotesScreenProps {
   tapes?: boolean;
   /** A pull down from the top (notes/PullToRefresh.tsx): a sync, and the notes read again. */
   onRefresh?: () => Promise<unknown>;
+  /** An organization's own screen, from its workspace's pill (docs/TEAMS.md). */
+  onOrganization?: (orgId: string) => void;
 }
 
 /** How many of the cards on the page have their gist written (format/gist.ts): the first screens of them, not every note there is. */
 const GISTED = 24;
 
-export function AllNotesScreen({ notes, loading, onOpen, onBack, tapes: tapesAtFirst = false, onRefresh }: AllNotesScreenProps) {
+export function AllNotesScreen({ notes, loading, onOpen, onBack, tapes: tapesAtFirst = false, onRefresh, onOrganization }: AllNotesScreenProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const topBar = useRef<HTMLElement>(null);
   const field = useRef<HTMLInputElement>(null);
@@ -123,7 +125,7 @@ export function AllNotesScreen({ notes, loading, onOpen, onBack, tapes: tapesAtF
       </header>
       <div ref={scroller} className={styles.scroll}>
         <div className={styles.page}>
-          <WorkspaceBar onManage={setManage} />
+          <WorkspaceBar onManage={setManage} onOrganization={onOrganization} />
           {/* The order, the tapes, and the archive: one line of words over the cards. */}
           <div className={styles.controls}>
             <div className={styles.sorts} role="radiogroup" aria-label="Order">
@@ -185,7 +187,7 @@ export function AllNotesScreen({ notes, loading, onOpen, onBack, tapes: tapesAtF
         </div>
       </div>
       {onRefresh ? <PullToRefresh scroller={scroller} onRefresh={onRefresh} /> : null}
-      <WorkspaceSheet which={manage} onClose={() => setManage(null)} />
+      <WorkspaceSheet which={manage} onClose={() => setManage(null)} onOrganization={onOrganization} />
     </div>
   );
 }

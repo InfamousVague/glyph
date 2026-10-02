@@ -32,6 +32,13 @@ import './settings.css';
  * a row on its parent's page. Over a sub-page the head says its parent ("← Plugins"), and back steps there first.
  * Where it goes is settings/sectionSteps.ts. A page can be opened at one of its settings, scrolled to and lit as a
  * search hit is: `goTo.setting`, which the home page's "Get a model" and the "Local only" words use.
+ *
+ * The surface is not only Settings' since organizations (docs/TEAMS.md, D6; Matt: "when on the organization view make
+ * a new settings screen copying the same layout and stuff from the normal settings page but make it tailored towards
+ * organization features"): settings/OrganizationSheet.tsx draws an organization through the same screen, with `title`
+ * as the organization's name over the list and in every word that said "Settings", and `search` off, since five
+ * sections need no field over them. Only one of the two is open at a time: the shell closes the personal sheet before
+ * it opens an organization's (App.tsx), as the DOM id of the results and the wisp's edge are each one per page.
  */
 
 export interface SettingsSection {
@@ -70,6 +77,15 @@ interface SettingsScreenProps {
    * knock opens Developer; "Local only" opens Account at the Privacy card). A new nonce asks again.
    */
   goTo?: (SettingsTarget & { nonce: number }) | null;
+  /** The screen's name: over the list, in the head's way out, and in every word that would otherwise say "Settings". */
+  title?: string;
+  /** Whether the field that searches the sections stands over the list; off for a screen of a few sections. */
+  search?: boolean;
+  /**
+   * What the head's way out says instead of the title, and where it goes: an organization opened from Settings ›
+   * Account › Organizations reads "← Organizations", since closing it reopens Settings there (OrganizationSheet.tsx).
+   */
+  closeWord?: string;
 }
 
 /**
@@ -81,6 +97,9 @@ interface SettingsScreenProps {
  */
 const HUES: Record<string, string> = {
   account: 'blue',
+  // Account's sub-page keeps its blue; Notifications wears the coral that was kept free until it (docs/TEAMS.md, D9).
+  organizations: 'blue',
+  notifications: 'coral',
   theme: 'purple',
   recording: 'red',
   plugins: 'green',
@@ -137,7 +156,7 @@ function SectionRow({
   );
 }
 
-export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreenProps) {
+export function SettingsScreen({ open, onClose, sections, goTo, title = 'Settings', search: searchable = true, closeWord }: SettingsScreenProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   // Which way the pane came in: pushed from the right going deeper, from the
   // left coming back, so the motion says which.
@@ -328,13 +347,15 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
   );
 
   const hits = searchSettings(sections, query);
-  const looking = query.trim() !== '';
+  const looking = searchable && query.trim() !== '';
+  // "Search settings" over the app's own; an organization's screen names itself, though it draws no field.
+  const searchWord = title === 'Settings' ? 'Search settings' : `Search ${title}`;
 
   /**
    * The field at the top of the list. Enter opens the first result, the down arrow steps into them, and Escape empties
    * the field before it is asked to close anything.
    */
-  const search = (
+  const search = searchable ? (
     <div ref={findBar} className="settingsScreen__find" role="search">
       <div className="settingsScreen__findPill">
         <span className="settingsScreen__findIcon" aria-hidden="true">
@@ -348,8 +369,8 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
           autoCapitalize="off"
           autoCorrect="off"
           spellCheck={false}
-          placeholder="Search settings"
-          aria-label="Search settings"
+          placeholder={searchWord}
+          aria-label={searchWord}
           aria-controls="settings-results"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -381,7 +402,7 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
         ) : null}
       </div>
     </div>
-  );
+  ) : null;
 
   /**
    * What the field found, in place of the sections: one card of rows, a section by its own name and state, a setting by
@@ -424,9 +445,20 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
       </div>
     ) : (
       <p id="settings-results" className="settingsScreen__none" role="status">
-        Nothing in Settings matches “{query.trim()}”.
+        Nothing in {title} matches “{query.trim()}”.
       </p>
     );
+
+  /**
+   * The way out, over the list and over the split view: the screen's name with the arrow, leaving for the notes, which
+   * is what it is told to say aloud. Given a `closeWord` it names where it goes instead, as a sub-page's head does, and
+   * says nothing more: the word is the place.
+   */
+  const wayOut = (
+    <button type="button" className="app-word settingsScreen__headWord" onClick={onClose} aria-label={closeWord ? undefined : 'Back to your notes'}>
+      <ArrowLeft /> {closeWord ?? title}
+    </button>
+  );
 
   if (split) {
     const shown = active ?? listedOf(sections)[0] ?? null;
@@ -434,22 +466,20 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
     // Over a sub-page the head names its parent and steps there, as back and Escape do; anywhere else it leaves.
     const sub = shown !== null && current !== shown.id;
     return (
-      <div ref={root} className="settingsScreen" role="dialog" aria-modal="true" aria-label="Settings" data-layout="split" data-view="pane" data-direction={direction}>
+      <div ref={root} className="settingsScreen" role="dialog" aria-modal="true" aria-label={title} data-layout="split" data-view="pane" data-direction={direction}>
         <header className="settingsScreen__head">
           {sub ? (
             <button type="button" className="app-word settingsScreen__headWord" onClick={back}>
-              <ArrowLeft /> {backWord(sections, shown)}
+              <ArrowLeft /> {backWord(sections, shown, title)}
             </button>
           ) : (
-            <button type="button" className="app-word settingsScreen__headWord" onClick={onClose} aria-label="Back to your notes">
-              <ArrowLeft /> Settings
-            </button>
+            wayOut
           )}
         </header>
         <div className="settingsScreen__split">
           <div className="settingsScreen__side">
             {search}
-            <nav ref={column} className="settingsScreen__list" aria-label={looking ? 'Settings found' : 'Settings sections'}>
+            <nav ref={column} className="settingsScreen__list" aria-label={looking ? `${title} found` : `${title} sections`}>
               {looking ? found(current) : list(current)}
             </nav>
           </div>
@@ -465,13 +495,13 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
   }
 
   return (
-    <div ref={root} className="settingsScreen" role="dialog" aria-modal="true" aria-label="Settings" data-view={active ? 'pane' : 'list'} data-direction={direction}>
+    <div ref={root} className="settingsScreen" role="dialog" aria-modal="true" aria-label={title} data-view={active ? 'pane' : 'list'} data-direction={direction}>
       {active ? (
         <>
           {/* The way back names where it goes: "Settings" over a pane, its parent's name over a sub-page. */}
           <header className="settingsScreen__head">
             <button type="button" className="app-word settingsScreen__headWord" onClick={back}>
-              <ArrowLeft /> {backWord(sections, active)}
+              <ArrowLeft /> {backWord(sections, active, title)}
             </button>
           </header>
           <div ref={scroller} className="settingsScreen__pane" key={active.id} data-hue={hueOf(active)}>
@@ -488,14 +518,10 @@ export function SettingsScreen({ open, onClose, sections, goTo }: SettingsScreen
             spent a third of the first page saying so. The arrow still leaves for the notes, which is what it is
             told to say aloud.
           */}
-          <header className="settingsScreen__head">
-            <button type="button" className="app-word settingsScreen__headWord" onClick={onClose} aria-label="Back to your notes">
-              <ArrowLeft /> Settings
-            </button>
-          </header>
+          <header className="settingsScreen__head">{wayOut}</header>
           {search}
           {/* The list ends in air: a left swipe still goes back into the page just left, without a line saying so. */}
-          <nav ref={scroller} className="settingsScreen__list" key="list" aria-label={looking ? 'Settings found' : 'Settings sections'}>
+          <nav ref={scroller} className="settingsScreen__list" key="list" aria-label={looking ? `${title} found` : `${title} sections`}>
             {looking ? found(null) : list(null)}
           </nav>
         </>

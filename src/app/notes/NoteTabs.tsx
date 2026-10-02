@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, PanelLeft, Plus, X } from '@glacier/icons';
+import { ArrowLeft, ArrowRight, Bell, PanelLeft, Plus, X } from '@glacier/icons';
 import { newGroup, NO_GROUPS, renameGroup, toggleGroup, type TabGroups } from './tabGroups.ts';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { isBookBody } from '../book/book.ts';
@@ -20,7 +20,8 @@ import styles from './NoteTabs.module.css';
  * for the different notes that are open", and "add a sidebar that opens as a floating card, add a sidebar icon on the
  * top left of the page").
  *
- * Two rows. The first is the controls - home, the sidebar's icon, back and forward, the slot the screen's own buttons
+ * Two rows. The first is the controls - home, the sidebar's icon, back and forward, the bell (docs/TEAMS.md: on when
+ * something unread arrived, with a dot and no number, the app being monochrome), the slot the screen's own buttons
  * are drawn into, and the aside's icon at the far end. The second is the tabs, which scroll sideways when there are
  * more than fit, and is not drawn at all with nothing open. A tap changes note without leaving the screen; the cross
  * closes a tab, and the note behind it carries on existing, it is only no longer open.
@@ -66,6 +67,11 @@ interface NoteTabsProps {
   onGoOn?: () => void;
   canGoBack?: boolean;
   canGoOn?: boolean;
+  /** The Notifications page (notes/NotificationsScreen.tsx), from the bell after the arrows; absent, and there is no bell. */
+  onNotifications?: () => void;
+  /** Whether something unread and wanted has arrived: the bell wears its ring and a dot (core/notifications/feed.ts `unreadCount`). */
+  unread?: boolean;
+  atNotifications?: boolean;
   /**
    * A canvas renamed from its tab (Matt: "I also need a way to rename canvases maybe through the tabs context
    * menu?"). Only a canvas: a note is named by its first line, which is written in the note itself, where a
@@ -92,6 +98,9 @@ export function NoteTabs({
   onGoOn,
   canGoBack = false,
   canGoOn = false,
+  onNotifications,
+  unread = false,
+  atNotifications = false,
   onNew,
   onRename,
   groups = NO_GROUPS,
@@ -195,6 +204,21 @@ export function NoteTabs({
           </button>
         </>
       ) : null}
+        {/* The bell, after the arrows: on while something unread waits, a dot and no number; its page is open, a ring. */}
+        {onNotifications ? (
+          <button
+            type="button"
+            className={`${styles.sidebar} ${styles.bell}`}
+            onClick={onNotifications}
+            aria-label={unread ? 'Notifications, something new' : 'Notifications'}
+            title="Notifications"
+            aria-current={atNotifications ? 'page' : undefined}
+            data-on={unread || atNotifications || undefined}
+            data-unread={unread || undefined}
+          >
+            <Bell size={19} strokeWidth={2.1} aria-hidden="true" />
+          </button>
+        ) : null}
         {/* The screen's own controls, at the far end (Matt: "Move the controls for the note into the topbar"). */}
         <div ref={slot} className={styles.slot} />
         {/* The aside's toggle, last of all: the sidebar's icon reversed (Matt: "a sidebar toggle on the right with the icon reversed"). */}

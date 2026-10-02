@@ -22,7 +22,9 @@ import { isNoteSwipe, noteSwipes, type NoteSwipe } from '../notes/swipe.ts';
 import { onNoteContextMenu } from '../notes/noteMenu.ts';
 import { when } from '../notes/when.ts';
 import { WorkspaceSheet } from '../notes/WorkspaceSheet.tsx';
-import { UpdateNotice, VoiceModelStatus } from '../notes/Notices.tsx';
+import { InviteNotice, UpdateNotice, VoiceModelStatus } from '../notes/Notices.tsx';
+import { useAccount } from '../core/account/account.ts';
+import { NewOrganizationSheet } from './NewOrganizationSheet.tsx';
 import { useGists } from '../format/gist.ts';
 import { shortenUrls } from '../core/shortUrl.ts';
 import { bookIndex, chaptersOf, placeOf } from '../book/book.ts';
@@ -46,7 +48,9 @@ import look from './HomeLayouts.module.css';
  * Notes, Pinned, and the workspace - with a chip under the search for each one on (home/HomeFilters.tsx, §148). Then
  * the notebooks and the notes in the layout chosen in Settings › Appearance: the sections home/homeLayout.ts
  * `homePlan` lays out, each drawn as cards, rows or covers. Only what needs the person stays above them: an update
- * ready, the voice model's download or its failure. Tapes are notes like any other, and a to-do is found in its note.
+ * ready, an invitation to an organization waiting for its answer (docs/TEAMS.md), the voice model's download or its
+ * failure. Tapes are notes like any other, and a to-do is found in its note. Signed in, the filters' panel makes an
+ * organization beside a workspace, and an organization's workspace opens the organization's screen.
  *
  * The glass bar, the scroller with its smoke, and the dock - write, Speak, Settings, the palette - are as they were.
  */
@@ -80,12 +84,14 @@ interface HomeScreenProps {
   showAcademy?: boolean;
   onAcademy?: () => void;
   onHideAcademy?: () => void;
+  /** An organization's own screen (settings/OrganizationSheet.tsx): from its workspace, from a new one, from an invitation accepted. */
+  onOrganization?: (orgId: string) => void;
 }
 
 /** How many of the first cards get a line written under their titles (format/gist.ts), the rest waiting for a scroll. */
 const GISTED = 16;
 
-export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSettings, onSearch, onAllNotes, onSwipe, onRefresh, voiceModel, onRetryVoiceModel, updates }: HomeScreenProps) {
+export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSettings, onSearch, onAllNotes, onSwipe, onRefresh, voiceModel, onRetryVoiceModel, updates, onOrganization }: HomeScreenProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const topBar = useRef<HTMLElement>(null);
   useWispEdge(scroller, 'home', topBar, { foot: true });
@@ -95,6 +101,10 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
   const { homeLayout: layout } = usePreferences();
   const spaces = useWorkspaces();
   const [manage, setManage] = useState<Workspace | 'new' | null>(null);
+  // A new organization, from the filters' panel: signed in, and with somewhere for it to open.
+  const account = useAccount();
+  const [newOrg, setNewOrg] = useState(false);
+  const makeOrg = account.session && onOrganization ? () => setNewOrg(true) : undefined;
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<HomeFilter>('all');
   const workspace = spaces.current?.id ?? null;
@@ -218,9 +228,10 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
         <div className={styles.page}>
           <div className={look.page} data-layout={layout}>
             {/* The search first, the page narrowing as it is typed, and its filters beside it. Not on a blank page. */}
-            {tools ? <HomeFilters query={query} onQuery={setQuery} filter={filter} onFilter={setFilter} counts={counts} onManage={setManage} /> : null}
+            {tools ? <HomeFilters query={query} onQuery={setQuery} filter={filter} onFilter={setFilter} counts={counts} onManage={setManage} onNewOrganization={makeOrg} onOrganization={onOrganization} /> : null}
             <div className={look.notices}>
               <UpdateNotice updates={updates} />
+              <InviteNotice onOpen={onOrganization} />
               <VoiceModelStatus state={voiceModel} onRetry={onRetryVoiceModel} />
             </div>
 
@@ -276,7 +287,9 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
           // The sheet was opened from the filters' panel, which closed for it: the keyboard goes back to their button.
           scroller.current?.querySelector<HTMLButtonElement>('button[aria-haspopup="dialog"]')?.focus({ preventScroll: true });
         }}
+        onOrganization={onOrganization}
       />
+      {makeOrg && onOrganization ? <NewOrganizationSheet open={newOrg} onClose={() => setNewOrg(false)} onMade={onOrganization} /> : null}
     </div>
   );
 }

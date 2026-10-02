@@ -79,6 +79,9 @@ export interface PaletteDoing {
   cheatSheet: () => void;
   guide: () => void;
   academy: () => void;
+  /** The Notifications page (notes/NotificationsScreen.tsx), and Settings › Account › Organizations (docs/TEAMS.md). */
+  notifications: () => void;
+  organizations: () => void;
   chooseWorkspace: (id: string | null) => void;
   fileNote: (noteId: string, workspace: string | null) => void;
   setView: (view: NoteView) => void;
@@ -251,6 +254,8 @@ export function paletteCommands(world: PaletteWorld, doing: PaletteDoing, query 
 
   // ---- the app ------------------------------------------------------------------------------
   add({ id: 'settings', label: 'Settings', group: 'Ghost.md', keywords: 'preferences options account sync type animations' }, () => doing.settings());
+  add({ id: 'notifications', label: 'Notifications', group: 'Ghost.md', keywords: 'bell invites invitations inbox feed unread claude' }, () => doing.notifications());
+  add({ id: 'organizations', label: 'Organizations', group: 'Ghost.md', keywords: 'teams team org members invite' }, () => doing.organizations());
   add({ id: 'cheatsheet', label: 'Cheat sheet', group: 'Ghost.md', keywords: 'marks markdown reference help' }, () => doing.cheatSheet());
   add({ id: 'academy', label: 'Ghost.md Academy', group: 'Ghost.md', keywords: 'learn lessons markdown teach' }, () => doing.academy());
   add({ id: 'guide', label: 'The welcome walkthrough', group: 'Ghost.md', keywords: 'guide walkthrough voice help onboarding how to talk' }, () => doing.guide());

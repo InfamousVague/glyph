@@ -4,6 +4,8 @@ import type { NoteScreen } from './editor/NoteScreen.tsx';
 import type { CaptureScreen } from './capture/CaptureScreen.tsx';
 import type { Guide } from './guide/Guide.tsx';
 import type { SettingsSheet } from './settings/SettingsSheet.tsx';
+import type { OrganizationSheet } from './settings/OrganizationSheet.tsx';
+import type { NotificationsScreen } from './notes/NotificationsScreen.tsx';
 import { createNote, getNote, listNotes, setNoteArchived, updateNote, type Note } from './core/store.ts';
 import { preferences, reloadPreferences, setPreferences } from './core/preferences.ts';
 import { button, buttonSaying, show, unmount, waitUntil } from '../test/render.tsx';
@@ -29,9 +31,18 @@ type NoteProps = ComponentProps<typeof NoteScreen>;
 type CaptureProps = ComponentProps<typeof CaptureScreen>;
 type GuideProps = ComponentProps<typeof Guide>;
 type SettingsProps = ComponentProps<typeof SettingsSheet>;
+type OrganizationProps = ComponentProps<typeof OrganizationSheet>;
+type NotificationsProps = ComponentProps<typeof NotificationsScreen>;
 
 /** The props each stubbed screen was last drawn with, for the test to press what the screen would. */
-const seen = vi.hoisted(() => ({ note: null as NoteProps | null, capture: null as CaptureProps | null, guide: null as GuideProps | null, settings: null as SettingsProps | null }));
+const seen = vi.hoisted(() => ({
+  note: null as NoteProps | null,
+  capture: null as CaptureProps | null,
+  guide: null as GuideProps | null,
+  settings: null as SettingsProps | null,
+  organization: null as OrganizationProps | null,
+  notifications: null as NotificationsProps | null,
+}));
 
 vi.mock('./editor/NoteScreen.tsx', () => ({
   NoteScreen: (props: NoteProps) => {
@@ -54,7 +65,20 @@ vi.mock('./guide/Guide.tsx', () => ({
 vi.mock('./settings/SettingsSheet.tsx', () => ({
   SettingsSheet: (props: SettingsProps) => {
     seen.settings = props;
-    return props.open ? <div data-screen="settings" /> : null;
+    return props.open ? <div data-screen="settings" data-to-page={props.toPage?.id ?? ''} /> : null;
+  },
+}));
+// The organization's screen and the Notifications page (docs/TEAMS.md) have their own tests against the service in memory.
+vi.mock('./settings/OrganizationSheet.tsx', () => ({
+  OrganizationSheet: (props: OrganizationProps) => {
+    seen.organization = props;
+    return <div data-screen="organization" data-org={props.orgId} data-from={props.from ?? ''} />;
+  },
+}));
+vi.mock('./notes/NotificationsScreen.tsx', () => ({
+  NotificationsScreen: (props: NotificationsProps) => {
+    seen.notifications = props;
+    return <main data-screen="notifications" />;
   },
 }));
 // A sync pass runs before the guide is added; the test sees when.
@@ -147,6 +171,8 @@ beforeEach(() => {
   seen.capture = null;
   seen.guide = null;
   seen.settings = null;
+  seen.organization = null;
+  seen.notifications = null;
 });
 
 afterEach(() => {
@@ -753,6 +779,68 @@ describe('a capture ending', () => {
     await act(async () => seen.capture!.onFinish(made, false));
     expect(screenNow()).toBeNull();
     await waitUntil(() => expect(card('Said aloud')).toBeTruthy());
+  });
+});
+
+/** Organizations and notifications (docs/TEAMS.md): the two new screens, where each opens from and comes back to. */
+describe('the bell, and an organization’s screen', () => {
+  it('opens the Notifications page from the bell, over the home page’s pane with the tab row kept, and the arrow goes home', async () => {
+    await seed(['a', '# Apples']);
+    await openApp();
+    expect(button('Notifications').hasAttribute('data-unread')).toBe(false);
+    act(() => button('Notifications').click());
+    expect(screenNow()?.dataset.screen).toBe('notifications');
+    expect(root.dataset.tabs).toBe('on');
+    expect(button('Notifications').getAttribute('aria-current')).toBe('page');
+    act(() => seen.notifications!.onBack());
+    expect(document.querySelector('nav[aria-label="New note"]')).not.toBeNull();
+    // A note a row named opens at the line the edit landed on.
+    act(() => button('Notifications').click());
+    act(() => seen.notifications!.onOpenNote('a', 'line:3'));
+    expect(noteShown()).toBe('a');
+    expect(document.querySelector('[data-screen="note"]')?.getAttribute('data-at')).toBe('line:3');
+  });
+
+  it('opens an organization from Settings with the sheet closed first, and closing it reopens Settings on Organizations', async () => {
+    await openApp();
+    act(() => button('Settings').click());
+    expect(document.querySelector('[data-screen="settings"]')).not.toBeNull();
+    act(() => seen.settings!.onOrganization!('org-1'));
+    expect(document.querySelector('[data-screen="settings"]')).toBeNull();
+    expect(screenNow()?.dataset.screen).toBe('organization');
+    expect(screenNow()?.dataset.org).toBe('org-1');
+    expect(screenNow()?.dataset.from).toBe('settings');
+    // The home page waits under it.
+    expect(document.querySelector('nav[aria-label="New note"]')).not.toBeNull();
+    act(() => seen.organization!.onClose());
+    expect(document.querySelector('[data-screen="organization"]')).toBeNull();
+    expect(document.querySelector('[data-screen="settings"]')?.getAttribute('data-to-page')).toBe('organizations');
+  });
+
+  it('opens an organization from a notification row with nothing to come back to but the notes', async () => {
+    await openApp();
+    act(() => button('Notifications').click());
+    act(() => seen.notifications!.onOpenOrganization('org-2'));
+    expect(screenNow()?.dataset.screen).toBe('organization');
+    expect(screenNow()?.dataset.from).toBe('');
+    act(() => seen.organization!.onClose());
+    expect(document.querySelector('[data-screen="settings"]')).toBeNull();
+    expect(document.querySelector('nav[aria-label="New note"]')).not.toBeNull();
+  });
+
+  it('offers both from the palette: Notifications as the page, Organizations as Settings on that page', async () => {
+    await seed(['a', '# Apples']);
+    await openApp();
+    const run = (words: string) => {
+      act(() => button('Search and commands').click());
+      const command = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((option) => option.textContent?.trim() === words);
+      act(() => void command!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })));
+    };
+    run('Organizations');
+    expect(document.querySelector('[data-screen="settings"]')?.getAttribute('data-to-page')).toBe('organizations');
+    act(() => seen.settings!.onClose());
+    run('Notifications');
+    expect(screenNow()?.dataset.screen).toBe('notifications');
   });
 });
 

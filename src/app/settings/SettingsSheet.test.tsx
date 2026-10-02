@@ -85,7 +85,8 @@ const { findSetting, searchSettings } = await import('./settingsSearch.ts');
  * plugin's `settings.settings`) and the labels the page draws, and nothing else checks that the two agree: a label
  * renamed in a pane leaves the search opening the page and finding nothing on it.
  *
- * Since docs/DESIGN.md §138: five rows, and every word the search found before still finds something.
+ * Since docs/DESIGN.md §138: five rows, and every word the search found before still finds something. Notifications
+ * joined Account on the first card with organizations (docs/TEAMS.md, D9), and Organizations is Account's sub-page.
  */
 
 const updates: Updates = {
@@ -159,10 +160,11 @@ afterEach(() => {
 });
 
 describe('the list of sections', () => {
-  // Changed on purpose (docs/DESIGN.md §138): twelve rows became four here, five where there is a recorder.
-  it('in a browser, is Account, Appearance, Plugins and About', () => {
+  // Changed on purpose (docs/DESIGN.md §138): twelve rows became four here, five where there is a recorder; and once
+  // more for docs/TEAMS.md, which put Notifications beside Account on the first card.
+  it('in a browser, is Account and Notifications, then Appearance, Plugins and About', () => {
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Appearance', 'Plugins', 'About']);
+    expect(labels(host)).toEqual(['Account', 'Notifications', 'Appearance', 'Plugins', 'About']);
     expect(host.querySelectorAll('.settingsScreen__cluster')).toHaveLength(3);
     expect(names('theme')).not.toContain('Haptics');
   });
@@ -171,13 +173,29 @@ describe('the list of sections', () => {
     native = true;
     android = true;
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
+    expect(labels(host)).toEqual(['Account', 'Notifications', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
     expect([...host.querySelectorAll('.settingsScreen__cluster')].map((card) => [...card.querySelectorAll('.settingsScreen__rowLabel')].map((l) => l.textContent))).toEqual([
-      ['Account'],
+      ['Account', 'Notifications'],
       ['Appearance', 'Recording', 'AI', 'Plugins'],
       ['About'],
     ]);
     expect(names('theme')).toContain('Haptics');
+  });
+
+  it('lists Notifications’ four switches for the search, and the card of organizations to mute only once there is one', async () => {
+    settings();
+    expect(names('notifications')).toEqual(['Team', 'Claude', 'Summaries', 'Conflicts']);
+    expect(section('notifications')?.hue).toBeUndefined();
+    unmount();
+    session = { handle: 'sam', token: 't', accountId: 1 };
+    const { saveOrgs, forgetOrgs } = await import('../core/orgs/orgs.ts');
+    saveOrgs(1, { list: [{ id: 'o1', name: 'Ghost', hue: 'sea', role: 'member', state: 'member', members: 2, invitedBy: null, createdAt: 1 }], at: 1 });
+    try {
+      settings();
+      expect(names('notifications')).toEqual(['Team', 'Claude', 'Summaries', 'Conflicts', 'Mute an organization']);
+    } finally {
+      forgetOrgs(1);
+    }
   });
 
   it('on an Android phone, lists Recording’s rows for the search, each by its own name, the model gone to AI', () => {
@@ -201,7 +219,7 @@ describe('the list of sections', () => {
   it('in a browser on an Android phone, has Recording for the words, without the AI section, the meetings or the tapes', () => {
     android = true;
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Appearance', 'Recording', 'Plugins', 'About']);
+    expect(labels(host)).toEqual(['Account', 'Notifications', 'Appearance', 'Recording', 'Plugins', 'About']);
     expect(names('recording')).toEqual(['Stop when I go quiet', 'Review after recording', 'Better words', 'Summaries']);
     // No model runs in a browser, so no AI section.
     expect(section('ai')).toBeUndefined();
@@ -210,14 +228,14 @@ describe('the list of sections', () => {
   it('on an iPhone, is the four a browser has: no Recording and no AI, where no model runs', () => {
     native = true;
     iphone = true;
-    expect(labels(settings())).toEqual(['Account', 'Appearance', 'Plugins', 'About']);
+    expect(labels(settings())).toEqual(['Account', 'Notifications', 'Appearance', 'Plugins', 'About']);
     expect(section('ai')).toBeUndefined();
   });
 
   it('on the Mac, has Recording and AI too, the recording for the better words and the summaries', () => {
     native = true;
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
+    expect(labels(host)).toEqual(['Account', 'Notifications', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
     expect(names('recording')).toEqual(['Stop when I go quiet', 'Review after recording', 'Better words', 'Summaries', 'Tapes', 'Remove audio older than a month']);
     expect(names('ai')).toEqual(['Model', 'Fill blanks on their own']);
   });
@@ -225,7 +243,7 @@ describe('the list of sections', () => {
   it('grows Developer and Test results once developer mode is on, on a card of their own', () => {
     setDeveloperMode(true);
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Appearance', 'Plugins', 'About', 'Developer', 'Test results']);
+    expect(labels(host)).toEqual(['Account', 'Notifications', 'Appearance', 'Plugins', 'About', 'Developer', 'Test results']);
     expect(host.querySelectorAll('.settingsScreen__cluster')).toHaveLength(4);
   });
 
@@ -240,11 +258,36 @@ describe('the list of sections', () => {
 });
 
 describe('the sub-pages', () => {
-  it('are each switched-on plugin’s page, the cheat sheet, the specification and the examples, off the list, each with its parent', () => {
+  it('are the organizations, each switched-on plugin’s page, the cheat sheet, the specification and the examples, off the list, each with its parent', () => {
     const host = settings();
     const hidden = handed.filter((s) => s.listed === false).map((s) => `${s.id} < ${s.parent}`);
-    expect(hidden).toEqual(['plugin:notion < plugins', 'plugin:github < plugins', 'plugin:claude < plugins', 'cheatsheet < about', 'spec < about', 'examples < about']);
-    for (const label of ['Notion', 'GitHub', 'Claude', 'Cheat sheet', 'Specification', 'Examples']) expect(labels(host)).not.toContain(label);
+    expect(hidden).toEqual(['organizations < account', 'plugin:notion < plugins', 'plugin:github < plugins', 'plugin:claude < plugins', 'cheatsheet < about', 'spec < about', 'examples < about']);
+    for (const label of ['Organizations', 'Notion', 'GitHub', 'Claude', 'Cheat sheet', 'Specification', 'Examples']) expect(labels(host)).not.toContain(label);
+  });
+
+  // The teams the account is in (docs/TEAMS.md): behind Account's row, with Account in the head.
+  it('open Organizations from Account’s row, signed in, in Account’s blue, and step back to Account', async () => {
+    session = { handle: 'sam', token: 't', accountId: 1 };
+    const host = settings();
+    const { act } = await import('react');
+    act(() => rows(host).find((row) => row.textContent?.includes('Account'))!.click());
+    act(() => [...host.querySelectorAll<HTMLButtonElement>('button.setk-row--press')].find((b) => b.querySelector('.setk-row__label')?.textContent === 'Organizations')!.click());
+    expect(host.querySelector('.settingsScreen__display')?.textContent).toBe('Organizations');
+    expect(host.querySelector('.settingsScreen__headWord')?.textContent?.trim()).toBe('Account');
+    expect(host.querySelector('.settingsScreen__pane')?.getAttribute('data-hue')).toBe('blue');
+    expect(host.querySelector('.setk__title')?.textContent).toBe('Your organizations');
+    act(() => host.querySelector<HTMLButtonElement>('.settingsScreen__headWord')!.click());
+    expect(host.querySelector('.settingsScreen__display')?.textContent).toBe('Account');
+  });
+
+  it('open on a page asked for from outside by its id: Organizations, when an organization’s screen closes', () => {
+    session = { handle: 'sam', token: 't', accountId: 1 };
+    const host = show(
+      <ToastProvider>
+        <SettingsSheet open onClose={() => undefined} updates={updates} onGuide={() => undefined} onSample={() => undefined} onGuideBook={() => undefined} onBoard={() => undefined} onCanvas={() => undefined} onHowCanvas={() => undefined} onAcademy={() => undefined} toPage={{ id: 'organizations', nonce: 1 }} />
+      </ToastProvider>,
+    );
+    expect(host.querySelector('.settingsScreen__display')?.textContent).toBe('Organizations');
   });
 
   it('drop a plugin’s page when it is switched off', async () => {
@@ -393,6 +436,14 @@ describe('the readings', () => {
   it('put the version before where its updates stand under About', () => {
     expect(reading(settings(), 'About')).toBe('1.8.0 · Web version');
   });
+
+  // How many of the four switches are on, under Notifications (docs/TEAMS.md, D9).
+  it('count the switches that are on under Notifications, in Plugins’ shape', () => {
+    expect(reading(settings(), 'Notifications')).toBe('4 of 4 on');
+    unmount();
+    setPreferences({ notifications: { team: true, claude: false, summaries: true, conflicts: false, mutedOrgs: [] } });
+    expect(reading(settings(), 'Notifications')).toBe('2 of 4 on');
+  });
 });
 
 /**
@@ -403,6 +454,8 @@ describe('the readings', () => {
 const ELSEWHERE: Record<string, string> = {
   // Signed in, a card drawn only while a link is shared.
   'account/Shared links': 'signed in, with a link shared',
+  // Signed in, the page's one row to its sub-page is in the signed-in branch; signed out the search lists it still.
+  'account/Organizations': 'signed in',
   // The way in the page is showing is its form's title, not a row offering it.
   'account/I have an account': 'the mode the page opens in',
   // Android's own switch, drawn only where the activity has alerts to switch.
@@ -553,13 +606,17 @@ describe('the search', () => {
    * there before §138 either (a browser never had a recorder). Those that did are said by name: they were a page's own
    * words on a device where the page had nothing of theirs to show.
    */
-  /** Recording's: no recorder in a browser on a computer, or on an iPhone. */
-  const RECORDER = 'microphone mic dictate Stop go quiet silence stop Review after transcript Better refine clean Summaries summary write-up minutes';
+  /**
+   * Recording's: no recorder in a browser on a computer, or on an iPhone. "Summaries" and "summary" are found on every
+   * device since docs/TEAMS.md: Notifications' Summaries row, the feed's row for a meeting written up elsewhere.
+   */
+  const RECORDER = 'microphone mic dictate Stop go quiet silence stop Review after transcript Better refine clean write-up minutes';
   /**
    * The meetings', the Android app's with the service. A browser on an Android phone listed them before and never drew
-   * them: there is no meeting service in a page.
+   * them: there is no meeting service in a page. "written" is no longer theirs alone: Notifications' Summaries row
+   * says "a meeting written up" on every device (docs/TEAMS.md, D9).
    */
-  const MEETINGS = 'battery charging Tell written';
+  const MEETINGS = 'battery charging Tell';
   /** The tapes', in the app. A browser on an Android phone listed "Your tapes" before and had no file to count. */
   const TAPES = 'storage space';
   /**

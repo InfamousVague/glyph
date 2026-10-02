@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { BookOpen, CircleUser, FileCode, FlaskConical, Info, Mic, Puzzle, Shapes, Sparkles, SunMoon, Terminal } from '@glacier/icons';
+import { Bell, BookOpen, CircleUser, FileCode, FlaskConical, Info, Mic, Puzzle, Shapes, Sparkles, SunMoon, Terminal, Users } from '@glacier/icons';
 import { useAccount } from '../core/account/account.ts';
 import { syncSummary, useSyncStatus } from '../core/sync/engine.ts';
 import { AccountPane } from './AccountPane.tsx';
 import { findable as accountFindable } from './AccountPane.findable.ts';
+import { NotificationsPane } from './NotificationsPane.tsx';
+import { findable as notificationsFindable } from './NotificationsPane.findable.ts';
+import { OrganizationsPane } from './OrganizationsPane.tsx';
+import { findable as organizationsFindable } from './OrganizationsPane.findable.ts';
+import { CATEGORIES } from '../core/notifications/kinds.ts';
+import { useOrgs } from '../core/orgs/orgs.ts';
 import { gb, modelName, modelSpec, useModels } from '../core/ai.ts';
 import { hapticsAvailable } from '../core/haptics.ts';
 import { isAndroid, isIOS, isMobile } from '../core/platform.ts';
@@ -43,7 +49,8 @@ import { reportSummary } from '../diag/testReport.ts';
  * stores the panes edit, so a row can never disagree with its pane.
  *
  * The rows on a phone since docs/DESIGN.md §138 (Matt: "also see if you can clean up / streamline settings a bit"),
- * on one screen with air under them: who you are and what leaves the phone (Account); how it looks, moves and feels
+ * on one screen with air under them: who you are and what leaves the phone (Account), and what reaches you
+ * (Notifications, docs/TEAMS.md D9, beside it on the first card); how it looks, moves and feels
  * (Appearance), what happens to a recording (Recording), the model and how it fills a note (AI), and what reaches
  * beyond the phone (Plugins); the app itself (About); and the hidden pages (Developer, Test results). It was twelve
  * rows over two screens. Recording is listed on Android, where there is a side key, and on the Mac, which records
@@ -52,7 +59,8 @@ import { reportSummary } from '../diag/testReport.ts';
  * The hidden pages only once unlocked.
  *
  * Sub-pages are sections too, off the list (`listed: false`) and still searched, each stepping back to its parent:
- * a switched-on plugin's own page behind its Plugins card, and the cheat sheet and the examples behind About's Help.
+ * the organizations behind Account's row (OrganizationsPane.tsx), a switched-on plugin's own page behind its Plugins
+ * card, and the cheat sheet and the examples behind About's Help.
  * What the search finds on each page is that page's `findable`, a `.ts` beside it (a plugin's is on its `settings`),
  * and SettingsSheet.test.tsx renders every page and fails on a name it does not draw. The words for a preference's
  * values are words.ts, shared with the panes, so a reading here says what the pane's control says.
@@ -86,9 +94,16 @@ interface SettingsSheetProps {
    * phrase send people there for a language model (home/TapeShelf.tsx, home/dashboard.ts). Same shape as `toCheatSheet`.
    */
   toModel?: number;
+  /**
+   * Asked from outside to open at a page, by its id, as a link into Settings does: an organization's screen closing
+   * comes back to Account › Organizations (settings/OrganizationSheet.tsx). The moment it was asked, or 0.
+   */
+  toPage?: { id: string; nonce: number } | null;
+  /** Opens an organization's own screen (settings/OrganizationSheet.tsx): the shell closes this sheet first (App.tsx). */
+  onOrganization?: (orgId: string) => void;
 }
 
-export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGuideBook, onBoard, onCanvas, onHowCanvas, onAcademy, toCheatSheet = 0, toModel = 0 }: SettingsSheetProps) {
+export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGuideBook, onBoard, onCanvas, onHowCanvas, onAcademy, toCheatSheet = 0, toModel = 0, toPage = null, onOrganization }: SettingsSheetProps) {
   const prefs = usePreferences();
   const faces = facesOf(prefs);
   const account = useAccount();
@@ -109,6 +124,13 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
   useEffect(() => {
     if (toModel) setGoTo({ id: 'ai', setting: 'Model', nonce: toModel });
   }, [toModel]);
+  // Opened from outside at a page by its id: back from an organization's screen lands on Organizations.
+  useEffect(() => {
+    if (toPage) setGoTo({ id: toPage.id, nonce: toPage.nonce });
+  }, [toPage]);
+  // The organizations the account is in: whether Notifications has any to mute, for its search.
+  const orgs = useOrgs();
+  const hasOrgs = orgs.list.some((row) => row.state === 'member');
 
   // Where a recorder runs: Android, and the Mac app (§127 section 2).
   const recording = isAndroid || (isTauri() && !isMobile);
@@ -139,6 +161,30 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       content: <AccountPane onOpen={go} />,
       // Local only holds the sync off, so the line says it is on.
       summary: `${syncSummary(account.session?.handle ?? null, syncStatus)}${prefs.localOnly ? ' · Local only' : ''}`,
+      group: 0,
+    },
+    // The teams the account is in (docs/TEAMS.md): behind Account's row, signed in; one sentence signed out.
+    {
+      id: 'organizations',
+      label: 'Organizations',
+      words: 'teams team org invitations invite members',
+      settings: organizationsFindable(Boolean(account.session)),
+      icon: <Users size={16} />,
+      content: <OrganizationsPane onOpen={go} onOrganization={onOrganization} />,
+      summary: account.session ? `${orgs.list.filter((row) => row.state === 'member').length} joined` : 'Signed out',
+      group: 0,
+      listed: false,
+      parent: 'account',
+    },
+    // What reaches you (docs/TEAMS.md, D8 and D9): beside Account on the first card, in the coral the shell kept free.
+    {
+      id: 'notifications',
+      label: 'Notifications',
+      words: 'notify alerts bell invites invitations team claude mute',
+      settings: notificationsFindable(hasOrgs),
+      icon: <Bell size={16} />,
+      content: <NotificationsPane onOpen={go} />,
+      summary: `${CATEGORIES.filter((category) => prefs.notifications[category]).length} of ${CATEGORIES.length} on`,
       group: 0,
     },
     {

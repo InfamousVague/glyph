@@ -25,7 +25,12 @@ describe('the screens', () => {
     expect(placeOf(note)).toBe('note:a');
     expect(placeOf(captureScreen(false))).toBeNull();
     expect(placeOf({ name: 'academy' })).toBeNull();
-    expect([{ name: 'list' } as Screen, { name: 'notes' } as Screen, note, captureScreen(false), { name: 'academy' } as Screen].map(isPlace)).toEqual([true, true, true, false, false]);
+    // The feed and an organization (docs/TEAMS.md) are drawn in the pane with the tab row, and are not on the trail.
+    expect(placeOf({ name: 'notifications' })).toBeNull();
+    expect(placeOf({ name: 'organization', orgId: 'o' })).toBeNull();
+    expect(
+      [{ name: 'list' } as Screen, { name: 'notes' } as Screen, note, captureScreen(false), { name: 'academy' } as Screen, { name: 'notifications' } as Screen, { name: 'organization', orgId: 'o' } as Screen].map(isPlace),
+    ).toEqual([true, true, true, false, false, true, true]);
   });
 
   it('names the note on screen, and only a note', () => {

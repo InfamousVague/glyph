@@ -1,15 +1,19 @@
 import { Ghost } from '../art/Ghost.tsx';
-import { GraduationCap, X } from '@glacier/icons';
+import { GraduationCap, Mail, X } from '@glacier/icons';
 import { WorkingGears } from '../art/WorkingGears.tsx';
 import { useRefining } from '../capture/refine.ts';
 import type { VoiceModelState } from '../capture/useVoiceModel.ts';
 import { megabytes } from '../core/ai.ts';
+import { useNotifications } from '../core/notifications/feed.ts';
+import { sentenceOf } from '../core/notifications/kinds.ts';
+import { useOrgs } from '../core/orgs/orgs.ts';
 import type { Updates } from '../core/ota.ts';
+import { InviteActions } from '../settings/InviteActions.tsx';
 import styles from './Notices.module.css';
 
 /*
  * What is waiting on the person, shown where they land (home/HomeScreen.tsx) and in the sidebar (notes/NoteTree.tsx):
- * an update, the Academy's invitation, and the voice model while it is not ready yet.
+ * an update, an invitation to an organization, the Academy's invitation, and the voice model while it is not ready yet.
  */
 
 /**
@@ -127,6 +131,36 @@ export function AcademyCard({ onOpen, onHide }: { onOpen: () => void; onHide?: (
             <X size={16} strokeWidth={2.2} aria-hidden="true" />
           </button>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * An invitation to an organization, waiting (docs/TEAMS.md; Matt: "adding a team member should show them an
+ * invite"): the newest one still pending whose organization is in the account's list as invited - so a card never
+ * stands for an organization that was deleted under it, or an invitation answered on another device - with Accept
+ * and Decline inline (settings/InviteActions.tsx). The Academy's card in shape and place: paper, not foil, since an
+ * invitation is the person's to answer and not news. Accepted, the organization opens.
+ */
+export function InviteNotice({ onOpen }: { onOpen?: (orgId: string) => void }) {
+  const rows = useNotifications();
+  const { list } = useOrgs();
+  const invited = new Set(list.filter((row) => row.state === 'invited').map((row) => row.id));
+  const invite = rows.find((n) => n.kind === 'invite' && n.state === 'pending' && n.org && invited.has(n.org.id));
+  if (!invite?.org) return null;
+  const orgId = invite.org.id;
+  return (
+    <div className={styles.learn} data-notice="invite" role="status">
+      <div className={styles.learnWords}>
+        <p className={styles.learnLead}>
+          <Mail size={17} strokeWidth={1.9} className={styles.learnMark} aria-hidden="true" />
+          {sentenceOf(invite)}
+        </p>
+        <p className={styles.learnLine}>Accept to join; its workspace is made for you.</p>
+      </div>
+      <div className={styles.learnDo}>
+        <InviteActions orgId={orgId} onAnswered={(accepted) => accepted && onOpen?.(orgId)} />
       </div>
     </div>
   );

@@ -21,6 +21,17 @@ export function readNoteLink(link: string): string | null {
   return /^ghostmd:\/\/note\/([A-Za-z0-9_-]+)\/?$/.exec(link.trim())?.[1] ?? null;
 }
 
+/**
+ * Two more places a link can name since organizations (docs/TEAMS.md): the Notifications page, `ghostmd://notifications`,
+ * and an organization's screen, `ghostmd://org/<id>`, the id as the service makes one. Null for any other link.
+ */
+export function readPlaceLink(link: string): { place: 'notifications' } | { place: 'organization'; orgId: string } | null {
+  const trimmed = link.trim();
+  if (/^ghostmd:\/\/notifications\/?$/.test(trimmed)) return { place: 'notifications' };
+  const org = /^ghostmd:\/\/org\/([A-Za-z0-9_-]{1,64})\/?$/.exec(trimmed)?.[1];
+  return org ? { place: 'organization', orgId: org } : null;
+}
+
 export function followAppLinks(open: (link: string) => void): () => void {
   if (!isTauri()) return () => undefined;
   let gone = false;

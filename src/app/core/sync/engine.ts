@@ -61,6 +61,9 @@ function setStatus(next: Partial<SyncStatus>): void {
 
 export const useSyncStatus = status.use;
 
+/** Where the sync stands now, read once: for what runs a pass and then asks how it went (settings/InviteActions.tsx). */
+export const syncStatusNow = status.get;
+
 /** How long ago a sync finished, as the Account page says it. */
 export function syncedWhen(ms: number): string {
   const minutes = Math.round((Date.now() - ms) / 60_000);

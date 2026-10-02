@@ -16,6 +16,8 @@ const doing = (): PaletteDoing => ({
   cheatSheet: vi.fn(),
   guide: vi.fn(),
   academy: vi.fn(),
+  notifications: vi.fn(),
+  organizations: vi.fn(),
   chooseWorkspace: vi.fn(),
   fileNote: vi.fn(),
   setView: vi.fn(),
@@ -46,7 +48,7 @@ const run = (commands: ReturnType<typeof paletteCommands>, id: string) => comman
 describe('what the palette offers', () => {
   it('always offers the things that need nothing', () => {
     const list = paletteCommands(world(), doing());
-    expect(ids(list)).toEqual(expect.arrayContaining(['new', 'notebook', 'speak', 'list', 'settings', 'cheatsheet', 'academy', 'guide']));
+    expect(ids(list)).toEqual(expect.arrayContaining(['new', 'notebook', 'speak', 'list', 'settings', 'cheatsheet', 'academy', 'guide', 'notifications', 'organizations']));
     // Nothing about a note, a tab or a workspace, because there are none.
     expect(ids(list).some((id) => id.startsWith('note:') || id.startsWith('tab:') || id.startsWith('space:'))).toBe(false);
   });

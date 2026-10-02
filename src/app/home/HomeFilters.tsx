@@ -5,6 +5,7 @@ import { Popover } from '@glacier/react';
 import { useBack } from '../core/back.ts';
 import { chooseWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
 import { Grid, Notebook, Pin, Plus, Workspace as Folder } from '../art/Icons.tsx';
+import { OrgMark } from '../notes/OrgMark.tsx';
 import { HOME_FILTERS, type HomeFilter } from './homeLayout.ts';
 import look from './HomeLayouts.module.css';
 
@@ -21,6 +22,10 @@ import look from './HomeLayouts.module.css';
  *
  * The keyboard is never dropped: the panel opens on the chosen Show, a chip's cross hands focus to the next chip or to
  * the button, and the workspace sheet hands it back to the button when it closes (HomeScreen.tsx).
+ *
+ * An organization's workspace (docs/TEAMS.md, D5) wears a small mark before its name in the panel and on its chip,
+ * since the organization's name can be a personal workspace's too; "Edit" on one opens the organization's screen,
+ * where its name and colour are set, and signed in the panel makes an organization beside a workspace.
  */
 
 interface HomeFiltersProps {
@@ -32,9 +37,13 @@ interface HomeFiltersProps {
   counts: Record<HomeFilter, number>;
   /** A workspace to rename, colour or remove, or a new one (notes/WorkspaceSheet.tsx). */
   onManage: (which: Workspace | 'new') => void;
+  /** A new organization (home/NewOrganizationSheet.tsx), beside New workspace; absent signed out. */
+  onNewOrganization?: () => void;
+  /** An organization's own screen, for "Edit" on its workspace. */
+  onOrganization?: (orgId: string) => void;
 }
 
-export function HomeFilters({ query, onQuery, filter, onFilter, counts, onManage }: HomeFiltersProps) {
+export function HomeFilters({ query, onQuery, filter, onFilter, counts, onManage, onNewOrganization, onOrganization }: HomeFiltersProps) {
   const field = useRef<HTMLInputElement>(null);
   const row = useRef<HTMLDivElement>(null);
   const chipRow = useRef<HTMLDivElement>(null);
@@ -64,8 +73,15 @@ export function HomeFilters({ query, onQuery, filter, onFilter, counts, onManage
     setOpen(false);
     onManage(which);
   };
-  // A workspace's radios: every workspace, then each by name.
-  const places: { id: string | null; name: string; hue?: string }[] = [{ id: null, name: 'Every workspace' }, ...spaces.map((w) => ({ id: w.id, name: w.name, hue: w.hue ?? 'ink' }))];
+  // A workspace's radios: every workspace, then each by name, an organization's with its mark.
+  const places: { id: string | null; name: string; hue?: string; org?: string }[] = [{ id: null, name: 'Every workspace' }, ...spaces.map((w) => ({ id: w.id, name: w.name, hue: w.hue ?? 'ink', org: w.org }))];
+  // "Edit" on an organization's workspace is the organization's screen; its name and colour are the organization's.
+  const edit = (workspace: Workspace) => {
+    if (workspace.org && onOrganization) {
+      setOpen(false);
+      onOrganization(workspace.org);
+    } else manage(workspace);
+  };
 
   return (
     <>
@@ -151,10 +167,12 @@ export function HomeFilters({ query, onQuery, filter, onFilter, counts, onManage
                       tabIndex={on ? 0 : -1}
                       className={look.choice}
                       data-hue={place.hue}
+                      data-org={place.org}
                       onClick={() => chooseWorkspace(place.id)}
                       onKeyDown={(event) => step(event, at, places.length, (to) => chooseWorkspace(places[to]!.id))}
                     >
                       {place.hue ? <span className={look.hueDot} aria-hidden="true" /> : <Folder className={look.choiceMark} />}
+                      {place.org ? <OrgMark /> : null}
                       <span className={look.choiceWord}>{place.name}</span>
                       <Check size={16} strokeWidth={2.4} className={look.choiceTick} aria-hidden="true" />
                     </button>
@@ -169,8 +187,21 @@ export function HomeFilters({ query, onQuery, filter, onFilter, counts, onManage
                 <Plus className={look.choiceMark} />
                 New workspace
               </button>
+              {onNewOrganization ? (
+                <button
+                  type="button"
+                  className={look.panelAction}
+                  onClick={() => {
+                    setOpen(false);
+                    onNewOrganization();
+                  }}
+                >
+                  <OrgMark className={look.choiceMark} />
+                  New organization
+                </button>
+              ) : null}
               {current ? (
-                <button type="button" className={look.panelAction} onClick={() => manage(current)}>
+                <button type="button" className={look.panelAction} data-org={current.org} onClick={() => edit(current)}>
                   <span className={look.hueDot} data-hue={current.hue ?? 'ink'} aria-hidden="true" />
                   Edit {current.name}
                 </button>
@@ -189,8 +220,9 @@ export function HomeFilters({ query, onQuery, filter, onFilter, counts, onManage
             </button>
           ) : null}
           {current ? (
-            <button type="button" className={look.chip} data-hue={current.hue ?? 'ink'} onClick={() => takeOff(() => chooseWorkspace(null))} aria-label={`${current.name}: every workspace`}>
+            <button type="button" className={look.chip} data-hue={current.hue ?? 'ink'} data-org={current.org} onClick={() => takeOff(() => chooseWorkspace(null))} aria-label={`${current.name}: every workspace`}>
               <span className={look.hueDot} aria-hidden="true" />
+              {current.org ? <OrgMark /> : null}
               {current.name}
               <X size={13} strokeWidth={2.4} aria-hidden="true" />
             </button>

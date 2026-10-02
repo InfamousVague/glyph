@@ -1,0 +1,40 @@
+/*
+ * Accept and Decline for an invitation (InviteActions.tsx), the same pair on a Notifications row, the home page's
+ * card and the Organizations page. Two words, the app's own quiet buttons: Accept in ink, Decline in the muted ink, so
+ * the eye lands on the one most people press and the other is still plainly there. Held dim while the answer is on
+ * its way, and the service's words under them if it did not arrive.
+ */
+
+.actions {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--glacier-space-1);
+  min-inline-size: 0;
+}
+
+.words {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  white-space: nowrap;
+}
+
+.accept {
+  color: var(--app-ink);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.decline {
+  color: var(--app-ink-2);
+}
+
+.actions[data-pending] .words {
+  opacity: 0.5;
+}
+
+.problem {
+  font-size: var(--glacier-font-size-sm);
+  line-height: var(--glacier-leading-sm);
+  color: var(--app-ink-2);
+}

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, useState } from 'react';
 import { reloadPreferences } from '../core/preferences.ts';
-import { addWorkspace, chooseWorkspace, useWorkspaces, type Workspace, type WorkspaceHue } from '../core/workspaces.ts';
+import { addWorkspace, chooseWorkspace, ensureOrgWorkspace, useWorkspaces, type Workspace, type WorkspaceHue } from '../core/workspaces.ts';
 import { button, buttonSaying, show, typeInto } from '../../test/render.tsx';
 import { WorkspaceBar } from './WorkspaceBar.tsx';
 import { WorkspaceSheet } from './WorkspaceSheet.tsx';
@@ -21,13 +21,13 @@ beforeEach(() => {
 
 /** The bar and its sheet as the home page wires them, with what is chosen read back out. */
 let spaces: ReturnType<typeof useWorkspaces>;
-function Home() {
+function Home({ onOrganization }: { onOrganization?: (orgId: string) => void } = {}) {
   spaces = useWorkspaces();
   const [manage, setManage] = useState<Workspace | 'new' | null>(null);
   return (
     <>
-      <WorkspaceBar onManage={setManage} />
-      <WorkspaceSheet which={manage} onClose={() => setManage(null)} />
+      <WorkspaceBar onManage={setManage} onOrganization={onOrganization} />
+      <WorkspaceSheet which={manage} onClose={() => setManage(null)} onOrganization={onOrganization} />
     </>
   );
 }
@@ -83,6 +83,44 @@ describe('the workspace sheet', () => {
     act(() => button('Pantry').click());
     act(() => buttonSaying(sheet()!, 'Remove workspace')!.click());
     expect(spaces.list).toEqual([]);
+  });
+});
+
+/** An organization's workspace (docs/TEAMS.md, D5): marked on its pill, and managed on the organization's own screen. */
+describe('an organization’s workspace', () => {
+  it('wears the mark on its pill, and a second tap opens the organization rather than the sheet', () => {
+    ensureOrgWorkspace({ id: 'o1', name: 'Ghost', hue: 'sea' });
+    addWorkspace('Ghost');
+    const onOrganization = vi.fn();
+    show(<Home onOrganization={onOrganization} />);
+    const pills = [...document.querySelectorAll<HTMLButtonElement>('[aria-label="Workspaces"] button')].filter((b) => b.textContent?.includes('Ghost'));
+    expect(pills).toHaveLength(2);
+    const [org, personal] = pills;
+    expect(org!.getAttribute('data-org')).toBe('o1');
+    expect(org!.querySelector('[role="img"][aria-label="Organization"]')).not.toBeNull();
+    expect(personal!.hasAttribute('data-org')).toBe(false);
+    expect(personal!.querySelector('[role="img"]')).toBeNull();
+    act(() => org!.click());
+    expect(spaces.current?.id).toBe('org-o1');
+    act(() => org!.click());
+    expect(onOrganization).toHaveBeenCalledWith('o1');
+    expect(sheet()).toBeNull();
+  });
+
+  it('has no name, swatch or Remove in its sheet, only the way to the organization’s settings', () => {
+    ensureOrgWorkspace({ id: 'o1', name: 'Ghost', hue: 'sea' });
+    chooseWorkspace('org-o1');
+    const onOrganization = vi.fn();
+    show(<Home onOrganization={onOrganization} />);
+    // Without the organization's screen to open, the pill's second tap falls back to the sheet.
+    const host = show(<WorkspaceSheet which={spaces.list[0]!} onClose={() => undefined} onOrganization={onOrganization} />);
+    expect(host.querySelector('input')).toBeNull();
+    expect(host.querySelector('[role="radiogroup"]')).toBeNull();
+    expect(buttonSaying(host, 'Remove workspace')).toBeUndefined();
+    expect(buttonSaying(host, 'Rename')).toBeUndefined();
+    expect(host.textContent).toContain('Notes filed here stay yours for now.');
+    act(() => buttonSaying(host, 'Organization settings')!.click());
+    expect(onOrganization).toHaveBeenCalledWith('o1');
   });
 });
 

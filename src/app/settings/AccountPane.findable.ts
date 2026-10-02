@@ -48,6 +48,7 @@ export function findable(signedIn: boolean, app = false): SettingsFindable[] {
         { name: 'Live typing (trial)', words: 'realtime collaborate' },
         { name: 'Password and recovery codes', words: 'change' },
         { name: 'Sign out', words: 'log out logout' },
+        { name: 'Organizations', words: 'teams team org invitations invite members' },
         { name: 'Shared links', words: 'share publish read' },
         ...PRIVACY,
         ...LOCATION,

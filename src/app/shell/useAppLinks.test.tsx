@@ -23,8 +23,18 @@ const { useAppLinks } = await import('./useAppLinks.ts');
 
 const SHARE = `ghostmd://fork#${'a'.repeat(22)}.${'b'.repeat(43)}`;
 
-function Probe({ loading, fork, openNote = async () => undefined }: { loading: boolean; fork: (link: string) => Promise<void>; openNote?: (id: string) => Promise<void> }) {
-  useAppLinks(loading, { fork, openNote });
+function Probe({
+  loading,
+  fork,
+  openNote = async () => undefined,
+  openPlace,
+}: {
+  loading: boolean;
+  fork: (link: string) => Promise<void>;
+  openNote?: (id: string) => Promise<void>;
+  openPlace?: (place: { place: 'notifications' } | { place: 'organization'; orgId: string }) => void;
+}) {
+  useAppLinks(loading, { fork, openNote, openPlace });
   return null;
 }
 
@@ -85,6 +95,23 @@ describe('a shared link arriving', () => {
     await act(async () => links.open!(SHARE));
     expect(warn).toHaveBeenCalledWith('[glyph] could not save the shared copy:', expect.any(Error));
     warn.mockRestore();
+  });
+});
+
+describe('a place link arriving (docs/TEAMS.md)', () => {
+  it('opens the Notifications page, or an organization by its id, and nothing for a link that names neither', async () => {
+    const fork = vi.fn(async () => undefined);
+    const openNote = vi.fn(async () => undefined);
+    const openPlace = vi.fn();
+    show(<Probe loading={false} fork={fork} openNote={openNote} openPlace={openPlace} />);
+    await act(async () => links.open!('ghostmd://notifications'));
+    expect(openPlace).toHaveBeenLastCalledWith({ place: 'notifications' });
+    await act(async () => links.open!('ghostmd://org/Ab9_-xyz'));
+    expect(openPlace).toHaveBeenLastCalledWith({ place: 'organization', orgId: 'Ab9_-xyz' });
+    await act(async () => links.open!('ghostmd://org/'));
+    expect(openPlace).toHaveBeenCalledTimes(2);
+    expect(fork).not.toHaveBeenCalled();
+    expect(openNote).not.toHaveBeenCalled();
   });
 });
 

@@ -3,6 +3,7 @@ import { addWorkspace, chooseWorkspace, removeWorkspace, renameWorkspace, setWor
 import { SheetField, SheetGroup, SheetHeading, SheetNote, SheetRow, SheetTitle } from '../plugins/kit.tsx';
 import { WorkspaceSwatch } from './WorkspaceSwatch.tsx';
 import { Sheet } from '../editor/Sheet.tsx';
+import { OrgMark } from './OrgMark.tsx';
 
 /**
  * A workspace's sheet, from the row on the list: a name to add, or the name
@@ -13,8 +14,12 @@ import { Sheet } from '../editor/Sheet.tsx';
  * The colour of one that exists is set as it is tapped, since it is a thing to
  * look at rather than a thing to fill in: the pill behind the sheet changes
  * under your finger. A new one carries its colour into the making.
+ *
+ * An organization's workspace (docs/TEAMS.md, D5) is named and coloured after the organization, on every member's
+ * device, and goes when they leave it: no name, no swatch and no Remove here, only the way to the organization's own
+ * screen, where those are set by whoever may.
  */
-export function WorkspaceSheet({ which, onClose }: { which: Workspace | 'new' | null; onClose: () => void }) {
+export function WorkspaceSheet({ which, onClose, onOrganization }: { which: Workspace | 'new' | null; onClose: () => void; onOrganization?: (orgId: string) => void }) {
   const editing = which && which !== 'new' ? which : null;
   const [name, setName] = useState('');
   const [hue, setHue] = useState<WorkspaceHue>('ink');
@@ -23,6 +28,30 @@ export function WorkspaceSheet({ which, onClose }: { which: Workspace | 'new' | 
     setHue(editing?.hue ?? 'ink');
   }, [editing, which]);
   if (!which) return null;
+
+  if (editing?.org) {
+    const org = editing.org;
+    return (
+      <Sheet label={editing.name} onClose={onClose}>
+        <SheetTitle>
+          <OrgMark />
+          {editing.name}
+        </SheetTitle>
+        <SheetNote>An organization’s workspace: its name and colour follow the organization, and it is on every member’s device. Notes filed here stay yours for now.</SheetNote>
+        <SheetGroup>
+          <SheetRow
+            label="Organization settings"
+            hint="Members, invitations, its name and colour."
+            onPress={() => {
+              onClose();
+              onOrganization?.(org);
+            }}
+            disabled={!onOrganization}
+          />
+        </SheetGroup>
+      </Sheet>
+    );
+  }
 
   const clean = name.trim();
   const submit = () => {

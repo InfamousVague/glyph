@@ -7,7 +7,7 @@ import { addWorkspace, chooseWorkspace, fileNote, reloadWorkspaces } from '../co
 import type { Note } from '../core/store.ts';
 import { makeNote } from '../../test/notes.ts';
 import { goBack } from '../core/back.ts';
-import { button, rerender, show, typeInto, unmount } from '../../test/render.tsx';
+import { button, buttonSaying, rerender, show, typeInto, unmount } from '../../test/render.tsx';
 import { stubMatchMedia, stubResizeObserver } from '../../test/stubs.ts';
 
 /**
@@ -31,9 +31,28 @@ vi.mock('../capture/meetingLive.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../capture/meetingLive.ts')>()),
   useMeetingState: () => (meeting.live ? { recording: true, noteId: meeting.live, title: null, startedAt: 0, elapsedMs: 0, silenced: false, writingUp: null, discarded: [] } : null),
 }));
+// Signed out, unless a test about organizations signs matt in (docs/TEAMS.md).
+const who = vi.hoisted(() => ({ session: null as { token: string; handle: string; accountId: number } | null }));
+vi.mock('../core/account/account.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../core/account/account.ts')>()),
+  accountState: () => ({ session: who.session, unlocked: who.session !== null }),
+  useAccount: () => ({ session: who.session, unlocked: who.session !== null }),
+  accountKey: async () => null,
+}));
+// The pass an answered invitation asks for: it confirms the answer, as the service would.
+vi.mock('../core/sync/engine.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../core/sync/engine.ts')>()),
+  syncNotificationsNow: async () => {
+    const { updateFeed } = await import('../core/notifications/feed.ts');
+    updateFeed(7, (state) => ({ ...state, marks: [] }));
+  },
+}));
 // The glide back to the top asks whether motion is reduced; jsdom has no matchMedia.
 stubMatchMedia();
 const { HomeScreen } = await import('./HomeScreen.tsx');
+const { forgetNotifications, updateFeed, withFed } = await import('../core/notifications/feed.ts');
+const { forgetOrgs, saveOrgs } = await import('../core/orgs/orgs.ts');
+const { ensureOrgWorkspace } = await import('../core/workspaces.ts');
 
 // The page's wisp watches the bar's size; jsdom lays nothing out, so nothing ever resizes.
 stubResizeObserver();
@@ -111,6 +130,9 @@ afterEach(() => {
   meeting.live = null;
   felt.kinds = [];
   felt.ticks = 0;
+  who.session = null;
+  forgetNotifications(7);
+  forgetOrgs(7);
 });
 
 /** A tick of the real clock, for what the panel does once the kit has opened it. */
@@ -559,6 +581,81 @@ describe('swiping a note', () => {
     expect(rowOf('Shopping').parentElement?.getAttribute('style') ?? '').not.toContain('translate');
     expect(document.querySelector('[data-swiping]')).toBeNull();
     expect(rowOf('Shopping').parentElement?.tagName).toBe('LI');
+  });
+});
+
+/** Organizations (docs/TEAMS.md): an invitation's card, New organization beside New workspace, and an organization's workspace. */
+describe('organizations', () => {
+  const signIn = () => {
+    who.session = { token: 't', handle: 'matt', accountId: 7 };
+  };
+  const invite = (id: string, orgId: string, name: string, at: number) =>
+    updateFeed(7, (state) => withFed(state, { id, rev: at, at, readAt: null, hidden: false, kind: 'invite', from: 'sam', org: { id: orgId, name }, body: { name }, state: 'pending' }, at));
+
+  it('shows a card for the newest invitation still waiting whose organization is in the list, with Accept opening it', async () => {
+    signIn();
+    saveOrgs(7, {
+      list: [
+        { id: 'o1', name: 'Ghost', hue: null, role: 'member', state: 'invited', members: 1, invitedBy: 'sam', createdAt: 1 },
+        { id: 'o3', name: 'Old', hue: null, role: 'member', state: 'invited', members: 1, invitedBy: 'sam', createdAt: 1 },
+      ],
+      at: 1,
+    });
+    invite('n1', 'o3', 'Old', now - 3 * day);
+    invite('n2', 'o1', 'Ghost', now - day);
+    // Newer still, but its organization is not in the list any more: deleted under it, or answered elsewhere.
+    invite('n3', 'o2', 'Gone', now - 60_000);
+    const onOrganization = vi.fn();
+    show(page(shelf, { onOrganization }));
+    const card = document.querySelector<HTMLElement>('[data-notice="invite"]')!;
+    expect(card.textContent).toContain('sam invited you to Ghost');
+    expect(card.textContent).not.toContain('Gone');
+    await act(async () => button('Accept', card).click());
+    expect(onOrganization).toHaveBeenCalledWith('o1');
+  });
+
+  it('shows no card signed out, or with nothing waiting', () => {
+    invite('n1', 'o1', 'Ghost', now - day);
+    show(page(shelf));
+    expect(document.querySelector('[data-notice="invite"]')).toBeNull();
+    unmount();
+    signIn();
+    show(page(shelf));
+    expect(document.querySelector('[data-notice="invite"]')).toBeNull();
+  });
+
+  it('offers New organization in the filters’ panel signed in, which opens its sheet, and not signed out', async () => {
+    show(page(shelf, { onOrganization: () => undefined }));
+    openFilters();
+    expect(() => button('New organization')).toThrow();
+    unmount();
+    signIn();
+    show(page(shelf, { onOrganization: () => undefined }));
+    openFilters();
+    act(() => button('New organization').click());
+    expect(filterButton()?.getAttribute('aria-expanded')).toBe('false');
+    expect(document.querySelector('[role="dialog"][aria-label="New organization"]')).not.toBeNull();
+    expect(buttonSaying(document.body, 'Create')!.disabled).toBe(true);
+  });
+
+  it('marks an organization’s workspace in the panel and on its chip, and Edit on it opens the organization', () => {
+    signIn();
+    ensureOrgWorkspace({ id: 'o1', name: 'Ghost', hue: 'sea' });
+    addWorkspace('Kitchen');
+    reloadWorkspaces();
+    chooseWorkspace('org-o1');
+    const onOrganization = vi.fn();
+    show(page(shelf, { onOrganization }));
+    openFilters();
+    const ghost = choices('Workspace').find((r) => r.textContent?.startsWith('Ghost'))!;
+    expect(ghost.getAttribute('data-org')).toBe('o1');
+    expect(ghost.querySelector('[role="img"][aria-label="Organization"]')).not.toBeNull();
+    expect(choices('Workspace').find((r) => r.textContent?.startsWith('Kitchen'))?.hasAttribute('data-org')).toBe(false);
+    act(() => button('Edit Ghost').click());
+    expect(onOrganization).toHaveBeenCalledWith('o1');
+    expect(filterButton()?.getAttribute('aria-expanded')).toBe('false');
+    const chip = document.querySelector<HTMLElement>('[aria-label="Filters on"] [data-org="o1"]')!;
+    expect(chip.querySelector('[role="img"][aria-label="Organization"]')).not.toBeNull();
   });
 });
 

@@ -1,0 +1,60 @@
+/*
+ * The organization pages' own marks (OrganizationsPane.tsx, OrganizationSheet.tsx): a round of the organization's hue
+ * where a row's icon goes, the one its workspace's pill wears (ink.css `[data-hue]` sets `--app-space`), and a role's
+ * chip after a member's handle.
+ */
+
+.hue {
+  display: inline-block;
+  inline-size: 0.8em;
+  block-size: 0.8em;
+  border-radius: var(--glacier-radius-full);
+  background: var(--app-space, var(--app-ink-3));
+}
+
+/* A role, worn as a small outlined word after the handle: the owner's in ink, the others in the quiet ink. */
+.role {
+  display: inline-block;
+  margin-inline-start: var(--glacier-space-2);
+  padding: 0.1em 0.5em;
+  border: var(--glacier-hairline) solid var(--app-rule);
+  border-radius: var(--glacier-radius-full);
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-medium);
+  line-height: 1.4;
+  color: var(--app-ink-2);
+  vertical-align: 0.1em;
+  white-space: nowrap;
+}
+
+.role[data-role='owner'] {
+  border-color: var(--app-ink-2);
+  color: var(--app-ink);
+}
+
+/* Still looking at the invitation: the chip reads so, and the row's words are the quiet ink. */
+.role[data-state='invited'] {
+  border-style: dashed;
+}
+
+/* The hero's glyph on Members: the organization's colour, a round the size of the kit's glyph tile. */
+.heroHue {
+  display: grid;
+  flex-shrink: 0;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border-radius: var(--glacier-radius-full);
+  background: var(--app-space, var(--app-ink-3));
+}
+
+/* The words under a member's row, for the owner or an admin: Make admin, Hand over, Remove, in a line that wraps. */
+.memberWords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--glacier-space-3);
+}
+
+/* The swatch on General, in a card's own padding. */
+.swatch {
+  padding: var(--glacier-space-3);
+}

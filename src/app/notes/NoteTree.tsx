@@ -9,6 +9,7 @@ import { browseFiles, canBrowseFiles } from '../core/libraryFiles.ts';
 import { BookPlaceMark } from './BookPlaceMark.tsx';
 import { NotePeek } from './NotePeek.tsx';
 import { WorkspaceSheet } from './WorkspaceSheet.tsx';
+import { OrgMark } from './OrgMark.tsx';
 import { ARCHIVE_FOLDER, noteTree, readClosed, readCompact, readTrashOpen, writeClosed, writeCompact, writeTrashOpen } from './tree.ts';
 import { onNoteContextMenu } from './noteMenu.ts';
 import styles from './NoteTree.module.css';
@@ -44,6 +45,8 @@ export interface NoteTreeProps {
   onRestore?: (note: Note) => void;
   onDestroy?: (note: Note) => void;
   onEmptyTrash?: () => void;
+  /** An organization's own screen, from its folder's menu (docs/TEAMS.md). */
+  onOrganization?: (orgId: string) => void;
 }
 
 /** A note's kind as a file browser would mark it: a book, a canvas, or a page of words. */
@@ -78,6 +81,7 @@ export function NoteTree({
   onRestore,
   onDestroy,
   onEmptyTrash,
+  onOrganization,
 }: NoteTreeProps) {
   const spaces = useWorkspaces();
   const tree = useMemo(() => noteTree(notes, spaces), [notes, spaces]);
@@ -157,16 +161,23 @@ export function NoteTree({
   const folder = (id: string, name: ReactNode, count: number, children: Note[], extra?: { hue?: string; space?: Workspace; icon?: ReactNode }) => {
     const open = !closed.has(id);
     return (
-      <li key={id} className={styles.folder}>
+      <li key={id} className={styles.folder} data-org={extra?.space?.org}>
         <div className={styles.folderRow}>
           <button type="button" className={styles.folderToggle} aria-expanded={open} onClick={() => toggle(id)}>
             <ChevronRight className={styles.chevron} data-open={open || undefined} size={15} strokeWidth={2.2} aria-hidden="true" />
             {extra?.icon ?? <span className={styles.hue} data-hue={extra?.hue ?? 'ink'} aria-hidden="true" />}
+            {extra?.space?.org ? <OrgMark /> : null}
             <span className={styles.folderName}>{name}</span>
             <span className={styles.count}>{count}</span>
           </button>
+          {/* A workspace's menu: its sheet, or for an organization's workspace the organization's own screen (docs/TEAMS.md). */}
           {extra?.space ? (
-            <button type="button" className={styles.folderMore} onClick={() => setManage(extra.space ?? null)} aria-label={`Rename, recolour or remove ${extra.space.name}`}>
+            <button
+              type="button"
+              className={styles.folderMore}
+              onClick={() => (extra.space?.org && onOrganization ? onOrganization(extra.space.org) : setManage(extra.space ?? null))}
+              aria-label={extra.space.org ? `${extra.space.name}, organization settings` : `Rename, recolour or remove ${extra.space.name}`}
+            >
               <Ellipsis size={16} strokeWidth={2.2} aria-hidden="true" />
             </button>
           ) : null}
@@ -333,7 +344,7 @@ export function NoteTree({
         </div>
       ) : null}
 
-      <WorkspaceSheet which={manage} onClose={() => setManage(null)} />
+      <WorkspaceSheet which={manage} onClose={() => setManage(null)} onOrganization={onOrganization} />
     </div>
   );
 }

@@ -64,6 +64,23 @@ describe('the sidebar’s folders', () => {
     expect(rows()).toEqual(['Bread']);
   });
 
+  // An organization's workspace (docs/TEAMS.md, D5): marked, and its menu is the organization's own screen.
+  it('marks an organization’s folder, whose menu opens the organization rather than the workspace sheet', async () => {
+    const { ensureOrgWorkspace } = await import('../core/workspaces.ts');
+    ensureOrgWorkspace({ id: 'o1', name: 'Ghost', hue: 'sea' });
+    addWorkspace('Kitchen');
+    const onOrganization = vi.fn();
+    const host = show(<NoteTree notes={[makeNote('a', '# Apples')]} activeId={null} onOpen={() => undefined} onNew={() => undefined} onOrganization={onOrganization} />);
+    const folders = [...host.querySelectorAll<HTMLElement>('li[data-org]')];
+    expect(folders.map((li) => li.getAttribute('data-org'))).toEqual(['o1']);
+    expect(folders[0]!.querySelector('[role="img"][aria-label="Organization"]')).not.toBeNull();
+    act(() => button('Ghost, organization settings').click());
+    expect(onOrganization).toHaveBeenCalledWith('o1');
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    act(() => button('Rename, recolour or remove Kitchen').click());
+    expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Kitchen');
+  });
+
   it('keeps the archive shut until it is opened', () => {
     const host = show(<NoteTree notes={[makeNote('a', '# Apples'), makeNote('z', '# Old', { archivedAt: 1 })]} activeId={null} onOpen={() => undefined} onNew={() => undefined} />);
     expect(rows()).toEqual(['Apples']);

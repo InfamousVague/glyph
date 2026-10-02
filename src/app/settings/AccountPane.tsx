@@ -1,6 +1,6 @@
 import { Ghost } from '../art/Ghost.tsx';
 import { useEffect, useState, type FormEvent } from 'react';
-import { KeyRound, LogOut, RefreshCw, ShieldCheck, Trash2 } from '@glacier/icons';
+import { KeyRound, LogOut, RefreshCw, ShieldCheck, Trash2, Users } from '@glacier/icons';
 import { Input, Switch } from '@glacier/react';
 import { changePassword, handleProblem, newRecoveryCodes, passwordProblem, recover, signIn, signUp, useAccount } from '../core/account/account.ts';
 import { failureText } from '../core/failure.ts';
@@ -33,6 +33,10 @@ import { GoWord, PaneHero, PaneSection, RowAction, SettingRow, SettingsCallout, 
  * and off the Fold's opened screen too, with the ghost between the two privacy cards; someone who opens Account signed
  * out has come to sign in. While Local only holds the sync off, a callout says so, signed in or out, and its "Local
  * only" is a word that brings the card into view: a plain word while a form has the card off the page.
+ *
+ * Organizations (docs/TEAMS.md): a row between Sync and Shared links, signed in, that opens the sub-page listing the
+ * teams the account is in and the invitations waiting (OrganizationsPane.tsx). The first organization is also made
+ * from the home page's filters, where a workspace is; this row is the list of what you are in.
  *
  * What the search finds here is AccountPane.findable.ts.
  */
@@ -327,6 +331,9 @@ export function AccountPane({ onOpen }: { onOpen?: (target: SettingsTarget) => v
       )}
       {editing || deleting ? null : (
         <>
+          <PaneSection>
+            <SettingRow icon={<Users size={20} />} label="Organizations" hint="The teams you are in, and invitations waiting for an answer." onPress={() => onOpen?.({ id: 'organizations' })} />
+          </PaneSection>
           <SharedLinks />
           <PrivacyCard />
           <LocationCard />

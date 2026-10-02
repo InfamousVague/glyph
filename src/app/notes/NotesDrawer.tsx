@@ -42,9 +42,11 @@ interface NotesDrawerProps {
   onRestore?: (note: Note) => void;
   onDestroy?: (note: Note) => void;
   onEmptyTrash?: () => void;
+  /** An organization's own screen, from its folder's menu (notes/NoteTree.tsx). */
+  onOrganization?: (orgId: string) => void;
 }
 
-export function NotesDrawer({ open, notes, activeId, onOpen, onNew, onClose, onCommands, onSettings, onSpeak, notices, trashed, onRestore, onDestroy, onEmptyTrash }: NotesDrawerProps) {
+export function NotesDrawer({ open, notes, activeId, onOpen, onNew, onClose, onCommands, onSettings, onSpeak, notices, trashed, onRestore, onDestroy, onEmptyTrash, onOrganization }: NotesDrawerProps) {
   if (!open) return null;
   // The same tree the desktop sidebar is (notes/NoteTree.tsx), in a card over the note: a close joins its tools.
   return (
@@ -70,6 +72,7 @@ export function NotesDrawer({ open, notes, activeId, onOpen, onNew, onClose, onC
         onRestore={onRestore}
         onDestroy={onDestroy}
         onEmptyTrash={onEmptyTrash}
+        onOrganization={onOrganization}
       />
     </FloatingCard>
   );

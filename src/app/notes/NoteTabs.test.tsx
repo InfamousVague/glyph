@@ -78,6 +78,31 @@ describe('the top bar', () => {
     expect(onClose).toHaveBeenCalledWith('c');
   });
 
+  // The bell (docs/TEAMS.md): after the two arrows, a dot and no number while something unread waits.
+  it('rings a bell after the arrows that opens the notifications, with a dot while something is unread', () => {
+    const onNotifications = vi.fn();
+    show(bar({ onGoBack: () => undefined, onGoOn: () => undefined, onNotifications }));
+    const bell = button('Notifications');
+    expect(bell.previousElementSibling?.getAttribute('aria-label')).toBe('Forward again');
+    expect(bell.hasAttribute('data-on')).toBe(false);
+    expect(bell.hasAttribute('data-unread')).toBe(false);
+    expect(bell.textContent).toBe('');
+    act(() => bell.click());
+    expect(onNotifications).toHaveBeenCalledOnce();
+    rerender(bar({ onGoBack: () => undefined, onGoOn: () => undefined, onNotifications, unread: true }));
+    const ringing = button('Notifications, something new');
+    expect(ringing.hasAttribute('data-on')).toBe(true);
+    expect(ringing.hasAttribute('data-unread')).toBe(true);
+    expect(ringing.textContent).toBe('');
+    // On its own page the bell is the ring alone, as Home's is on the home page.
+    rerender(bar({ onGoBack: () => undefined, onGoOn: () => undefined, onNotifications, atNotifications: true }));
+    expect(button('Notifications').getAttribute('aria-current')).toBe('page');
+    expect(button('Notifications').hasAttribute('data-unread')).toBe(false);
+    // No bell at all without the page to open.
+    rerender(bar({}));
+    expect(() => button('Notifications')).toThrow();
+  });
+
   it('moves a tab by the arrow keys only with the platform’s modifier', () => {
     const onMove = vi.fn();
     show(bar({ onMove }));
