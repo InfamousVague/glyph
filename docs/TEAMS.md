@@ -146,6 +146,8 @@ Shapes, as the service answers them (an absent field is absent, not null):
 interface OrgRow { id; name; hue: string | null; role: 'owner' | 'admin' | 'member'; state: 'member' | 'invited'; members: number; invitedBy: string | null; createdAt: number }
 interface Org extends Omit<OrgRow, 'members'> { members: Member[] }      // joined before invited, then by since
 interface Member { handle; role; state: 'member' | 'invited'; since: number; invitedBy: string | null }
+// Every moment (createdAt, since, at, readAt) is milliseconds since the epoch, as Date.now() counts, though the
+// service keeps seconds: wire::millis converts on the way out.
 interface Notification {
   id; rev: number; kind; at: number; readAt: number | null; hidden: boolean;
   from?: string | null;       // a server row: the handle of who caused it; null once that account is gone ("Someone")

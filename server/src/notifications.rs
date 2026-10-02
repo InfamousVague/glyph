@@ -23,7 +23,7 @@ use crate::accounts::{Accounts, HasAccounts};
 use crate::guard;
 use crate::identity::Claims;
 use crate::store::{NotificationRow, NotificationWrite, SERVER_KINDS};
-use crate::wire::{base64url, error, now_secs};
+use crate::wire::{base64url, error, millis, now_secs};
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -78,7 +78,7 @@ fn valid_kind(kind: &str) -> bool {
 /// wrote has `from` (a handle, or null once that account is gone), `org` ({ id, name }) and, when it has one, `body`
 /// and `state`; a device's own row has `blob` and nothing else. A field that does not apply is absent, not null.
 fn row_json(row: &NotificationRow) -> Value {
-    let mut json = json!({ "id": row.id, "rev": row.rev, "kind": row.kind, "at": row.at, "readAt": row.read_at, "hidden": row.hidden });
+    let mut json = json!({ "id": row.id, "rev": row.rev, "kind": row.kind, "at": millis(row.at), "readAt": row.read_at.map(millis), "hidden": row.hidden });
     if let Some((id, name)) = &row.org {
         json["from"] = json!(row.from);
         json["org"] = json!({ "id": id, "name": name });

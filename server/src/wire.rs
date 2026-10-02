@@ -47,6 +47,13 @@ pub fn fresh_id() -> String {
 
 /// Now, in unix seconds: what tokens are issued and checked against, and what rows are stamped with. A clock before
 /// 1970 reads as 0 rather than failing a request over it.
+/// A moment the service keeps in seconds, answered the way the page keeps every moment: milliseconds since the epoch
+/// (`Date.now()`). The organizations and notifications routes answer their `since`, `createdAt`, `at` and `readAt`
+/// through this, so a member who joined just now does not read as having joined in January 1970.
+pub fn millis(secs: i64) -> i64 {
+    secs * 1000
+}
+
 pub fn now_secs() -> i64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
 }

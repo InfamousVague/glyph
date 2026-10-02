@@ -29,7 +29,7 @@ use crate::accounts::{Accounts, HasAccounts};
 use crate::guard;
 use crate::identity::Claims;
 use crate::store::{InviteCaps, Member, Org, OrgRow, OrgWrite, Role};
-use crate::wire::{base64url, error, fresh_id, now_secs};
+use crate::wire::{base64url, error, fresh_id, millis, now_secs};
 use axum::extract::{ConnectInfo, DefaultBodyLimit, Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -168,18 +168,18 @@ fn refused(err: OrgWrite) -> Response {
 fn row_json(row: &OrgRow) -> Value {
     json!({
         "id": row.id, "name": row.name, "hue": row.hue, "role": row.role.as_str(), "state": row.state,
-        "members": row.members, "invitedBy": row.invited_by, "createdAt": row.created_at,
+        "members": row.members, "invitedBy": row.invited_by, "createdAt": millis(row.created_at),
     })
 }
 
 fn member_json(member: &Member) -> Value {
-    json!({ "handle": member.handle, "role": member.role.as_str(), "state": member.state, "since": member.since, "invitedBy": member.invited_by })
+    json!({ "handle": member.handle, "role": member.role.as_str(), "state": member.state, "since": millis(member.since), "invitedBy": member.invited_by })
 }
 
 fn org_json(org: &Org) -> Value {
     json!({
         "id": org.id, "name": org.name, "hue": org.hue, "role": org.role.as_str(), "state": org.state,
-        "invitedBy": org.invited_by, "createdAt": org.created_at,
+        "invitedBy": org.invited_by, "createdAt": millis(org.created_at),
         "members": org.members.iter().map(member_json).collect::<Vec<_>>(),
     })
 }
