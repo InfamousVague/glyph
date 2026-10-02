@@ -57,7 +57,36 @@ through the App Store Connect API. What follows the 2026-09-24 plan below is how
    - export compliance: exempt;
    - screenshots for the 6.9" iPhone, and the 13" iPad while iPad is on (`TARGETED_DEVICE_FAMILY` 1,2, XcodeGen's
      default, since `src-tauri/gen/apple/project.yml` does not set it). Or turn iPad off;
-   - review notes: accounts are optional, and Claude connects through MCP.
+   - review notes: accounts are optional, and Claude connects through MCP;
+   - sign-in information (App Review › Sign-In Information): the demo account below.
+
+### The reviewers' demo account
+
+A Ghost.md account for App Review, with the app's own examples in it (2026-10-02, Matt: "create a 'test' 'test' user
+for apple reviewers to login with with some examples"). The password is `testtest`, since the app asks for at least
+eight characters (core/account/account.ts `passwordProblem`).
+
+| Field | Value |
+| --- | --- |
+| Handle (App Store Connect's "User name") | `test` |
+| Password | `testtest` |
+
+Matt makes it in the app himself, since the agents don't create accounts on the live service:
+
+1. Settings › Account › Sign up, with the handle and password above. Keep the recovery codes with the password.
+2. Settings › Examples: add the sample note, the example board, the example canvas and the "How Ghost.md works"
+   canvas.
+3. Wait for Account to say it has synced, then sign in on a second device or browser to check the examples arrive.
+
+Paste into App Review › Notes:
+
+> Accounts are optional: the app works fully without one, with notes kept on the device. To try sync, sign in under
+> Settings › Account with the demo account (handle `test`, password `testtest`); it holds the app's example notes, a
+> board and two canvases. Notes are encrypted on the device before they are sent, so the server cannot read them. The
+> account can be deleted under Settings › Account › Delete account.
+
+Anyone with the password can sign in and change what it holds, so check it before each submission, and put the
+examples back from Settings › Examples if they have gone.
 5. **TestFlight, then submit.**
 
 ## Decisions for Matt
