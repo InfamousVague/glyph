@@ -3,7 +3,7 @@ import { act, useState, type ComponentProps } from 'react';
 import { canvasNoteBody } from '../canvas/jsonCanvas.ts';
 import { reloadPreferences } from '../core/preferences.ts';
 import { makeNote } from '../../test/notes.ts';
-import { button, rerender, show, typeInto } from '../../test/render.tsx';
+import { button, rerender, show, typeInto, waitUntil } from '../../test/render.tsx';
 import { stubMatchMedia, stubResizeObserver } from '../../test/stubs.ts';
 import { NO_GROUPS, type TabGroups } from './tabGroups.ts';
 
@@ -107,6 +107,36 @@ describe('the top bar', () => {
     // No bell at all without the page to open.
     rerender(bar({}));
     expect(() => button('Notifications')).toThrow();
+  });
+
+  it('opens a picker of your organizations from the people icon, a pick going straight to its dashboard', async () => {
+    const onOrganizations = vi.fn();
+    const onOrganization = vi.fn();
+    const organizations = [
+      { id: 'o1', name: 'Studio', hue: 'teal' },
+      { id: 'o2', name: 'Family', hue: null },
+    ];
+    show(bar({ onOrganizations, onOrganization, organizations }));
+    act(() => button('Organizations').click());
+    let found: Element | null = null;
+    await waitUntil(() => {
+      found = document.querySelector('[role="menu"][aria-label="Choose an organization"]');
+      expect(found).not.toBeNull();
+    });
+    const picker = found as unknown as Element;
+    const items = [...picker.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent?.trim());
+    expect(items).toEqual(['Studio', 'Family', 'All organizations…']);
+    act(() => [...picker.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent?.includes('Studio'))!.click());
+    expect(onOrganization).toHaveBeenCalledWith('o1');
+    expect(onOrganizations).not.toHaveBeenCalled();
+  });
+
+  it('goes to Settings from the people icon when you belong to no organization yet', () => {
+    const onOrganizations = vi.fn();
+    show(bar({ onOrganizations, onOrganization: vi.fn(), organizations: [] }));
+    act(() => button('Organizations').click());
+    expect(onOrganizations).toHaveBeenCalledOnce();
+    expect(document.querySelector('[role="menu"]')).toBeNull();
   });
 
   it('moves a tab by the arrow keys only with the platform’s modifier', () => {

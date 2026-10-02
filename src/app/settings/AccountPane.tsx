@@ -70,7 +70,30 @@ function LocalOnlyCallout({ onOpen }: { onOpen?: () => void }) {
   );
 }
 
-function SignedOut({ onCodes, said, onOpen }: { onCodes: (codes: string[]) => void; said?: string | null; onOpen?: (target: SettingsTarget) => void }) {
+/**
+ * The way in on its own: sign in, make an account and keep its recovery codes, or recover one. Settings' Account page
+ * draws the form while signed out; the first screen on open draws this whole flow (shell/AccountGate.tsx), told by
+ * `onIn` once the person is in - straight after a sign-in, and after the codes are put away for a new or recovered
+ * account, so the codes are never skipped.
+ */
+export function SignInFlow({ onIn }: { onIn: () => void }) {
+  const [codes, setCodes] = useState<string[] | null>(null);
+  if (codes) return <Codes codes={codes} onDone={onIn} />;
+  return <SignedOut onCodes={setCodes} onIn={onIn} />;
+}
+
+function SignedOut({
+  onCodes,
+  onIn,
+  said,
+  onOpen,
+}: {
+  onCodes: (codes: string[]) => void;
+  /** Told after a plain sign-in, which has no codes to show. */
+  onIn?: () => void;
+  said?: string | null;
+  onOpen?: (target: SettingsTarget) => void;
+}) {
   const prefs = usePreferences();
   const [mode, setMode] = useState<Mode>('in');
   const [handle, setHandle] = useState('');
@@ -88,7 +111,10 @@ function SignedOut({ onCodes, said, onOpen }: { onCodes: (codes: string[]) => vo
     try {
       if (mode === 'up') onCodes((await signUp(handle, password)).codes);
       else if (mode === 'recover') onCodes((await recover(handle, code, password)).codes);
-      else await signIn(handle, password);
+      else {
+        await signIn(handle, password);
+        onIn?.();
+      }
       void syncNow();
     } catch (failure) {
       setProblem(failureText(failure));

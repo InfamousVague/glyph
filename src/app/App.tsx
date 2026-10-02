@@ -68,6 +68,8 @@ import { useCaptureRoute } from './shell/useCaptureRoute.ts';
 import { useAppLinks } from './shell/useAppLinks.ts';
 import { landNativeResult } from './ai/summaries.ts';
 import { useGuide } from './shell/useGuide.ts';
+import { useAccountGate } from './shell/useAccountGate.ts';
+import { AccountGate } from './shell/AccountGate.tsx';
 import { useHousekeeping } from './shell/useHousekeeping.ts';
 import { useOpenTabs } from './shell/useOpenTabs.ts';
 import { useRootStamp } from './shell/useRootStamp.ts';
@@ -80,6 +82,7 @@ import { statusesOf } from './core/properties.ts';
 import { fillNoteTemplate, type NoteTemplate } from './notes/noteTemplates.ts';
 import { ticketTemplatesOf, useTickets } from './shell/useTickets.ts';
 import { useQueries } from './shell/useQueries.ts';
+import { useOrgs } from './core/orgs/orgs.ts';
 import { tickedBody } from './core/query/tick.ts';
 import { movedBody } from './core/query/move.ts';
 import type { RecordKind } from './core/query/records.ts';
@@ -149,6 +152,8 @@ function Shell() {
   // Whether the side key launched the app, asked of the host once (core/host.ts).
   const [launchedByKey] = useState(takeCaptureLaunch);
   const guide = useGuide(launchedByKey);
+  // The way into an account, first on a signed-out open, before the walkthrough (shell/useAccountGate.ts).
+  const accountGate = useAccountGate(launchedByKey);
   /*
    * The first time a new note would be tagged on a device that has never answered the location prompt, the app says
    * what it is for, in its own words, and the prompt comes from the press (core/location.ts `tagNewNotesIfWanted`):
@@ -1077,6 +1082,9 @@ function Shell() {
    * closes first: two Settings surfaces are never open at once. Opened from Settings, closing reopens Settings on the
    * Organizations page, so three organizations looked at are not three walks through Account.
    */
+  // The organizations you belong to (not the invitations), for the top bar's picker: the account's kept list.
+  const orgState = useOrgs();
+  const memberOrgs = useMemo(() => orgState.list.filter((org) => org.state === 'member'), [orgState.list]);
   const openOrganization = (orgId: string, from?: 'settings') => {
     setSettings(false);
     setDrawer(false);
@@ -1339,6 +1347,9 @@ function Shell() {
               setSettings(true);
               setToPage({ id: 'organizations', nonce: Date.now() });
             }}
+            // The people icon's picker: the ones you belong to, a pick straight to its dashboard.
+            organizations={memberOrgs}
+            onOrganization={(orgId) => openOrganization(orgId)}
             unread={unread}
             atNotifications={screen.name === 'notifications'}
             onRename={renameNote}
@@ -1447,7 +1458,7 @@ function Shell() {
         onCreateJournal={(title, template, place) => void createJournal(title, template, place)}
       />
       {/* After an update: what it changed, once (notes/WhatsNewSheet.tsx). Not over the guide or a recording. */}
-      <WhatsNewSheet sources={updates.status?.sources} hold={guide.open || isRecording(screen)} />
+      <WhatsNewSheet sources={updates.status?.sources} hold={accountGate.open || guide.open || isRecording(screen)} />
       {launching ? <LaunchScreen loading={loading} notes={notes.filter((n) => !n.archivedAt).length} updates={updates} sync={syncStatus} onDone={() => setLaunching(false)} /> : null}
       <SceneBench script={sceneBench} onClose={() => setSceneBench(null)} />
       {/* Every note, in a card over the one being read; the tab row's icon opens it (notes/NotesDrawer.tsx). */}
@@ -1521,7 +1532,9 @@ function Shell() {
         aside and comes back when the capture ends, so they carry on where
         they were.
       */}
-      {guide.open && !isRecording(screen) ? (
+      {/* Signed out on a first open: the way in comes first, and the walkthrough waits for it (shell/AccountGate.tsx). */}
+      {accountGate.open && !isRecording(screen) ? <AccountGate onDone={accountGate.close} /> : null}
+      {guide.open && !accountGate.open && !isRecording(screen) ? (
         <Guide
           index={guide.page}
           tooSoon={guide.tooSoon}

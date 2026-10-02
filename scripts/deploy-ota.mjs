@@ -20,7 +20,8 @@
  *   /glyph/apk.json    to the native layer. apk.json is what makes an installed
  *   /glyph/apk.json.sig  Glyph offer "Install" when this APK is newer than it.
  *   /glyph/glyph.dmg   the Mac app (with --desktop): universal, signed with the
- *   /glyph/desktop.json  Developer ID, not yet notarised. desktop.json says what
+ *   /glyph/desktop.json  Developer ID, notarised and stapled (app and image), with the
+ *                      shared MattsSoftware App Store Connect key. desktop.json says what
  *                      it is (version, size, SHA-256, the lowest macOS it runs on)
  *                      and is what install.html reads to offer it; it lands after
  *                      glyph.dmg, by rename, like the other manifests. Unsigned for
@@ -82,6 +83,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { deployFlags } from './deployOta/flags.mjs';
 import { BOX_ENV_KEYS, boxSshOptions, openBox } from './lib/box.mjs';
@@ -125,6 +127,33 @@ const MAC_BUNDLE = join(ROOT, 'src-tauri/target', MAC_TARGET, 'release/bundle');
  */
 const MAC_TEAM = 'F6ZAL7ANAD';
 const MAC_IDENTITY = process.env.GLYPH_MAC_IDENTITY ?? `Developer ID Application: Matt Wisniewski (${MAC_TEAM})`;
+
+/**
+ * The App Store Connect key the Mac app is notarised with: APPLE_API_ISSUER, APPLE_API_KEY and APPLE_API_KEY_PATH from
+ * the shell, or else the one every MattsSoftware app notarises with (AttackFM, Libre), kept in
+ * ~/.config/mattssoftware/signing/asc-api.env as ASC_ISSUER_ID, ASC_KEY_ID and ASC_KEY_PATH. The key is the team's,
+ * not the app's, so one serves them all. Null where there is none, or the .p8 it names is not on this Mac.
+ */
+function notaryCredentials() {
+  let issuer = process.env.APPLE_API_ISSUER;
+  let keyId = process.env.APPLE_API_KEY;
+  let keyPath = process.env.APPLE_API_KEY_PATH;
+  const shared = join(homedir(), '.config/mattssoftware/signing/asc-api.env');
+  if (!(issuer && keyId && keyPath) && existsSync(shared)) {
+    const kept = Object.fromEntries(
+      readFileSync(shared, 'utf8')
+        .split('\n')
+        .map((line) => /^\s*(?:export\s+)?([A-Z_]+)\s*=\s*"?([^"\n]*?)"?\s*$/.exec(line))
+        .filter(Boolean)
+        .map((match) => [match[1], match[2]]),
+    );
+    issuer ||= kept.ASC_ISSUER_ID;
+    keyId ||= kept.ASC_KEY_ID;
+    keyPath ||= kept.ASC_KEY_PATH;
+  }
+  keyPath = keyPath?.replace(/^(\$HOME|~)(?=\/)/, homedir());
+  return issuer && keyId && keyPath && existsSync(keyPath) ? { issuer, keyId, keyPath } : null;
+}
 
 // The flags, and the checks on --release and --notes, are read by deployOta/flags.mjs.
 const { withApk, withDesktop, withMcp, sameVersion, isPublic, keepConnection, skipTests, askedRelease, notes } = deployFlags(process.argv);
@@ -328,12 +357,19 @@ if (withDesktop) {
   if (!identities.includes(`"${MAC_IDENTITY}"`)) {
     fail(`No signing identity "${MAC_IDENTITY}" in this Mac's keychain. Set GLYPH_MAC_IDENTITY to the Developer ID Application certificate's name.`);
   }
+  // Notarised, always (Matt: "deploy the notarized release"): an image that is not opens with "Apple cannot check it",
+  // so the key is looked for here too, before the build rather than after it.
+  const notary = notaryCredentials();
+  if (!notary) {
+    fail('No notarisation key: set APPLE_API_ISSUER, APPLE_API_KEY and APPLE_API_KEY_PATH, or keep the shared one in ~/.config/mattssoftware/signing/asc-api.env.');
+  }
   // As with the APK, the old bundle goes first, so nothing a previous build left behind can be what is published.
   rmSync(MAC_BUNDLE, { recursive: true, force: true });
   // The empty beforeBuildCommand is the build-once rule in the header: the app embeds exactly the dist that goes out.
+  // With the key in its environment Tauri notarises the app and staples its ticket; the image is done below.
   run('npx', ['tauri', 'build', '--bundles', 'app,dmg', '--target', MAC_TARGET, '--config', '{"build":{"beforeBuildCommand":""}}'], {
     cwd: ROOT,
-    env: { ...process.env, APPLE_SIGNING_IDENTITY: MAC_IDENTITY },
+    env: { ...process.env, APPLE_SIGNING_IDENTITY: MAC_IDENTITY, APPLE_API_ISSUER: notary.issuer, APPLE_API_KEY: notary.keyId, APPLE_API_KEY_PATH: notary.keyPath },
   });
   const app = join(MAC_BUNDLE, 'macos/Ghost.md.app');
   const dmgDir = join(MAC_BUNDLE, 'dmg');
@@ -380,6 +416,25 @@ if (withDesktop) {
     fail(`The Mac build rebuilt the web app (${manifest.build} -> ${afterMac.build}); the app and dist/ no longer match. Nothing was published.`);
   }
 
+  /*
+   * The app inside is notarised and stapled by Tauri; the disk image around it is only signed, and Gatekeeper asks of
+   * the image a person downloads as well as of the app in it - the 1.10.0 run of 2026-10-02 shipped a notarised app in
+   * an image with no ticket of its own. So the image goes to Apple too, its ticket is stapled on, and both tickets are
+   * checked before anything is published. Done before the image is hashed, since stapling writes into it.
+   */
+  step('Notarising the disk image');
+  run('xcrun', ['notarytool', 'submit', desktopDmg, '--key', notary.keyPath, '--key-id', notary.keyId, '--issuer', notary.issuer, '--wait'], {}, 'notarytool submit');
+  run('xcrun', ['stapler', 'staple', desktopDmg], {}, 'stapler staple');
+  for (const [what, path] of [
+    ['app', app],
+    ['disk image', desktopDmg],
+  ]) {
+    if (spawnSync('xcrun', ['stapler', 'validate', path], { encoding: 'utf8' }).status !== 0) fail(`The ${what} has no notarisation ticket stapled to it (${path}).`);
+  }
+  const gatekeeper = spawnSync('spctl', ['-a', '-vvv', '-t', 'install', app], { encoding: 'utf8' });
+  if (!/source=Notarized Developer ID/.test(`${gatekeeper.stdout}${gatekeeper.stderr}`)) fail(`Gatekeeper does not take the app as notarised:\n${gatekeeper.stderr}`);
+  ok('Mac app and its disk image notarised, with their tickets stapled');
+
   const dmgBytes = readFileSync(desktopDmg);
   desktopInfo = {
     version: plist.CFBundleShortVersionString,
@@ -390,8 +445,8 @@ if (withDesktop) {
     arch: archs,
     minimumSystemVersion: plist.LSMinimumSystemVersion,
     team: MAC_TEAM,
-    // Signed but not notarised (Matt's choice for now): the first launch needs Open Anyway, which install.html explains.
-    notarized: false,
+    // Notarised and stapled (checked above): it opens on the first launch with no Open Anyway.
+    notarized: true,
   };
   writeFileSync(join(DIST, 'desktop.json'), `${JSON.stringify(desktopInfo, null, 2)}\n`);
   ok(`Mac app ${desktopInfo.version}, ${(desktopInfo.bytes / 1e6).toFixed(0)} MB`);

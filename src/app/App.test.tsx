@@ -164,6 +164,8 @@ beforeEach(() => {
   localStorage.clear();
   // The walkthrough opens by itself on a first launch; these tests are of a device that has seen it.
   localStorage.setItem('glyph-guide-seen', '1');
+  // So has its way into an account, which comes first on a signed-out open (shell/useAccountGate.ts).
+  localStorage.setItem('glyph-account-gate-seen', '1');
   // The preferences are held in memory as well as kept: a tab row, a group or the trash left by the last test goes.
   reloadPreferences();
   history.replaceState(null, '', '/');
@@ -379,6 +381,24 @@ describe('the side key', () => {
     expect(root.dataset.tabs).toBeUndefined();
     await act(async () => window.__glyph!.capture!());
     expect(screenNow()?.dataset.stop).toBe('1');
+  });
+
+  it('on a signed-out first open shows the way into an account first, and the walkthrough after it', async () => {
+    localStorage.removeItem('glyph-account-gate-seen');
+    localStorage.removeItem('glyph-guide-seen');
+    await openApp();
+    expect(document.querySelector('[role="dialog"][aria-label="Sign in to Ghost.md"]')).not.toBeNull();
+    // The walkthrough waits for it.
+    expect(seen.guide).toBeNull();
+    await act(async () => button('Use without an account').click());
+    expect(document.querySelector('[aria-label="Sign in to Ghost.md"]')).toBeNull();
+    expect(seen.guide?.index).toBe(0);
+    expect(localStorage.getItem('glyph-account-gate-seen')).toBe('1');
+  });
+
+  it('does not ask again once the way in has been passed by', async () => {
+    await openApp();
+    expect(document.querySelector('[aria-label="Sign in to Ghost.md"]')).toBeNull();
   });
 
   it('on a reading page of the guide says it is too soon rather than recording', async () => {

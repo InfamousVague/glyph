@@ -55,7 +55,8 @@
       word.textContent = first === 'android' ? 'Download for Android' : 'Download for Mac';
     }
   }
-  if (first === 'mac') $('#mac-note').hidden = false;
+  // The Open Anyway note is shown only while the Mac app on offer is not notarised (desktop.json says), below: a
+  // notarised one opens on the first try, and the note would only tell a person to do something they need not.
 
   // The version and size of what each button downloads, from the manifests the apps themselves update from.
   [
@@ -70,6 +71,7 @@
         if (!manifest || !manifest.version) return;
         var meta = $('[data-meta="' + pair[1] + '"]');
         if (meta) meta.textContent = manifest.version + ' · ' + Math.round(manifest.bytes / 1e6) + ' MB';
+        if (pair[1] === 'dmg' && first === 'mac' && manifest.notarized === false) $('#mac-note').hidden = false;
       })
       .catch(function () {
         return undefined;
