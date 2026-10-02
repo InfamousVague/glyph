@@ -131,4 +131,30 @@ describe('rows dragged by their grip', () => {
     expect(onMove).not.toHaveBeenCalled();
     expect(document.querySelector('li[data-lifted]')).toBeNull();
   });
+
+  it('keeps a held row up through the phone’s long press: no menu, no selection, no cancel', () => {
+    vi.useFakeTimers();
+    const onMove = vi.fn();
+    showRows(<Rows onMove={onMove} />);
+    holdGrip(grip('a'), 20, 'touch');
+    expect(document.querySelector('li[data-lifted]')?.textContent).toBe('a');
+    // Half a second on, the phone's long press: the menu and the selection it would make are refused.
+    const menu = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    const select = new Event('selectstart', { bubbles: true, cancelable: true });
+    act(() => {
+      vi.advanceTimersByTime(400);
+      grip('a').dispatchEvent(menu);
+      grip('a').dispatchEvent(select);
+    });
+    expect(menu.defaultPrevented).toBe(true);
+    expect(select.defaultPrevented).toBe(true);
+    expect(document.querySelector('li[data-lifted]')?.textContent).toBe('a');
+    onGrip(grip('a'), 'pointermove', 110, 'touch');
+    onGrip(grip('a'), 'pointerup', 110, 'touch');
+    expect(onMove).toHaveBeenCalledWith(0, 2);
+    // Put down, the page has its long press back.
+    const later = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    grip('a').dispatchEvent(later);
+    expect(later.defaultPrevented).toBe(false);
+  });
 });

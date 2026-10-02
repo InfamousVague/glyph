@@ -677,6 +677,17 @@
   cursor: grab;
 }
 
+/* A thing that can be carried keeps its words to itself: a long press on them selects nothing, as a ```board's card
+   (editor/boards/theme.ts), since the phone cancels the press to make the selection and the carry with it. */
+.card[data-movable],
+.row[data-movable],
+.table tr[data-movable] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
 .board[data-dragging],
 .board[data-dragging] .card {
   user-select: none;

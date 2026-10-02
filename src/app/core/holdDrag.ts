@@ -71,6 +71,14 @@ export function holdDrag(down: PointerEvent, hooks: HoldDragHooks): () => void {
   const still = (touching: TouchEvent) => {
     if (lifted && touching.cancelable) touching.preventDefault();
   };
+  // A finger held still is a long press to the phone as well: at about half a second it selects the words under it, or
+  // opens a menu (the note's own, editor/pressAndHold.ts), and the browser cancels the pointer to do it - so a thing
+  // lifted at the hold was put down again a moment later, with no time to drag it (Matt: "it just sends the haptic
+  // shows the dotted lines very briefly then returns"). While the press is the gesture's, neither happens.
+  const refuse = (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
   function finish() {
     if (finished) return;
     finished = true;
@@ -80,12 +88,16 @@ export function holdDrag(down: PointerEvent, hooks: HoldDragHooks): () => void {
     window.removeEventListener('pointerup', up);
     window.removeEventListener('pointercancel', cancel);
     window.removeEventListener('touchmove', still);
+    window.removeEventListener('contextmenu', refuse, true);
+    document.removeEventListener('selectstart', refuse, true);
     hooks.end?.(lifted);
   }
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerup', up);
   window.addEventListener('pointercancel', cancel);
   window.addEventListener('touchmove', still, { passive: false });
+  window.addEventListener('contextmenu', refuse, true);
+  document.addEventListener('selectstart', refuse, true);
   return finish;
 }
 
