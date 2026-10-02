@@ -95,18 +95,56 @@ function cellSpans(text: string): { raw: string; at: number }[][] {
   return out;
 }
 
+/** A cell appended to a table line, before its trailing pipe where it has one, so `| a | b |` grows by one cell. */
+function appendCell(line: string, cell: string): string {
+  const end = line.trimEnd();
+  return /(?<!\\)\|\s*$/.test(end) ? `${end} ${cell} |` : `${end} | ${cell}`;
+}
+
+/**
+ * A table's source with one more column: a heading on the header row, dashes on the divider, and an empty cell on
+ * every body row (editor/tables.ts, the + column button on a drawn table). Blank lines are left as they are.
+ */
+export function addTableColumn(text: string): string {
+  let body = 0;
+  return text
+    .split('\n')
+    .map((line) => {
+      if (!line.trim()) return line;
+      body += 1;
+      return appendCell(line, body === 1 ? 'Column' : body === 2 ? '---' : '');
+    })
+    .join('\n');
+}
+
+/**
+ * A table's source with one more row: an empty row, as wide as its header, after its last row (the + row button on a
+ * drawn table). Its cells are left empty for the words to be typed in.
+ */
+export function addTableRow(text: string): string {
+  const lines = text.split('\n');
+  const columns = Math.max(1, cellsOfLine(lines[0] ?? '').length);
+  const row = `| ${Array(columns).fill('').join(' | ')} |`;
+  let last = lines.length - 1;
+  while (last > 0 && !lines[last]!.trim()) last -= 1;
+  lines.splice(last + 1, 0, row);
+  return lines.join('\n');
+}
+
 class TableWidget extends WidgetType {
   constructor(
     readonly text: string,
     readonly from: number,
     /** Bumped as blanks change under the table (editor/blanks.ts), so its cells are drawn again. */
     readonly stamp: number,
+    /** Whether the + row and + column buttons are drawn: only where the note can be changed. */
+    readonly editable: boolean,
   ) {
     super();
   }
 
   eq(other: TableWidget): boolean {
-    return other.text === this.text && other.from === this.from && other.stamp === this.stamp;
+    return other.text === this.text && other.from === this.from && other.stamp === this.stamp && other.editable === this.editable;
   }
 
   toDOM(view: EditorView): HTMLElement {
@@ -149,6 +187,32 @@ class TableWidget extends WidgetType {
       foot.appendChild(pill);
       wrap.appendChild(foot);
     }
+    // Grow the table without dropping into its pipes: a column on the right, a row below (Matt: make tables "easier
+    // to create"). Each rewrites the table's source as one undo; the caret stays out, so the table is redrawn with
+    // its new empty cells to tap and fill. The buttons keep their press from the wrap, or it would open the pipes.
+    if (this.editable) {
+      const tools = document.createElement('div');
+      tools.className = 'cm-tableTools';
+      const grow = (label: string, change: (text: string) => string) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'cm-tableGrow';
+        button.textContent = label;
+        button.addEventListener('mousedown', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        });
+        button.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const to = this.from + this.text.length;
+          view.dispatch({ changes: { from: this.from, to, insert: change(this.text) }, userEvent: 'input.table' });
+        });
+        return button;
+      };
+      tools.append(grow('+ Column', addTableColumn), grow('+ Row', addTableRow));
+      wrap.appendChild(tools);
+    }
     openOnPress(view, wrap, this.from);
     return wrap;
   }
@@ -170,7 +234,7 @@ function build(state: EditorState): DecorationSet {
       const to = state.doc.lineAt(node.to).to;
       const inside = editable && caretIn(state, from, to);
       if (!inside) {
-        builder.add(from, to, Decoration.replace({ widget: new TableWidget(state.doc.sliceString(from, to), from, state.field(blankStamp, false) ?? 0), block: true }));
+        builder.add(from, to, Decoration.replace({ widget: new TableWidget(state.doc.sliceString(from, to), from, state.field(blankStamp, false) ?? 0, editable), block: true }));
       }
       return false;
     },
@@ -225,6 +289,35 @@ export function drawnTables(): Extension {
         whiteSpace: 'nowrap',
         fontWeight: '700',
         background: 'var(--app-paper-2, var(--glacier-surface-sunken, transparent))',
+      },
+      // The grow toolbar under a drawn table: two quiet buttons, a step quieter than the words.
+      '.cm-tableTools': {
+        display: 'flex',
+        gap: '0.4em',
+        margin: '0.35em 0 0',
+      },
+      '.cm-tableGrow': {
+        appearance: 'none',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.25em',
+        padding: '0.2em 0.6em',
+        border: '1px solid var(--glacier-border-subtle, rgba(127,127,127,0.3))',
+        borderRadius: 'var(--glacier-radius-full, 999px)',
+        background: 'transparent',
+        color: 'var(--app-ink-3, currentColor)',
+        font: 'inherit',
+        fontSize: '0.8em',
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
+      },
+      '.cm-tableGrow:hover': {
+        color: 'var(--app-ink, currentColor)',
+        background: 'color-mix(in oklch, currentColor 8%, transparent)',
+      },
+      '.cm-tableGrow:focus-visible': {
+        outline: '2px solid var(--glacier-focus-ring, var(--app-ink-2, currentColor))',
+        outlineOffset: '1px',
       },
     }),
   ];

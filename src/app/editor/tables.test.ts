@@ -3,7 +3,7 @@ import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { parseWhole } from '../../test/syntaxTree.ts';
 import { glyphMarkdown } from './language.ts';
-import { drawnTables, parseTable } from './tables.ts';
+import { addTableColumn, addTableRow, drawnTables, parseTable } from './tables.ts';
 
 describe('reading a GFM table to draw it', () => {
   it('reads the header, the alignment and the rows, escaped pipes kept as text', () => {
@@ -19,6 +19,22 @@ describe('reading a GFM table to draw it', () => {
 
   it('is not a table without its divider line', () => {
     expect(parseTable('| a | b |\n| c | d |')).toBeNull();
+  });
+});
+
+describe('growing a table from its drawing', () => {
+  const table = '| Bug | Owner |\n| --- | --- |\n| Seek bar | Matt |';
+
+  it('adds a column: a heading, dashes and an empty cell on every row', () => {
+    expect(addTableColumn(table)).toBe('| Bug | Owner | Column |\n| --- | --- | --- |\n| Seek bar | Matt |  |');
+  });
+
+  it('adds an empty row as wide as the header, after the last row', () => {
+    expect(addTableRow(table)).toBe('| Bug | Owner |\n| --- | --- |\n| Seek bar | Matt |\n|  |  |');
+  });
+
+  it('grows a table written without outer pipes too', () => {
+    expect(addTableColumn('Bug | Owner\n--- | ---\nSeek | Matt')).toBe('Bug | Owner | Column\n--- | --- | ---\nSeek | Matt | ');
   });
 });
 
