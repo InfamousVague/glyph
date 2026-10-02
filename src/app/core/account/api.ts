@@ -6,10 +6,10 @@
  * what the service meant.
  */
 
-// The live server still serves the API under /glyph/api (the /api/* routes exist in source but that server binary is not
-// deployed yet); the bare /api path 404s, which failed every client's sync on boot. Back to the working /glyph prefix on
-// the ghostmarkdown.com TLD until the new server binary and its Caddy route are deployed, then this moves to /api.
-export const API_BASE: string = (import.meta.env.VITE_GLYPH_API as string | undefined)?.replace(/\/+$/, '') || 'https://ghostmarkdown.com/glyph/api';
+// The API lives at /api now: the server serves it there (server/src/main.rs) and Caddy routes it. The older /glyph/api
+// base still works - glyph-api strips a leading /glyph (main.rs allow_glyph_prefix), kept on the box for clients shipped
+// before this move - so a build on either base syncs; new builds use /api.
+export const API_BASE: string = (import.meta.env.VITE_GLYPH_API as string | undefined)?.replace(/\/+$/, '') || 'https://ghostmarkdown.com/api';
 
 /** A request the service refused, with its status and its own words. */
 export class ApiError extends Error {
