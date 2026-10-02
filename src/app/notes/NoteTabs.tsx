@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Bell, PanelLeft, Plus, Users, X } from '@glacier/icons';
+import { Menu, MenuItem, MenuLabel, MenuSeparator } from '@glacier/react';
 import { newGroup, NO_GROUPS, renameGroup, toggleGroup, type TabGroups } from './tabGroups.ts';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { isBookBody } from '../book/book.ts';
@@ -69,6 +70,14 @@ interface NoteTabsProps {
   canGoOn?: boolean;
   /** Your organizations (Settings › Account › Organizations), from the people icon before the bell; absent, and there is none. */
   onOrganizations?: () => void;
+  /**
+   * The organizations you belong to, for the people icon's picker (Matt: "a popover that lets us select the
+   * organization we want to view, after clicking it should take us straight to the organization dashboard view").
+   * With any, the icon opens the picker and a pick opens that organization's dashboard (`onOrganization`); with none,
+   * it goes to Settings as before (`onOrganizations`), where one is made or an invitation answered.
+   */
+  organizations?: readonly { id: string; name: string; hue: string | null }[];
+  onOrganization?: (orgId: string) => void;
   /** The Notifications page (notes/NotificationsScreen.tsx), from the bell before More; absent, and there is no bell. */
   onNotifications?: () => void;
   /** Whether something unread and wanted has arrived: the bell wears its ring and a dot (core/notifications/feed.ts `unreadCount`). */
@@ -102,6 +111,8 @@ export function NoteTabs({
   canGoOn = false,
   onNotifications,
   onOrganizations,
+  organizations,
+  onOrganization,
   unread = false,
   atNotifications = false,
   onNew,
@@ -216,9 +227,32 @@ export function NoteTabs({
           just before the vertical dots more menu"). The bell is on while something unread waits: a dot, no number.
         */}
         {onOrganizations ? (
-          <button type="button" className={styles.sidebar} onClick={onOrganizations} aria-label="Organizations" title="Organizations">
-            <Users size={19} strokeWidth={2.1} aria-hidden="true" />
-          </button>
+          organizations?.length && onOrganization ? (
+            // A picker of the organizations you belong to, hung from the icon: a pick goes straight to that one's
+            // dashboard; the last row is the whole list in Settings, where one is made or an invitation answered.
+            <Menu
+              trigger={
+                <button type="button" className={styles.sidebar} aria-label="Organizations" title="Organizations">
+                  <Users size={19} strokeWidth={2.1} aria-hidden="true" />
+                </button>
+              }
+              placement="bottom-end"
+              aria-label="Choose an organization"
+            >
+              <MenuLabel>Organizations</MenuLabel>
+              {organizations.map((org) => (
+                <MenuItem key={org.id} onSelect={() => onOrganization(org.id)} icon={<span className={styles.hueDot} data-hue={org.hue ?? 'ink'} aria-hidden="true" />}>
+                  {org.name}
+                </MenuItem>
+              ))}
+              <MenuSeparator />
+              <MenuItem onSelect={onOrganizations}>All organizations…</MenuItem>
+            </Menu>
+          ) : (
+            <button type="button" className={styles.sidebar} onClick={onOrganizations} aria-label="Organizations" title="Organizations">
+              <Users size={19} strokeWidth={2.1} aria-hidden="true" />
+            </button>
+          )
         ) : null}
         {onNotifications ? (
           <button

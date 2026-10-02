@@ -80,6 +80,7 @@ import { statusesOf } from './core/properties.ts';
 import { fillNoteTemplate, type NoteTemplate } from './notes/noteTemplates.ts';
 import { ticketTemplatesOf, useTickets } from './shell/useTickets.ts';
 import { useQueries } from './shell/useQueries.ts';
+import { useOrgs } from './core/orgs/orgs.ts';
 import { tickedBody } from './core/query/tick.ts';
 import { movedBody } from './core/query/move.ts';
 import type { RecordKind } from './core/query/records.ts';
@@ -1077,6 +1078,9 @@ function Shell() {
    * closes first: two Settings surfaces are never open at once. Opened from Settings, closing reopens Settings on the
    * Organizations page, so three organizations looked at are not three walks through Account.
    */
+  // The organizations you belong to (not the invitations), for the top bar's picker: the account's kept list.
+  const orgState = useOrgs();
+  const memberOrgs = useMemo(() => orgState.list.filter((org) => org.state === 'member'), [orgState.list]);
   const openOrganization = (orgId: string, from?: 'settings') => {
     setSettings(false);
     setDrawer(false);
@@ -1339,6 +1343,9 @@ function Shell() {
               setSettings(true);
               setToPage({ id: 'organizations', nonce: Date.now() });
             }}
+            // The people icon's picker: the ones you belong to, a pick straight to its dashboard.
+            organizations={memberOrgs}
+            onOrganization={(orgId) => openOrganization(orgId)}
             unread={unread}
             atNotifications={screen.name === 'notifications'}
             onRename={renameNote}
