@@ -135,12 +135,42 @@ export function lineDiff(before: string, after: string): LineDiff {
 }
 
 /**
+ * The rules note among `records`: the oldest live note of that title, ignoring case. An archived one is put away, not
+ * the rules, and several are still an answer: `byTitle` answers none for a title two notes share, and the rules were
+ * found that way, so an account with a hand-made "Claude rules" beside an archived "Claude Rules" had another made by
+ * every connection (Matt: "Claude is creating a new Claude Rules file over and over instead of reusing the existing
+ * one").
+ */
+export function rulesNoteIn(records: readonly NoteRecord[]): NoteRecord | null {
+  const want = RULES_TITLE.toLowerCase();
+  const live = records.filter((record) => !record.note.archivedAt && noteTitle(record.note.body).toLowerCase() === want);
+  live.sort((a, b) => a.note.createdAt - b.note.createdAt || (a.note.id < b.note.id ? -1 : a.note.id > b.note.id ? 1 : 0));
+  return live[0] ?? null;
+}
+
+/** Each account's rules being found or made, so connections to it opened together take turns rather than race. */
+const ensuring = new Map<string, Promise<unknown>>();
+
+/**
  * The "Claude rules" note, made (pinned) the first time it is wanted. Reads the account fresh first, so a note made on
- * the phone is seen rather than a second one created. `seedAuthor` names the AI as its co-author when it is made new.
+ * the phone is seen rather than a second one created. Connections to one account opened at once - Claude reconnecting
+ * opens several in a second - each read before any had written, and each made one; they now wait their turn here, so
+ * the next reads the note the first made. `seedAuthor` names the AI as its co-author when it is made new.
  */
 export async function ensureRulesNote(account: GlyphAccount, seedAuthor = 'Claude'): Promise<NoteRecord> {
+  const key = `${account.api} ${account.handle}`;
+  const turn = (ensuring.get(key) ?? Promise.resolve()).catch(() => undefined).then(() => findOrMakeRules(account, seedAuthor));
+  ensuring.set(key, turn);
+  try {
+    return await turn;
+  } finally {
+    if (ensuring.get(key) === turn) ensuring.delete(key);
+  }
+}
+
+async function findOrMakeRules(account: GlyphAccount, seedAuthor: string): Promise<NoteRecord> {
   await account.pull();
-  const found = await account.byTitle(RULES_TITLE);
+  const found = rulesNoteIn(await account.list());
   if (found) return found;
   const made = await account.create(withAuthor(DEFAULT_RULES, seedAuthor, account.handle), { pinned: true });
   // Told of once, when it is made: a connection that finds it has written nothing.

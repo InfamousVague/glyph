@@ -77,7 +77,10 @@ default you can keep or change (`mcp/server.ts` `ensureRulesNote`, `DEFAULT_RULE
 as the server's MCP instructions, so Claude follows it without being asked and can re-read it any time with `get_rules`.
 When you ask Claude to always, from now on, or again do something, it writes that standing request into the note with
 `add_rule`, under a "Standing requests" heading, so it is not lost the next time you connect. It is a note like any
-other: edit it in the app to change the rules, or archive it to clear them.
+other: edit it in the app to change the rules, or archive it to clear them. The rules are the oldest note of that name
+that is not archived, whatever the case of its letters, so a second one made by hand changes nothing; connections
+opened together take turns finding it, so they make one between them (`rulesNoteIn`). Until 2026-10-02 a name two
+notes shared was found as none, and every connection made another.
 
 These steps are also in the app: the Claude plugin's page (Settings › Plugins › Claude) carries the address with a
 Copy, and an instructions drawer with the steps for either way, each command with its own Copy

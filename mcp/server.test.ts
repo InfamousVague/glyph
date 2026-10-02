@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
-import { lineDiff } from './server.ts';
+import { noteTitle } from '../src/app/core/noteTitle.ts';
+import { GlyphAccount } from './glyph.ts';
+import { ensureRulesNote, lineDiff } from './server.ts';
 import { aNote, connected, told, WRITTEN } from './testKit.ts';
 
 /**
@@ -409,6 +411,31 @@ describe('the Claude rules note', () => {
     expect(after).toContain('- Always use British spelling\n- Write dates as YYYY-MM-DD');
     const titles = (JSON.parse((await call('list_notes')).text) as { notes: { title: string }[] }).notes.map((n) => n.title);
     expect(titles.filter((t) => t === 'Claude rules').length).toBe(1);
+  });
+
+  // Matt: "Claude is creating a new Claude Rules file over and over instead of reusing the existing one". His account
+  // held a hand-made "Claude rules" and an archived "Claude Rules"; a title two notes share was found as none, so each
+  // connection made another, three at a time when Claude reconnected.
+  it('is the oldest live one when several share its title, an archived one aside, and none is made', async () => {
+    const { call, service } = await connected();
+    await service.deviceWrites(aNote('other', '# Claude Rules\n\nAnother project.', { createdAt: WRITTEN - 3000, archivedAt: WRITTEN }));
+    await service.deviceWrites(aNote('mine', '# Claude rules\n\nMy own.', { createdAt: WRITTEN - 2000 }));
+    await service.deviceWrites(aNote('copy', '# Claude rules\n\nA copy.', { createdAt: WRITTEN - 1000, starred: true }));
+    const rules = JSON.parse((await call('get_rules')).text) as { id: string };
+    expect(rules.id).toBe('mine');
+    const listed = JSON.parse((await call('list_notes', { include_archived: true })).text) as { notes: { title: string }[] };
+    expect(listed.notes.filter((n) => n.title.toLowerCase() === 'claude rules')).toHaveLength(3);
+    expect(await told(service)).toEqual([]);
+  });
+
+  it('is made once between connections opened at the same moment', async () => {
+    const { service, session } = await connected();
+    const accounts = [0, 1, 2].map(() => new GlyphAccount(session, { fetcher: service.fetcher }));
+    const found = await Promise.all(accounts.map((account) => ensureRulesNote(account)));
+    expect(new Set(found.map((record) => record.note.id)).size).toBe(1);
+    const fresh = new GlyphAccount(session, { fetcher: service.fetcher });
+    expect((await fresh.list()).filter((record) => noteTitle(record.note.body) === 'Claude rules')).toHaveLength(1);
+    expect((await told(service)).map((row) => row.kind)).toEqual(['note-created']);
   });
 });
 
