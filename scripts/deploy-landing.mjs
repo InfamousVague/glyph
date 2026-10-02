@@ -25,7 +25,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { BOX_ENV_KEYS, boxSshOptions, openBox, tarball } from './lib/box.mjs';
 import { loadEnv } from './lib/env.mjs';
 import { ROOT } from './lib/paths.mjs';
@@ -49,9 +49,21 @@ ${DOMAIN} {
 	handle /api/* {
 		reverse_proxy 127.0.0.1:8796
 	}
-	# Claude's one-file local connector, published to the release dir's mcp/ by deploy-ota.mjs --mcp.
+	# The old /glyph/api base, kept for clients and the hosted connector shipped before the move to /api: handed to the
+	# same glyph-api, which serves both (it strips a leading /glyph, main.rs allow_glyph_prefix). Drop this once every
+	# client is on /api.
+	handle /glyph/api/* {
+		reverse_proxy 127.0.0.1:8796
+	}
+	# Claude's one-file local connector, published to the release dir's mcp/ by deploy-ota.mjs --mcp, at /mcp/* now and
+	# /glyph/mcp/* for connectors added before the move.
 	handle /mcp/* {
 		root * ${RELEASE}
+		header Cache-Control "no-cache"
+		file_server
+	}
+	handle /glyph/mcp/* {
+		root * ${dirname(RELEASE)}
 		header Cache-Control "no-cache"
 		file_server
 	}

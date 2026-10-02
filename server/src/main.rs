@@ -52,8 +52,9 @@ mod orgs_tests;
 #[cfg(test)]
 mod notifications_tests;
 
-use axum::extract::State;
-use axum::http::{header, HeaderValue, Method, StatusCode};
+use axum::extract::{Request, State};
+use axum::http::{header, HeaderValue, Method, StatusCode, Uri};
+use axum::middleware::{self, Next};
 use axum::response::Response;
 use axum::routing::get;
 use axum::{Json, Router};
@@ -114,8 +115,27 @@ async fn method_not_allowed() -> Response {
     error(StatusCode::METHOD_NOT_ALLOWED, "method not allowed")
 }
 
+/// The routes carry `/api`, and the clients and the connector reach them there now. The ones shipped before the move -
+/// whose API base is `/glyph/api` (core/account/api.ts), and the hosted MCP on `/glyph/api/mcp` - are let through too,
+/// by stripping a leading `/glyph` before the router matches, so moving the door to `/api` leaves no old client out
+/// (scripts/deploy-landing.mjs keeps both Caddy routes; the compat strip can go once every client is on `/api`). A
+/// path not under `/glyph/api` is passed exactly as it came.
+async fn allow_glyph_prefix(mut request: Request, next: Next) -> Response {
+    if let Some(rest) = request.uri().path().strip_prefix("/glyph/api") {
+        let path_and_query = match request.uri().query() {
+            Some(query) => format!("/api{rest}?{query}"),
+            None => format!("/api{rest}"),
+        };
+        if let Ok(uri) = path_and_query.parse::<Uri>() {
+            *request.uri_mut() = uri;
+        }
+    }
+    next.run(request).await
+}
+
 /// Every route, merged: health and the format route, Notion, then - when the service has somewhere to keep them -
-/// accounts, sync, shares, organizations, notifications and the relay, then the MCP proxy, all inside one CORS layer.
+/// accounts, sync, shares, organizations, notifications and the relay, then the MCP proxy, all inside one CORS layer,
+/// under the `/glyph` compat strip.
 fn router(app: Arc<format::App>, accounts: Option<Arc<accounts::Accounts>>) -> Router {
     // The layer wraps every route, so a preflight is answered before method
     // routing sees it (an OPTIONS to a POST-only route would otherwise be a
@@ -150,10 +170,11 @@ fn router(app: Arc<format::App>, accounts: Option<Arc<accounts::Accounts>>) -> R
     }
     // Claude's hosted MCP server (mcp/hosted.ts, docs/MCP.md), running beside this service, reached through it.
     routes = routes.merge(mcp_proxy::router(mcp_proxy::Upstream::from_env()));
-    routes
-        .fallback(not_found)
-        .method_not_allowed_fallback(method_not_allowed)
-        .layer(cors)
+    let api = routes.fallback(not_found).method_not_allowed_fallback(method_not_allowed).layer(cors);
+    // A route-layer runs AFTER matching, so the compat strip cannot sit on `api` directly - a `/glyph/api/...` path
+    // would reach the fallback before anything rewrote it. It wraps `api` as the fallback service of an outer router
+    // instead, so the strip runs first and `api` then routes the rewritten `/api/...` path itself.
+    Router::new().fallback_service(api).layer(middleware::from_fn(allow_glyph_prefix))
 }
 
 async fn shutdown() {
@@ -296,6 +317,19 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         assert_eq!(serde_json::from_slice::<serde_json::Value>(&bytes).unwrap(), json!({ "ok": true, "model": "test-model", "ollama": false }));
+    }
+
+    #[tokio::test]
+    async fn the_old_glyph_prefix_still_reaches_the_api() {
+        // Clients and the connector shipped on /glyph/api are let through to the /api routes (allow_glyph_prefix), so
+        // the same answer comes back whether the leading /glyph is there or not.
+        let response = service().oneshot(Request::get("/glyph/api/health").body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "/glyph/api/health should reach /api/health");
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(serde_json::from_slice::<serde_json::Value>(&bytes).unwrap(), json!({ "ok": true, "model": "test-model", "ollama": false }));
+        // Only /glyph/api is stripped: a different /glyph path is not rewritten into a route it was never meant for.
+        let miss = service().oneshot(Request::get("/glyph/nope").body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(miss.status(), StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]
