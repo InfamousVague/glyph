@@ -19,12 +19,15 @@
   block-size: max(var(--app-inset-top), 2.5rem);
 }
 
-/* The Account page's form, in a column of a readable width, clear of the notch or the Mac's lights. */
+/* The sign-in card, in the middle of the screen at a card's width, clear of the notch or the Mac's lights. */
 .column {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: var(--glacier-space-3);
-  max-inline-size: 34rem;
+  box-sizing: border-box;
+  min-block-size: 100%;
+  max-inline-size: 26rem;
   margin-inline: auto;
   padding-inline: var(--app-gutter-start) var(--app-gutter-end);
   padding-block: calc(var(--app-inset-top) + var(--glacier-space-12)) var(--glacier-space-12);

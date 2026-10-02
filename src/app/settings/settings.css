@@ -696,6 +696,44 @@
   align-self: flex-start;
 }
 
+/* The way in as one card, on the first screen (AccountPane.tsx `SignInFlow`): a title, a line, Sign in or Sign up,
+   the form, and the way back in for a lost password. */
+.setk-signIn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--glacier-space-3);
+  padding: var(--glacier-space-6) var(--glacier-space-5) var(--glacier-space-4);
+  border: 1px solid var(--app-rule);
+  border-radius: var(--glacier-radius-lg);
+  background: var(--glacier-bg-raised, var(--glacier-bg));
+}
+
+.setk-signIn__title {
+  margin: 0;
+  font-size: var(--glacier-font-size-xl);
+  font-weight: 600;
+}
+
+.setk-signIn__line {
+  margin: 0;
+  color: var(--glacier-text-subtle);
+  font-size: var(--glacier-font-size-sm);
+}
+
+.setk-signIn .setk-form {
+  padding: 0;
+}
+
+.setk-signIn .setk-form__submit {
+  align-self: stretch;
+}
+
+.setk-signIn__other {
+  align-self: center;
+  color: var(--glacier-text-subtle);
+  font-size: var(--glacier-font-size-sm);
+}
+
 .setk-form__problem {
   margin: 0;
   font-size: var(--glacier-font-size-sm);

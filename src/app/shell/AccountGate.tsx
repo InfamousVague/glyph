@@ -4,8 +4,9 @@ import styles from './AccountGate.module.css';
 /**
  * The first screen on open, while signed out (shell/useAccountGate.ts): the way into an account - sign in, make one,
  * or recover one - over everything, before the walkthrough (Matt: "move the login / signup flow to the first thing that
- * happens when you open the app"). It is the Account page's own form (settings/AccountPane.tsx `SignInFlow`), so the
- * words, the checks and the recovery codes are the same in both places.
+ * happens when you open the app"), as one plain card that asks you to sign in or sign up (settings/AccountPane.tsx
+ * `SignInFlow`; Matt: "remove the graphic on the sign in page"). Its form is the Account page's own, so the checks and
+ * the recovery codes are the same in both places.
  *
  * An account is not needed: notes live on the device either way, so the last line goes on without one, and the way in
  * stays in Settings › Account.

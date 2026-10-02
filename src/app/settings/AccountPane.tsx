@@ -1,7 +1,7 @@
 import { Ghost } from '../art/Ghost.tsx';
 import { useEffect, useState, type FormEvent } from 'react';
 import { KeyRound, LogOut, RefreshCw, ShieldCheck, Trash2 } from '@glacier/icons';
-import { Input, Switch } from '@glacier/react';
+import { Input, SegmentedControl, Switch } from '@glacier/react';
 import { changePassword, handleProblem, newRecoveryCodes, passwordProblem, recover, signIn, signUp, useAccount } from '../core/account/account.ts';
 import { failureText } from '../core/failure.ts';
 import { setLiveEnabled, useLiveEnabled } from '../core/live/enabled.ts';
@@ -71,36 +71,60 @@ function LocalOnlyCallout({ onOpen }: { onOpen?: () => void }) {
 }
 
 /**
- * The way in on its own: sign in, make an account and keep its recovery codes, or recover one. Settings' Account page
- * draws the form while signed out; the first screen on open draws this whole flow (shell/AccountGate.tsx), told by
- * `onIn` once the person is in - straight after a sign-in, and after the codes are put away for a new or recovered
- * account, so the codes are never skipped.
+ * The way in on its own, as one plain card: sign in or make an account, and keep a new account's recovery codes - or
+ * recover one. The first screen on open draws it (shell/AccountGate.tsx; Matt: "a simple login card that asks you to
+ * login or signup"), told by `onIn` once the person is in - straight after a sign-in, and after the codes are put away
+ * for a new or recovered account, so the codes are never skipped. Settings' Account page has the long form of the
+ * same thing (`SignedOut`), with the privacy cards after it.
  */
 export function SignInFlow({ onIn }: { onIn: () => void }) {
   const [codes, setCodes] = useState<string[] | null>(null);
-  if (codes) return <Codes codes={codes} onDone={onIn} />;
-  return <SignedOut onCodes={setCodes} onIn={onIn} />;
+  const form = useWayIn(setCodes, onIn);
+  if (codes)
+    return (
+      <section className="setk-signIn" aria-label="Recovery codes">
+        <Codes codes={codes} onDone={onIn} />
+      </section>
+    );
+  const { mode, setMode } = form;
+  return (
+    <section className="setk-signIn" aria-label={mode === 'up' ? 'Create an account' : mode === 'recover' ? 'Recover an account' : 'Sign in'}>
+      <h1 className="setk-signIn__title">{mode === 'up' ? 'Create an account' : mode === 'recover' ? 'Recover an account' : 'Sign in to Ghost.md'}</h1>
+      <p className="setk-signIn__line">{mode === 'recover' ? 'A recovery code and a new password open it again.' : 'Your notes, the same on every device, encrypted before they leave this one.'}</p>
+      {mode !== 'recover' ? (
+        <SegmentedControl
+          aria-label="Sign in or sign up"
+          fullWidth
+          size="sm"
+          options={[
+            { value: 'in', label: 'Sign in' },
+            { value: 'up', label: 'Sign up' },
+          ]}
+          value={mode}
+          onValueChange={(value) => setMode(value as Mode)}
+        />
+      ) : null}
+      <WayInForm form={form} />
+      <button type="button" className="app-word setk-signIn__other" onClick={() => setMode(mode === 'recover' ? 'in' : 'recover')}>
+        {mode === 'recover' ? 'Back to sign in' : 'Lost the password?'}
+      </button>
+    </section>
+  );
 }
 
-function SignedOut({
-  onCodes,
-  onIn,
-  said,
-  onOpen,
-}: {
-  onCodes: (codes: string[]) => void;
-  /** Told after a plain sign-in, which has no codes to show. */
-  onIn?: () => void;
-  said?: string | null;
-  onOpen?: (target: SettingsTarget) => void;
-}) {
-  const prefs = usePreferences();
-  const [mode, setMode] = useState<Mode>('in');
+/** The way-in form's state and its submit, for the long form (`SignedOut`) and the card (`SignInFlow`) alike. */
+function useWayIn(onCodes: (codes: string[]) => void, onIn?: () => void) {
+  const [mode, setModeNow] = useState<Mode>('in');
   const [handle, setHandle] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+
+  const setMode = (next: Mode) => {
+    setModeNow(next);
+    setProblem(null);
+  };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -123,7 +147,50 @@ function SignedOut({
     }
   };
 
+  return { mode, setMode, handle, setHandle, password, setPassword, code, setCode, busy, problem, submit };
+}
+
+function WayInForm({ form }: { form: ReturnType<typeof useWayIn> }) {
+  const { mode, handle, setHandle, password, setPassword, code, setCode, busy, problem, submit } = form;
   const verb = mode === 'up' ? 'Create account' : mode === 'recover' ? 'Recover and set password' : 'Sign in';
+  return (
+    <form className="setk-form" onSubmit={(e) => void submit(e)}>
+      <Input aria-label="Handle" placeholder="Handle" autoComplete="username" autoCapitalize="none" spellCheck={false} value={handle} onChange={(e) => setHandle(e.target.value)} />
+      {mode === 'recover' ? (
+        <Input aria-label="Recovery code" placeholder="Recovery code" autoCapitalize="characters" spellCheck={false} value={code} onChange={(e) => setCode(e.target.value)} />
+      ) : null}
+      <Input
+        aria-label={mode === 'recover' ? 'New password' : 'Password'}
+        placeholder={mode === 'recover' ? 'New password' : 'Password'}
+        type="password"
+        autoComplete={mode === 'in' ? 'current-password' : 'new-password'}
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
+      {problem ? (
+        <p className="setk-form__problem" role="alert">
+          {problem}
+        </p>
+      ) : null}
+      <button type="submit" className="app-word setk-form__submit" disabled={busy || !handle || !password || (mode === 'recover' && !code)}>
+        {busy ? 'One moment…' : verb}
+      </button>
+    </form>
+  );
+}
+
+function SignedOut({
+  onCodes,
+  said,
+  onOpen,
+}: {
+  onCodes: (codes: string[]) => void;
+  said?: string | null;
+  onOpen?: (target: SettingsTarget) => void;
+}) {
+  const prefs = usePreferences();
+  const form = useWayIn(onCodes);
+  const { mode, setMode } = form;
   return (
     <>
       {said ? <SettingsCallout>{said}</SettingsCallout> : null}
@@ -133,28 +200,7 @@ function SignedOut({
         title={mode === 'up' ? 'New account' : mode === 'recover' ? 'Recover' : 'Sign in'}
         description="Keep your notes, recordings and settings the same on your phone and computer. They are encrypted on the device first. The service stores only what it cannot read."
       >
-        <form className="setk-form" onSubmit={(e) => void submit(e)}>
-          <Input aria-label="Handle" placeholder="Handle" autoComplete="username" autoCapitalize="none" spellCheck={false} value={handle} onChange={(e) => setHandle(e.target.value)} />
-          {mode === 'recover' ? (
-            <Input aria-label="Recovery code" placeholder="Recovery code" autoCapitalize="characters" spellCheck={false} value={code} onChange={(e) => setCode(e.target.value)} />
-          ) : null}
-          <Input
-            aria-label={mode === 'recover' ? 'New password' : 'Password'}
-            placeholder={mode === 'recover' ? 'New password' : 'Password'}
-            type="password"
-            autoComplete={mode === 'in' ? 'current-password' : 'new-password'}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          {problem ? (
-            <p className="setk-form__problem" role="alert">
-              {problem}
-            </p>
-          ) : null}
-          <button type="submit" className="app-word setk-form__submit" disabled={busy || !handle || !password || (mode === 'recover' && !code)}>
-            {busy ? 'One moment…' : verb}
-          </button>
-        </form>
+        <WayInForm form={form} />
       </PaneSection>
       <PaneSection>
         {mode !== 'in' ? <SettingRow label="I have an account" onPress={() => setMode('in')} /> : null}
