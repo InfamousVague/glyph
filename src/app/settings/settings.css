@@ -715,7 +715,7 @@
   padding: var(--glacier-space-6) var(--glacier-space-5) var(--glacier-space-4);
   border: 1px solid var(--app-rule);
   border-radius: var(--glacier-radius-lg);
-  background: var(--glacier-bg-raised, var(--glacier-bg));
+  background: var(--app-paper);
 }
 
 .setk-signIn__title {
