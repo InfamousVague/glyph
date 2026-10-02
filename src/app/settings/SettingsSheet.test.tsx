@@ -164,7 +164,7 @@ describe('the list of sections', () => {
   // more for docs/TEAMS.md, which put Notifications beside Account on the first card.
   it('in a browser, is Account and Notifications, then Appearance, Plugins and About', () => {
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Notifications', 'Appearance', 'Plugins', 'About']);
+    expect(labels(host)).toEqual(['Account', 'Organizations', 'Notifications', 'Appearance', 'Plugins', 'About']);
     expect(host.querySelectorAll('.settingsScreen__cluster')).toHaveLength(3);
     expect(names('theme')).not.toContain('Haptics');
   });
@@ -173,9 +173,9 @@ describe('the list of sections', () => {
     native = true;
     android = true;
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Notifications', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
+    expect(labels(host)).toEqual(['Account', 'Organizations', 'Notifications', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
     expect([...host.querySelectorAll('.settingsScreen__cluster')].map((card) => [...card.querySelectorAll('.settingsScreen__rowLabel')].map((l) => l.textContent))).toEqual([
-      ['Account', 'Notifications'],
+      ['Account', 'Organizations', 'Notifications'],
       ['Appearance', 'Recording', 'AI', 'Plugins'],
       ['About'],
     ]);
@@ -219,7 +219,7 @@ describe('the list of sections', () => {
   it('in a browser on an Android phone, has Recording for the words, without the AI section, the meetings or the tapes', () => {
     android = true;
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Notifications', 'Appearance', 'Recording', 'Plugins', 'About']);
+    expect(labels(host)).toEqual(['Account', 'Organizations', 'Notifications', 'Appearance', 'Recording', 'Plugins', 'About']);
     expect(names('recording')).toEqual(['Stop when I go quiet', 'Review after recording', 'Better words', 'Summaries']);
     // No model runs in a browser, so no AI section.
     expect(section('ai')).toBeUndefined();
@@ -228,14 +228,14 @@ describe('the list of sections', () => {
   it('on an iPhone, is the four a browser has: no Recording and no AI, where no model runs', () => {
     native = true;
     iphone = true;
-    expect(labels(settings())).toEqual(['Account', 'Notifications', 'Appearance', 'Plugins', 'About']);
+    expect(labels(settings())).toEqual(['Account', 'Organizations', 'Notifications', 'Appearance', 'Plugins', 'About']);
     expect(section('ai')).toBeUndefined();
   });
 
   it('on the Mac, has Recording and AI too, the recording for the better words and the summaries', () => {
     native = true;
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Notifications', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
+    expect(labels(host)).toEqual(['Account', 'Organizations', 'Notifications', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
     expect(names('recording')).toEqual(['Stop when I go quiet', 'Review after recording', 'Better words', 'Summaries', 'Tapes', 'Remove audio older than a month']);
     expect(names('ai')).toEqual(['Model', 'Fill blanks on their own']);
   });
@@ -243,7 +243,7 @@ describe('the list of sections', () => {
   it('grows Developer and Test results once developer mode is on, on a card of their own', () => {
     setDeveloperMode(true);
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Notifications', 'Appearance', 'Plugins', 'About', 'Developer', 'Test results']);
+    expect(labels(host)).toEqual(['Account', 'Organizations', 'Notifications', 'Appearance', 'Plugins', 'About', 'Developer', 'Test results']);
     expect(host.querySelectorAll('.settingsScreen__cluster')).toHaveLength(4);
   });
 
@@ -258,26 +258,23 @@ describe('the list of sections', () => {
 });
 
 describe('the sub-pages', () => {
-  it('are the organizations, each switched-on plugin’s page, the cheat sheet, the specification and the examples, off the list, each with its parent', () => {
+  it('are each switched-on plugin’s page, the cheat sheet, the specification and the examples, off the list, each with its parent', () => {
     const host = settings();
     const hidden = handed.filter((s) => s.listed === false).map((s) => `${s.id} < ${s.parent}`);
-    expect(hidden).toEqual(['organizations < account', 'plugin:notion < plugins', 'plugin:github < plugins', 'plugin:claude < plugins', 'cheatsheet < about', 'spec < about', 'examples < about']);
-    for (const label of ['Organizations', 'Notion', 'GitHub', 'Claude', 'Cheat sheet', 'Specification', 'Examples']) expect(labels(host)).not.toContain(label);
+    expect(hidden).toEqual(['plugin:notion < plugins', 'plugin:github < plugins', 'plugin:claude < plugins', 'cheatsheet < about', 'spec < about', 'examples < about']);
+    for (const label of ['Notion', 'GitHub', 'Claude', 'Cheat sheet', 'Specification', 'Examples']) expect(labels(host)).not.toContain(label);
   });
 
-  // The teams the account is in (docs/TEAMS.md): behind Account's row, with Account in the head.
-  it('open Organizations from Account’s row, signed in, in Account’s blue, and step back to Account', async () => {
+  // The teams the account is in (docs/TEAMS.md): a row of their own under Account (Matt: "make an organizations tab
+  // under account in the sidebar instead of nesting it inside the account page").
+  it('open Organizations from its own row under Account, in blue, and step back to the list', async () => {
     session = { handle: 'sam', token: 't', accountId: 1 };
     const host = settings();
     const { act } = await import('react');
-    act(() => rows(host).find((row) => row.textContent?.includes('Account'))!.click());
-    act(() => [...host.querySelectorAll<HTMLButtonElement>('button.setk-row--press')].find((b) => b.querySelector('.setk-row__label')?.textContent === 'Organizations')!.click());
+    act(() => rows(host).find((row) => row.textContent?.startsWith('Organizations'))!.click());
     expect(host.querySelector('.settingsScreen__display')?.textContent).toBe('Organizations');
-    expect(host.querySelector('.settingsScreen__headWord')?.textContent?.trim()).toBe('Account');
     expect(host.querySelector('.settingsScreen__pane')?.getAttribute('data-hue')).toBe('blue');
     expect(host.querySelector('.setk__title')?.textContent).toBe('Your organizations');
-    act(() => host.querySelector<HTMLButtonElement>('.settingsScreen__headWord')!.click());
-    expect(host.querySelector('.settingsScreen__display')?.textContent).toBe('Account');
   });
 
   it('open on a page asked for from outside by its id: Organizations, when an organization’s screen closes', () => {
@@ -455,7 +452,6 @@ const ELSEWHERE: Record<string, string> = {
   // Signed in, a card drawn only while a link is shared.
   'account/Shared links': 'signed in, with a link shared',
   // Signed in, the page's one row to its sub-page is in the signed-in branch; signed out the search lists it still.
-  'account/Organizations': 'signed in',
   // The way in the page is showing is its form's title, not a row offering it.
   'account/I have an account': 'the mode the page opens in',
   // Android's own switch, drawn only where the activity has alerts to switch.

@@ -23,3 +23,13 @@ export const setTopBarTools = slot.set;
 
 /** The slot to draw a screen's controls into, or null to draw them where they are. */
 export const useTopBarTools = slot.use;
+
+/**
+ * The bar's last place, after its own Organizations and bell (Matt: "move the notification bell all the way to the
+ * right just before the vertical dots more menu"): where a screen puts the one control that ends the row, its More.
+ */
+const tail = externalStore<HTMLElement | null>(null, { server: () => null });
+
+export const setTopBarTail = tail.set;
+
+export const useTopBarTail = tail.use;
