@@ -48,15 +48,17 @@ pub fn ensure_key_window(handle: &tauri::AppHandle) {
     });
 }
 
-/// Centres the native traffic lights in the page's taller custom title bar
-/// (tauri-plugin-decorum). macOS lays them out again on every resize, so they
-/// are put back then too.
+/// Sets the native traffic lights into the page's own top-bar control row, inline with the sidebar button and the
+/// arrows, rather than a strip of their own above it (tauri-plugin-decorum; Matt: inline, no wasted space in the
+/// header). `x` leaves the row's start gutter (`--app-traffic-lights` in app.css reserves the matching room so the
+/// first control clears them); `y` centres them in that row. macOS lays them out again on every resize, so they are
+/// put back then too.
 #[cfg(target_os = "macos")]
 pub fn place_traffic_lights(app: &tauri::App) {
     use tauri::Manager;
     use tauri_plugin_decorum::WebviewWindowExt;
     if let Some(main) = app.get_webview_window("main") {
-        const INSET: (f32, f32) = (16.0, 30.0);
+        const INSET: (f32, f32) = (16.0, 27.0);
         let _ = main.set_traffic_lights_inset(INSET.0, INSET.1);
         let win = main.clone();
         main.on_window_event(move |event| {

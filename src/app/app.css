@@ -272,16 +272,18 @@ body {
  * status bar, as on a desktop.
  */
 /*
- * The Mac app's title bar (core/platform.ts `data-titlebar`): the window draws
- * under a transparent bar with its three buttons inset to sit in the middle of
- * it (src-tauri/src/lib.rs), so the page treats the bar as its status bar.
- * Every header already pads by `--app-safe-top`, and the scrim above paints
- * the bar in paper, so this one value moves everything clear of the buttons.
- * The drag strip over it moves the window, as a title bar does, and a double
- * click zooms it.
+ * The Mac app's title bar (core/platform.ts `data-titlebar`): the window draws under a transparent bar with no chrome
+ * of its own. The three native traffic lights sit in the tab bar's own control row now, inline with the sidebar button
+ * and the arrows, rather than in a strip of their own above it (Matt: "traffic light controls ... inline with the rest
+ * of the icons on the top bar removing the wasted space in the header"). So there is no title strip for the page to
+ * clear - the inset is nothing - and the tab bar keeps a gutter the width of the three lights at its start, which the
+ * native buttons are centred into (src-tauri/src/platform.rs `place_traffic_lights`). The whole row drags the window,
+ * as a title bar does (`.app-dragBar` behind the controls), and a double click zooms it.
  */
 :root[data-titlebar='overlay'] {
-  --app-inset-top: 44px;
+  --app-inset-top: 0px;
+  /* The room the three traffic lights take at the row's start; the first control begins after it (`.app-tabBar`). */
+  --app-traffic-lights: 72px;
 }
 
 /*
@@ -331,7 +333,9 @@ body {
    * glyph inside it on one line, so the ground wins: it is the edge a person sees, especially with a mouse, where
    * the ground is drawn under the pointer. The glyph sits its own half-inset in, as a button's glyph does everywhere.
    */
-  padding-inline: var(--app-bar-start) var(--app-gutter-end);
+  /* The bar keeps the page's gutter at the end, and at the start the same gutter plus room for the Mac's traffic
+     lights (`--app-traffic-lights`, nothing elsewhere), so the sidebar button clears them (Matt: inline, no wasted space). */
+  padding-inline: calc(var(--app-bar-start) + var(--app-traffic-lights, 0px)) var(--app-gutter-end);
   /* Nothing of its own to paint: the header pane under it is the glass, and its own children take the taps. */
   pointer-events: none;
 }
@@ -418,8 +422,11 @@ body {
   position: fixed;
   inset-block-start: 0;
   inset-inline: 0;
-  z-index: 41;
-  block-size: var(--app-inset-top);
+  /* The control row is the title bar now, so the drag strip is as tall as it. Behind the bar's controls (z 5) rather
+     than over them, so the empty parts of the row drag the window while the sidebar button, arrows and tabs still
+     take their taps (the bar itself is pointer-events:none, so a press on its empty ground falls through to here). */
+  z-index: 4;
+  block-size: var(--app-tabs);
   -webkit-user-select: none;
   user-select: none;
 }
