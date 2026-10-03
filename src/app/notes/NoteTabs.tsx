@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Bell, PanelLeft, Plus, Users, X } from '@glacier/icons';
+import { ArrowLeft, ArrowRight, Bell, PanelLeft, Plus, UserGroup, X } from '@glacier/icons';
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from '@glacier/react';
 import { newGroup, NO_GROUPS, renameGroup, toggleGroup, type TabGroups } from './tabGroups.ts';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
@@ -234,7 +234,7 @@ export function NoteTabs({
             <Menu
               trigger={
                 <button type="button" className={styles.sidebar} aria-label="Organizations" title="Organizations">
-                  <Users size={19} strokeWidth={2.1} aria-hidden="true" />
+                  <UserGroup size={19} strokeWidth={2.1} aria-hidden="true" />
                 </button>
               }
               placement="bottom-end"
@@ -251,7 +251,7 @@ export function NoteTabs({
             </Menu>
           ) : (
             <button type="button" className={styles.sidebar} onClick={onOrganizations} aria-label="Organizations" title="Organizations">
-              <Users size={19} strokeWidth={2.1} aria-hidden="true" />
+              <UserGroup size={19} strokeWidth={2.1} aria-hidden="true" />
             </button>
           )
         ) : null}

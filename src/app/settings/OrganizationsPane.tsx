@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Users } from '@glacier/icons';
+import { UserGroup } from '@glacier/icons';
 import { Input } from '@glacier/react';
 import { useAccount } from '../core/account/account.ts';
 import { failureText } from '../core/failure.ts';
@@ -110,7 +110,7 @@ export function OrganizationsPane({ onOpen, onOrganization }: OrganizationsPaneP
         {joined.length ? (
           joined.map((row) => <SettingRow key={row.id} icon={<HueMark hue={row.hue} />} label={row.name} hint={`${roleWords(row.role)} · ${memberWords(row.members)}`} onPress={() => open(row)} />)
         ) : (
-          <SettingRow icon={<Users size={20} />} label="None yet" hint="Make one below, or accept an invitation when one arrives." />
+          <SettingRow icon={<UserGroup size={20} />} label="None yet" hint="Make one below, or accept an invitation when one arrives." />
         )}
       </PaneSection>
       <NewOrganization onMade={(id) => onOrganization?.(id)} />

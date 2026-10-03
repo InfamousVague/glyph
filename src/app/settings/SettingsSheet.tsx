@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Bell, BookOpen, CircleUser, FileCode, FlaskConical, Folder, Info, Mic, Puzzle, Shapes, Sparkles, SunMoon, Terminal, Users } from '@glacier/icons';
+import { Bell, BookOpen, CircleUser, FileCode, FlaskConical, Folder, Info, Mic, Puzzle, Shapes, Sparkles, SunMoon, Terminal, UserGroup } from '@glacier/icons';
 import { useAccount } from '../core/account/account.ts';
 import { syncSummary, useSyncStatus } from '../core/sync/engine.ts';
 import { AccountPane } from './AccountPane.tsx';
@@ -178,7 +178,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       label: 'Organizations',
       words: 'teams team org invitations invite members',
       settings: organizationsFindable(Boolean(account.session)),
-      icon: <Users size={16} />,
+      icon: <UserGroup size={16} />,
       content: <OrganizationsPane onOpen={go} onOrganization={onOrganization} />,
       summary: account.session ? `${orgs.list.filter((row) => row.state === 'member').length} joined` : 'Signed out',
       group: 0,
