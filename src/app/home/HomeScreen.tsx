@@ -234,25 +234,29 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
       </div>
 
       {/* The dock: a floating column in the bottom right, Settings, write, then Speak nearest the thumb (HomeScreen.module.css). */}
-      <nav className={styles.dock} aria-label="New note">
-        <button type="button" className={`${styles.round} ${styles.add}`} onClick={onNew} aria-label="Write a note">
-          <Plus />
-        </button>
-        {onCapture ? (
-          <button type="button" className={`app-pill ${styles.speak}`} onClick={onCapture} aria-label="Speak a voice note">
-            <Mic size={18} strokeWidth={2.2} aria-hidden="true" />
-            <span className={styles.speakWord}>Speak</span>
+      <div className={styles.dockSpot}>
+        {/* The ghost blur around it: a sibling, since the dock's own glass would keep a halo inside it from seeing the page. */}
+        <div className={styles.dockHalo} aria-hidden="true" />
+        <nav className={styles.dock} aria-label="New note">
+          <button type="button" className={`${styles.round} ${styles.add}`} onClick={onNew} aria-label="Write a note">
+            <Plus />
           </button>
-        ) : null}
-        <button type="button" className={`${styles.round} ${styles.cog}`} onClick={onSettings} aria-label="Settings">
-          <Cog />
-        </button>
-        {onSearch ? (
-          <button type="button" className={`${styles.round} ${styles.search}`} onClick={onSearch} aria-label="Search and commands">
-            <Magnifier />
+          {onCapture ? (
+            <button type="button" className={`app-pill ${styles.speak}`} onClick={onCapture} aria-label="Speak a voice note">
+              <Mic size={18} strokeWidth={2.2} aria-hidden="true" />
+              <span className={styles.speakWord}>Speak</span>
+            </button>
+          ) : null}
+          <button type="button" className={`${styles.round} ${styles.cog}`} onClick={onSettings} aria-label="Settings">
+            <Cog />
           </button>
-        ) : null}
-      </nav>
+          {onSearch ? (
+            <button type="button" className={`${styles.round} ${styles.search}`} onClick={onSearch} aria-label="Search and commands">
+              <Magnifier />
+            </button>
+          ) : null}
+        </nav>
+      </div>
       {onRefresh ? <PullToRefresh scroller={scroller} onRefresh={onRefresh} /> : null}
       <WorkspaceSheet
         which={manage}

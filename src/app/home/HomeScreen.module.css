@@ -141,11 +141,19 @@
  * thumb, still the one ink-filled thing, as a circle the size of the other two so the column is one width. Search
  * (the command palette) sits under Settings, since it is reached for more often and less than writing is.
  */
-.dock {
+/*
+ * Where the dock floats, and the halo behind it: a plain box with no filter of its own, so the halo inside it can
+ * blur what scrolls under the dock (below).
+ */
+.dockSpot {
   position: absolute;
   inset-inline: auto calc(var(--app-safe-right) + var(--glacier-space-4));
   bottom: calc(var(--app-safe-bottom) + var(--glacier-space-4));
   z-index: 30;
+}
+
+.dock {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -161,33 +169,41 @@
 
 /*
  * The ghost blur around the dock (GLY-81, Matt: "Show ghost blur / wisp effect we use under the header around the
- * floating dock"). A halo behind the dock that blurs what scrolls under it and fades that blur out radially, the
- * same soft dissolve the header gives content going up to smoke (art/wispEdge.ts), so nothing is hard-cut at the
- * pill's edge. A paper wash over the same halo takes the content toward the page's own colour as it nears the dock,
- * which is the smoke. It sits behind the dock's glass (`z-index: -1` in the dock's own stacking context, which is
- * already above the scroller), takes no taps, and is a still effect, so reduced motion and both themes are unchanged.
+ * floating dock", then "The blur wisp eff3ct still isn't showing around the floating dock"). What scrolls toward the
+ * dock is blurred and washed toward the page's paper, strongest at the pill's edge and gone a few rem out, as the
+ * Mac's header softens what slips under it (art/wispEdge.ts). A still effect: reduced motion and both themes alike.
+ *
+ * It is the dock's sibling, not its `::before`, which is where it was and why it never showed: the dock's own glass
+ * is a backdrop filter, and an element with one is the backdrop root of everything inside it, so a backdrop filter
+ * inside the dock blurred only the dock's own transparent box, never the notes behind it. And its feather follows
+ * the dock's shape, a tall pill, where the round `closest-side` gradient it had was as narrow as the dock and left
+ * little of a halo past its sides.
  */
-.dock::before {
-  content: "";
+.dockHalo {
   position: absolute;
-  z-index: -1;
-  inset: -2.4rem;
-  border-radius: var(--glacier-radius-full);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--glacier-bg) 55%, transparent), transparent 72%);
-  -webkit-mask-image: radial-gradient(closest-side, #000 26%, transparent 78%);
-  mask-image: radial-gradient(closest-side, #000 26%, transparent 78%);
+  inset: -3rem;
   pointer-events: none;
+  border-radius: var(--glacier-radius-full);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  background: color-mix(in srgb, var(--glacier-bg) 70%, transparent);
+  /* Full strength from the pill's edge inward, feathered to nothing over the 3rem outside it, on every side. */
+  -webkit-mask-image:
+    linear-gradient(to right, transparent, #000 3rem, #000 calc(100% - 3rem), transparent),
+    linear-gradient(to bottom, transparent, #000 3rem, #000 calc(100% - 3rem), transparent);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent, #000 3rem, #000 calc(100% - 3rem), transparent),
+    linear-gradient(to bottom, transparent, #000 3rem, #000 calc(100% - 3rem), transparent);
+  mask-composite: intersect;
 }
 
-/* The glass itself is reached only where there is a backdrop filter to layer; without one, the halo is the paper wash alone. */
+/* Without a backdrop filter to layer, the halo is the paper wash alone, a little stronger. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .dock::before {
-    background: radial-gradient(closest-side, color-mix(in srgb, var(--glacier-bg) 80%, transparent), transparent 74%);
+  .dockHalo {
+    background: color-mix(in srgb, var(--glacier-bg) 80%, transparent);
   }
 }
-
 
 /*
  * Speak is the screen's one ink pill: the thing Glyph is for, where the thumb
