@@ -87,7 +87,7 @@ export function HomeFilters({ query, onQuery, filter, onFilter, counts, onManage
     <>
       <div ref={row} className={look.searchRow}>
         <div className={look.search}>
-          <Search size={17} strokeWidth={2.2} className={look.searchMark} aria-hidden="true" />
+          <Search size={15} strokeWidth={2.2} className={look.searchMark} aria-hidden="true" />
           <input
             ref={field}
             type="search"
@@ -124,7 +124,7 @@ export function HomeFilters({ query, onQuery, filter, onFilter, counts, onManage
           className={look.panel}
           trigger={
             <button type="button" className={look.filterButton} data-on={chosen ? '' : undefined} aria-label={chosen ? `Filters: ${chosen}` : 'Filters'}>
-              <SlidersHorizontal size={18} strokeWidth={2.2} aria-hidden="true" />
+              <SlidersHorizontal size={16} strokeWidth={2.2} aria-hidden="true" />
             </button>
           }
         >

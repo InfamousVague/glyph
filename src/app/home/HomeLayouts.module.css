@@ -17,8 +17,9 @@
   align-items: center;
   gap: var(--glacier-space-2);
   min-inline-size: 0;
-  min-block-size: var(--glacier-space-12);
-  padding-inline: var(--glacier-space-4) var(--glacier-space-2);
+  /* A row's height, not a field's (Matt: "the filters button and search bar are too large"). */
+  min-block-size: var(--glacier-space-10);
+  padding-inline: var(--glacier-space-3) var(--glacier-space-1);
   border: var(--glacier-hairline) solid var(--app-rule);
   border-radius: var(--glacier-radius-full);
   background: color-mix(in oklch, var(--app-ink) 4%, transparent);
@@ -37,13 +38,13 @@
 .field {
   flex: 1;
   min-inline-size: 0;
-  min-block-size: var(--glacier-space-10);
+  min-block-size: var(--glacier-space-8);
   margin: 0;
   padding: 0;
   border: none;
   background: transparent;
   font: inherit;
-  font-size: var(--glacier-font-size-md);
+  font-size: var(--glacier-font-size-sm);
   color: var(--app-ink);
   outline: none;
   appearance: none;
@@ -63,8 +64,8 @@
   flex: none;
   display: grid;
   place-items: center;
-  inline-size: var(--glacier-space-8);
-  block-size: var(--glacier-space-8);
+  inline-size: var(--glacier-space-6);
+  block-size: var(--glacier-space-6);
   margin: 0;
   padding: 0;
   border: none;
@@ -93,8 +94,8 @@
   flex: none;
   display: grid;
   place-items: center;
-  inline-size: var(--glacier-space-12);
-  block-size: var(--glacier-space-12);
+  inline-size: var(--glacier-space-10);
+  block-size: var(--glacier-space-10);
   margin: 0;
   padding: 0;
   border: var(--glacier-hairline) solid var(--app-rule);
