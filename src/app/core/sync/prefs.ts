@@ -17,6 +17,7 @@ const SYNCED_PREFS = [
   // The home page's layout: a way of looking at the same notes, chosen once for every device.
   'homeLayout',
   'homeLayoutChosen',
+  'topBar',
   'density',
   'assist',
   'textSize',

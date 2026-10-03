@@ -1,5 +1,4 @@
-import { isBookBody, isJournalBody, type BookPlace } from '../book/book.ts';
-import { stampOf } from '../book/journal.ts';
+import { isBookBody } from '../book/book.ts';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { frontMatterEnd } from '../core/frontMatter.ts';
 import type { HomeLayout } from '../core/preferences.ts';
@@ -16,26 +15,21 @@ import { hasTape, matches } from '../notes/allNotes.ts';
  * over them, and a filter - All, Notebooks, Notes, Pinned, and the workspace - drawn one of several ways.
  *
  * Then: "i like the card view and the timeline view add a few more variations that are mixes and matches of different
- * views" (docs/DESIGN.md §148). The four mixes put the two he liked first and cross them with the others: the cards
- * by when, the newest few as cards over a timeline, the shelf over a timeline, and each notebook with its pages as
- * cards.
+ * views" (docs/DESIGN.md §148), which made nine. Nine was too many to choose between (Matt, 2026-10-03: "cut the home
+ * page layout selection down to 4 items and show them in cards representing the actual layout", §178): the four that
+ * differ stay - Spotlight, Cards, Timeline and List - and Settings draws each as a small picture of itself
+ * (settings/LayoutCards.tsx). The mixes, the Shelf and the Library went with the code that drew them.
  */
 
 /**
  * The layouts, in the order Settings offers them, each with the sentence that says what it looks like: Spotlight, the
- * default (Matt: "make the spotlight mode the default"), then the two Matt liked, the other mixes of them, and the three
- * single ways the page was first drawn.
+ * default (Matt: "make the spotlight mode the default"), then the two Matt liked, then the list.
  */
 export const HOME_LAYOUTS: readonly { id: HomeLayout; label: string; hint: string }[] = [
   { id: 'spotlight', label: 'Spotlight', hint: 'Your pinned notes in a list, the four you touched last as cards, then everything else by when.' },
   { id: 'cards', label: 'Cards', hint: 'Notebooks and notes as cards, each note drawn small.' },
   { id: 'timeline', label: 'Timeline', hint: 'Everything by when you last touched it: today, yesterday, this week and earlier.' },
-  { id: 'card-timeline', label: 'Card timeline', hint: 'Cards, under today, yesterday, this week and earlier.' },
-  { id: 'shelf-timeline', label: 'Shelf and timeline', hint: 'Notebooks as covers along a shelf, then the notes by when.' },
-  { id: 'notebook-cards', label: 'Notebook cards', hint: 'Each notebook with its pages as cards, then the notes in no notebook.' },
   { id: 'list', label: 'List', hint: 'One line each: the name, how it starts, and when. The most on a screen.' },
-  { id: 'shelf', label: 'Shelf', hint: 'Notebooks as covers along a shelf, and the notes as small cards under it.' },
-  { id: 'library', label: 'Library', hint: 'Each notebook open with its pages under it, then the notes in no notebook.' },
 ];
 
 /**
@@ -44,9 +38,8 @@ export const HOME_LAYOUTS: readonly { id: HomeLayout; label: string; hint: strin
  */
 export const CARDS_AT_MOST = 48;
 
-/** How many cards Spotlight leads with, and how many pages Notebook cards shows of each notebook before "More". */
+/** How many cards Spotlight leads with. */
 export const SPOTLIT = 4;
-export const PAGES_CARDED = 6;
 
 /** What the page is showing: everything, only notebooks, only notes and pages, or only what is pinned. */
 export type HomeFilter = 'all' | 'books' | 'notes' | 'pinned';
@@ -174,10 +167,10 @@ export function spotlight(lists: HomeLists, lead = SPOTLIT, now = Date.now()): {
 export type SectionMark = 'notebook' | 'note' | 'pinned' | 'recent' | null;
 
 /**
- * How a section draws its notes: as cards, as the Shelf's small cards, as rows, as covers along a shelf, or as lines -
- * one short line a note, its name and when, the simplest list the page has.
+ * How a section draws its notes: as cards, as rows, or as lines - one short line a note, its name and when, the
+ * simplest list the page has.
  */
-export type SectionDraw = 'cards' | 'dense' | 'rows' | 'covers' | 'lines';
+export type SectionDraw = 'cards' | 'rows' | 'lines';
 
 /** A section under a heading of words: "Notebooks", "Today", "In no notebook". `count` is how many in all, where drawn. */
 export interface WordsSection {
@@ -189,20 +182,8 @@ export interface WordsSection {
   notes: Note[];
 }
 
-/**
- * A notebook's own section (Library, Notebook cards): its name opens it, its pages under it, `more` past what is drawn.
- * Its pages are every page of it, whatever the search and the filter: the notebook is what was found.
- */
-export interface BookSection {
-  key: string;
-  book: Note;
-  count: number;
-  draw: 'cards' | 'rows';
-  notes: Note[];
-  more: number;
-}
-
-export type HomeSection = WordsSection | BookSection;
+/** Every section is one of words now: the Library's and Notebook cards' own went with those layouts (§178). */
+export type HomeSection = WordsSection;
 
 /** The page in one layout: its sections in order, and how many notes were left for All notes (`cut`). */
 export interface HomePlan {
@@ -211,10 +192,6 @@ export interface HomePlan {
 }
 
 export interface PlanWays {
-  /** A notebook's pages, in its order (book/book.ts `chaptersOf`, looked up by title). */
-  pagesOf: (book: Note) => Note[];
-  /** The notebook a note is a page of, or null (book/book.ts `placeOf`): which heading the notes left over go under. */
-  placeOf: (note: Note) => BookPlace | null;
   /**
    * The moment the spans are counted from: any time today will do, so the page passes the start of the day and makes a
    * new plan when the day turns rather than on every draw.
@@ -228,25 +205,10 @@ const byWhen = (groups: { span: Span; notes: Note[] }[], draw: SectionDraw): Wor
   groups.map(({ span, notes }) => ({ key: span, heading: SPAN_WORDS[span], mark: null, count: notes.length, draw, notes }));
 
 /**
- * A notebook's pages as the page draws them: each once, however often its index names it, in the notebook's order -
- * but a journal's newest first, by when each entry was written, as its own screen and its card order them
- * (book/journalMonths.ts). Its index is in the order the entries were added, so its first six were its oldest.
+ * What the page draws in a layout, as sections. Cards stops at `most` cards; what it left out is `cut`, which the foot
+ * counts on its way to All notes. Rows and lines are cheap, and never stop.
  */
-function pagesIn(book: Note, ways: PlanWays): Note[] {
-  const seen = new Set<string>();
-  const pages = ways.pagesOf(book).filter((page) => !seen.has(page.id) && Boolean(seen.add(page.id)));
-  if (!isJournalBody(book.body)) return pages;
-  return pages
-    .map((page, at) => ({ page, at, wall: stampOf(page.body, page.createdAt) }))
-    .sort((a, b) => b.wall - a.wall || b.at - a.at)
-    .map(({ page }) => page);
-}
-
-/**
- * What the page draws in a layout, as sections: the two single ways (Cards, Timeline), the mixes, and the other three.
- * Each card layout stops at `most` cards; what it left out is `cut`, which the foot counts on its way to All notes.
- */
-export function homePlan(layout: HomeLayout, lists: HomeLists, ways: PlanWays): HomePlan {
+export function homePlan(layout: HomeLayout, lists: HomeLists, ways: PlanWays = {}): HomePlan {
   const { books, notes } = lists;
   const now = ways.now ?? Date.now();
   const most = ways.most ?? CARDS_AT_MOST;
@@ -258,10 +220,9 @@ export function homePlan(layout: HomeLayout, lists: HomeLists, ways: PlanWays): 
   let cut = 0;
 
   switch (layout) {
-    case 'cards':
-    case 'shelf': {
-      notebooks(layout === 'cards' ? 'cards' : 'covers');
-      add({ key: 'notes', heading: 'Notes', mark: 'note', count: notes.length, draw: layout === 'cards' ? 'cards' : 'dense', notes: notes.slice(0, most) });
+    case 'cards': {
+      notebooks('cards');
+      add({ key: 'notes', heading: 'Notes', mark: 'note', count: notes.length, draw: 'cards', notes: notes.slice(0, most) });
       cut = Math.max(0, notes.length - most);
       break;
     }
@@ -272,17 +233,6 @@ export function homePlan(layout: HomeLayout, lists: HomeLists, ways: PlanWays): 
     }
     case 'timeline': {
       sections.push(...byWhen(timeline(lists, now), 'rows'));
-      break;
-    }
-    case 'card-timeline': {
-      // Each span says how many it holds, and draws what is left of the cards when its turn comes.
-      let budget = most;
-      for (const section of byWhen(timeline(lists, now), 'cards')) {
-        const drawn = section.notes.slice(0, budget);
-        budget -= drawn.length;
-        cut += section.notes.length - drawn.length;
-        add({ ...section, notes: drawn });
-      }
       break;
     }
     case 'spotlight': {
@@ -297,40 +247,9 @@ export function homePlan(layout: HomeLayout, lists: HomeLists, ways: PlanWays): 
       sections.push(...byWhen(lit.rest, 'rows'));
       break;
     }
-    case 'shelf-timeline': {
-      notebooks('covers');
-      sections.push(...byWhen(spans(notes, now), 'rows'));
-      break;
-    }
-    case 'library':
-    case 'notebook-cards': {
-      const cards = layout === 'notebook-cards';
-      // The card budget is spent notebook by notebook, a few pages each, and what is left goes to the loose notes.
-      let budget = most;
-      // A note is loose unless it is a page of a notebook drawn here. A page whose notebook the search or the filter
-      // left out is loose too, so a search that finds only a page draws that page (§148).
-      const paged = new Set<string>();
-      for (const book of books) {
-        const pages = pagesIn(book, ways);
-        for (const page of pages) paged.add(page.id);
-        const drawn = cards ? pages.slice(0, Math.min(PAGES_CARDED, budget)) : pages;
-        budget -= cards ? drawn.length : 0;
-        sections.push({ key: `book-${book.id}`, book, count: pages.length, draw: cards ? 'cards' : 'rows', notes: drawn, more: pages.length - drawn.length });
-      }
-      const rest = notes.filter((n) => !paged.has(n.id));
-      const shown = cards ? rest.slice(0, budget) : rest;
-      // In no notebook, unless some are pages of a notebook the search or the filter left out: then they are the others.
-      const heading = !books.length ? 'Notes' : rest.some((n) => ways.placeOf(n)) ? 'Other notes' : 'In no notebook';
-      add({ key: 'loose', heading, mark: 'note', count: rest.length, draw: cards ? 'cards' : 'rows', notes: shown });
-      cut = rest.length - shown.length;
-      break;
-    }
   }
   return { sections, cut };
 }
 
-/** Whether a section is a notebook's own. */
-export const isBookSection = (section: HomeSection): section is BookSection => 'book' in section;
-
 /** Every note a plan draws as a card, in the page's order: the ones a line under the title is written for first. */
-export const cardsIn = (plan: HomePlan): Note[] => plan.sections.flatMap((section) => (section.draw === 'cards' || section.draw === 'dense' ? section.notes : []));
+export const cardsIn = (plan: HomePlan): Note[] => plan.sections.flatMap((section) => (section.draw === 'cards' ? section.notes : []));

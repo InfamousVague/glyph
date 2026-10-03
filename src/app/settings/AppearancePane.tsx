@@ -3,19 +3,22 @@ import { hapticsAvailable, setHapticsPref, useHapticsPref } from '../core/haptic
 import { facesOf, INTERFACE_FACES, isSidebarStyle, setPreferences, themeChoice, TYPEFACES, usePreferences, type MotionSpeed, type Rounding, type SidebarStyle, type TextSize } from '../core/preferences.ts';
 import { useSidebar } from '../core/useWideScreen.ts';
 import { CODE_THEMES_DARK, CODE_THEMES_LIGHT, type CodeThemeDark, type CodeThemeLight } from '../editor/codeThemes.ts';
-import { HOME_LAYOUTS } from '../home/homeLayout.ts';
 import { AccentSwatch } from './AccentSwatch.tsx';
-import { PaneSection, Pick, SettingRow } from './kit/settingsKit.tsx';
+import { PaneSection, SettingRow } from './kit/settingsKit.tsx';
+import { LayoutCards } from './LayoutCards.tsx';
 import { ScaleCards } from './ScaleCards.tsx';
 import { ThemeCards } from './ThemeCards.tsx';
+import { TopBarCards } from './TopBarCards.tsx';
 import { TypefaceCards } from './TypefaceCards.tsx';
 import { DENSITY_WORDS, optionsOf, ROUNDING_WORDS, SIZE_WORDS, SPEED_WORDS } from './words.ts';
 
 /**
  * Appearance: how the app looks, moves and feels (Matt: "Change theme to be appearance settings and add the density
  * controller, the accent color picker and the rounding control in there as well as the other existing theme
- * options"). The page first, then how the home page is laid out, then its one colour, then the type, how much air it gives itself and how round its
- * corners are, then the colours of code, then how it moves and how it answers a touch.
+ * options"). The page first, then how the home page is laid out and how the top bar is, each as cards that are the
+ * thing drawn small (LayoutCards.tsx, TopBarCards.tsx; docs/DESIGN.md §178), then its one colour, then the type, how
+ * much air it gives itself and how round its corners are, then the colours of code, then how it moves and how it
+ * answers a touch.
  *
  * Type, Motion and Touch were pages of their own until Matt asked to "clean up / streamline settings a bit"
  * (docs/DESIGN.md §138): Type (the faces and the text size, which sat on another page from the Size that scales
@@ -56,16 +59,17 @@ export function AppearancePane() {
           <ThemeCards value={prefs.theme} onValueChange={(value) => setPreferences(themeChoice(value, prefs))} />
         </div>
       </PaneSection>
-      {/* The home page's layouts (home/homeLayout.ts; docs/DESIGN.md §147, §148), each a row with the sentence that draws it. */}
+      {/* The home page's four layouts (home/homeLayout.ts; docs/DESIGN.md §147, §148, §178), each a card that is the page drawn small. */}
       <PaneSection title="Home page" description="How the home page lays out your notebooks and notes. The search and its filters stay on top whichever you pick.">
-        {HOME_LAYOUTS.map((layout) => (
-          <SettingRow
-            key={layout.id}
-            label={layout.label}
-            hint={layout.hint}
-            control={<Pick checked={prefs.homeLayout === layout.id} label={layout.label} onPress={() => setPreferences({ homeLayout: layout.id, homeLayoutChosen: true })} />}
-          />
-        ))}
+        <div className="setk-row">
+          <LayoutCards value={prefs.homeLayout} onValueChange={(homeLayout) => setPreferences({ homeLayout, homeLayoutChosen: true })} />
+        </div>
+      </PaneSection>
+      {/* The top bar's six ways (shell/topBar.ts, notes/NoteTabs.tsx; §178), each a card that is the bar drawn small. */}
+      <PaneSection title="Top bar" description="Where the controls and the open notes' tabs sit. The same on every screen, and on your other devices.">
+        <div className="setk-row">
+          <TopBarCards value={prefs.topBar} onValueChange={(topBar) => setPreferences({ topBar })} />
+        </div>
       </PaneSection>
       <PaneSection title="Accent" description="Colours the few things that mark a choice: a focus ring, a chosen segment. Ink is the app's own.">
         <AccentSwatch accent={prefs.accent} onAccent={(accent) => setPreferences({ accent })} />

@@ -211,6 +211,31 @@ describe('the tab row', () => {
     expect(preferences().openNotes).toEqual(['a']);
   });
 
+  // The bar's six ways (shell/topBar.ts; docs/DESIGN.md §178): how many lines it is, and whether the tabs are at the foot.
+  it('is one line for the Strip and Thumb whatever is open, two for the Ledger always, and Thumb stands a foot with a note open', async () => {
+    await seed(['a', '# Apples']);
+    setPreferences({ topBar: 'thumb' });
+    await openApp();
+    expect(root.dataset.topbar).toBe('thumb');
+    expect(root.dataset.tabs).toBe('on');
+    expect(root.dataset.foot).toBeUndefined();
+    act(() => card('Apples').click());
+    expect(root.dataset.tabs).toBe('on');
+    expect(root.dataset.foot).toBe('on');
+    act(() => button('Close Apples').click());
+    expect(root.dataset.foot).toBeUndefined();
+    act(() => setPreferences({ topBar: 'strip' }));
+    act(() => card('Apples').click());
+    expect(root.dataset.tabs).toBe('on');
+    expect(root.dataset.foot).toBeUndefined();
+    act(() => setPreferences({ topBar: 'ledger' }));
+    act(() => button('Close Apples').click());
+    expect(root.dataset.tabs).toBe('rows');
+    act(() => setPreferences({ topBar: 'classic' }));
+    expect(root.dataset.tabs).toBe('on');
+    expect(root.dataset.topbar).toBeUndefined();
+  });
+
   it('closes the tab being read onto its neighbour, and the last one home', async () => {
     await seed(['a', '# Apples'], ['b', '# Bread']);
     await openApp();

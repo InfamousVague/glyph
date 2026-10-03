@@ -81,15 +81,28 @@ export function isSidebarStyle(style: unknown): style is SidebarStyle {
 
 /**
  * How the home page lays out the notebooks and notes (home/homeLayout.ts `HOME_LAYOUTS`; Matt: "give me 5 different
- * dashboard layout styles we can chose from in the settings"), then four mixes of them - card-timeline, spotlight,
- * shelf-timeline and notebook-cards - that Matt asked for after (docs/DESIGN.md §148): "i like the card view and the
- * timeline view add a few more variations that are mixes and matches of different views".
+ * dashboard layout styles we can chose from in the settings", then four mixes of them, docs/DESIGN.md §148). Cut to
+ * the four that differ on 2026-10-03 (Matt: "cut the home page layout selection down to 4 items", §178): Spotlight,
+ * Cards, Timeline and List. A mix, the Shelf or the Library chosen before falls back to Spotlight (`isHomeLayout`).
  */
-export const HOME_LAYOUT_IDS = ['spotlight', 'cards', 'timeline', 'card-timeline', 'shelf-timeline', 'notebook-cards', 'list', 'shelf', 'library'] as const;
+export const HOME_LAYOUT_IDS = ['spotlight', 'cards', 'timeline', 'list'] as const;
 export type HomeLayout = (typeof HOME_LAYOUT_IDS)[number];
 
 export function isHomeLayout(layout: unknown): layout is HomeLayout {
   return (HOME_LAYOUT_IDS as readonly unknown[]).includes(layout);
+}
+
+/**
+ * How the app's top bar is laid out (shell/topBar.ts `TOP_BAR_STYLES`, notes/NoteTabs.tsx; Matt, 2026-10-03: "redesign
+ * the top header with 5 different styles for me to chose from", then "I'd like to be able to pick the different header
+ * styles from within the app settings", docs/DESIGN.md §178): the bar as it was, and the five. Stamped on the root as
+ * `data-topbar` for the stylesheets, and nothing is stamped for Classic.
+ */
+export const TOP_BAR_IDS = ['classic', 'ledger', 'strip', 'masthead', 'islands', 'thumb'] as const;
+export type TopBar = (typeof TOP_BAR_IDS)[number];
+
+export function isTopBar(style: unknown): style is TopBar {
+  return (TOP_BAR_IDS as readonly unknown[]).includes(style);
 }
 
 function isThemePreset(theme: unknown): theme is ThemePreset {
@@ -249,6 +262,8 @@ export interface Preferences {
   sidebarStyle: SidebarStyle;
   /** How the home page lays out the notebooks and notes (`HomeLayout`), chosen in Settings › Appearance. */
   homeLayout: HomeLayout;
+  /** How the top bar is laid out (`TopBar`), chosen in Settings › Appearance. */
+  topBar: TopBar;
   /**
    * Whether the home page's layout was picked in Settings; until it is, it follows the default. Spotlight became the
    * default after Cards had been (Matt: "make the spotlight mode the default"), and every device that had drawn the
@@ -416,6 +431,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   sidebarStyle: 'popover',
   homeLayout: 'spotlight',
   homeLayoutChosen: false,
+  topBar: 'classic',
   accent: 'ink',
   density: 'comfortable',
   rounding: 'round',
@@ -475,6 +491,7 @@ function settle(raw: unknown): Preferences {
   if (!isUiScale(loaded.uiScale)) loaded.uiScale = DEFAULT_PREFERENCES.uiScale;
   if (!isSidebarStyle(loaded.sidebarStyle)) loaded.sidebarStyle = DEFAULT_PREFERENCES.sidebarStyle;
   if (!isHomeLayout(loaded.homeLayout) || !loaded.homeLayoutChosen) loaded.homeLayout = DEFAULT_PREFERENCES.homeLayout;
+  if (!isTopBar(loaded.topBar)) loaded.topBar = DEFAULT_PREFERENCES.topBar;
   // Tabs from another build, or a half-written store: anything but a list of ids is no tabs at all.
   loaded.openNotes = Array.isArray(loaded.openNotes) ? loaded.openNotes.filter((id): id is string => typeof id === 'string').slice(-MOST_TABS) : [];
   // Tab groups from another build, or a half-written store: only well-formed groups, and tabs pointing at them.
@@ -653,6 +670,9 @@ export function applyPreferences(prefs: Preferences = chosen.get()): void {
 
   if (prefs.density === DEFAULT_PREFERENCES.density) root.removeAttribute('data-density');
   else root.setAttribute('data-density', prefs.density);
+  // The top bar's style, for the bar's heights and grounds (app.css, notes/NoteTabs.module.css); Classic stamps nothing.
+  if (!isTopBar(prefs.topBar) || prefs.topBar === 'classic') root.removeAttribute('data-topbar');
+  else root.setAttribute('data-topbar', prefs.topBar);
 
   // Ink is no accent at all: nothing is stamped, and ink.css keeps every accent token on the grey scale. Any other
   // is the kit's own ramp, which ink.css steps aside for (`:not([data-accent])`).

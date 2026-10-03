@@ -486,3 +486,75 @@ describe('the outline of the tab being read', () => {
     expect(scrolled(600)).toEqual([true, false]);
   });
 });
+
+/** The bar's six ways (NoteTabs.tsx `style`; docs/DESIGN.md §178): the same pieces, placed and shaped by the style. */
+describe('the bar’s styles', () => {
+  const props = { onHome: () => undefined, onGoBack: () => undefined, onGoOn: () => undefined, onNew: () => undefined, onNotifications: () => undefined, onOrganizations: () => undefined };
+  const barOf = () => document.querySelector<HTMLElement>('[data-style]')!;
+  const top = () => document.querySelector<HTMLElement>('[class*="top"]')!;
+  const row = () => document.querySelector<HTMLElement>('[role="tablist"]');
+  const closes = () => [...document.querySelectorAll('[data-close]')].map((b) => b.getAttribute('aria-label'));
+
+  it('is Classic unless told otherwise: the controls, then the tabs, every tab with its cross', () => {
+    show(bar(props));
+    expect(barOf().dataset).toMatchObject({ style: 'classic', shape: 'tab' });
+    expect(top().nextElementSibling).toBe(row());
+    expect(button('Home')).toBeTruthy();
+    expect(closes()).toEqual(['Close Apples', 'Close Bread', 'Close Cheese']);
+  });
+
+  it('as the Ledger puts the tabs first, with Home pinned in the row, and the row there with nothing open', () => {
+    show(bar({ ...props, style: 'ledger' }));
+    expect(barOf().dataset.style).toBe('ledger');
+    expect(row()!.nextElementSibling).toBe(top());
+    expect(row()!.querySelector('[data-home-tab]')?.getAttribute('aria-label')).toBe('Home');
+    // The cross is the open tab's alone.
+    expect(closes()).toEqual(['Close Apples']);
+    rerender(bar({ ...props, style: 'ledger', tabs: [] }));
+    expect(row()).not.toBeNull();
+    expect(button('Home')).toBeTruthy();
+  });
+
+  it('as the Strip is one line, the tabs inside it as capsules between the controls', () => {
+    show(bar({ ...props, style: 'strip', tabs: [] }));
+    expect(barOf().dataset.shape).toBe('capsule');
+    expect(row()!.parentElement).toBe(top());
+    expect(row()!.querySelector('[data-home-tab]')).not.toBeNull();
+    expect(button('New note in a new tab')).toBeTruthy();
+  });
+
+  it('as the Masthead says Home, Notes and Back as words, and draws the tabs as an index line', () => {
+    const onHome = vi.fn();
+    show(bar({ ...props, style: 'masthead', onHome, canGoOn: true }));
+    expect(barOf().dataset.shape).toBe('index');
+    const words = [...top().querySelectorAll('button')].map((b) => b.textContent?.trim());
+    expect(words.slice(0, 4)).toEqual(['Home', 'Notes', 'Back', 'Forward']);
+    act(() => button('Home').click());
+    expect(onHome).toHaveBeenCalledTimes(1);
+    expect(button('Organizations').textContent).toBe('Teams');
+    // Forward only when there is somewhere forward to go.
+    rerender(bar({ ...props, style: 'masthead', canGoOn: false }));
+    expect(button('Back to where you were')).toBeTruthy();
+    expect(document.querySelector('[aria-label="Forward again"]')).toBeNull();
+  });
+
+  it('as the Islands floats three capsules: the way around, the tabs, and the screen’s own', () => {
+    show(bar({ ...props, style: 'islands' }));
+    const capsules = [...document.querySelectorAll<HTMLElement>('[data-capsule]')].map((c) => c.dataset.capsule);
+    expect(capsules).toEqual(['way', 'tools']);
+    expect(document.querySelector('[data-capsule="way"] [aria-label="Home"]')).not.toBeNull();
+    expect(document.querySelector('[data-capsule="tools"] [aria-label="Notifications"]')).not.toBeNull();
+    expect(row()!.parentElement).toBe(top());
+    expect(row()!.previousElementSibling?.getAttribute('data-capsule')).toBe('way');
+  });
+
+  it('as Thumb names the open note in the bar and stands the tabs in a foot, only while a note is open', () => {
+    show(bar({ ...props, style: 'thumb' }));
+    expect(document.querySelector('[class*="heading"]')?.textContent).toBe('Apples');
+    expect(row()!.closest('[data-foot]')).not.toBeNull();
+    rerender(bar({ ...props, style: 'thumb', tabs: [] }));
+    expect(document.querySelector('[data-foot]')).toBeNull();
+    expect(document.querySelector('[class*="heading"]')?.textContent).toBe('');
+    expect(button('Home')).toBeTruthy();
+  });
+});

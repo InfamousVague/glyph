@@ -1,0 +1,170 @@
+/*
+ * The home page layout cards (LayoutCards.tsx): the choice cards' grid, card and tick (choiceCard.module.css), with a
+ * small scene of the home page in each, in the page's own ink and paper. Every shape is a span sized in rem.
+ */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--glacier-space-3);
+  inline-size: 100%;
+}
+
+.option {
+  composes: card from './choiceCard.module.css';
+  border-radius: var(--glacier-radius-lg);
+  color: var(--glacier-text);
+}
+
+.input {
+  composes: input from './choiceCard.module.css';
+}
+
+/* ── the scene ────────────────────────────────────────────────────────────── */
+
+.preview {
+  position: relative;
+  block-size: 6.2rem;
+  overflow: hidden;
+  border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  background: var(--glacier-bg);
+}
+
+.scene {
+  --mini-ink: var(--app-ink);
+  --mini-muted: color-mix(in oklch, var(--app-ink) 45%, transparent);
+  --mini-line: color-mix(in oklch, var(--app-ink) 18%, transparent);
+  --mini-ground: color-mix(in oklch, var(--app-ink) 6%, transparent);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  padding: 0.45rem 0.5rem 0;
+}
+
+/* The search at the top of every layout. */
+.search {
+  block-size: 0.62rem;
+  border-radius: 999px;
+  border: 1px solid var(--mini-line);
+  background: var(--mini-ground);
+}
+
+/* A section's heading. */
+.head {
+  inline-size: 30%;
+  block-size: 0.26rem;
+  margin-block-start: 0.1rem;
+  border-radius: 999px;
+  background: var(--mini-ink);
+}
+
+/* Spotlight's pinned line: a pin's worth of ink, then a name. */
+.pinned {
+  inline-size: 55%;
+  block-size: 0.26rem;
+  margin-block-start: 0.1rem;
+  border-radius: 999px;
+  background: var(--mini-muted);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.24rem;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  padding: 0.24rem 0.28rem;
+  border: 1px solid var(--mini-line);
+  border-radius: 0.28rem;
+  background: var(--mini-ground);
+}
+
+.cardTitle {
+  inline-size: 60%;
+  block-size: 0.24rem;
+  border-radius: 999px;
+  background: var(--mini-ink);
+}
+
+.cardLine {
+  inline-size: 85%;
+  block-size: 0.18rem;
+  border-radius: 999px;
+  background: var(--mini-muted);
+  opacity: 0.6;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  border-block: 1px solid var(--mini-line);
+}
+
+.row {
+  block-size: 0.56rem;
+  background:
+    linear-gradient(var(--mini-ink), var(--mini-ink)) 0.1rem 50% / 38% 0.2rem no-repeat,
+    linear-gradient(var(--mini-muted), var(--mini-muted)) 100% 50% / 14% 0.16rem no-repeat;
+}
+
+.row + .row {
+  border-block-start: 1px solid var(--mini-line);
+}
+
+.rows[data-thin] .row {
+  block-size: 0.44rem;
+  background:
+    linear-gradient(var(--mini-ink), var(--mini-ink)) 0.1rem 50% / 30% 0.18rem no-repeat,
+    linear-gradient(var(--mini-muted), var(--mini-muted)) 40% 50% / 36% 0.14rem no-repeat,
+    linear-gradient(var(--mini-muted), var(--mini-muted)) 100% 50% / 12% 0.14rem no-repeat;
+}
+
+/* ── the words under the picture ──────────────────────────────────────────── */
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+}
+
+.copy {
+  display: grid;
+  gap: 1px;
+  min-inline-size: 0;
+}
+
+.label {
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.description {
+  font-size: var(--glacier-font-size-xs);
+  line-height: 1.35;
+  color: var(--glacier-text-muted);
+}
+
+.indicator {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 1.1rem;
+  block-size: 1.1rem;
+  margin-inline-start: auto;
+  border-radius: 999px;
+  border: 1px solid var(--glacier-border-subtle);
+  color: transparent;
+}
+
+.option[data-selected] .indicator {
+  border-color: var(--glacier-accent-solid);
+  background: var(--glacier-accent-solid);
+  color: var(--glacier-accent-text, var(--glacier-bg));
+}

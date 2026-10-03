@@ -1,7 +1,6 @@
 import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { BookOpen, FileText, Mic, Workflow } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
-import { titleKey } from '../core/titleKey.ts';
 import { inWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
 import { usePreferences } from '../core/preferences.ts';
 import type { VoiceModelState } from '../capture/useVoiceModel.ts';
@@ -31,7 +30,7 @@ import { bookIndex, chaptersOf, placeOf } from '../book/book.ts';
 import { canvasOf } from '../canvas/jsonCanvas.ts';
 import { journalCards } from '../book/journalMonths.ts';
 import type { OpenTask } from './dashboard.ts';
-import { cardsIn, firstLine, homeCounts, homeLists, homePlan, isBookSection, kindOf, type HomeFilter, type HomeKind, type SectionDraw } from './homeLayout.ts';
+import { cardsIn, firstLine, homeCounts, homeLists, homePlan, kindOf, type HomeFilter, type HomeKind, type SectionDraw } from './homeLayout.ts';
 import { HomeFilters } from './HomeFilters.tsx';
 import styles from './HomeScreen.module.css';
 import look from './HomeLayouts.module.css';
@@ -47,7 +46,7 @@ import look from './HomeLayouts.module.css';
  * word anywhere in a note (notes/allNotes.ts `matches`). Beside it, one button for the filters - All, Notebooks,
  * Notes, Pinned, and the workspace - with a chip under the search for each one on (home/HomeFilters.tsx, §148). Then
  * the notebooks and the notes in the layout chosen in Settings › Appearance: the sections home/homeLayout.ts
- * `homePlan` lays out, each drawn as cards, rows or covers. Only what needs the person stays above them: an update
+ * `homePlan` lays out, each drawn as cards, rows or lines. Only what needs the person stays above them: an update
  * ready, an invitation to an organization waiting for its answer (docs/TEAMS.md), the voice model's download or its
  * failure. Tapes are notes like any other, and a to-do is found in its note. Signed in, the filters' panel makes an
  * organization beside a workspace, and an organization's workspace opens the organization's screen.
@@ -116,21 +115,12 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
   const inSpace = useMemo(() => inWorkspace(notes, workspace), [notes, workspace]);
   const lists = useMemo(() => homeLists(inSpace, query, filter), [inSpace, query, filter]);
   const counts = useMemo(() => homeCounts(inSpace), [inSpace]);
-  /** Every page's notebook, for a card's mark and the Library's pages (book/book.ts). */
+  /** Every page's notebook, for a card's and a row's mark (book/book.ts). */
   const inBooks = useMemo(() => bookIndex(inSpace), [inSpace]);
   const journals = useMemo(() => journalCards(notes), [notes]);
-  const byTitle = useMemo(() => new Map(notes.filter((n) => !n.archivedAt).map((n) => [titleKey(noteTitle(n.body)), n])), [notes]);
   // The day the spans are counted from: a new plan when it turns, not on every draw.
   const today = new Date().setHours(0, 0, 0, 0);
-  const plan = useMemo(
-    () =>
-      homePlan(layout, lists, {
-        pagesOf: (book) => chaptersOf(book.body).flatMap((c) => byTitle.get(titleKey(c.title)) ?? []),
-        placeOf: (note) => placeOf(inBooks, note),
-        now: today,
-      }),
-    [layout, lists, byTitle, inBooks, today],
-  );
+  const plan = useMemo(() => homePlan(layout, lists, { now: today }), [layout, lists, today]);
   // A line under each card's title, for the first cards only: the runner asks about what is on screen.
   const carded = useMemo(() => cardsIn(plan).slice(0, GISTED), [plan]);
   const gists = useGists(carded);
@@ -147,15 +137,15 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
   let order = 0;
   // Right to pin, left to archive, further left to delete (docs/DESIGN.md §151): every card, row and line swipes.
   const swipe = (note: Note) => (onSwipe ? { ...noteSwipes(note), onAction: (id: string) => isNoteSwipe(id) && onSwipe(note, id) } : undefined);
-  // A card or a row names the notebook a page is in, but not under that notebook's own heading.
-  const card = (note: Note, dense = false, inBook = false) => (
-    <NoteCard key={note.id} note={note} index={order++} onOpen={onOpen} gist={gists[note.id]} place={inBook ? null : placeOf(inBooks, note)} notebook={placeOf(inBooks, note)?.book.body} entries={journals.get(note.id)} dense={dense} swipe={swipe(note)} />
+  // A card or a row names the notebook a page is in.
+  const card = (note: Note) => (
+    <NoteCard key={note.id} note={note} index={order++} onOpen={onOpen} gist={gists[note.id]} place={placeOf(inBooks, note)} notebook={placeOf(inBooks, note)?.book.body} entries={journals.get(note.id)} swipe={swipe(note)} />
   );
-  const row = (note: Note, inBook = false) => (
-    <HomeRow key={note.id} note={note} index={order++} onOpen={onOpen} bookName={inBook ? null : (placeOf(inBooks, note)?.title ?? null)} notebook={placeOf(inBooks, note)?.book.body} entries={journals.get(note.id)?.count} live={note.id === recording} swipe={swipe(note)} />
+  const row = (note: Note) => (
+    <HomeRow key={note.id} note={note} index={order++} onOpen={onOpen} bookName={placeOf(inBooks, note)?.title ?? null} notebook={placeOf(inBooks, note)?.book.body} entries={journals.get(note.id)?.count} live={note.id === recording} swipe={swipe(note)} />
   );
-  const drawn = (notes: Note[], draw: SectionDraw, inBook = false) => {
-    if (draw === 'rows') return <ul className={look.rows}>{notes.map((n) => row(n, inBook))}</ul>;
+  const drawn = (notes: Note[], draw: SectionDraw) => {
+    if (draw === 'rows') return <ul className={look.rows}>{notes.map(row)}</ul>;
     if (draw === 'lines')
       return (
         <ul className={look.lines}>
@@ -164,40 +154,11 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
           ))}
         </ul>
       );
-    if (draw === 'covers')
-      return (
-        <ol className={look.shelf} aria-label="Notebooks">
-          {notes.map((book) => (
-            <BookCover key={book.id} book={book} index={order++} onOpen={onOpen} count={journals.get(book.id)?.count ?? chaptersOf(book.body).length} journal={journals.has(book.id)} />
-          ))}
-        </ol>
-      );
-    return <ol className={draw === 'dense' ? look.dense : styles.cards}>{notes.map((n) => card(n, draw === 'dense', inBook))}</ol>;
+    return <ol className={styles.cards}>{notes.map(card)}</ol>;
   };
 
   const sections = found
     ? plan.sections.map((section) => {
-        if (isBookSection(section)) {
-          const name = noteTitle(section.book.body) || 'Untitled notebook';
-          const journal = journals.has(section.book.id);
-          return (
-            <section key={section.key} className={look.section} aria-label={name} data-section="book">
-              <button type="button" className={look.bookHead} onClick={() => onOpen(section.book.id)}>
-                <Notebook className={look.mark} />
-                <span className={look.bookName}>{name}</span>
-                <span className={look.count}>{section.count}</span>
-              </button>
-              {section.notes.length ? drawn(section.notes, section.draw, true) : null}
-              {section.more ? (
-                <button type="button" className={`app-word ${look.more}`} onClick={() => onOpen(section.book.id)}>
-                  {section.notes.length ? `${section.more} more in ${name}` : `Open ${name}`}
-                </button>
-              ) : section.count ? null : (
-                <p className={look.none}>{journal ? 'No entries yet.' : 'No pages yet.'}</p>
-              )}
-            </section>
-          );
-        }
         const mark =
           section.mark === 'notebook' ? (
             <Notebook className={look.mark} />
@@ -420,22 +381,6 @@ function HomeLine({ note, index, onOpen, bookName, notebook, live = false, swipe
           <span className={look.rowWhen}>{when(note.updatedAt)}</span>
         </button>
       </Swiped>
-    </li>
-  );
-}
-
-/** A notebook as a cover on the shelf (Shelf, Shelf and timeline): its name large, how many pages or entries, and when it was last written in. */
-function BookCover({ book, index, onOpen, count, journal }: { book: Note; index: number; onOpen: (id: string) => void; count: number; journal: boolean }) {
-  const title = noteTitle(book.body) || 'Untitled notebook';
-  return (
-    <li className={look.coverItem} style={{ '--i': Math.min(index, 8) } as CSSProperties} onContextMenu={onNoteContextMenu(book.id)}>
-      <button type="button" className={look.cover} data-journal={journal || undefined} onClick={() => onOpen(book.id)}>
-        <span className={look.coverSpine} aria-hidden="true" />
-        <span className={look.coverTitle}>{title}</span>
-        <span className={look.coverMeta}>
-          {journal ? (count === 1 ? '1 entry' : `${count} entries`) : count === 1 ? '1 page' : `${count} pages`} · {when(book.updatedAt)}
-        </span>
-      </button>
     </li>
   );
 }

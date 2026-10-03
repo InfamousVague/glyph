@@ -39,7 +39,7 @@ const labels = (host: HTMLElement, card: string) =>
 
 describe('the Appearance page', () => {
   it('holds the look, the type, the motion and, on a phone, the touch, in that order', () => {
-    expect(titles(show(<AppearancePane />))).toEqual(['Page', 'Home page', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion', 'Touch']);
+    expect(titles(show(<AppearancePane />))).toEqual(['Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion', 'Touch']);
   });
 
   it('keeps the two size dials together in Type, beside the two faces', () => {
@@ -54,20 +54,36 @@ describe('the Appearance page', () => {
   it('has no Touch where there is no motor, and no Sidebar on a phone, where it changes nothing', () => {
     phone = false;
     const host = show(<AppearancePane />);
-    expect(titles(host)).toEqual(['Page', 'Home page', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion']);
+    expect(titles(host)).toEqual(['Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion']);
     expect(host.querySelector('[aria-label="Haptics"]')).toBeNull();
     expect(host.querySelector('[aria-label="Sidebar"]')).toBeNull();
   });
 
-  it('offers the home page’s layouts, Spotlight chosen at first, and writes the one picked as picked (docs/DESIGN.md §147, §148)', () => {
+  // Each choice a card that is the thing drawn small (LayoutCards.tsx, TopBarCards.tsx; docs/DESIGN.md §178).
+  const cards = (host: HTMLElement, group: string) => [...host.querySelectorAll<HTMLInputElement>(`[role="radiogroup"][aria-label="${group}"] input[type="radio"]`)];
+  const chosen = (host: HTMLElement, group: string) => cards(host, group).filter((r) => r.checked).map((r) => r.getAttribute('aria-label'));
+
+  it('offers the home page’s four layouts as cards, Spotlight chosen at first, and writes the one picked as picked (docs/DESIGN.md §178)', () => {
     const host = show(<AppearancePane />);
-    expect(labels(host, 'Home page')).toEqual(['Spotlight', 'Cards', 'Timeline', 'Card timeline', 'Shelf and timeline', 'Notebook cards', 'List', 'Shelf', 'Library']);
-    const picked = () => [...host.querySelectorAll('.setk-pick[aria-checked="true"]')].map((pick) => pick.getAttribute('aria-label'));
-    expect(picked()).toEqual(['Spotlight']);
+    expect(cards(host, 'Home page layout').map((r) => r.getAttribute('aria-label'))).toEqual(['Spotlight', 'Cards', 'Timeline', 'List']);
+    expect(chosen(host, 'Home page layout')).toEqual(['Spotlight']);
     expect(preferences().homeLayoutChosen).toBe(false);
-    act(() => host.querySelector<HTMLElement>('.setk-pick[aria-label="Cards"]')!.click());
+    act(() => cards(host, 'Home page layout')[1]!.click());
     expect(preferences()).toMatchObject({ homeLayout: 'cards', homeLayoutChosen: true });
-    expect(picked()).toEqual(['Cards']);
+    expect(chosen(host, 'Home page layout')).toEqual(['Cards']);
+    expect(host.querySelector('[role="radiogroup"][aria-label="Home page layout"] [data-selected]')?.textContent).toContain('Cards');
+  });
+
+  it('offers the top bar’s six ways as cards, Classic chosen at first, and writes the one picked', () => {
+    const host = show(<AppearancePane />);
+    expect(cards(host, 'Top bar').map((r) => r.getAttribute('aria-label'))).toEqual(['Classic', 'Ledger', 'Strip', 'Masthead', 'Islands', 'Thumb']);
+    expect(chosen(host, 'Top bar')).toEqual(['Classic']);
+    act(() => cards(host, 'Top bar')[4]!.click());
+    expect(preferences().topBar).toBe('islands');
+    expect(chosen(host, 'Top bar')).toEqual(['Islands']);
+    expect(document.documentElement.dataset.topbar).toBe('islands');
+    act(() => cards(host, 'Top bar')[0]!.click());
+    expect(document.documentElement.dataset.topbar).toBeUndefined();
   });
 
   it('offers the sidebar’s choice on a window wide enough for the sidebar, and writes it', () => {

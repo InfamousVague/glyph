@@ -1,6 +1,6 @@
 /*
  * The home page's own parts (HomeScreen.tsx, HomeFilters.tsx; docs/DESIGN.md §147, §148): the search and its filters,
- * the section headings, and the layouts' pieces - cards, rows, covers - which the mixes combine (home/homeLayout.ts).
+ * the section headings, and the layouts' pieces - cards, rows, lines - which the layouts share (home/homeLayout.ts).
  * The glass bar, the scroller, the dock and the empty page are HomeScreen.module.css's, as they were.
  */
 
@@ -276,8 +276,6 @@
 .clear:focus-visible,
 .row:focus-visible,
 .line:focus-visible,
-.cover:focus-visible,
-.bookHead:focus-visible,
 .filterButton:focus-visible,
 .choice:focus-visible,
 .panelAction:focus-visible,
@@ -324,17 +322,7 @@
   color: var(--app-ink-3);
 }
 
-/* The Shelf's notes: the dense cards, two across a phone. */
-.dense {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr));
-  gap: var(--glacier-space-3);
-}
-
-/* Rows: List, Library and Timeline. A hairline between them, the whole row a button. */
+/* Rows: List, Timeline and the rest of Spotlight. A hairline between them, the whole row a button. */
 .rows {
   list-style: none;
   margin: 0;
@@ -557,117 +545,6 @@
 .line > .rowWhen {
   margin-inline-start: auto;
   padding-inline-start: var(--glacier-space-2);
-}
-
-/* The Shelf: notebooks as covers along one row, a spine down the left, the name large. */
-.shelf {
-  list-style: none;
-  margin: 0;
-  padding: 0 0 var(--glacier-space-2);
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 9.5rem;
-  gap: var(--glacier-space-3);
-  overflow-x: auto;
-  scroll-snap-type: x proximity;
-  scrollbar-width: thin;
-}
-
-.coverItem {
-  display: flex;
-  scroll-snap-align: start;
-  animation: arrive 360ms var(--glacier-ease-out, ease-out) both;
-  animation-delay: calc(var(--i, 0) * 40ms);
-}
-
-.cover {
-  appearance: none;
-  position: relative;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: var(--glacier-space-2);
-  aspect-ratio: 3 / 4;
-  margin: 0;
-  padding: var(--glacier-space-4) var(--glacier-space-3) var(--glacier-space-3) var(--glacier-space-5);
-  border: var(--glacier-hairline) solid var(--app-rule);
-  border-radius: var(--glacier-radius-sm) var(--glacier-radius-lg) var(--glacier-radius-lg) var(--glacier-radius-sm);
-  background: var(--app-paper-2);
-  color: inherit;
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.coverSpine {
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: 0;
-  inline-size: var(--glacier-space-2);
-  border-radius: var(--glacier-radius-sm) 0 0 var(--glacier-radius-sm);
-  background: color-mix(in oklch, var(--app-ink) 18%, transparent);
-}
-
-.cover[data-journal] .coverSpine {
-  background: color-mix(in oklch, var(--app-ink) 32%, transparent);
-}
-
-.coverTitle {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
-  overflow: hidden;
-  font-size: var(--glacier-font-size-lg);
-  line-height: 1.2;
-  font-weight: var(--glacier-font-weight-semibold);
-  color: var(--app-ink);
-  overflow-wrap: anywhere;
-}
-
-.coverMeta {
-  font-size: var(--glacier-font-size-xs);
-  color: var(--app-ink-3);
-}
-
-/* The Library: each notebook's name as a heading that opens it, its pages as rows under it. */
-.bookHead {
-  appearance: none;
-  display: flex;
-  align-items: center;
-  gap: var(--glacier-space-2);
-  inline-size: 100%;
-  margin: 0;
-  padding: var(--glacier-space-1) 0;
-  border: none;
-  background: none;
-  color: var(--app-ink);
-  font: inherit;
-  text-align: start;
-  cursor: pointer;
-}
-
-.bookName {
-  flex: 1;
-  min-inline-size: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: var(--glacier-font-size-lg);
-  font-weight: var(--glacier-font-weight-semibold);
-}
-
-.none {
-  margin: 0;
-  font-size: var(--glacier-font-size-sm);
-  color: var(--app-ink-3);
-}
-
-/* "8 more in Trip" under a notebook's cards (Notebook cards), which opens the notebook. */
-.more {
-  justify-self: start;
-  font-size: var(--glacier-font-size-sm);
 }
 
 /* A search or filter that found nothing: a small ghost and a line. */

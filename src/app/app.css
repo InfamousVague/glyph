@@ -300,25 +300,77 @@ body {
  * the same on the list as on a note. It sits under the notch and over the
  * screen's own header pane, which paints the glass behind it - the pane
  * reaches the top of the phone because its padding starts below the bar.
+ *
+ * Its two heights are named once (`--app-tabs-one`, `--app-tabs-two`) and chosen by `data-tabs`, which the shell sets
+ * from the bar's style and whether a note is open (shell/topBar.ts `barRows`; docs/DESIGN.md §178). `--app-bar-extra`
+ * is a line's extra air in a style whose rows are capsules (the Islands), nothing in the rest.
  */
-:root[data-tabs='on'] {
+:root {
+  --app-bar-extra: 0px;
   /* A little taller than the row it holds, so the controls sit in the bar rather than against its top edge (Matt:
      "add just a bit more padding around the tab bar ... the active tabs are a bit close to the top"): the bar's own
      top padding, the row, and a breath under it. A clipped control is worse than a few pixels of chrome. */
-  --app-tabs: calc(var(--glacier-space-2) + var(--app-tab-top) + var(--glacier-space-1) + var(--app-tab-bottom));
+  --app-tabs-one: calc(var(--glacier-space-2) + var(--app-tab-top) + var(--glacier-space-1) + var(--app-tab-bottom) + var(--app-bar-extra));
+  /*
+   * With notes open the bar carries a second line of tabs under the controls, so it is that much taller. Built from the
+   * one-line height, the gap the bar sets between its two rows (notes/NoteTabs.module.css `.bar`) and the tab's own
+   * height, rather than a number standing for the last two: a tab that grows now really does take the bar with it,
+   * which the `2.25rem` here only claimed to do.
+   */
+  --app-tabs-two: calc(
+    var(--glacier-space-2) + var(--app-tab-top) + var(--glacier-space-1) + var(--app-tab-h) + var(--glacier-space-1) +
+      var(--app-tab-bottom) + var(--app-bar-extra) * 2
+  );
+}
+
+:root[data-tabs='on'] {
+  --app-tabs: var(--app-tabs-one);
+}
+
+:root[data-tabs='rows'] {
+  --app-tabs: var(--app-tabs-two);
 }
 
 /*
- * With notes open the bar carries a second line of tabs under the controls, so it is that much taller (App.tsx sets
- * 'rows'). Built from the one-line height, the gap the bar sets between its two rows (notes/NoteTabs.module.css
- * `.bar`) and the tab's own height, rather than a number standing for the last two: a tab that grows now really does
- * take the bar with it, which the `2.25rem` here only claimed to do.
+ * The Islands (notes/NoteTabs.module.css `.capsule`): each line is a capsule, a ring with its padding and border, so
+ * each line is that much taller; and on a window in two panes the three capsules share one line, so the bar is one
+ * line tall there whatever is open. The bar and the screen's header pane paint no glass under them - the capsules
+ * carry their own, and the page scrolls under them.
  */
-:root[data-tabs='rows'] {
-  --app-tabs: calc(
-    var(--glacier-space-2) + var(--app-tab-top) + var(--glacier-space-1) + var(--app-tab-h) + var(--glacier-space-1) +
-      var(--app-tab-bottom)
-  );
+:root[data-topbar='islands'] {
+  --app-bar-extra: 8px;
+}
+
+:root[data-topbar='islands'][data-split][data-tabs='rows'] {
+  --app-tabs: var(--app-tabs-one);
+}
+
+:root[data-topbar='islands'] .app-headerPane,
+:root[data-topbar='islands'][data-split] .app-headerPane {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+:root[data-topbar='islands'][data-split] .app-tabBar {
+  background: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border-block-end-color: transparent;
+}
+
+/*
+ * Thumb (notes/NoteTabs.module.css `.foot`): with a note open the tabs stand in a strip at the foot of the screen, and
+ * everything that pads by the phone's own bottom inset pads by the strip too - the home page's dock, a scroller's last
+ * line, a sheet - without knowing it is there, as the headers clear the bar by `--app-safe-top`. The strip itself pads
+ * by the phone's inset alone.
+ */
+:root {
+  --app-foot-h: calc(var(--app-tab-h) + var(--glacier-space-2) * 2 + 1px);
+}
+
+:root[data-foot] {
+  --app-safe-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--app-foot-h));
 }
 
 .app-tabBar {
@@ -412,12 +464,16 @@ body {
  * of pills"). A real tab stands on a line and the one being read opens into the page below it, so the air above the
  * line goes and the tabs' own baseline (notes/NoteTabs.module.css `.tabs`) takes over from the bar's hairline - two
  * lines one pixel apart would read as a double rule. The air stays where there are no tabs, over the bar's line.
+ *
+ * Only where the tabs stand on a line: Classic, the Ledger (whose tabs are the bar's top edge, but whose tool row
+ * draws its own line) and the Masthead (whose index line is the rule). A capsule stands on nothing, so the Strip, the
+ * Islands and Thumb keep the bar's own hairline and the air over it.
  */
-:root[data-split][data-tabs='rows'] {
+:root[data-split][data-tabs='rows']:not([data-topbar='strip']):not([data-topbar='islands']):not([data-topbar='thumb']) {
   --app-tab-bottom: 0px;
 }
 
-:root[data-split][data-tabs='rows'] .app-tabBar {
+:root[data-split][data-tabs='rows']:not([data-topbar='strip']):not([data-topbar='islands']):not([data-topbar='thumb']) .app-tabBar {
   border-block-end-color: transparent;
 }
 

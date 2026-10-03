@@ -359,42 +359,6 @@ describe('the layouts', () => {
     expect(rows).toEqual(['2 cards', 'No cards yet']);
   });
 
-  it('draws the Shelf as covers for the notebooks and small cards for the notes', () => {
-    show(page(shelf));
-    laidOut('shelf');
-    const covers = [...document.querySelectorAll('ol[aria-label="Notebooks"] button')].map((b) => b.textContent);
-    expect(covers).toHaveLength(1);
-    expect(covers[0]).toContain('Trip');
-    expect(covers[0]).toContain('2 pages');
-    expect(listed('Notes')).toEqual(['Packing', 'Route', 'Shopping']);
-  });
-
-  it('draws the Library as each notebook over its pages, then the notes in no notebook', () => {
-    const onOpen = vi.fn();
-    show(page(shelf, { onOpen }));
-    laidOut('library');
-    expect(listed('Trip')).toEqual(['Packing', 'Route']);
-    // Under its own notebook a page does not name it again.
-    expect(document.querySelector('section[aria-label="Trip"] li')?.textContent).not.toContain('Trip');
-    expect(headings()).toEqual(['In no notebook']);
-    expect(listed('In no notebook')).toEqual(['Shopping']);
-    act(() => document.querySelector<HTMLButtonElement>('section[aria-label="Trip"] button')!.click());
-    expect(onOpen).toHaveBeenLastCalledWith('b');
-  });
-
-  it('draws a page the search found under Notes when its notebook was not found, in the Library and Notebook cards', () => {
-    for (const layout of ['library', 'notebook-cards'] as const) {
-      show(page(shelf));
-      laidOut(layout);
-      search('coast');
-      expect(headings()).toEqual(['Notes']);
-      expect(listed('Notes')).toEqual(['Route']);
-      search('zebra');
-      expect(document.body.textContent).toContain('Nothing has “zebra”.');
-      unmount();
-    }
-  });
-
   it('draws the Timeline by when each was last touched, as rows', () => {
     show(page(dated));
     laidOut('timeline');
@@ -422,15 +386,6 @@ describe('the layouts', () => {
     expect(listed('Recent')).toEqual(['Planning', 'Standup', 'Fresh', 'Morning']);
   });
 
-  it('draws the Card timeline as the Timeline’s spans with a card for each', () => {
-    show(page(dated));
-    laidOut('card-timeline');
-    expect(headings()).toEqual(['Today', 'Yesterday', 'Earlier']);
-    expect(listed('Today')).toEqual(['Fresh', 'Morning']);
-    expect(document.querySelector('section[data-section="today"] ul')).toBeNull();
-    expect(document.querySelectorAll('section[data-section="today"] ol > li')).toHaveLength(2);
-  });
-
   it('draws Spotlight as the four touched last as cards, then the rest by when, as rows', () => {
     show(page([...dated, makeNote('m', '# Last month', { updatedAt: now - 20 * day }), makeNote('a', '# Ancient', { updatedAt: now - 400 * day })]));
     laidOut('spotlight');
@@ -439,28 +394,6 @@ describe('the layouts', () => {
     expect(listed('Earlier')).toEqual(['Stale', 'Ancient']);
     // "Recent" has no count: it is always the four.
     expect(document.querySelector('#home-recent')?.textContent).toBe('Recent');
-  });
-
-  it('draws the Shelf and timeline as the notebooks’ covers, then the notes by when', () => {
-    show(page([makeNote('b', bookNoteBody('Trip', []), { updatedAt: now }), ...dated]));
-    laidOut('shelf-timeline');
-    expect(headings()).toEqual(['Notebooks', 'Today', 'Yesterday', 'Earlier']);
-    expect([...document.querySelectorAll('ol[aria-label="Notebooks"] button')].map((b) => b.textContent?.includes('Trip'))).toEqual([true]);
-    expect(listed('Today')).toEqual(['Fresh', 'Morning']);
-  });
-
-  it('draws Notebook cards as each notebook with a few of its pages as cards, the rest a tap away in the notebook', () => {
-    const titles = Array.from({ length: 8 }, (_, i) => `Day ${i + 1}`);
-    const book = makeNote('big', bookNoteBody('Road trip', titles), { updatedAt: 9 });
-    const onOpen = vi.fn();
-    show(page([book, ...titles.map((title, i) => makeNote(`d${i}`, `# ${title}`, { updatedAt: i + 1 })), loose], { onOpen }));
-    laidOut('notebook-cards');
-    expect(listed('Road trip')).toEqual(titles.slice(0, 6));
-    // Under its own notebook a page's card does not name it again; on the Cards layout it does.
-    expect(document.querySelector('section[aria-label="Road trip"] [title^="Page "]')).toBeNull();
-    expect(listed('In no notebook')).toEqual(['Shopping']);
-    act(() => button('2 more in Road trip').click());
-    expect(onOpen).toHaveBeenLastCalledWith('big');
   });
 
   it('counts a journal’s entries on its row, whichever workspace each was made in', () => {
@@ -494,9 +427,6 @@ describe('the layouts', () => {
     const many = Array.from({ length: 50 }, (_, i) => makeNote(`n${i}`, `# Note ${i}`, { updatedAt: now - i * 1000 }));
     show(page(many));
     expect(listed('Notes')).toHaveLength(48);
-    expect(button('2 more in All notes')).toBeTruthy();
-    laidOut('card-timeline');
-    expect(listed('Today')).toHaveLength(48);
     expect(button('2 more in All notes')).toBeTruthy();
     // Rows are cheap: the Timeline draws every one.
     laidOut('timeline');

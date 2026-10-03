@@ -9705,3 +9705,60 @@ stayed unread through every press.
 Measured in the preview with a fake session, four rows held above the cursor: Mark all read left none unread, and Clear
 all left the waiting invitation alone.
 
+## 178. The top bar six ways, and the home page's four layouts as cards (2026-10-03)
+
+Matt: "redesign the top header with 5 different styles for me to chose from make them all actually unique and
+different keep the tabs but feel free to re arrange things and make some UI/UX decisions to make things cleaner",
+then, with the five on a canvas: "I'd like to be able to pick the different header styles from within the app
+settings, also cut the home page layout selection down to 4 items and show them in cards representing the actual
+layout".
+
+**The five, and Classic.** The bar as it was is Classic, and stays the default so nothing moves until it is chosen.
+The five are the same pieces in a different order and shape (notes/NoteTabs.tsx `style`; core/preferences.ts
+`TopBar`, synced, stamped on the root as `data-topbar`), so a tab is dragged, grouped, renamed and closed the same
+whichever way it is drawn:
+
+- **Ledger**: the tabs first, as a browser has them, with Home pinned in the row as a house tab; the open tab opens
+  down into the tool row, which is paper with a line under it and belongs to that tab. The row is always drawn, so
+  Home always is, and the bar is always two lines.
+- **Strip**: one line. Home pinned as the first capsule, the tabs scrolling as capsules between the controls, the
+  cross on the open one alone. The bar never grows a line.
+- **Masthead**: the controls as the app's own words - Home, Notes, Back, and Forward only when there is somewhere
+  forward to go, Teams for the organizations - and the tabs as an index line under a rule, the open one underlined.
+  The screen's own rings stay rings.
+- **Islands**: no bar. Three capsules of glass float over the page, the floating cards' glass and shadow (app.css):
+  the way around (home, sidebar, the arrows), the tabs, and the screen's own (its tools, Organizations, the bell,
+  More, the aside). The page scrolls under them: the screen's header pane and the split layout's bar paint no glass.
+  On a phone the tabs' capsule wraps to a line of its own; in two panes the three share one line, so the bar is one
+  line tall there whatever is open.
+- **Thumb**: the bar names the open note, its workspace's pill and its name centred between the rings; the tabs
+  stand in a strip of glass at the foot of the screen, in a thumb's reach, only while a note is open. `data-foot` on
+  the root adds the strip's height to `--app-safe-bottom`, so the home page's dock, a scroller's last line and a
+  sheet clear it without knowing it is there, as the headers clear the bar.
+
+In every way but Classic the cross is the open tab's alone (the mockups' decision, which Matt chose from): the others
+close from their menu, or once opened. The organizations icon stays in the bar in every way, as Matt had placed it
+the day before - except on a phone in the Strip and in Thumb, whose one line cannot hold seven rings and still show a
+tab: measured at 412px with a note open, the Strip's tabs had 60px, the open one's pill and none of its name, and
+Thumb's middle the same. There, under 600px, an arrow with nowhere to go and the Organizations ring stand down
+(Organizations is also the home filters' and Settings'), which leaves the tabs about 170px, and Thumb's bar drops its
+own Home ring while the foot is up, since the house is pinned there. What the shell needs of a style is two questions, shell/topBar.ts `barRows` and `barFoot`: the bar's
+heights are named once in app.css (`--app-tabs-one`, `--app-tabs-two`, `--app-bar-extra` for the Islands' capsules)
+and chosen by `data-tabs`.
+
+**The home page's layouts, cut to four.** Nine (§147, §148) were too many to choose between. Spotlight, Cards,
+Timeline and List stay, the four that differ; the mixes (Card timeline, Shelf and timeline, Notebook cards), the
+Shelf and the Library went with the code that drew them - the covers, the dense cards, the notebook sections and the
+pages-of-a-notebook plan. A layout chosen that is gone falls back to Spotlight.
+
+**Cards that are the thing.** Both choices are radio cards now, as the themes and the interface size are
+(settings/LayoutCards.tsx, settings/TopBarCards.tsx; choiceCard.module.css): each card a small picture of the page,
+or the bar, drawn that way in the page's own ink - rings, tabs, capsules, the index line, the foot strip; the search,
+pinned line, cards and rows - with its name and a sentence under it, the chosen one ringed and ticked.
+
+The five were drawn first as a design canvas, a phone and a Mac artboard each over the Weekend trip note, for Matt to
+choose from; the app's versions follow those, drawn with the app's own tokens. Tests: shell/topBar.test.ts,
+NoteTabs.test.tsx "the bar's styles", App.test.tsx (the stamps by style), AppearancePane.test.tsx (the cards),
+homeLayout.test.ts and HomeScreen.test.tsx (the four).
+
+Cites: §147, §148, §170, §174.

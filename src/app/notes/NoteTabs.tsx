@@ -4,6 +4,7 @@ import { Menu, MenuItem, MenuLabel, MenuSeparator } from '@glacier/react';
 import { newGroup, NO_GROUPS, renameGroup, toggleGroup, type TabGroups } from './tabGroups.ts';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { isBookBody } from '../book/book.ts';
+import type { TopBar } from '../core/preferences.ts';
 import { noteTitle, type Note } from '../core/store.ts';
 import { useWorkspaces } from '../core/workspaces.ts';
 import { titleNow, useLiveTitles } from '../core/liveTitles.ts';
@@ -32,9 +33,27 @@ import styles from './NoteTabs.module.css';
  * screen's header clears it by `--app-safe-top` without knowing it is there. This file is its markup; the gesture on
  * the row is notes/useTabDrag.ts, the outline and the smoke at its ends notes/useTabOutline.ts, and the menus and a
  * group's chip notes/TabMenus.tsx and notes/GroupChip.tsx.
+ *
+ * Six ways to lay it out (`style`, core/preferences.ts `TopBar`, chosen in Settings › Appearance; docs/DESIGN.md
+ * §178), the same pieces in a different order and shape, so a tab behaves the same whichever way it is drawn:
+ *
+ * - **Classic**, the two rows above.
+ * - **Ledger**: the tabs first, as a browser has them, with Home pinned in the row as a house tab; the open tab
+ *   opens down into the tool row, which is its own. The row is always there, so Home always is.
+ * - **Strip**: one line, the tabs as capsules scrolling between the controls, Home pinned as the first.
+ * - **Masthead**: the controls as the app's own words - Home, Notes, Back - and the tabs as an index line under a
+ *   rule, the open one underlined.
+ * - **Islands**: no bar; three glass capsules float over the page - the way around, the tabs, the screen's own - and
+ *   the page scrolls under them. On a window in two panes the three share one line.
+ * - **Thumb**: the bar names the open note, its workspace and its title in the middle; the tabs stand in a strip at
+ *   the foot of the screen, in a thumb's reach (`.foot`), only while a note is open.
+ *
+ * In every way but Classic the cross is drawn on the open tab alone: the rest close from their menu, or once opened.
  */
 
 interface NoteTabsProps {
+  /** How the bar is laid out (core/preferences.ts `TopBar`); Classic unless Settings says otherwise. */
+  style?: TopBar;
   /** The open notes, in the order they were opened. */
   tabs: Note[];
   activeId: string;
@@ -94,6 +113,7 @@ interface NoteTabsProps {
 }
 
 export function NoteTabs({
+  style = 'classic',
   tabs,
   activeId,
   onOpen,
@@ -178,270 +198,411 @@ export function NoteTabs({
   const tailSlot = useCallback((element: HTMLDivElement | null) => setTopBarTail(element), []);
 
   if (!onSidebar && !onGoBack && tabs.length === 0) return null;
-  return (
-    <div className={styles.bar}>
-      <div className={styles.top}>
-      {/* Home, first in the bar and before the sidebar's button (Matt: "Add a 'home' button", then "Move the home
-          button to the left of the sidebar button"), drawn as a house (art/Icons.tsx). */}
-      {onHome ? (
-        <button
-          type="button"
-          className={styles.sidebar}
-          onClick={onHome}
-          aria-label="Home"
-          title="Home"
-          aria-current={atHome ? 'page' : undefined}
-          data-on={atHome || undefined}
-        >
-          <House size={20} strokeWidth={2.1} />
+
+  /* ---- the pieces, each once, placed by the style below ------------------------------------------------------------- */
+
+  // Home, first in the bar and before the sidebar's button (Matt: "Add a 'home' button", then "Move the home button
+  // to the left of the sidebar button"), drawn as a house (art/Icons.tsx). In the Ledger, the Strip and Thumb's foot it
+  // is pinned at the start of the row of tabs instead (`homeTab`); in the Masthead it is a word.
+  const homeRing = onHome ? (
+    <button type="button" className={`${styles.sidebar} ${styles.homeRing}`} onClick={onHome} aria-label="Home" title="Home" aria-current={atHome ? 'page' : undefined} data-on={atHome || undefined}>
+      <House size={20} strokeWidth={2.1} />
+    </button>
+  ) : null;
+  const homeTab = onHome ? (
+    <button type="button" className={styles.homeTab} data-home-tab onClick={onHome} aria-label="Home" title="Home" aria-current={atHome ? 'page' : undefined} data-on={atHome || undefined}>
+      <House size={18} strokeWidth={2.1} />
+    </button>
+  ) : null;
+  const homeWord = onHome ? (
+    <button type="button" className={`app-word ${styles.word}`} onClick={onHome} aria-current={atHome ? 'page' : undefined} data-on={atHome || undefined}>
+      Home
+    </button>
+  ) : null;
+  const sidebarRing = onSidebar ? (
+    <button type="button" className={styles.sidebar} onClick={onSidebar} data-sidebar-toggle aria-label="All your notes" aria-expanded={sidebarOpen ?? false} data-on={sidebarOpen || undefined}>
+      <PanelLeft size={20} strokeWidth={2.1} aria-hidden="true" />
+    </button>
+  ) : null;
+  const sidebarWord = onSidebar ? (
+    <button type="button" className={`app-word ${styles.word}`} onClick={onSidebar} data-sidebar-toggle aria-label="All your notes" aria-expanded={sidebarOpen ?? false} data-on={sidebarOpen || undefined}>
+      Notes
+    </button>
+  ) : null;
+  // Where he has been: the same two arrows a browser has, in the same place, beside the sidebar's button.
+  const arrows =
+    onGoBack && onGoOn ? (
+      <>
+        <button type="button" className={styles.step} onClick={onGoBack} disabled={!canGoBack} aria-label="Back to where you were">
+          <ArrowLeft size={19} strokeWidth={2.2} aria-hidden="true" />
         </button>
-      ) : null}
-      {onSidebar ? (
-        <button
-          type="button"
-          className={styles.sidebar}
-          onClick={onSidebar}
-          data-sidebar-toggle
-          aria-label="All your notes"
-          aria-expanded={sidebarOpen ?? false}
-          data-on={sidebarOpen || undefined}
-        >
-          <PanelLeft size={20} strokeWidth={2.1} aria-hidden="true" />
+        <button type="button" className={styles.step} onClick={onGoOn} disabled={!canGoOn} aria-label="Forward again">
+          <ArrowRight size={19} strokeWidth={2.2} aria-hidden="true" />
         </button>
-      ) : null}
-      {/* Where he has been: the same two arrows a browser has, in the same place, beside the sidebar's button. */}
-      {onGoBack && onGoOn ? (
+      </>
+    ) : null;
+  // The Masthead's: Back as a word, and Forward only when there is somewhere forward to go, since it seldom is.
+  const arrowWords =
+    onGoBack && onGoOn ? (
+      <>
+        <button type="button" className={`app-word ${styles.word}`} onClick={onGoBack} disabled={!canGoBack} aria-label="Back to where you were">
+          <ArrowLeft size={16} strokeWidth={2.2} aria-hidden="true" />
+          Back
+        </button>
+        {canGoOn ? (
+          <button type="button" className={`app-word ${styles.word}`} onClick={onGoOn} aria-label="Forward again">
+            Forward
+            <ArrowRight size={16} strokeWidth={2.2} aria-hidden="true" />
+          </button>
+        ) : null}
+      </>
+    ) : null;
+  /* The screen's own controls (Matt: "Move the controls for the note into the topbar"). */
+  const toolSlot = <div ref={slot} className={styles.slot} />;
+  /*
+    Organizations, then the bell, at the right end just before the screen's More (Matt: "make an organizations
+    entrypoint as a group of users icon next to the bell, move the notification bell all the way to the right
+    just before the vertical dots more menu"). The bell is on while something unread waits: a dot, no number.
+  */
+  const orgs = (asWord: boolean) => {
+    if (!onOrganizations) return null;
+    const trigger = asWord ? (
+      <button type="button" className={`app-word ${styles.word}`} aria-label="Organizations" title="Organizations" onClick={organizations?.length && onOrganization ? undefined : onOrganizations}>
+        Teams
+      </button>
+    ) : (
+      <button type="button" className={`${styles.sidebar} ${styles.orgs}`} aria-label="Organizations" title="Organizations" onClick={organizations?.length && onOrganization ? undefined : onOrganizations}>
+        <UserGroup size={19} strokeWidth={2.1} aria-hidden="true" />
+      </button>
+    );
+    // A picker of the organizations you belong to, hung from the icon: a pick goes straight to that one's
+    // dashboard; the last row is the whole list in Settings, where one is made or an invitation answered.
+    if (!(organizations?.length && onOrganization)) return trigger;
+    return (
+      <Menu trigger={trigger} placement="bottom-end" aria-label="Choose an organization">
+        <MenuLabel>Organizations</MenuLabel>
+        {organizations.map((org) => (
+          <MenuItem key={org.id} onSelect={() => onOrganization(org.id)} icon={<span className={styles.hueDot} data-hue={org.hue ?? 'ink'} aria-hidden="true" />}>
+            {org.name}
+          </MenuItem>
+        ))}
+        <MenuSeparator />
+        <MenuItem onSelect={onOrganizations}>All organizations…</MenuItem>
+      </Menu>
+    );
+  };
+  const bell = onNotifications ? (
+    <button
+      type="button"
+      className={`${styles.sidebar} ${styles.bell}`}
+      onClick={onNotifications}
+      aria-label={unread ? 'Notifications, something new' : 'Notifications'}
+      title="Notifications"
+      aria-haspopup="dialog"
+      aria-expanded={atNotifications}
+      data-notifications-toggle
+      data-on={unread || atNotifications || undefined}
+      data-unread={unread || undefined}
+    >
+      <Bell size={19} strokeWidth={2.1} aria-hidden="true" />
+    </button>
+  ) : null;
+  /* The screen's last control, its More, after the bell. */
+  const tailSlotEl = <div ref={tailSlot} className={styles.tail} />;
+  /* The aside's toggle, last of all: the sidebar's icon reversed (Matt: "a sidebar toggle on the right with the icon reversed"). */
+  const asideRing = onAside ? (
+    <button type="button" className={`${styles.sidebar} ${styles.mirrored}`} onClick={onAside} data-aside-toggle aria-label="Notebook index" aria-expanded={asideOpen ?? false} data-on={asideOpen || undefined}>
+      <PanelLeft size={20} strokeWidth={2.1} aria-hidden="true" />
+    </button>
+  ) : null;
+  /* Thumb's middle: the open note, its workspace's pill and its name, as the bar's own title; nothing on the home page. */
+  const open = tabs.find((note) => note.id === activeId);
+  const openSpace = open ? (spaces.list.find((w) => w.id === spaces.of[open.id]) ?? null) : null;
+  const heading = (
+    <div className={styles.heading} aria-hidden={open ? undefined : true}>
+      {open ? (
         <>
-          <button type="button" className={styles.step} onClick={onGoBack} disabled={!canGoBack} aria-label="Back to where you were">
-            <ArrowLeft size={19} strokeWidth={2.2} aria-hidden="true" />
-          </button>
-          <button type="button" className={styles.step} onClick={onGoOn} disabled={!canGoOn} aria-label="Forward again">
-            <ArrowRight size={19} strokeWidth={2.2} aria-hidden="true" />
-          </button>
-        </>
-      ) : null}
-        {/* The screen's own controls (Matt: "Move the controls for the note into the topbar"). */}
-        <div ref={slot} className={styles.slot} />
-        {/*
-          Organizations, then the bell, at the right end just before the screen's More (Matt: "make an organizations
-          entrypoint as a group of users icon next to the bell, move the notification bell all the way to the right
-          just before the vertical dots more menu"). The bell is on while something unread waits: a dot, no number.
-        */}
-        {onOrganizations ? (
-          organizations?.length && onOrganization ? (
-            // A picker of the organizations you belong to, hung from the icon: a pick goes straight to that one's
-            // dashboard; the last row is the whole list in Settings, where one is made or an invitation answered.
-            <Menu
-              trigger={
-                <button type="button" className={styles.sidebar} aria-label="Organizations" title="Organizations">
-                  <UserGroup size={19} strokeWidth={2.1} aria-hidden="true" />
-                </button>
-              }
-              placement="bottom-end"
-              aria-label="Choose an organization"
-            >
-              <MenuLabel>Organizations</MenuLabel>
-              {organizations.map((org) => (
-                <MenuItem key={org.id} onSelect={() => onOrganization(org.id)} icon={<span className={styles.hueDot} data-hue={org.hue ?? 'ink'} aria-hidden="true" />}>
-                  {org.name}
-                </MenuItem>
-              ))}
-              <MenuSeparator />
-              <MenuItem onSelect={onOrganizations}>All organizations…</MenuItem>
-            </Menu>
-          ) : (
-            <button type="button" className={styles.sidebar} onClick={onOrganizations} aria-label="Organizations" title="Organizations">
-              <UserGroup size={19} strokeWidth={2.1} aria-hidden="true" />
-            </button>
-          )
-        ) : null}
-        {onNotifications ? (
-          <button
-            type="button"
-            className={`${styles.sidebar} ${styles.bell}`}
-            onClick={onNotifications}
-            aria-label={unread ? 'Notifications, something new' : 'Notifications'}
-            title="Notifications"
-            aria-haspopup="dialog"
-            aria-expanded={atNotifications}
-            data-notifications-toggle
-            data-on={unread || atNotifications || undefined}
-            data-unread={unread || undefined}
-          >
-            <Bell size={19} strokeWidth={2.1} aria-hidden="true" />
-          </button>
-        ) : null}
-        {/* The screen's last control, its More, after the bell. */}
-        <div ref={tailSlot} className={styles.tail} />
-        {/* The aside's toggle, last of all: the sidebar's icon reversed (Matt: "a sidebar toggle on the right with the icon reversed"). */}
-        {onAside ? (
-          <button
-            type="button"
-            className={`${styles.sidebar} ${styles.mirrored}`}
-            onClick={onAside}
-            data-aside-toggle
-            aria-label="Notebook index"
-            aria-expanded={asideOpen ?? false}
-            data-on={asideOpen || undefined}
-          >
-            <PanelLeft size={20} strokeWidth={2.1} aria-hidden="true" />
-          </button>
-        ) : null}
-      </div>
-      {/*
-        The tabs, on their own line under the controls (Matt: "put the tabs on the next line down"), and no line at
-        all when nothing is open (Matt: "This row can be hidden when there are no tabs open") - a note opened from
-        the list used to carry an empty strip for tabs it did not have.
-      */}
-      {tabs.length > 0 ? (
-        <div
-          ref={row}
-          className={styles.tabs}
-          data-fade-start={outline.ends.start || undefined}
-          data-fade-end={outline.ends.end || undefined}
-          role="tablist"
-          aria-label="Notes you have open"
-          onPointerDown={drag.takeHold}
-          onWheel={scrollSideways}
-          onClickCapture={drag.swallowClick}
-        >
-          <span ref={outline.glide} className={styles.glide} aria-hidden="true" />
-          {tabs.map((note, at) => {
-            const title = titleNow(note, noteTitle(note.body), live) || 'Untitled';
-            const active = note.id === activeId;
-            const groupId = groups.of[note.id];
-            const group = groupId ? groups.list.find((g) => g.id === groupId) : undefined;
-            const firstOfGroup = !!group && groups.of[tabs[at - 1]?.id ?? ''] !== group.id;
-            const chip = group && firstOfGroup ? (
-              <GroupChip
-                key={`group-${group.id}`}
-                group={group}
-                count={tabs.filter((t) => groups.of[t.id] === group.id).length}
-                renaming={renaming === group.id}
-                onToggle={() => change(toggleGroup(groups, group.id))}
-                onMenu={() => setMenu({ kind: 'group', id: group.id })}
-                onRename={(name) => {
-                  change(renameGroup(groups, group.id, name));
-                  setRenaming(null);
-                }}
-                menu={
-                  menu?.kind === 'group' && menu.id === group.id ? (
-                    <GroupMenu
-                      group={group}
-                      groups={groups}
-                      tabIds={tabs.map((t) => t.id)}
-                      onDismiss={() => setMenu(null)}
-                      onRename={() => setRenaming(group.id)}
-                      onGroups={change}
-                      onCloseTabs={onCloseTabs}
-                    />
-                  ) : null
-                }
-              />
-            ) : null;
-            // A folded group draws only its chip.
-            if (group?.collapsed) return chip;
-            // The workspace the note is filed in, worn as its own coloured pill in front of the name (Matt: "show the
-            // workspace pill first on the tab"). Two notes called Monday are told apart by colour before either is read.
-            const space = spaces.list.find((w) => w.id === spaces.of[note.id]) ?? null;
-            return [
-              chip,
-              <span
-                key={note.id}
-                data-tab
-                data-tab-id={note.id}
-                className={styles.tab}
-                data-active={active || undefined}
-                data-moving={moving === note.id || undefined}
-                data-group={group ? group.hue : undefined}
-                data-group-id={group ? group.id : undefined}
-                onPointerDownCapture={(event) => {
-                  pointer.current = event.pointerType;
-                }}
-                onContextMenu={(event) => {
-                  // Always refused: on a phone this is the press-and-hold callout, which would land on top of the
-                  // drag and the menu the hold itself opens (useTabDrag.ts). A mouse's right-click opens the menu here.
-                  event.preventDefault();
-                  if (pointer.current !== 'mouse' || !onGroups) return;
-                  setMenu({ kind: 'tab', id: note.id });
-                }}
-              >
-                {naming?.id === note.id ? (
-                  /* The canvas's name, written where the tab's name was. Enter keeps it, Escape leaves it, and
-                     leaving the field keeps it too - a phone has no Escape and losing the words to a stray tap
-                     would be worse than a name kept by accident, which is one more rename to put right. */
-                  <input
-                    className={styles.name}
-                    value={naming.draft}
-                    aria-label="Canvas name"
-                    autoFocus
-                    onFocus={(event) => event.currentTarget.select()}
-                    onChange={(event) => setNaming({ id: note.id, draft: event.currentTarget.value })}
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onBlur={() => keepName(note.id, title, true)}
-                    onKeyDown={(event) => {
-                      // Enter keeps it here rather than by blurring the field: measured in the browser, the blur that
-                      // a blur() raises never reached the handler, and the field sat open with the new name in it.
-                      if (event.key === 'Enter') {
-                        event.preventDefault();
-                        keepName(note.id, title, true);
-                      } else if (event.key === 'Escape') {
-                        event.preventDefault();
-                        keepName(note.id, title, false);
-                      }
-                    }}
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    className={styles.name}
-                    onKeyDown={nudge(note.id, at)}
-                    onClick={() => onOpen(note.id)}
-                    // Said rather than shown twice: the pill is a colour to the eye and the workspace's name to a reader.
-                    aria-label={space ? `${title}, in ${space.name}` : title}
-                  >
-                    {space ? (
-                      <span className={styles.space} data-hue={space.hue ?? 'ink'} aria-hidden="true">
-                        {space.name}
-                      </span>
-                    ) : null}
-                    <span className={styles.title}>{title}</span>
-                  </button>
-                )}
-                <button type="button" data-close className={styles.close} onClick={() => onClose(note.id)} aria-label={`Close ${title}`}>
-                  <X size={15} strokeWidth={2.4} aria-hidden="true" />
-                </button>
-                {/* The group's colour along the foot of each of its tabs, as Chrome draws a group - drawn in, not
-                    taken away, under the one being read, which stays open onto the note (NoteTabs.module.css). */}
-                {group ? <span className={styles.groupLine} data-hue={group.hue} aria-hidden="true" /> : null}
-                {menu?.kind === 'tab' && menu.id === note.id ? (
-                  <TabMenu
-                    noteId={note.id}
-                    title={title}
-                    groups={groups}
-                    onDismiss={() => setMenu(null)}
-                    // A canvas or a book is named by its front matter and has no first line to write, so the row offers it.
-                    onRename={onRename && (isCanvasBody(note.body) || isBookBody(note.body)) ? () => setNaming({ id: note.id, draft: title }) : undefined}
-                    onNewGroup={() => startGroup(note.id)}
-                    onGroups={change}
-                    onCloseTab={() => onClose(note.id)}
-                    onDeleteNote={onDelete ? () => onDelete(note.id) : undefined}
-                  />
-                ) : null}
-              </span>,
-            ];
-          })}
-          {/* After the last tab, so it moves along with the row: a new note, in a tab of its own. Not a tab itself
-              (no `data-tab`), so dragging and the hold never take it for one. */}
-          {onNew ? (
-            <button type="button" className={styles.newTab} data-new-tab onClick={onNew} aria-label="New note in a new tab" title="New note">
-              <Plus size={15} strokeWidth={2.2} aria-hidden="true" />
-            </button>
+          {openSpace ? (
+            <span className={styles.space} data-hue={openSpace.hue ?? 'ink'}>
+              {openSpace.name}
+            </span>
           ) : null}
-        </div>
+          <span className={styles.headingTitle}>{titleNow(open, noteTitle(open.body), live) || 'Untitled'}</span>
+        </>
       ) : null}
     </div>
   );
+
+  /*
+    The tabs, on their own line under the controls (Matt: "put the tabs on the next line down"), and no line at
+    all when nothing is open (Matt: "This row can be hidden when there are no tabs open") - a note opened from
+    the list used to carry an empty strip for tabs it did not have. The Ledger and the Strip keep the row whatever is
+    open, since Home is pinned in it.
+  */
+  const pinnedHome = style === 'ledger' || style === 'strip' || style === 'thumb';
+  const tabRow =
+    tabs.length > 0 || style === 'ledger' || style === 'strip' ? (
+      <div
+        ref={row}
+        className={styles.tabs}
+        data-fade-start={outline.ends.start || undefined}
+        data-fade-end={outline.ends.end || undefined}
+        role="tablist"
+        aria-label="Notes you have open"
+        onPointerDown={drag.takeHold}
+        onWheel={scrollSideways}
+        onClickCapture={drag.swallowClick}
+      >
+        <span ref={outline.glide} className={styles.glide} aria-hidden="true" />
+        {pinnedHome ? homeTab : null}
+        {tabs.map((note, at) => {
+          const title = titleNow(note, noteTitle(note.body), live) || 'Untitled';
+          const active = note.id === activeId;
+          const groupId = groups.of[note.id];
+          const group = groupId ? groups.list.find((g) => g.id === groupId) : undefined;
+          const firstOfGroup = !!group && groups.of[tabs[at - 1]?.id ?? ''] !== group.id;
+          const chip = group && firstOfGroup ? (
+            <GroupChip
+              key={`group-${group.id}`}
+              group={group}
+              count={tabs.filter((t) => groups.of[t.id] === group.id).length}
+              renaming={renaming === group.id}
+              onToggle={() => change(toggleGroup(groups, group.id))}
+              onMenu={() => setMenu({ kind: 'group', id: group.id })}
+              onRename={(name) => {
+                change(renameGroup(groups, group.id, name));
+                setRenaming(null);
+              }}
+              menu={
+                menu?.kind === 'group' && menu.id === group.id ? (
+                  <GroupMenu
+                    group={group}
+                    groups={groups}
+                    tabIds={tabs.map((t) => t.id)}
+                    onDismiss={() => setMenu(null)}
+                    onRename={() => setRenaming(group.id)}
+                    onGroups={change}
+                    onCloseTabs={onCloseTabs}
+                  />
+                ) : null
+              }
+            />
+          ) : null;
+          // A folded group draws only its chip.
+          if (group?.collapsed) return chip;
+          // The workspace the note is filed in, worn as its own coloured pill in front of the name (Matt: "show the
+          // workspace pill first on the tab"). Two notes called Monday are told apart by colour before either is read.
+          const space = spaces.list.find((w) => w.id === spaces.of[note.id]) ?? null;
+          return [
+            chip,
+            <span
+              key={note.id}
+              data-tab
+              data-tab-id={note.id}
+              className={styles.tab}
+              data-active={active || undefined}
+              data-moving={moving === note.id || undefined}
+              data-group={group ? group.hue : undefined}
+              data-group-id={group ? group.id : undefined}
+              onPointerDownCapture={(event) => {
+                pointer.current = event.pointerType;
+              }}
+              onContextMenu={(event) => {
+                // Always refused: on a phone this is the press-and-hold callout, which would land on top of the
+                // drag and the menu the hold itself opens (useTabDrag.ts). A mouse's right-click opens the menu here.
+                event.preventDefault();
+                if (pointer.current !== 'mouse' || !onGroups) return;
+                setMenu({ kind: 'tab', id: note.id });
+              }}
+            >
+              {naming?.id === note.id ? (
+                /* The canvas's name, written where the tab's name was. Enter keeps it, Escape leaves it, and
+                   leaving the field keeps it too - a phone has no Escape and losing the words to a stray tap
+                   would be worse than a name kept by accident, which is one more rename to put right. */
+                <input
+                  className={styles.name}
+                  value={naming.draft}
+                  aria-label="Canvas name"
+                  autoFocus
+                  onFocus={(event) => event.currentTarget.select()}
+                  onChange={(event) => setNaming({ id: note.id, draft: event.currentTarget.value })}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onBlur={() => keepName(note.id, title, true)}
+                  onKeyDown={(event) => {
+                    // Enter keeps it here rather than by blurring the field: measured in the browser, the blur that
+                    // a blur() raises never reached the handler, and the field sat open with the new name in it.
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      keepName(note.id, title, true);
+                    } else if (event.key === 'Escape') {
+                      event.preventDefault();
+                      keepName(note.id, title, false);
+                    }
+                  }}
+                />
+              ) : (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={styles.name}
+                  onKeyDown={nudge(note.id, at)}
+                  onClick={() => onOpen(note.id)}
+                  // Said rather than shown twice: the pill is a colour to the eye and the workspace's name to a reader.
+                  aria-label={space ? `${title}, in ${space.name}` : title}
+                >
+                  {space ? (
+                    <span className={styles.space} data-hue={space.hue ?? 'ink'} aria-hidden="true">
+                      {space.name}
+                    </span>
+                  ) : null}
+                  <span className={styles.title}>{title}</span>
+                </button>
+              )}
+              {/* In every way but Classic the cross is the open tab's alone; the others close from their menu. */}
+              {style === 'classic' || active ? (
+                <button type="button" data-close className={styles.close} onClick={() => onClose(note.id)} aria-label={`Close ${title}`}>
+                  <X size={15} strokeWidth={2.4} aria-hidden="true" />
+                </button>
+              ) : null}
+              {/* The group's colour along the foot of each of its tabs, as Chrome draws a group - drawn in, not
+                  taken away, under the one being read, which stays open onto the note (NoteTabs.module.css). */}
+              {group ? <span className={styles.groupLine} data-hue={group.hue} aria-hidden="true" /> : null}
+              {menu?.kind === 'tab' && menu.id === note.id ? (
+                <TabMenu
+                  noteId={note.id}
+                  title={title}
+                  groups={groups}
+                  onDismiss={() => setMenu(null)}
+                  // A canvas or a book is named by its front matter and has no first line to write, so the row offers it.
+                  onRename={onRename && (isCanvasBody(note.body) || isBookBody(note.body)) ? () => setNaming({ id: note.id, draft: title }) : undefined}
+                  onNewGroup={() => startGroup(note.id)}
+                  onGroups={change}
+                  onCloseTab={() => onClose(note.id)}
+                  onDeleteNote={onDelete ? () => onDelete(note.id) : undefined}
+                />
+              ) : null}
+            </span>,
+          ];
+        })}
+        {/* After the last tab, so it moves along with the row: a new note, in a tab of its own. Not a tab itself
+            (no `data-tab`), so dragging and the hold never take it for one. */}
+        {onNew ? (
+          <button type="button" className={styles.newTab} data-new-tab onClick={onNew} aria-label="New note in a new tab" title="New note">
+            <Plus size={15} strokeWidth={2.2} aria-hidden="true" />
+          </button>
+        ) : null}
+      </div>
+    ) : null;
+
+  /* ---- the styles: the same pieces, placed ------------------------------------------------------------------------- */
+
+  // Which shape a tab takes: a tab on a line, a word on an index line, or a capsule (NoteTabs.module.css).
+  const shape = style === 'masthead' ? 'index' : style === 'strip' || style === 'islands' || style === 'thumb' ? 'capsule' : 'tab';
+  const bar = (children: React.ReactNode) => (
+    <div className={styles.bar} data-style={style} data-shape={shape}>
+      {children}
+    </div>
+  );
+  switch (style) {
+    case 'ledger':
+      return bar(
+        <>
+          {tabRow}
+          <div className={styles.top}>
+            {sidebarRing}
+            {arrows}
+            {toolSlot}
+            {orgs(false)}
+            {bell}
+            {tailSlotEl}
+            {asideRing}
+          </div>
+        </>,
+      );
+    case 'strip':
+      return bar(
+        <div className={styles.top}>
+          {sidebarRing}
+          {arrows}
+          {tabRow}
+          {toolSlot}
+          {orgs(false)}
+          {bell}
+          {tailSlotEl}
+          {asideRing}
+        </div>,
+      );
+    case 'masthead':
+      return bar(
+        <>
+          <div className={styles.top}>
+            {homeWord}
+            {sidebarWord}
+            {arrowWords}
+            {toolSlot}
+            {orgs(true)}
+            {bell}
+            {tailSlotEl}
+            {asideRing}
+          </div>
+          {tabRow}
+        </>,
+      );
+    case 'islands':
+      return bar(
+        <div className={styles.top}>
+          <div className={styles.capsule} data-capsule="way">
+            {homeRing}
+            {sidebarRing}
+            {arrows}
+          </div>
+          {tabRow}
+          <div className={styles.capsule} data-capsule="tools">
+            {toolSlot}
+            {orgs(false)}
+            {bell}
+            {tailSlotEl}
+            {asideRing}
+          </div>
+        </div>,
+      );
+    case 'thumb':
+      return bar(
+        <>
+          <div className={styles.top}>
+            {homeRing}
+            {sidebarRing}
+            {arrows}
+            {heading}
+            {toolSlot}
+            {orgs(false)}
+            {bell}
+            {tailSlotEl}
+            {asideRing}
+          </div>
+          {tabRow ? (
+            <div className={styles.foot} data-foot>
+              {tabRow}
+            </div>
+          ) : null}
+        </>,
+      );
+    default:
+      return bar(
+        <>
+          <div className={styles.top}>
+            {homeRing}
+            {sidebarRing}
+            {arrows}
+            {toolSlot}
+            {orgs(false)}
+            {bell}
+            {tailSlotEl}
+            {asideRing}
+          </div>
+          {tabRow}
+        </>,
+      );
+  }
 }

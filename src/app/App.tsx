@@ -65,6 +65,7 @@ import { holdFor, setPendingTag, tagEntryIfWanted, tagNewNotesIfWanted, willLoca
 import { useNoteActions } from './notes/useNoteActions.ts';
 import { NoteMenuHost } from './notes/NoteMenu.tsx';
 import { isPlace, isRecording, noteOnScreen, placeOf, type Screen } from './shell/screen.ts';
+import { barFoot, barRows } from './shell/topBar.ts';
 import { useCaptureRoute } from './shell/useCaptureRoute.ts';
 import { useAppLinks } from './shell/useAppLinks.ts';
 import { landNativeResult } from './ai/summaries.ts';
@@ -944,7 +945,9 @@ function Shell() {
    * nothing is open (Matt: "This row can be hidden when there are no tabs open"), so the height has to say which of
    * the two it is - every screen's header clears the bar by `--app-safe-top` without knowing the bar exists.
    */
-  useRootStamp('tabs', tabBar ? (tabs.tabs.length ? 'rows' : 'on') : null);
+  useRootStamp('tabs', tabBar ? barRows(prefs.topBar, tabs.tabs.length) : null);
+  // And whether the tabs stand at the foot of the screen instead (Thumb), which every screen's bottom inset pads for.
+  useRootStamp('foot', tabBar && barFoot(prefs.topBar, tabs.tabs.length) ? 'on' : null);
   /*
    * And whether the window is in two panes, said on the root so the stylesheets can ask without holding a copy of the
    * threshold. The rule is one expression in core/useWideScreen.ts; it used to be that expression plus a `900px` in
@@ -1340,6 +1343,7 @@ function Shell() {
       {tabBar ? (
         <div className="app-tabBar">
           <NoteTabs
+            style={prefs.topBar}
             tabs={tabs.tabs}
             activeId={shown ?? ''}
             onOpen={openNote}

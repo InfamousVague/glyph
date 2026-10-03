@@ -54,11 +54,13 @@ An invitation has no switch: it is always shown, since the person who sent it is
 
 ## Appearance
 
-How it looks, moves and feels. Its cards are Page, Accent, Type, Spacing, Corners, Code, Sidebar on a wide window, Motion and, in the phone app, Touch. Type is led by an "Aa" in the note's own face at the size chosen.
+How it looks, moves and feels. Its cards are Page, Home page, Top bar, Accent, Type, Spacing, Corners, Code, Sidebar on a wide window, Motion and, in the phone app, Touch. Type is led by an "Aa" in the note's own face at the size chosen. Home page and Top bar are rows of small pictures: each card is the page, or the bar, drawn the way that choice draws it.
 
 | Setting | Choices | What it does |
 | --- | --- | --- |
 | Page | System, Light, **Dark**, Dawn, Boreal, Ember | Ink on paper or paper on ink. Dawn is a tinted light page, Boreal and Ember tinted dark ones, and each brings its own accent. System follows the device. |
+| Home page | **Spotlight**, Cards, Timeline, List | How the home page lays out your notebooks and notes: your pinned notes, the four you touched last as cards and the rest by when; everything as cards; everything by when; or one line each. The search and its filters stay on top whichever you pick. |
+| Top bar | **Classic**, Ledger, Strip, Masthead, Islands, Thumb | Where the controls and the open notes' tabs sit. Classic is the controls on one line and the tabs on the next. Ledger puts the tabs on top, with Home pinned among them, and the open tab's tools on the line below. Strip is one line, the tabs scrolling between the controls. Masthead uses the app's own words, Home, Notes and Back, and draws the tabs as an index line under a rule. Islands has no bar: three glass capsules float over the page. Thumb names the open note in the bar and stands the tabs at the foot of the screen, in thumb reach. In every way but Classic, only the open tab wears a cross; the others close from their menu. |
 | Accent | **Ink**, Graphite, Red, Amber, Green, Teal, Purple | Colours the few things that mark a choice: a focus ring, a chosen segment. Ink is the app's own grey. |
 | Note font | **Maple Mono**, Fira Code, Inter, Noto, Plex | The words of a note and its code. Maple Mono and Fira Code join pairs like `->` and `!=` into one sign. |
 | Interface font | **Inter**, Noto, Plex | Tabs, lists, Settings and buttons. |
