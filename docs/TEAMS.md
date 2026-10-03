@@ -320,6 +320,34 @@ as a new one is made, and every link goes with its organization. A code that is 
 the same 404 in the same words. The routes share the sixty-a-minute change limit: a link names nobody, so it is no
 handle oracle, and 128 bits are not guessed at sixty a minute.
 
+## On the phone
+
+Matt: "also send notifications as actual phone notifications too". From native generation 23, an Android phone shows
+the bell's rows as its own notifications (`core/notifications/phone.ts`; the shell's `notices/NoticeAlerts.kt` and
+`NoticeWorker.kt`). No push service is involved, and the service is unchanged: the phone reads the same feed.
+
+- **What comes.** What the bell counts (`feed.ts` `isWanted`): team news, invitations still waiting, and Claude's
+  changes, by the same switches and mutes. A meeting written up has its own notification under Recording, and a note
+  kept twice is the device's own doing, so neither comes again.
+- **When.** While the app runs in the background, the rows a sync brings are posted from the page, in their own words:
+  "Claude edited Trip to Lisbon", with the first changed line under it. While it is closed, a WorkManager job reads
+  the feed about every fifteen minutes, the least Android allows, and words a sealed row by its kind: "Claude edited a
+  note". With the app in front nothing is posted, since the bell is in view. A device's first look at the feed posts
+  nothing, so signing in does not post a year of history.
+- **Once.** The phone keeps the last three hundred row ids it posted, so a row reached by both roads is posted once.
+- **The session.** The page hands the worker the service's address, the session token, its cursor and the switches
+  (`GlyphHost.watchNotices`) after every pass and every change of a switch, and takes them back on signing out, with
+  Local only, or with the phone's switch off. The worker refreshes the token when it has under two days left; a
+  refresh leaves the page's own token good. A refused session ends the watch until the page hands a new one.
+- **Tapping one** opens the note Claude changed, the organization's dashboard while it is yours, or the notifications
+  drawer, through the `ghostmd://` links the app already follows.
+- **The switch** is Settings › Notifications › On this phone, per phone and not synced, on unless turned off. When
+  Android is keeping the app's notifications from showing, the row says so and offers Allow notifications. The channel
+  is "Notifications", private on the lock screen.
+
+Nothing happens on the Mac, in a browser, or on an APK from before generation 23: the row is not drawn, and the page
+hands nothing.
+
 ## How it is built
 
 **The server.** Three tables, `CREATE TABLE IF NOT EXISTS` as every table here is (`server/src/store.rs`):
@@ -389,8 +417,6 @@ of it does.
 ## Not in this slice
 
 - Notes shared inside an organization: an organization key wrapped per member under a per-account encryption key.
-- A phone notification while the app is closed: a `notify(title, body, link)` host call and a worker that polls the
-  plaintext kinds; a native generation and an APK.
 - A nudge over the live relay when a row lands; polling inherits the pass's triggers until then.
 - Pruned rows are not fed as deletions, so a device keeps its copy of a row the server dropped; and an account's
   deletion clearing `from` does not bump the row's revision, so a device that already has the row keeps the old handle

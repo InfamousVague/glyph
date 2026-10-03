@@ -9814,3 +9814,27 @@ Tests: shell/topBar.test.ts, core/preferences.test.ts (the two that went read as
 App.test.tsx and AppearancePane.test.tsx.
 
 Cites: §178.
+
+## 181. The bell's rows as phone notifications (2026-10-03)
+
+Matt: "also send notifications as actual phone notifications too", after "I don't see notifications for these changes
+on my phone".
+
+An Android phone now shows team news, invitations and Claude's changes as its own notifications, from native
+generation 23 (docs/TEAMS.md, "On the phone"). Two roads lead there and the phone posts each row once. The page posts
+the rows a sync brings while the app runs in the background, in the bell's own words. A WorkManager job reads the feed
+about every fifteen minutes while the app is closed, with a session the page hands it, and words Claude's sealed rows
+by their kind. Nothing is posted while the app is in front.
+
+Settings › Notifications gains On this phone: one switch, per phone, on by default. When Android is keeping the app's
+notifications from showing, the row says so and offers Allow notifications. A meeting written up keeps its own
+notification under Recording, so it does not come twice.
+
+Not covered: the Mac, which has no notification of its own here yet, and a phone with the APK from before generation
+23. A note edited in the app or outside it was never a notification, so editing the rules notes on disk posts nothing,
+then or now; only the connector's writes and the service's team news are rows in the feed.
+
+Tests: notices/NoticeWorkerTest.kt (the sentences, what is posted, where a tap goes, when the session is refreshed),
+core/notifications/phone.test.ts, and the phone row in settings/NotificationsPane.test.tsx.
+
+Cites: §170, §174, §177.

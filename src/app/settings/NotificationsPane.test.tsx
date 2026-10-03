@@ -16,11 +16,11 @@ vi.mock('../core/account/account.ts', async (importOriginal) => ({
 const { NotificationsPane } = await import('./NotificationsPane.tsx');
 const { preferences, setPreferences, DEFAULT_PREFERENCES } = await import('../core/preferences.ts');
 const { saveOrgs, forgetOrgs } = await import('../core/orgs/orgs.ts');
+const { forgetPhoneWatch, phoneNoticesOn } = await import('../core/notifications/phone.ts');
 
 /**
  * Settings › Notifications (docs/TEAMS.md, D8 and D9): the four switches over the synced preference, the organizations
- * that can be muted once there are any, and the footer that says what the phone does while the app is closed, which
- * is nothing.
+ * that can be muted once there are any, and on a phone whose app can raise them, the phone's own notifications.
  */
 
 beforeEach(() => {
@@ -31,6 +31,8 @@ beforeEach(() => {
 
 afterEach(() => {
   forgetOrgs(1);
+  delete window.GlyphHost;
+  forgetPhoneWatch();
 });
 
 const labels = (host: HTMLElement) => [...host.querySelectorAll('.setk-row__label')].map((label) => label.textContent);
@@ -94,5 +96,52 @@ describe('the rest of the page', () => {
     expect(onOpen).toHaveBeenCalledWith({ id: 'account' });
     // The switches are still there to set: they travel with the account once there is one.
     expect(labels(host)).toEqual(['Team', 'Claude', 'Summaries', 'Conflicts']);
+  });
+});
+
+describe('on this phone', () => {
+  let state: 'off' | 'on' | 'blocked';
+  let watches: string[];
+  let asked: number;
+  beforeEach(() => {
+    state = 'on';
+    watches = [];
+    asked = 0;
+    window.GlyphHost = {
+      noticesState: () => state,
+      watchNotices: (json: string) => {
+        watches.push(json);
+        if (!json) state = 'off';
+        return state;
+      },
+      requestNotifications: () => {
+        asked += 1;
+        return 'asked';
+      },
+    } as unknown as Window['GlyphHost'];
+  });
+
+  it('is not there where the app cannot raise a notification: the Mac, a browser, an older phone', () => {
+    delete window.GlyphHost;
+    const host = show(<NotificationsPane />);
+    expect(labels(host)).not.toContain('Phone notifications');
+  });
+
+  it('is on until turned off here, and turning it off stops the closed app reading the feed', () => {
+    const host = show(<NotificationsPane />);
+    expect(labels(host)).toContain('Phone notifications');
+    expect(toggle(host, 'Phone notifications').checked).toBe(true);
+    act(() => toggle(host, 'Phone notifications').click());
+    expect(phoneNoticesOn()).toBe(false);
+    expect(watches.at(-1)).toBe('');
+    expect(toggle(host, 'Phone notifications').checked).toBe(false);
+  });
+
+  it('says when Android is keeping them from showing, and asks to allow them', () => {
+    state = 'blocked';
+    const host = show(<NotificationsPane />);
+    expect(hint(host, 'Phone notifications')).toMatch(/^It’s on, but Android is not showing notifications/);
+    act(() => [...host.querySelectorAll('button')].find((b) => b.textContent === 'Allow notifications')!.click());
+    expect(asked).toBe(1);
   });
 });

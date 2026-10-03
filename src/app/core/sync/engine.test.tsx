@@ -33,6 +33,8 @@ vi.mock('../account/account.ts', () => ({
   resume: () => resume(),
   signOut: () => signOut(),
   deleteAccount: (password: string) => deleteAccount(password),
+  // The phone's watch follows the account (core/notifications/phone.ts); nothing here signs in or out by event.
+  onAccount: () => () => undefined,
 }));
 
 /** Every notes pass the engine ran, with what it was given. */

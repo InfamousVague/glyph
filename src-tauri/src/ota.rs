@@ -219,7 +219,11 @@ pub use install::peek;
 /// `export_save`, the Mac's save panel (tauri-plugin-dialog) and the archive written there; `export_fd`, the archive
 /// written into the document Android's picker made, through the activity's `GlyphHost.chooseExport`, answered as
 /// `window.__glyph.exportTarget`, and `GlyphHost.discardExport`; `export_cancel`; the `export://progress` event.
-pub const NATIVE_GENERATION: u32 = 22;
+///
+/// 23: the bell's rows as the phone's own notifications (docs/TEAMS.md "On the phone"): the Android shell's
+/// `GlyphHost.watchNotices`, `postNotice` and `noticesState`, the `glyph_notices` channel, and a WorkManager job that
+/// reads the feed every fifteen minutes or so while the app is closed (notices/NoticeAlerts.kt, NoticeWorker.kt).
+pub const NATIVE_GENERATION: u32 = 23;
 
 /// What the page built from THIS tree needs. vite.config.ts reads this line
 /// with a regex and stamps it into `ota.json`, so keep it a literal. Nothing in

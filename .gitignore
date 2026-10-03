@@ -64,6 +64,9 @@ src-tauri/gen/android/**
 # A film for a note: the Photo Picker, the copy and its poster (native generation 21).
 !src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/media/
 !src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/media/**
+# The bell's rows as phone notifications: the channel, the watch and the closed app's worker (native generation 23).
+!src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/notices/
+!src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/notices/**
 !src-tauri/gen/android/app/src/main/res/
 !src-tauri/gen/android/app/src/main/res/xml/
 !src-tauri/gen/android/app/src/main/res/xml/glyph_*.xml

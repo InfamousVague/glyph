@@ -139,6 +139,13 @@ interface GlyphHostBridge {
   discardExport?(): void;
   /** The export is whole: the file stays. */
   exportDone?(): void;
+  // The bell's rows as phone notifications (native generation 23; notices/NoticeAlerts.kt). Optional for the same reason.
+  /** The session and switches the closed app's worker reads the feed with, as JSON, or "" to stop: "off", "on" or "blocked". */
+  watchNotices?(json: string): string;
+  /** One row as a notification, JSON `{ id, title, text?, link }`: "posted", "seen", "blocked", or a reason. */
+  postNotice?(json: string): string;
+  /** "off", "on" or "blocked". */
+  noticesState?(): string;
 }
 
 declare global {
@@ -322,5 +329,42 @@ export function takeHostLink(): string {
     return window.GlyphHost?.takeLink?.() ?? '';
   } catch {
     return '';
+  }
+}
+
+/** What the phone does with the bell's rows: not watched, shown, or watched but kept from showing by Android. */
+export type NoticesState = 'off' | 'on' | 'blocked';
+
+function noticesStateOf(answer: unknown): NoticesState | null {
+  return answer === 'off' || answer === 'on' || answer === 'blocked' ? answer : null;
+}
+
+/** The phone told what to watch for the closed app (JSON), or '' to stop; null where the binary cannot. */
+export function watchNoticesOnHost(json: string): NoticesState | null {
+  try {
+    const host = window.GlyphHost;
+    return host?.watchNotices ? noticesStateOf(host.watchNotices(json)) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** One row as a phone notification: true when it was posted now or before. False where it could not be. */
+export function postNoticeOnHost(notice: { id: string; title: string; text?: string | null; link: string }): boolean {
+  try {
+    const answer = window.GlyphHost?.postNotice?.(JSON.stringify(notice));
+    return answer === 'posted' || answer === 'seen';
+  } catch {
+    return false;
+  }
+}
+
+/** The phone's notices as Android has them; null where the binary has none (a browser, the Mac, an older APK). */
+export function noticesStateOnHost(): NoticesState | null {
+  try {
+    const host = window.GlyphHost;
+    return host?.noticesState ? noticesStateOf(host.noticesState()) : null;
+  } catch {
+    return null;
   }
 }

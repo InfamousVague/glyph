@@ -144,6 +144,8 @@ dependencies {
     // Reads a picked picture's EXIF orientation, so it goes into the note the right way up.
     implementation("androidx.exifinterface:exifinterface:1.3.7")
     testImplementation("junit:junit:4.13.2")
+    // The real org.json for the JVM tests: android.jar's is a stub there (notices/NoticeWorkerTest.kt).
+    testImplementation("org.json:json:20240303")
     androidTestImplementation("androidx.test.ext:junit:1.1.4")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.0")
 }

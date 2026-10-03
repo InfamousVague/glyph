@@ -1,10 +1,13 @@
+import { useEffect } from 'react';
 import { Switch } from '@glacier/react';
 import { useAccount } from '../core/account/account.ts';
+import { requestNotifications } from '../core/host.ts';
+import { phoneNoticesOn, readPhoneNotices, setPhoneNoticesOn, usePhoneNotices } from '../core/notifications/phone.ts';
 import { CATEGORIES } from '../core/notifications/kinds.ts';
 import { useOrgs } from '../core/orgs/orgs.ts';
 import { setPreferences, usePreferences, type NotificationPrefs } from '../core/preferences.ts';
 import type { SettingsTarget } from './SettingsScreen.tsx';
-import { GoWord, PaneSection, SettingRow, SettingsCallout, SettingsFootnote } from './kit/settingsKit.tsx';
+import { GoWord, PaneSection, RowAction, SettingRow, SettingsCallout, SettingsFootnote } from './kit/settingsKit.tsx';
 
 /**
  * Notifications, a listed page of Settings beside Account (docs/TEAMS.md, D8 and D9; Matt: "there should be a
@@ -14,10 +17,11 @@ import { GoWord, PaneSection, SettingRow, SettingsCallout, SettingsFootnote } fr
  * (core/preferences.ts `notifications`), so a mute made on the phone holds on the Mac; every row is still written to
  * the account, and these decide what is drawn and counted.
  *
- * No row for the phone's own notifications in this slice: nothing syncs while the app is closed, and the host has no
- * way to raise one yet, so the footer says what is true instead - Ghost.md looks when it opens, and the bell shows
- * what arrived. The summaries row says where the phone's own notification for a meeting still lives (Recording), so
- * the two rows that read as one thing say which is which.
+ * On a phone whose app can raise them (native generation 23; core/notifications/phone.ts), one more section, On this
+ * phone: the bell's rows as the phone's own notifications, on unless turned off here, with Allow when Android is
+ * keeping them from showing (Matt: "also send notifications as actual phone notifications too"). The summaries row
+ * says where the phone's own notification for a meeting lives (Recording), so the two rows that read as one thing say
+ * which is which.
  *
  * What the search finds here is NotificationsPane.findable.ts; SettingsSheet.tsx reads "n of 4 on" from the same
  * preference for its row (the file beside the page keeps the words for the search, as the other panes' do).
@@ -39,6 +43,17 @@ export function NotificationsPane({ onOpen }: { onOpen?: (target: SettingsTarget
   // Team news comes to members; an invitation has nothing to mute yet, and is never muted anyway.
   const orgs = list.filter((row) => row.state === 'member');
   const write = (change: Partial<NotificationPrefs>) => setPreferences({ notifications: { ...notifications, ...change } });
+  // What Android says of the phone's notices: null on the Mac, in a browser, or on an APK from before them. Read as the
+  // page opens and every second while Android is keeping them from showing, so Allow's answer shows when it is given.
+  const phone = usePhoneNotices();
+  useEffect(() => {
+    readPhoneNotices();
+  }, []);
+  useEffect(() => {
+    if (phone !== 'blocked') return undefined;
+    const id = window.setInterval(readPhoneNotices, 1000);
+    return () => window.clearInterval(id);
+  }, [phone]);
   const mute = (id: string, muted: boolean) => write({ mutedOrgs: muted ? [...notifications.mutedOrgs.filter((held) => held !== id), id] : notifications.mutedOrgs.filter((held) => held !== id) });
 
   return (
@@ -71,6 +86,24 @@ export function NotificationsPane({ onOpen }: { onOpen?: (target: SettingsTarget
             />
           ))}
         </PaneSection>
+      ) : null}
+      {phone !== null ? (
+        <PaneSection title="On this phone" footer="Within about fifteen minutes while Ghost.md is closed, and as they arrive while it runs in the background. Not while it is open in front of you: the bell has them.">
+          <SettingRow
+            label="Phone notifications"
+            hint={
+              phone === 'blocked'
+                ? 'It’s on, but Android is not showing notifications from Ghost.md. Allow them below, or in the app’s system settings.'
+                : 'Team news, invitations and Claude’s changes, as the switches above say. Meetings have their own, under Recording.'
+            }
+            control={<Switch aria-label="Phone notifications" checked={phoneNoticesOn()} onCheckedChange={(on) => setPhoneNoticesOn(on)} />}
+          />
+        </PaneSection>
+      ) : null}
+      {phone === 'blocked' ? (
+        <div className="settingsScreen__actions">
+          <RowAction onPress={() => requestNotifications()}>Allow notifications</RowAction>
+        </div>
       ) : null}
       <SettingsFootnote>Ghost.md looks when it opens; the bell shows what arrived.</SettingsFootnote>
     </>

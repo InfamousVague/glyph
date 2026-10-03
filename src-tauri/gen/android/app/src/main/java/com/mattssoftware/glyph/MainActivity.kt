@@ -48,6 +48,7 @@ import com.mattssoftware.glyph.capture.MeetingService
 import com.mattssoftware.glyph.recordings.RecordingAlerts
 import com.mattssoftware.glyph.recordings.RecordingJob
 import com.mattssoftware.glyph.recordings.RecordingWorker
+import com.mattssoftware.glyph.notices.NoticeAlerts
 import com.mattssoftware.glyph.updates.UpdateAlerts
 import java.io.File
 import java.lang.ref.WeakReference
@@ -95,6 +96,9 @@ class MainActivity : TauriActivity() {
      * and an activity it held on to would be a leaked window.
      */
     @Volatile private var resumed: WeakReference<MainActivity>? = null
+
+    /** Whether the app is in front: the notices worker then leaves the feed to the page (notices/NoticeWorker.kt). */
+    fun isInFront(): Boolean = resumed?.get() != null
 
     /**
      * The trash's cancel and the write-up's request, one after the other in the
@@ -968,6 +972,37 @@ class MainActivity : TauriActivity() {
     /** Whether a written-up notification would be shown: the permission, the app's switch and the channel all on. */
     @JavascriptInterface
     fun canNotify(): Boolean = RecordingAlerts.canNotify(this@MainActivity)
+
+    /**
+     * The bell's rows on the phone (native generation 23; notices/NoticeAlerts.kt): the session and switches the
+     * worker needs while the app is closed, as JSON, or "" to stop watching (signed out, or the switch turned off).
+     * Answers "off", "on" or "blocked" (watched, but Android will not show them: the page offers to ask).
+     */
+    @JavascriptInterface
+    fun watchNotices(json: String): String {
+      try {
+        if (json.isBlank()) NoticeAlerts.unwatch(this@MainActivity) else NoticeAlerts.watch(this@MainActivity, json)
+      } catch (error: Throwable) {
+        Log.w(TAG, "notices watch refused", error)
+      }
+      return NoticeAlerts.state(this@MainActivity)
+    }
+
+    /**
+     * One row as a phone notification, from the page while it runs in the background: JSON `{ id, title, text?,
+     * link }`. "posted", "seen" (posted before, by either road), "blocked", or a reason.
+     */
+    @JavascriptInterface
+    fun postNotice(json: String): String = try {
+      val notice = JSONObject(json)
+      NoticeAlerts.post(this@MainActivity, notice.getString("id"), notice.getString("title"), notice.optString("text").ifEmpty { null }, notice.optString("link"))
+    } catch (error: Throwable) {
+      "could not read the notice"
+    }
+
+    /** "off", "on" or "blocked", for the Notifications page's phone row. */
+    @JavascriptInterface
+    fun noticesState(): String = NoticeAlerts.state(this@MainActivity)
 
     /**
      * Write `noteId` up (again): "Write up now", Try again, restore from the

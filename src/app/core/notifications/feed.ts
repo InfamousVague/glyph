@@ -328,6 +328,26 @@ export function openDetails(n: Notification): Details | null {
   return null;
 }
 
+/**
+ * A sealed row's details, waited for: what `openDetails` starts, for a caller that needs the words now - a phone
+ * notification posted for the row (core/notifications/phone.ts). Null for a plaintext row or one that will not open.
+ */
+export async function detailsFor(n: Notification): Promise<Details | null> {
+  if (!n.blob) return null;
+  const known = opened.get(n.id);
+  if (known !== undefined) return known;
+  let details: Details | null = null;
+  try {
+    const key = await accountKey();
+    const payload = key ? await open<unknown>(key, n.blob, `notification:${n.id}`) : null;
+    if (isDetails(payload)) details = payload;
+  } catch {
+    // As openDetails: drawn by its kind.
+  }
+  opened.set(n.id, details);
+  return details;
+}
+
 /** Forgets what was opened: for a test, or for signing out. */
 export function forgetOpened(): void {
   opened.clear();

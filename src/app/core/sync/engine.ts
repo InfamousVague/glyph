@@ -1,13 +1,14 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { MEETING_GENERATION } from '../../capture/meeting.ts';
-import { accountKey, accountState, deleteAccount, resume, signOut } from '../account/account.ts';
+import { accountKey, accountState, deleteAccount, onAccount, resume, signOut } from '../account/account.ts';
 import { ApiError } from '../account/api.ts';
 import { toBase64 } from '../bytes.ts';
 import { externalStore } from '../externalStore.ts';
 import { failureText } from '../failure.ts';
 import { imageBytes, keepImage } from '../images.ts';
 import { hasNativeGeneration } from '../nativeGeneration.ts';
-import { feedState, forgetNotifications, syncNotifications, updateFeed } from '../notifications/feed.ts';
+import { feedState, forgetNotifications, listed, syncNotifications, updateFeed } from '../notifications/feed.ts';
+import { postNewRows, syncPhoneWatch } from '../notifications/phone.ts';
 import { record } from '../notifications/record.ts';
 import { forgetOrgs, saveOrgs, syncOrgs } from '../orgs/orgs.ts';
 import { isIOS } from '../platform.ts';
@@ -119,6 +120,8 @@ function forgetSync(accountId: number): void {
   for (const part of ['notes', 'prefs']) writeStored(stateKey(accountId, part), null);
   forgetNotifications(accountId);
   forgetOrgs(accountId);
+  // Signed out: the phone stops reading the feed, and forgets the session it read it with.
+  syncPhoneWatch();
 }
 
 /** Signs out and forgets this device's sync bookkeeping for the account. The notes stay. */
@@ -266,7 +269,15 @@ async function once(parts: Parts): Promise<void> {
     return;
   }
   const { token, accountId } = session;
-  const feed = () => syncNotifications({ token, read: () => feedState(accountId), update: (fn) => updateFeed(accountId, fn) });
+  // And after each look at the feed, what it brought to the phone while the app is in the background, and the phone's
+  // watch for while it is closed, moved on to the new cursor (core/notifications/phone.ts).
+  const feed = async () => {
+    const before = feedState(accountId).cursor;
+    const fed = await syncNotifications({ token, read: () => feedState(accountId), update: (fn) => updateFeed(accountId, fn) });
+    void postNewRows(before, listed(feedState(accountId))).catch(() => undefined);
+    syncPhoneWatch();
+    return fed;
+  };
   const orgs = () => syncOrgs({ token, save: (state) => saveOrgs(accountId, state) });
   if (parts === 'notifications') {
     // The notes' status stands: this is the feed and the list, and says nothing on the Account row unless it fails.
@@ -375,8 +386,11 @@ export function startSync(): () => void {
   document.addEventListener('visibilitychange', onVisible);
   window.addEventListener(NOTE_SAVED, onChanged);
   const unprefs = onPreferences(() => {
+    // The switches and mutes the phone reads with, as they are now, whoever changed them.
+    syncPhoneWatch();
     if (active() && !applyingRemote) syncSoon();
   });
+  const unaccount = onAccount(syncPhoneWatch);
   const timer = setInterval(() => {
     if (active()) void syncNow();
   }, EVERY_MS);
@@ -385,6 +399,7 @@ export function startSync(): () => void {
     document.removeEventListener('visibilitychange', onVisible);
     window.removeEventListener(NOTE_SAVED, onChanged);
     unprefs();
+    unaccount();
     clearInterval(timer);
   };
 }
