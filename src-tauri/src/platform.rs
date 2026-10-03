@@ -58,7 +58,10 @@ pub fn place_traffic_lights(app: &tauri::App) {
     use tauri::Manager;
     use tauri_plugin_decorum::WebviewWindowExt;
     if let Some(main) = app.get_webview_window("main") {
-        const INSET: (f32, f32) = (16.0, 39.0);
+        // The row's centre moved down 5.8px when the bar's buttons were set as far from the window's top as from its
+        // sides (app.css `--app-bar-top`, 2026-10-03); the plugin centres the lights at (button + y) / 2 + 4 from the
+        // top, so y grows by twice that, from 39.
+        const INSET: (f32, f32) = (16.0, 50.0);
         let _ = main.set_traffic_lights_inset(INSET.0, INSET.1);
         let win = main.clone();
         main.on_window_event(move |event| {

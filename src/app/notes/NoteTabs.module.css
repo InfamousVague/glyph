@@ -239,11 +239,11 @@
    * padding"). Measured at 430px with the row overflowing: the scroller's box ended 22px in from the edge.
    *
    * Given back as padding inside the scroller, so the last tab still rests a gutter in from the edge when the row is
-   * scrolled to its end rather than jammed against the glass. `--app-gutter-end` is the bar's own padding named once
+   * scrolled to its end rather than jammed against the glass. `--app-bar-end` is the bar's own padding named once
    * in app.css, so pulling out by it and padding back by it cannot drift apart.
    */
-  margin-inline-end: calc(-1 * var(--app-gutter-end));
-  padding-inline-end: var(--app-gutter-end);
+  margin-inline-end: calc(-1 * var(--app-bar-end));
+  padding-inline-end: var(--app-bar-end);
   /*
    * The same at the start, with a smaller inset given back (Matt: "The space on the left of the tab can be less so
    * the top and bottom spacing is matched on the left"). A tab sits 4.5px under the row of buttons and 6px above the
@@ -859,8 +859,8 @@
 }
 
 .bar[data-style='ledger'] .top {
-  margin-inline: calc(-1 * var(--app-bar-start)) calc(-1 * var(--app-gutter-end));
-  padding-inline: var(--app-bar-start) var(--app-gutter-end);
+  margin-inline: calc(-1 * var(--app-bar-start)) calc(-1 * var(--app-bar-end));
+  padding-inline: var(--app-bar-start) var(--app-bar-end);
   padding-block: 2px;
   background: var(--glacier-bg);
   border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
@@ -997,7 +997,7 @@
   z-index: 5;
   display: flex;
   pointer-events: auto;
-  padding: var(--glacier-space-2) var(--app-gutter-end) calc(env(safe-area-inset-bottom, 0px) + var(--glacier-space-2)) var(--app-bar-start);
+  padding: var(--glacier-space-2) var(--app-bar-end) calc(env(safe-area-inset-bottom, 0px) + var(--glacier-space-2)) var(--app-bar-start);
   border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
   background: color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent);
   -webkit-backdrop-filter: var(--app-glass-blur);

@@ -106,6 +106,12 @@
    */
   --app-bar-start: calc(var(--app-safe-left) + var(--glacier-space-3));
   --app-gutter-end: calc(var(--app-safe-right) + var(--app-gutter));
+  /*
+   * The top bar's own end inset and the air over its first row: the page's gutter and a small step everywhere but the
+   * Mac, which sets both below so the three outer edges of the bar's buttons match.
+   */
+  --app-bar-end: var(--app-gutter-end);
+  --app-bar-top: var(--glacier-space-2);
 
   /*
    * THE TYPE SCALE. Glyph is typography first: the words are the interface,
@@ -310,7 +316,7 @@ body {
   /* A little taller than the row it holds, so the controls sit in the bar rather than against its top edge (Matt:
      "add just a bit more padding around the tab bar ... the active tabs are a bit close to the top"): the bar's own
      top padding, the row, and a breath under it. A clipped control is worse than a few pixels of chrome. */
-  --app-tabs-one: calc(var(--glacier-space-2) + var(--app-tab-top) + var(--glacier-space-1) + var(--app-tab-bottom) + var(--app-bar-extra));
+  --app-tabs-one: calc(var(--app-bar-top) + var(--app-tab-top) + var(--glacier-space-1) + var(--app-tab-bottom) + var(--app-bar-extra));
   /*
    * With notes open the bar carries a second line of tabs under the controls, so it is that much taller. Built from the
    * one-line height, the gap the bar sets between its two rows (notes/NoteTabs.module.css `.bar`) and the tab's own
@@ -318,7 +324,7 @@ body {
    * which the `2.25rem` here only claimed to do.
    */
   --app-tabs-two: calc(
-    var(--glacier-space-2) + var(--app-tab-top) + var(--glacier-space-1) + var(--app-tab-h) + var(--glacier-space-1) +
+    var(--app-bar-top) + var(--app-tab-top) + var(--glacier-space-1) + var(--app-tab-h) + var(--glacier-space-1) +
       var(--app-tab-bottom) + var(--app-bar-extra) * 2
   );
 }
@@ -381,7 +387,7 @@ body {
   block-size: var(--app-tabs);
   display: flex;
   align-items: center;
-  padding-block-start: var(--glacier-space-2);
+  padding-block-start: var(--app-bar-top);
   padding-block-end: var(--app-tab-bottom);
   /*
    * The bar keeps the page's own gutter, both ends.
@@ -396,19 +402,23 @@ body {
   /* The bar keeps the page's gutter at both ends. The Mac's traffic lights get their room on the control row alone
      (notes/NoteTabs.module.css `.top`), not here, so the tab row still spans the full width (Matt: "the tabs ... are
      spaced over for the traffic lights though the lights should be on a different row than the tabs"). */
-  padding-inline: var(--app-bar-start) var(--app-gutter-end);
+  padding-inline: var(--app-bar-start) var(--app-bar-end);
   /* Nothing of its own to paint: the header pane under it is the glass, and its own children take the taps. */
   pointer-events: none;
 }
 
 /*
- * The Mac bar sits tighter at the top than a phone's, which keeps the air for the status bar under the notch (Matt:
- * "the top padding on the header on desktop can be less"). The [data-split] variant outranks the wide-window rule
- * below, so the tighter top holds on either layout.
+ * The Mac's bar: its buttons as far from the window's top as from its sides (Matt, 2026-10-03, of the bell 10px under
+ * the top and 26px in from the right: "even out the margin around the outside of the buttons so it matches we need a
+ * bit more space on the top"). It sat tighter at the top before (Matt: "the top padding on the header on desktop can
+ * be less"), at a small step under a row centred in a little more; now the start, the end and the top are all one
+ * step, `--glacier-space-3`: the end comes in from the page's gutter to match the start (`--app-bar-start`), and the
+ * top padding is that step less the half of the breath under the row that centring puts above it. The traffic lights
+ * follow the row's centre (src-tauri/src/platform.rs `place_traffic_lights`).
  */
-:root[data-titlebar='overlay'] .app-tabBar,
-:root[data-titlebar='overlay'][data-split] .app-tabBar {
-  padding-block-start: var(--glacier-space-1);
+:root[data-titlebar='overlay'] {
+  --app-bar-top: calc(var(--glacier-space-3) - var(--glacier-space-1) / 2);
+  --app-bar-end: calc(var(--app-safe-right) + var(--glacier-space-3));
 }
 
 /*
@@ -444,7 +454,7 @@ body {
    * (z 41) still sits over this (z 5).
    */
   inset-block-start: 0;
-  padding-block-start: calc(var(--app-inset-top) + var(--glacier-space-2));
+  padding-block-start: calc(var(--app-inset-top) + var(--app-bar-top));
   block-size: calc(var(--app-inset-top) + var(--app-tabs));
 }
 
