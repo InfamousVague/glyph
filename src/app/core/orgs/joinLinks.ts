@@ -42,15 +42,9 @@ export function readJoinLink(text: string): string | null {
   return hash && CODE.test(hash) ? hash : null;
 }
 
-/** The link as a line can hold it: the place it goes, and the code's last few characters to tell two apart. */
-export function shortInviteUrl(code: string): string {
-  let host = 'ghostmarkdown.com';
-  try {
-    host = new URL(READER_URL).host;
-  } catch {
-    // The default reader is a full URL; a build given something else still shows a line.
-  }
-  return `${host}/…${code.slice(-6)}`;
+/** A link's name on its row: the end of its code, enough to tell two apart, where the whole link would be cut off. */
+export function linkName(code: string): string {
+  return `Link ending ${code.slice(-5)}`;
 }
 
 // --- how long, and how many --------------------------------------------------------------
@@ -88,8 +82,8 @@ export function linkTermsWords(link: InviteLink, now: number): string {
   const used =
     link.maxUses === null
       ? link.uses === 0
-        ? 'no one has joined by it yet'
-        : `${link.uses} joined by it`
+        ? 'none joined yet'
+        : `${link.uses} joined`
       : `${link.uses} of ${link.maxUses} used`;
   return `${lasts} · ${used}`;
 }

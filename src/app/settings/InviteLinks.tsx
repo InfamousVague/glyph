@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Copy, Link2, Share2, X } from '@glacier/icons';
 import { SegmentedControl } from '@glacier/react';
+import { notYet } from '../core/account/api.ts';
 import { failureText } from '../core/failure.ts';
-import { inviteUrl, LIFETIMES, linkTermsWords, shortInviteUrl, USES } from '../core/orgs/joinLinks.ts';
+import { inviteUrl, LIFETIMES, linkName, linkTermsWords, USES } from '../core/orgs/joinLinks.ts';
 import { dropInviteLink, listInviteLinks, makeInviteLink } from '../core/orgs/orgs.ts';
 import type { InviteLink } from '../core/orgs/types.ts';
 import styles from './InviteLinks.module.css';
@@ -16,8 +17,16 @@ import styles from './InviteLinks.module.css';
  * A link made is copied at once, as a share link is (share/ShareRows.tsx), since sending it is why it was made. The
  * service's refusals are said under the rows in its own words.
  */
-export function InviteLinks({ orgId, now = Date.now }: { orgId: string; now?: () => number }) {
+export function InviteLinks({ orgId, inset = false, now = Date.now }: {
+  orgId: string;
+  /** Inside a settings card (settings/kit), which pads its forms rather than its contents: padded as they are. */
+  inset?: boolean;
+  now?: () => number;
+}) {
   const [links, setLinks] = useState<InviteLink[] | null>(null);
+  // A service from before invite links (core/account/api.ts `notYet`): the page ships after the service, but a page
+  // that reaches one first draws nothing here rather than a refusal.
+  const [missing, setMissing] = useState(false);
   const [making, setMaking] = useState(false);
   const [lasts, setLasts] = useState('week');
   const [uses, setUses] = useState('any');
@@ -28,6 +37,10 @@ export function InviteLinks({ orgId, now = Date.now }: { orgId: string; now?: ()
     try {
       setLinks(await listInviteLinks(orgId));
     } catch (failure) {
+      if (notYet(failure)) {
+        setMissing(true);
+        return;
+      }
       setLinks([]);
       setSaid({ words: failureText(failure), problem: true });
     }
@@ -41,7 +54,8 @@ export function InviteLinks({ orgId, now = Date.now }: { orgId: string; now?: ()
       await navigator.clipboard.writeText(inviteUrl(code));
       setSaid({ words, problem: false });
     } catch {
-      setSaid({ words: inviteUrl(code), problem: false });
+      // A device that will not copy (a webview without the permission): the link itself, to select and copy by hand.
+      setSaid({ words: `This device wouldn’t copy it. The link: ${inviteUrl(code)}`, problem: false });
     }
   };
   const canSend = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
@@ -76,8 +90,9 @@ export function InviteLinks({ orgId, now = Date.now }: { orgId: string; now?: ()
     }
   };
 
+  if (missing) return null;
   return (
-    <div className={styles.links}>
+    <div className={styles.links} data-inset={inset || undefined}>
       {links === null ? (
         <p className={styles.quiet}>Reading the links…</p>
       ) : links.length ? (
@@ -86,7 +101,7 @@ export function InviteLinks({ orgId, now = Date.now }: { orgId: string; now?: ()
             <li key={link.id} className={styles.link}>
               <Link2 size={16} className={styles.mark} aria-hidden="true" />
               <span className={styles.words}>
-                <span className={styles.url}>{shortInviteUrl(link.code)}</span>
+                <span className={styles.url}>{linkName(link.code)}</span>
                 <span className={styles.terms}>{linkTermsWords(link, now())}</span>
               </span>
               <button type="button" className={styles.icon} aria-label="Copy the link" title="Copy the link" onClick={() => void copy(link.code)}>

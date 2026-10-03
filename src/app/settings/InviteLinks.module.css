@@ -6,6 +6,11 @@
   min-inline-size: 0;
 }
 
+/* In a settings card, padded as the card's forms are (settings.css `.setk-form`). */
+.links[data-inset] {
+  padding: var(--glacier-space-3);
+}
+
 .list {
   list-style: none;
   margin: 0;
@@ -77,6 +82,12 @@
   margin: 0;
   font-size: var(--glacier-font-size-sm);
   color: var(--app-ink-2);
+}
+
+/* A link written out when it would not copy breaks anywhere, so it never widens the column it sits in. */
+.said {
+  overflow-wrap: anywhere;
+  user-select: text;
 }
 
 /* A new link's terms: how long and who, a segmented row each, over Make the link. */

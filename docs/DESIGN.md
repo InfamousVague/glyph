@@ -9762,3 +9762,40 @@ NoteTabs.test.tsx "the bar's styles", App.test.tsx (the stamps by style), Appear
 homeLayout.test.ts and HomeScreen.test.tsx (the four).
 
 Cites: §147, §148, §170, §174.
+
+## 179. Invite by link (2026-10-03)
+
+Matt: "add the ability to invite people to a team by link".
+
+Inviting by handle needs the other person's handle, and they need an account first. A link needs neither: it can go
+in a chat to people who have not signed up yet.
+
+**Making one.** Owners and admins see Invite by link on the organization's Members page and under the dashboard's
+invite field (settings/InviteLinks.tsx). New link asks two things, each a segmented row: how long it lasts (a day, a
+week, 30 days, no end) and who can use it (one person, five, twenty-five, no limit). A week and no limit are chosen
+to start. The link is copied as it is made, since sending it is why it was made. Each working link is a row named by
+the end of its code, "Link ending nQwJa", with how long it has and how many used it under it, and Copy, Send where the
+device can share, and Turn off. Its whole address would be cut off in the dashboard's column, so the row does not
+show it. A device that will not copy shows the link written out, wrapping anywhere so it never widens the column.
+
+**Following one.** The link is the reader page with the code in its hash, as a share link is (src/read/JoinPage.tsx).
+The page says only that it is an invitation to a team, because the service shows the organization only to someone
+signed in. It offers the app's own scheme and the web app. Either way the app asks "Join Tea club?" first
+(notes/JoinSheet.tsx): who shared the link, how many are in it, and that its workspace is made on each device. Join
+lands on the organization's dashboard. Not now lets the link go. A link that stopped says so in the service's words.
+Followed signed out, the sheet says to sign in, the code waits on the device for up to a week, and the sheet comes
+back once an account is signed in. A link or a bare code pasted into + › From a shared link goes the same way.
+
+**What the service does.** Joining by a link is an invitation and its acceptance in one step: the person is a member,
+the link's maker is told as an inviter is, and every other member hears of the joining (docs/TEAMS.md, "Invite by
+link"). A member who does not manage the organization sees no links at all.
+
+Measured in the preview with a fake session and a stub service: a link made for one person read "0 of 1 used", Turn
+off took its row away, and a `#join=` address asked "Join Tea club?", left the address bar, and Join opened the new
+organization's dashboard. At 375px the panel sits inside the settings card with the card's padding.
+
+Tests: server/src/orgs_tests.rs and store/org_links.rs; core/orgs/joinLinks.test.ts, notes/JoinSheet.test.tsx,
+settings/InviteLinks.test.tsx, the invite-link cases in settings/OrganizationSheet.test.tsx and
+shell/useAppLinks.test.tsx, and src/read/JoinPage.test.tsx.
+
+Cites: §170, §171, §175.

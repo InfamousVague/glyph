@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { appJoinLink, dropHeldJoin, heldJoin, holdJoin, inviteUrl, linkTermsWords, readJoinLink, shortInviteUrl } from './joinLinks.ts';
+import { appJoinLink, dropHeldJoin, heldJoin, holdJoin, inviteUrl, linkName, linkTermsWords, readJoinLink } from './joinLinks.ts';
 import type { InviteLink } from './types.ts';
 
 /**
@@ -26,8 +26,8 @@ describe('an invite link', () => {
     }
   });
 
-  it('shows as the place it goes and the end of its code', () => {
-    expect(shortInviteUrl(CODE)).toBe('ghostmarkdown.com/…QrSt_-');
+  it('is named on its row by the end of its code', () => {
+    expect(linkName(CODE)).toBe('Link ending rSt_-');
   });
 });
 
@@ -36,11 +36,11 @@ describe('a link’s row', () => {
   const HOUR = 3600_000;
 
   it('says how long it lasts and how many have used it', () => {
-    expect(linkTermsWords(link({}), 0)).toBe('Lasts until turned off · no one has joined by it yet');
-    expect(linkTermsWords(link({ uses: 3 }), 0)).toBe('Lasts until turned off · 3 joined by it');
+    expect(linkTermsWords(link({}), 0)).toBe('Lasts until turned off · none joined yet');
+    expect(linkTermsWords(link({ uses: 3 }), 0)).toBe('Lasts until turned off · 3 joined');
     expect(linkTermsWords(link({ expiresAt: 5 * HOUR, maxUses: 5, uses: 2 }), 0)).toBe('Stops in 5 hours · 2 of 5 used');
-    expect(linkTermsWords(link({ expiresAt: 7 * 24 * HOUR }), 0)).toBe('Stops in 7 days · no one has joined by it yet');
-    expect(linkTermsWords(link({ expiresAt: 10 * 60_000 }), 0)).toBe('Stops in 1 hour · no one has joined by it yet');
+    expect(linkTermsWords(link({ expiresAt: 7 * 24 * HOUR }), 0)).toBe('Stops in 7 days · none joined yet');
+    expect(linkTermsWords(link({ expiresAt: 10 * 60_000 }), 0)).toBe('Stops in 1 hour · none joined yet');
   });
 });
 

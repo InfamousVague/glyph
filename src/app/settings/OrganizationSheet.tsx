@@ -271,7 +271,7 @@ function Members({ row, org, me, onInvite, onDo }: { row: OrgRow; org: Org | nul
       {canInvite ? <Invite onInvite={onInvite} /> : null}
       {canInvite ? (
         <PaneSection title="Invite by link" description="Anyone signed in who has the link can join as a member, until it stops or you turn it off. Send it however you like.">
-          <InviteLinks orgId={row.id} />
+          <InviteLinks orgId={row.id} inset />
         </PaneSection>
       ) : null}
     </>
