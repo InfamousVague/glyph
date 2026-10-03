@@ -244,6 +244,17 @@ describe('Members', () => {
     expect(host.querySelector('[role="status"]')?.textContent).toBe('The link is turned off. No one else can join by it.');
   });
 
+  it('draws no "Invite by link" section, heading and all, on a service from before invite links', async () => {
+    const id = await ghost();
+    // The live service before its deploy: the organization's routes answer, the links' are not there.
+    vi.stubGlobal('fetch', (url: string, init?: RequestInit) => (String(url).includes('/links') ? Promise.resolve(new Response('', { status: 404 })) : service.fetcher(url, init)));
+    const host = sheet(id);
+    await waitUntil(() => expect(service.calls.length).toBeGreaterThan(0));
+    await waitUntil(() => expect(host.textContent).not.toContain('Reading the links'));
+    expect(host.textContent).not.toContain('Invite by link');
+    expect(host.textContent).not.toContain('Anyone signed in who has the link');
+  });
+
   it('shows no invite links to a member who does not manage the organization', async () => {
     const id = service.invited('Boo', 'sam');
     service.orgs.get(id)!.rows.get('matt')!.state = 'member';

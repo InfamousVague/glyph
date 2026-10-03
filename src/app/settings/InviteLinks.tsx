@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Copy, Link2, Share2, X } from '@glacier/icons';
 import { SegmentedControl } from '@glacier/react';
 import { notYet } from '../core/account/api.ts';
@@ -17,8 +17,14 @@ import styles from './InviteLinks.module.css';
  * A link made is copied at once, as a share link is (share/ShareRows.tsx), since sending it is why it was made. The
  * service's refusals are said under the rows in its own words.
  */
-export function InviteLinks({ orgId, inset = false, now = Date.now }: {
+export function InviteLinks({ orgId, inset = false, around, now = Date.now }: {
   orgId: string;
+  /**
+   * The heading the panel sits under, drawn by the page around it. Given here rather than by the page, so that where
+   * the service has no invite links the heading goes with the rest: drawn outside, it stood over nothing (Matt:
+   * "Invite by link has no buttons or anything").
+   */
+  around?: (panel: ReactNode) => ReactNode;
   /** Inside a settings card (settings/kit), which pads its forms rather than its contents: padded as they are. */
   inset?: boolean;
   now?: () => number;
@@ -91,7 +97,7 @@ export function InviteLinks({ orgId, inset = false, now = Date.now }: {
   };
 
   if (missing) return null;
-  return (
+  const panel = (
     <div className={styles.links} data-inset={inset || undefined}>
       {links === null ? (
         <p className={styles.quiet}>Reading the links…</p>
@@ -164,4 +170,5 @@ export function InviteLinks({ orgId, inset = false, now = Date.now }: {
       ) : null}
     </div>
   );
+  return around ? around(panel) : panel;
 }

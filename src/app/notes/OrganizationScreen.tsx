@@ -264,10 +264,15 @@ export function OrganizationScreen({ orgId, notes, onBack, onOpenNote, onNewNote
                     />
                   ) : null}
                   {canInvite ? (
-                    <div className={styles.byLink}>
-                      <h3 className={styles.subheading}>Invite by link</h3>
-                      <InviteLinks orgId={orgId} />
-                    </div>
+                    <InviteLinks
+                      orgId={orgId}
+                      around={(panel) => (
+                        <div className={styles.byLink}>
+                          <h3 className={styles.subheading}>Invite by link</h3>
+                          {panel}
+                        </div>
+                      )}
+                    />
                   ) : null}
                 </section>
                 <section className={styles.section} aria-labelledby="org-activity" data-group="activity">
