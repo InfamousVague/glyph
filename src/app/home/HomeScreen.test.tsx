@@ -3,7 +3,7 @@ import { act, type ComponentProps } from 'react';
 import { bookNoteBody } from '../book/book.ts';
 import type { Updates } from '../core/ota.ts';
 import { reloadPreferences, setPreferences, type HomeLayout } from '../core/preferences.ts';
-import { addWorkspace, chooseWorkspace, fileNote, reloadWorkspaces } from '../core/workspaces.ts';
+import { addWorkspace, chooseWorkspace, ensureOrgWorkspace, fileNote, reloadWorkspaces } from '../core/workspaces.ts';
 import type { Note } from '../core/store.ts';
 import { makeNote } from '../../test/notes.ts';
 import { goBack } from '../core/back.ts';
@@ -171,6 +171,29 @@ describe('the home page', () => {
     expect(document.body.textContent?.match(/Wifi password/g)).toHaveLength(1);
     act(() => lines[0]!.click());
     expect(onOpen).toHaveBeenLastCalledWith('pin');
+  });
+
+  it('wears a pill on a pinned line for the workspace or organization its note is in, and none while filtered to it', () => {
+    laidOut('spotlight');
+    const kitchen = addWorkspace('Kitchen', 'sea')!;
+    const team = ensureOrgWorkspace({ id: 'o1', name: 'Ghost', hue: 'moss' });
+    const wifi = makeNote('pin', '# Wifi password', { starred: true, updatedAt: now - 5 * day });
+    const plan = makeNote('plan', '# Launch plan', { starred: true, updatedAt: now - 6 * day });
+    const loose = makeNote('loose', '# Loose end', { starred: true, updatedAt: now - 7 * day });
+    fileNote(wifi.id, kitchen.id);
+    fileNote(plan.id, team.id);
+    show(page([...dated, wifi, plan, loose]));
+    const pill = (title: string) =>
+      [...document.querySelectorAll<HTMLElement>('section[data-section="pinned"] li button')].find((b) => b.textContent?.includes(title))?.querySelector<HTMLElement>('[class*=linePlace][data-hue]') ?? null;
+    expect(pill('Wifi password')?.textContent).toBe('Kitchen');
+    expect(pill('Wifi password')?.dataset.hue).toBe('sea');
+    // An organization's, with its mark.
+    expect(pill('Launch plan')?.textContent).toContain('Ghost');
+    expect(pill('Launch plan')?.querySelector('[aria-label="Organization"]')).not.toBeNull();
+    expect(pill('Loose end')).toBeNull();
+    // Filtered to Kitchen, every note is in it, so the pill says nothing.
+    act(() => chooseWorkspace(kitchen.id));
+    expect(pill('Wifi password')).toBeNull();
   });
 
   it('is the search with its filters beside it, and the notebooks then the notes, pinned first, as cards', () => {

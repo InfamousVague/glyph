@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'r
 import { BookOpen, FileText, Mic, Workflow } from '@glacier/icons';
 import { noteTitle, type Note } from '../core/store.ts';
 import { inWorkspace, useWorkspaces, type Workspace } from '../core/workspaces.ts';
+import { OrgMark } from '../notes/OrgMark.tsx';
 import { usePreferences } from '../core/preferences.ts';
 import type { VoiceModelState } from '../capture/useVoiceModel.ts';
 import { useMeetingState } from '../capture/meetingLive.ts';
@@ -144,13 +145,20 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
   const row = (note: Note) => (
     <HomeRow key={note.id} note={note} index={order++} onOpen={onOpen} bookName={placeOf(inBooks, note)?.title ?? null} notebook={placeOf(inBooks, note)?.book.body} entries={journals.get(note.id)?.count} live={note.id === recording} swipe={swipe(note)} />
   );
+  // The workspace a line's note is filed in, for its pill (Matt: "On the pinned section you should show pills if an item
+  // is in a workspace or organization"). None while the page is filtered to one: every note on it is in that one.
+  const filedIn = (note: Note): Workspace | null => {
+    if (workspace) return null;
+    const id = spaces.of[note.id];
+    return id ? (spaces.list.find((space) => space.id === id) ?? null) : null;
+  };
   const drawn = (notes: Note[], draw: SectionDraw) => {
     if (draw === 'rows') return <ul className={look.rows}>{notes.map(row)}</ul>;
     if (draw === 'lines')
       return (
         <ul className={look.lines}>
           {notes.map((n) => (
-            <HomeLine key={n.id} note={n} index={order++} onOpen={onOpen} bookName={placeOf(inBooks, n)?.title ?? null} notebook={placeOf(inBooks, n)?.book.body} live={n.id === recording} swipe={swipe(n)} />
+            <HomeLine key={n.id} note={n} index={order++} onOpen={onOpen} bookName={placeOf(inBooks, n)?.title ?? null} notebook={placeOf(inBooks, n)?.book.body} live={n.id === recording} swipe={swipe(n)} space={filedIn(n)} />
           ))}
         </ul>
       );
@@ -364,7 +372,7 @@ function HomeRow({
  * A note on one short line, for Spotlight's pinned notes: its kind's mark, its name, the notebook it is in, and when.
  * No pin, since the list is the pinned ones, and no line of how it starts: the list is for finding a note by its name.
  */
-function HomeLine({ note, index, onOpen, bookName, notebook, live = false, swipe }: { note: Note; index: number; onOpen: (id: string) => void; bookName: string | null; notebook?: string; live?: boolean; swipe?: Swipe }) {
+function HomeLine({ note, index, onOpen, bookName, notebook, live = false, swipe, space = null }: { note: Note; index: number; onOpen: (id: string) => void; bookName: string | null; notebook?: string; live?: boolean; swipe?: Swipe; space?: Workspace | null }) {
   const title = noteTitle(note.body);
   const kind = live ? 'tape' : kindOf(note);
   return (
@@ -378,6 +386,12 @@ function HomeLine({ note, index, onOpen, bookName, notebook, live = false, swipe
           {bookName ? <span className={look.lineBook}>{bookName}</span> : null}
           <TicketMark body={note.body} notebook={notebook} />
           <TapeWords note={note} live={live} />
+          {space ? (
+            <span className={look.linePlace} data-hue={space.hue ?? 'ink'} data-org={space.org}>
+              {space.org ? <OrgMark /> : null}
+              <span className={look.linePlaceName}>{space.name}</span>
+            </span>
+          ) : null}
           <span className={look.rowWhen}>{when(note.updatedAt)}</span>
         </button>
       </Swiped>

@@ -543,6 +543,33 @@
   color: var(--app-ink-3);
 }
 
+/*
+ * The workspace a pinned note is filed in, as a small pill in its hue (ink.css `[data-hue]`), with the organization's
+ * mark when it is an organization's (Matt: "On the pinned section you should show pills if an item is in a workspace
+ * or organization"). It gives way before the name does.
+ */
+.linePlace {
+  flex: 0 50 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-1);
+  min-inline-size: 0;
+  padding: 0.15em 0.55em;
+  border: 1px solid color-mix(in oklch, var(--app-space) 55%, transparent);
+  border-radius: var(--glacier-radius-full);
+  background: color-mix(in oklch, var(--app-space) 10%, transparent);
+  color: var(--app-space);
+  font-size: var(--glacier-font-size-xs);
+  line-height: 1.3;
+}
+
+.linePlaceName {
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .line > .rowWhen {
   margin-inline-start: auto;
   padding-inline-start: var(--glacier-space-2);
