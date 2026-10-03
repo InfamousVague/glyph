@@ -679,10 +679,10 @@
   transform: scaleX(-1);
 }
 
-/* ---- the bar's six ways (NoteTabs.tsx `style`; docs/DESIGN.md §178) ------------------------------------------------- */
+/* ---- the bar's four ways (NoteTabs.tsx `style`; docs/DESIGN.md §178, §180) ------------------------------------------------- */
 
 /*
- * Home pinned at the start of the row of tabs (the Ledger, the Strip, Thumb's foot): a house in a tab's shape and a
+ * Home pinned at the start of the row of tabs (the Ledger): a house in a tab's shape and a
  * tab's height, never a tab itself (no `data-tab`, so the drag and the hold pass it by). On, at home, it is ringed in
  * ink as every "on" ring is.
  */
@@ -749,30 +749,6 @@
   outline-offset: 2px;
 }
 
-/* Thumb's middle: the open note's workspace and name, centred between the rings, an ellipsis when the name is long. */
-.heading {
-  flex: 1;
-  min-inline-size: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--glacier-space-2);
-  font-size: var(--glacier-font-size-md);
-  font-weight: var(--glacier-font-weight-semibold);
-  color: var(--glacier-text);
-}
-
-.headingTitle {
-  min-inline-size: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.bar[data-style='thumb'] .slot {
-  margin-inline-start: 0;
-}
-
 /*
  * The row's shapes. A capsule stands on nothing - no baseline, no outline sliding under the open one, no flares -
  * and is a step shorter than a tab, so it has air inside the line it is on. The Masthead's index line is words on a
@@ -819,9 +795,8 @@
   inset-block-end: 2px;
 }
 
-/* The Islands and Thumb: the open capsule is the inverse, ink on paper, as a chosen segment is. */
-.bar[data-style='islands'] .tab[data-active],
-.bar[data-style='thumb'] .tab[data-active] {
+/* The Islands: the open capsule is the inverse, ink on paper, as a chosen segment is. */
+.bar[data-style='islands'] .tab[data-active] {
   background: var(--app-ink);
   color: var(--app-paper);
 }
@@ -872,51 +847,6 @@
 
 :global(:root[data-titlebar='overlay']) .bar[data-style='ledger'] .tabs {
   padding-inline-start: calc(var(--app-bar-start) + var(--app-traffic-lights, 0px));
-}
-
-/* The Strip: one line, the tabs in the middle of it, taking what the rings leave and scrolling inside that. */
-.bar[data-style='strip'] .top {
-  gap: var(--glacier-space-1);
-}
-
-.bar[data-style='strip'] .tabs {
-  flex: 1;
-  margin-block-start: 0;
-  margin-inline: 0;
-  padding-inline: var(--glacier-space-1);
-}
-
-.bar[data-style='strip'] .slot {
-  margin-inline-start: 0;
-}
-
-/*
- * On a phone the Strip's one line cannot hold seven rings and still show a tab: measured at 412px with a note open,
- * the tabs had 60px, the open one's pill and nothing of its name. So on a narrow window the line gives up what it can
- * spare: an arrow with nowhere to go (dead on the home page, and most of the time) and the Organizations ring, which
- * is also the home filters' and Settings'. Five rings leave the tabs about 170px, which scrolls.
- */
-@media (max-width: 600px) {
-  .bar[data-style='strip'] .step:disabled,
-  .bar[data-style='strip'] .orgs {
-    display: none;
-  }
-
-  .bar[data-style='strip'] .tabs {
-    min-inline-size: 6rem;
-  }
-
-  /* And a capsule wears its workspace as a dot of its colour, not the pill with its name: the name is the tab's. */
-  .bar[data-style='strip'] .space {
-    inline-size: 0.5rem;
-    block-size: 0.5rem;
-    padding: 0;
-    border: 0;
-    border-radius: var(--glacier-radius-full);
-    background: var(--app-space, var(--app-ink-3));
-    font-size: 0;
-    color: transparent;
-  }
 }
 
 /*
@@ -984,43 +914,4 @@
 
 :global(:root[data-titlebar='overlay']) .bar[data-style='islands'] .top {
   padding-inline-start: var(--app-traffic-lights, 0px);
-}
-
-/*
- * Thumb's foot: the tabs in a strip of glass at the foot of the screen, over the phone's own inset (app.css
- * `--app-foot-h`, which everything else's bottom inset then pads by). Fixed to the window, as the bar is.
- */
-.foot {
-  position: fixed;
-  inset-inline: 0;
-  inset-block-end: 0;
-  z-index: 5;
-  display: flex;
-  pointer-events: auto;
-  padding: var(--glacier-space-2) var(--app-bar-end) calc(env(safe-area-inset-bottom, 0px) + var(--glacier-space-2)) var(--app-bar-start);
-  border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
-  background: color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent);
-  -webkit-backdrop-filter: var(--app-glass-blur);
-  backdrop-filter: var(--app-glass-blur);
-}
-
-.foot .tabs {
-  flex: 1;
-  margin-block-start: 0;
-}
-
-/*
- * With the foot up, Home is the house pinned in it, so the bar's own Home ring stands down; and on a phone the bar
- * gives up what the Strip gives up, so the open note's name has room between the rings: measured at 412px, eight
- * rings left the middle its pill and none of its name.
- */
-:global(:root[data-foot]) .bar[data-style='thumb'] .homeRing {
-  display: none;
-}
-
-@media (max-width: 600px) {
-  .bar[data-style='thumb'] .step:disabled,
-  .bar[data-style='thumb'] .orgs {
-    display: none;
-  }
 }

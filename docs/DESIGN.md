@@ -9799,3 +9799,18 @@ settings/InviteLinks.test.tsx, the invite-link cases in settings/OrganizationShe
 shell/useAppLinks.test.tsx, and src/read/JoinPage.test.tsx.
 
 Cites: §170, §171, §175.
+
+## 180. The top bar four ways (2026-10-03)
+
+Matt: "cut the options in settings down to Classic, Ledger, Masthead and Islands".
+
+The Strip and Thumb (§178) are gone, with the code that drew them: their branches in notes/NoteTabs.tsx, Thumb's
+heading of the open note and its foot of tabs, the rules that gave up rings on a phone to fit them, their pictures in
+settings/TopBarCards.tsx, and the root's `data-foot` stamp with the bottom inset it added. Settings › Appearance › Top
+bar now shows four cards, two by two. A Strip or a Thumb chosen before the cut is not one of the four, so it reads as
+Classic, on this device and on any other the preference syncs to, as a home layout that went did in §178.
+
+Tests: shell/topBar.test.ts, core/preferences.test.ts (the two that went read as Classic), NoteTabs.test.tsx,
+App.test.tsx and AppearancePane.test.tsx.
+
+Cites: §178.

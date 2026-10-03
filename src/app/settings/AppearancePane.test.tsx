@@ -74,11 +74,11 @@ describe('the Appearance page', () => {
     expect(host.querySelector('[role="radiogroup"][aria-label="Home page layout"] [data-selected]')?.textContent).toContain('Cards');
   });
 
-  it('offers the top bar’s six ways as cards, Classic chosen at first, and writes the one picked', () => {
+  it('offers the top bar’s four ways as cards, Classic chosen at first, and writes the one picked', () => {
     const host = show(<AppearancePane />);
-    expect(cards(host, 'Top bar').map((r) => r.getAttribute('aria-label'))).toEqual(['Classic', 'Ledger', 'Strip', 'Masthead', 'Islands', 'Thumb']);
+    expect(cards(host, 'Top bar').map((r) => r.getAttribute('aria-label'))).toEqual(['Classic', 'Ledger', 'Masthead', 'Islands']);
     expect(chosen(host, 'Top bar')).toEqual(['Classic']);
-    act(() => cards(host, 'Top bar')[4]!.click());
+    act(() => cards(host, 'Top bar')[3]!.click());
     expect(preferences().topBar).toBe('islands');
     expect(chosen(host, 'Top bar')).toEqual(['Islands']);
     expect(document.documentElement.dataset.topbar).toBe('islands');

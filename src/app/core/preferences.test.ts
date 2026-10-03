@@ -189,4 +189,10 @@ describe('a store written by another build, or half written', () => {
     expect(launchWith({ homeLayout: 'cards', homeLayoutChosen: true })).toMatchObject({ homeLayout: 'cards' });
     expect(launchWith({ homeLayout: 'sideways', homeLayoutChosen: true })).toMatchObject({ homeLayout: 'spotlight' });
   });
+
+  it('reads a top bar cut from the choices, the Strip or Thumb, as Classic, and keeps the four', () => {
+    expect(DEFAULT_PREFERENCES.topBar).toBe('classic');
+    for (const gone of ['strip', 'thumb']) expect(launchWith({ topBar: gone })).toMatchObject({ topBar: 'classic' });
+    for (const kept of ['ledger', 'masthead', 'islands']) expect(launchWith({ topBar: kept })).toMatchObject({ topBar: kept });
+  });
 });

@@ -186,24 +186,6 @@
   z-index: 1;
 }
 
-/* Thumb's title in the middle of the bar. */
-.title {
-  flex: 1;
-  margin-inline: 0.3rem;
-  block-size: 0.3rem;
-  margin-block-end: 0.16rem;
-  border-radius: 999px;
-  background: var(--mini-ink);
-}
-
-/* And its strip at the foot. */
-.foot {
-  margin: auto -0.5rem 0;
-  padding: 0.25rem 0.5rem 0.32rem;
-  border-block-start: 1px solid var(--mini-line);
-  background: var(--glacier-bg);
-}
-
 .lines {
   display: flex;
   flex-direction: column;

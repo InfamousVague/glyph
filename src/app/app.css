@@ -365,20 +365,6 @@ body {
   border-block-end-color: transparent;
 }
 
-/*
- * Thumb (notes/NoteTabs.module.css `.foot`): with a note open the tabs stand in a strip at the foot of the screen, and
- * everything that pads by the phone's own bottom inset pads by the strip too - the home page's dock, a scroller's last
- * line, a sheet - without knowing it is there, as the headers clear the bar by `--app-safe-top`. The strip itself pads
- * by the phone's inset alone.
- */
-:root {
-  --app-foot-h: calc(var(--app-tab-h) + var(--glacier-space-2) * 2 + 1px);
-}
-
-:root[data-foot] {
-  --app-safe-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--app-foot-h));
-}
-
 .app-tabBar {
   position: fixed;
   inset-block-start: var(--app-inset-top);
@@ -476,14 +462,14 @@ body {
  * lines one pixel apart would read as a double rule. The air stays where there are no tabs, over the bar's line.
  *
  * Only where the tabs stand on a line: Classic, the Ledger (whose tabs are the bar's top edge, but whose tool row
- * draws its own line) and the Masthead (whose index line is the rule). A capsule stands on nothing, so the Strip, the
- * Islands and Thumb keep the bar's own hairline and the air over it.
+ * draws its own line) and the Masthead (whose index line is the rule). A capsule stands on nothing, so the Islands
+ * keep the bar's own hairline and the air over it.
  */
-:root[data-split][data-tabs='rows']:not([data-topbar='strip']):not([data-topbar='islands']):not([data-topbar='thumb']) {
+:root[data-split][data-tabs='rows']:not([data-topbar='islands']) {
   --app-tab-bottom: 0px;
 }
 
-:root[data-split][data-tabs='rows']:not([data-topbar='strip']):not([data-topbar='islands']):not([data-topbar='thumb']) .app-tabBar {
+:root[data-split][data-tabs='rows']:not([data-topbar='islands']) .app-tabBar {
   border-block-end-color: transparent;
 }
 

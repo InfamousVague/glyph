@@ -4,9 +4,9 @@ import { TOP_BAR_STYLES } from '../shell/topBar.ts';
 import styles from './TopBarCards.module.css';
 
 /**
- * The top bar's six ways as cards (shell/topBar.ts `TOP_BAR_STYLES`; docs/DESIGN.md §178), each a picture of the
- * bar laid out that way over a few lines of a note, drawn in the page's own ink: rings as rings, tabs as tabs or
- * capsules, the Masthead's words as short bars, the Islands' capsules floating, Thumb's strip at the foot. The same
+ * The top bar's four ways as cards (shell/topBar.ts `TOP_BAR_STYLES`; docs/DESIGN.md §178, §180), each a picture of
+ * the bar laid out that way over a few lines of a note, drawn in the page's own ink: rings as rings, tabs as tabs or
+ * capsules, the Masthead's words as short bars, the Islands' capsules floating. The same
  * radio cards as the themes (ThemeCards.tsx) and the interface size (ScaleCards.tsx): the chosen one ringed and
  * ticked, the arrow keys moving between them.
  */
@@ -44,17 +44,6 @@ function Scene({ style }: { style: TopBar }) {
           {lines}
         </span>
       );
-    case 'strip':
-      return (
-        <span className={styles.scene}>
-          <span className={styles.row}>
-            {rings(2)}
-            {tabs('capsule')}
-            {rings(2)}
-          </span>
-          {lines}
-        </span>
-      );
     case 'masthead':
       return (
         <span className={styles.scene}>
@@ -84,18 +73,6 @@ function Scene({ style }: { style: TopBar }) {
             </span>
           </span>
           {lines}
-        </span>
-      );
-    case 'thumb':
-      return (
-        <span className={styles.scene}>
-          <span className={styles.row}>
-            {rings(2)}
-            <span className={styles.title} />
-            {rings(2)}
-          </span>
-          {lines}
-          <span className={styles.foot}>{tabs('capsule')}</span>
         </span>
       );
     default:

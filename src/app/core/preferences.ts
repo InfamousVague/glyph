@@ -95,10 +95,12 @@ export function isHomeLayout(layout: unknown): layout is HomeLayout {
 /**
  * How the app's top bar is laid out (shell/topBar.ts `TOP_BAR_STYLES`, notes/NoteTabs.tsx; Matt, 2026-10-03: "redesign
  * the top header with 5 different styles for me to chose from", then "I'd like to be able to pick the different header
- * styles from within the app settings", docs/DESIGN.md §178): the bar as it was, and the five. Stamped on the root as
- * `data-topbar` for the stylesheets, and nothing is stamped for Classic.
+ * styles from within the app settings", docs/DESIGN.md §178): the bar as it was, and three of the five - Matt: "cut
+ * the options in settings down to Classic, Ledger, Masthead and Islands" (§180). Stamped on the root as `data-topbar`
+ * for the stylesheets, and nothing is stamped for Classic. A Strip or a Thumb chosen before the cut is not one of
+ * these, so it reads as Classic (`settle`).
  */
-export const TOP_BAR_IDS = ['classic', 'ledger', 'strip', 'masthead', 'islands', 'thumb'] as const;
+export const TOP_BAR_IDS = ['classic', 'ledger', 'masthead', 'islands'] as const;
 export type TopBar = (typeof TOP_BAR_IDS)[number];
 
 export function isTopBar(style: unknown): style is TopBar {

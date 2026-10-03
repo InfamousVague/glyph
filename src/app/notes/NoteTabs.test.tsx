@@ -515,14 +515,6 @@ describe('the bar’s styles', () => {
     expect(button('Home')).toBeTruthy();
   });
 
-  it('as the Strip is one line, the tabs inside it as capsules between the controls', () => {
-    show(bar({ ...props, style: 'strip', tabs: [] }));
-    expect(barOf().dataset.shape).toBe('capsule');
-    expect(row()!.parentElement).toBe(top());
-    expect(row()!.querySelector('[data-home-tab]')).not.toBeNull();
-    expect(button('New note in a new tab')).toBeTruthy();
-  });
-
   it('as the Masthead says Home, Notes and Back as words, and draws the tabs as an index line', () => {
     const onHome = vi.fn();
     show(bar({ ...props, style: 'masthead', onHome, canGoOn: true }));
@@ -546,15 +538,5 @@ describe('the bar’s styles', () => {
     expect(document.querySelector('[data-capsule="tools"] [aria-label="Notifications"]')).not.toBeNull();
     expect(row()!.parentElement).toBe(top());
     expect(row()!.previousElementSibling?.getAttribute('data-capsule')).toBe('way');
-  });
-
-  it('as Thumb names the open note in the bar and stands the tabs in a foot, only while a note is open', () => {
-    show(bar({ ...props, style: 'thumb' }));
-    expect(document.querySelector('[class*="heading"]')?.textContent).toBe('Apples');
-    expect(row()!.closest('[data-foot]')).not.toBeNull();
-    rerender(bar({ ...props, style: 'thumb', tabs: [] }));
-    expect(document.querySelector('[data-foot]')).toBeNull();
-    expect(document.querySelector('[class*="heading"]')?.textContent).toBe('');
-    expect(button('Home')).toBeTruthy();
   });
 });

@@ -34,19 +34,17 @@ import styles from './NoteTabs.module.css';
  * the row is notes/useTabDrag.ts, the outline and the smoke at its ends notes/useTabOutline.ts, and the menus and a
  * group's chip notes/TabMenus.tsx and notes/GroupChip.tsx.
  *
- * Six ways to lay it out (`style`, core/preferences.ts `TopBar`, chosen in Settings › Appearance; docs/DESIGN.md
- * §178), the same pieces in a different order and shape, so a tab behaves the same whichever way it is drawn:
+ * Four ways to lay it out (`style`, core/preferences.ts `TopBar`, chosen in Settings › Appearance; docs/DESIGN.md
+ * §178, cut from six in §180), the same pieces in a different order and shape, so a tab behaves the same whichever
+ * way it is drawn:
  *
  * - **Classic**, the two rows above.
  * - **Ledger**: the tabs first, as a browser has them, with Home pinned in the row as a house tab; the open tab
  *   opens down into the tool row, which is its own. The row is always there, so Home always is.
- * - **Strip**: one line, the tabs as capsules scrolling between the controls, Home pinned as the first.
  * - **Masthead**: the controls as the app's own words - Home, Notes, Back - and the tabs as an index line under a
  *   rule, the open one underlined.
  * - **Islands**: no bar; three glass capsules float over the page - the way around, the tabs, the screen's own - and
  *   the page scrolls under them. On a window in two panes the three share one line.
- * - **Thumb**: the bar names the open note, its workspace and its title in the middle; the tabs stand in a strip at
- *   the foot of the screen, in a thumb's reach (`.foot`), only while a note is open.
  *
  * In every way but Classic the cross is drawn on the open tab alone: the rest close from their menu, or once opened.
  */
@@ -202,8 +200,8 @@ export function NoteTabs({
   /* ---- the pieces, each once, placed by the style below ------------------------------------------------------------- */
 
   // Home, first in the bar and before the sidebar's button (Matt: "Add a 'home' button", then "Move the home button
-  // to the left of the sidebar button"), drawn as a house (art/Icons.tsx). In the Ledger, the Strip and Thumb's foot it
-  // is pinned at the start of the row of tabs instead (`homeTab`); in the Masthead it is a word.
+  // to the left of the sidebar button"), drawn as a house (art/Icons.tsx). In the Ledger it is pinned at the
+  // start of the row of tabs instead (`homeTab`); in the Masthead it is a word.
   const homeRing = onHome ? (
     <button type="button" className={`${styles.sidebar} ${styles.homeRing}`} onClick={onHome} aria-label="Home" title="Home" aria-current={atHome ? 'page' : undefined} data-on={atHome || undefined}>
       <House size={20} strokeWidth={2.1} />
@@ -315,33 +313,15 @@ export function NoteTabs({
       <PanelLeft size={20} strokeWidth={2.1} aria-hidden="true" />
     </button>
   ) : null;
-  /* Thumb's middle: the open note, its workspace's pill and its name, as the bar's own title; nothing on the home page. */
-  const open = tabs.find((note) => note.id === activeId);
-  const openSpace = open ? (spaces.list.find((w) => w.id === spaces.of[open.id]) ?? null) : null;
-  const heading = (
-    <div className={styles.heading} aria-hidden={open ? undefined : true}>
-      {open ? (
-        <>
-          {openSpace ? (
-            <span className={styles.space} data-hue={openSpace.hue ?? 'ink'}>
-              {openSpace.name}
-            </span>
-          ) : null}
-          <span className={styles.headingTitle}>{titleNow(open, noteTitle(open.body), live) || 'Untitled'}</span>
-        </>
-      ) : null}
-    </div>
-  );
-
   /*
     The tabs, on their own line under the controls (Matt: "put the tabs on the next line down"), and no line at
     all when nothing is open (Matt: "This row can be hidden when there are no tabs open") - a note opened from
-    the list used to carry an empty strip for tabs it did not have. The Ledger and the Strip keep the row whatever is
-    open, since Home is pinned in it.
+    the list used to carry an empty strip for tabs it did not have. The Ledger keeps the row whatever is open, since
+    Home is pinned in it.
   */
-  const pinnedHome = style === 'ledger' || style === 'strip' || style === 'thumb';
+  const pinnedHome = style === 'ledger';
   const tabRow =
-    tabs.length > 0 || style === 'ledger' || style === 'strip' ? (
+    tabs.length > 0 || pinnedHome ? (
       <div
         ref={row}
         className={styles.tabs}
@@ -498,7 +478,7 @@ export function NoteTabs({
   /* ---- the styles: the same pieces, placed ------------------------------------------------------------------------- */
 
   // Which shape a tab takes: a tab on a line, a word on an index line, or a capsule (NoteTabs.module.css).
-  const shape = style === 'masthead' ? 'index' : style === 'strip' || style === 'islands' || style === 'thumb' ? 'capsule' : 'tab';
+  const shape = style === 'masthead' ? 'index' : style === 'islands' ? 'capsule' : 'tab';
   const bar = (children: React.ReactNode) => (
     <div className={styles.bar} data-style={style} data-shape={shape}>
       {children}
@@ -519,19 +499,6 @@ export function NoteTabs({
             {asideRing}
           </div>
         </>,
-      );
-    case 'strip':
-      return bar(
-        <div className={styles.top}>
-          {sidebarRing}
-          {arrows}
-          {tabRow}
-          {toolSlot}
-          {orgs(false)}
-          {bell}
-          {tailSlotEl}
-          {asideRing}
-        </div>,
       );
     case 'masthead':
       return bar(
@@ -566,27 +533,6 @@ export function NoteTabs({
             {asideRing}
           </div>
         </div>,
-      );
-    case 'thumb':
-      return bar(
-        <>
-          <div className={styles.top}>
-            {homeRing}
-            {sidebarRing}
-            {arrows}
-            {heading}
-            {toolSlot}
-            {orgs(false)}
-            {bell}
-            {tailSlotEl}
-            {asideRing}
-          </div>
-          {tabRow ? (
-            <div className={styles.foot} data-foot>
-              {tabRow}
-            </div>
-          ) : null}
-        </>,
       );
     default:
       return bar(
