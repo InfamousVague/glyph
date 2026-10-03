@@ -11,6 +11,7 @@ import { orgWorkspaceId, useWorkspaces, type WorkspaceHue } from '../core/worksp
 import { WorkspaceSwatch } from '../notes/WorkspaceSwatch.tsx';
 import { when } from '../notes/when.ts';
 import { InviteActions } from './InviteActions.tsx';
+import { InviteLinks } from './InviteLinks.tsx';
 import { SettingsScreen, type SettingsSection, type SettingsTarget } from './SettingsScreen.tsx';
 import { PaneHero, PaneSection, RowAction, SettingRow, SettingsCallout, SettingsFootnote } from './kit/settingsKit.tsx';
 import { memberWords, roleWords } from './orgWords.ts';
@@ -25,7 +26,7 @@ import styles from './OrganizationsPane.module.css';
  * from Members steps to the list of sections, which is the organization's settings; from there back closes.
  *
  * The sections: General (the name and the colour, which owners and admins change; the workspace follows), Members
- * (the list with each one's role, invite by handle, remove, and for the owner a role to set or the organization to
+ * (the list with each one's role, invite by handle or by link, remove, and for the owner a role to set or the organization to
  * hand over), Workspace (the organization's workspace on this device, and the way to the notes filed in it),
  * Notifications (mute this organization's team news) and, last and on its own, Leave or Delete, each tapped twice
  * as a reset is (DeveloperPane.tsx). The service's refusals are shown in its own words under the row that asked.
@@ -268,6 +269,11 @@ function Members({ row, org, me, onInvite, onDo }: { row: OrgRow; org: Org | nul
         </PaneSection>
       )}
       {canInvite ? <Invite onInvite={onInvite} /> : null}
+      {canInvite ? (
+        <PaneSection title="Invite by link" description="Anyone signed in who has the link can join as a member, until it stops or you turn it off. Send it however you like.">
+          <InviteLinks orgId={row.id} />
+        </PaneSection>
+      ) : null}
     </>
   );
 }

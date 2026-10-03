@@ -2,7 +2,7 @@ import type { SignedIn } from '../app/core/account/account.ts';
 import { NO_SUCH_ROUTE } from '../app/core/account/api.ts';
 import { shortId } from '../app/core/ids.ts';
 import { isSelfKind, type Kind, type Notification } from '../app/core/notifications/kinds.ts';
-import type { Member, Org, OrgRow, Role } from '../app/core/orgs/types.ts';
+import type { InviteLink, Member, Org, OrgRow, Role } from '../app/core/orgs/types.ts';
 import type { Note } from '../app/core/store.ts';
 import { derive, fromBase64Url, newAccountKey, open, passwordSalt, seal, wrap, type Bytes } from '../app/core/sync/crypto.ts';
 import type { FeedItem, NotePayload } from '../app/core/sync/notes.ts';
@@ -78,6 +78,11 @@ interface Row {
   invitedBy: string | null;
 }
 
+/** An invite link as the service keeps it (server/src/store/org_links.rs): its organization, and who made it. */
+interface StoredLink extends InviteLink {
+  orgId: string;
+}
+
 interface StoredOrg {
   id: string;
   name: string;
@@ -107,6 +112,8 @@ export async function fakeService(seed?: { handle: string; password: string }, {
   const files = new Map<string, { rev: number; bytes: Bytes }>();
   let prefs: { rev: number; blob: string } | null = null;
   const orgs = new Map<string, StoredOrg>();
+  /** Invite links, by code. */
+  const links = new Map<string, StoredLink>();
   /** The account's notifications, by id. */
   const feed = new Map<string, Notification>();
   let counter = 0;
@@ -133,6 +140,7 @@ export async function fakeService(seed?: { handle: string; password: string }, {
     files.clear();
     prefs = null;
     orgs.clear();
+    links.clear();
     feed.clear();
     counter = 0;
     tokens.clear();
@@ -185,6 +193,15 @@ export async function fakeService(seed?: { handle: string; password: string }, {
     const next = { ...item, ...change, rev: nextRev() };
     feed.set(item.id, next);
     return next;
+  };
+  /** Whether a link still works: not expired, not used up. */
+  const working = (link: StoredLink) => (link.expiresAt === null || link.expiresAt > Date.now()) && (link.maxUses === null || link.uses < link.maxUses);
+  const linkJson = ({ orgId: _orgId, ...link }: StoredLink): InviteLink => link;
+  /** A link to `org`, made by `by`. */
+  const linkTo = (org: StoredOrg, by: string, expiresAt: number | null, maxUses: number | null): StoredLink => {
+    const link: StoredLink = { id: shortId(), code: shortId(), orgId: org.id, createdAt: Date.now(), expiresAt, maxUses, uses: 0, by };
+    links.set(link.code, link);
+    return link;
   };
   /** An organization made by a peer, with the account invited to it: the one way an invitation reaches the account. */
   const inviteAccount = (name: string, by: string): StoredOrg => {
@@ -312,7 +329,7 @@ export async function fakeService(seed?: { handle: string; password: string }, {
     }
 
     // --- organizations and notifications (docs/TEAMS.md) ---
-    if (/^(orgs|notifications)(\/|$)/.test(path)) {
+    if (/^(orgs|notifications|joins)(\/|$)/.test(path)) {
       // A service from before these routes: the one 404 the client reads as "not yet".
       if (!teams) return refuse(404, NO_SUCH_ROUTE);
       const me = mine.handle;
@@ -415,6 +432,48 @@ export async function fakeService(seed?: { handle: string; password: string }, {
             target.role = role;
             return json(200, { member: memberJson(target) });
           }
+        }
+      }
+      const orgLinks = /^orgs\/([^/]+)\/links(?:\/([^/]+))?$/.exec(path);
+      if (orgLinks) {
+        const found = inOrg(decodeURIComponent(orgLinks[1]!));
+        if (!found) return refuse(404, 'No such organization.');
+        const { org, row } = found;
+        if (row.role === 'member') return refuse(403, 'Only the owner or an admin can do that.');
+        const live = [...links.values()].filter((l) => l.orgId === org.id && working(l));
+        if (method === 'GET' && orgLinks[2] === undefined) return json(200, { links: live.reverse().map(linkJson) });
+        if (method === 'POST' && orgLinks[2] === undefined) {
+          const expiresIn = body.expiresIn as number | undefined;
+          const maxUses = body.maxUses as number | undefined;
+          if (expiresIn !== undefined && (expiresIn < 3600 || expiresIn > 30 * 24 * 3600)) return refuse(400, 'A link lasts an hour to thirty days, or until it is turned off.');
+          if (maxUses !== undefined && (maxUses < 1 || maxUses > ORG_ROWS)) return refuse(400, 'A link may be used 1 to 50 times, or without a limit.');
+          if (live.length >= 10) return refuse(409, 'This organization has as many invite links as it can. Turn one off first.');
+          const link = linkTo(org, me, expiresIn === undefined ? null : Date.now() + expiresIn * 1000, maxUses ?? null);
+          return json(201, { link: linkJson(link) });
+        }
+        if (method === 'DELETE' && orgLinks[2] !== undefined) {
+          const link = [...links.values()].find((l) => l.orgId === org.id && l.id === decodeURIComponent(orgLinks[2]!));
+          if (!link) return refuse(404, 'That invite link has expired or was turned off.');
+          links.delete(link.code);
+          return json(200, { dropped: true });
+        }
+      }
+      const join = /^joins\/([^/]+)$/.exec(path);
+      if (join) {
+        const link = links.get(decodeURIComponent(join[1]!));
+        const org = link && working(link) ? orgs.get(link.orgId) : undefined;
+        if (!link || !org) return refuse(404, 'That invite link has expired or was turned off.');
+        const had = rowOf(org, me);
+        if (method === 'GET') return json(200, { org: { id: org.id, name: org.name, hue: org.hue, members: joined(org).length }, by: link.by, member: had?.state === 'member' });
+        if (method === 'POST') {
+          if (had?.state === 'member') return json(200, { org: orgJson(org, had) });
+          if (had?.state !== 'invited' && [...org.rows.values()].filter((r) => r.state !== 'declined').length >= ORG_ROWS) return refuse(409, 'The organization is full.');
+          const row: Row = { handle: me, role: 'member', state: 'member', since: Date.now(), invitedBy: had?.invitedBy ?? link.by };
+          org.rows.set(lower(me), row);
+          link.uses += 1;
+          const notice = pendingInvite(org.id);
+          if (notice) touch(notice, { state: 'accepted' });
+          return json(200, { org: orgJson(org, row) });
         }
       }
       const invite = /^orgs\/([^/]+)\/invite$/.exec(path);
@@ -557,6 +616,15 @@ export async function fakeService(seed?: { handle: string; password: string }, {
     /** An organization `by` (a peer) made and invited the account to: the invitation lands in the feed. Answers the organization's id. */
     invited(name: string, by: string = peers[0] ?? 'sam'): string {
       return inviteAccount(name, by).id;
+    },
+    /** Invite links as stored, by code. */
+    links,
+    /** An organization a peer made, with an invite link to it the account has been sent: answers the code. */
+    peerLink(name: string, by: string = peers[0] ?? 'sam', terms: { expiresAt?: number | null; maxUses?: number | null } = {}): string {
+      const org: StoredOrg = { id: shortId(), name, hue: null, createdAt: Date.now(), rows: new Map() };
+      org.rows.set(lower(by), { handle: by, role: 'owner', state: 'member', since: org.createdAt, invitedBy: null });
+      orgs.set(org.id, org);
+      return linkTo(org, by, terms.expiresAt ?? null, terms.maxUses ?? null).code;
     },
     /** The account's row in an organization, as the service holds it; null when it has none. */
     rowIn(orgId: string): { role: Role; state: 'member' | 'invited' | 'declined' } | null {

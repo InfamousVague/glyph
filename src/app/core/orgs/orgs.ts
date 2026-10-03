@@ -4,7 +4,7 @@ import { ApiError, call, notYet } from '../account/api.ts';
 import { externalStore } from '../externalStore.ts';
 import { readStored, writeStored } from '../stored.ts';
 import { dropOrgWorkspace, ensureOrgWorkspace, orgIdOf, workspaces } from '../workspaces.ts';
-import type { Member, Org, OrgRow, OrgState, Role } from './types.ts';
+import type { InviteLink, JoinPreview, Member, Org, OrgRow, OrgState, Role } from './types.ts';
 
 /**
  * The account's organizations on this device (docs/TEAMS.md): the calls for every route, the list as the service
@@ -222,6 +222,47 @@ export async function postInviteAnswer(id: string, accept: boolean, ctx: CallCon
   }
   keepRow(id, null);
   return null;
+}
+
+// --- invite links ---------------------------------------------------------------------------
+
+/** How long a new link lasts and how many may join by it; none of either for good and without a limit. */
+export interface LinkTerms {
+  /** Seconds, an hour to thirty days. */
+  expiresIn?: number | null;
+  /** 1 to 50. */
+  maxUses?: number | null;
+}
+
+/** A new invite link (owner or admin); 409 when the organization has as many working as it may. */
+export async function makeInviteLink(id: string, terms: LinkTerms = {}, ctx: CallContext = signedIn()): Promise<InviteLink> {
+  const body = { ...(terms.expiresIn == null ? {} : { expiresIn: terms.expiresIn }), ...(terms.maxUses == null ? {} : { maxUses: terms.maxUses }) };
+  const { link } = await orgs<{ link: InviteLink }>('POST', `orgs/${encodeURIComponent(id)}/links`, ctx, body);
+  return link;
+}
+
+/** The organization's working links, newest first (owner or admin). */
+export async function listInviteLinks(id: string, ctx: CallContext = signedIn()): Promise<InviteLink[]> {
+  const { links } = await orgs<{ links: InviteLink[] }>('GET', `orgs/${encodeURIComponent(id)}/links`, ctx);
+  return links;
+}
+
+/** A link turned off: its code joins nobody from now on. */
+export async function dropInviteLink(id: string, link: string, ctx: CallContext = signedIn()): Promise<void> {
+  await orgs<{ dropped: true }>('DELETE', `orgs/${encodeURIComponent(id)}/links/${encodeURIComponent(link)}`, ctx);
+}
+
+/** What a code joins, before it is followed; 404 "That invite link has expired or was turned off." when it does not. */
+export async function previewJoin(code: string, ctx: CallContext = signedIn()): Promise<JoinPreview> {
+  return orgs<JoinPreview>('GET', `joins/${encodeURIComponent(code)}`, ctx);
+}
+
+/** The caller in by a code, with the organization's row and workspace made here at once, as accepting makes them. */
+export async function joinByLink(code: string, ctx: CallContext = signedIn()): Promise<Org> {
+  const { org } = await orgs<{ org: Org }>('POST', `joins/${encodeURIComponent(code)}`, ctx);
+  keepRow(org.id, rowOf(org));
+  ensureOrgWorkspace(org);
+  return org;
 }
 
 // --- the pass ------------------------------------------------------------------------------

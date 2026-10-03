@@ -28,13 +28,15 @@ function Probe({
   fork,
   openNote = async () => undefined,
   openPlace,
+  join,
 }: {
   loading: boolean;
   fork: (link: string) => Promise<void>;
   openNote?: (id: string) => Promise<void>;
   openPlace?: (place: { place: 'notifications' } | { place: 'organization'; orgId: string }) => void;
+  join?: (code: string) => void;
 }) {
-  useAppLinks(loading, { fork, openNote, openPlace });
+  useAppLinks(loading, { fork, openNote, openPlace, join });
   return null;
 }
 
@@ -146,5 +148,35 @@ describe('a note link arriving', () => {
     await act(async () => links.open!('ghostmd://note/m1'));
     expect(warn).toHaveBeenCalledWith('[glyph] could not open the note the link named:', expect.any(Error));
     warn.mockRestore();
+  });
+});
+
+describe('an invite link arriving', () => {
+  const CODE = 'AbCdEfGhIjKlMnOpQrStUv';
+
+  it('in the address is asked about once the notes are read, once, and taken out of the address', () => {
+    history.replaceState(null, '', `/glyph/#join=${CODE}`);
+    const fork = vi.fn(async () => undefined);
+    const join = vi.fn();
+    show(<Probe loading fork={fork} join={join} />);
+    expect(join).not.toHaveBeenCalled();
+    rerender(<Probe loading={false} fork={fork} join={join} />);
+    expect(join).toHaveBeenCalledWith(CODE);
+    expect(fork).not.toHaveBeenCalled();
+    expect(location.hash).toBe('');
+    rerender(<Probe loading fork={fork} join={join} />);
+    rerender(<Probe loading={false} fork={fork} join={join} />);
+    expect(join).toHaveBeenCalledTimes(1);
+  });
+
+  it('from the app’s own scheme goes to join, not to fork', () => {
+    const fork = vi.fn(async () => undefined);
+    const join = vi.fn();
+    show(<Probe loading={false} fork={fork} join={join} />);
+    act(() => links.open!(`ghostmd://join/${CODE}`));
+    expect(join).toHaveBeenCalledWith(CODE);
+    act(() => links.open!('ghostmd://join/not a code'));
+    expect(join).toHaveBeenCalledTimes(1);
+    expect(fork).not.toHaveBeenCalled();
   });
 });

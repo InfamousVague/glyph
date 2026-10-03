@@ -11,10 +11,11 @@ import '../app/ink.css';
 // The note's face: a shared note is drawn in the app's default, Maple Mono (typefaces.css).
 import '../app/typefaces.css';
 import '../app/editor/codeThemes.css';
+import { readJoinLink } from '../app/core/orgs/joinLinks.ts';
+import { JoinPage } from './JoinPage.tsx';
 import { Reader } from './Reader.tsx';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <Reader />
-  </StrictMode>,
-);
+// An invite link is the reader page with `#join=<code>` (core/orgs/joinLinks.ts): the invitation, not a shared note.
+const join = location.hash.startsWith('#join=') ? readJoinLink(location.hash) : null;
+
+createRoot(document.getElementById('root')!).render(<StrictMode>{join ? <JoinPage code={join} /> : <Reader />}</StrictMode>);

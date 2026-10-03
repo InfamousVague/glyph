@@ -116,6 +116,9 @@ async fn a_stranger_gets_one_404_from_every_route_of_an_organization() {
         (Method::POST, format!("/api/v1/orgs/{id}/members"), Some(json!({ "handle": "matt" }))),
         (Method::DELETE, format!("/api/v1/orgs/{id}/members/matt"), None),
         (Method::PUT, format!("/api/v1/orgs/{id}/members/matt"), Some(json!({ "role": "member" }))),
+        (Method::POST, format!("/api/v1/orgs/{id}/links"), Some(json!({}))),
+        (Method::GET, format!("/api/v1/orgs/{id}/links"), None),
+        (Method::DELETE, format!("/api/v1/orgs/{id}/links/AAAAAAAAAAAAAAAAAAAAAA"), None),
         // And one that was never made, in the same words.
         (Method::GET, "/api/v1/orgs/AAAAAAAAAAAAAAAAAAAAAA".to_string(), None),
     ];
@@ -463,4 +466,78 @@ async fn the_limits_on_owning_inviting_and_changing() {
     assert_eq!(refused, Some(refusal(StatusCode::TOO_MANY_REQUESTS, "Too many changes in a minute. Try again shortly.")));
     let (status, _) = h.call(Method::GET, &format!("/api/v1/orgs/{id}"), Some(&matt), None).await;
     assert_eq!(status, StatusCode::OK, "reading is not a change");
+}
+
+/// `POST links` as `token`: the new link.
+async fn make_link(h: &Harness, token: &str, org: &str, body: Value) -> (StatusCode, Value) {
+    h.call(Method::POST, &format!("/api/v1/orgs/{org}/links"), Some(token), Some(body)).await
+}
+
+#[tokio::test]
+async fn an_invite_link_is_made_previewed_followed_and_turned_off() {
+    let h = harness();
+    let matt = h.signup("matt", &device()).await;
+    let sam = h.signup("sam", &device()).await;
+    let ali = h.signup("ali", &device()).await;
+    let org = make(&h, &matt, "Ghost").await;
+
+    let (status, body) = make_link(&h, &matt, &org, json!({ "expiresIn": 7 * 24 * 3600, "maxUses": 5 })).await;
+    assert_eq!(status, StatusCode::CREATED, "{body}");
+    let link = body["link"].clone();
+    let code = link["code"].as_str().unwrap().to_string();
+    assert_eq!(code.len(), 22, "128 random bits");
+    assert_eq!((link["uses"].clone(), link["maxUses"].clone(), link["by"].clone()), (json!(0), json!(5), json!("matt")));
+    assert_eq!(link["expiresAt"].as_i64().unwrap() - link["createdAt"].as_i64().unwrap(), 7 * 24 * 3600 * 1000);
+    let (_, listed) = h.call(Method::GET, &format!("/api/v1/orgs/{org}/links"), Some(&matt), None).await;
+    assert_eq!(listed["links"], json!([link]));
+
+    // The preview: the name and the count, nothing about who.
+    let (status, preview) = h.call(Method::GET, &format!("/api/v1/joins/{code}"), Some(&sam), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(preview, json!({ "org": { "id": org, "name": "Ghost", "hue": null, "members": 1 }, "by": "matt", "member": false }));
+
+    let (status, joined) = h.call(Method::POST, &format!("/api/v1/joins/{code}"), Some(&sam), None).await;
+    assert_eq!(status, StatusCode::OK, "{joined}");
+    assert_eq!((joined["org"]["role"].clone(), joined["org"]["state"].clone(), joined["org"]["invitedBy"].clone()), (json!("member"), json!("member"), json!("matt")));
+    let (_, preview) = h.call(Method::GET, &format!("/api/v1/joins/{code}"), Some(&sam), None).await;
+    assert_eq!((preview["member"].clone(), preview["org"]["members"].clone()), (json!(true), json!(2)));
+    assert_eq!(of_kind(&h, &matt, "invite-accepted").await.len(), 1, "the maker is told");
+
+    // A member who does not manage cannot see, make or turn off links.
+    let admin_only = refusal(StatusCode::FORBIDDEN, "Only the owner or an admin can do that.");
+    assert_eq!(make_link(&h, &sam, &org, json!({})).await, admin_only);
+    assert_eq!(h.call(Method::GET, &format!("/api/v1/orgs/{org}/links"), Some(&sam), None).await, admin_only);
+
+    let link_id = link["id"].as_str().unwrap();
+    let (status, body) = h.call(Method::DELETE, &format!("/api/v1/orgs/{org}/links/{link_id}"), Some(&matt), None).await;
+    assert_eq!((status, body), (StatusCode::OK, json!({ "dropped": true })));
+    let gone = refusal(StatusCode::NOT_FOUND, "That invite link has expired or was turned off.");
+    assert_eq!(h.call(Method::GET, &format!("/api/v1/joins/{code}"), Some(&ali), None).await, gone);
+    assert_eq!(h.call(Method::POST, &format!("/api/v1/joins/{code}"), Some(&ali), None).await, gone);
+    // A code that could not be one gets the same words.
+    assert_eq!(h.call(Method::POST, "/api/v1/joins/x", Some(&ali), None).await, gone);
+    let (status, _) = h.call(Method::POST, &format!("/api/v1/joins/{code}"), None, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "joining needs an account");
+}
+
+#[tokio::test]
+async fn an_invite_links_terms_and_count_are_checked() {
+    let h = harness();
+    let matt = h.signup("matt", &device()).await;
+    let org = make(&h, &matt, "Ghost").await;
+    for secs in [60, 31 * 24 * 3600] {
+        let (status, body) = make_link(&h, &matt, &org, json!({ "expiresIn": secs })).await;
+        assert_eq!((status, body), refusal(StatusCode::BAD_REQUEST, "A link lasts an hour to thirty days, or until it is turned off."), "{secs}");
+    }
+    for uses in [0, 51] {
+        let (status, body) = make_link(&h, &matt, &org, json!({ "maxUses": uses })).await;
+        assert_eq!((status, body), refusal(StatusCode::BAD_REQUEST, "A link may be used 1 to 50 times, or without a limit."), "{uses}");
+    }
+    let (status, body) = make_link(&h, &matt, &org, json!({})).await;
+    assert_eq!((status, body["link"]["expiresAt"].clone(), body["link"]["maxUses"].clone()), (StatusCode::CREATED, Value::Null, Value::Null), "none given is for good");
+    for _ in 1..10 {
+        assert_eq!(make_link(&h, &matt, &org, json!({})).await.0, StatusCode::CREATED);
+    }
+    let (status, body) = make_link(&h, &matt, &org, json!({})).await;
+    assert_eq!((status, body), refusal(StatusCode::CONFLICT, "This organization has as many invite links as it can. Turn one off first."));
 }

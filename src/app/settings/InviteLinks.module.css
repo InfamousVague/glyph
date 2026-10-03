@@ -1,0 +1,148 @@
+/* Invite by link (InviteLinks.tsx): the working links as rows, New link, and the service's answer under them. */
+
+.links {
+  display: grid;
+  gap: var(--glacier-space-2);
+  min-inline-size: 0;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* A link: its mark, the short link over its terms, and Copy, Send and Turn off as icons at the end. */
+.link {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  padding-block: var(--glacier-space-2);
+  border-block-end: var(--glacier-hairline) solid var(--app-rule);
+}
+
+.mark {
+  flex: none;
+  color: var(--app-ink-3);
+}
+
+.words {
+  flex: 1;
+  min-inline-size: 0;
+  display: grid;
+  gap: 0.1em;
+}
+
+.url,
+.terms {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.url {
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-medium);
+  color: var(--app-ink);
+}
+
+.terms {
+  font-size: var(--glacier-font-size-xs);
+  color: var(--app-ink-3);
+}
+
+.icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  /* A thumb's width to hit. */
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--glacier-radius-full);
+  background: none;
+  color: var(--app-ink-2);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.icon:hover {
+  background: color-mix(in oklch, var(--app-ink) 7%, transparent);
+  color: var(--app-ink);
+}
+
+.quiet,
+.said {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-2);
+}
+
+/* A new link's terms: how long and who, a segmented row each, over Make the link. */
+.making {
+  display: grid;
+  gap: var(--glacier-space-3);
+  padding-block: var(--glacier-space-2);
+}
+
+.choice {
+  display: grid;
+  gap: var(--glacier-space-1);
+}
+
+.choiceLabel {
+  font-size: var(--glacier-font-size-xs);
+  color: var(--app-ink-3);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--glacier-space-2);
+}
+
+.action,
+.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  min-block-size: 2.25rem;
+  padding: 0 1em;
+  border-radius: var(--glacier-radius-full);
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.action {
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  background: color-mix(in oklch, var(--app-ink) 5%, transparent);
+  color: var(--app-ink);
+}
+
+.action:hover {
+  background: color-mix(in oklch, var(--app-ink) 9%, transparent);
+}
+
+.primary {
+  border: var(--glacier-hairline) solid transparent;
+  background: var(--app-ink);
+  color: var(--app-paper);
+}
+
+.action:disabled,
+.primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.action:focus-visible,
+.primary:focus-visible,
+.icon:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+}

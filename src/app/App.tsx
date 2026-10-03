@@ -1,10 +1,12 @@
 import { forkShared, readShared } from './share/share.ts';
+import { readJoinLink } from './core/orgs/joinLinks.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HapticsProvider, ToastProvider, useToast } from '@glacier/react';
 import { UpdateNotice } from './notes/Notices.tsx';
 import { HomeScreen } from './home/HomeScreen.tsx';
 import { AllNotesScreen } from './notes/AllNotesScreen.tsx';
 import { NotificationsDrawer } from './notes/NotificationsDrawer.tsx';
+import { JoinInvites } from './notes/JoinSheet.tsx';
 import { OrganizationSheet } from './settings/OrganizationSheet.tsx';
 import { OrganizationScreen } from './notes/OrganizationScreen.tsx';
 import { unreadCount, useNotifications } from './core/notifications/feed.ts';
@@ -387,7 +389,16 @@ function Shell() {
   };
 
   // A copy of something shared with this person, from its link (share/share.ts): saved into the library, then opened.
+  // An invite link (core/orgs/joinLinks.ts), from the address bar, the app's own scheme or pasted into From a shared
+  // link: held and asked about (notes/JoinSheet.tsx), each arrival asked about again.
+  const [joinRequest, setJoinRequest] = useState<{ code: string; nonce: number } | null>(null);
+  const joinFromLink = (code: string) => setJoinRequest({ code, nonce: Date.now() });
   const forkFromLink = async (link: string) => {
+    const invite = readJoinLink(link);
+    if (invite) {
+      joinFromLink(invite);
+      return;
+    }
     tabs.replaceNext(null);
     const made = await forkShared(await readShared(link));
     await refresh();
@@ -405,6 +416,7 @@ function Shell() {
     openNote: openNoteFromLink,
     // The notifications drawer, or an organization's dashboard (docs/TEAMS.md), for whatever the phone will raise about them.
     openPlace: (place) => (place.place === 'notifications' ? showNotifications() : openOrganization(place.orgId)),
+    join: joinFromLink,
   });
 
   /**
@@ -1475,6 +1487,8 @@ function Shell() {
           onAccount={() => setSettings(true)}
         />
       ) : null}
+      {/* An invite link's "Join it?" (notes/JoinSheet.tsx), held back while the way into an account is up at launch. */}
+      <JoinInvites request={joinRequest} hold={accountGate.open} onOpen={openOrganization} onAccount={() => setSettings(true)} />
       {/* With the sidebar a floating card, the aside is the same card at the right (aside/Aside.tsx `AsideCard`). */}
       {asideShown && !asideDocked && asideBody ? (
         <AsideCard content={asideBody} onOpen={openNoteWithin} onOpenTitle={openTitleWithin} onClose={toggleAside} />

@@ -221,6 +221,39 @@ describe('Members', () => {
     await waitUntil(() => expect(member(again, 'sam')?.hint).toBe('They have not joined yet.'));
   });
 
+  it('makes an invite link, copies it as it is made, lists it with its terms, and turns it off', async () => {
+    const copied: string[] = [];
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text: string) => void copied.push(text) } });
+    const id = await ghost();
+    const host = sheet(id);
+    await waitUntil(() => expect(host.textContent).toContain('No links yet.'));
+    act(() => buttonSaying(host, 'New link')!.click());
+    // A day, for one person.
+    act(() => host.querySelector<HTMLInputElement>('input[type="radio"][value="day"]')!.click());
+    act(() => host.querySelector<HTMLInputElement>('input[type="radio"][value="one"]')!.click());
+    await act(async () => buttonSaying(host, 'Make the link')!.click());
+    await waitUntil(() => expect(host.querySelectorAll('[aria-label="Invite links"] li')).toHaveLength(1));
+    const [link] = [...service.links.values()];
+    expect(copied).toEqual([`https://ghostmarkdown.com/read.html#join=${link!.code}`]);
+    expect(host.querySelector('[role="status"]')?.textContent).toBe('The link is made and copied. Anyone signed in who has it can join.');
+    expect(host.querySelector('[aria-label="Invite links"] li')?.textContent).toContain('Stops in 24 hours · 0 of 1 used');
+    expect(link!.maxUses).toBe(1);
+    act(() => button('Turn the link off', host).click());
+    await waitUntil(() => expect(host.textContent).toContain('No links yet.'));
+    expect(service.links.size).toBe(0);
+    expect(host.querySelector('[role="status"]')?.textContent).toBe('The link is turned off. No one else can join by it.');
+  });
+
+  it('shows no invite links to a member who does not manage the organization', async () => {
+    const id = service.invited('Boo', 'sam');
+    service.orgs.get(id)!.rows.get('matt')!.state = 'member';
+    await syncOrgs({ token: service.signedIn(), fetcher: service.fetcher, save: (state) => saveOrgs(7, state) });
+    const host = sheet(id);
+    await waitUntil(() => expect(member(host, 'sam')).not.toBeNull());
+    expect(host.textContent).not.toContain('Invite by link');
+    expect(service.calls.some((c) => c.includes('/links'))).toBe(false);
+  });
+
   it('draws an invitation with Accept and Decline when the account is only invited', async () => {
     const id = service.invited('Boo', 'sam');
     await syncOrgs({ token: service.signedIn(), fetcher: service.fetcher, save: (state) => saveOrgs(7, state) });

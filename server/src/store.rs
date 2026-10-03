@@ -22,6 +22,7 @@
 mod accounts;
 mod notes;
 mod notifications;
+mod org_links;
 mod orgs;
 mod prefs;
 mod recordings;
@@ -32,6 +33,7 @@ pub use notes::NoteRow;
 #[cfg(test)]
 pub use notifications::KEPT;
 pub use notifications::{NotificationRow, NotificationWrite, SERVER_KINDS};
+pub use org_links::{LinkPreview, OrgLink};
 pub use orgs::{InviteCaps, Member, Org, OrgRow, OrgWrite, Role};
 pub use shares::ShareWrite;
 
@@ -131,6 +133,21 @@ CREATE TABLE IF NOT EXISTS org_members (
     PRIMARY KEY (org_id, account_id)
 );
 CREATE INDEX IF NOT EXISTS org_members_by_account ON org_members(account_id);
+-- An invitation by link (server/src/orgs.rs, store/org_links.rs, docs/TEAMS.md): a code anyone holding it may join
+-- the organization with, made by its owner or an admin, until it expires, is used up, or is turned off - which deletes
+-- the row. `id` names it to the people who manage it; `code` is the secret in the link, 128 random bits, kept as it is
+-- so a manager can copy the link again. It goes with the organization; its maker is only a reference.
+CREATE TABLE IF NOT EXISTS org_links (
+    id         TEXT PRIMARY KEY,
+    code       TEXT NOT NULL UNIQUE,
+    org_id     TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+    made_by    INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER,
+    max_uses   INTEGER,
+    uses       INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS org_links_by_org ON org_links(org_id);
 -- What an account is told (server/src/notifications.rs): one table, two shapes. A row the service wrote - an
 -- invitation, a team change - carries its kind, who caused it, the organization and a small plaintext body; a row a
 -- device wrote about its own account carries a blob sealed under the account key, which the service cannot read.

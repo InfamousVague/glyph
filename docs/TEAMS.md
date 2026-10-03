@@ -134,6 +134,11 @@ POST   orgs/{id}/members                 { handle }                       -> { m
 DELETE orgs/{id}/members/{handle}                                         -> { removed: true }       {handle} resolved among this organization's rows only; one's own handle is leaving
 PUT    orgs/{id}/members/{handle}        { role }                         -> { member }              owner; 'owner' hands over
 POST   orgs/{id}/invite                  { accept: boolean }              -> { org } | { declined: true }   the invited person
+POST   orgs/{id}/links                   { expiresIn?, maxUses? }         -> 201 { link: InviteLink } owner or admin; seconds 3600..30 days, uses 1..50; none of either is for good, without a limit
+GET    orgs/{id}/links                                                    -> { links: [InviteLink] } owner or admin; the working ones, newest first
+DELETE orgs/{id}/links/{link}                                             -> { dropped: true }       owner or admin; the code joins nobody from now on
+GET    joins/{code}                                                       -> { org: { id, name, hue, members }, by, member }   anyone signed in with a working code
+POST   joins/{code}                                                       -> { org }                 the caller in as a member; already in answers the org and counts no use
 
 GET    notifications?since=<rev>&limit=<1..200>                           -> { rev, items: [Notification], more }   default limit 100; the cursor rule of the notes feed
 POST   notifications                     { id, kind, blob }               -> { rev }                 self kinds only; an id the account has answers its stored rev and writes nothing
@@ -147,6 +152,7 @@ Shapes, as the service answers them (an absent field is absent, not null):
 interface OrgRow { id; name; hue: string | null; role: 'owner' | 'admin' | 'member'; state: 'member' | 'invited'; members: number; invitedBy: string | null; createdAt: number }
 interface Org extends Omit<OrgRow, 'members'> { members: Member[] }      // joined before invited, then by since
 interface Member { handle; role; state: 'member' | 'invited'; since: number; invitedBy: string | null }
+interface InviteLink { id; code; createdAt: number; expiresAt: number | null; maxUses: number | null; uses: number; by: string | null }
 // Every moment (createdAt, since, at, readAt) is milliseconds since the epoch, as Date.now() counts, though the
 // service keeps seconds: wire::millis converts on the way out.
 interface Notification {
@@ -190,6 +196,10 @@ Each comes back as `{ "error": … }` with the status given, and the app shows i
 | 404 | No one has that handle. | inviting a handle nobody has, or one that cannot be a handle |
 | 404 | No one by that handle is in this organization. | DELETE or PUT members, for both "no such handle" and "not in it" |
 | 404 | You were not invited. | answering with no pending row (answered elsewhere already) |
+| 404 | That invite link has expired or was turned off. | a code that is not one, expired, used up or turned off; DELETE links on no such link |
+| 400 | A link lasts an hour to thirty days, or until it is turned off. | POST links, `expiresIn` out of range |
+| 400 | A link may be used 1 to 50 times, or without a limit. | POST links, `maxUses` out of range |
+| 409 | This organization has as many invite links as it can. Turn one off first. | an eleventh working link |
 | 409 | They are already a member. | inviting a member |
 | 409 | They declined; ask again tomorrow. | inviting within a day of their decline |
 | 409 | They have as many invitations waiting as they can. | the invitee has twenty pending |
@@ -221,6 +231,7 @@ Pinned by `server/src/orgs_tests.rs` and `notifications_tests.rs`:
 | Rows per organization, joined and invited | 50 |
 | Invitations waiting per invitee, across every organization | 20 |
 | Invitations | 30 an hour per inviting account, and 30 an hour per address |
+| Working invite links per organization | 10; a link lasts an hour to 30 days or for good, and lets 1 to 50 join or any number |
 | Every other change to an organization, invitation answers included | 60 a minute per account |
 | A device's own notification posts | 60 a minute per account; a blob 8 KB; a body 16 KB |
 | Notifications kept per account | 300, pruned inside the write transaction by `created_at`, the read-or-hidden first and never a pending invitation; a pending invitation is counted among the 300 but never the one that goes |
@@ -271,6 +282,8 @@ Guide's chapters 19 and 26):
   body (the organization's name, a handle, a role, the old name);
 - for every notification, server-made or sealed: its kind, when it was made, **when it was read, and whether it is
   hidden** - new, since until now the server saw when things change, not when they are looked at;
+- an invite link's code, who made it, when it stops, how many it lets in and how many joined by it. The code is the
+  permission, so it is in the clear as a share's id is; it names nobody;
 - **whether a handle exists**, told to a signed-in account that invites it (404 "No one has that handle."), thirty
   times an hour per account and per address. It is the one such answer the service gives;
 - which notes Claude touched, only as a count and a time: a self notification's `kind` column says `note-edited`,
@@ -279,6 +292,33 @@ Guide's chapters 19 and 26):
 It cannot read a self notification's payload - the note's id and title, the author, the lines - nor, as before, a
 title, a folder, a word of any note, a setting or a second of audio. Notes filed in an organization's workspace are
 sealed per account exactly as any other note; the filing itself rides in the sealed settings.
+
+## Invite by link
+
+Matt: "add the ability to invite people to a team by link". The owner or an admin makes a link on the organization's
+Members page or under its dashboard's invite field (`settings/InviteLinks.tsx`), for a day, a week, thirty days or for
+good, and for one person, five, twenty-five or anyone who has it. The link is copied as it is made. Each working link
+is a row with Copy, Send (where the device can share) and Turn off, and says how long it has and how many used it.
+
+The link is the reader page with the code in its hash, `https://ghostmarkdown.com/read.html#join=<code>`
+(`core/orgs/joinLinks.ts`), as a share link is the reader page with its key: the hash never reaches a server log, and
+the page is there for someone without the app. It says only that it is an invitation to a team
+(`src/read/JoinPage.tsx`), since the code is shown to the service only by someone signed in, and offers
+`ghostmd://join/<code>` for the app and the web app at `#join=<code>`. Pasted into + › From a shared link, a link or a
+bare code goes the same way.
+
+Nothing is joined until the person says so: the app asks "Join Ghost?" with the name, who made the link and how many
+are in it (`notes/JoinSheet.tsx`). Followed signed out, the code waits on this device for a week under
+`glyph-join-held` and is asked about as soon as an account is signed in, after the way in at launch has closed.
+
+On the service (`server/src/store/org_links.rs`, table `org_links`): the code is a fresh 128-bit id. Joining is the
+invitation and its answer in one transaction. The joiner is a member, `invited_by` is the link's maker while they are
+still in, else the owner, and that person is told `invite-accepted` as an asker is. Every other member is told
+`member-joined`. A waiting invitation is settled as accepted. A decline within the day is no bar, since following a
+link is asking to join. Someone already in counts no use. The fifty rows hold. Links that stopped working are cleared
+as a new one is made, and every link goes with its organization. A code that is not one, and one that stopped, get
+the same 404 in the same words. The routes share the sixty-a-minute change limit: a link names nobody, so it is no
+handle oracle, and 128 bits are not guessed at sixty a minute.
 
 ## How it is built
 
@@ -333,13 +373,14 @@ of it does.
 ## Tests
 
 - Server: `server/src/orgs_tests.rs` (made, listed, renamed, deleted; a stranger's one 404; the invitation and its
-  refusals; the owner invariant through the routes; a rename coalesced and a former member keeping the old name;
+  refusals; an invite link made, previewed, followed and turned off, and its terms and count; the owner invariant through the routes; a rename coalesced and a former member keeping the old name;
   deletion settling invitations; an asker deleting their account; the limits) and `notifications_tests.rs` (a post
   read back and a repeat landing once; the kinds and limits; read marks fed again; the cursor rule; one account never
   seeing another's; three hundred kept with the read ones going first and never a pending invitation; sixty posts a
-  minute); the stores' own `mod tests` in `store/orgs.rs` and `store/notifications.rs`; and every new signed-in route
+  minute); the stores' own `mod tests` in `store/orgs.rs`, `store/org_links.rs` and `store/notifications.rs`; and every new signed-in route
   in `sync_tests.rs` `every_signed_in_route_refuses_in_the_same_words`.
-- Client: `src/app/core/orgs/orgs.test.ts`, `src/app/core/notifications/feed.test.ts`, `kinds.test.ts`,
+- Client: `src/app/core/orgs/orgs.test.ts`, `joinLinks.test.ts`, `notes/JoinSheet.test.tsx`, the invite-link case in
+  `settings/OrganizationSheet.test.tsx`, `src/read/JoinPage.test.tsx`, the join cases in `shell/useAppLinks.test.tsx`, `src/app/core/notifications/feed.test.ts`, `kinds.test.ts`,
   `record.test.ts`, `src/app/core/ids.test.ts`, `src/app/core/account/api.test.ts` (`notYet`), and the cases added to
   `workspaces.test.ts`, `noteFolders.test.ts`, `preferences.test.ts`, `sync/prefs.test.ts`, `reset.test.ts` and
   `sync/engine.test.tsx` (the order of the pass).

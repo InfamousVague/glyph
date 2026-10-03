@@ -15,6 +15,7 @@ import { orgWorkspaceId, useWorkspaces } from '../core/workspaces.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { Ghost } from '../art/Ghost.tsx';
 import { InviteActions } from '../settings/InviteActions.tsx';
+import { InviteLinks } from '../settings/InviteLinks.tsx';
 import { GoWord } from '../settings/kit/settingsKit.tsx';
 import { memberWords, roleWords } from '../settings/orgWords.ts';
 import { NoteCard } from './NoteCard.tsx';
@@ -37,7 +38,8 @@ import styles from './OrganizationScreen.module.css';
  *   notes filed there stay yours for now), with New note (made filed in its workspace) and Invite (for an owner or
  *   an admin, which brings the invite field into view).
  * - **Notes**: the newest of the notes filed in its workspace, as cards, and the way to all of them.
- * - **Members**: who is in it and who is invited, with their roles, and the invite field for an owner or an admin.
+ * - **Members**: who is in it and who is invited, with their roles, and for an owner or an admin the invite field and
+ *   the invite links (settings/InviteLinks.tsx).
  * - **Activity**: the organization's own news from the feed (who joined, left or was removed, a rename, a new role,
  *   an invitation answered), newest first.
  *
@@ -260,6 +262,12 @@ export function OrganizationScreen({ orgId, notes, onBack, onOpenNote, onNewNote
                         await read();
                       }}
                     />
+                  ) : null}
+                  {canInvite ? (
+                    <div className={styles.byLink}>
+                      <h3 className={styles.subheading}>Invite by link</h3>
+                      <InviteLinks orgId={orgId} />
+                    </div>
                   ) : null}
                 </section>
                 <section className={styles.section} aria-labelledby="org-activity" data-group="activity">

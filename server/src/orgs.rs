@@ -15,6 +15,16 @@
 //!   DELETE /api/v1/orgs/{id}/members/{handle}                   someone out, or the caller leaving
 //!   PUT    /api/v1/orgs/{id}/members/{handle}  { role }         owner: a role, or 'owner' to hand over
 //!   POST   /api/v1/orgs/{id}/invite            { accept }       the invited person's answer
+//!   POST   /api/v1/orgs/{id}/links             { expiresIn?, maxUses? }  an invite link, by the owner or an admin
+//!   GET    /api/v1/orgs/{id}/links                              its working links, for the owner or an admin
+//!   DELETE /api/v1/orgs/{id}/links/{link}                       a link turned off
+//!   GET    /api/v1/joins/{code}                                 what a link joins, before it is followed
+//!   POST   /api/v1/joins/{code}                                 the caller in, by the link
+//!
+//! An invite link (store/org_links.rs) is a 128-bit code, so holding one is the permission: anyone signed in who has
+//! it may see the organization's name and join it as a member, until it expires, is used up or is turned off. It
+//! names nobody, so it is no handle oracle and is limited with every other change. A code that is not one, and one
+//! that stopped working, get the same 404.
 //!
 //! Inviting by handle is the one place a signed-in account learns whether a handle exists (404 "No one has that
 //! handle."): the ways in never say (accounts/ways_in.rs). So it is limited to thirty an hour, per account and per
@@ -28,7 +38,7 @@
 use crate::accounts::{Accounts, HasAccounts};
 use crate::guard;
 use crate::identity::Claims;
-use crate::store::{InviteCaps, Member, Org, OrgRow, OrgWrite, Role};
+use crate::store::{InviteCaps, LinkPreview, Member, Org, OrgLink, OrgRow, OrgWrite, Role};
 use crate::wire::{base64url, error, fresh_id, millis, now_secs};
 use axum::extract::{ConnectInfo, DefaultBodyLimit, Path, State};
 use axum::http::{HeaderMap, StatusCode};
@@ -60,6 +70,12 @@ const NAME_LENGTH: std::ops::RangeInclusive<usize> = 1..=60;
 const HUES: &[&str] = &["ink", "ember", "amber", "moss", "sea", "violet", "rose"];
 /// An id the service made is 22 characters; a device's own is taken at the length notes are (sync.rs).
 const ID_LENGTH: std::ops::RangeInclusive<usize> = 1..=64;
+/// Working invite links one organization may have at once.
+const LINKS_PER_ORG: usize = 10;
+/// How long a link may be made to last, in seconds: an hour to thirty days, or for good when none is given.
+const LINK_LIFETIME: std::ops::RangeInclusive<i64> = 3600..=30 * 24 * 3600;
+/// A code is a fresh id: 22 characters.
+const CODE_LENGTH: std::ops::RangeInclusive<usize> = 16..=64;
 /// A body here is a name, a hue, a handle or a role.
 const BODY_LIMIT: usize = 16 * 1024;
 
@@ -159,6 +175,8 @@ fn refused(err: OrgWrite) -> Response {
         OrgWrite::HandOver => error(StatusCode::FORBIDDEN, "Hand the organization over first."),
         OrgWrite::NotJoined => error(StatusCode::CONFLICT, "They have not joined yet."),
         OrgWrite::NotInvited => error(StatusCode::NOT_FOUND, "You were not invited."),
+        OrgWrite::NoSuchLink => error(StatusCode::NOT_FOUND, "That invite link has expired or was turned off."),
+        OrgWrite::TooManyLinks => error(StatusCode::CONFLICT, "This organization has as many invite links as it can. Turn one off first."),
         OrgWrite::Failed => error(StatusCode::INTERNAL_SERVER_ERROR, "That could not be stored."),
     }
 }
@@ -181,6 +199,20 @@ fn org_json(org: &Org) -> Value {
         "id": org.id, "name": org.name, "hue": org.hue, "role": org.role.as_str(), "state": org.state,
         "invitedBy": org.invited_by, "createdAt": millis(org.created_at),
         "members": org.members.iter().map(member_json).collect::<Vec<_>>(),
+    })
+}
+
+fn link_json(link: &OrgLink) -> Value {
+    json!({
+        "id": link.id, "code": link.code, "createdAt": millis(link.created_at), "expiresAt": link.expires_at.map(millis),
+        "maxUses": link.max_uses, "uses": link.uses, "by": link.by,
+    })
+}
+
+fn preview_json(preview: &LinkPreview, member: bool) -> Value {
+    json!({
+        "org": { "id": preview.org, "name": preview.name, "hue": preview.hue, "members": preview.members },
+        "by": preview.by, "member": member,
     })
 }
 
@@ -232,6 +264,27 @@ struct RoleBody {
 #[derive(Deserialize)]
 struct AnswerBody {
     accept: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LinkBody {
+    /// Seconds from now; none for a link that lasts until it is turned off.
+    #[serde(default)]
+    expires_in: Option<i64>,
+    /// How many may join by it; none for no limit.
+    #[serde(default)]
+    max_uses: Option<i64>,
+}
+
+/// A code that will not read is no code: the same answer as one that does not work, and no shape to learn.
+fn code_of(code: &str) -> Result<&str, Response> {
+    let code = code.trim();
+    if base64url(code, CODE_LENGTH) {
+        Ok(code)
+    } else {
+        Err(refused(OrgWrite::NoSuchLink))
+    }
 }
 
 // --- the routes -------------------------------------------------------------------
@@ -323,6 +376,59 @@ async fn answer_invite(State(orgs): State<Arc<Orgs>>, Path(id): Path<String>, wh
     }
 }
 
+async fn make_link(State(orgs): State<Arc<Orgs>>, Path(id): Path<String>, who: Claims, Json(body): Json<LinkBody>) -> Result<Response, Response> {
+    org_id(&id)?;
+    orgs.change(&who)?;
+    if body.expires_in.is_some_and(|secs| !LINK_LIFETIME.contains(&secs)) {
+        return Err(error(StatusCode::BAD_REQUEST, "A link lasts an hour to thirty days, or until it is turned off."));
+    }
+    if body.max_uses.is_some_and(|uses| !(1..=ORG_ROWS).contains(&uses)) {
+        return Err(error(StatusCode::BAD_REQUEST, "A link may be used 1 to 50 times, or without a limit."));
+    }
+    let now = now_secs();
+    let expires_at = body.expires_in.map(|secs| now + secs);
+    match orgs.accounts.store.make_link(who.sub, &id, &fresh_id(), &fresh_id(), expires_at, body.max_uses, now, LINKS_PER_ORG) {
+        Ok(link) => Ok((StatusCode::CREATED, Json(json!({ "link": link_json(&link) }))).into_response()),
+        Err(err) => Err(refused(err)),
+    }
+}
+
+async fn list_links(State(orgs): State<Arc<Orgs>>, Path(id): Path<String>, who: Claims) -> Result<Response, Response> {
+    org_id(&id)?;
+    match orgs.accounts.store.links_of(who.sub, &id, now_secs()) {
+        Ok(links) => Ok(Json(json!({ "links": links.iter().map(link_json).collect::<Vec<_>>() })).into_response()),
+        Err(err) => Err(refused(err)),
+    }
+}
+
+async fn drop_link(State(orgs): State<Arc<Orgs>>, Path((id, link)): Path<(String, String)>, who: Claims) -> Result<Response, Response> {
+    org_id(&id)?;
+    orgs.change(&who)?;
+    if !valid_id(&link) {
+        return Err(refused(OrgWrite::NoSuchLink));
+    }
+    match orgs.accounts.store.drop_link(who.sub, &id, &link) {
+        Ok(()) => Ok(Json(json!({ "dropped": true })).into_response()),
+        Err(err) => Err(refused(err)),
+    }
+}
+
+async fn preview_join(State(orgs): State<Arc<Orgs>>, Path(code): Path<String>, who: Claims) -> Result<Response, Response> {
+    let code = code_of(&code)?;
+    orgs.change(&who)?;
+    let Some(preview) = orgs.accounts.store.link_preview(code, now_secs()) else {
+        return Err(refused(OrgWrite::NoSuchLink));
+    };
+    let member = orgs.accounts.store.org_of(who.sub, &preview.org).is_some();
+    Ok(Json(preview_json(&preview, member)).into_response())
+}
+
+async fn join(State(orgs): State<Arc<Orgs>>, Path(code): Path<String>, who: Claims) -> Result<Response, Response> {
+    let code = code_of(&code)?;
+    orgs.change(&who)?;
+    Ok(with_org(orgs.accounts.store.join_by_link(who.sub, code, now_secs(), ORG_ROWS), StatusCode::OK))
+}
+
 pub fn router(accounts: Arc<Accounts>) -> Router {
     Router::new()
         .route("/api/v1/orgs", get(list_orgs).post(create_org))
@@ -330,6 +436,9 @@ pub fn router(accounts: Arc<Accounts>) -> Router {
         .route("/api/v1/orgs/{id}/members", post(invite))
         .route("/api/v1/orgs/{id}/members/{handle}", axum::routing::delete(remove_member).put(set_role))
         .route("/api/v1/orgs/{id}/invite", post(answer_invite))
+        .route("/api/v1/orgs/{id}/links", get(list_links).post(make_link))
+        .route("/api/v1/orgs/{id}/links/{link}", axum::routing::delete(drop_link))
+        .route("/api/v1/joins/{code}", get(preview_join).post(join))
         .layer(DefaultBodyLimit::max(BODY_LIMIT))
         .with_state(Orgs::new(accounts))
 }

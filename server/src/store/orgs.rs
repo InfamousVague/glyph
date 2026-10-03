@@ -53,7 +53,7 @@ impl Role {
     }
 
     /// Whether the role invites, renames and removes: the owner's and an admin's.
-    fn manages(self) -> bool {
+    pub(super) fn manages(self) -> bool {
         matches!(self, Role::Owner | Role::Admin)
     }
 }
@@ -90,6 +90,10 @@ pub enum OrgWrite {
     NotJoined,
     /// Answering an invitation the account does not have.
     NotInvited,
+    /// No invite link by that code or id that can still be used: it expired, was used up, or was turned off.
+    NoSuchLink,
+    /// The organization has as many invite links working as it may.
+    TooManyLinks,
     /// Something below the rules failed.
     Failed,
 }
@@ -148,12 +152,12 @@ pub struct InviteCaps {
 }
 
 /// A row in an organization, inside a transaction: who, and what they may do.
-struct Seat {
-    account: i64,
-    handle: String,
-    role: Role,
-    state: String,
-    invited_by: Option<i64>,
+pub(super) struct Seat {
+    pub(super) account: i64,
+    pub(super) handle: String,
+    pub(super) role: Role,
+    pub(super) state: String,
+    pub(super) invited_by: Option<i64>,
 }
 
 const ROW_SELECT: &str = "SELECT o.id, o.name, o.hue, m.role, m.state, o.created_at, \
@@ -198,7 +202,7 @@ impl Store {
         Self::org_in(&self.lock(), account, org).ok().flatten()
     }
 
-    fn org_in(conn: &Connection, account: i64, org: &str) -> rusqlite::Result<Option<Org>> {
+    pub(super) fn org_in(conn: &Connection, account: i64, org: &str) -> rusqlite::Result<Option<Org>> {
         let row = conn
             .query_row(&format!("{ROW_SELECT} WHERE m.org_id = ?1 AND m.account_id = ?2 AND m.state = 'member'"), params![org, account], Self::org_row)
             .optional()?;
@@ -212,7 +216,7 @@ impl Store {
         Ok(Some(Org { id: row.id, name: row.name, hue: row.hue, role: row.role, state: row.state, invited_by: row.invited_by, created_at: row.created_at, members }))
     }
 
-    fn seat_of(conn: &Connection, org: &str, account: i64) -> rusqlite::Result<Option<Seat>> {
+    pub(super) fn seat_of(conn: &Connection, org: &str, account: i64) -> rusqlite::Result<Option<Seat>> {
         conn.query_row(&format!("{SEAT_SELECT} AND m.account_id = ?2"), params![org, account], Self::seat_row).optional()
     }
 
@@ -222,14 +226,14 @@ impl Store {
     }
 
     /// The caller's row, for a write: they must have joined, or the organization is not theirs to know of.
-    fn acting(conn: &Connection, org: &str, account: i64) -> Result<Seat, OrgWrite> {
+    pub(super) fn acting(conn: &Connection, org: &str, account: i64) -> Result<Seat, OrgWrite> {
         match Self::seat_of(conn, org, account)? {
             Some(seat) if seat.state == MEMBER => Ok(seat),
             _ => Err(OrgWrite::NoSuchOrg),
         }
     }
 
-    fn org_name(conn: &Connection, org: &str) -> rusqlite::Result<String> {
+    pub(super) fn org_name(conn: &Connection, org: &str) -> rusqlite::Result<String> {
         conn.query_row("SELECT name FROM orgs WHERE id = ?1", params![org], |r| r.get(0))
     }
 
@@ -238,7 +242,7 @@ impl Store {
     }
 
     /// Everyone who has joined, but `except`.
-    fn members_but(conn: &Connection, org: &str, except: &[i64]) -> rusqlite::Result<Vec<i64>> {
+    pub(super) fn members_but(conn: &Connection, org: &str, except: &[i64]) -> rusqlite::Result<Vec<i64>> {
         let mut stmt = conn.prepare("SELECT account_id FROM org_members WHERE org_id = ?1 AND state = 'member'")?;
         let ids = stmt.query_map(params![org], |r| r.get::<_, i64>(0))?.filter_map(Result::ok).filter(|id| !except.contains(id)).collect();
         Ok(ids)
@@ -254,7 +258,7 @@ impl Store {
     }
 
     /// Who is told that an invitation was answered: the one who asked, if they are still in; else the owner.
-    fn asker_or_owner(conn: &Connection, org: &str, invited_by: Option<i64>) -> rusqlite::Result<i64> {
+    pub(super) fn asker_or_owner(conn: &Connection, org: &str, invited_by: Option<i64>) -> rusqlite::Result<i64> {
         if let Some(asker) = invited_by {
             if Self::seat_of(conn, org, asker)?.is_some_and(|s| s.state == MEMBER) {
                 return Ok(asker);
@@ -264,7 +268,7 @@ impl Store {
     }
 
     /// The same notice to each of `to`.
-    fn tell(tx: &Transaction<'_>, to: &[i64], notice: &Notice<'_>, now: i64) -> rusqlite::Result<()> {
+    pub(super) fn tell(tx: &Transaction<'_>, to: &[i64], notice: &Notice<'_>, now: i64) -> rusqlite::Result<()> {
         for account in to {
             Self::notify(tx, *account, notice, now)?;
         }

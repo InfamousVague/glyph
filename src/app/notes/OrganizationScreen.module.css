@@ -498,3 +498,15 @@
     grid-area: activity;
   }
 }
+
+/* Invite by link, under the invite field (settings/InviteLinks.tsx): a small heading over the links. */
+.byLink {
+  margin-block-start: var(--glacier-space-4);
+}
+
+.subheading {
+  margin: 0 0 var(--glacier-space-1);
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink-2);
+}

@@ -44,6 +44,31 @@ export interface Org extends Omit<OrgRow, 'members'> {
   members: Member[];
 }
 
+/**
+ * An invite link, as the owner and admins see it (server/src/store/org_links.rs): a code anyone signed in who holds it
+ * may join with, until it expires, is used up or is turned off.
+ */
+export interface InviteLink {
+  id: string;
+  code: string;
+  createdAt: number;
+  /** When it stops working, in ms; null for when it is turned off. */
+  expiresAt: number | null;
+  /** How many may join by it; null for no limit. */
+  maxUses: number | null;
+  uses: number;
+  /** The handle of who made it; null once their account is gone. */
+  by: string | null;
+}
+
+/** What a working code says before it is followed: enough to ask "Join it?", and nothing about who is in it. */
+export interface JoinPreview {
+  org: { id: string; name: string; hue: string | null; members: number };
+  by: string | null;
+  /** Whether the caller is in it already. */
+  member: boolean;
+}
+
 /** What this device keeps of the account's organizations: the list as the service last gave it. */
 export interface OrgState {
   list: OrgRow[];

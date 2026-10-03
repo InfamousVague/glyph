@@ -174,3 +174,10 @@
 .map {
   margin-block: 0 var(--glacier-space-4);
 }
+
+/* The invitation an invite link opens (JoinPage.tsx): one title over the two ways in. */
+.joinTitle {
+  margin: 0;
+  font-size: var(--glacier-font-size-2xl);
+  letter-spacing: var(--app-tracking-title);
+}
