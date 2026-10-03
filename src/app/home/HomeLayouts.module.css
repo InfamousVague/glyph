@@ -6,6 +6,14 @@
 
 .page {
   display: grid;
+  /*
+   * One column the page's width, never its content's (Matt: "The home page list exceeds the width of the page"). A
+   * grid's own column is as wide as the widest thing in it will not shrink below, and a pinned line never wraps: its
+   * name, its workspace's pill and when, side by side. Measured at 375px with "HelloTrade Bug History Review" in an
+   * organization, that was 444px, and it pulled the search, the filters button and every card off the right edge with
+   * it. Each line's own parts give way instead (`.lineTitle`, `.linePlace`).
+   */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--glacier-space-3);
   max-inline-size: 64rem;
   margin-inline: auto;
@@ -292,6 +300,8 @@
 /* A section: one quiet heading - a mark, the word, how many - then its notes. */
 .section {
   display: grid;
+  /* As the page's: the section's width, never its widest line's. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--glacier-space-2);
   margin-block-start: var(--glacier-space-3);
 }
@@ -371,6 +381,8 @@
 }
 
 .rowMark {
+  /* Its size whatever the line holds: a long name with a pill beside it squeezed it before the name gave way. */
+  flex: none;
   align-self: center;
   color: var(--app-ink-3);
 }
@@ -553,7 +565,8 @@
   display: inline-flex;
   align-items: center;
   gap: var(--glacier-space-1);
-  min-inline-size: 0;
+  /* No smaller than its mark and the name's few letters (`.linePlaceName`): past that the title gives way. */
+  min-inline-size: min-content;
   padding: 0.15em 0.55em;
   border: 1px solid color-mix(in oklch, var(--app-space) 55%, transparent);
   border-radius: var(--glacier-radius-full);
@@ -564,7 +577,8 @@
 }
 
 .linePlaceName {
-  min-inline-size: 0;
+  /* A few letters at the least, so a pill squeezed by a long name reads as a name cut short, not a mark in an oval. */
+  min-inline-size: 4ch;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
