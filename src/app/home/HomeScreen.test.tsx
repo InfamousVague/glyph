@@ -3,7 +3,7 @@ import { act, type ComponentProps } from 'react';
 import { bookNoteBody } from '../book/book.ts';
 import type { Updates } from '../core/ota.ts';
 import { reloadPreferences, setPreferences, type HomeLayout } from '../core/preferences.ts';
-import { addWorkspace, chooseWorkspace, ensureOrgWorkspace, fileNote, reloadWorkspaces } from '../core/workspaces.ts';
+import { addWorkspace, chooseWorkspace, fileNote, reloadWorkspaces } from '../core/workspaces.ts';
 import type { Note } from '../core/store.ts';
 import { makeNote } from '../../test/notes.ts';
 import { goBack } from '../core/back.ts';
