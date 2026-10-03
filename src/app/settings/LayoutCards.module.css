@@ -132,9 +132,6 @@
   align-items: center;
   gap: var(--glacier-space-2);
   padding: var(--glacier-space-2) var(--glacier-space-3);
-  /* In the page's ink whether or not the card is chosen: a chosen card's words were drawn in the accent's own text
-     colour, the paper's, and vanished (seen in the preview). */
-  color: var(--glacier-text);
 }
 
 .copy {
@@ -146,6 +143,9 @@
 .label {
   font-size: var(--glacier-font-size-sm);
   font-weight: var(--glacier-font-weight-semibold);
+  /* Said on the name itself: a chosen card's last span is painted paper by ink.css's rule for the kit's segmented
+     control, which this card's structure also matches, and the name inherited it and vanished (seen in the preview). */
+  color: var(--glacier-text);
 }
 
 .description {
