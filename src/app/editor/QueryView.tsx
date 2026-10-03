@@ -651,7 +651,7 @@ function laneSpotAt(x: number, y: number): Spot | null {
  * A query's things carried between its groups - a board's cards, a grouped list's or table's rows - by the app's one
  * drag (core/useCarry.ts), dropped by setting the grouped field to the group's value (editor/queries.ts `onMove`).
  * `shown` is a group's things as drawn while one is carried: the carried one stays in its group as the gap while it is
- * held over it, and leaves it for the gap `gapIn` says to open in another.
+ * held over it, and is hidden there for the gap `gapIn` says to open in another - hidden, never taken off the page.
  */
 function useLaneCarry(result: QueryResult, acts: Acts, scrollers: () => { element: HTMLElement; axis: 'x' | 'y' }[]) {
   const movable = boardMovable(result, acts.editable);
@@ -665,12 +665,17 @@ function useLaneCarry(result: QueryResult, acts: Acts, scrollers: () => { elemen
   return {
     carry,
     movable,
-    shown: (group: Group) => group.rows.filter((row) => !(carried?.item.key === row.key && over?.lane !== group.key)),
+    shown: (group: Group) => group.rows,
+    /** How many of a group's things are drawn: not the carried one, held over another group. */
+    seen: (group: Group) => group.rows.filter((row) => !(carried?.item.key === row.key && over?.lane !== group.key)).length,
     gapIn: (group: Group) => (!!carried && over?.lane === group.key && carried.from.lane !== group.key ? carried.height : null),
     /** A thing's own attributes: carried from its group by a press and hold, and drawn as the gap while it is. */
     thing: (row: Row, group: Group) => ({
       'data-movable': movable ? '' : undefined,
       'data-drag-gap': carried?.item.key === row.key ? '' : undefined,
+      // Carried into another group, it stays on the page out of sight rather than leaving it: the finger's touch moves
+      // still go to it, and the drag hears them there (core/holdDrag.ts).
+      style: carried?.item.key === row.key && over?.lane !== group.key ? { display: 'none' } : undefined,
       onPointerDown: movable ? (event: ReactPointerEvent<HTMLElement>) => carryPress(carry, event, row, { lane: group.key, index: -1 }) : undefined,
     }),
     /** A group's own attributes: where a carried thing is dropped, outlined while one is held over it. */
@@ -742,7 +747,7 @@ function BoardView({ result, acts, height, onHeight }: { result: QueryResult; ac
                   </li>
                 ))}
                 {gap !== null ? <li className={styles.card} data-drag-gap="" aria-hidden="true" style={{ blockSize: `${gap}px` }} /> : null}
-                {shownRows.length || gap !== null ? null : <li className={styles.laneEmpty}>Nothing here</li>}
+                {lanes.seen(group) || gap !== null ? null : <li className={styles.laneEmpty}>Nothing here</li>}
               </LaneCards>
             </section>
           );

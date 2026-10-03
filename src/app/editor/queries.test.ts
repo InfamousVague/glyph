@@ -172,6 +172,13 @@ describe('a tap in a drawn query', () => {
       await act(async () => window.dispatchEvent(ptr('pointermove', 40)));
       // Held over another lane, the card leaves its own for the gap in that one.
       expect(target.querySelector('[data-drag-gap]')).not.toBeNull();
+      // Out of sight, not off the page: a phone sends the finger's moves to the card it first touched.
+      expect(card.isConnected).toBe(true);
+      expect(card.style.display).toBe('none');
+      // So a move heard only on the card still keeps the board from scrolling under it.
+      const touch = new Event('touchmove', { bubbles: false, cancelable: true });
+      card.dispatchEvent(touch);
+      expect(touch.defaultPrevented).toBe(true);
       await act(async () => window.dispatchEvent(ptr('pointerup', 40)));
     } finally {
       document.elementFromPoint = realFrom;

@@ -71,6 +71,11 @@ export function holdDrag(down: PointerEvent, hooks: HoldDragHooks): () => void {
   const still = (touching: TouchEvent) => {
     if (lifted && touching.cancelable) touching.preventDefault();
   };
+  // A touch's moves go to the element the finger came down on for as long as it is held, even once that element has
+  // left the page - where they never reach the window, so the board scrolled under a card carried into another lane
+  // and the browser cancelled the drag (Matt: "when I try to move horizontally it scrolls and stops the dragging").
+  // So they are heard on the element as well.
+  const touched = down.target instanceof EventTarget ? down.target : null;
   // A finger held still is a long press to the phone as well: at about half a second it selects the words under it, or
   // opens a menu (the note's own, editor/pressAndHold.ts), and the browser cancels the pointer to do it - so a thing
   // lifted at the hold was put down again a moment later, with no time to drag it (Matt: "it just sends the haptic
@@ -88,6 +93,7 @@ export function holdDrag(down: PointerEvent, hooks: HoldDragHooks): () => void {
     window.removeEventListener('pointerup', up);
     window.removeEventListener('pointercancel', cancel);
     window.removeEventListener('touchmove', still);
+    touched?.removeEventListener('touchmove', still as EventListener);
     window.removeEventListener('contextmenu', refuse, true);
     document.removeEventListener('selectstart', refuse, true);
     hooks.end?.(lifted);
@@ -96,6 +102,7 @@ export function holdDrag(down: PointerEvent, hooks: HoldDragHooks): () => void {
   window.addEventListener('pointerup', up);
   window.addEventListener('pointercancel', cancel);
   window.addEventListener('touchmove', still, { passive: false });
+  touched?.addEventListener('touchmove', still as EventListener, { passive: false });
   window.addEventListener('contextmenu', refuse, true);
   document.addEventListener('selectstart', refuse, true);
   return finish;
