@@ -152,10 +152,11 @@
    * A notch smaller than the kit's step, the four of them together (Matt: "Make the bookmark, more button, speak and
    * book a little bit smaller"): the app's ring (app.css `--app-ring`), the same as the sidebar button and the two
    * arrows (notes/NoteTabs.module.css .sidebar, .step), which is what these now sit beside. The note's tools were moved
-   * into the app's bar, so the row is one set of controls and has to read as one.
+   * into the app's bar, so the row is one set of controls and has to read as one: `--app-bar-ring` (app.css), the
+   * header's ring, a size under the dock's.
    */
-  inline-size: var(--app-ring);
-  block-size: var(--app-ring);
+  inline-size: var(--app-bar-ring);
+  block-size: var(--app-bar-ring);
   padding: 0;
   /*
    * No ring (Matt: "Remove the borders around the buttons in the top bar make sure they match the size of the back

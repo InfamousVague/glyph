@@ -141,9 +141,9 @@
   /* Bigger than they were built, smaller than they got (Matt: "make the tabs slightly bigger", then "the tabs are
      just a bit too big now go down in size a bit same with the buttons on the navbar"). The scale has no 7 or 9: an
      invalid token is not a smaller button, it is no rule at all, and the button falls back to its own glyph's size. */
-  /* The same size as the note header's rings (editor/NoteScreen.module.css .cog): `--app-ring` (app.css). */
-  inline-size: var(--app-ring);
-  block-size: var(--app-ring);
+  /* The same size as the note header's rings (editor/NoteScreen.module.css .cog): `--app-bar-ring` (app.css). */
+  inline-size: var(--app-bar-ring);
+  block-size: var(--app-bar-ring);
   padding: 0;
   border: none;
   border-radius: var(--glacier-radius-md);

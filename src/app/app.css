@@ -54,14 +54,22 @@
    */
   --app-ring: calc(var(--glacier-space-10) * 0.88);
   /*
-   * And how tall the row above it draws: the round controls it holds, which are all `--app-ring`.
+   * The header's rings, a size under the app's (Matt, 2026-10-03, of the bar's people and bell buttons: "decrease the
+   * padding around the buttons in the header it's too much"): the bar's sidebar button, its arrows and its tools
+   * (notes/NoteTabs.module.css `.sidebar`, `.step`) and the note's tools portalled in beside them
+   * (editor/NoteScreen.module.css `.cog`). The glyphs keep their size; only the ground around them shrinks, from
+   * 35-44px to 30-37px. The home page's dock keeps `--app-ring`: it is a row of its own, under the thumb.
+   */
+  --app-bar-ring: calc(var(--glacier-space-10) * 0.74);
+  /*
+   * And how tall the row above it draws: the round controls it holds, which are all `--app-bar-ring`.
    *
    * Derived for the same reason as the tab's: `3.5rem` stood for this row from when it held a 40px button, and the
    * scale it is built on moves. Appearance > Spacing scales the space tokens, so these rings draw 27.4px at the
    * tightest setting and 56.9px at the roomiest - 0.9px past the 56px the bar had set aside - and everything under
    * them was pushed into the hairline. Both halves of the bar are their contents now, so neither can outgrow it.
    */
-  --app-tab-top: var(--app-ring);
+  --app-tab-top: var(--app-bar-ring);
   /*
    * And the air under the bar's last row. Nothing on a phone, where the bar is glass with no edge to sit against; on
    * a desktop it is the same as the air over the first row, set below with the hairline it clears.
