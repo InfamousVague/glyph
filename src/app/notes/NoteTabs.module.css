@@ -234,6 +234,13 @@
   /* At the foot of the bar, whatever air the bar has: a tab's foot is on the line, never above it. */
   margin-block-start: auto;
   /*
+   * A tab's height, tabs or none (Matt: "collapsing a tab makes the folder shift down"). A group's chip is centred on
+   * the row (`.group`), and with every tab folded into it the row was only as tall as the chip: standing at the bar's
+   * foot, it lost its top, and the chip dropped with it. Measured in Classic at 1024px: the row went from 43.6px to
+   * 30.2px and the chip down 6.7px.
+   */
+  min-block-size: var(--app-tab-h);
+  /*
    * The row bleeds past the bar's gutter, so tabs run off the screen edge instead of stopping short of it with a
    * dead strip beyond (Matt: "Allow tabs to flow off the right side of the screen there is currently a gap from
    * padding"). Measured at 430px with the row overflowing: the scroller's box ended 22px in from the edge.
@@ -892,6 +899,8 @@
   margin-block-start: 0;
   margin-inline: 0;
   padding: 3px var(--glacier-space-2);
+  /* A capsule's height with this padding and hairline round it, so a folded group's chip does not move (`.tabs`). */
+  min-block-size: calc(var(--app-tab-h) - 4px + 6px + 2 * var(--glacier-hairline));
   border: var(--glacier-hairline) solid var(--glacier-border-subtle);
   border-radius: var(--glacier-radius-full);
   background: color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent);
