@@ -226,7 +226,17 @@ pub use install::peek;
 ///
 /// 24: a note's versions file beside it (library/versions.rs): `versions_read` and `versions_write`, and the file
 /// renamed, moved and deleted with its note.
-pub const NATIVE_GENERATION: u32 = 24;
+///
+/// 25: Slack (docs/DESIGN.md §185): `slack_channels`, `slack_save_channel`, `slack_forget_channel` and `slack_post`
+/// (slack.rs), each channel's incoming webhook kept in `slack.json` (0600, id to URL) where no page reads it back,
+/// posted to with reqwest only at https://hooks.slack.com/services/ or /workflows/ with no redirect followed, and the
+/// file removed by a reset. And a meeting's own sound (docs/DESIGN.md §186): on the Mac `system_audio_available`,
+/// `system_audio_start`, `system_audio_status` and `system_audio_stop`, a Core Audio process tap (macOS 14.2+, its two
+/// functions looked up at run time) mixed into `capture_push`, and NSAudioCaptureUsageDescription; on Android the
+/// activity's `GlyphHost.startMeetingWith` and `meetingSound`, the screen-share consent, and the meeting service's
+/// playback capture of other apps (capture/OtherApps.kt) under the `mediaProjection` type with
+/// FOREGROUND_SERVICE_MEDIA_PROJECTION.
+pub const NATIVE_GENERATION: u32 = 25;
 
 /// What the page built from THIS tree needs. vite.config.ts reads this line
 /// with a regex and stamps it into `ota.json`, so keep it a literal. Nothing in
