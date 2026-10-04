@@ -6,6 +6,7 @@ import type { Guide } from './guide/Guide.tsx';
 import type { SettingsSheet } from './settings/SettingsSheet.tsx';
 import type { OrganizationSheet } from './settings/OrganizationSheet.tsx';
 import type { NotificationsDrawer } from './notes/NotificationsDrawer.tsx';
+import type { OrganizationLog } from './notes/OrganizationLog.tsx';
 import type { OrganizationScreen } from './notes/OrganizationScreen.tsx';
 import { createNote, getNote, listNotes, setNoteArchived, updateNote, type Note } from './core/store.ts';
 import { preferences, reloadPreferences, setPreferences } from './core/preferences.ts';
@@ -35,6 +36,7 @@ type SettingsProps = ComponentProps<typeof SettingsSheet>;
 type OrganizationProps = ComponentProps<typeof OrganizationSheet>;
 type NotificationsProps = ComponentProps<typeof NotificationsDrawer>;
 type DashboardProps = ComponentProps<typeof OrganizationScreen>;
+type LogProps = ComponentProps<typeof OrganizationLog>;
 
 /** The props each stubbed screen was last drawn with, for the test to press what the screen would. */
 const seen = vi.hoisted(() => ({
@@ -45,6 +47,7 @@ const seen = vi.hoisted(() => ({
   organization: null as OrganizationProps | null,
   notifications: null as NotificationsProps | null,
   dashboard: null as DashboardProps | null,
+  log: null as LogProps | null,
 }));
 
 vi.mock('./editor/NoteScreen.tsx', () => ({
@@ -88,6 +91,12 @@ vi.mock('./notes/OrganizationScreen.tsx', () => ({
   OrganizationScreen: (props: DashboardProps) => {
     seen.dashboard = props;
     return <main data-screen="dashboard" data-org={props.orgId} />;
+  },
+}));
+vi.mock('./notes/OrganizationLog.tsx', () => ({
+  OrganizationLog: (props: LogProps) => {
+    seen.log = props;
+    return <main data-screen="audit" data-org={props.orgId} />;
   },
 }));
 // A sync pass runs before the guide is added; the test sees when.
@@ -184,6 +193,8 @@ beforeEach(() => {
   seen.settings = null;
   seen.organization = null;
   seen.notifications = null;
+  seen.dashboard = null;
+  seen.log = null;
 });
 
 afterEach(() => {
@@ -891,6 +902,25 @@ describe('the bell, and an organization’s screen', () => {
     expect(screenNow()?.dataset.screen).toBe('dashboard');
     act(() => seen.dashboard!.onBack());
     expect(document.querySelector('nav[aria-label="New note"]')).not.toBeNull();
+  });
+
+  // Matt: "an "audit log" for organizations to be able to browse history of changes across all files".
+  it('opens an organization’s audit log from its dashboard, in the same pane, whose arrow is the dashboard again and whose changes open notes', async () => {
+    await seed(['a', '# Apples']);
+    await openApp();
+    act(() => button('Notifications').click());
+    act(() => seen.notifications!.onOpenOrganization('org-2'));
+    act(() => seen.dashboard!.onLog());
+    expect(screenNow()?.dataset.screen).toBe('audit');
+    expect(screenNow()?.dataset.org).toBe('org-2');
+    // A place still, as the dashboard is: the tab row stays.
+    expect(root.dataset.tabs).toBe('on');
+    act(() => seen.log!.onBack());
+    expect(screenNow()?.dataset.screen).toBe('dashboard');
+    expect(screenNow()?.dataset.org).toBe('org-2');
+    act(() => seen.dashboard!.onLog());
+    act(() => seen.log!.onOpenNote('a'));
+    expect(noteShown()).toBe('a');
   });
 
   it('moves from one organization’s dashboard to another’s by its pill, the settings following the one on screen', async () => {

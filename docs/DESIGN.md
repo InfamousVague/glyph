@@ -9906,3 +9906,45 @@ Tests: core/versions/diff.test.ts, file.test.ts, record.test.ts; the versions ca
 timeline in editor/NoteSettings.test.tsx; src-tauri library/versions.rs.
 
 Cites: §170, §179.
+
+## 183. An organization's audit log (2026-10-04)
+
+Matt: "I'd like an "audit log" for organizations to be able to browse history of changes across all files".
+
+**Where.** A page under the dashboard (§175): the clock beside the cog in its bar, and the Audit log word on its
+Activity heading, open it; its arrow and the phone's back gesture are the dashboard again. It is the `organization`
+Screen with `page: 'log'` (shell/screen.ts), so it is drawn where the dashboard is - with the tab row, in the pane
+beside the sidebar on a wide window - and a note opened from it opens as one from the dashboard does.
+notes/OrganizationLog.tsx.
+
+**What.** Every version kept of every note filed in the organization's workspace (§182: an organization's notes keep
+history by default), the archived among them, read from each note's versions file a few at a time (core/versions/log.ts
+`useChangesAcross`: a line per version - who, when, how much, the first line it changed - and not every version's
+text) and read again, one note at a time, as a version is kept or sync brings a file. Between them, the team's own news
+from the feed (§175's set: who joined, left or was removed, a rename, a new role, an invitation answered), so the log
+reads as what happened here, in order. Newest first under the day's name, on the version history's timeline (§182):
+the author's initial in a ring, "matt edited Roadmap", the clock, the version's name, "+3 −1" and the first line it
+changed, with v12 at the end; a piece of news is its kind's mark in the ring and its sentence as the drawer words it.
+The timeline's words moved to editor/versionWords.ts, and the first-line peek to core/versions/diff.ts, so both pages
+read the same; the news kinds and their marks to notes/orgNews.tsx, so both pages draw the same.
+
+**The tools.** Over the timeline a field narrows the log to a note, a person or a version's name as it is typed, and
+three pills show everything, the notes alone or the team alone; wide, they share a row. Under them the figures: "128
+changes across 14 notes · 2 people", "Reading the history… 3 of 14 notes" while the files come in, and "· 12 lines
+shown" while narrowed; then a quiet line for what is missing - "History is off for Groceries and Old plan." for notes
+switched off from their More (§182), and how many versions could not be read.
+
+**A change opened** is the note's name with the version's, who made it and when, and what that version changed against
+the one before - the same diff the history draws, read from the note's file then - with Open the note and Only this
+note, which narrows the log to that note under a dashed pill with an x. Nothing yet is the ghost with "Nothing has
+changed here yet."; nothing that matches is the search ghost with "Nothing matches."
+
+**Not yet.** Notes in an organization are still the person's own (docs/TEAMS.md, D1), so the log is their own changes
+on their devices, with what the team did around them; shared notes will bring the others' changes in through the same
+files. A deleted note's history goes with it; an export of the log; a version restored from here (the note's own
+history has Restore).
+
+Tests: core/versions/log.test.tsx; notes/OrganizationLog.test.tsx; the audit log cases in
+notes/OrganizationScreen.test.tsx, App.test.tsx and shell/screen.test.ts.
+
+Cites: §175, §182.

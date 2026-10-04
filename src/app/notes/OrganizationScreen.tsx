@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode, type RefObject } from 'react';
-import { Activity, ArrowLeft, Crown, FilePlus, Pencil, Settings, Trash2, UserCheck, UserMinus, UserPlus, Users, UserX } from '@glacier/icons';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type RefObject } from 'react';
+import { Activity, ArrowLeft, FilePlus, History, Settings, UserPlus, Users } from '@glacier/icons';
 import { Input } from '@glacier/react';
 import { useAccount } from '../core/account/account.ts';
 import { useBack } from '../core/back.ts';
 import { failureText } from '../core/failure.ts';
 import { useNotifications } from '../core/notifications/feed.ts';
-import { sentenceOf, type Kind, type Notification } from '../core/notifications/kinds.ts';
+import { sentenceOf, type Notification } from '../core/notifications/kinds.ts';
 import { fetchOrg, inviteByHandle, useOrgs } from '../core/orgs/orgs.ts';
 import type { Member, Org, OrgRow } from '../core/orgs/types.ts';
 import { usePreferences } from '../core/preferences.ts';
@@ -19,6 +19,7 @@ import { InviteLinks } from '../settings/InviteLinks.tsx';
 import { GoWord } from '../settings/kit/settingsKit.tsx';
 import { memberWords, roleWords } from '../settings/orgWords.ts';
 import { NoteCard } from './NoteCard.tsx';
+import { MARKS, NEWS } from './orgNews.tsx';
 import { PullToRefresh } from './PullToRefresh.tsx';
 import { when } from './when.ts';
 import styles from './OrganizationScreen.module.css';
@@ -41,7 +42,8 @@ import styles from './OrganizationScreen.module.css';
  * - **Members**: who is in it and who is invited, with their roles, and for an owner or an admin the invite field and
  *   the invite links (settings/InviteLinks.tsx).
  * - **Activity**: the organization's own news from the feed (who joined, left or was removed, a rename, a new role,
- *   an invitation answered), newest first.
+ *   an invitation answered), newest first, and the way to its audit log (OrganizationLog.tsx): every change to every
+ *   note filed here with the team's news between them, which the clock beside the cog opens too.
  *
  * On a wide window the members stand beside the notes and the activity, as To do stands beside the home page's
  * groups. Invited and not yet a member, the page is the invitation with Accept and Decline; gone from the list, it
@@ -66,31 +68,16 @@ interface OrganizationScreenProps {
   onSettings: () => void;
   /** Another organization's dashboard, from the row of pills. */
   onOpenOrganization: (orgId: string) => void;
-  /** The whole feed, from the end of the activity. */
-  onNotifications: () => void;
+  /** The organization's audit log (OrganizationLog.tsx), from the clock in the bar and the Activity heading. */
+  onLog: () => void;
   /** Settings at Account, from the signed-out words. */
   onAccount: () => void;
 }
 
 /** How many of the workspace's notes the page shows before "All of them". */
 const NOTES_SHOWN = 6;
-/** How many of the organization's news rows the page shows before the whole feed. */
+/** How many of the organization's news rows the page shows; the audit log has them all. */
 const ACTIVITY_SHOWN = 8;
-
-/** The organization's own news, by kind: an invitation is the invitee's, and is answered on its own row. */
-const NEWS: ReadonlySet<Kind> = new Set<Kind>(['invite-accepted', 'invite-declined', 'member-joined', 'member-left', 'member-removed', 'role-changed', 'org-renamed']);
-
-/** Each kind of news's mark at the start of its row, from the kit, as the notifications drawer draws it. */
-const MARKS: Partial<Record<Kind, ReactNode>> = {
-  'invite-accepted': <UserCheck size={17} strokeWidth={2} aria-hidden="true" />,
-  'invite-declined': <UserX size={17} strokeWidth={2} aria-hidden="true" />,
-  'member-joined': <UserPlus size={17} strokeWidth={2} aria-hidden="true" />,
-  'member-left': <UserMinus size={17} strokeWidth={2} aria-hidden="true" />,
-  'member-removed': <UserMinus size={17} strokeWidth={2} aria-hidden="true" />,
-  'role-changed': <Crown size={17} strokeWidth={2} aria-hidden="true" />,
-  'org-renamed': <Pencil size={17} strokeWidth={2} aria-hidden="true" />,
-  'org-deleted': <Trash2 size={17} strokeWidth={2} aria-hidden="true" />,
-};
 
 /** The sentence about the workspace, as the organization's settings say it (docs/TEAMS.md, D1). */
 const YOURS_FOR_NOW = 'Notes filed here stay yours for now; sharing them with the team comes next.';
@@ -101,7 +88,7 @@ function since(ms: number): string {
   return words === 'Yesterday' || words === 'Just now' ? words.toLowerCase() : words;
 }
 
-export function OrganizationScreen({ orgId, notes, onBack, onOpenNote, onNewNote, onAllNotes, onSettings, onOpenOrganization, onNotifications, onAccount }: OrganizationScreenProps) {
+export function OrganizationScreen({ orgId, notes, onBack, onOpenNote, onNewNote, onAllNotes, onSettings, onOpenOrganization, onLog, onAccount }: OrganizationScreenProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const topBar = useRef<HTMLElement>(null);
   const inviteField = useRef<HTMLInputElement>(null);
@@ -173,6 +160,12 @@ export function OrganizationScreen({ orgId, notes, onBack, onOpenNote, onNewNote
           <span className={styles.titleHue} data-hue={row?.hue ?? 'ink'} aria-hidden="true" />
           <span className={styles.titleName}>{row?.name ?? 'Organization'}</span>
         </h1>
+        {/* The audit log, behind a clock before the cog: every change to the notes filed here, and the team's news. */}
+        {row && !held && member ? (
+          <button type="button" className={styles.cog} onClick={onLog} aria-label="Audit log" title="Audit log">
+            <History size={19} strokeWidth={2.1} aria-hidden="true" />
+          </button>
+        ) : null}
         {/* The organization's settings, behind a cog at the bar's end (Matt: "have a organization settings icon on that"). */}
         {row && !held ? (
           <button type="button" className={styles.cog} onClick={onSettings} aria-label="Organization settings" title="Organization settings">
@@ -281,11 +274,9 @@ export function OrganizationScreen({ orgId, notes, onBack, onOpenNote, onNewNote
                       <Activity size={15} className={styles.mark} aria-hidden="true" />
                       Activity
                     </h2>
-                    {news.length > ACTIVITY_SHOWN ? (
-                      <button type="button" className={`app-word ${styles.more}`} onClick={onNotifications}>
-                        All notifications
-                      </button>
-                    ) : null}
+                    <button type="button" className={`app-word ${styles.more}`} onClick={onLog}>
+                      Audit log
+                    </button>
                   </div>
                   {news.length ? (
                     <ol className={styles.activity} aria-label="Activity">

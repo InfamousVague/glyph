@@ -78,9 +78,11 @@ export type Screen =
   /**
    * An organization's dashboard (notes/OrganizationScreen.tsx): its members, the notes filed in its workspace and its
    * news, with its settings behind a cog. From the top bar's picker, a notification about it, an invitation accepted,
-   * one just made, its workspace's pill or a link; its arrow and the phone's back gesture go home.
+   * one just made, its workspace's pill or a link; its arrow and the phone's back gesture go home. With `page` it is
+   * the organization's audit log instead (notes/OrganizationLog.tsx): every change to every note filed in its
+   * workspace with the team's news, a page under the dashboard, whose arrow goes back to it.
    */
-  | { name: 'organization'; orgId: string };
+  | { name: 'organization'; orgId: string; page?: 'log' };
 
 /**
  * A capture, fresh: from the side key (`fromAssistant`) or a Speak button, into `noteId` when it was one note's, at

@@ -8,6 +8,7 @@ import { AllNotesScreen } from './notes/AllNotesScreen.tsx';
 import { NotificationsDrawer } from './notes/NotificationsDrawer.tsx';
 import { JoinInvites } from './notes/JoinSheet.tsx';
 import { OrganizationSheet } from './settings/OrganizationSheet.tsx';
+import { OrganizationLog } from './notes/OrganizationLog.tsx';
 import { OrganizationScreen } from './notes/OrganizationScreen.tsx';
 import { unreadCount, useNotifications } from './core/notifications/feed.ts';
 import type { OpenTask } from './home/dashboard.ts';
@@ -1100,7 +1101,9 @@ function Shell() {
    * settings (settings/OrganizationSheet.tsx) are an overlay over whatever is up, as the personal Settings are: from
    * the dashboard's cog, from the edit words on its workspace (the home filters, a folder's menu, the workspace's
    * sheet), or from Settings › Organizations. The personal Settings close first: two Settings surfaces are never open
-   * at once. Opened from Settings, closing reopens Settings on the Organizations page.
+   * at once. Opened from Settings, closing reopens Settings on the Organizations page. Its audit log
+   * (notes/OrganizationLog.tsx) is the same screen with `page: 'log'`, drawn in the dashboard's place from its clock
+   * or its Activity heading; its arrow is the dashboard again.
    */
   // The organizations you belong to (not the invitations), for the top bar's picker: the account's kept list.
   const orgState = useOrgs();
@@ -1111,6 +1114,12 @@ function Shell() {
     setDrawer(false);
     setOrgSettings(null);
     setScreen({ name: 'organization', orgId });
+  };
+  const openOrganizationLog = (orgId: string) => {
+    setSettings(false);
+    setDrawer(false);
+    setOrgSettings(null);
+    setScreen({ name: 'organization', orgId, page: 'log' });
   };
   const openOrganizationSettings = (orgId: string, from?: 'settings' | 'dashboard') => {
     setSettings(false);
@@ -1216,9 +1225,11 @@ function Shell() {
       onOrganizationSettings={openOrganizationSettings}
     />
   );
-  /** An organization's dashboard (notes/OrganizationScreen.tsx), drawn where All notes and the notifications are. */
+  /** An organization's dashboard (notes/OrganizationScreen.tsx), or its audit log, drawn where All notes and the notifications are. */
   const organizationPage =
-    screen.name === 'organization' ? (
+    screen.name === 'organization' && screen.page === 'log' ? (
+      <OrganizationLog key={`${screen.orgId}/log`} orgId={screen.orgId} notes={shownNotes} onBack={() => openOrganization(screen.orgId)} onOpenNote={openNoteWhereLeft} />
+    ) : screen.name === 'organization' ? (
       <OrganizationScreen
         key={screen.orgId}
         orgId={screen.orgId}
@@ -1232,7 +1243,7 @@ function Shell() {
         }}
         onSettings={() => openOrganizationSettings(screen.orgId, 'dashboard')}
         onOpenOrganization={openOrganization}
-        onNotifications={showNotifications}
+        onLog={() => openOrganizationLog(screen.orgId)}
         onAccount={() => setSettings(true)}
       />
     ) : null;

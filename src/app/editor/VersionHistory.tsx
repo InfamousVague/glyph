@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { ArrowLeft, History, RotateCcw, Share2 } from '@glacier/icons';
 import { useToast } from '@glacier/react';
 import { agoText } from '../core/markDetails.ts';
-import { diffLines, linesOf } from '../core/versions/diff.ts';
+import { diffLines, firstChange, linesFrom, linesOf } from '../core/versions/diff.ts';
 import type { Version } from '../core/versions/file.ts';
 import { keepVersion, setKeepsVersions, useVersions, versionsByDefault } from '../core/versions/record.ts';
 import { shareVersionsFile } from '../core/versions/share.ts';
 import { SheetField, SheetGroup, SheetHeading, SheetNote, SheetRow, SheetTitle } from '../plugins/kit.tsx';
+import { authorName, clock, dayOf } from './versionWords.ts';
 import styles from './VersionHistory.module.css';
 
 /**
@@ -17,6 +18,10 @@ import styles from './VersionHistory.module.css';
  * going back to it would change against the note now, and Restore. Above the timeline a version is saved by hand with
  * a name; under it the versions file is shared and the history switched off. Restoring keeps a new version with that
  * version's words, as `git revert` does.
+ *
+ * The timeline's pieces - the author's ring and what a version changed here, its words in versionWords.ts - are
+ * shared with an organization's audit log (notes/OrganizationLog.tsx), which draws every note's versions on the same
+ * line.
  */
 
 /** How many lines either side of a change are shown, the rest folded into "12 lines the same". */
@@ -32,40 +37,14 @@ interface VersionHistoryProps {
   onBack: () => void;
 }
 
-/** "Today", "Yesterday", or the date: a day's heading on the timeline. */
-function dayOf(at: number, now = Date.now()): string {
-  const day = (ms: number) => new Date(ms).setHours(0, 0, 0, 0);
-  const days = Math.round((day(now) - day(at)) / 86_400_000);
-  if (days === 0) return 'Today';
-  if (days === 1) return 'Yesterday';
-  return new Date(at).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', ...(new Date(at).getFullYear() !== new Date(now).getFullYear() ? { year: 'numeric' } : {}) });
-}
-
-const clock = (at: number) => new Date(at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-
-/** A version's lines; none at all before the first version, rather than one empty line. */
-const linesFrom = (text: string | null) => (text === null ? [] : linesOf(text));
-
-/** The first line a version put in or took out, for its line on the timeline. */
-function firstChange(before: string | null, after: string): { kind: 'add' | 'del'; text: string } | null {
-  for (const step of diffLines(linesFrom(before), linesOf(after))) {
-    if ('add' in step && step.add.trim()) return { kind: 'add', text: step.add.trim() };
-    if ('del' in step && step.del.trim()) return { kind: 'del', text: step.del.trim() };
-  }
-  return null;
-}
-
 /** Who made a version, as a round mark with their first letter: the same person, the same mark, down the timeline. */
-function Author({ by }: { by: string }) {
+export function Author({ by }: { by: string }) {
   return (
     <span className={styles.author} aria-hidden="true">
       {(by === 'me' ? 'Y' : (by[0] ?? '?')).toUpperCase()}
     </span>
   );
 }
-
-/** A version's author in words: "you" for one kept here without an account. */
-const authorName = (by: string) => (by === 'me' ? 'You' : by);
 
 /** The timeline: the versions newest first, under the day each was kept. */
 function Timeline({ versions, onOpen }: { versions: readonly Version[]; onOpen: (version: Version) => void }) {
@@ -119,7 +98,7 @@ function Timeline({ versions, onOpen }: { versions: readonly Version[]; onOpen: 
 }
 
 /** The lines that go from `from` to `to`, and the lines that come, with a little of what stays around them. */
-function Change({ from, to, label, same = 'The note says exactly this now.' }: { from: string | null; to: string; label: string; same?: string }) {
+export function Change({ from, to, label, same = 'The note says exactly this now.' }: { from: string | null; to: string; label: string; same?: string }) {
   const before = linesFrom(from);
   const steps = diffLines(before, linesOf(to));
   const rows: { kind: 'same' | 'del' | 'add' | 'fold'; text: string; key: string }[] = [];

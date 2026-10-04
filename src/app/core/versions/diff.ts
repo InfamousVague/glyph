@@ -130,3 +130,19 @@ export function countSteps(steps: readonly Step[]): { added: number; removed: nu
   }
   return { added, removed };
 }
+
+/** A version's lines; none at all before the first version, rather than one empty line. */
+export const linesFrom = (text: string | null): string[] => (text === null ? [] : linesOf(text));
+
+/**
+ * The first line a version put in or took out, against the version before it - or against nothing, for a note's
+ * first - for the version's line on a timeline (editor/VersionHistory.tsx, notes/OrganizationLog.tsx). Null when it
+ * changed no line that says anything: a name given, or blank lines alone.
+ */
+export function firstChange(before: string | null, after: string): { kind: 'add' | 'del'; text: string } | null {
+  for (const step of diffLines(linesFrom(before), linesOf(after))) {
+    if ('add' in step && step.add.trim()) return { kind: 'add', text: step.add.trim() };
+    if ('del' in step && step.del.trim()) return { kind: 'del', text: step.del.trim() };
+  }
+  return null;
+}

@@ -81,7 +81,7 @@ const page = (orgId: string, over: Partial<Props> = {}) =>
       onAllNotes={() => undefined}
       onSettings={() => undefined}
       onOpenOrganization={() => undefined}
-      onNotifications={() => undefined}
+      onLog={() => undefined}
       onAccount={() => undefined}
       {...over}
     />,
@@ -195,6 +195,15 @@ describe('an organization’s dashboard', () => {
     expect(buttonSaying(document.body, 'Invite')).toBeUndefined();
     expect(document.querySelector('input[aria-label="Invite by handle"]')).toBeNull();
     expect(document.body.textContent).toContain('You are member');
+  });
+
+  it('opens the audit log from the clock in the bar and from the Activity heading', async () => {
+    const onLog = vi.fn();
+    const id = await made('Ghost');
+    page(id, { onLog });
+    act(() => button('Audit log').click());
+    act(() => buttonSaying(document.body, 'Audit log')!.click());
+    expect(onLog).toHaveBeenCalledTimes(2);
   });
 
   it('shows the organization’s own news, newest first, and not another’s or an invitation', async () => {

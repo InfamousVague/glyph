@@ -392,7 +392,10 @@ Settings › Notifications, Settings › Account › Organizations, an organizat
 the `organization` Screen: its notes, its members and its news, opened from the tab row's organizations icon, a
 notification, an invitation accepted or one just made), and its settings (`settings/OrganizationSheet.tsx`), a second
 `SettingsScreen` with a `title` and no search, over whatever is up: from the dashboard's cog on its sections, from
-Settings › Account › Organizations on Members, and from the edit words on its workspace.
+Settings › Account › Organizations on Members, and from the edit words on its workspace. The organization's audit log
+(`notes/OrganizationLog.tsx`, the same Screen with `page: 'log'`; DESIGN §183) is a page under the dashboard, from
+its clock and its Activity heading: every version of every note filed in its workspace, from their versions files
+(`core/versions/log.ts`), with the team's news between them.
 
 **Deploy order** (D11): glyph-api first, then after the login gap the web OTA with `--mcp` and the hosted connector,
 with `notYet` carrying the page across the gap. The hosted connector's restart signs its sessions out, as any restart

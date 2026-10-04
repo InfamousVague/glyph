@@ -1,0 +1,273 @@
+/*
+ * An organization's audit log (OrganizationLog.tsx): the dashboard's bar with "Audit log" after the organization's
+ * name (OrganizationScreen.module.css), and under it the filter as All notes draws its search, what to show as the
+ * dashboard's pills, a line of figures, and every change to every note filed in the workspace with the team's news
+ * between them, on the version history's timeline (editor/VersionHistory.module.css) under each day's name. A change
+ * opened is what that version changed, as the history draws it, with the way to the note and to only that note's.
+ */
+
+.screen {
+  composes: screen from '../home/HomeScreen.module.css';
+}
+
+.scroll {
+  composes: scroll from './OrganizationScreen.module.css';
+}
+
+.topBar {
+  composes: topBar from './OrganizationScreen.module.css';
+}
+
+.back {
+  composes: back from './AllNotesScreen.module.css';
+}
+
+.title {
+  composes: title from './OrganizationScreen.module.css';
+}
+
+.titleHue {
+  composes: titleHue from './OrganizationScreen.module.css';
+}
+
+/* The name gives way before "Audit log" does. */
+.titleName {
+  composes: titleName from './OrganizationScreen.module.css';
+  flex: 0 1 auto;
+}
+
+.titleWhat {
+  flex: none;
+  font-weight: var(--glacier-font-weight-regular);
+  color: var(--app-ink-3);
+}
+
+.titleWhat::before {
+  content: '·';
+  margin-inline-end: var(--glacier-space-2);
+}
+
+.page {
+  container: org-log / inline-size;
+}
+
+/* The tools: the filter, then what to show. */
+.tools {
+  display: grid;
+  gap: var(--glacier-space-3);
+}
+
+.search {
+  composes: search from './AllNotesScreen.module.css';
+}
+
+.searchMark {
+  composes: searchMark from './AllNotesScreen.module.css';
+}
+
+.field {
+  composes: field from './AllNotesScreen.module.css';
+}
+
+.clear {
+  composes: clear from './AllNotesScreen.module.css';
+}
+
+.kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--glacier-space-2);
+}
+
+.pill {
+  composes: pill from './OrganizationScreen.module.css';
+}
+
+.pill[aria-pressed='true'] {
+  border-color: var(--app-ink-2);
+  background: color-mix(in oklch, var(--app-ink) 6%, transparent);
+  color: var(--app-ink);
+}
+
+/* One note alone: its name in a dashed pill, with an x, which the press takes off. */
+.pill[data-only] {
+  border-style: dashed;
+  color: var(--app-ink);
+}
+
+/* How many changes across how many notes, by how many, in figures that line up; and what is missing, under it. */
+.figures {
+  margin: var(--glacier-space-4) 0 0;
+  font-size: var(--glacier-font-size-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--app-ink-2);
+}
+
+.aside {
+  margin: var(--glacier-space-1) 0 0;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3);
+}
+
+/* The timeline, as the version history's: every note's changes on the one line, the team's news on it too. */
+.timeline {
+  composes: timeline from '../editor/VersionHistory.module.css';
+  margin-block-start: var(--glacier-space-5);
+}
+
+.dayName {
+  composes: dayName from '../editor/VersionHistory.module.css';
+}
+
+.entries {
+  composes: entries from '../editor/VersionHistory.module.css';
+}
+
+.entry {
+  composes: entry from '../editor/VersionHistory.module.css';
+}
+
+.entryButton {
+  composes: entryButton from '../editor/VersionHistory.module.css';
+}
+
+.entryBody {
+  composes: entryBody from '../editor/VersionHistory.module.css';
+}
+
+.entryHead {
+  composes: entryHead from '../editor/VersionHistory.module.css';
+}
+
+.who {
+  composes: who from '../editor/VersionHistory.module.css';
+}
+
+.when {
+  composes: when from '../editor/VersionHistory.module.css';
+}
+
+.number {
+  composes: number from '../editor/VersionHistory.module.css';
+}
+
+.label {
+  composes: label from '../editor/VersionHistory.module.css';
+}
+
+.entryWhat {
+  composes: entryWhat from '../editor/VersionHistory.module.css';
+}
+
+.counts {
+  composes: counts from '../editor/VersionHistory.module.css';
+}
+
+.peek {
+  composes: peek from '../editor/VersionHistory.module.css';
+}
+
+/* "edited", between who and which note; the note's name in ink. */
+.did {
+  color: var(--app-ink-2);
+}
+
+.noteName {
+  font-weight: var(--glacier-font-weight-medium);
+  color: var(--app-ink);
+  overflow-wrap: anywhere;
+}
+
+/* The team's news: the kind's mark in an author's ring, in the ring's own ink, and the sentence, not pressable. */
+.newsRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--glacier-space-3);
+  padding: var(--glacier-space-2);
+  color: var(--app-ink-2);
+}
+
+.newsRing {
+  composes: author from '../editor/VersionHistory.module.css';
+}
+
+.newsWords {
+  color: var(--app-ink-2);
+}
+
+/* A change opened: the way back to the log, the note's name with the version's, who and when, and what it changed. */
+.toLog {
+  composes: back from '../editor/VersionHistory.module.css';
+}
+
+.openedTitle {
+  margin: 0 0 var(--glacier-space-3);
+  font-size: var(--glacier-font-size-xl);
+  font-weight: var(--glacier-font-weight-semibold);
+  letter-spacing: var(--app-tracking-title);
+  color: var(--app-ink);
+  overflow-wrap: anywhere;
+}
+
+.openedVersion {
+  font-weight: var(--glacier-font-weight-regular);
+  color: var(--app-ink-3);
+}
+
+.byline {
+  composes: byline from '../editor/VersionHistory.module.css';
+}
+
+.heading {
+  margin: var(--glacier-space-4) 0 var(--glacier-space-2);
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink-2);
+}
+
+.quiet {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3);
+}
+
+.openedActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--glacier-space-2);
+  margin-block-start: var(--glacier-space-4);
+}
+
+.action {
+  composes: action from './OrganizationScreen.module.css';
+}
+
+/* Nothing yet, or nothing that matches: a small ghost and two lines, as the dashboard says an organization is gone. */
+.empty {
+  composes: gone from './OrganizationScreen.module.css';
+}
+
+.emptyArt {
+  composes: goneArt from './OrganizationScreen.module.css';
+}
+
+.emptyLead {
+  composes: goneLead from './OrganizationScreen.module.css';
+}
+
+.emptyHint {
+  composes: goneHint from './OrganizationScreen.module.css';
+}
+
+/* Wide, the filter and the pills share a row, the pills at its end. */
+@container org-log (min-width: 44rem) {
+  .tools {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .kinds {
+    justify-content: flex-end;
+  }
+}
