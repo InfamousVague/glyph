@@ -14,7 +14,10 @@ It lives in `landing/` and ships with `node scripts/deploy-landing.mjs`, one ssh
   tape cassette"). What does not move is the app's screens (`shots/`). What moves is the app's code: `parts/` is
   `src/landing/parts.tsx` built by `npm run build:landing` (vite.landing.config.ts) - today the cassette, `TapeArt`,
   which plays on a tap and turns with the site's theme, since site.css hands it the app's names for its two inks. Run
-  it when a part changes and commit what it writes: the site is still one directory the deploy tars whole.
+  it when a part changes and commit what it writes: the site is still one directory the deploy tars whole. The
+  cassette is silent: a tap turns its reels and runs its counter, and no recording of anybody is behind it (Matt:
+  "make sure the recorded meeting on the website doesn't use real audio"). `src/landing/silent.test.ts` fails if a
+  sound file or a way of playing one ever reaches the site.
 - **Glacier.** The site is drawn from the kit's tokens, as the app is: `glacier/tokens.css` is `@glacier/tokens`'s, and
   its type scale, spacing, radii, motion, shadows and the named themes (Dawn, Boreal, Ember) are what `home.css` and
   `site.css` use. The colours are the app's ink (src/app/ink.css): pure grey, light or dark, or the kit's tinted greys

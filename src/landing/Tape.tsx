@@ -6,6 +6,9 @@ import { tapeDate } from '../app/tapes/tapeDate.ts';
 /**
  * A meeting's tape, as a spoken note carries it (tapes/NoteTape.tsx): the cassette with its label, dated today, and
  * its length. A tap plays it and pauses it, as on the note, and the reels wind the tape across while it plays.
+ *
+ * It makes no sound: the site has no recording behind its meeting, of anybody (Matt: "make sure the recorded meeting
+ * on the website doesn't use real audio"). Only the reels and the counter move. src/landing/silent.test.ts keeps it so.
  */
 export function Tape({ title, lengthMs }: { title: string; lengthMs: number }) {
   const [playing, setPlaying] = useState(false);
