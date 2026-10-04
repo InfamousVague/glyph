@@ -69,7 +69,7 @@ interface NoteTabsProps {
   /** The floating list of every note; absent where the list is already beside the note (the desktop sidebar). */
   onSidebar?: () => void;
   sidebarOpen?: boolean;
-  /** The right-hand aside (aside/Aside.tsx): a book's index, or a run of chapters; the icon is the sidebar's, mirrored. Absent when there's nothing for it to show, and so is the icon. */
+  /** The right-hand aside (aside/Aside.tsx): a book's index, a run of chapters, or the note's version history on a desktop; the icon is the sidebar's, mirrored. Absent when there's nothing for it to show, and so is the icon. */
   onAside?: () => void;
   asideOpen?: boolean;
   /** The home page (home/HomeScreen.tsx), and whether it is the page showing. */
@@ -309,7 +309,7 @@ export function NoteTabs({
   const tailSlotEl = <div ref={tailSlot} className={styles.tail} />;
   /* The aside's toggle, last of all: the sidebar's icon reversed (Matt: "a sidebar toggle on the right with the icon reversed"). */
   const asideRing = onAside ? (
-    <button type="button" className={`${styles.sidebar} ${styles.mirrored}`} onClick={onAside} data-aside-toggle aria-label="Notebook index" aria-expanded={asideOpen ?? false} data-on={asideOpen || undefined}>
+    <button type="button" className={`${styles.sidebar} ${styles.mirrored}`} onClick={onAside} data-aside-toggle aria-label="Side panel" aria-expanded={asideOpen ?? false} data-on={asideOpen || undefined}>
       <PanelLeft size={20} strokeWidth={2.1} aria-hidden="true" />
     </button>
   ) : null;

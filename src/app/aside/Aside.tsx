@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import { BookOpen, X } from '@glacier/icons';
+import { readStoredText, writeStoredText } from '../core/stored.ts';
 import { numbered } from '../book/book.ts';
 import { FloatingCard } from '../notes/FloatingCard.tsx';
 import type { AsideContent } from './aside.ts';
+import { AsideHistory } from './AsideHistory.tsx';
 import styles from './Aside.module.css';
 
 /**
@@ -25,6 +28,15 @@ export interface AsideProps {
 export function Aside({ content, onOpen, onOpenTitle, onClose, popup }: AsideProps) {
   return (
     <div className={styles.aside} data-kind={content.kind} data-popup={popup || undefined}>
+      <AsideIndex content={content} onOpen={onOpen} onOpenTitle={onOpenTitle} onClose={onClose} />
+    </div>
+  );
+}
+
+/** What a book's index or a run of chapters puts in the aside, without the column it sits in. */
+function AsideIndex({ content, onOpen, onOpenTitle, onClose }: Omit<AsideProps, 'popup'>) {
+  return (
+    <>
       {content.kind === 'book' && content.place.journal ? (
         <>
           <div className={styles.head}>
@@ -135,6 +147,54 @@ export function Aside({ content, onOpen, onOpenTitle, onClose, popup }: AsidePro
           </ol>
         </>
       )}
+    </>
+  );
+}
+
+/** Which of the aside's two the person last looked at, kept to this device: the index, or the version history. */
+type AsideTab = 'index' | 'history';
+const TAB_KEY = 'glyph-aside-tab';
+
+export interface AsidePanelProps extends Omit<AsideProps, 'content'> {
+  /** The open note's book or run of chapters, or null where it has neither (aside.ts). */
+  content: AsideContent | null;
+  /** The open note, for its version history: on a desktop, where the aside has room for it. Null elsewhere. */
+  history: { noteId: string; title: string } | null;
+}
+
+/**
+ * The aside with all it can hold (Matt: "make a sidebar that can be expanded on desktop to see the version history"):
+ * a book's index or a run of chapters, and the open note's version history (AsideHistory.tsx). With both there are two
+ * tabs, the last one chosen kept; with one, that one alone. App.tsx draws none of it when there is neither.
+ */
+export function AsidePanel({ content, history, onOpen, onOpenTitle, onClose, popup }: AsidePanelProps) {
+  const [tab, setTab] = useState<AsideTab>(() => (readStoredText(TAB_KEY) === 'history' ? 'history' : 'index'));
+  const choose = (next: AsideTab) => {
+    setTab(next);
+    writeStoredText(TAB_KEY, next);
+  };
+  const showing: AsideTab = content && history ? tab : content ? 'index' : 'history';
+  return (
+    <div className={styles.aside} data-kind={showing === 'history' ? 'history' : content?.kind} data-popup={popup || undefined}>
+      {content && history ? (
+        <div className={styles.tabs} role="tablist" aria-label="What the side panel shows">
+          {(
+            [
+              ['index', content.kind === 'chapters' ? 'Chapters' : content.place.journal ? 'Entries' : 'Index'],
+              ['history', 'History'],
+            ] as const
+          ).map(([id, label]) => (
+            <button key={id} type="button" role="tab" className={styles.tab} aria-selected={showing === id} data-on={showing === id || undefined} onClick={() => choose(id)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {showing === 'index' && content ? (
+        <AsideIndex content={content} onOpen={onOpen} onOpenTitle={onOpenTitle} onClose={onClose} />
+      ) : history ? (
+        <AsideHistory noteId={history.noteId} title={history.title} onClose={onClose} />
+      ) : null}
     </div>
   );
 }
@@ -144,10 +204,10 @@ export function Aside({ content, onOpen, onOpenTitle, onClose, popup }: AsidePro
  * from the icon that opened it, the page live beside it, closed by a tap outside, Escape, the phone's back gesture,
  * the X, or opening a page. The icon itself is left to close it, as the drawer leaves its own.
  */
-export function AsideCard({ onClose, onOpen, onOpenTitle, ...rest }: AsideProps & { onClose: () => void }) {
+export function AsideCard({ onClose, onOpen, onOpenTitle, ...rest }: AsidePanelProps & { onClose: () => void }) {
   return (
-    <FloatingCard side="end" label="Notebook index" toggle="[data-aside-toggle]" onClose={onClose}>
-      <Aside
+    <FloatingCard side="end" label="Side panel" toggle="[data-aside-toggle]" onClose={onClose}>
+      <AsidePanel
         {...rest}
         popup
         onClose={onClose}

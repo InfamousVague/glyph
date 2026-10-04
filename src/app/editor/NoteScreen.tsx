@@ -104,6 +104,7 @@ import { useNotePictures } from './useNotePictures.ts';
 import { useNoteSaving, type NoteRename } from './useNoteSaving.ts';
 import { useVersionKeeping } from './useVersionKeeping.ts';
 import { keepVersion } from '../core/versions/record.ts';
+import { liveNoteOpened } from '../core/versions/live.ts';
 import type { Version } from '../core/versions/file.ts';
 import { useNoteTape } from './useNoteTape.ts';
 import { useStripRoom } from './useStripRoom.ts';
@@ -897,6 +898,18 @@ export function NoteScreen({
     toast({ message: `Back to version ${version.n}.` });
     fireNativeHaptic('success');
   };
+  // The history in the desktop's aside (aside/AsideHistory.tsx) reads the editor's words and restores through it, as
+  // the More sheet's does: said for as long as this note is on screen (core/versions/live.ts).
+  const restoreLatest = useRef(restoreVersion);
+  restoreLatest.current = restoreVersion;
+  useEffect(
+    () =>
+      liveNoteOpened(note.id, {
+        current: () => viewRef.current?.state.doc.toString() ?? body.current,
+        restore: (text, version) => restoreLatest.current(text, version),
+      }),
+    [note.id, body],
+  );
   /** Remove location: both keys out, as one undo step; the card going, on the beat it came on, is the feedback. */
   const removeLocation = () => {
     flush();

@@ -34,7 +34,8 @@ interface VersionHistoryProps {
   current: () => string;
   /** Puts a version's words into the note, through the editor, as one change to undo. */
   onRestore: (text: string, version: Version) => void;
-  onBack: () => void;
+  /** Back to the note's More sheet. Absent in the desktop's aside (aside/AsideHistory.tsx), which has its own heading. */
+  onBack?: () => void;
 }
 
 /** Who made a version, as a round mark with their first letter: the same person, the same mark, down the timeline. */
@@ -195,10 +196,14 @@ export function VersionHistory({ noteId, title, current, onRestore, onBack }: Ve
 
   return (
     <>
-      <button type="button" className={styles.back} onClick={onBack}>
-        <ArrowLeft /> {title || 'This note'}
-      </button>
-      <SheetTitle>Version history</SheetTitle>
+      {onBack ? (
+        <>
+          <button type="button" className={styles.back} onClick={onBack}>
+            <ArrowLeft /> {title || 'This note'}
+          </button>
+          <SheetTitle>Version history</SheetTitle>
+        </>
+      ) : null}
       <SheetNote>
         {versionsByDefault(noteId)
           ? 'Kept for every note in an organization. A version is saved after a pause in the writing, when you leave the note, and whenever you save one here.'
@@ -235,7 +240,7 @@ export function VersionHistory({ noteId, title, current, onRestore, onBack }: Ve
           hint="The versions kept so far stay, and carry on if you switch it on again."
           onPress={() => {
             setKeepsVersions(noteId, false);
-            onBack();
+            onBack?.();
           }}
         />
       </SheetGroup>

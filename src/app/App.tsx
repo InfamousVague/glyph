@@ -16,7 +16,7 @@ import { setItemDone } from './core/boards.ts';
 import { NoteScreen } from './editor/NoteScreen.tsx';
 import { NoteTabs } from './notes/NoteTabs.tsx';
 import { NotesDrawer } from './notes/NotesDrawer.tsx';
-import { Aside, AsideCard } from './aside/Aside.tsx';
+import { AsideCard, AsidePanel } from './aside/Aside.tsx';
 import { asideContent, readAsideShown, writeAsideShown } from './aside/aside.ts';
 import { NoteTree } from './notes/NoteTree.tsx';
 import { joinGroup, leaveGroup, newGroup } from './notes/tabGroups.ts';
@@ -946,9 +946,17 @@ function Shell() {
    */
   const docked = split && prefs.sidebarStyle === 'docked';
   const dockShown = docked && sidebarShown;
+  /*
+   * The open note's version history, in the aside on a desktop (Matt: "make a sidebar that can be expanded on desktop
+   * to see the version history"): a window wide enough for two panes, and not a phone, which keeps its history in
+   * the More sheet. Not for a canvas, whose words are JSON and have no line history worth reading.
+   */
+  const asideHistory =
+    split && !isMobile && screen.name === 'note' && !isCanvasBody(screen.note.body) ? { noteId: screen.note.id, title: noteTitle(screen.note.body) } : null;
   // The aside follows the sidebar's shell: a column beside a docked sidebar, else the drawer's card (aside/Aside.tsx).
-  // With nothing to hold - no book, no run of chapters - there is no aside and no toggle for it.
-  const asideDocked = docked && asideShown && asideBody !== null;
+  // With nothing to hold - no book, no run of chapters, no note's history - there is no aside and no toggle for it.
+  const asideHolds = asideBody !== null || asideHistory !== null;
+  const asideDocked = docked && asideShown && asideHolds;
   // Docking takes over from a card left open, so the notes are never drawn twice.
   useEffect(() => {
     if (docked) setDrawer(false);
@@ -1381,7 +1389,7 @@ function Shell() {
             onHome={() => void backToList()}
             atHome={screen.name === 'list'}
             sidebarOpen={docked ? sidebarShown : drawer}
-            onAside={asideBody ? toggleAside : undefined}
+            onAside={asideHolds ? toggleAside : undefined}
             asideOpen={asideShown}
             onMove={tabs.move}
             groups={tabs.groups}
@@ -1487,9 +1495,9 @@ function Shell() {
             {noteScreen ?? (screen.name === 'notes' ? allNotes : (organizationPage ?? home))}
           </main>
           {/* The right-hand aside as a column beside a docked sidebar: a book's index, or a run of chapters (aside/Aside.tsx). */}
-          {asideDocked && asideBody ? (
-            <aside className="app-aside" aria-label="Notebook index">
-              <Aside content={asideBody} onOpen={openNoteWithin} onOpenTitle={openTitleWithin} />
+          {asideDocked ? (
+            <aside className="app-aside" aria-label="Side panel">
+              <AsidePanel content={asideBody} history={asideHistory} onOpen={openNoteWithin} onOpenTitle={openTitleWithin} />
             </aside>
           ) : null}
         </div>
@@ -1514,8 +1522,8 @@ function Shell() {
       {/* An invite link's "Join it?" (notes/JoinSheet.tsx), held back while the way into an account is up at launch. */}
       <JoinInvites request={joinRequest} hold={accountGate.open} onOpen={openOrganization} onAccount={() => setSettings(true)} />
       {/* With the sidebar a floating card, the aside is the same card at the right (aside/Aside.tsx `AsideCard`). */}
-      {asideShown && !asideDocked && asideBody ? (
-        <AsideCard content={asideBody} onOpen={openNoteWithin} onOpenTitle={openTitleWithin} onClose={toggleAside} />
+      {asideShown && !asideDocked && asideHolds ? (
+        <AsideCard content={asideBody} history={asideHistory} onOpen={openNoteWithin} onOpenTitle={openTitleWithin} onClose={toggleAside} />
       ) : null}
       <NewSheet
         open={newSheet}

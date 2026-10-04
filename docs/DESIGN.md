@@ -10165,3 +10165,21 @@ reset.rs (`a_reset_never_deletes_a_folder_of_the_persons_and_goes_back_to_the_ap
 and the bridge's methods); plugins/folder/FolderPane.test.tsx; the cards in PluginsPane.test.tsx and registry.test.ts.
 
 Cites: §167, §182.
+
+## 188. Version history in the desktop's side panel (2026-10-04)
+
+Matt: "Please make a sidebar that can be expanded on desktop to see the version history". The right-hand aside, which
+the tab row's mirrored sidebar icon opens (aside/Aside.tsx), was only ever a notebook's index or a run of chapters, and
+had no icon at all for an ordinary note. On a desktop - a window wide enough for two panes, and not a phone, which
+keeps its history in the More sheet - it now holds the open note's version history too (aside/AsideHistory.tsx): the
+More sheet's timeline (§182), beside the note rather than over it. A notebook's page has both, as two tabs, Index (or
+Entries, or Chapters) and History, the last one chosen kept to the device (`glyph-aside-tab`). A note that keeps no
+history says so, with Keep version history. A canvas has none: its words are JSON.
+
+The panel is outside the note, but what it compares a version with is the words in the editor now, and a restore goes
+through the editor as one change to undo, as the More sheet's does. So the note on screen says how to do both while it
+is open (core/versions/live.ts, `liveNoteOpened` in editor/NoteScreen.tsx). Docked or floating, it follows the
+sidebar's style, as the index always has; its toggle and its card are labelled Side panel now.
+
+Tests: aside/Aside.test.tsx (the two tabs, the history alone, starting one, a restore through the editor).
+

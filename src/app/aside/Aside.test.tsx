@@ -3,7 +3,10 @@ import { act } from 'react';
 import { makeNote } from '../../test/notes.ts';
 import { button, show } from '../../test/render.tsx';
 import { asideContent } from './aside.ts';
-import { Aside, AsideCard } from './Aside.tsx';
+
+// The aside carries the version history (AsideHistory.tsx), which carries the kit, which reads matchMedia as it loads.
+await vi.hoisted(async () => (await import('../../test/stubs.ts')).stubMatchMedia());
+const { Aside, AsideCard, AsidePanel } = await import('./Aside.tsx');
 
 const BOOK = '---\ntitle: "Field guide"\nbook: true\n---\n# Field guide\n\n- [[Trees]]\n- [[Birds]]\n';
 const notes = [makeNote('b', BOOK, { updatedAt: 5 }), makeNote('t', '# Trees\n', { updatedAt: 4 }), makeNote('x', '# Loose\n', { updatedAt: 3 })];
@@ -63,9 +66,9 @@ describe('the aside as the drawer’s card', () => {
     const toggle = document.createElement('button');
     toggle.setAttribute('data-aside-toggle', '');
     document.body.appendChild(toggle);
-    show(<AsideCard content={asideContent(notes, notes[1]!)!} onOpen={() => {}} onOpenTitle={onOpenTitle} onClose={onClose} />);
+    show(<AsideCard content={asideContent(notes, notes[1]!)!} history={null} onOpen={() => {}} onOpenTitle={onOpenTitle} onClose={onClose} />);
     const card = document.querySelector('[role="dialog"][data-side="end"]');
-    expect(card?.getAttribute('aria-label')).toBe('Notebook index');
+    expect(card?.getAttribute('aria-label')).toBe('Side panel');
     expect(card?.querySelector('[data-popup]')).toBeTruthy();
     // The outside listener joins on the next tick, so the press that opened the card cannot close it.
     act(() => void vi.advanceTimersByTime(0));
@@ -80,3 +83,53 @@ describe('the aside as the drawer’s card', () => {
     toggle.remove();
   });
 });
+
+const { keepVersion, keepsVersions } = await import('../core/versions/record.ts');
+const { liveNoteOpened } = await import('../core/versions/live.ts');
+const { setPreferences } = await import('../core/preferences.ts');
+const { ToastProvider } = await import('@glacier/react');
+
+describe('the aside’s version history (on a desktop)', () => {
+  const panel = (props: Parameters<typeof AsidePanel>[0]) => (
+    <ToastProvider>
+      <AsidePanel {...props} />
+    </ToastProvider>
+  );
+  afterEach(() => localStorage.removeItem('glyph-aside-tab'));
+
+  it('is the index and the history as two tabs where the note has both, the last one chosen kept', () => {
+    const host = show(panel({ content: asideContent(notes, notes[1]!), history: { noteId: 't', title: 'Trees' }, onOpen: () => {}, onOpenTitle: () => {} }));
+    const tabs = [...host.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    expect(tabs.map((tab) => [tab.textContent, tab.getAttribute('aria-selected')])).toEqual([
+      ['Index', 'true'],
+      ['History', 'false'],
+    ]);
+    act(() => tabs[1]!.click());
+    expect(host.textContent).toContain('Version history');
+    expect(localStorage.getItem('glyph-aside-tab')).toBe('history');
+  });
+
+  it('is the history alone for a note with no book, and offers to start one where it keeps none', () => {
+    setPreferences({ versions: {} });
+    const host = show(panel({ content: null, history: { noteId: 'x', title: 'Loose' }, onOpen: () => {}, onOpenTitle: () => {} }));
+    expect(host.querySelector('[role="tab"]')).toBeNull();
+    expect(host.textContent).toContain('This note keeps no version history.');
+    act(() => button('Keep version history', host).click());
+    expect(keepsVersions('x')).toBe(true);
+  });
+
+  it('restores through the open note’s editor, as the More sheet does', async () => {
+    setPreferences({ versions: { x: true } });
+    await keepVersion('x', 'one', { now: Date.now() - 120_000 });
+    await keepVersion('x', 'one\ntwo', { now: Date.now() - 60_000 });
+    const restore = vi.fn();
+    const closed = liveNoteOpened('x', { current: () => 'one\ntwo', restore });
+    const host = show(panel({ content: null, history: { noteId: 'x', title: 'Loose' }, onOpen: () => {}, onOpenTitle: () => {} }));
+    await act(async () => new Promise((done) => setTimeout(done, 20)));
+    act(() => [...host.querySelectorAll<HTMLButtonElement>('[class*=timeline] li button')].find((b) => b.getAttribute('aria-label')?.startsWith('Version 1'))!.click());
+    act(() => [...host.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.startsWith('Restore version 1'))!.click());
+    expect(restore).toHaveBeenCalledWith('one', expect.objectContaining({ n: 1 }));
+    closed();
+  });
+});
+
