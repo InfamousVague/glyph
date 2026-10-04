@@ -1,12 +1,12 @@
 # The plugin seam
 
-_How Notion, GitHub, Marks and Claude plug into Ghost.md without the app ever naming them, and how a fifth would._
+_How Notion, GitHub, Marks, Claude and Slack plug into Ghost.md without the app ever naming them, and how a sixth would._
 
 ## Nothing names a plugin
 
 A plugin is a module that ships inside the app and arrives with its updates. There is nothing to install, and nothing from outside yet. The note's More sheet, the list swipe, the recorder, the formatter, the editor and Settings never import one. Each asks the registry, `src/app/plugins/registry.ts`, what the switched-on plugins offer in its place, and draws that.
 
-Four ship, in `BUILT_IN`, all standard:
+Five ship, in `BUILT_IN`: four standard, and Slack off until it is switched on:
 
 | id | What it adds | Extension points it uses |
 |---|---|---|
@@ -14,6 +14,7 @@ Four ship, in `BUILT_IN`, all standard:
 | `github` | Items as issues, and the repo as a briefing for the formatter | `settings`, `noteLinks`, `noteActions`, `itemAction`, `suggest`, `marks`, `formatContext` |
 | `marks` | Twelve inline formats: spoiler, highlight, aside, unsure, redact, shout, added, and five effects | `formats` |
 | `claude` | A page for the Claude connector | `settings` |
+| `slack` | A note or a meeting's summary posted to a channel's webhook, and an organization's news to its channel | `settings`, `noteActions` (with `choices`), `newRows` |
 
 The Claude plugin runs nothing in the app. Claude reaches the account from outside, through the sync service, so the plugin is its page; its switch shows or hides that page and does not connect or disconnect anything.
 
@@ -69,6 +70,9 @@ The app's questions, and who asks them:
 | `contextFor(noteId)` | The formatter, `format/pipeline.ts`, and the review, `ai/useNoteReview.ts` |
 | `contextVersion(noteId)` | The formatter, `format/pipeline.ts` |
 | `formats()` | The editor, the cheat sheet (`guide/marks.ts`) and the recorder's spoken cues |
+| `newRows(before, rows)` | Nobody by name: the registry listens to `core/notifications/arrived.ts`, which `core/sync/engine.ts` tells after each pass of the feed |
+
+A note action with `choices` (Slack's channels) opens them as a page of the More sheet when there are several, and runs on the one when there is one; the choice pressed is handed to `run`.
 
 `contextFor` joins every plugin's context. `contextVersion` passes one plugin's version through as it is, so notes formatted before plugins existed are not formatted again.
 
@@ -91,7 +95,7 @@ Two jobs had been written twice and had drifted, so both plugins now share them.
 
 Every change a plugin makes to the open note goes through `NoteEditing` (`editor/notePlugins.ts`), which edits through the editor, so each is one undo and saves like typing.
 
-## Adding a fifth plugin
+## Adding a sixth plugin
 
 Say it sends items to an issue tracker, and its id is `tracker`.
 
@@ -108,7 +112,7 @@ Nothing else in the app changes. The More sheet, the swipe, the recorder, the fo
 
 ## What docs/PLUGINS.md still says
 
-- Two standard plugins, Notion and "Projects" in `src/app/plugins/projects/`. Four ship, and there is no `projects/` folder: the repo briefing is the GitHub plugin's `formatContext` (`plugins/github/repos.ts`).
+- Two standard plugins, Notion and "Projects" in `src/app/plugins/projects/`. Five ship, and there is no `projects/` folder: the repo briefing is the GitHub plugin's `formatContext` (`plugins/github/repos.ts`).
 - "The seven built in" formats, "the Spoiler plugin". The Marks plugin has twelve, the spoiler one of them.
 - Its tree has no `hooks.ts`, `reach.ts`, `LinkMarks.tsx`, `sendItems.ts` or `detailsCache.ts`, and gives every plugin a `manifest.ts`.
 - `settings` is `{ Pane, summary() }`; the code adds `hue`. A `noteLinks` row also answers `linked(noteId)`, and suggestions need `notes` too.

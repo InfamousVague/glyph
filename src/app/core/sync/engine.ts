@@ -7,6 +7,7 @@ import { externalStore } from '../externalStore.ts';
 import { failureText } from '../failure.ts';
 import { imageBytes, keepImage } from '../images.ts';
 import { hasNativeGeneration } from '../nativeGeneration.ts';
+import { tellArrived } from '../notifications/arrived.ts';
 import { feedState, forgetNotifications, listed, syncNotifications, updateFeed } from '../notifications/feed.ts';
 import { postNewRows, syncPhoneWatch } from '../notifications/phone.ts';
 import { record } from '../notifications/record.ts';
@@ -283,7 +284,10 @@ async function once(parts: Parts): Promise<void> {
   const feed = async () => {
     const before = feedState(accountId).cursor;
     const fed = await syncNotifications({ token, read: () => feedState(accountId), update: (fn) => updateFeed(accountId, fn) });
-    void postNewRows(before, listed(feedState(accountId))).catch(() => undefined);
+    const rows = listed(feedState(accountId));
+    void postNewRows(before, rows).catch(() => undefined);
+    // And to whatever else listens for new rows: the switched-on plugins, through the registry (core/notifications/arrived.ts).
+    tellArrived(before, rows);
     syncPhoneWatch();
     return fed;
   };

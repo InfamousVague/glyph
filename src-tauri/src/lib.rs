@@ -73,6 +73,9 @@ mod ai_commands;
 // Notion from the phone: the signed-in account, and the API calls a page
 // cannot make cross-origin. See its header.
 mod notion;
+// Slack from the phone: the channels' webhooks, kept where no page reads them,
+// and the post a page cannot make cross-origin. See its header.
+mod slack;
 // A web page's title and summary for the card under a link, which the page
 // cannot read cross-origin either.
 mod link_preview;
@@ -229,6 +232,10 @@ pub fn run() {
             notion::notion_account,
             notion::notion_disconnect,
             notion::notion_request,
+            slack::slack_channels,
+            slack::slack_save_channel,
+            slack::slack_forget_channel,
+            slack::slack_post,
             ai_commands::ai_models,
             ai_commands::ai_fetch_model,
             ai_commands::ai_delete_model,

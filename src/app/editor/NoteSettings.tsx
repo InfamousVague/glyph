@@ -8,7 +8,7 @@ import { useWorkspaces, workspaceOf } from '../core/workspaces.ts';
 import { SheetField, SheetGroup, SheetHeading, SheetNote, SheetRow, SheetTitle } from '../plugins/kit.tsx';
 import { plugins } from '../plugins/registry.ts';
 import { usePlugins } from '../plugins/hooks.ts';
-import type { NoteEditing, NoteLink } from '../plugins/types.ts';
+import type { NoteAction, NoteEditing, NoteLink } from '../plugins/types.ts';
 import { KIND_ICONS } from '../ai/icons.ts';
 import { KINDS, type KindWords, type RunKind } from '../ai/kinds.ts';
 import { isMacApp } from '../core/platform.ts';
@@ -298,6 +298,8 @@ export function NoteSettings({
   // Re-rendered when a plugin is switched, so its rows come and go.
   usePlugins();
   const [page, setPage] = useState<NoteLink | 'workspace' | 'cheatsheet' | 'journal' | 'history' | null>(null);
+  // A plugin's action with several places to go (a Slack channel among a few), open as a page of them.
+  const [choosing, setChoosing] = useState<NoteAction | null>(null);
   // Re-rendered as the note is filed, so the row says where it is.
   const spaces = useWorkspaces();
   const filed = workspaceOf(noteId);
@@ -307,6 +309,7 @@ export function NoteSettings({
   useEffect(() => {
     if (!open) {
       setPage(null);
+      setChoosing(null);
       return;
     }
     setBody(editing.body());
@@ -322,7 +325,44 @@ export function NoteSettings({
   }, [open]);
   if (!open) return null;
 
-  const back = () => (page ? setPage(null) : onClose());
+  const back = () => (choosing ? setChoosing(null) : page ? setPage(null) : onClose());
+
+  /** An action run on the note, the sheet closed first; with several places to go, their page opens instead. */
+  const runAction = (action: NoteAction) => {
+    const choices = action.choices?.(noteId) ?? [];
+    if (choices.length > 1) {
+      setChoosing(action);
+      return;
+    }
+    onClose();
+    void (choices.length === 1 ? action.run(editing, choices[0]!.id) : action.run(editing));
+  };
+
+  if (choosing) {
+    return (
+      <Sheet label={choosing.label} onClose={onClose} onBack={back}>
+        <button type="button" className={styles.back} onClick={() => setChoosing(null)}>
+          <ArrowLeft /> {title || 'This note'}
+        </button>
+        <SheetTitle>{choosing.label}</SheetTitle>
+        <SheetNote>{choosing.hint(noteId, body)}</SheetNote>
+        <SheetGroup>
+          {(choosing.choices?.(noteId) ?? []).map((choice) => (
+            <SheetRow
+              key={choice.id}
+              icon={choosing.icon}
+              label={choice.label}
+              hint={choice.hint}
+              onPress={() => {
+                onClose();
+                void choosing.run(editing, choice.id);
+              }}
+            />
+          ))}
+        </SheetGroup>
+      </Sheet>
+    );
+  }
 
   if (page === 'journal' && journal) {
     return (
@@ -380,7 +420,7 @@ export function NoteSettings({
   }
 
   const links = plugins.noteLinks();
-  const actions = plugins.noteActions().filter((action) => action.visible(noteId));
+  const actions = plugins.noteActions().filter((action) => action.visible(noteId, body));
   return (
     <Sheet label={`Settings for ${title || 'this note'}`} onClose={onClose} onBack={back}>
       <SheetTitle>{title || 'Untitled'}</SheetTitle>
@@ -537,10 +577,7 @@ export function NoteSettings({
                 icon={action.icon}
                 label={action.label}
                 hint={action.hint(noteId, body)}
-                onPress={() => {
-                  onClose();
-                  void action.run(editing);
-                }}
+                onPress={() => runAction(action)}
                 disabled={!action.enabled(noteId, body)}
               />
             ))}
