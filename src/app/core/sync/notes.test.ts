@@ -6,6 +6,7 @@ import { syncDevice, type SyncDevice } from '../../../test/syncDevice.ts';
 import { withSummary } from '../../ai/summaryText.ts';
 import { markShared } from '../live/shared.ts';
 import type { Note } from '../store.ts';
+import { readFile, withVersion } from '../versions/file.ts';
 import { fileId, mark, mergedIndex, RECORDING_SYNC_LIMIT, recordingBytes, recordingStaysHere, stayedHere } from './notes.ts';
 
 /*
@@ -201,6 +202,60 @@ describe('what is not sent', () => {
     markShared('a', false);
     await phone.sync();
     expect(api.notes.get('a')?.rev).not.toBe(before);
+  });
+});
+
+describe('a versions file', () => {
+  const keep = (file: string | null, text: string, at: number, label?: string) => withVersion(file, 'a', text, { at, by: 'matt', ...(label ? { label } : {}) })!;
+  const texts = (device: SyncDevice) => readFile(device.versions.get('a') ?? '')?.versions.map((v) => v.text) ?? [];
+
+  it('goes with its note and is fetched by the other device', async () => {
+    const { api, phone, mac } = await pair();
+    phone.notes.set('a', makeNote('a', 'one', { createdAt: 1, updatedAt: 1 }));
+    phone.keepVersions('a', keep(null, 'one', 1));
+    await phone.sync();
+    expect(api.files.has(fileId('versions', 'a')!)).toBe(true);
+    expect(phone.owed.size).toBe(0);
+    await mac.sync();
+    expect(texts(mac)).toEqual(['one']);
+  });
+
+  it('goes on its own when a version is named by hand, with no change to the words', async () => {
+    const { phone, mac } = await pair();
+    phone.notes.set('a', makeNote('a', 'one', { createdAt: 1, updatedAt: 1 }));
+    phone.keepVersions('a', keep(null, 'one', 1));
+    await phone.sync();
+    await mac.sync();
+    phone.keepVersions('a', keep(phone.versions.get('a')!, 'one', 2, 'Sent to Sam'));
+    await phone.sync();
+    expect(phone.owed.size).toBe(0);
+    // The words did not move, and the note went again with its file, so the Mac fetched the name with it.
+    await mac.sync();
+    expect(readFile(mac.versions.get('a')!)!.versions[0]!.label).toBe('Sent to Sam');
+    phone.notes.set('a', edited(phone.notes.get('a')!, 'one\ntwo', 3));
+    phone.keepVersions('a', keep(phone.versions.get('a')!, 'one\ntwo', 3));
+    await phone.sync();
+    await mac.sync();
+    expect(readFile(mac.versions.get('a')!)!.versions.map((v) => [v.text, v.label])).toEqual([
+      ['one', 'Sent to Sam'],
+      ['one\ntwo', undefined],
+    ]);
+  });
+
+  it('kept on both devices at once is one timeline on both, with every version of each', async () => {
+    const { phone, mac } = await pair();
+    phone.notes.set('a', makeNote('a', 'one', { createdAt: 1, updatedAt: 1 }));
+    phone.keepVersions('a', keep(null, 'one', 1));
+    await phone.sync();
+    await mac.sync();
+    // Each keeps a version of its own before hearing of the other's.
+    phone.keepVersions('a', keep(phone.versions.get('a')!, 'one\nphone', 5));
+    mac.keepVersions('a', keep(mac.versions.get('a')!, 'one\nmac', 4));
+    await phone.sync();
+    await mac.sync();
+    await phone.sync();
+    expect(texts(mac)).toEqual(['one', 'one\nmac', 'one\nphone']);
+    expect(texts(phone)).toEqual(texts(mac));
   });
 });
 

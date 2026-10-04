@@ -364,6 +364,12 @@ export interface Preferences {
    */
   meetings: Record<string, number>;
   /**
+   * Which notes keep a version history (core/versions/record.ts), by id: true for a note of the person's own that has
+   * it switched on from its More sheet, false for an organization's note that has it switched off, since those keep
+   * one unless told not to. Synced, so a note keeps its history on every device.
+   */
+  versions: Record<string, boolean>;
+  /**
    * The notes shared by a read-only link (share/share.ts), by note id: each share's id, its key, and what was last
    * sent. Synced, so every device lists every share, keeps it up to date and can stop it. The key is end-to-end
    * encrypted with the rest of the settings: the server that holds the share never sees it.
@@ -458,6 +464,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   workspaces: { list: [], notes: {} },
   trash: {},
   meetings: {},
+  versions: {},
   shares: {},
   wisp: true,
   wispEdge: true,
@@ -519,6 +526,12 @@ function settle(raw: unknown): Preferences {
     for (const [id, at] of Object.entries(loaded.meetings)) if (typeof at === 'number' && Number.isFinite(at)) met[id] = at;
   }
   loaded.meetings = met;
+  // Which notes keep versions: only ids with a yes or a no.
+  const kept: Record<string, boolean> = {};
+  if (loaded.versions && typeof loaded.versions === 'object') {
+    for (const [id, on] of Object.entries(loaded.versions)) if (typeof on === 'boolean') kept[id] = on;
+  }
+  loaded.versions = kept;
   // Shares from another build, or a half-written store: only entries with an id and a key a link can carry.
   const shares: Preferences['shares'] = {};
   const LINK_PART = /^[A-Za-z0-9_-]{16,64}$/;

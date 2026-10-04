@@ -298,3 +298,53 @@ describe('where the note was written', () => {
     expect(document.body.textContent).not.toContain('Add my location');
   });
 });
+
+const { keepVersion, keepsVersions } = await import('../core/versions/record.ts');
+const { setPreferences } = await import('../core/preferences.ts');
+const { ToastProvider } = await import('@glacier/react');
+
+describe('the version history', () => {
+  const withToasts = (props: Props) => (
+    <ToastProvider>
+      <NoteSettings {...props} />
+    </ToastProvider>
+  );
+
+  it('is switched on for a note of one’s own from the sheet, and is a timeline of who changed what, newest first', async () => {
+    setPreferences({ versions: {} });
+    const now = 'Milk\nEggs';
+    const host = show(withToasts(sheet({ history: { keeps: keepsVersions('n1'), current: () => now, onRestore: vi.fn() } })));
+    act(() => buttonSaying(host, 'Keep version history')!.click());
+    expect(keepsVersions('n1')).toBe(true);
+    await waitUntil(() => expect(host.textContent).toContain('Version history'));
+    await act(async () => {
+      await keepVersion('n1', 'Milk', { now: Date.now() - 2 * 86_400_000 });
+      await keepVersion('n1', 'Milk\nEggs', { now: Date.now() - 60_000, label: 'Shopping' });
+    });
+    await waitUntil(() => expect(host.textContent).toContain('2 versions'));
+    const days = [...host.querySelectorAll('[class*=timeline] section[aria-label]')].map((day) => day.getAttribute('aria-label'));
+    expect(days[0]).toBe('Today');
+    expect(days).toHaveLength(2);
+    const entries = [...host.querySelectorAll<HTMLButtonElement>('[class*=timeline] li button')];
+    expect(entries[0]!.getAttribute('aria-label')).toMatch(/^Version 2, Shopping, by You, /);
+    expect(entries[0]!.textContent).toContain('+1 −0');
+    expect(entries[0]!.textContent).toContain('+ Eggs');
+    expect(entries[1]!.textContent).toContain('First version');
+  });
+
+  it('opens a version to show what it changed and what restoring it would, and restores it', async () => {
+    setPreferences({ versions: { n2: true } });
+    await keepVersion('n2', 'Milk\nBread', { now: Date.now() - 120_000 });
+    await keepVersion('n2', 'Milk\nEggs', { now: Date.now() - 60_000 });
+    const onRestore = vi.fn();
+    const host = show(withToasts(sheet({ noteId: 'n2', history: { keeps: true, current: () => 'Milk\nEggs', onRestore } })));
+    act(() => buttonSaying(host, 'Version history')!.click());
+    await waitUntil(() => expect(host.textContent).toContain('2 versions'));
+    act(() => [...host.querySelectorAll<HTMLButtonElement>('[class*=timeline] li button')].find((b) => b.getAttribute('aria-label')?.startsWith('Version 1'))!.click());
+    const lines = (label: string) => [...host.querySelectorAll(`[aria-label="${label}"] li`)].map((li) => `${li.getAttribute('data-kind')}:${li.textContent}`);
+    expect(lines('What this version changed')).toEqual(['add:+Milk', 'add:+Bread']);
+    expect(lines('What restoring changes')).toEqual(['same:Milk', 'del:−Eggs', 'add:+Bread']);
+    act(() => buttonSaying(host, 'Restore version 1')!.click());
+    expect(onRestore).toHaveBeenCalledWith('Milk\nBread', expect.objectContaining({ n: 1 }));
+  });
+});

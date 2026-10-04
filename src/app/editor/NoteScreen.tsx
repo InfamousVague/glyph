@@ -102,6 +102,9 @@ import { useNoteAi, type NoteAsk } from './useNoteAi.ts';
 import { fillPlanOf } from './blanks.ts';
 import { useNotePictures } from './useNotePictures.ts';
 import { useNoteSaving, type NoteRename } from './useNoteSaving.ts';
+import { useVersionKeeping } from './useVersionKeeping.ts';
+import { keepVersion } from '../core/versions/record.ts';
+import type { Version } from '../core/versions/file.ts';
 import { useNoteTape } from './useNoteTape.ts';
 import { useStripRoom } from './useStripRoom.ts';
 import styles from './NoteScreen.module.css';
@@ -368,9 +371,13 @@ export function NoteScreen({
    */
   const [fresh, setFreshNote] = useState(() => isFresh(note.id));
   const freshNow = useRef(fresh);
+  // The note's version history, where it keeps one (core/versions/record.ts): a version after a pause, and on leaving.
+  const versioning = useVersionKeeping(note.id, body);
+  const versionChanged = versioning.changed;
   const onChange = useCallback(
     (next: string) => {
       keep(next);
+      versionChanged();
       const now = geoTagOf(next) ?? pendingTag(note.id);
       setTag((was) => (sameTag(was, now) ? was : now));
       setLook(lookOf(next));
@@ -388,7 +395,7 @@ export function NoteScreen({
       forgetUntouched(note.id);
       drafted.current = false;
     },
-    [keep, note.id],
+    [keep, versionChanged, note.id],
   );
   /**
    * The map's box held for a new note while its fix is on its way, or once it is known none is coming (core/location.ts
@@ -873,6 +880,22 @@ export function NoteScreen({
     drafted.current = false;
     setUntouched(false);
     fireNativeHaptic('selection');
+  };
+  /**
+   * A version put back (editor/VersionHistory.tsx): the words as they are now kept as a version first, then the
+   * version's words put in through the editor as one change - undone like any other, and saved the way typing is - and
+   * kept as a version of their own, named for where they came from. So the history only grows, as `git revert` does.
+   */
+  const restoreVersion = (text: string, version: Version) => {
+    const editor = viewRef.current;
+    if (!editor || !editor.dom.isConnected) return;
+    const now = editor.state.doc.toString();
+    if (now === text) return;
+    void keepVersion(note.id, now).catch(() => undefined);
+    editor.dispatch({ changes: { from: 0, to: now.length, insert: text }, userEvent: 'input.restore', scrollIntoView: true });
+    void keepVersion(note.id, text, { label: `Back to version ${version.n}` }).catch(() => undefined);
+    toast({ message: `Back to version ${version.n}.` });
+    fireNativeHaptic('success');
   };
   /** Remove location: both keys out, as one undo step; the card going, on the beat it came on, is the feedback. */
   const removeLocation = () => {
@@ -1413,6 +1436,7 @@ export function NoteScreen({
         }
         onMakeBoard={shown === 'raw' && settingsOpen && boardFrom(view?.state.doc.toString() ?? body.current) ? makeBoard : undefined}
         look={!typed && shown === 'raw' ? { value: look, canMap: Boolean(tag) || look === 'map', onChange: chooseLook } : undefined}
+        history={shown === 'raw' && !canvas ? { keeps: versioning.keeps, current: () => viewRef.current?.state.doc.toString() ?? body.current, onRestore: restoreVersion } : undefined}
         location={{ tag, can: canLocate(), asksName: prefs.placeNames && !prefs.localOnly, refused: tag ? null : refusedFor(note.createdAt), onPhone: hasLocationBridge(), onAdd: addLocation, onRemove: removeLocation }}
         onPin={() => {
           flush();

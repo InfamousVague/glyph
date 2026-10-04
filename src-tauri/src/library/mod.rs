@@ -15,6 +15,8 @@
 //!   modified time, so a pin doesn't move a note up the list.
 //! - **What isn't text** (a recording's phrases, the formatted version) is
 //!   `.glyph/notes/<id>.json` (sidecar.rs).
+//! - **Its versions**, when it keeps them, are `<Title>.versions` beside it
+//!   (versions.rs), renamed, moved and deleted with it.
 //! - **Reading** checks the files against the index first (index.rs). A file
 //!   changed by another app is read again, a new one is indexed, and a
 //!   vanished one leaves the list.
@@ -32,6 +34,7 @@ mod mutations;
 pub mod names;
 mod sidecar;
 pub mod vault;
+mod versions;
 
 pub use move_in::open_and_move_in;
 
@@ -264,7 +267,7 @@ impl Library {
         let mut path = path;
         if previous_text.is_some() && !named_for(&path, &stem) {
             let to = self.free_path(folder_of(&path), &stem);
-            self.vault.rename(&path, &to)?;
+            self.rename_note_file(&path, &to)?;
             self.index.execute("UPDATE notes SET path = ?2 WHERE id = ?1", rusqlite::params![id, to])?;
             path = to;
         }
@@ -352,9 +355,10 @@ impl Library {
         Ok(true)
     }
 
-    /// A note's file, its sidecar and its row, gone.
+    /// A note's file, its sidecar, its versions and its row, gone.
     fn delete_file(&mut self, id: &str, path: &str) -> Result<()> {
         self.vault.remove(path)?;
+        self.remove_versions(path);
         if let Some(sidecar) = self.sidecar_path(id) {
             let _ = std::fs::remove_file(sidecar);
         }
@@ -440,6 +444,7 @@ impl Library {
         let _writing = writing();
         for entry in self.vault.markdown()? {
             self.vault.remove(&entry.path)?;
+            self.remove_versions(&entry.path);
         }
         let notes = self.vault.glyph_dir().join("notes");
         let _ = std::fs::remove_dir_all(&notes);
@@ -471,14 +476,14 @@ impl Library {
         match wanted {
             Some(to) if to != path && !self.vault.exists(to) => {
                 if self.vault.exists(&path) {
-                    self.vault.rename(&path, to)?;
+                    self.rename_note_file(&path, to)?;
                 }
                 path = to.to_string();
             }
             _ if !named_for(&path, &stem) => {
                 let to = self.free_path(folder_of(&path), &stem);
                 if self.vault.exists(&path) {
-                    self.vault.rename(&path, &to)?;
+                    self.rename_note_file(&path, &to)?;
                 }
                 path = to;
             }

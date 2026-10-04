@@ -121,6 +121,18 @@ pub fn set_note_formatted(
         .map_err(|e| e.to_string())
 }
 
+/// A note's versions file (library/versions.rs), as it is, or `null` where it has none. Native generation 24.
+#[tauri::command]
+pub fn versions_read(store: tauri::State<'_, NotesStore>, id: String) -> std::result::Result<Option<String>, String> {
+    store.lock().read_versions(&id).map_err(|e| e.to_string())
+}
+
+/// Keeps a note's versions file beside it, answering whether there was a note to keep it beside. Native generation 24.
+#[tauri::command]
+pub fn versions_write(store: tauri::State<'_, NotesStore>, id: String, text: String) -> std::result::Result<bool, String> {
+    store.lock().write_versions(&id, &text).map_err(|e| e.to_string())
+}
+
 /// The notes' library, opened in `setup` and held for the life of the process.
 ///
 /// One `Library` rather than one per command: opening one walks the folder

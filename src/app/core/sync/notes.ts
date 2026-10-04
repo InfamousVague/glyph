@@ -9,6 +9,7 @@ import { imageNames } from '../imageRefs.ts';
 import { noteTitle } from '../noteTitle.ts';
 import type { Note } from '../store.ts';
 import { isSharedLive } from '../live/shared.ts';
+import { mergeFiles } from '../versions/file.ts';
 import { open, openBytes, seal, sealBytes, type Bytes } from './crypto.ts';
 
 /**
@@ -25,6 +26,10 @@ import { open, openBytes, seal, sealBytes, type Bytes } from './crypto.ts';
  *
  * A note's recording and pictures travel beside it as sealed files: the note says which (by hash, for a recording,
  * which can be taken again; by name, for a picture, whose name is never reused), and a device fetches what it lacks.
+ * So does its versions file (core/versions/file.ts), by hash, with one difference: two devices that each kept
+ * versions are not a choice between them. Their files are merged, version by version, on whichever side meets the
+ * other's (`sendVersionsOf`, `fetchVersionsOf`), and a version kept by hand with no change to the words is sent on its
+ * own (`LocalFiles.owed`).
  *
  * 3. **Settle the pictures** (`settlePictures`): every picture a note here refers to, made whole on both sides. A
  *    picture this device holds and the account lacks is sent; one the account holds and this device lacks is fetched.
@@ -55,12 +60,16 @@ export interface LocalNotes {
   remove(id: string): Promise<void>;
 }
 
-export type FileKind = 'recording' | 'image';
+export type FileKind = 'recording' | 'image' | 'versions';
 
-/** This device's recordings (by note id) and pictures (by name). */
+/** This device's recordings and versions files (by note id) and pictures (by name). */
 export interface LocalFiles {
   read(kind: FileKind, name: string): Promise<Bytes | null>;
   write(kind: FileKind, name: string, bytes: Bytes): Promise<void>;
+  /** The notes whose versions file changed here since it was last sent (core/versions/store.ts `unsentVersions`). */
+  owed?(): string[];
+  /** Note `name`'s versions file is with the account now. */
+  settled?(name: string): void;
   /**
    * A recording's fingerprint as `sha` would give it, made without reading the file into the page: null with no
    * file, undefined where this device cannot say (an older binary), when the file is read and hashed here instead.
@@ -134,6 +143,8 @@ export interface NotePayload {
   note: Note;
   recording?: string;
   images?: string[];
+  /** The hash of the note's versions file as sent, where it keeps one. */
+  versions?: string;
 }
 
 /** One note in the service's change feed, and what a refused write answers with; the MCP server reads it too (mcp/glyph.ts). */
@@ -163,9 +174,10 @@ export function mark(note: Note): string {
   ]);
 }
 
-/** The service's name for a file: `r-<note id>` for a recording, `i-<ext>-<stem>` for a picture. */
+/** The service's name for a file: `r-<note id>` for a recording, `v-<note id>` for a versions file, `i-<ext>-<stem>` for a picture. */
 export function fileId(kind: FileKind, name: string): string | null {
   if (kind === 'recording') return /^[A-Za-z0-9_-]{1,62}$/.test(name) ? `r-${name}` : null;
+  if (kind === 'versions') return /^[A-Za-z0-9_-]{1,62}$/.test(name) ? `v-${name}` : null;
   const match = /^([A-Za-z0-9_-]+)\.([A-Za-z]+)$/.exec(name);
   if (!match) return null;
   const id = `i-${match[2]!.toLowerCase()}-${match[1]!}`;
@@ -274,11 +286,77 @@ async function sendRecordingOf(ctx: SyncContext, note: Note): Promise<string | u
   return digest;
 }
 
-/** What a note needs sent before it: its recording and pictures, where the service lacks them. */
-async function sendFilesOf(ctx: SyncContext, note: Note): Promise<Pick<NotePayload, 'recording' | 'images'>> {
-  const out: Pick<NotePayload, 'recording' | 'images'> = {};
+const words = new TextDecoder();
+const asBytes = (text: string): Bytes => new TextEncoder().encode(text);
+
+/**
+ * A note's versions file sent where the account's differs, answering its hash for the note to carry. Where another
+ * device wrote the account's since this one last saw it (a 409), theirs is fetched and merged with this one's, the
+ * merge is kept here, and the merge is what is sent.
+ */
+async function sendVersionsOf(ctx: SyncContext, noteId: string): Promise<string | undefined> {
+  const id = fileId('versions', noteId);
+  if (!id) return undefined;
+  const bytes = await ctx.files.read('versions', noteId);
+  if (!bytes) return undefined;
+  let text = words.decode(bytes);
+  let digest = await sha(bytes);
+  const known = ctx.state.files[id];
+  if (known?.sha === digest) {
+    ctx.files.settled?.(noteId);
+    return digest;
+  }
+  const put = async (base: number, body: string) =>
+    call<{ rev: number }>('PUT', `recordings/${id}?base=${base}`, { token: ctx.token, bytes: await sealBytes(ctx.key, asBytes(body), `file:${id}`), fetcher: ctx.fetcher, timeoutMs: 300_000 });
+  let rev: number;
+  try {
+    rev = (await put(known?.rev ?? 0, text)).rev;
+  } catch (failure) {
+    if (!(failure instanceof ApiError) || failure.status !== 409) throw failure;
+    // Another device kept versions too: both sides' versions, once each, are what goes.
+    const theirs = await callBytes('GET', `recordings/${id}`, { token: ctx.token, fetcher: ctx.fetcher, timeoutMs: 300_000 });
+    const merged = mergeFiles(text, words.decode(await openBytes(ctx.key, theirs.bytes, `file:${id}`)), noteId);
+    if (merged !== null && merged !== text) {
+      // Kept here and sent at once below; the others hear of it by the note this file goes with.
+      text = merged;
+      await ctx.files.write('versions', noteId, asBytes(text));
+    }
+    digest = await sha(asBytes(text));
+    rev = (await put(theirs.rev, text)).rev;
+  }
+  ctx.state.files[id] = { rev, sha: digest };
+  ctx.files.settled?.(noteId);
+  return digest;
+}
+
+/**
+ * A note's versions file from another device, merged into this one's: theirs as it is where this device has none, and
+ * every version of both where it has one. Remembered at their hash, so a merge that holds versions they lack is sent.
+ */
+async function fetchVersionsOf(ctx: SyncContext, noteId: string, digest: string): Promise<void> {
+  const id = fileId('versions', noteId);
+  if (!id || ctx.state.files[id]?.sha === digest) return;
+  let fetched: { bytes: Bytes; rev: number };
+  try {
+    fetched = await callBytes('GET', `recordings/${id}`, { token: ctx.token, fetcher: ctx.fetcher, timeoutMs: 300_000 });
+  } catch (failure) {
+    if (failure instanceof ApiError && failure.status === 404) return;
+    throw failure;
+  }
+  const theirs = words.decode(await openBytes(ctx.key, fetched.bytes, `file:${id}`));
+  const here = await ctx.files.read('versions', noteId);
+  const merged = here ? mergeFiles(words.decode(here), theirs, noteId) : theirs;
+  if (merged !== null && (!here || merged !== words.decode(here))) await ctx.files.write('versions', noteId, asBytes(merged));
+  ctx.state.files[id] = { rev: fetched.rev, sha: await sha(asBytes(theirs)) };
+}
+
+/** What a note needs sent before it: its recording, pictures and versions, where the service lacks them. */
+async function sendFilesOf(ctx: SyncContext, note: Note): Promise<Pick<NotePayload, 'recording' | 'images' | 'versions'>> {
+  const out: Pick<NotePayload, 'recording' | 'images' | 'versions'> = {};
   const recording = await sendRecordingOf(ctx, note);
   if (recording) out.recording = recording;
+  const versions = await sendVersionsOf(ctx, note.id);
+  if (versions) out.versions = versions;
   const images = imageNames(note.body);
   if (images.length) {
     out.images = images;
@@ -292,8 +370,9 @@ async function sendFilesOf(ctx: SyncContext, note: Note): Promise<Pick<NotePaylo
   return out;
 }
 
-/** What a note from another device needs fetched: its recording and pictures, where this device lacks them. */
+/** What a note from another device needs fetched: its recording, pictures and versions, where this device lacks them. */
 async function fetchFilesOf(ctx: SyncContext, payload: NotePayload): Promise<void> {
+  if (payload.versions) await fetchVersionsOf(ctx, payload.note.id, payload.versions);
   if (payload.recording) {
     const id = fileId('recording', payload.note.id);
     if (id && ctx.state.files[id]?.sha !== payload.recording) await fetchFile(ctx, 'recording', payload.note.id, payload.recording);
@@ -541,6 +620,16 @@ async function push(ctx: SyncContext, outcome: Outcome): Promise<void> {
   for (const id of Object.keys(ctx.state.notes)) {
     if (!present.has(id)) await sendCounted(ctx, id, null, outcome);
   }
+  // Versions kept with no change to a note's words (one named by hand, or merged with another device's here): the
+  // note goes again with its file, so the other devices hear of the file by the note's new revision, as they would of
+  // an edit, and fetch it.
+  const notes = new Map(here.map((note) => [note.id, note]));
+  for (const id of ctx.files.owed?.() ?? []) {
+    const note = notes.get(id);
+    if (!note || isSharedLive(id)) continue;
+    await sendCounted(ctx, id, note, outcome);
+  }
+  ctx.save(ctx.state);
 }
 
 /** One whole sync of the notes: what changed elsewhere first, then what changed here, then their pictures. */

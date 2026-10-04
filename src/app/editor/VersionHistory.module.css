@@ -1,0 +1,215 @@
+/* A note's version history (VersionHistory.tsx), a page of its More sheet. */
+
+.back {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin: 0 0 var(--glacier-space-3);
+  padding: var(--glacier-space-1) 0;
+  border: none;
+  background: none;
+  color: var(--glacier-text);
+  font: inherit;
+  font-weight: var(--glacier-font-weight-medium);
+  cursor: pointer;
+}
+
+/* What restoring a version changes, as a git diff reads: the lines that go struck through, the lines that come back
+   tinted, a little of what stays around them, and the rest folded. In the note's own monospace, line for line. */
+.change {
+  list-style: none;
+  margin: 0 0 var(--glacier-space-4);
+  padding: var(--glacier-space-2) 0;
+  border: var(--glacier-hairline) solid var(--app-rule);
+  border-radius: var(--glacier-radius-md);
+  font-family: var(--glacier-font-mono);
+  font-size: var(--glacier-font-size-sm);
+  line-height: 1.5;
+  overflow-x: auto;
+}
+
+.line {
+  display: grid;
+  grid-template-columns: 1.5em minmax(0, 1fr);
+  padding-inline: var(--glacier-space-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--app-ink-2);
+}
+
+.line[data-kind='add'] {
+  background: color-mix(in oklch, var(--app-ink) 10%, transparent);
+  color: var(--app-ink);
+}
+
+.line[data-kind='del'] {
+  color: var(--app-ink-3);
+  text-decoration: line-through;
+}
+
+.line[data-kind='fold'] {
+  color: var(--app-ink-3);
+  font-family: var(--glacier-font-sans);
+  font-style: italic;
+}
+
+.mark {
+  color: var(--app-ink-3);
+  user-select: none;
+}
+
+/*
+ * The timeline (Matt: "a way to view changes on a timeline in app along with the author of the changes"): each day's
+ * versions under its name, on one line down the page, each version a node on it - its author's initial in a ring -
+ * with who, when, its name, how much it changed and the first line it changed.
+ */
+.timeline {
+  display: grid;
+  gap: var(--glacier-space-3);
+  margin-block-end: var(--glacier-space-4);
+}
+
+.dayName {
+  margin: 0 0 var(--glacier-space-1);
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-medium);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-ink-3);
+}
+
+.entries {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* The line the versions hang on, through the middle of the authors' rings. */
+.entries::before {
+  content: '';
+  position: absolute;
+  inset-block: var(--glacier-space-3);
+  inset-inline-start: calc(var(--glacier-space-2) + 0.875rem - 0.5px);
+  inline-size: 1px;
+  background: color-mix(in oklch, var(--app-ink) 22%, transparent);
+}
+
+.entry {
+  position: relative;
+}
+
+.entryButton {
+  appearance: none;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--glacier-space-3);
+  inline-size: 100%;
+  margin: 0;
+  padding: var(--glacier-space-2);
+  border: none;
+  border-radius: var(--glacier-radius-md);
+  background: none;
+  color: var(--app-ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.entryButton:hover {
+  background: color-mix(in oklch, var(--app-ink) 5%, transparent);
+}
+
+.entryButton:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 1px;
+}
+
+.author {
+  position: relative;
+  display: grid;
+  place-items: center;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border: 1px solid var(--app-rule);
+  border-radius: var(--glacier-radius-full);
+  background: var(--app-paper);
+  color: var(--app-ink-2);
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-medium);
+}
+
+.entryBody {
+  display: grid;
+  gap: 0.15em;
+  min-inline-size: 0;
+}
+
+.entryHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--glacier-space-2);
+}
+
+.who {
+  font-weight: var(--glacier-font-weight-medium);
+}
+
+.when,
+.number {
+  color: var(--app-ink-3);
+  font-size: var(--glacier-font-size-sm);
+}
+
+.number {
+  font-variant-numeric: tabular-nums;
+  padding-block-start: 0.1em;
+}
+
+.label {
+  padding: 0 0.5em;
+  border: 1px solid var(--app-rule);
+  border-radius: var(--glacier-radius-full);
+  font-size: var(--glacier-font-size-xs);
+  color: var(--app-ink-2);
+}
+
+.entryWhat {
+  display: flex;
+  align-items: baseline;
+  gap: var(--glacier-space-2);
+  min-inline-size: 0;
+  font-size: var(--glacier-font-size-sm);
+}
+
+.counts {
+  flex: none;
+  color: var(--app-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.peek {
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--glacier-font-mono);
+  color: var(--app-ink-3);
+}
+
+.peek[data-kind='del'] {
+  text-decoration: line-through;
+}
+
+/* A version opened: who made it and when, under its name. */
+.byline {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin-block-end: var(--glacier-space-3);
+  color: var(--app-ink-2);
+  font-size: var(--glacier-font-size-sm);
+}

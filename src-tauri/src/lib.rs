@@ -196,6 +196,8 @@ pub fn run() {
             commands::set_note_archived,
             commands::set_note_recording,
             commands::set_note_formatted,
+            commands::versions_read,
+            commands::versions_write,
             commands::store_apply,
             commands::sync_put_file,
             commands::library_reveal,

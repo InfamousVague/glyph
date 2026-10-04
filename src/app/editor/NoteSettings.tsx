@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowUp, Bookmark, Feather, ListChecks, Mic, TextSearch } from '@glacier/icons';
+import { ArrowUp, Bookmark, Feather, History, ListChecks, Mic, TextSearch } from '@glacier/icons';
 import { ArchiveBox, ArrowLeft, Bin, Board, Locate, Pin, Workspace as WorkspaceIcon } from '../art/Icons.tsx';
 import { CheatSheet } from '../guide/CheatSheet.tsx';
 import { tagLabel, type GeoTag } from '../core/geotag.ts';
@@ -13,6 +13,9 @@ import { KIND_ICONS } from '../ai/icons.ts';
 import { KINDS, type KindWords, type RunKind } from '../ai/kinds.ts';
 import { isMacApp } from '../core/platform.ts';
 import { WorkspacePicker } from './WorkspacePicker.tsx';
+import { VersionHistory } from './VersionHistory.tsx';
+import { setKeepsVersions, versionsByDefault } from '../core/versions/record.ts';
+import type { Version } from '../core/versions/file.ts';
 import { ShareRows } from '../share/ShareRows.tsx';
 import { DEFAULT_TEMPLATE, PLACE_SENTENCE, templateSentence } from '../book/journal.ts';
 import { TemplatePicker } from '../book/TemplatePicker.tsx';
@@ -120,6 +123,11 @@ interface NoteSettingsProps {
     onAdd: () => void;
     onRemove: () => void;
   };
+  /**
+   * The note's version history (core/versions/record.ts): whether it keeps one, its words now, and how a version is put
+   * back - through the editor, as one change. Absent where a note has no history to keep (a transcript showing).
+   */
+  history?: { keeps: boolean; current: () => string; onRestore: (text: string, version: Version) => void };
 }
 
 /** Why a fix cannot be asked for here, as the row says it under "Add my location". */
@@ -285,10 +293,11 @@ export function NoteSettings({
   blanks = { count: 0, online: [] },
   location,
   look,
+  history,
 }: NoteSettingsProps) {
   // Re-rendered when a plugin is switched, so its rows come and go.
   usePlugins();
-  const [page, setPage] = useState<NoteLink | 'workspace' | 'cheatsheet' | 'journal' | null>(null);
+  const [page, setPage] = useState<NoteLink | 'workspace' | 'cheatsheet' | 'journal' | 'history' | null>(null);
   // Re-rendered as the note is filed, so the row says where it is.
   const spaces = useWorkspaces();
   const filed = workspaceOf(noteId);
@@ -339,7 +348,24 @@ export function NoteSettings({
     );
   }
 
-  if (page && page !== 'journal') {
+  if (page === 'history' && history) {
+    return (
+      <Sheet label="Version history" onClose={onClose} onBack={back}>
+        <VersionHistory
+          noteId={noteId}
+          title={title}
+          current={history.current}
+          onRestore={(text, version) => {
+            history.onRestore(text, version);
+            onClose();
+          }}
+          onBack={() => setPage(null)}
+        />
+      </Sheet>
+    );
+  }
+
+  if (page && page !== 'journal' && page !== 'history') {
     // The cheat sheet is read here rather than picked from, so it is shown whole instead of through a plugin's picker.
     const Picker = page === 'cheatsheet' ? null : page === 'workspace' ? WorkspacePicker : page.Picker;
     const label = page === 'cheatsheet' ? 'Formatting cheat sheet' : page === 'workspace' ? 'Workspace' : page.label;
@@ -471,6 +497,22 @@ export function NoteSettings({
         <SheetRow icon={Pin} label={pinned ? 'Unpin' : 'Pin to the top'} onPress={onPin} />
         <SheetRow icon={ArchiveBox} label="Archive" onPress={onArchive} />
         <SheetRow icon={WorkspaceIcon} label="Workspace" hint={filed ? filed.name : spaces.list.length ? 'Not in one' : 'None yet. Make one to sort your notes.'} onPress={() => setPage('workspace')} />
+        {/* Every version kept, to go back to (Matt: "allow versioning on personal notes by enabling it under the more menu"). */}
+        {history ? (
+          history.keeps ? (
+            <SheetRow icon={History} label="Version history" hint={versionsByDefault(noteId) ? 'Kept for an organization’s notes. Go back to any version.' : 'Every version kept. Go back to any of them.'} onPress={() => setPage('history')} />
+          ) : (
+            <SheetRow
+              icon={History}
+              label="Keep version history"
+              hint="Saves a version as you write, to go back to like git. Kept beside the note as a .versions file."
+              onPress={() => {
+                setKeepsVersions(noteId, true);
+                setPage('history');
+              }}
+            />
+          )
+        ) : null}
         {/* Where it was written, last of where it sits (core/location.ts): the tag added or taken off, and why it can't be here. */}
         {location ? (
           location.tag ? (

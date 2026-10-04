@@ -9291,7 +9291,7 @@ the note is ciphertext and a token carries no device, and a write Claude makes i
 a phone's. The other way, each device noticing a known AI's name arriving in a note's authors, was turned down: it
 fires once per device, only for a signed write, and never for a client that signs nothing. `note-edited` carries a
 line diff, `{ added, removed, first, at }`, because the review found "Claude edited Trip to Lisbon" had nothing to
-open onto - the app keeps no note history, and `update_note` holds both bodies at the moment of the write and threw
+open onto - the app kept no note history then (§182 adds one, for the notes that ask for it), and `update_note` holds both bodies at the moment of the write and threw
 the difference away; now the row reads "· 2 lines changed", the first changed line sits under it, and the note opens
 at that line's anchor. `add_journal_entry` makes two writes and one row; the Claude rules note is announced only when
 it is made, not on every connect. The app's own two: `summary-written` where a recording's summary lands
@@ -9838,3 +9838,71 @@ Tests: notices/NoticeWorkerTest.kt (the sentences, what is posted, where a tap g
 core/notifications/phone.test.ts, and the phone row in settings/NotificationsPane.test.tsx.
 
 Cites: §170, §174, §177.
+
+## 182. Version history, and the versions file (2026-10-04)
+
+Matt: "Please add edit history timelines to notes that are in organizations by default and allow versioning on
+personal notes by enabling it under the more menu. We should be able to revert back to previous versions like git
+kinda but create a special file like a versions files that efficiently tracks changes in a way that can be shared via
+a file it doesn't need to be super human readable but it should be at least a bit (like a yarn lock)", and then
+"include a way to view changes on a timeline in app along with the author of the changes". His three answers: the file
+sits beside the note, it syncs encrypted like the note, and a version is kept after a pause and by hand.
+
+**Which notes.** A note in an organization's workspace keeps a history unless it is switched off; a note of one's own
+keeps one once More › Keep version history is pressed. Both are the `versions` preference (a yes for one's own, a no
+for an organization's), so the choice syncs (core/versions/record.ts). Notes are still not shared inside an
+organization (docs/TEAMS.md), so for now an organization's timeline is the person's own edits on their devices; the
+file already carries an author per version for when teammates write into one note.
+
+**When.** After two minutes with no typing, when the note is left (closed, the app put away, the page gone), when the
+history is switched on or a note that keeps one is opened, and by hand with an optional name. Never a version of no
+change: the same words again are not a version, though a name can be put on the last one
+(editor/useVersionKeeping.ts).
+
+**The file.** `<Title>.versions` beside `<Title>.md`, renamed, moved and deleted with it, never indexed as a note
+(src-tauri/src/library/versions.rs; native generation 24, `versions_read` and `versions_write`). It reads like a
+lock file (core/versions/file.ts):
+
+    # Ghost.md versions 1
+    # note gho-7f3a
+    # A version is the change from the one before it: "=N" keeps N lines, "-" takes a line out, "+" puts one in.
+
+    v1 2026-10-04T15:20:01.000Z matt 3f9a21c0 full
+      +# Launch plan
+      +- book the venue
+    v2 2026-10-04T16:02:44.000Z matt 8c0d4e11 "Before the review"
+      =1
+      -- book the venue
+      +- book the venue (done)
+
+Each version is its head line - number, time, author, an FNV-1a hash of the whole text, and a name - and its change
+from the version before as Myers' shortest edit script, the one git uses (core/versions/diff.ts). One in every 50 is
+written whole (`full`), and the file keeps at most 1,000 versions, the oldest going first. Reading rebuilds every
+version and checks it against its hash: a version that does not come out right is left out and counted, never shown
+as something it was not, and only the versions up to the next whole one go with it. In a browser, and on a binary
+older than generation 24, the page keeps the file under `glyph-versions-<id>`, and moves it beside the note the first
+time it is read on a binary that can (core/versions/store.ts).
+
+**Sync.** The file is a third kind of sealed file beside recordings and pictures, `v-<note id>`, and the note carries
+its hash (core/sync/notes.ts). Two devices that both kept versions are not a choice: their files are merged version
+by version, keyed by time, author and hash, on whichever side meets the other's - a 409 on the send, or a newer hash
+on a pull - so every version of both survives, in the order they were kept. A version kept with no change to the
+words sends the note again with the file, so the other devices hear of it by the note's revision.
+
+**The timeline.** More › Version history: a field to name a version and Save a version now; the versions newest first
+under the day each was kept, on a line down the page, each with its author's initial in a ring, who, when, its name,
+"+3 −1", and the first line it changed. A version opened shows what it changed against the one before, then what
+restoring it would change against the note now, line by line as a diff reads, and Restore. Restoring keeps the note
+as it is as a version first, puts the old words in through the editor as one change to undo, and keeps them as a new
+version named "Back to version 3" - the history only grows, as `git revert` does. Share the versions file sends it
+through the phone's share sheet where it takes a file, downloads it in a browser, and opens the library's folder on
+the Mac, where it sits beside the note. Stop keeping history leaves the file; switched on again, it carries on.
+
+Not covered: importing a versions file someone sent, which is merged the same way but has no button yet; a note's
+history on the server after the note is deleted (its sealed file stays); and canvases, which are JSON and have no
+line diff worth reading.
+
+Tests: core/versions/diff.test.ts, file.test.ts, record.test.ts; the versions cases in core/sync/notes.test.ts; the
+timeline in editor/NoteSettings.test.tsx; src-tauri library/versions.rs.
+
+Cites: §170, §179.

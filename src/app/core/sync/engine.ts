@@ -17,6 +17,7 @@ import { recordingDigest } from '../recordings.ts';
 import { announceNotesChanged, applyNote, deleteNote, getNote, listNotes, NOTE_SAVED, type Note } from '../store.ts';
 import { readStored, writeStored } from '../stored.ts';
 import { invoke, isTauri } from '../tauri.ts';
+import { readVersionsFile, sentVersions, unsentVersions, writeVersionsFile } from '../versions/store.ts';
 import type { Bytes } from './crypto.ts';
 import { emptyState, mark, syncNotes, type FileKind, type LocalFiles, type LocalNotes, type SyncState } from './notes.ts';
 import { syncPrefs, type PrefsState } from './prefs.ts';
@@ -165,16 +166,24 @@ async function fetchLocal(url: string): Promise<Bytes | null> {
 const deviceFiles: LocalFiles = {
   async read(kind: FileKind, name: string) {
     if (kind === 'image') return imageBytes(name);
+    if (kind === 'versions') {
+      const text = await readVersionsFile(name);
+      return text === null ? null : new TextEncoder().encode(text);
+    }
     // A browser keeps no recordings.
     return isTauri() ? fetchLocal(convertFileSrc(`${name}.wav`, 'rec')) : null;
   },
   async write(kind: FileKind, name: string, bytes: Bytes) {
     // A picture is drawn at once wherever a page was waiting for it (core/images.ts).
     if (kind === 'image') return keepImage(name, bytes);
+    // A versions file from the account is not owed back to it; what this device adds to it is, when it adds it.
+    if (kind === 'versions') return writeVersionsFile(name, new TextDecoder().decode(bytes), { owed: false });
     if (!isTauri()) return;
     // Standard base64, which is what Rust reads.
     await invoke('sync_put_file', { kind, name, base64: toBase64(bytes) });
   },
+  owed: unsentVersions,
+  settled: sentVersions,
   // A recording's fingerprint from the phone rather than from its bytes read into the page (native generation 20):
   // the same first sixteen bytes of the SHA-256 the pass would take itself. Undefined where the binary cannot say,
   // so the pass reads the file as it always did: an older binary, iOS (whose command answers null for every tape,
