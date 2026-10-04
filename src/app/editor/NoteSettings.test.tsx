@@ -214,6 +214,47 @@ describe('what plugins add to it', () => {
     expect(run).toHaveBeenCalledWith(note);
   });
 
+  it('opens an action’s places as a page when it has several, runs the one chosen, and runs one place at once', () => {
+    const run = vi.fn(async () => undefined);
+    let places = [
+      { id: 'c1', label: '#launch' },
+      { id: 'c2', label: '#ops' },
+    ];
+    plugged.actions = [{ id: 'post', label: 'Post to Slack', icon: Board, visible: () => true, hint: () => 'Choose a channel.', enabled: () => true, choices: () => places, run }];
+    const note = editing('Hello');
+    const props = sheet({ editing: note });
+    show(<NoteSettings {...props} />);
+    act(() => buttonSaying(document.body, 'Post to Slack')!.click());
+    expect(props.onClose).not.toHaveBeenCalled();
+    expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Post to Slack');
+    act(() => {
+      goBack();
+    });
+    // Back steps to the note's settings, not out of the sheet.
+    expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Settings for Groceries');
+    expect(props.onClose).not.toHaveBeenCalled();
+    act(() => buttonSaying(document.body, 'Post to Slack')!.click());
+    act(() => buttonSaying(document.body, '#ops')!.click());
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledWith(note, 'c2');
+    unmount();
+    places = [{ id: 'c1', label: '#launch' }];
+    const again = sheet({ editing: note });
+    show(<NoteSettings {...again} />);
+    act(() => buttonSaying(document.body, 'Post to Slack')!.click());
+    expect(again.onClose).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenLastCalledWith(note, 'c1');
+  });
+
+  it('shows an action by the note as it was when the sheet opened', () => {
+    plugged.actions = [{ id: 'sum', label: 'Post the summary', icon: Board, visible: (_id, body) => body.includes('## Summary'), hint: () => '', enabled: () => true, run: vi.fn() }];
+    show(<NoteSettings {...sheet({ editing: editing('# Standup\n\n## Summary\nWe met.') })} />);
+    expect(buttonSaying(document.body, 'Post the summary')).toBeDefined();
+    unmount();
+    show(<NoteSettings {...sheet({ editing: editing('# Standup') })} />);
+    expect(buttonSaying(document.body, 'Post the summary')).toBeUndefined();
+  });
+
   it('greys an action with nothing to do, and leaves out one that is not for this note', () => {
     plugged.actions = [
       { id: 'send', label: 'Send the list', icon: Board, visible: () => true, hint: () => 'Every item is already there.', enabled: () => false, run: vi.fn() },

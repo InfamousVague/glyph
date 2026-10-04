@@ -9976,3 +9976,56 @@ Tests: the quiet bar in App.test.tsx; the strip's place is CSS over a sibling th
 in the browser at 1200px: the strip now starts at 59.9.
 
 Cites: §178, §180, §181.
+
+## 185. Slack (2026-10-04)
+
+Matt: "include #6 as a plugin as well as #5", where #5 was "Slack: post a meeting's summary, or a note, to a channel
+when you choose to. It pairs well with organizations: a team's news could go to its channel too. Sending is always
+your choice, so the encryption holds." He chose incoming webhooks: no sign-in, no server work, the post goes straight
+from the device.
+
+**A sixth built-in plugin, off until switched on** (src/app/plugins/slack/, `standard: false`). Its page in Settings ›
+Plugins › Slack lists the person's channels: a name they give ("#launch") and the webhook Slack gave them, checked by its
+shape as it is pasted (`https://hooks.slack.com/services/…` or `/workflows/…`), with Test, Rename and Forget on each. In a
+browser the page says Slack works in the app; on a binary before native generation 25 it says to update.
+
+**On a note's More sheet**, once a channel is added: "Post to Slack" posts the whole note, its title as a bold first line
+and the rest in Slack's mrkdwn (plugins/slack/mrkdwn.ts: bold, italics, strikes, headings as bold lines, ☐ and ☑ for
+to-dos, • for bullets, `<url|words>` links, code as written, the three escapes; front matter dropped, links into the app
+as their words, a picture on the phone left out, and a redaction as a bar rather than in the clear). "Post the summary to
+Slack" shows only on a note with a meeting's summary (`summarySection(body, keptText(noteId))`) and posts that section
+under the note's title. With several channels the row opens them as a page of the sheet; with one it posts at once. The
+note then says "Posted to #launch.", or "Not posted to #launch." and Slack's reason in a sentence. To make the choice a
+page, `NoteAction` gained `choices(noteId)` and `run(editing, choice)`, and `visible` is now handed the body too, so the
+summary row can ask whether there is one.
+
+**An organization's news to its channel.** For each organization the person is a member of, the page offers a channel
+for its news. After each pass of the feed, the new news rows (notes/orgNews.tsx `NEWS`) for an organization with a
+channel go there as the bell's sentence (`sentenceOf`), by the phone notifications' rule: rows above the cursor the pass
+began at, oldest first, nothing on a device's first look. Each row goes once per device (the posted ids are kept,
+`glyph-slack-posted`, before the post goes), nothing older than the moment the channel was chosen goes, and a post that
+fails is not tried again. Core does not name the plugin: core/sync/engine.ts tells core/notifications/arrived.ts, the
+registry listens there and hands the rows to switched-on plugins' new `newRows` extension point.
+
+**Where the webhooks live.** A webhook is a secret: whoever holds it can post to the channel. So, as with Notion's
+sign-in, it is kept natively: `slack.json` in the app's data directory, written with `fsx::write_private` (0600), id to
+URL (src-tauri/src/slack.rs: `slack_channels`, `slack_save_channel`, `slack_forget_channel`, `slack_post`). The page keeps
+only names and ids (`glyph-slack-channels`) and posts by naming the id, so no page can read a webhook back once it is
+handed over. Rust holds every URL to `https://hooks.slack.com/services/` or `/workflows/` and plain token characters,
+when it is kept and again when it is posted to, follows no redirect, and times out at 20 seconds; a reset removes the
+file with the Notion account. The post is native for a second reason too: hooks.slack.com does not answer a web page's
+cross-origin request.
+
+**This device's only.** Neither channels nor the news choice sync, and the page says "Kept on this device". A second
+phone has no channels until they are added there, and every device with a channel set for an organization posts its
+news, so the page says to set it on one.
+
+Not covered: Slack sign-in, choosing a channel from Slack's own list, threads, replies or editing a post, posting a
+picture or a recording, retrying a failed news post, posting news from a closed app (it rides on the page's sync passes),
+and iOS, where `slack_post` refuses as Notion's request does. Native generation 25 is the parent change's bump.
+
+Tests: plugins/slack/mrkdwn.test.ts, channels.test.ts, news.test.ts, actions.test.ts and SlackPane.test.tsx; the choices
+page and `visible`'s body in editor/NoteSettings.test.tsx; the registry's list; `slack::tests` in Rust (the allow-list,
+the private file, a hand-edited file, Slack's answers as sentences) and the reset's.
+
+Cites: §138, §181, §183.

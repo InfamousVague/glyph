@@ -2,9 +2,12 @@ import { notionPlugin } from './notion/index.tsx';
 import { githubPlugin } from './github/index.tsx';
 import { marksPlugin } from './marks/index.tsx';
 import { claudePlugin } from './claude/index.tsx';
+import { slackPlugin } from './slack/index.tsx';
 import { PluginPermissionError } from './host.ts';
 import { registerMarkName } from '../core/itemLinks.ts';
 import { markDetailsChanged, provideMarkDetails } from '../core/markDetails.ts';
+import { onArrived } from '../core/notifications/arrived.ts';
+import type { Notification } from '../core/notifications/kinds.ts';
 import { onPreferences, preferences } from '../core/preferences.ts';
 import { readStored, writeStored } from '../core/stored.ts';
 import { usesNetwork } from './reach.ts';
@@ -46,6 +49,8 @@ export interface Registry {
   storageKeys(): string[];
   /** The inline formattings of every switched-on plugin (editor/language.ts parses them). */
   formats(): InlineFormat[];
+  /** A pass of the feed's rows, handed to every switched-on plugin that asks for them (core/notifications/arrived.ts). */
+  newRows(before: number, rows: readonly Notification[]): Promise<void>;
 }
 
 /** A note's link to something outside it, with that thing's name. */
@@ -177,13 +182,20 @@ export function createRegistry(plugins: readonly GlyphPlugin[], store: SwitchSto
     suggestions: (noteId, body) => enabled().flatMap((p) => p.suggest?.(noteId, body) ?? []),
     storageKeys: () => [SWITCHES_KEY, ...plugins.flatMap((p) => p.manifest.storage)],
     formats: () => enabled().flatMap((p) => p.formats ?? []),
+    async newRows(before, rows) {
+      // Each on its own: one plugin's failure is not another's.
+      await Promise.all(enabled().map((p) => p.newRows?.(before, rows).catch(() => undefined)));
+    },
   };
 }
 
 /** The plugins that ship with Glyph. */
-export const BUILT_IN: readonly GlyphPlugin[] = [notionPlugin, githubPlugin, marksPlugin, claudePlugin];
+export const BUILT_IN: readonly GlyphPlugin[] = [notionPlugin, githubPlugin, marksPlugin, claudePlugin, slackPlugin];
 
 export const plugins = createRegistry(BUILT_IN);
+
+// The feed's new rows reach the plugins through here, so core/sync/engine.ts never names one.
+onArrived((before, rows) => plugins.newRows(before, rows));
 
 /** The formatter's context for a note, from every plugin that gives one (format/pipeline.ts). */
 export const pluginContextFor = (noteId: string) => plugins.contextFor(noteId);

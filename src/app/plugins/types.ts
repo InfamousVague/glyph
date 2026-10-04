@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import type { StrokeIcon } from '../art/Icons.tsx';
 import type { MarkDetailsProvider } from '../core/markDetails.ts';
+import type { Notification } from '../core/notifications/kinds.ts';
 import type { TextEffectName } from '../editor/textEffects.ts';
 import type { SettingsFindable } from '../settings/settingsSearch.ts';
 
@@ -121,11 +122,25 @@ export interface NoteAction {
   id: string;
   label: string;
   icon: ComponentType;
-  /** Whether the row shows for this note at all. */
-  visible(noteId: string): boolean;
+  /** Whether the row shows for this note at all, by the note as it was when the sheet opened. */
+  visible(noteId: string, body: string): boolean;
   hint(noteId: string, body: string): string;
   enabled(noteId: string, body: string): boolean;
-  run(editing: NoteEditing): Promise<void>;
+  /**
+   * Where it could go, when it goes somewhere: a Slack channel to post to. With more than one, pressing the row opens
+   * them as a page of the sheet, one row each, and the one pressed is handed to `run`; with one, `run` is handed that
+   * one at once. Without, the row simply runs.
+   */
+  choices?(noteId: string): readonly ActionChoice[];
+  /** `choice` is the id of the choice pressed, for an action with `choices`. */
+  run(editing: NoteEditing, choice?: string): Promise<void>;
+}
+
+/** One place a note action can go, drawn as a row on its page of the sheet. */
+export interface ActionChoice {
+  id: string;
+  label: string;
+  hint?: string;
 }
 
 /** Swiping a list item left in a note. */
@@ -252,4 +267,10 @@ export interface GlyphPlugin {
   marks?: MarkDetailsProvider;
   /** Inline formattings of its own in every note: text between its delimiters, drawn its way. */
   formats?: readonly InlineFormat[];
+  /**
+   * The bell's rows after each pass of the feed (core/notifications/arrived.ts): `before` is the cursor the pass
+   * began at, and the rows are all this device keeps. New ones are those above `before`, and none on a device's first
+   * look (`before` of 0). Told only while the plugin is on.
+   */
+  newRows?: (before: number, rows: readonly Notification[]) => Promise<void>;
 }

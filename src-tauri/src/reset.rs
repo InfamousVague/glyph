@@ -3,7 +3,7 @@
 //! `reset_local_data({ models })` removes every note from the library (the
 //! files, what is kept beside them, and the index), the recordings, pictures
 //! and films, what waits in the cache's `picked/` to be kept, the meetings'
-//! write-ups (`jobs/`), the Notion sign-in, and - only
+//! write-ups (`jobs/`), the Notion sign-in, the Slack webhooks, and - only
 //! when asked - the models directory, whisper's and the formatter's alike. The
 //! page clears what it keeps itself (preferences, the guide's seen flag, the
 //! refine queue) and reloads; on Android it cancels the write-ups' WorkManager
@@ -35,6 +35,7 @@ struct Kept {
     picked: Option<PathBuf>,
     jobs: Option<PathBuf>,
     notion: Option<PathBuf>,
+    slack: Option<PathBuf>,
     models: Option<PathBuf>,
 }
 
@@ -54,14 +55,16 @@ pub fn reset_local_data(app: AppHandle, store: State<'_, NotesStore>, models: bo
         picked: paths::picked_dir(&app).ok(),
         jobs: paths::jobs_dir(&app).ok(),
         notion: crate::notion::account_path(&app).ok(),
+        slack: crate::slack::webhooks_path(&app).ok(),
         models: paths::models_dir(&app).ok(),
     };
     reset(&store, &kept, models)
 }
 
 /// The reset itself, in the order it has always run: the notes, then the
-/// recordings, pictures, films and write-ups, then the Notion sign-in, then -
-/// if asked - the models. The first failure stops it and is the answer.
+/// recordings, pictures, films and write-ups, then the Notion sign-in and the
+/// Slack webhooks, then - if asked - the models. The first failure stops it and
+/// is the answer.
 fn reset(notes: &NotesStore, kept: &Kept, models: bool) -> Result<(), String> {
     notes.lock().clear().map_err(|e| e.to_string())?;
     remove_dir(kept.recordings.as_deref(), "recordings")?;
@@ -72,6 +75,10 @@ fn reset(notes: &NotesStore, kept: &Kept, models: bool) -> Result<(), String> {
     // The Notion sign-in: a reset leaves no account behind.
     if let Some(path) = &kept.notion {
         crate::fsx::remove_file_if_present(path).map_err(|e| format!("could not forget the Notion account: {e}"))?;
+    }
+    // The Slack webhooks: each one is a key to post to a channel, and none outlives a reset.
+    if let Some(path) = &kept.slack {
+        crate::fsx::remove_file_if_present(path).map_err(|e| format!("could not forget the Slack webhooks: {e}"))?;
     }
     if models {
         remove_dir(kept.models.as_deref(), "models")?;
@@ -96,6 +103,7 @@ mod tests {
             std::fs::write(root.join(file), b"bytes").unwrap();
         }
         std::fs::write(root.join("notion.json"), br#"{"accessToken":"secret_x"}"#).unwrap();
+        std::fs::write(root.join("slack.json"), br#"{"channels":{"a1":"https://hooks.slack.com/services/T0/B0/x"}}"#).unwrap();
         let kept = Kept {
             recordings: Some(root.join("recordings")),
             images: Some(root.join("images")),
@@ -103,6 +111,7 @@ mod tests {
             picked: Some(root.join("cache/picked")),
             jobs: Some(root.join("jobs")),
             notion: Some(root.join("notion.json")),
+            slack: Some(root.join("slack.json")),
             models: Some(root.join("models")),
         };
         (root, NotesStore(Mutex::new(library)), kept)
@@ -119,6 +128,7 @@ mod tests {
         assert!(!root.join("video").exists(), "the films go with the pictures");
         assert!(!root.join("cache/picked").exists() && root.join("cache").exists(), "and what waited to be kept, not the rest of the cache");
         assert!(!root.join("notion.json").exists(), "no account is left signed in");
+        assert!(!root.join("slack.json").exists(), "no webhook is left to post with");
         assert!(root.join("models/ggml-base.en-q5_1.bin").exists(), "a 60 MB download is not thrown away unasked");
         reset(&notes, &kept, false).unwrap();
     }

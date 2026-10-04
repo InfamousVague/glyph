@@ -2,7 +2,7 @@
 //!
 //! Cargo.toml builds none of whisper.cpp, llama.cpp, reqwest, sha2 or ring for
 //! iOS (its `cfg(not(target_os = "ios"))` table), so on-device transcription,
-//! formatting, update checks, the APK, Notion and link previews have nothing to
+//! formatting, update checks, the APK, Notion, Slack and link previews have nothing to
 //! run on there, and the iPhone app has no video picker for a film to come from. Their commands still EXIST on iOS, with the same signatures:
 //! a page written against one surface is a page that needs no platform switch
 //! to load (capture_commands.rs's header makes the argument). Each answers
@@ -45,6 +45,9 @@ pub const APK: &str = "There is no APK on iOS.";
 /// `notion_request`.
 pub const NOTION: &str = "Notion is not available on iOS yet.";
 
+/// `slack_post`.
+pub const SLACK: &str = "Slack is not available on iOS yet.";
+
 /// `link_preview`.
 pub const LINK_PREVIEWS: &str = "Link previews are not available on iOS yet.";
 
@@ -73,6 +76,7 @@ mod tests {
         assert_eq!(refused(UPDATES), "Over-the-air updates are Android-only.");
         assert_eq!(refused(APK), "There is no APK on iOS.");
         assert_eq!(refused(NOTION), "Notion is not available on iOS yet.");
+        assert_eq!(refused(SLACK), "Slack is not available on iOS yet.");
         assert_eq!(refused(LINK_PREVIEWS), "Link previews are not available on iOS yet.");
         assert_eq!(refused(PLACE_NAMES), "Place names are not available on iOS yet.");
         assert_eq!(refused(VIDEOS), "Videos are not available on iOS yet.");
