@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Book, Feather, Link2, SquarePen, Workflow } from '@glacier/icons';
+import { ArrowLeft, Book, Feather, Link2, SquarePen, Volume2, Workflow } from '@glacier/icons';
 import { Cassette } from '../art/Icons.tsx';
+import { meetingSoundWords, useMeetingSoundSupport } from '../capture/systemSound.ts';
+import { setPreferences, usePreferences } from '../core/preferences.ts';
 import { failureText } from '../core/failure.ts';
 import { SheetField, SheetGroup, SheetRow, SheetTitle } from '../plugins/kit.tsx';
 import { Sheet } from '../editor/Sheet.tsx';
@@ -15,7 +17,9 @@ import { entryStarts, startLine } from '../book/entryStarts.ts';
  * closes it and makes nothing.
  *
  * And a meeting (docs/DESIGN.md §127 section 3), only where one can be recorded (capture/meeting.ts): the Mac, and an
- * Android phone with the service. And a copy of something shared with you (share/share.ts, docs/SHARING.md): "From a
+ * Android phone with the service. Under it, where this device can put its own sound in a meeting (capture/systemSound.ts,
+ * native generation 25), the switch for that, ticked when on: "Record the computer's sound too" on a Mac, "Include sound
+ * from other apps" on Android, with the limit said under it (media and games, never calls). And a copy of something shared with you (share/share.ts, docs/SHARING.md): "From a
  * shared link" takes a link to a shared note or book and saves it into this library as your own copy.
  *
  * And, with a journal, a new entry (docs/DESIGN.md §142), right after Note, in the pen an entry is written with: in the
@@ -49,6 +53,9 @@ export function NewSheet({ open, onClose, onNote, onCanvas, onBook, entry, onMee
   const [busy, setBusy] = useState(false);
   /** The entry row pressed: the sheet shows what the entry can start with. */
   const [starting, setStarting] = useState(false);
+  /** Whether a meeting here can have the device's own sound in it, and whether it will. */
+  const sound = useMeetingSoundSupport();
+  const prefs = usePreferences();
   /*
    * However it closed - the scrim, a drag down, the back gesture, a choice made - the next + opens on the choices,
    * not on the field and the words left in it. Only the scrim used to clear them.
@@ -112,6 +119,16 @@ export function NewSheet({ open, onClose, onNote, onCanvas, onBook, entry, onMee
         <SheetRow icon={Workflow} label="Canvas" hint="Cards on a page with lines between them." onPress={pick(onCanvas)} />
         <SheetRow icon={Book} label="Notebook" hint="Notes in an order with an index, or a journal of dated entries." onPress={pick(onBook)} />
         {onMeeting ? <SheetRow icon={Cassette} label="Meeting" hint="Record a meeting. The screen can go off. It is written up afterwards." onPress={pick(onMeeting)} /> : null}
+        {onMeeting && sound?.supported ? (
+          <SheetRow
+            icon={Volume2}
+            label={meetingSoundWords().label}
+            hint={meetingSoundWords().hint}
+            chosen={prefs.meetingSound}
+            // A switch, not a choice that makes something: the sheet stays open for Meeting.
+            onPress={() => setPreferences({ meetingSound: !prefs.meetingSound })}
+          />
+        ) : null}
         {onFromLink && link === null ? (
           <SheetRow icon={Link2} label="From a shared link" hint="A copy of a note or notebook someone shared with you." onPress={() => setLink('')} />
         ) : null}

@@ -25,6 +25,10 @@ import styles from './MeetingScreen.module.css';
  * write-up. Discard stops it and deletes the WAV, and the page deletes the note itself. Back only leaves: the
  * recording goes on, stoppable here or from the notification, and a locked phone goes back behind its lock screen.
  *
+ * Other apps' sound (native generation 25; capture/OtherApps.kt), when the meeting was started with "Include sound
+ * from other apps": a line that says it is in the recording, and that calls are not (Android never lets an app hear
+ * one), or, when sharing was declined or stopped from the status bar, that the microphone is recording on its own.
+ *
  * Under the cassette, until it has been asked once on this device, the way to be told when the meeting is written
  * up (the meeting's own notification prompt, never the update alerts'), and, refused - the phone blocking the prompt,
  * or the prompt answered no, now or on an earlier meeting - the line that says the notification's Stop is not coming.
@@ -105,6 +109,15 @@ export function MeetingScreen({ noteId, fromAssistant, onLeave }: MeetingScreenP
       <div className={styles.body}>
         <TapeArt bare playing={mine} positionMs={elapsedMs} lengthMs={Math.max(TAPE_MS, elapsedMs)} className={styles.tape} />
         <p className={styles.line}>Recording. The screen can go off and you can leave. Stop here or from the notification.</p>
+        {mine && live.otherApps ? (
+          <p className={styles.line} role="status">
+            {live.otherAppsHeard ? 'Recording sound from other apps too.' : 'Listening for sound from other apps too.'} Media and games, never calls.
+          </p>
+        ) : mine && live.otherAppsNote ? (
+          <p className={styles.line} role="status">
+            {live.otherAppsNote}
+          </p>
+        ) : null}
         {mine && live.silenced ? (
           <p className={styles.line} role="status">
             Muted by another app.

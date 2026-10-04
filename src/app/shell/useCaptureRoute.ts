@@ -7,6 +7,7 @@ import { afterPendingDeletes } from '../capture/launch.ts';
 import type { Placing } from '../capture/place.ts';
 import { isUntouched } from '../core/untouched.ts';
 import { meetingTitle } from '../capture/meeting.ts';
+import { wantsOtherApps } from '../capture/systemSound.ts';
 import { meetingStateNow, onMeetingEvent, useMeetingState, type MeetingEvent } from '../capture/meetingLive.ts';
 import { freshTapeId, setTapeId } from '../core/clips.ts';
 import { answerHost, forgetDiscardedOnHost, startMeetingOnHost } from '../core/host.ts';
@@ -208,7 +209,9 @@ export function useCaptureRoute({ screen, setScreen, refresh, flushDeletes, atBo
   /** The service asked; what it answers decides what happens next. */
   const ask = useCallback(
     async (id: string, title: string, fromAssistant: boolean) => {
-      const answer = startMeetingOnHost(id, title);
+      // Other apps' sound too when the switch is on and this phone and binary can (capture/systemSound.ts): the
+      // activity then asks Android's screen-share consent before the service starts.
+      const answer = startMeetingOnHost(id, title, await wantsOtherApps(preferences().meetingSound));
       if (answer === 'started') {
         pendingMeeting.current = null;
         started.current.add(id);

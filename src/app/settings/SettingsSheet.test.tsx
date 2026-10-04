@@ -207,6 +207,7 @@ describe('the list of sections', () => {
       'Review after recording',
       'Better words',
       'Summaries',
+      'Include sound from other apps',
       'Tell me when a meeting is written up',
       'Write up straight away',
       'Tapes',
@@ -236,7 +237,15 @@ describe('the list of sections', () => {
     native = true;
     const host = settings();
     expect(labels(host)).toEqual(['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
-    expect(names('recording')).toEqual(['Stop when I go quiet', 'Review after recording', 'Better words', 'Summaries', 'Tapes', 'Remove audio older than a month']);
+    expect(names('recording')).toEqual([
+      'Stop when I go quiet',
+      'Review after recording',
+      'Better words',
+      'Summaries',
+      "Record the computer's sound too",
+      'Tapes',
+      'Remove audio older than a month',
+    ]);
     expect(names('ai')).toEqual(['Model', 'Fill blanks on their own']);
   });
 
@@ -459,6 +468,7 @@ const ELSEWHERE: Record<string, string> = {
   // Meetings' rows, drawn only on a phone whose binary has the service (native generation 20); the test's binary answers no generation.
   'recording/Tell me when a meeting is written up': 'only with the meeting service',
   'recording/Write up straight away': 'only with the meeting service',
+  'recording/Include sound from other apps': 'only with the meeting service',
   // Notion's page is an empty state in a browser and on a binary without its commands; its boards, once signed in to Notion.
   'plugin:notion/Account': 'only in the app, with Notion’s commands',
   'plugin:notion/Boards': 'only signed in to Notion',

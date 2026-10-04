@@ -102,6 +102,12 @@ describe('a store written by another build, or half written', () => {
     expect(launchWith({ writeUp: 'overnight', syncMeetingRecordings: 'yes' })).toMatchObject({ writeUp: 'charging', syncMeetingRecordings: false });
   });
 
+  it('reads a meeting\u2019s own sound as off unless written on, and off by default', () => {
+    expect(DEFAULT_PREFERENCES.meetingSound).toBe(false);
+    expect(launchWith({ meetingSound: true })).toMatchObject({ meetingSound: true });
+    expect(launchWith({ meetingSound: 'yes' })).toMatchObject({ meetingSound: false });
+  });
+
   it('reads as the defaults when there is nothing, or nothing that is JSON', () => {
     expect(preferences()).toEqual(DEFAULT_PREFERENCES);
     localStorage.setItem(KEY, '{half');

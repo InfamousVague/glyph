@@ -105,6 +105,14 @@ interface GlyphHostBridge {
    * "recording" when a meeting is already being recorded, or a short reason it could not.
    */
   startMeeting?(noteId: string, title: string): string;
+  /**
+   * As `startMeeting`, with other apps' sound in the meeting when `otherApps` is set (native generation 25;
+   * capture/OtherApps.kt): the activity asks Android's screen-share consent first, and the service starts once it is
+   * answered, declined or not. Media and games only; Android never lets an app capture a call.
+   */
+  startMeetingWith?(noteId: string, title: string, otherApps: boolean): string;
+  /** `{ supported, reason }` as JSON: whether this phone can put other apps' sound in a meeting (Android 10+). */
+  meetingSound?(): string;
   /** Done: the service stops recording and carries on as the write-up. */
   stopMeeting?(): void;
   /** The service stops and deletes the WAV; the page deletes the note itself. */
@@ -230,12 +238,31 @@ export function setCapturing(on: boolean): boolean {
 /** What `startMeeting` answers where there is no service to start one: the page undoes and says this. */
 export const NO_MEETING_SERVICE = 'Meetings need the newest Ghost.md.';
 
-/** Ask the service to record a meeting into `noteId`'s tape; see `GlyphHostBridge.startMeeting` for the answers. */
-export function startMeetingOnHost(noteId: string, title: string): string {
+/**
+ * Ask the service to record a meeting into `noteId`'s tape; see `GlyphHostBridge.startMeeting` for the answers. With
+ * `otherApps`, other apps' sound too, where the binary has `startMeetingWith` (native generation 25); an older one
+ * records the microphone, as it always has.
+ */
+export function startMeetingOnHost(noteId: string, title: string, otherApps = false): string {
   try {
-    return window.GlyphHost?.startMeeting?.(noteId, title) ?? NO_MEETING_SERVICE;
+    const host = window.GlyphHost;
+    if (otherApps && host?.startMeetingWith) return host.startMeetingWith(noteId, title, true);
+    return host?.startMeeting?.(noteId, title) ?? NO_MEETING_SERVICE;
   } catch {
     return NO_MEETING_SERVICE;
+  }
+}
+
+/** Whether this phone can put other apps' sound in a meeting, as the activity said: null where it cannot be asked. */
+export function meetingSoundOnHost(): { supported: boolean; reason: string | null } | null {
+  try {
+    const json = window.GlyphHost?.meetingSound?.();
+    if (typeof json !== 'string') return null;
+    const got = JSON.parse(json) as { supported?: unknown; reason?: unknown };
+    if (typeof got.supported !== 'boolean') return null;
+    return { supported: got.supported, reason: typeof got.reason === 'string' ? got.reason : null };
+  } catch {
+    return null;
   }
 }
 

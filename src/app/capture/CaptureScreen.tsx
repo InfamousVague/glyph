@@ -15,6 +15,7 @@ import { reviewAvailable, type ReviewHandoff } from '../ai/review.ts';
 import { discardRecording, reassignRecording, type Stopped } from './engine.ts';
 import { renderNote, renderTranscript, type Segment } from './markdown.ts';
 import { meetingBody, meetingTitle } from './meeting.ts';
+import { ComputerSound } from './ComputerSound.tsx';
 import { setLinkTitles } from './spoken/extras.ts';
 import { setSpokenFormats } from './spoken/inline.ts';
 import { Opening } from './Opening.tsx';
@@ -98,6 +99,9 @@ import styles from './CaptureScreen.module.css';
  * summary, with the line that says to keep the app open while they come. The card's "Meeting instead", before the
  * first word, turns this recorder into that on the Mac; on a phone with the service it lets the microphone go and
  * hands over (`onMeeting`), since the service's `AudioRecord` and this page's cannot both hold it.
+ * On a Mac that can (14.2 and later, native generation 25), the meeting's top line carries the Mac's own sound
+ * (ComputerSound.tsx): on when the switch is (`meetingSound`), mixed into the microphone by Rust before the transcriber
+ * hears it, so both sides of a call are in the transcript and the tape.
  *
  * The pieces are their own modules: the cards (CaptureCards.tsx), the chip (RouteChip.tsx), the lines of words that
  * are not the note (screenText.ts), the diagnostics line (diagnostics.ts), the last words of a stopped decode
@@ -1265,7 +1269,10 @@ export function CaptureScreen({ fromAssistant, stopRequests = 0, noteId: aimedAt
             <button type="button" className={`app-word ${styles.where}`} onClick={() => setShowDiagnostics((on) => !on)}>
               {whereLine(target, locked, { routed, named: pendingTitle, meeting })}
             </button>
-            {meeting ? null : routed ? (
+            {/* A meeting's word is the Mac's own sound, on or off (ComputerSound.tsx); nothing where it cannot be had. */}
+            {meeting ? (
+              <ComputerSound live={phase === 'listening' && engine === 'whisper'} className={styles.newNote} onSay={(text) => setRoute({ phase: 'said', text })} />
+            ) : routed ? (
               <button type="button" className={`app-word ${styles.newNote}`} onClick={notThisNote}>
                 Not this note
               </button>

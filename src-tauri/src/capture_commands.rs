@@ -46,6 +46,10 @@
 //!   pushed before it, and what is pushed after it records from `toMs`.
 //! - `capture://error { message }` means the capture stopped transcribing;
 //!   `capture_stop` will then reject with the same message.
+//! - In a meeting on a Mac, the computer's own sound (`system_audio_start`,
+//!   system_audio.rs) is added into each pushed chunk before the worker sees it,
+//!   so the tape and the live words have both sides of the call. Stop, cancel
+//!   and a new start close that tap with the capture.
 //!
 //! Two rules the page has to keep, because nothing on this side can:
 //!
@@ -161,6 +165,8 @@ pub fn install(app: &tauri::App) {
 /// nothing wrong. The abort flag ends the decode within one graph computation,
 /// so the join is short.
 pub fn shutdown(app: &AppHandle) {
+    // The computer's sound first: its IOProc writes into the mixer the capture reads.
+    crate::system_audio::stop(app);
     #[cfg(not(target_os = "ios"))]
     if let Some(state) = app.try_state::<CaptureState>() {
         let taken = take_capture(&state);
@@ -255,6 +261,9 @@ pub async fn capture_start(app: AppHandle, state: State<'_, CaptureState>) -> Re
         // flag just raised; dropped when this block ends, by then the slot's.
         let _starting = crate::guards::capture_starting();
         crate::guards::abort_with("capturing");
+        // A tap a reloaded page left open belongs to the capture this replaces:
+        // the meeting that wants one asks again once this has started.
+        crate::system_audio::stop(&app);
         let engine = engine(&app, &state).await?;
         let abort = Arc::new(AtomicBool::new(false));
         let session = Session::new(engine, Arc::clone(&abort))?;
@@ -292,9 +301,10 @@ pub async fn capture_start(app: AppHandle, state: State<'_, CaptureState>) -> Re
 pub fn capture_push(
     request: tauri::ipc::Request<'_>,
     state: State<'_, CaptureState>,
+    system: State<'_, crate::system_audio::SystemAudioState>,
 ) -> Result<(), String> {
     #[cfg(target_os = "ios")]
-    return on_ios(TRANSCRIPTION, (request, state));
+    return on_ios(TRANSCRIPTION, (request, state, system));
     #[cfg(not(target_os = "ios"))]
     {
         use base64::Engine as _;
@@ -319,7 +329,9 @@ pub fn capture_push(
                 bytes.len()
             ));
         }
-        let samples = crate::whisper::f32_samples(bytes);
+        let mut samples = crate::whisper::f32_samples(bytes);
+        // The computer's sound, when a meeting asked for it: nothing otherwise.
+        system.mix_into(&mut samples);
         match lock(&state.capture).as_ref() {
             Some(capture) => {
                 capture.push(&samples);
@@ -346,6 +358,9 @@ pub async fn capture_stop(
     #[cfg(not(target_os = "ios"))]
     {
         let capture = take_capture(&state).ok_or("No capture is running.")?;
+        // Every push has landed by now (the page awaits its chain first), so the
+        // tap has nothing left to give this tape.
+        crate::system_audio::stop(&app);
         let append = append.unwrap_or(false);
         let stopped = tauri::async_runtime::spawn_blocking(move || capture.stop())
             .await
@@ -439,11 +454,12 @@ pub async fn capture_rewind(state: State<'_, CaptureState>, to_ms: u64) -> Resul
 /// Ends the capture without committing anything further. Cancelling when
 /// nothing is running succeeds: the page wanted no capture, and has none.
 #[tauri::command]
-pub async fn capture_cancel(state: State<'_, CaptureState>) -> Result<(), String> {
+pub async fn capture_cancel(app: AppHandle, state: State<'_, CaptureState>) -> Result<(), String> {
     #[cfg(target_os = "ios")]
-    return on_ios(TRANSCRIPTION, state);
+    return on_ios(TRANSCRIPTION, (app, state));
     #[cfg(not(target_os = "ios"))]
     {
+        crate::system_audio::stop(&app);
         let Some(capture) = take_capture(&state) else {
             return Ok(());
         };

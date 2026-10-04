@@ -125,6 +125,22 @@ tauri-plugin-decorum = "1"
 # drive is one of the places. A phone's export goes through Android's own picker.
 tauri-plugin-dialog = "2"
 
+# The Mac's own sound, for a meeting recorded with the other side of the call
+# in it (src/system_audio/, docs/DESIGN.md "Meetings with the computer's
+# sound"; Matt: "listen to the microphone and system audio so that we can
+# record meetings with raw audio"). A Core Audio process tap: CATapDescription
+# is an Objective-C class and the tap and its aggregate device are
+# AudioHardware calls, which objc2-core-audio binds. objc2, objc2-foundation
+# and objc2-core-foundation are already in the Mac build through tao and wry,
+# at these versions, so the only new crates are the two Core Audio bindings.
+# Mac only: Android's system sound is the meeting service's own (Kotlin).
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSDictionary", "NSObject", "NSProcessInfo", "NSString", "NSUUID", "NSValue"] }
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFDictionary"] }
+objc2-core-audio = { version = "0.3", default-features = false, features = ["std", "AudioHardware", "objc2", "objc2-foundation", "objc2-core-audio-types"] }
+objc2-core-audio-types = { version = "0.3", default-features = false, features = ["std", "CoreAudioBaseTypes"] }
+
 # The Objective-C runtime, for the one thing the window API has no word for on
 # iOS: making the window KEY once the scene attaches it, without which the
 # keyboard never rises. See ensure_key_window in lib.rs.

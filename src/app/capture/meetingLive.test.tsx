@@ -216,7 +216,8 @@ describe('what the Kotlin says, and what the page reads', () => {
 
   it('has every key of the state the service answers, and no other', () => {
     const answered = keys(body(service, 'meetingState'));
-    expect([...answered].sort()).toEqual(Object.keys(parseMeetingState({ recording: false })!).sort());
+    // As a binary of generation 25 answers it: other apps' three keys are read only from one that says them.
+    expect([...answered].sort()).toEqual(Object.keys(parseMeetingState({ recording: false, otherApps: false })!).sort());
   });
 
   it('knows every event the service and the activity push, and every key they carry', () => {
