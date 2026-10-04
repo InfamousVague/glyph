@@ -254,7 +254,10 @@ pub fn write<W: Write>(
 ) -> Result<Exported, String> {
     let root = root_of(name);
     let total: u64 = entries.iter().map(|e| e.size).sum();
-    let notes = entries.iter().filter(|e| e.name.starts_with("Library/") && !e.name.starts_with("Library/.") && e.name.ends_with(".md") && !e.name.contains("/.")).count() as u64;
+    // A note is a Markdown file in the library: walked from its folder, or read as text from one chosen on Android,
+    // which has no folder to walk (export_commands.rs `library_texts`).
+    let is_note = |name: &str| name.starts_with("Library/") && !name.starts_with("Library/.") && name.ends_with(".md") && !name.contains("/.");
+    let notes = (entries.iter().filter(|e| is_note(&e.name)).count() + extras.iter().filter(|e| is_note(&e.name)).count()) as u64;
     let mut progress = Progress { done: 0, total, files: 0, of: entries.len() as u64 };
     let mut zip = ZipWriter::new_stream(Counted { inner: out, count: 0 });
     let now = zip_time(SystemTime::now(), offset_minutes);

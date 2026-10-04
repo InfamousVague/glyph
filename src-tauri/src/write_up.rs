@@ -255,7 +255,9 @@ impl Answer {
 struct Dirs {
     recordings: PathBuf,
     models: PathBuf,
-    library: PathBuf,
+    /// The data directory itself, for the library: wherever `library-root.json` says it is (library_root.rs), a
+    /// folder chosen through Android's picker included.
+    data: PathBuf,
     jobs: PathBuf,
 }
 
@@ -264,9 +266,14 @@ impl Dirs {
         Dirs {
             recordings: data_dir.join(crate::paths::RECORDINGS),
             models: data_dir.join(crate::paths::MODELS),
-            library: data_dir.join(crate::paths::LIBRARY),
+            data: data_dir.to_path_buf(),
             jobs: jobs::dir(data_dir),
         }
+    }
+
+    /// The notes, opened afresh for each step, so a library moved while the write-up waited is the one written to.
+    fn library(&self) -> Result<Library, String> {
+        crate::library_root::open(&self.data, false)
     }
 }
 
@@ -311,8 +318,8 @@ fn title_of(body: &str) -> String {
 
 /// The note's title as the library has it, for a progress file made without
 /// one; "Meeting" when the library cannot say.
-fn note_title(library: &Path, id: &str) -> String {
-    Library::open_fs(library)
+fn note_title(dirs: &Dirs, id: &str) -> String {
+    dirs.library()
         .ok()
         .and_then(|mut library| library.get_note(id).ok().flatten())
         .map(|note| title_of(&note.body))
@@ -332,7 +339,7 @@ pub fn finish(data_dir: &Path, id: &str, title: &str) -> Result<u64, String> {
     let measured = (|| -> Result<u64, String> {
         let samples = wav::patch_header(&wav_path)?;
         let ms = samples_to_ms(samples);
-        let mut library = Library::open_fs(&dirs.library).map_err(|e| e.to_string())?;
+        let mut library = dirs.library()?;
         let recording = Recording::new(ms as i64, Vec::new())?;
         library.set_recording(id, Some(&recording)).map_err(|e| e.to_string())?.ok_or_else(|| "no such note".to_string())?;
         Ok(ms)
@@ -434,7 +441,7 @@ pub fn run(data_dir: &Path, id: &str, options: &Options) -> Answer {
     }
     let mut progress = match Progress::load(&path) {
         Some(progress) => progress,
-        None => Progress::queued(id, &options.title.clone().unwrap_or_else(|| note_title(&dirs.library, id))),
+        None => Progress::queued(id, &options.title.clone().unwrap_or_else(|| note_title(&dirs, id))),
     };
 
     // The phase, settled before anything runs (DESIGN §127 section 4's rule for a terminal file),
@@ -585,7 +592,7 @@ impl Run<'_> {
     fn repeat_finish(&mut self) -> Result<(), Stop> {
         let samples = wav::patch_header(&self.wav).map_err(Stop::Failed)?;
         let ms = samples_to_ms(samples);
-        let mut library = Library::open_fs(&self.dirs.library).map_err(|e| Stop::Failed(e.to_string()))?;
+        let mut library = self.dirs.library().map_err(Stop::Failed)?;
         let note = library.get_note(self.id).map_err(|e| Stop::Failed(e.to_string()))?.ok_or_else(|| Stop::Failed("no such note".into()))?;
         if note.recording_ms != Some(ms as i64) {
             let recording = Recording::new(ms as i64, self.progress.segments.clone()).map_err(Stop::Failed)?;
@@ -605,7 +612,7 @@ impl Run<'_> {
         if self.progress.spans.is_some() || !self.progress.segments.is_empty() {
             return Ok(false);
         }
-        let mut library = Library::open_fs(&self.dirs.library).map_err(|e| Stop::Failed(e.to_string()))?;
+        let mut library = self.dirs.library().map_err(Stop::Failed)?;
         let note = library.get_note(self.id).map_err(|e| Stop::Failed(e.to_string()))?.ok_or_else(|| Stop::Failed("no such note".into()))?;
         let Some(words) = crate::transcript::words_of(&note.body) else { return Ok(false) };
         self.progress.transcript_chars = words.chars().count();
@@ -715,7 +722,7 @@ impl Run<'_> {
         let failed = |e: crate::library::LibraryError| Stop::Failed(e.to_string());
         let ms = wav::duration_ms(&self.wav).map_err(Stop::Failed)?;
         let recording = Recording::new(ms as i64, self.progress.segments.clone()).map_err(Stop::Failed)?;
-        let mut library = Library::open_fs(&self.dirs.library).map_err(failed)?;
+        let mut library = self.dirs.library().map_err(Stop::Failed)?;
         library.set_recording(self.id, Some(&recording)).map_err(failed)?.ok_or_else(|| Stop::Failed("no such note".into()))?;
         let paragraphs = crate::transcript::paragraphs(&self.progress.segments);
         let mut written = None;

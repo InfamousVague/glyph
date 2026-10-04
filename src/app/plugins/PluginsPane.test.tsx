@@ -20,9 +20,12 @@ describe('Settings › Plugins', () => {
   it('has a card for every plugin that ships, Claude among them, each with its switch', () => {
     const pane = show(<PluginsPane />);
     const names = Array.from(pane.querySelectorAll('.setk-hero__title')).map((t) => t.textContent);
-    expect(names).toEqual(['Plugins', 'Notion', 'GitHub', 'Marks', 'Claude']);
+    expect(names).toEqual(['Plugins', 'Notion', 'GitHub', 'Marks', 'Claude', 'Library folder']);
     expect(pane.querySelector('[aria-label="Claude plugin"]')).not.toBeNull();
-    expect(pane.textContent).toContain('4 of 4 on');
+    // The Library folder is off until switched on: most people never move their notes.
+    expect(pane.textContent).toContain('4 of 5 on');
+    expect(pane.querySelector<HTMLInputElement>('[aria-label="Library folder plugin"]')?.checked).toBe(false);
+    expect(pane.querySelector<HTMLInputElement>('[aria-label="Claude plugin"]')?.checked).toBe(true);
   });
 
   it('says what a plugin may reach in one line, and the reasons a press away', () => {

@@ -1,4 +1,5 @@
-//! `.glyph/index.sqlite`: the cache over the library's files that makes the
+//! `.glyph/index.sqlite` (or `<app_data_dir>/index/<key>.sqlite` for a folder
+//! the person chose, root.rs): the cache over the library's files that makes the
 //! list instant. Only a cache - a missing or older one is rebuilt from the
 //! files, and a file changed by another app is read into it again - so the
 //! files are always the truth and nothing here is ever the only copy of a
@@ -53,7 +54,9 @@ const INDEX_SCHEMA: &str = "
     CREATE INDEX IF NOT EXISTS command_mutations_note ON command_mutations (note_id, created_at DESC);
 ";
 
-/// Opens the index in `glyph`, dropping and rebuilding its tables when they
+/// Opens the index at `file` (`.glyph/index.sqlite` in the app's own folder,
+/// `<app_data_dir>/index/<key>.sqlite` for a folder of the person's: root.rs
+/// says why), dropping and rebuilding its tables when they
 /// are of another `INDEX_VERSION`.
 ///
 /// The version check and the rebuild run under one process-wide lock. Two
@@ -63,9 +66,12 @@ const INDEX_SCHEMA: &str = "
 /// could `DROP TABLE` the rows the first had just rebuilt and filled, and an
 /// hour's meeting would be indexed by neither until the next scan. With it,
 /// the second reads the new version and drops nothing.
-pub(super) fn open(glyph: &Path) -> Result<Connection> {
+pub(super) fn open(file: &Path) -> Result<Connection> {
     static OPENING: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    let index = Connection::open(glyph.join("index.sqlite"))?;
+    if let Some(dir) = file.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let index = Connection::open(file)?;
     let _: String = index.query_row("PRAGMA journal_mode=WAL", [], |row| row.get(0))?;
     index.busy_timeout(std::time::Duration::from_secs(5))?;
     let _one_at_a_time = crate::lock::lock(&OPENING);
@@ -142,6 +148,14 @@ impl Library {
             self.index.execute("DELETE FROM notes WHERE path = ?1", [&path])?;
         }
         for entry in &entries {
+            // A note iCloud took off this Mac keeps the row it had, words and all; one this index never read is
+            // asked for, and indexed at the scan after it comes down (vault.rs).
+            if entry.evicted {
+                if !known.contains_key(&entry.path) {
+                    self.vault.fetch(&entry.path);
+                }
+                continue;
+            }
             if known.get(&entry.path) == Some(&(entry.modified_ms, entry.size as i64)) {
                 continue;
             }

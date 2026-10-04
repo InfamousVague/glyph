@@ -52,6 +52,11 @@ interface GlyphInbound {
    * `{ cancelled: true }` or `{ error }` (core/exportAll.ts).
    */
   exportTarget?: (json: string) => void;
+  /**
+   * The folder picked for the library (native generation 25; files/LibraryTree.kt): `{ uri, name }` with its grant
+   * kept, `{ cancelled: true }` or `{ error }` (plugins/folder/folder.ts).
+   */
+  libraryFolder?: (json: string) => void;
 }
 
 interface GlyphHostBridge {
@@ -146,6 +151,9 @@ interface GlyphHostBridge {
   postNotice?(json: string): string;
   /** "off", "on" or "blocked". */
   noticesState?(): string;
+  // The library in a folder of the person's (native generation 25; files/LibraryTree.kt). Optional for the same reason.
+  /** Opens Android's folder picker: "started", or why not; the folder arrives as a `libraryFolder` event. */
+  chooseLibraryFolder?(): string;
 }
 
 declare global {

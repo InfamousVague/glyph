@@ -9,6 +9,14 @@
 //! refine queue) and reloads; on Android it cancels the write-ups' WorkManager
 //! chain first (`GlyphHost.cancelWriteUps`), which Rust cannot reach.
 //!
+//! A LIBRARY IN A FOLDER OF THE PERSON'S IS NEVER EMPTIED (docs/DESIGN.md
+//! §185): an Obsidian vault, a Dropbox folder or a backup drive is theirs, and
+//! "everything Glyph made" is not the notes they keep there. The reset forgets
+//! the folder instead - the choice, its index and the `.glyph/` an Android
+//! folder keeps in the app's storage - and goes back to the app's own folder,
+//! which it empties as it always did. Every file in the chosen folder stays,
+//! `.glyph/` in it included.
+//!
 //! Directories are removed whole and not recreated: every writer in the crate
 //! creates its directory before it writes (`images::adopt`,
 //! `model_files::fetch`, the recorder), so an absent directory is the same
@@ -24,11 +32,14 @@ use std::path::{Path, PathBuf};
 use tauri::{AppHandle, State};
 
 use crate::commands::NotesStore;
+use crate::library::root::Root;
 use crate::paths;
 
 /// Where the things a reset removes are kept on this device, each `None` where
 /// the platform gave no directory - which leaves nothing there to remove.
 struct Kept {
+    /// `<app_data_dir>`, where the library's setting is, and a chosen folder's index.
+    data: Option<PathBuf>,
     recordings: Option<PathBuf>,
     images: Option<PathBuf>,
     videos: Option<PathBuf>,
@@ -48,6 +59,7 @@ fn remove_dir(dir: Option<&Path>, what: &str) -> Result<(), String> {
 #[tauri::command]
 pub fn reset_local_data(app: AppHandle, store: State<'_, NotesStore>, models: bool) -> Result<(), String> {
     let kept = Kept {
+        data: paths::data_dir(&app).ok(),
         recordings: paths::recordings_dir(&app).ok(),
         images: paths::images_dir(&app).ok(),
         videos: paths::videos_dir(&app).ok(),
@@ -63,7 +75,24 @@ pub fn reset_local_data(app: AppHandle, store: State<'_, NotesStore>, models: bo
 /// recordings, pictures, films and write-ups, then the Notion sign-in, then -
 /// if asked - the models. The first failure stops it and is the answer.
 fn reset(notes: &NotesStore, kept: &Kept, models: bool) -> Result<(), String> {
-    notes.lock().clear().map_err(|e| e.to_string())?;
+    {
+        let mut library = notes.lock();
+        if let Some(data) = &kept.data {
+            // Forgotten, and the app's own folder opened in its place, before anything is cleared: a folder of the
+            // person's is never the library a clear runs on. A choice that could not be reached is forgotten too.
+            Root::App.write(data).map_err(|e| format!("could not forget the library's folder: {e}"))?;
+            if !library.in_own_folder() {
+                *library = crate::library_root::open_own(data, false)?;
+            }
+        }
+        // And should it still be one, a chosen folder's clear only forgets its index (library/mod.rs `clear`).
+        library.clear().map_err(|e| e.to_string())?;
+    }
+    if let Some(data) = &kept.data {
+        for dir in crate::library_commands::bookkeeping(data) {
+            remove_dir(Some(&dir), "library's index")?;
+        }
+    }
     remove_dir(kept.recordings.as_deref(), "recordings")?;
     remove_dir(kept.images.as_deref(), "pictures")?;
     remove_dir(kept.videos.as_deref(), "videos")?;
@@ -97,6 +126,7 @@ mod tests {
         }
         std::fs::write(root.join("notion.json"), br#"{"accessToken":"secret_x"}"#).unwrap();
         let kept = Kept {
+            data: Some(root.to_path_buf()),
             recordings: Some(root.join("recordings")),
             images: Some(root.join("images")),
             videos: Some(root.join("video")),
@@ -121,6 +151,30 @@ mod tests {
         assert!(!root.join("notion.json").exists(), "no account is left signed in");
         assert!(root.join("models/ggml-base.en-q5_1.bin").exists(), "a 60 MB download is not thrown away unasked");
         reset(&notes, &kept, false).unwrap();
+    }
+
+    #[test]
+    fn a_reset_never_deletes_a_folder_of_the_persons_and_goes_back_to_the_apps_own() {
+        let (root, _, kept) = phone();
+        let vault = root.join("Obsidian");
+        for (file, text) in [("Theirs.md", "# Theirs\n"), (".obsidian/app.json", "{}"), ("Daily/2026-10-04.md", "a walk\n")] {
+            std::fs::create_dir_all(vault.join(file).parent().unwrap()).unwrap();
+            std::fs::write(vault.join(file), text).unwrap();
+        }
+        let chosen = Root::Folder { path: vault.clone() };
+        chosen.write(&root).unwrap();
+        let notes = NotesStore(Mutex::new(crate::library_root::open(&root, true).unwrap()));
+        notes.lock().save_note("mine", "# Written into the vault\n", "editor").unwrap();
+        assert!(chosen.index_file(&root).exists());
+
+        reset(&notes, &kept, false).unwrap();
+        for file in ["Theirs.md", ".obsidian/app.json", "Daily/2026-10-04.md", "Inbox/Written into the vault.md", ".glyph/library.json"] {
+            assert!(vault.join(file).exists(), "{file} is the person's, and stays");
+        }
+        assert_eq!(Root::read(&root), Root::App, "the folder is forgotten");
+        assert!(!root.join("index").exists(), "with its index");
+        assert!(notes.lock().in_own_folder() && notes.lock().list_notes().unwrap().is_empty(), "and the app starts from its own folder, empty");
+        assert!(!root.join("Library/Inbox/Kept until now.md").exists(), "which is cleared as it always was");
     }
 
     #[test]

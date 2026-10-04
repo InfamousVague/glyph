@@ -18,6 +18,7 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.mattssoftware.glyph.MainActivity
+import com.mattssoftware.glyph.files.LibraryTree
 import com.mattssoftware.glyph.recordings.Outcome
 import com.mattssoftware.glyph.recordings.RecordingAlerts
 import com.mattssoftware.glyph.recordings.RecordingJob
@@ -509,6 +510,8 @@ class MeetingService : Service() {
     recording = false
     silenced = false
     val answer = try {
+      // The note may be in a folder chosen through Android's picker, which Rust reaches through Kotlin.
+      LibraryTree.install(this)
       JSONObject(RecordingJob.finish(dataDir.absolutePath, id, name) ?: "{}")
     } catch (error: Throwable) {
       Log.w(TAG, "finish threw", error)

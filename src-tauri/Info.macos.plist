@@ -11,9 +11,25 @@
   Location, in the same voice, for the day the Mac asks CoreLocation where it is (core/location.ts says why its
   WebView cannot today): the strings are here already, so that follow-up is Rust alone. No entitlement: the app is not
   sandboxed.
+
+  Folders, for the library in a folder of the person's (docs/DESIGN.md §185): an app outside the sandbox still asks
+  macOS before it reads Documents, Desktop, Downloads, a drive, a server, or a folder iCloud Drive or Dropbox keeps (a
+  file provider), and these are the reasons that prompt gives. Each says what the folder is for, and that is all it is.
 -->
 <plist version="1.0">
 <dict>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Ghost.md keeps your notes in the folder you chose for them, as Markdown files.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>Ghost.md keeps your notes in the folder you chose for them, as Markdown files.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Ghost.md keeps your notes in the folder you chose for them, as Markdown files.</string>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>Ghost.md keeps your notes in the folder you chose for them on this drive, as Markdown files.</string>
+	<key>NSNetworkVolumesUsageDescription</key>
+	<string>Ghost.md keeps your notes in the folder you chose for them on this server, as Markdown files.</string>
+	<key>NSFileProviderDomainUsageDescription</key>
+	<string>Ghost.md keeps your notes in the folder you chose for them in iCloud Drive or Dropbox, as Markdown files.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Glyph uses the microphone only while you are recording, to turn what you say into a note.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

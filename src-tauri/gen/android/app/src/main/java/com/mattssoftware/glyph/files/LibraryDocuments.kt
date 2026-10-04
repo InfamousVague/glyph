@@ -22,6 +22,10 @@ import java.io.FileNotFoundException
  * Read-only. A note changed by another app behind the library's back would not reach its index or sync, so the Files
  * app can open, read, copy and share a note, and nothing more. `.glyph/`, the app's own index and recordings, is
  * hidden, as a Mac hides dot folders.
+ *
+ * Only while the library is the app's own folder (docs/DESIGN.md §185). Once the person has chosen a folder of theirs
+ * (files/LibraryTree.kt), the notes are in it, where the Files app already shows them, so Ghost.md lists no place of
+ * its own: a "Ghost.md" there would show the app's emptied folder and read as every note gone.
  */
 class LibraryDocuments : DocumentsProvider() {
   companion object {
@@ -40,7 +44,8 @@ class LibraryDocuments : DocumentsProvider() {
     )
   }
 
-  // The folder Rust keeps the notes in: `LIBRARY` in src-tauri/src/paths.rs. Rename both together.
+  // The app's own folder for the notes: `LIBRARY` in src-tauri/src/paths.rs. Rename both together. Where the library
+  // is when it is not here is library-root.json's to say (files/LibraryTree.kt `LibraryRoot`).
   private fun library(): File = File(context!!.dataDir, "Library")
 
   private fun idOf(file: File): String {
@@ -81,6 +86,7 @@ class LibraryDocuments : DocumentsProvider() {
 
   override fun queryRoots(projection: Array<out String>?): Cursor {
     val cursor = MatrixCursor(projection ?: ROOT_COLUMNS)
+    if (LibraryRoot.chosenTree(context!!) != null) return cursor
     library().mkdirs()
     cursor.newRow().apply {
       add(Root.COLUMN_ROOT_ID, ROOT_ID)

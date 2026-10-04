@@ -97,7 +97,7 @@ The sidebar's Browse files button (`notes/NoteTree.tsx`, `core/libraryFiles.ts`)
 | Folders are the person's own, at any depth | The app makes `Inbox/` and `workspaces/<name>/`. Other folders are read, never made |
 | Deleting `.glyph` loses only recordings and AI versions | The recordings' audio is not in it. What goes is every sidecar (a recording's length and phrases, the formatted versions), each note's revision and the command undo record |
 
-LIBRARY.md half-knows the first two: a later paragraph says phase 1 keeps recordings and pictures in the app's storage, while its folder picture and its example note still show `attachments/` and `.glyph/recordings/`. Its list of dropped characters also leaves out `#`, `^`, `[` and `]`, and it gives no stem limit. Phase 2 (a folder the person picks) and phase 4 (Notion and project keys in front matter) are not built. Phase 3 is built only in part: `Inbox/` and the workspace folders exist, and `attachments/` does not.
+LIBRARY.md half-knows the first two: a later paragraph says phase 1 keeps recordings and pictures in the app's storage, while its folder picture and its example note still show `attachments/` and `.glyph/recordings/`. Its list of dropped characters also leaves out `#`, `^`, `[` and `]`, and it gives no stem limit. Phase 2 (a folder the person picks) is built since native generation 25, as the Library folder plugin (DESIGN §185); phase 4 (Notion and project keys in front matter) is not. Phase 3 is built only in part: `Inbox/` and the workspace folders exist, and `attachments/` does not.
 
 ## Read next
 
