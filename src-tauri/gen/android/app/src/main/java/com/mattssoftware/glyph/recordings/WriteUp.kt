@@ -9,6 +9,7 @@ import android.util.Log
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.mattssoftware.glyph.MainActivity
+import com.mattssoftware.glyph.files.LibraryTree
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -89,6 +90,8 @@ internal object WriteUp {
     watcher.isDaemon = true
     watcher.start()
     val answer = try {
+      // The note may be in a folder chosen through Android's picker, which Rust reaches through Kotlin.
+      LibraryTree.install(context)
       RecordingJob.run(dataDir, noteId, options(context, now, fresh, title, requestedAt))
     } catch (error: Throwable) {
       Log.w(TAG, "write-up threw", error)

@@ -20,11 +20,13 @@ describe('Settings › Plugins', () => {
   it('has a card for every plugin that ships, Claude among them, each with its switch', () => {
     const pane = show(<PluginsPane />);
     const names = Array.from(pane.querySelectorAll('.setk-hero__title')).map((t) => t.textContent);
-    expect(names).toEqual(['Plugins', 'Notion', 'GitHub', 'Marks', 'Claude', 'Slack']);
+    expect(names).toEqual(['Plugins', 'Notion', 'GitHub', 'Marks', 'Claude', 'Slack', 'Library folder']);
     expect(pane.querySelector('[aria-label="Claude plugin"]')).not.toBeNull();
-    // Slack is off until switched on: it posts off the phone.
-    expect(pane.textContent).toContain('4 of 5 on');
+    // Slack is off until switched on: it posts off the phone. So is the Library folder: most people never move their notes.
+    expect(pane.textContent).toContain('4 of 6 on');
     expect(pane.querySelector<HTMLButtonElement>('[aria-label="Slack plugin"]')?.getAttribute('aria-checked')).not.toBe('true');
+    expect(pane.querySelector<HTMLInputElement>('[aria-label="Library folder plugin"]')?.checked).toBe(false);
+    expect(pane.querySelector<HTMLInputElement>('[aria-label="Claude plugin"]')?.checked).toBe(true);
   });
 
   it('says what a plugin may reach in one line, and the reasons a press away', () => {

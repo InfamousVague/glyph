@@ -51,16 +51,39 @@ pub fn install(app: &tauri::App) {
     app.manage(ExportState::default());
 }
 
-/// The folders the archive carries, under `<app_data_dir>`.
+/// The folders the archive carries: the library where it is (the app's own folder, or the one the person chose,
+/// library_root.rs), and the media under `<app_data_dir>`. A folder chosen on Android has no path to walk, so its
+/// notes come as text instead (`library_texts`) and only its `.glyph/`, kept in the app's storage, is walked.
 #[cfg_attr(target_os = "ios", allow(dead_code))]
 fn sources(app: &AppHandle) -> Result<Vec<Source>, String> {
     let data = crate::paths::data_dir(app)?;
+    let store = app.state::<crate::commands::NotesStore>();
+    let library = {
+        let library = store.lock();
+        match library.folder() {
+            Some(folder) => Source { dir: folder, name: "Library" },
+            None => Source { dir: library.glyph_dir(), name: "Library/.glyph" },
+        }
+    };
     Ok(vec![
-        Source { dir: data.join(crate::paths::LIBRARY), name: "Library" },
+        library,
         Source { dir: data.join(crate::paths::IMAGES), name: "images" },
         Source { dir: data.join(crate::paths::VIDEO), name: "video" },
         Source { dir: data.join(crate::paths::RECORDINGS), name: "recordings" },
     ])
+}
+
+/// A library with no folder to walk (one chosen on Android): every note and versions file, read as text, under
+/// `Library/` in the archive as they are in the folder. Nothing for a library with a folder, which `sources` walks.
+#[cfg_attr(target_os = "ios", allow(dead_code))]
+fn library_texts(app: &AppHandle) -> Result<Vec<Extra>, String> {
+    let store = app.state::<crate::commands::NotesStore>();
+    let library = store.lock();
+    if library.folder().is_some() {
+        return Ok(Vec::new());
+    }
+    let texts = library.texts().map_err(|e| format!("The notes could not be read: {e}"))?;
+    Ok(texts.into_iter().map(|(path, text)| Extra { name: format!("Library/{path}"), bytes: text.into_bytes() }).collect())
 }
 
 /// The page's files, only by plain names at the archive's top: never a path that would land among the notes.
@@ -106,7 +129,8 @@ fn write_into<W: std::io::Write>(app: &AppHandle, state: &ExportState, request: 
     if !export::valid_name(&request.name) {
         return Err(format!("not an archive name: {}", request.name));
     }
-    let extras = page_files(request)?;
+    let mut extras = page_files(request)?;
+    extras.extend(library_texts(app)?);
     let entries = export::entries(&sources(app)?).map_err(|e| format!("The notes could not be listed: {e}"))?;
     let manifest = serde_json::json!({
         "app": "Ghost.md",

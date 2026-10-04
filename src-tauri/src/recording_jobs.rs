@@ -7,8 +7,11 @@
 //! (`recordings/RecordingJob.kt`) loads `glyph_lib` itself, because a
 //! WorkManager job can start the process with no activity, and calls these on
 //! its own threads. Paths only: Kotlin hands over `context.dataDir`, and
-//! `write_up` joins the library, the recordings, the models and the jobs under
-//! it, the same names the app resolves through `paths.rs`.
+//! `write_up` joins the recordings, the models and the jobs under it, the same
+//! names the app resolves through `paths.rs`, and opens the library wherever
+//! `library-root.json` there says it is (library_root.rs). For a folder chosen
+//! through Android's picker that is through Kotlin again (saf.rs), so the
+//! write-up's doors install `LibraryTree` before they call in.
 //!
 //! A panic must not unwind into the JVM (undefined behaviour across `extern
 //! "system"`), so every body runs under `catch_unwind` and a panic becomes an

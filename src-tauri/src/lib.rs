@@ -40,9 +40,21 @@ pub mod transcript;
 // progress, its result. Tauri-free, read by the commands and the JNI door alike.
 pub mod jobs;
 
+// The library opened where library-root.json says (the app's own folder, or one
+// the person chose), for the launch, a move, the reset and the write-up alike.
+// Tauri-free; outside library/ only because an Android folder is reached over JNI.
+mod library_root;
+// Rust's calls into Kotlin for a folder chosen on Android: the Storage Access
+// Framework behind library/tree.rs's vault (native generation 25).
+#[cfg(target_os = "android")]
+mod saf;
+
 // The webview's door to the notes: one library call per command, and the
 // delete that takes a note's pictures and recording with it.
 mod commands;
+// The Library folder plugin's doors: where the library is, a folder picked and
+// looked into, the move into it and back (native generation 25).
+mod library_commands;
 // A spoken note's kept recording, and the `rec` scheme its tape plays through.
 mod recordings;
 
@@ -160,7 +172,8 @@ pub fn run() {
     // position on a phone, and the plugin is not built for those targets.
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_decorum::init());
-    // The Mac's save panel, for the export (export_commands.rs). Asked from Rust only, so no page permission names it.
+    // The Mac's save panel, for the export (export_commands.rs), and its folder panel, for the library's folder
+    // (library_commands.rs). Asked from Rust only, so no page permission names it.
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_dialog::init());
 
@@ -170,6 +183,8 @@ pub fn run() {
             // for notes on its first paint, and a command answering "no
             // managed state" reads to the page as an empty library.
             commands::install(app)?;
+            // The folder picked for the library, held between the look and the move.
+            library_commands::install(app);
             // No I/O and cannot fail: the model is looked for when the Record
             // screen asks, not at launch.
             capture_commands::install(app);
@@ -209,6 +224,11 @@ pub fn run() {
             commands::store_apply,
             commands::sync_put_file,
             commands::library_reveal,
+            library_commands::library_root,
+            library_commands::library_choose_folder,
+            library_commands::library_inspect,
+            library_commands::library_move,
+            library_commands::library_use_app_folder,
             link_preview::link_preview,
             geocode::geocode_place,
             links::links_take,

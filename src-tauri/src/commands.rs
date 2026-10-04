@@ -180,27 +180,33 @@ impl NotesStore {
 pub fn install(app: &tauri::App) -> std::result::Result<(), String> {
     let dir = crate::paths::data_dir(app)?;
     crate::fsx::make_dir(&dir)?;
-    let library = crate::library::open_and_move_in(&dir.join(crate::paths::LIBRARY), &dir)?;
+    // Where library-root.json says: the app's own folder, or one the person chose (library_root.rs), the app's own
+    // for this run when that one cannot be reached.
+    let library = crate::library_root::open(&dir, true)?;
     app.manage(NotesStore(Mutex::new(library)));
     Ok(())
 }
 
 /// Opens the notes' folder where the computer shows folders: Finder on a Mac (Matt: "add a browse local files button
-/// somewhere to open the folder"). The library's own `.glyph/` stays in it, hidden as dot folders are. On a phone the
-/// page asks the activity instead (MainActivity `GlyphHost.browseFiles`, files/LibraryDocuments.kt), since no other
-/// app can open this app's storage. Native generation 18.
+/// somewhere to open the folder"). The library's own `.glyph/` stays in it, hidden as dot folders are. The folder is
+/// the library's as it is open, a chosen one included (library_commands.rs). On a phone the page asks the activity
+/// instead (MainActivity `GlyphHost.browseFiles`, files/LibraryDocuments.kt), since no other app can open this app's
+/// storage. Native generation 18.
 #[tauri::command]
-pub fn library_reveal(app: tauri::AppHandle) -> std::result::Result<(), String> {
+pub fn library_reveal(app: tauri::AppHandle, store: tauri::State<'_, NotesStore>) -> std::result::Result<(), String> {
     #[cfg(desktop)]
     {
         use tauri_plugin_opener::OpenerExt;
-        let dir = crate::paths::library_dir(&app)?;
+        let dir = match store.lock().folder() {
+            Some(dir) => dir,
+            None => crate::paths::library_dir(&app)?,
+        };
         std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         app.opener().open_path(dir.to_string_lossy(), None::<&str>).map_err(|e| e.to_string())
     }
     #[cfg(mobile)]
     {
-        let _ = app;
+        let _ = (app, store);
         Err("On a phone the notes' folder opens in the Files app.".into())
     }
 }

@@ -1,8 +1,9 @@
 //! The notes as a library of Markdown files (docs/LIBRARY.md), and NOT ONE
 //! `tauri::` TYPE IN THIS MODULE, for the reason note.rs gives.
 //!
-//! The files are the truth; `.glyph/index.sqlite` is a cache that makes the
-//! list instant, and it is rebuilt from the files whenever they disagree. A
+//! The files are the truth; the index (`.glyph/index.sqlite`, or beside the
+//! app's data for a folder the person chose) is a cache that makes the list
+//! instant, and it is rebuilt from the files whenever they disagree. A
 //! `Library` answers the calls the page makes of its notes (list, get, create,
 //! update, delete, pin, archive, recording, formatted version, a note from
 //! another device) with a `note::Note`: a note is an id and a body, and it is
@@ -21,10 +22,18 @@
 //!   changed by another app is read again, a new one is indexed, and a
 //!   vanished one leaves the list.
 //!
+//! - **Where it is** is the app's own folder, or one the person chose: an
+//!   Obsidian vault, a folder in iCloud Drive or Dropbox, one Syncthing keeps,
+//!   a backup drive (root.rs). Ghost.md removes files only from its own folder:
+//!   a reset or a move away from a chosen one forgets it and leaves every file.
+//!
 //! The rest of the library, each in its own file: the dates front matter
 //! writes (dates.rs), voice commands' guarded writes and their undo
 //! (mutations.rs), `library.json` and the one move from the old database
-//! (move_in.rs), and the files themselves behind a trait (vault.rs).
+//! (move_in.rs), the setting for where it lives (root.rs) and the move into a
+//! folder of the person's (relocate.rs), and the files themselves behind a
+//! trait (vault.rs), reached through Android's Storage Access Framework for a
+//! folder chosen there (tree.rs).
 
 mod dates;
 pub mod frontmatter;
@@ -32,9 +41,14 @@ mod index;
 mod move_in;
 mod mutations;
 pub mod names;
+mod relocate;
+pub mod root;
 mod sidecar;
+pub mod tree;
 pub mod vault;
 mod versions;
+
+pub use relocate::Copied;
 
 pub use move_in::open_and_move_in;
 
@@ -92,6 +106,15 @@ impl Drop for Writing {
     }
 }
 
+/// Every write to the notes in this process held off until the answer is
+/// dropped: for the move into a chosen folder (relocate.rs), so a meeting's
+/// write-up on its own handle cannot write into the old folder between the
+/// copy and the switch. Take the app's `NotesStore` lock FIRST, as every
+/// command does before its write takes this one, or the two orders deadlock.
+pub fn hold_writes() -> impl Drop {
+    writing()
+}
+
 #[derive(Debug)]
 pub enum LibraryError {
     Io(std::io::Error),
@@ -135,6 +158,10 @@ pub struct Library {
     /// Notes this process started as drafts: one whose words are all taken out
     /// again, with nothing else set on it, goes back to being a draft.
     drafted: HashSet<String>,
+    /// Whether this is the app's own folder, the only one whose files a reset
+    /// or a move may remove (Matt: a reset must never delete a person's own
+    /// folder). False for a folder the person chose (root.rs).
+    own: bool,
 }
 
 fn folder_of(path: &str) -> &str {
@@ -180,21 +207,65 @@ fn stamp(front: &mut FrontMatter, note: &Note) {
 }
 
 impl Library {
-    /// The library in a folder this process can reach with `std::fs`.
+    /// The library in the app's own folder, which this process reaches with `std::fs`.
     pub fn open_fs(root: &Path) -> Result<Library> {
         Library::open(Box::new(FsVault::new(root)?))
     }
 
-    /// The library in `vault`: its `.glyph` folder made, its birth recorded,
-    /// its index opened and checked against the files.
+    /// The library in `vault` as the app's own: its `.glyph` folder made, its
+    /// birth recorded, its index opened beside them and checked against the files.
     pub fn open(vault: Box<dyn Vault>) -> Result<Library> {
+        let index = vault.glyph_dir().join("index.sqlite");
+        Library::open_with(vault, &index, true)
+    }
+
+    /// The library in a folder the person chose, with its index at `index`, in
+    /// the app's own storage and never in the folder (root.rs says why). Every
+    /// Markdown file already there is a note from this scan on.
+    pub fn open_chosen(vault: Box<dyn Vault>, index: &Path) -> Result<Library> {
+        Library::open_with(vault, index, false)
+    }
+
+    fn open_with(vault: Box<dyn Vault>, index: &Path, own: bool) -> Result<Library> {
         let glyph = vault.glyph_dir();
         std::fs::create_dir_all(glyph.join("notes"))?;
         move_in::ensure_manifest(&glyph)?;
-        let index = index::open(&glyph)?;
-        let mut library = Library { vault, index, drafts: HashMap::new(), drafted: HashSet::new() };
+        let index = index::open(index)?;
+        let mut library = Library { vault, index, drafts: HashMap::new(), drafted: HashSet::new(), own };
         library.scan()?;
         Ok(library)
+    }
+
+    /// Whether this is the app's own folder, whose files a reset may remove.
+    pub fn in_own_folder(&self) -> bool {
+        self.own
+    }
+
+    /// The library's folder, where it has a path (not one reached through Android's SAF).
+    pub fn folder(&self) -> Option<std::path::PathBuf> {
+        self.vault.folder()
+    }
+
+    /// Whether the file at `path`, whose note's words were `body`, is renamed
+    /// when its title changes. Always in the app's own folder, as it always was.
+    /// In a folder the person chose, only a file named for its title already
+    /// (one Ghost.md named): `2026-10-01.md` in an Obsidian vault keeps its
+    /// name when Ghost.md edits it, so the daily notes, and every `[[link]]` to
+    /// it, still find it.
+    fn follows_title(&self, path: &str, body: &str) -> bool {
+        self.own || named_for(path, &file_stem(&title_of(body)))
+    }
+
+    /// The text of the note at `path` as it stands, for writing it again: a
+    /// file that cannot be read writes as new, but one iCloud has not brought
+    /// down is an error, since writing it would put a second file over the
+    /// first with its front matter lost.
+    fn text_for_rewrite(&self, path: &str) -> Result<String> {
+        match self.vault.read(path) {
+            Ok(text) => Ok(text),
+            Err(e) if vault::not_downloaded(&e) => Err(e.into()),
+            Err(_) => Ok(String::new()),
+        }
     }
 
     /// A free path for a file named for `stem` in `folder`: `Stem.md`, or
@@ -220,7 +291,12 @@ impl Library {
             self.scan()?;
             return Ok(self.row(id)?.map(|row| self.note_of(row, true)));
         }
-        let text = self.vault.read(&row.path)?;
+        let text = match self.vault.read(&row.path) {
+            Ok(text) => text,
+            // Still in iCloud: the words the index last read, until it comes down (vault.rs).
+            Err(e) if vault::not_downloaded(&e) => return Ok(Some(self.note_of(row, true))),
+            Err(e) => return Err(e.into()),
+        };
         let (_, body) = split(&text);
         if body != row.body {
             self.scan()?;
@@ -250,7 +326,7 @@ impl Library {
         let stem = file_stem(&title_of(body));
         let (path, front, created_at, previous_text) = match row {
             Some(row) => {
-                let text = self.vault.read(&row.path).unwrap_or_default();
+                let text = self.text_for_rewrite(&row.path)?;
                 let (front, _) = split(&text);
                 (row.path, front.unwrap_or_default(), row.created_at, Some(text))
             }
@@ -265,7 +341,8 @@ impl Library {
             front.set("created", Some(Value::Text(iso(created_at))));
         }
         let mut path = path;
-        if previous_text.is_some() && !named_for(&path, &stem) {
+        let follows = previous_text.as_deref().is_some_and(|text| self.follows_title(&path, split(text).1));
+        if follows && !named_for(&path, &stem) {
             let to = self.free_path(folder_of(&path), &stem);
             self.rename_note_file(&path, &to)?;
             self.index.execute("UPDATE notes SET path = ?2 WHERE id = ?1", rusqlite::params![id, to])?;
@@ -440,8 +517,19 @@ impl Library {
     }
 
     /// Every note gone: the files, what isn't text, the index. For a reset of a library in the app's own storage.
+    ///
+    /// A folder the person chose is only forgotten: its index emptied and its
+    /// drafts dropped, and not one of its files, nor `.glyph/` in it, touched
+    /// (reset.rs takes the app back to its own folder first, so this is the
+    /// second guard, not the only one).
     pub fn clear(&mut self) -> Result<()> {
         let _writing = writing();
+        if !self.own {
+            self.index.execute("DELETE FROM notes", [])?;
+            self.drafts.clear();
+            self.drafted.clear();
+            return Ok(());
+        }
         for entry in self.vault.markdown()? {
             self.vault.remove(&entry.path)?;
             self.remove_versions(&entry.path);
@@ -466,12 +554,13 @@ impl Library {
         self.drafted.remove(&note.id);
         let stem = file_stem(&title_of(&note.body));
         let wanted = note.path.as_deref().filter(|p| library_path(p));
-        let (mut path, front) = match self.row(&note.id)? {
+        let (mut path, front, follows) = match self.row(&note.id)? {
             Some(row) => {
-                let text = self.vault.read(&row.path).unwrap_or_default();
-                (row.path, split(&text).0.unwrap_or_default())
+                let text = self.text_for_rewrite(&row.path)?;
+                let follows = self.follows_title(&row.path, &row.body);
+                (row.path, split(&text).0.unwrap_or_default(), follows)
             }
-            None => (self.free_path(wanted.map_or(INBOX, folder_of), &stem), FrontMatter::new()),
+            None => (self.free_path(wanted.map_or(INBOX, folder_of), &stem), FrontMatter::new(), true),
         };
         match wanted {
             Some(to) if to != path && !self.vault.exists(to) => {
@@ -480,7 +569,7 @@ impl Library {
                 }
                 path = to.to_string();
             }
-            _ if !named_for(&path, &stem) => {
+            _ if follows && !named_for(&path, &stem) => {
                 let to = self.free_path(folder_of(&path), &stem);
                 if self.vault.exists(&path) {
                     self.rename_note_file(&path, &to)?;

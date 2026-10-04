@@ -32,7 +32,10 @@
 //! twin names this file, and a test reads the Kotlin sources, so renaming one
 //! side alone fails the build's tests instead of quietly breaking the Files
 //! app, a meeting's recording or its write-up, update alerts, the picker or
-//! APK install on a phone. And one more is named by the Android manifest's
+//! APK install on a phone. A seventh is a file, not a directory: the library's
+//! setting, `library-root.json` (library/root.rs), which `files/LibraryTree.kt`
+//! reads to know whether the notes are in a folder of the person's, and which
+//! the same test holds to its twin. And one more is named by the Android manifest's
 //! backup rules, `video/`, which they keep out of Google's cloud backup: a test
 //! reads those too, so a film renamed here cannot quietly start filling a
 //! person's backup.
@@ -98,11 +101,19 @@ pub fn cache_dir<R: Runtime>(app: &impl Manager<R>) -> Result<PathBuf, String> {
     said(app.path().app_cache_dir(), "no cache directory")
 }
 
-/// `<app_data_dir>/Library`, for the desktop's Reveal: on a phone the notes'
-/// folder opens through the Files app, which Kotlin serves itself.
+/// `<app_data_dir>/Library`, the app's own folder for the notes: Reveal's
+/// answer while the library has no folder of its own to show, and where it is
+/// whenever the person has not chosen another (`library_root`). On a phone the
+/// notes' folder opens through the Files app, which Kotlin serves itself.
 #[cfg_attr(mobile, allow(dead_code))]
 pub fn library_dir<R: Runtime>(app: &impl Manager<R>) -> Result<PathBuf, String> {
     Ok(data_dir(app)?.join(LIBRARY))
+}
+
+/// Where the library is: what `<app_data_dir>/library-root.json` says (library/root.rs `Root::read`, the one
+/// reader of it), the app's own folder when it says nothing.
+pub fn library_root<R: Runtime>(app: &impl Manager<R>) -> Result<crate::library::root::Root, String> {
+    Ok(crate::library::root::Root::read(&data_dir(app)?))
 }
 
 /// `<app_data_dir>/recordings`.
@@ -178,6 +189,7 @@ mod tests {
             ("MainActivity.kt", format!("File(cacheDir, \"{UPDATES}\")")),
             ("capture/MeetingService.kt", format!("fun recordingsDir(context: Context): File = File(context.dataDir, \"{RECORDINGS}\")")),
             ("recordings/RecordingWorker.kt", format!("File(context.dataDir, \"{JOBS}\")")),
+            ("files/LibraryTree.kt", format!("File(context.dataDir, \"{}\")", crate::library::root::ROOT_FILE)),
         ] {
             let source = kotlin(file);
             assert!(source.contains(&twin), "{file} no longer says {twin}");
@@ -193,6 +205,30 @@ mod tests {
         let activity = kotlin("MainActivity.kt");
         let rule = format!("id.length in 1..{}", crate::fsx::PLAIN_ID_MAX);
         assert!(activity.contains(&rule), "MainActivity.isNoteId no longer says {rule}");
+    }
+
+    /// What saf.rs calls on `LibraryTree` (compiled for Android only, so the names are written out here): every one a
+    /// static method of strings answering a string, and `attach` the native method saf.rs exports. A rename on
+    /// either side fails here rather than as a library that will not open on a phone.
+    #[test]
+    fn the_folder_bridge_has_every_method_rust_calls() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("gen/android/app/src/main/java/com/mattssoftware/glyph/files/LibraryTree.kt");
+        let source = std::fs::read_to_string(&path).unwrap();
+        assert!(source.starts_with("package com.mattssoftware.glyph.files\n"), "saf.rs exports Java_com_mattssoftware_glyph_files_LibraryTree_attach");
+        assert!(source.contains("object LibraryTree {") && source.contains("@JvmStatic private external fun attach()"));
+        for signature in [
+            "fun granted(tree: String): String",
+            "fun inspect(tree: String): String",
+            "fun list(tree: String): String",
+            "fun read(tree: String, path: String): String",
+            "fun write(tree: String, path: String, text: String): String",
+            "fun rename(tree: String, from: String, to: String): String",
+            "fun remove(tree: String, path: String): String",
+            "fun stat(tree: String, path: String): String",
+        ] {
+            let at = source.find(signature).unwrap_or_else(|| panic!("LibraryTree.kt no longer has {signature}"));
+            assert!(source[..at].trim_end().ends_with("@JvmStatic"), "{signature} must be @JvmStatic for JNI's static call");
+        }
     }
 
     /// Films stay out of Google's cloud backup: both rules files exclude this

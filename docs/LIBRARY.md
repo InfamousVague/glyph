@@ -16,8 +16,8 @@ The library is in Rust, `src-tauri/src/library/`. The page reaches it through th
 
 ## The folder
 
-Today the library is a fixed folder in the app's own storage, `<app_data_dir>/Library`. Picking a folder of one's
-own is phase 2, not built.
+The library is the app's own folder, `<app_data_dir>/Library`, until the person chooses another with the Library
+folder plugin (see "Choosing the folder" below). The layout here is the app's own folder's.
 
 ```
 <app_data_dir>/
@@ -150,7 +150,7 @@ matter block as metadata.
 
 ## The index
 
-`.glyph/index.sqlite` holds a row per note: id, path, the whole body, title, created, modified time and size,
+`.glyph/index.sqlite` (for a folder the person chose, `<app_data_dir>/index/<key>.sqlite`) holds a row per note: id, path, the whole body, title, created, modified time and size,
 source, pinned, archived, whether the id is written in the file yet, recording length, the formatted version's
 hash and model, and a revision that counts every write (`src-tauri/src/library/index.rs`). Keeping the body is what
 lets the list open instantly and search stay fast. A second table keeps the voice commands' writes, for their undo
@@ -206,6 +206,70 @@ is deleted. The rename happens only once every note is written: a move that stop
 the storage full) leaves the database in place, and the next launch finishes it, since a note already in the
 library is never written twice.
 
+## Choosing the folder
+
+Matt: "include #6 as a plugin", #6 being "An Obsidian vault, iCloud Drive or Dropbox. Notes are already plain Markdown
+files. Letting you choose where the library folder lives would make Obsidian, backups and other editors work for
+free." Settings › Plugins › **Library folder** (off until switched on; `src/app/plugins/folder/`, native generation 25)
+chooses it, on the Mac and on Android (DESIGN §187).
+
+- **Where it is** is `<app_data_dir>/library-root.json`, absent for the app's own folder: `{ "kind": "folder", "path":
+  … }` on the Mac, `{ "kind": "tree", "uri": …, "name": … }` on Android. Rust reads it in one place
+  (`src-tauri/src/library/root.rs` `Root::read`), and everything that opens the library opens it there
+  (`src-tauri/src/library_root.rs`): the launch, a meeting's write-up over JNI, the export, Reveal, the reset. Kotlin
+  reads it too (`files/LibraryTree.kt` `LibraryRoot`).
+- **Choosing.** Only in the system's own folder panel (the Mac, `library_choose_folder`) or picker (Android,
+  `GlyphHost.chooseLibraryFolder`, ACTION_OPEN_DOCUMENT_TREE, its grant kept with `takePersistableUriPermission`, then
+  `library_inspect`). The page never sends a path. The folder is looked into and nothing is written there: how many
+  Markdown files it holds and whether Obsidian keeps it, and the page says what will happen. A folder inside the app's
+  storage, the library itself, or one inside it or holding it, is refused.
+- **Moving in** (`library_move`, `src-tauri/src/library/relocate.rs`). The folder is taken as it is: every `.md` in it
+  is a note from the first scan (an id goes into its front matter the first time Ghost.md saves it), and `.obsidian/`,
+  `.trash/` and every other dot folder are left alone. The app's notes are copied in beside them at the paths they had
+  (`Inbox/…`, `workspaces/<name>/…`), each with its front matter, modified time, sidecar, versions file and revision; a
+  file of that name already there gives the note " 2". A note already there by its id, word for word, is not written
+  twice; with other words, it goes in beside it under an id of its own. Then the setting switches, and only then do
+  the notes leave the app's own folder. A copy that stops part way takes back exactly the files it wrote, and nothing
+  has moved. The new library replaces the old one in the running app, drafts carried, so nothing restarts.
+- **Going back** (`library_use_app_folder`) is "Bring a copy back", every note copied into the app's own folder, or
+  "Start empty". The chosen folder keeps every file either way. **Ghost.md removes files only from its own folder**:
+  leaving a folder of the person's for another copies too.
+- **The index is never in a chosen folder.** SQLite in WAL mode is three files a sync service would copy one at a time,
+  and two Macs on one Dropbox folder would each write the other's. A chosen folder's index is
+  `<app_data_dir>/index/<key>.sqlite`, the key an FNV-1a hash of where the folder is. `library.json` and
+  `.glyph/notes/<id>.json` stay in the folder: small JSON written whole, which sync carries like the notes, so a
+  recording's phrases go where the note goes.
+- **Names.** In the app's own folder a file is renamed when its note's title changes, as always. In a chosen folder only
+  a file Ghost.md named (named for its title already) is: `2026-10-01.md` in an Obsidian vault keeps its name when it is
+  edited here, so its daily note and every `[[link]]` to it still find it.
+- **A folder that cannot be reached** (a drive unplugged, a folder moved, a grant taken back) opens the app's own folder
+  for that run, and the page says so. The choice is kept and tried again at the next launch, and a folder that is not
+  there is never made empty.
+- **A reset** forgets the folder: the setting, `index/` and `trees/` in the app's storage. It goes back to the app's own
+  folder and empties that, as it always did. Not one file in the chosen folder is touched, `.glyph/` in it included.
+
+**iCloud Drive on the Mac.** With "Optimise Mac Storage" on, the Mac takes a file it has not opened lately off the disk
+and leaves `.Note.md.icloud` in its place. That placeholder answers for the note (`src-tauri/src/library/vault.rs`): the
+list keeps the row it had, a new note never takes its name, and opening it asks iCloud for the file (`brctl download`)
+and waits three seconds. One that has still not come down opens with the words the index last read, and a save to it
+is refused with "is in iCloud Drive and not on this Mac yet", never written over. A placeholder the index never read is
+asked for, and is a note from the scan after it comes down. Newer Macs keep a dataless file under the note's own name
+instead, which reads like any other and downloads as it is read.
+
+**Android.** A folder chosen there has document ids, not paths, so it is the second `Vault`
+(`src-tauri/src/library/tree.rs` `TreeVault`), each call into Kotlin over JNI (`src-tauri/src/saf.rs`, the first calls
+from Rust into Kotlin; `files/LibraryTree.kt`). A path is walked by display names, one DocumentsContract query per folder
+with only the columns needed, and the ids found are kept. What SAF cannot do: `.glyph/` needs real paths, so it is in
+the app's storage at `<app_data_dir>/trees/<key>/`; a file's modified time cannot be set, so the time a pinned note
+shows is kept there in `kept-times.json` against the time and size the file really has, and shows until another app
+changes the file; and a write is in place ("wt"), not atomic. iCloud Drive has no Android app, so no folder of it can
+be chosen; Dropbox and Google Drive reach the picker through their own apps, which may keep a note online only and open
+it slowly. A folder on the phone, which Syncthing keeps in step, is the reliable case. While the library is in such a
+folder the Files app lists no "Ghost.md" place of its own, and Browse files opens the folder itself.
+
+Not done: a folder changed by another app is seen at the next list or open, as before, since nothing watches it; a
+folder on an iPhone; pictures, films and recordings, which stay in the app's storage wherever the notes are.
+
 ## Seeing the folder
 
 The sidebar's Browse files button shows the library where the device shows folders (`src/app/core/libraryFiles.ts`,
@@ -226,14 +290,17 @@ Inside is one folder of the archive's name: `Library/` as it is here (with `.gly
 says what each folder is. The models, the write-ups under way, the over-the-air builds and `notion.json` stay behind.
 `src-tauri/src/export.rs` writes it, as a stream, so Android's picker hands Rust the new file's descriptor and nothing
 is built on the phone first; a failed or stopped export takes its half-written file away again. A browser zips the
-notes and pictures it keeps.
+notes and pictures it keeps. With the library in a folder of the person's, `Library/` is that folder as it is (on the
+Mac, `.obsidian/` and whatever else is in it included); a folder chosen on Android has no path to walk, so its notes
+and versions files are read through the library as text and `.glyph/` comes from the app's storage.
 
 ## Phases
 
 1. **Built (1.3.0, native generation 15).** This spec, and the library in Rust behind the store commands the page
    already uses, in app storage (`<app_data_dir>/Library`), with the move from the database.
-2. **Planned.** Settings › Library: pick a folder with Android's folder picker (the Storage Access Framework), and
-   move the library there, recordings and pictures with it.
+2. **Built (native generation 25), as the Library folder plugin.** Pick a folder with the Mac's folder panel or
+   Android's folder picker (the Storage Access Framework), and move the library there, or take a folder of Markdown
+   as it is ("Choosing the folder"). Recordings, pictures and films stay in the app's storage.
 3. **Partly built.** Folders in the app: Inbox, and a folder for each workspace, are built. Making folders of
    one's own, moving notes between them, and pictures in an attachments folder are not.
 4. **Planned.** Plugin links (Notion board, GitHub repo) and tags into front matter.

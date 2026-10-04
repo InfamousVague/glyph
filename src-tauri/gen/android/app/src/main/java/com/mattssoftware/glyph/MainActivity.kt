@@ -42,6 +42,8 @@ import androidx.lifecycle.Lifecycle
 import com.mattssoftware.glyph.location.LocationAccess
 import com.mattssoftware.glyph.media.VideoPick
 import com.mattssoftware.glyph.files.ExportTarget
+import com.mattssoftware.glyph.files.LibraryRoot
+import com.mattssoftware.glyph.files.LibraryTree
 import org.json.JSONObject
 import java.io.FileOutputStream
 import java.util.Locale
@@ -181,6 +183,9 @@ class MainActivity : TauriActivity() {
     takeCapture(intent)
     takeMeeting(intent)
     takeLink(intent)
+    // Before super, which starts Tauri: a library in a folder chosen on this phone opens through Kotlin
+    // (files/LibraryTree.kt), and Rust can reach Kotlin only once it has been handed the class.
+    LibraryTree.install(applicationContext, tidy = true)
     super.onCreate(savedInstanceState)
     // Off the main thread: it opens WorkManager and reads the jobs folder, and it
     // must not race Tauri's own index open in the same second (it calls no Rust).
@@ -222,6 +227,7 @@ class MainActivity : TauriActivity() {
     }
     if (VideoPick.answered(this, requestCode, resultCode, data, ::tellVideo)) return
     if (ExportTarget.answered(this, requestCode, resultCode, data, ::tellExport)) return
+    if (LibraryTree.answered(this, requestCode, resultCode, data, ::tellLibraryFolder)) return
     if (requestCode != REQUEST_PICTURE) return
     val uri = data?.data
     if (resultCode != RESULT_OK || uri == null) {
@@ -263,6 +269,16 @@ class MainActivity : TauriActivity() {
   private fun tellExport(json: String) {
     val wv = webView ?: return
     val script = "window.__glyph && window.__glyph.exportTarget && window.__glyph.exportTarget(${JSONObject.quote(json)})"
+    runOnUiThread { wv.evaluateJavascript(script, null) }
+  }
+
+  /**
+   * The folder picked for the library, `window.__glyph.libraryFolder(json)` (plugins/folder/folder.ts): `{ uri, name }`,
+   * `{ cancelled }` or `{ error }` (files/LibraryTree.kt). Native generation 25.
+   */
+  private fun tellLibraryFolder(json: String) {
+    val wv = webView ?: return
+    val script = "window.__glyph && window.__glyph.libraryFolder && window.__glyph.libraryFolder(${JSONObject.quote(json)})"
     runOnUiThread { wv.evaluateJavascript(script, null) }
   }
 
@@ -639,6 +655,25 @@ class MainActivity : TauriActivity() {
      */
     @JavascriptInterface
     fun browseFiles() {
+      // The library in a folder of the person's (native generation 25): that folder, where the notes are, in the
+      // system's file browser. Ghost.md's own place is not listed then (files/LibraryDocuments.kt).
+      val tree = LibraryRoot.chosenTree(applicationContext)
+      if (tree != null) {
+        runOnUiThread {
+          val start = android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, android.provider.DocumentsContract.getTreeDocumentId(tree))
+          try {
+            startActivity(
+              Intent(Intent.ACTION_OPEN_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("*/*")
+                .putExtra(android.provider.DocumentsContract.EXTRA_INITIAL_URI, start),
+            )
+          } catch (e: ActivityNotFoundException) {
+            Log.w("Glyph", "no file browser to show the library's folder in", e)
+          }
+        }
+        return
+      }
       runOnUiThread {
         val authority = com.mattssoftware.glyph.files.LibraryDocuments.authority(packageName)
         val root = android.provider.DocumentsContract.buildRootUri(authority, com.mattssoftware.glyph.files.LibraryDocuments.ROOT_ID)
@@ -854,6 +889,14 @@ class MainActivity : TauriActivity() {
     /** The export is whole, and the file stays. */
     @JavascriptInterface
     fun exportDone() = ExportTarget.done()
+
+    /**
+     * A folder of the person's for the library (native generation 25; files/LibraryTree.kt): Android's folder picker.
+     * "started"; the folder, its grant kept, arrives as a `libraryFolder` event, and so does a picker that would not
+     * open, as `{ error }`. Nothing moves until the page asks Rust to (`library_move`).
+     */
+    @JavascriptInterface
+    fun chooseLibraryFolder(): String = LibraryTree.start(this@MainActivity, ::tellLibraryFolder)
 
     /**
      * What is on the clipboard, for the editor's own Paste (its press-and-hold

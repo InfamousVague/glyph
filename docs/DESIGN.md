@@ -10091,3 +10091,77 @@ real tap: `cargo test --lib system_audio -- --ignored --nocapture`) and SoundMix
 and NewSheet.test.tsx, the meeting screen's lines, the host bridge, and the preference's normalisation.
 
 Cites: §127.
+
+## 187. The library in a folder of your own (2026-10-04)
+
+Matt: "include #6 as a plugin", #6 being "An Obsidian vault, iCloud Drive or Dropbox. Notes are already plain Markdown
+files. Letting you choose where the library folder lives would make Obsidian, backups and other editors work for
+free." On the Mac and on Android, both now. docs/LIBRARY.md "Choosing the folder" is the whole of it; this is why.
+
+**A plugin, off until switched on.** Settings › Plugins › Library folder (plugins/folder/). Most people never move
+their notes, so the page is not in their way; switching it off hides the page and leaves the notes wherever they are.
+Its id is `library-folder`, with a hyphen, because every plugin id is also a name an item mark may carry and
+`[folder](…)` is a link a person could write. Native generation 25: `library_root`, `library_choose_folder`,
+`library_inspect`, `library_move`, `library_use_app_folder`, and the activity's `GlyphHost.chooseLibraryFolder`
+answered as `window.__glyph.libraryFolder`.
+
+**Safety came first, before a folder could be chosen.**
+
+- *A reset never deletes a person's folder.* It used to remove every `.md` the library listed, which in an Obsidian
+  vault is the vault. Now it forgets the choice, the folder's index and an Android folder's bookkeeping, goes back to
+  the app's own folder and empties that, as before. And `Library::clear` on a chosen folder forgets its index and
+  deletes nothing, as a second guard (reset.rs, library/mod.rs).
+- *The index is never in the folder.* WAL SQLite is three files a sync service copies one at a time; two Macs on one
+  Dropbox folder would each write the other's. A chosen folder's index is `<app_data_dir>/index/<key>.sqlite` (FNV-1a
+  of the place, not std's hasher, whose output may change with the compiler). The sidecars and `library.json` stay in
+  the folder's `.glyph/`: small JSON written whole, which sync carries like the notes, so a recording's phrases go with
+  its note to the other Mac. The app's own folder keeps its index where it always was, so nobody who never chooses a
+  folder has anything moved.
+- *An iCloud placeholder is not a deleted note.* The walk skipped dot names, so `.Plan.md.icloud` made a note vanish and
+  the next scan dropped its row. The placeholder now answers for the note: the row stays, its name is taken, a read
+  asks iCloud (`brctl download`) and waits three seconds, and what has not come down opens from the index and refuses a
+  save rather than write a second file over it (library/vault.rs `NotDownloaded`).
+- *Front matter already coexisted with Obsidian* (frontmatter.rs keeps every key and line it does not manage); the move
+  test edits a vault's daily note and checks its `tags:` are kept.
+
+**Move, adopt, and never the other way.** A folder with Markdown in it is adopted as it is: its files become notes,
+the app's go in beside them at their own paths, " 2" on a clash. An empty one simply receives the notes. The order is
+copy, switch, then remove, so a note is never in neither place, and a copy that stops part way takes back exactly what
+it wrote. Only the app's own folder is ever emptied by a move: leaving a folder of the person's (for another, or for
+the app's own with "Bring a copy back") copies. Going back with nothing ("Start empty") was kept because a person who
+used a folder as a one-off export target may want the app clean. Revisions and the voice commands' undo memory are
+carried into the new index, so the open editor's next save is not a conflict.
+
+**An adopted file keeps its name.** In the app's own folder a file follows its title, as always. In a chosen folder
+only a file Ghost.md named does: Obsidian's `2026-10-01.md` keeps its name when edited here, or its daily note and
+every `[[link]]` to it would break.
+
+**Android: the second vault, and Rust calling Kotlin.** A folder from ACTION_OPEN_DOCUMENT_TREE has document ids, not
+paths, so library/tree.rs's `TreeVault` stands on a small `Documents` trait that saf.rs answers over JNI from
+files/LibraryTree.kt - the first calls this way. A Rust thread cannot `FindClass` an app class, so Kotlin hands Rust
+the JVM and the class itself (`LibraryTree.install` → `attach`), from the activity before Tauri starts and from the
+write-up's two doors; each call runs in its own local frame and answers one JSON string. Listing is one
+DocumentsContract query per folder with five columns, never a DocumentFile per file, and the ids found are kept.
+`.glyph/` is in the app's storage there (`trees/<key>/`), since SQLite and the sidecars need paths. SAF cannot set a
+file's time, so "a pin is not an edit" is kept by recording the time a note shows against the time and size its file
+really has (`kept-times.json`): the moment another app changes the file, its own time shows. A write is in place, not
+atomic, which is the one thing an app's own folder does better. The activity lets go of grants for folders that are no
+longer the library on each launch. The Files app's "Ghost.md" place is hidden while the notes are in the person's own
+folder, where Files already shows them, and Browse files opens that folder.
+
+**The page** says where the notes are; Choose a folder… opens the system's panel or picker and then says, before
+anything moves, what is in the folder and what will happen to the notes; Use Ghost.md's own folder offers the copy or
+the clean start and says the folder keeps every file. A folder that cannot be reached opens the app's own for that run,
+with a callout, and the choice is tried again next launch. Good to know is by device: on Android a folder on the phone
+(Syncthing) is the reliable case and Dropbox and Drive may be online-only through their apps, iCloud has no Android
+app; on the Mac, iCloud's placeholders; everywhere, that adopted files sync as notes and that pictures, films,
+recordings and the index stay in the app. A browser, an iPhone and an older binary each get a sentence instead.
+
+Not yet: watching the folder (another app's change is seen at the next list or open, as before); an iPhone; pictures in
+the folder (phase 3).
+
+Tests: library/root.rs, relocate.rs, tree.rs, vault.rs (the iCloud placeholder), library_root.rs, library_commands.rs,
+reset.rs (`a_reset_never_deletes_a_folder_of_the_persons_and_goes_back_to_the_apps_own`), paths.rs (the Kotlin twins
+and the bridge's methods); plugins/folder/FolderPane.test.tsx; the cards in PluginsPane.test.tsx and registry.test.ts.
+
+Cites: §167, §182.

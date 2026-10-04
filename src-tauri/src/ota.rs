@@ -235,7 +235,13 @@ pub use install::peek;
 /// functions looked up at run time) mixed into `capture_push`, and NSAudioCaptureUsageDescription; on Android the
 /// activity's `GlyphHost.startMeetingWith` and `meetingSound`, the screen-share consent, and the meeting service's
 /// playback capture of other apps (capture/OtherApps.kt) under the `mediaProjection` type with
-/// FOREGROUND_SERVICE_MEDIA_PROJECTION.
+/// FOREGROUND_SERVICE_MEDIA_PROJECTION. And the library in a folder of the person's (docs/DESIGN.md §187,
+/// library_commands.rs): `library_root`, `library_choose_folder` (the Mac's folder panel), `library_inspect`,
+/// `library_move` and `library_use_app_folder`; the activity's `GlyphHost.chooseLibraryFolder`, answered as
+/// `window.__glyph.libraryFolder`, and files/LibraryTree.kt, the Storage Access Framework calls Rust makes into Kotlin
+/// (saf.rs, the first JNI calls that way round); `library-root.json`, a chosen folder's index in `index/` and an
+/// Android folder's `.glyph/` in `trees/`; the reset forgetting a chosen folder and deleting none of it; and iCloud
+/// placeholders kept as notes.
 pub const NATIVE_GENERATION: u32 = 25;
 
 /// What the page built from THIS tree needs. vite.config.ts reads this line
