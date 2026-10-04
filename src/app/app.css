@@ -313,6 +313,13 @@ body {
  */
 :root {
   --app-bar-extra: 0px;
+  /*
+   * The air under the bar's last row, from its foot to the bar's edge: nothing in a style whose tabs stand on the
+   * bar's edge, and the Islands' below. A screen whose header pane is only the bar's glass hangs its blur strip
+   * (art/wisp.css `.app-headerBlur`) from the row's foot by this (editor/NoteScreen.module.css,
+   * home/HomeScreen.module.css), rather than from the bar's edge under the air.
+   */
+  --app-bar-air: 0px;
   /* A little taller than the row it holds, so the controls sit in the bar rather than against its top edge (Matt:
      "add just a bit more padding around the tab bar ... the active tabs are a bit close to the top"): the bar's own
      top padding, the row, and a breath under it. A clipped control is worse than a few pixels of chrome. */
@@ -349,6 +356,17 @@ body {
 
 :root[data-topbar='islands'][data-split][data-tabs='rows'] {
   --app-tabs: var(--app-tabs-one);
+}
+
+/*
+ * On a window in two panes the capsules' one line is centred in the bar, over its bottom padding: the air under
+ * them is that padding and half the breath the line is centred in (`--app-tabs-one`). The blur strip under a
+ * screen's empty header pane hung from the bar's edge, so a crisp band the air tall showed between the capsules and
+ * the blur - measured 12.5px at 1200px, capsules ending at 59.9 and the bar at 72.4 (Matt: "on desktop there is a
+ * small gap below the header before the blur shows"). On a narrow window the tab line sits at the bar's foot.
+ */
+:root[data-topbar='islands'][data-split] {
+  --app-bar-air: calc(var(--app-tab-bottom) + var(--glacier-space-1) / 2);
 }
 
 :root[data-topbar='islands'] .app-headerPane,

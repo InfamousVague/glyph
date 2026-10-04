@@ -84,6 +84,11 @@
   padding-block: var(--app-safe-top) 0;
 }
 
+/* The Islands' blur strip from the capsules' foot, as the note's (editor/NoteScreen.module.css `.header:empty`). */
+.topBar:has(> .saidOnly:only-child) + :global(.app-headerBlur) {
+  margin-block-start: calc(-1 * var(--app-bar-air, 0px));
+}
+
 .topBar:has(> .saidOnly:only-child) ~ .scroll {
   padding-block-start: calc(max(var(--wisp-under, 0px), var(--app-safe-top)) + var(--glacier-space-1) + var(--glacier-space-2) + var(--glacier-space-6));
 }

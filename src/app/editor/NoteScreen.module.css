@@ -86,6 +86,15 @@
   padding-block: var(--app-safe-top) 0;
 }
 
+/*
+ * The Islands float their capsules in the bar's air (app.css `--app-bar-air`), so the blur strip - the header's next
+ * sibling (art/wispEdge.ts) - hangs from the capsules' foot rather than from the bar's edge under the air, which left
+ * a crisp band between them (Matt: "on desktop there is a small gap below the header before the blur shows").
+ */
+.header:empty + :global(.app-headerBlur) {
+  margin-block-start: calc(-1 * var(--app-bar-air, 0px));
+}
+
 .header:empty ~ .page {
   padding-block-start: calc(var(--wisp-under, 3.6rem) + var(--glacier-space-1) + var(--glacier-space-2) + var(--ai-strip-room, 0px));
 }

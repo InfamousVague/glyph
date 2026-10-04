@@ -9948,3 +9948,31 @@ Tests: core/versions/log.test.tsx; notes/OrganizationLog.test.tsx; the audit log
 notes/OrganizationScreen.test.tsx, App.test.tsx and shell/screen.test.ts.
 
 Cites: §175, §182.
+
+## 184. A phone's bar while a note is read, and the Islands' blur (2026-10-04)
+
+Two small ones on the top bar.
+
+**The bell and the people icon step out on a phone with a note open.** Matt: "don't show notifications on mobile
+while on the viewing of a note also don't show the organization on the page when viewing notes either". A phone's
+bar holds a note's own tools while one is read, so with a note on screen the people icon and the bell are not drawn
+(App.tsx `quietBar`: `isMobile` and the `note` Screen; notes/NoteTabs.tsx draws neither without its callback). They
+are back on the home page, the grid and an organization's pages, and a phone's own notifications carry the bell's
+rows meanwhile (§181). `isMobile` is the device (core/platform.ts), not the window's width: a narrow Mac window keeps
+them, a Fold opened wide does without.
+
+**The Islands' blur strip hangs from the capsules' foot.** Matt: "on desktop there is a small gap below the header
+before the blur shows". In the Islands (§180) on a window in two panes, the capsules' one line is centred in the bar
+over its bottom padding, and the blur strip under a screen's empty header pane (§178's desktop edge, art/wisp.css
+`.app-headerBlur`) hung from the pane's foot, which is the bar's edge: a crisp band the air tall showed between the
+capsules and the blur. Measured at 1200px: the capsules end at 59.9, the bar at 72.4, the strip began at 72. The air
+is named once (app.css `--app-bar-air`: the bar's bottom padding and half the breath the line is centred in, nothing
+in the other styles, whose tab line is the bar's foot), and the two screens whose pane is only the bar's glass - a
+note (editor/NoteScreen.module.css `.header:empty`) and the home page (home/HomeScreen.module.css) - pull the strip,
+their header's next sibling, up by it. The pane itself keeps its height, so `--wisp-under` and the page's first line
+stay where they were.
+
+Tests: the quiet bar in App.test.tsx; the strip's place is CSS over a sibling the hook lays (art/wispEdge.ts), checked
+in the browser at 1200px: the strip now starts at 59.9.
+
+Cites: §178, §180, §181.

@@ -91,7 +91,7 @@ import { orgsState, useOrgs } from './core/orgs/orgs.ts';
 import { tickedBody } from './core/query/tick.ts';
 import { movedBody } from './core/query/move.ts';
 import type { RecordKind } from './core/query/records.ts';
-import { isMacApp, recordsVoice } from './core/platform.ts';
+import { isMacApp, isMobile, recordsVoice } from './core/platform.ts';
 
 /**
  * The whole app: which screen is up, and everything drawn over it.
@@ -932,6 +932,13 @@ function Shell() {
   // Academy still take the whole window.
   const split = sidebar && isPlace(screen);
   /*
+   * A phone reading a note: the bar holds the note's own tools, so the people icon and the bell step out of it (Matt:
+   * "don't show notifications on mobile while on the viewing of a note also don't show the organization on the page
+   * when viewing notes either"). They are back on the home page and the grid, and a phone's own notifications carry
+   * the bell's rows meanwhile (docs/DESIGN.md §181).
+   */
+  const quietBar = isMobile && screen.name === 'note';
+  /*
    * The sidebar docked beside the note, rather than a popover over it: a window wide enough, and Docked chosen in
    * Settings. A popover is the default everywhere (Matt: "Sidebar should open and close in a popover not a full
    * sidebar even on desktop", core/preferences.ts `SidebarStyle`). Either way the top bar's icon is the way to it;
@@ -1384,16 +1391,24 @@ function Shell() {
             onGoOn={goOn}
             canGoBack={walk.canBack}
             canGoOn={walk.canOn}
-            onNotifications={() => {
-              setDrawer(false);
-              setNotificationsOpen((open) => !open);
-            }}
-            onOrganizations={() => {
-              // Settings › Account › Organizations, which says what teams need when signed out.
-              leaveOrganization();
-              setSettings(true);
-              setToPage({ id: 'organizations', nonce: Date.now() });
-            }}
+            onNotifications={
+              quietBar
+                ? undefined
+                : () => {
+                    setDrawer(false);
+                    setNotificationsOpen((open) => !open);
+                  }
+            }
+            onOrganizations={
+              quietBar
+                ? undefined
+                : () => {
+                    // Settings › Account › Organizations, which says what teams need when signed out.
+                    leaveOrganization();
+                    setSettings(true);
+                    setToPage({ id: 'organizations', nonce: Date.now() });
+                  }
+            }
             // The people icon's picker: the ones you belong to, a pick straight to its dashboard.
             organizations={memberOrgs}
             onOrganization={(orgId) => openOrganization(orgId)}

@@ -130,12 +130,15 @@ vi.mock('./core/location.ts', async (importOriginal) => {
   const real = await importOriginal<typeof import('./core/location.ts')>();
   return { ...real, tagEntryIfWanted: vi.fn(real.tagEntryIfWanted) };
 });
-// The Mac app, where a test says so: ⌘N is bound only there.
-const device = vi.hoisted(() => ({ mac: false }));
+// The Mac app, where a test says so: ⌘N is bound only there. A phone, where one says so: the bar is quieter on a note.
+const device = vi.hoisted(() => ({ mac: false, mobile: false }));
 vi.mock('./core/platform.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./core/platform.ts')>()),
   get isMacApp() {
     return device.mac;
+  },
+  get isMobile() {
+    return device.mobile;
   },
 }));
 vi.mock('./share/share.ts', async (importOriginal) => ({
@@ -863,6 +866,29 @@ describe('the bell, and an organization’s screen', () => {
     act(() => seen.notifications!.onOpenNote('a', 'line:3'));
     expect(noteShown()).toBe('a');
     expect(document.querySelector('[data-screen="note"]')?.getAttribute('data-at')).toBe('line:3');
+  });
+
+  // Matt: "don't show notifications on mobile while on the viewing of a note also don't show the organization on the
+  // page when viewing notes either".
+  it('takes the bell and the people icon off the bar on a phone while a note is read, and puts them back at home', async () => {
+    device.mobile = true;
+    try {
+      await seed(['a', '# Apples']);
+      await openApp();
+      expect(button('Notifications')).toBeTruthy();
+      expect(button('Organizations')).toBeTruthy();
+      act(() => button('Notifications').click());
+      act(() => seen.notifications!.onOpenNote('a'));
+      expect(noteShown()).toBe('a');
+      expect(() => button('Notifications')).toThrow();
+      expect(() => button('Organizations')).toThrow();
+      act(() => seen.note!.onBack());
+      expect(noteShown()).toBeNull();
+      expect(button('Notifications')).toBeTruthy();
+      expect(button('Organizations')).toBeTruthy();
+    } finally {
+      device.mobile = false;
+    }
   });
 
   it('opens an organization from Settings with the sheet closed first, and closing it reopens Settings on Organizations', async () => {
