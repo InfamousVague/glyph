@@ -18,6 +18,8 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.media.projection.MediaProjectionConfig
+import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -45,6 +47,7 @@ import java.io.FileOutputStream
 import java.util.Locale
 import java.util.UUID
 import com.mattssoftware.glyph.capture.MeetingService
+import com.mattssoftware.glyph.capture.OtherApps
 import com.mattssoftware.glyph.recordings.RecordingAlerts
 import com.mattssoftware.glyph.recordings.RecordingJob
 import com.mattssoftware.glyph.recordings.RecordingWorker
@@ -86,6 +89,8 @@ class MainActivity : TauriActivity() {
     private const val REQUEST_MEETING_NOTIFICATIONS = 4103
     /** The microphone, for a meeting on a phone that never dictated (the WebView asks for its own). */
     private const val REQUEST_MICROPHONE = 4104
+    /** The screen-share consent, for a meeting with other apps' sound in it (native generation 25). */
+    private const val REQUEST_PROJECTION = 4105
     /** A picked picture is shrunk so its long side is at most this, as a JPEG. Plenty for a note; ~300 KB. */
     private const val PICTURE_MAX_PX = 1600
 
@@ -162,6 +167,13 @@ class MainActivity : TauriActivity() {
   /** The note whose meeting asked for the microphone, named in the answer so the page knows whose it is. */
   @Volatile private var microphoneFor: String? = null
 
+  /** The meeting waiting on the screen-share consent: its note and its title. */
+  @Volatile private var projectionFor: Pair<String, String>? = null
+
+  /** The consent's answer, for the meeting it was asked for; started from onResume, with the activity in front. */
+  private class ProjectionAnswer(val noteId: String, val title: String, val code: Int, val data: Intent?)
+  @Volatile private var pendingProjection: ProjectionAnswer? = null
+
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     // Before super: the window's lock-screen behaviour has to be decided before
@@ -198,6 +210,16 @@ class MainActivity : TauriActivity() {
    */
   override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
     super.onActivityResult(requestCode, resultCode, data)
+    if (requestCode == REQUEST_PROJECTION) {
+      val asked = projectionFor
+      projectionFor = null
+      if (asked != null) {
+        // Declined is no data: the meeting starts all the same, with the microphone, and its screen says why.
+        val answer = ProjectionAnswer(asked.first, asked.second, resultCode, if (resultCode == RESULT_OK) data else null)
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) launchMeeting(answer.noteId, answer.title, answer) else pendingProjection = answer
+      }
+      return
+    }
     if (VideoPick.answered(this, requestCode, resultCode, data, ::tellVideo)) return
     if (ExportTarget.answered(this, requestCode, resultCode, data, ::tellExport)) return
     if (requestCode != REQUEST_PICTURE) return
@@ -283,6 +305,12 @@ class MainActivity : TauriActivity() {
     pendingPermission?.let { granted ->
       pendingPermission = null
       deliverPermission(granted)
+    }
+    // The screen-share consent's answer: the meeting's service starts now, with the activity back in front, which
+    // the microphone's foreground type needs.
+    pendingProjection?.let { answer ->
+      pendingProjection = null
+      launchMeeting(answer.noteId, answer.title, answer)
     }
     MeetingService.flushPending()
     // Registered whether or not the WebView exists yet: on a cold start it
@@ -407,6 +435,28 @@ class MainActivity : TauriActivity() {
         // the spot) the activity never left the front and no resume follows: the answer goes now.
         if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) deliverPermission(granted) else pendingPermission = granted
       }
+    }
+  }
+
+  /**
+   * The meeting's service started for `noteId`, on the UI thread with the activity in front, carrying the
+   * screen-share consent's answer when other apps' sound was asked for (MeetingService `projectionOf`).
+   */
+  private fun launchMeeting(noteId: String, title: String, projection: ProjectionAnswer?) {
+    val intent = Intent(this, MeetingService::class.java)
+      .setAction(MeetingService.ACTION_START)
+      .putExtra(MeetingService.EXTRA_NOTE_ID, noteId)
+      .putExtra(MeetingService.EXTRA_TITLE, title)
+    if (projection != null) {
+      intent.putExtra(MeetingService.EXTRA_PROJECTION_CODE, projection.code)
+      if (projection.data != null) intent.putExtra(MeetingService.EXTRA_PROJECTION_DATA, projection.data)
+    }
+    try {
+      ContextCompat.startForegroundService(this, intent)
+    } catch (error: Exception) {
+      // Android 12+ refuses a foreground start from an app it does not see in front; the page undoes the note.
+      Log.w(TAG, "the meeting service could not start", error)
+      tell("meeting", JSONObject().put("event", "failed").put("noteId", noteId).put("elapsedMs", 0).put("message", "The meeting could not start.").toString())
     }
   }
 
@@ -917,20 +967,52 @@ class MainActivity : TauriActivity() {
         runOnUiThread { requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_MICROPHONE) }
         return "permission"
       }
+      runOnUiThread { launchMeeting(noteId, title, null) }
+      return "started"
+    }
+
+    /**
+     * As `startMeeting`, with other apps' sound in the meeting when `otherApps` is set (native generation 25; the
+     * page's "Include sound from other apps"). The microphone is asked for first, as above; then Android's
+     * screen-share consent, the whole screen on Android 14 and later so the dialog does not offer a single app's,
+     * and the service starts once it is answered (onResume), declined or not: a meeting asked for is recorded, and
+     * its screen says when it is the microphone alone. Below Android 10, or with the switch off, it is `startMeeting`.
+     */
+    @JavascriptInterface
+    fun startMeetingWith(noteId: String, title: String, otherApps: Boolean): String {
+      if (!otherApps || OtherApps.unsupported() != null) return startMeeting(noteId, title)
+      if (!isNoteId(noteId)) return "not a note id"
+      if (MeetingService.isRecording()) return "recording"
+      if (MeetingService.isEnding()) return MeetingService.STILL_STOPPING
+      if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        microphoneFor = noteId
+        runOnUiThread { requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_MICROPHONE) }
+        return "permission"
+      }
+      projectionFor = noteId to title
       runOnUiThread {
-        val intent = Intent(this@MainActivity, MeetingService::class.java)
-          .setAction(MeetingService.ACTION_START)
-          .putExtra(MeetingService.EXTRA_NOTE_ID, noteId)
-          .putExtra(MeetingService.EXTRA_TITLE, title)
+        val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        val ask = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+          manager.createScreenCaptureIntent(MediaProjectionConfig.createConfigForDefaultDisplay())
+        } else {
+          manager.createScreenCaptureIntent()
+        }
         try {
-          ContextCompat.startForegroundService(this@MainActivity, intent)
+          startActivityForResult(ask, REQUEST_PROJECTION)
         } catch (error: Exception) {
-          // Android 12+ refuses a foreground start from an app it does not see in front; the page undoes the note.
-          Log.w(TAG, "the meeting service could not start", error)
-          tell("meeting", JSONObject().put("event", "failed").put("noteId", noteId).put("elapsedMs", 0).put("message", "The meeting could not start.").toString())
+          Log.w(TAG, "the screen-share consent could not be asked", error)
+          projectionFor = null
+          launchMeeting(noteId, title, ProjectionAnswer(noteId, title, RESULT_CANCELED, null))
         }
       }
       return "started"
+    }
+
+    /** `{ supported, reason }`: whether this phone can put other apps' sound in a meeting (Android 10+). */
+    @JavascriptInterface
+    fun meetingSound(): String {
+      val reason = OtherApps.unsupported()
+      return JSONObject().put("supported", reason == null).put("reason", reason ?: JSONObject.NULL).toString()
     }
 
     /** Done: the service stops recording and carries on as the write-up. */

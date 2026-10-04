@@ -13,6 +13,7 @@ import {
   requestNotifications,
   setCapturing,
   startMeetingOnHost,
+  meetingSoundOnHost,
   stopMeetingOnHost,
   takeCaptureLaunch,
   takeHostLink,
@@ -204,5 +205,30 @@ describe('what the page asks the activity about meetings', () => {
     window.GlyphHost = { requestNotifications: () => 'maybe', writeUp: () => 'busy' } as unknown as Window['GlyphHost'];
     expect(requestNotifications()).toBe('blocked');
     expect(writeUpOnHost('m1', true)).toBe(false);
+  });
+
+  it('asks for other apps\u2019 sound only of a binary that has it, and reads its answer whole or not at all', () => {
+    const calls: unknown[][] = [];
+    window.GlyphHost = {
+      startMeeting: (...args: unknown[]) => (calls.push(['startMeeting', ...args]), 'started'),
+    } as unknown as Window['GlyphHost'];
+    // A binary before generation 25: the switch on still records the microphone, as that binary always has.
+    expect(startMeetingOnHost('m1', 'Meeting', true)).toBe('started');
+    expect(meetingSoundOnHost()).toBeNull();
+    window.GlyphHost = {
+      startMeeting: (...args: unknown[]) => (calls.push(['startMeeting', ...args]), 'started'),
+      startMeetingWith: (...args: unknown[]) => (calls.push(['startMeetingWith', ...args]), 'started'),
+      meetingSound: () => '{"supported":false,"reason":"Android 10 or later can record the sound of other apps."}',
+    } as unknown as Window['GlyphHost'];
+    expect(startMeetingOnHost('m2', 'Meeting', true)).toBe('started');
+    expect(startMeetingOnHost('m3', 'Meeting')).toBe('started');
+    expect(calls).toEqual([
+      ['startMeeting', 'm1', 'Meeting'],
+      ['startMeetingWith', 'm2', 'Meeting', true],
+      ['startMeeting', 'm3', 'Meeting'],
+    ]);
+    expect(meetingSoundOnHost()).toEqual({ supported: false, reason: 'Android 10 or later can record the sound of other apps.' });
+    window.GlyphHost = { meetingSound: () => '{"supported":"yes"}' } as unknown as Window['GlyphHost'];
+    expect(meetingSoundOnHost()).toBeNull();
   });
 });

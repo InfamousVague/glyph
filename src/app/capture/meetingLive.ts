@@ -37,6 +37,15 @@ export interface MeetingState {
   elapsedMs: number;
   /** Another app took the microphone: the file keeps growing with silence. */
   silenced: boolean;
+  /**
+   * Other apps' sound is being mixed into the meeting now (native generation 25; capture/OtherApps.kt). Optional, as
+   * the two below are: a state from an older binary, or one a test makes, has no word on it, which is "no".
+   */
+  otherApps?: boolean;
+  /** Something but silence has come through it. */
+  otherAppsHeard?: boolean;
+  /** Why other apps' sound was asked for and is not in the meeting (sharing declined, or stopped), or null. */
+  otherAppsNote?: string | null;
   /** The note the service is writing up now, or null. */
   writingUp: string | null;
   /** Notes the notification's Discard threw away that the page has not yet deleted (shell/useCaptureRoute.ts). */
@@ -83,6 +92,10 @@ export function parseMeetingState(raw: unknown): MeetingState | null {
     startedAt: num(got.startedAt),
     elapsedMs: num(got.elapsedMs) ?? 0,
     silenced: got.silenced === true,
+    // Said only by a binary of generation 25 or later; an older one's state has no word on other apps' sound.
+    ...('otherApps' in got
+      ? { otherApps: got.otherApps === true, otherAppsHeard: got.otherAppsHeard === true, otherAppsNote: str(got.otherAppsNote) }
+      : {}),
     writingUp: str(got.writingUp),
     discarded: Array.isArray(got.discarded) ? got.discarded.filter((id): id is string => typeof id === 'string') : [],
   };

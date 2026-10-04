@@ -9,6 +9,7 @@ import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.AudioRecordingConfiguration
 import android.media.MediaRecorder
+import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -72,6 +73,17 @@ import java.util.concurrent.atomic.AtomicReference
  * app closed, the id is remembered in `discarded` until the page has deleted
  * the note and said so.
  *
+ * Other apps' sound (native generation 25; "Include sound from other apps",
+ * off by default): when the page asked for it and the person allowed the
+ * screen-share consent, the START carries that answer, the service comes to the
+ * front as `microphone|mediaProjection` (Android 14 refuses a projection to a
+ * service of any other type), and OtherApps.kt reads the playback capture
+ * beside the microphone; the reader mixes it into each read before the spool
+ * writes it (SoundMix.kt), so the tape is still one 16 kHz mono stream. Media
+ * and games only: Android never lets an app capture a call. A capture that will
+ * not open, or a share stopped from the status bar, leaves the microphone
+ * recording on its own, and `meetingState` says so (`otherApps`, `otherAppsNote`).
+ *
  * The page hears every change as `window.__glyph.meeting(json)` while an
  * activity is resumed (MainActivity.tell) and reads `meetingState()` when it
  * comes back. State lives in the companion (`@Volatile`, read from the bridge
@@ -86,6 +98,13 @@ class MeetingService : Service() {
     const val ACTION_KEEP_GOING = "com.mattssoftware.glyph.meeting.KEEP_GOING"
     const val EXTRA_NOTE_ID = "noteId"
     const val EXTRA_TITLE = "title"
+    /** The screen-share consent's answer (MainActivity, REQUEST_PROJECTION), when other apps' sound is wanted. */
+    const val EXTRA_PROJECTION_CODE = "projectionCode"
+    const val EXTRA_PROJECTION_DATA = "projectionData"
+    /** Said on the meeting screen when other apps' sound was asked for and is not in the meeting. */
+    const val OTHER_APPS_DECLINED = "Sharing was not allowed, so only the microphone is recording."
+    const val OTHER_APPS_FAILED = "Other apps' sound could not be opened, so only the microphone is recording."
+    const val OTHER_APPS_ENDED = "Sharing stopped, so only the microphone is recording now."
     /** The hard cap: a meeting stops here whatever was answered. */
     const val MEETING_MAX_MS = 4 * 60 * 60 * 1000L
     /** When "Still recording?" is asked. */
@@ -124,6 +143,10 @@ class MeetingService : Service() {
     @Volatile private var startedAt: Long? = null
     @Volatile private var startedAtElapsed = 0L
     @Volatile private var silenced = false
+    /** Other apps' sound is being mixed into the meeting now. */
+    @Volatile private var otherAppsOn = false
+    /** Why other apps' sound was asked for and is not in the meeting, or null. */
+    @Volatile private var otherAppsNote: String? = null
 
     /** The note id this service is writing up now, or null. */
     @Volatile var writingUp: String? = null
@@ -147,6 +170,9 @@ class MeetingService : Service() {
         .put("startedAt", startedAt ?: JSONObject.NULL)
         .put("elapsedMs", elapsed)
         .put("silenced", silenced)
+        .put("otherApps", recording && otherAppsOn)
+        .put("otherAppsHeard", recording && otherAppsOn && instance?.otherApps?.heard == true)
+        .put("otherAppsNote", if (recording) otherAppsNote ?: JSONObject.NULL else JSONObject.NULL)
         .put("writingUp", writingUp ?: JSONObject.NULL)
         .put("discarded", JSONArray(discarded(context).toList()))
         .toString()
@@ -272,6 +298,8 @@ class MeetingService : Service() {
   @Volatile private var lastStartId = 0
   private var wakeLock: PowerManager.WakeLock? = null
   private var record: AudioRecord? = null
+  /** Other apps' sound, while it is in the meeting (Android 10+). */
+  @Volatile private var otherApps: OtherApps? = null
   private var reader: Thread? = null
   private val reading = AtomicBoolean(false)
   /** A Stop or Discard is on its way, until its bookkeeping is done: the second one is ignored, and no new meeting starts. */
@@ -293,7 +321,7 @@ class MeetingService : Service() {
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
     lastStartId = startId
     when (intent?.action) {
-      ACTION_START -> start(intent.getStringExtra(EXTRA_NOTE_ID), intent.getStringExtra(EXTRA_TITLE), startId)
+      ACTION_START -> start(intent.getStringExtra(EXTRA_NOTE_ID), intent.getStringExtra(EXTRA_TITLE), startId, projectionOf(intent))
       ACTION_STOP -> if (recording) requestStop("notification") else idleStop(startId)
       ACTION_DISCARD -> if (recording) requestDiscard(fromNotification = true) else idleStop(startId)
       ACTION_KEEP_GOING -> keepGoing(startId)
@@ -310,7 +338,7 @@ class MeetingService : Service() {
    * then the wake lock, then `AudioRecord`. Anything thrown, or a recorder
    * that did not initialise, undoes it all and tells the page `failed`.
    */
-  private fun start(id: String?, name: String?, startId: Int) {
+  private fun start(id: String?, name: String?, startId: Int, projection: Projection?) {
     if (id == null) {
       idleStop(startId)
       return
@@ -326,8 +354,12 @@ class MeetingService : Service() {
     val file = File(recordingsDir(this), "$id.wav")
     var recorder: AudioRecord? = null
     var out: RandomAccessFile? = null
+    otherAppsNote = projection?.note
     try {
-      startRecordingForeground(RecordingAlerts.recording(this, 0, false))
+      // With the projection's type when other apps' sound is wanted; Android refusing that type is the microphone alone.
+      val sharing = projection?.data != null && startRecordingForeground(RecordingAlerts.recording(this, 0, false), projection = true)
+      if (!sharing) startRecordingForeground(RecordingAlerts.recording(this, 0, false), projection = false)
+      if (projection?.data != null && !sharing) otherAppsNote = OTHER_APPS_FAILED
       holdWakeLock(RECORDING_WAKE_MS)
       val minimum = AudioRecord.getMinBufferSize(WavSpool.SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
       // Plain MIC, no effects: the WebView path's noise suppression and gain are tuned for close talk; across a
@@ -356,6 +388,7 @@ class MeetingService : Service() {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) mic.registerAudioRecordingCallback(ContextCompat.getMainExecutor(this), silence)
       mic.startRecording()
       if (mic.recordingState != AudioRecord.RECORDSTATE_RECORDING) throw IllegalStateException("the microphone did not start")
+      if (sharing && projection != null) openOtherApps(projection)
       recording = true
       reading.set(true)
       reader = Thread({ read(mic, spool) }, "glyph-meeting-mic").also { it.start() }
@@ -363,6 +396,7 @@ class MeetingService : Service() {
       yieldWriteUps()
     } catch (error: Exception) {
       Log.w(TAG, "the meeting could not start", error)
+      closeOtherApps()
       if (recorder != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) recorder.unregisterAudioRecordingCallback(silence)
       recorder?.release()
       record = null
@@ -376,6 +410,7 @@ class MeetingService : Service() {
       title = null
       startedAt = null
       recording = false
+      otherAppsNote = null
       clearMeeting(this)
       pushFailed(id, if (error is SecurityException) "Ghost.md needs the microphone to record a meeting." else "The meeting could not start.")
       if (writingUp == null) {
@@ -395,6 +430,7 @@ class MeetingService : Service() {
    */
   private fun read(recorder: AudioRecord, out: RandomAccessFile) {
     val buffer = ByteArray(READ_BYTES)
+    val sound = ShortArray(READ_BYTES / 2)
     var dataLen = 0L
     var lastPatch = SystemClock.elapsedRealtime()
     try {
@@ -408,6 +444,8 @@ class MeetingService : Service() {
           break
         }
         if (n > 0) {
+          // Other apps' sound added in before the bytes are written, as much of it as has arrived (SoundMix.kt).
+          otherApps?.let { if (it.running) SoundMix.mixInto(buffer, n, it.ring, sound) }
           out.write(buffer, 0, n)
           dataLen += n
         }
@@ -646,6 +684,7 @@ class MeetingService : Service() {
   }
 
   private fun endReader() {
+    closeOtherApps()
     reading.set(false)
     val recorder = record
     try {
@@ -773,12 +812,76 @@ class MeetingService : Service() {
     stopSelfResult(startId)
   }
 
-  private fun startRecordingForeground(notification: android.app.Notification) {
+  /**
+   * The recording's type: microphone, and mediaProjection beside it when other apps' sound is wanted, which Android
+   * 14 requires before the projection can be had. With `projection`, false when Android refused that type (the
+   * caller then comes to the front with the microphone alone); without it, it throws as it always has.
+   */
+  private fun startRecordingForeground(notification: android.app.Notification, projection: Boolean): Boolean {
+    if (projection) {
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false
+      return try {
+        val types = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+          ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+        } else {
+          ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+        }
+        startForeground(RecordingAlerts.RECORDING_ID, notification, types)
+        true
+      } catch (error: Exception) {
+        Log.w(TAG, "the meeting could not come to the front with the projection", error)
+        false
+      }
+    }
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
       startForeground(RecordingAlerts.RECORDING_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
     } else {
       startForeground(RecordingAlerts.RECORDING_ID, notification)
     }
+    return true
+  }
+
+  /** The consent's answer a START carried, or null when other apps' sound was not asked for. */
+  private class Projection(val code: Int, val data: Intent?, val note: String?)
+
+  private fun projectionOf(intent: Intent): Projection? {
+    if (!intent.hasExtra(EXTRA_PROJECTION_CODE)) return null
+    val data: Intent? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      intent.getParcelableExtra(EXTRA_PROJECTION_DATA, Intent::class.java)
+    } else {
+      @Suppress("DEPRECATION")
+      intent.getParcelableExtra(EXTRA_PROJECTION_DATA)
+    }
+    // No data is the consent declined: the meeting records the microphone, and says why.
+    return Projection(intent.getIntExtra(EXTRA_PROJECTION_CODE, 0), data, if (data == null) OTHER_APPS_DECLINED else null)
+  }
+
+  /** The projection made from the consent's answer, and other apps' sound read from it; the microphone alone if not. */
+  private fun openOtherApps(projection: Projection) {
+    val data = projection.data ?: return
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+    val opened = try {
+      val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+      val media = manager.getMediaProjection(projection.code, data)
+      if (media == null) null else OtherApps.open(this, media) {
+        // Stopped from either side; only a stop from outside is worth a line on the meeting screen.
+        if (otherAppsOn && recording) otherAppsNote = OTHER_APPS_ENDED
+        otherAppsOn = false
+      }
+    } catch (error: Exception) {
+      Log.w(TAG, "other apps' sound could not be opened", error)
+      null
+    }
+    otherApps = opened
+    otherAppsOn = opened != null
+    if (opened == null) otherAppsNote = OTHER_APPS_FAILED
+  }
+
+  private fun closeOtherApps() {
+    val sound = otherApps ?: return
+    otherApps = null
+    otherAppsOn = false
+    sound.stop()
   }
 
   /** The write-up's type: `mediaProcessing` exists from Android 15, `specialUse` from 14, and below that types are not asked for. */

@@ -317,6 +317,14 @@ export interface Preferences {
    */
   syncMeetingRecordings: boolean;
   /**
+   * A meeting records the device's own sound beside the microphone (capture/systemSound.ts; Matt: "listen to the
+   * microphone and system audio so that we can record meetings with raw audio"): the Mac's sound through a Core Audio
+   * tap, or on Android the sound of other apps, media and games but never calls. Off by default: it is other people's
+   * voices, and on Android it asks to share the screen. Kept on this device and not synced (core/sync/prefs.ts): what
+   * it can hear, and what it asks for, are the device's own.
+   */
+  meetingSound: boolean;
+  /**
    * Nothing leaves the phone and nothing arrives: no update checks, no model
    * downloads, and plugins that use the network are off. Glyph runs from what
    * is on the phone. Matt: "the app can be run totally without a server if desired".
@@ -453,6 +461,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   summaries: 'meetings',
   writeUp: 'charging',
   syncMeetingRecordings: false,
+  meetingSound: false,
   localOnly: false,
   formatModel: 'qwen3.5-4b',
   codeLight: 'pastel',
@@ -557,6 +566,7 @@ function settle(raw: unknown): Preferences {
   if (!isSummaries(loaded.summaries)) loaded.summaries = DEFAULT_PREFERENCES.summaries;
   if (!isWriteUp(loaded.writeUp)) loaded.writeUp = DEFAULT_PREFERENCES.writeUp;
   if (typeof loaded.syncMeetingRecordings !== 'boolean') loaded.syncMeetingRecordings = DEFAULT_PREFERENCES.syncMeetingRecordings;
+  if (typeof loaded.meetingSound !== 'boolean') loaded.meetingSound = DEFAULT_PREFERENCES.meetingSound;
   if (typeof loaded.lookUpBlanks !== 'boolean') loaded.lookUpBlanks = DEFAULT_PREFERENCES.lookUpBlanks;
   if (typeof loaded.autoFill !== 'boolean') loaded.autoFill = DEFAULT_PREFERENCES.autoFill;
   // The notification switches from another build, or a half-written store: each on unless written off.

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { installBack } from '../core/back.ts';
 import { buttonSaying, rerender, show, typeInto } from '../../test/render.tsx';
+import { preferences, setPreferences } from '../core/preferences.ts';
 import { NewSheet } from './NewSheet.tsx';
 import { PRESETS } from '../book/journal.ts';
 
@@ -9,6 +10,13 @@ import { PRESETS } from '../book/journal.ts';
  * What the + makes, and the copy of a shared note it can save: a row that becomes a field, whose failure is said in
  * the row itself, and whose success closes the sheet.
  */
+
+/** What this device says of a meeting's own sound (capture/systemSound.ts): nothing, unless a test says otherwise. */
+const sound = vi.hoisted(() => ({ support: null as { supported: boolean; reason: string | null } | null }));
+vi.mock('../capture/systemSound.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../capture/systemSound.ts')>()),
+  useMeetingSoundSupport: () => sound.support,
+}));
 
 const sheet = () => document.querySelector('[role="dialog"][aria-label="New"]');
 const noop = () => undefined;
@@ -158,5 +166,24 @@ describe('a meeting from the + sheet', () => {
     act(() => row.click());
     expect(onMeeting).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('carries the switch for the device\u2019s own sound under it where the device can, which does not close the sheet', () => {
+    const onClose = vi.fn();
+    show(<NewSheet open onClose={onClose} onNote={noop} onCanvas={noop} onBook={noop} onMeeting={noop} />);
+    expect(buttonSaying(sheet()!, 'Both sides of a call')).toBeUndefined();
+    sound.support = { supported: true, reason: null };
+    try {
+      rerender(<NewSheet open onClose={onClose} onNote={noop} onCanvas={noop} onBook={noop} onMeeting={noop} />);
+      const row = buttonSaying(sheet()!, 'Both sides of a call')!;
+      expect(row.getAttribute('aria-pressed')).toBe('false');
+      act(() => row.click());
+      expect(preferences().meetingSound).toBe(true);
+      expect(buttonSaying(sheet()!, 'Both sides of a call')!.getAttribute('aria-pressed')).toBe('true');
+      expect(onClose).not.toHaveBeenCalled();
+    } finally {
+      sound.support = null;
+      setPreferences({ meetingSound: false });
+    }
   });
 });

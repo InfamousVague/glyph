@@ -51,6 +51,14 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!--
+      The sound of other apps in a meeting, when "Include sound from other apps" is on (capture/OtherApps.kt,
+      native generation 25): AudioPlaybackCapture runs on a MediaProjection, which Android 14 lets a service use only
+      as a foreground service of type mediaProjection, and that type needs this permission. Asked for nowhere else:
+      the consent is the screen-share dialog Android shows each time, and only when the switch is on. Calls are never
+      in it (USAGE_VOICE_COMMUNICATION cannot be captured by any app).
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
     <!--
       Where a note was written (Settings › Location, and a note's Add my location). Nothing asks for the
@@ -165,7 +173,8 @@
           Not exported: only this app starts it, from MainActivity while in front
           and from its own notification's Stop and Discard. The types are the
           ones the service passes to startForeground as it goes: microphone while
-          recording, then mediaProcessing (Android 15+) or specialUse (Android
+          recording (with mediaProjection too when other apps' sound is in the
+          meeting, native generation 25), then mediaProcessing (Android 15+) or specialUse (Android
           14) for the write-up. A type passed that is not declared here throws.
           The property is what specialUse asks for: a sentence saying what the
           special use is, which a store reviews.
@@ -173,7 +182,7 @@
         <service
             android:name=".capture.MeetingService"
             android:exported="false"
-            android:foregroundServiceType="microphone|mediaProcessing|specialUse">
+            android:foregroundServiceType="microphone|mediaProjection|mediaProcessing|specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Writing up a meeting recording on the device" />

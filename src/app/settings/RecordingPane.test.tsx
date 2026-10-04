@@ -82,7 +82,8 @@ describe('the Recording page', () => {
     expect(titles(browser)).toEqual(['While recording', 'After recording', 'Summaries']);
     native = true;
     const mac = show(<RecordingPane />);
-    expect(titles(mac)).toEqual(['While recording', 'After recording', 'Summaries', 'Tapes']);
+    // The Mac's own Meetings card: the computer's sound, its one row (capture/systemSound.ts).
+    expect(titles(mac)).toEqual(['While recording', 'After recording', 'Summaries', 'Meetings', 'Tapes']);
     // The side key is not the Mac's to press.
     expect(mac.textContent).toContain("Saves after four seconds of quiet, once you've started talking. Done still works.");
     expect(mac.textContent).not.toContain('side key');
@@ -165,6 +166,37 @@ describe('Meetings', () => {
     act(() => window.__glyph!.notified!());
     await waitUntil(() => expect(host.textContent).toContain('On'));
     expect(buttonSaying(host, 'Allow')).toBeUndefined();
+  });
+
+  it('carries the switch for other apps\u2019 sound with Android\u2019s limit under it, and the update an older binary needs', async () => {
+    phone.generation = 20;
+    window.GlyphHost = { canNotify: () => false } as unknown as Window['GlyphHost'];
+    const older = await freshPage();
+    const before = show(<older.Pane />);
+    await waitUntil(() => expect(before.textContent).toContain('Update Ghost.md to include sound from other apps.'));
+    expect(before.querySelector('[aria-label="Include sound from other apps"]')).toBeNull();
+    unmount();
+    phone.generation = 25;
+    window.GlyphHost = { canNotify: () => false, meetingSound: () => '{"supported":true,"reason":null}' } as unknown as Window['GlyphHost'];
+    const { Pane, prefs } = await freshPage();
+    const host = show(<Pane />);
+    await waitUntil(() => expect(host.querySelector('[aria-label="Include sound from other apps"]')).not.toBeNull());
+    expect(host.textContent).toContain('Android lets Ghost.md hear media and games, never calls.');
+    expect(prefs.preferences().meetingSound).toBe(false);
+    act(() => host.querySelector<HTMLElement>('[aria-label="Include sound from other apps"]')!.click());
+    expect(prefs.preferences().meetingSound).toBe(true);
+  });
+
+  it('is its own card on the Mac, saying why on a Mac that cannot', async () => {
+    phone.generation = 25;
+    android = false;
+    const { Pane } = await freshPage();
+    const host = show(<Pane />);
+    // jsdom is not a Mac's WebView, so the tap is not asked about: the row says nothing it cannot back.
+    await waitUntil(() => expect(titles(host)).toContain('Meetings'));
+    expect(host.textContent).toContain("Record the computer's sound too");
+    expect(host.textContent).toContain('Both sides of a call');
+    expect(host.textContent).not.toContain('Tell me when a meeting is written up');
   });
 
   it('is not on an older phone, nor on the Mac, which has no service', async () => {

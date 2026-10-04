@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Switch } from '@glacier/react';
 import { MEETING_GENERATION } from '../capture/meeting.ts';
 import { canNotifyNow, useCanNotify } from '../capture/meetingLive.ts';
+import { MEETING_SOUND_GENERATION, meetingSoundSupport, meetingSoundWords, type SoundSupport } from '../capture/systemSound.ts';
 import { failureText } from '../core/failure.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { requestNotifications } from '../core/host.ts';
@@ -34,6 +35,11 @@ import { oldTapes, tapeBytes, tapeSize, tapesHere } from './tapes.ts';
  * That asks twice, as emptying the trash does, and only where the binary can remove a file (generation 20). Until the
  * binary has said which generation it is, the row offers nothing and says nothing, rather than a reason that is gone a
  * moment later.
+ *
+ * A meeting's own sound (capture/systemSound.ts, native generation 25): on Android the Meetings card's first row,
+ * "Include sound from other apps", which says Android's limit under it (media and games, never calls); on the Mac a
+ * Meetings card of its own with "Record the computer's sound too". A binary before generation 25 shows the row with
+ * the update it needs, and a Mac older than 14.2 with why it cannot, rather than a switch that would do nothing.
  *
  * The page's words say where the work is done: "the phone" on Android, "this Mac" on the Mac, as the Model card does.
  *
@@ -97,6 +103,11 @@ export function RecordingPane() {
         ))}
       </PaneSection>
       {isAndroid && meetings === true ? <Meetings /> : null}
+      {isTauri() && !isAndroid ? (
+        <PaneSection title="Meetings">
+          <MeetingSound />
+        </PaneSection>
+      ) : null}
       {isTauri() ? <Tapes canRemove={meetings} /> : null}
     </>
   );
@@ -139,6 +150,7 @@ function Meetings() {
   };
   return (
     <PaneSection title="Meetings">
+      <MeetingSound />
       <SettingRow
         label="Tell me when a meeting is written up"
         hint={blocked && !canNotify ? 'Notifications are off for Ghost.md in the phone’s settings.' : 'A notification, with the first line of the summary once the phone is unlocked.'}
@@ -153,6 +165,53 @@ function Meetings() {
         }
       />
     </PaneSection>
+  );
+}
+
+/**
+ * Whether this device's own sound can go into a meeting: 'old' on a binary before generation 25, null until asked,
+ * and the device's answer after.
+ */
+function useMeetingSound(): SoundSupport | 'old' | null {
+  const [state, setState] = useState<SoundSupport | 'old' | null>(null);
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      if (!(await hasNativeGeneration(MEETING_SOUND_GENERATION))) {
+        if (live) setState('old');
+        return;
+      }
+      const support = await meetingSoundSupport();
+      if (live) setState(support ?? { supported: false, reason: null });
+    })();
+    return () => {
+      live = false;
+    };
+  }, []);
+  return state;
+}
+
+/** The switch for a meeting's own sound (`meetingSound`), with the honest limit under it. */
+function MeetingSound() {
+  const prefs = usePreferences();
+  const support = useMeetingSound();
+  const words = meetingSoundWords();
+  const can = support !== null && support !== 'old' && support.supported;
+  const why =
+    support === 'old'
+      ? isAndroid
+        ? 'Update Ghost.md to include sound from other apps.'
+        : "Update Ghost.md to record the computer's sound."
+      : support && !support.supported
+        ? (support.reason ?? undefined)
+        : undefined;
+  return (
+    <SettingRow
+      label={words.label}
+      hint={words.hint}
+      control={can ? <Switch aria-label={words.label} checked={prefs.meetingSound} onCheckedChange={(meetingSound) => setPreferences({ meetingSound })} /> : undefined}
+      disabledReason={why}
+    />
   );
 }
 

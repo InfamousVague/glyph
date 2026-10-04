@@ -10029,3 +10029,65 @@ page and `visible`'s body in editor/NoteSettings.test.tsx; the registry's list; 
 the private file, a hand-edited file, Slack's answers as sentences) and the reset's.
 
 Cites: §138, §181, §183.
+
+## 186. Meetings with the computer's sound (2026-10-04)
+
+Matt: "can you make it so that the app can listen to the microphone and system audio so that we can record meetings
+with raw audio?" A meeting (§127 section 3) can now have the device's own sound in it beside the microphone: on the
+Mac everything the Mac plays, through a Core Audio process tap; on Android the sound of other apps, through
+AudioPlaybackCapture. He chose both knowing the limits, and the app says them where the switch is.
+
+**One stream, mixed before it is kept.** Every tape is 16 kHz mono PCM16 (whisper/wav.rs `header`, the write-up's
+`read_span`, Kotlin's WavSpool), so the two sources are summed into that one stream before a byte is written, rather
+than kept as a second track that rewinds, appends and moves (`capture_reassign_recording`) would have to keep in step.
+The sum is plain up to 0.8 of full scale and bent smoothly towards it above (a tanh knee), so a loud call over a loud
+room is softened, not clipped. The two sides run on two clocks, so the device's sound waits in a ring and each
+microphone chunk takes as much of it as has arrived, up to its own length: a chunk that finds the ring short is
+microphone-only at its end and the ring is fuller for the next, so it settles at the jitter between them; past a
+second the oldest is dropped, so the far side is never more than a second late.
+
+**The Mac** (src-tauri/src/system_audio.rs and system_audio/mac.rs). The microphone is the page's (capture/audio.ts)
+and every chunk already passes through `capture_push`, so that is where the sum is made, and the live transcription
+hears both sides because it is fed from the same push. The tap is global, mono, unmuted and private, excludes this
+app's own process, and is read through a private aggregate device clocked by the default output device (as Apple's
+sample and AudioCap set it up); its IOProc downmixes, brings the frames to 16 kHz with the page's box-average resampler
+ported to Rust, and fills the ring. Commands: `system_audio_available`, `system_audio_start`, `system_audio_status`
+(`heard`: anything but silence since it opened), `system_audio_stop`; `capture_stop`, `capture_cancel`, a new
+`capture_start` and the app's exit close it too. The app still runs on macOS 13.1, and a binary that links a symbol
+its OS lacks does not launch, so `AudioHardwareCreateProcessTap` and its destroy are found with `dlsym` and a Mac
+older than 14.2 says "Recording the computer's sound needs macOS 14.2 or later" and records the microphone. The
+consent ("System Audio Recording Only", NSAudioCaptureUsageDescription in Info.macos.plist) is not an error when
+refused, only zeros, so the recorder says where the switch is when nothing has come through for eight seconds. In the
+meeting recorder the top line carries the word (capture/ComputerSound.tsx): "With this Mac's sound", or "This Mac's
+sound: off", a tap to change it then and there.
+
+**Android** (capture/OtherApps.kt, SoundMix.kt). AudioPlaybackCapture, Android 10 and later, for USAGE_MEDIA, GAME and
+UNKNOWN, with this app's own uid left out. It never hears a call: a call app's voices are USAGE_VOICE_COMMUNICATION,
+which no app may capture, so the far side of a phone call, a Meet or a Zoom on the phone is not in the tape; a video,
+a podcast or a game is. The page says so plainly ("Android lets Ghost.md hear media and games, never calls."). It runs
+on a MediaProjection: with the switch on, the activity asks the microphone first, then the screen-share consent
+(`createScreenCaptureIntent`, the whole display on Android 14 so the dialog offers no single app), and starts the
+service once it is answered, declined or not (`GlyphHost.startMeetingWith`). The service comes to the front as
+`microphone|mediaProjection` (Android 14 refuses a projection to any other type; FOREGROUND_SERVICE_MEDIA_PROJECTION in
+the manifest), opens the playback capture at 16 kHz mono (48 kHz stereo brought down where a phone will not), and its
+reader thread fills the ring; the microphone's reader mixes it into each read before WavSpool writes it. Declined,
+failed, or stopped from the status bar's chip, the meeting carries on with the microphone, and `meetingState` says
+which (`otherApps`, `otherAppsHeard`, `otherAppsNote`), which the meeting screen shows.
+
+**The switch.** `meetingSound` (core/preferences.ts), off by default and kept on the device, not synced: what it hears
+and what it asks for are the device's own. It is on the + sheet under Meeting, in Settings › Recording (Android's
+Meetings card; a Meetings card of the Mac's own), and in the Mac's meeting recorder. All of it is native generation 25
+(capture/systemSound.ts `MEETING_SOUND_GENERATION`): a page that came over the air to an older binary shows the row
+with the update it needs and records the microphone.
+
+Unmeasured, to check by hand: the tap's consent and a real call on a Mac on 14.2 or later (and that the aggregate's
+last input buffer is the tap's when the output device has inputs of its own, as a USB headset can); a 13.x Mac
+launching at all; the projection consent, a YouTube video and a call on the Fold; whether the playback capture opens at
+16 kHz there.
+
+Tests: the mixer, resampler and soft clip in system_audio.rs (9, and one ignored by-hand test in system_audio/mac.rs that opens a
+real tap: `cargo test --lib system_audio -- --ignored --nocapture`) and SoundMixTest.kt (7); the page's gate and words
+(capture/systemSound.test.ts), the recorder's word (capture/ComputerSound.test.tsx), the switch in RecordingPane.test.tsx
+and NewSheet.test.tsx, the meeting screen's lines, the host bridge, and the preference's normalisation.
+
+Cites: §127.

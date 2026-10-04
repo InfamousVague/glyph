@@ -62,6 +62,9 @@ mod model_downloads;
 // start/push/stop, and the events that carry text back. See its header for the
 // two ordering rules the page has to keep.
 mod capture_commands;
+// The computer's own sound in a meeting (the Mac's process tap), mixed into the
+// microphone's chunks as capture_push hands them over. See its header.
+mod system_audio;
 
 // Formatting on the phone: llama.cpp, a verified model download, and a
 // streamed rewrite. Tauri-free like `whisper`; see llm/mod.rs's header.
@@ -170,6 +173,8 @@ pub fn run() {
             // No I/O and cannot fail: the model is looked for when the Record
             // screen asks, not at launch.
             capture_commands::install(app);
+            // Nothing opened until a meeting asks for the computer's sound.
+            system_audio::install(app);
             // Nothing loaded until a note asks to be formatted.
             ai_commands::install(app);
             // Before the page loads: the loader's first IPC call is the claim.
@@ -227,6 +232,10 @@ pub fn run() {
             capture_commands::capture_cancel,
             capture_commands::capture_rewind,
             capture_commands::transcribe_wav,
+            system_audio::system_audio_available,
+            system_audio::system_audio_start,
+            system_audio::system_audio_status,
+            system_audio::system_audio_stop,
             ai_commands::ai_device,
             notion::notion_save_account,
             notion::notion_account,

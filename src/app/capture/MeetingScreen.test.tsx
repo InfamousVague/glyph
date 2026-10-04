@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { act } from 'react';
 import { createNote, getNote } from '../core/store.ts';
 import { installBack } from '../core/back.ts';
@@ -117,6 +117,28 @@ describe('the meeting screen', () => {
     service.state = { ...service.state, silenced: true };
     readMeetingState();
     expect(screen().textContent).toContain('Muted by another app.');
+  });
+
+  it('says when other apps\u2019 sound is in the meeting, that calls are not, and when it is the microphone alone', () => {
+    // A binary before generation 25 says nothing of it, and nothing is drawn.
+    const before = service.state;
+    onTestFinished(() => {
+      service.state = before;
+    });
+    expect(screen().textContent).not.toContain('other apps');
+    unmount();
+    service.state = { ...service.state, otherApps: true, otherAppsHeard: false, otherAppsNote: null } as typeof service.state;
+    readMeetingState();
+    expect(screen().textContent).toContain('Listening for sound from other apps too. Media and games, never calls.');
+    unmount();
+    service.state = { ...service.state, otherAppsHeard: true } as typeof service.state;
+    readMeetingState();
+    expect(screen().textContent).toContain('Recording sound from other apps too. Media and games, never calls.');
+    unmount();
+    const declined = 'Sharing was not allowed, so only the microphone is recording.';
+    service.state = { ...service.state, otherApps: false, otherAppsHeard: false, otherAppsNote: declined } as typeof service.state;
+    readMeetingState();
+    expect(screen().textContent).toContain(declined);
   });
 
   it('on Done asks the service to stop and carry on as the write-up, and leaves', () => {

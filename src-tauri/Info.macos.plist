@@ -8,6 +8,10 @@
   that does not say why it wants it - the ad-hoc desktop builds before this had no such line, so Speak could not have
   worked on a Mac. The words match the phone's, since it is the same promise.
 
+  The computer's own sound, for a meeting with the switch on (src/system_audio/mac.rs, a Core Audio process tap):
+  macOS 14.2 and later ask "System Audio Recording Only" with this sentence the first time, and an app that gives none
+  is refused without a prompt. Older Macs never read it; they record a meeting's microphone alone.
+
   Location, in the same voice, for the day the Mac asks CoreLocation where it is (core/location.ts says why its
   WebView cannot today): the strings are here already, so that follow-up is Rust alone. No entitlement: the app is not
   sandboxed.
@@ -16,6 +20,8 @@
 <dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Glyph uses the microphone only while you are recording, to turn what you say into a note.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Ghost.md records the sound your Mac plays only during a meeting you asked it to, so both sides of the call are in the recording.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Ghost.md uses your location only when you tag a note with where it was written.</string>
 	<key>NSLocationUsageDescription</key>
