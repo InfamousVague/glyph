@@ -39,6 +39,11 @@ It lives in `landing/` and ships with `node scripts/deploy-landing.mjs`, one ssh
   and `images/` beside the library. A tap on a file shows it as it is on disk, the library's block (id, created,
   pinned, source) and then the page's (a ticket's fields, a notebook's key) (`files.js`, the files' words in
   `<template>`s beside the tree). Written by hand from the library's rules: when they change, so does this.
+- **Version history** (2026-10-04; Matt: "add information about versioning to the website"): a section after Your
+  files, and `Launch plan.versions` in its tree beside `Launch plan.md` (docs/DESIGN.md §182). The file shown is a real
+  one, written by the app's own `core/versions/file.ts` for three versions of the Launch plan note, so its hashes check:
+  when the format changes, write it again the same way rather than by hand. There is no picture of the timeline: the
+  app's screens are `shots/`, and none is taken of it yet.
 - **Icons are Lucide's**, the app's own set (`@glacier/icons` proxies lucide-react; Matt: "use lucide icons for both,
   add iconography across the whole website"): `icons.svg` is a sprite of every icon the pages name, drawn as
   `<svg class="i"><use href="icons.svg#i-folder"/></svg>` in the text's ink. `node scripts/landing-icons.mjs` writes
