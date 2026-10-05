@@ -37,9 +37,9 @@ function recorder() {
   const heard: string[] = [];
   const events: LiveEvents = {
     ready: (id) => heard.push(`ready ${id}`),
-    joined: (room, first, peers) => heard.push(`joined ${room} first=${first} peers=${peers}`),
-    peers: (room, peers) => heard.push(`peers ${room} ${peers}`),
-    message: (room, from, data) => heard.push(`msg ${room} from=${from} ${data}`),
+    joined: (room, first, peers, org) => heard.push(`joined ${room} first=${first} peers=${peers}${org ? ` org=${org}` : ''}`),
+    peers: (room, peers, org, left) => heard.push(`peers ${room} ${peers}${org ? ` org=${org}` : ''}${left === undefined ? '' : ` left=${left}`}`),
+    message: (room, from, data, org) => heard.push(`msg ${room} from=${from} ${data}${org ? ` org=${org}` : ''}`),
     down: (why) => heard.push(`down ${why}`),
   };
   return { heard, events };
@@ -135,6 +135,42 @@ describe('the relay transport', () => {
       { t: 'join', room: 'n' },
       { t: 'msg', room: 'n', data: 'y', to: 4 },
       { t: 'leave', room: 'n' },
+    ]);
+  });
+});
+
+describe('an organization’s rooms', () => {
+  it('joins, leaves and sends with the organization named, hears its events apart from the account’s own, and rejoins them after a drop', () => {
+    const { heard, events } = recorder();
+    const { t, socket, retries } = transport(events);
+    socket().opens();
+    socket().says({ t: 'ready', id: 1 });
+    t.join('n', 'org-1');
+    t.join('n');
+    t.send('n', 'x', undefined, 'org-1');
+    t.send('n', 'y', 4);
+    socket().says({ t: 'joined', room: 'n', org: 'org-1', first: false, peers: 2 });
+    socket().says({ t: 'peers', room: 'n', org: 'org-1', peers: 1, left: 7 });
+    socket().says({ t: 'msg', room: 'n', org: 'org-1', from: 7, data: 'z' });
+    socket().says({ t: 'joined', room: 'n', first: true, peers: 0 });
+    expect(socket().sent.slice(1)).toEqual([
+      { t: 'join', room: 'n', org: 'org-1' },
+      { t: 'join', room: 'n' },
+      { t: 'msg', room: 'n', org: 'org-1', data: 'x' },
+      { t: 'msg', room: 'n', data: 'y', to: 4 },
+    ]);
+    expect(heard).toEqual(['ready 1', 'joined n first=false peers=2 org=org-1', 'peers n 1 org=org-1 left=7', 'msg n from=7 z org=org-1', 'joined n first=true peers=0']);
+    t.leave('n', 'org-1');
+    expect(socket().sent.at(-1)).toEqual({ t: 'leave', room: 'n', org: 'org-1' });
+    // Dropped and back: the account's room is rejoined, and the organization's room, left, is not.
+    t.join('p', 'org-1');
+    socket().drops();
+    retries.shift()?.();
+    socket().opens();
+    socket().says({ t: 'ready', id: 2 });
+    expect(socket().sent.slice(1)).toEqual([
+      { t: 'join', room: 'n' },
+      { t: 'join', room: 'p', org: 'org-1' },
     ]);
   });
 });

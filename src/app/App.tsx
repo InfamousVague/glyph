@@ -68,6 +68,7 @@ import { holdFor, setPendingTag, tagEntryIfWanted, tagNewNotesIfWanted, willLoca
 import { useNoteActions } from './notes/useNoteActions.ts';
 import { NoteMenuHost } from './notes/NoteMenu.tsx';
 import { isPlace, isRecording, noteOnScreen, placeOf, type Screen } from './shell/screen.ts';
+import { watchPresence, type Caret } from './core/live/presence.ts';
 import { barRows } from './shell/topBar.ts';
 import { useCaptureRoute } from './shell/useCaptureRoute.ts';
 import { useAppLinks } from './shell/useAppLinks.ts';
@@ -195,6 +196,9 @@ function Shell() {
     };
   }, []);
   const newMeeting = () => void capture.meeting(false);
+
+  // Who is in each organization and where (core/live/presence.ts): its room held while signed in and in it.
+  useEffect(() => watchPresence(), []);
 
   // New builds, looked for after launch and on return; applied on reload.
   const updates = useUpdates();
@@ -1041,6 +1045,7 @@ function Shell() {
         onNewEntry={(template) => void newEntry(screen.note.id, { template })}
         onJournal={onJournal}
         caret={screen.caret}
+        cursor={screen.cursor}
         takenTitles={takenTitles}
         templates={ownTemplates}
         onTemplates={() => void openTemplates()}
@@ -1062,6 +1067,13 @@ function Shell() {
    * A note a query listed, opened: the note itself, or a to-do's note at its line (editor/useLandAt.ts `line:`), in a
    * tab of its own as a link opens one.
    */
+  /** `id` opened at a member's caret, from an organization's dashboard (Jump to cursor; docs/SHARED.md, S6). */
+  const openNoteAtCursor = (id: string, cursor: Caret | null) => {
+    tabs.replaceNext(null);
+    const note = notes.find((n) => n.id === id);
+    if (note) setScreen(cursor ? { name: 'note', note, cursor } : { name: 'note', note });
+    setDrawer(false);
+  };
   const openNoteAt = (id: string, line: number | null) => {
     if (line === null) return openNote(id);
     tabs.replaceNext(null);
@@ -1267,6 +1279,7 @@ function Shell() {
         onOpenOrganization={openOrganization}
         onLog={() => openOrganizationLog(screen.orgId)}
         onAccount={() => setSettings(true)}
+        onJumpTo={openNoteAtCursor}
       />
     ) : null;
 

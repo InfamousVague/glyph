@@ -25,10 +25,12 @@ vi.mock('./transport.ts', async (importOriginal) => ({
       this.made = { url: options.url, events: options.events, joined: [], closed: false };
       connections.push(this.made);
     }
-    join(room: string): void {
-      this.made.joined.push(room);
+    join(room: string, org?: string): void {
+      this.made.joined.push(org ? `${org}/${room}` : room);
     }
-    leave(): void {}
+    leave(room: string, org?: string): void {
+      this.made.joined = this.made.joined.filter((key) => key !== (org ? `${org}/${room}` : room));
+    }
     send(): void {}
     close(): void {
       this.made.closed = true;
@@ -98,6 +100,38 @@ describe('a note made live', () => {
     expect(first?.state).toBe('closed');
     expect(second?.state).toBe('joining');
     hub.closeLive('a');
+  });
+
+  it('holds an organization’s room on the same connection, told apart from the account’s own of that name', async () => {
+    const heard: string[] = [];
+    const room = {
+      joined: (first: boolean, peers: number) => void heard.push(`joined first=${first} peers=${peers}`),
+      peersChanged: (peers: number, left?: number) => void heard.push(`peers ${peers} left=${left}`),
+      message: (from: number, data: string) => void heard.push(`msg ${from} ${data}`),
+    };
+    hub.holdRoom('n', room, 'org-1');
+    const own = await hub.openLive('n', 'words', listener(), hooks);
+    expect(connections).toHaveLength(1);
+    expect(connections[0]?.joined).toEqual(['org-1/n', 'n']);
+    expect(hub.heldRooms()).toEqual(['org-1/n', 'n']);
+    connections[0]?.events.joined('n', false, 2, 'org-1');
+    connections[0]?.events.peers('n', 1, 'org-1', 9);
+    connections[0]?.events.message('n', 9, 'sealed', 'org-1');
+    // The account's own room of the same name hears none of it.
+    connections[0]?.events.joined('n', true, 0);
+    expect(heard).toEqual(['joined first=false peers=2', 'peers 1 left=9', 'msg 9 sealed']);
+    expect(own?.state).toBe('ready');
+    hub.releaseRoom('n', 'org-1');
+    expect(connections[0]?.joined).toEqual(['n']);
+    expect(connections[0]?.closed).toBe(false);
+    hub.closeLive('n');
+    expect(connections[0]?.closed).toBe(true);
+    // Releasing a room not held does nothing, and the last release takes the connection down.
+    hub.releaseRoom('n', 'org-1');
+    hub.holdRoom('p', room, 'org-1');
+    expect(connections).toHaveLength(2);
+    hub.releaseRoom('p', 'org-1');
+    expect(connections[1]?.closed).toBe(true);
   });
 
   it('leaves the connection up while any note is live, and takes it down with the last', async () => {

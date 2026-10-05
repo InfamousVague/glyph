@@ -84,7 +84,7 @@ While two people type, their words differ by whatever is in flight. A sync pass 
 ## Where LIVE.md and the code differ
 
 - LIVE.md puts the document in `src/app/core/live/doc.ts`, which does not exist. The document is in `session.ts`.
-- It lists `presence` (a caret) among the messages. The kind is defined in `wire.ts`, but nothing sends it, and `yCollab` is given no awareness.
+- It lists `presence` (a caret) among the messages. An account's own rooms never send it; a team's rooms do (`core/live/team.ts`): the awareness protocol, sealed under the organization key, which is what draws a member's caret in their colour and tells an organization's page who is editing what.
 - It says a socket closed when its token expires comes back with a fresh token. The transport does not retry after a 4401 by itself: it reconnects at the next return to view or change of network.
 - It says a device that meets a different seed id after a drop is treated as joining fresh. In fact its session closes, and nothing opens a new one until the note is opened again. `session.ts`'s own comment says the editor opens a new session, and no code does.
 - Its protocol table leaves out `ready`, `error`, and a message's `to`.

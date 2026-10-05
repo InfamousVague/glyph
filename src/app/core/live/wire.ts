@@ -14,7 +14,7 @@ export const Kind = {
   State: 2,
   /** A change to the document: one keystroke, one paste. */
   Update: 3,
-  /** Where a device's caret is. */
+  /** Who a device is and where its caret or pointer is: an awareness update (y-protocols), in a team's rooms (SHARED.md, S6). */
   Presence: 4,
 } as const;
 export type Kind = (typeof Kind)[keyof typeof Kind];
@@ -56,6 +56,22 @@ export async function sealEnvelope(key: CryptoKey, noteId: string, envelope: Env
  */
 export async function openEnvelope(key: CryptoKey, noteId: string, data: string): Promise<Envelope> {
   return decode(await openBytes(key, fromBase64Url(data), liveContext(noteId)));
+}
+
+/**
+ * The associated data of an organization's room (docs/SHARED.md, S6): the organization and the room, under the
+ * organization key, so a message sealed for one team's note - or its presence room - opens in no other.
+ */
+function teamContext(orgId: string, room: string): string {
+  return `live:org:${orgId}:${room}`;
+}
+
+export async function sealTeamEnvelope(key: CryptoKey, orgId: string, room: string, envelope: Envelope): Promise<string> {
+  return toBase64Url(await sealBytes(key, encode(envelope), teamContext(orgId, room)));
+}
+
+export async function openTeamEnvelope(key: CryptoKey, orgId: string, room: string, data: string): Promise<Envelope> {
+  return decode(await openBytes(key, fromBase64Url(data), teamContext(orgId, room)));
 }
 
 /** A seed id, and the document's state after it: how a `State` payload is laid out (docs/LIVE.md, Seeding). */
