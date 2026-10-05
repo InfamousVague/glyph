@@ -13,7 +13,7 @@ import { tellArrived } from '../notifications/arrived.ts';
 import { feedState, forgetNotifications, listed, syncNotifications, updateFeed } from '../notifications/feed.ts';
 import { postNewRows, syncPhoneWatch } from '../notifications/phone.ts';
 import { record } from '../notifications/record.ts';
-import { forgetOrgKeys, orgKeyAt, orgKeyGeneration, orgKeyOf, syncOrgKeys, turnDue, turnOrgKey } from '../orgs/orgKeys.ts';
+import { forgetOrgKeys, keyWork, orgKeyAt, orgKeyGeneration, orgKeyOf, syncOrgKeys, turnDue, turnOrgKey } from '../orgs/orgKeys.ts';
 import { fetchOrg, forgetOrgs, orgRowsOf, saveOrgs, syncOrgs } from '../orgs/orgs.ts';
 import type { OrgRow } from '../orgs/types.ts';
 import { isIOS } from '../platform.ts';
@@ -320,7 +320,16 @@ async function once(parts: Parts): Promise<void> {
     // The notes' status stands: this is the feed and the list, and says nothing on the Account row unless it fails.
     try {
       await feed();
-      await orgs();
+      const list = await orgs();
+      // The keys too, when the list says there is something to do (docs/SHARED.md, S2): a member who has just joined
+      // is wrapped for by the first device of anyone's to hear of it, and reads their wrap as soon as it is there,
+      // rather than at somebody's next whole pass - until then they can open none of the team's notes or rooms.
+      if (list?.some(keysOwed)) {
+        const held = list.filter((row) => orgKeyOf(row.id) !== null).length;
+        await teamKeys(list);
+        // A key newly in hand: the team's notes are fetched by a whole pass, soon.
+        if (list.filter((row) => orgKeyOf(row.id) !== null).length > held) syncSoon();
+      }
     } catch (failure) {
       if (failure instanceof ApiError && failure.status === 401) await resume().catch(() => undefined);
       setStatus({ phase: 'error', message: failureText(failure) });
@@ -456,6 +465,14 @@ async function once(parts: Parts): Promise<void> {
     }
     setStatus({ phase: 'error', message: failureText(failure) });
   }
+}
+
+/**
+ * Whether an organization's key wants seeing to now: none made yet, a wrap waiting that this device has not read, or
+ * a member this device could wrap for. An organization with nothing to do costs the notifications pass nothing.
+ */
+function keysOwed(row: OrgRow): boolean {
+  return keyWork(row, orgKeyOf(row.id) !== null);
 }
 
 let quiet: ReturnType<typeof setTimeout> | null = null;

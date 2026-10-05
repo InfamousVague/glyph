@@ -3,7 +3,7 @@ import { fakeService, type FakeService } from '../../../test/fakeService.ts';
 import { ensureEncryptionKey } from '../account/encKey.ts';
 import { memoryKeys } from '../account/keystore.ts';
 import { createOrg, listOrgs } from './orgs.ts';
-import { forgetOrgKeys, orgKeyAt, orgKeyGeneration, orgKeyOf, syncOrgKeys, turnDue, turnOrgKey } from './orgKeys.ts';
+import { forgetOrgKeys, keyWork, orgKeyAt, orgKeyGeneration, orgKeyOf, syncOrgKeys, turnDue, turnOrgKey } from './orgKeys.ts';
 import { newEncryptionKey, publicKeyOf, unwrapWith, wrapContext } from './wrap.ts';
 
 /**
@@ -150,6 +150,19 @@ describe('the organization key', () => {
     service.orgs.get(org.id)!.generation = 3;
     expect(await turnOrgKey({ ...call(), randomKey: () => new Uint8Array(32).fill(3) }, org.id, members)).toBeNull();
     expect(orgKeyGeneration(org.id)).toBe(2);
+  });
+
+  it('knows from the list alone when there is key work for this device, so a joiner is wrapped for at once', () => {
+    const row = (keys: { generation: number; mine: boolean; missing: number }, state: 'member' | 'invited' = 'member') => ({ id: 'o', name: 'Ghost', hue: null, role: 'member' as const, state, members: 2, createdAt: 1, keys });
+    // None made: someone makes it. A wrap waiting and not read: read it. Held, with a member lacking one: wrap for them.
+    expect(keyWork(row({ generation: 0, mine: false, missing: 1 }), false)).toBe(true);
+    expect(keyWork(row({ generation: 1, mine: true, missing: 0 }), false)).toBe(true);
+    expect(keyWork(row({ generation: 1, mine: true, missing: 1 }), true)).toBe(true);
+    // Nothing to do: in hand with nobody missing; no wrap for this account yet (another member's device must make it);
+    // someone missing whom this device, without the key, cannot wrap for; an invitation.
+    expect(keyWork(row({ generation: 1, mine: true, missing: 0 }), true)).toBe(false);
+    expect(keyWork(row({ generation: 1, mine: false, missing: 1 }), false)).toBe(false);
+    expect(keyWork(row({ generation: 0, mine: false, missing: 1 }, 'invited'), false)).toBe(false);
   });
 
   it('drops the key of an organization the account has left', async () => {
