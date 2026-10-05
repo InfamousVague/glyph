@@ -128,6 +128,8 @@ interface NoteSettingsProps {
    * back - through the editor, as one change. Absent where a note has no history to keep (a transcript showing).
    */
   history?: { keeps: boolean; current: () => string; onRestore: (text: string, version: Version) => void };
+  /** A page to open at, from a button in the bar: the version history (editor/NoteTools.tsx). */
+  startAt?: 'history' | null;
 }
 
 /** Why a fix cannot be asked for here, as the row says it under "Add my location". */
@@ -294,6 +296,7 @@ export function NoteSettings({
   location,
   look,
   history,
+  startAt = null,
 }: NoteSettingsProps) {
   // Re-rendered when a plugin is switched, so its rows come and go.
   usePlugins();
@@ -313,6 +316,7 @@ export function NoteSettings({
       return;
     }
     setBody(editing.body());
+    if (startAt === 'history' && history) setPage('history');
     let live = true;
     for (const link of plugins.noteLinks()) {
       void link.unavailable?.().then((why) => live && setUnavailable((was) => ({ ...was, [link.id]: why })));

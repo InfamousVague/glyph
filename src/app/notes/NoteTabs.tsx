@@ -325,6 +325,7 @@ export function NoteTabs({
       <div
         ref={row}
         className={styles.tabs}
+        data-tab-row
         data-fade-start={outline.ends.start || undefined}
         data-fade-end={outline.ends.end || undefined}
         role="tablist"
@@ -489,7 +490,7 @@ export function NoteTabs({
       return bar(
         <>
           {tabRow}
-          <div className={styles.top}>
+          <div className={styles.top} data-tool-row>
             {sidebarRing}
             {arrows}
             {toolSlot}
@@ -503,7 +504,7 @@ export function NoteTabs({
     case 'masthead':
       return bar(
         <>
-          <div className={styles.top}>
+          <div className={styles.top} data-tool-row>
             {homeWord}
             {sidebarWord}
             {arrowWords}
@@ -518,7 +519,7 @@ export function NoteTabs({
       );
     case 'islands':
       return bar(
-        <div className={styles.top}>
+        <div className={styles.top} data-tool-row>
           <div className={styles.capsule} data-capsule="way">
             {homeRing}
             {sidebarRing}
@@ -537,7 +538,7 @@ export function NoteTabs({
     default:
       return bar(
         <>
-          <div className={styles.top}>
+          <div className={styles.top} data-tool-row>
             {homeRing}
             {sidebarRing}
             {arrows}

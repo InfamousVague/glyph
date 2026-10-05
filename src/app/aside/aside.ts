@@ -91,3 +91,23 @@ export function readAsideShown(): boolean {
 export function writeAsideShown(shown: boolean): void {
   writeStoredText(SHOWN_KEY, shown ? '1' : '0');
 }
+
+/** Which of the aside's two the person last looked at, kept to this device: the index, or the version history. */
+export type AsideTab = 'index' | 'history';
+const TAB_KEY = 'glyph-aside-tab';
+/** Heard by an open aside when something asks for a tab (`showAsideTab`): `detail` is the tab. */
+export const ASIDE_TAB_CHOSEN = 'glyph:aside-tab';
+
+export function readAsideTab(): AsideTab {
+  return readStoredText(TAB_KEY) === 'history' ? 'history' : 'index';
+}
+
+export function writeAsideTab(tab: AsideTab): void {
+  writeStoredText(TAB_KEY, tab);
+}
+
+/** Turns an open aside to `tab`, and keeps it as the one chosen: the bar's History button (editor/NoteTools.tsx). */
+export function showAsideTab(tab: AsideTab): void {
+  writeAsideTab(tab);
+  window.dispatchEvent(new CustomEvent(ASIDE_TAB_CHOSEN, { detail: tab }));
+}

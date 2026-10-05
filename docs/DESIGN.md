@@ -10183,3 +10183,30 @@ sidebar's style, as the index always has; its toggle and its card are labelled S
 
 Tests: aside/Aside.test.tsx (the two tabs, the history alone, starting one, a restore through the editor).
 
+## 189. Windows on a desktop, and a bar that fits what it has room for (2026-10-04)
+
+Matt: "on desktop open windows in modals instead of the drawers, add the version history as an item in the header when
+the space is available, I'd like the top toolbar to automatically adapt to show more or less icons if there is real
+estate on the screen for it (not all items under more, the following should be able to expand out in order of
+priority): Share, History, Bookmark, Pin/Unpin, Archive, Speak".
+
+**Windows, not drawers.** Every bottom sheet is the one shell (editor/Sheet.tsx), so on a desktop (`data-platform`
+`desktop`: the Mac app, and a browser on a computer) it is a window in the middle of the screen instead: all corners
+rounded, at most 34rem wide and 82% of the height, the same dimmed page behind it, closed the same ways - a click
+outside, Escape, its own close. The pull-down grip goes, since there is no thumb to pull it (NoteSettings.module.css).
+Phones keep the drawer from the foot.
+
+**A bar that fits.** The note's tools in the top bar (editor/NoteTools.tsx) bring six of More's actions out beside the
+view switch and More, in that order, as many as the row has room for: Share (the share link in a window of its own),
+History (the desktop's side panel at its History tab, §188, or More's history page where there is none), Bookmark,
+Pin or Unpin, Archive, Speak. Each is there only where More would offer it, and stays in More too. The room is the
+control row's width less everything else on it (editor/toolRoom.ts): its other controls at their width, the Islands
+bar's capsule less the tools in it, and the open tabs, where they share the row, at the width of their tabs. So the
+answer does not depend on what is drawn, and settles at once. It is measured again when the row changes size or what
+is in it. With nothing to measure (a test, no layout) none come out, as on the narrowest phone.
+
+Not covered: the order is fixed, not the person's to choose; and on a phone the drawer stays.
+
+Tests: editor/NoteTools.test.tsx (as many as fit, first first; all on a wide row, none on a narrow one; the row's
+other controls taken).
+

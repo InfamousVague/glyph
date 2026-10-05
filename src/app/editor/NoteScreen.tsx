@@ -3,6 +3,11 @@ import { createPortal } from 'react-dom';
 import { useTopBarTail, useTopBarTools } from '../core/topBarTools.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '@glacier/react';
+import { Archive, Bookmark, BookmarkCheck, History, Mic, Pin, PinOff, Share2 } from '@glacier/icons';
+import { Sheet } from './Sheet.tsx';
+import { SheetTitle } from '../plugins/kit.tsx';
+import { ShareRows } from '../share/ShareRows.tsx';
+import type { ToolAction } from './NoteTools.tsx';
 import { EditorSelection } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { undoDepth } from '@codemirror/commands';
@@ -153,6 +158,11 @@ interface NoteScreenProps {
   onSpeak?: (id: string) => void;
   onPin: (note: Note) => void;
   onArchive: (note: Note) => void;
+  /**
+   * The note's version history in the desktop's side panel (aside/AsideHistory.tsx), from the bar's History button;
+   * left out where there is no side panel to hold it, when the More sheet's history page opens instead.
+   */
+  onHistory?: () => void;
   /** Opens the note by that title, making it where there is none: what a [[link]] in the words does. */
   onOpenTitle?: (title: string, at?: string) => void;
   /** The item to land on when the note was opened by a link pointing inside it: `^anchor` (core/boards.ts). */
@@ -277,6 +287,7 @@ export function NoteScreen({
   onSpeak,
   onPin,
   onArchive,
+  onHistory,
   onOpenTitle,
   hasTitle,
   book,
@@ -508,6 +519,14 @@ export function NoteScreen({
   const { tape, recording, removeRecording, forgetRemoved } = useNoteTape(note, body, toast);
   /** The More sheet: how it is read, the AI, pin, archive, what the note is linked to, delete (NoteSettings.tsx). */
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // The More sheet opened at a page of its own, by a button in the bar: its version history.
+  const [settingsAt, setSettingsAt] = useState<'history' | null>(null);
+  const openSettings = (at: 'history' | null = null) => {
+    setSettingsAt(at);
+    setSettingsOpen(true);
+  };
+  // The note's share link, in a window of its own from the bar's Share button (share/ShareRows.tsx).
+  const [sharing, setSharing] = useState(false);
   /** Find and replace, open with its first words, or null when it's closed (FindBar.tsx). */
   const [finding, setFinding] = useState<string | null>(null);
   // Local, because App keeps the same `note` after a pin (notes/useNoteActions.ts toggles `!note.starred`): passing
@@ -1155,8 +1174,36 @@ export function NoteScreen({
   const viewKind: NoteKind = canvas ? 'canvas' : isBook ? 'book' : 'words';
   const onPage = typed ? !source : prefs.noteView === 'formatted';
   const switchView = () => (typed ? showSource(onPage) : chooseView(onPage ? 'mixed' : 'formatted'));
+  /** Pin or unpin, from the bar or from More. */
+  const togglePin = () => {
+    flush();
+    onPin({ ...note, starred: pinned });
+    setPinned((was) => !was);
+    fireNativeHaptic('selection');
+    setSettingsOpen(false);
+  };
+  const archiveHere = () => {
+    flush();
+    setSettingsOpen(false);
+    onArchive(note);
+  };
+  const historyHere = shown === 'raw' && !canvas;
+  const speakWords = tape.length > 0 || !speakHere ? null : isJournal ? 'Speak an entry' : 'Talk into this note';
+  /*
+   * What comes out of More into the bar while there is room, in this order (Matt: "the following should be able to
+   * expand out in order of priority: Share, History, Bookmark, Pin/Unpin, Archive, Speak"; editor/toolRoom.ts). Each is
+   * there only where More would have it, and stays in More too.
+   */
+  const actions: ToolAction[] = [
+    { id: 'share', label: 'Share', icon: Share2, onPress: () => setSharing(true) },
+    ...(historyHere ? [{ id: 'history', label: 'Version history', icon: History, onPress: () => (onHistory ? onHistory() : openSettings('history')) }] : []),
+    ...(shown === 'raw' ? [{ id: 'bookmark', label: marked ? 'Move or remove the bookmark' : 'Bookmark this line', icon: marked ? BookmarkCheck : Bookmark, onPress: bookmark, on: marked }] : []),
+    { id: 'pin', label: pinned ? 'Unpin' : 'Pin to the top', icon: pinned ? PinOff : Pin, onPress: togglePin, on: pinned },
+    { id: 'archive', label: 'Archive', icon: Archive, onPress: archiveHere },
+    ...(speakWords && speakHere ? [{ id: 'speak', label: speakWords, icon: Mic, onPress: speakHere }] : []),
+  ];
   const tools = (
-    <NoteTools kind={viewKind} page={onPage} switchable={shown === 'raw'} onSwitch={switchView} onMore={() => setSettingsOpen(true)} more={!(toolsSlot && tailSlot)} />
+    <NoteTools kind={viewKind} page={onPage} switchable={shown === 'raw'} onSwitch={switchView} onMore={() => openSettings()} more={!(toolsSlot && tailSlot)} actions={actions} />
   );
 
   return (
@@ -1172,14 +1219,14 @@ export function NoteScreen({
       */}
       <header ref={header} className={`app-headerPane ${styles.header}`}>
         {toolsSlot ? null : (
-          <div className={styles.headerRow}>
+          <div className={styles.headerRow} data-tool-row>
             <span />
             {tools}
           </div>
         )}
       </header>
       {toolsSlot ? createPortal(tools, toolsSlot) : null}
-      {toolsSlot && tailSlot ? createPortal(<NoteMore onMore={() => setSettingsOpen(true)} />, tailSlot) : null}
+      {toolsSlot && tailSlot ? createPortal(<NoteMore onMore={() => openSettings()} />, tailSlot) : null}
       {/* The model at work on this note, and what it did: under the header, over the page (ai/AiStrip.tsx). */}
       <div className={styles.stripHolder}>
         <AiStrip noteId={note.id} onUndo={ai.undoRun} onHeight={onStripHeight} marks={ai.marks && view ? { count: ai.marks, keepAll: () => keepAllChanges(view) } : undefined} stage={ai.reviewStage} />
@@ -1414,6 +1461,13 @@ export function NoteScreen({
         />
       ) : null}
       {finding !== null && view && shown === 'raw' ? <FindBar view={view} initial={finding} onClose={() => setFinding(null)} /> : null}
+      {/* The note's share link, from the bar's Share button: the More sheet's rows, in a window of their own. */}
+      {sharing ? (
+        <Sheet label={`Share ${title || 'this note'}`} onClose={() => setSharing(false)}>
+          <SheetTitle>Share {title || 'this note'}</SheetTitle>
+          <ShareRows noteId={note.id} kind={isJournal ? 'journal' : isBook ? 'notebook' : 'note'} />
+        </Sheet>
+      ) : null}
       <NoteSettings
         open={settingsOpen}
         noteId={note.id}
@@ -1435,7 +1489,7 @@ export function NoteScreen({
         name={typed ? { value: title, onChange: renameHere, kind: canvas ? 'canvas' : isJournal ? 'journal' : 'notebook' } : undefined}
         journal={journalRows}
         ticketKey={ticketKey}
-        speak={tape.length > 0 || !speakHere ? undefined : { label: isJournal ? 'Speak an entry' : 'Talk into this note', onPress: speakHere }}
+        speak={speakWords && speakHere ? { label: speakWords, onPress: speakHere } : undefined}
         running={ai.runningKind}
         onAi={ai.runAi}
         blanks={settingsOpen && view ? fillPlanOf(view.state) : { count: 0, online: [] }}
@@ -1451,18 +1505,9 @@ export function NoteScreen({
         look={!typed && shown === 'raw' ? { value: look, canMap: Boolean(tag) || look === 'map', onChange: chooseLook } : undefined}
         history={shown === 'raw' && !canvas ? { keeps: versioning.keeps, current: () => viewRef.current?.state.doc.toString() ?? body.current, onRestore: restoreVersion } : undefined}
         location={{ tag, can: canLocate(), asksName: prefs.placeNames && !prefs.localOnly, refused: tag ? null : refusedFor(note.createdAt), onPhone: hasLocationBridge(), onAdd: addLocation, onRemove: removeLocation }}
-        onPin={() => {
-          flush();
-          onPin({ ...note, starred: pinned });
-          setPinned((was) => !was);
-          fireNativeHaptic('selection');
-          setSettingsOpen(false);
-        }}
-        onArchive={() => {
-          flush();
-          setSettingsOpen(false);
-          onArchive(note);
-        }}
+        onPin={togglePin}
+        onArchive={archiveHere}
+        startAt={settingsAt}
         onDelete={() => {
           setSettingsOpen(false);
           remove();

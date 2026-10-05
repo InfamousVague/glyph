@@ -296,9 +296,45 @@
   color: var(--glacier-red-9);
 }
 
+/*
+ * On a desktop, a window in the middle of the screen rather than a drawer from its foot (Matt: "on desktop open
+ * windows in modals instead of the drawers"): a sheet comes up from the bottom because that is where a thumb is, and a
+ * pointer is not there. The same panel, its corners all rounded, at a reading width, over the same dimmed page, and
+ * closed the same ways - a click outside, Escape, or its own close. With no pull to close it, the grip goes, and the
+ * space it kept above the first row is the panel's own padding instead.
+ */
+:global(:root[data-platform='desktop']) .scrim {
+  align-items: center;
+  justify-content: center;
+  padding: var(--glacier-space-6);
+}
+
+:global(:root[data-platform='desktop']) .sheet {
+  inline-size: min(100%, 34rem);
+  max-block-size: min(82dvh, 48rem);
+  padding: var(--glacier-space-5) var(--glacier-space-5) var(--glacier-space-5);
+  border: 1px solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-xl);
+  box-shadow: var(--app-float-shadow);
+  --sheet-inset-top: var(--glacier-space-5);
+  animation: modal-in 180ms ease-out both;
+}
+
+:global(:root[data-platform='desktop']) .grip {
+  display: none;
+}
+
+@keyframes modal-in {
+  from {
+    transform: translateY(8px) scale(0.98);
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .scrim,
-  .sheet {
+  .sheet,
+  :global(:root[data-platform='desktop']) .sheet {
     animation: none;
   }
 }

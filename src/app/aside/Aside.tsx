@@ -1,9 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BookOpen, X } from '@glacier/icons';
-import { readStoredText, writeStoredText } from '../core/stored.ts';
 import { numbered } from '../book/book.ts';
 import { FloatingCard } from '../notes/FloatingCard.tsx';
-import type { AsideContent } from './aside.ts';
+import { ASIDE_TAB_CHOSEN, readAsideTab, writeAsideTab, type AsideContent, type AsideTab } from './aside.ts';
 import { AsideHistory } from './AsideHistory.tsx';
 import styles from './Aside.module.css';
 
@@ -151,9 +150,6 @@ function AsideIndex({ content, onOpen, onOpenTitle, onClose }: Omit<AsideProps, 
   );
 }
 
-/** Which of the aside's two the person last looked at, kept to this device: the index, or the version history. */
-type AsideTab = 'index' | 'history';
-const TAB_KEY = 'glyph-aside-tab';
 
 export interface AsidePanelProps extends Omit<AsideProps, 'content'> {
   /** The open note's book or run of chapters, or null where it has neither (aside.ts). */
@@ -168,11 +164,16 @@ export interface AsidePanelProps extends Omit<AsideProps, 'content'> {
  * tabs, the last one chosen kept; with one, that one alone. App.tsx draws none of it when there is neither.
  */
 export function AsidePanel({ content, history, onOpen, onOpenTitle, onClose, popup }: AsidePanelProps) {
-  const [tab, setTab] = useState<AsideTab>(() => (readStoredText(TAB_KEY) === 'history' ? 'history' : 'index'));
+  const [tab, setTab] = useState<AsideTab>(readAsideTab);
   const choose = (next: AsideTab) => {
     setTab(next);
-    writeStoredText(TAB_KEY, next);
+    writeAsideTab(next);
   };
+  useEffect(() => {
+    const onChosen = (event: Event) => setTab((event as CustomEvent<AsideTab>).detail);
+    window.addEventListener(ASIDE_TAB_CHOSEN, onChosen);
+    return () => window.removeEventListener(ASIDE_TAB_CHOSEN, onChosen);
+  }, []);
   const showing: AsideTab = content && history ? tab : content ? 'index' : 'history';
   return (
     <div className={styles.aside} data-kind={showing === 'history' ? 'history' : content?.kind} data-popup={popup || undefined}>

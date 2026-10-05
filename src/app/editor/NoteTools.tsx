@@ -1,4 +1,6 @@
+import { useRef, type ComponentType } from 'react';
 import { BookOpen, Code, EllipsisVertical } from '@glacier/icons';
+import { useToolRoom } from './toolRoom.ts';
 import styles from './NoteScreen.module.css';
 
 /**
@@ -10,6 +12,22 @@ import styles from './NoteScreen.module.css';
  * each one does is the screen's (editor/NoteScreen.tsx), and their rings are the screen's stylesheet's, since the
  * header's own rules (`.header:empty`) are written around them.
  */
+
+/**
+ * One of the note's actions that comes out of More into the bar when there is room for it (Matt: "add the version
+ * history as an item in the header when the space is available, I'd like the top toolbar to automatically adapt to
+ * show more or less icons ... the following should be able to expand out in order of priority": Share, History,
+ * Bookmark, Pin/Unpin, Archive, Speak). Each stays in More as well, so nothing moves out from under a hand that knows
+ * where it was.
+ */
+export interface ToolAction {
+  id: string;
+  label: string;
+  icon: ComponentType<{ size?: number; strokeWidth?: number; 'aria-hidden'?: boolean | 'true' }>;
+  onPress: () => void;
+  /** A toggle that is on now: the bookmark set, the note pinned. */
+  on?: boolean;
+}
 
 /** What the note is drawn as when it is not its source: a canvas, a book's index, or words. */
 export type NoteKind = 'canvas' | 'book' | 'words';
@@ -27,6 +45,8 @@ interface NoteToolsProps {
   onMore: () => void;
   /** False when More is drawn on its own, at the bar's end after the bell (core/topBarTools.ts `useTopBarTail`). */
   more?: boolean;
+  /** The actions to bring out of More while there is room, first first (`ToolAction`). */
+  actions?: readonly ToolAction[];
 }
 
 /** More for this note: the view's look, the bookmark, the mic, the AI's runs, pin, archive, links, delete (NoteSettings). */
@@ -45,10 +65,31 @@ function viewSwitchWords(kind: NoteKind, page: boolean): { label: string; title:
   return page ? { label: 'Showing the formatted note. Show the marks.', title: 'Formatted' } : { label: 'Showing the marks. Show the formatted note.', title: 'Markdown' };
 }
 
-export function NoteTools({ kind, page, switchable, onSwitch, onMore, more = true }: NoteToolsProps) {
+export function NoteTools({ kind, page, switchable, onSwitch, onMore, more = true, actions = [] }: NoteToolsProps) {
   const { label, title } = viewSwitchWords(kind, page);
+  const here = useRef<HTMLDivElement>(null);
+  // As many as the row has room for, in their order; the rest are in More (editor/toolRoom.ts).
+  const out = actions.slice(0, useToolRoom(here, actions.length));
   return (
-    <div className={styles.tools}>
+    <div ref={here} className={styles.tools}>
+      {out.map((action) => {
+        const Icon = action.icon;
+        return (
+          <button
+            key={action.id}
+            type="button"
+            className={styles.cog}
+            onClick={action.onPress}
+            aria-label={action.label}
+            title={action.label}
+            aria-pressed={action.on === undefined ? undefined : action.on}
+            data-on={action.on || undefined}
+            data-tool={action.id}
+          >
+            <Icon size={20} strokeWidth={2.1} aria-hidden="true" />
+          </button>
+        );
+      })}
       {/*
         Markdown, the marks with the formatting (the default), or just the formatted text (editor/viewMode.ts).
         One ring like the others rather than a pair in a capsule (Matt: "change the pencil and book icon to the

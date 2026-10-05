@@ -17,7 +17,7 @@ import { NoteScreen } from './editor/NoteScreen.tsx';
 import { NoteTabs } from './notes/NoteTabs.tsx';
 import { NotesDrawer } from './notes/NotesDrawer.tsx';
 import { AsideCard, AsidePanel } from './aside/Aside.tsx';
-import { asideContent, readAsideShown, writeAsideShown } from './aside/aside.ts';
+import { asideContent, readAsideShown, showAsideTab, writeAsideShown } from './aside/aside.ts';
 import { NoteTree } from './notes/NoteTree.tsx';
 import { joinGroup, leaveGroup, newGroup } from './notes/tabGroups.ts';
 import { ALL_NOTES, noteIdOf, type Place } from './notes/visited.ts';
@@ -956,6 +956,12 @@ function Shell() {
   // The aside follows the sidebar's shell: a column beside a docked sidebar, else the drawer's card (aside/Aside.tsx).
   // With nothing to hold - no book, no run of chapters, no note's history - there is no aside and no toggle for it.
   const asideHolds = asideBody !== null || asideHistory !== null;
+  // The bar's History button: the side panel opened at its History tab, or turned to it if it was open already.
+  const openHistoryAside = () => {
+    showAsideTab('history');
+    setAsideShown(true);
+    writeAsideShown(true);
+  };
   const asideDocked = docked && asideShown && asideHolds;
   // Docking takes over from a card left open, so the notes are never drawn twice.
   useEffect(() => {
@@ -1007,6 +1013,7 @@ function Shell() {
       <NoteScreen
         key={screen.note.id}
         note={screen.note}
+        onHistory={asideHistory ? openHistoryAside : undefined}
         onBack={() => void backToList()}
         onDelete={removeNote}
         onSpeak={recordsVoice ? speakInto : undefined}
