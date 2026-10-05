@@ -61,6 +61,7 @@
 :where(svg.lucide-group) > :nth-child(6),
 :where(svg.lucide-hard-drive) > :nth-child(2),
 :where(svg.lucide-hard-drive-download) > :nth-child(3),
+:where(svg.lucide-hard-drive-upload) > :nth-child(3),
 :where(svg.lucide-hourglass) > :nth-child(3),
 :where(svg.lucide-hourglass) > :nth-child(4),
 :where(svg.lucide-image) > :nth-child(1),

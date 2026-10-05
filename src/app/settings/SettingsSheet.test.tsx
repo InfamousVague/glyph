@@ -173,9 +173,9 @@ describe('the list of sections', () => {
     native = true;
     android = true;
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
+    expect(labels(host)).toEqual(['Account', 'Organizations', 'Workspaces', 'Backup', 'Notifications', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
     expect([...host.querySelectorAll('.settingsScreen__cluster')].map((card) => [...card.querySelectorAll('.settingsScreen__rowLabel')].map((l) => l.textContent))).toEqual([
-      ['Account', 'Organizations', 'Workspaces', 'Notifications'],
+      ['Account', 'Organizations', 'Workspaces', 'Backup', 'Notifications'],
       ['Appearance', 'Recording', 'AI', 'Plugins'],
       ['About'],
     ]);
@@ -236,7 +236,7 @@ describe('the list of sections', () => {
   it('on the Mac, has Recording and AI too, the recording for the better words and the summaries', () => {
     native = true;
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
+    expect(labels(host)).toEqual(['Account', 'Organizations', 'Workspaces', 'Backup', 'Notifications', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
     expect(names('recording')).toEqual([
       'Stop when I go quiet',
       'Review after recording',

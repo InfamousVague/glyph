@@ -145,6 +145,10 @@ mod recording_jobs;
 // export.rs writes it, export_commands.rs is the Mac's save panel and Android's picker.
 mod export;
 mod export_commands;
+// A backup onto a removable drive, as plain files under Ghost.md/ (docs/DESIGN.md §204): backup.rs writes it,
+// backup_commands.rs finds the Mac's drives and runs it; Android's drives are files/BackupDrives.kt's.
+mod backup;
+mod backup_commands;
 
 // The window fixes one platform needs: iOS's key window, macOS's traffic lights.
 mod platform;
@@ -199,6 +203,7 @@ pub fn run() {
             // Off the main thread, after the library: what waits in picked/ and the films no note names.
             videos::install(app);
             export_commands::install(app);
+            backup_commands::install(app);
 
             #[cfg(target_os = "ios")]
             platform::ensure_key_window(app.handle());
@@ -239,6 +244,11 @@ pub fn run() {
             export_commands::export_save,
             export_commands::export_fd,
             export_commands::export_cancel,
+            backup_commands::backup_drives,
+            backup_commands::backup_last,
+            backup_commands::backup_run,
+            backup_commands::backup_cancel,
+            backup_commands::backup_eject,
             capture_commands::models::capture_model_status,
             capture_commands::models::capture_fetch_model,
             capture_commands::models::capture_refine_model_status,

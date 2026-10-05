@@ -225,6 +225,8 @@ mod tests {
             "fun rename(tree: String, from: String, to: String): String",
             "fun remove(tree: String, path: String): String",
             "fun stat(tree: String, path: String): String",
+            // The backup's (backup.rs, saf.rs `TreeTarget`): a file streamed onto a drive.
+            "fun copyIn(tree: String, path: String, source: String): String",
         ] {
             let at = source.find(signature).unwrap_or_else(|| panic!("LibraryTree.kt no longer has {signature}"));
             assert!(source[..at].trim_end().ends_with("@JvmStatic"), "{signature} must be @JvmStatic for JNI's static call");

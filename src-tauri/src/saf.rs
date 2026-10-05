@@ -175,3 +175,52 @@ impl Documents for TreeDocuments {
         }
     }
 }
+
+/// A removable drive's tree, granted by the backup's picker (files/BackupDrives.kt), as the backup writes it
+/// (backup.rs; docs/DESIGN.md §204). The same calls as a library's folder, and `copyIn` for the pictures, films and
+/// recordings, which Kotlin streams from the app's own storage so no file is held whole in memory.
+pub struct TreeTarget {
+    uri: String,
+}
+
+impl TreeTarget {
+    /// The drive at `uri`, while Ghost.md still holds its grant.
+    pub fn new(uri: &str) -> Result<TreeTarget, String> {
+        call("granted", &[uri]).map_err(|e| e.to_string())?;
+        Ok(TreeTarget { uri: uri.to_string() })
+    }
+}
+
+impl crate::backup::Target for TreeTarget {
+    fn size(&self, path: &str) -> io::Result<Option<u64>> {
+        match call("stat", &[&self.uri, path]) {
+            Ok(value) => Ok(Some(entry_of(value.get("entry").unwrap_or(&Value::Null))?.size)),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    fn read_text(&self, path: &str) -> io::Result<Option<String>> {
+        match call("read", &[&self.uri, path]) {
+            Ok(value) => Ok(value.get("text").and_then(Value::as_str).map(str::to_string)),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    fn write_text(&self, path: &str, text: &str) -> io::Result<()> {
+        call("write", &[&self.uri, path, text]).map(drop)
+    }
+
+    fn copy_file(&self, path: &str, source: &std::path::Path) -> io::Result<()> {
+        let source = source.to_str().ok_or_else(|| failed(format!("{} has no name the phone can read", source.display())))?;
+        call("copyIn", &[&self.uri, path, source]).map(drop)
+    }
+
+    fn remove(&self, path: &str) -> io::Result<()> {
+        match call("remove", &[&self.uri, path]) {
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+            other => other.map(drop),
+        }
+    }
+}

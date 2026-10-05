@@ -242,7 +242,14 @@ pub use install::peek;
 /// (saf.rs, the first JNI calls that way round); `library-root.json`, a chosen folder's index in `index/` and an
 /// Android folder's `.glyph/` in `trees/`; the reset forgetting a chosen folder and deleting none of it; and iCloud
 /// placeholders kept as notes.
-pub const NATIVE_GENERATION: u32 = 25;
+///
+/// 26: a backup onto a removable drive (docs/DESIGN.md §204): `backup_drives` (the Mac's drives under /Volumes, by
+/// `diskutil`), `backup_last`, `backup_run` (backup.rs: every note and versions file by its workspace folder, the
+/// pictures, films and recordings under Attachments/, only what changed after the first), `backup_cancel` and
+/// `backup_eject`; on Android the activity's `GlyphHost.backupDrives` and `chooseBackupDrive`, answered as
+/// `window.__glyph.backupDrive` (files/BackupDrives.kt, the system's picker opened on the drive's root, no storage
+/// permission), and LibraryTree.kt's `copyIn`, which streams a file of the app's own onto the drive.
+pub const NATIVE_GENERATION: u32 = 26;
 
 /// What the page built from THIS tree needs. vite.config.ts reads this line
 /// with a regex and stamps it into `ota.json`, so keep it a literal. Nothing in

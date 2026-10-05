@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Bell, BookOpen, CircleUser, FileCode, FlaskConical, Folder, Info, Mic, Puzzle, Shapes, Sparkles, SunMoon, Terminal, UserGroup } from '@glacier/icons';
+import { Bell, BookOpen, CircleUser, FileCode, FlaskConical, Folder, HardDriveUpload, Info, Mic, Puzzle, Shapes, Sparkles, SunMoon, Terminal, UserGroup } from '@glacier/icons';
 import { useAccount } from '../core/account/account.ts';
 import { syncSummary, useSyncStatus } from '../core/sync/engine.ts';
 import { AccountPane } from './AccountPane.tsx';
@@ -9,6 +9,8 @@ import { findable as notificationsFindable } from './NotificationsPane.findable.
 import { OrganizationsPane } from './OrganizationsPane.tsx';
 import { findable as organizationsFindable } from './OrganizationsPane.findable.ts';
 import { WorkspacesPane } from './WorkspacesPane.tsx';
+import { BackupPane } from './BackupPane.tsx';
+import { findable as backupFindable } from './BackupPane.findable.ts';
 import { findable as workspacesFindable } from './WorkspacesPane.findable.ts';
 import { CATEGORIES } from '../core/notifications/kinds.ts';
 import { useOrgs } from '../core/orgs/orgs.ts';
@@ -145,6 +147,8 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
   // Where a model runs: the app on Android and the Mac, never a browser or an iPhone (ai/available.ts). The AI section
   // is listed there, with the Model card.
   const aiRuns = isTauri() && !isIOS;
+  // Where a backup can write a drive (core/backup.ts): the same app, with a drive to plug in.
+  const drivesHere = isTauri() && !isIOS;
   const chosenModel = modelSpec(prefs.formatModel);
   const modelHere = models.find((m) => m.id === prefs.formatModel)?.present ?? false;
   // What a take becomes now that the model moved to AI: better words, or the words as heard.
@@ -195,6 +199,23 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       summary: workspaceSummary(spaces.list.length),
       group: 0,
     },
+    // Every note onto a removable drive, as plain files (docs/DESIGN.md §204; Matt: "add a section to the settings
+    // called "Backup" it should prompt the user to plugin a removable drive"): beside the workspaces it backs up by.
+    // Where a drive can be written: the app on the Mac and on Android, not a browser or an iPhone.
+    ...(drivesHere
+      ? [
+          {
+            id: 'backup',
+            label: 'Backup',
+            words: 'back up backup usb drive sd card removable external disk copy save export',
+            settings: backupFindable(),
+            icon: <HardDriveUpload size={16} />,
+            content: <BackupPane />,
+            summary: 'To a USB drive or SD card',
+            group: 0,
+          },
+        ]
+      : []),
     // What reaches you (docs/TEAMS.md, D8 and D9): beside Account on the first card, in the coral the shell kept free.
     {
       id: 'notifications',

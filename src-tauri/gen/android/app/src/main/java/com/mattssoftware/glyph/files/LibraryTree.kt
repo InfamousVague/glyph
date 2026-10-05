@@ -76,9 +76,11 @@ object LibraryTree {
 
   private fun releaseUnused(context: Context) {
     val keep = LibraryRoot.chosenTree(context)
+    // A drive the backup was let write to (BackupDrives.kt) is kept too, or every launch would ask for it again.
+    val drives = BackupDrives.trees(context)
     try {
       for (grant in context.contentResolver.persistedUriPermissions) {
-        if (grant.uri == keep || !DocumentsContract.isTreeUri(grant.uri)) continue
+        if (grant.uri == keep || grant.uri in drives || !DocumentsContract.isTreeUri(grant.uri)) continue
         context.contentResolver.releasePersistableUriPermission(grant.uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
       }
     } catch (error: Exception) {
@@ -367,6 +369,22 @@ object LibraryTree {
   fun stat(tree: String, path: String): String = answer {
     val (_, entry) = live(tree, path) ?: throw Missing(path)
     JSONObject().put("entry", entry)
+  }
+
+  /**
+   * `source`, a file in the app's own storage, streamed whole into the tree at `path`, its folders made: the backup's
+   * pictures, films and recordings (src-tauri/src/backup.rs, saf.rs `TreeTarget`; native generation 26). Never a file
+   * outside the app's own storage, so no path the page or Rust got wrong reads anything else on the phone.
+   */
+  @JvmStatic
+  fun copyIn(tree: String, path: String, source: String): String = answer {
+    val own = (context ?: throw IllegalStateException("the folder bridge is not installed")).dataDir.canonicalPath
+    val file = File(source).canonicalFile
+    if (!file.path.startsWith("$own/") || !file.isFile) throw IllegalArgumentException("not one of Ghost.md's files: $source")
+    val id = live(tree, path)?.first ?: create(tree, path)
+    val out = resolver().openOutputStream(documentUri(tree, id), "wt") ?: throw IllegalStateException("$path could not be written")
+    out.use { sink -> file.inputStream().use { it.copyTo(sink, 1 shl 16) } }
+    JSONObject().put("entry", entryOf(tree, path, id) ?: throw Missing(path))
   }
 }
 

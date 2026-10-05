@@ -10791,3 +10791,48 @@ its outline again, which a scroll never moves.
 Tests: art/wispSides.test.ts (not worn on a desktop or in the Mac app), core/scrollSideways.test.ts.
 
 Cites: §54, §178.
+
+## 204. Backup: every note onto a removable drive, as files (2026-10-05, native generation 26)
+
+Matt: "add a section to the settings called "Backup" it should prompt the user to plugin a removable drive to backup
+all the notes in the app to workspace folders and such under a Ghost.md folder on the root of the drive".
+
+**Settings › Backup**, under Workspaces, where a drive can be written: the app on the Mac and on Android, not a
+browser or an iPhone (settings/BackupPane.tsx). With no drive in, the page asks for one - "Plug in a drive" - and
+looks again every two seconds while it is open, so a drive plugged in shows up by itself (core/backup.ts
+`listDrives`). Each drive is a row: its name, its room and the last backup it holds ("Last backed up today, 18:52 ·
+312 notes"), and **Back up**. While a backup runs, how far it has got and Stop; after, what it did ("Backed up 312
+notes to KINGSTON: 14 files written, 326 already there."), and on the Mac **Eject** (`diskutil eject`).
+
+**Not the export (§167).** The export makes one zip to carry away; a backup is a folder anyone can open, kept up to
+date: `<the drive>/Ghost.md/` with `Inbox/`, `Workspaces/<name>/` and `Organizations/<name>/` - the library's own
+folders (docs/LIBRARY.md) by the names Settings gives them - each note's `.versions` file beside it, the pictures,
+films and recordings under `Attachments/`, a README, and `.ghostmd-backup.json`, which says what each file was when it
+was written (a note by an FNV-1a hash of its words, a picture by its size and time). The next backup to the same drive
+writes only what changed, or what the drive lost or holds at another size, and takes off a note gone from the app -
+but only a file the backup wrote: nothing else in `Ghost.md/`, and nothing outside it, is ever touched. The README and
+the manifest are written last, so a backup stopped part way leaves the last manifest true of what it names. One that
+would not fit is refused before it writes anything (the drive's room from statvfs on the Mac).
+
+**The Mac** (backup_commands.rs): a drive is a mount of its own under `/Volumes` - not the boot volume's link to `/`,
+nor a folder left there - that `diskutil info -plist` (read through the Mac's own plutil, no plist crate for five
+keys) calls neither internal nor a disk image, and writable: a USB stick, an SD card in a reader or the Mac's own
+slot, an external disk; never a mounted .dmg, the Recovery volume or a network share. Asked once per drive while it
+stays mounted. Every file lands whole, through a temporary file beside it and a rename.
+
+**Android** (files/BackupDrives.kt): a drive is a `StorageVolume` the phone calls removable and has mounted for
+writing. Ghost.md asks for **no storage permission** (none would be granted for a drive, and Google Play asks for a
+declaration of them): the first backup to a drive opens the system's own picker on the drive's root
+(`createOpenDocumentTreeIntent`, Android 10 and up), the person allows it once, and the grant is kept by the drive's
+id, so the next backup asks nothing; LibraryTree's tidy at launch keeps these grants. A folder chosen inside the drive
+is refused with a sentence that says to choose the drive itself, so `Ghost.md/` lands on its top level. The writing
+is Rust's, through the folder bridge a library folder uses (saf.rs `TreeTarget`, §187), and one new call,
+LibraryTree.kt `copyIn`, which streams a picture, film or recording from the app's own storage onto the drive and
+refuses any file outside it.
+
+Tests: backup.rs (the plan, only what changed, nothing of the person's taken off, no room, a stop, the folder
+target's whole writes), backup_commands.rs (which `diskutil` answers are a drive), core/backup.test.ts,
+settings/BackupPane.test.tsx, and paths.rs's check that LibraryTree.kt has `copyIn`.
+
+Cites: §167, §187.
+

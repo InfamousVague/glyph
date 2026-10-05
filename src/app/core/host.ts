@@ -57,6 +57,11 @@ interface GlyphInbound {
    * kept, `{ cancelled: true }` or `{ error }` (plugins/folder/folder.ts).
    */
   libraryFolder?: (json: string) => void;
+  /**
+   * A drive the backup may write (native generation 26; files/BackupDrives.kt): `{ id, tree }` with its grant kept,
+   * `{ cancelled: true }` or `{ error }` (core/backup.ts).
+   */
+  backupDrive?: (json: string) => void;
 }
 
 interface GlyphHostBridge {
@@ -152,6 +157,11 @@ interface GlyphHostBridge {
   discardExport?(): void;
   /** The export is whole: the file stays. */
   exportDone?(): void;
+  // A backup onto a removable drive (native generation 26; files/BackupDrives.kt). Optional for the same reason.
+  /** The removable drives plugged in now, JSON `[{ id, name, tree?, free?, total? }]`. */
+  backupDrives?(): string;
+  /** Opens the system's picker on drive `id`'s root, to let the backup write it: "started", or why not. */
+  chooseBackupDrive?(id: string): string;
   // The bell's rows as phone notifications (native generation 23; notices/NoticeAlerts.kt). Optional for the same reason.
   /** The session and switches the closed app's worker reads the feed with, as JSON, or "" to stop: "off", "on" or "blocked". */
   watchNotices?(json: string): string;

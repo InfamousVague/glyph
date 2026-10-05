@@ -41,6 +41,7 @@ import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.Lifecycle
 import com.mattssoftware.glyph.location.LocationAccess
 import com.mattssoftware.glyph.media.VideoPick
+import com.mattssoftware.glyph.files.BackupDrives
 import com.mattssoftware.glyph.files.ExportTarget
 import com.mattssoftware.glyph.files.LibraryRoot
 import com.mattssoftware.glyph.files.LibraryTree
@@ -228,6 +229,7 @@ class MainActivity : TauriActivity() {
     if (VideoPick.answered(this, requestCode, resultCode, data, ::tellVideo)) return
     if (ExportTarget.answered(this, requestCode, resultCode, data, ::tellExport)) return
     if (LibraryTree.answered(this, requestCode, resultCode, data, ::tellLibraryFolder)) return
+    if (BackupDrives.answered(this, requestCode, resultCode, data, ::tellBackupDrive)) return
     if (requestCode != REQUEST_PICTURE) return
     val uri = data?.data
     if (resultCode != RESULT_OK || uri == null) {
@@ -279,6 +281,16 @@ class MainActivity : TauriActivity() {
   private fun tellLibraryFolder(json: String) {
     val wv = webView ?: return
     val script = "window.__glyph && window.__glyph.libraryFolder && window.__glyph.libraryFolder(${JSONObject.quote(json)})"
+    runOnUiThread { wv.evaluateJavascript(script, null) }
+  }
+
+  /**
+   * A drive the backup may write, `window.__glyph.backupDrive(json)` (core/backup.ts): `{ id, tree }`, `{ cancelled }` or
+   * `{ error }` (files/BackupDrives.kt). Native generation 26.
+   */
+  private fun tellBackupDrive(json: String) {
+    val wv = webView ?: return
+    val script = "window.__glyph && window.__glyph.backupDrive && window.__glyph.backupDrive(${JSONObject.quote(json)})"
     runOnUiThread { wv.evaluateJavascript(script, null) }
   }
 
@@ -897,6 +909,25 @@ class MainActivity : TauriActivity() {
      */
     @JavascriptInterface
     fun chooseLibraryFolder(): String = LibraryTree.start(this@MainActivity, ::tellLibraryFolder)
+
+    /**
+     * The removable drives plugged in now, for Settings › Backup (native generation 26; files/BackupDrives.kt): JSON
+     * `[{ id, name, tree?, free?, total? }]`, `tree` where Ghost.md may already write it. Asked every two seconds while
+     * Backup is open; reading the volumes needs no permission.
+     */
+    @JavascriptInterface
+    fun backupDrives(): String = try {
+      BackupDrives.drives(this@MainActivity)
+    } catch (error: Throwable) {
+      "[]"
+    }
+
+    /**
+     * The system's picker opened on drive `id`'s root, for the person to let the backup write it, once. "started"; the
+     * drive's tree arrives as a `backupDrive` event, and so does a picker that would not open, as `{ error }`.
+     */
+    @JavascriptInterface
+    fun chooseBackupDrive(id: String): String = BackupDrives.ask(this@MainActivity, id, ::tellBackupDrive)
 
     /**
      * What is on the clipboard, for the editor's own Paste (its press-and-hold
