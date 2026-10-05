@@ -10768,3 +10768,26 @@ Tests: core/live/nudge.test.ts, the invitee cases in server/src/orgs_tests.rs an
 core/orgs/orgKeys.test.ts, the outcome's `sent` in core/team/sync.test.ts.
 
 Cites: §191, §193, §195, §199.
+
+## 203. The tabs scroll cleanly on a desktop (2026-10-05)
+
+Matt: "scrolling on the tabs is glitchy on desktop".
+
+Two causes, both in the row of tabs.
+
+- **The smoke at its ends was a filter on the row that scrolls.** With more tabs than fit, the row wore the wisp
+  (art/wispSides.ts), so every frame of a scroll pushed the whole row through the filter again. In the Mac app's engine
+  that stalls: art/wispMask.ts has the measurement, over half a second a repaint, and it is why the page's headers
+  left the filter on a desktop (§54). The row had not. Now the Mac app and any desktop, a fine pointer that hovers,
+  keep the plain fade at each open end, 32px where it was 12px under the smoke. A phone keeps the smoke.
+- **A sideways swipe was counted twice.** The row scrolls by a trackpad's swipe by itself, and the wheel handler
+  (core/scrollSideways.ts) added the same swipe again, so the tabs moved twice as far as the fingers. The handler now
+  takes only a vertical turn of the wheel, which a sideways row cannot use any other way. Measured in Chromium at
+  1024px with eight tabs open: a swipe of 300 moved the row 300, and 600 with the old line put back.
+
+A scroll also asks less each frame: which ends are open, and nothing else. It used to measure the open tab and place
+its outline again, which a scroll never moves.
+
+Tests: art/wispSides.test.ts (not worn on a desktop or in the Mac app), core/scrollSideways.test.ts.
+
+Cites: §54, §178.

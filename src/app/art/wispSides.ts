@@ -3,6 +3,7 @@ import { preferences } from '../core/preferences.ts';
 import { svgElement } from './svg.ts';
 import { boxOf, filterShelf, mergeOf, noiseOnBlack, smokeFrom } from './wispBox.ts';
 import { withinWispBudget } from './wispEdge.ts';
+import { wispDraw, wispHead } from './wispMask.ts';
 
 /**
  * The wisp for a row that scrolls sideways: the tabs (notes/NoteTabs.tsx). Matt: "Blur the right side of the tabs and
@@ -25,6 +26,12 @@ import { withinWispBudget } from './wispEdge.ts';
  * wanted: switched off under Settings (`wispEdge`), with reduced motion, with neither end open, and where the filter's
  * region would not fit its budget (`WISP_EDGE_BUDGET`, art/wispEdge.ts) - over it Apple's engine paints the whole box
  * black rather than clipping it.
+ *
+ * And never on a desktop (Matt: "scrolling on the tabs is glitchy on desktop"). The row that wears this filter is the
+ * row that scrolls, so every frame of a scroll is the whole row pushed through the graph again, and in the Mac app's
+ * engine that is not a cost but a stall: wispMask.ts has the measurement, over half a second a repaint with one
+ * band's filter. The page's headers left the filter there for that reason (`wispDraw`, `wispHead`) and this row had
+ * not. A desktop's ends keep the plain fade, a little longer (NoteTabs.module.css), as its headers keep a plain blur.
  *
  * What the box units cost is legibility, as wispFoot's do: a length has to be divided by the side of the row it runs
  * along, a blur needs both of its numbers (one fraction shared between a wide row and a short one is two different
@@ -66,6 +73,8 @@ const kept = filterShelf(16);
 export function wispSides(width: number, height: number, start: boolean, end: boolean): string | null {
   if (typeof document === 'undefined' || !preferences().wispEdge || (!start && !end)) return null;
   if (prefersStill()) return null;
+  // The Mac app's engine, and any desktop: the fade alone (above).
+  if (wispDraw() === 'mask' || wispHead() === 'blur') return null;
   const wide = Math.round(width);
   const tall = Math.round(height);
   if (wide <= (BAND + SOFT) * 2 || tall <= 0) return null;

@@ -294,6 +294,21 @@
   --tab-fade-end: 12px;
 }
 
+/*
+ * On a desktop the ends wear no smoke (art/wispSides.ts: a filter on a row that scrolls stalls the Mac's engine), so
+ * the fade is the whole of it, and runs longer to do the softening the smoke did. The same screen art/wispMask.ts
+ * `wispHead` calls a desktop: a fine pointer that hovers.
+ */
+@media (hover: hover) and (pointer: fine) {
+  .tabs[data-fade-start] {
+    --tab-fade-start: 32px;
+  }
+
+  .tabs[data-fade-end] {
+    --tab-fade-end: 32px;
+  }
+}
+
 .tabs::-webkit-scrollbar {
   display: none;
 }

@@ -58,4 +58,15 @@ describe('wispSides', () => {
     const startOnly = filterFor(375, 41, true, false);
     expect(startOnly.querySelectorAll('feFlood')).toHaveLength(2);
   });
+
+  it('is not worn on a desktop or in the Mac app, where a filter on a row that scrolls stalls the scroll', () => {
+    expect(wispSides(377, 41, true, true), 'a phone').not.toBeNull();
+    stubMatchMedia((query) => query === '(hover: hover) and (pointer: fine)');
+    expect(wispSides(377, 41, true, true), 'a mouse').toBeNull();
+    stubMatchMedia();
+    document.documentElement.dataset.titlebar = 'overlay';
+    expect(wispSides(377, 41, true, true), 'the Mac app').toBeNull();
+    delete document.documentElement.dataset.titlebar;
+    expect(wispSides(377, 41, true, true)).not.toBeNull();
+  });
 });

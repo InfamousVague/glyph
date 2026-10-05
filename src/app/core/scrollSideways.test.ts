@@ -20,8 +20,13 @@ describe('a mouse wheel over a sideways row', () => {
     expect(wheel(800, 300, 120).scrollLeft).toBe(120);
   });
 
-  it('follows a trackpad’s own sideways swipe when that is the larger', () => {
-    expect(wheel(800, 300, 10, 80).scrollLeft).toBe(80);
+  it('leaves a trackpad’s own sideways swipe to the row, which scrolls by it already', () => {
+    expect(wheel(800, 300, 10, 80).scrollLeft).toBe(0);
+    expect(wheel(800, 300, 0, 80).scrollLeft).toBe(0);
+  });
+
+  it('takes the turn of a swipe that is mostly down', () => {
+    expect(wheel(800, 300, 80, 10).scrollLeft).toBe(80);
   });
 
   it('leaves the wheel to the page under a row that fits', () => {

@@ -9,6 +9,10 @@ import type { WheelEvent } from 'react';
  * pills with a listener: the wheel reached the row as dy 300, dx 0, and scrollLeft stayed at 0. Over such a row a
  * vertical turn of the wheel can only mean sideways, so that is what it does.
  *
+ * Only the vertical turn. A sideways swipe is left to the row, which is already scrolling by it: this used to add the
+ * swipe's `deltaX` as well, so a trackpad moved the tabs twice as far as the fingers did, once by the browser and once
+ * from here, and the two fought through the swipe's glide (Matt: "scrolling on the tabs is glitchy on desktop").
+ *
  * A row that fits leaves the wheel alone, so the page under it still scrolls when there is nowhere sideways to go.
  * Used by the tab row (notes/NoteTabs.tsx) and the workspace pills (notes/WorkspaceBar.tsx): one rule, not two copies
  * of it.
@@ -16,6 +20,6 @@ import type { WheelEvent } from 'react';
 export function scrollSideways(event: WheelEvent<HTMLElement>): void {
   const row = event.currentTarget;
   if (row.scrollWidth <= row.clientWidth) return;
-  const step = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-  row.scrollLeft += step;
+  if (Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+  row.scrollLeft += event.deltaY;
 }

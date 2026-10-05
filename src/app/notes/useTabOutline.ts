@@ -78,12 +78,22 @@ export function useTabOutline(row: RefObject<HTMLDivElement | null>, { tabs, act
   useEffect(() => {
     const el = row.current;
     if (!el) return undefined;
-    const look = () => {
+    let wearing = el.style.filter;
+    // Which ends are open, and the smoke for them. All a scroll can change, so all a scroll asks: it runs on every
+    // frame of one, and the outline is drawn in the row's scrolled coordinates, where scrolling moves nothing.
+    const mark = () => {
       const past = el.scrollWidth - el.clientWidth;
       const start = past > 1 && el.scrollLeft > 1;
       const end = past > 1 && el.scrollLeft < past - 1;
       setEnds((was) => (was.start === start && was.end === end ? was : { start, end }));
-      el.style.filter = wispSides(el.clientWidth, el.clientHeight, start, end) ?? '';
+      const filter = wispSides(el.clientWidth, el.clientHeight, start, end) ?? '';
+      if (filter !== wearing) {
+        wearing = filter;
+        el.style.filter = filter;
+      }
+    };
+    const look = () => {
+      mark();
       // A tab that changed width without the row being drawn again - its font arriving, the window resized.
       place();
     };
@@ -92,10 +102,10 @@ export function useTabOutline(row: RefObject<HTMLDivElement | null>, { tabs, act
     watch.observe(el);
     // Not the outline: it is sized by `look` itself, so watching it would answer every look with another.
     for (const tab of el.children) if (tab !== glide.current) watch.observe(tab);
-    el.addEventListener('scroll', look, { passive: true });
+    el.addEventListener('scroll', mark, { passive: true });
     return () => {
       watch.disconnect();
-      el.removeEventListener('scroll', look);
+      el.removeEventListener('scroll', mark);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `place` reads only the row and the outline, which are refs, so a fresh one each render changes nothing worth watching again for
   }, [tabs]);
