@@ -13,8 +13,8 @@ import { tellArrived } from '../notifications/arrived.ts';
 import { feedState, forgetNotifications, listed, syncNotifications, updateFeed } from '../notifications/feed.ts';
 import { postNewRows, syncPhoneWatch } from '../notifications/phone.ts';
 import { record } from '../notifications/record.ts';
-import { forgetOrgKeys, orgKeyOf, syncOrgKeys } from '../orgs/orgKeys.ts';
-import { forgetOrgs, orgRowsOf, saveOrgs, syncOrgs } from '../orgs/orgs.ts';
+import { forgetOrgKeys, orgKeyAt, orgKeyGeneration, orgKeyOf, syncOrgKeys, turnDue, turnOrgKey } from '../orgs/orgKeys.ts';
+import { fetchOrg, forgetOrgs, orgRowsOf, saveOrgs, syncOrgs } from '../orgs/orgs.ts';
 import type { OrgRow } from '../orgs/types.ts';
 import { isIOS } from '../platform.ts';
 import { onPreferences, preferences, setPreferences } from '../preferences.ts';
@@ -24,7 +24,7 @@ import { readStored, writeStored } from '../stored.ts';
 import { invoke, isTauri } from '../tauri.ts';
 import { forgetTeamDocs } from '../team/doc.ts';
 import { deviceDocs } from '../team/docs.ts';
-import { emptyTeamState, syncTeamNotes, type TeamSyncState } from '../team/sync.ts';
+import { emptyTeamState, KeyTurned, resealTeamNotes, syncTeamNotes, type TeamSyncContext, type TeamSyncState } from '../team/sync.ts';
 import { fileNote, isOrgWorkspace, orgWorkspaceId, workspaceOf } from '../workspaces.ts';
 import { readVersionsFile, sentVersions, unsentVersions, writeVersionsFile } from '../versions/store.ts';
 import type { Bytes } from './crypto.ts';
@@ -306,12 +306,14 @@ async function once(parts: Parts): Promise<void> {
   const orgs = () => syncOrgs({ token, save: (state) => saveOrgs(accountId, state) });
   // And the keys the organizations need (docs/SHARED.md, S2, S3): this account's pair, and each organization's key read,
   // made or filled. Best effort: a failure here is the next pass's, and never the sync's status.
-  const teamKeys = async (list: readonly OrgRow[]) => {
+  const teamKeys = async (list: readonly OrgRow[]): Promise<CryptoKeyPair | null> => {
     try {
       const { pair } = await ensureEncryptionKey({ token, accountKey: key, keys: deviceKeys() });
       await syncOrgKeys({ token, pair, list });
+      return pair;
     } catch {
       // Left for the next pass.
+      return null;
     }
   };
   if (parts === 'notifications') {
@@ -376,7 +378,7 @@ async function once(parts: Parts): Promise<void> {
     }
     const list = await orgs();
     if (list) {
-      await teamKeys(list);
+      const pair = await teamKeys(list);
       // The organization channel (core/team/sync.ts), for each organization joined whose key this device holds.
       for (const row of list) {
         if (row.state !== 'member') continue;
@@ -384,10 +386,12 @@ async function once(parts: Parts): Promise<void> {
         if (!orgKey) continue;
         const teamKey = stateKey(session.accountId, `team-${row.id}`);
         const workspace = orgWorkspaceId(row.id);
-        const team = await syncTeamNotes({
+        const ctx: TeamSyncContext = {
           token: session.token,
           orgId: row.id,
           key: orgKey,
+          generation: orgKeyGeneration(row.id),
+          olderKey: pair ? (generation) => orgKeyAt({ token: session.token, pair }, row.id, generation) : undefined,
           notes: deviceNotes,
           files: deviceFiles,
           docs: deviceDocs(),
@@ -395,10 +399,28 @@ async function once(parts: Parts): Promise<void> {
           save: (state) => store(teamKey, state),
           isTeamNote: (id) => workspaceOf(id)?.id === workspace,
           file: (id) => fileNote(id, workspace),
-        });
-        if (team.changed) announceNotesChanged();
-        outcome.unsent += team.unsent;
-        outcome.reason ??= team.reason;
+        };
+        try {
+          const team = await syncTeamNotes(ctx);
+          if (team.changed) announceNotesChanged();
+          outcome.unsent += team.unsent;
+          outcome.reason ??= team.reason;
+          // A member has gone (docs/SHARED.md, S11): with the team's notes brought up to date under the old key, this
+          // device makes the next generation and puts every note again under it.
+          if (turnDue(row)) {
+            const org = await fetchOrg(row.id, { token: session.token });
+            const turned = await turnOrgKey({ token: session.token }, row.id, org.members);
+            if (turned) {
+              const resealed = await resealTeamNotes({ ...ctx, key: orgKeyOf(row.id)!, generation: turned.generation });
+              outcome.unsent += resealed.unsent;
+              outcome.reason ??= resealed.reason;
+            }
+          }
+        } catch (failure) {
+          // The key turned under this device: its wrap at the new generation is read on the next pass, and the
+          // organization's notes are sealed under it then.
+          if (!(failure instanceof KeyTurned)) throw failure;
+        }
       }
     }
     setStatus({ phase: 'idle', lastAt: Date.now(), message: null, conflicts: outcome.conflicts, unsent: outcome.unsent, unsentReason: outcome.reason });

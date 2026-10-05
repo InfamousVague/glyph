@@ -104,9 +104,33 @@ export interface SyncContext {
 }
 
 /** What the file helpers need of a context: the account's, or a team's (core/team/sync.ts), whose files have a route of their own. */
-export type FilesContext = Pick<SyncContext, 'token' | 'key' | 'files' | 'fetcher' | 'filesRoute'> & { state: Pick<SyncState, 'files'> };
+export type FilesContext = Pick<SyncContext, 'token' | 'key' | 'files' | 'fetcher' | 'filesRoute'> & {
+  state: Pick<SyncState, 'files'>;
+  /** The organization key's generation the files are sealed under (docs/SHARED.md, S11); none for the account's own. */
+  generation?: number;
+};
 
 const filesRoute = (ctx: FilesContext): string => ctx.filesRoute ?? 'recordings';
+/** `?base=` and, for a team's files, the generation the bytes are sealed under. */
+const fileQuery = (ctx: FilesContext, base: number): string => `?base=${base}${ctx.generation ? `&generation=${ctx.generation}` : ''}`;
+
+/**
+ * The organization key turned under this device (docs/SHARED.md, S11): the service refused a body sealed under a
+ * generation that is no longer in force, naming the one that is. The pass for that organization stops; the next
+ * reads this account's wrap at the new generation and seals under it.
+ */
+export class KeyTurned extends Error {
+  constructor(readonly generation: number) {
+    super('The organization key has turned: this device reads the new one on its next pass.');
+  }
+}
+
+/** Whether a failure is the service refusing a stale generation: a 409 naming the generation in force. */
+export function turnedKey(failure: unknown): KeyTurned | null {
+  if (!(failure instanceof ApiError) || failure.status !== 409) return null;
+  const body = failure.body as { error?: unknown; generation?: unknown } | null;
+  return body && typeof body.error === 'string' && typeof body.generation === 'number' ? new KeyTurned(body.generation) : null;
+}
 
 /** The most a recording may be to travel: the service's own limit (server/src/sync.rs), about 35 minutes of 16 kHz PCM. */
 export const RECORDING_SYNC_LIMIT = 64 * 1024 * 1024;
@@ -213,11 +237,13 @@ export async function sendFile(ctx: FilesContext, kind: FileKind, name: string, 
   if (!id) return;
   const known = ctx.state.files[id];
   const sealed = await sealBytes(ctx.key, bytes, `file:${id}`);
-  const put = (base: number) => call<{ rev: number }>('PUT', `${filesRoute(ctx)}/${id}?base=${base}`, { token: ctx.token, bytes: sealed, fetcher: ctx.fetcher, timeoutMs: 300_000 });
+  const put = (base: number) => call<{ rev: number }>('PUT', `${filesRoute(ctx)}/${id}${fileQuery(ctx, base)}`, { token: ctx.token, bytes: sealed, fetcher: ctx.fetcher, timeoutMs: 300_000 });
   let rev: number;
   try {
     rev = (await put(known?.rev ?? 0)).rev;
   } catch (failure) {
+    const turned = turnedKey(failure);
+    if (turned) throw turned;
     if (!(failure instanceof ApiError) || failure.status !== 409) throw failure;
     // A picture's name is never reused, so one already there is this one. A recording taken again on two devices:
     // the note that carries it decides which is meant, and this device's note is the one being sent.
@@ -229,6 +255,27 @@ export async function sendFile(ctx: FilesContext, kind: FileKind, name: string, 
     rev = (await put(winner)).rev;
   }
   ctx.state.files[id] = digest ? { rev, sha: digest } : { rev };
+}
+
+/**
+ * A file sent again whatever the service holds: sealed afresh under the context's key, over the revision there
+ * (docs/SHARED.md, S11: a team's files re-sealed after the key turns). The state keeps the new revision.
+ */
+export async function resendFile(ctx: FilesContext, kind: FileKind, name: string, bytes: Bytes): Promise<void> {
+  const id = fileId(kind, name);
+  if (!id) return;
+  const sealed = await sealBytes(ctx.key, bytes, `file:${id}`);
+  const put = (base: number) => call<{ rev: number }>('PUT', `${filesRoute(ctx)}/${id}${fileQuery(ctx, base)}`, { token: ctx.token, bytes: sealed, fetcher: ctx.fetcher, timeoutMs: 300_000 });
+  let rev: number;
+  try {
+    rev = (await put(ctx.state.files[id]?.rev ?? 0)).rev;
+  } catch (failure) {
+    const turned = turnedKey(failure);
+    if (turned) throw turned;
+    if (!(failure instanceof ApiError) || failure.status !== 409) throw failure;
+    rev = (await put((failure.body as { rev?: number } | null)?.rev ?? 0)).rev;
+  }
+  ctx.state.files[id] = { ...(ctx.state.files[id] ?? {}), rev };
 }
 
 /** Fetches a file into this device; false when the account has none by that id yet. */
@@ -320,11 +367,13 @@ export async function sendVersionsOf(ctx: FilesContext, noteId: string): Promise
     return digest;
   }
   const put = async (base: number, body: string) =>
-    call<{ rev: number }>('PUT', `${filesRoute(ctx)}/${id}?base=${base}`, { token: ctx.token, bytes: await sealBytes(ctx.key, asBytes(body), `file:${id}`), fetcher: ctx.fetcher, timeoutMs: 300_000 });
+    call<{ rev: number }>('PUT', `${filesRoute(ctx)}/${id}${fileQuery(ctx, base)}`, { token: ctx.token, bytes: await sealBytes(ctx.key, asBytes(body), `file:${id}`), fetcher: ctx.fetcher, timeoutMs: 300_000 });
   let rev: number;
   try {
     rev = (await put(known?.rev ?? 0, text)).rev;
   } catch (failure) {
+    const turned = turnedKey(failure);
+    if (turned) throw turned;
     if (!(failure instanceof ApiError) || failure.status !== 409) throw failure;
     // Another device kept versions too: both sides' versions, once each, are what goes.
     const theirs = await callBytes('GET', `${filesRoute(ctx)}/${id}`, { token: ctx.token, fetcher: ctx.fetcher, timeoutMs: 300_000 });

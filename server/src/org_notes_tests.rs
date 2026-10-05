@@ -137,3 +137,49 @@ async fn a_stranger_and_an_invitee_get_one_404_from_every_route() {
         assert_eq!(answer, not_yours, "invited, not joined: {method} {path}");
     }
 }
+
+#[tokio::test]
+async fn a_write_under_a_generation_not_in_force_is_refused_and_a_full_log_asks_for_a_snapshot() {
+    let h = harness();
+    let matt = h.signup("matt", &device()).await;
+    let org = make(&h, &matt, "Ghost").await;
+    h.call(Method::PUT, "/api/v1/account/key", Some(&matt), Some(json!({ "pub": "pub-matt", "sealed": "sealed-matt" }))).await;
+    let (status, _) = h.call(Method::POST, &format!("/api/v1/orgs/{org}/keys"), Some(&matt), Some(json!({ "generation": 1, "make": true, "wraps": [{ "handle": "matt", "wrapped": "w-matt-1" }] }))).await;
+    assert_eq!(status, StatusCode::OK);
+    // The generation in force is taken; another is refused with it; none named is taken as before.
+    let (status, body) = h.call(Method::PUT, &format!("/api/v1/orgs/{org}/notes/n1"), Some(&matt), Some(json!({ "base": 0, "blob": "c1", "generation": 1 }))).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let r1 = body["rev"].as_i64().unwrap();
+    let (status, body) = h.call(Method::PUT, &format!("/api/v1/orgs/{org}/notes/n1"), Some(&matt), Some(json!({ "base": r1, "blob": "c2", "generation": 2 }))).await;
+    assert_eq!((status, body), (StatusCode::CONFLICT, json!({ "error": "That is not the generation in force.", "generation": 1 })));
+    let (status, body) = h.call(Method::POST, &format!("/api/v1/orgs/{org}/notes/n1/updates"), Some(&matt), Some(json!({ "blobs": ["u1"], "generation": 2 }))).await;
+    assert_eq!((status, body), (StatusCode::CONFLICT, json!({ "error": "That is not the generation in force.", "generation": 1 })));
+    let (status, _) = h.call(Method::POST, &format!("/api/v1/orgs/{org}/notes/n1/updates"), Some(&matt), Some(json!({ "blobs": ["u1"], "generation": 1 }))).await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _) = h.call(Method::POST, &format!("/api/v1/orgs/{org}/notes/n1/updates"), Some(&matt), Some(json!({ "blobs": ["u2"] }))).await;
+    assert_eq!(status, StatusCode::OK);
+    let put = |generation: i64| {
+        Request::builder().method(Method::PUT).uri(format!("/api/v1/orgs/{org}/files/f1?base=0&generation={generation}")).header("Authorization", format!("Bearer {matt}")).header("Content-Type", "application/octet-stream").body(Body::from(&b"bytes"[..])).unwrap()
+    };
+    let (status, _, bytes) = h.send(put(2)).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(serde_json::from_slice::<Value>(&bytes).unwrap(), json!({ "error": "That is not the generation in force.", "generation": 1 }));
+    let (status, _, _) = h.send(put(1)).await;
+    assert_eq!(status, StatusCode::OK);
+    // The log holds UPDATES_KEPT updates and no more: the next post is told to snapshot, with the head; a snapshot that cuts it lets the post in.
+    let kept = crate::store::UPDATES_KEPT as usize;
+    let mut posted = 2;
+    while posted < kept {
+        let batch = (kept - posted).min(100);
+        let blobs: Vec<String> = (0..batch).map(|i| format!("u{}", posted + i + 1)).collect();
+        let (status, body) = h.call(Method::POST, &format!("/api/v1/orgs/{org}/notes/n1/updates"), Some(&matt), Some(json!({ "blobs": blobs, "generation": 1 }))).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        posted += batch;
+    }
+    let (status, body) = h.call(Method::POST, &format!("/api/v1/orgs/{org}/notes/n1/updates"), Some(&matt), Some(json!({ "blobs": ["one too many"], "generation": 1 }))).await;
+    assert_eq!((status, body), (StatusCode::CONFLICT, json!({ "error": "snapshot", "seq": kept as i64 })));
+    let (status, body) = h.call(Method::PUT, &format!("/api/v1/orgs/{org}/notes/n1"), Some(&matt), Some(json!({ "base": r1, "blob": "snap", "upTo": kept as i64, "generation": 1 }))).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let (status, body) = h.call(Method::POST, &format!("/api/v1/orgs/{org}/notes/n1/updates"), Some(&matt), Some(json!({ "blobs": ["after the cut"], "generation": 1 }))).await;
+    assert_eq!((status, body), (StatusCode::OK, json!({ "seq": kept as i64 + 1 })));
+}

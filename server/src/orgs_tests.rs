@@ -643,3 +643,55 @@ async fn a_key_pair_is_registered_once_and_the_organization_key_is_made_once_and
     let unreadable = h.call(Method::POST, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), Some(json!({ "generation": 0, "wraps": [] }))).await;
     assert_eq!(unreadable, refusal(StatusCode::BAD_REQUEST, "Those wraps could not be read."));
 }
+
+#[tokio::test]
+async fn the_key_owes_a_turn_when_a_member_goes_and_the_next_generation_answers_it() {
+    let h = harness();
+    let matt = h.signup("matt", &device()).await;
+    let sam = h.signup("sam", &device()).await;
+    let lee = h.signup("lee", &device()).await;
+    let id = make(&h, &matt, "Ghost").await;
+    for (token, name) in [(&matt, "matt"), (&sam, "sam"), (&lee, "lee")] {
+        h.call(Method::PUT, "/api/v1/account/key", Some(token), Some(json!({ "pub": format!("pub-{name}"), "sealed": format!("sealed-{name}") }))).await;
+    }
+    invite(&h, &matt, &id, "sam").await;
+    answer(&h, &sam, &id, true).await;
+    // A member gone before any key: nothing to turn.
+    let (_, keys) = h.call(Method::GET, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), None).await;
+    assert_eq!(keys["stale"], false);
+    let (status, keys) = h.call(Method::POST, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), Some(json!({ "generation": 1, "make": true, "wraps": [{ "handle": "matt", "wrapped": "w-matt-1" }, { "handle": "sam", "wrapped": "w-sam-1" }] }))).await;
+    assert_eq!(status, StatusCode::OK, "{keys}");
+    assert_eq!(keys["stale"], false);
+    // sam leaves: the key owes a turn, which the list and the key say, until matt's device makes the next generation.
+    let (status, _) = h.call(Method::DELETE, &format!("/api/v1/orgs/{id}/members/sam"), Some(&sam), None).await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, keys) = h.call(Method::GET, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), None).await;
+    assert_eq!((keys["generation"].clone(), keys["stale"].clone()), (json!(1), json!(true)));
+    let (_, list) = h.call(Method::GET, "/api/v1/orgs", Some(&matt), None).await;
+    assert_eq!(list["orgs"][0]["keys"], json!({ "generation": 1, "mine": true, "missing": 0, "stale": true }));
+    let (_, read) = h.call(Method::GET, &format!("/api/v1/orgs/{id}"), Some(&matt), None).await;
+    assert_eq!(read["org"]["keys"]["stale"], true);
+    let (status, keys) = h.call(Method::POST, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), Some(json!({ "generation": 2, "make": true, "wraps": [{ "handle": "matt", "wrapped": "w-matt-2" }] }))).await;
+    assert_eq!(status, StatusCode::OK, "{keys}");
+    assert_eq!((keys["generation"].clone(), keys["mine"].clone(), keys["stale"].clone()), (json!(2), json!("w-matt-2"), json!(false)));
+    // The older wrap is still there to read, for a row sealed before the turn; a generation that is not a number is refused.
+    let (_, old) = h.call(Method::GET, &format!("/api/v1/orgs/{id}/keys?generation=1"), Some(&matt), None).await;
+    assert_eq!((old["generation"].clone(), old["mine"].clone()), (json!(2), json!("w-matt-1")));
+    let (_, none) = h.call(Method::GET, &format!("/api/v1/orgs/{id}/keys?generation=7"), Some(&matt), None).await;
+    assert_eq!(none["mine"], Value::Null);
+    let bad = h.call(Method::GET, &format!("/api/v1/orgs/{id}/keys?generation=0"), Some(&matt), None).await;
+    assert_eq!(bad, refusal(StatusCode::BAD_REQUEST, "That generation could not be read."));
+    // A member removed owes a turn as one who left does; an invitee withdrawn does not, having had no wrap.
+    invite(&h, &matt, &id, "lee").await;
+    answer(&h, &lee, &id, true).await;
+    h.call(Method::POST, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), Some(json!({ "generation": 2, "wraps": [{ "handle": "lee", "wrapped": "w-lee-2" }] }))).await;
+    invite(&h, &matt, &id, "sam").await;
+    let (status, _) = h.call(Method::DELETE, &format!("/api/v1/orgs/{id}/members/sam"), Some(&matt), None).await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, keys) = h.call(Method::GET, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), None).await;
+    assert_eq!(keys["stale"], false, "an invitee withdrawn had no key");
+    let (status, _) = h.call(Method::DELETE, &format!("/api/v1/orgs/{id}/members/lee"), Some(&matt), None).await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, keys) = h.call(Method::GET, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), None).await;
+    assert_eq!(keys["stale"], true);
+}

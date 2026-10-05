@@ -10636,3 +10636,46 @@ drawn, pointers and the ring, the wait for the room, the jump), canvas/CanvasVie
 thread's card, Comment on the bar), the room's catch-up in core/live/team.test.ts.
 
 Cites: §193, §195, §196; docs/CANVAS.md "In an organization".
+
+## 199. The key's turn: the sixth slice of notes shared in an organization (2026-10-05)
+
+docs/SHARED.md, S11. Matt: "Please do the rest of the slices". The organization key (§191) was made once and never
+replaced: a member who left, or was removed, kept a copy of it on their devices, and everything the team wrote
+afterwards was sealed under a key they held.
+
+**A turn owed.** When a member leaves or is removed, the service records a turn (`org_key_turns`, a row per going;
+server/src/store/orgs.rs `remove_member`) and says the key is stale - on `GET orgs/{id}/keys` and on every row of
+the list (`keys.stale`) - until the next generation is made, which clears the rows. An invitee withdrawn owes
+nothing, having had no wrap.
+
+**The next device turns it.** On a pass, an organization whose list says stale and whose generation in force this
+device holds (core/orgs/orgKeys.ts `turnDue`) is first synced as ever under the old key, so the team's notes are
+whole here; then the device makes the generation after it, wrapped for every member who remains and has a public
+key (`turnOrgKey`: `POST keys { make }`, and 409 means another device turned it first, whose wrap is read next
+pass), and puts every team note again under the new key (core/team/sync.ts `resealTeamNotes`: the row with the
+document's whole state, its log cut to it, its versions file and its pictures sent again sealed afresh). The
+generation before stays in hand for the session.
+
+**Nothing new under the old key.** Every write names the generation its body is sealed under (`generation` on the
+row, the updates and a file; server/src/org_notes.rs), and the service refuses one that is not in force, 409 with
+the one that is, so a device that slept through the turn stops that organization's pass (`KeyTurned`) and seals
+under the new key on its next, rather than leaving updates nobody can open. A row or an update still under an
+older generation - written before the turn and not re-sealed yet - is read with this account's wrap at that
+generation (`GET keys?generation=`, `orgKeyAt`) and put again under the one in force by whoever read it.
+
+**The log held.** The service keeps a note's log to 500 updates (store/org_notes.rs `UPDATES_KEPT`): a post past
+that is answered 409 `snapshot` with the head, and the device puts the row with `upTo`, which cuts the log and
+carries the pending updates, then posts on.
+
+**Not yet.** A member's own devices still hold the old key until the app restarts; the turn protects what is
+written from then on, not what they already had, which is the nature of a copy. Rotation on a schedule, or by hand
+from the organization's settings, is not offered.
+
+Tests: core/orgs/orgKeys.test.ts (the turn: stale, the next generation wrapped for those who remain, the older
+generation kept and read back, a turn made elsewhere first), core/team/sync.test.ts (every note re-sealed with its
+log cut, its picture and its versions readable under the new key alone; a write under a stale generation refused
+and the pass stopped with the turn; a row under an older generation read and put again; the log's cap met with a
+snapshot); on the service, orgs_tests.rs (a turn owed and answered, an older wrap read) and org_notes_tests.rs (the
+generation refused, the log's cap).
+
+Cites: §191, §193, §195, §198.

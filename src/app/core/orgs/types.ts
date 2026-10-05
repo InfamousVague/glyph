@@ -22,6 +22,8 @@ export interface KeyNeeds {
   generation: number;
   mine: boolean;
   missing: number;
+  /** A member has left or been removed since the generation was made (S11): the key owes a turn. */
+  stale?: boolean;
 }
 
 export interface OrgRow {

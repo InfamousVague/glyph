@@ -4,13 +4,16 @@
 //! service checks for size and shape, never content.
 //!
 //!   GET    /api/v1/orgs/{id}/notes?since=&limit=              the feed: every note written after `since`
-//!   PUT    /api/v1/orgs/{id}/notes/{nid}                      { base, blob, upTo? } a note; `upTo` cuts its log to there
+//!   PUT    /api/v1/orgs/{id}/notes/{nid}                      { base, blob, upTo?, generation? } a note; `upTo` cuts its log to there
 //!   DELETE /api/v1/orgs/{id}/notes/{nid}                      { base } a deletion, which takes the log
 //!   GET    /api/v1/orgs/{id}/heads                             each live note's log head, in one read
 //!   GET    /api/v1/orgs/{id}/notes/{nid}/updates?since=&limit= the log after `since`
-//!   POST   /api/v1/orgs/{id}/notes/{nid}/updates              { blobs } appended in order; answers the last seq
+//!   POST   /api/v1/orgs/{id}/notes/{nid}/updates              { blobs, generation? } appended in order; answers the last seq; 409 "snapshot" past UPDATES_KEPT
 //!   GET    /api/v1/orgs/{id}/files/{fid}                      a file's bytes, its revision in `x-glyph-rev` (HEAD too)
-//!   PUT    /api/v1/orgs/{id}/files/{fid}?base=                a file's bytes
+//!   PUT    /api/v1/orgs/{id}/files/{fid}?base=&generation=    a file's bytes
+//!
+//! `generation` names the key the body is sealed under (S11): one that is not the generation in force is refused
+//! 409 with the one in force, so a device that slept through a turn re-seals rather than writing what nobody can open.
 //!
 //! A stranger to the organization, and an invitee who has not joined, get one 404 from every route, "No such
 //! organization.", as from the organization's own routes (orgs.rs).
@@ -66,6 +69,8 @@ fn refused(err: OrgNoteWrite) -> Response {
         OrgNoteWrite::Stale(winner) => (StatusCode::CONFLICT, Json(note_json(&winner))).into_response(),
         OrgNoteWrite::StaleFile(rev) => (StatusCode::CONFLICT, Json(json!({ "rev": rev }))).into_response(),
         OrgNoteWrite::Full => error(StatusCode::CONFLICT, "The organization holds as many notes as it can."),
+        OrgNoteWrite::Generation(in_force) => (StatusCode::CONFLICT, Json(json!({ "error": "That is not the generation in force.", "generation": in_force }))).into_response(),
+        OrgNoteWrite::LogFull(seq) => (StatusCode::CONFLICT, Json(json!({ "error": "snapshot", "seq": seq }))).into_response(),
         OrgNoteWrite::Failed => error(StatusCode::INTERNAL_SERVER_ERROR, "That could not be stored."),
     }
 }
@@ -110,6 +115,9 @@ struct NoteBody {
     /// The log's seq this write's snapshot covers: the updates up to it are cut.
     #[serde(default)]
     up_to: Option<i64>,
+    /// The key's generation the blob is sealed under (S11): refused with the one in force when it is not that.
+    #[serde(default)]
+    generation: Option<i64>,
 }
 
 fn written(result: Result<i64, OrgNoteWrite>) -> Response {
@@ -124,12 +132,12 @@ async fn put_note(State(accounts): State<Arc<Accounts>>, Path((org, note)): Path
     let Some(blob) = body.blob.as_deref().filter(|b| valid_blob(b, NOTE_LIMIT)) else {
         return Err(error(StatusCode::BAD_REQUEST, "That note is empty or too large to sync."));
     };
-    Ok(written(accounts.store.put_org_note(who.sub, &org, &note, body.base, Some(blob), body.up_to, NOTES_PER_ORG, now_secs())))
+    Ok(written(accounts.store.put_org_note(who.sub, &org, &note, body.base, Some(blob), body.up_to, body.generation, NOTES_PER_ORG, now_secs())))
 }
 
 async fn delete_note(State(accounts): State<Arc<Accounts>>, Path((org, note)): Path<(String, String)>, who: Claims, Json(body): Json<NoteBody>) -> Result<Response, Response> {
     ids(&org, Some(&note))?;
-    Ok(written(accounts.store.put_org_note(who.sub, &org, &note, body.base, None, None, NOTES_PER_ORG, now_secs())))
+    Ok(written(accounts.store.put_org_note(who.sub, &org, &note, body.base, None, None, None, NOTES_PER_ORG, now_secs())))
 }
 
 async fn updates(State(accounts): State<Arc<Accounts>>, Path((org, note)): Path<(String, String)>, Query(query): Query<SinceQuery>, who: Claims) -> Result<Response, Response> {
@@ -157,6 +165,8 @@ async fn heads(State(accounts): State<Arc<Accounts>>, Path(org): Path<String>, w
 struct UpdatesBody {
     #[serde(default)]
     blobs: Vec<String>,
+    #[serde(default)]
+    generation: Option<i64>,
 }
 
 async fn post_updates(State(accounts): State<Arc<Accounts>>, Path((org, note)): Path<(String, String)>, who: Claims, Json(body): Json<UpdatesBody>) -> Result<Response, Response> {
@@ -164,7 +174,7 @@ async fn post_updates(State(accounts): State<Arc<Accounts>>, Path((org, note)): 
     if body.blobs.is_empty() || body.blobs.len() > UPDATES_PER_POST || !body.blobs.iter().all(|b| valid_blob(b, UPDATE_LIMIT)) {
         return Err(error(StatusCode::BAD_REQUEST, "Those updates could not be read."));
     }
-    match accounts.store.post_org_updates(who.sub, &org, &note, &body.blobs, now_secs()) {
+    match accounts.store.post_org_updates(who.sub, &org, &note, &body.blobs, body.generation, now_secs()) {
         Ok(seq) => Ok(Json(json!({ "seq": seq })).into_response()),
         Err(err) => Err(refused(err)),
     }
@@ -192,6 +202,8 @@ async fn get_file(State(accounts): State<Arc<Accounts>>, Path((org, file)): Path
 struct FileQuery {
     #[serde(default)]
     base: i64,
+    #[serde(default)]
+    generation: Option<i64>,
 }
 
 async fn put_file(State(accounts): State<Arc<Accounts>>, Path((org, file)): Path<(String, String)>, Query(query): Query<FileQuery>, who: Claims, body: Bytes) -> Result<Response, Response> {
@@ -199,7 +211,7 @@ async fn put_file(State(accounts): State<Arc<Accounts>>, Path((org, file)): Path
     if body.is_empty() {
         return Err(error(StatusCode::BAD_REQUEST, "That file is empty."));
     }
-    Ok(written(accounts.store.put_org_file(who.sub, &org, &file, query.base, &body, now_secs())))
+    Ok(written(accounts.store.put_org_file(who.sub, &org, &file, query.base, query.generation, &body, now_secs())))
 }
 
 pub fn router(accounts: Arc<Accounts>) -> Router {

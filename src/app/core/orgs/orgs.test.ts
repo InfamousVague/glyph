@@ -210,7 +210,7 @@ describe('the list kept here', () => {
 
   it('reads rubbish, or a row this build cannot read, as nothing', () => {
     localStorage.setItem('glyph-sync-7-orgs', JSON.stringify({ list: [{ id: 'o1', name: 'Ghost', role: 'owner', state: 'member' }, { id: 'o2' }, 'no'], at: 'then' }));
-    expect(orgs.orgsState()).toEqual({ list: [{ id: 'o1', name: 'Ghost', hue: null, role: 'owner', state: 'member', members: 0, invitedBy: null, createdAt: 0, colour: null, keys: { generation: 0, mine: false, missing: 0 } }], at: null, colour: null });
+    expect(orgs.orgsState()).toEqual({ list: [{ id: 'o1', name: 'Ghost', hue: null, role: 'owner', state: 'member', members: 0, invitedBy: null, createdAt: 0, colour: null, keys: { generation: 0, mine: false, missing: 0, stale: false } }], at: null, colour: null });
     localStorage.setItem('glyph-sync-7-orgs', 'not json');
     orgs.forgetOrgs(7);
     expect(orgs.orgsState()).toEqual({ list: [], at: null, colour: null });

@@ -3,8 +3,12 @@ import { failureText } from '../failure.ts';
 import { imageNames } from '../imageRefs.ts';
 import type { Note } from '../store.ts';
 import { fromBase64Url, open, openBytes, seal, sealBytes, toBase64Url, type Bytes } from '../sync/crypto.ts';
-import { fetchFile, fetchVersionsOf, fileId, sendFile, sendVersionsOf, type FilesContext, type LocalFiles, type LocalNotes, type SyncState } from '../sync/notes.ts';
+import { fetchFile, fetchVersionsOf, fileId, resendFile, sendFile, sendVersionsOf, turnedKey, type FilesContext, type LocalFiles, type LocalNotes, type SyncState } from '../sync/notes.ts';
 import { adoptTeamDoc, dropTeamDoc, teamDoc, type TeamDoc } from './doc.ts';
+
+import { KeyTurned } from '../sync/notes.ts';
+
+export { KeyTurned };
 import type { TeamDocStore } from './docs.ts';
 
 /**
@@ -61,6 +65,10 @@ export interface TeamSyncContext {
   isTeamNote(id: string): boolean;
   /** A note from the team, filed in the organization's workspace on this device. */
   file(id: string): void;
+  /** The key's generation (docs/SHARED.md, S11), named on every write so one under a turned key is refused, not kept. */
+  generation?: number;
+  /** The key at an older generation, for a row or an update sealed before a turn and not re-sealed yet; null for none. */
+  olderKey?: (generation: number) => Promise<CryptoKey | null>;
 }
 
 /** A row's blob, opened: the note as it stood, the document's whole state then, the seq it covered, and the files. */
@@ -114,15 +122,39 @@ const noteContext = (orgId: string, id: string) => `org:${orgId}:note:${id}`;
 const updateContext = (orgId: string, id: string) => `org:${orgId}:note:${id}:update`;
 
 function filesOf(ctx: TeamSyncContext): FilesContext {
-  return { token: ctx.token, key: ctx.key, files: ctx.files, fetcher: ctx.fetcher, filesRoute: `orgs/${encodeURIComponent(ctx.orgId)}/files`, state: ctx.state };
+  return { token: ctx.token, key: ctx.key, files: ctx.files, fetcher: ctx.fetcher, filesRoute: `orgs/${encodeURIComponent(ctx.orgId)}/files`, state: ctx.state, ...(ctx.generation ? { generation: ctx.generation } : {}) };
 }
 
 function route(ctx: TeamSyncContext, tail: string): string {
   return `orgs/${encodeURIComponent(ctx.orgId)}/${tail}`;
 }
 
-function options(ctx: TeamSyncContext, body?: unknown) {
-  return { token: ctx.token, fetcher: ctx.fetcher, ...(body === undefined ? {} : { body }) };
+/** The call's options; a body names the key's generation it is sealed under (S11). */
+function options(ctx: TeamSyncContext, body?: Record<string, unknown>) {
+  return { token: ctx.token, fetcher: ctx.fetcher, ...(body === undefined ? {} : { body: ctx.generation ? { ...body, generation: ctx.generation } : body }) };
+}
+
+/**
+ * Sealed bytes opened under the key in force, or, failing that, under the generations before it (S11): a row or an
+ * update sealed before a turn by a device that had not yet heard of it, or not yet re-sealed. Answers what opened
+ * and whether an older key did it, so a row read that way is put again under the key in force.
+ */
+async function opened<T>(ctx: TeamSyncContext, open: (key: CryptoKey) => Promise<T>): Promise<{ value: T; older: boolean }> {
+  try {
+    return { value: await open(ctx.key), older: false };
+  } catch (failure) {
+    if (!ctx.olderKey || !ctx.generation) throw failure;
+    for (let generation = ctx.generation - 1; generation >= 1; generation -= 1) {
+      const key = await ctx.olderKey(generation);
+      if (!key) continue;
+      try {
+        return { value: await open(key), older: true };
+      } catch {
+        // Not that one either.
+      }
+    }
+    throw failure;
+  }
 }
 
 /** The note's words from the document, written to the note here when they differ. */
@@ -145,7 +177,7 @@ async function takeRow(ctx: TeamSyncContext, item: TeamFeedItem, local: Note | u
     delete ctx.state.notes[item.id];
     return;
   }
-  const payload = await open<TeamPayload>(ctx.key, item.blob, noteContext(ctx.orgId, item.id));
+  const { value: payload, older } = await opened(ctx, (key) => open<TeamPayload>(key, item.blob!, noteContext(ctx.orgId, item.id)));
   const held = await teamDoc(item.id, ctx.docs);
   // Words typed here since the document was last written are a change of this device's, reconciled before the row's
   // state comes in, so the merge is the CRDT's and nothing typed is written over.
@@ -168,6 +200,8 @@ async function takeRow(ctx: TeamSyncContext, item: TeamFeedItem, local: Note | u
   }
   ctx.file(item.id);
   ctx.state.notes[item.id] = { rev: item.rev, mark: particulars(theirs) };
+  // Read under a generation before the turn: put again under the one in force, so every member can read it.
+  if (older) await putRow(ctx, (await ctx.notes.get(item.id)) ?? theirs, doc, outcome);
 }
 
 async function pull(ctx: TeamSyncContext, outcome: TeamOutcome): Promise<void> {
@@ -203,7 +237,7 @@ async function takeUpdates(ctx: TeamSyncContext, doc: TeamDoc, outcome: TeamOutc
       const updates: Uint8Array[] = [];
       for (const item of page.items) {
         try {
-          updates.push(await openBytes(ctx.key, fromBase64Url(item.blob), updateContext(ctx.orgId, doc.noteId)));
+          updates.push((await opened(ctx, (key) => openBytes(key, fromBase64Url(item.blob), updateContext(ctx.orgId, doc.noteId)))).value);
         } catch {
           // An update that will not open - sealed under a generation this device lacks - is passed over; the row's
           // next snapshot carries what it did.
@@ -221,13 +255,25 @@ async function takeUpdates(ctx: TeamSyncContext, doc: TeamDoc, outcome: TeamOutc
 // --- push ------------------------------------------------------------------------------
 
 /** The updates made here, posted in order; the document's seq follows them when nobody else wrote in between. */
-async function postPending(ctx: TeamSyncContext, doc: TeamDoc): Promise<void> {
+async function postPending(ctx: TeamSyncContext, note: Note, doc: TeamDoc, outcome: TeamOutcome): Promise<void> {
   for (;;) {
     const pending = doc.pending().slice(0, POST_AT_MOST);
     if (!pending.length) return;
     const blobs: string[] = [];
     for (const update of pending) blobs.push(toBase64Url(await sealBytes(ctx.key, update as Bytes, updateContext(ctx.orgId, doc.noteId))));
-    const { seq } = await call<{ seq: number }>('POST', route(ctx, `notes/${encodeURIComponent(doc.noteId)}/updates`), options(ctx, { blobs }));
+    let seq: number;
+    try {
+      ({ seq } = await call<{ seq: number }>('POST', route(ctx, `notes/${encodeURIComponent(doc.noteId)}/updates`), options(ctx, { blobs })));
+    } catch (failure) {
+      const turned = turnedKey(failure);
+      if (turned) throw turned;
+      // The log is as long as the service keeps one (S11): a snapshot cuts it, and carries these updates with it.
+      if (failure instanceof ApiError && failure.status === 409 && (failure.body as { error?: unknown } | null)?.error === 'snapshot') {
+        await putRow(ctx, note, doc, outcome);
+        continue;
+      }
+      throw failure;
+    }
     doc.posted(pending.length);
     // Exactly these went on at the end of the log: nothing of the team's between, so there is nothing to read back.
     if (seq - pending.length === doc.seq) doc.seq = seq;
@@ -262,6 +308,8 @@ async function putRow(ctx: TeamSyncContext, note: Note, doc: TeamDoc, outcome: T
     doc.posted(covered);
     await doc.flush();
   } catch (failure) {
+    const turned = turnedKey(failure);
+    if (turned) throw turned;
     if (!(failure instanceof ApiError) || failure.status !== 409 || !failure.body) throw failure;
     // Another member put the row first: theirs merged into the document here, and this one put again from their revision.
     const winner = failure.body as TeamFeedItem;
@@ -275,7 +323,7 @@ async function pushOne(ctx: TeamSyncContext, note: Note, outcome: TeamOutcome): 
   const doc = (await teamDoc(note.id, ctx.docs, note.body))!;
   doc.reconcile(note.body);
   const known = ctx.state.notes[note.id];
-  if (known) await postPending(ctx, doc);
+  if (known) await postPending(ctx, note, doc, outcome);
   const due = !known || known.mark !== particulars(note) || doc.seq - doc.snapshotSeq >= SNAPSHOT_EVERY || (ctx.files.owed?.() ?? []).includes(note.id);
   if (due) await putRow(ctx, note, doc, outcome);
   else await doc.flush();
@@ -285,7 +333,7 @@ async function counted(ctx: TeamSyncContext, outcome: TeamOutcome, work: () => P
   try {
     await work();
   } catch (failure) {
-    if (failure instanceof ApiError && failure.status === 401) throw failure;
+    if ((failure instanceof ApiError && failure.status === 401) || failure instanceof KeyTurned) throw failure;
     outcome.unsent += 1;
     outcome.reason ??= failureText(failure);
   }
@@ -332,6 +380,35 @@ async function heads(ctx: TeamSyncContext): Promise<Record<string, number> | nul
 }
 
 /** One whole sync of a team's notes: what changed elsewhere first, then the logs that moved, then what changed here. */
+/**
+ * Every team note put again under the key in force, after a turn (docs/SHARED.md, S11; core/orgs/orgKeys.ts
+ * `turnOrgKey`): the row with the document's whole state, its log cut to it, its versions file and its pictures sent
+ * again sealed afresh. Run by the engine right after the turn, on the device that made it, with the team's notes
+ * pulled first under the old key so nothing a member wrote is left behind. The service refuses what is still
+ * sealed under the old generation, so a device that slept through the turn re-seals its own next.
+ */
+export async function resealTeamNotes(ctx: TeamSyncContext): Promise<TeamOutcome> {
+  const outcome: TeamOutcome = { changed: 0, unsent: 0, reason: null };
+  const files = filesOf(ctx);
+  for (const id of Object.keys(ctx.state.notes)) {
+    const note = await ctx.notes.get(id);
+    const doc = await teamDoc(id, ctx.docs);
+    if (!note || !doc) continue;
+    await counted(ctx, outcome, async () => {
+      for (const name of imageNames(note.body)) {
+        const bytes = await ctx.files.read('image', name);
+        if (bytes) await resendFile(files, 'image', name, bytes);
+      }
+      // The versions file goes with the row, sent again since its digest is forgotten here.
+      const versions = fileId('versions', id);
+      if (versions && ctx.state.files[versions]) ctx.state.files[versions] = { rev: ctx.state.files[versions]!.rev };
+      await putRow(ctx, note, doc, outcome);
+    });
+  }
+  ctx.save(ctx.state);
+  return outcome;
+}
+
 export async function syncTeamNotes(ctx: TeamSyncContext): Promise<TeamOutcome> {
   const outcome: TeamOutcome = { changed: 0, unsent: 0, reason: null };
   await pull(ctx, outcome);

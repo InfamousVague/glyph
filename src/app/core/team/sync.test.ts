@@ -6,7 +6,8 @@ import type { FileKind, LocalFiles, LocalNotes } from '../sync/notes.ts';
 import { createOrg } from '../orgs/orgs.ts';
 import { forgetTeamDocs, teamDoc } from './doc.ts';
 import { memoryDocs, type TeamDocStore } from './docs.ts';
-import { emptyTeamState, particulars, SNAPSHOT_EVERY, syncTeamNotes, type TeamSyncState } from './sync.ts';
+import { emptyTeamState, KeyTurned, particulars, resealTeamNotes, SNAPSHOT_EVERY, syncTeamNotes, type TeamSyncContext, type TeamSyncState } from './sync.ts';
+import { UPDATES_KEPT } from '../../../test/fakeService.ts';
 
 /**
  * A team's notes between two members' devices (core/team/sync.ts; docs/SHARED.md, S1, S4, S5): a note filed in the
@@ -73,23 +74,30 @@ function device(docs: TeamDocStore = memoryDocs()) {
       notes.set(id, { id, body, createdAt: clock.at, updatedAt: clock.at, source: 'editor', ...over });
       filed.add(id);
     },
-    sync: () =>
-      syncTeamNotes({
-        token: service.signedIn(),
-        orgId,
-        key: orgKey,
-        notes: local,
-        files,
-        docs,
-        state,
-        save: (s) => (state = s),
-        fetcher: service.fetcher,
-        now: () => clock.at,
-        isTeamNote: (id) => filed.has(id),
-        file: (id) => void filed.add(id),
-      }),
+    /** The channel's context, under the key (and generation) given, or the organization's. */
+    context: (over: Partial<TeamSyncContext> = {}): TeamSyncContext => ({
+      token: service.signedIn(),
+      orgId,
+      key: orgKey,
+      notes: local,
+      files,
+      docs,
+      state,
+      save: (s) => (state = s),
+      fetcher: service.fetcher,
+      now: () => clock.at,
+      isTeamNote: (id) => filed.has(id),
+      file: (id) => void filed.add(id),
+      ...over,
+    }),
+    sync(over: Partial<TeamSyncContext> = {}) {
+      return syncTeamNotes(this.context(over));
+    },
   };
 }
+
+/** A key as the organization's: AES-GCM, fresh. */
+const freshKey = () => crypto.subtle.importKey('raw', crypto.getRandomValues(new Uint8Array(32)), { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
 
 beforeEach(async () => {
   service = await fakeService(ACCOUNT);
@@ -240,5 +248,93 @@ describe('a team note between two devices', () => {
     vi.stubGlobal('fetch', failing);
     const outcome = await syncTeamNotes({ token: service.signedIn(), orgId, key: orgKey, notes: { list: async () => [...phone.notes.values()], get: async (id) => phone.notes.get(id) ?? null, apply: async (n) => n, remove: async () => undefined }, files: { read: async () => null, write: async () => undefined }, docs: phone.docs, state: emptyTeamState(), save: () => undefined, fetcher: failing, isTeamNote: () => true, file: () => undefined });
     expect(outcome).toEqual({ changed: 0, unsent: 1, reason: 'The service is down.' });
+  });
+});
+
+describe('the key turning under the team (docs/SHARED.md, S11)', () => {
+  /** The organization with its key at generation `at`, as the service keeps it: what a device's writes are checked against. */
+  const inForce = (at: number) => {
+    service.orgs.get(orgId)!.generation = at;
+  };
+
+  it('puts every note, its log cut, and its files again under the new key, so a member who reads with it finds everything', async () => {
+    inForce(1);
+    const phone = device();
+    phone.put('n1', 'words ![](image/photo.png)');
+    phone.pictures.set('photo.png', new Uint8Array([1, 2, 3]));
+    phone.versions.set('n1', 'v1\n');
+    phone.owed.add('n1');
+    await phone.sync({ generation: 1 });
+    for (let i = 0; i < 3; i += 1) {
+      phone.notes.set('n1', { ...phone.notes.get('n1')!, body: `words ${i} ![](image/photo.png)` });
+      await phone.sync({ generation: 1 });
+    }
+    expect(service.teamUpdates(orgId, 'n1').length).toBeGreaterThan(0);
+    const before = service.teamNotes(orgId).get('n1')!;
+    // The turn: the service names generation 2, and the phone, holding it, puts everything again under it.
+    const turned = await freshKey();
+    inForce(2);
+    await resealTeamNotes(phone.context({ key: turned, generation: 2 }));
+    const row = service.teamNotes(orgId).get('n1')!;
+    expect(row.rev).toBeGreaterThan(before.rev);
+    expect(service.teamUpdates(orgId, 'n1')).toEqual([]);
+    await expect(open(orgKey, row.blob!, `org:${orgId}:note:n1`)).rejects.toThrow();
+    expect(((await open(turned, row.blob!, `org:${orgId}:note:n1`)) as { note: Note }).note.body).toBe('words 2 ![](image/photo.png)');
+    // A member reading with the new key alone has the row, the log, the picture and the versions.
+    forgetTeamDocs();
+    const laptop = device();
+    await laptop.sync({ key: turned, generation: 2 });
+    expect(laptop.notes.get('n1')?.body).toBe('words 2 ![](image/photo.png)');
+    expect([...laptop.pictures.get('photo.png')!]).toEqual([1, 2, 3]);
+    expect(laptop.versions.get('n1')).toBe('v1\n');
+  });
+
+  it('refuses a write under a generation no longer in force, and the channel stops with the turn rather than counting it unsent', async () => {
+    inForce(1);
+    const phone = device();
+    phone.put('n1', 'words');
+    await phone.sync({ generation: 1 });
+    const before = { ...service.teamNotes(orgId).get('n1')! };
+    inForce(2);
+    phone.notes.set('n1', { ...phone.notes.get('n1')!, body: 'words typed after the turn' });
+    await expect(phone.sync({ generation: 1 })).rejects.toBeInstanceOf(KeyTurned);
+    // Nothing of it reached the service under the old key; the next pass, under the new one, carries it.
+    expect(service.teamUpdates(orgId, 'n1')).toEqual([]);
+    const turned = await freshKey();
+    // The row still under the old key opens for a device that can read the older generation, and is put again by it.
+    forgetTeamDocs();
+    const laptop = device();
+    const outcome = await laptop.sync({ key: turned, generation: 2, olderKey: async (generation) => (generation === 1 ? orgKey : null) });
+    expect(outcome.unsent).toBe(0);
+    expect(laptop.notes.get('n1')?.body).toBe('words');
+    const row = service.teamNotes(orgId).get('n1')!;
+    expect(((await open(turned, row.blob!, `org:${orgId}:note:n1`)) as { note: Note }).note.body).toBe('words');
+    // A device with no way to the older generation cannot read it, and the pass says so without losing the note elsewhere.
+    forgetTeamDocs();
+    service.teamNotes(orgId).set('n1', before);
+    const tablet = device();
+    const failed = await tablet.sync({ key: await freshKey(), generation: 2 }).catch((failure: unknown) => failure);
+    expect(failed).toBeInstanceOf(Error);
+  });
+
+  it('snapshots when the service says the log is as long as it keeps one, and posts on', async () => {
+    inForce(1);
+    const phone = device();
+    phone.put('n1', 'words');
+    await phone.sync({ generation: 1 });
+    // The log filled by another device, with updates this one has read: its next update is told to snapshot first.
+    const have = service.teamUpdates(orgId, 'n1').length;
+    const blobs = Array.from({ length: UPDATES_KEPT - have }, (_, i) => `x${i}`);
+    const filled = await service.fetcher(`https://x/api/v1/orgs/${orgId}/notes/n1/updates`, { method: 'POST', headers: { Authorization: `Bearer ${service.signedIn()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ blobs, generation: 1 }) });
+    expect(filled.status).toBe(200);
+    const doc = (await teamDoc('n1', phone.docs))!;
+    doc.seq = UPDATES_KEPT;
+    phone.notes.set('n1', { ...phone.notes.get('n1')!, body: 'words and one more' });
+    const outcome = await phone.sync({ generation: 1 });
+    expect(outcome.unsent).toBe(0);
+    // The snapshot carried the edit and cut the log to it: nothing is left to post after it.
+    expect(service.teamUpdates(orgId, 'n1')).toEqual([]);
+    expect(doc.snapshotSeq).toBe(UPDATES_KEPT);
+    expect(((await open(orgKey, service.teamNotes(orgId).get('n1')!.blob!, `org:${orgId}:note:n1`)) as { note: Note }).note.body).toBe('words and one more');
   });
 });

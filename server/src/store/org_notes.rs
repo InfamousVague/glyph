@@ -37,6 +37,10 @@ pub struct UpdateRow {
 pub enum OrgNoteWrite {
     /// No organization by that id that the caller has joined.
     NoSuchOrg,
+    /// The body was sealed under a generation of the key that is not the one in force (S11): here is that one.
+    Generation(i64),
+    /// The note's log holds as many updates as it may: a snapshot must cut it first. Here is its head.
+    LogFull(i64),
     /// The stored row has moved on since `base`: here it is.
     Stale(OrgNoteRow),
     /// A file's stored revision has moved on since `base`.
@@ -46,6 +50,24 @@ pub enum OrgNoteWrite {
     /// The organization holds as many notes as it may.
     Full,
     Failed,
+}
+
+/// How many updates a note's log holds before a snapshot must cut it (docs/SHARED.md, S11).
+pub const UPDATES_KEPT: i64 = 500;
+
+impl Store {
+    /// A body sealed under a generation that is not the one in force is refused with that one (S11), so a device
+    /// that slept through a turn re-seals under the new key rather than leaving words nobody can open. A body that
+    /// names no generation (a build before turns) is taken as it was.
+    fn in_force(conn: &rusqlite::Connection, org: &str, generation: Option<i64>) -> Result<(), OrgNoteWrite> {
+        if let Some(generation) = generation {
+            let in_force = Self::generation_of(conn, org)?;
+            if generation != in_force {
+                return Err(OrgNoteWrite::Generation(in_force));
+            }
+        }
+        Ok(())
+    }
 }
 
 impl From<rusqlite::Error> for OrgNoteWrite {
@@ -108,10 +130,11 @@ impl Store {
     /// the blob is a deletion, which takes the note's log with it. A note the organization has never seen is taken
     /// whatever its base, up to `most` live notes. With `up_to`, the updates up to that seq are cut: the row holds a
     /// snapshot that covers them.
-    pub fn put_org_note(&self, account: i64, org: &str, note: &str, base: i64, blob: Option<&str>, up_to: Option<i64>, most: i64, now: i64) -> Result<i64, OrgNoteWrite> {
+    pub fn put_org_note(&self, account: i64, org: &str, note: &str, base: i64, blob: Option<&str>, up_to: Option<i64>, generation: Option<i64>, most: i64, now: i64) -> Result<i64, OrgNoteWrite> {
         let mut conn = self.lock();
         let tx = conn.transaction()?;
         Self::acting(&tx, org, account)?;
+        Self::in_force(&tx, org, generation)?;
         match Self::org_note_in(&tx, org, note)? {
             Some(current) if current.rev != base => return Err(OrgNoteWrite::Stale(current)),
             Some(_) => {}
@@ -156,10 +179,11 @@ impl Store {
 
     /// `blobs` appended to a note's log in order, by a member; answers the seq of the last. A note that was cut back
     /// keeps counting from where it was, so a device's seq never goes backwards.
-    pub fn post_org_updates(&self, account: i64, org: &str, note: &str, blobs: &[String], now: i64) -> Result<i64, OrgNoteWrite> {
+    pub fn post_org_updates(&self, account: i64, org: &str, note: &str, blobs: &[String], generation: Option<i64>, now: i64) -> Result<i64, OrgNoteWrite> {
         let mut conn = self.lock();
         let tx = conn.transaction()?;
         Self::acting(&tx, org, account)?;
+        Self::in_force(&tx, org, generation)?;
         if Self::org_note_in(&tx, org, note)?.is_none_or(|row| row.deleted) {
             return Err(OrgNoteWrite::NoSuchNote);
         }
@@ -167,6 +191,11 @@ impl Store {
         let mut seq: i64 = tx.query_row("SELECT COALESCE(MAX(seq), 0) FROM org_note_updates WHERE org_id = ?1 AND note_id = ?2", params![org, note], |r| r.get(0))?;
         let kept: i64 = tx.query_row("SELECT COALESCE((SELECT value FROM meta WHERE key = ?1), '0')", params![format!("org-seq:{org}:{note}")], |r| r.get::<_, String>(0))?.parse().unwrap_or(0);
         seq = seq.max(kept);
+        // A log past its length is cut by a snapshot before it grows (S11): the device puts the row with `up_to`.
+        let held: i64 = tx.query_row("SELECT COUNT(*) FROM org_note_updates WHERE org_id = ?1 AND note_id = ?2", params![org, note], |r| r.get(0))?;
+        if held + blobs.len() as i64 > UPDATES_KEPT {
+            return Err(OrgNoteWrite::LogFull(seq));
+        }
         for blob in blobs {
             seq += 1;
             tx.execute("INSERT INTO org_note_updates (org_id, note_id, seq, blob, by_id, at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", params![org, note, seq, blob, account, now])?;
@@ -201,22 +230,24 @@ impl Store {
 
     /// An organization's file written from `base`, as an account's recording is (store/recordings.rs): the bytes in
     /// a side file first, renamed into place under the lock once the row is ready.
-    pub fn put_org_file(&self, account: i64, org: &str, id: &str, base: i64, bytes: &[u8], now: i64) -> Result<i64, OrgNoteWrite> {
+    pub fn put_org_file(&self, account: i64, org: &str, id: &str, base: i64, generation: Option<i64>, bytes: &[u8], now: i64) -> Result<i64, OrgNoteWrite> {
         let dir = self.recordings.join(format!("org-{org}"));
         std::fs::create_dir_all(&dir)?;
         let part = dir.join(format!("{id}.{:016x}.part", rand::random::<u64>()));
         std::fs::write(&part, bytes)?;
-        let placed = self.place_org_file(account, org, id, base, bytes.len(), now, &part);
+        let placed = self.place_org_file(account, org, id, base, generation, bytes.len(), now, &part);
         if placed.is_err() {
             let _ = std::fs::remove_file(&part);
         }
         placed
     }
 
-    fn place_org_file(&self, account: i64, org: &str, id: &str, base: i64, size: usize, now: i64, part: &Path) -> Result<i64, OrgNoteWrite> {
+    #[allow(clippy::too_many_arguments)]
+    fn place_org_file(&self, account: i64, org: &str, id: &str, base: i64, generation: Option<i64>, size: usize, now: i64, part: &Path) -> Result<i64, OrgNoteWrite> {
         let mut conn = self.lock();
         let tx = conn.transaction()?;
         Self::acting(&tx, org, account)?;
+        Self::in_force(&tx, org, generation)?;
         if let Some(stored) = Self::org_file_rev_in(&tx, org, id)? {
             if stored != base {
                 return Err(OrgNoteWrite::StaleFile(stored));

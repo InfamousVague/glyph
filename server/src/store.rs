@@ -33,7 +33,7 @@ mod shares;
 pub use accounts::DeleteAccount;
 pub use keys::{AccountKey, KeyWrite, OrgKeys, Wrap};
 pub use notes::NoteRow;
-pub use org_notes::{OrgNoteRow, OrgNoteWrite, UpdateRow};
+pub use org_notes::{OrgNoteRow, OrgNoteWrite, UpdateRow, UPDATES_KEPT};
 #[cfg(test)]
 pub use notifications::KEPT;
 pub use notifications::{NotificationRow, NotificationWrite, SERVER_KINDS};
@@ -180,6 +180,12 @@ CREATE TABLE IF NOT EXISTS org_key_state (
     generation INTEGER NOT NULL,
     made_by    INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
     made_at    INTEGER NOT NULL
+);
+-- A turn the key owes (S11): a member left or was removed, so the generation in force is stale until a member's
+-- device makes the next one, which clears the rows. Nothing of who: the turn is the organization's.
+CREATE TABLE IF NOT EXISTS org_key_turns (
+    org_id TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+    at     INTEGER NOT NULL
 );
 -- Team notes (docs/SHARED.md, S4; store/org_notes.rs): an organization's notes as ciphertext under its key, with the
 -- organization's own write counter so a member's feed cursor is per organization, the CRDT's update log beside each

@@ -126,14 +126,24 @@ thread each - `{ id, node, by, at, text, replies }` - anchored to a card, drawn 
 
 **S10. What the server can see**, beyond TEAMS.md's list: each account's public encryption key; the organization key
 wrapped per member (ciphertext); a team note's id, size, times and who wrote each row and update; the update log's
-sizes and timing; which member has which team note open live, when, and the sizes and timing of what passes; and
-colours. It still cannot read a title, a word, a comment, a caret's place or a pointer's.
+sizes and timing; which member has which team note open live, when, and the sizes and timing of what passes; colours; and that a
+member has gone since the key was made, until the next generation answers it (S11). It still cannot read a title,
+a word, a comment, a caret's place or a pointer's.
 
-**S11. Limits.** 2,000 team notes an organization; a note row 1 MB and an update 64 KB, as a frame is; a log compacted
-past 500 updates; the relay's limits as they were, with 16 rooms an organization's socket may hold at once. Rotation
-of the organization key on a removal or a leaving is a generation after the one in force, made by the next member
-device to sync, wrapped for the members who remain, with every team note re-sealed under it by that device: S2's
-`missing` handles the members, and the re-sealing is slice 6.
+**S11. Limits, and the key's turn.** 2,000 team notes an organization; a note row 1 MB and an update 64 KB, as a frame
+is; a log of 500 updates at most - past that the service answers a post 409 `snapshot`, and the device puts the row
+again with `upTo`, which cuts the log; the relay's limits as they were, with 16 rooms an organization's socket may
+hold at once. When a member leaves or is removed the key owes a turn: the service records it (`org_key_turns`) and
+says so (`stale` on the key and on every row's `keys`); the next member device to sync holding the generation in
+force pulls the team's notes under it, makes the generation after it (`POST keys { make }`), wrapped for every
+member who remains and has a public key, and puts every team note again under the new key - the row with the
+document's whole state and its log cut, its versions file and its pictures sent again sealed afresh
+(`resealTeamNotes`). Every write names the generation its body is sealed under (`generation` on the row, the updates
+and a file), and the service refuses one that is not in force, 409 with the one that is, so a device that slept
+through the turn re-seals on its next pass rather than leaving words nobody can open. A row or an update still under
+an older generation - not yet re-sealed - is read with this account's wrap at that generation (`GET keys?generation=`)
+and put again under the one in force by whoever read it. A member who left keeps whatever their devices held; from
+the turn on, nothing new is sealed under a key they have.
 
 ## Slices
 
@@ -150,7 +160,9 @@ device to sync, wrapped for the members who remain, with every team note re-seal
    band, in the bar, in More and on a note's menu in a list. The audit log's line and the profile card's counts wait.
 5. **Canvases** - shipped 2026-10-05 (DESIGN §198). S9: the canvas as types in the team's document, pointers in
    colour, the card being edited ringed, Jump to cursor on a canvas, and comments as a `comments` array in the JSON.
-6. **Rotation and pruning.** S11's rotation and re-sealing; the log compacted on the service's side as well.
+6. **Rotation and pruning** - shipped 2026-10-05 (DESIGN §199). S11's turn: `stale` on the key, the next
+   generation made and the team's notes re-sealed by the next device to sync, writes refused under a stale
+   generation, older generations read for what is not re-sealed yet, and a log held to 500 updates by the service.
 
 Each slice ships glyph-api first, then the web OTA after the login gap (TEAMS.md, D11), with its design note in
 DESIGN.md and its tests beside the code.

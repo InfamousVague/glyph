@@ -48,6 +48,9 @@ pub struct OrgKeys {
     pub generation: i64,
     pub mine: Option<String>,
     pub missing: Vec<(String, String)>,
+    /// A member has left or been removed since the generation in force was made (S11): the next member device to
+    /// sync makes the one after it, wrapped for those who remain, and re-seals the team's notes under it.
+    pub stale: bool,
 }
 
 impl Store {
@@ -108,20 +111,36 @@ impl Store {
 
     // --- the organization key ------------------------------------------------------
 
-    fn generation_of(conn: &Connection, org: &str) -> rusqlite::Result<i64> {
+    pub(super) fn generation_of(conn: &Connection, org: &str) -> rusqlite::Result<i64> {
         Ok(conn.query_row("SELECT generation FROM org_key_state WHERE org_id = ?1", params![org], |r| r.get(0)).optional()?.unwrap_or(0))
     }
 
-    fn keys_in(conn: &Connection, account: i64, org: &str) -> rusqlite::Result<OrgKeys> {
+    /// A turn owed (S11): a member has gone, so the generation in force must be replaced before it is trusted again.
+    pub(super) fn turn_key(conn: &Connection, org: &str, now: i64) -> rusqlite::Result<()> {
+        conn.execute("INSERT INTO org_key_turns (org_id, at) VALUES (?1, ?2)", params![org, now])?;
+        Ok(())
+    }
+
+    fn stale_in(conn: &Connection, org: &str, generation: i64) -> rusqlite::Result<bool> {
+        if generation == 0 {
+            return Ok(false);
+        }
+        let owed: i64 = conn.query_row("SELECT COUNT(*) FROM org_key_turns WHERE org_id = ?1", params![org], |r| r.get(0))?;
+        Ok(owed > 0)
+    }
+
+    /// The key as `account` reads it: `mine` at the generation in force, or at `at` when one is asked for - an older
+    /// generation, for a row that was sealed before the key turned and not yet re-sealed.
+    fn keys_in(conn: &Connection, account: i64, org: &str, at: Option<i64>) -> rusqlite::Result<OrgKeys> {
         let generation = Self::generation_of(conn, org)?;
         if generation == 0 {
             // Nothing made yet: everyone with a public key lacks a wrap, which is what the maker wraps for.
             let mut stmt = conn.prepare("SELECT a.handle, k.pub FROM org_members m JOIN accounts a ON a.id = m.account_id JOIN account_keys k ON k.account_id = m.account_id WHERE m.org_id = ?1 AND m.state = ?2 ORDER BY m.since, m.rowid")?;
             let missing = stmt.query_map(params![org, MEMBER], |r| Ok((r.get(0)?, r.get(1)?)))?.filter_map(Result::ok).collect();
-            return Ok(OrgKeys { generation, mine: None, missing });
+            return Ok(OrgKeys { generation, mine: None, missing, stale: false });
         }
         let mine = conn
-            .query_row("SELECT wrapped FROM org_keys WHERE org_id = ?1 AND account_id = ?2 AND generation = ?3", params![org, account, generation], |r| r.get(0))
+            .query_row("SELECT wrapped FROM org_keys WHERE org_id = ?1 AND account_id = ?2 AND generation = ?3", params![org, account, at.unwrap_or(generation)], |r| r.get(0))
             .optional()?;
         let mut stmt = conn.prepare(
             "SELECT a.handle, k.pub FROM org_members m JOIN accounts a ON a.id = m.account_id JOIN account_keys k ON k.account_id = m.account_id \
@@ -129,14 +148,15 @@ impl Store {
              ORDER BY m.since, m.rowid",
         )?;
         let missing = stmt.query_map(params![org, MEMBER, generation], |r| Ok((r.get(0)?, r.get(1)?)))?.filter_map(Result::ok).collect();
-        Ok(OrgKeys { generation, mine, missing })
+        Ok(OrgKeys { generation, mine, missing, stale: Self::stale_in(conn, org, generation)? })
     }
 
-    /// The organization key as `account` reads it: for a member; a stranger or an invitee learns nothing.
-    pub fn org_keys(&self, account: i64, org: &str) -> Result<OrgKeys, KeyWrite> {
+    /// The organization key as `account` reads it: for a member; a stranger or an invitee learns nothing. With `at`,
+    /// the caller's wrap at that older generation instead of the one in force.
+    pub fn org_keys(&self, account: i64, org: &str, at: Option<i64>) -> Result<OrgKeys, KeyWrite> {
         let conn = self.lock();
         match Self::acting(&conn, org, account) {
-            Ok(_) => Ok(Self::keys_in(&conn, account, org)?),
+            Ok(_) => Ok(Self::keys_in(&conn, account, org, at)?),
             Err(_) => Err(KeyWrite::NoSuchOrg),
         }
     }
@@ -163,6 +183,8 @@ impl Store {
                  ON CONFLICT(org_id) DO UPDATE SET generation = excluded.generation, made_by = excluded.made_by, made_at = excluded.made_at",
                 params![org, generation, actor, now],
             )?;
+            // The turns owed are answered by this generation.
+            tx.execute("DELETE FROM org_key_turns WHERE org_id = ?1", params![org])?;
         } else if generation != in_force {
             return Err(KeyWrite::Generation(in_force));
         }
@@ -177,7 +199,7 @@ impl Store {
                 params![org, member, generation, wrap.wrapped, actor, now],
             )?;
         }
-        let after = Self::keys_in(&tx, actor, org)?;
+        let after = Self::keys_in(&tx, actor, org, None)?;
         tx.commit()?;
         Ok(after)
     }

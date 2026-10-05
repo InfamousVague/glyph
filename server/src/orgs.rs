@@ -28,7 +28,7 @@
 //!   GET    /api/v1/account/key                                 the account's key pair: the public key, the private one sealed
 //!   PUT    /api/v1/account/key                 { pub, sealed } registered once; 409 with the one that stands
 //!   PUT    /api/v1/orgs/{id}/colour            { hue }         the caller's colour in this organization, or null for the account's
-//!   GET    /api/v1/orgs/{id}/keys                              the generation in force, the caller's wrap, who lacks one
+//!   GET    /api/v1/orgs/{id}/keys?generation=                  the generation in force, the caller's wrap (at an older generation, asked), who lacks one, whether a turn is owed
 //!   POST   /api/v1/orgs/{id}/keys              { generation, make?, wraps: [{ handle, wrapped }] }  wraps by a member holding the key; `make` a new generation
 //!
 //! An invite link (store/org_links.rs) is a 128-bit code, so holding one is the permission: anyone signed in who has
@@ -197,7 +197,7 @@ fn row_json(row: &OrgRow) -> Value {
     json!({
         "id": row.id, "name": row.name, "hue": row.hue, "role": row.role.as_str(), "state": row.state,
         "members": row.members, "invitedBy": row.invited_by, "createdAt": millis(row.created_at),
-        "colour": row.colour, "keys": { "generation": row.key_generation, "mine": row.key_mine, "missing": row.key_missing },
+        "colour": row.colour, "keys": { "generation": row.key_generation, "mine": row.key_mine, "missing": row.key_missing, "stale": row.key_stale },
     })
 }
 
@@ -212,7 +212,7 @@ fn org_json(org: &Org) -> Value {
     json!({
         "id": org.id, "name": org.name, "hue": org.hue, "role": org.role.as_str(), "state": org.state,
         "invitedBy": org.invited_by, "createdAt": millis(org.created_at),
-        "colour": org.colour, "keys": { "generation": org.key_generation, "mine": org.key_mine, "missing": org.key_missing },
+        "colour": org.colour, "keys": { "generation": org.key_generation, "mine": org.key_mine, "missing": org.key_missing, "stale": org.key_stale },
         "members": org.members.iter().map(member_json).collect::<Vec<_>>(),
     })
 }
@@ -223,7 +223,7 @@ fn key_json(key: &AccountKey) -> Value {
 
 fn keys_json(keys: &OrgKeys) -> Value {
     json!({
-        "generation": keys.generation, "mine": keys.mine,
+        "generation": keys.generation, "mine": keys.mine, "stale": keys.stale,
         "missing": keys.missing.iter().map(|(handle, pub_key)| json!({ "handle": handle, "pub": pub_key })).collect::<Vec<_>>(),
     })
 }
@@ -550,10 +550,21 @@ async fn register_key(State(orgs): State<Arc<Orgs>>, who: Claims, Json(body): Js
     }
 }
 
-/// `GET orgs/{id}/keys`: the generation in force, the caller's wrap at it, and who lacks one.
-async fn read_org_keys(State(orgs): State<Arc<Orgs>>, Path(id): Path<String>, who: Claims) -> Result<Response, Response> {
+#[derive(Deserialize)]
+struct KeysQuery {
+    /// An older generation to read the caller's wrap at (S11): for a row sealed before the key turned.
+    #[serde(default)]
+    generation: Option<i64>,
+}
+
+/// `GET orgs/{id}/keys`: the generation in force, the caller's wrap at it (or at `?generation=`), who lacks one, and
+/// whether the key owes a turn.
+async fn read_org_keys(State(orgs): State<Arc<Orgs>>, Path(id): Path<String>, Query(query): Query<KeysQuery>, who: Claims) -> Result<Response, Response> {
     org_id(&id)?;
-    match orgs.accounts.store.org_keys(who.sub, &id) {
+    if query.generation.is_some_and(|generation| generation < 1) {
+        return Err(error(StatusCode::BAD_REQUEST, "That generation could not be read."));
+    }
+    match orgs.accounts.store.org_keys(who.sub, &id, query.generation) {
         Ok(keys) => Ok(Json(keys_json(&keys)).into_response()),
         Err(err) => Err(refused_key(err)),
     }

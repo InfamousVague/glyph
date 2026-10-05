@@ -123,6 +123,8 @@ pub struct OrgRow {
     pub key_generation: i64,
     pub key_mine: bool,
     pub key_missing: i64,
+    /// A member has gone since the generation was made (S11): the key owes a turn.
+    pub key_stale: bool,
 }
 
 /// Someone in an organization, joined or invited.
@@ -153,6 +155,7 @@ pub struct Org {
     pub key_generation: i64,
     pub key_mine: bool,
     pub key_missing: i64,
+    pub key_stale: bool,
     pub members: Vec<Member>,
 }
 
@@ -182,7 +185,8 @@ const ROW_SELECT: &str = "SELECT o.id, o.name, o.hue, m.role, m.state, o.created
     COALESCE((SELECT generation FROM org_key_state s WHERE s.org_id = o.id), 0), \
     EXISTS (SELECT 1 FROM org_keys k WHERE k.org_id = o.id AND k.account_id = m.account_id AND k.generation = COALESCE((SELECT generation FROM org_key_state s WHERE s.org_id = o.id), 0)), \
     (SELECT COUNT(*) FROM org_members x JOIN account_keys ak ON ak.account_id = x.account_id WHERE x.org_id = o.id AND x.state = 'member' \
-        AND NOT EXISTS (SELECT 1 FROM org_keys k WHERE k.org_id = o.id AND k.account_id = x.account_id AND k.generation = COALESCE((SELECT generation FROM org_key_state s WHERE s.org_id = o.id), 0))) \
+        AND NOT EXISTS (SELECT 1 FROM org_keys k WHERE k.org_id = o.id AND k.account_id = x.account_id AND k.generation = COALESCE((SELECT generation FROM org_key_state s WHERE s.org_id = o.id), 0))), \
+    (COALESCE((SELECT generation FROM org_key_state s WHERE s.org_id = o.id), 0) > 0 AND EXISTS (SELECT 1 FROM org_key_turns t WHERE t.org_id = o.id)) \
     FROM org_members m JOIN orgs o ON o.id = m.org_id";
 
 /// A member's columns, with their colour (the organization's override, else the account's) and their public key.
@@ -213,6 +217,7 @@ impl Store {
             key_generation: r.get(9)?,
             key_mine: r.get::<_, i64>(10)? != 0,
             key_missing: r.get(11)?,
+            key_stale: r.get::<_, i64>(12)? != 0,
         })
     }
 
@@ -267,6 +272,7 @@ impl Store {
             key_generation: row.key_generation,
             key_mine: row.key_mine,
             key_missing: row.key_missing,
+            key_stale: row.key_stale,
             members,
         }))
     }
@@ -453,6 +459,8 @@ impl Store {
                 return Err(OrgWrite::HandOver);
             }
             tx.execute("DELETE FROM org_members WHERE org_id = ?1 AND account_id = ?2", params![org, actor])?;
+            // A member gone takes a copy of the key with them: it owes a turn (S11).
+            Self::turn_key(&tx, org, now)?;
             let rest = Self::members_but(&tx, org, &[])?;
             let body = json!({ "name": name, "handle": seat.handle });
             Self::tell(&tx, &rest, &Notice { kind: "member-left", from: Some(actor), org, body, state: None }, now)?;
@@ -475,6 +483,7 @@ impl Store {
             return Err(OrgWrite::RemoveAdmin);
         }
         tx.execute("DELETE FROM org_members WHERE org_id = ?1 AND account_id = ?2", params![org, target.account])?;
+        Self::turn_key(&tx, org, now)?;
         Self::notify(&tx, target.account, &Notice { kind: "member-removed", from: Some(actor), org, body: json!({ "name": name }), state: None }, now)?;
         let rest = Self::members_but(&tx, org, &[actor])?;
         let body = json!({ "name": name, "handle": target.handle });

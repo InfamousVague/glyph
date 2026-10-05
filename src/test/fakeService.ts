@@ -8,6 +8,9 @@ import { derive, fromBase64Url, newAccountKey, open, passwordSalt, seal, wrap, t
 import type { FeedItem, NotePayload } from '../app/core/sync/notes.ts';
 import { WORKSPACE_HUES } from '../app/core/workspaces.ts';
 
+/** How many updates a note's log holds before a snapshot must cut it (docs/SHARED.md, S11), as the service keeps it. */
+export const UPDATES_KEPT = 500;
+
 /**
  * Glyph's account and sync service in memory, for tests: the routes, revisions and refusals of
  * server/src/accounts.rs and server/src/sync.rs, so every rule a client lives by is tried without a server. Served to
@@ -97,6 +100,8 @@ interface StoredOrg {
   rows: Map<string, Row>;
   /** The organization key's generation in force (docs/SHARED.md, S2); absent for none yet. */
   generation?: number;
+  /** Turns the key owes (S11): members gone since the generation was made; cleared by the next generation. */
+  turns?: number;
   /** The key wrapped per member, by handle lower-cased, then by generation. */
   wraps?: Map<string, Map<number, string>>;
   /** The team's notes (S4), its write counter, each note's log and its next seq, and its files. */
@@ -192,10 +197,13 @@ export async function fakeService(seed?: { handle: string; password: string }, {
   const pubOf = (handle: string): string | null => (account && lower(account.handle) === lower(handle) ? (account.encryption?.pub ?? null) : (peerKeys.get(lower(handle)) ?? null));
   /** A row's colour: its override in the organization, else the account's. */
   const colourOf = (r: Row): string | null => r.hue ?? hueOf(r.handle);
-  const wrapOf = (org: StoredOrg, handle: string): string | null => (org.generation ? (org.wraps?.get(lower(handle))?.get(org.generation) ?? null) : null);
+  const wrapOf = (org: StoredOrg, handle: string, at = org.generation): string | null => (at ? (org.wraps?.get(lower(handle))?.get(at) ?? null) : null);
+  const stale = (org: StoredOrg) => (org.generation ?? 0) > 0 && (org.turns ?? 0) > 0;
+  /** The generation in force, against a body's or a query's: 409 with the one in force when it is another (S11). */
+  const inForce = (org: StoredOrg, generation: unknown): Response | null => (typeof generation === 'number' && generation !== (org.generation ?? 0) ? json(409, { error: 'That is not the generation in force.', generation: org.generation ?? 0 }) : null);
   /** Members with a public key and no wrap at the generation in force (every one with a key, before a generation). */
   const lacking = (org: StoredOrg) => joined(org).filter((r) => pubOf(r.handle) !== null && wrapOf(org, r.handle) === null);
-  const keysJson = (org: StoredOrg, me: Row) => ({ generation: org.generation ?? 0, mine: wrapOf(org, me.handle) !== null, missing: lacking(org).length });
+  const keysJson = (org: StoredOrg, me: Row) => ({ generation: org.generation ?? 0, mine: wrapOf(org, me.handle) !== null, missing: lacking(org).length, stale: stale(org) });
   const memberJson = (r: Row): Member => ({ handle: r.handle, role: r.role, state: r.state === 'declined' ? 'invited' : r.state, since: r.since, invitedBy: r.invitedBy, colour: colourOf(r), pub: pubOf(r.handle) });
   const orgJson = (org: StoredOrg, me: Row): Org => ({
     id: org.id,
@@ -460,7 +468,11 @@ export async function fakeService(seed?: { handle: string; password: string }, {
           if (method === 'POST') {
             const blobs = Array.isArray(body.blobs) ? (body.blobs as string[]) : [];
             if (!blobs.length || blobs.some((b) => typeof b !== 'string' || !b)) return refuse(400, 'Those updates could not be read.');
+            const turned = inForce(org, body.generation);
+            if (turned) return turned;
             let seq = org.seqs.get(id) ?? 0;
+            // A log past its length asks for a snapshot first (S11; server/src/store/org_notes.rs UPDATES_KEPT).
+            if (log.length + blobs.length > UPDATES_KEPT) return json(409, { error: 'snapshot', seq });
             for (const blob of blobs) log.push({ seq: ++seq, blob, by: me, at: Date.now() });
             org.updates.set(id, log);
             org.seqs.set(id, seq);
@@ -469,6 +481,8 @@ export async function fakeService(seed?: { handle: string; password: string }, {
         }
         if (method === 'PUT' || method === 'DELETE') {
           const current = org.notes.get(id);
+          const turned = method === 'PUT' ? inForce(org, body.generation) : null;
+          if (turned) return turned;
           if (current && current.rev !== Number(body.base ?? 0)) return json(409, rowJson(id, current));
           if (method === 'PUT' && (typeof body.blob !== 'string' || !body.blob)) return refuse(400, 'That note is empty or too large to sync.');
           const rev = bump();
@@ -491,6 +505,9 @@ export async function fakeService(seed?: { handle: string; password: string }, {
         if (method === 'GET') return had ? new Response(had.bytes, { status: 200, headers: { 'x-glyph-rev': String(had.rev) } }) : refuse(404, 'No file by that id.');
         if (method === 'PUT') {
           const base = Number(url.searchParams.get('base') ?? 0);
+          const asked = url.searchParams.get('generation');
+          const turned = inForce(org, asked === null ? undefined : Number(asked));
+          if (turned) return turned;
           if (had && had.rev !== base) return json(409, { rev: had.rev });
           const rev = (org.rev = (org.rev ?? 0) + 1);
           org.files.set(id, { rev, bytes: new Uint8Array(init?.body as Bytes) });
@@ -512,8 +529,12 @@ export async function fakeService(seed?: { handle: string; password: string }, {
         const found = inOrg(decodeURIComponent(keys[1]!));
         if (!found) return refuse(404, 'No such organization.');
         const { org, row } = found;
-        const answer = () => json(200, { generation: org.generation ?? 0, mine: wrapOf(org, row.handle), missing: lacking(org).map((r) => ({ handle: r.handle, pub: pubOf(r.handle) })) });
-        if (method === 'GET') return answer();
+        const answer = (at?: number) => json(200, { generation: org.generation ?? 0, mine: wrapOf(org, row.handle, at ?? org.generation), missing: lacking(org).map((r) => ({ handle: r.handle, pub: pubOf(r.handle) })), stale: stale(org) });
+        if (method === 'GET') {
+          const at = url.searchParams.get('generation');
+          if (at !== null && !(Number(at) >= 1)) return refuse(400, 'That generation could not be read.');
+          return answer(at === null ? undefined : Number(at));
+        }
         if (method === 'POST') {
           const generation = Number(body.generation);
           const wraps = Array.isArray(body.wraps) ? (body.wraps as { handle: string; wrapped: string }[]) : [];
@@ -522,6 +543,7 @@ export async function fakeService(seed?: { handle: string; password: string }, {
           if (body.make === true) {
             if (generation !== inForce + 1) return json(409, { error: 'That is not the generation in force.', generation: inForce });
             org.generation = generation;
+            org.turns = 0;
           } else if (generation !== inForce) return json(409, { error: 'That is not the generation in force.', generation: inForce });
           org.wraps ??= new Map();
           for (const { handle, wrapped } of wraps) {
@@ -594,6 +616,8 @@ export async function fakeService(seed?: { handle: string; password: string }, {
               if (row.role === 'member') return refuse(403, 'Only the owner or an admin can remove a member.');
               if (target.role === 'admin' && row.role !== 'owner') return refuse(403, 'Only the owner can remove an admin.');
             }
+            // A member gone owes the key a turn (S11); an invitee withdrawn had no wrap.
+            if (target.state === 'member') org.turns = (org.turns ?? 0) + 1;
             org.rows.delete(lower(target.handle));
             return json(200, { removed: true });
           }

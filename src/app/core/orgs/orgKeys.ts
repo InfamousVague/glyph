@@ -1,7 +1,7 @@
 import { ApiError, call, notYet } from '../account/api.ts';
 import { externalStore } from '../externalStore.ts';
 import type { Bytes } from '../sync/crypto.ts';
-import type { OrgRow } from './types.ts';
+import type { Member, OrgRow } from './types.ts';
 import { unwrapWith, wrapContext, wrapFor } from './wrap.ts';
 
 /**
@@ -13,12 +13,20 @@ import { unwrapWith, wrapContext, wrapFor } from './wrap.ts';
  * The service arbitrates: a first generation posted when one already stands is answered 409 with the one in force,
  * and this device then reads its wrap instead. What the list already says (`OrgRow.keys`) spares the calls: an
  * organization whose generation this device holds, with nobody missing, is not asked about.
+ *
+ * The key turns when a member goes (S11): the list says `stale`, and the next member device holding the generation
+ * in force makes the one after it (`turnOrgKey`), wrapped for everyone who remains, and re-seals the team's notes
+ * under it (core/team/sync.ts `resealTeamNotes`, run by the engine). The generations before are kept for the
+ * session and read from this account's older wraps on demand (`orgKeyAt`), for a row sealed before a turn that no
+ * device has re-sealed yet.
  */
 
 interface Held {
   generation: number;
   raw: Bytes;
   key: CryptoKey;
+  /** Earlier generations, as read from this account's wraps at them; null for one it has no wrap at. */
+  older: Map<number, CryptoKey | null>;
 }
 
 const held = new Map<string, Held>();
@@ -48,6 +56,7 @@ interface Keys {
   generation: number;
   mine: string | null;
   missing: { handle: string; pub: string }[];
+  stale?: boolean;
 }
 
 export interface OrgKeysContext {
@@ -63,10 +72,61 @@ export interface OrgKeysContext {
 
 async function hold(orgId: string, generation: number, raw: Bytes): Promise<Held> {
   const key = await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
-  const entry = { generation, raw, key };
+  const was = held.get(orgId);
+  const older = new Map(was?.older ?? []);
+  if (was && was.generation !== generation) older.set(was.generation, was.key);
+  const entry = { generation, raw, key, older };
   held.set(orgId, entry);
   changes.update((n) => n + 1);
   return entry;
+}
+
+/**
+ * The key at an older generation (S11): held from before a turn, or read now from this account's wrap at it; null
+ * where the account has none - a member who joined after that generation, who could never read what was sealed under it.
+ */
+export async function orgKeyAt(ctx: Pick<OrgKeysContext, 'token' | 'fetcher' | 'pair'>, orgId: string, generation: number): Promise<CryptoKey | null> {
+  const have = held.get(orgId);
+  if (!have || generation < 1 || generation >= have.generation) return have?.generation === generation ? have.key : null;
+  if (have.older.has(generation)) return have.older.get(generation) ?? null;
+  let key: CryptoKey | null = null;
+  try {
+    const keys = await call<Keys>('GET', `orgs/${encodeURIComponent(orgId)}/keys?generation=${generation}`, { token: ctx.token, fetcher: ctx.fetcher });
+    if (keys.mine) key = await crypto.subtle.importKey('raw', await unwrapWith(ctx.pair, keys.mine, wrapContext(orgId, generation)), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+  } catch {
+    // Not readable now: asked again next time.
+    return null;
+  }
+  have.older.set(generation, key);
+  return key;
+}
+
+/** Whether the key owes a turn this device can make: the list says so, and this device holds the generation in force. */
+export function turnDue(row: OrgRow): boolean {
+  const have = held.get(row.id);
+  return Boolean(row.keys?.stale && have && have.generation === row.keys.generation);
+}
+
+/**
+ * The next generation, made here and wrapped for every member who remains and has a public key, brought into force
+ * and held; the one before stays for the session, for what is not yet re-sealed. Null when another member's device
+ * made it first (its wrap is read on the next pass) or when nobody could be wrapped for.
+ */
+export async function turnOrgKey(ctx: Pick<OrgKeysContext, 'token' | 'fetcher' | 'randomKey'>, orgId: string, members: readonly Pick<Member, 'handle' | 'state' | 'pub'>[]): Promise<{ generation: number } | null> {
+  const have = held.get(orgId);
+  if (!have) return null;
+  const generation = have.generation + 1;
+  const raw = (ctx.randomKey ?? (() => crypto.getRandomValues(new Uint8Array(32))))();
+  const wraps = await Promise.all(members.filter((member) => member.state === 'member' && member.pub).map(async (member) => ({ handle: member.handle, wrapped: await wrapFor(member.pub!, raw, wrapContext(orgId, generation)) })));
+  if (!wraps.length) return null;
+  try {
+    await call<Keys>('POST', `orgs/${encodeURIComponent(orgId)}/keys`, { token: ctx.token, fetcher: ctx.fetcher, body: { generation, make: true, wraps } });
+  } catch (failure) {
+    if (failure instanceof ApiError && failure.status === 409) return null;
+    throw failure;
+  }
+  await hold(orgId, generation, raw);
+  return { generation };
 }
 
 async function wraps(orgId: string, generation: number, raw: Bytes, missing: Keys['missing']): Promise<{ handle: string; wrapped: string }[]> {

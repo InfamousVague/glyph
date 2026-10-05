@@ -58,7 +58,7 @@ function asRow(raw: unknown): OrgRow | null {
 /** What the organization key needs, as kept; a row from before keys reads as none made and nobody missing. */
 function asKeys(raw: unknown): KeyNeeds {
   const k = (raw && typeof raw === 'object' ? raw : {}) as Partial<Record<keyof KeyNeeds, unknown>>;
-  return { generation: typeof k.generation === 'number' ? k.generation : 0, mine: k.mine === true, missing: typeof k.missing === 'number' ? k.missing : 0 };
+  return { generation: typeof k.generation === 'number' ? k.generation : 0, mine: k.mine === true, missing: typeof k.missing === 'number' ? k.missing : 0, stale: k.stale === true };
 }
 
 function asState(raw: unknown): OrgState | null {
