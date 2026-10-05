@@ -18,10 +18,23 @@
    * over the line so it's in the middle of the line"): they sat 3.75px in from the line, beside it.
    */
   --ring: calc(3.75px * var(--inv));
+  /*
+   * And how far in from the ring's own corner its curve is, along each side: the ring is round at the corners, by the
+   * card's round and its offset, and the middle of that curve is 0.2929 of its radius (one less the cosine of 45
+   * degrees) in from the corner both ways. A corner's handle sits there, on the line, and not out at the corner of
+   * the ring's box, where there is no line: measured in Chromium and in WebKit at twice life size, it floated 6px
+   * clear of the curve.
+   */
+  --round: var(--glacier-radius-lg);
+  --arc: calc((var(--round) + var(--ring)) * 0.2929);
+  /* A corner's place: out to the ring's line, then in along its curve. */
+  --near: calc(var(--arc) - var(--ring));
+  --far: calc(100% + var(--ring) - var(--arc));
 }
 
 .handles[data-kind='group'] {
   border-radius: calc(var(--glacier-radius-lg) + 4px);
+  --round: calc(var(--glacier-radius-lg) + 4px);
 }
 
 /* A handle: the 44px a finger needs, round a dot the eye needs. */
@@ -59,10 +72,10 @@
   transform: scale(1.25);
 }
 
-.handle[data-handle='nw'] { left: calc(-1 * var(--ring)); top: calc(-1 * var(--ring)); cursor: nwse-resize; }
-.handle[data-handle='ne'] { left: calc(100% + var(--ring)); top: calc(-1 * var(--ring)); cursor: nesw-resize; }
-.handle[data-handle='se'] { left: calc(100% + var(--ring)); top: calc(100% + var(--ring)); cursor: nwse-resize; }
-.handle[data-handle='sw'] { left: calc(-1 * var(--ring)); top: calc(100% + var(--ring)); cursor: nesw-resize; }
+.handle[data-handle='nw'] { left: var(--near); top: var(--near); cursor: nwse-resize; }
+.handle[data-handle='ne'] { left: var(--far); top: var(--near); cursor: nesw-resize; }
+.handle[data-handle='se'] { left: var(--far); top: var(--far); cursor: nwse-resize; }
+.handle[data-handle='sw'] { left: var(--near); top: var(--far); cursor: nesw-resize; }
 .handle[data-handle='n'] { left: 50%; top: calc(-1 * var(--ring)); cursor: ns-resize; }
 .handle[data-handle='s'] { left: 50%; top: calc(100% + var(--ring)); cursor: ns-resize; }
 .handle[data-handle='e'] { left: calc(100% + var(--ring)); top: 50%; cursor: ew-resize; }
