@@ -38,11 +38,13 @@ import { syncPrefs, type PrefsState } from './prefs.ts';
  * changes, and every few minutes while it is open. One runs at a time; a request while one is running queues exactly
  * one more. Nothing runs without an account key on the device, or with "Nothing leaves the phone" on.
  *
- * A pass is four steps in this order: the notifications, the notes, the settings, the organizations (docs/TEAMS.md,
- * D4). Notifications before notes, so that a note a notification names has arrived by the time its row is drawn;
- * organizations after the settings and outside `applyingRemote`, so the workspace the list makes or drops is pushed
- * a moment later rather than on the next pass. The two new steps are quiet against a service that does not have
- * their routes yet (core/account/api.ts `notYet`), and leave the status to the notes.
+ * A pass is these steps in this order: the notifications, the organizations' list, the notes, the settings, then the
+ * organizations' keys and each one's team notes (docs/TEAMS.md, D4). Notifications before notes, so that a note a
+ * notification names has arrived by the time its row is drawn; the list before the notes, so an organization made on
+ * another device shows here even while a note will not sync, and outside `applyingRemote`, so the workspace it makes
+ * or drops goes with this pass's settings. Each step is caught on its own (`step`): the first failure is the status,
+ * named by its step ("Notes: …"), and the others still run; only a lapsed session ends the pass. The organization
+ * steps are quiet against a service that does not have their routes yet (core/account/api.ts `notYet`).
  */
 
 /** Native generation that has `store_apply` and `sync_put_file`. */

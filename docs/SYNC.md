@@ -129,10 +129,10 @@ takes the account's next `rev`, and so does every change to one (read, hidden, a
 is fed again and the state follows the person across devices.
 
 The `recordings` route holds every synced file, by an id the client makes: `r-<note id>` for a note's recording (WAV),
-`i-<ext>-<stem>` for a picture `<stem>.<ext>`.
+`v-<note id>` for its versions file (core/versions/file.ts), `i-<ext>-<stem>` for a picture `<stem>.<ext>`.
 
-What is sealed, and under which associated data: a note as `{ v: 1, note, recording?, images? }` under `note:<id>`
-(`recording` is a hash of the WAV, `images` the picture names the body uses); the synced settings under `prefs`; a
+What is sealed, and under which associated data: a note as `{ v: 1, note, recording?, images?, versions? }` under `note:<id>`
+(`recording` is a hash of the WAV, `images` the picture names the body uses, `versions` a hash of its versions file); the synced settings under `prefs`; a
 file under `file:<its id>`; a notification the account makes for itself as `{ kind, ...details }` under
 `notification:<id>`, with the kind inside the seal so nothing outside it can relabel the row (docs/TEAMS.md).
 
@@ -175,7 +175,8 @@ minute per address and 10 per handle.
   own.
 - `src/app/core/sync/engine.ts` — runs a pass on launch, on return to the app, a few seconds after a note or setting
   changes, and every five minutes; one at a time. Nothing runs without the account key, or with Local only on
-  (Settings › Account › Privacy). A pass is four steps: the notifications, the notes, the settings, the organizations.
+  (Settings › Account › Privacy). A pass runs the notifications, the organizations' list, the notes, the settings, then the organizations' keys and
+  team notes, each step caught on its own so one failing does not stop the rest; the status names the first that failed.
 - `src/app/core/notifications/` and `src/app/core/orgs/` — the two new steps (docs/TEAMS.md): the feed, read from
   the cursor with the pending marks replayed first and the self rows not yet posted sent again; and the list of
   organizations, after which the organization workspaces are brought into line with it. Both are quiet against a

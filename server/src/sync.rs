@@ -46,8 +46,8 @@ const PAGE_LIMIT: i64 = 500;
 /// How long a note's, a recording's or a picture's id may be.
 const ID_LENGTH: std::ops::RangeInclusive<usize> = 1..=64;
 
-/// Ids are the app's own: a note's UUID or its older `n-…` form, a recording's `r-<note id>`, a picture's
-/// `i-<ext>-<stem>`. Anything else is refused before it reaches a path.
+/// Ids are the app's own: a note's UUID or its older `n-…` form, a recording's `r-<note id>`, a versions file's
+/// `v-<note id>`, a picture's `i-<ext>-<stem>`. Anything else is refused before it reaches a path.
 fn valid_id(id: &str) -> bool {
     base64url(id, ID_LENGTH)
 }
