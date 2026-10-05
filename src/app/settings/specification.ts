@@ -1,4 +1,5 @@
 import { BLANK, FILLED } from '../core/blanks.ts';
+import { COMMENT_ANCHOR } from '../core/comments/format.ts';
 import { ANCHOR, BOOKMARK, CHOICE, COUNTER } from '../core/itemSyntax.ts';
 import { MATHS } from '../core/maths.ts';
 import { GEO_LINK } from '../core/placeRefs.ts';
@@ -123,6 +124,16 @@ export const SPEC: readonly SpecSection[] = [
         rule: 'A marker [^name] and a definition line [^name]: words. A marker with no definition stays as typed.',
         elsewhere: 'GitHub, Obsidian and Pandoc draw it; others show the brackets.',
         covers: ['A footnote'],
+      },
+      {
+        // docs/SHARED.md, S8; core/comments/format.ts reads and writes it.
+        name: 'Comments',
+        written: 'The ==venue==[^c1] is booked.\n\n```comments\nc1 matt 2026-10-04T19:00:12Z\nThe hall or the barn?\n  sam 2026-10-04T19:05:40Z\n  The hall.\n  resolved sam 2026-10-04T19:06:02Z\n```',
+        rule:
+          'An anchor [^c<id>] after the words, or ==round them==[^c<id>], and one ```comments fence at the end of the note. A thread is a line "<id> <handle> <ISO time>" and its words on the lines under it; a reply is the same indented two spaces; "  resolved <handle> <time>" closes it. A words line that would read as a head, or starts with a backslash or three backticks, is written behind a backslash. Ids are c and a short tail, never one the note has used. A line the format does not know is kept as it is.',
+        elsewhere: 'A footnote’s marker and a code block of lines; the selection is a highlight where highlights are drawn.',
+        pattern: COMMENT_ANCHOR.source,
+        covers: ['A comment'],
       },
       {
         name: 'Definition lists',

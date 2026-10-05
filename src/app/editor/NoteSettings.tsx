@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowUp, Bookmark, Feather, History, ListChecks, Mic, TextSearch } from '@glacier/icons';
+import { ArrowUp, Bookmark, Feather, History, ListChecks, MessageSquare, MessageSquarePlus, Mic, TextSearch } from '@glacier/icons';
 import { ArchiveBox, ArrowLeft, Bin, Board, Locate, Pin, Workspace as WorkspaceIcon } from '../art/Icons.tsx';
 import { CheatSheet } from '../guide/CheatSheet.tsx';
 import { tagLabel, type GeoTag } from '../core/geotag.ts';
@@ -26,9 +26,9 @@ import { Sheet } from './Sheet.tsx';
 import styles from './NoteSettings.module.css';
 
 /**
- * One note's More sheet, from the three dots in its tools (editor/NoteTools.tsx): how it is read, the AI's runs on
- * it, its sharing, where it sits (pin, archive, the workspace it is in, core/workspaces.ts), what it is linked to and
- * what can be done with it, help, then Move to Trash, apart at the bottom.
+ * One note's More sheet, from the three dots in its tools (editor/NoteTools.tsx): how it is read, its comments, the
+ * AI's runs on it, its sharing, where it sits (pin, archive, the workspace it is in, core/workspaces.ts), what it is
+ * linked to and what can be done with it, help, then Move to Trash, apart at the bottom.
  *
  * "Linked to" and the actions under it come from plugins (plugins/registry.ts): the GitHub plugin's repo row, the
  * Notion plugin's board and "Send list to Notion". A link's row opens the plugin's own page inside the sheet, as the
@@ -130,6 +130,12 @@ interface NoteSettingsProps {
   history?: { keeps: boolean; current: () => string; onRestore: (text: string, version: Version) => void };
   /** A page to open at, from a button in the bar: the version history (editor/NoteTools.tsx). */
   startAt?: 'history' | null;
+  /**
+   * Comments on the note (docs/SHARED.md, S8; editor/useNoteComments.ts): a comment started on the caret's line or the
+   * selection, and, when the note has threads, how many and how many are open, which opens their list. Absent where
+   * the note's words are not showing (a canvas, a notebook's index, the transcript).
+   */
+  comments?: { summary: string | null; onComment: () => void; onList: () => void };
 }
 
 /** Why a fix cannot be asked for here, as the row says it under "Add my location". */
@@ -208,6 +214,8 @@ const BookmarkIcon = () => <Bookmark size={18} strokeWidth={2.2} />;
 const CheatSheetIcon = () => <ListChecks size={18} strokeWidth={2.2} />;
 /** A journal's mark, the pen an entry is written with, as the + sheet's entry row wears it. */
 const JournalIcon = () => <Feather size={18} strokeWidth={2.2} />;
+const CommentIcon = () => <MessageSquarePlus size={18} strokeWidth={2.2} />;
+const CommentsIcon = () => <MessageSquare size={18} strokeWidth={2.2} />;
 
 /**
  * A notebook's ticket key, typed: written whenever what is typed is a key (core/properties.ts `PROJECT_KEY`) or nothing,
@@ -297,6 +305,7 @@ export function NoteSettings({
   look,
   history,
   startAt = null,
+  comments,
 }: NoteSettingsProps) {
   // Re-rendered when a plugin is switched, so its rows come and go.
   usePlugins();
@@ -489,6 +498,35 @@ export function NoteSettings({
             {onFind ? <SheetRow icon={FindIcon} label="Find and replace" onPress={onFind} /> : null}
             {/* A list laid out as columns, in the note's own words (docs/BOARDS.md). */}
             {onMakeBoard ? <SheetRow icon={Board} label="Make a board" hint="Every item in this note becomes a card." onPress={onMakeBoard} /> : null}
+          </SheetGroup>
+        </>
+      ) : null}
+
+      {/* Comment, near the top where a thumb is quick to it (Matt: "so we can quickly click to add comments"). */}
+      {comments ? (
+        <>
+          <SheetHeading>Comments</SheetHeading>
+          <SheetGroup>
+            <SheetRow
+              icon={CommentIcon}
+              label="Comment"
+              hint="On the words selected, or on the line the caret is on."
+              onPress={() => {
+                onClose();
+                comments.onComment();
+              }}
+            />
+            {comments.summary ? (
+              <SheetRow
+                icon={CommentsIcon}
+                label={comments.summary}
+                hint="Read them, reply, or resolve them."
+                onPress={() => {
+                  onClose();
+                  comments.onList();
+                }}
+              />
+            ) : null}
           </SheetGroup>
         </>
       ) : null}

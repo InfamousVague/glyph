@@ -45,6 +45,26 @@ afterEach(() => {
 });
 
 describe('the More sheet', () => {
+  it('offers Comment, and how many threads there are and how many are open, which opens their list', () => {
+    const onComment = vi.fn();
+    const onList = vi.fn();
+    const onClose = vi.fn();
+    show(<NoteSettings {...sheet({ onClose, comments: { summary: null, onComment, onList } })} />);
+    expect(document.body.textContent).toContain('Comments');
+    // No threads yet: the row to start one, and no count.
+    expect(buttonSaying(document.body, 'comments,')).toBeUndefined();
+    act(() => buttonSaying(document.body, 'On the words selected')!.click());
+    expect(onClose).toHaveBeenCalled();
+    expect(onComment).toHaveBeenCalledTimes(1);
+    rerender(<NoteSettings {...sheet({ onClose, comments: { summary: '3 comments, 1 open', onComment, onList } })} />);
+    act(() => buttonSaying(document.body, '3 comments, 1 open')!.click());
+    expect(onList).toHaveBeenCalledTimes(1);
+    unmount();
+    // Where the words are not showing, there is nothing to comment on.
+    show(<NoteSettings {...sheet()} />);
+    expect(buttonSaying(document.body, 'On the words selected')).toBeUndefined();
+  });
+
   it('is nothing while closed', () => {
     show(<NoteSettings {...sheet({ open: false })} />);
     expect(document.querySelector('[role="dialog"]')).toBeNull();

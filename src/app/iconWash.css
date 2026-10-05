@@ -81,6 +81,8 @@
 :where(svg.lucide-map-pinned) > :nth-child(1),
 :where(svg.lucide-megaphone) > :nth-child(1),
 :where(svg.lucide-message-circle-question-mark) > :nth-child(1),
+:where(svg.lucide-message-square) > :nth-child(1),
+:where(svg.lucide-message-square-plus) > :nth-child(1),
 :where(svg.lucide-message-square-quote) > :nth-child(2),
 :where(svg.lucide-mic) > :nth-child(3),
 :where(svg.lucide-network) > :nth-child(1),

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { button, show } from '../../test/render.tsx';
+import { button, show, unmount } from '../../test/render.tsx';
 import { goBack } from '../core/back.ts';
 import { ContextMenu } from './ContextMenu.tsx';
 
@@ -225,6 +225,32 @@ describe('the actions', () => {
     await hold();
     await choose('Find');
     expect(onFind).toHaveBeenCalledWith('oat');
+  });
+
+  it('offers Comment right after Cut and Copy, on the selection it was opened over, and gives the focus to its sheet', async () => {
+    const onComment = vi.fn();
+    editor('buy oat milk', { anchor: 4, head: 7 });
+    show(<ContextMenu view={view} onComment={onComment} />);
+    await hold();
+    expect(words().slice(0, 3)).toEqual(['Cut', 'Copy', 'Comment']);
+    await choose('Comment');
+    expect(onComment).toHaveBeenCalledWith({ from: 4, to: 7 });
+    expect(menu()).toBeNull();
+    expect(view.hasFocus).toBe(false);
+  });
+
+  it('offers Comment with no selection, for the caret’s line, and not at all without a way to start one', async () => {
+    const onComment = vi.fn();
+    editor('buy oat milk', { anchor: 2 });
+    show(<ContextMenu view={view} onComment={onComment} />);
+    await hold();
+    expect(words()[0]).toBe('Comment');
+    await choose('Comment');
+    expect(onComment).toHaveBeenCalledWith({ from: 2, to: 2 });
+    unmount();
+    show(<ContextMenu view={view} />);
+    await hold();
+    expect(words()).not.toContain('Comment');
   });
 
   it('makes a board of the list the press is in, and says so', async () => {

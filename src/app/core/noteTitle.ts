@@ -1,6 +1,7 @@
 import { titleWords } from './blanks.ts';
 import { frontMatterEnd } from './frontMatter.ts';
 import { BOOKMARK_SIGNS } from './itemSyntax.ts';
+import { withoutAnchors } from './comments/format.ts';
 
 /**
  * A note's title: the first line of its words, which is the only title Glyph has, and its lines with the front
@@ -12,8 +13,9 @@ import { BOOKMARK_SIGNS } from './itemSyntax.ts';
  * React and the Tauri bridge, which a Node bundle cannot take. So the server kept a copy, and the copy drifted: it
  * took any block between two fences as front matter, and a note that opened with a rule, some words and another rule
  * was called one thing in the app's list and another by Claude's tools. This module imports nothing but the front
- * matter rule, the bookmark's signs (core/itemSyntax.ts, which imports nothing) and the blanks' title rule
- * (core/blanks.ts, pure), so the server bundles the same code the list runs.
+ * matter rule, the bookmark's signs (core/itemSyntax.ts, which imports nothing), the blanks' title rule
+ * (core/blanks.ts, pure) and the comments' anchor (core/comments/format.ts, which imports nothing), so the server
+ * bundles the same code the list runs.
  *
  * A blank on the first line (docs/DESIGN.md §145, 8). A filled answer reads as its words, so a list never shows
  * `Trip to ??Tokyo??(Qwen3.5 4B from memory, …)`. A blank that is the whole line and asks for a title leaves the note
@@ -52,5 +54,7 @@ export function noteTitle(body: string): string {
   // every character; this is a label, not an edit.
   // The bookmark's mark too (editor/bookmarkLine.ts): set on the first line, it said "Weekend trip §§" in every tab and
   // card. It says where the note opens, not what it is called.
-  return titleWords(line).replace(/^#{1,6}\s+/, '').replace(BOOKMARK_IN_TITLE, ' ').trim();
+  // And a comment's anchor (core/comments/format.ts): "Add a comment" on a note's menu anchors one on its first line,
+  // and the note is still called what it was.
+  return withoutAnchors(titleWords(line)).replace(/^#{1,6}\s+/, '').replace(BOOKMARK_IN_TITLE, ' ').trim();
 }
