@@ -1,0 +1,54 @@
+/*
+ * The kit's menu as the app hangs it (PopMenu.tsx), on the kit's own panel through its `className`: the kit's glass,
+ * its rows and its placing are the kit's; what is here is the room it may take and the rows' size under a finger.
+ *
+ * Every rule names two classes, `.pop` and its reach, so it outranks the kit's one-class `.menu` whatever order the
+ * two stylesheets load in.
+ */
+
+/*
+ * Hung from the top bar: the room under the bar, less the kit's 8px offset from its anchor and its 8px edge. The rows
+ * past that scroll in the panel; the kit's rows keep their height as flex items, so they scroll rather than squash.
+ */
+.pop.down {
+  max-block-size: calc(100dvh - var(--app-safe-top) - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/*
+ * Hung from something on the page, which may be anywhere on it: half the room. The room runs from the status bar and
+ * 8px to the foot and 8px, and the kit keeps 8px from its anchor on either side, so the two sides of an anchor `h` tall
+ * hold `100dvh - inset - 32 - h` between them, and the larger at least half that; 32px here covers an anchor up to
+ * 32px tall. Then one side always holds the whole panel: the kit puts it below if it fits there, and otherwise above,
+ * where it now also fits under the status bar, which the kit itself does not know about.
+ */
+.pop.either {
+  max-block-size: calc((100dvh - var(--app-inset-top)) / 2 - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* On the opened Fold, half the window less the edge and the crease's gap, so the kit's clamp keeps it on its side. */
+.pop.creased {
+  max-inline-size: calc(50vw - 24px);
+}
+
+/*
+ * Under a finger, a thumb's height and the + list's type (AddList.module.css `.row`): the kit's compact rows are about
+ * 36px on a 412 phone. Matt: "make the options typography and iconography heavy so they fit the theme on all context
+ * menus". A mouse keeps the kit's rows.
+ */
+@media (pointer: coarse) {
+  .pop [role^='menuitem'] {
+    min-block-size: 2.75rem;
+    font-size: var(--glacier-font-size-md);
+    font-weight: var(--glacier-font-weight-medium);
+  }
+}
+
+/* The icons follow the row's type, for a finger and a mouse alike. */
+.pop [role^='menuitem'] svg {
+  inline-size: 1.15em;
+  block-size: 1.15em;
+}

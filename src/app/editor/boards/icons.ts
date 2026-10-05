@@ -6,7 +6,8 @@ import { isDoneName } from '../../core/itemSyntax.ts';
  * picture an empty column shows, by what the column is for.
  */
 
-const ICONS = {
+/** Each icon's paths; the card's menu draws its rows' icons from these too (editor/boards/CardMenu.tsx). */
+export const ICONS = {
   plus: ['M5 12h14', 'M12 5v14'],
   // A page with an N on it, as the Notion plugin draws its own mark (plugins/notion/marks.tsx).
   notion: ['M5 4h10l4 4v12H5z', 'M9 16V9l6 7V9'],

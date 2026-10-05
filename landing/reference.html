@@ -378,7 +378,7 @@ flowchart TD
         <section class="ref-section" id="lines-that-do-more" aria-labelledby="lines-that-do-more-title">
           <header class="ref-head">
             <h2 id="lines-that-do-more-title"><svg class="i" aria-hidden="true"><use href="icons.svg#i-list-checks"/></svg><span>Lines that do more</span></h2>
-            <p>Tags, choices, counters, sums and blanks for the AI: lines whose words the note works with.</p>
+            <p>Tags, choices, counters, sums, blanks for the AI and comments: lines whose words the note works with.</p>
           </header>
           <article class="ref-row" id="a-tag">
             <div class="ref-name">
@@ -463,6 +463,27 @@ flowchart TD
               <button type="button" class="ref-copy" data-copy-text="## Packing
 - [x] Tent
 - [ ] Stove" aria-label="Copy the example for Progress"><svg class="i" aria-hidden="true"><use href="icons.svg#i-copy"/></svg><span>Copy</span></button>
+            </div>
+          </article>
+          <article class="ref-row" id="a-comment">
+            <div class="ref-name">
+              <h3><svg class="i ref-icon" aria-hidden="true"><use href="icons.svg#i-message-square"/></svg><span>A comment</span></h3>
+              <code class="ref-symbol">[^c1]</code>
+            </div>
+            <p class="ref-what">A comment is kept in the note itself: a mark like [^c1] after the words it is about, or ==round them==[^c1], and the thread in a ```comments block at the end - its id, who and when, then the words, with replies indented under it. Comment on the press-and-hold menu, in More and in the bar writes both for you.</p>
+            <div class="ref-example">
+              <pre><code>Call the band[^c1]
+
+```comments
+c1 me 2026-10-05T09:00:00Z
+Which band?
+```</code></pre>
+              <button type="button" class="ref-copy" data-copy-text="Call the band[^c1]
+
+```comments
+c1 me 2026-10-05T09:00:00Z
+Which band?
+```" aria-label="Copy the example for A comment"><svg class="i" aria-hidden="true"><use href="icons.svg#i-copy"/></svg><span>Copy</span></button>
             </div>
           </article>
         </section>

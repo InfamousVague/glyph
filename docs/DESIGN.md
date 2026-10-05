@@ -2706,7 +2706,8 @@ context menu to board items for moving lanes and adding to notion etc."
 - **A card's menu opens from a button, not a press and hold**, because a press and hold is already how a card is
   picked up to drag. A small **more** beside the chevrons.
 - **It sits in the lane, under its card**, the way the + field sits at the top of a column: nothing to place, and it
-  scrolls with the board. It closes on a choice, on a press anywhere else, and on Escape.
+  scrolls with the board. It closes on a choice, on a press anywhere else, and on Escape. (Since §197 it is the kit's
+  menu, hung from the more button over the page: in the lane it was cut off by the lane and covered by the header.)
 - **What it offers**: every other lane to move to (through the same `land` a drag uses, so crossing into Done ticks
   the item and out of it unticks), the tick, the line in the note, what a plugin offers this item, and **Take off the
   board** (`core/boards.ts` `withoutCard`), which leaves the item exactly where it is in the note.
@@ -7653,7 +7654,8 @@ neither side has 12rem. It does not close on a scroll: the keyboard rising short
 caret into view, so the list follows the + in one frame, and closes only once the + has left the screen. It closes on a
 row chosen, a press elsewhere, a wheel or a drag outside it, Escape, the back gesture and the ×; on More or a step, the
 back gesture goes back a page first, as Back and Left do. It is not a sheet, which takes the page and the keyboard, and
-not press and hold's sideways band, which reads as a toolbox.
+not press and hold's sideways band, which reads as a toolbox. (Since §197, when it opens above it goes over the top bar
+and the tabs, as far as the status bar.)
 
 **Seven things, then More.** A picture, A video, A place, the time as it will be written (Matt's example was "28 Sep
 2026, 14:05"; the month is the locale's own short form, as a meeting's title's is, so a British phone writes "28 Sept
@@ -8333,7 +8335,10 @@ code or Matt: the Rust namer's title rule (src-tauri/src/library/names.rs keeps 
 name until it reads core/titles.fixture.json in a binary of its own), Gemma's template, automatic fills on leaving a
 note and the `[[?` alias (both Matt's to choose), and a measure on the Fold, which was not reachable. The Model card
 names the fills, and its about lines are §146's to reword ("Careful with facts" for the 4B, which the probes showed
-confidently wrong). With no Settings › AI page yet (§146's), Get a model opens Recording at the Model card.
+confidently wrong). With no Settings › AI page yet (§146's), Get a model opens Recording at the Model card. (2026-10-05, finishing what was left: the namer reads the same rows now - `title_of` reads a note's first line
+through a port of `titleWords`, and a Rust test runs every row of core/titles.fixture.json - so a note titled
+`# Trip to {?capital of Japan}` is "Trip to.md", in the next binary. The 4B's line says "check a fact it answers from
+memory" in place of "Careful with facts". §146 was never merged: its branch, voice/assistant-flag, waits on Matt.)
 
 **What the shots found.** The built page, driven in Chromium as the Fold and as the Mac with the 4B's own answers
 handed back, showed faults the unit tests had passed over. Each is fixed with a test that fails on the old code. Every
@@ -9536,7 +9541,8 @@ One menu for the app, mounted once by App.tsx, and opened through a small store 
 which note and where the pointer was. Drawn with the kit's Menu, as the tab menus are, hung from a point of no size
 where the pointer was, in a layer on the body. Not the kit's ContextMenu, which also opens on a touch's long press: on a
 phone that press is a card's swipe and a tab's drag, so only a mouse opens this menu (`byMouse`: the event's
-`pointerType`, or, where a WebView does not say, a screen whose pointer is fine and can hover).
+`pointerType`, or, where a WebView does not say, a screen whose pointer is fine and can hover). (Since §197 it is hung
+through editor/PopMenu.tsx, which also closes it on a press anywhere and the back gesture.)
 
 ## 173. The walkthrough hands over; the rings move behind the mic (2026-10-02)
 
@@ -10441,3 +10447,139 @@ notes/OrganizationScreen.test.tsx; on the service, an organization's room reachi
 nobody else, and a removed member put out, in server/src/live_tests.rs.
 
 Cites: §183, §191, §193; docs/LIVE.md "The team's rooms".
+
+## 196. Comments on notes: the fourth slice of notes shared in an organization (2026-10-05)
+
+docs/SHARED.md, S8, on notes. Matt: "please make sure comments were added to the app like we discussed previously and
+add them to the context menu for a note and the popover toolbar so we can quickly click to add comments".
+
+**The format** is the note's own text (core/comments/format.ts): an anchor after the words, `[^c1]`, or round a
+selection, `==the words==[^c1]`, and one ```comments fence at the end holding every thread - a head line of id,
+handle and ISO time in UTC to the second, the words under it, replies indented two in the same shape, and
+`resolved <handle> <time>` closing a thread. Decided beyond S8: a comment's words may run to several lines, each a line
+of the fence, and an empty line typed in them is not kept; a words line that would read as a head, or that starts with
+a backslash or three backticks, is written behind a backslash, which reading takes off; a handle never starts with
+one, which is how the two are told apart. Ids are `c` and four letters or digits, none the note has used for a thread,
+an anchor or a footnote. The fence is the last ```comments block the note has that is not inside another block (the
+Guide shows one inside a ```` block). A selection over several lines is anchored after its last line's words without
+a wash, and one inside a highlight takes that highlight as its wash.
+
+Reading never rewrites: each part keeps its lines and offsets, and every change is a few edits at them, so an
+unchanged note writes back as itself, a hand-edited fence keeps the lines it does not understand (a head with a time
+it cannot read is words of the thread above, or a line of nobody's), and deleting the last thread takes the fence and
+the blank line before it, leaving the words as they were. The edits go into the editor as one dispatch
+(editor/useNoteComments.ts, as `chooseLook` does): one undo, saved as typing is, and in a team note a few characters
+for the CRDT to merge.
+
+**In the editor** (editor/comments.ts): the anchor is a small round in its author's colour, a ring once resolved, and
+the caret on it shows it as written; a tap opens the thread's card. The words round a selection are a highlight, and
+an open thread sets the highlight's own colour (`--app-mark`) to its author's on a mark around it, so the wash is
+theirs, and a resolved one sets it clear. The fence is drawn as the threads, open ones first, as a query's fence is
+drawn as its answer; a tap on one opens its card and brings its anchor into view, and the pencil shows the lines.
+Nowhere else is any of it installed - a card's small note, a shared page - so the anchor and the fence read as text.
+
+**The card** (editor/CommentCard.tsx, in the app's sheet, editor/CommentSheet.tsx): each comment's author in their
+colour, how long ago, the words; a reply field that sends on Enter; Resolve or Reopen; Delete thread, which asks a
+second press. Its pieces take a parsed thread and say what was pressed, so a canvas's threads (S9) can draw the same
+card, and `countsBy` (core/comments/format.ts) counts each person's comments and replies from parsed threads for the
+profile card.
+
+**Colours** (core/comments/colours.ts): in an organization's workspace, your own from the kept list at once and each
+member's from the organization's rows, read once a session; elsewhere, and for anyone the rows do not name, ink.
+
+**Ways in.** Comment on the press-and-hold band, second after Cut and Copy (the selection, or the caret's line); in
+the bar right after Version history while there is room; in More, with "2 comments, 1 open" when there are threads,
+which opens their list; and "Add a comment" on a note's right-click menu in a list, which opens the note with a
+comment started on its first line (core/comments/ask.ts, heard by the screen once its editor is there). A note's
+title leaves its anchor out (core/noteTitle.ts), so a title commented on keeps its name. Comments are by the
+account's handle, or `me` without one (core/comments/author.ts).
+
+**Not yet.** The audit log's "sam commented on Roadmap" and the profile card's counts (S8's last sentence) read what is
+here but are not drawn; a canvas's comments are slice 5. A comment made in a team note reaches the others live, as
+any edit does (§195).
+
+Tests: core/comments/format.test.ts and colours.test.tsx, editor/comments.test.ts, editor/CommentCard.test.tsx, and
+the comment cases in editor/NoteScreen.test.tsx, ContextMenu.test.tsx, NoteSettings.test.tsx, notes/NoteMenu.test.tsx
+and academy/lessons.test.ts.
+
+Cites: §159, §172, §191, §193, §195.
+
+## 197. Menus that hang from what opened them (2026-10-05)
+
+Matt, on 2026-09-28: "Allow the header to be overlapped by the popup menus use the glacierUI context menus", and
+earlier, of the linked line's options, "make the options typography and iconography heavy so they fit the theme on all
+context menus". A branch built this that day (`ui/glacier-menus`, its own §147, a number main has since used for the
+home page) and was never merged; main moved some 255 commits on. This is that work brought onto today's code, written
+again against it rather than merged.
+
+**What came over as it was.**
+
+- **PopMenu** (`editor/PopMenu.tsx`): the kit's Menu hung from something already on the page. The kit draws its panel
+  at the body, z 200, so it covers the header and the tabs wherever it hangs; PopMenu adds what the app's own menus
+  had. The back gesture and Escape close it (`core/back.ts`). A press anywhere closes it, heard on the window's way
+  down, since a board card and the lanes' line keep their press to themselves and the kit listens only on the way up;
+  a press on its anchor or in any of its panels, flyouts too (the kit's `data-menu-stack`), is its own. It goes when its
+  anchor leaves the page or is scrolled off the screen. Under a finger its rows are the + list's height and weight. It
+  is held to its room: under the bar for a menu from the bar (`reach="down"`), half the screen for one from the page
+  (`reach="either"`), so the side the kit turns it to always holds it whole. On the opened Fold it keeps to its
+  anchor's side of the crease. `PopSub` lists a menu inside a menu in place under its name, each row carrying its whole
+  name, unless a mouse has a window wide enough for a flyout either side of the menu; the kit's flyout ran off a
+  phone's edge. The owner hears one `onDismiss`, a microtask after the kit's close, so the kit's focus on the anchor
+  lands first.
+- **The room** (`editor/menuRoom.ts`): from 8px under the status bar to 8px over the keyboard's top. The + list opening
+  above now goes over the header and the tabs as far as the status bar; press and hold's band goes under the caret
+  where above would reach the status bar, and never past the keyboard.
+- **A board card's menu is the kit's**, through PopMenu, hung from the card's more button and drawn at the body: in the
+  lane, the lane cut its last rows and the header covered it near the top. Its rows are data (`cardRows`); a row closes
+  the menu and then does what it says; any change to the note, a redraw that takes the more button away, and the view
+  going close it (`editor/boards.ts`). The lane menu's look and hooks are gone.
+- **The tab and group menus** go through PopMenu, so a back swipe closes them rather than the screen under them.
+- **The canvas's + sheet is drawn at the body** (`canvas/AddSheet.tsx`), so its scrim dims from the top rather than
+  starting under the header. Done inside AddSheet rather than in CanvasView, which other sessions are changing today.
+- **One tick a press.** The + list's and press and hold's rows say their own tick, and the app's tap tick added a
+  second: their roots carry `data-haptics="own"` and the tap tick lets a button or a row there off (a field still
+  ticks). Back on the Style page, and now on a field's page too, says its own. The + ticks on opening only for a mouse,
+  a key or a /, since a finger's press has the tap tick. A tab's or a group's menu opened by holding ticks once
+  (`tickHeld`).
+
+**What changed on the way.**
+
+- **The note's right-click menu** (§172) came after the branch. It is PopMenu's too, from a point: PopMenu takes `at`
+  as well as an anchor, and puts a mark of no size there at the body. It closes on a press anywhere and the back
+  gesture; a right-click elsewhere opens the next where the last one closes, since the close only clears the store if
+  it still holds the menu that closed. Its rows are untouched.
+- **The organizations' picker** (§171) also came after. It was the kit's Menu with its own trigger, which nothing could
+  close by the back gesture; it is PopMenu's now, open while the people icon says so, and a second press on the icon
+  closes it. Its rows are untouched.
+- **The Mac's inset.** The branch kept menus under the Mac's 44px title strip. Main has since put the three buttons in
+  the bar's own row and set the inset to nothing (app.css `data-titlebar`), so on the Mac the room starts at the
+  window's top; followed main.
+- **Press and hold's band** gained a field's page (§158) since; it is placed by the same rule.
+
+**What main already had, kept.** The sheets: on a desktop every sheet is now a window in the middle (§189), and they
+stay sheets, as the branch said. The floating cards (`notes/FloatingCard.tsx`: the notes drawer, the aside, the
+notifications) are dialogs, not menus, and keep their own close on a press outside. The top bar's tools
+(`editor/NoteTools.tsx`, `editor/toolRoom.ts`) have no menu of their own; More opens the sheet. The + list and press
+and hold stay the app's own, not the kit's: the kit's menu takes the focus as it opens, which would put the phone's
+keyboard away while typing. Whether they should wear the kit's glass is still Matt's to say.
+
+**Dropped.** Nothing of the branch's behaviour. Its measurements (Playwright on a phone, the Fold and the Mac, both
+engines) were of its own build and are not repeated here.
+
+Measured, built and served, in the browser pane at 1024 x 768 with a mouse: a note's menu at the pointer, drawn at the
+body with its mark, turned upward whole from a right-click 13px off the window's foot, and Escape took it and its
+mark away; a card's menu hung under its more button at the body, 0 of 15 points covered, a press on the header
+closed it, Escape gave the focus back to the more button and left the note open; a tab's menu hung down over the
+header's foot. Not seen in a browser: the + list over the header with a keyboard up, the Fold's crease and a
+finger's rows, which are the tests'.
+
+Tests: editor/PopMenu.test.tsx (the placing from the anchor and from a point, the names on the anchor, the back
+gesture, Escape and its focus, a press kept from the page, the anchor leaving, the crease, the rows under a name),
+editor/menuRoom.test.ts, core/haptics.test.ts (the let-off and the holds), editor/AddList.test.tsx and
+editor/ContextMenu.test.tsx (where they sit, the mark, the two Backs' ticks), editor/boards.test.ts (the card's menu at
+the body), notes/NoteTabs.test.tsx (rows in place, the flyout for a mouse, the back gesture, the hold's tick, the
+organizations' picker), notes/NoteMenu.test.tsx (the mark, the back gesture, a press anywhere and the next
+right-click), editor/NoteScreen.test.tsx (the list and the band beside the page), canvas/CanvasView.test.tsx (the +
+sheet at the body).
+
+Cites: §141, §158, §171, §172, §189.

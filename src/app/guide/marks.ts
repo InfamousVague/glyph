@@ -30,6 +30,7 @@ import {
   ListOrdered,
   ListTodo,
   MapPin,
+  MessageSquare,
   MessageSquareQuote,
   Minus,
   Sigma,
@@ -97,6 +98,7 @@ export type Looks =
   | 'callout'
   | 'wiki'
   | 'foot'
+  | 'comment'
   | 'definition'
   | 'maths'
   | 'emoji'
@@ -251,6 +253,16 @@ const OWN: MarkGroup[] = [
       // A place the + beside the line adds (core/placeRefs.ts): alone on its line, it reads as its name, with its map under it.
       { symbol: '[ ](geo: )', name: 'A place', typed: '[Cais do Sodré, Lisbon](geo:38.7057,-9.1446)', words: 'Cais do Sodré, Lisbon', looks: 'place', icon: MapPin },
       { symbol: '[^ ]', name: 'A footnote', typed: 'four hundred[^sam]\n\n[^sam]: Sam said so.', words: 'four hundred', looks: 'foot', icon: Asterisk, note: 'Sam said so.', say: '“footnote Sam said so end footnote”' },
+      // A comment (core/comments/format.ts; docs/SHARED.md, S8): the anchor after the words, the thread in the fence at
+      // the end. Usually made with Comment rather than typed; written out here so it can be read anywhere.
+      {
+        symbol: '[^c1]',
+        name: 'A comment',
+        typed: 'Call the band[^c1]\n\n```comments\nc1 sam 2026-10-04T19:00:12Z\nWhich band?\n  resolved sam 2026-10-04T19:06:02Z\n```',
+        words: 'Call the band',
+        looks: 'comment',
+        icon: MessageSquare,
+      },
     ],
   },
   {

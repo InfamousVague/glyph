@@ -50,15 +50,17 @@ import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { isTicket } from '../core/properties.ts';
 import { onNamingLine } from './openHeading.ts';
 import { closePlus, plusMenu, type PlusKey, type PlusOpening } from './insertPlus.ts';
+import { statusBar } from './menuRoom.ts';
 import styles from './AddList.module.css';
 
 /**
  * The + beside the line's list (editor/insertPlus.ts is the +, editor/addRows.ts what the rows are and write).
  *
  * A short card against the +'s own row, never over it: below the row, or above it when the keyboard leaves no room
- * below, or on the larger side, scrolling, when neither holds it all. Its left edge is the text's. On the opened Fold
- * it keeps to one side of the crease, the window's middle, where the home page puts its gap: at the text when it fits
- * before the crease, past the crease when it does not, and across it only when neither side has room.
+ * below, or on the larger side, scrolling, when neither holds it all. Above, it may cover the header and the tabs, as
+ * far as the status bar (Matt: "Allow the header to be overlapped by the popup menus"). Its left edge is the text's. On
+ * the opened Fold it keeps to one side of the crease, the window's middle, where the home page puts its gap: at the
+ * text when it fits before the crease, past the crease when it does not, and across it only when neither side has room.
  *
  * It is not a sheet, which would take the page and the keyboard with it, and not the sideways band of press and hold,
  * whose bold words under icons read as a toolbox. It is the list the + promised: seven things and More, which turns
@@ -85,7 +87,7 @@ import styles from './AddList.module.css';
 export interface AddListProps {
   view: EditorView;
   opening: PlusOpening;
-  /** The note's pane, for the crease and the room above the row: the box of the page that scrolls the note. */
+  /** The note's pane, for the crease: the box of the page that scrolls the note. */
   pane: () => DOMRect | null;
   onClose: () => void;
   /** Where the editor's keys reach the list while the editor keeps the focus (editor/insertPlus.ts `onKey`). */
@@ -400,7 +402,8 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
       return;
     }
     const box = pane();
-    const top = Math.max(viewTop, box?.top ?? 0) + EDGE;
+    // Over the header and the tabs if it must, never under the status bar (editor/menuRoom.ts).
+    const top = Math.max(viewTop, statusBar()) + EDGE;
     const bottom = viewBottom - EDGE;
     // Its whole height, read without unsetting the cap, which would lose where its rows are scrolled to.
     const chrome = element.offsetHeight - scroller.offsetHeight;
@@ -552,6 +555,8 @@ export function AddList({ view, opening, pane, onClose, keys, onPicture, onPlace
     <div
       ref={card}
       className={styles.list}
+      // Its rows say their own tick; the app's tap tick lets them off (core/haptics.ts).
+      data-haptics="own"
       id={LIST_ID}
       role={step ? 'group' : 'menu'}
       aria-label={step ? (page === 'note' ? 'Which note?' : 'Which canvas?') : 'Add to this note'}

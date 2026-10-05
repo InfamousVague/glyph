@@ -128,6 +128,18 @@ const TAP_SLOP_PX = 10;
 const TAP_MAX_MS = 700;
 
 /**
+ * A menu whose rows say their own tick (the + list's `.list`, press and hold's band): a button or a row inside it is
+ * let off the tap tick, which would be a second tick on the same press. A field inside it is not: it says nothing of
+ * its own, and ticks as every field does.
+ */
+const OWN_TICK = '[data-haptics="own"]';
+const ticksItself = (control: Element) => control.matches('button, [role^="menuitem"]') && control.closest(OWN_TICK) !== null;
+
+/** The press under way: whether a lift would tick, and whether this press has ticked already. */
+let armed = false;
+let tapped = false;
+
+/**
  * The app-wide tap tick.
  *
  * The kit ships this as one delegated POINTERDOWN listener, which is why it is
@@ -141,6 +153,10 @@ const TAP_MAX_MS = 700;
  * rather than actuation; the editor speaks through `feel.ts` when something
  * actually happens to the document. Touch only - a mouse has no motor.
  *
+ * One tick a press. A button or a row inside `[data-haptics="own"]` is let off,
+ * since it says its own; and a menu opened by holding says so through
+ * `tickHeld`, once, whether or not this spoke first.
+ *
  * Returns its own cleanup.
  */
 export function installTapHaptics(): () => void {
@@ -153,11 +169,12 @@ export function installTapHaptics(): () => void {
   let startX = 0;
   let startY = 0;
   let startAt = 0;
-  let armed = false;
 
   const onDown = (e: PointerEvent) => {
+    tapped = false;
     if (e.pointerType === 'mouse') return;
-    armed = e.target instanceof Element && e.target.closest(TAPPABLE) !== null;
+    const control = e.target instanceof Element ? e.target.closest(TAPPABLE) : null;
+    armed = control !== null && !ticksItself(control);
     startX = e.clientX;
     startY = e.clientY;
     startAt = e.timeStamp;
@@ -172,6 +189,7 @@ export function installTapHaptics(): () => void {
     // The finger has to still be ON something tappable: a press that began on a
     // row and lifted over the page is a cancelled tap, not a quiet one.
     if (!(e.target instanceof Element) || !e.target.closest(TAPPABLE)) return;
+    tapped = true;
     fireNativeHaptic('selection');
   };
   const onCancel = () => {
@@ -187,6 +205,18 @@ export function installTapHaptics(): () => void {
     window.removeEventListener('pointerup', onUp, { capture: true });
     window.removeEventListener('pointercancel', onCancel, { capture: true });
   };
+}
+
+/**
+ * A menu opened by holding says so once: now, unless the tap tick has already spoken for this press, and then the tap
+ * tick keeps quiet for the rest of it. A tab's menu opens on the lift that ends a hold, after the tap tick has had its
+ * say on a short one (notes/useTabDrag.ts); a group chip's opens mid-press, before the lift (notes/GroupChip.tsx).
+ */
+export function tickHeld(): void {
+  armed = false;
+  if (tapped) return;
+  tapped = true;
+  fireNativeHaptic('selection');
 }
 
 // --- the preference -------------------------------------------------------

@@ -120,7 +120,11 @@ afterEach(() => {
   Reflect.deleteProperty(navigator, 'geolocation');
   vi.unstubAllGlobals();
   setPreferences({ localOnly: DEFAULT_PREFERENCES.localOnly });
+  document.documentElement.style.removeProperty('--app-inset-top');
 });
+
+/** The status bar's height (editor/menuRoom.ts), set inline on the root as jsdom reads it back. */
+const statusBar = (px: number) => document.documentElement.style.setProperty('--app-inset-top', `${px}px`);
 
 describe('the list', () => {
   it('holds the first page in a browser, less the video, and More', () => {
@@ -187,6 +191,11 @@ describe('the list', () => {
     expect(closed).toBe(0);
   });
 
+  it('wears the mark that lets its rows off the app’s tap tick, since each says its own', () => {
+    const { list } = open();
+    expect(list()!.dataset.haptics).toBe('own');
+  });
+
   it('keeps the editor’s focus and caret: its press is taken from the page', () => {
     const { list } = open();
     const down = new MouseEvent('pointerdown', { bubbles: true, cancelable: true });
@@ -210,34 +219,69 @@ describe('where it goes', () => {
     expect(at.top + 8 * 44 + 8).toBe(700 - 6);
   });
 
-  it('takes the larger side when neither holds it all, scrolls, and never covers the row', () => {
+  it('takes the larger side when neither holds it all, over the header when that is above, scrolls, and never covers the row', () => {
     screen(412, 500, { coarse: false });
     rowAt(240);
     const { list } = open();
     const at = placed(list()!);
     const height = parseFloat(scrolling().style.maxBlockSize) + HELD;
-    // Above is 234 - 68 = 166 and below 492 - 273 = 219: below is larger, and the list keeps off the row.
-    expect(at.top).toBe(240 + 27 + 6);
-    expect(height).toBe(500 - 8 - at.top);
-    expect(at.top).toBeGreaterThanOrEqual(240 + 27);
+    // Above is 234 - 8 = 226, the header's 60 included, and below 492 - 273 = 219: above is larger, and the list keeps
+    // off the row.
+    expect(at.top).toBe(8);
+    expect(height).toBe(226);
+    expect(at.top + height).toBeLessThanOrEqual(240 - 6);
   });
 
   it('keeps More in sight however little room there is: it is held at the foot, and only the rows above it scroll', () => {
-    // The phone with the keyboard up (412 by 579), the + where the editor keeps the caret, and the note's pane under
-    // its header and tabs: seven rows and More fit neither side.
-    screen(412, 579, { coarse: false });
-    rowAt(444);
-    const { list } = open({ pane: () => new DOMRect(0, 110, 412, 469) });
+    // A phone in split screen with the keyboard up (412 by 360), the + where the editor keeps the caret: above is
+    // 164 - 8 = 156 and below 352 - 203 = 149, and seven rows and More (360) fit neither. It takes above, capped at
+    // 156, which leaves 108 for the rows that scroll.
+    screen(412, 360, { coarse: false });
+    rowAt(170);
+    const { list } = open({ pane: () => null });
+    expect(placed(list()!).top).toBe(8);
+    expect(scrolling().style.maxBlockSize).toBe('108px');
     const more = rowSaying('More')!;
     expect(list()!.contains(more)).toBe(true);
     expect(scrolling().contains(more)).toBe(false);
-    expect(scrolling().style.maxBlockSize).not.toBe('');
     expect(scrolling().contains(rowSaying('A to-do')!)).toBe(true);
     // On More, Back is held at the top the same way.
     press(more);
     const back = rowSaying('Back')!;
     expect(scrolling().contains(back)).toBe(false);
     expect(list()!.contains(back)).toBe(true);
+  });
+
+  it('fits above whole on the phone with the keyboard up, where the header used to leave it three rows', () => {
+    // 412 by 579 with the keyboard up, a 32px status bar, the + at 444 and the note's pane under the header at 110:
+    // above is 444 - 6 - 40 = 398, which holds the 360 it needs.
+    statusBar(32);
+    screen(412, 579, { coarse: false });
+    rowAt(444);
+    const { list } = open({ pane: () => new DOMRect(0, 110, 412, 469) });
+    expect(placed(list()!).top).toBe(444 - 6 - 360);
+    expect(scrolling().style.maxBlockSize).toBe('');
+  });
+
+  it('goes over the header and the tabs when it opens above, as far as the status bar', () => {
+    // 412 by 520, the + at 299, the header's foot at 98: above is 299 - 6 - 40 = 253 and below 512 - 332 = 180.
+    statusBar(32);
+    screen(412, 520, { coarse: false });
+    rowAt(299);
+    const { list } = open({ pane: () => new DOMRect(0, 98, 412, 422) });
+    expect(placed(list()!).top).toBe(40);
+    expect(parseFloat(scrolling().style.maxBlockSize) + HELD).toBe(253);
+  });
+
+  it('never goes under a taller inset', () => {
+    // 1280 by 400, an inset of 44px, the + at 330: above is 330 - 6 - 52 = 272 and below 392 - 363 = 29. (The Mac's
+    // own inset is nothing since its three buttons moved into the bar's row, app.css `data-titlebar`.)
+    statusBar(44);
+    screen(1280, 400, { coarse: false });
+    rowAt(330);
+    const { list } = open({ pane: () => new DOMRect(0, 117, 1280, 283) });
+    expect(placed(list()!).top).toBe(52);
+    expect(parseFloat(scrolling().style.maxBlockSize) + HELD).toBe(272);
   });
 
   it('keeps to one side of the opened Fold’s crease: at the text when it fits before it', () => {

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTopBarTail, useTopBarTools } from '../core/topBarTools.ts';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '@glacier/react';
-import { Archive, Bookmark, BookmarkCheck, History, Mic, Pin, PinOff, Share2 } from '@glacier/icons';
+import { Archive, Bookmark, BookmarkCheck, History, MessageSquarePlus, Mic, Pin, PinOff, Share2 } from '@glacier/icons';
 import { Sheet } from './Sheet.tsx';
 import { SheetTitle } from '../plugins/kit.tsx';
 import { ShareRows } from '../share/ShareRows.tsx';
@@ -93,6 +93,7 @@ import type { CaptureLanding } from '../capture/landing.ts';
 import { keepAllChanges } from './aiChanges.ts';
 import { NoteTape, TranscriptWords } from '../tapes/NoteTape.tsx';
 import { NoteSettings } from './NoteSettings.tsx';
+import { useNoteComments } from './useNoteComments.tsx';
 import { LinkMarks } from '../plugins/LinkMarks.tsx';
 import { AiStrip } from '../ai/AiStrip.tsx';
 import { AtWork } from '../scene/AtWork.tsx';
@@ -522,6 +523,8 @@ export function NoteScreen({
   // "Added to House TODOs", with an Undo that is an edit here; and no better words written under the open note.
   useLanding(note.id, landing, view, { toast, dismiss });
   const pictures = useNotePictures(view);
+  // Comments on the note (docs/SHARED.md, S8): the rounds the editor draws, every way in, and the thread's card.
+  const comments = useNoteComments(note.id, view, (message) => toast({ message }));
   const { tape, recording, removeRecording, forgetRemoved } = useNoteTape(note, body, toast);
   /** The More sheet: how it is read, the AI, pin, archive, what the note is linked to, delete (NoteSettings.tsx). */
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1030,7 +1033,8 @@ export function NoteScreen({
     () => ({
       allowed: () => plusAllowedRef.current,
       onOpen: (opening) => {
-        fireNativeHaptic('selection');
+        // A finger's press on the + has the app's tap tick already (core/haptics.ts); a mouse, a key or a / has none.
+        if (opening.by !== 'touch') fireNativeHaptic('selection');
         setAdding(opening);
       },
       onClose: () => setAdding(null),
@@ -1135,15 +1139,10 @@ export function NoteScreen({
     fireNativeHaptic('selection');
   };
   /**
-   * Where the list may go: the note's scrolling page, below the header, which clears the top bar and the tabs
-   * (`--app-safe-top`) even while the page itself runs up under them.
+   * The note's page, for the list's crease; the list's top is the status bar's (editor/menuRoom.ts), over the header
+   * and the tabs (Matt: "Allow the header to be overlapped by the popup menus").
    */
-  const notePane = (): DOMRect | null => {
-    const box = page.current?.getBoundingClientRect();
-    if (!box) return null;
-    const top = Math.max(box.top, header.current?.getBoundingClientRect().bottom ?? box.top);
-    return new DOMRect(box.left, top, box.width, Math.max(0, box.bottom - top));
-  };
+  const notePane = (): DOMRect | null => page.current?.getBoundingClientRect() ?? null;
   /** Every canvas among the notes, for More's A canvas: a frame of it drawn in the words (editor/canvasFrames.ts). */
   const canvasTitles = allTitles && bodyOfTitle ? () => allTitles().filter((t) => isCanvasBody(bodyOfTitle(t) ?? '')) : undefined;
 
@@ -1197,12 +1196,14 @@ export function NoteScreen({
   const speakWords = tape.length > 0 || !speakHere ? null : isJournal ? 'Speak an entry' : 'Talk into this note';
   /*
    * What comes out of More into the bar while there is room, in this order (Matt: "the following should be able to
-   * expand out in order of priority: Share, History, Bookmark, Pin/Unpin, Archive, Speak"; editor/toolRoom.ts). Each is
-   * there only where More would have it, and stays in More too.
+   * expand out in order of priority: Share, History, Bookmark, Pin/Unpin, Archive, Speak"; editor/toolRoom.ts), with
+   * Comment after History (Matt: "so we can quickly click to add comments"). Each is there only where More would have
+   * it, and stays in More too.
    */
   const actions: ToolAction[] = [
     { id: 'share', label: 'Share', icon: Share2, onPress: () => setSharing(true) },
     ...(historyHere ? [{ id: 'history', label: 'Version history', icon: History, onPress: () => (onHistory ? onHistory() : openSettings('history')) }] : []),
+    ...(shown === 'raw' && !typed ? [{ id: 'comment', label: 'Comment', icon: MessageSquarePlus, onPress: () => comments.start() }] : []),
     ...(shown === 'raw' ? [{ id: 'bookmark', label: marked ? 'Move or remove the bookmark' : 'Bookmark this line', icon: marked ? BookmarkCheck : Bookmark, onPress: bookmark, on: marked }] : []),
     { id: 'pin', label: pinned ? 'Unpin' : 'Pin to the top', icon: pinned ? PinOff : Pin, onPress: togglePin, on: pinned },
     { id: 'archive', label: 'Archive', icon: Archive, onPress: archiveHere },
@@ -1422,6 +1423,7 @@ export function NoteScreen({
             openHeading
             look={typed ? null : look}
             blanks={ai.blankHooks}
+            comments={comments.hooks}
             places="live"
             videos="play"
             grow
@@ -1452,6 +1454,7 @@ export function NoteScreen({
         onFind={setFinding}
         // The same send a swipe on the item does, where a plugin takes this note's items (a Notion board, a GitHub issue).
         send={itemSend(note.id, editing)}
+        onComment={shown === 'raw' ? comments.start : undefined}
       />
       {/* The + beside the line's list: a picture, a place, the time, a table, a note, a to-do, and More. */}
       {adding && view ? (
@@ -1517,11 +1520,13 @@ export function NoteScreen({
         onPin={togglePin}
         onArchive={archiveHere}
         startAt={settingsAt}
+        comments={shown === 'raw' && !typed ? { summary: settingsOpen ? comments.summary() : null, onComment: () => comments.start(), onList: comments.openList } : undefined}
         onDelete={() => {
           setSettingsOpen(false);
           remove();
         }}
       />
+      {comments.sheet}
     </div>
   );
 }

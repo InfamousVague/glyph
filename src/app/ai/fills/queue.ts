@@ -134,7 +134,6 @@ let now: () => Date = () => new Date();
 
 /** Follows every change to what the queue knows; answers the way to stop. */
 export const subscribeFills = version.subscribe;
-export const useFillsVersion = version.use;
 
 /** A blank's status, while a press has it. */
 export function fillStatus(noteId: string, key: string): FillStatus | null {
@@ -144,11 +143,6 @@ export function fillStatus(noteId: string, key: string): FillStatus | null {
 /** What came of a blank that did not fill, this session. */
 export function fillOutcome(noteId: string, key: string): FillOutcome | null {
   return outcomes.get(noteId)?.get(key) ?? null;
-}
-
-/** Whether any press of this note is going or waiting. */
-export function fillsGoing(noteId: string): boolean {
-  return batches.some((b) => b.noteId === noteId) || parked.some((p) => p.batch.noteId === noteId);
 }
 
 function setStatus(noteId: string, key: string, status: FillStatus | null): void {

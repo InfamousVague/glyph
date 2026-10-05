@@ -1,5 +1,6 @@
 import { useRef, type Dispatch, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type RefObject, type SetStateAction } from 'react';
 import { HOLD_MS } from '../core/gestures.ts';
+import { tickHeld } from '../core/haptics.ts';
 import { coasted, groupAt, placeAt, type DropSpot, type RowStop } from './tabDrag.ts';
 import { joinGroup, leaveGroup, type TabGroups } from './tabGroups.ts';
 
@@ -203,6 +204,8 @@ export function useTabDrag(row: RefObject<HTMLDivElement | null>, { groups, onMo
       // open the note, so it is swallowed the way the end of a drag is.
       if (on && !travelled && event.pointerType !== 'mouse' && onGroups) {
         dragged.current = true;
+        // One tick for the press, however long it was held: the tap tick's, or this one.
+        tickHeld();
         onHeld(id);
       }
       setMoving(null);

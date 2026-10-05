@@ -1,5 +1,5 @@
 {
-  "about": "A note's first line and what its title reads, blanks and fills aside (docs/DESIGN.md §145, 8): core/blanks.ts `titleWords`, then core/noteTitle.ts. `words` is the line after titleWords, `title` what noteTitle answers for a note that is only that line. The Rust namer's `title_of` is to read the same rows when its rule lands in a binary.",
+  "about": "A note's first line and what its title reads, blanks and fills aside (docs/DESIGN.md §145, 8): core/blanks.ts `titleWords`, then core/noteTitle.ts. `words` is the line after titleWords, `title` what noteTitle answers for a note that is only that line. The Rust namer's `title_of` (src-tauri/src/library/names.rs) is tested on the same rows, so a file is named as the list titles it.",
   "rows": [
     { "line": "# {?}", "words": "", "title": "" },
     { "line": "# {?a title}", "words": "", "title": "" },

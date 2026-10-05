@@ -143,7 +143,9 @@ device to sync, wrapped for the members who remain, with every team note re-seal
    move-out asking first.
 3. **Live for the team** - shipped 2026-10-05 (DESIGN §195). S6: organization rooms, presence, cursors and
    selections in the editor, "editing Roadmap", the profile card and Jump to cursor.
-4. **Comments.** S8 on notes.
+4. **Comments** - shipped 2026-10-05 (DESIGN §196). S8 on notes: the anchor and the fence read and written by
+   core/comments, the rounds, washes and drawn list in the editor, the thread card, and Comment on the press-and-hold
+   band, in the bar, in More and on a note's menu in a list. The audit log's line and the profile card's counts wait.
 5. **Canvases.** S9: live, pointers, comments.
 6. **Rotation and pruning.** S11's rotation and re-sealing; the log compacted on the service's side as well.
 

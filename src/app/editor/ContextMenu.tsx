@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpToLine, CalendarDays, ClipboardPaste, Copy, CopyPlus, Flag, ImagePlus, LayoutGrid, Link, Scissors, SquareKanban, TextSearch, TextSelect, Trash2, Type, UserPlus } from '@glacier/icons';
+import { ArrowDownToLine, ArrowUpToLine, CalendarDays, ClipboardPaste, Copy, CopyPlus, Flag, ImagePlus, LayoutGrid, Link, MessageSquarePlus, Scissors, SquareKanban, TextSearch, TextSelect, Trash2, Type, UserPlus } from '@glacier/icons';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { EditorView } from '@codemirror/view';
 import { useBack } from '../core/back.ts';
@@ -10,6 +10,7 @@ import { clipboardReadable, readClipboard, writeClipboard, type Clipboard } from
 import { FieldItems } from './FieldItems.tsx';
 import { takesFields, useFieldTaps, type FieldPage } from './fieldMenu.ts';
 import { MenuBand, MenuItem } from './MenuBand.tsx';
+import { menuRoom } from './menuRoom.ts';
 import { usePressAndHold, type Held } from './pressAndHold.ts';
 import { StyleItems } from './StyleItems.tsx';
 import styles from './ContextMenu.module.css';
@@ -19,8 +20,8 @@ import styles from './ContextMenu.module.css';
  *
  * A long press in the editor, or a right click on a desktop, opens it over the caret (editor/pressAndHold.ts says how
  * the press is heard, and why the phone's own bar stays away). What appears is a band of Glyph's words above the
- * selection: Cut and Copy on a selection, Paste, Copy board on a board, Find, Select all, Duplicate, Delete, Move up
- * and down, the board rows where they apply (editor/boardActions.ts), a plugin's send for the line, Style, and Add
+ * selection: Cut and Copy on a selection, Comment, Paste, Copy board on a board, Find, Select all, Duplicate, Delete,
+ * Move up and down, the board rows where they apply (editor/boardActions.ts), a plugin's send for the line, Style, and Add
  * image.
  *
  * Reading the clipboard is the one thing the page cannot do here (editor/clipboard.ts), so Paste appears only where
@@ -33,6 +34,11 @@ import styles from './ContextMenu.module.css';
  * The menu's own pointerdown is prevented, so a press on it never takes the editor's focus or the selection the action
  * is about. Every action closes the menu before it runs and gives the editor its focus back after. It goes on a touch
  * anywhere else, a scroll of the note, or the back gesture.
+ *
+ * It sits above the selection, over the header and the tabs if it must (Matt: "Allow the header to be overlapped by
+ * the popup menus"), and never under the status bar or the keyboard (editor/menuRoom.ts): where above would reach the
+ * status bar it goes under the caret instead. Its rows say their own tick, so the app's tap tick lets them off
+ * (core/haptics.ts `data-haptics`), and the Back of each page says one too.
  */
 
 interface ContextMenuProps {
@@ -47,9 +53,14 @@ interface ContextMenuProps {
   onFind?: (text: string) => void;
   /** Sends the line's words where a plugin takes them (a Notion board, a GitHub issue); absent, nothing is shown. */
   send?: { label: string; run: (text: string) => Promise<void> | void } | null;
+  /**
+   * Starts a comment (editor/useNoteComments.ts): on the selection the menu was opened over, or on the caret's line
+   * when there is none. Absent, the word is not shown.
+   */
+  onComment?: (range: { from: number; to: number }) => void;
 }
 
-export function ContextMenu({ view, onAddImage, onPasteImage, say, onFind, send = null }: ContextMenuProps) {
+export function ContextMenu({ view, onAddImage, onPasteImage, say, onFind, send = null, onComment }: ContextMenuProps) {
   const [open, setOpen] = useState<Held | null>(null);
   /** The menu's words, or its styles. */
   const [styling, setStyling] = useState(false);
@@ -105,7 +116,7 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, onFind, send 
 
   useBack(open !== null, close);
 
-  // Sits above the selection, inside the screen, and never over the keyboard.
+  // Sits above the selection, over the header if need be, never under the status bar or the keyboard.
   useEffect(() => {
     const element = menu.current;
     if (!open || !element) return;
@@ -113,11 +124,14 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, onFind, send 
     // smaller, and a rect taken on that frame would put the menu off-centre.
     const width = element.offsetWidth;
     const height = element.offsetHeight;
-    const margin = 8;
+    const room = menuRoom();
     let left = open.x - width / 2;
-    left = Math.max(margin, Math.min(left, window.innerWidth - width - margin));
+    left = Math.max(room.left, Math.min(left, room.right - width));
+    // Above the selection, over the header if it must be; under it when above would reach the status bar.
     let top = open.y - height - 12;
-    if (top < margin) top = open.y + 40;
+    if (top < room.top) top = open.y + 40;
+    // Never past the keyboard's top; on a window too short for either, the status bar wins.
+    top = Math.max(room.top, Math.min(top, room.bottom - height));
     element.style.left = `${left}px`;
     element.style.top = `${top}px`;
   }, [open, styling, fields]);
@@ -194,6 +208,12 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, onFind, send 
     run(view);
   };
 
+  /** A page's Back: every row here says its own tick, and Back is one of them. */
+  const backFrom = (back: () => void) => () => {
+    fireNativeHaptic('selection');
+    back();
+  };
+
   /** A field's page for the caret's line, from the line's own actions. */
   const fieldPage = (page: FieldPage) => () => {
     fireNativeHaptic('selection');
@@ -220,6 +240,8 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, onFind, send 
     <div
       ref={menu}
       className={styles.menu}
+      // Its rows say their own tick; the app's tap tick lets them off (core/haptics.ts).
+      data-haptics="own"
       role="menu"
       aria-label={fields ? 'Fields' : styling ? 'Styles' : 'Note actions'}
       // A press on the menu must not take the editor's focus or its selection.
@@ -227,9 +249,9 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, onFind, send 
     >
       <MenuBand>
         {fields ? (
-          <FieldItems view={view} line={fields.line} page={fields.page} onBack={fields.back ? () => setFields(null) : undefined} onClose={close} refocus={fields.refocus} />
+          <FieldItems view={view} line={fields.line} page={fields.page} onBack={fields.back ? backFrom(() => setFields(null)) : undefined} onClose={close} refocus={fields.refocus} />
         ) : styling ? (
-          <StyleItems view={view} onBack={() => setStyling(false)} onClose={close} />
+          <StyleItems view={view} onBack={backFrom(() => setStyling(false))} onClose={close} />
         ) : (
           <>
             {selected ? (
@@ -237,6 +259,22 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, onFind, send 
                 <MenuItem icon={Scissors} label="Cut" onPress={act(cut)} />
                 <MenuItem icon={Copy} label="Copy" onPress={act(copy)} />
               </>
+            ) : null}
+            {/*
+              Second only to Cut and Copy, so it is in reach without scrolling the band (Matt: "add them to ... the
+              popover toolbar so we can quickly click to add comments"). The sheet it opens takes the focus for its
+              field, so the editor is not given it back.
+            */}
+            {onComment && !view.state.readOnly ? (
+              <MenuItem
+                icon={MessageSquarePlus}
+                label="Comment"
+                onPress={() => {
+                  fireNativeHaptic('selection');
+                  close();
+                  onComment({ from, to });
+                }}
+              />
             ) : null}
             {pasteable ? <MenuItem icon={ClipboardPaste} label="Paste" onPress={act(paste)} /> : null}
             {/* A board is drawn as columns, so it cannot be dragged over: this takes the whole of it at once. */}
