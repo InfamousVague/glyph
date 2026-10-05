@@ -10836,3 +10836,26 @@ settings/BackupPane.test.tsx, and paths.rs's check that LibraryTree.kt has `copy
 
 Cites: §167, §187.
 
+## 205. Library folder and Export are settings (2026-10-05)
+
+Matt: "library folder should be a setting not a plugin and export should be a setting secion".
+
+**Settings › Library folder** (settings/LibraryFolderPane.tsx, core/libraryFolder.ts) is §187's page as it was, with
+its cards and its search words, but no longer behind a plugin's switch: where the notes live is the app's own
+business, not an extension's. It calls the app's commands directly (`invoke`, with `FOLDER_GENERATION` 25 for the
+binary), where it went through a plugin host that checked its manifest; the library-folder plugin is gone from
+`BUILT_IN`, and a `library-folder` switch left in `glyph-plugins` is read by nothing. Listed where the app keeps its
+notes in files it can move: the Mac and Android, not a browser or an iPhone.
+
+**Settings › Export** (settings/ExportCard.tsx) is §167's card as a section of its own, out of Account, where it sat
+after Location: carrying everything off as one zip is not something an account does, and it works signed out. Listed
+everywhere, since a browser exports its own zip and an iPhone says it cannot yet.
+
+The three that carry the notes - Library folder, Backup (§204) and Export - share a card of their own under Account's.
+
+Tests: settings/LibraryFolderPane.test.tsx (moved from plugins/folder/, its manifest's test now the generation's),
+SettingsSheet.test.tsx's lists and cards, AccountPane.test.tsx without Export, PluginsPane.test.tsx and
+registry.test.ts without the plugin.
+
+Cites: §167, §187, §204.
+

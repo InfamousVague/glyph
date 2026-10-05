@@ -3,7 +3,6 @@ import { githubPlugin } from './github/index.tsx';
 import { marksPlugin } from './marks/index.tsx';
 import { claudePlugin } from './claude/index.tsx';
 import { slackPlugin } from './slack/index.tsx';
-import { libraryFolderPlugin } from './folder/index.tsx';
 import { PluginPermissionError } from './host.ts';
 import { registerMarkName } from '../core/itemLinks.ts';
 import { markDetailsChanged, provideMarkDetails } from '../core/markDetails.ts';
@@ -191,7 +190,7 @@ export function createRegistry(plugins: readonly GlyphPlugin[], store: SwitchSto
 }
 
 /** The plugins that ship with Glyph. */
-export const BUILT_IN: readonly GlyphPlugin[] = [notionPlugin, githubPlugin, marksPlugin, claudePlugin, slackPlugin, libraryFolderPlugin];
+export const BUILT_IN: readonly GlyphPlugin[] = [notionPlugin, githubPlugin, marksPlugin, claudePlugin, slackPlugin];
 
 export const plugins = createRegistry(BUILT_IN);
 

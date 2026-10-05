@@ -54,7 +54,7 @@ interface GlyphInbound {
   exportTarget?: (json: string) => void;
   /**
    * The folder picked for the library (native generation 25; files/LibraryTree.kt): `{ uri, name }` with its grant
-   * kept, `{ cancelled: true }` or `{ error }` (plugins/folder/folder.ts).
+   * kept, `{ cancelled: true }` or `{ error }` (core/libraryFolder.ts).
    */
   libraryFolder?: (json: string) => void;
   /**

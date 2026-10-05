@@ -10,7 +10,6 @@ import { listNotes } from '../core/store.ts';
 import { deleteAccountHere, signOutHere, syncNow, syncedWhen, unsentLine, useSyncStatus } from '../core/sync/engine.ts';
 import { stayedHere } from '../core/sync/notes.ts';
 import { ColourCard } from './ColourCard.tsx';
-import { ExportCard } from './ExportCard.tsx';
 import { LocationCard } from './LocationCard.tsx';
 import { PrivacyCard } from './PrivacyCard.tsx';
 import type { SettingsTarget } from './SettingsScreen.tsx';
@@ -213,7 +212,6 @@ function SignedOut({
       </SettingsFootnote>
       <PrivacyCard />
       <LocationCard />
-      <ExportCard />
     </>
   );
 }
@@ -407,7 +405,6 @@ export function AccountPane({ onOpen }: { onOpen?: (target: SettingsTarget) => v
           <SharedLinks />
           <PrivacyCard />
           <LocationCard />
-          <ExportCard />
           <PaneSection>
             <SettingRow icon={<Trash2 size={20} />} label="Delete account" hint="Your account and everything synced to it. The notes on this device stay." onPress={() => setDeleting(true)} />
           </PaneSection>

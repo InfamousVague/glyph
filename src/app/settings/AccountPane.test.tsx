@@ -80,11 +80,11 @@ const placesOf = (host: HTMLElement, things: string[]) => things.map((thing) => 
 describe('Signed out', () => {
   // Changed on purpose (docs/DESIGN.md §138): Privacy and Location are Account's cards, after the ways in. Privacy first
   // put Sign in on the second screen at 412 × 915, and off the Fold's opened screen.
-  // Export joined them last (docs/DESIGN.md §167): everything as one zip, signed in or out.
-  it('opens on the ghost and the way in, then Privacy, Location and Export', () => {
+  // Export was the last card here until it became a section of its own (docs/DESIGN.md §205).
+  it('opens on the ghost and the way in, then Privacy and Location', () => {
     session = null;
     const host = show(<AccountPane />);
-    expect(titles(host)).toEqual(['Sign in', 'Privacy', 'Location', 'Export']);
+    expect(titles(host)).toEqual(['Sign in', 'Privacy', 'Location']);
     // The ghost heads the page, and the form comes before either privacy card, ways in and footnote with it.
     const ghost = host.querySelector('[data-scene="signed-out"]');
     expect(ghost).not.toBeNull();
@@ -107,10 +107,10 @@ describe('Signed out', () => {
 });
 
 describe('Signed in', () => {
-  it('has Sync, then Your colour, Privacy, Location and Export, then Delete account', () => {
+  it('has Sync, then Your colour, Privacy and Location, then Delete account', () => {
     const host = show(<AccountPane />);
-    expect(titles(host)).toEqual(['Sync', 'Your colour', 'Privacy', 'Location', 'Export']);
-    const places = placesOf(host, ['Sync now', 'Local only', 'Map on a tagged note', 'Export everything', 'Delete account']);
+    expect(titles(host)).toEqual(['Sync', 'Your colour', 'Privacy', 'Location']);
+    const places = placesOf(host, ['Sync now', 'Local only', 'Map on a tagged note', 'Delete account']);
     expect(places.every((place) => place >= 0)).toBe(true);
     expect([...places].sort((a, b) => a - b)).toEqual(places);
   });

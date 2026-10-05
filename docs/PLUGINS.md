@@ -1,8 +1,9 @@
 # Ghost.md plugins
 
 Ghost.md's integrations are plugins: modules that ship inside the app, arrive with its updates, and can each be
-switched off in **Settings › Plugins**. Four ship as standard and one ships off until switched on, all listed in
-`BUILT_IN` in `src/app/plugins/registry.ts`:
+switched off in **Settings › Plugins**. Four ship as standard and Slack ships off until switched on, all listed in
+`BUILT_IN` in `src/app/plugins/registry.ts`. Where the notes live is not a plugin: Settings › Library folder
+(docs/DESIGN.md §205, a plugin until then).
 
 | Plugin | What it adds | Folder |
 | --- | --- | --- |
@@ -10,7 +11,7 @@ switched off in **Settings › Plugins**. Four ship as standard and one ships of
 | **GitHub** | A note linked to a repo sends its list items as issues, which tick both ways like Notion's tasks, and the repo is read on the phone into a short briefing the model gets with the note. Sending needs a token; reading does not. | `src/app/plugins/github/` |
 | **Marks** | Ghost.md's own formatting on top of Markdown, twelve marks in one switch: a spoiler in smoke, a highlight (which takes a colour name), an aside, a doubt, a redaction (a bar of ink, lifted at the caret), a shout, an addition, and five effects written as an emoji twice (heat, frost, wave, shimmer, haunt). Typed or said. | `src/app/plugins/marks/` |
 | **Claude** | A page in Settings with the address and instructions for Ghost.md's MCP server (docs/MCP.md). It runs nothing in the app: Claude reaches the account from outside, and the switch only shows or hides the page. | `src/app/plugins/claude/` |
-| **Library folder** (off until switched on) | The notes in a folder of the person's: an Obsidian vault, iCloud Drive or Dropbox, a Syncthing folder, a backup drive, chosen in the Mac's folder panel or Android's picker, with the notes moved in and back (docs/LIBRARY.md "Choosing the folder"; native generation 25). Its switch only shows or hides the page: the notes stay wherever they are. | `src/app/plugins/folder/` |
+| **Slack** (off until switched on) | Posts a note, or a meeting's summary, to a channel's incoming webhook, and an organization's news to its channel (docs/DESIGN.md §185). | `src/app/plugins/slack/` |
 
 A switched-off plugin offers nothing anywhere, at once. Its data stays where it was, so switching it back on
 restores it as it was. A reset clears every plugin's storage, switched on or not.

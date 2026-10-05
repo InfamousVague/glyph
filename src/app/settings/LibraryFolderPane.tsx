@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Folder, FolderOpen, HardDrive, Info, TriangleAlert } from '@glacier/icons';
-import { PaneHero, PaneSection, RowAction, SettingRow, SettingsCallout, SettingsEmpty, SettingsFootnote } from '../../settings/kit/settingsKit.tsx';
-import { backToOwnFolder, candidateSaid, chooseFolder, failureOf, folderWay, libraryStatus, moveLibrary, movedSaid, type Candidate, type FolderWay, type LibraryStatus, type Moved } from './folder.ts';
+import { PaneHero, PaneSection, RowAction, SettingRow, SettingsCallout, SettingsEmpty, SettingsFootnote } from './kit/settingsKit.tsx';
+import { backToOwnFolder, candidateSaid, chooseFolder, failureOf, folderWay, libraryStatus, moveLibrary, movedSaid, type Candidate, type FolderWay, type LibraryStatus, type Moved } from '../core/libraryFolder.ts';
 
 /**
- * Settings › Plugins › Library folder (docs/DESIGN.md §187). Matt: "include #6 as a plugin", #6 being "An Obsidian
- * vault, iCloud Drive or Dropbox. Notes are already plain Markdown files. Letting you choose where the library folder
- * lives would make Obsidian, backups and other editors work for free."
+ * Settings › Library folder (docs/DESIGN.md §187). Matt: "include #6 as a plugin", #6 being "An Obsidian vault, iCloud
+ * Drive or Dropbox. Notes are already plain Markdown files. Letting you choose where the library folder lives would
+ * make Obsidian, backups and other editors work for free." A setting of its own since §205 (Matt: "library folder
+ * should be a setting not a plugin").
  *
  * Where the notes are now; Choose a folder…, which opens the system's own panel or picker and then says, before
  * anything moves, what is in the folder and what will happen to the notes; Use Ghost.md's own folder, with a copy of
@@ -31,7 +32,7 @@ function whereSaid(status: LibraryStatus): { label: string; hint: string } {
   return { label: status.name || 'A folder of yours', hint: `${count}. Chosen on this phone.` };
 }
 
-export function FolderPane() {
+export function LibraryFolderPane() {
   const [way, setWay] = useState<FolderWay | null>(null);
   const [status, setStatus] = useState<LibraryStatus | null>(null);
   const [step, setStep] = useState<Step>({ kind: 'idle' });

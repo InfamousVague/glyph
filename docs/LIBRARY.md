@@ -210,8 +210,8 @@ library is never written twice.
 
 Matt: "include #6 as a plugin", #6 being "An Obsidian vault, iCloud Drive or Dropbox. Notes are already plain Markdown
 files. Letting you choose where the library folder lives would make Obsidian, backups and other editors work for
-free." Settings › Plugins › **Library folder** (off until switched on; `src/app/plugins/folder/`, native generation 25)
-chooses it, on the Mac and on Android (DESIGN §187).
+free." Settings › **Library folder** (`src/app/settings/LibraryFolderPane.tsx` and `src/app/core/libraryFolder.ts`, native
+generation 25; a plugin until DESIGN §205) chooses it, on the Mac and on Android (DESIGN §187).
 
 - **Where it is** is `<app_data_dir>/library-root.json`, absent for the app's own folder: `{ "kind": "folder", "path":
   … }` on the Mac, `{ "kind": "tree", "uri": …, "name": … }` on Android. Rust reads it in one place
@@ -281,7 +281,7 @@ where the index and sync wouldn't see it. `.glyph/` is hidden.
 
 ## Exporting everything
 
-Settings › Account › Export › **Export everything** writes the whole library, and everything beside it a note shows
+Settings › Export › **Export everything** writes the whole library, and everything beside it a note shows
 or plays, as one zip, `ghostmarkdown_<date>_<time>.zip` on the device's clock (DESIGN §167). On the Mac the save
 panel asks where, and on Android the system's picker does; a USB drive plugged in is one of the places either way.
 Inside is one folder of the archive's name: `Library/` as it is here (with `.glyph/library.json` and the phrases in
@@ -298,7 +298,7 @@ and versions files are read through the library as text and `.glyph/` comes from
 
 1. **Built (1.3.0, native generation 15).** This spec, and the library in Rust behind the store commands the page
    already uses, in app storage (`<app_data_dir>/Library`), with the move from the database.
-2. **Built (native generation 25), as the Library folder plugin.** Pick a folder with the Mac's folder panel or
+2. **Built (native generation 25): Settings › Library folder** (a plugin until docs/DESIGN.md §205). Pick a folder with the Mac's folder panel or
    Android's folder picker (the Storage Access Framework), and move the library there, or take a folder of Markdown
    as it is ("Choosing the folder"). Recordings, pictures and films stay in the app's storage.
 3. **Partly built.** Folders in the app: Inbox, and a folder for each workspace, are built. Making folders of

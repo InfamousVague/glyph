@@ -60,7 +60,7 @@ In a browser tab there is no folder. Notes are kept in that browser's own storag
 
 ## Taking everything with you
 
-**Settings › Account › Export everything** puts all of it in one zip: every note as its `.md` file in its folders, the pictures, films and recordings beside them, and your settings. It is named for when you made it, such as `ghostmarkdown_2026-10-01_21-42-05.zip`, and opens as a folder of that name on any computer or phone, with a README that says what each folder is.
+**Settings › Export › Export everything** puts all of it in one zip: every note as its `.md` file in its folders, the pictures, films and recordings beside them, and your settings. It is named for when you made it, such as `ghostmarkdown_2026-10-01_21-42-05.zip`, and opens as a folder of that name on any computer or phone, with a README that says what each folder is.
 
 - **On Android**, plug in a USB drive first. The phone's own picker asks where the zip goes, and the drive is one of its places, beside Downloads.
 - **On a Mac**, the save panel asks, and a USB drive is on its side.

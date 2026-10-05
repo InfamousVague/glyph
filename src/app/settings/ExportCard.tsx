@@ -5,7 +5,8 @@ import { cancelExport, doneSaid, exportEverything, exportWay, sizeSaid, type Exp
 import { PaneSection, RowAction, SettingRow, SettingsCallout } from './kit/settingsKit.tsx';
 
 /**
- * Export, a card on Account after Location (docs/DESIGN.md §167; Matt: "Please add a feature that allows me to plug in
+ * Settings › Export, a section of its own since §205 (Matt: "export should be a setting section"), a card on Account
+ * until then (docs/DESIGN.md §167; Matt: "Please add a feature that allows me to plug in
  * a USB drive and export the entire app onto a folder or zip file with ghostmarkdown_<datetime>.7z or something"). One
  * row: everything, as `ghostmarkdown_<date>_<time>.zip`, wherever the device's own save asks, a drive plugged in among
  * its places (core/exportAll.ts). While it runs, how far it has got and a word to stop it; after, what it wrote.
@@ -72,7 +73,7 @@ export function ExportCard() {
       ) : null}
       {state.phase === 'failed' ? <SettingsCallout>{state.why}</SettingsCallout> : null}
 
-      <PaneSection title="Export">
+      <PaneSection>
         <SettingRow
           icon={<HardDriveDownload size={20} />}
           label="Export everything"

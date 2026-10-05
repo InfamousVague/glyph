@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { buttonSaying, press, show, waitUntil } from '../../../test/render.tsx';
+import { buttonSaying, press, show, waitUntil } from '../../test/render.tsx';
 
 /**
- * Settings › Plugins › Library folder (docs/DESIGN.md §187): where the notes are, a folder chosen in the system's own
+ * Settings › Library folder (docs/DESIGN.md §187, a setting since §205): where the notes are, a folder chosen in the system's own
  * panel or picker and said before anything moves, the move, the way home, and the page on a binary or a device that
  * cannot. The app's commands and the activity are stood in for, each answering as library_commands.rs and
  * files/LibraryTree.kt do; the shell's own words are read out of its Kotlin, since the bridge is typed twice.
@@ -19,7 +19,7 @@ const device = vi.hoisted(() => ({
   answers: {} as Record<string, unknown>,
   changed: 0,
 }));
-vi.mock('../../core/tauri.ts', () => ({
+vi.mock('../core/tauri.ts', () => ({
   isTauri: () => device.tauri,
   invoke: async (command: string, args: unknown) => {
     device.calls.push({ command, args });
@@ -28,9 +28,9 @@ vi.mock('../../core/tauri.ts', () => ({
     return typeof answer === 'function' ? (answer as (a: unknown) => unknown)(args) : answer;
   },
 }));
-vi.mock('../../core/nativeGeneration.ts', () => ({ hasNativeGeneration: async (wanted: number) => device.generation >= wanted }));
-vi.mock('../../core/platform.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../core/platform.ts')>()),
+vi.mock('../core/nativeGeneration.ts', () => ({ hasNativeGeneration: async (wanted: number) => device.generation >= wanted }));
+vi.mock('../core/platform.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../core/platform.ts')>()),
   get isAndroid() {
     return device.android;
   },
@@ -38,16 +38,15 @@ vi.mock('../../core/platform.ts', async (importOriginal) => ({
     return device.ios;
   },
 }));
-vi.mock('../../core/store.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../core/store.ts')>()),
+vi.mock('../core/store.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../core/store.ts')>()),
   announceNotesChanged: () => {
     device.changed += 1;
   },
 }));
 
-const { FolderPane } = await import('./FolderPane.tsx');
-const { candidateSaid, readFolderAnswer } = await import('./folder.ts');
-const { manifest } = await import('./manifest.ts');
+const { LibraryFolderPane } = await import('./LibraryFolderPane.tsx');
+const { candidateSaid, readFolderAnswer, FOLDER_GENERATION } = await import('../core/libraryFolder.ts');
 
 const home = { kind: 'app', path: null, name: null, reachable: true, notes: 2, own: '/Users/matt/Library/Application Support/com.mattssoftware.glyph/Library' };
 const vault = { kind: 'folder', path: '/Users/matt/Obsidian/Vault', name: 'Vault', reachable: true, notes: 5, own: home.own };
@@ -64,7 +63,7 @@ describe('Settings › Library folder, on the Mac', () => {
   it('says where the notes are, and what a folder holds before anything moves into it', async () => {
     device.answers.library_choose_folder = { kind: 'folder', path: '/Users/matt/Obsidian/Vault', name: 'Vault', markdown: 3, obsidian: true, notes: 2 };
     device.answers.library_move = { notes: 2, adopted: 3, renamed: 1, same: 0, removed: 2, status: vault };
-    const pane = show(<FolderPane />);
+    const pane = show(<LibraryFolderPane />);
     await waitUntil(() => expect(pane.textContent).toContain('Ghost.md’s own folder'));
     expect(pane.textContent).toContain('2 notes. /Users/matt/Library/Application Support');
     expect(buttonSaying(pane, 'Use Ghost.md’s own folder')).toBeUndefined();
@@ -86,7 +85,7 @@ describe('Settings › Library folder, on the Mac', () => {
 
   it('does nothing when the panel is closed, and says what the app said when a folder cannot be the library', async () => {
     device.answers.library_choose_folder = null;
-    const pane = show(<FolderPane />);
+    const pane = show(<LibraryFolderPane />);
     await waitUntil(() => expect(pane.textContent).toContain('Ghost.md’s own folder'));
     press(buttonSaying(pane, 'Choose a folder…'));
     await waitUntil(() => expect(commands()).toContain('library_choose_folder'));
@@ -99,7 +98,7 @@ describe('Settings › Library folder, on the Mac', () => {
   it('goes home with a copy or with none, and says the folder keeps every file', async () => {
     device.answers.library_root = vault;
     device.answers.library_use_app_folder = (args: unknown) => ({ notes: (args as { copy: boolean }).copy ? 5 : 0, adopted: 0, renamed: 0, same: 0, removed: 0, status: { ...home, notes: 5 } });
-    const pane = show(<FolderPane />);
+    const pane = show(<LibraryFolderPane />);
     await waitUntil(() => expect(pane.textContent).toContain('Vault'));
     press(buttonSaying(pane, 'Use Ghost.md’s own folder'));
     expect(pane.textContent).toContain('Vault keeps every file either way: Ghost.md never deletes anything in a folder of yours.');
@@ -110,7 +109,7 @@ describe('Settings › Library folder, on the Mac', () => {
 
   it('says so when the chosen folder cannot be reached, and that its notes are untouched', async () => {
     device.answers.library_root = { ...vault, name: 'Backup', reachable: false };
-    const pane = show(<FolderPane />);
+    const pane = show(<LibraryFolderPane />);
     await waitUntil(() => expect(pane.textContent).toContain('Backup can’t be reached'));
     expect(pane.textContent).toContain('the notes in yours are untouched');
   });
@@ -128,7 +127,7 @@ describe('Settings › Library folder, on Android', () => {
       },
     } as unknown as Window['GlyphHost'];
     device.answers.library_inspect = { kind: 'tree', path: null, name: 'Notes', markdown: 0, obsidian: false, notes: 2 };
-    const pane = show(<FolderPane />);
+    const pane = show(<LibraryFolderPane />);
     await waitUntil(() => expect(pane.textContent).toContain('In the phone’s folder picker.'));
     expect(pane.textContent).toContain('A folder on the phone is the reliable one');
     expect(pane.textContent).toContain('iCloud Drive');
@@ -142,7 +141,7 @@ describe('Settings › Library folder, on Android', () => {
   it('asks for the app’s update on a shell without the picker', async () => {
     device.android = true;
     window.GlyphHost = {} as unknown as Window['GlyphHost'];
-    const pane = show(<FolderPane />);
+    const pane = show(<LibraryFolderPane />);
     await waitUntil(() => expect(pane.textContent).toContain('Needs the app’s next update'));
     expect(commands()).toEqual([]);
   });
@@ -161,24 +160,25 @@ describe('Settings › Library folder, on Android', () => {
 describe('Settings › Library folder, where it cannot', () => {
   it('is only in the app, needs generation 25, and is not on an iPhone yet', async () => {
     device.tauri = false;
-    let pane = show(<FolderPane />);
+    let pane = show(<LibraryFolderPane />);
     await waitUntil(() => expect(pane.textContent).toContain('Only in the app'));
     device.tauri = true;
     device.generation = 24;
-    pane = show(<FolderPane />);
+    pane = show(<LibraryFolderPane />);
     await waitUntil(() => expect(pane.textContent).toContain('Needs the app’s next update'));
     device.generation = 25;
     device.ios = true;
-    pane = show(<FolderPane />);
+    pane = show(<LibraryFolderPane />);
     await waitUntil(() => expect(pane.textContent).toContain('Not on iPhone yet'));
     expect(commands()).toEqual([]);
   });
 
-  it('asks for every command it calls in its manifest, and touches no storage of its own', () => {
-    expect(manifest.native).toEqual({ generation: 25, commands: ['library_root', 'library_choose_folder', 'library_inspect', 'library_move', 'library_use_app_folder'] });
-    expect(manifest.permissions.map((p) => p.kind)).toEqual(['notes', 'native']);
-    expect(manifest.standard).toBe(false);
-    expect(manifest.storage).toEqual([]);
+  it('waits for the binary with the folder’s commands, generation 25', async () => {
+    expect(FOLDER_GENERATION).toBe(25);
+    device.generation = FOLDER_GENERATION - 1;
+    const pane = show(<LibraryFolderPane />);
+    await waitUntil(() => expect(pane.textContent).toContain('Needs the app’s next update'));
+    expect(commands()).toEqual([]);
   });
 
   it('reads the picker’s answer, and says what an empty folder and a copy from another folder will do', () => {

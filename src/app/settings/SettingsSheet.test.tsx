@@ -164,8 +164,8 @@ describe('the list of sections', () => {
   // more for docs/TEAMS.md, which put Notifications beside Account on the first card.
   it('in a browser, is Account and Notifications, then Appearance, Plugins and About', () => {
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Plugins', 'About']);
-    expect(host.querySelectorAll('.settingsScreen__cluster')).toHaveLength(3);
+    expect(labels(host)).toEqual(['Account', 'Organizations', 'Workspaces', 'Notifications', 'Export', 'Appearance', 'Plugins', 'About']);
+    expect(host.querySelectorAll('.settingsScreen__cluster')).toHaveLength(4);
     expect(names('theme')).not.toContain('Haptics');
   });
 
@@ -173,9 +173,10 @@ describe('the list of sections', () => {
     native = true;
     android = true;
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Organizations', 'Workspaces', 'Backup', 'Notifications', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
+    expect(labels(host)).toEqual(['Account', 'Organizations', 'Workspaces', 'Notifications', 'Library folder', 'Backup', 'Export', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
     expect([...host.querySelectorAll('.settingsScreen__cluster')].map((card) => [...card.querySelectorAll('.settingsScreen__rowLabel')].map((l) => l.textContent))).toEqual([
-      ['Account', 'Organizations', 'Workspaces', 'Backup', 'Notifications'],
+      ['Account', 'Organizations', 'Workspaces', 'Notifications'],
+      ['Library folder', 'Backup', 'Export'],
       ['Appearance', 'Recording', 'AI', 'Plugins'],
       ['About'],
     ]);
@@ -220,7 +221,7 @@ describe('the list of sections', () => {
   it('in a browser on an Android phone, has Recording for the words, without the AI section, the meetings or the tapes', () => {
     android = true;
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Recording', 'Plugins', 'About']);
+    expect(labels(host)).toEqual(['Account', 'Organizations', 'Workspaces', 'Notifications', 'Export', 'Appearance', 'Recording', 'Plugins', 'About']);
     expect(names('recording')).toEqual(['Stop when I go quiet', 'Review after recording', 'Better words', 'Summaries']);
     // No model runs in a browser, so no AI section.
     expect(section('ai')).toBeUndefined();
@@ -229,14 +230,14 @@ describe('the list of sections', () => {
   it('on an iPhone, is the four a browser has: no Recording and no AI, where no model runs', () => {
     native = true;
     iphone = true;
-    expect(labels(settings())).toEqual(['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Plugins', 'About']);
+    expect(labels(settings())).toEqual(['Account', 'Organizations', 'Workspaces', 'Notifications', 'Export', 'Appearance', 'Plugins', 'About']);
     expect(section('ai')).toBeUndefined();
   });
 
   it('on the Mac, has Recording and AI too, the recording for the better words and the summaries', () => {
     native = true;
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Organizations', 'Workspaces', 'Backup', 'Notifications', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
+    expect(labels(host)).toEqual(['Account', 'Organizations', 'Workspaces', 'Notifications', 'Library folder', 'Backup', 'Export', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
     expect(names('recording')).toEqual([
       'Stop when I go quiet',
       'Review after recording',
@@ -252,8 +253,8 @@ describe('the list of sections', () => {
   it('grows Developer and Test results once developer mode is on, on a card of their own', () => {
     setDeveloperMode(true);
     const host = settings();
-    expect(labels(host)).toEqual(['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Plugins', 'About', 'Developer', 'Test results']);
-    expect(host.querySelectorAll('.settingsScreen__cluster')).toHaveLength(4);
+    expect(labels(host)).toEqual(['Account', 'Organizations', 'Workspaces', 'Notifications', 'Export', 'Appearance', 'Plugins', 'About', 'Developer', 'Test results']);
+    expect(host.querySelectorAll('.settingsScreen__cluster')).toHaveLength(5);
   });
 
   it('lists the sidebar’s choice for the search only on a window wide enough for it', () => {

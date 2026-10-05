@@ -1,11 +1,16 @@
-import { answerHost } from '../../core/host.ts';
-import { isAndroid, isIOS } from '../../core/platform.ts';
-import { announceNotesChanged } from '../../core/store.ts';
-import { isTauri } from '../../core/tauri.ts';
-import { host } from './manifest.ts';
+import { answerHost } from './host.ts';
+import { hasNativeGeneration } from './nativeGeneration.ts';
+import { isAndroid, isIOS } from './platform.ts';
+import { announceNotesChanged } from './store.ts';
+import { invoke, isTauri } from './tauri.ts';
+
+/** The binary with `library_root`, the folder panel and picker, the move and the way back (src-tauri/src/ota.rs). */
+export const FOLDER_GENERATION = 25;
 
 /**
- * Where the library is, and the calls that move it (src-tauri/src/library_commands.rs; docs/DESIGN.md §187).
+ * Where the library is, and the calls that move it (src-tauri/src/library_commands.rs; docs/DESIGN.md §187), for
+ * Settings › Library folder (settings/LibraryFolderPane.tsx). A plugin until §205 (Matt: "library folder should be a
+ * setting not a plugin"): where the notes live is the app's own business, not an extension's.
  *
  * A folder is only ever chosen in the system's own panel (the Mac) or picker (Android, files/LibraryTree.kt): the page
  * never sends a path. It is looked into first - how many Markdown files it holds, whether Obsidian keeps it - and the
@@ -19,7 +24,7 @@ export async function folderWay(): Promise<FolderWay> {
   if (!isTauri()) return 'browser';
   if (isIOS) return 'none';
   if (isAndroid && typeof window.GlyphHost?.chooseLibraryFolder !== 'function') return 'update';
-  if (!(await host.nativeReady())) return 'update';
+  if (!(await hasNativeGeneration(FOLDER_GENERATION))) return 'update';
   return isAndroid ? 'android' : 'mac';
 }
 
@@ -63,7 +68,7 @@ export function failureOf(error: unknown): string {
 }
 
 export function libraryStatus(): Promise<LibraryStatus> {
-  return host.invoke<LibraryStatus>('library_root');
+  return invoke<LibraryStatus>('library_root');
 }
 
 /** What Android's picker answered (files/LibraryTree.kt), as the page reads it. */
@@ -106,23 +111,21 @@ export async function chooseFolder(): Promise<Candidate | null> {
     const answer = await pickTree();
     if ('cancelled' in answer) return null;
     if ('error' in answer) throw answer.error;
-    return host.invoke<Candidate>('library_inspect', { uri: answer.uri });
+    return invoke<Candidate>('library_inspect', { uri: answer.uri });
   }
-  return host.invoke<Candidate | null>('library_choose_folder');
+  return invoke<Candidate | null>('library_choose_folder');
 }
 
 /** The folder looked into becomes the library; the list is read again from it. */
 export async function moveLibrary(): Promise<Moved> {
-  host.require('notes');
-  const moved = await host.invoke<Moved>('library_move');
+  const moved = await invoke<Moved>('library_move');
   announceNotesChanged();
   return moved;
 }
 
 /** Back to Ghost.md's own folder, with a copy of every note or none. The chosen folder keeps every file. */
 export async function backToOwnFolder(copy: boolean): Promise<Moved> {
-  host.require('notes');
-  const moved = await host.invoke<Moved>('library_use_app_folder', { copy });
+  const moved = await invoke<Moved>('library_use_app_folder', { copy });
   announceNotesChanged();
   return moved;
 }

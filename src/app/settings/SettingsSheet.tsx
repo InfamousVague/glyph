@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Bell, BookOpen, CircleUser, FileCode, FlaskConical, Folder, HardDriveUpload, Info, Mic, Puzzle, Shapes, Sparkles, SunMoon, Terminal, UserGroup } from '@glacier/icons';
+import { Bell, BookOpen, CircleUser, FileCode, FlaskConical, Folder, FolderOpen, HardDriveDownload, HardDriveUpload, Info, Mic, Puzzle, Shapes, Sparkles, SunMoon, Terminal, UserGroup } from '@glacier/icons';
 import { useAccount } from '../core/account/account.ts';
 import { syncSummary, useSyncStatus } from '../core/sync/engine.ts';
 import { AccountPane } from './AccountPane.tsx';
@@ -10,6 +10,10 @@ import { OrganizationsPane } from './OrganizationsPane.tsx';
 import { findable as organizationsFindable } from './OrganizationsPane.findable.ts';
 import { WorkspacesPane } from './WorkspacesPane.tsx';
 import { BackupPane } from './BackupPane.tsx';
+import { ExportCard } from './ExportCard.tsx';
+import { findable as exportFindable } from './ExportCard.findable.ts';
+import { LibraryFolderPane } from './LibraryFolderPane.tsx';
+import { findable as libraryFindable } from './LibraryFolderPane.findable.ts';
 import { findable as backupFindable } from './BackupPane.findable.ts';
 import { findable as workspacesFindable } from './WorkspacesPane.findable.ts';
 import { CATEGORIES } from '../core/notifications/kinds.ts';
@@ -199,23 +203,6 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       summary: workspaceSummary(spaces.list.length),
       group: 0,
     },
-    // Every note onto a removable drive, as plain files (docs/DESIGN.md §204; Matt: "add a section to the settings
-    // called "Backup" it should prompt the user to plugin a removable drive"): beside the workspaces it backs up by.
-    // Where a drive can be written: the app on the Mac and on Android, not a browser or an iPhone.
-    ...(drivesHere
-      ? [
-          {
-            id: 'backup',
-            label: 'Backup',
-            words: 'back up backup usb drive sd card removable external disk copy save export',
-            settings: backupFindable(),
-            icon: <HardDriveUpload size={16} />,
-            content: <BackupPane />,
-            summary: 'To a USB drive or SD card',
-            group: 0,
-          },
-        ]
-      : []),
     // What reaches you (docs/TEAMS.md, D8 and D9): beside Account on the first card, in the coral the shell kept free.
     {
       id: 'notifications',
@@ -226,6 +213,46 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       content: <NotificationsPane onOpen={go} />,
       summary: `${CATEGORIES.filter((category) => prefs.notifications[category]).length} of ${CATEGORIES.length} on`,
       group: 0,
+    },
+    // Where the notes are, and the two ways to carry them off (docs/DESIGN.md §205; Matt: "library folder should be a
+    // setting not a plugin and export should be a setting section"): a card of their own, under the account's, where
+    // the app keeps its notes in files - on the Mac and Android, not a browser or an iPhone - and Export everywhere.
+    ...(drivesHere
+      ? [
+          {
+            id: 'library',
+            label: 'Library folder',
+            words: 'library folder where notes are kept obsidian vault icloud dropbox syncthing move',
+            settings: libraryFindable(),
+            icon: <FolderOpen size={16} />,
+            content: <LibraryFolderPane />,
+            summary: 'Where your notes are kept',
+            group: 1,
+          },
+          // Every note onto a removable drive, as plain files (§204; Matt: "add a section to the settings called
+          // "Backup" it should prompt the user to plugin a removable drive").
+          {
+            id: 'backup',
+            label: 'Backup',
+            words: 'back up backup usb drive sd card removable external disk copy save',
+            settings: backupFindable(),
+            icon: <HardDriveUpload size={16} />,
+            content: <BackupPane />,
+            summary: 'To a USB drive or SD card',
+            group: 1,
+          },
+        ]
+      : []),
+    // Everything as one zip to carry away (§167), a card on Account until §205.
+    {
+      id: 'export',
+      label: 'Export',
+      words: 'export zip archive everything usb drive save copy',
+      settings: exportFindable(),
+      icon: <HardDriveDownload size={16} />,
+      content: <ExportCard />,
+      summary: 'Everything as one zip',
+      group: 1,
     },
     {
       id: 'theme',
@@ -249,7 +276,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       ]
         .filter(Boolean)
         .join(' · '),
-      group: 1,
+      group: 2,
     },
     ...(recording
       ? [
@@ -261,7 +288,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
             icon: <Mic size={16} />,
             content: <RecordingPane />,
             summary: recordingSummary,
-            group: 1,
+            group: 2,
           },
         ]
       : []),
@@ -277,7 +304,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
             icon: <Sparkles size={16} />,
             content: <AiPane />,
             summary: aiSummary,
-            group: 1,
+            group: 2,
           },
         ]
       : []),
@@ -291,7 +318,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       // A card's row lands on that plugin's own page, and "Local only" on Account's Privacy card (plugins/PluginsPane.tsx).
       content: <PluginsPane onOpen={go} />,
       summary: `${plugins.length} of ${allPlugins.length} on`,
-      group: 1,
+      group: 2,
     },
     // Each switched-on plugin's own page, behind its card: a sub-page of Plugins in the plugin's own colour.
     ...plugins.flatMap((plugin) => {
@@ -308,7 +335,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
           icon: <Icon size={16} />,
           content: <settings.Pane />,
           summary: settings.summary(),
-          group: 1,
+          group: 2,
           listed: false,
           parent: 'plugins',
         },
@@ -324,7 +351,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       content: <AboutPane updates={updates} onGuide={onGuide} onGuideBook={onGuideBook} onAcademy={onAcademy} onOpen={go} />,
       // The version and where it stands, now that updates live on this page too.
       summary: `${updates.version} · ${updatesSummary(updates)}`,
-      group: 2,
+      group: 3,
     },
     // Help, not settings: two pages behind About's Help card, still searched, and found by their own names alone. About
     // does not list the rows that open them as well, or a search for either would show two rows of one name.
@@ -339,7 +366,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       content: <CheatSheet />,
       // Marks only: the cues are the guide's to teach (guide/CheatSheet.tsx), so the line no longer promises them.
       summary: 'Every mark you can type',
-      group: 2,
+      group: 3,
       listed: false,
       parent: 'about',
     },
@@ -352,7 +379,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       icon: <FileCode size={16} />,
       content: <SpecPane />,
       summary: 'Every extension and fill, defined',
-      group: 2,
+      group: 3,
       listed: false,
       parent: 'about',
     },
@@ -365,7 +392,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
       content: <ExamplesPane onSample={onSample} onBoard={onBoard} onCanvas={onCanvas} onHowCanvas={onHowCanvas} />,
       // As About's row says it.
       summary: 'A sample note, a board and two canvases',
-      group: 2,
+      group: 3,
       listed: false,
       parent: 'about',
     },
@@ -379,7 +406,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
             icon: <Terminal size={16} />,
             content: <DeveloperPane />,
             summary: 'Benches, reset',
-            group: 3,
+            group: 4,
           },
           {
             id: 'test-results',
@@ -388,7 +415,7 @@ export function SettingsSheet({ open, onClose, updates, onGuide, onSample, onGui
             icon: <FlaskConical size={16} />,
             content: <TestResultsPane />,
             summary: reportSummary(),
-            group: 3,
+            group: 4,
           },
         ]
       : []),
