@@ -47,9 +47,9 @@ Live typing sits on top of sync; it does not replace it. While another device is
 
 ## Not there yet
 
-- **Carets.** You do not see where the other device's caret is. The message for it is defined in the app and never sent.
+- **Carets.** Between your own devices you do not see where the other caret is. In a team's note you do: every member who has it open is a caret in their colour with their handle on it ([[Accounts, sync and the key you hold]], Organizations).
 - **Peer to peer.** Every keystroke goes through the relay. A direct link between your devices is planned, and not built.
-- **Other people.** Live typing is between your own devices. To show someone a note, share a read-only link ([[Sharing a note or a notebook]]).
+- **Other people.** The trial switch is for your own devices. A note filed in an organization's workspace is live between its members with no switch at all; to show someone outside a note, share a read-only link ([[Sharing a note or a notebook]]).
 
 ## Read next
 

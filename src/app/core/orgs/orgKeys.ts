@@ -1,4 +1,5 @@
 import { ApiError, call, notYet } from '../account/api.ts';
+import { externalStore } from '../externalStore.ts';
 import type { Bytes } from '../sync/crypto.ts';
 import type { OrgRow } from './types.ts';
 import { unwrapWith, wrapContext, wrapFor } from './wrap.ts';
@@ -21,6 +22,11 @@ interface Held {
 }
 
 const held = new Map<string, Held>();
+/** Counts every key held or forgotten, for whatever waits on one (core/live/presence.ts). */
+const changes = externalStore(0);
+
+/** Called after a key is held or the keys are forgotten; answers the way to stop. */
+export const onOrgKeys = changes.subscribe;
 
 /** The organization key as a key for sealing, if this device holds it. */
 export function orgKeyOf(orgId: string): CryptoKey | null {
@@ -35,6 +41,7 @@ export function orgKeyGeneration(orgId: string): number {
 /** Forgotten, on signing out. */
 export function forgetOrgKeys(): void {
   held.clear();
+  changes.update((n) => n + 1);
 }
 
 interface Keys {
@@ -58,6 +65,7 @@ async function hold(orgId: string, generation: number, raw: Bytes): Promise<Held
   const key = await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
   const entry = { generation, raw, key };
   held.set(orgId, entry);
+  changes.update((n) => n + 1);
   return entry;
 }
 

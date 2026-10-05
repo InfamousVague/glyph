@@ -23,19 +23,21 @@ else. A browser cannot put an `Authorization` header on a WebSocket, so the sock
 where logs would keep it. The whole protocol, as the header of `server/src/live.rs` has it:
 
 ```
-client -> server   { t: "auth",  token }                 the first frame, or the socket is closed
-server -> client   { t: "ready", id }                    this socket's connection id
-client -> server   { t: "join",  room }                  join a room (a note), and be told who is there
-client -> server   { t: "leave", room }
-client -> server   { t: "msg",   room, data, to? }       data: base64url ciphertext, passed on untouched; to: one connection, or all
-server -> client   { t: "joined", room, first, peers }   first: this socket opened the room (see "Seeding")
-server -> client   { t: "peers",  room, peers }          someone came or went
-server -> client   { t: "msg",    room, from, data }     from: the sending connection, never the account
-server -> client   { t: "error",  message }              a frame refused, the socket kept
+client -> server   { t: "auth",  token }                      the first frame, or the socket is closed
+server -> client   { t: "ready", id }                         this socket's connection id
+client -> server   { t: "join",  room, org? }                 join a room (a note), and be told who is there; org: an organization's room
+client -> server   { t: "leave", room, org? }
+client -> server   { t: "msg",   room, org?, data, to? }      data: base64url ciphertext, passed on untouched; to: one connection, or all
+server -> client   { t: "joined", room, org?, first, peers }  first: this socket opened the room (see "Seeding")
+server -> client   { t: "peers",  room, org?, peers, left? }  someone came or went; left: the connection that went
+server -> client   { t: "msg",    room, org?, from, data }    from: the sending connection, never the account
+server -> client   { t: "error",  message }                   a frame refused, the socket kept
 ```
 
-Rooms belong to an account: a socket only ever reaches its own account's devices. Nothing is stored, and no message
-is logged. Limits, so a stuck client cannot hurt anyone else: 16 sockets an account, 64 rooms a socket, 64 KB a
+Rooms belong to an account: a socket only ever reaches its own account's devices - or, with `org` on the frame, to
+an organization (SHARED.md, S6): a room of the organization's, which its members' devices reach across their accounts
+and nobody else does, membership checked at the join and again on a message once a minute, so a member removed is
+out within that long ("The team's rooms", below). Nothing is stored, and no message is logged. Limits, so a stuck client cannot hurt anyone else: 16 sockets an account, 64 rooms a socket, 64 KB a
 frame, a token bucket of messages per socket, a ping every 25 seconds, and a socket closed when its token expires (the
 client comes back with a fresh one).
 
@@ -47,14 +49,16 @@ whenever the direct link will not form, which on phone networks is often. Nothin
 when it lands.
 
 **The seal** - every message is `src/app/core/sync/crypto.ts`'s AES-256-GCM under the account key, with
-`live:<note id>` as associated data, so a message cannot be replayed into another note. The relay sees sizes and
-timing.
+`live:<note id>` as associated data, so a message cannot be replayed into another note; in an organization's room,
+under the organization key with `live:org:<org id>:<room>`, so nothing sealed for one team's room opens in another's.
+The relay sees sizes and timing.
 
 **The document** - `src/app/core/live/session.ts`. A `Y.Doc` per note in a live session, its text in a `Y.Text`. Inside
 the sealed messages, one byte of kind and then the payload (`src/app/core/live/wire.ts`): `query` ("I have joined and
 have no document: send me yours", from any device that was not first into the room), `state` (the whole document, in
-answer, starting with its seed id), and `update` (a change). A fourth kind, `presence` (a caret), is reserved: nothing
-sends it, so carets are not shared yet.
+answer, starting with its seed id), and `update` (a change). The fourth kind, `presence`, carries the awareness
+protocol in a team's rooms ("The team's rooms", below); an account's own rooms still send none, so between your own
+devices carets are not shared.
 
 **The binding** - the note's CodeMirror editor gets `yCollab` while a session is live. The editor's own extensions
 (boards, marks, the wisp arrivals) read the CodeMirror document as ever and do not know. Undo becomes Yjs's, so one
@@ -90,10 +94,37 @@ split the note in two. **A note in a live session with another device is left ou
 neither half. When the session goes quiet, both devices hold the same words (the CRDT's promise), the pass pushes
 them, the other device pulls words identical to its own, and nothing is copied.
 
+## The team's rooms
+
+A note filed in an organization's workspace is the team's (SHARED.md), and its document is the team's CRDT of record
+(`src/app/core/team/doc.ts`), the same lineage on every member's devices since the organization channel adopted it. So
+its room (`src/app/core/live/team.ts`, held while the note is open by `src/app/editor/useTeamNote.ts`) never makes a
+document: on `joined` a device says who it is and asks with its state vector, each of the others answers with what it
+lacks (`state`), and a device whose vector shows the asker holds something *it* lacks asks back, once; from then on
+every change goes out as it is made (`update`) and is applied as the channel applies a log - the channel still posts
+it, so a member not in the room reads it on their next pass. Incoming messages are opened in order, so an answer is
+never read before the state it follows.
+
+`presence` carries y-protocols' awareness update, sealed the same way: each device's state is `user` (handle, hue,
+and the hue as CSS) and, in a note's room, `cursor` (y-codemirror's relative positions), so `yCollab` with the room's
+awareness draws every other member's caret in their colour with their handle on it and their selection as a wash of it
+(`src/app/editor/liveBinding.ts`, the styles in `src/app/editor/NoteScreen.module.css`). The relay's `peers` notice
+says which connection left, and the room drops the states that connection spoke for at once rather than at the
+protocol's thirty-second timeout.
+
+The organization's own room, `presence` (`src/app/core/live/presence.ts`), is held by every member's device while the
+app is signed in and holds the organization key, with a state of `user` and `at`: the note or canvas open, its title,
+the caret (said at most every 400 ms as it moves, since its exact place matters only to a jump) or the pointer. The
+dashboard reads it: a dot on a member's initial, "here now" or "editing Roadmap" on their row, and their profile with
+**Jump to cursor**, which opens the note with `cursor` on the screen (`src/app/shell/screen.ts`) and the team-note hook
+puts the selection there once the document is bound - a caret whose words are gone is left alone. None of this is
+behind the live-typing trial switch: a team's notes are live by being the team's.
+
 ## What the relay learns
 
 Which account has a note open live, when, on how many devices, and the size and timing of messages. Room names are note
-ids, which the sync feed already shows it. Never a word.
+ids, which the sync feed already shows it. For an organization's rooms, which member of which organization has which
+team note open, and that a member's device is in the app. Never a word, a title, or where a caret is.
 
 ## Switched off until it works
 
@@ -114,11 +145,14 @@ set off, was fixed before this shipped.
 
 | | |
 | --- | --- |
-| `server/src/live.rs` | the relay: auth by first frame, rooms per account, an origin check that allows the site's own page |
-| `src/app/core/live/wire.ts` | the sealed envelope: kind byte, payload, AES-GCM under the account key, `live:<note id>` bound in |
+| `server/src/live.rs` | the relay: auth by first frame, rooms per account and per organization (membership checked), an origin check that allows the site's own page |
+| `src/app/core/live/wire.ts` | the sealed envelope: kind byte, payload, AES-GCM under the account key with `live:<note id>` bound in, or under the organization key with `live:org:<org>:<room>` |
 | `src/app/core/live/transport.ts` | the WebSocket: sign-in, rejoin after a drop, backoff with jitter, reconnect on wake or network |
 | `src/app/core/live/session.ts` | one note's Yjs document: seed or adopt, the conflict-copy rule, whole-document catch-up |
-| `src/app/core/live/hub.ts` | one connection for the device, shared by every live note, closed with the last |
+| `src/app/core/live/hub.ts` | one connection for the device, shared by every live note and every team room, closed with the last |
+| `src/app/core/live/team.ts` | a team's room: the document's changes traded by state vector, presence by awareness, who-left dropped at once |
+| `src/app/core/live/presence.ts` | who is in each organization and where: the organization's own room per organization, `announce`, `usePresence` |
+| `src/app/editor/useTeamNote.ts` | the note screen's half for a team note: the document bound with the room's awareness, where this device is said, a jump to a caret |
 | `src/app/core/live/shared.ts` | which notes are live with another device, for the pass sync to skip - no Yjs in it |
 | `src/app/core/live/open.ts` | the one door the note screen uses, loaded only when the switch is on |
 | `src/app/core/live/enabled.ts` | the switch, kept on the device |
@@ -138,6 +172,15 @@ set off, was fixed before this shipped.
   fails five of them. `src/app/core/live/session.rules.test.ts` beside it takes the session's rules a step at a time,
   and `src/app/core/live/hub.test.ts`, `src/app/core/live/open.test.ts`, `src/app/core/live/transport.test.ts` and
   `src/app/core/live/wire.test.ts` hold the two doors, the socket and the seal.
+- **The team's rooms** (`src/app/core/live/team.test.ts`, through a relay in memory with an organization's rooms):
+  typing crossing both ways; a device joining with offline changes caught up in both directions without a pass; a
+  caret seen in its colour with its handle, moved along by words typed before it, and dropped the moment its
+  connection leaves; messages sealed for another room or under another key ignored; the organization's own room
+  saying where each device is. `src/app/core/live/presence.test.ts` holds the rooms held per organization and let go
+  on signing out or going local-only; `src/app/editor/liveBinding.test.ts` draws a member's caret; and
+  `src/app/notes/OrganizationScreen.test.tsx` reads "editing Roadmap" and jumps. On the service,
+  `server/src/live_tests.rs` has an organization's room reaching its members across accounts and nobody else, and a
+  member removed put out of it.
 - **The whole path** (`src/app/core/live/live.e2e.test.ts`, run with `GLYPH_LIVE_E2E` set, two devices through a
   local glyph-api running the code on the box): a keystroke crossed in **2.8 ms median** on one machine (sealing, the
   relay, opening, applying); concurrent typing, a device away and back, and the server's database never holding a
