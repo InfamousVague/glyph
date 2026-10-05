@@ -24,6 +24,9 @@ import { when } from '../notes/when.ts';
 import { WorkspaceSheet } from '../notes/WorkspaceSheet.tsx';
 import { InviteNotice, UpdateNotice, VoiceModelStatus } from '../notes/Notices.tsx';
 import { HomeOrganizations } from './HomeOrganizations.tsx';
+import { HomeOrgEvents } from './HomeOrgEvents.tsx';
+import events from './HomeOrgEvents.module.css';
+import { orgIdOf } from '../core/orgs/types.ts';
 import { useAccount } from '../core/account/account.ts';
 import { NewOrganizationSheet } from './NewOrganizationSheet.tsx';
 import { useGists } from '../format/gist.ts';
@@ -112,6 +115,8 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<HomeFilter>('all');
   const workspace = spaces.current?.id ?? null;
+  /** The organization the page is filtered to, when the chosen workspace is one's. */
+  const orgSpace = workspace ? orgIdOf(workspace) : null;
   // Another workspace, filter or layout: the page glides back to its top rather than jumping there.
   useGlideToTop(scroller, `${workspace ?? 'all'}|${filter}|${layout}`);
   const inSpace = useMemo(() => inWorkspace(notes, workspace), [notes, workspace]);
@@ -209,29 +214,35 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
             </div>
             {/* The organizations joined, a card each (HomeOrganizations.tsx); not while searching, nor inside one workspace. */}
             {onOrganization && !searched && !workspace ? <HomeOrganizations notes={notes} onOpen={onOrganization} /> : null}
+            {/* Filtered to an organization: what has happened lately in it, docked beside the notes (HomeOrgEvents.tsx). */}
+            <div className={orgSpace ? events.split : events.main}>
+              <div className={events.main}>
 
-            {!loading && !hasNotes ? (
-              <div className={styles.empty}>
-                <Ghost scene={spaces.current ? 'empty-workspace' : 'no-notes'} size="lead" className={styles.emptyArt} />
-                <p className={styles.emptyLead}>{spaces.current ? `Nothing in ${spaces.current.name} yet.` : 'A blank page.'}</p>
-                <p className={styles.emptyHint}>{isAndroid ? 'Write it, or hold the side key and say it.' : onCapture ? 'Write it, or tap Speak and say it.' : 'Tap + to write it.'}</p>
+                {!loading && !hasNotes ? (
+                  <div className={styles.empty}>
+                    <Ghost scene={spaces.current ? 'empty-workspace' : 'no-notes'} size="lead" className={styles.emptyArt} />
+                    <p className={styles.emptyLead}>{spaces.current ? `Nothing in ${spaces.current.name} yet.` : 'A blank page.'}</p>
+                    <p className={styles.emptyHint}>{isAndroid ? 'Write it, or hold the side key and say it.' : onCapture ? 'Write it, or tap Speak and say it.' : 'Tap + to write it.'}</p>
+                  </div>
+                ) : !loading && hasNotes && !found ? (
+                  <div className={look.nothing}>
+                    <Ghost scene="search-nothing" size="small" className={look.nothingArt} />
+                    <p className={look.nothingLead}>{searched ? `Nothing has “${query.trim()}”.` : filter === 'pinned' ? 'Nothing is pinned.' : 'Nothing here.'}</p>
+                    {searched ? <p className={look.nothingHint}>Try fewer words, or look through All notes.</p> : null}
+                  </div>
+                ) : null}
+
+                {sections}
+
+                {hasNotes ? (
+                  <button type="button" className={`app-word ${styles.allNotes}`} onClick={() => onAllNotes()}>
+                    <Grid className={styles.allNotesMark} />
+                    {plan.cut ? `${plan.cut} more in All notes` : `All notes · ${counts.all}`}
+                  </button>
+                ) : null}
               </div>
-            ) : !loading && hasNotes && !found ? (
-              <div className={look.nothing}>
-                <Ghost scene="search-nothing" size="small" className={look.nothingArt} />
-                <p className={look.nothingLead}>{searched ? `Nothing has “${query.trim()}”.` : filter === 'pinned' ? 'Nothing is pinned.' : 'Nothing here.'}</p>
-                {searched ? <p className={look.nothingHint}>Try fewer words, or look through All notes.</p> : null}
-              </div>
-            ) : null}
-
-            {sections}
-
-            {hasNotes ? (
-              <button type="button" className={`app-word ${styles.allNotes}`} onClick={() => onAllNotes()}>
-                <Grid className={styles.allNotesMark} />
-                {plan.cut ? `${plan.cut} more in All notes` : `All notes · ${counts.all}`}
-              </button>
-            ) : null}
+              {orgSpace && !searched ? <HomeOrgEvents orgId={orgSpace} name={spaces.current!.name} notes={notes} onOpenNote={(id) => onOpen(id)} onOpen={(id) => onOrganization?.(id)} /> : null}
+            </div>
           </div>
         </div>
       </div>

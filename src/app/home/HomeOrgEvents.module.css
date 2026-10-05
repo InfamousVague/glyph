@@ -1,0 +1,133 @@
+/*
+ * The home page filtered to an organization (HomeOrgEvents.tsx): the notes and, docked to their right on a window
+ * wide enough, what has happened lately in it. Narrower, the card sits over the notes, the page's width.
+ */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--glacier-space-4);
+  align-items: start;
+}
+
+.main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--glacier-space-3);
+  min-inline-size: 0;
+}
+
+.card {
+  order: -1;
+  display: grid;
+  gap: var(--glacier-space-2);
+  padding: var(--glacier-space-4);
+  border: var(--glacier-hairline) solid var(--app-rule);
+  border-radius: var(--glacier-radius-lg);
+  background: color-mix(in oklch, var(--app-ink) 3%, transparent);
+}
+
+@container home-page (min-width: 52rem) {
+  .split {
+    grid-template-columns: minmax(0, 1fr) 18rem;
+  }
+
+  .card {
+    order: 0;
+    position: sticky;
+    inset-block-start: var(--glacier-space-4);
+  }
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink-2);
+}
+
+.lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--glacier-space-2);
+  padding-block: var(--glacier-space-2);
+  border-block-end: var(--glacier-hairline) solid var(--app-rule);
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-2);
+}
+
+.line:last-child {
+  border-block-end: 0;
+}
+
+.line[data-live] {
+  color: var(--app-ink);
+  font-weight: var(--glacier-font-weight-medium);
+}
+
+.mark {
+  flex: none;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  inline-size: 1.1rem;
+  color: var(--app-ink-3);
+}
+
+.dot {
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: var(--glacier-radius-full);
+  background: var(--app-space, var(--app-ink));
+}
+
+.words {
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+button.words {
+  cursor: pointer;
+}
+
+button.words:hover {
+  text-decoration: underline;
+}
+
+button.words:focus-visible {
+  outline: 2px solid var(--app-ink);
+  outline-offset: 2px;
+}
+
+.when {
+  flex: none;
+  font-size: var(--glacier-font-size-xs);
+  color: var(--app-ink-3);
+  white-space: nowrap;
+}
+
+.none {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3);
+}
+
+.more {
+  justify-self: start;
+}
