@@ -67,6 +67,7 @@ import { chooseWorkspace, fileNewNote, fileNote, orgWorkspaceId, useWorkspaces, 
 import { holdFor, setPendingTag, tagEntryIfWanted, tagNewNotesIfWanted, willLocate } from './core/location.ts';
 import { useNoteActions } from './notes/useNoteActions.ts';
 import { NoteMenuHost } from './notes/NoteMenu.tsx';
+import { askComment } from './core/comments/ask.ts';
 import { isPlace, isRecording, noteOnScreen, placeOf, type Screen } from './shell/screen.ts';
 import { barRows } from './shell/topBar.ts';
 import { useCaptureRoute } from './shell/useCaptureRoute.ts';
@@ -1441,6 +1442,11 @@ function Shell() {
       <NoteMenuHost
         notes={notes}
         onOpen={(note) => openNoteWhereLeft(note.id)}
+        // The note itself, not where a book was left: the comment is on this note's first line (core/comments/ask.ts).
+        onComment={(note) => {
+          askComment(note.id);
+          openNote(note.id);
+        }}
         onPin={(note) => actions.pin(note)}
         onArchive={(note, archived) => {
           if (archived) tabs.drop(note.id);

@@ -54,6 +54,7 @@ import type { Look } from '../core/look.ts';
 import { isMobile } from '../core/platform.ts';
 import { blanks as blankSquares, type BlankHooks } from './blanks.ts';
 import { fillPanel } from './fillPanel.ts';
+import { noteComments, type CommentHooks } from './comments.ts';
 import { plugins } from '../plugins/registry.ts';
 import styles from './markdown.module.css';
 
@@ -76,7 +77,7 @@ import styles from './markdown.module.css';
  *
  * So a prop reaches the view in one of three ways, and a caller has to know
  * which. The callbacks (`onChange`, `onImageError`, `swipeAction`, `suggest`,
- * `linkMenus`, `wiki`, `onAiMarks`) are read through refs when they are used.
+ * `linkMenus`, `wiki`, `onAiMarks`, `comments`) are read through refs when they are used.
  * `dark`, `assist`, `readOnly`, `tape`/`tapeId`, `display` and `look` sit in
  * Compartments and are swapped in place when they change. Everything else -
  * `grow`, `arrivals`, `wispTyping`, `ripples`, `peek`, `diagrams`,
@@ -204,6 +205,12 @@ interface EditorProps {
    * callbacks through a ref.
    */
   blanks?: BlankHooks;
+  /**
+   * Comments on the note (editor/comments.ts, docs/SHARED.md S8): each anchor a round in its author's colour that opens
+   * its thread, and the ```comments fence drawn as the threads. Only the note screen gives it; without it the anchors
+   * and the fence are the text they are. Whether it was given is read once; its callbacks through a ref.
+   */
+  comments?: CommentHooks;
 }
 
 /**
@@ -263,6 +270,7 @@ export function Editor({
   openHeading = false,
   look = null,
   blanks,
+  comments,
 }: EditorProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -292,6 +300,8 @@ export function Editor({
   blankRef.current = blankPage;
   const blanksRef = useRef(blanks);
   blanksRef.current = blanks;
+  const commentsRef = useRef(comments);
+  commentsRef.current = comments;
 
   const themeSlot = useRef(new Compartment());
   const assistSlot = useRef(new Compartment());
@@ -379,6 +389,8 @@ export function Editor({
         peek ? [] : linkCards(),
         linkedRows(linkMenus ? { say: (message) => linkMenusRef.current?.say(message) } : null),
         drawnTables(),
+        // Comments: the anchors as rounds in their authors' colours, the fence as the threads (editor/comments.ts).
+        comments && !peek ? noteComments(() => commentsRef.current ?? null) : [],
         // Boards drawn from a ```board fence, their cards the note's own list items (editor/boards.ts). Not on a card,
         // where a board is a screen's worth and its items are drawn as the list they are.
         peek ? [] : drawnBoards(),

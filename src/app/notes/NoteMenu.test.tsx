@@ -53,6 +53,17 @@ describe('a note’s menu', () => {
     expect(document.querySelector('[role="menu"]')?.getAttribute('aria-label')).toBe('Groceries, note');
   });
 
+  it('offers Add a comment second, where the app can start one, for the note it was opened on', () => {
+    const actions = { onOpen: vi.fn(), onComment: vi.fn(), onPin: vi.fn(), onArchive: vi.fn(), onDelete: vi.fn() };
+    show(<NoteMenuHost notes={[GROCERIES]} {...actions} />);
+    act(() => openNoteMenu('g', 10, 10));
+    expect([...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent?.trim())).toEqual(['Open', 'Add a comment', 'Pin', 'Archive', 'Delete']);
+    act(() => menuItem('Add a comment')!.click());
+    expect(actions.onComment).toHaveBeenCalledWith(GROCERIES);
+    expect(actions.onOpen).not.toHaveBeenCalled();
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+  });
+
   it('deletes the note it was opened on, and closes', () => {
     const actions = host();
     act(() => openNoteMenu('g', 10, 10));

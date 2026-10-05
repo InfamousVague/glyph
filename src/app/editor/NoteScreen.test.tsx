@@ -4,7 +4,7 @@ import { EditorView } from '@codemirror/view';
 import { undo } from '@codemirror/commands';
 import { ToastProvider } from '@glacier/react';
 import { button, buttonSaying, press, rerender, show, typeInto, unmount, waitUntil } from '../../test/render.tsx';
-import { applyCommandMutation, createNote, getNote, setNoteRecording, updateNote, type Note } from '../core/store.ts';
+import { applyCommandMutation, createNote, getNote, noteTitle, setNoteRecording, updateNote, type Note } from '../core/store.ts';
 import type { CaptureLanding } from '../capture/landing.ts';
 import { goBack } from '../core/back.ts';
 import { setTapeId, tapeId } from '../core/clips.ts';
@@ -115,7 +115,15 @@ vi.mock('../core/platform.ts', async (importOriginal) => ({
   },
 }));
 
+/**
+ * The bar's room for the note's spare actions (editor/toolRoom.ts): none in a document with no layout, as before,
+ * unless a test says the row has room for every one of them.
+ */
+const room = vi.hoisted(() => ({ all: false }));
+vi.mock('./toolRoom.ts', () => ({ useToolRoom: (_row: unknown, spare: number) => (room.all ? spare : 0) }));
+
 const { NoteScreen } = await import('./NoteScreen.tsx');
+const { askComment } = await import('../core/comments/ask.ts');
 
 const saves = vi.mocked(updateNote);
 
@@ -170,6 +178,7 @@ beforeEach(() => {
 afterEach(() => {
   unmount();
   setTopBarTools(null);
+  room.all = false;
   ai.ok = false;
   Object.assign(films, { can: false, pick: null, where: 'elsewhere' });
   vi.useRealTimers();
@@ -2311,5 +2320,108 @@ describe('the templates on a new note’s blank page', { timeout: 45_000 }, () =
     } finally {
       setPreferences({ tagNewNotes: true });
     }
+  });
+});
+
+describe('comments on the note (docs/SHARED.md, S8)', () => {
+  const more = () => act(() => button('More for this note').click());
+  const field = () => document.querySelector<HTMLTextAreaElement>('[role="dialog"] textarea')!;
+  /** Writes `words` in the open sheet's field and sends them with the button named `send`. */
+  const write = (words: string, send: string) => {
+    typeInto(field(), words);
+    act(() => button(send).click());
+  };
+  const ANCHOR = /\[\^(c[0-9a-z]{4})\]/;
+
+  it('starts one on the caret’s line from More, writes it as one change, and one undo takes it back', async () => {
+    show(screen(await createNote('n1', '# Plan\n\nBook the barn')));
+    const view = editor();
+    act(() => view.dispatch({ selection: { anchor: view.state.doc.length } }));
+    more();
+    act(() => buttonSaying(document.body, 'On the words selected')!.click());
+    expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('New comment');
+    write('Which barn?', 'Add comment');
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    const doc = view.state.doc.toString();
+    const id = ANCHOR.exec(doc)![1]!;
+    // By `me`, with no account on this device, at a time to the second in UTC.
+    expect(doc).toMatch(new RegExp(`^# Plan\\n\\nBook the barn\\[\\^${id}\\]\\n\\n\`\`\`comments\\n${id} me \\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\dZ\\nWhich barn\\?\\n\`\`\`\\n$`));
+    // Drawn: the round where the anchor is, the fence as its list.
+    expect(document.querySelector('.cm-commentRound')).not.toBeNull();
+    expect(document.querySelector('.cm-commentList')?.textContent).toContain('Which barn?');
+    act(() => {
+      undo(view);
+    });
+    expect(view.state.doc.toString()).toBe('# Plan\n\nBook the barn');
+  });
+
+  it('starts one round the selection from the press-and-hold band, the words quoted in the card', async () => {
+    show(screen(await createNote('n1', '# Plan\n\nBook the barn for Saturday')));
+    const view = editor();
+    const from = view.state.doc.toString().indexOf('the barn');
+    act(() => view.dispatch({ selection: { anchor: from, head: from + 'the barn'.length } }));
+    act(() => {
+      view.contentDOM.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 }));
+    });
+    await act(async () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+    act(() => button('Comment', document.querySelector('[role="menu"]')!).click());
+    expect(document.querySelector('[role="dialog"] blockquote')?.textContent).toBe('the barn');
+    write('Which one?', 'Add comment');
+    expect(view.state.doc.line(3).text).toMatch(/^Book ==the barn==\[\^c[0-9a-z]{4}\] for Saturday$/);
+  });
+
+  it('opens the card from the round, and replies, resolves, reopens and deletes through it', async () => {
+    const body = '# Plan\n\nThe ==venue==[^c1] is booked.\n\n```comments\nc1 sam 2026-10-04T19:00:12Z\nThe hall or the barn?\n```\n';
+    show(screen(await createNote('n1', body)));
+    const view = editor();
+    act(() => document.querySelector<HTMLElement>('.cm-commentRound')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })));
+    const card = () => document.querySelector<HTMLElement>('[role="dialog"]')!;
+    expect(card().getAttribute('aria-label')).toBe('Comment thread');
+    expect(card().textContent).toContain('The hall or the barn?');
+    expect(card().querySelector('blockquote')?.textContent).toBe('venue');
+    write('The hall.', 'Send reply');
+    expect(view.state.doc.toString()).toMatch(/The hall or the barn\?\n {2}me \S+Z\n {2}The hall\.\n```/);
+    expect(card().textContent).toContain('The hall.');
+    act(() => buttonSaying(card(), 'Resolve')!.click());
+    expect(view.state.doc.toString()).toMatch(/\n {2}resolved me \S+Z\n```/);
+    expect(card().textContent).toContain('Resolved by You');
+    act(() => buttonSaying(card(), 'Reopen')!.click());
+    expect(view.state.doc.toString()).not.toContain('resolved');
+    act(() => buttonSaying(card(), 'Delete thread')!.click());
+    // Asked once more before it goes.
+    expect(view.state.doc.toString()).toContain('```comments');
+    act(() => buttonSaying(card(), 'Delete it?')!.click());
+    expect(view.state.doc.toString()).toBe('# Plan\n\nThe venue is booked.\n');
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it('says in More how many there are and how many are open, which opens their list', async () => {
+    const body = '# Plan[^c2]\n\nThe ==venue==[^c1]\n\n```comments\nc1 sam 2026-10-04T19:00:12Z\nThe hall?\nc2 sam 2026-10-04T19:01:00Z\nName?\n  resolved sam 2026-10-04T19:02:00Z\n```\n';
+    show(screen(await createNote('n1', body)));
+    more();
+    act(() => buttonSaying(document.body, '2 comments, 1 open')!.click());
+    expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Comments');
+    act(() => buttonSaying(document.querySelector('[role="dialog"]')!, 'Name?')!.click());
+    expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Comment thread');
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Resolved by sam');
+  });
+
+  it('puts Comment in the bar right after Version history, when there is room', async () => {
+    room.all = true;
+    show(screen(await createNote('n1', '# Plan\n\nwords')));
+    const tools = [...document.querySelectorAll<HTMLElement>('[data-tool]')].map((tool) => tool.dataset.tool);
+    expect(tools.slice(0, 3)).toEqual(['share', 'history', 'comment']);
+    act(() => document.querySelector<HTMLButtonElement>('[data-tool="comment"]')!.click());
+    expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('New comment');
+  });
+
+  it('starts one on the title line when a note’s menu asked for it, and the note keeps its name', async () => {
+    askComment('n1');
+    show(screen(await createNote('n1', '---\nlook: reading\n---\n# Plan\n\nwords')));
+    await waitUntil(() => expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('New comment'));
+    write('Better name?', 'Add comment');
+    const view = editor();
+    expect(view.state.doc.line(4).text).toMatch(/^# Plan\[\^c[0-9a-z]{4}\]$/);
+    expect(noteTitle(view.state.doc.toString())).toBe('Plan');
   });
 });

@@ -10,6 +10,7 @@ Apart from the hidden line, which belongs to the Marks plugin, none of these nee
 |---|---|---|
 | A tag | `#web`, or `#work/clients` | "hashtag web" |
 | A footnote | `four hundred[^sam]`, and a line `[^sam]: Sam said so.` | "footnote Sam said so end footnote" |
+| A comment | `the ==venue==[^c1]`, and its thread in a ` ```comments ` block at the end | Nothing |
 | A definition | `Deposit`, then on the next line `: what you pay up front` | "define deposit as what you pay up front" |
 | A counter | `- Water [3/8]` | "counter three of eight" |
 | A sum | `= $450 + 120 * 2` | "calculate: four hundred plus one hundred twenty" |
@@ -39,6 +40,28 @@ The deposit is four hundred[^sam], not four fifty.
 The marker is raised and quiet, the way print sets one, and a tap on it shows what the footnote says, so you never have to scroll to the foot of the note. The line itself is set as small print. A marker with no line to go with it stays plain, because it is a typo, and drawing it as a footnote would hide that.
 
 Said while recording, "footnote Sam said so end footnote" leaves a numbered marker where you said it and writes its words under the note.
+
+## Comments
+
+A comment is kept in the note's own words, so it travels wherever the note does. Select some words, or put the caret on a line, and press **Comment**: on the menu a press and hold (or a right-click) opens over the words, in the bar beside Version history, or in More. A note's right-click menu in a list has **Add a comment** too, which opens the note with a comment started on its first line.
+
+What it writes is a mark after the words, `[^c1]`, or round the words you selected, `==the venue==[^c1]`, and one block at the end of the note that holds every thread:
+
+````
+The ==venue==[^c1] is booked.
+
+```comments
+c1 matt 2026-10-04T19:00:12Z
+The venue needs confirming - the hall or the barn?
+  sam 2026-10-04T19:05:40Z
+  The hall. Confirmed this morning.
+  resolved sam 2026-10-04T19:06:02Z
+```
+````
+
+Each comment is its id, who wrote it and when, then its words, which may run over several lines; a reply is the same, indented two spaces under it; `resolved` with a name and a time closes the thread. In the note the mark is a small round in the writer's colour, the selected words are washed in it, and the block is drawn as the list of threads. A tap on the round, or on a thread in the list, opens its card, to reply, resolve or reopen it, or delete it. A resolved thread keeps its words and loses its wash, and its round becomes a ring.
+
+In an organization's workspace each person's colour is the one they chose there; anywhere else comments are in ink. Opened in another app, the mark reads as a footnote's and the block as lines of text. A line in the block that starts with a backslash had one put there so it would not read as a new comment.
 
 ## Definitions
 

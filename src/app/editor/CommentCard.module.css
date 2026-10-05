@@ -1,0 +1,225 @@
+/*
+ * A comment thread's card, a new comment's field and the threads' list (CommentCard.tsx): in the app's sheet for the
+ * thread card, and in the note where the ```comments fence is drawn (editor/comments.ts). Each person in their colour,
+ * worn as the member rows wear it (notes/OrganizationScreen.module.css `.avatar[data-hue]`); `data-hue` gives
+ * `--app-space` (app/ink.css), and ink is the app's own.
+ */
+.thread {
+  display: grid;
+  gap: var(--glacier-space-3);
+}
+
+/* The words the thread is about, washed in its author's colour as they are in the note. */
+.quote {
+  margin: 0;
+  padding: var(--glacier-space-2) var(--glacier-space-3);
+  border-inline-start: 3px solid var(--app-ink-3);
+  border-radius: var(--glacier-radius-sm);
+  background: var(--app-wash);
+  color: var(--glacier-text);
+  font-size: var(--glacier-font-size-sm);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.quote[data-hue] {
+  border-inline-start-color: var(--app-space);
+  background: color-mix(in oklch, var(--app-space) 14%, transparent);
+}
+
+.thread[data-resolved] .quote {
+  border-inline-start-color: var(--app-ink-3);
+  background: none;
+}
+
+.comments,
+.list {
+  display: grid;
+  gap: var(--glacier-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.comment {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--glacier-space-3);
+}
+
+/* A reply sits under the comment it answers, in by a step. */
+.comment[data-reply] {
+  padding-inline-start: var(--glacier-space-6);
+}
+
+.initial {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 1.875rem;
+  block-size: 1.875rem;
+  border-radius: var(--glacier-radius-full);
+  background: color-mix(in oklch, var(--app-space) 22%, transparent);
+  color: var(--app-space);
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.body {
+  display: grid;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.byline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--glacier-space-2);
+  margin: 0;
+}
+
+.who {
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--glacier-text);
+}
+
+.when,
+.meta {
+  font-size: var(--glacier-font-size-sm);
+  color: var(--glacier-text-subtle);
+}
+
+.words {
+  margin: 0;
+  color: var(--glacier-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.resolved {
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--glacier-text-subtle);
+}
+
+/* The reply field: the Ask field's shape (NoteSettings.module.css `.ask`), several lines at most five tall. */
+.field {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--glacier-space-3);
+  padding: var(--glacier-space-2) var(--glacier-space-2) var(--glacier-space-2) var(--glacier-space-4);
+  border: 1px solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-lg);
+  background: var(--app-paper);
+}
+
+.input {
+  flex: 1;
+  min-inline-size: 0;
+  appearance: none;
+  padding: var(--glacier-space-2) 0;
+  border: none;
+  background: none;
+  color: var(--glacier-text);
+  font: inherit;
+  font-size: var(--glacier-font-size-md);
+  line-height: 1.4;
+  resize: none;
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--glacier-text-subtle);
+}
+
+.send {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  border: var(--app-line) solid currentColor;
+  border-radius: 50%;
+  background: none;
+  color: var(--glacier-text);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.send:disabled {
+  color: var(--glacier-text-muted);
+  cursor: default;
+}
+
+/* A thread in the list: a row to press, the whole of it. */
+.item {
+  appearance: none;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--glacier-space-3);
+  inline-size: 100%;
+  padding: var(--glacier-space-2) 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.item:active {
+  background: var(--app-wash);
+}
+
+/* A resolved thread keeps its words and goes quiet. */
+.item[data-resolved] {
+  opacity: 0.6;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--glacier-space-3);
+}
+
+.replies {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--glacier-space-1);
+}
+
+/* The fence drawn in the note: a quiet card with its heading. */
+.drawn {
+  display: grid;
+  gap: var(--glacier-space-2);
+  padding: var(--glacier-space-3) var(--glacier-space-4);
+  border: 1px solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-lg);
+  font-size: var(--glacier-font-size-md);
+}
+
+.drawnHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--glacier-space-3);
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--glacier-text-subtle);
+}
+
+.edit {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--glacier-text-subtle);
+  cursor: pointer;
+}

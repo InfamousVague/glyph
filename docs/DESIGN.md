@@ -10385,3 +10385,58 @@ a card already on the grid, and the dots' origin sat on the world's (the backgro
 Tests: canvas/CanvasView.snap.test.tsx and the grid's cases in edits.test.ts.
 
 Cites: §190.
+
+## 196. Comments on notes: the fourth slice of notes shared in an organization (2026-10-05)
+
+docs/SHARED.md, S8, on notes. Matt: "please make sure comments were added to the app like we discussed previously and
+add them to the context menu for a note and the popover toolbar so we can quickly click to add comments".
+
+**The format** is the note's own text (core/comments/format.ts): an anchor after the words, `[^c1]`, or round a
+selection, `==the words==[^c1]`, and one ```comments fence at the end holding every thread - a head line of id,
+handle and ISO time in UTC to the second, the words under it, replies indented two in the same shape, and
+`resolved <handle> <time>` closing a thread. Decided beyond S8: a comment's words may run to several lines, each a line
+of the fence, and an empty line typed in them is not kept; a words line that would read as a head, or that starts with
+a backslash or three backticks, is written behind a backslash, which reading takes off; a handle never starts with
+one, which is how the two are told apart. Ids are `c` and four letters or digits, none the note has used for a thread,
+an anchor or a footnote. The fence is the last ```comments block the note has that is not inside another block (the
+Guide shows one inside a ```` block). A selection over several lines is anchored after its last line's words without
+a wash, and one inside a highlight takes that highlight as its wash.
+
+Reading never rewrites: each part keeps its lines and offsets, and every change is a few edits at them, so an
+unchanged note writes back as itself, a hand-edited fence keeps the lines it does not understand (a head with a time
+it cannot read is words of the thread above, or a line of nobody's), and deleting the last thread takes the fence and
+the blank line before it, leaving the words as they were. The edits go into the editor as one dispatch
+(editor/useNoteComments.ts, as `chooseLook` does): one undo, saved as typing is, and in a team note a few characters
+for the CRDT to merge.
+
+**In the editor** (editor/comments.ts): the anchor is a small round in its author's colour, a ring once resolved, and
+the caret on it shows it as written; a tap opens the thread's card. The words round a selection are a highlight, and
+an open thread sets the highlight's own colour (`--app-mark`) to its author's on a mark around it, so the wash is
+theirs, and a resolved one sets it clear. The fence is drawn as the threads, open ones first, as a query's fence is
+drawn as its answer; a tap on one opens its card and brings its anchor into view, and the pencil shows the lines.
+Nowhere else is any of it installed - a card's small note, a shared page - so the anchor and the fence read as text.
+
+**The card** (editor/CommentCard.tsx, in the app's sheet, editor/CommentSheet.tsx): each comment's author in their
+colour, how long ago, the words; a reply field that sends on Enter; Resolve or Reopen; Delete thread, which asks a
+second press. Its pieces take a parsed thread and say what was pressed, so a canvas's threads (S9) can draw the same
+card, and `countsBy` (core/comments/format.ts) counts each person's comments and replies from parsed threads for the
+profile card.
+
+**Colours** (core/comments/colours.ts): in an organization's workspace, your own from the kept list at once and each
+member's from the organization's rows, read once a session; elsewhere, and for anyone the rows do not name, ink.
+
+**Ways in.** Comment on the press-and-hold band, second after Cut and Copy (the selection, or the caret's line); in
+the bar right after Version history while there is room; in More, with "2 comments, 1 open" when there are threads,
+which opens their list; and "Add a comment" on a note's right-click menu in a list, which opens the note with a
+comment started on its first line (core/comments/ask.ts, heard by the screen once its editor is there). A note's
+title leaves its anchor out (core/noteTitle.ts), so a title commented on keeps its name. Comments are by the
+account's handle, or `me` without one (core/comments/author.ts).
+
+**Not yet.** The audit log's "sam commented on Roadmap" and the profile card's counts (S8's last sentence) read what is
+here but are not drawn; live cursors are slice 3; a canvas's comments are slice 5.
+
+Tests: core/comments/format.test.ts and colours.test.tsx, editor/comments.test.ts, editor/CommentCard.test.tsx, and
+the comment cases in editor/NoteScreen.test.tsx, ContextMenu.test.tsx, NoteSettings.test.tsx, notes/NoteMenu.test.tsx
+and academy/lessons.test.ts.
+
+Cites: §159, §172, §191, §193.

@@ -11,6 +11,7 @@ import { choiceOn } from '../editor/choices.ts';
 import { countersIn } from '../editor/counters.ts';
 import { calloutKind } from '../editor/extended.ts';
 import { footnotesIn } from '../editor/footnotes.ts';
+import { readComments } from '../core/comments/format.ts';
 import { headingCounts } from '../editor/headingProgress.ts';
 import { glyphMarkdown } from '../editor/language.ts';
 import { isTint, notePattern, notesIn } from '../editor/markNotes.ts';
@@ -88,7 +89,7 @@ export type Chapter = (typeof CHAPTERS)[number];
 export const CHAPTER_ABOUT: Readonly<Record<Chapter, string>> = {
   'Markdown basics': 'Headings, bold, lists, links and to-dos: what every Markdown app reads the same way.',
   'More Markdown': 'Tables, pictures, footnotes, maths, callouts and diagrams.',
-  'Lines that do more': 'Tags, choices, counters, sums and blanks for the AI: lines whose words the note works with.',
+  'Lines that do more': 'Tags, choices, counters, sums, blanks for the AI and comments: lines whose words the note works with.',
   'Links and places': 'Another note, the bookmark you left, and a place on a map.',
   'Boards and to-dos': 'Due days and people on a to-do, names for items, and boards made of them.',
   'Tickets and queries': 'Notes as tickets, and queries that list, count and lay out what matches in every note.',
@@ -593,6 +594,20 @@ export const LESSONS: Lesson[] = [
     passes: (text) => headingCounts(docOf(text)).length > 0,
     praise: 'The heading is counting.',
     hint: 'A heading, then a line like - [ ] Stove under it.',
+  },
+  {
+    id: 'comment',
+    chapter: 'Lines that do more',
+    symbol: '[^c1]',
+    rows: ['A comment'],
+    title: 'A comment',
+    teach:
+      'A comment is kept in the note itself: a mark like [^c1] after the words it is about, or ==round them==[^c1], and the thread in a ```comments block at the end - its id, who and when, then the words, with replies indented under it. Comment on the press-and-hold menu, in More and in the bar writes both for you.',
+    example: 'Call the band[^c1]\n\n```comments\nc1 me 2026-10-05T09:00:00Z\nWhich band?\n```',
+    task: 'Write a line with a comment mark, and its thread in a comments block.',
+    passes: (text) => readComments(text).anchors.length > 0,
+    praise: 'That is a comment, and its mark opens the thread.',
+    hint: 'A mark like [^c1] after the words, then a ```comments block with a line like c1 me 2026-10-05T09:00:00Z and the words under it.',
   },
 
   // ---- Links and places: another note, the bookmark, a place on a map ------------------------------------------

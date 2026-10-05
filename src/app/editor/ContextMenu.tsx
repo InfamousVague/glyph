@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpToLine, CalendarDays, ClipboardPaste, Copy, CopyPlus, Flag, ImagePlus, LayoutGrid, Link, Scissors, SquareKanban, TextSearch, TextSelect, Trash2, Type, UserPlus } from '@glacier/icons';
+import { ArrowDownToLine, ArrowUpToLine, CalendarDays, ClipboardPaste, Copy, CopyPlus, Flag, ImagePlus, LayoutGrid, Link, MessageSquarePlus, Scissors, SquareKanban, TextSearch, TextSelect, Trash2, Type, UserPlus } from '@glacier/icons';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { EditorView } from '@codemirror/view';
 import { useBack } from '../core/back.ts';
@@ -19,8 +19,8 @@ import styles from './ContextMenu.module.css';
  *
  * A long press in the editor, or a right click on a desktop, opens it over the caret (editor/pressAndHold.ts says how
  * the press is heard, and why the phone's own bar stays away). What appears is a band of Glyph's words above the
- * selection: Cut and Copy on a selection, Paste, Copy board on a board, Find, Select all, Duplicate, Delete, Move up
- * and down, the board rows where they apply (editor/boardActions.ts), a plugin's send for the line, Style, and Add
+ * selection: Cut and Copy on a selection, Comment, Paste, Copy board on a board, Find, Select all, Duplicate, Delete,
+ * Move up and down, the board rows where they apply (editor/boardActions.ts), a plugin's send for the line, Style, and Add
  * image.
  *
  * Reading the clipboard is the one thing the page cannot do here (editor/clipboard.ts), so Paste appears only where
@@ -47,9 +47,14 @@ interface ContextMenuProps {
   onFind?: (text: string) => void;
   /** Sends the line's words where a plugin takes them (a Notion board, a GitHub issue); absent, nothing is shown. */
   send?: { label: string; run: (text: string) => Promise<void> | void } | null;
+  /**
+   * Starts a comment (editor/useNoteComments.ts): on the selection the menu was opened over, or on the caret's line
+   * when there is none. Absent, the word is not shown.
+   */
+  onComment?: (range: { from: number; to: number }) => void;
 }
 
-export function ContextMenu({ view, onAddImage, onPasteImage, say, onFind, send = null }: ContextMenuProps) {
+export function ContextMenu({ view, onAddImage, onPasteImage, say, onFind, send = null, onComment }: ContextMenuProps) {
   const [open, setOpen] = useState<Held | null>(null);
   /** The menu's words, or its styles. */
   const [styling, setStyling] = useState(false);
@@ -237,6 +242,22 @@ export function ContextMenu({ view, onAddImage, onPasteImage, say, onFind, send 
                 <MenuItem icon={Scissors} label="Cut" onPress={act(cut)} />
                 <MenuItem icon={Copy} label="Copy" onPress={act(copy)} />
               </>
+            ) : null}
+            {/*
+              Second only to Cut and Copy, so it is in reach without scrolling the band (Matt: "add them to ... the
+              popover toolbar so we can quickly click to add comments"). The sheet it opens takes the focus for its
+              field, so the editor is not given it back.
+            */}
+            {onComment && !view.state.readOnly ? (
+              <MenuItem
+                icon={MessageSquarePlus}
+                label="Comment"
+                onPress={() => {
+                  fireNativeHaptic('selection');
+                  close();
+                  onComment({ from, to });
+                }}
+              />
             ) : null}
             {pasteable ? <MenuItem icon={ClipboardPaste} label="Paste" onPress={act(paste)} /> : null}
             {/* A board is drawn as columns, so it cannot be dragged over: this takes the whole of it at once. */}

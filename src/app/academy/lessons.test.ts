@@ -75,6 +75,7 @@ describe('Ghost.md Academy’s lessons', () => {
     expect(passes('sum', '= 12 * 4')).toBe(true);
     expect(passes('hiddenLine', '>| the gate code is 4411')).toBe(true);
     expect(passes('progress', '# Trip\n- [ ] Pack')).toBe(true);
+    expect(passes('comment', 'the lake is cold[^c9]\n\n```comments\nc9 sam 2026-10-05T09:00:00Z\nIn June?\n```')).toBe(true);
     expect(passes('wiki', 'see [[Packing list]]')).toBe(true);
     expect(passes('anchor', '- Book the kayak ^kayak')).toBe(true);
     expect(passes('itemRef', 'after [[#^kayak]]')).toBe(true);
@@ -134,6 +135,9 @@ describe('Ghost.md Academy’s lessons', () => {
     expect(passes('sum', '450 + 120')).toBe(false);
     expect(passes('hiddenLine', '> an ordinary quote')).toBe(false);
     expect(passes('progress', '## Packing\n- tent')).toBe(false);
+    // A comment's mark with no thread for it is a footnote's marker, and a thread with no mark is nowhere in the words.
+    expect(passes('comment', 'the lake is cold[^c9]')).toBe(false);
+    expect(passes('comment', 'the lake is cold\n\n```comments\nc9 sam 2026-10-05T09:00:00Z\nIn June?\n```')).toBe(false);
     // A place in this note is not another note.
     expect(passes('wiki', 'after [[#^kayak]]')).toBe(false);
     expect(passes('anchor', '- Book the kayak')).toBe(false);
