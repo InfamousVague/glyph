@@ -426,7 +426,7 @@ describe('pictures, charts and the toolbar', () => {
     expect(shown.querySelectorAll('[data-handles="mine"] [data-handle]')).toHaveLength(8);
     // A picture has nothing to open: its bar has no first button for it.
     const bar = [...shown.querySelectorAll('[data-card-bar="mine"] button')].map((b) => b.getAttribute('aria-label'));
-    expect(bar).toEqual(['Draw a line from this card', 'Colour', 'Make a copy', 'Take this card off the canvas']);
+    expect(bar).toEqual(['Draw a line from this card', 'Comment on this card', 'Colour', 'Make a copy', 'Take this card off the canvas']);
     act(() => (shown.querySelector('[data-card-bar="mine"] button[aria-label="Take this card off the canvas"]') as HTMLElement).click());
     expect((onChange.mock.calls[0]![0] as Canvas).nodes.map((n) => n.id)).toEqual(['theirs']);
   });

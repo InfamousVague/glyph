@@ -78,8 +78,8 @@ describe('a team’s canvas in the view', () => {
     act(() => doc.applyRemote([Y.encodeStateAsUpdate(theirs, Y.encodeStateVector(doc.doc))]));
     await waitUntil(() => expect(card(shown, 'book').style.left).toBe('120px'));
     expect(card(shown, 'book').style.top).toBe('48px');
-    // And the words followed, so the note's JSON has it too, without this device writing anything.
-    expect(canvasOf(doc.text.toString())!.nodes[0]).toMatchObject({ x: 120, y: 48 });
+    // And the document's words say it too, read from the structure, without this device writing anything.
+    expect(canvasOf(doc.words())!.nodes[0]).toMatchObject({ x: 120, y: 48 });
     expect(changes).toEqual([]);
   });
 

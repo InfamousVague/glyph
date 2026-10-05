@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
+import { reopenedThread, resolvedThread, withReply, withThread, withoutThread } from '../../canvas/comments.ts';
 import { canvasOf, parseCanvas, type Canvas } from '../../canvas/jsonCanvas.ts';
 import { REMOTE } from '../live/session.ts';
-import { CANVAS, hasTeamCanvas, teamCanvas } from './canvas.ts';
-import { applyTextDiff } from './doc.ts';
+import { CANVAS, canvasWords, hasTeamCanvas, reconcileCanvas, teamCanvas } from './canvas.ts';
+import { teamDoc } from './doc.ts';
+import { memoryDocs } from './docs.ts';
 
 /**
  * A team canvas as types in the note's document (core/team/canvas.ts; docs/SHARED.md, S9): seeded from the JSON,
@@ -59,23 +61,26 @@ describe('a team canvas', () => {
     expect(teamCanvas(device('# Just words\n\nNothing drawn.'))).toBeNull();
   });
 
-  it('writes a change into the types and the words together, and tells what listens', () => {
+  it('writes a change into the types, which the words then say under the front matter, and tells what listens', () => {
     const a = device(SAMPLE);
     const team = teamCanvas(a)!;
     const heard: Canvas[] = [];
     team.onChange((canvas) => heard.push(canvas));
     team.apply(moved(team.canvas(), 'book', 48, 24));
     expect(nodeOf(team.canvas(), 'book')).toMatchObject({ x: 48, y: 24 });
-    expect(nodeOf(canvasOf(a.text.toString())!, 'book')).toMatchObject({ x: 48, y: 24 });
-    // The front matter is kept, and the words are the spec's JSON as the note writes it.
-    expect(a.text.toString().startsWith('---\ntitle: "Plan"\n---\n{\n')).toBe(true);
+    // The words are read from the types: the front matter as the text has it, then the spec's JSON as the note writes it.
+    const words = canvasWords(a.doc, a.text.toString());
+    expect(nodeOf(canvasOf(words)!, 'book')).toMatchObject({ x: 48, y: 24 });
+    expect(words.startsWith('---\ntitle: "Plan"\n---\n{\n')).toBe(true);
+    // The shared text itself is left alone: two members' JSON written into it at once would be no JSON at all.
+    expect(nodeOf(canvasOf(a.text.toString())!, 'book')).toMatchObject({ x: 0, y: 0 });
     expect(heard).toHaveLength(1);
     // Only what changed is written: the other cards' words are the same Y.Text as before.
     const nodes = a.doc.getMap<Y.Map<unknown>>('canvas-nodes');
-    const words = nodes.get('book')!.get('text') as Y.Text;
+    const cardWords = nodes.get('book')!.get('text') as Y.Text;
     team.apply(written(team.canvas(), 'book', '# Book the cabin!'));
-    expect(nodes.get('book')!.get('text')).toBe(words);
-    expect(words.toString()).toBe('# Book the cabin!');
+    expect(nodes.get('book')!.get('text')).toBe(cardWords);
+    expect(cardWords.toString()).toBe('# Book the cabin!');
   });
 
   it('merges two members’ edits field by field: a card each moved, and the same card typed in, both kept', () => {
@@ -140,35 +145,68 @@ describe('a team canvas', () => {
     expect(b.doc.getArray('canvas-order').toArray()).toEqual(['before', 'book', 'site']);
   });
 
-  it('reads words changed here without the types back into them, and leaves words that arrived from another device alone', async () => {
+  it('merges two members’ threads: replies made at once both kept, a resolve and a reply apart both kept', () => {
     const a = device(SAMPLE);
     const teamA = teamCanvas(a)!;
-    // Typed by hand in the JSON view, or written by Claude and reconciled by a pass: a local change of the words.
-    const typed = a.text.toString().replace('"x": 0, "y": 160', '"x": 20, "y": 180');
-    applyTextDiff(a.text, a.text.toString(), typed);
-    await Promise.resolve();
-    expect(nodeOf(teamA.canvas(), 'site')).toMatchObject({ x: 20, y: 180 });
-    // Words from another device carry their own types: a splice of two members' JSON would not be read.
     const b = device(Y.encodeStateAsUpdate(a.doc));
-    const garbled = b.text.toString().replace('"x": 20, "y": 180', '"x": 2020, "y": 180');
-    b.doc.transact(() => applyTextDiff(b.text, b.text.toString(), garbled), 'hand');
-    sync(a, b);
-    await Promise.resolve();
-    expect(nodeOf(teamA.canvas(), 'site')).toMatchObject({ x: 20, y: 180 });
-    // The next change here writes the JSON whole again, from the types.
-    teamA.apply(moved(teamA.canvas(), 'book', 1, 1));
-    expect(nodeOf(canvasOf(a.text.toString())!, 'site')).toMatchObject({ x: 20, y: 180 });
-    expect(parseCanvas(a.text.toString().slice(a.text.toString().indexOf('{')))).not.toBeNull();
+    const teamB = teamCanvas(b)!;
+    const stamp = (by: string, at: string) => ({ by, at });
+    teamA.apply(withThread(teamA.canvas(), 'book', stamp('matt', '2026-10-05T14:00:00Z'), 'Which Friday?', 'c1')!);
+    sync(b, a);
+    expect(teamB.canvas().comments).toHaveLength(1);
+    // Both reply at the same moment: both replies land, in one order everywhere.
+    teamA.apply(withReply(teamA.canvas(), 'c1', stamp('matt', '2026-10-05T14:01:00Z'), 'The 10th?')!);
+    teamB.apply(withReply(teamB.canvas(), 'c1', stamp('sam', '2026-10-05T14:01:00Z'), 'The 17th.')!);
+    both(a, b);
+    expect(teamA.canvas().comments![0]!.replies.map((reply) => reply.text).sort()).toEqual(['The 10th?', 'The 17th.']);
+    expect(teamB.canvas()).toEqual(teamA.canvas());
+    // sam resolves while matt starts another thread on the link: both kept; the words follow on each device.
+    teamB.apply(resolvedThread(teamB.canvas(), 'c1', stamp('sam', '2026-10-05T14:02:00Z'))!);
+    teamA.apply(withThread(teamA.canvas(), 'site', stamp('matt', '2026-10-05T14:02:00Z'), 'Dead link?', 'c2')!);
+    both(a, b);
+    expect(teamA.canvas().comments!.map((thread) => [thread.id, Boolean(thread.resolved)])).toEqual([
+      ['c1', true],
+      ['c2', false],
+    ]);
+    expect(canvasOf(canvasWords(a.doc, a.text.toString()))!.comments).toEqual(teamA.canvas().comments);
+    expect(canvasOf(canvasWords(b.doc, b.text.toString()))!.comments).toEqual(teamB.canvas().comments);
+    // Reopened and deleted the same way.
+    teamA.apply(reopenedThread(teamA.canvas(), 'c1')!);
+    teamA.apply(withoutThread(teamA.canvas(), 'c2')!);
+    sync(b, a);
+    expect(teamB.canvas().comments!.map((thread) => [thread.id, Boolean(thread.resolved)])).toEqual([['c1', false]]);
   });
 
-  it('leaves a change of its own out of the follow, so the words and the types never chase each other', async () => {
+  it('reads words that reached the note without the view into the types, as the team document reconciles them', async () => {
+    const a = device(SAMPLE);
+    const teamA = teamCanvas(a)!;
+    // Typed by hand in the JSON view, or written by Claude: words a pass reconciles into the document.
+    const typed = a.text.toString().replace('"x": 0, "y": 160', '"x": 20, "y": 180');
+    expect(reconcileCanvas(a.doc, typed)).toBe(true);
+    expect(nodeOf(teamA.canvas(), 'site')).toMatchObject({ x: 20, y: 180 });
+    expect(reconcileCanvas(a.doc, typed)).toBe(false);
+    expect(reconcileCanvas(a.doc, '# Not a canvas')).toBe(false);
+    expect(parseCanvas(canvasWords(a.doc, a.text.toString()).slice(canvasWords(a.doc, a.text.toString()).indexOf('{')))).not.toBeNull();
+    // Through the team document itself: its words are the types', and a reconcile with a new name changes the front matter alone.
+    const held = (await teamDoc('n-canvas', memoryDocs(), SAMPLE))!;
+    teamCanvas(held)!.apply(moved(teamCanvas(held)!.canvas(), 'book', 3, 3));
+    expect(nodeOf(canvasOf(held.words())!, 'book')).toMatchObject({ x: 3, y: 3 });
+    expect(held.reconcile(held.words())).toBe(false);
+    const renamed = held.words().replace('title: "Plan"', 'title: "Plan B"');
+    expect(held.reconcile(renamed)).toBe(true);
+    expect(held.words().startsWith('---\ntitle: "Plan B"\n---\n')).toBe(true);
+    expect(nodeOf(canvasOf(held.words())!, 'book')).toMatchObject({ x: 3, y: 3 });
+    const edited = held.words().replace('"x": 3', '"x": 30');
+    expect(held.reconcile(edited)).toBe(true);
+    expect(nodeOf(teamCanvas(held)!.canvas(), 'book')).toMatchObject({ x: 30 });
+  });
+
+  it('tells a change once, and keeps the order as the types hold it', () => {
     const a = device(SAMPLE);
     const team = teamCanvas(a)!;
     let told = 0;
     team.onChange(() => (told += 1));
     team.apply(moved(team.canvas(), 'book', 5, 5));
-    await Promise.resolve();
-    await Promise.resolve();
     expect(told).toBe(1);
     expect(a.doc.getArray('canvas-order').toArray()).toEqual(['before', 'book', 'site']);
     expect(CANVAS.toString()).toContain('canvas');

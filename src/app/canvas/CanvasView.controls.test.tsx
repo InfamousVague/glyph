@@ -50,7 +50,7 @@ describe('picking a card', () => {
     tap(note);
     expect(open).not.toHaveBeenCalled();
     expect(note.hasAttribute('data-selected')).toBe(true);
-    expect(barOf(shown, 'f')).toEqual(['Open the note', 'Draw a line from this card', 'Colour', 'Make a copy', 'Take this card off the canvas']);
+    expect(barOf(shown, 'f')).toEqual(['Open the note', 'Draw a line from this card', 'Comment on this card', 'Colour', 'Make a copy', 'Take this card off the canvas']);
     tap(note);
     expect(open).toHaveBeenCalledWith('Launch week', '^photos');
     press(shown, 'f', 'Open the note');

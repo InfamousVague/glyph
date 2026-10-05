@@ -1347,6 +1347,7 @@ export function NoteScreen({
               // A team's canvas (docs/SHARED.md, S9): edited through its structure, with the members' pointers drawn.
               team={team}
               goTo={cursor && isSpot(cursor) ? cursor : undefined}
+              noteId={note.id}
             />
           </div>
         ) : null}

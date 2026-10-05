@@ -53,9 +53,29 @@ export interface CanvasEdge {
 }
 
 /** Nodes in ascending z-order, as the spec has them: the first is drawn first, under the rest. */
+/** A reply in a canvas's thread (docs/SHARED.md, S9): who, when (ISO 8601) and the words. */
+export interface CanvasReply {
+  by: string;
+  at: string;
+  text: string;
+}
+
+/**
+ * A comment thread on a card (docs/SHARED.md, S9): Ghost.md's own field in the JSON, `comments`, a thread each,
+ * anchored to a node by id. The head is the thread's first comment; `resolved` names who closed it and when.
+ */
+export interface CanvasComment extends CanvasReply {
+  id: string;
+  node: string;
+  replies: CanvasReply[];
+  resolved?: { by: string; at: string };
+}
+
 export interface Canvas {
   nodes: CanvasNode[];
   edges: CanvasEdge[];
+  /** The threads on its cards; left out of the JSON when there are none, so a canvas without them is the spec's alone. */
+  comments?: CanvasComment[];
 }
 
 const SIDES: readonly Side[] = ['top', 'right', 'bottom', 'left'];
@@ -132,6 +152,31 @@ function readEdge(value: unknown, nodes: ReadonlySet<string>): CanvasEdge | null
   return edge;
 }
 
+function readReply(value: unknown): CanvasReply | null {
+  if (!isRecord(value)) return null;
+  const by = str(value.by);
+  const at = str(value.at);
+  const text = str(value.text);
+  return by && at && text !== undefined ? { by, at, text } : null;
+}
+
+/** A thread as the JSON has it: on a node that is there, with a head and whatever replies read; resolved when it says so. */
+function readComment(value: unknown, nodes: ReadonlySet<string>): CanvasComment | null {
+  if (!isRecord(value)) return null;
+  const id = str(value.id);
+  const node = str(value.node);
+  const head = readReply(value);
+  if (!id || !node || !nodes.has(node) || !head) return null;
+  const replies = (Array.isArray(value.replies) ? value.replies : []).map(readReply).filter((reply): reply is CanvasReply => reply !== null);
+  const comment: CanvasComment = { id, node, ...head, replies };
+  if (isRecord(value.resolved)) {
+    const by = str(value.resolved.by);
+    const at = str(value.resolved.at);
+    if (by && at) comment.resolved = { by, at };
+  }
+  return comment;
+}
+
 /**
  * The canvas in `text`, or null where the text is not one. A canvas is a JSON object with a `nodes` or an `edges`
  * array (the spec makes both optional; an object with neither is not a canvas, it is `{}`). Nodes that are not nodes
@@ -164,12 +209,25 @@ export function parseCanvas(text: string): Canvas | null {
       edges.push(edge);
     }
   }
-  return { nodes, edges };
+  const comments: CanvasComment[] = [];
+  const commentIds = new Set<string>();
+  for (const entry of Array.isArray(value.comments) ? value.comments : []) {
+    const comment = readComment(entry, seen);
+    if (comment && !commentIds.has(comment.id)) {
+      commentIds.add(comment.id);
+      comments.push(comment);
+    }
+  }
+  return comments.length ? { nodes, edges, comments } : { nodes, edges };
 }
 
-/** The canvas as the spec writes it, two spaces in, a newline at the end, the way Obsidian saves one. */
+/**
+ * The canvas as the spec writes it, two spaces in, a newline at the end, the way Obsidian saves one - and its
+ * threads after the edges, when it has any (docs/SHARED.md, S9), which Obsidian reads past.
+ */
 export function serializeCanvas(canvas: Canvas): string {
-  return `${JSON.stringify({ nodes: canvas.nodes, edges: canvas.edges }, null, 2)}\n`;
+  const comments = canvas.comments?.length ? { comments: canvas.comments } : {};
+  return `${JSON.stringify({ nodes: canvas.nodes, edges: canvas.edges, ...comments }, null, 2)}\n`;
 }
 
 // ---- a canvas as a note ---------------------------------------------------------------------

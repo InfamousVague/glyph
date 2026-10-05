@@ -84,6 +84,12 @@ Settings › About › Examples adds two example canvases to your library:
 - **Add the example canvas** adds [[Cabin weekend, laid out]], one of everything: a group, cards of words and to-dos, a table of who brings what, note cards for [[Launch week]] and [[How to format a note]], a link, a chart of the days, a picture where one can be kept, and lines with words on.
 - **Add the “How Ghost.md works” canvas** adds [[How Ghost.md works]]: eight plain cards, the order on the lines.
 
+## In an organization
+
+A canvas filed in an organization's workspace is the team's, like any note there ([[Accounts, sync and the key you hold]], Organizations). Everyone in the organization has it, and two of you can work on it at once: cards moved, written in, made and taken off by both merge, and typing in the same card lands letter by letter. Each member on the canvas is a small arrow in their colour with their handle on it, and a card someone is writing in wears a ring in their colour. On the organization's page their row says they are editing the canvas, and **Jump to cursor** opens it where their pointer is.
+
+**Comments** go on cards. Pick a card and choose Comment on its bar to start a thread; a card with threads has a round on its corner in the colour of whoever started the first open one, with how many are open, and a tap opens the thread - reply, resolve, reopen or delete it, as in a note. The threads are kept in the canvas's own JSON, after the lines, so they travel with the file.
+
 ## Not built yet
 
 These were chosen for canvases and are still to come:

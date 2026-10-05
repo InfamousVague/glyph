@@ -10583,3 +10583,56 @@ right-click), editor/NoteScreen.test.tsx (the list and the band beside the page)
 sheet at the body).
 
 Cites: §141, §158, §171, §172, §189.
+
+## 198. Canvases for the team: the fifth slice of notes shared in an organization (2026-10-05)
+
+docs/SHARED.md, S9. Matt, with the shared-notes brief: "while you're building this also build in cursor tracking on
+canvases and comments" - and "Please do the rest of the slices".
+
+**The canvas is its types.** A canvas filed in an organization's workspace was already the team's (§193), but as
+words: its JSON in the note's `Y.Text`, where two members' edits at once merged letter by letter into a splice that
+was no JSON at all. Now the team's document holds the canvas as types beside the words (core/team/canvas.ts): the
+nodes a map by id of each node's fields, a card's words a `Y.Text` so typing in one card by two members merges, the
+lines a map by id, the z-order an array of ids, the threads a map by id. The document's own named roots, so two
+devices seeding at once from the same JSON write the same keys into the same maps and neither loses the other's;
+seeded the first time a member draws the canvas, after the note's room has had its say (`TeamRoom.caughtUp`: alone
+in the room, an answer applied, or two and a half seconds), so a structure about to arrive is not seeded over. Two
+members moving different cards, or the same card at once, keep what each did or take one of them whole - never a
+splice of two numbers.
+
+**The words follow the types.** Once seeded, the note's words are read from the types (core/team/doc.ts `words`:
+the front matter as the text has it, the JSON as the types say it) and never written into the shared text, which
+is what garbled; `reconcile` reads words that reached the note without the view - the JSON typed by hand, Claude -
+into the types, and only a changed front matter into the text. The view edits as before, handing back the whole
+canvas, and the structure writes only what changed (canvas/useTeamCanvas.ts); a canvas note's editor, which shows
+its JSON behind the view switch, is not bound to the shared text. The camera is not refitted for another member's
+move. An attempt that wrote the JSON into the text in the same transaction as the types was tried first, and its
+test showed two replies made at once leaving `"replies": [,` behind: the words were taken out of the merge.
+
+**Pointers, and the card being written in.** The note's room carries `pointer` (the canvas's own pixels, said at
+most every 80 ms) and `card` beside `user` in its awareness; the others are drawn as small arrows in their colours
+with their handles (canvas/Pointers.tsx), at their pointers' places and one size on the screen at any zoom, and the
+card one is writing in wears a ring in their colour with their handle on its corner. The organization's page says
+"editing <title>" for a canvas as for a note, and Jump to cursor opens it centred on the member's pointer
+(`goTo`; shell/screen.ts `cursor` is a caret or a spot).
+
+**Comments on cards.** A thread is a `comments` entry in the canvas's JSON, after the edges - `{ id, node, by, at,
+text, replies, resolved? }`, Ghost.md's own field, which Obsidian reads past and which a card taken off takes with
+it - with the shape a note's threads have (§196), so the note's thread card and sheet draw it (canvas/comments.ts,
+canvas/useCanvasComments.tsx, editor/CommentCard.tsx, editor/CommentSheet.tsx) in the members' colours
+(core/comments/colours.ts). A round on the card's top-left corner, in the colour of who started the first open
+thread, says how many are open, hollow once all are resolved, and opens the thread or the card's threads as a list;
+Comment on the picked card's bar starts one. In the team's structure the replies are an array both members' replies
+land in.
+
+**Not yet.** A member's profile card does not count their canvas comments. A canvas's threads are not in the
+organization's audit log sentence. The sixth slice (S11, the key's rotation and the log's pruning) is next.
+
+Tests: core/team/canvas.test.ts (seeded once, two devices seeding at once, a card each moved and the same card typed
+in both kept, the same card moved by both landing whole, cards and lines added and taken off in order, words
+reconciled into the types and a rename into the front matter alone, two replies at once both kept),
+canvas/comments.test.ts, canvas/jsonCanvas.comments.test.ts, canvas/CanvasView.team.test.tsx (a member's move
+drawn, pointers and the ring, the wait for the room, the jump), canvas/CanvasView.comments.test.tsx (the round, the
+thread's card, Comment on the bar), the room's catch-up in core/live/team.test.ts.
+
+Cites: §193, §195, §196; docs/CANVAS.md "In an organization".

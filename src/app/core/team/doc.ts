@@ -1,6 +1,11 @@
 import * as Y from 'yjs';
+import { frontMatterEnd } from '../frontMatter.ts';
 import { REMOTE } from '../live/session.ts';
+import { canvasWords, hasTeamCanvas, reconcileCanvas } from './canvas.ts';
 import type { TeamDocRecord, TeamDocStore } from './docs.ts';
+import { applyTextDiff } from './textDiff.ts';
+
+export { applyTextDiff, LOCAL } from './textDiff.ts';
 
 /**
  * A team note's document on this device (docs/SHARED.md, S5): one Yjs document per note, held while the app runs,
@@ -11,10 +16,12 @@ import type { TeamDocRecord, TeamDocStore } from './docs.ts';
  * Words that reach the note without the editor - a capture appending to it, a journal entry, Claude through the
  * connector - are reconciled into the document as a change (`reconcile`): the lines that differ go and the new ones
  * come, in one transaction, so a change made anywhere merges with the team's rather than overwriting it.
+ *
+ * A canvas (docs/SHARED.md, S9; core/team/canvas.ts), once its structure is seeded, is its types: `words` reads
+ * the JSON from them under the text's front matter, `reconcile` reads words into them, and the text's own JSON is
+ * left as it was, since JSON written as text by two members at once merges into no JSON at all.
  */
 
-/** A change made on this device, whether by the editor or by reconciling words written elsewhere in the app. */
-export const LOCAL = Symbol('team: from this device');
 
 export interface TeamDoc {
   readonly noteId: string;
@@ -60,28 +67,39 @@ function make(noteId: string, store: TeamDocStore, record: TeamDocRecord | null,
   const listeners = new Set<(words: string) => void>();
   let keep: ReturnType<typeof setTimeout> | null = null;
   let keeping: Promise<void> = Promise.resolve();
+  const words = () => (hasTeamCanvas(doc) ? canvasWords(doc, text.toString()) : text.toString());
   const self: TeamDoc = {
     noteId,
     doc,
     text,
     seq: record?.seq ?? 0,
     snapshotSeq: record?.snapshotSeq ?? 0,
-    words: () => text.toString(),
-    reconcile(words) {
-      const now = text.toString();
-      if (now === words) return false;
-      applyTextDiff(text, now, words);
-      listeners.forEach((listener) => listener(text.toString()));
+    words,
+    reconcile(given) {
+      const now = words();
+      if (now === given) return false;
+      if (hasTeamCanvas(doc)) {
+        // The canvas into its types, and only the front matter - the name, the tags - into the text.
+        const changed = reconcileCanvas(doc, given);
+        const was = text.toString();
+        const front = frontMatterOf(given);
+        const had = frontMatterOf(was);
+        if (front !== had) applyTextDiff(text, was, front + was.slice(had.length));
+        if (!changed && front === had) return false;
+      } else {
+        applyTextDiff(text, now, given);
+      }
+      listeners.forEach((listener) => listener(words()));
       return true;
     },
     applyRemote(updates, seq) {
-      const before = text.toString();
+      const before = words();
       doc.transact(() => {
         for (const update of updates) Y.applyUpdate(doc, update, REMOTE);
       }, REMOTE);
       if (seq !== undefined) self.seq = Math.max(self.seq, seq);
       soon();
-      const after = text.toString();
+      const after = words();
       if (after === before) return null;
       listeners.forEach((listener) => listener(after));
       return after;
@@ -119,24 +137,13 @@ function make(noteId: string, store: TeamDocStore, record: TeamDocRecord | null,
   return self;
 }
 
-/**
- * The lines that differ between `from` and `to`, as one change to `text`: the common head and foot are kept, and
- * what lies between goes and comes. A change made elsewhere in the same stretch at the same moment merges by the
- * CRDT's rule, both sides' words kept.
- */
-export function applyTextDiff(text: Y.Text, from: string, to: string): void {
-  let head = 0;
-  const most = Math.min(from.length, to.length);
-  while (head < most && from[head] === to[head]) head += 1;
-  let foot = 0;
-  while (foot < most - head && from[from.length - 1 - foot] === to[to.length - 1 - foot]) foot += 1;
-  text.doc?.transact(() => {
-    const gone = from.length - head - foot;
-    if (gone > 0) text.delete(head, gone);
-    const came = to.slice(head, to.length - foot);
-    if (came) text.insert(head, came);
-  }, LOCAL);
+/** A body's front matter block with its closing line, or nothing where it has none. */
+function frontMatterOf(body: string): string {
+  const lines = body.split('\n');
+  const end = frontMatterEnd(lines);
+  return end ? `${lines.slice(0, end).join('\n')}\n` : '';
 }
+
 
 /**
  * Note `noteId`'s document: the one held, else the one kept in the store, else - with `seedWords` - a new one with

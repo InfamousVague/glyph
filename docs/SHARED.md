@@ -116,8 +116,10 @@ line names its author; the audit log reads "sam commented on Roadmap" from the v
 changed line being in the fence), and a member's profile card counts their comments and replies.
 
 **S9. Canvases.** A canvas (CANVAS.md) in an organization is the team's as a note is: its nodes in a `Y.Map` by id,
-each node a `Y.Map` of its fields with a card's text a `Y.Text`, its edges a `Y.Array`, so two members moving and
-typing in cards at once merge. Presence on a canvas is the pointer's place in canvas space and the card being edited:
+each node a `Y.Map` of its fields with a card's text a `Y.Text`, its edges a `Y.Map` by id with the z-order a
+`Y.Array` of ids, so two members moving and typing in cards at once merge; the note's words are read from the types
+rather than written into the shared text, which two members' JSON edits at once would garble (CANVAS.md, "In an
+organization"). Presence on a canvas is the pointer's place in canvas space and the card being edited:
 others' pointers are drawn as small arrows in their colour with their handle, a card being edited is ringed in its
 editor's colour, and Jump to cursor pans to that place. Comments on a canvas are a `comments` array in its JSON, a
 thread each - `{ id, node, by, at, text, replies }` - anchored to a card, drawn as a round on the card's corner.
@@ -146,7 +148,8 @@ device to sync, wrapped for the members who remain, with every team note re-seal
 4. **Comments** - shipped 2026-10-05 (DESIGN §196). S8 on notes: the anchor and the fence read and written by
    core/comments, the rounds, washes and drawn list in the editor, the thread card, and Comment on the press-and-hold
    band, in the bar, in More and on a note's menu in a list. The audit log's line and the profile card's counts wait.
-5. **Canvases.** S9: live, pointers, comments.
+5. **Canvases** - shipped 2026-10-05 (DESIGN §198). S9: the canvas as types in the team's document, pointers in
+   colour, the card being edited ringed, Jump to cursor on a canvas, and comments as a `comments` array in the JSON.
 6. **Rotation and pruning.** S11's rotation and re-sealing; the log compacted on the service's side as well.
 
 Each slice ships glyph-api first, then the web OTA after the login gap (TEAMS.md, D11), with its design note in

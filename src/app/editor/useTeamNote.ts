@@ -54,8 +54,12 @@ export function useTeamNote(view: EditorView | null, noteId: string, jump?: Jump
         const space = workspaceOf(noteId);
         const orgId = space ? orgIdOf(space.id) : null;
         const room = orgId ? openTeamRoom(orgId, noteId, held) : null;
-        bindLive(view, { text: held.text, awareness: room?.awareness ?? null });
-        bound = true;
+        // A canvas is its structure (S9; core/team/canvas.ts), edited through the view: its editor, which shows its
+        // JSON behind the view switch, stays the note's own and reaches the team by the pass, not by the binding.
+        if (!isCanvasBody(view.state.doc.toString())) {
+          bindLive(view, { text: held.text, awareness: room?.awareness ?? null });
+          bound = true;
+        }
         if (!orgId) return;
         setBinding({ doc: held, room, orgId });
         leave = tellWhere(presence.announce, orgId, noteId, view, room);

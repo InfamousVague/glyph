@@ -1,7 +1,7 @@
 import * as Y from 'yjs';
-import { canvasOf, parseCanvas, withCanvas, type Canvas, type CanvasEdge, type CanvasNode } from '../../canvas/jsonCanvas.ts';
-import { REMOTE } from '../live/session.ts';
-import { applyTextDiff, type TeamDoc } from './doc.ts';
+import { canvasOf, parseCanvas, withCanvas, type Canvas, type CanvasComment, type CanvasEdge, type CanvasNode } from '../../canvas/jsonCanvas.ts';
+import type { TeamDoc } from './doc.ts';
+import { applyTextDiff } from './textDiff.ts';
 
 /**
  * A team canvas as a structure the members' edits merge in (docs/SHARED.md, S9): beside the note's words - the
@@ -13,12 +13,13 @@ import { applyTextDiff, type TeamDoc } from './doc.ts';
  * devices seeding the structure at once from the same JSON write the same keys into the same maps, and neither
  * loses the other's; a card both seeded keeps one device's copy, which is the same card.
  *
- * The view edits by handing back the whole canvas (canvas/CanvasView.tsx `onChange`): `apply` works out what
- * changed and writes only that into the types, and the note's words in the same transaction, so the JSON follows
- * on this device and on the others as part of the same change. Words changed without the types - typed by hand
- * in the JSON view, written by Claude or the Mac's folder, reconciled by a pass - are read back into the types
- * (`follow`); words that arrive from another device are not, since a merge of two members' JSON edits can land
- * between them, and the types already carry what each meant. The next change here writes the JSON whole again.
+ * Once seeded, the types are the canvas, and the note's words are read from them (core/team/doc.ts `words`:
+ * the front matter from the document's text, the JSON from the types), never written into the shared text: two
+ * members' JSON written as text at once merges into a splice that is no JSON at all, where the same two changes to
+ * the types merge into a canvas. The view edits by handing back the whole canvas (canvas/CanvasView.tsx
+ * `onChange`): `apply` works out what changed and writes only that. Words that reach the note without the view -
+ * typed by hand in the JSON view, written by Claude or the Mac's folder - are read into the types as a change when a
+ * pass reconciles them (`reconcileCanvas`).
  */
 
 /** A change made by this adapter: the types and the words together. The text's own `follow` leaves these alone. */
@@ -57,11 +58,19 @@ interface Roots {
   nodes: Y.Map<Fields>;
   edges: Y.Map<Fields>;
   order: Y.Array<string>;
+  /** The threads (S9), by id: a map of the thread's fields, its replies an array both members' replies land in. */
+  comments: Y.Map<Fields>;
   meta: Y.Map<unknown>;
 }
 
 function rootsOf(doc: Y.Doc): Roots {
-  return { nodes: doc.getMap<Fields>('canvas-nodes'), edges: doc.getMap<Fields>('canvas-edges'), order: doc.getArray<string>('canvas-order'), meta: doc.getMap<unknown>('canvas-meta') };
+  return {
+    nodes: doc.getMap<Fields>('canvas-nodes'),
+    edges: doc.getMap<Fields>('canvas-edges'),
+    order: doc.getArray<string>('canvas-order'),
+    comments: doc.getMap<Fields>('canvas-comments'),
+    meta: doc.getMap<unknown>('canvas-meta'),
+  };
 }
 
 function make(doc: Pick<TeamDoc, 'doc' | 'text'>): TeamCanvas | null {
@@ -82,12 +91,7 @@ function make(doc: Pick<TeamDoc, 'doc' | 'text'>): TeamCanvas | null {
       return shown;
     },
     apply(next) {
-      doc.doc.transact(() => {
-        write(roots, next);
-        const was = doc.text.toString();
-        const now = withCanvas(was, next);
-        if (now !== was) applyTextDiff(doc.text, was, now);
-      }, CANVAS);
+      doc.doc.transact(() => write(roots, next), CANVAS);
     },
     onChange(listener) {
       listeners.add(listener);
@@ -109,16 +113,8 @@ function make(doc: Pick<TeamDoc, 'doc' | 'text'>): TeamCanvas | null {
   };
   roots.nodes.observeDeep(onDeep);
   roots.edges.observeDeep(onDeep);
+  roots.comments.observeDeep(onDeep);
   roots.order.observe((_event, transaction) => onDeep(undefined, transaction));
-  // Words changed on this device without the types: read back into them, after the change that made them.
-  doc.text.observe((event) => {
-    if (event.transaction.origin === CANVAS || event.transaction.origin === REMOTE) return;
-    queueMicrotask(() => {
-      const words = canvasOf(doc.text.toString());
-      if (!words || same(words, self.canvas())) return;
-      doc.doc.transact(() => write(roots, words), CANVAS);
-    });
-  });
   return self;
 }
 
@@ -126,8 +122,30 @@ function same(a: Canvas, b: Canvas): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-/** The types as a canvas: the nodes in their order, the edges by id, each read leniently as the JSON would be. */
-function read({ nodes, edges, order }: Roots): Canvas {
+/**
+ * The note's words as the types say them: the front matter as the document's text has it, then the canvas the
+ * types hold, as the spec writes it. What core/team/doc.ts answers for `words` once the canvas is seeded.
+ */
+export function canvasWords(ydoc: Y.Doc, text: string): string {
+  return withCanvas(text, read(rootsOf(ydoc)));
+}
+
+/**
+ * Words that reached the note without the view - a hand edit of the JSON, Claude, the Mac's folder - read into the
+ * types as a change (`reconcile` in core/team/doc.ts, for a seeded canvas). True when something changed; words that
+ * are not a canvas change nothing.
+ */
+export function reconcileCanvas(ydoc: Y.Doc, words: string): boolean {
+  const canvas = canvasOf(words);
+  if (!canvas) return false;
+  const roots = rootsOf(ydoc);
+  if (same(canvas, read(roots))) return false;
+  ydoc.transact(() => write(roots, canvas), CANVAS);
+  return true;
+}
+
+/** The types as a canvas: the nodes in their order, the edges and the threads by id, each read leniently as the JSON would be. */
+function read({ nodes, edges, order, comments }: Roots): Canvas {
   const ids: string[] = [];
   const seen = new Set<string>();
   for (const id of order.toArray()) {
@@ -142,17 +160,24 @@ function read({ nodes, edges, order }: Roots): Canvas {
     for (const [key, value] of fields.entries()) out[key] = value instanceof Y.Text ? value.toString() : value;
     return out;
   };
+  const thread = (id: string): Record<string, unknown> => {
+    const fields = comments.get(id)!;
+    const replies = fields.get('replies');
+    return { id, ...plain(fields), replies: replies instanceof Y.Array ? replies.toArray() : [] };
+  };
   const raw = {
     nodes: ids.map((id) => ({ id, ...plain(nodes.get(id)!) })),
     edges: [...edges.keys()].sort().map((id) => ({ id, ...plain(edges.get(id)!) })),
+    comments: [...comments.keys()].sort().map(thread),
   };
   return parseCanvas(JSON.stringify(raw)) ?? { nodes: [], edges: [] };
 }
 
 /** `next` written into the types: only what differs from what they hold. Inside a transaction. */
-function write({ nodes, edges, order }: Roots, next: Canvas): void {
+function write({ nodes, edges, order, comments }: Roots, next: Canvas): void {
   writeAll(nodes, next.nodes);
   writeAll(edges, next.edges);
+  writeThreads(comments, next.comments ?? []);
   const wanted = next.nodes.map((node) => node.id);
   const had = order.toArray();
   const keep = new Set(wanted);
@@ -176,6 +201,32 @@ function write({ nodes, edges, order }: Roots, next: Canvas): void {
   order.insert(0, wanted);
 }
 
+/**
+ * The threads: each a map of its fields, with `replies` an array only ever added to, so two members replying at
+ * once both land; `resolved` set and taken off as the thread closes and reopens.
+ */
+function writeThreads(into: Y.Map<Fields>, threads: readonly CanvasComment[]): void {
+  const wanted = new Set(threads.map((thread) => thread.id));
+  for (const id of [...into.keys()]) if (!wanted.has(id)) into.delete(id);
+  for (const thread of threads) {
+    const fields = into.get(thread.id) ?? new Y.Map<unknown>();
+    if (!into.has(thread.id)) into.set(thread.id, fields);
+    const { replies, resolved, ...rest } = thread;
+    writeFields(fields, rest as unknown as Record<string, unknown>);
+    let held = fields.get('replies');
+    if (!(held instanceof Y.Array)) {
+      held = new Y.Array<unknown>();
+      fields.set('replies', held);
+    }
+    const list = held as Y.Array<unknown>;
+    if (replies.length > list.length) list.push(replies.slice(list.length).map((reply) => ({ ...reply })));
+    if (resolved) {
+      const was = fields.get('resolved') as { by?: string; at?: string } | undefined;
+      if (was?.by !== resolved.by || was?.at !== resolved.at) fields.set('resolved', { ...resolved });
+    } else if (fields.has('resolved')) fields.delete('resolved');
+  }
+}
+
 function writeAll(into: Y.Map<Fields>, items: readonly (CanvasNode | CanvasEdge)[]): void {
   const wanted = new Set(items.map((item) => item.id));
   for (const id of [...into.keys()]) if (!wanted.has(id)) into.delete(id);
@@ -187,7 +238,7 @@ function writeAll(into: Y.Map<Fields>, items: readonly (CanvasNode | CanvasEdge)
 }
 
 function writeFields(fields: Fields, item: Record<string, unknown>): void {
-  for (const key of [...fields.keys()]) if (key !== 'id' && item[key] === undefined) fields.delete(key);
+  for (const key of [...fields.keys()]) if (key !== 'id' && key !== 'replies' && key !== 'resolved' && item[key] === undefined) fields.delete(key);
   for (const [key, value] of Object.entries(item)) {
     if (key === 'id' || value === undefined) continue;
     const held = fields.get(key);

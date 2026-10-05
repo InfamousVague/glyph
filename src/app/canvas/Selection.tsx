@@ -1,5 +1,5 @@
 import { useState, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type SyntheticEvent } from 'react';
-import { Ban, Check, CopyPlus, ExternalLink, Palette, Pencil, Spline, Trash2 } from '@glacier/icons';
+import { Ban, Check, CopyPlus, ExternalLink, MessageSquare, Palette, Pencil, Spline, Trash2 } from '@glacier/icons';
 import { fireFelt } from '../core/haptics.ts';
 import { ownPicture, paintOf, type CanvasHue } from './cardLooks.ts';
 import { HANDLES, resizedBy, type Handle } from './edits.ts';
@@ -96,6 +96,8 @@ interface CardBarProps {
   onColour: (color: string | null) => void;
   onDuplicate: () => void;
   onRemove: () => void;
+  /** Start a comment thread on this card (docs/SHARED.md, S9); left out where the canvas keeps none. */
+  onComment?: () => void;
 }
 
 function BarButton({ label, onPress, on, children }: { label: string; onPress: () => void; on?: boolean; children: ReactNode }) {
@@ -106,7 +108,7 @@ function BarButton({ label, onPress, on, children }: { label: string; onPress: (
   );
 }
 
-export function CardBar({ node, editing, below, onEdit, onDone, onOpen, onLine, onColour, onDuplicate, onRemove }: CardBarProps) {
+export function CardBar({ node, editing, below, onEdit, onDone, onOpen, onLine, onColour, onDuplicate, onRemove, onComment }: CardBarProps) {
   const [colouring, setColouring] = useState(false);
   const paint = paintOf(node.color);
   const worn = paint && 'hue' in paint ? paint.hue : null;
@@ -158,6 +160,11 @@ export function CardBar({ node, editing, below, onEdit, onDone, onOpen, onLine, 
               <Spline size={17} strokeWidth={2.2} aria-hidden="true" />
             </BarButton>
           )}
+          {onComment ? (
+            <BarButton label="Comment on this card" onPress={onComment}>
+              <MessageSquare size={17} strokeWidth={2.2} aria-hidden="true" />
+            </BarButton>
+          ) : null}
           <BarButton label="Colour" onPress={() => setColouring(true)}>
             <Palette size={17} strokeWidth={2.2} aria-hidden="true" />
           </BarButton>

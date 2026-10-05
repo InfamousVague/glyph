@@ -2,7 +2,7 @@
 
 A canvas is cards on an infinite page with lines between them: the thing Obsidian calls a canvas, in Ghost.md. Matt
 (2026-09-20): "we're going to build something similar for Glyph". His fifteen choices steer it; this is the standard
-they set, and it grows as the slices land. Eight slices are built, and snapping to the dots after them; the end of
+they set, and it grows as the slices land. Eight slices are built, and snapping to the dots and the team's canvas after them; the end of
 this page lists what is not.
 
 ## Matt's choices
@@ -227,6 +227,34 @@ device. A new group leaves one square round its card, and a card stepped aside f
 
 Picking before opening, the bar, and a mouse moving a card without a hold were not put to Matt as questions: they are
 what he asked to have reworked, done the way other canvases do them, and are his to change.
+
+## In an organization
+
+A canvas filed in an organization's workspace is the team's, as a note is (docs/SHARED.md, S9; DESIGN §198), and
+its JSON is not what the members merge: beside the note's words, the team's document holds the canvas as types
+(`src/app/core/team/canvas.ts`) - the nodes a map by id of each node's fields, a card's words a `Y.Text`, the lines
+a map by id, the z-order an array of ids, the threads a map by id - seeded from the JSON the first time a member
+draws it (after the room has had its say, so one about to arrive is not seeded over), and from then on the canvas.
+Two members moving different cards, or typing in the same one, both keep what they did; the same field set at once
+takes one of them whole, never a splice of two numbers. The view edits as it always did, handing back the whole
+canvas (`onChange`), and the team's structure writes only what changed (`src/app/canvas/useTeamCanvas.ts`); the
+note's words are read from the types under the text's front matter, so the library's file and Obsidian see the
+spec's JSON, and words that reach the note without the view - the JSON typed by hand, Claude - are read into the
+types when a pass reconciles them. The camera is not refitted for a card another member moved.
+
+**Presence.** The other members on the canvas are small arrows in their colours with their handles
+(`src/app/canvas/Pointers.tsx`), at their pointers' places in the canvas's own pixels and one size on the screen at
+any zoom, said at most every 80 ms through the note's room; the card one of them is writing in wears a ring in
+their colour with their handle on its corner. The organization's page says "editing Roadmap" for a canvas as for a
+note, and **Jump to cursor** opens the canvas centred on the member's pointer.
+
+**Comments.** A thread on a card is a `comments` entry in the JSON - `{ id, node, by, at, text, replies, resolved? }`,
+Ghost.md's own field after the edges, which Obsidian reads past - with the shape a note's threads have, so the
+note's thread card draws it (`src/app/canvas/comments.ts`, `src/app/canvas/useCanvasComments.tsx`,
+`src/app/editor/CommentCard.tsx`). A round on the card's top-left corner, in the colour of who started the first
+open thread, says how many are open (hollow once all are resolved) and opens the thread, or the card's threads as a
+list; Comment on the picked card's bar starts one; a card taken off takes its threads with it. In a team's
+structure the replies are an array both members' replies land in, so two replies at once are both kept.
 
 Not yet: picking more than one card, adding by voice, item cards, a canvas written inline as a ```canvas fence,
 export, and the model's three moves (a gist on note cards, laying a note out as a canvas, suggesting lines). Each is a

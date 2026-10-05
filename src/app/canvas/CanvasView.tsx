@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LocateFixed, Magnet, Maximize, Plus, Spline, ZoomIn, ZoomOut } from '@glacier/icons';
 import { IMAGE_READY, pickImage, saveImageFile } from '../core/images.ts';
 import { openLink } from '../core/linkPreview.ts';
+import { useCommentColours } from '../core/comments/colours.ts';
 import { setPreferences, usePreferences } from '../core/preferences.ts';
 import { useRedraw } from '../core/useRedraw.ts';
 import type { Spot } from '../core/live/presence.ts';
@@ -12,6 +13,7 @@ import { AddSheet, type AddStep } from './AddSheet.tsx';
 import { useCamera } from './camera.ts';
 import { Card } from './Card.tsx';
 import { Pointers } from './Pointers.tsx';
+import { CommentMarks, useCanvasComments } from './useCanvasComments.tsx';
 import { useOthers, useSaying, useTeamCanvas } from './useTeamCanvas.ts';
 import { fileTitle } from './cardLooks.ts';
 import {
@@ -136,6 +138,8 @@ export interface CanvasViewProps {
   team?: TeamBinding | null;
   /** A spot to centre on, from an organization's dashboard's Jump to cursor: a member's pointer. */
   goTo?: Spot;
+  /** The note this canvas is, for its comments' colours (core/comments/colours.ts); absent, nobody wears one. */
+  noteId?: string;
 }
 
 /** Two taps this close in time and place are a double-tap: a new card on the page, or a card of words opened. */
@@ -146,7 +150,7 @@ const ZOOM_STEP = 1.3;
 /** The room a picked card's bar needs over the card, in screen pixels; with less, the bar goes under the card. */
 const BAR_ROOM = 64;
 
-export function CanvasView({ canvas: given, dark, wiki, videos, className, onChange: tell, team, goTo }: CanvasViewProps) {
+export function CanvasView({ canvas: given, dark, wiki, videos, className, onChange: tell, team, goTo, noteId }: CanvasViewProps) {
   const host = useRef<HTMLDivElement>(null);
   // A team's canvas is its structure in the team's document; any other is the one handed in (useTeamCanvas.ts).
   const { canvas, onChange } = useTeamCanvas(team, given, tell);
@@ -219,6 +223,9 @@ export function CanvasView({ canvas: given, dark, wiki, videos, className, onCha
     const by = others.find((other) => other.card === id);
     return by ? { name: by.name, color: by.color } : undefined;
   };
+  // The threads on the cards (docs/SHARED.md, S9; useCanvasComments.tsx), and the colour each one's round wears.
+  const comments = useCanvasComments(live, noteId, editable ? change : undefined);
+  const commentColours = useCommentColours(noteId ?? '');
   // Jump to cursor from the dashboard: the screen centred on the member's pointer.
   const centre = useRef(camera.centreOn);
   centre.current = camera.centreOn;
@@ -549,7 +556,8 @@ export function CanvasView({ canvas: given, dark, wiki, videos, className, onCha
           />
         ))}
         <LineLayer lines={lines} editable={editable} picked={picked} />
-        {/* The other members' pointers, in their colours (docs/SHARED.md, S9), over the cards and the lines. */}
+        {/* The threads' rounds on the cards' corners, and the other members' pointers in their colours (docs/SHARED.md, S9). */}
+        {editable ? <CommentMarks canvas={live} scale={camera.shown.scale} colour={commentColours.of} onOpen={comments.open} /> : null}
         <Pointers others={others} scale={camera.shown.scale} />
         {/* The picked line's words and its cross, over the line's middle, in the canvas's own pixels. */}
         {pickedLine ? <LineWords key={pickedLine.edge.id} edge={pickedLine.edge} at={pickedLine.path.mid} onLabel={labelLine} onRemove={removeLine} /> : null}
@@ -564,6 +572,7 @@ export function CanvasView({ canvas: given, dark, wiki, videos, className, onCha
             onEdit={() => setEditing(wearing.id)}
             onDone={() => setEditing(null)}
             onOpen={wearing.type === 'link' || (wearing.type === 'file' && wiki) ? () => openCard(wearing) : undefined}
+            onComment={() => comments.start(wearing.id)}
             onLine={() => {
               setEditing(null);
               setPicked(null);
@@ -637,6 +646,8 @@ export function CanvasView({ canvas: given, dark, wiki, videos, className, onCha
         onGo={(x, y) => camera.centreOn({ x, y })}
         onMove={camera.panBy}
       />
+      {/* A thread's card, a new comment, or a card's threads as a list (useCanvasComments.tsx), in the app's sheet. */}
+      {comments.sheet}
       {adding ? (
         <AddSheet
           step={adding}

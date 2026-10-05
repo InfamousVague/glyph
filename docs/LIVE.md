@@ -112,6 +112,10 @@ awareness draws every other member's caret in their colour with their handle on 
 says which connection left, and the room drops the states that connection spoke for at once rather than at the
 protocol's thirty-second timeout.
 
+On a canvas (SHARED.md, S9) the note's room carries the structure's updates the same way, and the awareness holds
+`pointer` (the canvas's own pixels) and `card` (the one being written in) instead of a caret, drawn as arrows in the
+members' colours and a ring on the card (`src/app/canvas/Pointers.tsx`, `src/app/canvas/useTeamCanvas.ts`).
+
 The organization's own room, `presence` (`src/app/core/live/presence.ts`), is held by every member's device while the
 app is signed in and holds the organization key, with a state of `user` and `at`: the note or canvas open, its title,
 the caret (said at most every 400 ms as it moves, since its exact place matters only to a jump) or the pointer. The

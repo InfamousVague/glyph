@@ -73,7 +73,9 @@ export function withNode(canvas: Canvas, node: CanvasNode): Canvas {
 
 /** The canvas without this node, and without any edge that joined it. */
 export function withoutNode(canvas: Canvas, id: string): Canvas {
-  return { nodes: canvas.nodes.filter((n) => n.id !== id), edges: canvas.edges.filter((e) => e.fromNode !== id && e.toNode !== id) };
+  const comments = canvas.comments?.filter((thread) => thread.node !== id);
+  // Its threads go with it (docs/SHARED.md, S9): a comment on a card that is gone has nothing to be on.
+  return { nodes: canvas.nodes.filter((n) => n.id !== id), edges: canvas.edges.filter((e) => e.fromNode !== id && e.toNode !== id), ...(comments?.length ? { comments } : {}) };
 }
 
 /** A new line from one card to another: an arrow at its end, its sides chosen from where the cards are (`sidesOf`). */
