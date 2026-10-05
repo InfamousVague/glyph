@@ -14,7 +14,8 @@
   gap: var(--glacier-space-3);
   inline-size: 100%;
   padding: var(--glacier-space-4);
-  border: var(--glacier-hairline) solid color-mix(in oklch, var(--app-space) 40%, var(--app-rule));
+  /* Mixed with nothing, not with the rule's grey: a grey has a hue of 0 in oklch, and green mixed toward it came out brown. */
+  border: var(--glacier-hairline) solid color-mix(in oklch, var(--app-space) 45%, transparent);
   border-radius: var(--glacier-radius-lg);
   background: color-mix(in oklch, var(--app-space) 6%, transparent);
   color: inherit;
