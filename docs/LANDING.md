@@ -42,6 +42,12 @@ It lives in `landing/` and ships with `node scripts/deploy-landing.mjs`, one ssh
   and `images/` beside the library. A tap on a file shows it as it is on disk, the library's block (id, created,
   pinned, source) and then the page's (a ticket's fields, a notebook's key) (`files.js`, the files' words in
   `<template>`s beside the tree). Written by hand from the library's rules: when they change, so does this.
+- **Teams** (2026-10-05; Matt: "Update the marketing site to include info about collaboration live cursors and
+  organizations"): a section between Your files and Version history, and Teams in the bar. Six cards, each something
+  the app does now (docs/TEAMS.md, docs/SHARED.md slices 1 to 4): organizations by handle or link, live cursors in each
+  member's colour, who is editing what with Jump to cursor, comments in the note's own Markdown, version history and
+  the audit log, the organization key, and Slack. Canvases are not live for a team yet (SHARED.md slice 5), so the page
+  says nothing of them; when they are, this is a sentence to add.
 - **Version history** (2026-10-04; Matt: "add information about versioning to the website"): a section after Your
   files, and `Launch plan.versions` in its tree beside `Launch plan.md` (docs/DESIGN.md §182). The file shown is a real
   one, written by the app's own `core/versions/file.ts` for three versions of the Launch plan note, so its hashes check:
