@@ -419,7 +419,12 @@ async function once(parts: Parts): Promise<void> {
         } catch (failure) {
           // The key turned under this device: its wrap at the new generation is read on the next pass, and the
           // organization's notes are sealed under it then.
-          if (!(failure instanceof KeyTurned)) throw failure;
+          if (failure instanceof KeyTurned) continue;
+          // A lapsed session ends the pass, as anywhere. Anything else is this organization's alone: counted and
+          // said, and the account's own sync and the other organizations stand (Matt: "Sync will try again").
+          if (failure instanceof ApiError && failure.status === 401) throw failure;
+          outcome.unsent += 1;
+          outcome.reason ??= `${row.name}: ${failureText(failure)}`;
         }
       }
     }

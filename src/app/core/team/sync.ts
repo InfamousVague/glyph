@@ -211,7 +211,9 @@ async function pull(ctx: TeamSyncContext, outcome: TeamOutcome): Promise<void> {
       const here = new Map((await ctx.notes.list()).map((note) => [note.id, note]));
       for (const item of page.items) {
         if (ctx.state.notes[item.id]?.rev === item.rev) continue;
-        await takeRow(ctx, item, here.get(item.id), outcome);
+        // A row that will not be read - sealed under a key this device lacks, or cut short - is counted and passed
+        // over, so one bad row does not hold every other note of the team's back; it is tried again when it next changes.
+        await counted(ctx, outcome, () => takeRow(ctx, item, here.get(item.id), outcome));
       }
     }
     ctx.state.cursor = Math.max(ctx.state.cursor, page.rev);

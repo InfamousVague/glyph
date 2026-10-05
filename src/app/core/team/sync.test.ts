@@ -313,8 +313,9 @@ describe('the key turning under the team (docs/SHARED.md, S11)', () => {
     forgetTeamDocs();
     service.teamNotes(orgId).set('n1', before);
     const tablet = device();
-    const failed = await tablet.sync({ key: await freshKey(), generation: 2 }).catch((failure: unknown) => failure);
-    expect(failed).toBeInstanceOf(Error);
+    const unread = await tablet.sync({ key: await freshKey(), generation: 2 });
+    expect(unread.unsent).toBe(1);
+    expect(tablet.notes.has('n1')).toBe(false);
   });
 
   it('snapshots when the service says the log is as long as it keeps one, and posts on', async () => {
