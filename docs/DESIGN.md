@@ -10299,7 +10299,7 @@ detail is strokes over that.
 
 - **The kit's icons.** art/iconWash.ts picks each icon's body: its largest closed shape, and any other closed shape
   of some size that sits clear of it. What is inside the body stays a stroke, so a cog keeps its hole and a ticked
-  circle its tick; an open path is never washed. Fourteen icons whose body is a path left open along an edge another
+  circle its tick; an open path is never washed. Thirteen icons whose body is a path left open along an edge another
   stroke draws - the bin, the flag, the lightbulb, the book - are named by hand, each looked at washed first.
   iconWash.css is made from that, for the icons the app actually imports (`npm run icons:wash`), and the test that
   makes it fails when an icon comes into the app without its rule.
