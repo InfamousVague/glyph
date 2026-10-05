@@ -90,7 +90,8 @@ describe('posting a pass’s rows', () => {
     const rows = [row({ id: 'b', rev: 12, kind: 'member-joined' }), row({ id: 'a', rev: 11, kind: 'note-edited', org: undefined, body: undefined, blob: 'sealed' }), row({ id: 'old', rev: 9, kind: 'member-left' })];
     expect(await postNewRows(10, rows)).toBe(2);
     expect(posted).toEqual([
-      { id: 'a', title: 'Claude edited a note', text: null, link: 'ghostmd://notifications' },
+      // No line under its title: no `text` at all, since Android reads a JSON null as the word "null".
+      { id: 'a', title: 'Claude edited a note', link: 'ghostmd://notifications' },
       { id: 'b', title: 'sam joined Ghost', text: 'Ghost', link: 'ghostmd://org/org1' },
     ]);
   });

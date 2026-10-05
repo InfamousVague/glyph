@@ -49,7 +49,10 @@ class NoticeWorker(context: Context, params: WorkerParameters) : Worker(context,
         for (i in 0 until (items?.length() ?: 0)) {
           val item = items!!.optJSONObject(i) ?: continue
           if (!wanted(item, watch)) continue
-          NoticeAlerts.post(context, item.optString("id"), sentence(item), item.optJSONObject("org")?.optString("name"), linkOf(item))
+          // `optString` reads a JSON null as "null", which said itself under the title: a null name is no line at all.
+          val org = item.optJSONObject("org")
+          val under = org?.takeUnless { it.isNull("name") }?.optString("name")?.takeIf { it.isNotEmpty() }
+          NoticeAlerts.post(context, item.optString("id"), sentence(item), under, linkOf(item))
         }
         cursor = maxOf(cursor, body.optLong("rev", cursor))
         NoticeAlerts.keepCursor(context, cursor)
@@ -161,8 +164,8 @@ class NoticeWorker(context: Context, params: WorkerParameters) : Worker(context,
     internal fun sentence(item: JSONObject): String {
       val from = item.optString("from").takeIf { !item.isNull("from") && it.isNotEmpty() } ?: "Someone"
       val body = item.optJSONObject("body")
-      val org = item.optJSONObject("org")?.optString("name")?.takeIf { it.isNotEmpty() }
-        ?: body?.optString("name")?.takeIf { it.isNotEmpty() }
+      val org = item.optJSONObject("org")?.takeUnless { it.isNull("name") }?.optString("name")?.takeIf { it.isNotEmpty() }
+        ?: body?.takeUnless { it.isNull("name") }?.optString("name")?.takeIf { it.isNotEmpty() }
         ?: "an organization"
       return when (item.optString("kind")) {
         "invite" -> "$from invited you to $org"

@@ -384,10 +384,15 @@ export function watchNoticesOnHost(json: string): NoticesState | null {
   }
 }
 
-/** One row as a phone notification: true when it was posted now or before. False where it could not be. */
+/**
+ * One row as a phone notification: true when it was posted now or before. False where it could not be. A row with no
+ * line under its title is sent without `text`, never `"text": null`: Android's `optString` reads a JSON null as the
+ * word "null", and every such notification said it (Matt: "All the ghost notifications say "null" for the description").
+ */
 export function postNoticeOnHost(notice: { id: string; title: string; text?: string | null; link: string }): boolean {
   try {
-    const answer = window.GlyphHost?.postNotice?.(JSON.stringify(notice));
+    const { text, ...rest } = notice;
+    const answer = window.GlyphHost?.postNotice?.(JSON.stringify(text?.trim() ? { ...rest, text } : rest));
     return answer === 'posted' || answer === 'seen';
   } catch {
     return false;

@@ -27,6 +27,8 @@ class NoticeWorkerTest {
     assertEquals("sam renamed Old to Ghost", NoticeWorker.sentence(row("org-renamed").put("body", JSONObject("""{ "name": "Ghost", "was": "Old" }"""))))
     // An account that is gone, and a row whose organization the reader can no longer see.
     assertEquals("Someone left Lost", NoticeWorker.sentence(row("member-left").put("from", JSONObject.NULL).put("body", JSONObject("""{ "name": "Lost" }""")).apply { remove("org") }))
+    // A name that is JSON null is no name: never the word "null".
+    assertEquals("sam joined an organization", NoticeWorker.sentence(row("member-joined").put("org", JSONObject("""{ "id": "org1", "name": null }""")).put("body", JSONObject("""{ "name": null }"""))))
     // Claude's rows are sealed: worded by their kind alone.
     assertEquals("Claude edited a note", NoticeWorker.sentence(row("note-edited")))
     assertEquals("Claude added a rule", NoticeWorker.sentence(row("rule-added")))

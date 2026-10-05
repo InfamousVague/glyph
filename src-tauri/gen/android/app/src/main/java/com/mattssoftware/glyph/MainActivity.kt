@@ -1120,7 +1120,10 @@ class MainActivity : TauriActivity() {
     @JavascriptInterface
     fun postNotice(json: String): String = try {
       val notice = JSONObject(json)
-      NoticeAlerts.post(this@MainActivity, notice.getString("id"), notice.getString("title"), notice.optString("text").ifEmpty { null }, notice.optString("link"))
+      // `optString` reads a JSON null as "null": a row with no line under its title said "null" (Matt: "All the ghost
+      // notifications say "null" for the description"). Absent or null is no text.
+      val text = if (notice.isNull("text")) null else notice.optString("text").ifEmpty { null }
+      NoticeAlerts.post(this@MainActivity, notice.getString("id"), notice.getString("title"), text, notice.optString("link"))
     } catch (error: Throwable) {
       "could not read the notice"
     }
