@@ -103,6 +103,8 @@ import { NoteMore, NoteTools, type NoteKind } from './NoteTools.tsx';
 import { useBookmark } from './useBookmark.ts';
 import { useLandAt } from './useLandAt.ts';
 import { useLanding } from './useLanding.ts';
+import { useOrgs } from '../core/orgs/orgs.ts';
+import { orgIdOf, useWorkspaces } from '../core/workspaces.ts';
 import { useLiveNote } from './useLiveNote.ts';
 import { useTeamNote } from './useTeamNote.ts';
 import { isSpot, type Jump } from '../core/live/presence.ts';
@@ -518,6 +520,12 @@ export function NoteScreen({
   };
   useLiveNote(view, note.id);
   const team = useTeamNote(view, note.id, cursor);
+  // The colour this person wears here, for their own selection (editor/glyphTheme.ts `ownSelection`): the
+  // organization's in a team's note, else the account's own; none chosen is the ink bar.
+  const orgsNow = useOrgs();
+  const filedIn = useWorkspaces().of[note.id];
+  const inOrg = filedIn ? orgIdOf(filedIn) : null;
+  const myHue = (inOrg ? orgsNow.list.find((row) => row.id === inOrg)?.colour : orgsNow.colour) ?? null;
   // The tab says the note's name as line 1 is written (core/liveTitles.ts), a name tapped on its blank page included.
   useEffect(() => setLiveTitle(note.id, title), [note.id, title]);
   // "Added to House TODOs", with an Undo that is an edit here; and no better words written under the open note.
@@ -1255,7 +1263,7 @@ export function NoteScreen({
         Formatted view and the transcript keep their own scrolling, under a
         tape that stays, since each has a bar of words at its top.
       */}
-      <div ref={page} className={styles.page} data-scrolls={(shown === 'raw' && !drawing) || undefined} data-look={(!typed && look) || undefined}>
+      <div ref={page} className={styles.page} data-me-hue={myHue ?? undefined} data-scrolls={(shown === 'raw' && !drawing) || undefined} data-look={(!typed && look) || undefined}>
         {tape.length > 0 ? (
           <div className={styles.tapeRow}>
             {recording ? (

@@ -5,6 +5,25 @@ const SELECTION_INK = ['oklch(0.16 0 0)', 'oklch(0.965 0 0)'] as const;
 const SELECTION_PAPER = ['oklch(0.995 0 0)', 'oklch(0.11 0 0)'] as const;
 
 /**
+ * The selection in the person's own colour (Matt: "when highlighting text in the app make sure we highlight in our
+ * own color not the default gray"): the hue they wear - in a team's note the one worn in that organization, anywhere
+ * else the account's - named on an element round the editor as `data-me-hue` (editor/NoteScreen.tsx). The same hues
+ * and lightness as ink.css's `[data-hue]`, written out as literals for the reason given at the rules below. With no
+ * colour chosen, the ink bar stands.
+ */
+const HUE_ANGLES = { ember: 32, amber: 75, moss: 150, sea: 230, violet: 295, rose: 355 } as const;
+export function ownSelection(dark: boolean): Record<string, { backgroundColor: string; color: string; WebkitTextFillColor: string }> {
+  const rules: Record<string, { backgroundColor: string; color: string; WebkitTextFillColor: string }> = {};
+  const paper = SELECTION_PAPER[dark ? 1 : 0];
+  for (const [hue, angle] of Object.entries(HUE_ANGLES)) {
+    const look = { backgroundColor: dark ? `oklch(0.78 0.13 ${angle})` : `oklch(0.55 0.14 ${angle})`, color: paper, WebkitTextFillColor: paper };
+    rules[`[data-me-hue="${hue}"] & .cm-line ::selection`] = look;
+    rules[`[data-me-hue="${hue}"] & .cm-line::selection`] = look;
+  }
+  return rules;
+}
+
+/**
  * CodeMirror's own styling layer, expressed entirely in Glacier tokens.
  *
  * Everything that can live in `markdown.module.css` does; this file exists only
@@ -79,6 +98,7 @@ const themeFor = (dark: boolean) =>
       // highlighted isn't white").
       '.cm-line ::selection': { backgroundColor: SELECTION_INK[dark ? 1 : 0], color: SELECTION_PAPER[dark ? 1 : 0], WebkitTextFillColor: SELECTION_PAPER[dark ? 1 : 0] },
       '.cm-line::selection': { backgroundColor: SELECTION_INK[dark ? 1 : 0], color: SELECTION_PAPER[dark ? 1 : 0], WebkitTextFillColor: SELECTION_PAPER[dark ? 1 : 0] },
+      ...ownSelection(dark),
       '.cm-placeholder': { color: 'var(--glacier-text-subtle)' },
     },
     { dark },
