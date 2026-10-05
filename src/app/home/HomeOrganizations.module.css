@@ -1,0 +1,78 @@
+/* The organizations on the home page (HomeOrganizations.tsx): a card each, in its colour, one a row on a phone. */
+.orgs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--glacier-space-3);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+}
+
+.org {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--glacier-space-3);
+  inline-size: 100%;
+  padding: var(--glacier-space-4);
+  border: var(--glacier-hairline) solid color-mix(in oklch, var(--app-space) 40%, var(--app-rule));
+  border-radius: var(--glacier-radius-lg);
+  background: color-mix(in oklch, var(--app-space) 6%, transparent);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.org:hover {
+  background: color-mix(in oklch, var(--app-space) 10%, transparent);
+}
+
+.org:focus-visible {
+  outline: 2px solid var(--app-ink);
+  outline-offset: 3px;
+}
+
+.hue {
+  flex: none;
+  inline-size: 0.8rem;
+  block-size: 0.8rem;
+  margin-block-start: 0.3em;
+  border-radius: var(--glacier-radius-full);
+  background: var(--app-space);
+}
+
+.words {
+  display: grid;
+  gap: 0.2em;
+  min-inline-size: 0;
+}
+
+.name {
+  font-size: var(--glacier-font-size-md);
+  font-weight: var(--glacier-font-weight-semibold);
+  color: var(--app-ink);
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-3);
+}
+
+.here {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-medium);
+  color: var(--app-space);
+}
+
+.dot {
+  flex: none;
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: var(--glacier-radius-full);
+  background: var(--app-space);
+}

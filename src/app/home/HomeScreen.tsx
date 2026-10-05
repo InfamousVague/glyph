@@ -23,6 +23,7 @@ import { onNoteContextMenu } from '../notes/noteMenu.ts';
 import { when } from '../notes/when.ts';
 import { WorkspaceSheet } from '../notes/WorkspaceSheet.tsx';
 import { InviteNotice, UpdateNotice, VoiceModelStatus } from '../notes/Notices.tsx';
+import { HomeOrganizations } from './HomeOrganizations.tsx';
 import { useAccount } from '../core/account/account.ts';
 import { NewOrganizationSheet } from './NewOrganizationSheet.tsx';
 import { useGists } from '../format/gist.ts';
@@ -206,6 +207,8 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
               <InviteNotice onOpen={onOrganization} />
               <VoiceModelStatus state={voiceModel} onRetry={onRetryVoiceModel} />
             </div>
+            {/* The organizations joined, a card each (HomeOrganizations.tsx); not while searching, nor inside one workspace. */}
+            {onOrganization && !searched && !workspace ? <HomeOrganizations notes={notes} onOpen={onOrganization} /> : null}
 
             {!loading && !hasNotes ? (
               <div className={styles.empty}>
