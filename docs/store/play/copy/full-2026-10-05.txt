@@ -1,0 +1,19 @@
+Ghost.md is a notes app in plain Markdown. Every note is a Markdown file on your phone. Headings, lists and to-dos are drawn as you type, with the marks left dimmed, so a note reads the same anywhere.
+
+THE MARKS
+Headings, lists, to-dos, tables, code, footnotes and links between notes. Then seven marks of Ghost.md's own: highlight, aside, unsure, redact, shout, added, and spoiler, which sits in smoke until you tap it. And five effects that move: heat, frost, a wave, a shimmer and a haunting. Add pictures to a note from your photos or the camera.
+
+BOARDS
+A list can be a board, with cards you move between columns.
+
+TICKETS AND QUERIES
+A note can be a ticket, with its status, assignee, priority and due date kept at its top. A query in a note gathers notes from across your library and draws them live, as a board, a table or a list.
+
+NOTEBOOKS, JOURNALS AND CANVASES
+Notes gather into a notebook with an index, to read page by page or straight through. A journal keeps an entry for each time you write, named by the minute. A canvas puts cards on a page with lines between them, saved as JSON Canvas.
+
+WORKSPACES AND TEAMS
+File notes under workspaces to keep work and home apart. With an account, make an organization and invite people by their handle. It gets a workspace of its own on each member's devices.
+
+SYNC AND PRIVACY
+No account is needed. Without one, your notes stay on your phone and nothing of yours is on any server. Sign in and your notes are the same on your phone, on a Mac and in a browser, sealed on the device before they leave. The server cannot read them, and your password never leaves the device. Delete the account in Settings and everything it kept goes with it. Share a note or a notebook as a read-only link: its key rides in the link after the #, so the server cannot read what it holds. No ads, no analytics, no tracking.

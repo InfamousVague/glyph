@@ -1,0 +1,1 @@
+Ghost.md's first release on Google Play: notes in plain Markdown, with to-dos, boards, tickets, queries, notebooks, journals and canvases, and optional sync that seals your notes before they leave the device.
