@@ -40,6 +40,8 @@ export interface CardProps {
   selected?: boolean;
   /** The card a line being drawn starts from. */
   lineFrom?: boolean;
+  /** Another member has this card open to write in (docs/SHARED.md, S9): ringed in their colour, with their handle. */
+  editedBy?: { name: string; color: string };
   onWrite?: (id: string, text: string) => void;
   /** A group's name written. */
   onName?: (id: string, label: string) => void;
@@ -71,9 +73,9 @@ export function Card(props: CardProps) {
  * group is taken by (`data-group-grip`, canvas/gestures.ts), with its border; a group with no name yet wears a faint
  * one while it is picked, so there is still something to take it by and to tap to name it.
  */
-function GroupCard({ node, hue, place, editing = false, lifted = false, selected = false, onName }: KindProps<'group'>) {
+function GroupCard({ node, hue, place, editing = false, lifted = false, selected = false, editedBy, onName }: KindProps<'group'>) {
   return (
-    <div className={styles.group} style={place} data-hue={hue} data-card={node.id} data-lifted={lifted || undefined} data-selected={selected || undefined} data-editing={editing || undefined}>
+    <div className={styles.group} style={ringed(place, editedBy)} data-hue={hue} data-card={node.id} data-lifted={lifted || undefined} data-selected={selected || undefined} data-editing={editing || undefined} data-edited-by={editedBy?.name}>
       {editing && onName ? (
         <span className={styles.groupLabel} data-editing>
           <input
@@ -104,7 +106,7 @@ function GroupCard({ node, hue, place, editing = false, lifted = false, selected
 
 /** A card of words: the note's own editor, read-only in its peek until opened, then live in the note's mode. */
 function TextCard(props: KindProps<'text'>) {
-  const { node, hue, place, dark, videos, root, editing = false, lifted = false, selected = false, lineFrom = false, onWrite } = props;
+  const { node, hue, place, dark, videos, root, editing = false, lifted = false, selected = false, lineFrom = false, editedBy, onWrite } = props;
   // Opened to be written in: the keyboard comes up with it (Matt: "a text card appears under the fingers, keyboard up").
   const opened = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -115,13 +117,14 @@ function TextCard(props: KindProps<'text'>) {
   return (
     <div
       className={styles.card}
-      style={place}
+      style={ringed(place, editedBy)}
       data-hue={hue}
       data-card={node.id}
       data-editing={editing || undefined}
       data-lifted={lifted || undefined}
       data-selected={selected || undefined}
       data-line-from={lineFrom || undefined}
+      data-edited-by={editedBy?.name}
       // A card that is only a table draws the table edge to edge (Matt: "make the table fill the card").
       data-only={!editing && isOnlyTable(node.text) ? 'table' : undefined}
     >
@@ -214,6 +217,11 @@ function FileCard({ node, hue, place, wiki, root, lifted = false, selected = fal
       )}
     </div>
   );
+}
+
+/** A card's place, and the colour of the member writing in it when one is, for the ring (CanvasView.module.css). */
+function ringed(place: CSSProperties, editedBy: { color: string } | undefined): CSSProperties {
+  return editedBy ? ({ ...place, '--editor': editedBy.color } as CSSProperties) : place;
 }
 
 function noop(): void {

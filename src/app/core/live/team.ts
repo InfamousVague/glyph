@@ -44,6 +44,9 @@ export interface RoomDeps {
   release?: (room: string, org: string) => void;
 }
 
+/** How long a device that asked waits for an answer before it goes on without one. */
+const CATCH_UP_MS = 2500;
+
 interface AwarenessChange {
   added: number[];
   updated: number[];
@@ -62,6 +65,10 @@ export class TeamRoom implements RoomListener {
   private readonly transport: LiveTransport;
   /** Which awareness clients each connection in the room spoke for: dropped with the connection when it leaves. */
   private readonly spokeFor = new Map<number, Set<number>>();
+  /** Settled once the room has nothing to catch this device up on: alone in it, a state arrived, or long enough waited. */
+  private readonly settled: Promise<void>;
+  private settle: () => void = () => undefined;
+  private settleTimer: ReturnType<typeof setTimeout> | null = null;
 
   private readonly onDocUpdate = (update: Uint8Array, origin: unknown): void => {
     if (origin !== REMOTE) this.post({ kind: Kind.Update, payload: update });
@@ -82,6 +89,9 @@ export class TeamRoom implements RoomListener {
     me: Me,
     private readonly deps: RoomDeps,
   ) {
+    this.settled = new Promise<void>((settle) => {
+      this.settle = settle;
+    });
     this.awareness = new Awareness(deps.doc?.doc ?? new Y.Doc());
     this.awareness.setLocalStateField('user', me);
     this.transport = (deps.hold ?? holdRoom)(room, this, orgId);
@@ -99,15 +109,26 @@ export class TeamRoom implements RoomListener {
     return this.sending;
   }
 
+  /**
+   * Settles once the others have had their say: alone in the room, or the first answer to this device's query
+   * applied, or CATCH_UP_MS gone by without one - and at once when the room is closed. What a canvas waits on before
+   * seeding its structure from the words, so it does not seed over a structure about to arrive (core/team/canvas.ts).
+   */
+  caughtUp(): Promise<void> {
+    return this.settled;
+  }
+
   /** In the room, first or not, and again after a drop: say who this device is, and ask what the others have. */
   joined(_first: boolean, peers: number): void {
     this.others = peers;
     if (peers === 0) {
       this.forget();
+      this.settle();
       return;
     }
     this.say();
     this.post({ kind: Kind.Query, payload: this.vector() });
+    if (!this.settleTimer) this.settleTimer = setTimeout(() => this.settle(), CATCH_UP_MS);
   }
 
   peersChanged(peers: number, left?: number): void {
@@ -124,6 +145,8 @@ export class TeamRoom implements RoomListener {
   close(): void {
     if (this.closed) return;
     this.closed = true;
+    if (this.settleTimer) clearTimeout(this.settleTimer);
+    this.settle();
     this.awareness.off('update', this.onAwareness);
     this.deps.doc?.doc.off('update', this.onDocUpdate);
     this.awareness.destroy();
@@ -150,6 +173,9 @@ export class TeamRoom implements RoomListener {
         if (lacks(this.vector(), envelope.payload)) this.post({ kind: Kind.Query, payload: this.vector() }, from);
         return;
       case Kind.State:
+        doc?.applyRemote([envelope.payload]);
+        this.settle();
+        return;
       case Kind.Update:
         doc?.applyRemote([envelope.payload]);
         return;

@@ -5,10 +5,14 @@ import { IMAGE_READY, pickImage, saveImageFile } from '../core/images.ts';
 import { openLink } from '../core/linkPreview.ts';
 import { setPreferences, usePreferences } from '../core/preferences.ts';
 import { useRedraw } from '../core/useRedraw.ts';
+import type { Spot } from '../core/live/presence.ts';
+import type { TeamBinding } from '../editor/useTeamNote.ts';
 import type { VideoMode } from '../editor/videos.ts';
 import { AddSheet, type AddStep } from './AddSheet.tsx';
 import { useCamera } from './camera.ts';
 import { Card } from './Card.tsx';
+import { Pointers } from './Pointers.tsx';
+import { useOthers, useSaying, useTeamCanvas } from './useTeamCanvas.ts';
 import { fileTitle } from './cardLooks.ts';
 import {
   atDot,
@@ -125,6 +129,13 @@ export interface CanvasViewProps {
   className?: string;
   /** The canvas after a change - a card moved, made, written in or taken off. Absent, the canvas cannot be changed. */
   onChange?: (canvas: Canvas) => void;
+  /**
+   * A team's canvas (docs/SHARED.md, S9; editor/useTeamNote.ts): drawn from and edited through its structure in the
+   * team's document, with the other members' pointers and open cards drawn from the note's room.
+   */
+  team?: TeamBinding | null;
+  /** A spot to centre on, from an organization's dashboard's Jump to cursor: a member's pointer. */
+  goTo?: Spot;
 }
 
 /** Two taps this close in time and place are a double-tap: a new card on the page, or a card of words opened. */
@@ -135,8 +146,10 @@ const ZOOM_STEP = 1.3;
 /** The room a picked card's bar needs over the card, in screen pixels; with less, the bar goes under the card. */
 const BAR_ROOM = 64;
 
-export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: CanvasViewProps) {
+export function CanvasView({ canvas: given, dark, wiki, videos, className, onChange: tell, team, goTo }: CanvasViewProps) {
   const host = useRef<HTMLDivElement>(null);
+  // A team's canvas is its structure in the team's document; any other is the one handed in (useTeamCanvas.ts).
+  const { canvas, onChange } = useTeamCanvas(team, given, tell);
   /*
    * The canvas as it is being changed: the one handed in, with a card part-way through a drag on top of it. Every
    * change goes out through `onChange` and comes back as the next `canvas`; between the two, and while a finger is
@@ -169,7 +182,13 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
     },
     [onChange],
   );
-  const camera = useCamera(host, canvas);
+  // The camera fits the canvas as it opened, and again when the note reloads it; a team's structure changes with
+  // every member's edit, and a view is not refitted for a card moved.
+  const [opened, setOpened] = useState(canvas);
+  useEffect(() => {
+    if (!team) setOpened(canvas);
+  }, [team, canvas]);
+  const camera = useCamera(host, opened);
   /** Whether what is moved, resized or made lands on the grid's dots: the magnet, on until it is turned off. */
   const snap = usePreferences().canvasSnap;
   /** The minimap grown, from a press on it, until a press lands on the canvas itself. */
@@ -193,6 +212,19 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
       setPicked(null);
     },
   });
+  // The other members on this canvas, and what this device says of itself: its pointer and the card it has open.
+  const others = useOthers(team?.room);
+  const say = useSaying(team?.room, editing);
+  const editedBy = (id: string) => {
+    const by = others.find((other) => other.card === id);
+    return by ? { name: by.name, color: by.color } : undefined;
+  };
+  // Jump to cursor from the dashboard: the screen centred on the member's pointer.
+  const centre = useRef(camera.centreOn);
+  centre.current = camera.centreOn;
+  useEffect(() => {
+    if (goTo) centre.current(goTo);
+  }, [goTo]);
   /** The last tap, and what it was on, for telling a double-tap. */
   const lastTap = useRef<{ at: number; x: number; y: number; on: string | null } | null>(null);
   const picking = chosen ? live.nodes.find((n) => n.id === chosen) : undefined;
@@ -476,7 +508,11 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
       ref={host}
       className={className ? `${styles.canvas} ${className}` : styles.canvas}
       onPointerDown={gestures.onPointerDown}
-      onPointerMove={gestures.onPointerMove}
+      onPointerMove={(event) => {
+        gestures.onPointerMove(event);
+        if (team?.room) say(camera.under(event.clientX, event.clientY));
+      }}
+      onPointerLeave={team?.room ? () => say(null) : undefined}
       onPointerUp={gestures.onPointerUp}
       onPointerCancel={gestures.onPointerUp}
       onClickCapture={onClickCapture}
@@ -507,11 +543,14 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
             lifted={gestures.lifted === node.id}
             selected={editable && chosen === node.id}
             lineFrom={lining?.from === node.id}
+            editedBy={editedBy(node.id)}
             onWrite={editable ? writeCard : undefined}
             onName={editable ? nameGroup : undefined}
           />
         ))}
         <LineLayer lines={lines} editable={editable} picked={picked} />
+        {/* The other members' pointers, in their colours (docs/SHARED.md, S9), over the cards and the lines. */}
+        <Pointers others={others} scale={camera.shown.scale} />
         {/* The picked line's words and its cross, over the line's middle, in the canvas's own pixels. */}
         {pickedLine ? <LineWords key={pickedLine.edge.id} edge={pickedLine.edge} at={pickedLine.path.mid} onLabel={labelLine} onRemove={removeLine} /> : null}
         {/* The picked card's ring and handles, and its bar, over everything else in the world (Selection.tsx). */}

@@ -26,6 +26,19 @@ export interface Caret {
   head: unknown;
 }
 
+/** A place on a canvas, in the canvas's own pixels: a member's pointer (S9). */
+export interface Spot {
+  x: number;
+  y: number;
+}
+
+/** Where a jump goes: a caret in a note's words, or a spot on a canvas. */
+export type Jump = Caret | Spot;
+
+export function isSpot(place: Jump): place is Spot {
+  return typeof (place as Spot).x === 'number' && typeof (place as Spot).y === 'number';
+}
+
 /** Where a device is in an organization: the note or canvas it has open, and the place in it. */
 export interface Whereabouts {
   note: string;
@@ -33,7 +46,7 @@ export interface Whereabouts {
   kind: 'note' | 'canvas';
   cursor: Caret | null;
   /** On a canvas: the pointer's place in canvas space (S9). */
-  pointer: { x: number; y: number } | null;
+  pointer: Spot | null;
 }
 
 /** One device of a member's, as the room has it. */

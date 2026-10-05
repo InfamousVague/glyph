@@ -4,7 +4,7 @@ import { Input } from '@glacier/react';
 import { useAccount } from '../core/account/account.ts';
 import { useBack } from '../core/back.ts';
 import { failureText } from '../core/failure.ts';
-import { usePresence, type Caret, type Seen } from '../core/live/presence.ts';
+import { usePresence, type Jump, type Seen } from '../core/live/presence.ts';
 import { useNotifications } from '../core/notifications/feed.ts';
 import { sentenceOf, type Notification } from '../core/notifications/kinds.ts';
 import { fetchOrg, inviteByHandle, setOrgColour, useOrgs } from '../core/orgs/orgs.ts';
@@ -74,8 +74,8 @@ interface OrganizationScreenProps {
   onLog: () => void;
   /** Settings at Account, from the signed-out words. */
   onAccount: () => void;
-  /** A note opened at a member's caret, from their profile's Jump to cursor (docs/SHARED.md, S6); null, the note alone. */
-  onJumpTo: (noteId: string, cursor: Caret | null) => void;
+  /** A note opened at a member's caret, or a canvas at their pointer, from their profile's Jump to cursor (docs/SHARED.md, S6, S9); null, the note alone. */
+  onJumpTo: (noteId: string, cursor: Jump | null) => void;
 }
 
 /** How many of the workspace's notes the page shows before "All of them". */
@@ -380,7 +380,7 @@ function Invitation({ row }: { row: OrgRow }) {
  * opens their profile: since when, the colour they wear here, where they are, and Jump to cursor, which opens the
  * note they are editing at their caret.
  */
-function MemberLine({ member, me, index, seen, onJump }: { member: Member; me: string; index: number; seen: readonly Seen[]; onJump: (noteId: string, cursor: Caret | null) => void }) {
+function MemberLine({ member, me, index, seen, onJump }: { member: Member; me: string; index: number; seen: readonly Seen[]; onJump: (noteId: string, cursor: Jump | null) => void }) {
   const [open, setOpen] = useState(false);
   const self = member.handle.toLowerCase() === me.toLowerCase();
   const joined = member.state === 'member';
@@ -388,7 +388,7 @@ function MemberLine({ member, me, index, seen, onJump }: { member: Member; me: s
   const at = devices.find((s) => s.at)?.at ?? null;
   const present = devices.length > 0;
   const line = joined ? `${self ? 'You, ' : ''}${member.role === 'owner' ? 'owner since' : 'joined'} ${since(member.since)}` : `Invited${member.invitedBy ? ` by ${member.invitedBy}` : ''} ${since(member.since)}`;
-  const where = at ? `editing ${at.title || 'an untitled note'}` : present ? 'here now' : null;
+  const where = at ? `editing ${at.title || (at.kind === 'canvas' ? 'an untitled canvas' : 'an untitled note')}` : present ? 'here now' : null;
   return (
     <li className={styles.member} data-state={member.state} data-hue={member.colour ?? undefined} data-present={present || undefined} style={{ '--i': Math.min(index, 12) } as CSSProperties}>
       <button type="button" className={styles.memberRow} aria-expanded={open} onClick={() => setOpen((was) => !was)}>
@@ -416,10 +416,10 @@ function MemberLine({ member, me, index, seen, onJump }: { member: Member; me: s
             <span className={styles.swatch} data-hue={member.colour ?? 'ink'} aria-hidden="true" />
             {member.colour ? `Wears ${hueWord(member.colour)} here` : 'Wears no colour yet'}
           </p>
-          <p className={styles.profileLine}>{at ? `Editing ${at.title || 'an untitled note'} now` : present ? 'In the app now' : 'Not in the app now'}</p>
+          <p className={styles.profileLine}>{at ? `Editing ${at.title || (at.kind === 'canvas' ? 'an untitled canvas' : 'an untitled note')} now` : present ? 'In the app now' : 'Not in the app now'}</p>
           {at ? (
-            <button type="button" className={styles.jump} onClick={() => onJump(at.note, at.cursor)}>
-              {at.cursor ? 'Jump to cursor' : 'Open the note'}
+            <button type="button" className={styles.jump} onClick={() => onJump(at.note, at.cursor ?? at.pointer)}>
+              {at.cursor ?? at.pointer ? 'Jump to cursor' : at.kind === 'canvas' ? 'Open the canvas' : 'Open the note'}
             </button>
           ) : null}
         </div>

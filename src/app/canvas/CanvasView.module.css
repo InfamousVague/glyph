@@ -99,6 +99,71 @@
   pointer-events: auto;
 }
 
+/*
+ * Another member writing in a card (docs/SHARED.md, S9): a ring in their colour, and their handle on its corner in
+ * the same colour, scaled with the world as the card is.
+ */
+.card[data-edited-by],
+.group[data-edited-by] {
+  box-shadow: 0 0 0 2px var(--editor, var(--app-ink));
+}
+
+.card[data-edited-by]::after,
+.group[data-edited-by]::after {
+  content: attr(data-edited-by);
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  padding: 1px 7px 2px;
+  border-end-start-radius: var(--glacier-radius-md);
+  background: var(--editor, var(--app-ink));
+  color: var(--app-paper);
+  font-size: 11px;
+  font-weight: var(--glacier-font-weight-medium);
+  line-height: 1.3;
+  pointer-events: none;
+}
+
+/*
+ * The other members' pointers (canvas/Pointers.tsx): an arrow in each one's colour with their handle, at the
+ * pointer's place in the canvas's pixels and scaled back by the view, so it stays the same size on the screen.
+ */
+.pointers {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.pointer {
+  position: absolute;
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  transform-origin: 0 0;
+  transition: left 90ms linear, top 90ms linear;
+}
+
+.pointerArrow {
+  flex: none;
+  fill: var(--pointer, var(--app-ink));
+  stroke: var(--app-paper);
+  stroke-width: 1;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 25%));
+}
+
+.pointerName {
+  margin-block-start: 10px;
+  padding: 1px 7px 2px;
+  border-radius: var(--glacier-radius-full);
+  background: var(--pointer, var(--app-ink));
+  color: var(--app-paper);
+  font-size: 11px;
+  font-weight: var(--glacier-font-weight-medium);
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
 /* Lifted by a held press: a little larger and off the page, the way a board's card and a tab are carried. */
 .card[data-lifted],
 .group[data-lifted] {

@@ -2,7 +2,7 @@ import type { ReviewHandoff } from '../ai/review.ts';
 import type { SpokenAsk } from '../capture/CaptureScreen.tsx';
 import type { CaptureLanding } from '../capture/landing.ts';
 import type { Placing } from '../capture/place.ts';
-import type { Caret } from '../core/live/presence.ts';
+import type { Jump } from '../core/live/presence.ts';
 import type { Note } from '../core/store.ts';
 import { ALL_NOTES, notePlace, type Place } from '../notes/visited.ts';
 
@@ -48,8 +48,8 @@ export type Screen =
        * first word goes (`newEntry`). A note opened to be read takes no focus.
        */
       caret?: number | 'end';
-      /** A member's caret to open at, from an organization's dashboard's Jump to cursor (docs/SHARED.md, S6). */
-      cursor?: Caret;
+      /** A member's caret, or their spot on a canvas, to open at: the dashboard's Jump to cursor (docs/SHARED.md, S6, S9). */
+      cursor?: Jump;
     }
   | {
       name: 'capture';

@@ -68,7 +68,7 @@ import { holdFor, setPendingTag, tagEntryIfWanted, tagNewNotesIfWanted, willLoca
 import { useNoteActions } from './notes/useNoteActions.ts';
 import { NoteMenuHost } from './notes/NoteMenu.tsx';
 import { isPlace, isRecording, noteOnScreen, placeOf, type Screen } from './shell/screen.ts';
-import { watchPresence, type Caret } from './core/live/presence.ts';
+import { watchPresence, type Jump } from './core/live/presence.ts';
 import { barRows } from './shell/topBar.ts';
 import { useCaptureRoute } from './shell/useCaptureRoute.ts';
 import { useAppLinks } from './shell/useAppLinks.ts';
@@ -1067,8 +1067,8 @@ function Shell() {
    * A note a query listed, opened: the note itself, or a to-do's note at its line (editor/useLandAt.ts `line:`), in a
    * tab of its own as a link opens one.
    */
-  /** `id` opened at a member's caret, from an organization's dashboard (Jump to cursor; docs/SHARED.md, S6). */
-  const openNoteAtCursor = (id: string, cursor: Caret | null) => {
+  /** `id` opened at a member's caret, or their spot on a canvas, from an organization's dashboard (Jump to cursor; docs/SHARED.md, S6, S9). */
+  const openNoteAtCursor = (id: string, cursor: Jump | null) => {
     tabs.replaceNext(null);
     const note = notes.find((n) => n.id === id);
     if (note) setScreen(cursor ? { name: 'note', note, cursor } : { name: 'note', note });

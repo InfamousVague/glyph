@@ -1,11 +1,12 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { EditorView } from '@codemirror/view';
-import type { Caret } from '../core/live/presence.ts';
+import { isSpot, type Jump, type Spot, type Whereabouts } from '../core/live/presence.ts';
 import type { TeamRoom } from '../core/live/team.ts';
 import { noteTitle } from '../core/noteTitle.ts';
 import type { TeamDoc } from '../core/team/doc.ts';
 import { deviceDocs } from '../core/team/docs.ts';
 import { isOrgWorkspace, onWorkspaces, orgIdOf, workspaceOf } from '../core/workspaces.ts';
+import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { bindLive, unbindLive } from './liveBinding.ts';
 
 /**
@@ -18,17 +19,28 @@ import { bindLive, unbindLive } from './liveBinding.ts';
  *
  * And live (S6; core/live/team.ts): the note's room is held while it is open, so a member's typing arrives as it is
  * made and their caret and selection are drawn in their colour with their handle on it; and the organization's own
- * room is told this device is editing this note, with the caret as it moves, for the dashboard's "editing Roadmap"
- * and its Jump to cursor. Opened at a `jump` - a member's caret - the selection is put there once the document is
- * bound. Nothing of this needs the live-typing trial switch: a team's notes are live by being the team's.
+ * room is told this device is editing this note, with the caret as it moves - or, on a canvas (S9), the pointer -
+ * for the dashboard's "editing Roadmap" and its Jump to cursor. Opened at a `jump` - a member's caret - the
+ * selection is put there once the document is bound; a spot on a canvas is the canvas view's to go to. Nothing of
+ * this needs the live-typing trial switch: a team's notes are live by being the team's.
+ *
+ * Answers the binding - the document, the room, the organization - once it is made, for a canvas to draw and edit
+ * through (canvas/CanvasView.tsx `team`); null for a note that is not a team's, or not bound yet.
  */
 
-/** How often at most the organization's room hears where the caret is: its exact place matters only to a jump. */
+/** A team note as this screen holds it: its document, its room (null without the key), and whose it is. */
+export interface TeamBinding {
+  doc: TeamDoc;
+  room: TeamRoom | null;
+  orgId: string;
+}
+
+/** How often at most the organization's room hears where the caret or the pointer is: its exact place matters only to a jump. */
 const CARET_EVERY_MS = 400;
 
-export function useTeamNote(view: EditorView | null, noteId: string, jump?: Caret): void {
+export function useTeamNote(view: EditorView | null, noteId: string, jump?: Jump): TeamBinding | null {
   const team = useSyncExternalStore(onWorkspaces, () => isTeamNote(noteId), () => isTeamNote(noteId));
-  const [doc, setDoc] = useState<TeamDoc | null>(null);
+  const [binding, setBinding] = useState<TeamBinding | null>(null);
   useEffect(() => {
     if (!view || !team) return undefined;
     let gone = false;
@@ -44,8 +56,8 @@ export function useTeamNote(view: EditorView | null, noteId: string, jump?: Care
         const room = orgId ? openTeamRoom(orgId, noteId, held) : null;
         bindLive(view, { text: held.text, awareness: room?.awareness ?? null });
         bound = true;
-        setDoc(held);
         if (!orgId) return;
+        setBinding({ doc: held, room, orgId });
         leave = tellWhere(presence.announce, orgId, noteId, view, room);
       })
       .catch(() => {
@@ -54,7 +66,7 @@ export function useTeamNote(view: EditorView | null, noteId: string, jump?: Care
     return () => {
       gone = true;
       leave?.();
-      setDoc(null);
+      setBinding(null);
       if (!bound) return;
       try {
         unbindLive(view);
@@ -67,11 +79,11 @@ export function useTeamNote(view: EditorView | null, noteId: string, jump?: Care
   // Opened at a member's caret (shell/screen.ts `cursor`): the selection put there once the document is bound, and
   // the place scrolled to the middle. A caret the document cannot place any more - its words gone - is left alone.
   useEffect(() => {
-    if (!view || !doc || !jump) return undefined;
+    if (!view || !binding || !jump || isSpot(jump)) return undefined;
     let gone = false;
     void import('../core/live/team.ts').then(({ caretIndexes }) => {
       if (gone) return;
-      const place = caretIndexes(doc, jump);
+      const place = caretIndexes(binding.doc, jump);
       if (!place) return;
       const limit = view.state.doc.length;
       const anchor = Math.min(place.anchor, limit);
@@ -81,29 +93,40 @@ export function useTeamNote(view: EditorView | null, noteId: string, jump?: Care
     return () => {
       gone = true;
     };
-  }, [view, doc, jump]);
+  }, [view, binding, jump]);
+  return binding;
 }
 
 /**
  * Where this device is, for the organization's dashboard (core/live/presence.ts): this note, by its title as it is
- * now, and the caret as the note's room sees it move - at most every CARET_EVERY_MS, since the exact place matters
- * only to a jump. The last place stands while the editor is blurred. Answers the way to stop, which says nowhere.
+ * now, and the caret as the note's room sees it move - or the pointer, on a canvas - at most every CARET_EVERY_MS,
+ * since the exact place matters only to a jump. The last place stands while the editor is blurred, or the pointer
+ * off the canvas. Answers the way to stop, which says nowhere.
  */
-function tellWhere(announce: (orgId: string, at: Parameters<typeof import('../core/live/presence.ts')['announce']>[1]) => void, orgId: string, noteId: string, view: EditorView, room: TeamRoom | null): () => void {
-  let cursor: Caret | null = null;
+function tellWhere(announce: (orgId: string, at: Whereabouts | null) => void, orgId: string, noteId: string, view: EditorView, room: TeamRoom | null): () => void {
+  let cursor: Whereabouts['cursor'] = null;
+  let pointer: Spot | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
-  const tell = () => announce(orgId, { note: noteId, title: noteTitle(view.state.doc.toString()), kind: 'note', cursor, pointer: null });
+  const tell = () => {
+    const words = view.state.doc.toString();
+    announce(orgId, { note: noteId, title: noteTitle(words), kind: isCanvasBody(words) ? 'canvas' : 'note', cursor, pointer });
+  };
   tell();
-  const onChange = (change: { updated: number[] }, origin: unknown) => {
-    if (origin !== 'local' || !room || !change.updated.includes(room.awareness.clientID)) return;
-    const place = room.awareness.getLocalState()?.cursor as Caret | null | undefined;
-    if (!place) return;
-    cursor = { anchor: place.anchor, head: place.head };
+  const soon = () => {
     if (timer) return;
     timer = setTimeout(() => {
       timer = null;
       tell();
     }, CARET_EVERY_MS);
+  };
+  const onChange = (change: { updated: number[] }, origin: unknown) => {
+    if (origin !== 'local' || !room || !change.updated.includes(room.awareness.clientID)) return;
+    const state = room.awareness.getLocalState() ?? {};
+    const caret = state.cursor as Whereabouts['cursor'] | undefined;
+    const spot = state.pointer as Spot | null | undefined;
+    if (caret) cursor = { anchor: caret.anchor, head: caret.head };
+    if (spot) pointer = { x: spot.x, y: spot.y };
+    if (caret || spot) soon();
   };
   room?.awareness.on('change', onChange);
   return () => {
