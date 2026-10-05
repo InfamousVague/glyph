@@ -9,6 +9,7 @@ import { setPreferences, usePreferences } from '../core/preferences.ts';
 import { listNotes } from '../core/store.ts';
 import { deleteAccountHere, signOutHere, syncNow, syncedWhen, unsentLine, useSyncStatus } from '../core/sync/engine.ts';
 import { stayedHere } from '../core/sync/notes.ts';
+import { ColourCard } from './ColourCard.tsx';
 import { ExportCard } from './ExportCard.tsx';
 import { LocationCard } from './LocationCard.tsx';
 import { PrivacyCard } from './PrivacyCard.tsx';
@@ -402,6 +403,7 @@ export function AccountPane({ onOpen }: { onOpen?: (target: SettingsTarget) => v
       )}
       {editing || deleting ? null : (
         <>
+          <ColourCard />
           <SharedLinks />
           <PrivacyCard />
           <LocationCard />

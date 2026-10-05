@@ -420,6 +420,7 @@ of it does.
 ## Not in this slice
 
 - Notes shared inside an organization: an organization key wrapped per member under a per-account encryption key.
+  This is docs/SHARED.md now, in slices: the keys and colours shipped first (DESIGN §191).
 - A nudge over the live relay when a row lands; polling inherits the pass's triggers until then.
 - Pruned rows are not fed as deletions, so a device keeps its copy of a row the server dropped; and an account's
   deletion clearing `from` does not bump the row's revision, so a device that already has the row keeps the old handle

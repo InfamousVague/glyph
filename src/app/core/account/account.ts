@@ -240,10 +240,11 @@ export async function deleteAccount(password: string, deps: Deps = live): Promis
   await signOut(deps);
 }
 
-/** Off this device: the session and both keys. Notes on the device stay; only what made it an account goes. */
+/** Off this device: the session and every key. Notes on the device stay; only what made it an account goes. */
 export async function signOut(deps: Deps = live): Promise<void> {
   await deps.keys.setAccountKey(null);
   await deps.keys.setDeviceKey(null);
+  await deps.keys.setEncryptionKey(null);
   await settleState(deps, null);
 }
 

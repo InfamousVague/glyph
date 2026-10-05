@@ -58,6 +58,9 @@ interface Account {
   recovery: Map<string, string>;
   /** The account key itself, only for an account this service was given a password for (see the header). */
   key: CryptoKey | null;
+  /** The account's colour (docs/SHARED.md, S7), and its encryption key pair as registered (S3). */
+  hue?: string | null;
+  encryption?: { pub: string; sealed: string } | null;
 }
 
 export interface FakeServiceOptions {
@@ -76,6 +79,8 @@ interface Row {
   state: 'member' | 'invited' | 'declined';
   since: number;
   invitedBy: string | null;
+  /** Their colour in this organization, overriding their account's (docs/SHARED.md, S7). */
+  hue?: string | null;
 }
 
 /** An invite link as the service keeps it (server/src/store/org_links.rs): its organization, and who made it. */
@@ -90,6 +95,10 @@ interface StoredOrg {
   createdAt: number;
   /** By handle, lower-cased. */
   rows: Map<string, Row>;
+  /** The organization key's generation in force (docs/SHARED.md, S2); absent for none yet. */
+  generation?: number;
+  /** The key wrapped per member, by handle lower-cased, then by generation. */
+  wraps?: Map<string, Map<number, string>>;
 }
 
 /** The most rows an organization holds, and the most invitations one account may have waiting (docs/TEAMS.md). */
@@ -114,6 +123,9 @@ export async function fakeService(seed?: { handle: string; password: string }, {
   const orgs = new Map<string, StoredOrg>();
   /** Invite links, by code. */
   const links = new Map<string, StoredLink>();
+  /** The peers' colours and public keys (docs/SHARED.md), by handle lower-cased: a test gives a peer either. */
+  const peerHues = new Map<string, string>();
+  const peerKeys = new Map<string, string>();
   /** The account's notifications, by id. */
   const feed = new Map<string, Notification>();
   let counter = 0;
@@ -159,7 +171,17 @@ export async function fakeService(seed?: { handle: string; password: string }, {
   const isHue = (hue: unknown) => hue === null || (typeof hue === 'string' && (WORKSPACE_HUES as readonly string[]).includes(hue));
   const rowOf = (org: StoredOrg, handle: string) => org.rows.get(lower(handle)) ?? null;
   const joined = (org: StoredOrg) => [...org.rows.values()].filter((r) => r.state === 'member');
-  const memberJson = (r: Row): Member => ({ handle: r.handle, role: r.role, state: r.state === 'declined' ? 'invited' : r.state, since: r.since, invitedBy: r.invitedBy });
+  /** A handle's account colour: the account's, or a peer's as a test gave it. */
+  const hueOf = (handle: string): string | null => (account && lower(account.handle) === lower(handle) ? (account.hue ?? null) : (peerHues.get(lower(handle)) ?? null));
+  /** A handle's encryption public key, as registered. */
+  const pubOf = (handle: string): string | null => (account && lower(account.handle) === lower(handle) ? (account.encryption?.pub ?? null) : (peerKeys.get(lower(handle)) ?? null));
+  /** A row's colour: its override in the organization, else the account's. */
+  const colourOf = (r: Row): string | null => r.hue ?? hueOf(r.handle);
+  const wrapOf = (org: StoredOrg, handle: string): string | null => (org.generation ? (org.wraps?.get(lower(handle))?.get(org.generation) ?? null) : null);
+  /** Members with a public key and no wrap at the generation in force (every one with a key, before a generation). */
+  const lacking = (org: StoredOrg) => joined(org).filter((r) => pubOf(r.handle) !== null && wrapOf(org, r.handle) === null);
+  const keysJson = (org: StoredOrg, me: Row) => ({ generation: org.generation ?? 0, mine: wrapOf(org, me.handle) !== null, missing: lacking(org).length });
+  const memberJson = (r: Row): Member => ({ handle: r.handle, role: r.role, state: r.state === 'declined' ? 'invited' : r.state, since: r.since, invitedBy: r.invitedBy, colour: colourOf(r), pub: pubOf(r.handle) });
   const orgJson = (org: StoredOrg, me: Row): Org => ({
     id: org.id,
     name: org.name,
@@ -168,6 +190,8 @@ export async function fakeService(seed?: { handle: string; password: string }, {
     state: me.state === 'declined' ? 'invited' : me.state,
     invitedBy: me.invitedBy,
     createdAt: org.createdAt,
+    colour: colourOf(me),
+    keys: keysJson(org, me),
     members: [...org.rows.values()].filter((r) => r.state !== 'declined').map(memberJson),
   });
   const rowJson = (org: StoredOrg, me: Row): OrgRow => ({
@@ -179,6 +203,8 @@ export async function fakeService(seed?: { handle: string; password: string }, {
     members: joined(org).length,
     invitedBy: me.invitedBy,
     createdAt: org.createdAt,
+    colour: colourOf(me),
+    keys: keysJson(org, me),
   });
   /** A row written into the account's feed by the service, at a new revision: what `notifies` plays. */
   const fed = (row: Partial<Notification> & { kind: Kind }): Notification => {
@@ -302,6 +328,26 @@ export async function fakeService(seed?: { handle: string; password: string }, {
       return json(200, { deleted: true });
     }
 
+    // --- colours and the encryption key pair (docs/SHARED.md, S3, S7) ---
+    if (path === 'account/colour' || path === 'account/key') {
+      if (!teams) return refuse(404, NO_SUCH_ROUTE);
+      if (method === 'PUT' && path === 'account/colour') {
+        const hue = body.hue ?? null;
+        if (!isHue(hue)) return refuse(400, 'That hue is not one of the workspace hues.');
+        mine.hue = hue === 'ink' ? null : (hue as string | null);
+        return json(200, { colour: mine.hue });
+      }
+      if (method === 'GET' && path === 'account/key') {
+        return mine.encryption ? json(200, mine.encryption) : refuse(404, 'No key pair yet.');
+      }
+      if (method === 'PUT' && path === 'account/key') {
+        if (typeof body.pub !== 'string' || typeof body.sealed !== 'string' || !body.pub || !body.sealed) return refuse(400, 'That key pair could not be read.');
+        if (mine.encryption) return json(409, { ...mine.encryption, error: 'The account has a key pair already; this is it.' });
+        mine.encryption = { pub: body.pub, sealed: body.sealed };
+        return json(201, mine.encryption);
+      }
+    }
+
     if (method === 'GET' && path === 'notes') {
       const since = Number(url.searchParams.get('since') ?? 0);
       const items = [...notes.entries()]
@@ -357,7 +403,44 @@ export async function fakeService(seed?: { handle: string; password: string }, {
           const row = rowOf(org, me);
           if (row && row.state !== 'declined') rows.push(rowJson(org, row));
         }
-        return json(200, { orgs: rows });
+        return json(200, { orgs: rows, colour: mine.hue ?? null });
+      }
+      // The caller's colour in one organization (docs/SHARED.md, S7), and the organization key's wraps (S2).
+      const colour = /^orgs\/([^/]+)\/colour$/.exec(path);
+      if (colour && method === 'PUT') {
+        const found = inOrg(decodeURIComponent(colour[1]!));
+        if (!found) return refuse(404, 'No such organization.');
+        const hue = body.hue ?? null;
+        if (!isHue(hue)) return refuse(400, 'That hue is not one of the workspace hues.');
+        found.row.hue = hue === 'ink' ? null : (hue as string | null);
+        return json(200, { org: orgJson(found.org, found.row) });
+      }
+      const keys = /^orgs\/([^/]+)\/keys$/.exec(path);
+      if (keys) {
+        const found = inOrg(decodeURIComponent(keys[1]!));
+        if (!found) return refuse(404, 'No such organization.');
+        const { org, row } = found;
+        const answer = () => json(200, { generation: org.generation ?? 0, mine: wrapOf(org, row.handle), missing: lacking(org).map((r) => ({ handle: r.handle, pub: pubOf(r.handle) })) });
+        if (method === 'GET') return answer();
+        if (method === 'POST') {
+          const generation = Number(body.generation);
+          const wraps = Array.isArray(body.wraps) ? (body.wraps as { handle: string; wrapped: string }[]) : [];
+          if (!(generation >= 1) || wraps.some((w) => typeof w.handle !== 'string' || typeof w.wrapped !== 'string')) return refuse(400, 'Those wraps could not be read.');
+          const inForce = org.generation ?? 0;
+          if (body.make === true) {
+            if (generation !== inForce + 1) return json(409, { error: 'That is not the generation in force.', generation: inForce });
+            org.generation = generation;
+          } else if (generation !== inForce) return json(409, { error: 'That is not the generation in force.', generation: inForce });
+          org.wraps ??= new Map();
+          for (const { handle, wrapped } of wraps) {
+            const member = rowOf(org, handle);
+            if (!member || member.state !== 'member') continue;
+            const theirs = org.wraps.get(lower(handle)) ?? new Map<number, string>();
+            if (!theirs.has(generation)) theirs.set(generation, wrapped);
+            org.wraps.set(lower(handle), theirs);
+          }
+          return answer();
+        }
       }
       const one = /^orgs\/([^/]+)$/.exec(path);
       if (one) {
@@ -609,6 +692,26 @@ export async function fakeService(seed?: { handle: string; password: string }, {
     orgs,
     /** The handles that resolve for an invitation without being the account. */
     peers,
+    /** A peer's colour and encryption public key, as their own devices would have set them (docs/SHARED.md). */
+    peerColour(handle: string, hue: string | null): void {
+      if (hue === null) peerHues.delete(lower(handle));
+      else peerHues.set(lower(handle), hue);
+    },
+    peerKey(handle: string, pub: string | null): void {
+      if (pub === null) peerKeys.delete(lower(handle));
+      else peerKeys.set(lower(handle), pub);
+    },
+    /** The organization key's state as stored: the generation in force and each member's wraps by generation. */
+    keysOf(orgId: string): { generation: number; wraps: Record<string, Record<number, string>> } {
+      const org = orgs.get(orgId);
+      const wraps: Record<string, Record<number, string>> = {};
+      for (const [handle, theirs] of org?.wraps ?? []) wraps[handle] = Object.fromEntries(theirs);
+      return { generation: org?.generation ?? 0, wraps };
+    },
+    /** The account's registered encryption key pair, as stored. */
+    get encryption(): { pub: string; sealed: string } | null {
+      return account?.encryption ?? null;
+    },
     /** A row the service wrote into the account's feed - another account's doing - at a new revision. Answers it. */
     notifies(row: Partial<Notification> & { kind: Kind }): Notification {
       return fed(row);

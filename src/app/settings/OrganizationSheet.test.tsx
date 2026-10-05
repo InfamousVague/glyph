@@ -103,6 +103,23 @@ describe('the screen', () => {
     expect(member(host, 'matt')?.words).toEqual([]);
   });
 
+  // Matt: "add the ability for users to pick and change their color" (docs/SHARED.md, S7).
+  it('has Your colour here under the members: the account’s until one is picked, then that one alone, with the way back', async () => {
+    service.peerColour('matt', 'moss');
+    const id = await ghost();
+    const host = sheet(id);
+    await waitUntil(() => expect(member(host, 'matt')?.chip).toBe('Owner'));
+    const section = () => [...host.querySelectorAll<HTMLElement>('.setk')].find((s) => s.querySelector('.setk__title')?.textContent === 'Your colour here')!;
+    expect(section().querySelector('.setk__footer')?.textContent).toContain('Your account’s colour');
+    act(() => (section().querySelector('[role="radio"][aria-label="Rose"]') as HTMLButtonElement).click());
+    await waitUntil(() => expect(service.orgs.get(id)!.rows.get('matt')!.hue).toBe('rose'));
+    await waitUntil(() => expect(section().querySelector('.setk__footer')?.textContent).toContain('Worn in this organization alone'));
+    expect(section().querySelector('[role="radio"][aria-checked="true"]')?.getAttribute('aria-label')).toBe('Rose');
+    act(() => buttonSaying(section(), 'Use your account’s colour')!.click());
+    await waitUntil(() => expect(service.orgs.get(id)!.rows.get('matt')!.hue).toBeNull());
+    await waitUntil(() => expect(section().querySelector('.setk__footer')?.textContent).toContain('Your account’s colour'));
+  });
+
   it('steps back from Members to the five sections, Delete last for the owner, and closes from there', async () => {
     const onClose = vi.fn();
     const id = await ghost();

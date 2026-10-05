@@ -20,6 +20,9 @@ export interface KeyStore {
   setAccountKey(key: CryptoKey | null): Promise<void>;
   deviceKey(): Promise<CryptoKeyPair | null>;
   setDeviceKey(pair: CryptoKeyPair | null): Promise<void>;
+  /** The account's encryption key pair (docs/SHARED.md, S3), kept as the account key is; null until this device has it. */
+  encryptionKey(): Promise<CryptoKeyPair | null>;
+  setEncryptionKey(pair: CryptoKeyPair | null): Promise<void>;
 }
 
 const SESSION_KEY = 'glyph-account-session';
@@ -77,12 +80,15 @@ const indexedKeys: KeyStore = {
   setAccountKey: (key) => put('account', key),
   deviceKey: () => get<CryptoKeyPair>('device'),
   setDeviceKey: (pair) => put('device', pair),
+  encryptionKey: () => get<CryptoKeyPair>('encryption'),
+  setEncryptionKey: (pair) => put('encryption', pair),
 };
 
 /** The same, held in memory: for tests, and for a browser with no IndexedDB (a private window, say). */
 export function memoryKeys(): KeyStore {
   let account: CryptoKey | null = null;
   let device: CryptoKeyPair | null = null;
+  let encryption: CryptoKeyPair | null = null;
   return {
     accountKey: async () => account,
     setAccountKey: async (key) => {
@@ -91,6 +97,10 @@ export function memoryKeys(): KeyStore {
     deviceKey: async () => device,
     setDeviceKey: async (pair) => {
       device = pair;
+    },
+    encryptionKey: async () => encryption,
+    setEncryptionKey: async (pair) => {
+      encryption = pair;
     },
   };
 }

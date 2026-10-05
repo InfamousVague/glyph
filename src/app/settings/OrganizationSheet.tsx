@@ -4,7 +4,7 @@ import { Input, Switch } from '@glacier/react';
 import { useAccount } from '../core/account/account.ts';
 import { failureText } from '../core/failure.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
-import { deleteOrg, fetchOrg, inviteByHandle, removeMember, setRole, updateOrg, useOrgs } from '../core/orgs/orgs.ts';
+import { deleteOrg, fetchOrg, inviteByHandle, removeMember, setOrgColour, setRole, updateOrg, useOrgs } from '../core/orgs/orgs.ts';
 import type { Member, Org, OrgRow, Role } from '../core/orgs/types.ts';
 import { setPreferences, usePreferences } from '../core/preferences.ts';
 import { orgWorkspaceId, useWorkspaces, type WorkspaceHue } from '../core/workspaces.ts';
@@ -268,6 +268,7 @@ function Members({ row, org, me, onInvite, onDo }: { row: OrgRow; org: Org | nul
           {org ? org.members.map((member) => <MemberRow key={member.handle} member={member} me={me} role={row.role} onDo={onDo} />) : <SettingRow label="Reading the members…" />}
         </PaneSection>
       )}
+      {row.state === 'member' ? <YourColour row={row} /> : null}
       {canInvite ? <Invite onInvite={onInvite} /> : null}
       {canInvite ? (
         <InviteLinks
@@ -281,6 +282,43 @@ function Members({ row, org, me, onInvite, onDo }: { row: OrgRow; org: Org | nul
         />
       ) : null}
     </>
+  );
+}
+
+// --- Your colour here --------------------------------------------------------------------
+
+/**
+ * The person's colour in this organization (docs/SHARED.md, S7): the account's own (settings/ColourCard.tsx) unless
+ * one is chosen here, which is worn here alone. `row.colour` is the one in force; the account's is the list's.
+ */
+function YourColour({ row }: { row: OrgRow }) {
+  const { colour: accountColour } = useOrgs();
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const worn = (row.colour as WorkspaceHue | null) ?? 'ink';
+  const overridden = (row.colour ?? null) !== (accountColour ?? null);
+  const choose = async (hue: WorkspaceHue | null) => {
+    setBusy(true);
+    setProblem(null);
+    try {
+      await setOrgColour(row.id, hue);
+    } catch (failure) {
+      setProblem(failureText(failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <PaneSection
+      title="Your colour here"
+      footer={overridden ? 'Worn in this organization alone: your cursor, your selections, your comments and your row in the members.' : 'Your account’s colour, from Settings › Account. Pick another to wear it in this organization alone.'}
+    >
+      <div className={styles.swatch} aria-busy={busy || undefined}>
+        <WorkspaceSwatch hue={worn} onHue={(hue) => void choose(hue === 'ink' ? null : hue)} />
+      </div>
+      {overridden ? <RowAction onPress={() => void choose(null)}>Use your account’s colour</RowAction> : null}
+      {problem ? <SettingsFootnote>{problem}</SettingsFootnote> : null}
+    </PaneSection>
   );
 }
 

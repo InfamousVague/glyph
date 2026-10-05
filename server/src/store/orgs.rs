@@ -116,6 +116,13 @@ pub struct OrgRow {
     pub members: i64,
     pub invited_by: Option<String>,
     pub created_at: i64,
+    /// The caller's colour in it (store/keys.rs).
+    pub colour: Option<String>,
+    /// The organization key's generation in force (0 for none yet), whether the caller holds a wrap at it, and how
+    /// many members with a public key lack one - so a device knows when to fetch, make or fill without asking.
+    pub key_generation: i64,
+    pub key_mine: bool,
+    pub key_missing: i64,
 }
 
 /// Someone in an organization, joined or invited.
@@ -126,6 +133,10 @@ pub struct Member {
     pub state: String,
     pub since: i64,
     pub invited_by: Option<String>,
+    /// Their colour in this organization: the override, else the account's own, else none (store/keys.rs).
+    pub colour: Option<String>,
+    /// Their encryption public key, for wrapping the organization key to; none until a device of theirs made one.
+    pub pub_key: Option<String>,
 }
 
 /// An organization as a member reads it: the caller's row and everyone in it.
@@ -138,6 +149,10 @@ pub struct Org {
     pub state: String,
     pub invited_by: Option<String>,
     pub created_at: i64,
+    pub colour: Option<String>,
+    pub key_generation: i64,
+    pub key_mine: bool,
+    pub key_missing: i64,
     pub members: Vec<Member>,
 }
 
@@ -162,8 +177,18 @@ pub(super) struct Seat {
 
 const ROW_SELECT: &str = "SELECT o.id, o.name, o.hue, m.role, m.state, o.created_at, \
     (SELECT COUNT(*) FROM org_members x WHERE x.org_id = o.id AND x.state = 'member'), \
-    (SELECT handle FROM accounts WHERE id = m.invited_by) \
+    (SELECT handle FROM accounts WHERE id = m.invited_by), \
+    COALESCE((SELECT hue FROM org_member_hues h WHERE h.org_id = o.id AND h.account_id = m.account_id), (SELECT hue FROM account_hues ah WHERE ah.account_id = m.account_id)), \
+    COALESCE((SELECT generation FROM org_key_state s WHERE s.org_id = o.id), 0), \
+    EXISTS (SELECT 1 FROM org_keys k WHERE k.org_id = o.id AND k.account_id = m.account_id AND k.generation = COALESCE((SELECT generation FROM org_key_state s WHERE s.org_id = o.id), 0)), \
+    (SELECT COUNT(*) FROM org_members x JOIN account_keys ak ON ak.account_id = x.account_id WHERE x.org_id = o.id AND x.state = 'member' \
+        AND NOT EXISTS (SELECT 1 FROM org_keys k WHERE k.org_id = o.id AND k.account_id = x.account_id AND k.generation = COALESCE((SELECT generation FROM org_key_state s WHERE s.org_id = o.id), 0))) \
     FROM org_members m JOIN orgs o ON o.id = m.org_id";
+
+/// A member's columns, with their colour (the organization's override, else the account's) and their public key.
+const MEMBER_COLUMNS: &str = "a.handle, m.role, m.state, m.since, (SELECT handle FROM accounts WHERE id = m.invited_by), \
+    COALESCE((SELECT hue FROM org_member_hues h WHERE h.org_id = m.org_id AND h.account_id = m.account_id), (SELECT hue FROM account_hues ah WHERE ah.account_id = m.account_id)), \
+    (SELECT pub FROM account_keys k WHERE k.account_id = m.account_id)";
 
 const SEAT_SELECT: &str = "SELECT m.account_id, a.handle, m.role, m.state, m.invited_by \
     FROM org_members m JOIN accounts a ON a.id = m.account_id WHERE m.org_id = ?1";
@@ -175,7 +200,20 @@ fn role_at(r: &Row<'_>, index: usize) -> rusqlite::Result<Role> {
 
 impl Store {
     fn org_row(r: &Row<'_>) -> rusqlite::Result<OrgRow> {
-        Ok(OrgRow { id: r.get(0)?, name: r.get(1)?, hue: r.get(2)?, role: role_at(r, 3)?, state: r.get(4)?, created_at: r.get(5)?, members: r.get(6)?, invited_by: r.get(7)? })
+        Ok(OrgRow {
+            id: r.get(0)?,
+            name: r.get(1)?,
+            hue: r.get(2)?,
+            role: role_at(r, 3)?,
+            state: r.get(4)?,
+            created_at: r.get(5)?,
+            members: r.get(6)?,
+            invited_by: r.get(7)?,
+            colour: r.get(8)?,
+            key_generation: r.get(9)?,
+            key_mine: r.get::<_, i64>(10)? != 0,
+            key_missing: r.get(11)?,
+        })
     }
 
     fn seat_row(r: &Row<'_>) -> rusqlite::Result<Seat> {
@@ -183,7 +221,7 @@ impl Store {
     }
 
     fn member_row(r: &Row<'_>) -> rusqlite::Result<Member> {
-        Ok(Member { handle: r.get(0)?, role: role_at(r, 1)?, state: r.get(2)?, since: r.get(3)?, invited_by: r.get(4)? })
+        Ok(Member { handle: r.get(0)?, role: role_at(r, 1)?, state: r.get(2)?, since: r.get(3)?, invited_by: r.get(4)?, colour: r.get(5)?, pub_key: r.get(6)? })
     }
 
     // --- reads ------------------------------------------------------------------
@@ -207,13 +245,25 @@ impl Store {
             .query_row(&format!("{ROW_SELECT} WHERE m.org_id = ?1 AND m.account_id = ?2 AND m.state = 'member'"), params![org, account], Self::org_row)
             .optional()?;
         let Some(row) = row else { return Ok(None) };
-        let mut stmt = conn.prepare(
-            "SELECT a.handle, m.role, m.state, m.since, (SELECT handle FROM accounts WHERE id = m.invited_by) \
-             FROM org_members m JOIN accounts a ON a.id = m.account_id \
-             WHERE m.org_id = ?1 AND m.state IN ('member', 'invited') ORDER BY m.state = 'invited', m.since, m.rowid",
-        )?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {MEMBER_COLUMNS} FROM org_members m JOIN accounts a ON a.id = m.account_id \
+             WHERE m.org_id = ?1 AND m.state IN ('member', 'invited') ORDER BY m.state = 'invited', m.since, m.rowid"
+        ))?;
         let members = stmt.query_map(params![org], Self::member_row)?.filter_map(Result::ok).collect();
-        Ok(Some(Org { id: row.id, name: row.name, hue: row.hue, role: row.role, state: row.state, invited_by: row.invited_by, created_at: row.created_at, members }))
+        Ok(Some(Org {
+            id: row.id,
+            name: row.name,
+            hue: row.hue,
+            role: row.role,
+            state: row.state,
+            invited_by: row.invited_by,
+            created_at: row.created_at,
+            colour: row.colour,
+            key_generation: row.key_generation,
+            key_mine: row.key_mine,
+            key_missing: row.key_missing,
+            members,
+        }))
     }
 
     pub(super) fn seat_of(conn: &Connection, org: &str, account: i64) -> rusqlite::Result<Option<Seat>> {
@@ -250,8 +300,7 @@ impl Store {
 
     fn member_by_account(conn: &Connection, org: &str, account: i64) -> rusqlite::Result<Member> {
         conn.query_row(
-            "SELECT a.handle, m.role, m.state, m.since, (SELECT handle FROM accounts WHERE id = m.invited_by) \
-             FROM org_members m JOIN accounts a ON a.id = m.account_id WHERE m.org_id = ?1 AND m.account_id = ?2",
+            &format!("SELECT {MEMBER_COLUMNS} FROM org_members m JOIN accounts a ON a.id = m.account_id WHERE m.org_id = ?1 AND m.account_id = ?2"),
             params![org, account],
             Self::member_row,
         )

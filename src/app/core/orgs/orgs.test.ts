@@ -59,7 +59,7 @@ describe('the calls', () => {
     expect(org).toMatchObject({ name: 'Ghost', hue: 'sea', role: 'owner', state: 'member', members: [{ handle: 'matt', role: 'owner', state: 'member' }] });
     expect(workspaces().list).toEqual([{ id: `org-${org.id}`, name: 'Ghost', hue: 'sea', org: org.id }]);
     expect(orgs.orgsState().list).toEqual([expect.objectContaining({ id: org.id, name: 'Ghost', members: 1 })]);
-    expect(await orgs.listOrgs(ctx)).toEqual([expect.objectContaining({ id: org.id, role: 'owner', state: 'member', members: 1 })]);
+    expect((await orgs.listOrgs(ctx)).rows).toEqual([expect.objectContaining({ id: org.id, role: 'owner', state: 'member', members: 1 })]);
     expect(await orgs.fetchOrg(org.id, ctx)).toMatchObject({ id: org.id });
   });
 
@@ -141,7 +141,7 @@ describe('the reconcile', () => {
     const invited = service.invited('Boo', 'sam');
     const phone = device(service);
     await phone.sync();
-    expect(phone.state).toEqual({ list: [expect.objectContaining({ id: ghost.id }), expect.objectContaining({ id: invited, state: 'invited' })], at: 99 });
+    expect(phone.state).toEqual({ list: [expect.objectContaining({ id: ghost.id }), expect.objectContaining({ id: invited, state: 'invited' })], at: 99, colour: null });
     expect(workspaces().list).toEqual([{ id: `org-${ghost.id}`, name: 'Ghost', hue: 'moss', org: ghost.id }]);
     // Renamed elsewhere: the workspace follows on the next list. Left: it goes, and its notes are unfiled.
     service.orgs.get(ghost.id)!.name = 'Spectre';
@@ -201,19 +201,19 @@ describe('the list kept here', () => {
     expect(JSON.parse(localStorage.getItem('glyph-sync-7-orgs') ?? 'null')).toEqual({ list: [], at: 5 });
     expect(orgs.orgsState().at).toBe(5);
     session = null;
-    expect(orgs.orgsState()).toEqual({ list: [], at: null });
+    expect(orgs.orgsState()).toEqual({ list: [], at: null, colour: null });
     session = { ...SESSION };
     orgs.forgetOrgs(7);
     expect(localStorage.getItem('glyph-sync-7-orgs')).toBeNull();
-    expect(orgs.orgsState()).toEqual({ list: [], at: null });
+    expect(orgs.orgsState()).toEqual({ list: [], at: null, colour: null });
   });
 
   it('reads rubbish, or a row this build cannot read, as nothing', () => {
     localStorage.setItem('glyph-sync-7-orgs', JSON.stringify({ list: [{ id: 'o1', name: 'Ghost', role: 'owner', state: 'member' }, { id: 'o2' }, 'no'], at: 'then' }));
-    expect(orgs.orgsState()).toEqual({ list: [{ id: 'o1', name: 'Ghost', hue: null, role: 'owner', state: 'member', members: 0, invitedBy: null, createdAt: 0 }], at: null });
+    expect(orgs.orgsState()).toEqual({ list: [{ id: 'o1', name: 'Ghost', hue: null, role: 'owner', state: 'member', members: 0, invitedBy: null, createdAt: 0, colour: null, keys: { generation: 0, mine: false, missing: 0 } }], at: null, colour: null });
     localStorage.setItem('glyph-sync-7-orgs', 'not json');
     orgs.forgetOrgs(7);
-    expect(orgs.orgsState()).toEqual({ list: [], at: null });
+    expect(orgs.orgsState()).toEqual({ list: [], at: null, colour: null });
   });
 
   it('tells its listeners once per change', async () => {

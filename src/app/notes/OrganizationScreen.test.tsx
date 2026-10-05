@@ -206,6 +206,26 @@ describe('an organization’s dashboard', () => {
     expect(onLog).toHaveBeenCalledTimes(2);
   });
 
+  // Matt: "In organizations, add the ability for users to pick and change their color" (docs/SHARED.md, S7).
+  it('wears each member’s colour on their initial, and picks yours here, in this organization alone', async () => {
+    const id = await made('Ghost');
+    await sam(id, true);
+    service.peerColour('sam', 'rose');
+    page(id);
+    await waitUntil(() => expect(members()).toHaveLength(2));
+    const avatars = () => [...document.querySelectorAll<HTMLElement>('ul[aria-label="Members"] li > span:first-child')].map((a) => a.dataset.hue ?? null);
+    expect(avatars()).toEqual([null, 'rose']);
+    expect(document.body.textContent).toContain('Your account’s, from Settings.');
+    // Sea, here alone: the service keeps it on matt's row, the initial wears it, and the way back is offered.
+    act(() => button('Sea').click());
+    await waitUntil(() => expect(service.orgs.get(id)!.rows.get('matt')!.hue).toBe('sea'));
+    await waitUntil(() => expect(avatars()).toEqual(['sea', 'rose']));
+    expect(document.body.textContent).toContain('In this organization alone.');
+    act(() => buttonSaying(document.body, 'Use your account’s colour')!.click());
+    await waitUntil(() => expect(service.orgs.get(id)!.rows.get('matt')!.hue).toBeNull());
+    await waitUntil(() => expect(avatars()).toEqual([null, 'rose']));
+  });
+
   it('shows the organization’s own news, newest first, and not another’s or an invitation', async () => {
     const id = await made('Ghost');
     fed({ kind: 'member-joined', from: 'sam', org: { id, name: 'Ghost' }, body: { name: 'Ghost' } });

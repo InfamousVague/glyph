@@ -6,12 +6,12 @@ import { useBack } from '../core/back.ts';
 import { failureText } from '../core/failure.ts';
 import { useNotifications } from '../core/notifications/feed.ts';
 import { sentenceOf, type Notification } from '../core/notifications/kinds.ts';
-import { fetchOrg, inviteByHandle, useOrgs } from '../core/orgs/orgs.ts';
+import { fetchOrg, inviteByHandle, setOrgColour, useOrgs } from '../core/orgs/orgs.ts';
 import type { Member, Org, OrgRow } from '../core/orgs/types.ts';
 import { usePreferences } from '../core/preferences.ts';
 import type { Note } from '../core/store.ts';
 import { syncNotificationsNow } from '../core/sync/engine.ts';
-import { orgWorkspaceId, useWorkspaces } from '../core/workspaces.ts';
+import { orgWorkspaceId, useWorkspaces, type WorkspaceHue } from '../core/workspaces.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { Ghost } from '../art/Ghost.tsx';
 import { InviteActions } from '../settings/InviteActions.tsx';
@@ -19,6 +19,7 @@ import { InviteLinks } from '../settings/InviteLinks.tsx';
 import { GoWord } from '../settings/kit/settingsKit.tsx';
 import { memberWords, roleWords } from '../settings/orgWords.ts';
 import { NoteCard } from './NoteCard.tsx';
+import { WorkspaceSwatch } from './WorkspaceSwatch.tsx';
 import { MARKS, NEWS } from './orgNews.tsx';
 import { PullToRefresh } from './PullToRefresh.tsx';
 import { when } from './when.ts';
@@ -126,7 +127,7 @@ export function OrganizationScreen({ orgId, notes, onBack, onOpenNote, onNewNote
   useEffect(() => {
     if (held || !member) return;
     void read();
-  }, [held, member, read, newest, row?.members]);
+  }, [held, member, read, newest, row?.members, row?.colour]);
   // Opened: the feed and the list taken again now, so what changed while the app was away is here before it is read.
   useEffect(() => {
     if (!held) void syncNotificationsNow();
@@ -247,6 +248,8 @@ export function OrganizationScreen({ orgId, notes, onBack, onOpenNote, onNewNote
                       <li className={styles.reading}>Reading the members…</li>
                     )}
                   </ul>
+                  {/* Your colour in this organization (docs/SHARED.md, S7), under the members, where it is worn. */}
+                  <YourColour row={row} />
                   {canInvite ? (
                     <Invite
                       field={inviteField}
@@ -371,7 +374,8 @@ function MemberLine({ member, me, index }: { member: Member; me: string; index: 
   const line = joined ? `${self ? 'You, ' : ''}${member.role === 'owner' ? 'owner since' : 'joined'} ${since(member.since)}` : `Invited${member.invitedBy ? ` by ${member.invitedBy}` : ''} ${since(member.since)}`;
   return (
     <li className={styles.member} data-state={member.state} style={{ '--i': Math.min(index, 12) } as CSSProperties}>
-      <span className={styles.avatar} aria-hidden="true">
+      {/* Their initial on their colour (docs/SHARED.md, S7): the one their cursor and comments wear. */}
+      <span className={styles.avatar} data-hue={member.colour ?? undefined} aria-hidden="true">
         {member.handle.slice(0, 1).toUpperCase()}
       </span>
       <span className={styles.memberWords}>
@@ -395,6 +399,45 @@ function NewsLine({ n, index }: { n: Notification; index: number }) {
       <span className={styles.newsWords}>{sentenceOf(n, null)}</span>
       <span className={styles.when}>{when(n.at)}</span>
     </li>
+  );
+}
+
+/**
+ * Your colour here (docs/SHARED.md, S7): the account's own unless one is picked here, worn in this organization
+ * alone - by your cursor and selections in a team note, your comments and your row above. Matt: "add the ability
+ * for users to pick and change their color".
+ */
+function YourColour({ row }: { row: OrgRow }) {
+  const { colour: accountColour } = useOrgs();
+  const [problem, setProblem] = useState<string | null>(null);
+  const worn = (row.colour as WorkspaceHue | null) ?? 'ink';
+  const overridden = (row.colour ?? null) !== (accountColour ?? null);
+  const choose = async (hue: WorkspaceHue | null) => {
+    setProblem(null);
+    try {
+      await setOrgColour(row.id, hue);
+    } catch (failure) {
+      setProblem(failureText(failure));
+    }
+  };
+  return (
+    <div className={styles.yourColour}>
+      <span className={styles.yourColourWords}>
+        <span className={styles.subheading}>Your colour</span>
+        <span className={styles.since}>{overridden ? 'In this organization alone.' : 'Your account’s, from Settings.'}</span>
+      </span>
+      <WorkspaceSwatch hue={worn} onHue={(hue) => void choose(hue === 'ink' ? null : hue)} />
+      {overridden ? (
+        <button type="button" className={`app-word ${styles.more}`} onClick={() => void choose(null)}>
+          Use your account’s colour
+        </button>
+      ) : null}
+      {problem ? (
+        <p className={styles.inviteSaid} role="alert">
+          {problem}
+        </p>
+      ) : null}
+    </div>
   );
 }
 

@@ -58,10 +58,12 @@ async fn an_organization_is_made_listed_read_renamed_and_deleted_by_its_owner() 
     assert_eq!((org["name"].clone(), org["hue"].clone(), org["role"].clone(), org["state"].clone()), (json!("Ghost"), json!("moss"), json!("owner"), json!("member")));
     assert_eq!(org["invitedBy"], Value::Null);
     assert!(org["createdAt"].is_i64());
-    assert_eq!(org["members"], json!([{ "handle": "matt", "role": "owner", "state": "member", "since": org["createdAt"], "invitedBy": null }]));
+    assert_eq!(org["members"], json!([{ "handle": "matt", "role": "owner", "state": "member", "since": org["createdAt"], "invitedBy": null, "colour": null, "pub": null }]));
+    assert_eq!((org["colour"].clone(), org["keys"].clone()), (Value::Null, json!({ "generation": 0, "mine": false, "missing": 0 })));
 
     let (_, list) = h.call(Method::GET, "/api/v1/orgs", Some(&matt), None).await;
-    assert_eq!(list["orgs"], json!([{ "id": id, "name": "Ghost", "hue": "moss", "role": "owner", "state": "member", "members": 1, "invitedBy": null, "createdAt": org["createdAt"] }]));
+    assert_eq!(list["orgs"], json!([{ "id": id, "name": "Ghost", "hue": "moss", "role": "owner", "state": "member", "members": 1, "invitedBy": null, "createdAt": org["createdAt"], "colour": null, "keys": { "generation": 0, "mine": false, "missing": 0 } }]));
+    assert_eq!(list["colour"], Value::Null);
     let (status, read) = h.call(Method::GET, &format!("/api/v1/orgs/{id}"), Some(&matt), None).await;
     assert_eq!((status, read["org"].clone()), (StatusCode::OK, org));
 
@@ -119,6 +121,9 @@ async fn a_stranger_gets_one_404_from_every_route_of_an_organization() {
         (Method::POST, format!("/api/v1/orgs/{id}/links"), Some(json!({}))),
         (Method::GET, format!("/api/v1/orgs/{id}/links"), None),
         (Method::DELETE, format!("/api/v1/orgs/{id}/links/AAAAAAAAAAAAAAAAAAAAAA"), None),
+        (Method::PUT, format!("/api/v1/orgs/{id}/colour"), Some(json!({ "hue": "sea" }))),
+        (Method::GET, format!("/api/v1/orgs/{id}/keys"), None),
+        (Method::POST, format!("/api/v1/orgs/{id}/keys"), Some(json!({ "generation": 1, "wraps": [] }))),
         // And one that was never made, in the same words.
         (Method::GET, "/api/v1/orgs/AAAAAAAAAAAAAAAAAAAAAA".to_string(), None),
     ];
@@ -395,8 +400,8 @@ async fn an_asker_who_deletes_their_account_leaves_the_invitee_a_member_and_an_o
     let (status, body) = answer(&h, &ali, &id, true).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(body["org"]["members"], json!([
-        { "handle": "matt", "role": "owner", "state": "member", "since": body["org"]["members"][0]["since"], "invitedBy": null },
-        { "handle": "ali", "role": "member", "state": "member", "since": body["org"]["members"][1]["since"], "invitedBy": null },
+        { "handle": "matt", "role": "owner", "state": "member", "since": body["org"]["members"][0]["since"], "invitedBy": null, "colour": null, "pub": null },
+        { "handle": "ali", "role": "member", "state": "member", "since": body["org"]["members"][1]["since"], "invitedBy": null, "colour": null, "pub": null },
     ]));
     assert_eq!(of_kind(&h, &matt, "invite-accepted").await.last().unwrap()["from"], "ali", "the asker gone, the owner is told");
     // Hand over, and the old owner may go; the organization is told they left.
@@ -540,4 +545,101 @@ async fn an_invite_links_terms_and_count_are_checked() {
     }
     let (status, body) = make_link(&h, &matt, &org, json!({})).await;
     assert_eq!((status, body), refusal(StatusCode::CONFLICT, "This organization has as many invite links as it can. Turn one off first."));
+}
+
+// --- colours and keys (docs/SHARED.md) -------------------------------------------------------
+
+#[tokio::test]
+async fn a_colour_is_the_accounts_until_an_organization_overrides_it_and_the_list_carries_both() {
+    let h = harness();
+    let matt = h.signup("matt", &device()).await;
+    let sam = h.signup("sam", &device()).await;
+    let id = make(&h, &matt, "Ghost").await;
+    invite(&h, &matt, &id, "sam").await;
+    answer(&h, &sam, &id, true).await;
+    // Nothing chosen: no colour anywhere.
+    let (_, list) = h.call(Method::GET, "/api/v1/orgs", Some(&matt), None).await;
+    assert_eq!((list["colour"].clone(), list["orgs"][0]["colour"].clone()), (Value::Null, Value::Null));
+    // The account's colour, seen by the account and by the others in every organization.
+    let (status, body) = h.call(Method::PUT, "/api/v1/account/colour", Some(&matt), Some(json!({ "hue": "sea" }))).await;
+    assert_eq!((status, body), (StatusCode::OK, json!({ "colour": "sea" })));
+    let (_, list) = h.call(Method::GET, "/api/v1/orgs", Some(&matt), None).await;
+    assert_eq!((list["colour"].clone(), list["orgs"][0]["colour"].clone()), (json!("sea"), json!("sea")));
+    let (_, read) = h.call(Method::GET, &format!("/api/v1/orgs/{id}"), Some(&sam), None).await;
+    assert_eq!(read["org"]["members"][0]["colour"], "sea");
+    assert_eq!(read["org"]["members"][1]["colour"], Value::Null, "sam chose nothing");
+    // An override in this organization, for matt alone; cleared, the account's shows again.
+    let (status, body) = h.call(Method::PUT, &format!("/api/v1/orgs/{id}/colour"), Some(&matt), Some(json!({ "hue": "rose" }))).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!((body["org"]["colour"].clone(), body["org"]["members"][0]["colour"].clone()), (json!("rose"), json!("rose")));
+    let (_, list) = h.call(Method::GET, "/api/v1/orgs", Some(&matt), None).await;
+    assert_eq!((list["colour"].clone(), list["orgs"][0]["colour"].clone()), (json!("sea"), json!("rose")));
+    let (_, body) = h.call(Method::PUT, &format!("/api/v1/orgs/{id}/colour"), Some(&matt), Some(json!({ "hue": null }))).await;
+    assert_eq!(body["org"]["colour"], "sea");
+    // Ink is no colour; a hue the app does not have is refused; a stranger is refused in the usual words.
+    let (_, body) = h.call(Method::PUT, "/api/v1/account/colour", Some(&matt), Some(json!({ "hue": "ink" }))).await;
+    assert_eq!(body, json!({ "colour": null }));
+    let unknown = h.call(Method::PUT, "/api/v1/account/colour", Some(&matt), Some(json!({ "hue": "teal" }))).await;
+    assert_eq!(unknown, refusal(StatusCode::BAD_REQUEST, "That hue is not one of the workspace hues."));
+    let lee = h.signup("lee", &device()).await;
+    let stranger = h.call(Method::PUT, &format!("/api/v1/orgs/{id}/colour"), Some(&lee), Some(json!({ "hue": "sea" }))).await;
+    assert_eq!(stranger, refusal(StatusCode::NOT_FOUND, "No such organization."));
+}
+
+#[tokio::test]
+async fn a_key_pair_is_registered_once_and_the_organization_key_is_made_once_and_filled_for_the_missing() {
+    let h = harness();
+    let matt = h.signup("matt", &device()).await;
+    let sam = h.signup("sam", &device()).await;
+    let lee = h.signup("lee", &device()).await;
+    let id = make(&h, &matt, "Ghost").await;
+    invite(&h, &matt, &id, "sam").await;
+    answer(&h, &sam, &id, true).await;
+    invite(&h, &matt, &id, "lee").await;
+    // No pair yet: 404; registered: 201; a second registration: 409 with the first, which stands.
+    let none_yet = h.call(Method::GET, "/api/v1/account/key", Some(&matt), None).await;
+    assert_eq!(none_yet, refusal(StatusCode::NOT_FOUND, "No key pair yet."));
+    let (status, body) = h.call(Method::PUT, "/api/v1/account/key", Some(&matt), Some(json!({ "pub": "pub-matt", "sealed": "sealed-matt" }))).await;
+    assert_eq!((status, body), (StatusCode::CREATED, json!({ "pub": "pub-matt", "sealed": "sealed-matt" })));
+    let (status, body) = h.call(Method::PUT, "/api/v1/account/key", Some(&matt), Some(json!({ "pub": "pub-other", "sealed": "sealed-other" }))).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!((body["pub"].clone(), body["sealed"].clone()), (json!("pub-matt"), json!("sealed-matt")));
+    let (_, body) = h.call(Method::GET, "/api/v1/account/key", Some(&matt), None).await;
+    assert_eq!(body, json!({ "pub": "pub-matt", "sealed": "sealed-matt" }));
+    let unreadable = h.call(Method::PUT, "/api/v1/account/key", Some(&sam), Some(json!({ "pub": "not base64!", "sealed": "x" }))).await;
+    assert_eq!(unreadable, refusal(StatusCode::BAD_REQUEST, "That key pair could not be read."));
+    // The members carry each other's public keys, and the list says what the organization key needs.
+    let (_, read) = h.call(Method::GET, &format!("/api/v1/orgs/{id}"), Some(&sam), None).await;
+    assert_eq!((read["org"]["members"][0]["pub"].clone(), read["org"]["members"][1]["pub"].clone()), (json!("pub-matt"), Value::Null));
+    assert_eq!(read["org"]["keys"], json!({ "generation": 0, "mine": false, "missing": 1 }), "matt has a key and no wrap");
+    // Nothing made: who lacks is everyone with a key; matt makes the first generation and wraps for himself.
+    let (_, keys) = h.call(Method::GET, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), None).await;
+    assert_eq!(keys, json!({ "generation": 0, "mine": null, "missing": [{ "handle": "matt", "pub": "pub-matt" }] }));
+    let (status, keys) = h.call(Method::POST, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), Some(json!({ "generation": 1, "make": true, "wraps": [{ "handle": "matt", "wrapped": "w-matt" }] }))).await;
+    assert_eq!((status, keys), (StatusCode::OK, json!({ "generation": 1, "mine": "w-matt", "missing": [] })));
+    // A second maker, racing: told the generation in force, and its key goes nowhere; a wrap at that generation is kept.
+    let (status, body) = h.call(Method::POST, &format!("/api/v1/orgs/{id}/keys"), Some(&sam), Some(json!({ "generation": 1, "make": true, "wraps": [{ "handle": "sam", "wrapped": "w-sam-race" }] }))).await;
+    assert_eq!((status, body), (StatusCode::CONFLICT, json!({ "error": "That is not the generation in force.", "generation": 1 })));
+    let (status, body) = h.call(Method::POST, &format!("/api/v1/orgs/{id}/keys"), Some(&sam), Some(json!({ "generation": 1, "wraps": [{ "handle": "sam", "wrapped": "w-sam-race" }] }))).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["mine"], "w-sam-race");
+    let (status, body) = h.call(Method::POST, &format!("/api/v1/orgs/{id}/keys"), Some(&sam), Some(json!({ "generation": 2, "wraps": [] }))).await;
+    assert_eq!((status, body), (StatusCode::CONFLICT, json!({ "error": "That is not the generation in force.", "generation": 1 })));
+    // lee registers a key while still invited: not wrapped for, not listed; accepted, listed as missing and filled.
+    h.call(Method::PUT, "/api/v1/account/key", Some(&lee), Some(json!({ "pub": "pub-lee", "sealed": "sealed-lee" }))).await;
+    let (_, keys) = h.call(Method::GET, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), None).await;
+    assert_eq!(keys["missing"], json!([]));
+    let refused_lee = h.call(Method::GET, &format!("/api/v1/orgs/{id}/keys"), Some(&lee), None).await;
+    assert_eq!(refused_lee, refusal(StatusCode::NOT_FOUND, "No such organization."));
+    answer(&h, &lee, &id, true).await;
+    let (_, keys) = h.call(Method::GET, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), None).await;
+    assert_eq!(keys["missing"], json!([{ "handle": "lee", "pub": "pub-lee" }]));
+    let (_, list) = h.call(Method::GET, "/api/v1/orgs", Some(&matt), None).await;
+    assert_eq!(list["orgs"][0]["keys"], json!({ "generation": 1, "mine": true, "missing": 1 }));
+    let (_, keys) = h.call(Method::POST, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), Some(json!({ "generation": 1, "wraps": [{ "handle": "lee", "wrapped": "w-lee" }, { "handle": "nobody", "wrapped": "w-nobody" }] }))).await;
+    assert_eq!(keys["missing"], json!([]));
+    let (_, keys) = h.call(Method::GET, &format!("/api/v1/orgs/{id}/keys"), Some(&lee), None).await;
+    assert_eq!(keys["mine"], "w-lee");
+    let unreadable = h.call(Method::POST, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), Some(json!({ "generation": 0, "wraps": [] }))).await;
+    assert_eq!(unreadable, refusal(StatusCode::BAD_REQUEST, "Those wraps could not be read."));
 }

@@ -510,3 +510,24 @@
   font-weight: var(--glacier-font-weight-semibold);
   color: var(--app-ink-2);
 }
+
+/* A member's initial on their colour (docs/SHARED.md, S7): the round takes the hue's wash and its ink. */
+.avatar[data-hue] {
+  background: color-mix(in oklch, var(--app-space) 22%, transparent);
+  color: var(--app-space);
+}
+
+/* Your colour, under the members: the swatch with a word over it, and the way back to the account's when another is worn. */
+.yourColour {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--glacier-space-2) var(--glacier-space-4);
+  margin-block-start: var(--glacier-space-4);
+}
+
+.yourColourWords {
+  display: grid;
+  gap: 0.1em;
+  min-inline-size: 0;
+}

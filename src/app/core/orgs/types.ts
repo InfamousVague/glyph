@@ -14,6 +14,16 @@ export type Role = 'owner' | 'admin' | 'member';
 export type MemberState = 'member' | 'invited';
 
 /** One of the organizations the account is in, or invited to: what `GET orgs` lists. */
+/**
+ * What the organization key needs, as the list says it (docs/SHARED.md, S2): the generation in force (0 while none
+ * has been made), whether this account holds a wrap at it, and how many members with a public key lack one.
+ */
+export interface KeyNeeds {
+  generation: number;
+  mine: boolean;
+  missing: number;
+}
+
 export interface OrgRow {
   id: string;
   name: string;
@@ -28,6 +38,10 @@ export interface OrgRow {
   /** The handle that invited this account, for an invited row; null when that account is gone. */
   invitedBy?: string | null;
   createdAt: number;
+  /** This account's colour in it (docs/SHARED.md, S7): the organization's override, else the account's own, else null. */
+  colour?: string | null;
+  /** Absent on a row kept by a build before keys: read as none made and nobody missing. */
+  keys?: KeyNeeds;
 }
 
 export interface Member {
@@ -37,6 +51,10 @@ export interface Member {
   /** When they joined, or were invited, in ms. */
   since: number;
   invitedBy?: string | null;
+  /** Their colour in this organization, or null for none (S7). */
+  colour?: string | null;
+  /** Their encryption public key, to wrap the organization key to (S3); null until a device of theirs made one. */
+  pub?: string | null;
 }
 
 /** An organization in full: what `GET orgs/{id}` answers a member. */
@@ -74,6 +92,8 @@ export interface OrgState {
   list: OrgRow[];
   /** When the list was last taken from the service, in ms; null for never. */
   at: number | null;
+  /** The account's own colour (S7), as the list last said it; null, or absent from an older build's state, for none. */
+  colour?: string | null;
 }
 
 /**

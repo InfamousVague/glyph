@@ -4,7 +4,7 @@ import { ApiError, call, notYet } from '../account/api.ts';
 import { externalStore } from '../externalStore.ts';
 import { readStored, writeStored } from '../stored.ts';
 import { dropOrgWorkspace, ensureOrgWorkspace, orgIdOf, workspaces } from '../workspaces.ts';
-import type { InviteLink, JoinPreview, Member, Org, OrgRow, OrgState, Role } from './types.ts';
+import type { InviteLink, JoinPreview, KeyNeeds, Member, Org, OrgRow, OrgState, Role } from './types.ts';
 
 /**
  * The account's organizations on this device (docs/TEAMS.md): the calls for every route, the list as the service
@@ -30,7 +30,7 @@ function stateKey(accountId: number): string {
   return `glyph-sync-${accountId}-orgs`;
 }
 
-const NONE: OrgState = { list: [], at: null };
+const NONE: OrgState = { list: [], at: null, colour: null };
 
 function isRole(value: unknown): value is Role {
   return value === 'owner' || value === 'admin' || value === 'member';
@@ -50,14 +50,22 @@ function asRow(raw: unknown): OrgRow | null {
     members: typeof r.members === 'number' ? r.members : 0,
     invitedBy: typeof r.invitedBy === 'string' ? r.invitedBy : null,
     createdAt: typeof r.createdAt === 'number' ? r.createdAt : 0,
+    colour: typeof r.colour === 'string' ? r.colour : null,
+    keys: asKeys(r.keys),
   };
+}
+
+/** What the organization key needs, as kept; a row from before keys reads as none made and nobody missing. */
+function asKeys(raw: unknown): KeyNeeds {
+  const k = (raw && typeof raw === 'object' ? raw : {}) as Partial<Record<keyof KeyNeeds, unknown>>;
+  return { generation: typeof k.generation === 'number' ? k.generation : 0, mine: k.mine === true, missing: typeof k.missing === 'number' ? k.missing : 0 };
 }
 
 function asState(raw: unknown): OrgState | null {
   if (!raw || typeof raw !== 'object') return null;
-  const { list, at } = raw as { list?: unknown; at?: unknown };
+  const { list, at, colour } = raw as { list?: unknown; at?: unknown; colour?: unknown };
   if (!Array.isArray(list)) return null;
-  return { list: list.map(asRow).filter((row): row is OrgRow => row !== null), at: typeof at === 'number' ? at : null };
+  return { list: list.map(asRow).filter((row): row is OrgRow => row !== null), at: typeof at === 'number' ? at : null, colour: typeof colour === 'string' ? colour : null };
 }
 
 /** The list for one account, read from storage once and kept; `changes` counts every write so React follows it. */
@@ -110,7 +118,18 @@ export function orgRow(id: string): OrgRow | null {
 
 /** A row of the kept list as a full organization answers it: what a call that answered `{ org }` keeps here. */
 function rowOf(org: Org): OrgRow {
-  return { id: org.id, name: org.name, hue: org.hue, role: org.role, state: org.state, members: org.members.filter((m) => m.state === 'member').length, invitedBy: org.invitedBy ?? null, createdAt: org.createdAt };
+  return {
+    id: org.id,
+    name: org.name,
+    hue: org.hue,
+    role: org.role,
+    state: org.state,
+    members: org.members.filter((m) => m.state === 'member').length,
+    invitedBy: org.invitedBy ?? null,
+    createdAt: org.createdAt,
+    colour: org.colour ?? null,
+    keys: asKeys(org.keys),
+  };
 }
 
 /** The kept list with one row replaced, added, or (for null) taken out; nothing signed out. */
@@ -148,10 +167,32 @@ export async function createOrg(name: string, hue: string | null = null, ctx: Ca
   return org;
 }
 
-/** Every organization the account is in or invited to. The kept list is not touched: that is the pass's (`syncOrgs`). */
-export async function listOrgs(ctx: CallContext = signedIn()): Promise<OrgRow[]> {
-  const { orgs: rows } = await orgs<{ orgs: OrgRow[] }>('GET', 'orgs', ctx);
-  return rows;
+/**
+ * Every organization the account is in or invited to, and the account's own colour (docs/SHARED.md, S7). The kept
+ * list is not touched: that is the pass's (`syncOrgs`).
+ */
+export async function listOrgs(ctx: CallContext = signedIn()): Promise<{ rows: OrgRow[]; colour: string | null }> {
+  const { orgs: rows, colour } = await orgs<{ orgs: OrgRow[]; colour?: string | null }>('GET', 'orgs', ctx);
+  return { rows, colour: typeof colour === 'string' ? colour : null };
+}
+
+/** The account's own colour set (one of the hues), or cleared with null; kept here at once. */
+export async function setAccountColour(hue: string | null, ctx: CallContext = signedIn()): Promise<void> {
+  const { colour } = await orgs<{ colour: string | null }>('PUT', 'account/colour', ctx, { hue });
+  const session = accountState().session;
+  if (session) {
+    const was = stateOf(session.accountId);
+    // A row with no override wears the account's colour: brought up to date here without another list.
+    const list = was.list.map((row) => ((row.colour ?? null) === (was.colour ?? null) ? { ...row, colour } : row));
+    saveOrgs(session.accountId, { ...was, list, colour });
+  }
+}
+
+/** The caller's colour in one organization set, or cleared with null to the account's own; its row follows at once. */
+export async function setOrgColour(id: string, hue: string | null, ctx: CallContext = signedIn()): Promise<Org> {
+  const { org } = await orgs<{ org: Org }>('PUT', `orgs/${encodeURIComponent(id)}/colour`, ctx, { hue });
+  keepRow(org.id, rowOf(org));
+  return org;
 }
 
 /** One organization in full, for a member; 404 "No such organization." otherwise. */
@@ -296,13 +337,14 @@ export function reconcileOrgWorkspaces(list: readonly OrgRow[]): void {
  */
 export async function syncOrgs(ctx: OrgsContext): Promise<OrgRow[] | null> {
   let list: OrgRow[];
+  let colour: string | null;
   try {
-    list = await listOrgs(ctx);
+    ({ rows: list, colour } = await listOrgs(ctx));
   } catch (failure) {
     if (notYet(failure)) return null;
     throw failure;
   }
-  ctx.save({ list, at: (ctx.now ?? Date.now)() });
+  ctx.save({ list, at: (ctx.now ?? Date.now)(), colour });
   reconcileOrgWorkspaces(list);
   return list;
 }

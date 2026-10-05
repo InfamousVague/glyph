@@ -2,6 +2,8 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 import { MEETING_GENERATION } from '../../capture/meeting.ts';
 import { accountKey, accountState, deleteAccount, onAccount, resume, signOut } from '../account/account.ts';
 import { ApiError } from '../account/api.ts';
+import { ensureEncryptionKey } from '../account/encKey.ts';
+import { deviceKeys } from '../account/keystore.ts';
 import { toBase64 } from '../bytes.ts';
 import { externalStore } from '../externalStore.ts';
 import { failureText } from '../failure.ts';
@@ -11,7 +13,9 @@ import { tellArrived } from '../notifications/arrived.ts';
 import { feedState, forgetNotifications, listed, syncNotifications, updateFeed } from '../notifications/feed.ts';
 import { postNewRows, syncPhoneWatch } from '../notifications/phone.ts';
 import { record } from '../notifications/record.ts';
+import { forgetOrgKeys, syncOrgKeys } from '../orgs/orgKeys.ts';
 import { forgetOrgs, saveOrgs, syncOrgs } from '../orgs/orgs.ts';
+import type { OrgRow } from '../orgs/types.ts';
 import { isIOS } from '../platform.ts';
 import { onPreferences, preferences, setPreferences } from '../preferences.ts';
 import { recordingDigest } from '../recordings.ts';
@@ -122,6 +126,7 @@ function forgetSync(accountId: number): void {
   for (const part of ['notes', 'prefs']) writeStored(stateKey(accountId, part), null);
   forgetNotifications(accountId);
   forgetOrgs(accountId);
+  forgetOrgKeys();
   // Signed out: the phone stops reading the feed, and forgets the session it read it with.
   syncPhoneWatch();
 }
@@ -292,6 +297,16 @@ async function once(parts: Parts): Promise<void> {
     return fed;
   };
   const orgs = () => syncOrgs({ token, save: (state) => saveOrgs(accountId, state) });
+  // And the keys the organizations need (docs/SHARED.md, S2, S3): this account's pair, and each organization's key read,
+  // made or filled. Best effort: a failure here is the next pass's, and never the sync's status.
+  const teamKeys = async (list: readonly OrgRow[]) => {
+    try {
+      const { pair } = await ensureEncryptionKey({ token, accountKey: key, keys: deviceKeys() });
+      await syncOrgKeys({ token, pair, list });
+    } catch {
+      // Left for the next pass.
+    }
+  };
   if (parts === 'notifications') {
     // The notes' status stands: this is the feed and the list, and says nothing on the Account row unless it fails.
     try {
@@ -347,7 +362,8 @@ async function once(parts: Parts): Promise<void> {
     } finally {
       applyingRemote = false;
     }
-    await orgs();
+    const list = await orgs();
+    if (list) await teamKeys(list);
     setStatus({ phase: 'idle', lastAt: Date.now(), message: null, conflicts: outcome.conflicts, unsent: outcome.unsent, unsentReason: outcome.reason });
   } catch (failure) {
     if (failure instanceof ApiError && failure.status === 401) {

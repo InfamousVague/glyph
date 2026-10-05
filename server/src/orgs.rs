@@ -21,6 +21,16 @@
 //!   GET    /api/v1/joins/{code}                                 what a link joins, before it is followed
 //!   POST   /api/v1/joins/{code}                                 the caller in, by the link
 //!
+//! And, for notes shared in an organization (docs/SHARED.md): colours, the account's encryption key pair, and the
+//! organization key wrapped per member (store/keys.rs). A colour is one of the app's hues, or null for none.
+//!
+//!   PUT    /api/v1/account/colour              { hue }         the account's own colour
+//!   GET    /api/v1/account/key                                 the account's key pair: the public key, the private one sealed
+//!   PUT    /api/v1/account/key                 { pub, sealed } registered once; 409 with the one that stands
+//!   PUT    /api/v1/orgs/{id}/colour            { hue }         the caller's colour in this organization, or null for the account's
+//!   GET    /api/v1/orgs/{id}/keys                              the generation in force, the caller's wrap, who lacks one
+//!   POST   /api/v1/orgs/{id}/keys              { generation, make?, wraps: [{ handle, wrapped }] }  wraps by a member holding the key; `make` a new generation
+//!
 //! An invite link (store/org_links.rs) is a 128-bit code, so holding one is the permission: anyone signed in who has
 //! it may see the organization's name and join it as a member, until it expires, is used up or is turned off. It
 //! names nobody, so it is no handle oracle and is limited with every other change. A code that is not one, and one
@@ -38,12 +48,12 @@
 use crate::accounts::{Accounts, HasAccounts};
 use crate::guard;
 use crate::identity::Claims;
-use crate::store::{InviteCaps, LinkPreview, Member, Org, OrgLink, OrgRow, OrgWrite, Role};
+use crate::store::{AccountKey, InviteCaps, KeyWrite, LinkPreview, Member, Org, OrgKeys, OrgLink, OrgRow, OrgWrite, Role, Wrap};
 use crate::wire::{base64url, error, fresh_id, millis, now_secs};
 use axum::extract::{ConnectInfo, DefaultBodyLimit, Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use serde::{Deserialize, Deserializer};
 use serde_json::{json, Value};
@@ -187,18 +197,34 @@ fn row_json(row: &OrgRow) -> Value {
     json!({
         "id": row.id, "name": row.name, "hue": row.hue, "role": row.role.as_str(), "state": row.state,
         "members": row.members, "invitedBy": row.invited_by, "createdAt": millis(row.created_at),
+        "colour": row.colour, "keys": { "generation": row.key_generation, "mine": row.key_mine, "missing": row.key_missing },
     })
 }
 
 fn member_json(member: &Member) -> Value {
-    json!({ "handle": member.handle, "role": member.role.as_str(), "state": member.state, "since": millis(member.since), "invitedBy": member.invited_by })
+    json!({
+        "handle": member.handle, "role": member.role.as_str(), "state": member.state, "since": millis(member.since), "invitedBy": member.invited_by,
+        "colour": member.colour, "pub": member.pub_key,
+    })
 }
 
 fn org_json(org: &Org) -> Value {
     json!({
         "id": org.id, "name": org.name, "hue": org.hue, "role": org.role.as_str(), "state": org.state,
         "invitedBy": org.invited_by, "createdAt": millis(org.created_at),
+        "colour": org.colour, "keys": { "generation": org.key_generation, "mine": org.key_mine, "missing": org.key_missing },
         "members": org.members.iter().map(member_json).collect::<Vec<_>>(),
+    })
+}
+
+fn key_json(key: &AccountKey) -> Value {
+    json!({ "pub": key.pub_key, "sealed": key.sealed })
+}
+
+fn keys_json(keys: &OrgKeys) -> Value {
+    json!({
+        "generation": keys.generation, "mine": keys.mine,
+        "missing": keys.missing.iter().map(|(handle, pub_key)| json!({ "handle": handle, "pub": pub_key })).collect::<Vec<_>>(),
     })
 }
 
@@ -298,7 +324,8 @@ async fn create_org(State(orgs): State<Arc<Orgs>>, who: Claims, Json(body): Json
 
 async fn list_orgs(State(orgs): State<Arc<Orgs>>, who: Claims) -> Response {
     let list: Vec<Value> = orgs.accounts.store.orgs_of(who.sub).iter().map(row_json).collect();
-    Json(json!({ "orgs": list })).into_response()
+    // And the account's own colour, which Settings › Account shows whether or not it is in any organization.
+    Json(json!({ "orgs": list, "colour": orgs.accounts.store.account_hue(who.sub) })).into_response()
 }
 
 async fn read_org(State(orgs): State<Arc<Orgs>>, Path(id): Path<String>, who: Claims) -> Result<Response, Response> {
@@ -429,8 +456,132 @@ async fn join(State(orgs): State<Arc<Orgs>>, Path(code): Path<String>, who: Clai
     Ok(with_org(orgs.accounts.store.join_by_link(who.sub, code, now_secs(), ORG_ROWS), StatusCode::OK))
 }
 
+// --- colours and keys (docs/SHARED.md, S2, S3, S7) -------------------------------------------
+
+/// A sealed private key, or the organization key wrapped for one member: base64url, up to this long.
+const WRAP_LIMIT: usize = 4096;
+/// An encryption public key: a P-256 point, base64url.
+const PUB_LIMIT: usize = 256;
+/// Wraps in one post: at most the organization's rows.
+const WRAPS_PER_POST: usize = 50;
+
+#[derive(Deserialize)]
+struct ColourBody {
+    /// One of the hues, or null (or nothing) for none: the app's own ink, or in an organization the account's colour.
+    hue: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct KeyBody {
+    #[serde(rename = "pub")]
+    pub_key: String,
+    sealed: String,
+}
+
+#[derive(Deserialize)]
+struct WrapBody {
+    handle: String,
+    wrapped: String,
+}
+
+#[derive(Deserialize)]
+struct KeysBody {
+    generation: i64,
+    /// A new generation, the one after the generation in force (the first, from none), rather than wraps at it.
+    #[serde(default)]
+    make: bool,
+    #[serde(default)]
+    wraps: Vec<WrapBody>,
+}
+
+/// A colour as it is kept: one of the hues, with ink - the app's own, no colour - kept as none.
+fn colour_of(hue: Option<&str>) -> Result<Option<&str>, Response> {
+    Ok(hue_of(hue)?.filter(|hue| *hue != "ink"))
+}
+
+fn refused_key(err: KeyWrite) -> Response {
+    match err {
+        KeyWrite::NoSuchOrg => refused(OrgWrite::NoSuchOrg),
+        KeyWrite::Generation(generation) => (StatusCode::CONFLICT, Json(json!({ "error": "That is not the generation in force.", "generation": generation }))).into_response(),
+        KeyWrite::HasKey(_) | KeyWrite::Failed => error(StatusCode::INTERNAL_SERVER_ERROR, "That could not be stored."),
+    }
+}
+
+/// `PUT account/colour`: the account's own colour, set or cleared.
+async fn account_colour(State(orgs): State<Arc<Orgs>>, who: Claims, Json(body): Json<ColourBody>) -> Result<Response, Response> {
+    orgs.change(&who)?;
+    let hue = colour_of(body.hue.as_deref())?;
+    match orgs.accounts.store.set_account_hue(who.sub, hue) {
+        Ok(()) => Ok(Json(json!({ "colour": hue })).into_response()),
+        Err(_) => Err(error(StatusCode::INTERNAL_SERVER_ERROR, "That colour could not be stored.")),
+    }
+}
+
+/// `PUT orgs/{id}/colour`: the caller's colour in this organization, set, or cleared to the account's own.
+async fn org_colour(State(orgs): State<Arc<Orgs>>, Path(id): Path<String>, who: Claims, Json(body): Json<ColourBody>) -> Result<Response, Response> {
+    org_id(&id)?;
+    orgs.change(&who)?;
+    let hue = colour_of(body.hue.as_deref())?;
+    Ok(with_org(orgs.accounts.store.set_org_hue(who.sub, &id, hue), StatusCode::OK))
+}
+
+/// `GET account/key`: the account's encryption key pair, for a device of its that has none yet.
+async fn read_key(State(orgs): State<Arc<Orgs>>, who: Claims) -> Result<Response, Response> {
+    match orgs.accounts.store.account_key(who.sub) {
+        Some(key) => Ok(Json(key_json(&key)).into_response()),
+        None => Err(error(StatusCode::NOT_FOUND, "No key pair yet.")),
+    }
+}
+
+/// `PUT account/key`: the pair this device made, registered; or 409 with the one that stands, which the device adopts.
+async fn register_key(State(orgs): State<Arc<Orgs>>, who: Claims, Json(body): Json<KeyBody>) -> Result<Response, Response> {
+    orgs.change(&who)?;
+    if !base64url(&body.pub_key, 1..=PUB_LIMIT) || !base64url(&body.sealed, 1..=WRAP_LIMIT) {
+        return Err(error(StatusCode::BAD_REQUEST, "That key pair could not be read."));
+    }
+    match orgs.accounts.store.register_key(who.sub, &body.pub_key, &body.sealed, now_secs()) {
+        Ok(key) => Ok((StatusCode::CREATED, Json(key_json(&key))).into_response()),
+        Err(KeyWrite::HasKey(key)) => {
+            let mut answer = key_json(&key);
+            answer["error"] = json!("The account has a key pair already; this is it.");
+            Ok((StatusCode::CONFLICT, Json(answer)).into_response())
+        }
+        Err(_) => Err(error(StatusCode::INTERNAL_SERVER_ERROR, "That key pair could not be stored.")),
+    }
+}
+
+/// `GET orgs/{id}/keys`: the generation in force, the caller's wrap at it, and who lacks one.
+async fn read_org_keys(State(orgs): State<Arc<Orgs>>, Path(id): Path<String>, who: Claims) -> Result<Response, Response> {
+    org_id(&id)?;
+    match orgs.accounts.store.org_keys(who.sub, &id) {
+        Ok(keys) => Ok(Json(keys_json(&keys)).into_response()),
+        Err(err) => Err(refused_key(err)),
+    }
+}
+
+/// `POST orgs/{id}/keys`: wraps at the generation in force (or the first, from none), by a member holding the key.
+async fn post_org_keys(State(orgs): State<Arc<Orgs>>, Path(id): Path<String>, who: Claims, Json(body): Json<KeysBody>) -> Result<Response, Response> {
+    org_id(&id)?;
+    orgs.change(&who)?;
+    let readable = body.generation >= 1
+        && body.wraps.len() <= WRAPS_PER_POST
+        && body.wraps.iter().all(|wrap| crate::accounts::valid_handle(wrap.handle.trim()) && base64url(&wrap.wrapped, 1..=WRAP_LIMIT));
+    if !readable {
+        return Err(error(StatusCode::BAD_REQUEST, "Those wraps could not be read."));
+    }
+    let wraps: Vec<Wrap> = body.wraps.iter().map(|wrap| Wrap { handle: wrap.handle.trim().to_string(), wrapped: wrap.wrapped.clone() }).collect();
+    match orgs.accounts.store.post_org_keys(who.sub, &id, body.generation, body.make, &wraps, now_secs()) {
+        Ok(keys) => Ok(Json(keys_json(&keys)).into_response()),
+        Err(err) => Err(refused_key(err)),
+    }
+}
+
 pub fn router(accounts: Arc<Accounts>) -> Router {
     Router::new()
+        .route("/api/v1/account/colour", put(account_colour))
+        .route("/api/v1/account/key", get(read_key).put(register_key))
+        .route("/api/v1/orgs/{id}/colour", put(org_colour))
+        .route("/api/v1/orgs/{id}/keys", get(read_org_keys).post(post_org_keys))
         .route("/api/v1/orgs", get(list_orgs).post(create_org))
         .route("/api/v1/orgs/{id}", get(read_org).put(update_org).delete(delete_org))
         .route("/api/v1/orgs/{id}/members", post(invite))

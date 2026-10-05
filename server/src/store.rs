@@ -10,9 +10,9 @@
 //!
 //! This file owns the schema, the one connection, and what every query goes through. Each table's queries are in the
 //! file named for what they keep - `store/accounts.rs` (accounts, their devices and recovery codes), `store/notes.rs`,
-//! `store/prefs.rs`, `store/shares.rs`, `store/recordings.rs`, `store/orgs.rs` (organizations and who is in them) and
-//! `store/notifications.rs` (what each account is told) - each an `impl Store` of its own, so a caller still holds one
-//! `Store`.
+//! `store/prefs.rs`, `store/shares.rs`, `store/recordings.rs`, `store/orgs.rs` (organizations and who is in them),
+//! `store/keys.rs` (encryption keys, organization keys and colours; docs/SHARED.md) and `store/notifications.rs`
+//! (what each account is told) - each an `impl Store` of its own, so a caller still holds one `Store`.
 //!
 //! THE SCHEMA ONLY GROWS BY TABLES. It is `CREATE TABLE IF NOT EXISTS` and nothing else: a new table reaches the box on
 //! the next start (shares did), and a new column on a table that is already there does not. The first column added
@@ -20,6 +20,7 @@
 //! safe only while the one `Mutex<Connection>` is the file's only writer.
 
 mod accounts;
+mod keys;
 mod notes;
 mod notifications;
 mod org_links;
@@ -29,6 +30,7 @@ mod recordings;
 mod shares;
 
 pub use accounts::DeleteAccount;
+pub use keys::{AccountKey, KeyWrite, OrgKeys, Wrap};
 pub use notes::NoteRow;
 #[cfg(test)]
 pub use notifications::KEPT;
@@ -148,6 +150,44 @@ CREATE TABLE IF NOT EXISTS org_links (
     uses       INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS org_links_by_org ON org_links(org_id);
+-- An account's encryption key pair (docs/SHARED.md, S3; store/keys.rs): the public key in the clear, for a member
+-- wrapping an organization key to it, and the private key sealed under the account key, for the account's other
+-- devices. Written once: the first registration stands, and a second is answered with it.
+CREATE TABLE IF NOT EXISTS account_keys (
+    account_id INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+    pub        TEXT NOT NULL,
+    sealed     TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+-- A person's colour (S7): the account's own, and an organization's override of it for that organization. In the
+-- clear, as an organization's hue is; a colour is not a secret. A row is absent while none is chosen.
+CREATE TABLE IF NOT EXISTS account_hues (
+    account_id INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+    hue        TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS org_member_hues (
+    org_id     TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    hue        TEXT NOT NULL,
+    PRIMARY KEY (org_id, account_id)
+);
+-- The organization key (S2): which generation is in force, and the key wrapped for each member under their
+-- encryption key pair. Ciphertext the service cannot open. Who made or wrapped it is only a reference.
+CREATE TABLE IF NOT EXISTS org_key_state (
+    org_id     TEXT PRIMARY KEY REFERENCES orgs(id) ON DELETE CASCADE,
+    generation INTEGER NOT NULL,
+    made_by    INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+    made_at    INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS org_keys (
+    org_id     TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    generation INTEGER NOT NULL,
+    wrapped    TEXT NOT NULL,
+    wrapped_by INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+    wrapped_at INTEGER NOT NULL,
+    PRIMARY KEY (org_id, account_id, generation)
+);
 -- What an account is told (server/src/notifications.rs): one table, two shapes. A row the service wrote - an
 -- invitation, a team change - carries its kind, who caused it, the organization and a small plaintext body; a row a
 -- device wrote about its own account carries a blob sealed under the account key, which the service cannot read.

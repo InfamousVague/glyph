@@ -10250,3 +10250,40 @@ Tests: canvas/CanvasView.controls.test.tsx (picking, moving, the keys, the bar, 
 in CanvasView.test.tsx, the map in CanvasView.navigation.test.tsx, edits.test.ts and mapDetail.test.ts.
 
 Cites: §62, §124.
+
+## 191. Keys and colours: the first slice of notes shared in an organization (2026-10-05)
+
+Matt's brief and his four answers are docs/SHARED.md, which is the plan; this is its first slice (S2, S3, S7), with
+nothing yet that uses the keys.
+
+**The account's encryption key pair.** ECDH P-256, made on the first signed-in device that syncs on this build and
+registered with the service, the private half sealed under the account key (core/account/encKey.ts); every other
+device of the account reads and unseals it on its next pass and keeps it non-extractable beside the account key
+(core/account/keystore.ts `encryptionKey`). The service keeps the first registration and answers a second 409 with
+it, which the second device adopts, so two devices racing end with one pair. Signing out takes it off the device
+with the other keys.
+
+**The organization key.** 32 random bytes, made by the first member device to ask and find none, wrapped for every
+member who has a public key - ECIES, an ephemeral P-256 pair per wrap, HKDF-SHA-256, AES-256-GCM bound to
+`org-key:<org id>:<generation>` (core/orgs/wrap.ts) - and posted as the first generation with `make`. A device that
+posts `make` against a generation already in force is answered 409 with it and reads its own wrap instead; a device
+holding the key wraps it for whoever the service lists as missing (core/orgs/orgKeys.ts). The list's rows carry
+`keys: { generation, mine, missing }`, so a device whose key is in hand with nobody missing asks nothing more. The
+step runs after the organizations in every full pass, best effort: a failure is the next pass's, never the sync's
+status (core/sync/engine.ts). On the service: four tables, `account_keys`, `org_key_state`, `org_keys` and the hues'
+(server/src/store/keys.rs), and the routes `account/key`, `orgs/{id}/keys` (server/src/orgs.rs).
+
+**Colours.** One of the seven hues, or none. Settings › Account › Your colour sets the account's (settings/ColourCard.tsx,
+`PUT account/colour`); an organization's dashboard and its settings' Members page carry "Your colour here", the
+account's unless one is picked there, with "Use your account's colour" to go back (`PUT orgs/{id}/colour`). The
+member rows wear each person's colour on their initial (notes/OrganizationScreen.tsx `.avatar[data-hue]`), and
+every member row from the service carries `colour` and `pub`. The list carries the account's `colour`, kept with it
+(core/orgs/orgs.ts `OrgState.colour`), and a row from an older build reads as no colour and no keys.
+
+**What the server can see** grows by the public keys, the wraps (ciphertext) and the colours (SHARED.md, S10).
+
+Tests: core/orgs/wrap.test.ts, core/account/encKey.test.ts, core/orgs/orgKeys.test.ts, the colour cases in
+settings/AccountPane.test.tsx, settings/OrganizationSheet.test.tsx and notes/OrganizationScreen.test.tsx; on the
+service, store/keys.rs's own and the two cases at the end of orgs_tests.rs.
+
+Cites: §175, §182, §183, §189, §190.

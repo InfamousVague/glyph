@@ -32,6 +32,13 @@ vi.mock('../core/sync/engine.ts', async (importOriginal) => ({
   useSyncStatus: () => sync.status,
 }));
 vi.mock('./SharedLinks.tsx', () => ({ SharedLinks: () => null }));
+// Your colour goes to the service (docs/SHARED.md, S7); here the call is watched and the list's colour is a variable.
+const colour = vi.hoisted(() => ({ account: null as string | null, set: vi.fn(async (_hue: string | null) => undefined) }));
+vi.mock('../core/orgs/orgs.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../core/orgs/orgs.ts')>()),
+  useOrgs: () => ({ list: [], at: null, colour: colour.account }),
+  setAccountColour: (hue: string | null) => colour.set(hue),
+}));
 
 const { AccountPane } = await import('./AccountPane.tsx');
 const { createNote, setNoteRecording } = await import('../core/store.ts');
@@ -100,12 +107,26 @@ describe('Signed out', () => {
 });
 
 describe('Signed in', () => {
-  it('has Sync, then Privacy, Location and Export, then Delete account', () => {
+  it('has Sync, then Your colour, Privacy, Location and Export, then Delete account', () => {
     const host = show(<AccountPane />);
-    expect(titles(host)).toEqual(['Sync', 'Privacy', 'Location', 'Export']);
+    expect(titles(host)).toEqual(['Sync', 'Your colour', 'Privacy', 'Location', 'Export']);
     const places = placesOf(host, ['Sync now', 'Local only', 'Map on a tagged note', 'Export everything', 'Delete account']);
     expect(places.every((place) => place >= 0)).toBe(true);
     expect([...places].sort((a, b) => a - b)).toEqual(places);
+  });
+
+  // Matt: "add the ability for users to pick and change their color" (docs/SHARED.md, S7).
+  it('picks your colour from the seven, ink being none, and sends it to the service', () => {
+    colour.account = 'sea';
+    colour.set.mockClear();
+    const host = show(<AccountPane />);
+    const swatch = host.querySelector('[role="radiogroup"][aria-label="Colour"]')!;
+    expect(swatch.querySelector('[aria-checked="true"]')?.getAttribute('aria-label')).toBe('Sea');
+    act(() => (swatch.querySelector('[aria-label="Rose"]') as HTMLButtonElement).click());
+    expect(colour.set).toHaveBeenCalledWith('rose');
+    act(() => (swatch.querySelector('[aria-label="Ink"]') as HTMLButtonElement).click());
+    expect(colour.set).toHaveBeenCalledWith(null);
+    colour.account = null;
   });
 
   // Organizations are a row of their own in Settings' list now, not on this page.
