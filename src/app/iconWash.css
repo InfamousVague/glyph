@@ -75,6 +75,7 @@
 :where(svg.lucide-locate-fixed) > :nth-child(5),
 :where(svg.lucide-lock) > :nth-child(1),
 :where(svg.lucide-log-out) > :nth-child(3),
+:where(svg.lucide-magnet) > :nth-child(2),
 :where(svg.lucide-mail) > :nth-child(2),
 :where(svg.lucide-map-pin) > :nth-child(1),
 :where(svg.lucide-map-pinned) > :nth-child(1),

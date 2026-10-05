@@ -39,6 +39,8 @@ const SYNCED_PREFS = [
   'ripples',
   'motionSpeed',
   'linkPreviews',
+  // Whether a canvas's cards land on its dots: a way of working, the same on every device.
+  'canvasSnap',
   // Where a note was written: the map and the place names describe the person, as link previews do, so they travel.
   // Tagging new notes does not: it makes this device ask for its position (a network lookup on a phone or in a
   // browser), and whether a device talks to the network stays with the device, as Local only does. A switch turned

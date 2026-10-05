@@ -1,5 +1,6 @@
 import { useState, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject, type SyntheticEvent } from 'react';
 import { Ban, Check, CopyPlus, ExternalLink, Palette, Pencil, Spline, Trash2 } from '@glacier/icons';
+import { fireFelt } from '../core/haptics.ts';
 import { ownPicture, paintOf, type CanvasHue } from './cardLooks.ts';
 import { HANDLES, resizedBy, type Handle } from './edits.ts';
 import type { CanvasNode } from './jsonCanvas.ts';
@@ -26,20 +27,30 @@ interface HandlesProps {
   node: CanvasNode;
   /** The view's scale, read when a handle is taken: screen pixels into the canvas's own. */
   scale: RefObject<View>;
+  /** Whether the sides a handle moves land on the grid's lines, with a tick each time one does. */
+  snap: boolean;
   /** The card at each size on the way, drawn but not yet handed on. */
   onPreview: (node: CanvasNode) => void;
   /** The card at the size it was let go at. */
   onResize: (node: CanvasNode) => void;
 }
 
-export function Handles({ node, scale, onPreview, onResize }: HandlesProps) {
+export function Handles({ node, scale, snap, onPreview, onResize }: HandlesProps) {
   const take = (handle: Handle) => (event: ReactPointerEvent<HTMLSpanElement>) => {
     event.stopPropagation();
     event.preventDefault();
     const at = { x: event.clientX, y: event.clientY };
     const zoom = scale.current.scale || 1;
-    const sized = (moved: PointerEvent) => resizedBy(node, handle, (moved.clientX - at.x) / zoom, (moved.clientY - at.y) / zoom);
-    const move = (moved: PointerEvent) => onPreview(sized(moved));
+    const sized = (moved: PointerEvent) => resizedBy(node, handle, (moved.clientX - at.x) / zoom, (moved.clientY - at.y) / zoom, snap);
+    // The box the card last had: with snapping on, a new one is a side landed on a new line, and is felt.
+    let last = `${node.x},${node.y},${node.width},${node.height}`;
+    const move = (moved: PointerEvent) => {
+      const next = sized(moved);
+      const box = `${next.x},${next.y},${next.width},${next.height}`;
+      if (snap && box !== last) fireFelt('selection');
+      last = box;
+      onPreview(next);
+    };
     const done = (moved: PointerEvent) => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', done);

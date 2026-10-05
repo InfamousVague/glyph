@@ -25,9 +25,13 @@ vi.mock('../core/images.ts', async (importOriginal) => ({
   saveImageFile: vi.fn(async () => 'dropped.jpg'),
 }));
 import { VIEW_SAMPLE } from '../../test/canvas.ts';
+import { setPreferences } from '../core/preferences.ts';
 import { parseCanvas, type Canvas } from './jsonCanvas.ts';
 
 const canvas = parseCanvas(VIEW_SAMPLE) as Canvas;
+
+// These measure a move and a size to the pixel, so the magnet is off: snapping has its own tests (CanvasView.snap.test.tsx).
+beforeEach(() => setPreferences({ canvasSnap: false }));
 
 describe('a canvas drawn', () => {
   it('places every card where the file puts it, the group behind, and its words in the note’s own editor', () => {
@@ -380,7 +384,7 @@ describe('pictures, charts and the toolbar', () => {
     const shown = show(<CanvasView canvas={canvas} dark={false} onChange={vi.fn()} />);
     const tools = shown.querySelector('[role="toolbar"]') as HTMLElement;
     const labels = [...tools.querySelectorAll('button')].map((b) => b.getAttribute('aria-label'));
-    expect(labels).toEqual(['Add a card', 'Draw a line: tap one card, then another', 'Zoom out', 'Zoom in', 'Fit the whole canvas on the screen (Shift+1)']);
+    expect(labels).toEqual(['Add a card', 'Draw a line: tap one card, then another', 'Snap to the grid', 'Zoom out', 'Zoom in', 'Fit the whole canvas on the screen (Shift+1)']);
     for (const b of tools.querySelectorAll('button')) expect(b.querySelector('svg')).not.toBeNull();
   });
 

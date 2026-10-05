@@ -10363,3 +10363,21 @@ memory), the team cases in core/sync/notes.test.ts, editor/WorkspacePicker.test.
 store/org_notes.rs's own and org_notes_tests.rs.
 
 Cites: §175, §182, §183, §191.
+
+## 194. A canvas's cards snap to its dots (2026-10-05)
+
+Matt: "Add the option for snapping to the grid dots on by default on canvases", then "Give haptics when it snaps".
+
+The dots were decoration, drawn in the middle of each 24px square. They are the grid now: moved half a square, one
+sits at the canvas's own corner and at every 24px from it, and a card's corner lands on one (docs/CANVAS.md,
+"Snapping to the dots"). The switch is a magnet in the tools, after the Line tool, washed while it is on - a quieter
+mark than the Line tool's ink, which says the next tap is the tool's. On a phone's width To card left the row to make
+room for it. Each landing on a new dot is a `selection` tick.
+
+Measured in the browser pane: a card at 7,13 dragged 43 by 36 on the screen at 1.3 scale landed at 48,48, level with
+a card already on the grid, and the dots' origin sat on the world's (the background 15.6px back of the world's
+133.05, half of a 31.2px square).
+
+Tests: canvas/CanvasView.snap.test.tsx and the grid's cases in edits.test.ts.
+
+Cites: §190.

@@ -1,8 +1,9 @@
 import { Ghost } from '../art/Ghost.tsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LocateFixed, Maximize, Plus, Spline, ZoomIn, ZoomOut } from '@glacier/icons';
+import { LocateFixed, Magnet, Maximize, Plus, Spline, ZoomIn, ZoomOut } from '@glacier/icons';
 import { IMAGE_READY, pickImage, saveImageFile } from '../core/images.ts';
 import { openLink } from '../core/linkPreview.ts';
+import { setPreferences, usePreferences } from '../core/preferences.ts';
 import { useRedraw } from '../core/useRedraw.ts';
 import type { VideoMode } from '../editor/videos.ts';
 import { AddSheet, type AddStep } from './AddSheet.tsx';
@@ -10,6 +11,7 @@ import { useCamera } from './camera.ts';
 import { Card } from './Card.tsx';
 import { fileTitle } from './cardLooks.ts';
 import {
+  atDot,
   CHART_CARD,
   clearSpot,
   colouredNode,
@@ -17,6 +19,7 @@ import {
   joined,
   labelledEdge,
   labelledGroup,
+  GRID,
   movedWithHeld,
   NEW_CARD,
   NEW_GROUP,
@@ -30,6 +33,7 @@ import {
   withEdge,
   withGroup,
   withNode,
+  onGrid,
   withoutEdge,
   withoutNode,
 } from './edits.ts';
@@ -94,6 +98,11 @@ import styles from './CanvasView.module.css';
  * is the page's, so a double-tap inside it makes a card there. A canvas that cannot change opens its cards on a tap,
  * as it did. The keys: Delete takes the picked card off, the arrows nudge it, Escape lets it go, and Ctrl or Cmd+D
  * copies it. Zooming has buttons beside Fit.
+ *
+ * Snapping (Matt: "Add the option for snapping to the grid dots on by default on canvases"): with the magnet on, as
+ * it is until it is turned off (the preference `canvasSnap`), a card moved, resized, nudged or made lands with its
+ * corner and its sides on the dots under the cards, 24px apart (edits.ts `GRID`), and the phone ticks as it does. A
+ * card already off the grid stays where it is until it is next moved. Alt with an arrow still nudges by one pixel.
  */
 
 export interface CanvasWiki {
@@ -161,6 +170,8 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
     [onChange],
   );
   const camera = useCamera(host, canvas);
+  /** Whether what is moved, resized or made lands on the grid's dots: the magnet, on until it is turned off. */
+  const snap = usePreferences().canvasSnap;
   /** The minimap grown, from a press on it, until a press lands on the canvas itself. */
   const [mapBig, setMapBig] = useState(false);
   const gestures = useGestures({
@@ -170,6 +181,7 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
     editable,
     editing: editing !== null,
     selected: chosen,
+    snap,
     onPress: () => setMapBig(false),
     onCarry: setLive,
     // A card put down is the card picked: carried by a hold or by a drag, it is the one in hand. One that was only
@@ -242,8 +254,10 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
   /** A new card on the canvas, picked, and open to be written in when it is one to write in. Nothing for no card. */
   const place = (card: CanvasNode | null, open: boolean) => {
     if (!card) return;
-    // Never exactly on a card already there: two added one after the other used to sit one on the other.
-    const at = clearSpot(live, card.x, card.y);
+    // On a dot, with the magnet on; and never exactly on a card already there: two added one after the other used
+    // to sit one on the other. A step aside is one square of the grid, so a card stepped aside is still on it.
+    const dot = snap ? atDot(card.x, card.y) : card;
+    const at = clearSpot(live, dot.x, dot.y);
     const set = { ...card, x: at.x, y: at.y };
     change(withNode(live, set));
     setChosen(set.id);
@@ -272,8 +286,10 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
   /** A new group: about the picked card when there is one, else a box mid-screen. Its name is open to be written. */
   const addGroup = () => {
     const about = picking && picking.type !== 'group' ? picking : null;
-    const at = camera.middle();
-    const group = newGroupNode(about, at.x - NEW_GROUP.width / 2, at.y - NEW_GROUP.height / 2);
+    const middle = camera.middle();
+    const corner = { x: middle.x - NEW_GROUP.width / 2, y: middle.y - NEW_GROUP.height / 2 };
+    const at = snap ? atDot(corner.x, corner.y) : corner;
+    const group = newGroupNode(about, at.x, at.y);
     change(withGroup(live, group));
     setChosen(group.id);
     setPicked(null);
@@ -327,16 +343,19 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
       else if (editable && chosen && !editing && event.key.startsWith('Arrow')) {
         const node = live.nodes.find((n) => n.id === chosen);
         if (!node) return;
-        const step = event.altKey ? 1 : 10;
+        // With the magnet on, an arrow is one dot along, from the nearest dot; Alt is always one pixel, off the grid.
+        const gridded = snap && !event.altKey;
+        const step = event.altKey ? 1 : gridded ? GRID : 10;
         const dx = event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0;
         const dy = event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0;
-        change(movedWithHeld(live, node, node.x + dx, node.y + dy));
+        const from = gridded ? { x: dx ? onGrid(node.x) : node.x, y: dy ? onGrid(node.y) : node.y } : node;
+        change(movedWithHeld(live, node, from.x + dx, from.y + dy));
       } else return;
       event.preventDefault();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [fit, zoomTo, editing, chosen, editable, live, change, removeCard, copyCard]);
+  }, [fit, zoomTo, editing, chosen, editable, live, change, removeCard, copyCard, snap]);
 
   /** A note dragged in from the sidebar (notes/NoteTree.tsx), or a picture file dropped from the computer: a card where it lands. */
   const onDrop = (event: React.DragEvent<HTMLDivElement>) => {
@@ -496,7 +515,7 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
         {/* The picked line's words and its cross, over the line's middle, in the canvas's own pixels. */}
         {pickedLine ? <LineWords key={pickedLine.edge.id} edge={pickedLine.edge} at={pickedLine.path.mid} onLabel={labelLine} onRemove={removeLine} /> : null}
         {/* The picked card's ring and handles, and its bar, over everything else in the world (Selection.tsx). */}
-        {wearing ? <Handles node={wearing} scale={camera.view} onPreview={previewSize} onResize={resizeCard} /> : null}
+        {wearing ? <Handles node={wearing} scale={camera.view} snap={snap} onPreview={previewSize} onResize={resizeCard} /> : null}
         {wearing ? (
           <CardBar
             key={wearing.id}
@@ -539,6 +558,17 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
             >
               <Spline size={18} strokeWidth={2.2} aria-hidden="true" />
             </button>
+            <button
+              type="button"
+              className={styles.tool}
+              data-held={snap ? '' : undefined}
+              aria-pressed={snap}
+              onClick={() => setPreferences({ canvasSnap: !snap })}
+              aria-label="Snap to the grid"
+              title={snap ? 'Snapping to the grid: on' : 'Snapping to the grid: off'}
+            >
+              <Magnet size={18} strokeWidth={2.2} aria-hidden="true" />
+            </button>
             <span className={styles.toolRule} aria-hidden="true" />
           </>
         ) : null}
@@ -552,7 +582,7 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
           <Maximize size={18} strokeWidth={2.2} aria-hidden="true" />
         </button>
         {editing ?? chosen ? (
-          <button type="button" className={styles.tool} onClick={() => zoomTo((editing ?? chosen)!)} aria-label="Zoom to the card (Shift+2)" title="To card (Shift+2)">
+          <button type="button" className={`${styles.tool} ${styles.toCardTool}`} onClick={() => zoomTo((editing ?? chosen)!)} aria-label="Zoom to the card (Shift+2)" title="To card (Shift+2)">
             <LocateFixed size={18} strokeWidth={2.2} aria-hidden="true" />
           </button>
         ) : null}

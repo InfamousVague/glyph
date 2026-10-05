@@ -3,6 +3,7 @@ import { act } from 'react';
 import { show } from '../../test/render.tsx';
 import { VIEW_SAMPLE } from '../../test/canvas.ts';
 import { CanvasView } from './CanvasView.tsx';
+import { setPreferences } from '../core/preferences.ts';
 import { parseCanvas, type Canvas } from './jsonCanvas.ts';
 
 vi.mock('mermaid', () => ({ default: { initialize: () => undefined, render: async (id: string) => ({ svg: `<svg id="${id}"></svg>` }) } }));
@@ -35,7 +36,11 @@ const placeOf = (next: Canvas, id: string) => {
 const barOf = (root: HTMLElement, id: string) => [...root.querySelectorAll(`[data-card-bar="${id}"] button`)].map((b) => b.getAttribute('aria-label'));
 const press = (root: HTMLElement, id: string, label: string) => act(() => (root.querySelector(`[data-card-bar="${id}"] button[aria-label="${label}"]`) as HTMLElement).click());
 
-beforeEach(() => opened.link.mockClear());
+// Moves here are measured to the pixel, so the magnet is off: snapping has its own tests (CanvasView.snap.test.tsx).
+beforeEach(() => {
+  opened.link.mockClear();
+  setPreferences({ canvasSnap: false });
+});
 
 describe('picking a card', () => {
   it('picks a note card on the first tap and opens it on the next, or from its bar', () => {
@@ -278,7 +283,7 @@ describe('what the + makes', () => {
     add(shown, 'A group');
     const next = last(onChange);
     // First in the file, so it is drawn under every card; with room round the card it was made about.
-    expect(next.nodes[0]).toMatchObject({ type: 'group', x: 268, y: 68, width: 264, height: 144 });
+    expect(next.nodes[0]).toMatchObject({ type: 'group', x: 276, y: 76, width: 248, height: 128 });
     expect(next.nodes.length).toBe(canvas.nodes.length + 1);
     expect(shown.querySelector(`[data-card="${next.nodes[0]!.id}"] input`)).not.toBeNull();
   });

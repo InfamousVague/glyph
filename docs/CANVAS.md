@@ -214,6 +214,16 @@ reaching for it; and a mouse had to hold a card for a moment before it would mov
   with round corners over a shade on what the screen does not show, where it was a hard line of the page's full ink
   with a one-pixel corner.
 
+**Snapping to the dots** (Matt: "Add the option for snapping to the grid dots on by default on canvases", then "Give
+haptics when it snaps"). The dots under the cards are a grid, 24px apart with one at the canvas's own corner
+(`src/app/canvas/edits.ts` `GRID`), and with the magnet among the tools on - as it is until it is turned off - a card
+lands on them: its corner when it is moved or made, the sides a handle holds when it is resized, one dot along for an
+arrow key (Alt is still one pixel, off the grid). A group carried by whole squares takes its cards by the same
+amount. A card already off the grid stays where it is until it is next moved, and a resize brings it on side by side.
+The phone ticks each time a carried card or a held side lands on a new dot or line, through the app's floor on
+haptics so a fast drag is a purr. The magnet is the preference `canvasSnap`, synced, so it is the same on every
+device. A new group leaves one square round its card, and a card stepped aside from another goes one square.
+
 Picking before opening, the bar, and a mouse moving a card without a hold were not put to Matt as questions: they are
 what he asked to have reworked, done the way other canvases do them, and are his to change.
 

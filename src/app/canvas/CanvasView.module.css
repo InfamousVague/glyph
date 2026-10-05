@@ -28,7 +28,11 @@
   background-color: var(--glacier-bg);
   background-image: radial-gradient(circle, var(--canvas-dot) 1px, transparent 1.6px);
   background-size: calc(24px * var(--canvas-scale)) calc(24px * var(--canvas-scale));
-  background-position: var(--canvas-x) var(--canvas-y);
+  /*
+   * Half a square back, so a dot sits at the canvas's own corner and at every 24px from it, not in the middle of each
+   * square: the dots are the grid a card snaps to (canvas/edits.ts `GRID`), and a snapped card's corner is on one.
+   */
+  background-position: calc(var(--canvas-x) - 12px * var(--canvas-scale)) calc(var(--canvas-y) - 12px * var(--canvas-scale));
 }
 
 .canvas:active {
@@ -440,12 +444,23 @@
 
 /*
  * On a phone's width two fingers zoom, and the buttons that do it would push the tools into the map: with them the
- * tools are 235px and the map 147, on a screen of 375. So they are a pointer's, on a window with room for them.
+ * tools are 235px and the map 147, on a screen of 375. So they are a pointer's, on a window with room for them. To
+ * card goes with them, since the magnet took its place in the row: a tap on a picked card's title zooms to it.
  */
 @media (max-width: 600px) {
-  .zoomTool {
+  .zoomTool,
+  .toCardTool {
     display: none;
   }
+}
+
+/*
+ * A tool that is a switch, on: the magnet while cards snap to the grid. Quieter than the Line tool's ink, which says
+ * the next tap is the tool's; this only says how the canvas is set, so it is a wash and the page's ink.
+ */
+.tool[data-held] {
+  color: var(--app-ink);
+  background: color-mix(in oklch, var(--app-ink) 14%, transparent);
 }
 
 /* What the next tap does, while a line is being drawn, said beside the tools. */

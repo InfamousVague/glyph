@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SPEC_SAMPLE } from '../../test/canvas.ts';
-import { CHART_CARD, clearSpot, colouredNode, duplicated, GROUP_ROOM, heldBy, joined, labelledEdge, labelledGroup, LEAST_CARD, movedNode, movedWithHeld, newCanvasId, newEdge, newFileNode, newGroupNode, newLinkNode, newPictureNode, newTextNode, resizedBy, resizedNode, STEP_ASIDE, TABLE_CARD, withEdge, withGroup, withNode, withoutEdge, withoutNode } from './edits.ts';
+import { atDot, CHART_CARD, clearSpot, colouredNode, duplicated, GRID, GROUP_ROOM, heldBy, joined, labelledEdge, labelledGroup, LEAST_CARD, movedNode, movedWithHeld, newCanvasId, newEdge, newFileNode, newGroupNode, newLinkNode, newPictureNode, newTextNode, onGrid, resizedBy, resizedNode, STEP_ASIDE, TABLE_CARD, withEdge, withGroup, withNode, withoutEdge, withoutNode } from './edits.ts';
 import { parseCanvas, serializeCanvas, type Canvas } from './jsonCanvas.ts';
 
 /** Making and changing a canvas: cards and lines added, moved, resized, named and taken off, each a new canvas. */
@@ -156,5 +156,26 @@ describe('the picked card’s edits', () => {
     // The card it was made about is held by it, so it moves with it.
     const about = newGroupNode(card, 0, 0, 'g');
     expect(heldBy({ nodes: [about, card], edges: [] }, about).map((n) => n.id)).toEqual(['c']);
+  });
+});
+
+describe('the grid', () => {
+  it('is the dots, 24 apart from the canvas’s own corner, and a place goes to the nearest', () => {
+    expect(GRID).toBe(24);
+    expect([onGrid(0), onGrid(11), onGrid(12), onGrid(-11), onGrid(-13), onGrid(331)]).toEqual([0, 0, 24, -0, -24, 336]);
+    expect(atDot(331, 143)).toEqual({ x: 336, y: 144 });
+  });
+
+  it('snaps the sides a handle moves, and brings a card that was off the grid onto it side by side', () => {
+    const off = { id: 'c', type: 'text', x: 100, y: 100, width: 200, height: 100, text: 'x' } as const;
+    const box = (n: { x: number; y: number; width: number; height: number }) => [n.x, n.y, n.width, n.height];
+    // The right side was at 300: out by 10 it is 310, whose line is 312. The left side, not held, stays at 100.
+    expect(box(resizedBy(off, 'e', 10, 0, true))).toEqual([100, 100, 212, 100]);
+    // The top-left corner goes to 96,96; the far corner (300,200) stays.
+    expect(box(resizedBy(off, 'nw', -3, -3, true))).toEqual([96, 96, 204, 104]);
+    // Never smaller than the least, snapped or not: the side stops there.
+    expect(box(resizedBy(off, 'e', -900, 0, true))).toEqual([100, 100, 120, 100]);
+    // Without snapping, to the pixel as before.
+    expect(box(resizedBy(off, 'e', 10, 0))).toEqual([100, 100, 210, 100]);
   });
 });

@@ -46,7 +46,8 @@ Name a canvas from the More sheet's Name field or its tab's menu, since it has n
 - **The bar** over the picked card: write in it or open it, draw a line from it, colour it, copy it, take it off with its lines.
 - **Drag the picked card** and it moves. With a mouse, drag any card. A finger dragging a card that is not picked pans the page, so a card never moves by mistake; press and hold one for a moment and it lifts, as before.
 - **A group** is taken by its name or its border, and the cards wholly inside it move with it. Its ground is the page's: drag there to pan, double-tap there to make a card in it. Resize it over a card to take the card in.
-- **The keys:** Delete takes the picked card off, the arrows nudge it (Alt for a pixel), Ctrl or Cmd+D copies it, Space held pans, and Escape lets go of the writing, then of the card.
+- **Snapping.** Cards land on the grid's dots as you move, resize or make them, and the phone ticks as they do. The magnet at the bottom left turns it off and on; it starts on.
+- **The keys:** Delete takes the picked card off, the arrows nudge it one dot (Alt for a pixel), Ctrl or Cmd+D copies it, Space held pans, and Escape lets go of the writing, then of the card.
 
 ## Lines
 

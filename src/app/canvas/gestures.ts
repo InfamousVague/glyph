@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { HOLD_MS } from '../core/gestures.ts';
+import { fireFelt } from '../core/haptics.ts';
 import type { Camera } from './camera.ts';
-import { movedWithHeld } from './edits.ts';
+import { atDot, movedWithHeld } from './edits.ts';
 import type { Canvas, CanvasNode } from './jsonCanvas.ts';
 import { clampScale, type View } from './viewport.ts';
 
@@ -24,6 +25,11 @@ import { clampScale, type View } from './viewport.ts';
  * it; any other card under a moving finger is still the page being panned, since a phone's screen is mostly cards. A
  * group is taken by its name or by its border, with either: its ground is the page's, to pan and to double-tap a new
  * card onto, and a group the size of the screen would otherwise leave nowhere to pan from.
+ *
+ * With snapping on (the preference `canvasSnap`), a carried card goes from dot to dot of the grid rather than pixel
+ * to pixel, and the phone ticks each time it lands on a new one (Matt: "Give haptics when it snaps"): the tick is the
+ * hand's proof the card is on the grid, where the eye has only a dot under a corner. Ticks come through the app's
+ * floor on haptics (core/haptics.ts `fireFelt`), so a fast drag across many dots is a purr, not a queue.
  */
 
 /** How far a finger moves before a press is a drag rather than a tap, in screen pixels. */
@@ -57,6 +63,8 @@ interface GestureOptions {
   editing: boolean;
   /** The card picked, by id: a finger that drags it moves it without the hold. */
   selected: string | null;
+  /** Whether a carried card lands on the grid's dots. */
+  snap: boolean;
   /** Any press on the canvas itself, before it is anything else. */
   onPress: () => void;
   /** A carried card moved: the canvas with it where the finger is, drawn but not yet handed on. */
@@ -83,7 +91,7 @@ function onGroupGrip(target: HTMLElement, el: HTMLElement, x: number, y: number)
   return x - box.left < BORDER_PX || box.right - x < BORDER_PX || y - box.top < BORDER_PX || box.bottom - y < BORDER_PX;
 }
 
-export function useGestures({ host, camera, live, editable, editing, selected, onPress, onCarry, onPutDown }: GestureOptions): Gestures {
+export function useGestures({ host, camera, live, editable, editing, selected, snap, onPress, onCarry, onPutDown }: GestureOptions): Gestures {
   const pointers = useRef<Pointers>(new Map());
   /** Where the fingers took hold and what the view was then: every move is measured from here, not from the last. */
   const hold = useRef<{ view: View; x: number; y: number; distance: number } | null>(null);
@@ -92,6 +100,8 @@ export function useGestures({ host, camera, live, editable, editing, selected, o
   const carrying = useRef<{ node: CanvasNode; x: number; y: number; base: Canvas } | null>(null);
   /** The card this press would move if it turned into a drag, with no hold: a mouse's, or the picked card under a finger. */
   const grab = useRef<{ node: CanvasNode; x: number; y: number; base: Canvas } | null>(null);
+  /** The dot a carried card last landed on, so a tick is felt when it lands on another; null until it has landed on one. */
+  const landed = useRef<string | null>(null);
   /** The wait for a press on a card to become a hold; cleared by movement or by letting go. */
   const holdTimer = useRef(0);
   /** Space held: every drag pans, whatever is under the pointer, as in every drawing program. */
@@ -123,7 +133,17 @@ export function useGestures({ host, camera, live, editable, editing, selected, o
     const held = carrying.current;
     if (!held) return null;
     const scale = camera.view.current.scale;
-    return movedWithHeld(held.base, held.node, held.node.x + (to.clientX - held.x) / scale, held.node.y + (to.clientY - held.y) / scale);
+    const x = held.node.x + (to.clientX - held.x) / scale;
+    const y = held.node.y + (to.clientY - held.y) / scale;
+    if (!snap) return movedWithHeld(held.base, held.node, x, y);
+    // On the grid: the card's corner at the nearest dot, and a tick when that is a new one.
+    const dot = atDot(x, y);
+    const key = `${dot.x},${dot.y}`;
+    if (landed.current !== key) {
+      if (landed.current !== null) fireFelt('selection');
+      landed.current = key;
+    }
+    return movedWithHeld(held.base, held.node, dot.x, dot.y);
   };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -138,6 +158,7 @@ export function useGestures({ host, camera, live, editable, editing, selected, o
       dragged.current = false;
       carrying.current = null;
       grab.current = null;
+      landed.current = null;
       // The middle button and Space pan, whatever is under the pointer.
       const panning = event.button === 1 || spaceHeld.current;
       // One finger on a card, on a canvas that can change: held still for a moment, it lifts the card.

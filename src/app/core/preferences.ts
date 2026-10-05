@@ -403,6 +403,12 @@ export interface Preferences {
    */
   linkPreviews: boolean;
   /**
+   * A canvas's cards land on its grid of dots when they are moved, resized or made (canvas/edits.ts `GRID`; Matt:
+   * "Add the option for snapping to the grid dots on by default on canvases"). The person's way of working, so it
+   * travels with them; the switch is the magnet among the canvas's tools.
+   */
+  canvasSnap: boolean;
+  /**
    * A map at the top of a tagged note, drawn from OpenStreetMap's tiles (editor/MapCard.tsx). Opening a tagged note
    * then asks openstreetmap.org for the tiles, so it can be switched off.
    */
@@ -480,6 +486,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   ripples: true,
   motionSpeed: 'normal',
   linkPreviews: true,
+  canvasSnap: true,
   mapTiles: true,
   placeNames: true,
   tagNewNotes: true,
@@ -566,6 +573,7 @@ function settle(raw: unknown): Preferences {
   if (!isSummaries(loaded.summaries)) loaded.summaries = DEFAULT_PREFERENCES.summaries;
   if (!isWriteUp(loaded.writeUp)) loaded.writeUp = DEFAULT_PREFERENCES.writeUp;
   if (typeof loaded.syncMeetingRecordings !== 'boolean') loaded.syncMeetingRecordings = DEFAULT_PREFERENCES.syncMeetingRecordings;
+  if (typeof loaded.canvasSnap !== 'boolean') loaded.canvasSnap = DEFAULT_PREFERENCES.canvasSnap;
   if (typeof loaded.meetingSound !== 'boolean') loaded.meetingSound = DEFAULT_PREFERENCES.meetingSound;
   if (typeof loaded.lookUpBlanks !== 'boolean') loaded.lookUpBlanks = DEFAULT_PREFERENCES.lookUpBlanks;
   if (typeof loaded.autoFill !== 'boolean') loaded.autoFill = DEFAULT_PREFERENCES.autoFill;

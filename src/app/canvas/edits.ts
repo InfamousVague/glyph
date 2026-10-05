@@ -20,6 +20,18 @@ export function newCanvasId(): string {
   return toHex(bytes);
 }
 
+/**
+ * The canvas's grid: the dots under the cards are this far apart, in the canvas's pixels, with one at the canvas's
+ * own corner (CanvasView.module.css `.canvas`), and with snapping on, a card's corner and its sides land on them.
+ */
+export const GRID = 24;
+
+/** The nearest line of the grid to a place, across or down. */
+export const onGrid = (place: number): number => Math.round(place / GRID) * GRID;
+
+/** A point at the nearest dot. */
+export const atDot = (x: number, y: number): { x: number; y: number } => ({ x: onGrid(x), y: onGrid(y) });
+
 /** The size a new card of words starts at, in the canvas's pixels: Obsidian's, so a canvas made here looks like one. */
 export const NEW_CARD = { width: 260, height: 120 };
 
@@ -145,17 +157,21 @@ export const HANDLES: readonly Handle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw'
  * they are, so a card dragged by its top-left corner grows up and to the left. No smaller than `LEAST_CARD`: a side
  * dragged past that stops there, and the card does not start to slide the other way. A group resized this way keeps
  * its cards where they are; only its box changes, which is how a card is put into a group or taken out.
+ *
+ * With `snap`, the sides that move land on the grid's lines (`GRID`): the side itself, not the size, so a card that
+ * was off the grid is brought onto it side by side as it is resized, and the sides not held stay where they were.
  */
-export function resizedBy(node: CanvasNode, handle: Handle, dx: number, dy: number): CanvasNode {
+export function resizedBy(node: CanvasNode, handle: Handle, dx: number, dy: number, snap = false): CanvasNode {
   let { x, y, width, height } = node;
-  if (handle.includes('e')) width = Math.max(LEAST_CARD.width, node.width + dx);
-  if (handle.includes('s')) height = Math.max(LEAST_CARD.height, node.height + dy);
+  const to = (place: number) => (snap ? onGrid(place) : place);
+  if (handle.includes('e')) width = Math.max(LEAST_CARD.width, to(node.x + node.width + dx) - node.x);
+  if (handle.includes('s')) height = Math.max(LEAST_CARD.height, to(node.y + node.height + dy) - node.y);
   if (handle.includes('w')) {
-    width = Math.max(LEAST_CARD.width, node.width - dx);
+    width = Math.max(LEAST_CARD.width, node.x + node.width - to(node.x + dx));
     x = node.x + node.width - width;
   }
   if (handle.includes('n')) {
-    height = Math.max(LEAST_CARD.height, node.height - dy);
+    height = Math.max(LEAST_CARD.height, node.y + node.height - to(node.y + dy));
     y = node.y + node.height - height;
   }
   return { ...node, x: Math.round(x), y: Math.round(y), width: Math.round(width), height: Math.round(height) };
@@ -188,8 +204,8 @@ export function colouredNode(node: CanvasNode, color: string | null): CanvasNode
   return (color ? { ...rest, color } : rest) as CanvasNode;
 }
 
-/** The room a new group leaves round the card it is made about. */
-export const GROUP_ROOM = 32;
+/** The room a new group leaves round the card it is made about: one square of the grid, so a group made about a card on the grid is on it too. */
+export const GROUP_ROOM = GRID;
 /** The size a group starts at when it is made about nothing. */
 export const NEW_GROUP = { width: 480, height: 320 };
 
