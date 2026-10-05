@@ -55,7 +55,8 @@ has it; until then the organizations it is in list it as `pub: null`, and no wra
 **S4. Where team notes live.** On the service, under the organization: `org_notes(org, id, rev, deleted, blob, by,
 updated_at)` with the account feed's shape (`GET /api/v1/orgs/{id}/notes?since=&limit=`, `PUT …/notes/{nid}
 { base, blob }`, 409 with the winner; `DELETE` the same way), the CRDT's update log `org_note_updates(org, note, seq,
-blob, by, at)` (`GET …/notes/{nid}/updates?since=`, `POST …/notes/{nid}/updates { blobs }`), and the note's sealed
+blob, by, at)` (`GET …/notes/{nid}/updates?since=`, `POST …/notes/{nid}/updates { blobs }`; `GET …/heads` answers every live
+note's log head in one read, so a pass fetches only the logs that moved), and the note's sealed
 files - its versions file, its pictures - as `GET`/`PUT …/orgs/{id}/files/{fid}`. The organization has a write
 counter of its own, as an account does, so a member's feed cursor is per organization. A member reads and writes;
 nobody else reaches them; the service checks membership, sizes and shapes, never content, and records who wrote

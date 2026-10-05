@@ -127,9 +127,10 @@ describe('a team note between two devices', () => {
     expect(mac.notes.get('n1')).toMatchObject({ body: '# Roadmap\n- ship', starred: true });
     expect(mac.filed.has('n1')).toBe(true);
     expect((await mac.docs.read('n1'))?.seq).toBe(0);
-    // Nothing more on a quiet pass, either side.
+    // Nothing more on a quiet pass, either side: the feed and the heads are read, and no note's log is.
+    const before = service.calls.length;
     expect((await mac.sync()).changed).toBe(0);
-    expect(service.calls.filter((c) => c.includes('/notes/n1')).length).toBeLessThan(6);
+    expect(service.calls.slice(before)).toEqual([`GET orgs/${orgId}/notes`, `GET orgs/${orgId}/heads`]);
   });
 
   it('carries edits made apart to both sides and merges them by the CRDT, with no copy', async () => {

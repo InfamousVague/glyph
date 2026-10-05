@@ -22,11 +22,11 @@ vi.mock('../core/account/account.ts', () => ({
   onAccount: () => () => undefined,
   resume: async () => undefined,
 }));
-// The pass the page asks for as it opens and on a pull: counted.
+// The whole pass the page asks for as it opens and on a pull: counted.
 const passes = vi.hoisted(() => ({ count: 0 }));
 vi.mock('../core/sync/engine.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../core/sync/engine.ts')>()),
-  syncNotificationsNow: async () => {
+  syncNow: async () => {
     passes.count += 1;
   },
 }));

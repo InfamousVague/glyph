@@ -6,6 +6,7 @@
 //!   GET    /api/v1/orgs/{id}/notes?since=&limit=              the feed: every note written after `since`
 //!   PUT    /api/v1/orgs/{id}/notes/{nid}                      { base, blob, upTo? } a note; `upTo` cuts its log to there
 //!   DELETE /api/v1/orgs/{id}/notes/{nid}                      { base } a deletion, which takes the log
+//!   GET    /api/v1/orgs/{id}/heads                             each live note's log head, in one read
 //!   GET    /api/v1/orgs/{id}/notes/{nid}/updates?since=&limit= the log after `since`
 //!   POST   /api/v1/orgs/{id}/notes/{nid}/updates              { blobs } appended in order; answers the last seq
 //!   GET    /api/v1/orgs/{id}/files/{fid}                      a file's bytes, its revision in `x-glyph-rev` (HEAD too)
@@ -143,6 +144,15 @@ async fn updates(State(accounts): State<Arc<Accounts>>, Path((org, note)): Path<
     }
 }
 
+/// `GET orgs/{id}/heads`: each live note's log head, so a device reads only the logs that moved.
+async fn heads(State(accounts): State<Arc<Accounts>>, Path(org): Path<String>, who: Claims) -> Result<Response, Response> {
+    ids(&org, None)?;
+    match accounts.store.org_note_heads(who.sub, &org) {
+        Ok(heads) => Ok(Json(json!({ "heads": heads.into_iter().map(|(id, seq)| (id, json!(seq))).collect::<serde_json::Map<_, _>>() })).into_response()),
+        Err(err) => Err(refused(err)),
+    }
+}
+
 #[derive(Deserialize)]
 struct UpdatesBody {
     #[serde(default)]
@@ -195,6 +205,7 @@ async fn put_file(State(accounts): State<Arc<Accounts>>, Path((org, file)): Path
 pub fn router(accounts: Arc<Accounts>) -> Router {
     Router::new()
         .route("/api/v1/orgs/{id}/notes", get(feed))
+        .route("/api/v1/orgs/{id}/heads", get(heads))
         .route("/api/v1/orgs/{id}/notes/{nid}", axum::routing::put(put_note).delete(delete_note))
         .route("/api/v1/orgs/{id}/notes/{nid}/updates", get(updates).post(post_updates).layer(DefaultBodyLimit::max(UPDATES_PER_POST * UPDATE_LIMIT + 4096)))
         .route("/api/v1/orgs/{id}/files/{fid}", get(get_file).put(put_file).layer(DefaultBodyLimit::max(FILE_LIMIT)))

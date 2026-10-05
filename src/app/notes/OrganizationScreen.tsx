@@ -10,7 +10,7 @@ import { fetchOrg, inviteByHandle, setOrgColour, useOrgs } from '../core/orgs/or
 import type { Member, Org, OrgRow } from '../core/orgs/types.ts';
 import { usePreferences } from '../core/preferences.ts';
 import type { Note } from '../core/store.ts';
-import { syncNotificationsNow } from '../core/sync/engine.ts';
+import { syncNow } from '../core/sync/engine.ts';
 import { orgWorkspaceId, useWorkspaces, type WorkspaceHue } from '../core/workspaces.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { Ghost } from '../art/Ghost.tsx';
@@ -128,9 +128,11 @@ export function OrganizationScreen({ orgId, notes, onBack, onOpenNote, onNewNote
     if (held || !member) return;
     void read();
   }, [held, member, read, newest, row?.members, row?.colour]);
-  // Opened: the feed and the list taken again now, so what changed while the app was away is here before it is read.
+  // Opened: a whole pass now, so the team's notes (docs/SHARED.md: the organization channel runs in a full pass, not
+  // the notifications' own) and what changed while the app was away are here before they are read (Matt: "It takes
+  // quite a long time for organization notes to load when navigating to the organization page").
   useEffect(() => {
-    if (!held) void syncNotificationsNow();
+    if (!held) void syncNow();
   }, [held, orgId]);
 
   // The notes filed in its workspace, newest change first.
@@ -143,7 +145,7 @@ export function OrganizationScreen({ orgId, notes, onBack, onOpenNote, onNewNote
   const invited = org?.members.filter((m) => m.state === 'invited') ?? [];
   const count = org ? joined.length : (row?.members ?? 0);
   const refresh = async () => {
-    await syncNotificationsNow();
+    await syncNow();
     if (member) await read();
   };
   const toInvite = () => {

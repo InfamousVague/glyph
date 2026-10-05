@@ -10348,11 +10348,15 @@ change (`reconcile`: the common head and foot kept, what lies between replaced),
 with the team's rather than writing over it. The organization's row for a note carries a snapshot - the state, the
 note's words and particulars - and the log carries every update since; a pass pulls the rows (adopting each into the
 document held, merged and never doubled; this device's own words from before the team had the note reconciled in as
-a change), applies the log, reconciles the note's words, posts the updates made here, and puts the row again for a
+a change), reads the organization's log heads in one request and applies only the logs that moved (Matt: "It takes
+quite a long time for organization notes to load"), reconciles the note's words, posts the updates made here, and puts the row again for a
 changed pin, archive or folder, or after two hundred updates, cutting the log to the snapshot. Two members who
 edited apart merge by the CRDT: the channel keeps no conflict copies. The note's versions file travels by the
 organization's files, merged version by version as before, so every member's edits are in its history by handle,
 which the audit log (§183) reads; its pictures travel the same way.
+
+Opening an organization's dashboard, or pulling down on it, runs a whole pass rather than the notifications' own, so
+the team's notes are there before they are read.
 
 **Not yet.** The live half (S6): the relay's organization rooms, presence, cursors in colour and "editing Roadmap"
 with Jump to cursor. Recordings do not travel with a team note. Claude's connector writes the account's feed and

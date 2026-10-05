@@ -56,6 +56,8 @@ async fn a_team_note_is_written_fed_to_every_member_refused_when_stale_and_delet
     assert_eq!((status, body), (StatusCode::OK, json!({ "seq": 2 })));
     let (_, body) = h.call(Method::POST, &format!("/api/v1/orgs/{org}/notes/n1/updates"), Some(&sam), Some(json!({ "blobs": ["u3"] }))).await;
     assert_eq!(body["seq"], 3);
+    let (_, heads) = h.call(Method::GET, &format!("/api/v1/orgs/{org}/heads"), Some(&sam), None).await;
+    assert_eq!(heads, json!({ "heads": { "n1": 3 } }));
     let (_, log) = h.call(Method::GET, &format!("/api/v1/orgs/{org}/notes/n1/updates?since=1"), Some(&matt), None).await;
     assert_eq!(log["seq"], 3);
     assert_eq!(log["items"].as_array().unwrap().iter().map(|u| (u["seq"].as_i64().unwrap(), u["blob"].as_str().unwrap().to_string(), u["by"].as_str().unwrap().to_string())).collect::<Vec<_>>(), vec![(2, "u2".into(), "matt".into()), (3, "u3".into(), "sam".into())]);
@@ -118,6 +120,7 @@ async fn a_stranger_and_an_invitee_get_one_404_from_every_route() {
     let not_yours = refusal(StatusCode::NOT_FOUND, "No such organization.");
     let routes = [
         (Method::GET, format!("/api/v1/orgs/{org}/notes?since=0"), None),
+        (Method::GET, format!("/api/v1/orgs/{org}/heads"), None),
         (Method::PUT, format!("/api/v1/orgs/{org}/notes/n1"), Some(json!({ "base": 0, "blob": "x" }))),
         (Method::DELETE, format!("/api/v1/orgs/{org}/notes/n1"), Some(json!({ "base": 0 }))),
         (Method::GET, format!("/api/v1/orgs/{org}/notes/n1/updates?since=0"), None),

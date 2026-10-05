@@ -176,6 +176,19 @@ impl Store {
         Ok(seq)
     }
 
+    /// Each live note's log head - the seq of its last update, 0 for none - in one read, so a device fetches the logs
+    /// that moved and not every note's every pass.
+    pub fn org_note_heads(&self, account: i64, org: &str) -> Result<Vec<(String, i64)>, OrgNoteWrite> {
+        let conn = self.lock();
+        Self::acting(&conn, org, account)?;
+        let mut stmt = conn.prepare(
+            "SELECT n.id, COALESCE((SELECT value FROM meta WHERE key = 'org-seq:' || n.org_id || ':' || n.id), '0') \
+             FROM org_notes n WHERE n.org_id = ?1 AND n.deleted = 0",
+        )?;
+        let heads = stmt.query_map(params![org], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?.parse().unwrap_or(0))))?.filter_map(Result::ok).collect();
+        Ok(heads)
+    }
+
     // --- files ----------------------------------------------------------------------
 
     fn org_file_path(&self, org: &str, id: &str) -> PathBuf {
@@ -261,7 +274,9 @@ mod tests {
         assert!(!more);
         assert_eq!(head, feed[1].rev);
         // The log, numbered from 1, cut back by a snapshot, and gone with the note.
+        assert_eq!(s.org_note_heads(a.id, &org).unwrap(), vec![("n1".to_string(), 0), ("n2".to_string(), 0)], "no updates yet");
         assert_eq!(s.post_org_updates(a.id, &org, "n1", &["u1".into(), "u2".into(), "u3".into()], 5).unwrap(), 3);
+        assert_eq!(s.org_note_heads(a.id, &org).unwrap(), vec![("n1".to_string(), 3), ("n2".to_string(), 0)]);
         let (updates, _, head) = s.org_updates_since(a.id, &org, "n1", 1, 10).unwrap();
         assert_eq!((updates.iter().map(|u| u.seq).collect::<Vec<_>>(), head), (vec![2, 3], 3));
         assert_eq!(updates[0].by.as_deref(), Some("matt"));

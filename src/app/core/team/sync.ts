@@ -1,4 +1,4 @@
-import { ApiError, call } from '../account/api.ts';
+import { ApiError, call, notYet } from '../account/api.ts';
 import { failureText } from '../failure.ts';
 import { imageNames } from '../imageRefs.ts';
 import type { Note } from '../store.ts';
@@ -317,15 +317,33 @@ async function push(ctx: TeamSyncContext, outcome: TeamOutcome): Promise<void> {
   ctx.save(ctx.state);
 }
 
-/** One whole sync of a team's notes: what changed elsewhere first, then the logs, then what changed here. */
+/**
+ * Each live note's log head, in one read, so only the logs that moved are fetched; null from a service without the
+ * route yet, which means every log is looked at as before.
+ */
+async function heads(ctx: TeamSyncContext): Promise<Record<string, number> | null> {
+  try {
+    const { heads } = await call<{ heads: Record<string, number> }>('GET', route(ctx, 'heads'), options(ctx));
+    return heads;
+  } catch (failure) {
+    if (notYet(failure)) return null;
+    throw failure;
+  }
+}
+
+/** One whole sync of a team's notes: what changed elsewhere first, then the logs that moved, then what changed here. */
 export async function syncTeamNotes(ctx: TeamSyncContext): Promise<TeamOutcome> {
   const outcome: TeamOutcome = { changed: 0, unsent: 0, reason: null };
   await pull(ctx, outcome);
-  for (const note of (await ctx.notes.list()).filter((each) => ctx.isTeamNote(each.id))) {
+  const team = (await ctx.notes.list()).filter((each) => ctx.isTeamNote(each.id));
+  const moved = team.length ? await heads(ctx) : null;
+  for (const note of team) {
     const doc = await teamDoc(note.id, ctx.docs);
     if (!doc || !ctx.state.notes[note.id]) continue;
     // Words that reached the note without the editor go into the document first, so what the log brings merges with them.
     doc.reconcile(note.body);
+    // A log that has not moved past what this device applied is not read: one request for the organization, not one a note.
+    if (moved && (moved[note.id] ?? 0) <= doc.seq) continue;
     await counted(ctx, outcome, () => takeUpdates(ctx, doc, outcome));
   }
   await push(ctx, outcome);

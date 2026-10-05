@@ -420,7 +420,15 @@ export async function fakeService(seed?: { handle: string; password: string }, {
         }
         return json(200, { orgs: rows, colour: mine.hue ?? null });
       }
-      // Team notes (docs/SHARED.md, S4, S5): the feed, a row, its log, and the organization's files.
+      // Team notes (docs/SHARED.md, S4, S5): the feed, a row, its log, each log's head, and the organization's files.
+      const teamHeads = /^orgs\/([^/]+)\/heads$/.exec(path);
+      if (teamHeads && method === 'GET') {
+        const found = inOrg(decodeURIComponent(teamHeads[1]!));
+        if (!found) return refuse(404, 'No such organization.');
+        const heads: Record<string, number> = {};
+        for (const [id, row] of found.org.notes ?? []) if (!row.deleted) heads[id] = found.org.seqs?.get(id) ?? 0;
+        return json(200, { heads });
+      }
       const teamNotes = /^orgs\/([^/]+)\/notes(?:\/([^/]+))?(\/updates)?$/.exec(path);
       if (teamNotes) {
         const found = inOrg(decodeURIComponent(teamNotes[1]!));
