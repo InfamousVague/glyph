@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { newAccountKey, settle } from '../sync/crypto.ts';
-import { Kind, decode, encode, newSeed, openEnvelope, packState, sealEnvelope, unpackState } from './wire.ts';
+import { Kind, decode, encode, newSeed, openEnvelope, openTeamEnvelope, packState, sealEnvelope, sealTeamEnvelope, unpackState } from './wire.ts';
 
 /** An account key as a device holds one: made, then settled into a non-extractable key. */
 async function accountKey(): Promise<CryptoKey> {
@@ -28,6 +28,16 @@ describe('a live message', () => {
   it('will not open under another account key', async () => {
     const data = await sealEnvelope(await accountKey(), 'note-a', { kind: Kind.Query, payload: new Uint8Array() });
     await expect(openEnvelope(await accountKey(), 'note-a', data)).rejects.toThrow();
+  });
+
+  it('sealed for a team’s room, opens in that organization’s room alone', async () => {
+    const key = await accountKey();
+    const data = await sealTeamEnvelope(key, 'org-1', 'note-a', { kind: Kind.Presence, payload: new Uint8Array([3]) });
+    expect([...(await openTeamEnvelope(key, 'org-1', 'note-a', data)).payload]).toEqual([3]);
+    await expect(openTeamEnvelope(key, 'org-2', 'note-a', data)).rejects.toThrow();
+    await expect(openTeamEnvelope(key, 'org-1', 'note-b', data)).rejects.toThrow();
+    // Nor as an account's own message about that note.
+    await expect(openEnvelope(key, 'note-a', data)).rejects.toThrow();
   });
 
   it('refuses a kind it does not know rather than guessing', () => {

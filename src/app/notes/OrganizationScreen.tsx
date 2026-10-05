@@ -4,6 +4,7 @@ import { Input } from '@glacier/react';
 import { useAccount } from '../core/account/account.ts';
 import { useBack } from '../core/back.ts';
 import { failureText } from '../core/failure.ts';
+import { usePresence, type Caret, type Seen } from '../core/live/presence.ts';
 import { useNotifications } from '../core/notifications/feed.ts';
 import { sentenceOf, type Notification } from '../core/notifications/kinds.ts';
 import { fetchOrg, inviteByHandle, setOrgColour, useOrgs } from '../core/orgs/orgs.ts';
@@ -73,6 +74,8 @@ interface OrganizationScreenProps {
   onLog: () => void;
   /** Settings at Account, from the signed-out words. */
   onAccount: () => void;
+  /** A note opened at a member's caret, from their profile's Jump to cursor (docs/SHARED.md, S6); null, the note alone. */
+  onJumpTo: (noteId: string, cursor: Caret | null) => void;
 }
 
 /** How many of the workspace's notes the page shows before "All of them". */
@@ -89,7 +92,7 @@ function since(ms: number): string {
   return words === 'Yesterday' || words === 'Just now' ? words.toLowerCase() : words;
 }
 
-export function OrganizationScreen({ orgId, notes, onBack, onOpenNote, onNewNote, onAllNotes, onSettings, onOpenOrganization, onLog, onAccount }: OrganizationScreenProps) {
+export function OrganizationScreen({ orgId, notes, onBack, onOpenNote, onNewNote, onAllNotes, onSettings, onOpenOrganization, onLog, onAccount, onJumpTo }: OrganizationScreenProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const topBar = useRef<HTMLElement>(null);
   const inviteField = useRef<HTMLInputElement>(null);
@@ -100,6 +103,8 @@ export function OrganizationScreen({ orgId, notes, onBack, onOpenNote, onNewNote
   const { list } = useOrgs();
   const { of: filed } = useWorkspaces();
   const feed = useNotifications();
+  // Who is in the app now and where (core/live/presence.ts), for the member rows and their profiles.
+  const seen = usePresence(orgId);
   const row = list.find((each) => each.id === orgId) ?? null;
   const signedIn = Boolean(account.session);
   const held = !signedIn || prefs.localOnly;
@@ -245,7 +250,7 @@ export function OrganizationScreen({ orgId, notes, onBack, onOpenNote, onNewNote
                   </div>
                   <ul className={styles.members} aria-label="Members">
                     {org ? (
-                      [...joined, ...invited].map((m, i) => <MemberLine key={m.handle} member={m} me={me} index={i} />)
+                      [...joined, ...invited].map((m, i) => <MemberLine key={m.handle} member={m} me={me} index={i} seen={seen} onJump={onJumpTo} />)
                     ) : (
                       <li className={styles.reading}>Reading the members…</li>
                     )}
@@ -369,28 +374,63 @@ function Invitation({ row }: { row: OrgRow }) {
   );
 }
 
-/** One member: an initial in a round, the handle, the role, and since when; invited ones dashed. */
-function MemberLine({ member, me, index }: { member: Member; me: string; index: number }) {
+/**
+ * One member: an initial in a round, the handle, the role, and since when; invited ones dashed. A member in the app
+ * now has a dot on their initial and the line says "here now" or "editing Roadmap" (docs/SHARED.md, S6), and the row
+ * opens their profile: since when, the colour they wear here, where they are, and Jump to cursor, which opens the
+ * note they are editing at their caret.
+ */
+function MemberLine({ member, me, index, seen, onJump }: { member: Member; me: string; index: number; seen: readonly Seen[]; onJump: (noteId: string, cursor: Caret | null) => void }) {
+  const [open, setOpen] = useState(false);
   const self = member.handle.toLowerCase() === me.toLowerCase();
   const joined = member.state === 'member';
+  const devices = seen.filter((s) => s.handle.toLowerCase() === member.handle.toLowerCase());
+  const at = devices.find((s) => s.at)?.at ?? null;
+  const present = devices.length > 0;
   const line = joined ? `${self ? 'You, ' : ''}${member.role === 'owner' ? 'owner since' : 'joined'} ${since(member.since)}` : `Invited${member.invitedBy ? ` by ${member.invitedBy}` : ''} ${since(member.since)}`;
+  const where = at ? `editing ${at.title || 'an untitled note'}` : present ? 'here now' : null;
   return (
-    <li className={styles.member} data-state={member.state} style={{ '--i': Math.min(index, 12) } as CSSProperties}>
-      {/* Their initial on their colour (docs/SHARED.md, S7): the one their cursor and comments wear. */}
-      <span className={styles.avatar} data-hue={member.colour ?? undefined} aria-hidden="true">
-        {member.handle.slice(0, 1).toUpperCase()}
-      </span>
-      <span className={styles.memberWords}>
-        <span className={styles.handle}>
-          {member.handle}
-          <span className={styles.role} data-role={member.role} data-state={member.state}>
-            {joined ? roleWords(member.role) : 'Invited'}
+    <li className={styles.member} data-state={member.state} data-hue={member.colour ?? undefined} data-present={present || undefined} style={{ '--i': Math.min(index, 12) } as CSSProperties}>
+      <button type="button" className={styles.memberRow} aria-expanded={open} onClick={() => setOpen((was) => !was)}>
+        {/* Their initial on their colour (docs/SHARED.md, S7): the one their cursor and comments wear. */}
+        <span className={styles.avatar} data-hue={member.colour ?? undefined} aria-hidden="true">
+          {member.handle.slice(0, 1).toUpperCase()}
+          {present ? <span className={styles.here} /> : null}
+        </span>
+        <span className={styles.memberWords}>
+          <span className={styles.handle}>
+            {member.handle}
+            <span className={styles.role} data-role={member.role} data-state={member.state}>
+              {joined ? roleWords(member.role) : 'Invited'}
+            </span>
+          </span>
+          <span className={styles.since} data-where={at ? 'editing' : present ? 'here' : undefined}>
+            {where ?? line}
           </span>
         </span>
-        <span className={styles.since}>{line}</span>
-      </span>
+      </button>
+      {open ? (
+        <div className={styles.profile} role="group" aria-label={`${member.handle}’s profile`}>
+          <p className={styles.profileLine}>{line}</p>
+          <p className={styles.profileLine}>
+            <span className={styles.swatch} data-hue={member.colour ?? 'ink'} aria-hidden="true" />
+            {member.colour ? `Wears ${hueWord(member.colour)} here` : 'Wears no colour yet'}
+          </p>
+          <p className={styles.profileLine}>{at ? `Editing ${at.title || 'an untitled note'} now` : present ? 'In the app now' : 'Not in the app now'}</p>
+          {at ? (
+            <button type="button" className={styles.jump} onClick={() => onJump(at.note, at.cursor)}>
+              {at.cursor ? 'Jump to cursor' : 'Open the note'}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </li>
   );
+}
+
+/** A hue's name as a word: what the profile says a member wears. */
+function hueWord(hue: string): string {
+  return hue.charAt(0).toUpperCase() + hue.slice(1);
 }
 
 /** One piece of the organization's news, as the notifications drawer words it. */

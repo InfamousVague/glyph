@@ -345,16 +345,37 @@
 }
 
 .member {
-  display: flex;
-  align-items: center;
-  gap: var(--glacier-space-3);
+  display: grid;
   padding-block: var(--glacier-space-3);
   border-block-end: var(--glacier-hairline) solid var(--app-rule);
   animation: rise 360ms var(--glacier-ease-out) both;
   animation-delay: calc(var(--i, 0) * 28ms);
 }
 
+/* The row is a button: it opens the member's profile (docs/SHARED.md, S6). Drawn as the row it always was. */
+.memberRow {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  inline-size: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--glacier-radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.memberRow:focus-visible {
+  outline: 2px solid var(--app-ink);
+  outline-offset: 3px;
+}
+
 .avatar {
+  position: relative;
   flex: none;
   display: grid;
   place-items: center;
@@ -393,6 +414,78 @@
 .since {
   font-size: var(--glacier-font-size-sm);
   color: var(--app-ink-3);
+}
+
+/*
+ * In the app now (docs/SHARED.md, S6): a dot on the initial in the colour they wear, ringed in the paper, and the
+ * line says where - "editing Roadmap" in that colour, "here now" in the page's ink.
+ */
+.here {
+  position: absolute;
+  inset-block-end: -1px;
+  inset-inline-end: -1px;
+  inline-size: 0.62rem;
+  block-size: 0.62rem;
+  border-radius: var(--glacier-radius-full);
+  background: var(--app-space, var(--app-ink));
+  box-shadow: 0 0 0 2px var(--app-paper);
+}
+
+.since[data-where='editing'] {
+  color: var(--app-space, var(--app-ink));
+  font-weight: var(--glacier-font-weight-medium);
+}
+
+.since[data-where='here'] {
+  color: var(--app-ink-2);
+}
+
+/* The profile under the row: since when, the colour worn, where they are, and the way to their caret. */
+.profile {
+  display: grid;
+  justify-items: start;
+  gap: var(--glacier-space-2);
+  padding: var(--glacier-space-2) 0 var(--glacier-space-1) calc(2.25rem + var(--glacier-space-3));
+  animation: rise 220ms var(--glacier-ease-out) both;
+}
+
+.profileLine {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  margin: 0;
+  font-size: var(--glacier-font-size-sm);
+  color: var(--app-ink-2);
+}
+
+.swatch {
+  flex: none;
+  inline-size: 0.8rem;
+  block-size: 0.8rem;
+  border-radius: var(--glacier-radius-full);
+  background: var(--app-space, var(--app-ink));
+}
+
+.jump {
+  margin-block-start: var(--glacier-space-1);
+  padding: 0.35em 0.9em;
+  border: var(--glacier-hairline) solid var(--app-space, var(--app-ink));
+  border-radius: var(--glacier-radius-full);
+  background: none;
+  color: var(--app-space, var(--app-ink));
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-medium);
+  cursor: pointer;
+}
+
+.jump:hover {
+  background: color-mix(in oklch, var(--app-space, var(--app-ink)) 10%, transparent);
+}
+
+.jump:focus-visible {
+  outline: 2px solid var(--app-ink);
+  outline-offset: 3px;
 }
 
 /* The invite field, under the members: the field and Invite on one line, the service's answer under them. */

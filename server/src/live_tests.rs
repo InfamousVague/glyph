@@ -191,20 +191,21 @@ async fn a_device_leaving_is_told_to_the_others() {
     let s = server().await;
     let token = s.account("matt").await;
     let (mut a, _) = s.device(&token).await;
-    let (mut b, _) = s.device(&token).await;
+    let (mut b, b_id) = s.device(&token).await;
     send(&mut a, json!({ "t": "join", "room": "n" })).await;
     next(&mut a).await;
     send(&mut b, json!({ "t": "join", "room": "n" })).await;
     next(&mut b).await;
     next(&mut a).await;
     send(&mut b, json!({ "t": "leave", "room": "n" })).await;
-    assert_eq!(next(&mut a).await, json!({ "t": "peers", "room": "n", "peers": 0 }));
+    // Told who went, so a caret of theirs can be dropped at once.
+    assert_eq!(next(&mut a).await, json!({ "t": "peers", "room": "n", "peers": 0, "left": b_id }));
     // And a socket that simply goes, as a phone does when it sleeps.
     send(&mut b, json!({ "t": "join", "room": "n" })).await;
     next(&mut b).await;
     next(&mut a).await;
     drop(b);
-    assert_eq!(next(&mut a).await, json!({ "t": "peers", "room": "n", "peers": 0 }));
+    assert_eq!(next(&mut a).await, json!({ "t": "peers", "room": "n", "peers": 0, "left": b_id }));
 }
 
 #[tokio::test]
@@ -332,4 +333,50 @@ async fn a_socket_ends_when_its_token_does_and_says_sign_in_again() {
     .await
     .expect("closed when the token lapsed, within the ceiling");
     assert_eq!(ended, Some(CLOSE_AUTH), "the code a device reads as sign in again, and then comes back with a fresh token");
+}
+
+#[tokio::test]
+async fn an_organizations_room_reaches_its_members_across_accounts_and_nobody_else() {
+    let s = server().await;
+    let matt = s.account("matt").await;
+    let sam = s.account("sam").await;
+    let lee = s.account("lee").await;
+    let store = &s.accounts.store;
+    let matt_id = store.account_by_handle("matt").unwrap().id;
+    let sam_id = store.account_by_handle("sam").unwrap().id;
+    store.create_org(matt_id, "org-1", "Ghost", None, 1, 20).unwrap();
+    let caps = || crate::store::InviteCaps { rows_per_org: 50, pending_per_invitee: 20, decline_cooldown: 86_400 };
+    store.invite(matt_id, "org-1", "sam", 2, caps()).unwrap();
+    store.answer_invite(sam_id, "org-1", true, 3).unwrap();
+    store.invite(matt_id, "org-1", "lee", 4, caps()).unwrap();
+    let (mut m, _) = s.device(&matt).await;
+    let (mut sm, sm_id) = s.device(&sam).await;
+    let (mut l, _) = s.device(&lee).await;
+    // Two members of two accounts in the organization's room for one note; the frames carry the organization.
+    send(&mut m, json!({ "t": "join", "room": "note-1", "org": "org-1" })).await;
+    assert_eq!(next(&mut m).await, json!({ "t": "joined", "room": "note-1", "org": "org-1", "first": true, "peers": 0 }));
+    send(&mut sm, json!({ "t": "join", "room": "note-1", "org": "org-1" })).await;
+    assert_eq!(next(&mut sm).await, json!({ "t": "joined", "room": "note-1", "org": "org-1", "first": false, "peers": 1 }));
+    assert_eq!(next(&mut m).await, json!({ "t": "peers", "room": "note-1", "org": "org-1", "peers": 1 }));
+    // An invitee who has not joined, and a stranger to an organization that is not: the organization's own refusal.
+    send(&mut l, json!({ "t": "join", "room": "note-1", "org": "org-1" })).await;
+    assert_eq!(next(&mut l).await, json!({ "t": "error", "message": "No such organization." }));
+    send(&mut l, json!({ "t": "join", "room": "note-1", "org": "org-9" })).await;
+    assert_eq!(next(&mut l).await, json!({ "t": "error", "message": "No such organization." }));
+    // A message crosses the accounts inside the organization; matt's own room of the same name hears nothing of it.
+    send(&mut m, json!({ "t": "join", "room": "note-1" })).await;
+    assert_eq!(next(&mut m).await, json!({ "t": "joined", "room": "note-1", "first": true, "peers": 0 }));
+    send(&mut sm, json!({ "t": "msg", "room": "note-1", "org": "org-1", "data": sealed("edit") })).await;
+    assert_eq!(next(&mut m).await, json!({ "t": "msg", "room": "note-1", "org": "org-1", "from": sm_id, "data": sealed("edit") }));
+    hears_nothing(&mut m).await;
+    // Removed from the organization: with the relay looking again at once, sam's next message is refused, sam is out
+    // of the room, and matt is told.
+    crate::live::RECHECK_SECS.store(0, Ordering::Relaxed);
+    store.remove_member(matt_id, "org-1", "sam", 5).unwrap();
+    send(&mut sm, json!({ "t": "msg", "room": "note-1", "org": "org-1", "data": sealed("late") })).await;
+    assert_eq!(next(&mut sm).await, json!({ "t": "error", "message": "No such organization." }));
+    assert_eq!(next(&mut m).await, json!({ "t": "peers", "room": "note-1", "org": "org-1", "peers": 0, "left": sm_id }));
+    send(&mut sm, json!({ "t": "join", "room": "note-1", "org": "org-1" })).await;
+    assert_eq!(next(&mut sm).await, json!({ "t": "error", "message": "No such organization." }));
+    crate::live::RECHECK_SECS.store(60, Ordering::Relaxed);
 }
