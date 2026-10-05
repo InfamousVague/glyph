@@ -1,19 +1,22 @@
 /*
- * The minimap (canvas/Minimap.tsx), in the corner opposite the tools: the canvas small, each kind of card told
- * apart, the lines between them, and the screen's box. Coloured cards wear their hue through `--app-space`, as the
- * cards themselves do (CanvasView.module.css).
+ * The minimap (canvas/Minimap.tsx), in the corner opposite the tools: the canvas itself, small. Everything inside it
+ * is drawn in the canvas's own pixels under one transform, so every line here that should stay a hairline on the
+ * screen says so (`vector-effect: non-scaling-stroke`), and is then a pixel wide at any size of map and any size of
+ * canvas. Coloured cards wear their hue through `--app-space`, as the cards themselves do (CanvasView.module.css).
  */
 .minimap {
   position: absolute;
   right: var(--glacier-space-3);
   bottom: var(--glacier-space-3);
   border: var(--glacier-hairline) solid var(--glacier-border-subtle);
-  border-radius: var(--glacier-radius-md);
-  background: color-mix(in oklch, var(--glacier-bg) 82%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  inline-size: 180px;
-  block-size: 120px;
+  border-radius: var(--glacier-radius-lg);
+  background: color-mix(in oklch, var(--glacier-bg) 86%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 22%);
+  inline-size: 204px;
+  block-size: 136px;
+  overflow: hidden;
   cursor: pointer;
   touch-action: none;
   transition:
@@ -23,8 +26,8 @@
 
 /* Pressed, the map grows half again, and the screen's box is there to be dragged. */
 .minimap[data-big] {
-  inline-size: 270px;
-  block-size: 180px;
+  inline-size: 306px;
+  block-size: 204px;
   cursor: grab;
 }
 
@@ -32,60 +35,91 @@
   cursor: grabbing;
 }
 
-/* Words: a filled block. */
-.mapCard rect {
-  fill: color-mix(in oklch, var(--app-space, var(--app-ink)) 55%, transparent);
-  stroke: none;
-}
-
-/* A note: outlined, with a faint ground, so it reads as something to open rather than something written here. */
-.mapCard[data-kind='note'] rect {
-  fill: color-mix(in oklch, var(--app-space, var(--app-ink)) 12%, transparent);
-  stroke: color-mix(in oklch, var(--app-space, var(--app-ink)) 70%, transparent);
+/* A card: its own ground, a shade off the page's, inside a hairline. What is on it is drawn over that. */
+.mapCardBox {
+  fill: color-mix(in oklch, var(--app-space, var(--app-ink)) 14%, var(--glacier-bg));
+  stroke: color-mix(in oklch, var(--app-space, var(--app-ink)) 42%, transparent);
   stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
-/* A picture: filled dark, the one solid thing. */
-.mapCard[data-kind='picture'] rect {
-  fill: color-mix(in oklch, var(--app-space, var(--app-ink)) 85%, transparent);
-}
-
-/* A link: outlined, with a dot in it. */
-.mapCard[data-kind='link'] rect {
-  fill: none;
+/* A note: a fainter ground, so it reads as something to open rather than something written here. */
+.mapCard[data-kind='note'] .mapCardBox {
+  fill: color-mix(in oklch, var(--app-space, var(--app-ink)) 6%, var(--glacier-bg));
   stroke: color-mix(in oklch, var(--app-space, var(--app-ink)) 60%, transparent);
-  stroke-width: 1;
 }
 
-.mapCard[data-kind='link'] circle {
-  fill: color-mix(in oklch, var(--app-space, var(--app-ink)) 70%, transparent);
+/* A picture not here to draw (another vault's): the one solid block. One of ours is the picture itself. */
+.mapCard[data-kind='picture'] .mapCardBox {
+  fill: color-mix(in oklch, var(--app-space, var(--app-ink)) 45%, var(--glacier-bg));
+}
+
+/* An address: an empty card with a ring in it. */
+.mapCard[data-kind='link'] .mapCardBox {
+  fill: none;
+  stroke: color-mix(in oklch, var(--app-space, var(--app-ink)) 55%, transparent);
+}
+
+.mapDot {
+  fill: none;
+  stroke: color-mix(in oklch, var(--app-space, var(--app-ink)) 70%, transparent);
+  stroke-width: 1.25;
+  vector-effect: non-scaling-stroke;
+}
+
+/* The words on a card, as the bars they make from far off; a heading's heavier. */
+.mapBar {
+  fill: color-mix(in oklch, var(--app-space, var(--app-ink)) 46%, transparent);
+}
+
+.mapBar[data-strong] {
+  fill: color-mix(in oklch, var(--app-space, var(--app-ink)) 82%, transparent);
 }
 
 .mapGroup rect {
   fill: color-mix(in oklch, var(--app-space, var(--app-ink)) 6%, transparent);
-  stroke: color-mix(in oklch, var(--app-space, var(--app-ink)) 35%, transparent);
+  stroke: color-mix(in oklch, var(--app-space, var(--app-ink)) 40%, transparent);
   stroke-width: 1;
   stroke-dasharray: 3 2;
+  vector-effect: non-scaling-stroke;
 }
 
 .mapLabel {
   fill: color-mix(in oklch, var(--app-space, var(--app-ink)) 75%, var(--glacier-text-muted));
-  font-size: 7px;
   font-weight: var(--glacier-font-weight-semibold);
   letter-spacing: 0.02em;
 }
 
-.mapLine {
-  stroke: color-mix(in oklch, var(--app-ink) 35%, transparent);
-  stroke-width: 1;
-  stroke-linecap: round;
+/* A line between cards: the canvas's own curve and arrow head, in its colour when it has one. */
+.mapEdge {
+  color: color-mix(in oklch, var(--app-space, var(--app-ink)) 50%, transparent);
 }
 
-/* The screen's box: a light wash inside a firm line, so where you are reads at a glance. */
+.mapLine {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.mapHead {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* What the screen does not show: shaded toward the page, so the screen's box is the lit part of the map. */
+.mapShade {
+  fill: color-mix(in oklch, var(--glacier-bg) 52%, transparent);
+  pointer-events: none;
+}
+
+/* The screen's box: a soft line with round corners, not a hard white frame. */
 .mapSeen {
-  fill: color-mix(in oklch, var(--app-ink) 7%, transparent);
-  stroke: var(--app-ink);
-  stroke-width: 1.5;
+  fill: none;
+  stroke: color-mix(in oklch, var(--app-ink) 46%, transparent);
+  stroke-width: 1.25;
+  pointer-events: none;
 }
 
 /* On a phone's width the map is smaller, so it takes less of the page. */

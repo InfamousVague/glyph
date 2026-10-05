@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { ChartNoAxesCombined, FileText, Image, Link2, SquarePen, Table } from '@glacier/icons';
+import { ChartNoAxesCombined, FileText, Group, Image, Link2, SquarePen, Table } from '@glacier/icons';
 import { Sheet } from '../editor/Sheet.tsx';
 import { SheetGroup, SheetRow, SheetTitle } from '../plugins/kit.tsx';
 import styles from './AddSheet.module.css';
 
 /**
  * The canvas's + sheet (canvas/CanvasView.tsx, choice 8), in the shell every sheet shares (editor/Sheet.tsx): what
- * to add - words, a note, a link, a picture, a chart, a table - and then, for a note or a link, its title or its
- * address. The sheet is only mounted while it is open, so its back gesture is held for as long as it is there, and
+ * to add - words, a note, a link, a picture, a chart, a table, a group - and then, for a note or a link, its title or
+ * its address. The sheet is only mounted while it is open, so its back gesture is held for as long as it is there, and
  * a press on its scrim is kept from the canvas's gestures under it.
  */
 
@@ -25,10 +25,13 @@ interface AddSheetProps {
   onPicture: () => void;
   onChart: () => void;
   onTable: () => void;
+  onGroup: () => void;
+  /** Whether a card is picked: a new group is then made about it, and the sheet says so. */
+  aboutCard: boolean;
   onStep: (step: 'note' | 'link') => void;
 }
 
-export function AddSheet({ step, titles, onClose, onWords, onNote, onLink, onPicture, onChart, onTable, onStep }: AddSheetProps) {
+export function AddSheet({ step, titles, onClose, onWords, onNote, onLink, onPicture, onChart, onTable, onGroup, aboutCard, onStep }: AddSheetProps) {
   const [words, setWords] = useState('');
   const found = step === 'note' ? titles.filter((t) => t.toLowerCase().includes(words.trim().toLowerCase())).slice(0, 12) : [];
   return (
@@ -42,6 +45,7 @@ export function AddSheet({ step, titles, onClose, onWords, onNote, onLink, onPic
           <SheetRow icon={Image} label="A picture" hint="From your phone or computer, kept with your notes' pictures." onPress={onPicture} />
           <SheetRow icon={ChartNoAxesCombined} label="A chart" hint="A diagram, written as Mermaid and drawn on the card." onPress={onChart} />
           <SheetRow icon={Table} label="A table" hint="Rows and columns to fill in." onPress={onTable} />
+          <SheetRow icon={Group} label="A group" hint={aboutCard ? 'A named box round the card you picked; drag its corners to take in more.' : 'A named box to gather cards in; the cards inside move with it.'} onPress={onGroup} />
         </SheetGroup>
       ) : (
         <div className={styles.addField}>

@@ -10210,3 +10210,43 @@ Not covered: the order is fixed, not the person's to choose; and on a phone the 
 Tests: editor/NoteTools.test.tsx (as many as fit, first first; all on a wide row, none on a narrow one; the row's
 other controls taken).
 
+
+## 190. The canvas's controls, reworked, and a minimap that is the canvas (2026-10-05)
+
+Matt: "I'd like you to spend some time reworking the controls and creation aspects of canvases, navigating it and
+resizing things are not easy especially on mobile resizing containers is near to impossible. the canvas minimap could
+also be far more detailed with modern displays and the frame is too bright white and has no radii".
+
+The whole of it is docs/CANVAS.md's eighth slice. What changed on the screen:
+
+**A picked card.** A tap picks a card of any kind; the next opens it. The picked card wears a ring in the page's ink,
+a round handle at each corner (and, for a pointer, a short bar at the middle of each side), and a pill of glass over
+it with what can be done: write or open, a line from here, colour, copy, take off. All three are drawn at the same
+size on the screen whatever the zoom, a handle 44px to the finger round a 13px dot, 16px on a touch screen. The old
+22px wedge and the crosses are gone. A group is resized the same way, which it could not be at all.
+
+**Moving without the wait.** A mouse drags a card at once, with a hand for a cursor over what moves. A finger drags
+the picked card at once and pans from anything else. A group is taken by its name or border, so its ground stays the
+page's to pan and to double-tap a card onto.
+
+**Making.** The + offers a group, made about the picked card when there is one. A new card steps aside from one
+already at its spot.
+
+**The tools.** Zoom out and Zoom in sit beside Fit behind a hairline rule, on a window wide enough: at a phone's
+width they would run the toolbar into the map, and two fingers zoom there.
+
+**The minimap.** It is the canvas drawn small, in vectors: words as the bars they make from far off, a note's title,
+a picture as itself, the lines as their real curves with their heads. It is a little larger, 204 by 136, with the
+floating cards' round and shadow. The screen's box is a line of the ink at under half strength with a five-unit
+round, and what is outside it is shaded toward the page, so where you are is the lit part.
+
+Checked in the browser pane on a canvas of a group, three cards of words, a note, an address and three lines: a card
+resized from its corner (260 by 180 to 306 by 230 at two thirds scale), a card dragged by the mouse, the group resized
+and coloured, and the change read back out of the note's JSON. At 400px the tools end at 151 and the map starts at
+240. A finger's own paths - dragging the picked card, panning from another, a group by its name - are held by the
+tests, since the pane's clicks arrive as a mouse's.
+
+Tests: canvas/CanvasView.controls.test.tsx (picking, moving, the keys, the bar, the +, the zoom buttons), the sizes
+in CanvasView.test.tsx, the map in CanvasView.navigation.test.tsx, edits.test.ts and mapDetail.test.ts.
+
+Cites: §62, §124.

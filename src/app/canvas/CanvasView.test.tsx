@@ -136,13 +136,18 @@ describe('a canvas edited', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it('opens a card of words on a double-tap, writes what is typed into the canvas, and takes the card off', () => {
+  it('picks a card of words on a tap and opens it on the next, and its bar takes the card off', () => {
     const onChange = vi.fn();
     const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
     const card = shown.querySelector('[data-card="t"]') as HTMLElement;
-    tapTwice(card, 50, 40);
+    act(() => card.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 50, clientY: 40 })));
+    // Picked, not open: it wears the ring and its bar.
+    expect(card.hasAttribute('data-selected')).toBe(true);
+    expect(card.hasAttribute('data-editing')).toBe(false);
+    expect(shown.querySelector('[data-handles="t"]')).not.toBeNull();
+    act(() => card.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 50, clientY: 40 })));
     expect(card.hasAttribute('data-editing')).toBe(true);
-    const remove = card.querySelector('button[aria-label*="off the canvas"]') as HTMLElement;
+    const remove = shown.querySelector('[data-card-bar="t"] button[aria-label="Take this card off the canvas"]') as HTMLElement;
     expect(remove).not.toBeNull();
     act(() => remove.click());
     expect(onChange).toHaveBeenCalledTimes(1);
@@ -223,11 +228,15 @@ describe('sizes and groups', () => {
     expect(next.nodes.map((n) => [n.id, n.x, n.y])).toEqual([['g', 30, 10], ['t', 50, 30], ['f', 300, 0], ['n', 300, 100], ['l', 50, 130]]);
   });
 
-  it('opens a group on a double-tap to be named, and the cross takes only the group off', () => {
+  it('picks a group on a tap, names it from its bar, and the bar takes only the group off', () => {
     const onChange = vi.fn();
     const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
     const group = shown.querySelector('[data-card="g"]') as HTMLElement;
-    tapTwice(group, 10, 10);
+    act(() => group.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 10, clientY: 10 })));
+    expect(group.hasAttribute('data-selected')).toBe(true);
+    // A group has handles as a card has: it is resized the same way.
+    expect(shown.querySelectorAll('[data-handles="g"] [data-handle]')).toHaveLength(8);
+    act(() => (shown.querySelector('[data-card-bar="g"] button[aria-label="Name this group"]') as HTMLElement).click());
     const field = group.querySelector('input[aria-label="The group\u2019s name"], input[aria-label="The group\'s name"]') as HTMLInputElement;
     expect(field).not.toBeNull();
     act(() => {
@@ -235,26 +244,67 @@ describe('sizes and groups', () => {
       field.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
     });
     expect((onChange.mock.calls[0]![0] as Canvas).nodes[0]).toMatchObject({ id: 'g', label: 'Trip' });
-    act(() => (group.querySelector('button[aria-label^="Take this group off"]') as HTMLElement).click());
+    act(() => (shown.querySelector('[data-card-bar="g"] button[aria-label^="Take this group off"]') as HTMLElement).click());
     const after = onChange.mock.calls[1]![0] as Canvas;
     expect(after.nodes.find((n) => n.id === 'g')).toBeUndefined();
     expect(after.nodes.length).toBe(canvas.nodes.length - 1);
   });
 
-  it('resizes an open card from its corner, in the canvas\u2019s pixels, no smaller than the least', () => {
+  it('resizes a picked card by a handle, in the canvas\u2019s pixels, no smaller than the least, the far sides staying put', () => {
     const onChange = vi.fn();
     const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
     const card = shown.querySelector('[data-card="t"]') as HTMLElement;
-    tapTwice(card, 50, 40);
-    const corner = card.querySelector('[aria-label="Drag to resize this card"]') as HTMLElement;
-    expect(corner).not.toBeNull();
-    pointer(corner, 'pointerdown', 200, 80);
+    act(() => card.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 50, clientY: 40 })));
+    const handle = (name: string) => shown.querySelector(`[data-handles="t"] [data-handle="${name}"]`) as HTMLElement;
+    const latest = () => (onChange.mock.calls.at(-1)![0] as Canvas).nodes.find((n) => n.id === 't')!;
+    // t is 0,0 200x80. The bottom-right corner grows it down and to the right.
+    pointer(handle('se'), 'pointerdown', 200, 80);
     pointer(window as unknown as Element, 'pointermove', 260.4, 120.6);
+    // Drawn at each size on the way, before anything is handed on.
+    expect(card.style.width).toBe('260px');
+    expect(onChange).not.toHaveBeenCalled();
     pointer(window as unknown as Element, 'pointerup', 260.4, 120.6);
-    expect((onChange.mock.calls.at(-1)![0] as Canvas).nodes.find((n) => n.id === 't')).toMatchObject({ width: 260, height: 121 });
-    pointer(corner, 'pointerdown', 200, 80);
-    pointer(window as unknown as Element, 'pointerup', 0, 0);
-    expect((onChange.mock.calls.at(-1)![0] as Canvas).nodes.find((n) => n.id === 't')).toMatchObject({ width: 120, height: 60 });
+    expect(latest()).toMatchObject({ x: 0, y: 0, width: 260, height: 121 });
+    // The top-left corner moves the card's corner with it: the bottom-right one stays where it was.
+    pointer(handle('nw'), 'pointerdown', 0, 0);
+    pointer(window as unknown as Element, 'pointerup', -40, -20);
+    expect(latest()).toMatchObject({ x: -40, y: -20, width: 300, height: 141 });
+    // The middle of a side moves that side alone.
+    pointer(handle('e'), 'pointerdown', 260, 50);
+    pointer(window as unknown as Element, 'pointerup', 280, 400);
+    expect(latest()).toMatchObject({ x: -40, y: -20, width: 320, height: 141 });
+    // Dragged past the least, a side stops there and the card does not slide.
+    pointer(handle('nw'), 'pointerdown', -40, -20);
+    pointer(window as unknown as Element, 'pointerup', 900, 900);
+    expect(latest()).toMatchObject({ x: 160, y: 61, width: 120, height: 60 });
+  });
+
+  it('resizes a group by its handles and leaves the cards in it where they are', () => {
+    const onChange = vi.fn();
+    const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
+    const group = shown.querySelector('[data-card="g"]') as HTMLElement;
+    act(() => group.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 10, clientY: 10 })));
+    pointer(shown.querySelector('[data-handles="g"] [data-handle="se"]') as HTMLElement, 'pointerdown', 380, 180);
+    pointer(window as unknown as Element, 'pointerup', 560, 240);
+    const next = onChange.mock.calls[0]![0] as Canvas;
+    expect(next.nodes.map((n) => [n.id, n.x, n.y, n.width, n.height])).toEqual([
+      ['g', -20, -20, 580, 260],
+      ['t', 0, 0, 200, 80],
+      ['f', 300, 0, 200, 80],
+      ['n', 300, 100, 200, 80],
+      ['l', 0, 100, 200, 80],
+    ]);
+  });
+
+  it('makes a card on a double-tap of a group\u2019s ground, which is the page\u2019s', () => {
+    const onChange = vi.fn();
+    const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
+    const group = shown.querySelector('[data-card="g"]') as HTMLElement;
+    tapTwice(group, 250, 60);
+    const next = onChange.mock.calls[0]![0] as Canvas;
+    expect(next.nodes.length).toBe(canvas.nodes.length + 1);
+    expect(next.nodes.at(-1)).toMatchObject({ type: 'text', text: '' });
+    expect(shown.querySelector(`[data-card="${next.nodes.at(-1)!.id}"][data-editing]`)).not.toBeNull();
   });
 });
 
@@ -330,7 +380,7 @@ describe('pictures, charts and the toolbar', () => {
     const shown = show(<CanvasView canvas={canvas} dark={false} onChange={vi.fn()} />);
     const tools = shown.querySelector('[role="toolbar"]') as HTMLElement;
     const labels = [...tools.querySelectorAll('button')].map((b) => b.getAttribute('aria-label'));
-    expect(labels).toEqual(['Add a card', 'Draw a line: tap one card, then another', 'Fit the whole canvas on the screen (Shift+1)']);
+    expect(labels).toEqual(['Add a card', 'Draw a line: tap one card, then another', 'Zoom out', 'Zoom in', 'Fit the whole canvas on the screen (Shift+1)']);
     for (const b of tools.querySelectorAll('button')) expect(b.querySelector('svg')).not.toBeNull();
   });
 
@@ -345,7 +395,7 @@ describe('pictures, charts and the toolbar', () => {
     expect(shown.querySelector('[data-card="theirs"]')?.textContent).toContain('vault');
   });
 
-  it('opens one of Ghost.md’s own pictures on a double-tap, to resize or take off, and leaves one from elsewhere shut', () => {
+  it('picks a picture on a tap, to resize or take off, and never opens one', () => {
     const withPictures = parseCanvas(`{ "nodes": [
       { "id": "mine", "type": "file", "x": 0, "y": 0, "width": 200, "height": 150, "file": "abc.jpg" },
       { "id": "theirs", "type": "file", "x": 300, "y": 0, "width": 200, "height": 150, "file": "Pictures/abc.jpg" }
@@ -356,14 +406,15 @@ describe('pictures, charts and the toolbar', () => {
       act(() => el.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 20, clientY: 20 })));
       act(() => el.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 20, clientY: 20 })));
     };
-    const theirs = shown.querySelector('[data-card="theirs"]') as HTMLElement;
-    twice(theirs);
-    expect(theirs.hasAttribute('data-editing')).toBe(false);
     const mine = shown.querySelector('[data-card="mine"]') as HTMLElement;
     twice(mine);
-    expect(mine.hasAttribute('data-editing')).toBe(true);
-    expect(mine.querySelector('[aria-label="Drag to resize this card"]')).not.toBeNull();
-    act(() => (mine.querySelector('button[aria-label="Take this picture off the canvas"]') as HTMLElement).click());
+    expect(mine.hasAttribute('data-selected')).toBe(true);
+    expect(mine.hasAttribute('data-editing')).toBe(false);
+    expect(shown.querySelectorAll('[data-handles="mine"] [data-handle]')).toHaveLength(8);
+    // A picture has nothing to open: its bar has no first button for it.
+    const bar = [...shown.querySelectorAll('[data-card-bar="mine"] button')].map((b) => b.getAttribute('aria-label'));
+    expect(bar).toEqual(['Draw a line from this card', 'Colour', 'Make a copy', 'Take this card off the canvas']);
+    act(() => (shown.querySelector('[data-card-bar="mine"] button[aria-label="Take this card off the canvas"]') as HTMLElement).click());
     expect((onChange.mock.calls[0]![0] as Canvas).nodes.map((n) => n.id)).toEqual(['theirs']);
   });
 

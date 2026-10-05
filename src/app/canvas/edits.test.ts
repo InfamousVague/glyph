@@ -1,26 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SPEC_SAMPLE } from '../../test/canvas.ts';
-import {
-  CHART_CARD,
-  heldBy,
-  joined,
-  labelledEdge,
-  labelledGroup,
-  movedNode,
-  movedWithHeld,
-  newCanvasId,
-  newEdge,
-  newFileNode,
-  newLinkNode,
-  newPictureNode,
-  newTextNode,
-  resizedNode,
-  TABLE_CARD,
-  withEdge,
-  withNode,
-  withoutEdge,
-  withoutNode,
-} from './edits.ts';
+import { CHART_CARD, clearSpot, colouredNode, duplicated, GROUP_ROOM, heldBy, joined, labelledEdge, labelledGroup, LEAST_CARD, movedNode, movedWithHeld, newCanvasId, newEdge, newFileNode, newGroupNode, newLinkNode, newPictureNode, newTextNode, resizedBy, resizedNode, STEP_ASIDE, TABLE_CARD, withEdge, withGroup, withNode, withoutEdge, withoutNode } from './edits.ts';
 import { parseCanvas, serializeCanvas, type Canvas } from './jsonCanvas.ts';
 
 /** Making and changing a canvas: cards and lines added, moved, resized, named and taken off, each a new canvas. */
@@ -122,5 +102,59 @@ describe('pictures, charts and tables', () => {
     expect(newPictureNode('abc.jpg', 5.5, 6, 'p')).toMatchObject({ id: 'p', type: 'file', file: 'abc.jpg', x: 6, y: 6, height: 200 });
     expect(CHART_CARD.startsWith('```mermaid\n')).toBe(true);
     expect(TABLE_CARD.split('\n')[1]).toBe('| --- | --- |');
+  });
+});
+
+describe('the picked card’s edits', () => {
+  const card = { id: 'c', type: 'text', x: 100, y: 100, width: 200, height: 100, text: 'x' } as const;
+  const box = (n: { x: number; y: number; width: number; height: number }) => [n.x, n.y, n.width, n.height];
+
+  it('resizes by a corner or a side, the far sides staying where they are', () => {
+    expect(box(resizedBy(card, 'se', 40, 20))).toEqual([100, 100, 240, 120]);
+    expect(box(resizedBy(card, 'nw', -40, -20))).toEqual([60, 80, 240, 120]);
+    expect(box(resizedBy(card, 'ne', 40, -20))).toEqual([100, 80, 240, 120]);
+    expect(box(resizedBy(card, 'sw', -40, 20))).toEqual([60, 100, 240, 120]);
+    // A side moves alone, whatever the pointer does across it.
+    expect(box(resizedBy(card, 'e', 40, 900))).toEqual([100, 100, 240, 100]);
+    expect(box(resizedBy(card, 'n', 900, -20))).toEqual([100, 80, 200, 120]);
+    // To the pixel.
+    expect(box(resizedBy(card, 'se', 10.6, 0.4))).toEqual([100, 100, 211, 100]);
+  });
+
+  it('stops at the least size, and the card does not slide once it has', () => {
+    expect(box(resizedBy(card, 'se', -900, -900))).toEqual([100, 100, LEAST_CARD.width, LEAST_CARD.height]);
+    // From the top left, the bottom-right corner (300, 200) is the one that stays.
+    expect(box(resizedBy(card, 'nw', 900, 900))).toEqual([300 - LEAST_CARD.width, 200 - LEAST_CARD.height, LEAST_CARD.width, LEAST_CARD.height]);
+  });
+
+  it('copies a card a step aside under a new id, and steps again past a copy already there', () => {
+    const canvas = { nodes: [card], edges: [] };
+    const copy = duplicated(canvas, card, 'd1');
+    expect(copy).toEqual({ ...card, id: 'd1', x: 124, y: 124 });
+    const again = duplicated({ nodes: [card, copy], edges: [] }, card, 'd2');
+    expect([again.x, again.y]).toEqual([148, 148]);
+  });
+
+  it('finds a spot clear of every card’s corner, and leaves a clear one alone', () => {
+    const canvas = { nodes: [card], edges: [] };
+    expect(clearSpot(canvas, 400, 400)).toEqual({ x: 400, y: 400 });
+    expect(clearSpot(canvas, 100, 100)).toEqual({ x: 100 + STEP_ASIDE, y: 100 + STEP_ASIDE });
+    // A group's corner is not a card's: a card may start in the corner of a group.
+    expect(clearSpot({ nodes: [{ id: 'g', type: 'group', x: 0, y: 0, width: 500, height: 500 }], edges: [] }, 0, 0)).toEqual({ x: 0, y: 0 });
+  });
+
+  it('colours with a preset and takes the colour off, leaving no empty field', () => {
+    expect(colouredNode(card, '5')).toEqual({ ...card, color: '5' });
+    expect('color' in colouredNode({ ...card, color: '5' }, null)).toBe(false);
+  });
+
+  it('makes a group about a card with room round it, or a box of its own, and puts it under the cards', () => {
+    expect(newGroupNode(card, 0, 0, 'g')).toEqual({ id: 'g', type: 'group', x: 100 - GROUP_ROOM, y: 100 - GROUP_ROOM, width: 200 + GROUP_ROOM * 2, height: 100 + GROUP_ROOM * 2 });
+    const own = newGroupNode(null, 10.4, 20.6, 'g');
+    expect(own).toEqual({ id: 'g', type: 'group', x: 10, y: 21, width: 480, height: 320 });
+    expect(withGroup({ nodes: [card], edges: [] }, own).nodes.map((n) => n.id)).toEqual(['g', 'c']);
+    // The card it was made about is held by it, so it moves with it.
+    const about = newGroupNode(card, 0, 0, 'g');
+    expect(heldBy({ nodes: [about, card], edges: [] }, about).map((n) => n.id)).toEqual(['c']);
   });
 });

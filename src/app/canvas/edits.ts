@@ -131,3 +131,78 @@ export function labelledGroup(node: CanvasNode, label: string): CanvasNode {
 export function movedNode(node: CanvasNode, x: number, y: number): CanvasNode {
   return { ...node, x: Math.round(x), y: Math.round(y) };
 }
+
+/**
+ * Which handle of a card is held (canvas/Handles.tsx): a corner, which moves two sides, or the middle of a side,
+ * which moves one. Named by the compass, as a cursor is.
+ */
+export type Handle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+
+export const HANDLES: readonly Handle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+
+/**
+ * The node with the sides this handle holds moved by (dx, dy), in the canvas's pixels: the opposite sides stay where
+ * they are, so a card dragged by its top-left corner grows up and to the left. No smaller than `LEAST_CARD`: a side
+ * dragged past that stops there, and the card does not start to slide the other way. A group resized this way keeps
+ * its cards where they are; only its box changes, which is how a card is put into a group or taken out.
+ */
+export function resizedBy(node: CanvasNode, handle: Handle, dx: number, dy: number): CanvasNode {
+  let { x, y, width, height } = node;
+  if (handle.includes('e')) width = Math.max(LEAST_CARD.width, node.width + dx);
+  if (handle.includes('s')) height = Math.max(LEAST_CARD.height, node.height + dy);
+  if (handle.includes('w')) {
+    width = Math.max(LEAST_CARD.width, node.width - dx);
+    x = node.x + node.width - width;
+  }
+  if (handle.includes('n')) {
+    height = Math.max(LEAST_CARD.height, node.height - dy);
+    y = node.y + node.height - height;
+  }
+  return { ...node, x: Math.round(x), y: Math.round(y), width: Math.round(width), height: Math.round(height) };
+}
+
+/** How far a copy, or a new card that would land exactly on another, is set down and to the right. */
+export const STEP_ASIDE = 24;
+
+/**
+ * Where a new box goes so that it does not land exactly on a card already there: stepped down and to the right
+ * until its corner is clear of every other corner. Two cards added one after the other from the + used to sit one
+ * on the other, the first hidden under the second.
+ */
+export function clearSpot(canvas: Canvas, x: number, y: number): { x: number; y: number } {
+  let at = { x: Math.round(x), y: Math.round(y) };
+  const taken = (p: { x: number; y: number }) => canvas.nodes.some((n) => n.type !== 'group' && Math.abs(n.x - p.x) < STEP_ASIDE / 2 && Math.abs(n.y - p.y) < STEP_ASIDE / 2);
+  for (let tries = 0; tries < 40 && taken(at); tries += 1) at = { x: at.x + STEP_ASIDE, y: at.y + STEP_ASIDE };
+  return at;
+}
+
+/** A copy of a card, a step down and to the right of it, under an id of its own. A group is copied as its box alone. */
+export function duplicated(canvas: Canvas, node: CanvasNode, id = newCanvasId()): CanvasNode {
+  const at = clearSpot(canvas, node.x + STEP_ASIDE, node.y + STEP_ASIDE);
+  return { ...node, id, x: at.x, y: at.y };
+}
+
+/** The node wearing one of the spec's six presets ("1" to "6", the page's hues: cardLooks.ts), or none. */
+export function colouredNode(node: CanvasNode, color: string | null): CanvasNode {
+  const { color: _was, ...rest } = node;
+  return (color ? { ...rest, color } : rest) as CanvasNode;
+}
+
+/** The room a new group leaves round the card it is made about. */
+export const GROUP_ROOM = 32;
+/** The size a group starts at when it is made about nothing. */
+export const NEW_GROUP = { width: 480, height: 320 };
+
+/**
+ * A new group: about a card, with room round it, when there is one to make it about; otherwise a box of its own
+ * with its top-left corner at (x, y). A group is drawn under the cards, so it goes first in the file, not last.
+ */
+export function newGroupNode(about: CanvasNode | null, x: number, y: number, id = newCanvasId()): CanvasNode {
+  if (about) return { id, type: 'group', x: about.x - GROUP_ROOM, y: about.y - GROUP_ROOM, width: about.width + GROUP_ROOM * 2, height: about.height + GROUP_ROOM * 2 };
+  return { id, type: 'group', x: Math.round(x), y: Math.round(y), width: NEW_GROUP.width, height: NEW_GROUP.height };
+}
+
+/** The canvas with a new group in it, under every card: first among the nodes, which are drawn in order. */
+export function withGroup(canvas: Canvas, group: CanvasNode): Canvas {
+  return { nodes: [group, ...canvas.nodes], edges: canvas.edges };
+}

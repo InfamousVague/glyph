@@ -31,6 +31,8 @@ export interface Camera {
   centreOn: (point: Point) => void;
   /** The screen moved this far over the canvas, in the canvas's own pixels: a drag on the minimap. */
   panBy: (dx: number, dy: number) => void;
+  /** The view this many times closer, or further for a number under one, about the middle of the screen: the zoom buttons. */
+  zoomBy: (times: number) => void;
   /** The point of the canvas under a point of the screen. */
   under: (clientX: number, clientY: number) => Point;
   /** The middle of the screen, in the canvas's pixels. */
@@ -128,6 +130,11 @@ export function useCamera(host: RefObject<HTMLDivElement | null>, canvas: Canvas
     moveTo({ x: x - dx * scale, y: y - dy * scale, scale });
   };
 
+  const zoomBy = (times: number) => {
+    const el = host.current;
+    if (el) moveTo(zoomedAt(view.current, el.clientWidth / 2, el.clientHeight / 2, view.current.scale * times));
+  };
+
   const under = (clientX: number, clientY: number): Point => {
     const rect = host.current?.getBoundingClientRect();
     const { x, y, scale } = view.current;
@@ -139,5 +146,5 @@ export function useCamera(host: RefObject<HTMLDivElement | null>, canvas: Canvas
     return under((rect?.left ?? 0) + (rect?.width ?? 0) / 2, (rect?.top ?? 0) + (rect?.height ?? 0) / 2);
   };
 
-  return { world, view, shown, fit, moveTo, zoomToBox, centreOn, panBy, under, middle };
+  return { world, view, shown, fit, moveTo, zoomToBox, centreOn, panBy, zoomBy, under, middle };
 }

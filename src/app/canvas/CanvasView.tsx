@@ -1,27 +1,34 @@
 import { Ghost } from '../art/Ghost.tsx';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LocateFixed, Maximize, Plus, Spline } from '@glacier/icons';
+import { LocateFixed, Maximize, Plus, Spline, ZoomIn, ZoomOut } from '@glacier/icons';
 import { IMAGE_READY, pickImage, saveImageFile } from '../core/images.ts';
+import { openLink } from '../core/linkPreview.ts';
 import { useRedraw } from '../core/useRedraw.ts';
 import type { VideoMode } from '../editor/videos.ts';
 import { AddSheet, type AddStep } from './AddSheet.tsx';
 import { useCamera } from './camera.ts';
 import { Card } from './Card.tsx';
-import { ownPicture } from './cardLooks.ts';
+import { fileTitle } from './cardLooks.ts';
 import {
   CHART_CARD,
+  clearSpot,
+  colouredNode,
+  duplicated,
   joined,
   labelledEdge,
   labelledGroup,
+  movedWithHeld,
   NEW_CARD,
+  NEW_GROUP,
   newEdge,
   newFileNode,
+  newGroupNode,
   newLinkNode,
   newPictureNode,
   newTextNode,
-  resizedNode,
   TABLE_CARD,
   withEdge,
+  withGroup,
   withNode,
   withoutEdge,
   withoutNode,
@@ -33,6 +40,7 @@ import { LineLayer } from './LineLayer.tsx';
 import { edgePaths, type EdgePath } from './lines.ts';
 import { LineWords } from './LineWords.tsx';
 import { Minimap } from './Minimap.tsx';
+import { CardBar, Handles } from './Selection.tsx';
 import styles from './CanvasView.module.css';
 
 /**
@@ -74,6 +82,18 @@ import styles from './CanvasView.module.css';
  * Navigation (the sixth, choice 10): a tap on a card's title zooms to the card, Shift+1 fits the whole canvas and
  * Shift+2 zooms to the card open or picked, both as buttons too, and a minimap in the corner (Minimap.tsx) draws
  * every card small with the screen's box over them; a tap on it goes there.
+ *
+ * Picking (the eighth; Matt: "spend some time reworking the controls and creation aspects of canvases, navigating it
+ * and resizing things are not easy especially on mobile resizing containers is near to impossible"). On a canvas that
+ * can change, a tap picks a card, of any kind, and the picked card wears a ring, a handle at each corner and side to
+ * resize it by, and a bar of what can be done to it: write in it or open it, draw a line from it, colour it, copy
+ * it, take it off (Selection.tsx). A second tap on the picked card opens it - a card of words to be written in, a
+ * note or an address where it goes - so a double-tap still does what it did, and a note card no longer leaves the
+ * canvas under a finger that was only reaching for it. A group is a box like any other now: made from the +, about
+ * the picked card when there is one, resized by its handles, named from its bar or by a tap on its name; its ground
+ * is the page's, so a double-tap inside it makes a card there. A canvas that cannot change opens its cards on a tap,
+ * as it did. The keys: Delete takes the picked card off, the arrows nudge it, Escape lets it go, and Ctrl or Cmd+D
+ * copies it. Zooming has buttons beside Fit.
  */
 
 export interface CanvasWiki {
@@ -101,6 +121,10 @@ export interface CanvasViewProps {
 /** Two taps this close in time and place are a double-tap: a new card on the page, or a card of words opened. */
 const DOUBLE_MS = 350;
 const DOUBLE_PX = 24;
+/** How much closer, or further, one press of a zoom button goes. */
+const ZOOM_STEP = 1.3;
+/** The room a picked card's bar needs over the card, in screen pixels; with less, the bar goes under the card. */
+const BAR_ROOM = 64;
 
 export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: CanvasViewProps) {
   const host = useRef<HTMLDivElement>(null);
@@ -112,7 +136,7 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
   const [live, setLive] = useState(canvas);
   useEffect(() => setLive(canvas), [canvas]);
   const editable = !!onChange;
-  /** The card of words open to be written in, by id. */
+  /** The card of words open to be written in, or the group whose name is, by id. */
   const [editing, setEditing] = useState<string | null>(null);
   /** Drawing a line: waiting for its first card, or for its second with the first chosen. */
   const [lining, setLining] = useState<{ from: string | null } | null>(null);
@@ -127,7 +151,7 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
     window.addEventListener(IMAGE_READY, again);
     return () => window.removeEventListener(IMAGE_READY, again);
   }, [pictureArrived]);
-  /** The card last tapped or opened: what Shift+2 and the zoom button go to. */
+  /** The card picked, by id: it wears the ring, the handles and the bar, and is what Shift+2 and the zoom button go to. */
   const [chosen, setChosen] = useState<string | null>(null);
   const change = useCallback(
     (next: Canvas) => {
@@ -139,15 +163,39 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
   const camera = useCamera(host, canvas);
   /** The minimap grown, from a press on it, until a press lands on the canvas itself. */
   const [mapBig, setMapBig] = useState(false);
-  const gestures = useGestures({ host, camera, live, editable, editing: editing !== null, onPress: () => setMapBig(false), onCarry: setLive, onPutDown: change });
+  const gestures = useGestures({
+    host,
+    camera,
+    live,
+    editable,
+    editing: editing !== null,
+    selected: chosen,
+    onPress: () => setMapBig(false),
+    onCarry: setLive,
+    // A card put down is the card picked: carried by a hold or by a drag, it is the one in hand. One that was only
+    // held and let go where it was is picked and nothing is written.
+    onPutDown: (next, id, moved) => {
+      if (moved) change(next);
+      else setLive(canvas);
+      setChosen(id);
+      setPicked(null);
+    },
+  });
   /** The last tap, and what it was on, for telling a double-tap. */
   const lastTap = useRef<{ at: number; x: number; y: number; on: string | null } | null>(null);
+  const picking = chosen ? live.nodes.find((n) => n.id === chosen) : undefined;
+
+  /** Open what a card stands for: a note by its title, an address in the phone's browser. */
+  const openCard = (node: CanvasNode) => {
+    if (node.type === 'link') void openLink(node.url);
+    else if (node.type === 'file') wiki?.open(fileTitle(node.file), node.subpath ? node.subpath.slice(1) : undefined);
+  };
 
   /*
-   * A tap closes whatever card was open. A second tap close on the heels of the first, in the same place, is a
-   * double-tap: on the page it makes a new card of words there, open to be written in; on a card of words it opens
-   * that card. A note card and a link card open on a single tap, as they did (`Card`), so a double-tap is kept for
-   * the two things a single tap cannot mean.
+   * A tap picks the card under it and lets go of whatever was open. A tap on the card already picked opens it: a
+   * card of words to be written in, a group's name when the tap was on the name; a note and an address open
+   * themselves (`Card`), having been let through by `onClickCapture`. A second tap close on the heels of the first,
+   * on the page or on a group's ground, makes a new card of words there, open to be written in.
    */
   const onClick = (event: React.MouseEvent<HTMLDivElement>) => {
     if (gestures.dragged.current) return;
@@ -155,37 +203,52 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
     if (target.closest('[data-editing]') || target.closest('button') || target.closest('[data-line-words]')) return;
     const id = target.closest<HTMLElement>('[data-card]')?.dataset.card;
     const node = id ? live.nodes.find((n) => n.id === id) : undefined;
-    if (node && node.id !== chosen) setChosen(node.id);
-    // A tap on a card's title zooms to the card (choice 10), on any canvas; the rest of the card does what it did.
-    if (node && target.closest('[data-card-title]')) {
-      zoomTo(node.id);
+    if (!editable) {
+      // A canvas to read: the card last tapped is what Shift+2 goes to, and a tap on its title zooms to it (choice 10).
+      if (node && node.id !== chosen) setChosen(node.id);
+      if (node && target.closest('[data-card-title]')) zoomTo(node.id);
       return;
     }
-    if (!editable) return;
-    if (editing) setEditing(null);
+    const was = chosen;
+    if ((node?.id ?? null) !== chosen) setChosen(node?.id ?? null);
+    if (editing && editing !== node?.id) setEditing(null);
     // A tap on a line picks it; a tap anywhere else lets it go.
     const lineId = target.closest<Element>('[data-line]')?.getAttribute('data-line') ?? null;
     if (lineId !== picked) setPicked(lineId);
     if (lineId) return;
-    if (node && node.type !== 'text' && node.type !== 'group' && !ownPicture(node)) return;
-    const now = performance.now();
-    const last = lastTap.current;
-    const again = !!last && last.on === (node?.id ?? null) && now - last.at < DOUBLE_MS && Math.hypot(event.clientX - last.x, event.clientY - last.y) < DOUBLE_PX;
-    if (again) {
+    if (node && node.id === was) {
+      // The picked card, tapped again. Its title zooms to it (choice 10); the rest of it opens it.
+      if (target.closest('[data-card-title]')) zoomTo(node.id);
+      else if (node.type === 'text') setEditing(node.id);
+      else if (node.type === 'group' && target.closest('[data-group-grip]')) setEditing(node.id);
+    }
+    // A double-tap makes a card: on the page, and on a group's ground, which is the page's.
+    if (node && node.type !== 'group') {
       lastTap.current = null;
-      if (node) setEditing(node.id);
-      else addCard(camera.under(event.clientX, event.clientY));
       return;
     }
-    lastTap.current = { at: now, x: event.clientX, y: event.clientY, on: node?.id ?? null };
+    if (target.closest('[data-group-grip]')) return;
+    const now = performance.now();
+    const last = lastTap.current;
+    const again = !!last && now - last.at < DOUBLE_MS && Math.hypot(event.clientX - last.x, event.clientY - last.y) < DOUBLE_PX;
+    if (again) {
+      lastTap.current = null;
+      addCard(camera.under(event.clientX, event.clientY));
+      return;
+    }
+    lastTap.current = { at: now, x: event.clientX, y: event.clientY, on: null };
   };
 
-  /** A new card on the canvas: open to be written in, or chosen, so Shift+2 goes to it. Nothing for no card. */
+  /** A new card on the canvas, picked, and open to be written in when it is one to write in. Nothing for no card. */
   const place = (card: CanvasNode | null, open: boolean) => {
     if (!card) return;
-    change(withNode(live, card));
-    if (open) setEditing(card.id);
-    else setChosen(card.id);
+    // Never exactly on a card already there: two added one after the other used to sit one on the other.
+    const at = clearSpot(live, card.x, card.y);
+    const set = { ...card, x: at.x, y: at.y };
+    change(withNode(live, set));
+    setChosen(set.id);
+    setPicked(null);
+    setEditing(open ? set.id : null);
   };
   /** A new card of words centred on a point of the canvas, open to be written in: the page's double-tap, and the +. */
   const addCard = (at: Point) => place(newTextNode(at.x - NEW_CARD.width / 2, at.y - NEW_CARD.height / 2), true);
@@ -206,6 +269,16 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
     const at = camera.middle();
     place(newLinkNode(url, at.x - NEW_CARD.width / 2, at.y - 50), false);
   };
+  /** A new group: about the picked card when there is one, else a box mid-screen. Its name is open to be written. */
+  const addGroup = () => {
+    const about = picking && picking.type !== 'group' ? picking : null;
+    const at = camera.middle();
+    const group = newGroupNode(about, at.x - NEW_GROUP.width / 2, at.y - NEW_GROUP.height / 2);
+    change(withGroup(live, group));
+    setChosen(group.id);
+    setPicked(null);
+    setEditing(group.id);
+  };
 
   /** Zoom to a card: the view fitted to its box, no larger than life. */
   const { zoomToBox, fit } = camera;
@@ -217,18 +290,53 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
     [live, zoomToBox],
   );
 
-  // Shift+1 fits the whole canvas, Shift+2 zooms to the card open or picked (choice 10), as in Obsidian.
+  const removeCard = useCallback(
+    (id: string) => {
+      setEditing((was) => (was === id ? null : was));
+      setChosen((was) => (was === id ? null : was));
+      change(withoutNode(live, id));
+    },
+    [live, change],
+  );
+
+  const copyCard = useCallback(
+    (id: string) => {
+      const node = live.nodes.find((n) => n.id === id);
+      if (!node) return;
+      const copy = duplicated(live, node);
+      change(node.type === 'group' ? withGroup(live, copy) : withNode(live, copy));
+      setEditing(null);
+      setChosen(copy.id);
+    },
+    [live, change],
+  );
+
+  /*
+   * The keys, while nothing is being typed. Shift+1 fits the whole canvas and Shift+2 zooms to the picked card
+   * (choice 10), as in Obsidian. Delete takes the picked card off, the arrows nudge it - ten pixels, one with Alt -
+   * and Ctrl or Cmd+D copies it.
+   */
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (!event.shiftKey || (event.target instanceof Element && event.target.closest('input, textarea, [contenteditable]'))) return;
-      if (event.key === '!' || event.code === 'Digit1') fit();
-      else if ((event.key === '@' || event.code === 'Digit2') && (editing ?? chosen)) zoomTo((editing ?? chosen)!);
-      else return;
+      if (event.target instanceof Element && event.target.closest('input, textarea, [contenteditable]')) return;
+      const at = editing ?? chosen;
+      if (event.shiftKey && (event.key === '!' || event.code === 'Digit1')) fit();
+      else if (event.shiftKey && (event.key === '@' || event.code === 'Digit2') && at) zoomTo(at);
+      else if (editable && chosen && !editing && (event.key === 'Delete' || event.key === 'Backspace')) removeCard(chosen);
+      else if (editable && chosen && !editing && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'd') copyCard(chosen);
+      else if (editable && chosen && !editing && event.key.startsWith('Arrow')) {
+        const node = live.nodes.find((n) => n.id === chosen);
+        if (!node) return;
+        const step = event.altKey ? 1 : 10;
+        const dx = event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0;
+        const dy = event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0;
+        change(movedWithHeld(live, node, node.x + dx, node.y + dy));
+      } else return;
       event.preventDefault();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [fit, zoomTo, editing, chosen]);
+  }, [fit, zoomTo, editing, chosen, editable, live, change, removeCard, copyCard]);
 
   /** A note dragged in from the sidebar (notes/NoteTree.tsx), or a picture file dropped from the computer: a card where it lands. */
   const onDrop = (event: React.DragEvent<HTMLDivElement>) => {
@@ -254,25 +362,18 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
     if (node?.type === 'text' && node.text !== text) change(withNode(live, { ...node, text }));
   };
 
-  const resizeCard = (id: string, width: number, height: number) => {
-    const node = live.nodes.find((n) => n.id === id);
-    if (node) change(withNode(live, resizedNode(node, width, height)));
-  };
-  /** While the corner is dragged the card is drawn at its size; the canvas is handed on when the corner is let go. */
-  const previewSize = (id: string, width: number, height: number) => {
-    setLive((was) => {
-      const node = was.nodes.find((n) => n.id === id);
-      return node ? withNode(was, resizedNode(node, width, height)) : was;
-    });
+  /** While a handle is dragged the card is drawn at its size; the canvas is handed on when the handle is let go. */
+  const previewSize = (sized: CanvasNode) => setLive((was) => (was.nodes.some((n) => n.id === sized.id) ? withNode(was, sized) : was));
+  const resizeCard = (sized: CanvasNode) => {
+    if (live.nodes.some((n) => n.id === sized.id)) change(withNode(live, sized));
   };
   const nameGroup = (id: string, label: string) => {
     const node = live.nodes.find((n) => n.id === id);
     if (node?.type === 'group' && (node.label ?? '') !== label.trim()) change(withNode(live, labelledGroup(node, label)));
   };
-
-  const removeCard = (id: string) => {
-    if (editing === id) setEditing(null);
-    change(withoutNode(live, id));
+  const colourCard = (id: string, color: string | null) => {
+    const node = live.nodes.find((n) => n.id === id);
+    if (node && (node.color ?? null) !== color) change(withNode(live, colouredNode(node, color)));
   };
 
   const labelLine = (id: string, words: string) => {
@@ -285,23 +386,26 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
     change(withoutEdge(live, id));
   };
 
-  // Escape closes the card being written in, lets a picked line go, and puts the Line tool down.
+  // Escape lets go, one thing at a time: the card being written in, the line tool, a picked line, then the picked card.
   useEffect(() => {
-    if (!editing && !picked && !lining) return undefined;
+    if (!editing && !picked && !lining && !chosen) return undefined;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
-      setEditing(null);
-      setPicked(null);
-      setLining(null);
+      if (editing || picked || lining) {
+        setEditing(null);
+        setPicked(null);
+        setLining(null);
+      } else setChosen(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [editing, picked, lining]);
+  }, [editing, picked, lining, chosen]);
 
   /*
-   * Before any card sees a tap: the click at the end of a drag is the drag's and goes no further; and while a line is
+   * Before any card sees a tap: the click at the end of a drag is the drag's and goes no further; while a line is
    * being drawn, a tap on a card is the line's, so a note card or a link card must not open (a link card did, and
-   * the page left for its address).
+   * the page left for its address); and on a canvas that can change, the first tap on a card picks it, so a note
+   * or an address only opens from the card already picked.
    */
   const onClickCapture = (event: React.MouseEvent<HTMLDivElement>) => {
     if (gestures.dragged.current) {
@@ -309,13 +413,23 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
       event.preventDefault();
       return;
     }
-    if (!lining) return;
     const target = event.target as HTMLElement;
-    if (target.closest('button') || target.closest('[data-line-words]')) return;
-    event.stopPropagation();
-    event.preventDefault();
+    if (target.closest('button') || target.closest('[data-line-words]') || target.closest('[data-card-bar]')) return;
     const id = target.closest<HTMLElement>('[data-card]')?.dataset.card;
     const node = id ? live.nodes.find((n) => n.id === id) : undefined;
+    if (!lining) {
+      if (editable && node && node.id !== chosen && (node.type === 'link' || node.type === 'file')) {
+        event.stopPropagation();
+        event.preventDefault();
+        setChosen(node.id);
+        setEditing(null);
+        setPicked(null);
+        lastTap.current = null;
+      }
+      return;
+    }
+    event.stopPropagation();
+    event.preventDefault();
     if (!node || node.type === 'group') return;
     if (!lining.from) setLining({ from: node.id });
     else if (node.id !== lining.from && !joined(live, lining.from, node.id)) {
@@ -323,6 +437,7 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
       change(withEdge(live, line));
       setLining(null);
       setPicked(line.id);
+      setChosen(null);
     }
   };
 
@@ -332,6 +447,10 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
     return live.edges.map((edge) => ({ edge, path: paths.get(edge.id) })).filter((line): line is { edge: CanvasEdge; path: EdgePath } => !!line.path);
   }, [live]);
   const pickedLine = picked ? lines.find((line) => line.edge.id === picked) : undefined;
+  // The picked card's ring, handles and bar: not while it is carried, nor while a line is being drawn from it.
+  const wearing = editable && picking && !lining && gestures.lifted !== picking.id ? picking : null;
+  // Its bar goes under it when its top is too near the top of the screen for a bar to fit over it.
+  const barBelow = wearing ? wearing.y * camera.shown.scale + camera.shown.y < BAR_ROOM : false;
 
   return (
     <div
@@ -345,6 +464,7 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
       onClick={onClick}
       role={editable ? undefined : 'img'}
       aria-label={`A canvas of ${live.nodes.length} cards`}
+      data-editable={editable || undefined}
       data-lining={lining ? (lining.from ? 'to' : 'from') : undefined}
       onDragOver={editable ? (event) => event.preventDefault() : undefined}
       onDrop={editable ? onDrop : undefined}
@@ -366,22 +486,40 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
             root={host}
             editing={editing === node.id}
             lifted={gestures.lifted === node.id}
+            selected={editable && chosen === node.id}
             lineFrom={lining?.from === node.id}
             onWrite={editable ? writeCard : undefined}
-            onRemove={editable ? removeCard : undefined}
-            onResize={editable ? resizeCard : undefined}
-            onPreviewSize={editable ? previewSize : undefined}
             onName={editable ? nameGroup : undefined}
-            scale={camera.view}
           />
         ))}
         <LineLayer lines={lines} editable={editable} picked={picked} />
         {/* The picked line's words and its cross, over the line's middle, in the canvas's own pixels. */}
         {pickedLine ? <LineWords key={pickedLine.edge.id} edge={pickedLine.edge} at={pickedLine.path.mid} onLabel={labelLine} onRemove={removeLine} /> : null}
+        {/* The picked card's ring and handles, and its bar, over everything else in the world (Selection.tsx). */}
+        {wearing ? <Handles node={wearing} scale={camera.view} onPreview={previewSize} onResize={resizeCard} /> : null}
+        {wearing ? (
+          <CardBar
+            key={wearing.id}
+            node={wearing}
+            editing={editing === wearing.id}
+            below={barBelow}
+            onEdit={() => setEditing(wearing.id)}
+            onDone={() => setEditing(null)}
+            onOpen={wearing.type === 'link' || (wearing.type === 'file' && wiki) ? () => openCard(wearing) : undefined}
+            onLine={() => {
+              setEditing(null);
+              setPicked(null);
+              setLining({ from: wearing.id });
+            }}
+            onColour={(color) => colourCard(wearing.id, color)}
+            onDuplicate={() => copyCard(wearing.id)}
+            onRemove={() => removeCard(wearing.id)}
+          />
+        ) : null}
       </div>
       {/* The toolbar: icons, floating at the bottom left (Matt: "a floating bottom left aligned toolbar and use
           iconography instead of text"). What a line needs next is said beside it while one is being drawn. */}
-      <div className={styles.tools} role="toolbar" aria-label="Canvas tools">
+      <div className={styles.tools} role="toolbar" aria-label="Canvas tools" onPointerDown={(event) => event.stopPropagation()}>
         {editable ? (
           <>
             <button type="button" className={styles.tool} onClick={() => setAdding('what')} aria-label="Add a card" title="Add a card">
@@ -401,8 +539,15 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
             >
               <Spline size={18} strokeWidth={2.2} aria-hidden="true" />
             </button>
+            <span className={styles.toolRule} aria-hidden="true" />
           </>
         ) : null}
+        <button type="button" className={`${styles.tool} ${styles.zoomTool}`} onClick={() => camera.zoomBy(1 / ZOOM_STEP)} aria-label="Zoom out" title="Zoom out">
+          <ZoomOut size={18} strokeWidth={2.2} aria-hidden="true" />
+        </button>
+        <button type="button" className={`${styles.tool} ${styles.zoomTool}`} onClick={() => camera.zoomBy(ZOOM_STEP)} aria-label="Zoom in" title="Zoom in">
+          <ZoomIn size={18} strokeWidth={2.2} aria-hidden="true" />
+        </button>
         <button type="button" className={styles.tool} onClick={fit} aria-label="Fit the whole canvas on the screen (Shift+1)" title="Fit (Shift+1)">
           <Maximize size={18} strokeWidth={2.2} aria-hidden="true" />
         </button>
@@ -415,6 +560,7 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
       </div>
       <Minimap
         canvas={live}
+        lines={lines}
         view={camera.shown}
         host={host}
         big={mapBig}
@@ -426,6 +572,7 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
         <AddSheet
           step={adding}
           titles={wiki?.titles?.() ?? []}
+          aboutCard={!!picking && picking.type !== 'group'}
           onClose={() => setAdding(null)}
           onWords={() => {
             setAdding(null);
@@ -450,6 +597,10 @@ export function CanvasView({ canvas, dark, wiki, videos, className, onChange }: 
           onTable={() => {
             setAdding(null);
             addStartedCard(TABLE_CARD);
+          }}
+          onGroup={() => {
+            setAdding(null);
+            addGroup();
           }}
           onStep={setAdding}
         />

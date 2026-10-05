@@ -178,7 +178,46 @@ picture file dropped on the canvas from a computer is kept and drawn the same. A
 with a folder, is drawn as waiting, since the app has no such file. The tools are a floating toolbar of icons at the
 bottom left, each named for a reader, and the map sits at the bottom right.
 
-Not yet: making a group round cards, adding by voice, item cards, a canvas written inline as a ```canvas fence,
+**The eighth reworks the controls** (Matt, 2026-10-05: "spend some time reworking the controls and creation aspects
+of canvases, navigating it and resizing things are not easy especially on mobile resizing containers is near to
+impossible. the canvas minimap could also be far more detailed with modern displays and the frame is too bright white
+and has no radii"). What stood in the way: a card could only be resized while it was open to be written in, by a 22px
+wedge in one corner; a group could not be resized at all, nor made; a note card opened under a finger that was only
+reaching for it; and a mouse had to hold a card for a moment before it would move.
+
+- **A tap picks.** On a canvas that can change, the first tap on a card of any kind picks it, and the picked card
+  wears a ring, handles and a bar (`src/app/canvas/Selection.tsx`). The next tap opens it: a card of words to be
+  written in, a note or an address where it goes. So a double-tap still does what it did. A tap on the page lets the
+  card go. A canvas that cannot change - a frame in a note, a shared page - opens its cards on a tap, as before.
+- **Handles resize, on every kind of card.** One at each corner, and for a pointer one at the middle of each side.
+  Each is 44px to the finger round a small dot, and the ring, the handles and the bar are scaled back by the view's
+  scale, so they are the same size on the screen at any zoom. The far sides stay put, a side stops at the least size
+  rather than sliding the card, and a group resized keeps its cards where they are: dragging its edge over a card is
+  how a card is put in it.
+- **The bar** over the picked card (under it when the card's top is at the top of the screen): write in it or open
+  it, draw a line from it, colour it with one of the page's six hues (choice 6), copy it, take it off. The crosses on
+  open cards are gone; a line still has its own.
+- **Moving.** A mouse that drags a card moves it at once. A finger that drags the picked card moves it at once; any
+  other card under a moving finger is still the page being panned, and a press held still lifts one, as before. A
+  group is taken by its name or its border; its ground pans, and a double-tap on it makes a card there, as on the
+  page. Space held, or the middle button, always pans.
+- **Groups are made** from the +: about the picked card, with room round it, or a box of its own mid-screen, under
+  the cards either way, its name open to be written. A tap on a picked group's name renames it.
+- **New cards do not stack.** A card that would land exactly on another is stepped down and to the right.
+- **Zooming has buttons** beside Fit, on a window wide enough for them; a phone pinches.
+- **The keys:** Delete takes the picked card off, the arrows nudge it ten pixels (one with Alt), Ctrl or Cmd+D
+  copies it, and Escape lets go of one thing at a time: the writing, then the card.
+- **The minimap is the canvas, small.** Everything in it is drawn in the canvas's own pixels under one transform, as
+  vectors, so it is as sharp as the screen. A card of words shows the shape of its words - a heading's heavier bar, a
+  list's dots, a paragraph's lines, a table's rows (`src/app/canvas/mapDetail.ts`); a note its title and a few lines;
+  a picture is the picture; the lines are the canvas's own curves and arrow heads. The screen's box is a soft line
+  with round corners over a shade on what the screen does not show, where it was a hard line of the page's full ink
+  with a one-pixel corner.
+
+Picking before opening, the bar, and a mouse moving a card without a hold were not put to Matt as questions: they are
+what he asked to have reworked, done the way other canvases do them, and are his to change.
+
+Not yet: picking more than one card, adding by voice, item cards, a canvas written inline as a ```canvas fence,
 export, and the model's three moves (a gist on note cards, laying a note out as a canvas, suggesting lines). Each is a
 slice of its own. A canvas inside a note is built, as the frame above.
 
@@ -192,12 +231,13 @@ slice of its own. A canvas inside a note is built, as the frame above.
 | `src/app/canvas/lines.ts` | the lines as drawn: their curves, heads and labels, placed together |
 | `src/app/canvas/cardLooks.ts` | what the screen makes of a card: its hue, the note it names, a picture, a table alone |
 | `src/app/canvas/viewport.ts`, `src/app/canvas/camera.ts` | where the screen is over the canvas, and what moves it |
-| `src/app/canvas/gestures.ts` | the fingers: a tap, a pan, a pinch, a press held to lift a card |
+| `src/app/canvas/gestures.ts` | the fingers and the mouse: a tap, a pan, a pinch, a card dragged, a press held to lift one |
 | `src/app/canvas/CanvasView.tsx` | the view: the world, the toolbar, and the pieces below put together |
 | `src/app/canvas/Card.tsx`, `src/app/canvas/Near.tsx` | one card by its kind, and a blank until it is near the screen |
 | `src/app/canvas/LineLayer.tsx`, `src/app/canvas/LineWords.tsx` | the lines' SVG, and a picked line's words and cross |
-| `src/app/canvas/Remove.tsx` | the cross that takes a card, a group, a picture or a line off |
-| `src/app/canvas/Minimap.tsx` | the minimap |
+| `src/app/canvas/Selection.tsx` | the picked card's ring, its handles and its bar |
+| `src/app/canvas/Remove.tsx` | the cross that takes a line off |
+| `src/app/canvas/Minimap.tsx`, `src/app/canvas/mapDetail.ts` | the minimap, and a card's words as the bars they make small |
 | `src/app/canvas/AddSheet.tsx` | the Add a card sheet |
 | `src/app/canvas/sampleCanvas.ts`, `src/app/canvas/howCanvas.ts` | the two example canvases Settings adds |
 | `src/app/editor/canvasFrames.ts` | a canvas note framed inside another note |

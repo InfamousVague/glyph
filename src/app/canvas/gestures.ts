@@ -1,4 +1,4 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from 'react';
 import { HOLD_MS } from '../core/gestures.ts';
 import type { Camera } from './camera.ts';
 import { movedWithHeld } from './edits.ts';
@@ -17,10 +17,19 @@ import { clampScale, type View } from './viewport.ts';
  * first was panning, so a card never moves by mistake. A carried card, and a group with everything wholly inside it,
  * follows the finger in the canvas's own pixels from the canvas as it was at the hold, and is put down where the
  * finger lets go.
+ *
+ * Some presses need no hold (Matt: "navigating it and resizing things are not easy especially on mobile"). A mouse
+ * that drags a card moves it, as every canvas on a desktop does, and the page is panned from the open ground between
+ * cards, by the wheel, with Space held or with the middle button. A finger that drags the card already picked moves
+ * it; any other card under a moving finger is still the page being panned, since a phone's screen is mostly cards. A
+ * group is taken by its name or by its border, with either: its ground is the page's, to pan and to double-tap a new
+ * card onto, and a group the size of the screen would otherwise leave nowhere to pan from.
  */
 
 /** How far a finger moves before a press is a drag rather than a tap, in screen pixels. */
 const SLOP_PX = 4;
+/** How near a group's edge a press is on its border, in screen pixels: a finger's reach, not a hairline's. */
+const BORDER_PX = 14;
 /**
  * How long a press stays put before it lifts the card under it rather than panning the page: the boards' own wait
  * (core/gestures.ts). Passed on for the canvas's tests, which wait it out.
@@ -46,12 +55,14 @@ interface GestureOptions {
   editable: boolean;
   /** Whether a card is open: a press inside it is its editor's, for the caret and the selection. */
   editing: boolean;
+  /** The card picked, by id: a finger that drags it moves it without the hold. */
+  selected: string | null;
   /** Any press on the canvas itself, before it is anything else. */
   onPress: () => void;
   /** A carried card moved: the canvas with it where the finger is, drawn but not yet handed on. */
   onCarry: (next: Canvas) => void;
-  /** A carried card let go: the canvas with it where it was put down. */
-  onPutDown: (next: Canvas) => void;
+  /** A carried card let go: the canvas with it where it was put down, which card it was, and whether it moved at all. */
+  onPutDown: (next: Canvas, id: string, moved: boolean) => void;
 }
 
 export interface Gestures {
@@ -65,15 +76,41 @@ export interface Gestures {
   lifted: string | null;
 }
 
-export function useGestures({ host, camera, live, editable, editing, onPress, onCarry, onPutDown }: GestureOptions): Gestures {
+/** Whether a press on a group is on what it is taken by: its name, or its border. */
+function onGroupGrip(target: HTMLElement, el: HTMLElement, x: number, y: number): boolean {
+  if (target.closest('[data-group-grip]')) return true;
+  const box = el.getBoundingClientRect();
+  return x - box.left < BORDER_PX || box.right - x < BORDER_PX || y - box.top < BORDER_PX || box.bottom - y < BORDER_PX;
+}
+
+export function useGestures({ host, camera, live, editable, editing, selected, onPress, onCarry, onPutDown }: GestureOptions): Gestures {
   const pointers = useRef<Pointers>(new Map());
   /** Where the fingers took hold and what the view was then: every move is measured from here, not from the last. */
   const hold = useRef<{ view: View; x: number; y: number; distance: number } | null>(null);
   const dragged = useRef(false);
   /** The card a held press lifted, where the press was, and the canvas as it was then: the move is measured from there. */
   const carrying = useRef<{ node: CanvasNode; x: number; y: number; base: Canvas } | null>(null);
+  /** The card this press would move if it turned into a drag, with no hold: a mouse's, or the picked card under a finger. */
+  const grab = useRef<{ node: CanvasNode; x: number; y: number; base: Canvas } | null>(null);
   /** The wait for a press on a card to become a hold; cleared by movement or by letting go. */
   const holdTimer = useRef(0);
+  /** Space held: every drag pans, whatever is under the pointer, as in every drawing program. */
+  const spaceHeld = useRef(false);
+  useEffect(() => {
+    const typing = (event: KeyboardEvent) => event.target instanceof Element && !!event.target.closest('input, textarea, [contenteditable]');
+    const down = (event: KeyboardEvent) => {
+      if (event.code === 'Space' && !typing(event)) spaceHeld.current = true;
+    };
+    const up = (event: KeyboardEvent) => {
+      if (event.code === 'Space') spaceHeld.current = false;
+    };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+    };
+  }, []);
   const [lifted, setLifted] = useState<string | null>(null);
 
   const takeHold = () => {
@@ -100,10 +137,18 @@ export function useGestures({ host, camera, live, editable, editing, onPress, on
     if (!pointers.current.size) {
       dragged.current = false;
       carrying.current = null;
+      grab.current = null;
+      // The middle button and Space pan, whatever is under the pointer.
+      const panning = event.button === 1 || spaceHeld.current;
       // One finger on a card, on a canvas that can change: held still for a moment, it lifts the card.
-      const id = editable ? target.closest<HTMLElement>('[data-card]')?.dataset.card : undefined;
+      const el = editable && !panning ? target.closest<HTMLElement>('[data-card]') : null;
+      const id = el?.dataset.card;
       const node = id ? live.nodes.find((n) => n.id === id) : undefined;
-      if (node) {
+      if (node && el) {
+        // And some are moved by the drag itself, with no hold (see the header).
+        const taken = node.type === 'group' ? onGroupGrip(target, el, event.clientX, event.clientY) : event.pointerType === 'mouse' || node.id === selected;
+        // The main button only: a right-click is a menu's, not a drag.
+        if (taken && event.button <= 0) grab.current = { node, x: event.clientX, y: event.clientY, base: live };
         const at = { x: event.clientX, y: event.clientY };
         const pointerId = event.pointerId;
         holdTimer.current = window.setTimeout(() => {
@@ -118,7 +163,12 @@ export function useGestures({ host, camera, live, editable, editing, onPress, on
           }
         }, HOLD_MS);
       }
-    } else carrying.current = null;
+    } else {
+      // A second finger: the two pan and pinch the page, and nothing is carried.
+      carrying.current = null;
+      grab.current = null;
+      setLifted(null);
+    }
     pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     takeHold();
   };
@@ -130,9 +180,14 @@ export function useGestures({ host, camera, live, editable, editing, onPress, on
     const now = grip(pointers.current);
     if (!dragged.current) {
       if (pointers.current.size < 2 && Math.hypot(now.x - start.x, now.y - start.y) < SLOP_PX) return;
-      // Moved before the hold: a pan, and the card stays where it is.
+      // Moved before the hold: a pan, and the card stays where it is - unless this press takes its card with it.
       window.clearTimeout(holdTimer.current);
       dragged.current = true;
+      if (grab.current && pointers.current.size < 2) {
+        carrying.current = grab.current;
+        setLifted(grab.current.node.id);
+      }
+      grab.current = null;
       // The drag is the page's now, wherever the pointer goes: off a card, out of the window and back.
       for (const id of pointers.current.keys()) {
         try {
@@ -161,10 +216,12 @@ export function useGestures({ host, camera, live, editable, editing, onPress, on
     if (!pointers.current.delete(event.pointerId)) return;
     // A card let go where it was carried to: the canvas is handed on with it there.
     const next = carried(event);
+    grab.current = null;
     if (next) {
+      const held = carrying.current!;
       carrying.current = null;
       setLifted(null);
-      onPutDown(next);
+      onPutDown(next, held.node.id, event.clientX !== held.x || event.clientY !== held.y);
     }
     if (pointers.current.size) takeHold();
     else hold.current = null;

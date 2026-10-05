@@ -1,0 +1,165 @@
+/*
+ * What the picked card wears (canvas/Selection.tsx): its ring and handles, and its bar. Both sit in the world at the
+ * card's place and are scaled back by `--canvas-scale` (camera.ts writes it on the page), so they are the same size
+ * on the screen at any zoom: a line of the ring a pixel and a half, a handle a finger, the bar a thumb.
+ */
+.handles {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 2;
+  --inv: calc(1 / var(--canvas-scale, 1));
+  outline: calc(1.5px * var(--inv)) solid var(--app-ink);
+  outline-offset: calc(3px * var(--inv));
+  border-radius: var(--glacier-radius-lg);
+}
+
+.handles[data-kind='group'] {
+  border-radius: calc(var(--glacier-radius-lg) + 4px);
+}
+
+/* A handle: the 44px a finger needs, round a dot the eye needs. */
+.handle {
+  position: absolute;
+  inline-size: 44px;
+  block-size: 44px;
+  margin: -22px;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+  touch-action: none;
+  transform: scale(var(--inv));
+  -webkit-tap-highlight-color: transparent;
+}
+
+.handle::after {
+  content: '';
+  inline-size: 13px;
+  block-size: 13px;
+  border: 2px solid var(--app-ink);
+  border-radius: 999px;
+  background: var(--glacier-bg);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 30%);
+  transition: transform 120ms var(--glacier-ease-out, ease-out);
+}
+
+.handle:hover::after,
+.handle:active::after {
+  transform: scale(1.25);
+}
+
+.handle[data-handle='nw'] { left: 0; top: 0; cursor: nwse-resize; }
+.handle[data-handle='ne'] { left: 100%; top: 0; cursor: nesw-resize; }
+.handle[data-handle='se'] { left: 100%; top: 100%; cursor: nwse-resize; }
+.handle[data-handle='sw'] { left: 0; top: 100%; cursor: nesw-resize; }
+.handle[data-handle='n'] { left: 50%; top: 0; cursor: ns-resize; }
+.handle[data-handle='s'] { left: 50%; top: 100%; cursor: ns-resize; }
+.handle[data-handle='e'] { left: 100%; top: 50%; cursor: ew-resize; }
+.handle[data-handle='w'] { left: 0; top: 50%; cursor: ew-resize; }
+
+/* The middle of a side: a short bar along it, for a pointer. */
+.handle[data-handle='n']::after,
+.handle[data-handle='s']::after {
+  inline-size: 18px;
+  block-size: 7px;
+}
+
+.handle[data-handle='e']::after,
+.handle[data-handle='w']::after {
+  inline-size: 7px;
+  block-size: 18px;
+}
+
+/* A finger has the four corners, a little larger: eight handles round a small card would leave no card to press. */
+@media (pointer: coarse) {
+  .handle[data-handle='n'],
+  .handle[data-handle='s'],
+  .handle[data-handle='e'],
+  .handle[data-handle='w'] {
+    display: none;
+  }
+
+  .handle::after {
+    inline-size: 16px;
+    block-size: 16px;
+  }
+}
+
+/* The bar: a pill of glass over the card's top, or under its foot when its top is at the top of the screen. */
+.bar {
+  position: absolute;
+  z-index: 3;
+  --inv: calc(1 / var(--canvas-scale, 1));
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  margin-block-start: calc(-14px * var(--inv));
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--glacier-bg) 86%, transparent);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 28%);
+  white-space: nowrap;
+  cursor: default;
+  transform-origin: 50% 100%;
+  transform: translate(-50%, -100%) scale(var(--inv));
+}
+
+.bar[data-below] {
+  margin-block-start: calc(14px * var(--inv));
+  transform-origin: 50% 0;
+  transform: translate(-50%, 0) scale(var(--inv));
+}
+
+.barButton {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--app-ink-2);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.barButton:hover {
+  color: var(--app-ink);
+  background: color-mix(in oklch, var(--app-ink) 8%, transparent);
+}
+
+.barButton[data-on] {
+  color: var(--glacier-bg);
+  background: var(--app-ink);
+}
+
+.barButton:focus-visible,
+.swatch:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 1px;
+}
+
+/* A hue to wear: a dot of it, ringed when it is the one worn. */
+.swatch {
+  appearance: none;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  margin: 0.375rem;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--app-space);
+  background-clip: padding-box;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.swatch[aria-pressed='true'] {
+  border-color: var(--glacier-bg);
+  box-shadow: 0 0 0 2px var(--app-ink);
+}

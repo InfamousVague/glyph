@@ -72,11 +72,23 @@
   pointer-events: none;
 }
 
-/* Open to be written in: the editor is live again, and the card says so with a ring in the page's own ink. */
+/* Open to be written in: the editor is live again. The ring is the picked card's (Selection.module.css). */
 .card[data-editing] {
-  outline: 2px solid var(--app-ink);
-  outline-offset: 2px;
   cursor: text;
+}
+
+/*
+ * On a canvas that can change, a mouse takes a card by dragging it, and the picked card is taken by a finger too
+ * (gestures.ts): the cursor says which is which, a hand over what moves.
+ */
+@media (hover: hover) {
+  .canvas[data-editable] .card:not([data-editing]) {
+    cursor: grab;
+  }
+}
+
+.card[data-selected]:not([data-editing]) {
+  cursor: grab;
 }
 
 .card[data-editing] :global(.cm-editor) {
@@ -89,19 +101,6 @@
   transform: scale(1.02);
   box-shadow: 0 10px 28px rgb(0 0 0 / 35%);
   z-index: 1;
-}
-
-/* The corner of an open card: a small wedge to drag, in the card's own ink. */
-.corner {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  inline-size: 22px;
-  block-size: 22px;
-  cursor: nwse-resize;
-  touch-action: none;
-  background: linear-gradient(135deg, transparent 50%, color-mix(in oklch, var(--app-ink) 35%, transparent) 50%);
-  border-end-end-radius: var(--glacier-radius-lg);
 }
 
 /* A group open to be named: its name is a field where the label was, with the cross beside it. */
@@ -117,17 +116,15 @@
 
 .groupField {
   inline-size: 12em;
-  padding: 0.2em 0.6em;
+  /* A finger's height to land on, and sixteen pixels of type so a phone does not zoom the page to it. */
+  min-block-size: 2rem;
+  padding: 0.2em 0.7em;
   border: var(--glacier-hairline) solid var(--glacier-border-subtle);
   border-radius: 999px;
   background: var(--glacier-bg);
   color: var(--app-ink);
   font: inherit;
-  font-size: var(--glacier-font-size-sm);
-}
-
-.groupLabel .remove {
-  position: static;
+  font-size: 1rem;
 }
 
 /* A card's title is a way to zoom to the card (choice 10). */
@@ -269,6 +266,24 @@
   letter-spacing: 0.02em;
   color: color-mix(in oklch, var(--app-space, var(--app-ink)) 80%, var(--glacier-text-muted));
   white-space: nowrap;
+}
+
+/* The name is what a group is taken by, with its border (gestures.ts): a hand over it, and room for a finger. */
+.canvas[data-editable] .groupLabel[data-group-grip] {
+  padding: var(--glacier-space-1) var(--glacier-space-2);
+  margin: 0 calc(-1 * var(--glacier-space-2)) 0;
+  cursor: grab;
+}
+
+/* A group with no name yet, while it is picked: a faint word where the name will be, to take it by and to tap. */
+.groupLabel[data-unnamed] {
+  font-weight: var(--glacier-font-weight-regular, 400);
+  color: var(--glacier-text-subtle);
+}
+
+/* A group's ground is the page's: it pans, and a double-tap on it makes a card. */
+.canvas[data-editable] .group {
+  cursor: inherit;
 }
 
 /*
@@ -413,6 +428,24 @@
 .tool:focus-visible {
   outline: 2px solid var(--glacier-focus-ring);
   outline-offset: 1px;
+}
+
+/* A hairline between the tools that make and the tools that move about. */
+.toolRule {
+  inline-size: var(--glacier-hairline);
+  block-size: 1.25rem;
+  margin-inline: 2px;
+  background: var(--glacier-border-subtle);
+}
+
+/*
+ * On a phone's width two fingers zoom, and the buttons that do it would push the tools into the map: with them the
+ * tools are 235px and the map 147, on a screen of 375. So they are a pointer's, on a window with room for them.
+ */
+@media (max-width: 600px) {
+  .zoomTool {
+    display: none;
+  }
 }
 
 /* What the next tap does, while a line is being drawn, said beside the tools. */

@@ -220,11 +220,20 @@ describe('a card’s title and the minimap', () => {
     expect(map).not.toBeNull();
     const kinds = [...map.querySelectorAll('[data-kind]')].map((g) => g.getAttribute('data-kind'));
     expect(kinds).toEqual(['text', 'note', 'note', 'link']);
-    expect(map.querySelectorAll('line').length).toBe(2);
+    // The lines are the canvas's own curves, the first with its arrow head and the second, told to have none, without.
+    expect(map.querySelectorAll('[class*="mapLine"]').length).toBe(2);
+    expect(map.querySelectorAll('[class*="mapHead"]').length).toBe(1);
     expect(map.querySelector('text')?.textContent).toBe('Before');
-    // The link's dot, the group, four cards and the screen's box.
+    // The link's ring.
     expect(map.querySelectorAll('circle').length).toBe(1);
-    expect(map.querySelectorAll('rect').length).toBe(6);
+    // The card of words shows the shape of its words: a heading's heavier bar, then a list's dot and its line.
+    const words = [...map.querySelectorAll('[data-kind="text"] [class*="mapBar"]')];
+    expect(words.map((bar) => bar.hasAttribute('data-strong'))).toEqual([true, false, false]);
+    // A note is its title and what fits of a few lines under it.
+    expect(map.querySelectorAll('[data-kind="note"] [class*="mapBar"][data-strong]').length).toBe(2);
+    // The screen's box is a soft line with round corners, over a shade on what the screen does not show.
+    expect(map.querySelector('[class*="mapShade"]')).not.toBeNull();
+    expect(map.querySelector('[class*="mapSeen"]')?.tagName).toBe('rect');
     // A card's colour: a preset as a hue, a hex as the card's own.
     expect(map.querySelector('[data-kind="text"]')?.getAttribute('data-hue')).toBe('moss');
     expect((map.querySelector('[data-kind="link"]') as SVGGElement).style.getPropertyValue('--app-space')).toBe('#ff8800');
@@ -264,21 +273,21 @@ describe('a card’s title and the minimap', () => {
     const page = pageOf(shown);
     sized(page, 400, 300);
     // Twice life size about the room's corner: the screen's box, -16,-16 and 200 by 150, is inside the cards, so the
-    // map frames the cards alone - their 520 by 200 in the 164 by 104 inside the map's room, 164/520 of a unit a pixel.
+    // map frames the cards alone - their 520 by 200 in the 188 by 120 inside the map's room, 188/520 of a unit a pixel.
     wheel(page, { deltaY: -100 * Math.log(2), ctrlKey: true, clientX: 32, clientY: 32 });
     runFrames();
     const zoomed = viewOf(shown);
     expect(zoomed.scale).toBeCloseTo(2, 10);
-    const unit = 164 / 520;
+    const unit = 188 / 520;
     const map = shown.querySelector('svg[aria-label^="A map of the canvas"]') as SVGSVGElement;
-    /** The map this wide on the page, as it is small (180) and grown (270). */
+    /** The map this wide on the page, as it is small (204) and grown (306). */
     const onPage = (width: number) => {
       map.getBoundingClientRect = () => ({ left: 0, top: 0, width, height: (width * 2) / 3, right: width, bottom: (width * 2) / 3, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
     };
     const at = (type: string, x: number, y = 40) => act(() => map.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y, buttons: type === 'pointerup' ? 0 : 1 })));
 
     // 27px on the small map is 27 of its units, 27/unit of the canvas; the view goes the other way by that, at its scale.
-    onPage(180);
+    onPage(204);
     at('pointerdown', 60);
     at('pointermove', 87);
     at('pointerup', 87);
@@ -286,15 +295,15 @@ describe('a card’s title and the minimap', () => {
     expect(dragged.x).toBeCloseTo(zoomed.x - (27 / unit) * 2, 5);
     expect(dragged.y).toBeCloseTo(zoomed.y, 5);
     // Grown half again, the same 27px is a third fewer units.
-    onPage(270);
+    onPage(306);
     at('pointerdown', 60);
     at('pointermove', 87);
     at('pointerup', 87);
     expect(viewOf(shown).x).toBeCloseTo(dragged.x - (27 / 1.5 / unit) * 2, 5);
 
     // The middle of the grown map is the middle of the cards, 240,80, and the 400 by 300 screen is centred on it.
-    at('pointerdown', 135, 90);
-    at('pointerup', 135, 90);
+    at('pointerdown', 153, 102);
+    at('pointerup', 153, 102);
     const went = viewOf(shown);
     expect(went.x).toBeCloseTo(200 - 240 * 2, 5);
     expect(went.y).toBeCloseTo(150 - 80 * 2, 5);
