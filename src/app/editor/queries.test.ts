@@ -267,3 +267,68 @@ describe('a tap in a drawn query', () => {
     expect(drawn(view)[0]!.textContent).toContain('In progress');
   });
 });
+
+describe('a new ticket typed at a lane of a board', () => {
+  /** The + of the lane named `label`, and the field it opens. */
+  const plusOf = (view: EditorView, label: string) => drawn(view)[0]!.querySelector<HTMLButtonElement>(`button[aria-label="Add a ticket to ${label}"]`);
+  const type = async (field: HTMLInputElement, words: string) => {
+    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+    await act(async () => {
+      set.call(field, words);
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  };
+
+  it('is made through the screen with the lane’s status and what the query insists on, and the field stays for the next', async () => {
+    const add = vi.fn(async () => false);
+    options = { ...options, add };
+    const view = await open(fence('from: tickets [[Launch]] #bug\nwhere: priority = high and (due < today or assignee = sam)\nshow: board'));
+    await act(async () => plusOf(view, 'In review')!.click());
+    const field = drawn(view)[0]!.querySelector<HTMLInputElement>('input[aria-label="New ticket in In review"]')!;
+    expect(field).not.toBeNull();
+    await type(field, 'Ship the changelog');
+    await act(async () => field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    expect(add).toHaveBeenCalledWith(
+      { link: 'Launch', fields: [['priority', 'high'], ['status', 'In review']], labels: ['bug'] },
+      'Ship the changelog',
+      'here',
+    );
+    // Open and empty for the next one.
+    const again = drawn(view)[0]!.querySelector<HTMLInputElement>('input[aria-label="New ticket in In review"]')!;
+    expect(again.value).toBe('');
+  });
+
+  it('puts the ticket’s page in this note’s index where this note is its notebook', async () => {
+    options = { ...options, add: vi.fn(async () => true) };
+    const view = await open(`---\nbook: true\nkey: GHO\n---\n# Launch\n\n- [[Plan]]\n\n\`\`\`query\nfrom: tickets [[Launch]]\nshow: board\n\`\`\`\n`);
+    await act(async () => plusOf(view, 'To do')!.click());
+    const field = drawn(view)[0]!.querySelector<HTMLInputElement>('input[aria-label="New ticket in To do"]')!;
+    await type(field, 'Write the notes');
+    await act(async () => field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    await act(async () => undefined);
+    expect(view.state.doc.toString()).toContain('[[Write the notes]]');
+  });
+
+  it('has no + on a board of to-dos, where the note cannot be edited, or with no way to make one', async () => {
+    options = { ...options, add: vi.fn(async () => false) };
+    const tasks = await open(fence('from: tasks\nshow: board\ngroup: priority'));
+    expect(drawn(tasks)[0]!.querySelector('button[aria-label^="Add a ticket"]')).toBeNull();
+    const readOnly = await open(fence('from: tickets\nshow: board'), options, false);
+    expect(drawn(readOnly)[0]!.querySelector('button[aria-label^="Add a ticket"]')).toBeNull();
+    const { add: _gone, ...without } = options;
+    const none = await open(fence('from: tickets\nshow: board'), without);
+    expect(drawn(none)[0]!.querySelector('button[aria-label^="Add a ticket"]')).toBeNull();
+  });
+
+  it('closes on Escape without making anything', async () => {
+    const add = vi.fn(async () => false);
+    options = { ...options, add };
+    const view = await open(fence('from: tickets\nshow: board'));
+    await act(async () => plusOf(view, 'Backlog')!.click());
+    const field = drawn(view)[0]!.querySelector<HTMLInputElement>('input[aria-label="New ticket in Backlog"]')!;
+    await type(field, 'Never mind');
+    await act(async () => field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    expect(drawn(view)[0]!.querySelector('input[aria-label="New ticket in Backlog"]')).toBeNull();
+    expect(add).not.toHaveBeenCalled();
+  });
+});

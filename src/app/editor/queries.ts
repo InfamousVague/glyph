@@ -11,6 +11,8 @@ import { libraryOf, recordCache, type QueryNote, type RecordCache, type RecordKi
 import { runQuery, type Row } from '../core/query/run.ts';
 import { withProperty } from '../core/properties.ts';
 import { withTaskField } from '../core/query/move.ts';
+import { ticketDraft, type TicketDraft } from '../core/query/draft.ts';
+import { withChapter } from '../book/book.ts';
 import { peopleIn } from '../book/tickets.ts';
 import { caretIn, focusMoved, trackFocus } from './drawnBlock.ts';
 import { fieldChipTheme } from './fieldChips.ts';
@@ -58,6 +60,12 @@ export interface QueryOptions {
    * move.ts).
    */
   move: (noteId: string, line: number, source: string, kind: RecordKind, field: string, value: string | null) => void;
+  /**
+   * Makes a ticket from a lane of a board (core/query/draft.ts): the draft says what it must say to land in the lane,
+   * `from` is the note the board is drawn in. Answers true where that note is the notebook the ticket went in, whose
+   * index line is then this editor's to write, so the open note is never written under its own editor.
+   */
+  add?: (draft: TicketDraft, title: string, from: string | null) => Promise<boolean>;
 }
 
 /** The library changed: every query is run and drawn again. */
@@ -228,6 +236,20 @@ class QueryWidget extends WidgetType {
           if (result?.group) setField(row, result.group, value);
         },
         onSet: (row: Row, field: string, value: string | null) => setField(row, field, value),
+        onAdd:
+          this.editable && reading.query && options?.add && ticketDraft(reading.query, null, null)
+            ? (lane: string | null, title: string) => {
+                const draft = reading.query ? ticketDraft(reading.query, result?.group ?? null, lane) : null;
+                if (!draft || !options.add) return;
+                void options.add(draft, title, options.noteId).then((here) => {
+                  // The ticket went into the notebook this board is drawn in: its page is put in the index here.
+                  if (!here) return;
+                  const body = view.state.doc.toString();
+                  const next = withChapter(body, title);
+                  if (next !== body) view.dispatch({ changes: { from: 0, to: body.length, insert: next }, userEvent: 'input.query' });
+                });
+              }
+            : undefined,
         // Read when a person's sheet opens, not on every draw: it reads every note.
         people: () => (options ? peopleIn(withOpen(options.notes(), options.noteId, view.state.doc.toString())) : []),
       }),

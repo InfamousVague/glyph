@@ -54,7 +54,7 @@ import { addGuideBook, GUIDE_TITLE } from './guidebook/guidebook.ts';
 import { isTrashed, outOfTrash, trash } from './core/trash.ts';
 import { canvasNoteBody, isCanvasBody } from './canvas/jsonCanvas.ts';
 import { frontMatterOffset, withFrontMatterTitle } from './core/frontMatter.ts';
-import { bookNoteBody, bookOf, chaptersOf, isBookBody, isJournalBody, withoutChapter } from './book/book.ts';
+import { bookNoteBody, bookOf, chaptersOf, isBookBody, isJournalBody, withChapter, withoutChapter } from './book/book.ts';
 import { entryBody, entryPages, entryPlaceOf, entryTitle, journalNoteBody, localStamp, templateOf, templateSentence, uniqueTitle, withEntry, type JournalWriter } from './book/journal.ts';
 import { forgetUntouched, isUntouched, markFresh, rememberUntouched, setUntouchedWords, untouchedRecord, untouchedRecords, wordsOf, type UntouchedRecord } from './core/untouched.ts';
 import { fillTemplate, openEnd } from './core/template.ts';
@@ -84,8 +84,8 @@ import { useTrail } from './shell/useTrail.ts';
 import { useVisibleNotes } from './shell/useVisibleNotes.ts';
 import { dropLiveTitles } from './core/liveTitles.ts';
 import { isTemplatePageBody, isTemplatesBody, newTemplatePageBody, seedPlan, templatePageBody, templatePages, templatesOf } from './notes/ownTemplates.ts';
-import { newTicketBody, nextTicketId } from './book/tickets.ts';
-import { statusesOf } from './core/properties.ts';
+import { newTicketBody, nextTicketId, notebookFinder } from './book/tickets.ts';
+import { notebookKey, statusesOf, withProperty } from './core/properties.ts';
 import { fillNoteTemplate, type NoteTemplate } from './notes/noteTemplates.ts';
 import { ticketTemplatesOf, useTickets } from './shell/useTickets.ts';
 import { useQueries } from './shell/useQueries.ts';
@@ -93,6 +93,7 @@ import { orgsState, useOrgs } from './core/orgs/orgs.ts';
 import { tickedBody } from './core/query/tick.ts';
 import { movedBody } from './core/query/move.ts';
 import type { RecordKind } from './core/query/records.ts';
+import type { TicketDraft } from './core/query/draft.ts';
 import { isMacApp, isMobile, recordsVoice } from './core/platform.ts';
 
 /**
@@ -312,6 +313,7 @@ function Shell() {
     (id, line) => openNoteAt(id, line),
     (id, line, source, done) => void tickFromQuery(id, line, source, done),
     (id, line, source, kind, field, value) => void moveFromQuery(id, line, source, kind, field, value),
+    (draft, title, from) => addFromQuery(draft, title, from),
   );
   /*
    * Every note by its title as a link matches it (core/titleKey.ts), the first of any two that share one, as a search
@@ -1126,6 +1128,44 @@ function Shell() {
     if (!note || next === null || next === note.body) return;
     await updateNote(id, next, note.revision ?? 1);
     await refresh();
+  };
+  /*
+   * A ticket typed at the + of a lane of a query's board (editor/QueryView.tsx; core/query/draft.ts; Matt: "add the
+   * ability to add new tickets to query boards from the board like we can on the standard board"). Its notebook is the
+   * one `from: [[…]]` names, else the one the board's own note is in: the notebook's next key and its workflow, as New
+   * ticket in a notebook gives (`openTicketWithin`), then the lane's value and what the query insists on, so it lands
+   * in the lane it was typed in. Its page goes in the notebook's index and it is filed where the notebook is. It is not
+   * opened: the field stays on the board for the next. Answers true where the board's own note is the notebook, whose
+   * index the board's editor writes, since a note is never written under its own editor.
+   */
+  const addFromQuery = async (draft: TicketDraft, title: string, from: string | null): Promise<boolean> => {
+    // Every note, the Trash's too, for the next key, so no number is given twice; the shown ones for the rest.
+    const all = await listNotes().catch(() => notes);
+    const live = shownNotes.filter((n) => !n.archivedAt);
+    if (live.some((n) => sameTitle(noteTitle(n.body), title))) {
+      toast({ message: `There is already a note called “${title}”.` });
+      return false;
+    }
+    const linked = draft.link ? (live.find((n) => sameTitle(noteTitle(n.body), draft.link ?? '')) ?? null) : null;
+    const board = from ? (live.find((n) => n.id === from) ?? null) : null;
+    const notebook = linked && isBookBody(linked.body) ? linked : board ? notebookFinder(live)(board) : null;
+    const id = notebook && notebookKey(notebook.body) ? nextTicketId(notebook.body, all.map((n) => n.body)) : null;
+    let body = newTicketBody(title, { id, statuses: statusesOf(notebook?.body) });
+    for (const [field, value] of draft.fields) body = withProperty(body, field, value);
+    if (draft.labels.length) body = withProperty(body, 'labels', draft.labels);
+    // `from: [[A note]]` that is no notebook lists the notes linking to it: so this one does.
+    if (linked && linked !== notebook) body = `${body.replace(/\n*$/, '')}\n\n[[${noteTitle(linked.body)}]]\n`;
+    const made = await createNote(newNoteId(), body, 'editor');
+    const space = (notebook ? workspaceOf(notebook.id) : null) ?? (from ? workspaceOf(from) : null);
+    if (space) fileNote(made.id, space.id);
+    else fileNewNote(made.id);
+    const here = !!notebook && notebook.id === from;
+    if (notebook && !here) {
+      const fresh = await getNote(notebook.id);
+      if (fresh) await updateNote(fresh.id, withChapter(fresh.body, title), fresh.revision ?? 1).catch(() => undefined);
+    }
+    await refresh();
+    return here;
   };
   const tickTask = async (task: OpenTask) => {
     const note = notes.find((n) => n.id === task.noteId);
