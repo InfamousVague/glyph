@@ -8333,7 +8333,10 @@ code or Matt: the Rust namer's title rule (src-tauri/src/library/names.rs keeps 
 name until it reads core/titles.fixture.json in a binary of its own), Gemma's template, automatic fills on leaving a
 note and the `[[?` alias (both Matt's to choose), and a measure on the Fold, which was not reachable. The Model card
 names the fills, and its about lines are §146's to reword ("Careful with facts" for the 4B, which the probes showed
-confidently wrong). With no Settings › AI page yet (§146's), Get a model opens Recording at the Model card.
+confidently wrong). With no Settings › AI page yet (§146's), Get a model opens Recording at the Model card. (2026-10-05, finishing what was left: the namer reads the same rows now - `title_of` reads a note's first line
+through a port of `titleWords`, and a Rust test runs every row of core/titles.fixture.json - so a note titled
+`# Trip to {?capital of Japan}` is "Trip to.md", in the next binary. The 4B's line says "check a fact it answers from
+memory" in place of "Careful with facts". §146 was never merged: its branch, voice/assistant-flag, waits on Matt.)
 
 **What the shots found.** The built page, driven in Chromium as the Fold and as the Mac with the 4B's own answers
 handed back, showed faults the unit tests had passed over. Each is fixed with a test that fails on the old code. Every

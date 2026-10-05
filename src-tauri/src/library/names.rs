@@ -12,6 +12,14 @@
 /// shows, and keeps the bookmark (`§§`), which the list drops. So
 /// "- [ ] **Buy** milk" names a file "Buy milk.md", and the list shows the line
 /// as it is written.
+///
+/// Blanks and fills read as the page reads them (core/blanks.ts `titleWords`,
+/// docs/DESIGN.md §145): a filled answer, `??Tokyo??(… from memory, …)`, as its
+/// words; a blank that is the whole line as nothing when it asks for a title, or
+/// as its question otherwise; and a blank among other words left out. A note
+/// titled `# Trip to {?capital of Japan}` was named "Trip to {?capital of
+/// Japan}.md" until the rule landed here; core/titles.fixture.json holds the rows
+/// both sides are tested on.
 pub fn title_of(body: &str) -> String {
     let lines: Vec<&str> = body.lines().collect();
     let (named, words) = without_front_matter(&lines);
@@ -21,8 +29,207 @@ pub fn title_of(body: &str) -> String {
         .chain(words.iter().copied())
         .map(str::trim)
         .find(|line| !line.is_empty() && !is_picture_line(line))
-        .map(plain)
+        .map(|line| plain(&title_words(line)))
         .unwrap_or_default()
+}
+
+/// The page's `titleWords` (core/blanks.ts): the line with its fills read as
+/// their words and its blanks taken out or read, the heading's `#` left on.
+fn title_words(line: &str) -> String {
+    let text = plain_fills(line);
+    if !text.contains("{?") {
+        return text;
+    }
+    let lead_len = heading_lead(&text);
+    let (lead, rest) = text.split_at(lead_len);
+    let blanks = blanks_in(rest);
+    if let [(from, to, question)] = blanks.as_slice() {
+        if rest[..*from].trim().is_empty() && rest[*to..].trim().is_empty() {
+            let question = question.trim();
+            return if asks_for_title(question) {
+                lead.trim_end_matches(|c: char| c.is_whitespace()).trim_end_matches('#').trim_end().to_string()
+            } else {
+                format!("{lead}{question}")
+            };
+        }
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut at = 0;
+    for (from, to, _) in blanks_in(&text) {
+        out.push_str(&text[at..from]);
+        at = to;
+    }
+    out.push_str(&text[at..]);
+    // Spaces closed up where a blank was - a run of two or more spaces or tabs as one space, as the page's
+    // `[ \t]{2,}` - and none left at the end.
+    let mut closed = String::with_capacity(out.len());
+    let mut run = String::new();
+    for c in out.chars() {
+        if c == ' ' || c == '\t' {
+            run.push(c);
+            continue;
+        }
+        closed.push_str(if run.chars().count() > 1 { " " } else { &run });
+        run.clear();
+        closed.push(c);
+    }
+    closed.push_str(if run.chars().count() > 1 { " " } else { &run });
+    closed.trim_end().to_string()
+}
+
+/// The length of a line's heading mark and the space after it (`# `), or of its leading space: the page's
+/// `^\s*(?:#{1,6}\s+)?`.
+fn heading_lead(text: &str) -> usize {
+    let start = text.len() - text.trim_start().len();
+    let after = &text[start..];
+    let hashes = after.chars().take_while(|&c| c == '#').count();
+    if (1..=6).contains(&hashes) {
+        let spaced = after[hashes..].len() - after[hashes..].trim_start().len();
+        if spaced > 0 {
+            return start + hashes + spaced;
+        }
+    }
+    start
+}
+
+/// Every blank in `text` (core/blanks.ts `BLANK`): `{?question}`, not after `{`, `\` or `$`, not `{??`, the
+/// question at most 160 characters with no `{`, `}`, `|` or newline, and not closed by `}}`. As (from, to, question).
+fn blanks_in(text: &str) -> Vec<(usize, usize, String)> {
+    let bytes = text.as_bytes();
+    let mut found = Vec::new();
+    let mut i = 0;
+    while let Some(off) = text[i..].find("{?") {
+        let from = i + off;
+        i = from + 2;
+        if from > 0 && matches!(bytes[from - 1], b'{' | b'\\' | b'$') {
+            continue;
+        }
+        if bytes.get(from + 2) == Some(&b'?') {
+            continue;
+        }
+        let body = &text[from + 2..];
+        let Some(end) = body.find(['{', '}', '|', '\n']) else { continue };
+        if !body[end..].starts_with('}') || body[..end].chars().count() > 160 {
+            continue;
+        }
+        let to = from + 2 + end + 1;
+        if bytes.get(to) == Some(&b'}') {
+            continue;
+        }
+        found.push((from, to, body[..end].to_string()));
+        i = to;
+    }
+    found
+}
+
+/// The page's `asksForTitle`: an empty question, or one of the few ways people ask for a title.
+fn asks_for_title(question: &str) -> bool {
+    let words = question.trim().trim_end_matches(['?', '.', '!']).trim().to_lowercase();
+    if words.is_empty() {
+        return true;
+    }
+    let bare = words.strip_prefix("a ").or_else(|| words.strip_prefix("the ")).unwrap_or(&words);
+    let noun = ["title", "name", "heading"];
+    for n in noun {
+        if bare == n {
+            return true;
+        }
+        if let Some(tail) = bare.strip_prefix(n).and_then(|t| t.strip_prefix(' ')) {
+            if ["this", "it", "for this", "for it"].contains(&tail) {
+                return true;
+            }
+        }
+    }
+    matches!(words.as_str(), "title this" | "title it" | "name this" | "name it" | "what to call this" | "what to call it")
+}
+
+/// The page's `plainFills`: each filled answer, `??words??(bracket)`, as its words where the bracket reads as a fill
+/// (`is_filled`); one that doesn't stays as it is written.
+fn plain_fills(text: &str) -> String {
+    if !text.contains("??(") {
+        return text.to_string();
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut at = 0;
+    while let Some(off) = text[at..].find("??") {
+        let open = at + off;
+        let words_start = open + 2;
+        let Some(close_off) = text[words_start..].find("??") else { break };
+        let words_end = words_start + close_off;
+        let words = &text[words_start..words_end];
+        let after = &text[words_end + 2..];
+        let ok_words = !words.is_empty() && !words.starts_with(char::is_whitespace) && !words.ends_with(char::is_whitespace) && !words.contains('\n');
+        if ok_words && after.starts_with('(') {
+            if let Some(end) = after[1..].find([')', '\n']) {
+                if after[1 + end..].starts_with(')') && end > 0 {
+                    let bracket = &after[1..1 + end];
+                    if is_filled(bracket) {
+                        out.push_str(&text[at..open]);
+                        out.push_str(words);
+                        at = words_end + 2 + 1 + end + 1;
+                        continue;
+                    }
+                }
+            }
+        }
+        out.push_str(&text[at..words_start]);
+        at = words_start;
+    }
+    out.push_str(&text[at..]);
+    out
+}
+
+/// The page's `FILLED`: "<model> from <memory | this note | Source[ and Source]>, <YYYY-MM-DD>", then an optional
+/// ". Asked: <question>" and an optional ". <n> of <m>".
+fn is_filled(bracket: &str) -> bool {
+    let b = bracket.trim();
+    let mut search = 0;
+    while let Some(off) = b[search..].find(" from ") {
+        let at = search + off;
+        search = at + 1;
+        if at == 0 {
+            continue;
+        }
+        let rest = &b[at + " from ".len()..];
+        let Some(comma) = rest.find(", ") else { continue };
+        let source = &rest[..comma];
+        if !(source == "memory" || source == "this note" || is_source(source)) {
+            continue;
+        }
+        let tail = &rest[comma + 2..];
+        if tail.len() < 10 || !is_date(&tail[..10]) {
+            continue;
+        }
+        if fill_tail(&tail[10..]) {
+            return true;
+        }
+    }
+    false
+}
+
+/// A source's name, or two joined by " and ": a capital, then letters, digits, `_`, `.` or `-`.
+fn is_source(source: &str) -> bool {
+    let one = |name: &str| {
+        let mut chars = name.chars();
+        chars.next().is_some_and(|c| c.is_ascii_uppercase()) && chars.all(|c| c.is_alphanumeric() || matches!(c, '_' | '.' | '-'))
+    };
+    match source.split_once(" and ") {
+        Some((a, b)) => one(a) && one(b),
+        None => one(source),
+    }
+}
+
+fn is_date(text: &str) -> bool {
+    let b = text.as_bytes();
+    b.len() == 10 && b[4] == b'-' && b[7] == b'-' && b.iter().enumerate().all(|(i, c)| i == 4 || i == 7 || c.is_ascii_digit())
+}
+
+/// What may follow a fill's date, as the page's `(?:\. Asked: (.+?))?(?:\. (\d) of (\d))?$` takes it: nothing, a
+/// place (". 2 of 3"), or ". Asked: " and a question of any words, a place after it or not.
+fn fill_tail(tail: &str) -> bool {
+    let b = tail.as_bytes();
+    let place = tail.len() == 8 && tail.starts_with(". ") && b[2].is_ascii_digit() && &tail[3..7] == " of " && b[7].is_ascii_digit();
+    tail.is_empty() || place || tail.strip_prefix(". Asked: ").is_some_and(|question| !question.is_empty())
 }
 
 /// The most lines front matter may take, both fences included: the page's
@@ -198,6 +405,25 @@ pub fn unique_name(stem: &str, mut taken: impl FnMut(&str) -> bool) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The page's rows (core/titles.fixture.json): a note that is only that line is titled the same here as in the list.
+    #[test]
+    fn blanks_and_fills_title_a_note_as_the_page_titles_it() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!("../../../src/app/core/titles.fixture.json")).unwrap();
+        for row in fixture["rows"].as_array().unwrap() {
+            let line = row["line"].as_str().unwrap();
+            assert_eq!(title_of(line), row["title"].as_str().unwrap(), "{line}");
+        }
+    }
+
+    #[test]
+    fn a_blank_not_closed_as_one_or_a_bracket_that_is_no_fill_stays_as_written() {
+        assert_eq!(title_of("# Plan {?{nested}}"), "Plan {?{nested}}");
+        assert_eq!(title_of("# Price ??ten??(maybe less)"), "Price ??ten??(maybe less)");
+        assert_eq!(title_of("# Visit ??Kyoto??(Qwen3.5 4B from Wikipedia and OSM, 2026-10-01. Asked: old capital. 2 of 3)"), "Visit Kyoto");
+        assert_eq!(title_of("{?name this}"), "");
+        assert_eq!(title_of("# {?title}\nSecond line"), "");
+    }
 
     #[test]
     fn the_title_is_the_first_line_of_words() {
