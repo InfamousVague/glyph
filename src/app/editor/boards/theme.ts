@@ -1,9 +1,10 @@
 import { EditorView } from '@codemirror/view';
 
 /**
- * How a board looks: its columns, cards, controls, the + field, the card's menu, the line under it, and the anchors
- * and pointers in the note's own lines. Written under the editor's classes (`EditorView.baseTheme`), which is why a
- * card lifted off the board is drawn in a layer carrying them (editor/boards/drag.ts `pickUp`).
+ * How a board looks: its columns, cards, controls, the + field, the line under it, and the anchors and pointers in the
+ * note's own lines. The card's menu is the kit's, drawn at the body (editor/boards/CardMenu.tsx). Written under the
+ * editor's classes (`EditorView.baseTheme`), which is why a card lifted off the board is drawn in a layer carrying them
+ * (editor/boards/drag.ts `pickUp`).
  */
 
 /** A board's type, against the note's. */
@@ -414,37 +415,6 @@ export const boardTheme = EditorView.baseTheme({
     opacity: '0.7',
     cursor: 'pointer',
   },
-  /*
-   * The card's menu: in the lane, right under its card, the way the + field sits at the top of a column. A panel of
-   * the board's own ground with a hairline, and rows a thumb can hit.
-   */
-  '.cm-boardMenu': {
-    display: 'grid',
-    flex: 'none',
-    gap: '1px',
-    margin: '0.1em 0 0.2em',
-    padding: '0.25em',
-    borderRadius: '0.7em',
-    background: 'var(--app-paper, var(--glacier-bg))',
-    boxShadow: 'inset 0 0 0 1px color-mix(in oklch, currentColor 14%, transparent), 0 2px 6px rgba(0, 0, 0, 0.18)',
-  },
-  '.cm-boardMenuRow': {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.55em',
-    minBlockSize: '2.4em',
-    padding: '0 0.55em',
-    border: 'none',
-    borderRadius: '0.5em',
-    background: 'none',
-    color: 'var(--app-ink, currentColor)',
-    font: 'inherit',
-    fontSize: '0.95em',
-    textAlign: 'start',
-    cursor: 'pointer',
-  },
-  '.cm-boardMenuRow:hover': { background: 'color-mix(in oklch, currentColor 7%, transparent)' },
-  '.cm-boardMenuRow svg': { flex: 'none', opacity: '0.75' },
   /* The anchor on the line, and a pointer at one from the words. */
   '.cm-itemAnchor': { fontSize: '0.82em', opacity: '0.45' },
   '.cm-itemRef': {

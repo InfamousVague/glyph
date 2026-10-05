@@ -192,7 +192,7 @@ export class BoardWidget extends WidgetType {
     }
 
     // The card's own menu: lanes to move to, the line in the note, what a plugin offers, and off the board. A press
-    // and hold is already the drag, so the menu needs a button of its own.
+    // and hold is already the drag, so the menu needs a button of its own, and it hangs from the button.
     const menu = document.createElement('button');
     menu.type = 'button';
     menu.className = 'cm-boardMore';
@@ -200,7 +200,7 @@ export class BoardWidget extends WidgetType {
     menu.setAttribute('aria-label', `More for ${said}`);
     menu.setAttribute('aria-haspopup', 'menu');
     press(menu, () =>
-      openCardMenu(view, card, box, {
+      openCardMenu(view, card, menu, {
         columns: this.board.columns,
         land: (column) => landCard(view, this.board, card, column, Number.MAX_SAFE_INTEGER),
         tick: () => tickCard(view, this.board, card),
@@ -232,6 +232,6 @@ export class BoardWidget extends WidgetType {
 
   /** The field a card is typed into is the page's own input: the editor leaves its keys and taps alone. */
   ignoreEvent(event: Event): boolean {
-    return event.target instanceof Element && event.target.closest('.cm-boardCompose, .cm-boardSplit, .cm-boardMenu') !== null;
+    return event.target instanceof Element && event.target.closest('.cm-boardCompose, .cm-boardSplit') !== null;
   }
 }

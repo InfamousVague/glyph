@@ -1307,6 +1307,8 @@ describe('where the note was written', () => {
       const view = editor();
       await openPlus(view);
       place();
+      // A row pressed in the list leaves the editor its focus, and with it the phone's keyboard.
+      expect(view.hasFocus).toBe(true);
       await settle();
       expect(view.state.doc.toString()).toBe('# Walk\n\n[Trafalgar Square, London](geo:51.5074,-0.1278)\n');
       // The note's own tag is left alone: a place is a line of the words.
@@ -1519,6 +1521,30 @@ describe('the + beside the line', () => {
     return view.scrollDOM.querySelector<HTMLButtonElement>('.cm-plus')?.dataset.state;
   };
   const plusState = (view: EditorView) => view.scrollDOM.querySelector<HTMLButtonElement>('.cm-plus')?.dataset.state;
+
+  it('opens its list, as press and hold opens its band, beside the page and the header, never inside either', async () => {
+    // Inside the page (the wisp's mask and filter) or its body (the entrance's transform) a menu is painted under the
+    // header, whatever its z-index; beside them, its z-index is weighed against the header's and wins (DESIGN §147).
+    show(screen(await createNote('n1', '# Walk\n\n')));
+    const view = editor();
+    expect(await restOnLastLine(view)).toBe('shown');
+    act(() => view.scrollDOM.querySelector<HTMLButtonElement>('.cm-plus')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })));
+    const page = view.dom.closest('[data-scrolls]');
+    const header = document.querySelector('header.app-headerPane');
+    expect(page).not.toBeNull();
+    expect(header).not.toBeNull();
+    const list = document.getElementById('add-list');
+    expect(list).not.toBeNull();
+    expect(page!.contains(list) || header!.contains(list)).toBe(false);
+    act(() => void document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
+    expect(document.getElementById('add-list')).toBeNull();
+    act(() => void view.contentDOM.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })));
+    await act(async () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+    const band = document.querySelector('[role="menu"][aria-label="Note actions"]');
+    expect(band).not.toBeNull();
+    expect(page!.contains(band) || header!.contains(band)).toBe(false);
+    vi.restoreAllMocks();
+  });
 
   it('goes while an AI run writes into the note, and comes back once it has ended', async () => {
     show(screen(await createNote('n1', '# Walk\n\n')));

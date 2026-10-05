@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { tickHeld } from '../core/haptics.ts';
 import type { TabGroup } from './tabGroups.ts';
 import styles from './NoteTabs.module.css';
 
@@ -57,6 +58,8 @@ export function GroupChip({
           onClick={onToggle}
           onContextMenu={(event) => {
             event.preventDefault();
+            // A long press opens it with the finger still down: its one tick now, and none as it lifts.
+            tickHeld();
             onMenu();
           }}
         >

@@ -1,9 +1,10 @@
 import { Facet } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
+import { createElement } from 'react';
 import { itemWords, type BoardColumn, type Card, type Item } from '../../core/boards.ts';
-import { icon, type IconName } from './icons.ts';
+import { mountReact } from '../reactMount.ts';
+import type { IconName } from './icons.ts';
 import { goToLine } from './navigate.ts';
-import { press } from './press.ts';
 
 /**
  * What a plugin offers a card, given the item's line and its words (Matt: "Add context menu to board items for moving
@@ -32,84 +33,100 @@ export interface CardMoves {
   takeOff(): void;
 }
 
+/** A row of a card's menu: what it says, the board's icon beside it, and what it does to the card. */
+export interface CardRow {
+  label: string;
+  icon: IconName;
+  run: () => void;
+}
+
 /**
- * A card's own menu (Matt: "Add context menu to board items for moving lanes and adding to notion etc.").
- *
- * It opens from the card's **more** button rather than a press and hold, because a press and hold is already how a
- * card is picked up to drag. It sits in the lane right under its card, the way the + field sits at the top of a
- * column: no floating panel to place, and it scrolls with the board it belongs to.
- *
- * What it offers: each other lane to move to, the item's tick, the line in the note, whatever a plugin offers this
- * item (its own line's offer first, then the one a swipe would run), and the card off the board. Nothing that cannot
- * be done is shown, so a card whose item is gone offers only to take itself off.
+ * What a card's menu offers (Matt: "Add context menu to board items for moving lanes and adding to notion etc."): each
+ * other lane to move to, the item's tick, the line in the note, whatever a plugin offers this item (its own line's
+ * offer first, then the one a swipe would run), and the card off the board. Nothing that cannot be done is offered,
+ * so a card whose item is gone offers only to take itself off. The rows are the card as it is when the menu opens.
  */
-export function openCardMenu(view: EditorView, card: Card, at: HTMLElement, does: CardMoves): void {
-  const stack = at.closest<HTMLElement>('.cm-boardStack');
-  if (!stack) return;
-  // A second press on the button closes it again, and only one is ever open.
-  const already = stack.querySelector('.cm-boardMenu');
-  const mine = already?.previousElementSibling === at;
-  for (const open of at.closest('.cm-board')?.querySelectorAll('.cm-boardMenu') ?? []) open.remove();
-  if (mine) return;
-
-  const menu = document.createElement('div');
-  menu.className = 'cm-boardMenu';
-  menu.setAttribute('role', 'menu');
-  menu.setAttribute('aria-label', 'Card');
-
-  const row = (label: string, glyph: IconName, run: () => void) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'cm-boardMenuRow';
-    button.setAttribute('role', 'menuitem');
-    button.append(icon(glyph, '1em'));
-    const words = document.createElement('span');
-    words.textContent = label;
-    button.append(words);
-    press(button, () => {
-      close();
-      run();
-    });
-    menu.append(button);
-    return button;
-  };
-
-  const close = () => {
-    menu.remove();
-    window.removeEventListener('pointerdown', away, true);
-    window.removeEventListener('keydown', escape, true);
-  };
-  const away = (event: PointerEvent) => {
-    if (!(event.target instanceof Node) || (!menu.contains(event.target) && event.target !== at)) close();
-  };
-  const escape = (event: KeyboardEvent) => {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      close();
-    }
-  };
-
+export function cardRows(view: EditorView, card: Card, does: CardMoves): CardRow[] {
+  const rows: CardRow[] = [];
   const item = card.item;
   // Every other lane, in the board's own order.
   does.columns.forEach((column, index) => {
     if (index === card.column) return;
-    row(`Move to ${column.name}`, index < card.column ? 'left' : 'right', () => does.land(index));
+    rows.push({ label: `Move to ${column.name}`, icon: index < card.column ? 'left' : 'right', run: () => does.land(index) });
   });
   if (item && item.done !== null) {
-    row(item.done ? 'Untick' : 'Tick', 'check', () => does.tick());
+    rows.push({ label: item.done ? 'Untick' : 'Tick', icon: 'check', run: () => does.tick() });
   }
   if (item) {
-    row('Go to the line', 'words', () => goToLine(view, item.line));
+    rows.push({ label: 'Go to the line', icon: 'words', run: () => goToLine(view, item.line) });
     const offer = pluginOffer(view, item);
-    if (offer) row(offer.label, 'link', () => void offer.run());
+    if (offer) rows.push({ label: offer.label, icon: 'link', run: () => void offer.run() });
   }
-  row('Take off the board', 'off', () => does.takeOff());
+  rows.push({ label: 'Take off the board', icon: 'off', run: () => does.takeOff() });
+  return rows;
+}
 
-  at.after(menu);
-  menu.querySelector('button')?.focus();
-  menu.scrollIntoView({ block: 'nearest' });
-  window.addEventListener('pointerdown', away, true);
-  window.addEventListener('keydown', escape, true);
+/**
+ * A card's own menu, hung from its **more** button over the page (editor/boards/CardMenu.tsx).
+ *
+ * It opens from a button rather than a press and hold, because a press and hold is already how a card is picked up to
+ * drag. It is the kit's menu (Matt: "Allow the header to be overlapped by the popup menus use the glacierUI context
+ * menus"): it sat in the lane right under its card, where the lane cut its last rows off and, near the top of the
+ * note, the header covered it; now it is drawn at the body, whole, over the header where it must be.
+ *
+ * One is open at a time, and a second press on the same button closes it. It closes on a row, on Escape (the focus
+ * going back to the button), on a press anywhere else and on the back gesture (editor/PopMenu.tsx), and on any change
+ * to the note or a redraw that takes its button away (boards.ts): its rows are the card as it was when it opened.
+ *
+ * The kit is loaded when a card's menu first opens, never imported here: the kit asks `matchMedia` as its module
+ * loads, which jsdom has not got, and this module is reached through boards.ts by the editor, doneSync.ts,
+ * taskToggle.ts and their tests. In the app the shell has loaded the kit long before.
+ */
+let open: { view: EditorView; more: HTMLElement; close: () => void } | null = null;
+
+export function openCardMenu(view: EditorView, card: Card, more: HTMLElement, does: CardMoves): void {
+  const again = open?.more === more;
+  closeCardMenu();
+  if (again) return;
+  const rows = cardRows(view, card, does);
+  const host = document.createElement('div');
+  host.className = 'cm-cardMenuHost';
+  let unmount: (() => void) | null = null;
+  let closed = false;
+  const mine = {
+    view,
+    more,
+    close: () => {
+      if (closed) return;
+      closed = true;
+      unmount?.();
+      host.remove();
+      if (open === mine) open = null;
+    },
+  };
+  // Open from the press, before the kit has loaded, so a second press while it loads closes it again.
+  open = mine;
+  void import('./CardMenu.tsx').then(({ CardMenu }) => {
+    if (closed) return;
+    document.body.append(host);
+    // A React root of its own, over the page (editor/reactMount.ts), taken down a microtask after it is closed.
+    unmount = mountReact(host, createElement(CardMenu, { more, rows, onDismiss: mine.close }));
+  });
+}
+
+/** Closes the card menu that is open, or only the one `view` opened; safe whether or not one is. */
+export function closeCardMenu(view?: EditorView): void {
+  if (open && (!view || open.view === view)) open.close();
+}
+
+/** Whether `view` has a card's menu open. */
+export function cardMenuIn(view: EditorView): boolean {
+  return open?.view === view;
+}
+
+/** Closes `view`'s card menu if the more button it hangs from has left the page: the board was drawn again. */
+export function closeCardMenuIfGone(view: EditorView): void {
+  if (open?.view === view && !open.more.isConnected) open.close();
 }
 
 /** What a plugin offers this item: its own line's offer, else the one a swipe on the line would run. Null for none. */

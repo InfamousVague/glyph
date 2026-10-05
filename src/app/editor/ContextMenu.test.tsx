@@ -6,6 +6,10 @@ import { button, show, unmount } from '../../test/render.tsx';
 import { goBack } from '../core/back.ts';
 import { ContextMenu } from './ContextMenu.tsx';
 
+/** The motor, as the menu asks it: every tick said, in order. */
+const felt = vi.hoisted(() => vi.fn());
+vi.mock('../core/haptics.ts', async (importOriginal) => ({ ...(await importOriginal<typeof import('../core/haptics.ts')>()), fireNativeHaptic: felt }));
+
 /**
  * The note's own press-and-hold menu, over a real editor: what opens it and what does not, the words it offers, what
  * Paste says when nothing can be pasted, the Style page, and what closes it. The editor here carries none of the
@@ -337,6 +341,35 @@ describe('the Style page', () => {
     expect(menu()?.getAttribute('aria-label')).toBe('Note actions');
   });
 
+  it('ticks for its Back, as for every other row on the page, since the tap tick lets the band’s rows off', async () => {
+    editor('buy milk', { anchor: 4, head: 8 });
+    show(<ContextMenu view={view} />);
+    await hold();
+    await choose('Style');
+    felt.mockClear();
+    await choose("Back to the note's actions");
+    expect(felt.mock.calls).toEqual([['selection']]);
+  });
+
+  it('ticks for a field page’s Back too', async () => {
+    editor('- [ ] Fix the login loop', { anchor: 3 });
+    show(<ContextMenu view={view} />);
+    await hold();
+    await choose('Due date');
+    expect(menu()?.getAttribute('aria-label')).toBe('Fields');
+    felt.mockClear();
+    await choose("Back to the note's actions");
+    expect(menu()?.getAttribute('aria-label')).toBe('Note actions');
+    expect(felt.mock.calls).toEqual([['selection']]);
+  });
+
+  it('wears the mark that lets its rows off the tap tick', async () => {
+    editor('words');
+    show(<ContextMenu view={view} />);
+    await hold();
+    expect(menu()?.dataset.haptics).toBe('own');
+  });
+
   it('closes the menu for an insert, which leaves nothing to keep lit', async () => {
     editor('words', { anchor: 5 });
     show(<ContextMenu view={view} />);
@@ -345,6 +378,79 @@ describe('the Style page', () => {
     await choose('Rule');
     expect(menu()).toBeNull();
     expect(view.state.doc.toString()).toContain('---');
+  });
+});
+
+describe('where it sits', () => {
+  /**
+   * The band's size, which jsdom does not lay out (the Style page's taller, as a band that wrapped would be), and the
+   * caret's top at `y`, as the view would say it.
+   */
+  function caretAt(y: number) {
+    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.getAttribute('role') === 'menu' ? 300 : 0;
+      },
+    });
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+      configurable: true,
+      get(this: HTMLElement) {
+        if (this.getAttribute('role') !== 'menu') return 0;
+        return this.getAttribute('aria-label') === 'Styles' ? 100 : 57;
+      },
+    });
+    vi.spyOn(view, 'coordsAtPos').mockReturnValue({ left: 200, right: 200, top: y, bottom: y + 20 });
+  }
+  const top = () => parseFloat(menu()!.style.top);
+
+  beforeEach(() => document.documentElement.style.setProperty('--app-inset-top', '32px'));
+  afterEach(() => {
+    document.documentElement.style.removeProperty('--app-inset-top');
+    Reflect.deleteProperty(HTMLElement.prototype, 'offsetWidth');
+    Reflect.deleteProperty(HTMLElement.prototype, 'offsetHeight');
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('over the header, above the caret, when that clears the status bar', async () => {
+    editor('some words', { anchor: 0, head: 4 });
+    show(<ContextMenu view={view} />);
+    caretAt(130);
+    await hold();
+    // 130 - 57 - 12: over a header that runs to 98, and clear of the 32px status bar and its 8px.
+    expect(top()).toBe(61);
+    expect(parseFloat(menu()!.style.left)).toBe(50);
+  });
+
+  it('under the caret when above would reach the status bar', async () => {
+    editor('some words', { anchor: 0, head: 4 });
+    show(<ContextMenu view={view} />);
+    caretAt(90);
+    await hold();
+    expect(top()).toBe(90 + 40);
+  });
+
+  it('never past the keyboard’s top', async () => {
+    // The visual viewport is what the keyboard leaves: 150 high here, so the band's foot is held at 142.
+    vi.stubGlobal('visualViewport', { offsetTop: 0, height: 150 });
+    editor('some words', { anchor: 0, head: 4 });
+    show(<ContextMenu view={view} />);
+    caretAt(60);
+    await hold();
+    expect(top()).toBe(150 - 8 - 57);
+  });
+
+  it('places the Style page again, by the same rule', async () => {
+    editor('some words', { anchor: 0, head: 4 });
+    show(<ContextMenu view={view} />);
+    caretAt(130);
+    await hold();
+    expect(top()).toBe(61);
+    await choose('Style');
+    expect(menu()?.getAttribute('aria-label')).toBe('Styles');
+    // 130 - 100 - 12 would reach the status bar, so the taller page goes under the caret.
+    expect(top()).toBe(170);
   });
 });
 

@@ -2,7 +2,7 @@ import { RangeSetBuilder, StateField, type EditorState, type Extension } from '@
 import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';
 import { settleTicks } from '../core/boards.ts';
 import { itemAnchors } from './boards/anchors.ts';
-import { cardActions, type CardActions } from './boards/cardMenu.ts';
+import { cardActions, cardMenuIn, closeCardMenu, closeCardMenuIfGone, type CardActions } from './boards/cardMenu.ts';
 import { boardsOn, faceOf } from './boards/drawn.ts';
 import { boardTheme } from './boards/theme.ts';
 import { BoardWidget } from './boards/widget.ts';
@@ -31,10 +31,10 @@ import { caretIn, focused, trackFocus } from './drawnBlock.ts';
  *
  * This is the extension and what decides where a board is drawn. Its parts are in editor/boards/: the board as drawn
  * from the markdown (drawn.ts), the widget (widget.ts) and what a card does to the note (cardEdits.ts), the card's
- * menu (cardMenu.ts), the drag (drag.ts), the + field (composer.ts), the board's height held and remembered
- * (height.ts) and set by the line under it (divider.ts), getting around from a card (navigate.ts), the note's own
- * scroller that both roll (scrolling.ts), the anchors in the note's lines (anchors.ts), the touch-safe button every
- * control is (press.ts), the icons (icons.ts) and the look (theme.ts).
+ * menu, the kit's (cardMenu.ts, CardMenu.tsx), the drag (drag.ts), the + field (composer.ts), the board's height held
+ * and remembered (height.ts) and set by the line under it (divider.ts), getting around from a card (navigate.ts), the
+ * note's own scroller that both roll (scrolling.ts), the anchors in the note's lines (anchors.ts), the touch-safe
+ * button every control is (press.ts), the icons (icons.ts) and the look (theme.ts).
  */
 
 function decorate(state: EditorState): DecorationSet {
@@ -117,7 +117,28 @@ const boardRoom = ViewPlugin.fromClass(
   },
 );
 
+/**
+ * A card's menu goes with the note it describes (editor/boards/cardMenu.ts): its rows are the card as it was when it
+ * opened, so any change to the note closes it, and so does a redraw that took its more button off the page, looked at
+ * once the view has drawn. The lane's menu went with the widget's DOM the same way.
+ */
+const cardMenuGoes = ViewPlugin.fromClass(
+  class {
+    constructor(readonly view: EditorView) {}
+
+    update(update: ViewUpdate): void {
+      if (!cardMenuIn(this.view)) return;
+      if (update.docChanged) closeCardMenu(this.view);
+      else queueMicrotask(() => closeCardMenuIfGone(this.view));
+    }
+
+    destroy(): void {
+      closeCardMenu(this.view);
+    }
+  },
+);
+
 /** Boards drawn in a note, the fence still there to edit. */
 export function drawnBoards(actions?: CardActions): Extension {
-  return [trackFocus, boardField, itemAnchors, boardRoom, boardTheme, ...(actions ? [cardActions.of(actions)] : [])];
+  return [trackFocus, boardField, itemAnchors, boardRoom, cardMenuGoes, boardTheme, ...(actions ? [cardActions.of(actions)] : [])];
 }

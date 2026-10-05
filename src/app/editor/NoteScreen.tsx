@@ -1033,7 +1033,8 @@ export function NoteScreen({
     () => ({
       allowed: () => plusAllowedRef.current,
       onOpen: (opening) => {
-        fireNativeHaptic('selection');
+        // A finger's press on the + has the app's tap tick already (core/haptics.ts); a mouse, a key or a / has none.
+        if (opening.by !== 'touch') fireNativeHaptic('selection');
         setAdding(opening);
       },
       onClose: () => setAdding(null),
@@ -1138,15 +1139,10 @@ export function NoteScreen({
     fireNativeHaptic('selection');
   };
   /**
-   * Where the list may go: the note's scrolling page, below the header, which clears the top bar and the tabs
-   * (`--app-safe-top`) even while the page itself runs up under them.
+   * The note's page, for the list's crease; the list's top is the status bar's (editor/menuRoom.ts), over the header
+   * and the tabs (Matt: "Allow the header to be overlapped by the popup menus").
    */
-  const notePane = (): DOMRect | null => {
-    const box = page.current?.getBoundingClientRect();
-    if (!box) return null;
-    const top = Math.max(box.top, header.current?.getBoundingClientRect().bottom ?? box.top);
-    return new DOMRect(box.left, top, box.width, Math.max(0, box.bottom - top));
-  };
+  const notePane = (): DOMRect | null => page.current?.getBoundingClientRect() ?? null;
   /** Every canvas among the notes, for More's A canvas: a frame of it drawn in the words (editor/canvasFrames.ts). */
   const canvasTitles = allTitles && bodyOfTitle ? () => allTitles().filter((t) => isCanvasBody(bodyOfTitle(t) ?? '')) : undefined;
 

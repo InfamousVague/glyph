@@ -1,7 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act } from 'react';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
+import { goBack } from '../core/back.ts';
+import '../../test/render.tsx';
+import { stubMatchMedia } from '../../test/stubs.ts';
 import { drawnBoards } from './boards.ts';
+import { closeCardMenu } from './boards/cardMenu.ts';
 import { emptyLook } from './boards/icons.ts';
 import { glyphMarkdown } from './language.ts';
 
@@ -29,6 +34,9 @@ afterEach(() => {
   view?.destroy();
   view = null;
 });
+
+// A card's menu is the kit's, loaded on its first press (editor/boards/cardMenu.ts), and the kit asks matchMedia.
+beforeAll(() => stubMatchMedia());
 
 /** The + on column `index`, pressed, and the field it opens. */
 function addTo(target: EditorView, index: number): HTMLInputElement {
@@ -563,24 +571,22 @@ describe('a tap on a board’s control by a finger', () => {
     expect(on.state.doc.toString()).toBe(note);
   });
 
-  it('runs once, not again for the click a browser sends after the lift anyway', () => {
-    Element.prototype.scrollIntoView = vi.fn();
-    try {
-      const on = open(note);
-      // The card's menu button, which a second run would close again.
-      const more = on.dom.querySelector<HTMLElement>('.cm-boardCard[data-card="ship-page"] .cm-boardMore')!;
-      place(more, 0, 0, 40, 40);
-      touch(more, 'touchstart');
-      touch(more, 'touchend', 20, 20);
-      more.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-      expect(on.dom.querySelector('.cm-boardMenu')).not.toBeNull();
-      // Long after, a click is a click again.
-      vi.advanceTimersByTime(1000);
-      more.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-      expect(on.dom.querySelector('.cm-boardMenu')).toBeNull();
-    } finally {
-      delete (Element.prototype as Partial<Element>).scrollIntoView;
-    }
+  it('runs once, not again for the click a browser sends after the lift anyway', async () => {
+    const on = open(note);
+    const menu = () => document.querySelector('[role="menu"][aria-label="Card"]');
+    // The card's menu button, which a second run would close again.
+    const more = on.dom.querySelector<HTMLElement>('.cm-boardCard[data-card="ship-page"] .cm-boardMore')!;
+    place(more, 0, 0, 40, 40);
+    touch(more, 'touchstart');
+    touch(more, 'touchend', 20, 20);
+    more.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    await act(async () => void (await vi.dynamicImportSettled()));
+    expect(menu()).not.toBeNull();
+    // Long after, a click is a click again.
+    vi.advanceTimersByTime(1000);
+    more.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    await act(async () => undefined);
+    expect(menu()).toBeNull();
   });
 });
 
@@ -610,93 +616,173 @@ describe('an item’s anchor, and a pointer at it', () => {
 });
 
 describe('a card’s own menu', () => {
-  // Matt: "Add context menu to board items for moving lanes and adding to notion etc."
+  // Matt: "Add context menu to board items for moving lanes and adding to notion etc.", and since: "Allow the header to
+  // be overlapped by the popup menus use the glacierUI context menus". The kit's menu, at the body.
   const tap = (element: Element) => element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
   const more = (on: EditorView, id: string) => on.dom.querySelector<HTMLButtonElement>(`.cm-boardCard[data-card="${id}"] .cm-boardMore`)!;
-  const menu = (on: EditorView) => on.dom.querySelector<HTMLElement>('.cm-boardMenu');
-  const rows = (on: EditorView) => [...(menu(on)?.querySelectorAll('.cm-boardMenuRow') ?? [])].map((row) => row.textContent);
-  const row = (on: EditorView, words: string) => [...menu(on)!.querySelectorAll<HTMLElement>('.cm-boardMenuRow')].find((one) => one.textContent === words)!;
+  const menu = () => document.querySelector<HTMLElement>('[role="menu"][aria-label="Card"]');
+  const rows = () => [...(menu()?.querySelectorAll('[role="menuitem"]') ?? [])].map((row) => row.textContent);
+  const row = (words: string) => [...menu()!.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((one) => one.textContent === words)!;
+  /** What a press set going: the kit loaded and the menu drawn, or the menu told it is done and taken down. */
+  const settle = () => act(async () => void (await vi.dynamicImportSettled()));
+  /** A press on a card's more button, and the menu drawn. */
+  const opened = async (on: EditorView, id: string) => {
+    tap(more(on, id));
+    await settle();
+  };
+  /** The kit takes the focus into the menu's first row a frame after it opens. */
+  const frame = () => act(() => void vi.advanceTimersByTime(20));
+  const key = (name: string) => act(() => void document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true })));
 
   beforeEach(() => {
     // Clear of the quiet after a card moved in an earlier test, when a press on a card's words is taken for a near miss.
     vi.useFakeTimers();
     vi.setSystemTime(Date.now() + 120_000);
-    // jsdom lays nothing out, and has no scrollIntoView to bring the menu into view with.
-    Element.prototype.scrollIntoView = vi.fn();
   });
-  afterEach(() => {
+  afterEach(async () => {
+    await act(async () => closeCardMenu());
     vi.useRealTimers();
-    delete (Element.prototype as Partial<Element>).scrollIntoView;
+    vi.restoreAllMocks();
   });
 
-  it('opens under its card with every other lane, the tick, the line and taking it off, and a second press closes it', () => {
+  it('opens at the body, hung from its card, with every other lane, the tick, the line and taking it off', async () => {
     const on = open(note);
-    tap(more(on, 'ship-page'));
-    expect(menu(on)?.previousElementSibling?.getAttribute('data-card')).toBe('ship-page');
-    expect(rows(on)).toEqual(['Move to Done', 'Tick', 'Go to the line', 'Take off the board']);
+    await opened(on, 'ship-page');
+    expect(menu()).not.toBeNull();
+    // Over the page, not in the lane, where the lane cut its last rows and the header covered it.
+    expect(on.dom.contains(menu())).toBe(false);
+    expect(menu()!.parentElement).toBe(document.body);
+    expect(rows()).toEqual(['Move to Done', 'Tick', 'Go to the line', 'Take off the board']);
+    expect(more(on, 'ship-page').getAttribute('aria-expanded')).toBe('true');
+    expect(more(on, 'ship-page').getAttribute('aria-controls')).toBe(menu()!.id);
     // Opening it wrote nothing.
     expect(on.state.doc.toString()).toBe(note);
-    tap(more(on, 'ship-page'));
-    expect(menu(on)).toBeNull();
   });
 
-  it('is only ever one: another card’s menu takes its place', () => {
+  it('is only ever one: another card’s menu takes its place', async () => {
     const on = open(note);
-    tap(more(on, 'ship-page'));
-    tap(more(on, 'pick-date'));
-    expect(on.dom.querySelectorAll('.cm-boardMenu')).toHaveLength(1);
-    expect(menu(on)?.previousElementSibling?.getAttribute('data-card')).toBe('pick-date');
-    expect(rows(on)).toEqual(['Move to To do', 'Untick', 'Go to the line', 'Take off the board']);
+    await opened(on, 'ship-page');
+    await opened(on, 'pick-date');
+    expect(document.querySelectorAll('[role="menu"][aria-label="Card"]')).toHaveLength(1);
+    expect(rows()).toEqual(['Move to To do', 'Untick', 'Go to the line', 'Take off the board']);
+    expect(more(on, 'pick-date').getAttribute('aria-expanded')).toBe('true');
   });
 
-  it('closes on Escape, and on a press anywhere else, without writing anything', () => {
-    const on = open(note);
-    tap(more(on, 'ship-page'));
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
-    expect(menu(on)).toBeNull();
-
-    tap(more(on, 'ship-page'));
-    document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true }));
-    expect(menu(on)).toBeNull();
+  it('takes the focus into its first row, moves it with the keys, and gives it back to the more button on Escape', async () => {
+    let told = 0;
+    view = new EditorView({
+      state: EditorState.create({ doc: note, extensions: [drawnBoards(), EditorView.updateListener.of((update) => void (told += update.transactions.length))] }),
+      parent: document.body,
+    });
+    const on = view;
+    await opened(on, 'ship-page');
+    await frame();
+    expect(document.activeElement?.textContent).toBe('Move to Done');
+    await key('ArrowDown');
+    expect(document.activeElement?.textContent).toBe('Tick');
+    await key('End');
+    expect(document.activeElement?.textContent).toBe('Take off the board');
+    await key('Escape');
+    await settle();
+    expect(menu()).toBeNull();
+    expect(document.activeElement).toBe(more(on, 'ship-page'));
+    expect(more(on, 'ship-page').hasAttribute('aria-expanded')).toBe(false);
+    // The editor was told nothing of the focus going to a button inside it and back: no selection, nothing written.
+    expect(told).toBe(0);
     expect(on.state.doc.toString()).toBe(note);
   });
 
-  it('moves the card to another lane, ticking it on the way into Done', () => {
+  it('closes on the back gesture, on a change to the note, and on a second press of its button', async () => {
     const on = open(note);
-    tap(more(on, 'ship-page'));
-    tap(row(on, 'Move to Done'));
-    expect(menu(on)).toBeNull();
+    await opened(on, 'ship-page');
+    act(() => void goBack());
+    await settle();
+    expect(menu()).toBeNull();
+
+    await opened(on, 'ship-page');
+    // Its rows were the card as it was: a note that changed under them closes it.
+    on.dispatch({ changes: { from: 0, insert: 'Monday: ' } });
+    await settle();
+    expect(menu()).toBeNull();
+
+    await opened(on, 'ship-page');
+    await opened(on, 'ship-page');
+    expect(menu()).toBeNull();
+    expect(on.state.doc.toString()).toBe(`Monday: ${note}`);
+  });
+
+  it('closes on a press on another card, which keeps its press to itself for its drag, and that card lifts as ever', async () => {
+    const on = open(note);
+    const board = on.dom.querySelector<HTMLElement>('.cm-board')!;
+    const stacks = [...on.dom.querySelectorAll<HTMLElement>('.cm-boardStack')];
+    place(board, 0, 0, 400, 400);
+    place(stacks[0]!, 0, 0, 180, 300);
+    place(stacks[1]!, 200, 0, 180, 300);
+    const other = on.dom.querySelector<HTMLElement>('.cm-boardCard[data-card="pick-date"]')!;
+    place(other, 210, 20, 160, 40);
+    await opened(on, 'ship-page');
+    pointer(other.querySelector('.cm-boardWords')!, 'pointerdown', 5, 250, 40);
+    await settle();
+    expect(menu()).toBeNull();
+    act(() => void vi.advanceTimersByTime(HELD));
+    expect(other.hasAttribute('data-lifted')).toBe(true);
+    pointer(document.body, 'pointercancel', 5);
+    document.querySelectorAll('.cm-boardGhost').forEach((ghost) => (ghost.parentElement ?? ghost).remove());
+  });
+
+  it('closes on a press on the lanes’ line, which keeps its press to itself for the height', async () => {
+    const on = open(note);
+    await opened(on, 'ship-page');
+    pointer(on.dom.querySelector('.cm-boardSplit')!, 'pointerdown', 3, 100, 500);
+    await settle();
+    expect(menu()).toBeNull();
+    pointer(document.body, 'pointercancel', 3);
+  });
+
+  it('moves the card to another lane, ticking it on the way into Done', async () => {
+    const on = open(note);
+    await opened(on, 'ship-page');
+    tap(row('Move to Done'));
+    await settle();
+    expect(menu()).toBeNull();
     const doc = on.state.doc.toString();
     expect(doc).toContain('To do:\nDone: pick-date, ship-page');
     expect(doc).toContain('- [x] Ship the pricing page ^ship-page');
   });
 
-  it('takes the card off the board and leaves its item where it is in the note', () => {
+  it('takes the card off the board and leaves its item where it is in the note', async () => {
     const on = open(note);
-    tap(more(on, 'pick-date'));
-    tap(row(on, 'Take off the board'));
+    await opened(on, 'pick-date');
+    tap(row('Take off the board'));
+    await settle();
     const doc = on.state.doc.toString();
     expect(doc).toContain('To do: ship-page\nDone:\n```');
     expect(doc).toContain('- [x] Pick a launch date ^pick-date');
     expect(on.dom.querySelector('.cm-boardCard[data-card="pick-date"]')).toBeNull();
   });
 
-  it('goes to the line, the caret at the end of the item’s words', () => {
+  it('goes to the line, the caret at the end of the item’s words and the focus in the note', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
     const on = open(note);
-    tap(more(on, 'ship-page'));
-    tap(row(on, 'Go to the line'));
+    await opened(on, 'ship-page');
+    await frame();
+    tap(row('Go to the line'));
+    await settle();
+    expect(menu()).toBeNull();
     const head = on.state.selection.main.head;
     const line = on.state.doc.lineAt(head);
     expect(line.text.slice(0, head - line.from)).toBe('- [ ] Ship the pricing page');
+    // The kit gave the more button the focus as it closed, and the line took it from there.
+    expect(on.hasFocus).toBe(true);
   });
 
-  it('offers only to take a card off whose item has gone from the note', () => {
+  it('offers only to take a card off whose item has gone from the note', async () => {
     const on = open('```board\nTo do: lost\n```\n');
-    tap(more(on, 'lost'));
-    expect(rows(on)).toEqual(['Take off the board']);
+    await opened(on, 'lost');
+    expect(rows()).toEqual(['Take off the board']);
   });
 
-  it('offers what a plugin offers the item’s own line, before what a swipe would run by its words', () => {
+  it('offers what a plugin offers the item’s own line, before what a swipe would run by its words', async () => {
     const offered = vi.fn(async () => undefined);
     const swiped = vi.fn(async (_text: string) => undefined);
     const actions = {
@@ -705,14 +791,16 @@ describe('a card’s own menu', () => {
     };
     view = new EditorView({ state: EditorState.create({ doc: note, extensions: [drawnBoards(actions)] }), parent: document.body });
     const on = view;
-    tap(more(on, 'ship-page'));
-    expect(rows(on)).toContain('Send to Notion');
-    tap(row(on, 'Send to Notion'));
+    await opened(on, 'ship-page');
+    expect(rows()).toContain('Send to Notion');
+    tap(row('Send to Notion'));
+    await settle();
     expect(offered).toHaveBeenCalledOnce();
 
     // A line with no offer of its own is offered the swipe's action, run on the item's words.
-    tap(more(on, 'pick-date'));
-    tap(row(on, 'Make a task'));
+    await opened(on, 'pick-date');
+    tap(row('Make a task'));
+    await settle();
     expect(swiped).toHaveBeenCalledWith('Pick a launch date');
   });
 });
