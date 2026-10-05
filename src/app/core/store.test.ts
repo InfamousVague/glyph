@@ -82,11 +82,17 @@ describe('the store in a browser', () => {
     vi.useRealTimers();
   });
 
+  it('stores a new note with its pin said, so a phone that syncs it is told', async () => {
+    const made = await createNote('web-pin', 'Made in a browser');
+    expect(made.starred).toBe(false);
+    expect((await getNote('web-pin'))?.starred).toBe(false);
+  });
+
   it('makes a note at revision 1, lists newest first, and will not make one twice', async () => {
     await createNote('a', '# First');
     vi.setSystemTime(2_000);
     const b = await createNote('b', '# Second', 'capture');
-    expect(b).toEqual({ id: 'b', body: '# Second', createdAt: 2_000, updatedAt: 2_000, source: 'capture', revision: 1 });
+    expect(b).toEqual({ id: 'b', body: '# Second', createdAt: 2_000, updatedAt: 2_000, source: 'capture', starred: false, revision: 1 });
     expect((await listNotes()).map((n) => n.id)).toEqual(['b', 'a']);
     await expect(createNote('a', 'again')).rejects.toThrow('the note id already exists');
     expect(saved).toBe(2);

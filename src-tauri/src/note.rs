@@ -51,7 +51,9 @@ pub struct Note {
     /// Where the note came from - "editor", "capture", and whatever the side
     /// key learns to say about itself. A birth fact: see `create_note`.
     pub source: String,
-    /// Pinned to the top of the list.
+    /// Pinned to the top of the list. Defaulted: a note made in a browser came without it until the page began
+    /// saying it (src/app/core/store.ts `applyNote`), and one missing field refused a device's whole sync.
+    #[serde(default)]
     pub starred: bool,
     /// Milliseconds since the epoch when archived; `None` for a note in the list.
     pub archived_at: Option<i64>,
@@ -264,6 +266,14 @@ mod tests {
         assert_ne!(one, two);
         assert_eq!(uuid::Uuid::parse_str(&one).unwrap().get_version_num(), 4);
         assert_eq!(one.len(), 36, "hyphenated");
+    }
+
+    #[test]
+    fn a_note_made_in_a_browser_without_its_pin_reads_as_unpinned() {
+        let sent = r#"{"id":"n1","body":"hi","createdAt":1,"updatedAt":2,"source":"editor","revision":1}"#;
+        let note: Note = serde_json::from_str(sent).unwrap();
+        assert!(!note.starred);
+        assert_eq!((note.archived_at, note.recording_ms), (None, None));
     }
 
     #[test]

@@ -119,7 +119,9 @@ export async function createNote(id: string, body: string, source: NoteSource = 
   const now = Date.now();
   const notes = webAll();
   if (notes.some((note) => note.id === id)) throw new Error('the note id already exists');
-  const note: Note = { id, body, createdAt: now, updatedAt: now, source, revision: 1 };
+  // `starred` said, never left out: a note syncs as it is stored, and a phone's binary up to generation 25 refuses one
+  // without the field (`applyNote`).
+  const note: Note = { id, body, createdAt: now, updatedAt: now, source, starred: false, revision: 1 };
   webWrite([note, ...notes]);
   return touched(note);
 }
@@ -276,9 +278,15 @@ export async function setNoteRecording(id: string, recordingMs: number | null, s
  * Write a note exactly as another device has it (core/sync/notes.ts): its own
  * times, pin, archive and recording, not now's. Native generation 16; the sync
  * engine checks the generation before it calls. Answers the note as stored.
+ *
+ * The pin is always said. A note made in a browser was stored without `starred` (it is optional here, for a binary
+ * from before generation 3), synced as stored, and the phone's `store_apply` reads src-tauri/src/note.rs `Note`, where
+ * the field was required: the whole pass stopped on it (Matt: "invalid args `note` for command `store_apply`: missing
+ * field `starred`"). Filled here, whoever wrote the note and by whichever channel it came - the account's sync, a
+ * team's, a folder move - so the binaries already installed take it; note.rs defaults it from generation 26.
  */
 export async function applyNote(note: Note): Promise<Note> {
-  if (isTauri()) return await invoke<Note>('store_apply', { note });
+  if (isTauri()) return await invoke<Note>('store_apply', { note: { ...note, starred: Boolean(note.starred) } });
   const notes = webAll();
   webWrite([note, ...notes.filter((n) => n.id !== note.id)]);
   return note;
