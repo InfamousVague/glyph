@@ -126,8 +126,9 @@
       <p>
         You can connect an AI assistant, such as Claude, to your notes. If you connect it through our hosted connection, you
         sign in on a page that gives our server your notes' key for the length of that connection, so it can read and write
-        your notes when the assistant asks. The key is held in memory only, never written to disk, and forgotten when you
-        disconnect, when you sign out everywhere, after 7 days without use, or when the server restarts. What the assistant
+        your notes when the assistant asks. The key is held in memory while it is used. So that a restart of our server doesn't
+        disconnect you, it is also kept on disk, but only sealed: it opens only with a token the assistant holds, and we don't
+        keep those tokens. It is forgotten when you disconnect, when you sign out everywhere, or after 7 days without use. What the assistant
         reads goes to its maker (for example Anthropic), under their privacy policy. Notes the assistant writes are marked with
         its name.
       </p>

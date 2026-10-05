@@ -172,8 +172,9 @@ here is **not collected and not shared**.
 | Location, Name, Email address, Financial info, Health and fitness, Calendar, Contacts, App activity, Web browsing, Crash logs, Diagnostics, the advertising id | No | | | | | Not collected. There is no analytics, crash reporting or advertising SDK. Voice, the review, the formatting and the summaries run on the phone. |
 
 **The hosted Claude connection.** While a person has Claude connected through the hosted connector, the server holds
-their notes' key in memory and decrypts a note for each request Claude makes, then forgets it. Nothing is written to
-disk, and the key goes when they disconnect, sign out everywhere, leave it a week, or the server restarts. For that
+their notes' key in memory and decrypts a note for each request Claude makes, then forgets it. No note is written to
+disk. The key is, since 2026-10-05, so that a restart does not sign people out, but only sealed under a token Claude
+holds and the server does not keep (docs/MCP.md); it goes when they disconnect, sign out everywhere, or leave it a week. For that
 person, and only while it is connected, the end-to-end rule does not hold, so the honest form entry is **Files and
 docs: collected, ephemeral, optional, purpose App functionality, not shared** (the person chose Claude and started
 each request themselves, which Play does not count as sharing). Ephemeral data is not shown on the listing, so the

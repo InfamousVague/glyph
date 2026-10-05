@@ -2150,7 +2150,8 @@ choices, briefly:
   carries its own small `call()` and copies of `noteTitle` and `imageNames`, each pinned by a test.
 - **Then hosted, at Matt's word** ("run the server on our node so that the user doesn't need to"), with the trade
   put to him first and chosen: the box holds a signed-in person's key **in memory only**, for the session, and the
-  sign-in page says so. `mcp/hosted.ts` is the same tools behind OAuth 2.1 with the SDK's own handlers (dynamic
+  sign-in page says so. (Since 2026-10-05 the sessions are also kept across a restart, in a file that holds the key
+  only sealed under the tokens Claude holds: docs/MCP.md, "What the hosted server keeps".) `mcp/hosted.ts` is the same tools behind OAuth 2.1 with the SDK's own handlers (dynamic
   registration, PKCE, refresh, revocation), sessions as maps in RAM, and MCP over plain HTTP, one request one
   answer. It runs beside glyph-api as `glyph-mcp.service` on the box's own Node 18, and glyph-api hands
   `/api/mcp` on to it (`server/src/mcp_proxy.rs`): the shared Caddyfile, edited by hand with care, stays as it
@@ -4361,7 +4362,8 @@ was fixed:
     everything else is sealed.
   - **Access logs:** IPs are held only in memory for rate limits. Caddy's access logs are the one thing not in the repo.
   - **The one exception to end-to-end encryption:** the hosted Claude connection holds the account key in memory while
-    it's connected, and the policy says so.
+    it's connected, and the policy says so. (And, since 2026-10-05, on disk sealed under a token Claude holds; the
+    policy says that too.)
 - **The contact address is infamousvaguerat@gmail.com** (Matt, 2026-09-25), on both pages and in both store plans.
 
 **A Play build: `GLYPH_STORE=play`.** Play forbids an app updating itself outside Play.

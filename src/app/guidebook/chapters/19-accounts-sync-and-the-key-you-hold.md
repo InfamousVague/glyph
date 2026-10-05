@@ -54,7 +54,7 @@ The server sees your handle, a random id for each note, which notes have a recor
 
 An organization is the exception, and on purpose: an invitation has to reach another account, so the server sees an organization's name and colour, who is in it by handle and in what role, who invited whom and when, and, for a day, that someone declined. Of your notifications it sees the kind and the time of each, who caused it and which organization for the ones it writes itself (with the few words in them, such as the organization's name), and when you read or hid each one, so that follows you to your other devices. The ones about your own notes, Claude's edits, a meeting written up or a note kept twice, are sealed like a note: the server sees that Claude edited something, not what. Inviting a handle nobody has answers "No one has that handle.": that is the one place a signed-in account can learn whether a handle exists, and it is limited to thirty invitations an hour.
 
-The one place your key is ever held away from your own devices is the hosted Claude connector: in its memory only, and only while you keep it connected ([[Claude on your notes]]).
+The one place your key is ever held away from your own devices is the hosted Claude connector: in its memory, and on its disk only sealed under a token Claude holds, and only while you keep it connected ([[Claude on your notes]]).
 
 ## The one thing that cannot be undone
 

@@ -50,7 +50,7 @@ export function guides(handle: string | null): Guide[] {
         },
         {
           title: 'Sign in on the page that opens',
-          body: 'Claude opens a Ghost.md page in your browser. Sign in with your handle and password, and you are back in Claude with the tools ready. Your password stays in the browser; your account key goes to Ghost.md’s server, which keeps it in memory only, never on disk, while the connection lasts.',
+          body: 'Claude opens a Ghost.md page in your browser. Sign in with your handle and password, and you are back in Claude with the tools ready. Your password stays in the browser; your account key goes to Ghost.md’s server, which holds it while the connection lasts: in memory, and on disk only sealed, so that nothing but Claude’s connection opens it.',
         },
         {
           title: 'Ask in words',

@@ -24,7 +24,7 @@ With Local only on, the page is hidden and this device stops syncing, so what Cl
 2. **Sign in on the page that opens.** It says "Let Claude use your notes." Give your handle and password and choose **Allow**.
 3. **Ask in words.** "What's in my Groceries note?" "Add 'book the ferry' as a task to my Trip plan."
 
-Your notes are end-to-end encrypted, so whatever reads them must hold your account key. The page works the key out in your browser, as a phone does at sign-in, and your password stays there. It hands the key to Ghost.md's server, which keeps it in memory only, never on disk, as a key it can use but not read out. While you are connected, the server can read your notes: that is what lets Claude. The page says so before it asks for the password.
+Your notes are end-to-end encrypted, so whatever reads them must hold your account key. The page works the key out in your browser, as a phone does at sign-in, and your password stays there. It hands the key to Ghost.md's server, which holds it in memory while it is in use. So that a restart of the server doesn't sign you out, it is also kept on disk, but only sealed: what opens it is a token Claude holds, and the server doesn't keep those. While you are connected, the server can read your notes: that is what lets Claude. The page says so before it asks for the password.
 
 The connection lasts about a week from the moment you sign in, whether you use it or not, because the server holds a week-long sign-in it cannot renew. It ends sooner, and the key is forgotten, when you disconnect the server in Claude, when you ask Claude to sign out everywhere, or when the server restarts. After that Claude asks you to sign in again. Changing your password does not end it. Disconnect to be sure.
 

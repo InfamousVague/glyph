@@ -119,7 +119,7 @@ export function loginPage({ request, who, apiPublic, base, deny }: { request: st
   <p class="lead">Sign in to your Ghost.md account. ${name} will be able to read your notes, add to them and change them, until you disconnect it.</p>
   <ul class="facts">
     <li>${icon(ICON.lock)}<span><strong>Still end-to-end encrypted.</strong> Your password stays in this browser; the sync service sees the same login half it sees from your phone.</span></li>
-    <li>${icon(ICON.key)}<span><strong>Your key, held in memory.</strong> Signing in unlocks your account key here and hands it to Ghost.md's server, which keeps it in memory only, never on disk, while this connection lasts. In that time the server can read your notes: that is what lets ${name}.</span></li>
+    <li>${icon(ICON.key)}<span><strong>Your key, held for this connection.</strong> Signing in unlocks your account key here and hands it to Ghost.md's server, which holds it while this connection lasts: in memory, and on disk only sealed, so that nothing but ${name}'s own connection opens it. In that time the server can read your notes: that is what lets ${name}.</span></li>
     <li>${icon(ICON.leave)}<span><strong>Disconnect ${name} and it ends.</strong> So does a week of not using it.</span></li>
   </ul>
   <form id="form" novalidate>
