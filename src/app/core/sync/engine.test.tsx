@@ -173,7 +173,7 @@ describe('a pass', () => {
     expect(passes[0]).toMatchObject({ token: 't1', key });
   });
 
-  it('takes the notifications before the notes, and the organizations after the settings', async () => {
+  it('takes the notifications first, then the organizations, then the notes and the settings', async () => {
     const order: string[] = [];
     feedPass = async (ctx) => {
       order.push('notifications');
@@ -194,7 +194,7 @@ describe('a pass', () => {
       return null;
     };
     await act(() => engine.syncNow());
-    expect(order).toEqual(['notifications', 'notes', 'prefs', 'orgs']);
+    expect(order).toEqual(['notifications', 'orgs', 'notes', 'prefs']);
     expect(status?.phase).toBe('idle');
   });
 
@@ -343,13 +343,31 @@ describe('what stops a pass', () => {
       throw new ApiError(500, 'The service is down.');
     };
     await act(() => engine.syncNow());
-    expect(status).toMatchObject({ phase: 'error', message: 'The service is down.' });
+    expect(status).toMatchObject({ phase: 'error', message: 'Notes: The service is down.' });
     expect(resume).not.toHaveBeenCalled();
     notesPass = async () => {
       throw new ApiError(401, 'Sign in again.');
     };
     await act(() => engine.syncNow());
     expect(resume).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the settings and the organizations going when a note will not sync', async () => {
+    const order: string[] = [];
+    notesPass = async () => {
+      throw new ApiError(500, 'The service is down.');
+    };
+    prefsPass = async () => {
+      order.push('prefs');
+      return false;
+    };
+    orgsPass = async () => {
+      order.push('orgs');
+      return null;
+    };
+    await act(() => engine.syncNow());
+    expect(order).toEqual(['orgs', 'prefs']);
+    expect(status).toMatchObject({ phase: 'error', message: 'Notes: The service is down.' });
   });
 });
 

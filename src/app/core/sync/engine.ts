@@ -332,11 +332,28 @@ async function once(parts: Parts): Promise<void> {
     return;
   }
   setStatus({ phase: 'syncing', message: null });
+  // Each step stands on its own (Matt: "i don't see an org i created on another computer and when i load the app it
+  // says Syncing will try again"): a note that will not go no longer keeps the preferences, the organizations and
+  // the team's notes from theirs. The first failure is the status's, named by its step; a lapsed session still ends
+  // the pass, as every step after it would be refused too.
+  let failed: string | null = null;
+  const step = async <T>(name: string, run: () => Promise<T>): Promise<T | undefined> => {
+    try {
+      return await run();
+    } catch (failure) {
+      if (failure instanceof ApiError && failure.status === 401) throw failure;
+      console.warn(`[sync] ${name} failed`, failure);
+      failed ??= `${name}: ${failureText(failure)}`;
+      return undefined;
+    }
+  };
   try {
-    await feed();
+    await step('Notifications', feed);
+    // The list before the notes: an organization made on another device shows here even while a note will not sync.
+    const list = await step('Organizations', orgs);
 
     const notesKey = stateKey(session.accountId, 'notes');
-    const outcome = await syncNotes({
+    const synced = await step('Notes', () => syncNotes({
       token: session.token,
       key,
       notes: deviceNotes,
@@ -359,24 +376,26 @@ async function once(parts: Parts): Promise<void> {
         const space = workspaceOf(id);
         return space !== null && isOrgWorkspace(space);
       },
-    });
-    if (outcome.changed) announceNotesChanged();
+    }));
+    if (synced?.changed) announceNotesChanged();
+    const outcome = { conflicts: synced?.conflicts ?? 0, unsent: synced?.unsent ?? 0, reason: synced?.reason ?? null };
 
     const prefsKey = stateKey(session.accountId, 'prefs');
-    applyingRemote = true;
-    try {
-      await syncPrefs({
-        token: session.token,
-        key,
-        read: preferences,
-        write: setPreferences,
-        state: load<PrefsState>(prefsKey, { rev: 0, seen: null }),
-        save: (state) => store(prefsKey, state),
-      });
-    } finally {
-      applyingRemote = false;
-    }
-    const list = await orgs();
+    await step('Preferences', async () => {
+      applyingRemote = true;
+      try {
+        await syncPrefs({
+          token: session.token,
+          key,
+          read: preferences,
+          write: setPreferences,
+          state: load<PrefsState>(prefsKey, { rev: 0, seen: null }),
+          save: (state) => store(prefsKey, state),
+        });
+      } finally {
+        applyingRemote = false;
+      }
+    });
     if (list) {
       const pair = await teamKeys(list);
       // The organization channel (core/team/sync.ts), for each organization joined whose key this device holds.
@@ -428,7 +447,8 @@ async function once(parts: Parts): Promise<void> {
         }
       }
     }
-    setStatus({ phase: 'idle', lastAt: Date.now(), message: null, conflicts: outcome.conflicts, unsent: outcome.unsent, unsentReason: outcome.reason });
+    if (failed) setStatus({ phase: 'error', message: failed, conflicts: outcome.conflicts, unsent: outcome.unsent, unsentReason: outcome.reason });
+    else setStatus({ phase: 'idle', lastAt: Date.now(), message: null, conflicts: outcome.conflicts, unsent: outcome.unsent, unsentReason: outcome.reason });
   } catch (failure) {
     if (failure instanceof ApiError && failure.status === 401) {
       // The session lapsed mid-sync: renew it (with this device's key if need be) and go again next time.
