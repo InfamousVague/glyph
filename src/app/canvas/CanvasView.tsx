@@ -13,7 +13,8 @@ import { AddSheet, type AddStep } from './AddSheet.tsx';
 import { useCamera } from './camera.ts';
 import { Card } from './Card.tsx';
 import { Pointers } from './Pointers.tsx';
-import { CommentMarks, useCanvasComments } from './useCanvasComments.tsx';
+import { CommentMarks } from './CommentMarks.tsx';
+import { useCanvasComments } from './useCanvasComments.tsx';
 import { useOthers, useSaying, useTeamCanvas } from './useTeamCanvas.ts';
 import { fileTitle } from './cardLooks.ts';
 import {
