@@ -377,7 +377,7 @@ function Invitation({ row }: { row: OrgRow }) {
 /**
  * One member: an initial in a round, the handle, the role, and since when; invited ones dashed. A member in the app
  * now has a dot on their initial and the line says "here now" or "editing Roadmap" (docs/SHARED.md, S6), and the row
- * opens their profile: since when, the colour they wear here, where they are, and Jump to cursor, which opens the
+ * opens their profile: since when, where they are, and Jump to cursor, which opens the
  * note they are editing at their caret.
  */
 function MemberLine({ member, me, index, seen, onJump }: { member: Member; me: string; index: number; seen: readonly Seen[]; onJump: (noteId: string, cursor: Jump | null) => void }) {
@@ -413,10 +413,6 @@ function MemberLine({ member, me, index, seen, onJump }: { member: Member; me: s
       {open ? (
         <div className={styles.profile} role="group" aria-label={`${member.handle}’s profile`}>
           <p className={styles.profileLine}>{line}</p>
-          <p className={styles.profileLine}>
-            <span className={styles.swatch} data-hue={member.colour ?? 'ink'} aria-hidden="true" />
-            {member.colour ? `Wears ${hueWord(member.colour)} here` : 'Wears no colour yet'}
-          </p>
           <p className={styles.profileLine}>{at ? `Editing ${at.title || (at.kind === 'canvas' ? 'an untitled canvas' : 'an untitled note')} now` : self ? 'In the app now, on this device' : present ? 'In the app now' : 'Not in the app now'}</p>
           {at ? (
             <button type="button" className={styles.jump} onClick={() => onJump(at.note, at.cursor ?? at.pointer)}>
@@ -427,11 +423,6 @@ function MemberLine({ member, me, index, seen, onJump }: { member: Member; me: s
       ) : null}
     </li>
   );
-}
-
-/** A hue's name as a word: what the profile says a member wears. */
-function hueWord(hue: string): string {
-  return hue.charAt(0).toUpperCase() + hue.slice(1);
 }
 
 /** One piece of the organization's news, as the notifications drawer words it. */

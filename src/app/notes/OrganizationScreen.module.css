@@ -458,14 +458,6 @@
   color: var(--app-ink-2);
 }
 
-.swatch {
-  flex: none;
-  inline-size: 0.8rem;
-  block-size: 0.8rem;
-  border-radius: var(--glacier-radius-full);
-  background: var(--app-space, var(--app-ink));
-}
-
 .jump {
   margin-block-start: var(--glacier-space-1);
   padding: 0.35em 0.9em;

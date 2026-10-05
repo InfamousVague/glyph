@@ -80,7 +80,16 @@ export class TeamRoom implements RoomListener {
       return;
     }
     // Applied from a connection in the room (`take`): remembered as its, to drop the moment it leaves.
-    if (typeof origin === 'number') for (const id of [...added, ...updated]) this.spoken(origin).add(id);
+    if (typeof origin !== 'number') return;
+    const spoken = this.spoken(origin);
+    // A connection is one device, and a device is one client in a room: a new client from it (its document made again
+    // after a reload) replaces the one it spoke for before, whose caret would otherwise stand where it was left.
+    const stale = added.length ? [...spoken].filter((id) => !added.includes(id) && !updated.includes(id)) : [];
+    for (const id of [...added, ...updated]) spoken.add(id);
+    if (stale.length) {
+      for (const id of stale) spoken.delete(id);
+      removeAwarenessStates(this.awareness, stale, 'left');
+    }
   };
 
   constructor(

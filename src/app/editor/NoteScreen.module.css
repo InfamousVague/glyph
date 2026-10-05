@@ -383,6 +383,18 @@
   display: none;
 }
 
+/*
+ * No transition, and nothing that gives the label a layer of its own: the binding's theme fades it in and out, and a
+ * label on a layer was left painted where a member's caret had been after it moved to another line (Matt: "it leaves
+ * the username ghost behind"). `contain: paint` on the caret is not used either: the label hangs outside it by design.
+ */
+.body :global(.cm-editor .cm-ySelectionCaret),
+.body :global(.cm-editor .cm-ySelectionCaretDot),
+.body :global(.cm-editor .cm-ySelectionInfo) {
+  transition: none;
+  will-change: auto;
+}
+
 .body :global(.cm-editor .cm-ySelectionInfo) {
   top: -1.25em;
   opacity: 1;
