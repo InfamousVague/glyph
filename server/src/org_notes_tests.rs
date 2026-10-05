@@ -176,10 +176,10 @@ async fn a_write_under_a_generation_not_in_force_is_refused_and_a_full_log_asks_
         assert_eq!(status, StatusCode::OK, "{body}");
         posted += batch;
     }
-    let (status, body) = h.call(Method::POST, &format!("/api/v1/orgs/{org}/notes/n1/updates"), Some(&matt), Some(json!({ "blobs": ["one too many"], "generation": 1 }))).await;
+    let (status, body) = h.call(Method::POST, &format!("/api/v1/orgs/{org}/notes/n1/updates"), Some(&matt), Some(json!({ "blobs": ["toomany"], "generation": 1 }))).await;
     assert_eq!((status, body), (StatusCode::CONFLICT, json!({ "error": "snapshot", "seq": kept as i64 })));
     let (status, body) = h.call(Method::PUT, &format!("/api/v1/orgs/{org}/notes/n1"), Some(&matt), Some(json!({ "base": r1, "blob": "snap", "upTo": kept as i64, "generation": 1 }))).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    let (status, body) = h.call(Method::POST, &format!("/api/v1/orgs/{org}/notes/n1/updates"), Some(&matt), Some(json!({ "blobs": ["after the cut"], "generation": 1 }))).await;
+    let (status, body) = h.call(Method::POST, &format!("/api/v1/orgs/{org}/notes/n1/updates"), Some(&matt), Some(json!({ "blobs": ["afterthecut"], "generation": 1 }))).await;
     assert_eq!((status, body), (StatusCode::OK, json!({ "seq": kept as i64 + 1 })));
 }

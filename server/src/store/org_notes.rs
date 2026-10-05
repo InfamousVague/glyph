@@ -292,35 +292,35 @@ mod tests {
     fn team_notes_are_written_from_the_revision_seen_fed_in_order_and_gone_with_their_log() {
         let (s, a, _dir) = fixture();
         let org = with_org(&s, a.id);
-        let r1 = s.put_org_note(a.id, &org, "n1", 0, Some("v1"), None, 2000, 1).unwrap();
-        let r2 = s.put_org_note(a.id, &org, "n1", r1, Some("v2"), None, 2000, 2).unwrap();
+        let r1 = s.put_org_note(a.id, &org, "n1", 0, Some("v1"), None, None, 2000, 1).unwrap();
+        let r2 = s.put_org_note(a.id, &org, "n1", r1, Some("v2"), None, None, 2000, 2).unwrap();
         assert!(r2 > r1);
-        match s.put_org_note(a.id, &org, "n1", r1, Some("elsewhere"), None, 2000, 3) {
+        match s.put_org_note(a.id, &org, "n1", r1, Some("elsewhere"), None, None, 2000, 3) {
             Err(OrgNoteWrite::Stale(winner)) => assert_eq!((winner.rev, winner.blob.as_deref(), winner.by.as_deref()), (r2, Some("v2"), Some("matt"))),
             other => panic!("expected a stale write, got {other:?}"),
         }
-        s.put_org_note(a.id, &org, "n2", 0, Some("b1"), None, 2000, 4).unwrap();
+        s.put_org_note(a.id, &org, "n2", 0, Some("b1"), None, None, 2000, 4).unwrap();
         let (feed, more, head) = s.org_notes_since(a.id, &org, 0, 10).unwrap();
         assert_eq!(feed.iter().map(|n| n.id.as_str()).collect::<Vec<_>>(), vec!["n1", "n2"]);
         assert!(!more);
         assert_eq!(head, feed[1].rev);
         // The log, numbered from 1, cut back by a snapshot, and gone with the note.
         assert_eq!(s.org_note_heads(a.id, &org).unwrap(), vec![("n1".to_string(), 0), ("n2".to_string(), 0)], "no updates yet");
-        assert_eq!(s.post_org_updates(a.id, &org, "n1", &["u1".into(), "u2".into(), "u3".into()], 5).unwrap(), 3);
+        assert_eq!(s.post_org_updates(a.id, &org, "n1", &["u1".into(), "u2".into(), "u3".into()], None, 5).unwrap(), 3);
         assert_eq!(s.org_note_heads(a.id, &org).unwrap(), vec![("n1".to_string(), 3), ("n2".to_string(), 0)]);
         let (updates, _, head) = s.org_updates_since(a.id, &org, "n1", 1, 10).unwrap();
         assert_eq!((updates.iter().map(|u| u.seq).collect::<Vec<_>>(), head), (vec![2, 3], 3));
         assert_eq!(updates[0].by.as_deref(), Some("matt"));
-        s.put_org_note(a.id, &org, "n1", r2, Some("snapshot"), Some(2), 2000, 6).unwrap();
+        s.put_org_note(a.id, &org, "n1", r2, Some("snapshot"), Some(2), None, 2000, 6).unwrap();
         let (updates, _, _) = s.org_updates_since(a.id, &org, "n1", 0, 10).unwrap();
         assert_eq!(updates.iter().map(|u| u.seq).collect::<Vec<_>>(), vec![3]);
         // Cut to nothing, the numbering still goes on from where it was.
-        s.put_org_note(a.id, &org, "n1", s.org_note_in_test(&org, "n1"), Some("snapshot2"), Some(3), 2000, 7).unwrap();
-        assert_eq!(s.post_org_updates(a.id, &org, "n1", &["u4".into()], 8).unwrap(), 4);
+        s.put_org_note(a.id, &org, "n1", s.org_note_in_test(&org, "n1"), Some("snapshot2"), Some(3), None, 2000, 7).unwrap();
+        assert_eq!(s.post_org_updates(a.id, &org, "n1", &["u4".into()], None, 8).unwrap(), 4);
         let rev = s.org_note_in_test(&org, "n1");
-        s.put_org_note(a.id, &org, "n1", rev, None, None, 2000, 9).unwrap();
+        s.put_org_note(a.id, &org, "n1", rev, None, None, None, 2000, 9).unwrap();
         assert_eq!(s.org_updates_since(a.id, &org, "n1", 0, 10), Err(OrgNoteWrite::NoSuchNote));
-        assert_eq!(s.post_org_updates(a.id, &org, "n3", &["x".into()], 10), Err(OrgNoteWrite::NoSuchNote));
+        assert_eq!(s.post_org_updates(a.id, &org, "n3", &["x".into()], None, 10), Err(OrgNoteWrite::NoSuchNote));
     }
 
     #[test]
@@ -329,30 +329,30 @@ mod tests {
         let org = with_org(&s, a.id);
         let sam = s.create_account("sam", "login-hash", "wrapped-key", None, &[], 100).unwrap();
         assert_eq!(s.org_notes_since(sam.id, &org, 0, 10), Err(OrgNoteWrite::NoSuchOrg));
-        assert_eq!(s.put_org_note(sam.id, &org, "n1", 0, Some("v"), None, 2000, 1), Err(OrgNoteWrite::NoSuchOrg));
-        assert_eq!(s.put_org_file(sam.id, &org, "v-n1", 0, b"bytes", 1), Err(OrgNoteWrite::NoSuchOrg));
+        assert_eq!(s.put_org_note(sam.id, &org, "n1", 0, Some("v"), None, None, 2000, 1), Err(OrgNoteWrite::NoSuchOrg));
+        assert_eq!(s.put_org_file(sam.id, &org, "v-n1", 0, None, b"bytes", 1), Err(OrgNoteWrite::NoSuchOrg));
         let caps = crate::store::InviteCaps { rows_per_org: 50, pending_per_invitee: 20, decline_cooldown: 86_400 };
         s.invite(a.id, &org, "sam", 2, caps).unwrap();
         assert_eq!(s.org_notes_since(sam.id, &org, 0, 10), Err(OrgNoteWrite::NoSuchOrg), "invited is not joined");
         s.answer_invite(sam.id, &org, true, 3).unwrap();
         assert!(s.org_notes_since(sam.id, &org, 0, 10).is_ok());
-        s.put_org_note(a.id, &org, "n1", 0, Some("v"), None, 2, 4).unwrap();
-        s.put_org_note(sam.id, &org, "n2", 0, Some("v"), None, 2, 5).unwrap();
-        assert_eq!(s.put_org_note(a.id, &org, "n3", 0, Some("v"), None, 2, 6), Err(OrgNoteWrite::Full));
+        s.put_org_note(a.id, &org, "n1", 0, Some("v"), None, None, 2, 4).unwrap();
+        s.put_org_note(sam.id, &org, "n2", 0, Some("v"), None, None, 2, 5).unwrap();
+        assert_eq!(s.put_org_note(a.id, &org, "n3", 0, Some("v"), None, None, 2, 6), Err(OrgNoteWrite::Full));
         // A deletion is never refused for fullness, and frees a place.
         let rev = s.org_note_in_test(&org, "n2");
-        s.put_org_note(sam.id, &org, "n2", rev, None, None, 2, 7).unwrap();
-        assert!(s.put_org_note(a.id, &org, "n3", 0, Some("v"), None, 2, 8).is_ok());
+        s.put_org_note(sam.id, &org, "n2", rev, None, None, None, 2, 7).unwrap();
+        assert!(s.put_org_note(a.id, &org, "n3", 0, Some("v"), None, None, 2, 8).is_ok());
     }
 
     #[test]
     fn files_are_whole_with_the_organizations_revision_and_go_with_it() {
         let (s, a, dir) = fixture();
         let org = with_org(&s, a.id);
-        let rev = s.put_org_file(a.id, &org, "v-n1", 0, b"versions-1", 1).unwrap();
+        let rev = s.put_org_file(a.id, &org, "v-n1", 0, None, b"versions-1", 1).unwrap();
         assert_eq!(s.org_file(a.id, &org, "v-n1").unwrap(), Some((rev, b"versions-1".to_vec())));
-        assert_eq!(s.put_org_file(a.id, &org, "v-n1", 0, b"stale", 2), Err(OrgNoteWrite::StaleFile(rev)));
-        let next = s.put_org_file(a.id, &org, "v-n1", rev, b"versions-2", 3).unwrap();
+        assert_eq!(s.put_org_file(a.id, &org, "v-n1", 0, None, b"stale", 2), Err(OrgNoteWrite::StaleFile(rev)));
+        let next = s.put_org_file(a.id, &org, "v-n1", rev, None, b"versions-2", 3).unwrap();
         assert!(next > rev);
         assert_eq!(s.org_file(a.id, &org, "nothing").unwrap(), None);
         let (_, _, head) = s.org_notes_since(a.id, &org, 0, 10).unwrap();

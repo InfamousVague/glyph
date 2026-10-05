@@ -59,10 +59,10 @@ async fn an_organization_is_made_listed_read_renamed_and_deleted_by_its_owner() 
     assert_eq!(org["invitedBy"], Value::Null);
     assert!(org["createdAt"].is_i64());
     assert_eq!(org["members"], json!([{ "handle": "matt", "role": "owner", "state": "member", "since": org["createdAt"], "invitedBy": null, "colour": null, "pub": null }]));
-    assert_eq!((org["colour"].clone(), org["keys"].clone()), (Value::Null, json!({ "generation": 0, "mine": false, "missing": 0 })));
+    assert_eq!((org["colour"].clone(), org["keys"].clone()), (Value::Null, json!({ "generation": 0, "mine": false, "missing": 0, "stale": false })));
 
     let (_, list) = h.call(Method::GET, "/api/v1/orgs", Some(&matt), None).await;
-    assert_eq!(list["orgs"], json!([{ "id": id, "name": "Ghost", "hue": "moss", "role": "owner", "state": "member", "members": 1, "invitedBy": null, "createdAt": org["createdAt"], "colour": null, "keys": { "generation": 0, "mine": false, "missing": 0 } }]));
+    assert_eq!(list["orgs"], json!([{ "id": id, "name": "Ghost", "hue": "moss", "role": "owner", "state": "member", "members": 1, "invitedBy": null, "createdAt": org["createdAt"], "colour": null, "keys": { "generation": 0, "mine": false, "missing": 0, "stale": false } }]));
     assert_eq!(list["colour"], Value::Null);
     let (status, read) = h.call(Method::GET, &format!("/api/v1/orgs/{id}"), Some(&matt), None).await;
     assert_eq!((status, read["org"].clone()), (StatusCode::OK, org));
@@ -611,12 +611,12 @@ async fn a_key_pair_is_registered_once_and_the_organization_key_is_made_once_and
     // The members carry each other's public keys, and the list says what the organization key needs.
     let (_, read) = h.call(Method::GET, &format!("/api/v1/orgs/{id}"), Some(&sam), None).await;
     assert_eq!((read["org"]["members"][0]["pub"].clone(), read["org"]["members"][1]["pub"].clone()), (json!("pub-matt"), Value::Null));
-    assert_eq!(read["org"]["keys"], json!({ "generation": 0, "mine": false, "missing": 1 }), "matt has a key and no wrap");
+    assert_eq!(read["org"]["keys"], json!({ "generation": 0, "mine": false, "missing": 1, "stale": false }), "matt has a key and no wrap");
     // Nothing made: who lacks is everyone with a key; matt makes the first generation and wraps for himself.
     let (_, keys) = h.call(Method::GET, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), None).await;
-    assert_eq!(keys, json!({ "generation": 0, "mine": null, "missing": [{ "handle": "matt", "pub": "pub-matt" }] }));
+    assert_eq!(keys, json!({ "generation": 0, "mine": null, "missing": [{ "handle": "matt", "pub": "pub-matt" }], "stale": false }));
     let (status, keys) = h.call(Method::POST, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), Some(json!({ "generation": 1, "make": true, "wraps": [{ "handle": "matt", "wrapped": "w-matt" }] }))).await;
-    assert_eq!((status, keys), (StatusCode::OK, json!({ "generation": 1, "mine": "w-matt", "missing": [] })));
+    assert_eq!((status, keys), (StatusCode::OK, json!({ "generation": 1, "mine": "w-matt", "missing": [], "stale": false })));
     // A second maker, racing: told the generation in force, and its key goes nowhere; a wrap at that generation is kept.
     let (status, body) = h.call(Method::POST, &format!("/api/v1/orgs/{id}/keys"), Some(&sam), Some(json!({ "generation": 1, "make": true, "wraps": [{ "handle": "sam", "wrapped": "w-sam-race" }] }))).await;
     assert_eq!((status, body), (StatusCode::CONFLICT, json!({ "error": "That is not the generation in force.", "generation": 1 })));
@@ -635,7 +635,7 @@ async fn a_key_pair_is_registered_once_and_the_organization_key_is_made_once_and
     let (_, keys) = h.call(Method::GET, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), None).await;
     assert_eq!(keys["missing"], json!([{ "handle": "lee", "pub": "pub-lee" }]));
     let (_, list) = h.call(Method::GET, "/api/v1/orgs", Some(&matt), None).await;
-    assert_eq!(list["orgs"][0]["keys"], json!({ "generation": 1, "mine": true, "missing": 1 }));
+    assert_eq!(list["orgs"][0]["keys"], json!({ "generation": 1, "mine": true, "missing": 1, "stale": false }));
     let (_, keys) = h.call(Method::POST, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), Some(json!({ "generation": 1, "wraps": [{ "handle": "lee", "wrapped": "w-lee" }, { "handle": "nobody", "wrapped": "w-nobody" }] }))).await;
     assert_eq!(keys["missing"], json!([]));
     let (_, keys) = h.call(Method::GET, &format!("/api/v1/orgs/{id}/keys"), Some(&lee), None).await;

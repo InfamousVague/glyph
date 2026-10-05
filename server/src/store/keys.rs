@@ -249,26 +249,26 @@ mod tests {
         store.invite(matt.id, "org-1", "lee", 4, caps()).unwrap();
         // Nothing yet, and only those with a key pair can be wrapped for: sam has none.
         store.register_key(matt.id, "pub-matt", "sealed", 1).unwrap();
-        let none = store.org_keys(matt.id, "org-1").unwrap();
-        assert_eq!(none, OrgKeys { generation: 0, mine: None, missing: vec![("matt".into(), "pub-matt".into())] });
+        let none = store.org_keys(matt.id, "org-1", None).unwrap();
+        assert_eq!(none, OrgKeys { generation: 0, mine: None, missing: vec![("matt".into(), "pub-matt".into())], stale: false });
         // The first generation, made with matt's own wrap; a second maker is told the generation in force.
         let made = store.post_org_keys(matt.id, "org-1", 1, true, &[Wrap { handle: "matt".into(), wrapped: "w-matt-1".into() }], 5).unwrap();
-        assert_eq!(made, OrgKeys { generation: 1, mine: Some("w-matt-1".into()), missing: vec![] });
+        assert_eq!(made, OrgKeys { generation: 1, mine: Some("w-matt-1".into()), missing: vec![], stale: false });
         assert_eq!(store.post_org_keys(sam.id, "org-1", 1, true, &[], 6), Err(KeyWrite::Generation(1)), "a second maker is told the one in force");
-        assert_eq!(store.post_org_keys(sam.id, "org-1", 1, false, &[], 6), Ok(OrgKeys { generation: 1, mine: None, missing: vec![] }), "at the generation in force, nothing to add is fine");
+        assert_eq!(store.post_org_keys(sam.id, "org-1", 1, false, &[], 6), Ok(OrgKeys { generation: 1, mine: None, missing: vec![], stale: false }), "at the generation in force, nothing to add is fine");
         assert_eq!(store.post_org_keys(sam.id, "org-1", 2, false, &[], 6), Err(KeyWrite::Generation(1)));
         assert_eq!(store.post_org_keys(sam.id, "org-1", 3, true, &[], 6), Err(KeyWrite::Generation(1)), "a new generation is the next one");
         // sam registers a key pair: now lacking, and listed to a member who reads; lee, invited, is not.
         store.register_key(sam.id, "pub-sam", "sealed", 7).unwrap();
         store.register_key(lee.id, "pub-lee", "sealed", 7).unwrap();
-        let read = store.org_keys(matt.id, "org-1").unwrap();
+        let read = store.org_keys(matt.id, "org-1", None).unwrap();
         assert_eq!(read.missing, vec![("sam".into(), "pub-sam".into())]);
-        assert_eq!(store.org_keys(sam.id, "org-1").unwrap().mine, None);
+        assert_eq!(store.org_keys(sam.id, "org-1", None).unwrap().mine, None);
         let filled = store.post_org_keys(matt.id, "org-1", 1, false, &[Wrap { handle: "sam".into(), wrapped: "w-sam-1".into() }, Wrap { handle: "lee".into(), wrapped: "w-lee-1".into() }, Wrap { handle: "matt".into(), wrapped: "w-matt-again".into() }], 8).unwrap();
         assert_eq!(filled.missing, vec![]);
-        assert_eq!(store.org_keys(sam.id, "org-1").unwrap().mine, Some("w-sam-1".into()));
-        assert_eq!(store.org_keys(matt.id, "org-1").unwrap().mine, Some("w-matt-1".into()), "a wrap already there is kept");
-        assert_eq!(store.org_keys(lee.id, "org-1"), Err(KeyWrite::NoSuchOrg), "an invitee reads nothing");
-        assert_eq!(store.org_keys(sam.id, "org-9"), Err(KeyWrite::NoSuchOrg));
+        assert_eq!(store.org_keys(sam.id, "org-1", None).unwrap().mine, Some("w-sam-1".into()));
+        assert_eq!(store.org_keys(matt.id, "org-1", None).unwrap().mine, Some("w-matt-1".into()), "a wrap already there is kept");
+        assert_eq!(store.org_keys(lee.id, "org-1", None), Err(KeyWrite::NoSuchOrg), "an invitee reads nothing");
+        assert_eq!(store.org_keys(sam.id, "org-9", None), Err(KeyWrite::NoSuchOrg));
     }
 }
