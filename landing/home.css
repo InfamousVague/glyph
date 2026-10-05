@@ -478,35 +478,72 @@ code {
 }
 
 
-/* An icon before a band's eyebrow, a card's heading, a lead in bold, a section's name. */
+/*
+ * An icon before a band's eyebrow, a card's heading, a lead in bold, a section's name: each on a square filled with
+ * its colour, as a row's icon is in the app's Settings (Matt: "bring splashes of color into the marketing website
+ * like we do on the settings page with the color filled icon squares"). The square is the svg's own box - a tint of
+ * the hue behind, the hue as the stroke, padding round the drawing - so the markup is as it was. A band has a hue,
+ * which its eyebrow wears; the cards and the points under it take the hues in turn, so a row reads as a set of
+ * different things rather than one colour three times. Dark and light pairs are site.css's.
+ */
+.band {
+  --hue: var(--hue-blue);
+}
+
+#plan { --hue: var(--hue-purple); }
+#files { --hue: var(--hue-yellow); }
+#history { --hue: var(--hue-mint); }
+#ai { --hue: var(--hue-coral); }
+#connected { --hue: var(--hue-red); }
+#document { --hue: var(--hue-green); }
+#private { --hue: var(--hue-graphite); }
+
+:is(.shelf, .marks, .points, .facts) > li:nth-child(6n + 1) { --hue: var(--hue-blue); }
+:is(.shelf, .marks, .points, .facts) > li:nth-child(6n + 2) { --hue: var(--hue-purple); }
+:is(.shelf, .marks, .points, .facts) > li:nth-child(6n + 3) { --hue: var(--hue-coral); }
+:is(.shelf, .marks, .points, .facts) > li:nth-child(6n + 4) { --hue: var(--hue-green); }
+:is(.shelf, .marks, .points, .facts) > li:nth-child(6n + 5) { --hue: var(--hue-yellow); }
+:is(.shelf, .marks, .points, .facts) > li:nth-child(6n + 6) { --hue: var(--hue-mint); }
+
+.eyebrow .i,
+.with-i .i,
+.i-lead {
+  box-sizing: border-box;
+  border-radius: 0.34em;
+  background: color-mix(in srgb, var(--hue, var(--hue-blue)) 16%, transparent);
+  color: var(--hue, var(--hue-blue));
+}
+
 .eyebrow {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.5rem;
 }
 
 .eyebrow .i {
-  inline-size: 1.05em;
-  block-size: 1.05em;
+  inline-size: 1.85em;
+  block-size: 1.85em;
+  padding: 0.4em;
 }
 
 .with-i {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.55rem;
 }
 
 .with-i .i {
-  inline-size: 1.1em;
-  block-size: 1.1em;
-  color: var(--ink-2);
+  inline-size: 1.75em;
+  block-size: 1.75em;
+  padding: 0.36em;
 }
 
 .i-lead {
-  inline-size: 1em;
-  block-size: 1em;
-  margin-inline-end: 0.4rem;
-  vertical-align: -0.14em;
+  inline-size: 1.7em;
+  block-size: 1.7em;
+  padding: 0.36em;
+  margin-inline-end: 0.5rem;
+  vertical-align: -0.5em;
 }
 
 /* ---- plan: the marks, each with the screen it draws and the lines that draw it --------------------------------- */

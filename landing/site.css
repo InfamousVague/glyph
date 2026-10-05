@@ -99,6 +99,43 @@
   --g12: var(--glacier-gray-12);
 }
 
+/* ---- the hues: Settings' own (src/app/settings/settings.css `[data-hue]`), a shade deeper on a light page ---------- */
+
+:root {
+  --hue-blue: #0a6fe0;
+  --hue-purple: #9a45c9;
+  --hue-red: #dd3a30;
+  --hue-graphite: #5f6368;
+  --hue-coral: #c8643f;
+  --hue-green: #2a9d4b;
+  --hue-yellow: #b58400;
+  --hue-mint: #1f9e8f;
+}
+
+:root[data-theme='dark'] {
+  --hue-blue: #4ea1ff;
+  --hue-purple: #c77dff;
+  --hue-red: #ff6b61;
+  --hue-graphite: #aeb2b8;
+  --hue-coral: #f0906b;
+  --hue-green: #4cd571;
+  --hue-yellow: #ffd43b;
+  --hue-mint: #5fe0cf;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --hue-blue: #4ea1ff;
+    --hue-purple: #c77dff;
+    --hue-red: #ff6b61;
+    --hue-graphite: #aeb2b8;
+    --hue-coral: #f0906b;
+    --hue-green: #4cd571;
+    --hue-yellow: #ffd43b;
+    --hue-mint: #5fe0cf;
+  }
+}
+
 /* ---- the page's colours, named as the app names them -------------------------------------------------------------- */
 
 :root {

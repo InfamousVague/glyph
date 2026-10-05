@@ -83,3 +83,12 @@ It lives in `landing/` and ships with `node scripts/deploy-landing.mjs`, one ssh
 - **The Caddyfile is shared.** `--caddy` writes only this domain's block, replacing it if it's there. It takes a
   backup, checks every site before and after, runs `caddy validate`, and restores the backup on any difference. The
   same care is described in `scripts/deploy-server.mjs`.
+
+## Colour (2026-10-04)
+
+Matt: "bring splashes of color into the marketing website like we do on the settings page with the color filled icon
+squares and such". Every icon that leads a band's eyebrow, a card's heading or a point sits on a square filled with a
+tint of its hue, the hue as its stroke, as a row's icon does in the app's Settings. The hues are Settings' own
+(`site.css` `--hue-*`, a light and a dark pair each); a band has one, which its eyebrow wears (`home.css` `#plan`,
+`#files`, ...), and the cards and points under it take six in turn by position, so a row is a set of different things.
+The square is the svg's own box with padding, so no markup changed.
