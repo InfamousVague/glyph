@@ -24,7 +24,7 @@
       </header>
 
       <h1>Privacy</h1>
-      <p class="muted">Last updated 2 October 2026</p>
+      <p class="muted">Last updated 5 October 2026</p>
 
       <p>
         Ghost.md is a notes app made by Matt Wisniewski ("we", "us"). This page says what happens to your notes and your
@@ -39,7 +39,8 @@
           <li>If you make an account to sync, everything is encrypted on your device before it's sent, so we can't read it.</li>
           <li>
             If you join a team (an organization), its name and who is in it are kept in the clear, so teammates can be invited
-            by handle. Your notes stay encrypted.
+            by handle. Notes you file in it are shared with its members, encrypted so that only they can read them. Your
+            other notes stay yours alone.
           </li>
           <li>No ads, no analytics, no tracking, and we never sell or share your data.</li>
           <li>You can delete your account, and everything it keeps on our servers, from the app at any time.</li>
@@ -104,8 +105,28 @@
         Settings › Notifications; an invitation is always shown.
       </p>
       <p>
-        An organization's workspace on your devices holds your own notes, which stay encrypted and are not shared with the
-        team. Sharing notes inside an organization is not built yet.
+        <strong>Notes filed in an organization are shared with its members.</strong> A note you file in an organization's
+        workspace, or make there, is the team's: every member can read it, edit it, comment on it and delete it, and members
+        who have it open at the same time see each other's typing, cursor and colour. Notes you don't file there stay yours
+        alone. Team notes are encrypted on a member's device with a key made there and held only by the organization's
+        members, wrapped separately for each of them, so our service stores them and cannot read them: not their titles,
+        words, comments, pictures or version history, and not who wrote a comment.
+      </p>
+      <p>
+        What our service can see about a team note: which organization it belongs to, its id, its size, when it changed, and
+        which account wrote each change. It also keeps each member's public encryption key and chosen colour. While team
+        notes are being edited live, the service that passes the edits along can see which signed-in account has which team
+        note open, and when; the edits themselves, the note's title and where a cursor is are encrypted, and nothing passed
+        along is stored. Every change to a team note is listed by handle in the note's version history and in the
+        organization's activity log, which are inside the encryption and shown to its members.
+      </p>
+      <p>
+        You can decline an invitation, leave an organization at any time, and mute its notifications; an owner or admin can
+        remove a member. Someone who leaves or is removed loses access at once, and the team's notes are then re-encrypted
+        under a new key they don't have. They keep whatever their devices had already downloaded. Deleting an organization
+        removes its notes, files and keys from our service. Because we cannot read team notes, we do not review them, and
+        there is no way to report another member's content to us: share only with people you trust, and write to the address
+        under Contact about anything else.
       </p>
 
       <h2>Shared links</h2>
