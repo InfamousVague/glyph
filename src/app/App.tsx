@@ -384,9 +384,11 @@ function Shell() {
    * a book's index takes the book's. A shared link's copy and a Settings sample have ends of their own (`forkFromLink`,
    * `openSample`).
    */
-  const showMade = async (body: string, { caret, before }: { caret?: number; before?: (note: Note) => void | Promise<void> } = {}): Promise<Note> => {
+  const showMade = async (body: string, { caret, before, into }: { caret?: number; before?: (note: Note) => void | Promise<void>; into?: string | null } = {}): Promise<Note> => {
     const note = await createNote(newNoteId(), body, 'editor');
     fileNewNote(note.id);
+    // Made from an organization's + (`openNewIn`): filed in its workspace whatever the list's filter is.
+    if (into) fileNote(note.id, into);
     await refresh();
     // What the note needs before its first frame: a new note's fresh mark and its held map box (`newNote`).
     await before?.(note);
@@ -545,11 +547,17 @@ function Shell() {
    * place switch, and an empty index, opened on it.
    */
   const [bookSheet, setBookSheet] = useState<'notebook' | 'journal' | null>(null);
-  const newBook = () => setBookSheet('notebook');
+  /** The workspace the notebook being named is made in, from an organization's +; null for wherever new notes go. */
+  const [bookIn, setBookIn] = useState<string | null>(null);
+  const newBook = (into: string | null = null) => {
+    // Also handed to buttons as it is, whose event is not a workspace.
+    setBookIn(typeof into === 'string' ? into : null);
+    setBookSheet('notebook');
+  };
   const newJournal = () => setBookSheet('journal');
   const createBook = (title: string, pages: readonly string[]) => {
     tabs.replaceNext(null);
-    return showMade(bookNoteBody(title, pages));
+    return showMade(bookNoteBody(title, pages), { into: bookIn });
   };
   const createJournal = (title: string, template: string, place: boolean) => {
     tabs.replaceNext(null);
@@ -645,15 +653,25 @@ function Shell() {
    * for every +, so the choice reads the same wherever it is offered.
    */
   const [newSheet, setNewSheet] = useState(false);
+  /**
+   * The workspace the + makes into, when it was an organization's + (Matt: "the "new note" button on organizations
+   * should instead be a + and show canvases and other items"): a note, a canvas or a notebook made from the sheet is
+   * filed there. Read by the sheet's rows as they are pressed, and let go when the sheet closes.
+   */
+  const [newIn, setNewIn] = useState<string | null>(null);
+  const openNewIn = (workspaceId: string) => {
+    setNewIn(workspaceId);
+    setNewSheet(true);
+  };
   // The + sheet opening reads the notes again, so its entry row names and describes each journal as it is now: an open
   // note's changes reach the list only when it closes, and a journal's template or kind may have changed in it.
   useEffect(() => {
     if (newSheet) void refresh();
   }, [newSheet, refresh]);
 
-  const newCanvas = () => {
+  const newCanvas = (into: string | null = null) => {
     tabs.replaceNext(null);
-    return showMade(canvasNoteBody('Untitled canvas', { nodes: [], edges: [] }));
+    return showMade(canvasNoteBody('Untitled canvas', { nodes: [], edges: [] }), { into: typeof into === 'string' ? into : null });
   };
 
   // From the editor's Delete: the same undoable delete a swipe does.
@@ -1271,7 +1289,7 @@ function Shell() {
         notes={shownNotes}
         onBack={() => void backToList()}
         onOpenNote={openNoteWhereLeft}
-        onNewNote={() => void newNoteIn(orgWorkspaceId(screen.orgId))}
+        onNew={() => openNewIn(orgWorkspaceId(screen.orgId))}
         onAllNotes={() => {
           chooseWorkspace(orgWorkspaceId(screen.orgId));
           void backToList();
@@ -1553,13 +1571,18 @@ function Shell() {
       ) : null}
       <NewSheet
         open={newSheet}
-        onClose={() => setNewSheet(false)}
-        onNote={() => void newNote()}
-        onCanvas={() => void newCanvas()}
-        onBook={newBook}
-        entry={entryRow}
-        onMeeting={canMeet ? newMeeting : undefined}
-        onFromLink={forkFromLink}
+        onClose={() => {
+          setNewSheet(false);
+          setNewIn(null);
+        }}
+        // From an organization's +, what is made is filed in its workspace; a journal's entry, a meeting and a shared
+        // link's copy are the account's own, and are not offered there.
+        onNote={() => void (newIn ? newNoteIn(newIn) : newNote())}
+        onCanvas={() => void newCanvas(newIn)}
+        onBook={() => newBook(newIn)}
+        entry={newIn ? undefined : entryRow}
+        onMeeting={canMeet && !newIn ? newMeeting : undefined}
+        onFromLink={newIn ? undefined : forkFromLink}
       />
       <NewBookSheet
         open={bookSheet !== null}

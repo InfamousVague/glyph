@@ -930,6 +930,31 @@ describe('the bell, and an organization’s screen', () => {
     expect(document.querySelector('nav[aria-label="New note"]')).not.toBeNull();
   });
 
+  // Matt: "the "new note" button on organizations should instead be a + and show canvases and other items".
+  it('makes a canvas in an organization from its dashboard’s +, filed in its workspace, and not a journal entry or a meeting there', async () => {
+    await openApp();
+    // The organization's workspace, as joining it makes one.
+    const { ensureOrgWorkspace, workspaces } = await import('./core/workspaces.ts');
+    act(() => void ensureOrgWorkspace({ id: 'org-2', name: 'Attack', hue: null }));
+    act(() => button('Notifications').click());
+    act(() => seen.notifications!.onOpenOrganization('org-2'));
+    act(() => seen.dashboard!.onNew());
+    const sheet = document.querySelector<HTMLElement>('[role="dialog"]')!;
+    const rows = [...sheet.querySelectorAll('button')].map((b) => b.textContent ?? '');
+    expect(rows.some((text) => text.includes('Canvas'))).toBe(true);
+    expect(rows.some((text) => text.includes('Notebook'))).toBe(true);
+    expect(rows.some((text) => text.includes('shared link') || text.includes('Meeting'))).toBe(false);
+    const { createNote } = await import('./core/store.ts');
+    const before = vi.mocked(createNote).mock.calls.length;
+    await act(async () => {
+      [...sheet.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.includes('Canvas'))!.click();
+    });
+    await vi.waitFor(() => expect(vi.mocked(createNote).mock.calls.length).toBe(before + 1));
+    const [id, body] = vi.mocked(createNote).mock.calls.at(-1)!;
+    expect(body).toContain('"nodes"');
+    await vi.waitFor(() => expect(workspaces().of[id as string]).toBe('org-org-2'));
+  });
+
   // Matt: "an "audit log" for organizations to be able to browse history of changes across all files".
   it('opens an organization’s audit log from its dashboard, in the same pane, whose arrow is the dashboard again and whose changes open notes', async () => {
     await seed(['a', '# Apples']);

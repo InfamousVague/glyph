@@ -97,7 +97,7 @@ const page = (orgId: string, over: Partial<Props> = {}) =>
       notes={[]}
       onBack={() => undefined}
       onOpenNote={() => undefined}
-      onNewNote={() => undefined}
+      onNew={() => undefined}
       onAllNotes={() => undefined}
       onSettings={() => undefined}
       onOpenOrganization={() => undefined}
@@ -151,16 +151,16 @@ describe('an organization’s dashboard', () => {
     expect(passes.count).toBe(1);
   });
 
-  it('puts its settings behind a cog in the bar, and New note and the way home on the page', async () => {
+  it('puts its settings behind a cog in the bar, and the + and the way home on the page', async () => {
     const onSettings = vi.fn();
-    const onNewNote = vi.fn();
+    const onNew = vi.fn();
     const onBack = vi.fn();
     const id = await made('Ghost');
-    page(id, { onSettings, onNewNote, onBack });
+    page(id, { onSettings, onNew, onBack });
     act(() => button('Organization settings').click());
     expect(onSettings).toHaveBeenCalledOnce();
-    act(() => buttonSaying(document.body, 'New note')!.click());
-    expect(onNewNote).toHaveBeenCalledOnce();
+    act(() => button('New in this organization').click());
+    expect(onNew).toHaveBeenCalledOnce();
     act(() => button('Back to home').click());
     expect(onBack).toHaveBeenCalledOnce();
   });

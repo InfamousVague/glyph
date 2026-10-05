@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type RefObject } from 'react';
-import { Activity, ArrowLeft, FilePlus, History, Settings, UserPlus, Users } from '@glacier/icons';
+import { Activity, ArrowLeft, FilePlus, History, Plus, Settings, UserPlus, Users } from '@glacier/icons';
 import { Input } from '@glacier/react';
 import { useAccount } from '../core/account/account.ts';
 import { useBack } from '../core/back.ts';
@@ -38,7 +38,7 @@ import styles from './OrganizationScreen.module.css';
  *
  * - **The other organizations**, as a row of pills to move between them, when there is more than one.
  * - **The hero**: the colour, the name, how many and what you are, and what its workspace is and is not yet (D1:
- *   notes filed there are the team’s, docs/SHARED.md), with New note (made filed in its workspace) and Invite (for an owner or
+ *   notes filed there are the team’s, docs/SHARED.md), with New (the + sheet: a note, a canvas or a notebook, made filed in its workspace) and Invite (for an owner or
  *   an admin, which brings the invite field into view).
  * - **Notes**: the newest of the notes filed in its workspace, as cards, and the way to all of them.
  * - **Members**: who is in it and who is invited, with their roles, and for an owner or an admin the invite field and
@@ -63,7 +63,7 @@ interface OrganizationScreenProps {
   onBack: () => void;
   onOpenNote: (id: string) => void;
   /** A new note, filed in the organization's workspace, opened ready to type. */
-  onNewNote: () => void;
+  onNew: () => void;
   /** Every note filed in the organization's workspace: the home page with that workspace chosen. */
   onAllNotes: () => void;
   /** The organization's settings (settings/OrganizationSheet.tsx), from the cog. */
@@ -92,7 +92,7 @@ function since(ms: number): string {
   return words === 'Yesterday' || words === 'Just now' ? words.toLowerCase() : words;
 }
 
-export function OrganizationScreen({ orgId, notes, onBack, onOpenNote, onNewNote, onAllNotes, onSettings, onOpenOrganization, onLog, onAccount, onJumpTo }: OrganizationScreenProps) {
+export function OrganizationScreen({ orgId, notes, onBack, onOpenNote, onNew, onAllNotes, onSettings, onOpenOrganization, onLog, onAccount, onJumpTo }: OrganizationScreenProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const topBar = useRef<HTMLElement>(null);
   const inviteField = useRef<HTMLInputElement>(null);
@@ -206,7 +206,7 @@ export function OrganizationScreen({ orgId, notes, onBack, onOpenNote, onNewNote
             <Invitation row={row} />
           ) : (
             <>
-              <Hero row={row} count={count} canInvite={Boolean(canInvite)} onNewNote={onNewNote} onInvite={toInvite} />
+              <Hero row={row} count={count} canInvite={Boolean(canInvite)} onNew={onNew} onInvite={toInvite} />
               {problem ? (
                 <p className={styles.problem} role="alert">
                   {problem}
@@ -237,7 +237,7 @@ export function OrganizationScreen({ orgId, notes, onBack, onOpenNote, onNewNote
                       ))}
                     </ol>
                   ) : (
-                    <p className={styles.none}>Nothing is filed here yet. Start one with New note, or file a note here from its More, under Workspace.</p>
+                    <p className={styles.none}>Nothing is filed here yet. Start one with New, or file a note here from its More, under Workspace.</p>
                   )}
                 </section>
                 <section className={styles.section} aria-labelledby="org-members" data-group="members">
@@ -330,7 +330,7 @@ function Switcher({ current, others, onOpen }: { current: OrgRow | null; others:
 }
 
 /** The organization at the top of its page: its colour, its name, how many and what you are, and two things to do. */
-function Hero({ row, count, canInvite, onNewNote, onInvite }: { row: OrgRow; count: number; canInvite: boolean; onNewNote: () => void; onInvite: () => void }) {
+function Hero({ row, count, canInvite, onNew, onInvite }: { row: OrgRow; count: number; canInvite: boolean; onNew: () => void; onInvite: () => void }) {
   return (
     <section className={styles.hero} aria-label={row.name}>
       <span className={styles.heroHue} data-hue={row.hue ?? 'ink'} aria-hidden="true" />
@@ -342,9 +342,10 @@ function Hero({ row, count, canInvite, onNewNote, onInvite }: { row: OrgRow; cou
         <p className={styles.heroNote}>{TEAMS_NOTES}</p>
       </div>
       <div className={styles.heroActions}>
-        <button type="button" className={styles.action} onClick={onNewNote}>
-          <FilePlus size={16} strokeWidth={2.1} aria-hidden="true" />
-          New note
+        {/* The +, as on the home page: a note, a canvas or a notebook, made filed in this organization's workspace. */}
+        <button type="button" className={styles.action} onClick={onNew} aria-label="New in this organization" title="New note, canvas or notebook">
+          <Plus size={16} strokeWidth={2.4} aria-hidden="true" />
+          New
         </button>
         {canInvite ? (
           <button type="button" className={styles.action} onClick={onInvite}>
