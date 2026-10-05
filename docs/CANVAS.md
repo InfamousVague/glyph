@@ -2,7 +2,8 @@
 
 A canvas is cards on an infinite page with lines between them: the thing Obsidian calls a canvas, in Ghost.md. Matt
 (2026-09-20): "we're going to build something similar for Glyph". His fifteen choices steer it; this is the standard
-they set, and it grows as the slices land. Seven slices are built; the end of this page lists what is not.
+they set, and it grows as the slices land. Eight slices are built, and snapping to the dots after them; the end of
+this page lists what is not.
 
 ## Matt's choices
 
