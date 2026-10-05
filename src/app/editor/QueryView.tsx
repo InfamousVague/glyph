@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, ChartGantt, Check, ChevronLeft, ChevronRight, List as ListIcon, Pencil, Sigma, SlidersHorizontal, SquareKanban, Table as TableIcon, TriangleAlert, type IconProps } from '@glacier/icons';
+import { CalendarDays, ChartGantt, Check, ChevronLeft, ChevronRight, List as ListIcon, Pencil, Plus, Sigma, SlidersHorizontal, SquareKanban, Table as TableIcon, TriangleAlert, type IconProps } from '@glacier/icons';
 import { inMonth, monthAfter, monthName, monthWeeks, openingMonth, type CalendarDay } from '../core/query/calendar.ts';
 import { withShow } from '../core/query/fence.ts';
 import { SHOWS, type QueryProblem, type ShowAs } from '../core/query/read.ts';
@@ -57,6 +57,11 @@ interface QueryViewProps {
   onMove: (row: Row, value: string | null) => void;
   /** One field of a record set to a value picked in a sheet, or taken off with null. Absent, nothing is picked. */
   onSet?: (row: Row, field: string, value: string | null) => void;
+  /**
+   * A ticket made from a lane of a board, by the words typed at the lane's + (editor/queries.ts `onAdd`): `lane` is the
+   * lane's value in the grouped field, null for a board that is not grouped. Absent, a board's lanes have no +.
+   */
+  onAdd?: (lane: string | null, title: string) => void;
   /** The people the library names, the most named first: who a person's sheet offers. Read when it opens. */
   people?: () => readonly string[];
 }
@@ -71,6 +76,8 @@ interface Acts {
   /** Whether a record's field opens a sheet to pick it from; and opening it. */
   pickable: (row: Row, field: string) => boolean;
   pick: (row: Row, column: Column, cell: Cell) => void;
+  /** A ticket made in a board's lane; absent where the board makes none. */
+  onAdd?: (lane: string | null, title: string) => void;
 }
 
 /** A sheet open on one record's field. */
@@ -81,7 +88,7 @@ interface Picking {
   pick: FieldPick;
 }
 
-export function QueryView({ lines, problem, result, editable, height = null, onHeight, onBody, onEdit, onOpen, onTick, onMove, onSet, people }: QueryViewProps) {
+export function QueryView({ lines, problem, result, editable, height = null, onHeight, onBody, onEdit, onOpen, onTick, onMove, onSet, onAdd, people }: QueryViewProps) {
   const [building, setBuilding] = useState(false);
   const [picking, setPicking] = useState<Picking | null>(null);
   if (problem || !result) {
@@ -107,6 +114,7 @@ export function QueryView({ lines, problem, result, editable, height = null, onH
     onOpen,
     onTick,
     onMove,
+    onAdd: editable ? onAdd : undefined,
     pickable: (row, field) => canPick && picksField(row, field),
     pick: (row, column, cell) => {
       const pick = pickOf(row, column.field, cell, result.today, people ?? (() => []));
@@ -268,7 +276,7 @@ function Head({
 }
 
 /** A group's heading, for a list or a table grouped by a field: its value, how many, and its totals. */
-function GroupHead({ group }: { group: Group }) {
+function GroupHead({ group, onAdd }: { group: Group; onAdd?: () => void }) {
   return (
     <div className={styles.groupHead}>
       {group.cell?.kind === 'status' ? <StatusCell cell={group.cell} /> : <span className={styles.groupLabel}>{group.label}</span>}
@@ -278,6 +286,11 @@ function GroupHead({ group }: { group: Group }) {
           {total.label} {total.text}
         </span>
       ))}
+      {onAdd ? (
+        <button type="button" className={styles.laneAdd} aria-label={`Add a ticket to ${group.label}`} onClick={onAdd}>
+          <Plus size="1.05em" strokeWidth={2.2} aria-hidden="true" />
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -709,6 +722,10 @@ function BoardView({ result, acts, height, onHeight }: { result: QueryResult; ac
   const [dragged, setDragged] = useState<number | null>(null);
   const shown = dragged ?? height;
   const boardRef = useRef<HTMLDivElement>(null);
+  // The lane a ticket is being typed into at its +, by its group key; null for none.
+  const [composing, setComposing] = useState<string | null>(null);
+  // Counted at every press of a +, so a press on the lane already open takes the focus back to its field.
+  const [asked, setAsked] = useState(0);
 
   // Across the board at its sides, and up and down the lane the card is held in at its top and foot.
   const lanes = useLaneCarry(result, acts, () => {
@@ -732,9 +749,21 @@ function BoardView({ result, acts, height, onHeight }: { result: QueryResult; ac
         {result.groups.map((group) => {
           const shownRows = lanes.shown(group);
           const gap = lanes.gapIn(group);
+          const add = acts.onAdd ? laneAdd(result, group, acts.onAdd) : null;
           return (
             <section key={group.key || 'none'} className={styles.lane} role="listitem" aria-label={`${group.label}, ${group.rows.length}`} {...lanes.lane(group)}>
-              <GroupHead group={group} />
+              <GroupHead
+                group={group}
+                onAdd={
+                  add
+                    ? () => {
+                        setComposing(group.key);
+                        setAsked((was) => was + 1);
+                      }
+                    : undefined
+                }
+              />
+              {add && composing === group.key ? <LaneComposer lane={group.label} asked={asked} onAdd={add} onClose={() => setComposing(null)} /> : null}
               <LaneCards still={dragged !== null}>
                 {shownRows.map((row) => (
                   <li key={row.key} className={styles.card} data-done={row.category === 'done' || row.done ? '' : undefined} {...lanes.thing(row, group)}>
@@ -755,6 +784,89 @@ function BoardView({ result, acts, height, onHeight }: { result: QueryResult; ac
       </div>
       {acts.editable && onHeight ? <HeightSplit boardRef={boardRef} height={height} onDrag={setDragged} onHeight={onHeight} /> : null}
     </>
+  );
+}
+
+/**
+ * What a lane's + makes a ticket with, or null where it makes none: a lane of a status or of words, whose value the
+ * ticket is given so it lands where it was typed, or the one lane of a board that is not grouped. The "No …" lane, a
+ * lane of days, people or priorities, are drawn from values a lane's name cannot write back (`laneValue`).
+ */
+function laneAdd(result: QueryResult, group: Group, onAdd: (lane: string | null, title: string) => void): ((title: string) => void) | null {
+  if (!result.group) return (title) => onAdd(null, title);
+  const value = laneValue(group);
+  return value === null ? null : (title) => onAdd(value, title);
+}
+
+/**
+ * The field a lane's new ticket is typed into, at the top of the lane, drawn as the card it is about to be, as a
+ * ```board's is (editor/boards/composer.ts; Matt: "add the ability to add new tickets to query boards from the board
+ * like we can on the standard board"). Enter or Add makes the ticket and leaves the field open and empty for the next;
+ * Escape, or leaving it empty, puts it away. Marked as no login form, so no password manager offers to save it.
+ */
+function LaneComposer({ lane, asked, onAdd, onClose }: { lane: string; asked: number; onAdd: (title: string) => void; onClose: () => void }) {
+  const [words, setWords] = useState('');
+  const field = useRef<HTMLInputElement>(null);
+  // Focused as it opens, and again at each press of its lane's + while it is open.
+  useEffect(() => field.current?.focus(), [asked]);
+  const submit = () => {
+    const title = words.trim();
+    if (!title) return;
+    onAdd(title);
+    setWords('');
+    fireNativeHaptic('selection');
+  };
+  return (
+    <form
+      className={styles.compose}
+      autoComplete="off"
+      data-form-type="other"
+      data-1p-ignore=""
+      data-lpignore="true"
+      onSubmit={(event) => {
+        event.preventDefault();
+        submit();
+      }}
+    >
+      <span className={styles.composeTick} aria-hidden="true" />
+      <input
+        ref={field}
+        type="text"
+        name="ticket"
+        className={styles.composeField}
+        placeholder="New ticket"
+        enterKeyHint="done"
+        autoCapitalize="sentences"
+        autoComplete="off"
+        data-form-type="other"
+        data-1p-ignore=""
+        data-lpignore="true"
+        aria-label={`New ticket in ${lane}`}
+        value={words}
+        onChange={(event) => setWords(event.target.value)}
+        onKeyDown={(event) => {
+          // Enter makes the ticket itself: a form inside the note's editable page is not sent by Enter on every
+          // browser, and a keyboard still composing a word is left to finish it.
+          if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+            event.preventDefault();
+            submit();
+          } else if (event.key === 'Escape') {
+            event.preventDefault();
+            onClose();
+          }
+        }}
+        onBlur={() => {
+          if (words.trim()) return;
+          window.setTimeout(() => {
+            if (document.activeElement !== field.current) onClose();
+          }, 150);
+        }}
+      />
+      {/* Pressing Add must not take the focus from the field first, or the phone's keyboard drops between tickets. */}
+      <button type="submit" className={styles.composeAdd} disabled={!words.trim()} onMouseDown={(event) => event.preventDefault()}>
+        Add
+      </button>
+    </form>
   );
 }
 

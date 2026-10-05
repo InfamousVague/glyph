@@ -10702,3 +10702,31 @@ Tests: home/HomeOrganizations.test.tsx, the self-presence lines in notes/Organiz
 row in core/team/sync.test.ts.
 
 Cites: §195, §199.
+
+## 201. New tickets from a query's board (2026-10-05)
+
+Matt: "add the ability to add new tickets to query boards from the board like we can on the standard board". A
+ticket board drawn by a ```query (`from: tickets`, `show: board`) has a **+** at the end of each lane's head, as a
+```board's column has (editor/boards/composer.ts). It opens a field at the top of the lane drawn as the card it is
+about to be - the same corners, ring, empty box and Add as the ```board's - and Enter or Add makes the ticket; the
+field stays open and empty for the next, and Escape, or leaving it empty, puts it away. A press on the + of a lane
+already open takes the focus back to its field.
+
+What the ticket says is what lands it in that lane (core/query/draft.ts `ticketDraft`): the board's grouped field set
+to the lane's value (a status, or a field of words; the "No …" lane and lanes of days, people or priorities have no
++, since a lane's name cannot write those back, as they cannot take a dragged card), the notebook `from: [[…]]`
+names, the labels its `#tag`s ask for, the assignee its `@person` does, and every `field = value` in `where:`. Only
+what every record listed must have is taken: a source or a test under `or` or `not` is one of several ways in and is
+left to the person, and a field the ticket's maker sets (`id`, `type`, `title`…) is never copied.
+
+App makes it (`addFromQuery`), as New ticket in a notebook does (`openTicketWithin`, §157): the notebook `from:`
+names, else the one the board's own note is in; its next key read across every note, the Trash's too; its
+workflow's first open status, then the lane's. Its page goes in the notebook's index, and it is filed in the
+notebook's workspace, else the board's note's. It is not opened: the board is where the next one is typed. A title
+some note already has is refused with a toast, since `[[links]]` find notes by title. Where the board is drawn in
+the notebook itself, the index line is written by the board's editor (editor/queries.ts), never under it. A board of
+to-dos, or of notes, has no + : a to-do has no one note it belongs in, and a note no workflow.
+
+Tests: core/query/draft.test.ts; the four in editor/queries.test.ts under "a new ticket typed at a lane of a board".
+
+Cites: §157, §159, §169.

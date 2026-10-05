@@ -111,7 +111,11 @@ Every record also has `title` (`note` reads better for a to-do: the note it is i
 - **table**: the columns, a total row for `total:`, scrolling sideways on a phone.
 - **board**: a lane for each value of `group:`, or each status. A ticket board has every status of its notebook's
   workflow, empty ones included, as a Jira board does. A card is dragged to another lane to set the field the board
-  groups by (a long press lifts it on a phone). Its lanes
+  groups by (a long press lifts it on a phone). A ticket board's lanes each have a **+**, as a ```board's columns
+  do: the words typed there make a ticket in that lane - the notebook `from: [[…]]` names (else the one the board's
+  note is in) with its next key, the lane's value, the `#tag`s and `@person` `from:` insists on and every `field =
+  value` in `where:` (core/query/draft.ts) - its page added to the notebook's index, filed where the notebook is, and
+  the field left open for the next. Its lanes
   are a screenful tall (24em) and scroll inside it, the wisp at their foot; the line under the board sets their
   height as a ```board's does, written on the fence as ```` ```query height=30 ````, and a double tap takes it off.
 - **calendar**: a month, Monday first, a dot on each day for each record on it (its due day, else scheduled, start,
