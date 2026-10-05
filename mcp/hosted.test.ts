@@ -1,5 +1,8 @@
 // @vitest-environment node
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import type { Server } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -14,23 +17,27 @@ import { aNote, asText, ClaudeMemory, completeSignIn, playSignInPage, readSignIn
  * The hosted server, connected to as Claude connects: the client library's own OAuth flow (discovery from the 401,
  * registration, the sign-in page, the code, the tokens), then the tools, against the sync service stood in for in
  * memory (src/test/fakeService.ts). The browser's part - the sign-in page's script - is played with the same crypto
- * by testKit.ts's playSignInPage; loginPage.test.ts runs the page's own.
+ * by testKit.ts's playSignInPage; loginPage.test.ts runs the page's own. And the server restarted under Claude: stopped,
+ * and made again from the file it kept (hostedStore.test.ts has the file's own tests).
  */
 
 const CALLBACK = 'http://localhost:9999/callback';
 
 /**
  * The hosted server on a loopback port of its own, over Matt's account on a fresh service in memory, on a clock the
- * test moves. With the steps a person and Claude take through it.
+ * test moves. With the steps a person and Claude take through it. `state` is the file it keeps its sessions in, and
+ * `after` the server it is a restart of: over the same sync service, though on a port of its own, since a connection
+ * the test's `fetch` kept open to the stopped one would be reset under the next request. Nothing Claude holds names
+ * the port.
  */
-async function hostedOnAPort(clock: { now: number }) {
-  const service = await fakeService({ handle: 'matt', password: 'correct horse' });
-  await service.deviceWrites(aNote('n1', '# Groceries\n\nWe need:\n- eggs\n- milk'));
+async function hostedOnAPort(clock: { now: number }, { state, after }: { state?: string; after?: { service: Awaited<ReturnType<typeof fakeService>> } } = {}) {
+  const service = after?.service ?? (await fakeService({ handle: 'matt', password: 'correct horse' }));
+  if (!after) await service.deviceWrites(aNote('n1', '# Groceries\n\nWe need:\n- eggs\n- milk'));
   // A port nobody is using, so the app can be made with its real address as the issuer.
   const port = await freePort();
   const origin = `http://127.0.0.1:${port}`;
   const url = new URL(`${origin}/glyph/api/mcp`);
-  const hosted = hostedApp({ issuer: url.href, api: 'https://fake.test/glyph/api', apiPublic: 'https://fake.test/glyph/api', fetcher: service.fetcher, rateLimit: false, now: () => clock.now });
+  const hosted = hostedApp({ issuer: url.href, api: 'https://fake.test/glyph/api', apiPublic: 'https://fake.test/glyph/api', fetcher: service.fetcher, rateLimit: false, now: () => clock.now, state });
   const server = await new Promise<Server>((resolve) => {
     const listening = hosted.app.listen(port, '127.0.0.1', () => resolve(listening));
   });
@@ -39,7 +46,7 @@ async function hostedOnAPort(clock: { now: number }) {
   const signInPage = async (authorizeUrl: URL) => {
     const page = await readSignInPage(authorizeUrl);
     expect(page.status).toBe(200);
-    expect(page.html).toContain('keeps it in memory only');
+    expect(page.html).toContain('in memory, and on disk only sealed');
     expect(page.request && page.base).toBeTruthy();
     return page;
   };
@@ -70,8 +77,15 @@ async function hostedOnAPort(clock: { now: number }) {
     return { memory, client };
   };
 
+  /** Claude back after a restart, with what it held before: connected without the person, or refused. */
+  const reconnect = async (memory: ClaudeMemory) => {
+    const client = new Client({ name: 'claude', version: '0' });
+    await client.connect(new StreamableHTTPClientTransport(url, { authProvider: memory }));
+    return client;
+  };
+
   const close = () => new Promise<void>((resolve) => server.close(() => resolve()));
-  return { service, origin, url, hosted, signInPage, signInOnThePage, firstContact, connectAsClaude, close };
+  return { service, origin, url, hosted, signInPage, signInOnThePage, firstContact, connectAsClaude, reconnect, close };
 }
 
 describe('Claude connecting to the hosted server', () => {
@@ -275,5 +289,157 @@ describe('what ends a sign-in, and what the server refuses', () => {
     await expect(client.callTool({ name: 'list_notes', arguments: {} })).rejects.toBeTruthy();
     expect(at.hosted.sessions.size).toBe(before - 1);
     await client.close().catch(() => undefined);
+  });
+});
+
+describe('a restart of the server', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'glyph-mcp-hosted-'));
+  let files = 0;
+  const aFile = () => join(dir, `sessions-${++files}.json`);
+  const bearer = (at: { url: URL }, token: string) => fetch(at.url, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: '{}' });
+
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  it('signs nobody out: the session comes back closed, and the tokens Claude holds open it, first the access token and then the refresh token', async () => {
+    const clock = { now: 1_800_000_000_000 };
+    const state = aFile();
+    // What the page hands the server, caught on its way, to look for in the file afterwards.
+    const posted = vi.spyOn(globalThis, 'fetch');
+    const first = await hostedOnAPort(clock, { state });
+    const { memory, client } = await first.connectAsClaude();
+    const handed = JSON.parse(posted.mock.calls.map((c) => c[1]?.body).find((b): b is string => typeof b === 'string' && b.includes('accountKey'))!) as { accountKey: string; token: string };
+    posted.mockRestore();
+    await client.callTool({ name: 'append_to_note', arguments: { title: 'Groceries', text: 'bread', as: 'item' } });
+    await client.close();
+    await first.close();
+
+    // The file: who is signed in, and no key and no token of anyone's.
+    const written = readFileSync(state, 'utf8');
+    expect(handed.accountKey).toHaveLength(43);
+    for (const secret of [handed.accountKey, handed.token, memory.saved!.access_token, memory.saved!.refresh_token!]) expect(written).not.toContain(secret);
+    expect((JSON.parse(written) as { sessions: { handle: string }[] }).sessions.map((s) => s.handle)).toEqual(['matt']);
+
+    // Restarted. The session is there, closed: no account, nothing that opens one.
+    const second = await hostedOnAPort(clock, { state, after: first });
+    const kept = () => [...second.hosted.sessions.values()][0]!;
+    expect(second.hosted.sessions.size).toBe(1);
+    expect(kept().account).toBeUndefined();
+    expect(kept().sealKey).toBeUndefined();
+    // Claude carries on with the access token it holds, and is not sent to the sign-in page.
+    const sentTo = memory.sentTo;
+    const access = memory.saved!.access_token;
+    const again = await second.reconnect(memory);
+    const added = JSON.parse(asText(await again.callTool({ name: 'append_to_note', arguments: { title: 'Groceries', text: 'jam', as: 'item' } }))) as { added: string[] };
+    expect(added.added).toEqual(['- Jam']);
+    expect((await second.service.stored('n1'))?.note.body).toBe('---\nauthors: matt, Claude\n---\n# Groceries\n\nWe need:\n- eggs\n- milk\n- Bread\n- Jam');
+    expect(kept().account).toBeDefined();
+    expect(memory.sentTo).toBe(sentTo);
+    expect(memory.saved!.access_token).toBe(access);
+    await again.close();
+    await second.close();
+
+    // Restarted again, more than an hour on: the access token has run out, and the refresh token is what opens it.
+    clock.now += 61 * 60 * 1000;
+    const third = await hostedOnAPort(clock, { state, after: first });
+    expect((await bearer(third, access)).status).toBe(401);
+    const later = await third.reconnect(memory);
+    const status = JSON.parse(asText(await later.callTool({ name: 'account_status', arguments: {} }))) as { handle: string; connections: number };
+    expect(status).toMatchObject({ handle: 'matt', connections: 1 });
+    expect(memory.sentTo).toBe(sentTo);
+    expect(memory.saved!.access_token).not.toBe(access);
+    await later.close();
+    await third.close();
+  });
+
+  it('opens one account for a session, however many requests arrive for it at once', async () => {
+    const clock = { now: 1_800_000_000_000 };
+    const state = aFile();
+    const first = await hostedOnAPort(clock, { state });
+    const { memory, client } = await first.connectAsClaude();
+    await client.close();
+    await first.close();
+    const second = await hostedOnAPort(clock, { state, after: first });
+    const list = () =>
+      fetch(second.url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${memory.saved!.access_token}`, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+      });
+    const answers = await Promise.all([list(), list(), list()]);
+    expect(answers.map((a) => a.status)).toEqual([200, 200, 200]);
+    expect(second.hosted.sessions.size).toBe(1);
+    await second.close();
+  });
+
+  it('keeps what ended ended: a disconnected Claude, everyone signed out everywhere, and a week unused', async () => {
+    const clock = { now: 1_800_000_000_000 };
+    const state = aFile();
+    const first = await hostedOnAPort(clock, { state });
+    const gone = await first.connectAsClaude();
+    const one = await first.connectAsClaude();
+    const two = await first.connectAsClaude();
+    const revoked = await fetch(`${first.url.href}/revoke`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token: gone.memory.saved!.refresh_token!, client_id: gone.memory.info!.client_id }) });
+    expect(revoked.status).toBe(200);
+    for (const { client } of [gone, one, two]) await client.close().catch(() => undefined);
+    await first.close();
+
+    const second = await hostedOnAPort(clock, { state, after: first });
+    expect(second.hosted.sessions.size).toBe(2);
+    expect((await bearer(second, gone.memory.saved!.access_token)).status).toBe(401);
+    await expect(second.reconnect(gone.memory)).rejects.toThrow('That refresh token is not one of ours');
+    // One of the two left signs out everywhere: the other goes with it, though nothing has opened it since the restart.
+    const back = await second.reconnect(one.memory);
+    const ended = JSON.parse(asText(await back.callTool({ name: 'sign_out_everywhere', arguments: {} }))) as { endedConnections: number };
+    expect(ended.endedConnections).toBe(2);
+    await back.close().catch(() => undefined);
+    await second.close();
+    const third = await hostedOnAPort(clock, { state, after: first });
+    expect(third.hosted.sessions.size).toBe(0);
+    expect((await bearer(third, two.memory.saved!.access_token)).status).toBe(401);
+
+    // And a session nobody used for a week is over, though the server was down for some of it.
+    const idle = await third.connectAsClaude();
+    await idle.client.close();
+    await third.close();
+    clock.now += 8 * 24 * 60 * 60 * 1000;
+    const fourth = await hostedOnAPort(clock, { state, after: first });
+    expect(fourth.hosted.sessions.size).toBe(0);
+    await expect(fourth.reconnect(idle.memory)).rejects.toThrow('That refresh token is not one of ours');
+    await fourth.close();
+  });
+
+  it('ends a session whose file was changed, and says so, and signs everyone out when there is no file', async () => {
+    const clock = { now: 1_800_000_000_000 };
+    const state = aFile();
+    const first = await hostedOnAPort(clock, { state });
+    const { memory, client } = await first.connectAsClaude();
+    await client.close();
+    await first.close();
+    // Another session's sealed key in this one's place, as someone with the disk might try: it does not open.
+    const kept = JSON.parse(readFileSync(state, 'utf8')) as { sessions: { sealedKey: string; sealedToken: string }[] };
+    kept.sessions[0]!.sealedKey = kept.sessions[0]!.sealedToken;
+    writeFileSync(state, JSON.stringify(kept));
+    const said = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    try {
+      const second = await hostedOnAPort(clock, { state, after: first });
+      expect(second.hosted.sessions.size).toBe(1);
+      expect((await bearer(second, memory.saved!.access_token)).status).toBe(401);
+      expect(second.hosted.sessions.size).toBe(0);
+      expect(said.mock.calls.map((c) => String(c[0])).join('')).toContain('glyph-mcp: a kept session would not open');
+      await second.close();
+    } finally {
+      said.mockRestore();
+    }
+
+    // With no file, as it was before: memory only, and a restart is everyone signing in again.
+    const plain = await hostedOnAPort(clock);
+    const there = await plain.connectAsClaude();
+    await there.client.close();
+    await plain.close();
+    const restarted = await hostedOnAPort(clock, { after: plain });
+    expect(restarted.hosted.sessions.size).toBe(0);
+    // Not even the client Claude registered as is known: what claude.ai reported as "connection invalidated".
+    await expect(restarted.reconnect(there.memory)).rejects.toThrow('Invalid client_id');
+    await restarted.close();
   });
 });

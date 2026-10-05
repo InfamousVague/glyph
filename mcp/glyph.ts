@@ -80,7 +80,7 @@ export interface Hooks {
   fetcher?: typeof fetch;
   /** Called whenever the session changes (a renewed token), so what is kept between runs keeps up. */
   save?: (session: StoredSession) => void;
-  /** The account key as a key object, in place of the session's bytes: the hosted server holds it this way, in memory only (docs/MCP.md). */
+  /** The account key as a key object, in place of the session's bytes: the hosted server holds it this way in memory (docs/MCP.md). */
   key?: CryptoKey;
   /** The session could not be renewed and needs the password again. */
   lapsed?: () => void;

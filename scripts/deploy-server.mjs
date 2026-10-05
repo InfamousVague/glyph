@@ -108,9 +108,9 @@ const curl = (args) => spawnSync('curl', ['-s', '-m', '25', ...args], { encoding
  * `--mcp-only`: ship the hosted MCP server and nothing else - no cargo, and
  * glyph-api on the box is not touched, restarted or backed up. For a change
  * to the sign-in page or a tool, which is most of them. Either way, glyph-mcp
- * is restarted only when its file or unit actually changed: a restart signs
- * every connected person out (docs/MCP.md), and a glyph-api deploy is no
- * reason for that.
+ * is restarted only when its file or unit actually changed: a restart keeps
+ * everyone signed in (docs/MCP.md), but a glyph-api deploy is no reason for
+ * one.
  */
 const MCP_ONLY = process.argv.includes('--mcp-only');
 
@@ -197,7 +197,7 @@ fi
 unset GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW
 
 # Claude's hosted MCP server beside it: the one file, renamed into place like the binary, and its own unit. Only
-# when either changed: a restart signs everyone out, so an unchanged server is left running. The previous file is
+# when either changed: a restart signs nobody out (its sessions are kept, sealed), but an unchanged server is left running all the same. The previous file is
 # kept as .prev for a way back.
 $SUDO install -d -o root -g root -m 755 ${REMOTE}/mcp
 mcp_changed=

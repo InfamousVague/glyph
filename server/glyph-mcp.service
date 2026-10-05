@@ -4,9 +4,11 @@
 # Installed by scripts/deploy-server.mjs beside glyph-api, which rewrites this file on every deploy - edit it here,
 # not on the box. The same shape as glyph-api.service: the same system user, loopback only, the same hardening.
 #
-# It keeps nothing on disk. A signed-in person's account key lives in this process's memory for as long as their
-# session lasts and no longer (the header of mcp/hosted.ts says how); a restart signs everyone out, and Claude asks
-# them to sign in again. So there is no state directory, and nothing here to back up.
+# It keeps one file, /var/lib/glyph-mcp/sessions.json, so that a restart signs nobody out: the sessions and their
+# tokens, sealed so that the file opens nothing without a token Claude holds (mcp/hostedSeal.ts, and the header of
+# mcp/hostedStore.ts). A signed-in person's account key is in this process's memory while their session is in use,
+# and in that file only sealed. Nothing here to back up: the file is no use anywhere else, and losing it costs
+# everyone one sign-in.
 
 [Unit]
 Description=Glyph MCP server (Claude's access to an account's notes, over glyph-api)
@@ -20,6 +22,11 @@ Environment=GLYPH_MCP_ISSUER=https://ghostmarkdown.com/api/mcp
 Environment=GLYPH_API=http://127.0.0.1:8796/api
 Environment=GLYPH_API_PUBLIC=https://ghostmarkdown.com/api
 Environment=NODE_ENV=production
+# The sessions, kept across a restart. systemd makes the directory, the service's own and nobody else's, and it is
+# the one place ProtectSystem=strict leaves this process able to write.
+StateDirectory=glyph-mcp
+StateDirectoryMode=0700
+Environment=GLYPH_MCP_STATE=/var/lib/glyph-mcp/sessions.json
 ExecStart=/usr/bin/node /opt/glyph-api/mcp/glyph-mcp-hosted.mjs
 User=glyph
 Group=glyph

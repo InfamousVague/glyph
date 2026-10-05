@@ -7,7 +7,7 @@ account and add and update notes as well as read them, be detailed and make sure
 It works for any Ghost.md account, and it comes two ways:
 
 - **Hosted** (the easy one): Claude connects to `https://ghostmarkdown.com/api/mcp`, you sign in on a page once, and
-  that is all. Nothing to install. While you are signed in, Ghost.md's server holds your account key in memory (below).
+  that is all. Nothing to install. While you are signed in, Ghost.md's server holds your account key: in memory, and on disk only sealed (below).
 - **On your own computer**: one file you run with Node, which keeps your key on your machine and the server never
   sees it. For anyone who would rather keep end-to-end encryption whole.
 
@@ -102,14 +102,53 @@ the tools ready. That is the whole setup, on every device you use Claude from.
 
 **What the hosted server keeps.** Your notes are end-to-end encrypted, so a server that reads them has to hold your
 account key. The sign-in page unwraps the key in your browser - your password stays there; the sync service sees the
-same login half it sees from your phone - and hands the key to the MCP server, which keeps it **in memory only**, as
-a key object the process cannot read out, never on disk. For as long as that session lasts, the server can read your
-notes: that is what lets Claude. The page says so before it asks for the password.
+same login half it sees from your phone - and hands the key to the MCP server, which holds it in memory, as a key
+object, while the session is in use. For as long as that session lasts, the server can read your notes: that is what
+lets Claude. The page says so before it asks for the password.
 
-The session ends, and the key with it, when you disconnect the server in Claude (Claude tells it), when nobody has
-used it for a week, when the refresh token runs out after thirty days, or when the server restarts (a deploy of the
-MCP server itself signs everyone out - a deploy of glyph-api alone does not - and Claude asks you to sign in again).
-Changing your Ghost.md password does not end it: disconnect to be sure.
+The session ends, and the key with it, when you disconnect the server in Claude (Claude tells it), when you sign out
+everywhere, when nobody has used it for a week, or when the refresh token runs out after thirty days. And a week
+after you signed in, used or not: the sync service's own token lasts that long, and the hosted server has no device
+key to renew a lapsed one with. Changing your Ghost.md password does not end it: disconnect to be sure.
+
+**Across a restart.** A restart of the MCP server (a deploy of it) used to sign everyone out, since all of the above
+was in memory only: on 2026-10-05, after the 15:57 UTC deploy, Claude answered "The user's connection to this
+connector was invalidated" until the person signed in again. Now the server keeps its sessions in one file,
+`/var/lib/glyph-mcp/sessions.json` (`GLYPH_MCP_STATE`; the unit's `StateDirectory`, mode 700, the file 600), and a
+restart signs nobody out. The lifetimes above are the same, and counted across it.
+
+The file never holds a key, or a token, in the clear, and it opens nothing by itself (`mcp/hostedSeal.ts`):
+
+- Each session has a **seal key** of its own, 32 random bytes, made at sign-in. The account key and the sync
+  service's token are written sealed under it (AES-256-GCM, each bound to its session and to what it is).
+- The seal key is not written. What is written is the seal key **wrapped under each token that names the session** -
+  the access token and the refresh token Claude holds - with a key derived from that token (HKDF-SHA256).
+- The tokens are not written either. The file names each by an id derived from it, one way, and the id is not the
+  wrapping key.
+
+So what opens a session's key is a token, and the only copy of a token is Claude's. After a restart every session
+is *closed*: the server knows that it exists, whose it is and when it runs out, and cannot read its key. The first
+request that arrives with one of its tokens - the access token, or the refresh token being traded for the next -
+opens it, and from then on it is in memory as before. A token that is spent, run out or taken back takes its wrap
+with it, and a session that ends is removed from the file in the same act. A session whose record will not open (a
+file someone changed) is ended, with a line in the journal; a file that cannot be read at all is everybody signing in
+again, the same.
+
+What this is worth, plainly. Someone who reads the disk - a backup, a stolen image, the file alone - gets no account
+key and no way to one. Someone who can read the running process's memory gets the keys of the sessions open at that
+moment, as before this change; and someone who holds both the file and a live token of Claude's can open that
+session, which is what the token is for. The seal key of an open session is in memory beside the key it seals, so
+that the next tokens can be wrapped; "a key object the process cannot read out" is still how the account key itself
+is held, and no longer the whole of it.
+
+What the file says in the clear: each session's id, its handle, the client it belongs to and what that app calls
+itself, and when it was last used; each token's id, expiry and wrap; and the clients Claude registered (their
+redirect addresses and names, and a client secret for one that asked for one - which names an app, not a person, and
+opens no session). A client no session belongs to is forgotten thirty days after it was last heard from. Sign-in
+pages in progress and codes not yet traded are not written: a restart in the moment between signing in and Claude's
+exchange costs that one sign-in. The file is written whole and renamed into place, at once when tokens are issued or
+a session ends, and every ten minutes and at shutdown for the rest. Without `GLYPH_MCP_STATE` the server keeps
+nothing, as before, and a restart signs everyone out.
 
 ## Setting it up: on your own computer
 
@@ -221,15 +260,17 @@ taken off stays so. A notebook keeps the `key:` its tickets are numbered by and 
 | `mcp/webcrypto.ts` | WebCrypto on whatever Node runs it: the box's Node 18 has no global `crypto` until it is put there |
 | `mcp/hosted.ts`, `mcp/hosted-main.ts` | the hosted server: OAuth with the SDK's handlers, MCP over HTTP, and its start-up from the environment; run on the box as `glyph-mcp.service` (`server/glyph-mcp.service`) |
 | `mcp/loginPage.ts` | the hosted server's sign-in page, whose own script derives the password's halves and unwraps the key in the browser |
-| `mcp/hostedStore.ts` | what the hosted server holds in memory, and when it lets go: clients, sign-in requests, codes, sessions and tokens |
+| `mcp/hostedStore.ts` | what the hosted server holds, and when it lets go: clients, sign-in requests, codes, sessions and tokens; and the file it keeps them in across a restart |
+| `mcp/hostedSeal.ts` | how that file is sealed: a seal key per session, wrapped under each token that names it, and tokens named by an id derived one way |
 | `server/src/mcp_proxy.rs` | glyph-api hands `/api/mcp` on to it, so the shared Caddy configuration is untouched |
-| `scripts/deploy-server.mjs` | ships both services in one session; `--mcp-only` ships just the hosted server, and either way glyph-mcp is restarted only when its file changed, since a restart signs everyone out |
+| `scripts/deploy-server.mjs` | ships both services in one session; `--mcp-only` ships just the hosted server, and either way glyph-mcp is restarted only when its file or unit changed (a restart signs nobody out, and is still not done for nothing) |
 | `scripts/build-mcp.mjs` | the build, `npm run mcp:build`: two files into mcp/dist, `glyph-mcp.mjs` for a person's Node 20 and `glyph-mcp-hosted.mjs` for the box's Node 18. It imports esbuild, which package.json does not name: it arrives with Vite |
 | `scripts/deploy-ota.mjs --mcp` | publishes the local file at https://ghostmarkdown.com/mcp/glyph-mcp.mjs; `scripts/deploy-server.mjs` ships the hosted one |
 | `mcp/testKit.ts` | what the tests share: a note as another device wrote it, a tool's words, and an account in memory with Claude connected |
 | `mcp/glyph.test.ts` | the client against a sync service stood in for in memory: sign-in, renewal, reading, writing, the conflict |
 | `mcp/server.test.ts`, `mcp/cli.test.ts`, `mcp/loginPage.test.ts`, `mcp/webcrypto.test.ts` | the tools, the commands, the sign-in page's script, and WebCrypto on an old Node |
-| `mcp/hosted.test.ts` | the hosted server connected to as Claude connects: the client library's own OAuth flow, the page, tokens, refresh, the tools, and a week's idleness ending the session |
+| `mcp/hosted.test.ts` | the hosted server connected to as Claude connects: the client library's own OAuth flow, the page, tokens, refresh, the tools, a week's idleness ending the session, and the server restarted under Claude |
+| `mcp/hostedStore.test.ts` | the sealing and the file by themselves: what is written, what opens it, the lifetimes across a restart, a file that cannot be read |
 | `mcp/mcp.e2e.test.ts` | a phone (the app's own sync code), the built local server over stdio, and the built hosted server over HTTP with the full sign-in, all on one real glyph-api: `GLYPH_MCP_E2E=1 VITE_GLYPH_API=http://127.0.0.1:<port>/api npx vitest run mcp.e2e` |
 
 ## How it was proven
@@ -253,3 +294,11 @@ taken off stays so. A notebook keeps the `key:` its tickets are numbered by and 
   run out and the library refreshes it unasked; a token never issued, a stale page and a non-key are refused; and a
   week's idleness ends the session, key and all. Then the same, with the built file run as the box runs it, against
   a real glyph-api, with a phone syncing what Claude did.
+- **A restart** (`mcp/hosted.test.ts`, `mcp/hostedStore.test.ts`): the server stopped and made again from its file
+  with Claude's client library still holding its tokens. The file is searched for the account key the page handed
+  over, the sync token and both of Claude's tokens, and holds none; the session comes back closed; the access token
+  opens it and the tools work with nobody sent to the sign-in page; an hour and another restart on, the refresh
+  token does; three requests at once open one account; a revoked session, everyone signed out everywhere and a week
+  unused all stay ended; another session's token, or a changed record, opens nothing; and without a file a restart
+  is "Invalid client_id", as it was. By hand: the built file run with `GLYPH_MCP_STATE`, a client registered, a
+  SIGTERM, and the file there, mode 600.

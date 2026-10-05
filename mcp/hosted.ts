@@ -12,7 +12,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import type { OAuthTokenRevocationRequest } from '@modelcontextprotocol/sdk/shared/auth.js';
 import { failureText } from '../src/app/core/failure.ts';
 import { GlyphAccount, GlyphApiError, importAccountKey } from './glyph.ts';
-import { CODE_MS, hostedStore, newToken, REQUEST_MS, SCOPE, type Session } from './hostedStore.ts';
+import { CODE_MS, hostedStore, type Issued, newToken, REQUEST_MS, SCOPE, type Session } from './hostedStore.ts';
 import { loginPage } from './loginPage.ts';
 import { buildServer, DEFAULT_RULES, ensureRulesNote, rulesInstructions, VERSION } from './server.ts';
 
@@ -21,20 +21,23 @@ import { buildServer, DEFAULT_RULES, ensureRulesNote, rulesInstructions, VERSION
  * https://attack.fm/glyph/api/mcp, the person signs in on a page here once, and the same tools as the local server
  * answer over HTTP. Matt: "run the server on our node so that the user doesn't need to".
  *
- * Notes are end-to-end encrypted, so the server has to hold the account key to serve them, and it does the one way
- * Matt chose: **in memory only**. The sign-in page unwraps the key in the person's browser - the password never
- * reaches this server, only the login half the sync service already sees - and hands the key to this process for the
- * session; it is kept as a key object the process cannot export, never written anywhere, and gone when the session
- * ends, when Claude disconnects, or when the process restarts. While a session lasts, this process can read that
- * account's notes; the page (mcp/loginPage.ts) says so in plain words before asking for the password.
+ * Notes are end-to-end encrypted, so the server has to hold the account key to serve them. The sign-in page unwraps
+ * the key in the person's browser - the password never reaches this server, only the login half the sync service
+ * already sees - and hands the key to this process for the session. In use it is a key object in memory. On disk it is
+ * only ever sealed so that the file opens nothing by itself: under a key that is written wrapped by the tokens Claude
+ * holds, and those are not written (mcp/hostedSeal.ts). It is gone, from both, when the session ends or Claude
+ * disconnects. While a session lasts, this process can read that account's notes; the page (mcp/loginPage.ts) says so
+ * in plain words before asking for the password.
  *
  * The rest is OAuth 2.1 as the MCP spec asks of a remote server, with the SDK's own handlers: dynamic client
- * registration, an authorization code with PKCE, refresh tokens, revocation. Every store is a map in memory
- * (mcp/hostedStore.ts, which says how long each thing lasts), so a restart signs everyone out and Claude simply asks
- * them to sign in again. The service is reached through glyph-api, which proxies /glyph/api/mcp to it
- * (server/src/mcp_proxy.rs), so nothing in the shared Caddy configuration changes; the discovery documents live
- * under that path, where the client library looks for them.
+ * registration, an authorization code with PKCE, refresh tokens, revocation. The stores are maps in memory
+ * (mcp/hostedStore.ts, which says how long each thing lasts), written to `state` when there is one, so a restart signs
+ * nobody out: a session comes back closed, and the first token Claude presents for it opens it (`opened`, below).
+ * Without `state` it is memory only, and a restart signs everyone out. The service is reached through glyph-api, which
+ * proxies /glyph/api/mcp to it (server/src/mcp_proxy.rs), so nothing in the shared Caddy configuration changes; the
+ * discovery documents live under that path, where the client library looks for them.
  */
+
 
 export interface HostedOptions {
   /** The server's own URL, as Claude sees it: `https://attack.fm/glyph/api/mcp`. */
@@ -44,6 +47,8 @@ export interface HostedOptions {
   /** The sync service as the person's browser reaches it, for the sign-in page. */
   apiPublic: string;
   fetcher?: typeof fetch;
+  /** The file the sessions are kept in across a restart, sealed (mcp/hostedStore.ts). Left out: memory only. */
+  state?: string;
   /** Rate limits on the sign-in endpoints: on by default; off in tests. */
   rateLimit?: boolean;
   now?: () => number;
@@ -51,7 +56,7 @@ export interface HostedOptions {
 
 /**
  * The hosted server as an express app, for the entry point (mcp/hosted-main.ts), with its `sweep` for the entry
- * point's timer; and its sessions, which only the tests read, to count them.
+ * point's timer and its `flush` for the entry point's last act; and its sessions, which only the tests read.
  */
 export function hostedApp(options: HostedOptions) {
   const issuer = options.issuer.replace(/\/+$/, '');
@@ -61,8 +66,59 @@ export function hostedApp(options: HostedOptions) {
   const now = options.now ?? (() => Date.now());
   const rateLimit = options.rateLimit === false ? false : undefined;
 
-  // Everything it holds, in memory only, and when each lets go (mcp/hostedStore.ts).
-  const { clientsStore, requests, codes, sessions, accessTokens, refreshTokens, endSession, issue, sweep } = hostedStore(now);
+  // Everything it holds, and when each lets go (mcp/hostedStore.ts).
+  const store = hostedStore(now, options.state);
+  const { clientsStore, requests, codes, sessions, endSession, issue, sweep } = store;
+
+  /** A session's account on the sync service, with the key as a key object; `token()` is the service's latest. */
+  function accountFor(id: string, handle: string, token: string, key: CryptoKey) {
+    let latest = token;
+    const account = new GlyphAccount(
+      { v: 1, api, handle, accountId: 0, token, accountKey: '', deviceKey: null },
+      {
+        key,
+        fetcher: options.fetcher,
+        save: (renewed) => {
+          latest = renewed.token;
+          const session = sessions.get(id);
+          if (session) store.keepToken(session, renewed.token);
+        },
+        lapsed: () => {
+          const session = sessions.get(id);
+          if (session) session.lapsed = true;
+        },
+      },
+    );
+    return { account, token: () => latest };
+  }
+
+  /** Sessions being opened, so two requests arriving together after a restart open one account, not two. */
+  const opening = new Map<string, Promise<void>>();
+
+  /**
+   * The session with its account open. After a restart it is closed (mcp/hostedStore.ts), and the token Claude just
+   * presented is what opens it. One that will not open - a file that was changed - is over.
+   */
+  async function opened(session: Session, token: string, issued: Issued): Promise<boolean> {
+    if (session.account) return true;
+    let pending = opening.get(session.id);
+    if (!pending) {
+      pending = (async () => {
+        const secrets = store.unseal(session, token, issued);
+        // Not extractable, as at sign-in.
+        session.account = accountFor(session.id, session.handle, secrets.token, await importAccountKey(secrets.accountKey, { length: 32 })).account;
+      })().finally(() => opening.delete(session.id));
+      opening.set(session.id, pending);
+    }
+    try {
+      await pending;
+      return true;
+    } catch (failure) {
+      process.stderr.write(`glyph-mcp: a kept session would not open: ${failureText(failure)}\n`);
+      endSession(session.id);
+      return false;
+    }
+  }
 
   const provider: OAuthServerProvider = {
     get clientsStore() {
@@ -99,30 +155,30 @@ export function hostedApp(options: HostedOptions) {
       return issue(session, client.client_id);
     },
     async exchangeRefreshToken(client, refreshToken) {
-      const issued = refreshTokens.get(refreshToken);
+      const issued = store.refresh(refreshToken);
       if (!issued || issued.clientId !== client.client_id || issued.expiresAt < now()) throw new InvalidGrantError('That refresh token is not one of ours, or has run out.');
-      refreshTokens.delete(refreshToken);
       const session = sessions.get(issued.sessionId);
-      if (!session || session.lapsed) {
+      // Opened before the token is spent: after a restart, this token may be all that opens the session.
+      const open = session && !session.lapsed && (await opened(session, refreshToken, issued));
+      store.forget(refreshToken);
+      if (!session || !open) {
         if (session) endSession(session.id);
         throw new InvalidGrantError('That sign-in is over; sign in again.');
       }
       return issue(session, client.client_id);
     },
     async verifyAccessToken(access): Promise<AuthInfo> {
-      const issued = accessTokens.get(access);
+      const issued = store.access(access);
       if (!issued || issued.expiresAt < now()) throw new InvalidTokenError('That token is not one of ours, or has run out.');
       const session = sessions.get(issued.sessionId);
-      if (!session || session.lapsed) {
+      if (!session || session.lapsed || !(await opened(session, access, issued))) {
         if (session) endSession(session.id);
         throw new InvalidTokenError('That sign-in is over; sign in again.');
       }
       return { token: access, clientId: issued.clientId, scopes: [SCOPE], expiresAt: Math.floor(issued.expiresAt / 1000), extra: { sessionId: session.id } };
     },
     async revokeToken(_client, request: OAuthTokenRevocationRequest) {
-      const issued = accessTokens.get(request.token) ?? refreshTokens.get(request.token);
-      accessTokens.delete(request.token);
-      refreshTokens.delete(request.token);
+      const issued = store.forget(request.token);
       // Disconnecting Claude ends the session, and with it the key.
       if (issued) endSession(issued.sessionId);
     },
@@ -195,19 +251,10 @@ export function hostedApp(options: HostedOptions) {
     const id = randomUUID();
     let handle = body.handle;
     let account: GlyphAccount;
+    let token: () => string;
     try {
       // The token is the sync service's to judge, and renewing it is how it is judged; the key is judged by opening the notes.
-      account = new GlyphAccount(
-        { v: 1, api, handle, accountId: 0, token: body.token, accountKey: '', deviceKey: null },
-        {
-          key,
-          fetcher: options.fetcher,
-          lapsed: () => {
-            const session = sessions.get(id);
-            if (session) session.lapsed = true;
-          },
-        },
-      );
+      ({ account, token } = accountFor(id, handle, body.token, key));
       await account.resume();
       handle = account.handle;
       await account.pull();
@@ -218,16 +265,8 @@ export function hostedApp(options: HostedOptions) {
     }
     requests.delete(body.request as string);
     const registered = request.client.client_name?.trim();
-    const session: Session = {
-      id,
-      handle,
-      clientId: request.client.client_id,
-      account,
-      lastUsed: now(),
-      lapsed: false,
-      ...(registered ? { client: { name: registered } } : {}),
-    };
-    sessions.set(id, session);
+    // Sealed for the file from the start, under a key of the session's own (mcp/hostedStore.ts).
+    store.signIn({ id, handle, clientId: request.client.client_id, account, accountKey: body.accountKey, token: token(), ...(registered ? { client: { name: registered } } : {}) });
     const code = newToken();
     codes.set(code, { clientId: request.client.client_id, codeChallenge: request.params.codeChallenge, redirectUri: request.params.redirectUri, sessionId: id, expiresAt: now() + CODE_MS });
     const redirect = new URL(request.params.redirectUri);
@@ -240,11 +279,12 @@ export function hostedApp(options: HostedOptions) {
   app.post(base, requireBearerAuth({ verifier: provider, resourceMetadataUrl }), express.json({ limit: '4mb' }), async (req: Request, res: Response) => {
     const sessionId = (req.auth?.extra as { sessionId?: string } | undefined)?.sessionId;
     const session = sessionId ? sessions.get(sessionId) : undefined;
-    if (!session) {
+    const account = session?.account;
+    if (!session || !account) {
       res.status(401).set('WWW-Authenticate', `Bearer resource_metadata="${resourceMetadataUrl}"`).json({ error: 'That sign-in is over; sign in again.' });
       return;
     }
-    session.lastUsed = now();
+    store.touch(session);
     // The app says who it is once, when it connects: kept for the requests after, which come to fresh servers.
     const initialize = (req.body as { method?: string; params?: { clientInfo?: { name?: string; title?: string } } } | undefined) ?? {};
     if (initialize.method === 'initialize' && initialize.params?.clientInfo) session.client = { ...initialize.params.clientInfo };
@@ -253,10 +293,10 @@ export function hostedApp(options: HostedOptions) {
     // and a rules note that cannot be read (offline) must not stop a connection, so it falls back to the default text.
     let instructions: string | undefined;
     if (initialize.method === 'initialize') {
-      const rules = await ensureRulesNote(session.account).catch(() => null);
+      const rules = await ensureRulesNote(account).catch(() => null);
       instructions = rulesInstructions(rules?.note.body ?? DEFAULT_RULES);
     }
-    const server = buildServer(session.account, {
+    const server = buildServer(account, {
               client: () => session.client,
               // The connections this account has: every session signed in with its handle, this one included.
               connections: () => [...sessions.values()].filter((s) => s.handle === session.handle).length,
@@ -284,5 +324,5 @@ export function hostedApp(options: HostedOptions) {
   app.get(base, notHere);
   app.delete(base, notHere);
 
-  return { app, sessions, sweep };
+  return { app, sessions, sweep, flush: store.flush };
 }
