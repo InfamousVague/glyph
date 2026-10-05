@@ -15,6 +15,8 @@ import '@glacier/tokens/css/tokens.css';
 // unstyles every component.
 import '@glacier/react/styles.css';
 import './app/app.css';
+// The wash on each kit icon's body: made by art/iconWash.test.ts from the icons in use.
+import './app/iconWash.css';
 // The page's edges under a header and at its foot, where app.css had them (art/wispEdge.ts writes what they read).
 import './app/art/wisp.css';
 // Last: the ink palette, which maps every token above onto paper and ink.

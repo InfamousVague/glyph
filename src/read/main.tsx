@@ -6,6 +6,8 @@ import '@fontsource-variable/inter/opsz.css';
 import '@glacier/tokens/css/tokens.css';
 import '@glacier/react/styles.css';
 import '../app/app.css';
+// The wash on each kit icon's body: made by art/iconWash.test.ts from the icons in use.
+import '../app/iconWash.css';
 import '../app/art/wisp.css';
 import '../app/ink.css';
 // The note's face: a shared note is drawn in the app's default, Maple Mono (typefaces.css).

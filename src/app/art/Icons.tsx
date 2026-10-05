@@ -19,8 +19,18 @@ interface IconProps {
  */
 export type StrokeIcon = ComponentType<{ size?: number; strokeWidth?: number }>;
 
-const icon = (className: string | undefined, d: string) => (
+/** The icons' wash: a third of their own ink (app.css "Icons are outlines, with a wash inside"; art/iconWash.ts). */
+const WASH = 'color-mix(in srgb, currentColor 33%, transparent)';
+
+/**
+ * One of these icons: its line, and under it the wash on its body when it has one (Matt: "a bunch of the icons across
+ * the app is missing the semiopaque fill that the icons should all have"). The body is its own path, the closed part
+ * of the drawing alone, so the wash never lands on a handle, a needle or a tick; where the body has a hole in it - a
+ * cog's middle, a cassette's reels - it is filled even-odd, and the hole stays clear.
+ */
+const icon = (className: string | undefined, d: string, body?: string) => (
   <svg viewBox="0 0 24 24" className={className} aria-hidden="true" style={{ inlineSize: '1em', blockSize: '1em', verticalAlign: '-0.12em' }}>
+    {body ? <path d={body} data-wash stroke="none" fillRule="evenodd" style={{ fill: WASH }} /> : null}
     <path d={d} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
@@ -47,7 +57,7 @@ export function House({ size = 20, strokeWidth = 2.1, className }: IconProps & {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M4.5 10.6 19.5 6v13a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2z" style={{ fill: 'color-mix(in srgb, currentColor 33%, transparent)' }} />
+      <path d="M4.5 10.6 19.5 6v13a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2z" style={{ fill: WASH }} />
       <path d="M2.5 11.2 21.5 5.4" />
       <path d="M10 21v-5.5h4V21" />
     </svg>
@@ -89,7 +99,7 @@ const COG = (() => {
 })();
 
 export function Cog({ className }: IconProps) {
-  return icon(className, COG);
+  return icon(className, COG, COG);
 }
 
 export function Plus({ className }: IconProps) {
@@ -98,12 +108,12 @@ export function Plus({ className }: IconProps) {
 
 /** A magnifier: a ring, and its handle down to the right. */
 export function Magnifier({ className }: IconProps) {
-  return icon(className, 'M10.5 18a7.5 7.5 0 1 1 0-15a7.5 7.5 0 1 1 0 15ZM21 21l-5.2-5.2');
+  return icon(className, 'M10.5 18a7.5 7.5 0 1 1 0-15a7.5 7.5 0 1 1 0 15ZM21 21l-5.2-5.2', 'M10.5 18a7.5 7.5 0 1 1 0-15a7.5 7.5 0 1 1 0 15Z');
 }
 
 /** A pushpin: a cap, a flared body, and the needle below it. */
 export function Pin({ className }: IconProps) {
-  return icon(className, 'M8.5 3h7M10 3l-.9 5.6L6 12.4h12l-3.1-3.8L14 3M12 12.4V21');
+  return icon(className, 'M8.5 3h7M10 3l-.9 5.6L6 12.4h12l-3.1-3.8L14 3M12 12.4V21', 'M10 3l-.9 5.6L6 12.4h12l-3.1-3.8L14 3z');
 }
 
 /**
@@ -114,16 +124,21 @@ export function Pin({ className }: IconProps) {
  * closed to a dot inside its 2.4 stroke and the mark read filled beside the Library's open book (docs/DESIGN.md §132);
  * at 20px, r 3 leaves a hole ~3px across, a ring and not a dot.
  */
+const CASSETTE = 'M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM10.4 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM19.6 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z';
+
 export function Cassette({ className }: IconProps) {
-  return icon(className, 'M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM10.4 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM19.6 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z');
+  // The shell washed, the reels left clear through it.
+  return icon(className, CASSETTE, CASSETTE);
 }
 
 /** A to-do's box with its tick, for the To do heading on the home page: the square the editor draws, ticked. */
 export function TickBox({ className }: IconProps) {
-  return icon(className, 'M4.5 4.5h15v15h-15zM8.3 12.3l2.6 2.6 4.9-5.3');
+  return icon(className, 'M4.5 4.5h15v15h-15zM8.3 12.3l2.6 2.6 4.9-5.3', 'M4.5 4.5h15v15h-15z');
 }
 
 const BOOK_PATH = 'M4.5 19.5v-15A2.5 2.5 0 0 1 7 2h12.5v20H7a2.5 2.5 0 0 1 0-5h12.5';
+/** The book's cover and pages as one closed shape, for its wash. */
+const BOOK_BODY = 'M4.5 19.5v-15A2.5 2.5 0 0 1 7 2h12.5v20H7a2.5 2.5 0 0 1-2.5-2.5z';
 
 /**
  * A book, closed, seen from its fore-edge: the spine's curve and the cover. It was the Library heading's on the home
@@ -132,7 +147,7 @@ const BOOK_PATH = 'M4.5 19.5v-15A2.5 2.5 0 0 1 7 2h12.5v20H7a2.5 2.5 0 0 1 0-5h1
  * (docs/DESIGN.md §132). The heading is Notebooks now, and wears the notebook below, which is this drawing with rings.
  */
 export function Book({ className }: IconProps) {
-  return icon(className, BOOK_PATH);
+  return icon(className, BOOK_PATH, BOOK_BODY);
 }
 
 /**
@@ -141,37 +156,41 @@ export function Book({ className }: IconProps) {
  * and 4 apart, which at the heading's 19.4px leaves a gap between them and not a bar.
  */
 export function Notebook({ className }: IconProps) {
-  return icon(className, `${BOOK_PATH}M2.5 6.5h4M2.5 10.5h4M2.5 14.5h4`);
+  return icon(className, `${BOOK_PATH}M2.5 6.5h4M2.5 10.5h4M2.5 14.5h4`, BOOK_BODY);
 }
 
 /** A clock at twenty past two, for the Recent heading: the notes touched last. */
 export function Clock({ className }: IconProps) {
-  return icon(className, 'M12 21a9 9 0 1 1 0-18a9 9 0 0 1 0 18zM12 7.5V12l3 2');
+  return icon(className, 'M12 21a9 9 0 1 1 0-18a9 9 0 0 1 0 18zM12 7.5V12l3 2', 'M12 21a9 9 0 1 1 0-18a9 9 0 0 1 0 18z');
 }
+
+const GRID = 'M4 4h6.5v6.5H4zM13.5 4H20v6.5h-6.5zM4 13.5h6.5V20H4zM13.5 13.5H20V20h-6.5z';
 
 /** Four squares: the grid of every note (notes/AllNotesScreen.tsx), on the home page's "All notes" foot. */
 export function Grid({ className }: IconProps) {
-  return icon(className, 'M4 4h6.5v6.5H4zM13.5 4H20v6.5h-6.5zM4 13.5h6.5V20H4zM13.5 13.5H20V20h-6.5z');
+  return icon(className, GRID, GRID);
 }
 
 /** An archive box: a lid, the box, and the handle slot. */
 export function ArchiveBox({ className }: IconProps) {
-  return icon(className, 'M3.5 4.5h17v4h-17zM5.5 8.5V19a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V8.5M10 12.5h4');
+  return icon(className, 'M3.5 4.5h17v4h-17zM5.5 8.5V19a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V8.5M10 12.5h4', 'M3.5 4.5h17v4h-17zM5.5 8.5V19a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V8.5z');
 }
 
 /** A bin: lid, handle, can and two ribs. */
 export function Bin({ className }: IconProps) {
-  return icon(className, 'M4 6.5h16M9.5 6.5V4h5v2.5M6.2 6.5 7.1 20h9.8l.9-13.5M10 10.5v6M14 10.5v6');
+  return icon(className, 'M4 6.5h16M9.5 6.5V4h5v2.5M6.2 6.5 7.1 20h9.8l.9-13.5M10 10.5v6M14 10.5v6', 'M6.2 6.5 7.1 20h9.8l.9-13.5z');
 }
+
+const WORKSPACE = 'M3.5 6.5a1 1 0 0 1 1-1h5l2 2.5h8a1 1 0 0 1 1 1v9.5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z';
 
 /** A folder: a tab at the top left, then the pocket. Where a note is filed. */
 export function Workspace({ className }: IconProps) {
-  return icon(className, 'M3.5 6.5a1 1 0 0 1 1-1h5l2 2.5h8a1 1 0 0 1 1 1v9.5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z');
+  return icon(className, WORKSPACE, WORKSPACE);
 }
 
 /** A board: three columns, the first two with a card in them. Turning a list into one. */
 export function Board({ className }: IconProps) {
-  return icon(className, 'M4 5.5h4.5v13H4zM9.75 5.5h4.5v8.5h-4.5zM15.5 5.5H20v11h-4.5');
+  return icon(className, 'M4 5.5h4.5v13H4zM9.75 5.5h4.5v8.5h-4.5zM15.5 5.5H20v11h-4.5', 'M4 5.5h4.5v13H4zM9.75 5.5h4.5v8.5h-4.5zM15.5 5.5H20v11h-4.5z');
 }
 
 /**
@@ -186,5 +205,5 @@ export const PLACE_PATH = 'M12 21.5c-4.2-4.4-6.5-8-6.5-11a6.5 6.5 0 0 1 13 0c0 3
  * the card.
  */
 export function Locate({ className }: IconProps) {
-  return icon(className, 'M18.5 12a6.5 6.5 0 1 1-13 0a6.5 6.5 0 0 1 13 0zM12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3');
+  return icon(className, 'M18.5 12a6.5 6.5 0 1 1-13 0a6.5 6.5 0 0 1 13 0zM12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3', 'M18.5 12a6.5 6.5 0 1 1-13 0a6.5 6.5 0 0 1 13 0z');
 }

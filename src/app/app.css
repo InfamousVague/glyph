@@ -667,7 +667,12 @@ body:has(.app-headerPane) .app-statusScrim {
  * a page and its lines. The inside doubled up and the detail went (Matt: "clean up icons in glacier UI so that
  * icons like the microphone's fill doesn't double up on the inside stuff").
  *
- * So the wash is kept only where there is nothing inside to lose. Of the icons Glyph draws, these are the ones
+ * Then every icon but these few was hollow, and Matt asked for the wash back on all of them ("a bunch of the icons
+ * across the app is missing the semiopaque fill that the icons should all have"). It is back, on each icon's body
+ * alone - one shape of the icon, with the detail left as strokes over it - which iconWash.css does, shape by shape,
+ * made from the icons in use (art/iconWash.ts says how a body is chosen). The rules below are what was here first.
+ *
+ * So the wash on the whole icon is kept only where there is nothing inside to lose. Of the icons Glyph draws, these are the ones
  * whose whole shape is a single closed silhouette; every other icon is its outline, which is what lucide draws by
  * default. `.lucide` is the kit's icon internals showing through (@glacier/icons proxies lucide).
  *

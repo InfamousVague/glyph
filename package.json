@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc -p mcp --noEmit",
     "test": "vitest run",
+    "icons:wash": "UPDATE_ICON_WASH=1 vitest run src/app/art/iconWash.test.ts",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
     "lint": "eslint . --max-warnings 0",

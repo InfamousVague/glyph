@@ -10287,3 +10287,33 @@ settings/AccountPane.test.tsx, settings/OrganizationSheet.test.tsx and notes/Org
 service, store/keys.rs's own and the two cases at the end of orgs_tests.rs.
 
 Cites: §175, §182, §183, §189, §190.
+
+## 192. The wash back on every icon, on its body alone (2026-10-05)
+
+Matt: "a bunch of the icons across the app is missing the semiopaque fill that the icons should all have".
+
+The wash had been cut back to seven icons (app.css), because set on a whole icon it filled every shape in it and the
+inside doubled up: the mic's cup over its capsule, a page's fold over the page. Everything else was left hollow. The
+house showed the way out, and now every icon does it: the wash is on the icon's body, one shape of it, and the
+detail is strokes over that.
+
+- **The kit's icons.** art/iconWash.ts picks each icon's body: its largest closed shape, and any other closed shape
+  of some size that sits clear of it. What is inside the body stays a stroke, so a cog keeps its hole and a ticked
+  circle its tick; an open path is never washed. Fourteen icons whose body is a path left open along an edge another
+  stroke draws - the bin, the flag, the lightbulb, the book - are named by hand, each looked at washed first.
+  iconWash.css is made from that, for the icons the app actually imports (`npm run icons:wash`), and the test that
+  makes it fails when an icon comes into the app without its rule.
+- **The app's own icons** (art/Icons.tsx): the cog, the magnifier, the pin, the cassette, the tick box, the book and
+  notebook, the clock, the grid, the archive box, the bin, the folder, the board and the locate ring each draw their
+  body under their line. A body with a hole in it is filled even-odd, so the cog's middle and the cassette's reels
+  stay clear.
+- **Left as outlines:** icons that are lines and nothing else - arrows, ticks, the plus, the cross, brackets, a
+  list's lines. There is nothing in them to fill.
+
+Measured in the browser pane by asking every icon on the screen whether any shape of it computes to a fill: on a
+note's bar and in Settings, the only hollow ones were arrows, the plus, the cross, the code brackets, a chevron and
+the sliders.
+
+Tests: art/iconWash.test.ts (a body, a path that comes back to its start, and the stylesheet against the icons in use).
+
+Cites: §132.
