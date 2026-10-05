@@ -10679,3 +10679,24 @@ snapshot); on the service, orgs_tests.rs (a turn owed and answered, an older wra
 generation refused, the log's cap).
 
 Cites: §191, §193, §195, §198.
+
+## 200. Organizations on the home page, and a pass that survives one organization (2026-10-05)
+
+Matt: "add organizations to the home page". Under the notices, over the notes, a section **Organizations** with a
+card for each organization joined (home/HomeOrganizations.tsx): its colour, its name, how many are in it, how many
+notes are filed in its workspace, and who is in the app now - "sam is editing Roadmap, 1 more here", from the
+organization's own room (§195). A tap opens its dashboard. One card a row on a phone, as many as fit on a wide
+window. Not drawn while searching or inside one workspace, nor for an account in no organization; an invitation
+still waiting stays the notice above it.
+
+And from the same afternoon (Matt: "It doesn't seem like notes are syncing in the organization or updating in real
+time", "It also says we're both not in the app right now"): the dashboard now counts the device reading it as in
+the app - your own row wears the dot, and your profile says "In the app now, on this device" - since the room only
+ever listed the others; and in the pass, one organization's channel failing, or one team row that will not open, is
+counted as unsent with the organization's name in the reason rather than failing the whole sync (core/sync/engine.ts,
+core/team/sync.ts `pull`), beside the per-step catches the pass was given the same hour.
+
+Tests: home/HomeOrganizations.test.tsx, the self-presence lines in notes/OrganizationScreen.test.tsx, the unread
+row in core/team/sync.test.ts.
+
+Cites: §195, §199.
