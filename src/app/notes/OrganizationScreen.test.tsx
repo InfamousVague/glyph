@@ -259,7 +259,10 @@ describe('an organization’s dashboard', () => {
     seen([{ handle: 'sam', hue: 'rose', at: { note: 'n-road', title: 'Roadmap', kind: 'note', cursor: caret, pointer: null }, client: 1 }]);
     expect(members()[1]).toContain('editing Roadmap');
     expect(members()[1]).not.toContain('joined');
-    expect(document.querySelector('ul[aria-label="Members"] li[data-present]')).not.toBeNull();
+    expect(document.querySelector('ul[aria-label="Members"] li:nth-child(2)[data-present]')).not.toBeNull();
+    // You are always in the app on the device reading the page: a dot, and the profile says so, with the since-line kept.
+    expect(document.querySelector('ul[aria-label="Members"] li:nth-child(1)[data-present]')).not.toBeNull();
+    expect(members()[0]).toContain('You, owner since');
     // Their profile, from the row: where they are, and the way to their caret.
     act(() => document.querySelector<HTMLButtonElement>('ul[aria-label="Members"] li:nth-child(2) > button')!.click());
     const profile = document.querySelector<HTMLElement>('[aria-label="sam’s profile"]');
@@ -274,7 +277,9 @@ describe('an organization’s dashboard', () => {
     // Gone: the row says since when again.
     seen([]);
     expect(members()[1]).toContain('joined');
-    expect(document.querySelector('ul[aria-label="Members"] li[data-present]')).toBeNull();
+    expect(document.querySelector('ul[aria-label="Members"] li:nth-child(2)[data-present]')).toBeNull();
+    act(() => document.querySelector<HTMLButtonElement>('ul[aria-label="Members"] li:nth-child(1) > button')!.click());
+    expect(document.querySelector<HTMLElement>('[aria-label="matt’s profile"]')?.textContent).toContain('In the app now, on this device');
   });
 
   it('shows the organization’s own news, newest first, and not another’s or an invitation', async () => {

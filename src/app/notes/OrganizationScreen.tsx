@@ -386,9 +386,10 @@ function MemberLine({ member, me, index, seen, onJump }: { member: Member; me: s
   const joined = member.state === 'member';
   const devices = seen.filter((s) => s.handle.toLowerCase() === member.handle.toLowerCase());
   const at = devices.find((s) => s.at)?.at ?? null;
-  const present = devices.length > 0;
+  // You are in the app: this device is reading the page. The others are here when the room says so.
+  const present = self || devices.length > 0;
   const line = joined ? `${self ? 'You, ' : ''}${member.role === 'owner' ? 'owner since' : 'joined'} ${since(member.since)}` : `Invited${member.invitedBy ? ` by ${member.invitedBy}` : ''} ${since(member.since)}`;
-  const where = at ? `editing ${at.title || (at.kind === 'canvas' ? 'an untitled canvas' : 'an untitled note')}` : present ? 'here now' : null;
+  const where = at ? `editing ${at.title || (at.kind === 'canvas' ? 'an untitled canvas' : 'an untitled note')}` : present && !self ? 'here now' : null;
   return (
     <li className={styles.member} data-state={member.state} data-hue={member.colour ?? undefined} data-present={present || undefined} style={{ '--i': Math.min(index, 12) } as CSSProperties}>
       <button type="button" className={styles.memberRow} aria-expanded={open} onClick={() => setOpen((was) => !was)}>
@@ -416,7 +417,7 @@ function MemberLine({ member, me, index, seen, onJump }: { member: Member; me: s
             <span className={styles.swatch} data-hue={member.colour ?? 'ink'} aria-hidden="true" />
             {member.colour ? `Wears ${hueWord(member.colour)} here` : 'Wears no colour yet'}
           </p>
-          <p className={styles.profileLine}>{at ? `Editing ${at.title || (at.kind === 'canvas' ? 'an untitled canvas' : 'an untitled note')} now` : present ? 'In the app now' : 'Not in the app now'}</p>
+          <p className={styles.profileLine}>{at ? `Editing ${at.title || (at.kind === 'canvas' ? 'an untitled canvas' : 'an untitled note')} now` : self ? 'In the app now, on this device' : present ? 'In the app now' : 'Not in the app now'}</p>
           {at ? (
             <button type="button" className={styles.jump} onClick={() => onJump(at.note, at.cursor ?? at.pointer)}>
               {at.cursor ?? at.pointer ? 'Jump to cursor' : at.kind === 'canvas' ? 'Open the canvas' : 'Open the note'}
