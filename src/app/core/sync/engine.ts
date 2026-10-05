@@ -13,6 +13,7 @@ import { tellArrived } from '../notifications/arrived.ts';
 import { feedState, forgetNotifications, listed, syncNotifications, updateFeed } from '../notifications/feed.ts';
 import { postNewRows, syncPhoneWatch } from '../notifications/phone.ts';
 import { record } from '../notifications/record.ts';
+import { tellChanged } from '../live/nudge.ts';
 import { forgetOrgKeys, keyWork, orgKeyAt, orgKeyGeneration, orgKeyOf, syncOrgKeys, turnDue, turnOrgKey } from '../orgs/orgKeys.ts';
 import { fetchOrg, forgetOrgs, orgRowsOf, saveOrgs, syncOrgs } from '../orgs/orgs.ts';
 import type { OrgRow } from '../orgs/types.ts';
@@ -220,14 +221,15 @@ async function nativeReady(): Promise<boolean> {
 // --- running ----------------------------------------------------------------------------------
 
 /** What a pass covers: everything, or only the notifications and the organizations, which an inline answer changes. */
-type Parts = 'all' | 'notifications';
+type Parts = 'all' | 'team' | 'notifications';
 
 let running: Promise<void> | null = null;
 /** The pass asked for while one was running, if any: one more, covering the most anybody asked. */
 let queued: Parts | null = null;
 
 function widen(was: Parts | null, asked: Parts): Parts {
-  return was === 'all' || asked === 'all' ? 'all' : 'notifications';
+  if (was === 'all' || asked === 'all') return 'all';
+  return was === 'team' || asked === 'team' ? 'team' : 'notifications';
 }
 
 /** One pass of `parts` now, or right after the pass already running. */
@@ -257,6 +259,14 @@ function run(parts: Parts): Promise<void> {
 /** Syncs now, or right after the sync already running. */
 export function syncNow(): Promise<void> {
   return run('all');
+}
+
+/**
+ * The organizations' notes now, and nothing of the account's own: when another device says it has just written to
+ * one (core/live/nudge.ts), or a key has just come to hand.
+ */
+export function syncTeamsNow(): Promise<void> {
+  return run('team');
 }
 
 /**
@@ -318,6 +328,78 @@ async function once(parts: Parts): Promise<void> {
       return null;
     }
   };
+  /**
+   * The organizations' own channels (core/team/sync.ts): the keys seen to, then each organization joined whose key
+   * this device holds synced, its key turned when a member has gone. A whole pass ends with it; a `team` pass is it
+   * alone, for when another device says it has just written (core/live/nudge.ts).
+   */
+  const teams = async (list: readonly OrgRow[], outcome: { unsent: number; reason: string | null }): Promise<void> => {
+    const pair = await teamKeys(list);
+    // The organization channel (core/team/sync.ts), for each organization joined whose key this device holds.
+    for (const row of list) {
+      if (row.state !== 'member') continue;
+      const orgKey = orgKeyOf(row.id);
+      if (!orgKey) continue;
+      const teamKey = stateKey(session.accountId, `team-${row.id}`);
+      const workspace = orgWorkspaceId(row.id);
+      const ctx: TeamSyncContext = {
+        token: session.token,
+        orgId: row.id,
+        key: orgKey,
+        generation: orgKeyGeneration(row.id),
+        olderKey: pair ? (generation) => orgKeyAt({ token: session.token, pair }, row.id, generation) : undefined,
+        notes: deviceNotes,
+        files: deviceFiles,
+        docs: deviceDocs(),
+        state: load<TeamSyncState>(teamKey, emptyTeamState()),
+        save: (state) => store(teamKey, state),
+        isTeamNote: (id) => workspaceOf(id)?.id === workspace,
+        file: (id) => fileNote(id, workspace),
+        // Drawn as soon as the rows are in, before their histories and pictures.
+        pulled: announceNotesChanged,
+      };
+      try {
+        const team = await syncTeamNotes(ctx);
+        if (team.changed) announceNotesChanged();
+        // Written to the organization: its other devices fetch now (core/live/nudge.ts), not at their next pass.
+        if (team.sent) tellChanged(row.id);
+        outcome.unsent += team.unsent;
+        outcome.reason ??= team.reason;
+        // A member has gone (docs/SHARED.md, S11): with the team's notes brought up to date under the old key, this
+        // device makes the next generation and puts every note again under it.
+        if (turnDue(row)) {
+          const org = await fetchOrg(row.id, { token: session.token });
+          const turned = await turnOrgKey({ token: session.token }, row.id, org.members);
+          if (turned) {
+            const resealed = await resealTeamNotes({ ...ctx, key: orgKeyOf(row.id)!, generation: turned.generation });
+            outcome.unsent += resealed.unsent;
+            outcome.reason ??= resealed.reason;
+          }
+        }
+      } catch (failure) {
+        // The key turned under this device: its wrap at the new generation is read on the next pass, and the
+        // organization's notes are sealed under it then.
+        if (failure instanceof KeyTurned) continue;
+        // A lapsed session ends the pass, as anywhere. Anything else is this organization's alone: counted and
+        // said, and the account's own sync and the other organizations stand (Matt: "Sync will try again").
+        if (failure instanceof ApiError && failure.status === 401) throw failure;
+        outcome.unsent += 1;
+        outcome.reason ??= `${row.name}: ${failureText(failure)}`;
+      }
+    }
+  };
+  if (parts === 'team') {
+    // The account's own notes are not swept: this is the feed, the list, the keys and the organizations' notes.
+    try {
+      if (!(await nativeReady())) return;
+      await feed();
+      const list = await orgs();
+      if (list) await teams(list, { unsent: 0, reason: null });
+    } catch (failure) {
+      if (failure instanceof ApiError && failure.status === 401) await resume().catch(() => undefined);
+    }
+    return;
+  }
   if (parts === 'notifications') {
     // The notes' status stands: this is the feed and the list, and says nothing on the Account row unless it fails.
     try {
@@ -329,8 +411,8 @@ async function once(parts: Parts): Promise<void> {
       if (list?.some(keysOwed)) {
         const held = list.filter((row) => orgKeyOf(row.id) !== null).length;
         await teamKeys(list);
-        // A key newly in hand: the team's notes are fetched by a whole pass, soon.
-        if (list.filter((row) => orgKeyOf(row.id) !== null).length > held) syncSoon();
+        // A key newly in hand: the team's notes are fetched right after this pass.
+        if (list.filter((row) => orgKeyOf(row.id) !== null).length > held) void run('team');
       }
     } catch (failure) {
       if (failure instanceof ApiError && failure.status === 401) await resume().catch(() => undefined);
@@ -407,57 +489,7 @@ async function once(parts: Parts): Promise<void> {
         applyingRemote = false;
       }
     });
-    if (list) {
-      const pair = await teamKeys(list);
-      // The organization channel (core/team/sync.ts), for each organization joined whose key this device holds.
-      for (const row of list) {
-        if (row.state !== 'member') continue;
-        const orgKey = orgKeyOf(row.id);
-        if (!orgKey) continue;
-        const teamKey = stateKey(session.accountId, `team-${row.id}`);
-        const workspace = orgWorkspaceId(row.id);
-        const ctx: TeamSyncContext = {
-          token: session.token,
-          orgId: row.id,
-          key: orgKey,
-          generation: orgKeyGeneration(row.id),
-          olderKey: pair ? (generation) => orgKeyAt({ token: session.token, pair }, row.id, generation) : undefined,
-          notes: deviceNotes,
-          files: deviceFiles,
-          docs: deviceDocs(),
-          state: load<TeamSyncState>(teamKey, emptyTeamState()),
-          save: (state) => store(teamKey, state),
-          isTeamNote: (id) => workspaceOf(id)?.id === workspace,
-          file: (id) => fileNote(id, workspace),
-        };
-        try {
-          const team = await syncTeamNotes(ctx);
-          if (team.changed) announceNotesChanged();
-          outcome.unsent += team.unsent;
-          outcome.reason ??= team.reason;
-          // A member has gone (docs/SHARED.md, S11): with the team's notes brought up to date under the old key, this
-          // device makes the next generation and puts every note again under it.
-          if (turnDue(row)) {
-            const org = await fetchOrg(row.id, { token: session.token });
-            const turned = await turnOrgKey({ token: session.token }, row.id, org.members);
-            if (turned) {
-              const resealed = await resealTeamNotes({ ...ctx, key: orgKeyOf(row.id)!, generation: turned.generation });
-              outcome.unsent += resealed.unsent;
-              outcome.reason ??= resealed.reason;
-            }
-          }
-        } catch (failure) {
-          // The key turned under this device: its wrap at the new generation is read on the next pass, and the
-          // organization's notes are sealed under it then.
-          if (failure instanceof KeyTurned) continue;
-          // A lapsed session ends the pass, as anywhere. Anything else is this organization's alone: counted and
-          // said, and the account's own sync and the other organizations stand (Matt: "Sync will try again").
-          if (failure instanceof ApiError && failure.status === 401) throw failure;
-          outcome.unsent += 1;
-          outcome.reason ??= `${row.name}: ${failureText(failure)}`;
-        }
-      }
-    }
+    if (list) await teams(list, outcome);
     if (failed) setStatus({ phase: 'error', message: failed, conflicts: outcome.conflicts, unsent: outcome.unsent, unsentReason: outcome.reason });
     else setStatus({ phase: 'idle', lastAt: Date.now(), message: null, conflicts: outcome.conflicts, unsent: outcome.unsent, unsentReason: outcome.reason });
   } catch (failure) {

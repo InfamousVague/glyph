@@ -625,21 +625,20 @@ async fn a_key_pair_is_registered_once_and_the_organization_key_is_made_once_and
     assert_eq!(body["mine"], "w-sam-race");
     let (status, body) = h.call(Method::POST, &format!("/api/v1/orgs/{id}/keys"), Some(&sam), Some(json!({ "generation": 2, "wraps": [] }))).await;
     assert_eq!((status, body), (StatusCode::CONFLICT, json!({ "error": "That is not the generation in force.", "generation": 1 })));
-    // lee registers a key while still invited: not wrapped for, not listed; accepted, listed as missing and filled.
+    // lee registers a key while still invited: listed as missing, so a member's device wraps for them ahead of their
+    // joining - and reads nothing of it until they have accepted, when the wrap is there waiting with nobody online.
     h.call(Method::PUT, "/api/v1/account/key", Some(&lee), Some(json!({ "pub": "pub-lee", "sealed": "sealed-lee" }))).await;
-    let (_, keys) = h.call(Method::GET, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), None).await;
-    assert_eq!(keys["missing"], json!([]));
-    let refused_lee = h.call(Method::GET, &format!("/api/v1/orgs/{id}/keys"), Some(&lee), None).await;
-    assert_eq!(refused_lee, refusal(StatusCode::NOT_FOUND, "No such organization."));
-    answer(&h, &lee, &id, true).await;
     let (_, keys) = h.call(Method::GET, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), None).await;
     assert_eq!(keys["missing"], json!([{ "handle": "lee", "pub": "pub-lee" }]));
     let (_, list) = h.call(Method::GET, "/api/v1/orgs", Some(&matt), None).await;
     assert_eq!(list["orgs"][0]["keys"], json!({ "generation": 1, "mine": true, "missing": 1, "stale": false }));
     let (_, keys) = h.call(Method::POST, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), Some(json!({ "generation": 1, "wraps": [{ "handle": "lee", "wrapped": "w-lee" }, { "handle": "nobody", "wrapped": "w-nobody" }] }))).await;
     assert_eq!(keys["missing"], json!([]));
+    let refused_lee = h.call(Method::GET, &format!("/api/v1/orgs/{id}/keys"), Some(&lee), None).await;
+    assert_eq!(refused_lee, refusal(StatusCode::NOT_FOUND, "No such organization."));
+    answer(&h, &lee, &id, true).await;
     let (_, keys) = h.call(Method::GET, &format!("/api/v1/orgs/{id}/keys"), Some(&lee), None).await;
-    assert_eq!(keys["mine"], "w-lee");
+    assert_eq!((keys["mine"].clone(), keys["missing"].clone()), (json!("w-lee"), json!([])));
     let unreadable = h.call(Method::POST, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), Some(json!({ "generation": 0, "wraps": [] }))).await;
     assert_eq!(unreadable, refusal(StatusCode::BAD_REQUEST, "Those wraps could not be read."));
 }

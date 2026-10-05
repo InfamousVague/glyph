@@ -65,6 +65,8 @@ export interface TeamSyncContext {
   isTeamNote(id: string): boolean;
   /** A note from the team, filed in the organization's workspace on this device. */
   file(id: string): void;
+  /** The team's notes are on this device as far as the feed goes, their files still to come: the list can be drawn. */
+  pulled?: () => void;
   /** The key's generation (docs/SHARED.md, S11), named on every write so one under a turned key is refused, not kept. */
   generation?: number;
   /** The key at an older generation, for a row or an update sealed before a turn and not re-sealed yet; null for none. */
@@ -100,6 +102,8 @@ interface UpdateItem {
 export interface TeamOutcome {
   /** Notes written or removed on this device. */
   changed: number;
+  /** Rows, updates and files this device wrote to the organization this pass: what the others are told to fetch. */
+  sent: number;
   /** Notes whose send failed this pass, and the first reason. */
   unsent: number;
   reason: string | null;
@@ -167,6 +171,9 @@ async function writeWords(ctx: TeamSyncContext, id: string, words: string, outco
 
 // --- pull ------------------------------------------------------------------------------
 
+/** What a pass still owes the notes it has taken: their versions files and pictures, fetched once the notes are in. */
+const later: (() => Promise<void>)[] = [];
+
 async function takeRow(ctx: TeamSyncContext, item: TeamFeedItem, local: Note | undefined, outcome: TeamOutcome): Promise<void> {
   if (item.deleted || !item.blob) {
     if (local) {
@@ -185,14 +192,18 @@ async function takeRow(ctx: TeamSyncContext, item: TeamFeedItem, local: Note | u
   const doc = await adoptTeamDoc(item.id, ctx.docs, fromBase64Url(payload.state), payload.seq);
   // This device's own words, from before the team had the note: a change for the team, not words to lose.
   if (!held && local && local.body !== doc.words()) doc.reconcile(local.body);
-  const files = filesOf(ctx);
-  if (payload.versions) await fetchVersionsOf(files, item.id, payload.versions);
-  for (const name of payload.images ?? []) {
-    const id = fileId('image', name);
-    if (!id || ctx.state.files[id]) continue;
-    if (await ctx.files.read('image', name)) continue;
-    await fetchFile(files, 'image', name);
-  }
+  // The note first, its history and pictures after every note of the feed is here (`later`): a member who has just
+  // joined reads the team's words in the time the rows take, not the time sixty files take.
+  later.push(async () => {
+    const files = filesOf(ctx);
+    if (payload.versions) await fetchVersionsOf(files, item.id, payload.versions);
+    for (const name of payload.images ?? []) {
+      const id = fileId('image', name);
+      if (!id || ctx.state.files[id]) continue;
+      if (await ctx.files.read('image', name)) continue;
+      await fetchFile(files, 'image', name);
+    }
+  });
   const theirs: Note = { ...payload.note, id: item.id, body: doc.words() };
   if (!local || local.body !== theirs.body || particulars(local) !== particulars(theirs)) {
     await ctx.notes.apply(theirs);
@@ -277,6 +288,7 @@ async function postPending(ctx: TeamSyncContext, note: Note, doc: TeamDoc, outco
       throw failure;
     }
     doc.posted(pending.length);
+    outcome.sent += 1;
     // Exactly these went on at the end of the log: nothing of the team's between, so there is nothing to read back.
     if (seq - pending.length === doc.seq) doc.seq = seq;
   }
@@ -305,6 +317,7 @@ async function putRow(ctx: TeamSyncContext, note: Note, doc: TeamDoc, outcome: T
   try {
     const { rev } = await call<{ rev: number }>('PUT', route(ctx, `notes/${encodeURIComponent(note.id)}`), options(ctx, { base: known?.rev ?? 0, blob, upTo: doc.seq }));
     ctx.state.notes[note.id] = { rev, mark: particulars(note) };
+    outcome.sent += 1;
     doc.snapshotSeq = doc.seq;
     // The snapshot carried the updates pending when it was taken; what was typed since is still pending.
     doc.posted(covered);
@@ -390,7 +403,7 @@ async function heads(ctx: TeamSyncContext): Promise<Record<string, number> | nul
  * sealed under the old generation, so a device that slept through the turn re-seals its own next.
  */
 export async function resealTeamNotes(ctx: TeamSyncContext): Promise<TeamOutcome> {
-  const outcome: TeamOutcome = { changed: 0, unsent: 0, reason: null };
+  const outcome: TeamOutcome = { changed: 0, sent: 0, unsent: 0, reason: null };
   const files = filesOf(ctx);
   for (const id of Object.keys(ctx.state.notes)) {
     const note = await ctx.notes.get(id);
@@ -412,8 +425,11 @@ export async function resealTeamNotes(ctx: TeamSyncContext): Promise<TeamOutcome
 }
 
 export async function syncTeamNotes(ctx: TeamSyncContext): Promise<TeamOutcome> {
-  const outcome: TeamOutcome = { changed: 0, unsent: 0, reason: null };
+  const outcome: TeamOutcome = { changed: 0, sent: 0, unsent: 0, reason: null };
+  later.length = 0;
   await pull(ctx, outcome);
+  if (outcome.changed) ctx.pulled?.();
+  for (const fetch of later.splice(0)) await counted(ctx, outcome, fetch);
   const team = (await ctx.notes.list()).filter((each) => ctx.isTeamNote(each.id));
   const moved = team.length ? await heads(ctx) : null;
   for (const note of team) {

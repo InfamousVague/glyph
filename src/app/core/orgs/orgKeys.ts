@@ -102,12 +102,14 @@ export async function orgKeyAt(ctx: Pick<OrgKeysContext, 'token' | 'fetcher' | '
 }
 
 /**
- * Whether an organization's key wants seeing to by this device now, from what the list says: none made yet, a wrap
- * waiting that this device has not read, or a member this device, holding the key, could wrap for.
+ * Whether an organization's key wants seeing to by this device now, from what the list says: none made yet, not in
+ * hand here (a wrap to read, or this account's key pair still to register so that one can be made), or a member this
+ * device, holding the key, could wrap for.
  */
 export function keyWork(row: OrgRow, held: boolean): boolean {
   if (row.state !== 'member' || !row.keys) return false;
-  return row.keys.generation === 0 || (!held && row.keys.mine) || (held && row.keys.missing > 0);
+  // Not held is always work: a wrap to read, or - none yet - this account's key pair to register so one can be made.
+  return row.keys.generation === 0 || !held || row.keys.missing > 0;
 }
 
 /** Whether the key owes a turn this device can make: the list says so, and this device holds the generation in force. */

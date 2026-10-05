@@ -158,10 +158,10 @@ describe('the organization key', () => {
     expect(keyWork(row({ generation: 0, mine: false, missing: 1 }), false)).toBe(true);
     expect(keyWork(row({ generation: 1, mine: true, missing: 0 }), false)).toBe(true);
     expect(keyWork(row({ generation: 1, mine: true, missing: 1 }), true)).toBe(true);
-    // Nothing to do: in hand with nobody missing; no wrap for this account yet (another member's device must make it);
-    // someone missing whom this device, without the key, cannot wrap for; an invitation.
+    // Not in hand and no wrap yet: still work, since this account's key pair must be registered before anyone can wrap for it.
+    expect(keyWork(row({ generation: 1, mine: false, missing: 1 }), false)).toBe(true);
+    // Nothing to do: in hand with nobody missing; an invitation.
     expect(keyWork(row({ generation: 1, mine: true, missing: 0 }), true)).toBe(false);
-    expect(keyWork(row({ generation: 1, mine: false, missing: 1 }), false)).toBe(false);
     expect(keyWork(row({ generation: 0, mine: false, missing: 1 }, 'invited'), false)).toBe(false);
   });
 

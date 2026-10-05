@@ -135,7 +135,7 @@ impl Store {
         let generation = Self::generation_of(conn, org)?;
         if generation == 0 {
             // Nothing made yet: everyone with a public key lacks a wrap, which is what the maker wraps for.
-            let mut stmt = conn.prepare("SELECT a.handle, k.pub FROM org_members m JOIN accounts a ON a.id = m.account_id JOIN account_keys k ON k.account_id = m.account_id WHERE m.org_id = ?1 AND m.state = ?2 ORDER BY m.since, m.rowid")?;
+            let mut stmt = conn.prepare("SELECT a.handle, k.pub FROM org_members m JOIN accounts a ON a.id = m.account_id JOIN account_keys k ON k.account_id = m.account_id WHERE m.org_id = ?1 AND m.state IN (?2, 'invited') ORDER BY m.since, m.rowid")?;
             let missing = stmt.query_map(params![org, MEMBER], |r| Ok((r.get(0)?, r.get(1)?)))?.filter_map(Result::ok).collect();
             return Ok(OrgKeys { generation, mine: None, missing, stale: false });
         }
@@ -144,7 +144,7 @@ impl Store {
             .optional()?;
         let mut stmt = conn.prepare(
             "SELECT a.handle, k.pub FROM org_members m JOIN accounts a ON a.id = m.account_id JOIN account_keys k ON k.account_id = m.account_id \
-             WHERE m.org_id = ?1 AND m.state = ?2 AND NOT EXISTS (SELECT 1 FROM org_keys w WHERE w.org_id = m.org_id AND w.account_id = m.account_id AND w.generation = ?3) \
+             WHERE m.org_id = ?1 AND m.state IN (?2, 'invited') AND NOT EXISTS (SELECT 1 FROM org_keys w WHERE w.org_id = m.org_id AND w.account_id = m.account_id AND w.generation = ?3) \
              ORDER BY m.since, m.rowid",
         )?;
         let missing = stmt.query_map(params![org, MEMBER, generation], |r| Ok((r.get(0)?, r.get(1)?)))?.filter_map(Result::ok).collect();
@@ -189,9 +189,11 @@ impl Store {
             return Err(KeyWrite::Generation(in_force));
         }
         for wrap in wraps {
-            // Only someone who has joined gets a wrap: an invitee could read the team's notes before accepting.
+            // A member, or someone invited (Matt: "store the notes on the server ready to go so we can rapidly sync to
+            // new users"): their wrap waits here and is theirs the moment they accept, with nobody else's device
+            // needed. It is read only by a member (`org_keys`), so an invitee learns nothing before joining.
             let member: Option<i64> = tx
-                .query_row("SELECT m.account_id FROM org_members m JOIN accounts a ON a.id = m.account_id WHERE m.org_id = ?1 AND a.handle = ?2 AND m.state = ?3", params![org, wrap.handle, MEMBER], |r| r.get(0))
+                .query_row("SELECT m.account_id FROM org_members m JOIN accounts a ON a.id = m.account_id WHERE m.org_id = ?1 AND a.handle = ?2 AND m.state IN (?3, 'invited')", params![org, wrap.handle, MEMBER], |r| r.get(0))
                 .optional()?;
             let Some(member) = member else { continue };
             tx.execute(
@@ -238,7 +240,7 @@ mod tests {
     }
 
     #[test]
-    fn the_organization_key_is_made_once_wrapped_for_the_missing_and_never_for_an_invitee() {
+    fn the_organization_key_is_made_once_wrapped_for_the_missing_and_read_by_no_invitee() {
         let (store, matt, _dir) = fixture();
         let sam = store.create_account("sam", "login-hash", "wrapped-key", None, &[], 100).unwrap();
         let lee = store.create_account("lee", "login-hash", "wrapped-key", None, &[], 100).unwrap();
@@ -258,11 +260,11 @@ mod tests {
         assert_eq!(store.post_org_keys(sam.id, "org-1", 1, false, &[], 6), Ok(OrgKeys { generation: 1, mine: None, missing: vec![], stale: false }), "at the generation in force, nothing to add is fine");
         assert_eq!(store.post_org_keys(sam.id, "org-1", 2, false, &[], 6), Err(KeyWrite::Generation(1)));
         assert_eq!(store.post_org_keys(sam.id, "org-1", 3, true, &[], 6), Err(KeyWrite::Generation(1)), "a new generation is the next one");
-        // sam registers a key pair: now lacking, and listed to a member who reads; lee, invited, is not.
+        // sam registers a key pair: now lacking, and listed to a member who reads; so is lee, invited, to be wrapped for ahead.
         store.register_key(sam.id, "pub-sam", "sealed", 7).unwrap();
         store.register_key(lee.id, "pub-lee", "sealed", 7).unwrap();
         let read = store.org_keys(matt.id, "org-1", None).unwrap();
-        assert_eq!(read.missing, vec![("sam".into(), "pub-sam".into())]);
+        assert_eq!(read.missing, vec![("sam".into(), "pub-sam".into()), ("lee".into(), "pub-lee".into())]);
         assert_eq!(store.org_keys(sam.id, "org-1", None).unwrap().mine, None);
         let filled = store.post_org_keys(matt.id, "org-1", 1, false, &[Wrap { handle: "sam".into(), wrapped: "w-sam-1".into() }, Wrap { handle: "lee".into(), wrapped: "w-lee-1".into() }, Wrap { handle: "matt".into(), wrapped: "w-matt-again".into() }], 8).unwrap();
         assert_eq!(filled.missing, vec![]);

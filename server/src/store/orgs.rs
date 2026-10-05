@@ -184,7 +184,7 @@ const ROW_SELECT: &str = "SELECT o.id, o.name, o.hue, m.role, m.state, o.created
     COALESCE((SELECT hue FROM org_member_hues h WHERE h.org_id = o.id AND h.account_id = m.account_id), (SELECT hue FROM account_hues ah WHERE ah.account_id = m.account_id)), \
     COALESCE((SELECT generation FROM org_key_state s WHERE s.org_id = o.id), 0), \
     EXISTS (SELECT 1 FROM org_keys k WHERE k.org_id = o.id AND k.account_id = m.account_id AND k.generation = COALESCE((SELECT generation FROM org_key_state s WHERE s.org_id = o.id), 0)), \
-    (SELECT COUNT(*) FROM org_members x JOIN account_keys ak ON ak.account_id = x.account_id WHERE x.org_id = o.id AND x.state = 'member' \
+    (SELECT COUNT(*) FROM org_members x JOIN account_keys ak ON ak.account_id = x.account_id WHERE x.org_id = o.id AND x.state IN ('member', 'invited') \
         AND NOT EXISTS (SELECT 1 FROM org_keys k WHERE k.org_id = o.id AND k.account_id = x.account_id AND k.generation = COALESCE((SELECT generation FROM org_key_state s WHERE s.org_id = o.id), 0))), \
     (COALESCE((SELECT generation FROM org_key_state s WHERE s.org_id = o.id), 0) > 0 AND EXISTS (SELECT 1 FROM org_key_turns t WHERE t.org_id = o.id)) \
     FROM org_members m JOIN orgs o ON o.id = m.org_id";

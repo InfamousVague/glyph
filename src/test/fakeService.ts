@@ -202,7 +202,7 @@ export async function fakeService(seed?: { handle: string; password: string }, {
   /** The generation in force, against a body's or a query's: 409 with the one in force when it is another (S11). */
   const inForce = (org: StoredOrg, generation: unknown): Response | null => (typeof generation === 'number' && generation !== (org.generation ?? 0) ? json(409, { error: 'That is not the generation in force.', generation: org.generation ?? 0 }) : null);
   /** Members with a public key and no wrap at the generation in force (every one with a key, before a generation). */
-  const lacking = (org: StoredOrg) => joined(org).filter((r) => pubOf(r.handle) !== null && wrapOf(org, r.handle) === null);
+  const lacking = (org: StoredOrg) => [...org.rows.values()].filter((r) => (r.state === 'member' || r.state === 'invited') && pubOf(r.handle) !== null && wrapOf(org, r.handle) === null);
   const keysJson = (org: StoredOrg, me: Row) => ({ generation: org.generation ?? 0, mine: wrapOf(org, me.handle) !== null, missing: lacking(org).length, stale: stale(org) });
   const memberJson = (r: Row): Member => ({ handle: r.handle, role: r.role, state: r.state === 'declined' ? 'invited' : r.state, since: r.since, invitedBy: r.invitedBy, colour: colourOf(r), pub: pubOf(r.handle) });
   const orgJson = (org: StoredOrg, me: Row): Org => ({
@@ -548,7 +548,8 @@ export async function fakeService(seed?: { handle: string; password: string }, {
           org.wraps ??= new Map();
           for (const { handle, wrapped } of wraps) {
             const member = rowOf(org, handle);
-            if (!member || member.state !== 'member') continue;
+            // A member, or someone invited: their wrap waits for them (docs/SHARED.md, S2).
+            if (!member || (member.state !== 'member' && member.state !== 'invited')) continue;
             const theirs = org.wraps.get(lower(handle)) ?? new Map<number, string>();
             if (!theirs.has(generation)) theirs.set(generation, wrapped);
             org.wraps.set(lower(handle), theirs);

@@ -45,7 +45,7 @@ import { useUpdates } from './core/ota.ts';
 import { LaunchScreen } from './launch/LaunchScreen.tsx';
 import { SceneBench } from './diag/SceneBench.tsx';
 import { sceneQuery } from './scene/scripted.ts';
-import { syncNow, syncWithin, useSyncStatus } from './core/sync/engine.ts';
+import { syncNotificationsNow, syncNow, syncTeamsNow, syncWithin, useSyncStatus } from './core/sync/engine.ts';
 import { createNote, deleteNote, getNote, newNoteId, noteTitle, updateNote, useNotes, type Note, listNotes } from './core/store.ts';
 import { sameTitle } from './editor/wikiLinks.ts';
 import { titleKey } from './core/titleKey.ts';
@@ -69,6 +69,7 @@ import { useNoteActions } from './notes/useNoteActions.ts';
 import { NoteMenuHost } from './notes/NoteMenu.tsx';
 import { askComment } from './core/comments/ask.ts';
 import { isPlace, isRecording, noteOnScreen, placeOf, type Screen } from './shell/screen.ts';
+import { watchNudges } from './core/live/nudge.ts';
 import { watchPresence, type Jump } from './core/live/presence.ts';
 import { barRows } from './shell/topBar.ts';
 import { useCaptureRoute } from './shell/useCaptureRoute.ts';
@@ -201,6 +202,8 @@ function Shell() {
 
   // Who is in each organization and where (core/live/presence.ts): its room held while signed in and in it.
   useEffect(() => watchPresence(), []);
+  // And each organization's word that there is something to fetch (core/live/nudge.ts): a key wrapped, a note written.
+  useEffect(() => watchNudges({ keys: syncNotificationsNow, notes: syncTeamsNow }), []);
 
   // New builds, looked for after launch and on return; applied on reload.
   const updates = useUpdates();

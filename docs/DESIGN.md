@@ -10730,3 +10730,41 @@ to-dos, or of notes, has no + : a to-do has no one note it belongs in, and a not
 Tests: core/query/draft.test.ts; the four in editor/queries.test.ts under "a new ticket typed at a lane of a board".
 
 Cites: §157, §159, §169.
+
+## 202. An organization's notes at once: the word to fetch, and the key wrapped at the invitation (2026-10-05)
+
+Matt: "when users first go to an organization it takes a while for the notes to sync locally to them like upwards of
+10-15 minutes sometimes, make this instantaneous syncing should be real-time" and "maybe we need to store the notes
+on the server ready to go so we can rapidly sync to new users". The notes were on the service already, sealed; what
+a new member waited for was the key and the clock. A pass ran every five minutes: one for an existing member's
+device to notice them and wrap the organization key, one for their own device to read the wrap, and the notes in the
+pass after that, with every note's versions file and pictures fetched before the next note was shown.
+
+**The key waits with the invitation.** A member's device now wraps the key for someone invited as well as someone
+joined (server/src/store/keys.rs: `missing` lists both, and a wrap is kept for both), and does so right after sending
+an invitation; the wrap is read only by a member, so an invitee learns nothing until they accept, and then has the
+key with nobody else online. Someone who joins by a link, or had no key pair when invited, is wrapped for by the
+word below.
+
+**The word to fetch** (core/live/nudge.ts). Every member's device holds the organization's `sync` room on the relay
+while the app is open, key or no key, and says three unsealed words in it, none a secret: `need` (this device has
+no key - said after registering its own key pair, on joining the room and whenever someone comes in), `keys` (a
+device holding the key has just wrapped for whoever lacked one), and `changed` (this device just wrote a row, an
+update or a file to the organization). A device that hears `need` and holds the key wraps at once; one that hears
+`keys` reads its wrap; one that hears `changed`, or has just got the key, runs a **team pass** - the feed, the list,
+the keys and the organizations' channels, without sweeping the account's own notes (core/sync/engine.ts `team`). So
+an edit made anywhere reaches the other members' devices in the seconds its own pass takes to send it, and the
+five-minute pass is the fallback it always was.
+
+**Notes before their files.** A pull applies every row first, tells the list (`pulled`), and only then fetches the
+versions files and pictures (core/team/sync.ts `later`), so sixty notes are readable in the time sixty rows take.
+
+The keys step also runs whenever an organization's key is not in hand, not only when a wrap is known to be waiting,
+since the first thing a new member's device must do is register its key pair for someone to wrap to.
+
+What the relay learns grows by this: that a member's device is in the app, and when it wrote to the organization.
+
+Tests: core/live/nudge.test.ts, the invitee cases in server/src/orgs_tests.rs and store/keys.rs, `keyWork` in
+core/orgs/orgKeys.test.ts, the outcome's `sent` in core/team/sync.test.ts.
+
+Cites: §191, §193, §195, §199.

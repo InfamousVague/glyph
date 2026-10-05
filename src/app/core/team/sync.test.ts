@@ -117,7 +117,7 @@ describe('a team note between two devices', () => {
     const phone = device();
     phone.put('n1', '# Roadmap\n- ship', { starred: true });
     const outcome = await phone.sync();
-    expect(outcome).toEqual({ changed: 0, unsent: 0, reason: null });
+    expect(outcome).toEqual({ changed: 0, sent: 1, unsent: 0, reason: null });
     const rows = service.teamNotes(orgId);
     expect(rows.size).toBe(1);
     const row = rows.get('n1')!;
@@ -247,7 +247,7 @@ describe('a team note between two devices', () => {
     };
     vi.stubGlobal('fetch', failing);
     const outcome = await syncTeamNotes({ token: service.signedIn(), orgId, key: orgKey, notes: { list: async () => [...phone.notes.values()], get: async (id) => phone.notes.get(id) ?? null, apply: async (n) => n, remove: async () => undefined }, files: { read: async () => null, write: async () => undefined }, docs: phone.docs, state: emptyTeamState(), save: () => undefined, fetcher: failing, isTeamNote: () => true, file: () => undefined });
-    expect(outcome).toEqual({ changed: 0, unsent: 1, reason: 'The service is down.' });
+    expect(outcome).toEqual({ changed: 0, sent: 0, unsent: 1, reason: 'The service is down.' });
   });
 });
 

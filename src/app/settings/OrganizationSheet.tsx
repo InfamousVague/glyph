@@ -16,6 +16,7 @@ import { SettingsScreen, type SettingsSection, type SettingsTarget } from './Set
 import { PaneHero, PaneSection, RowAction, SettingRow, SettingsCallout, SettingsFootnote } from './kit/settingsKit.tsx';
 import { memberWords, roleWords } from './orgWords.ts';
 import styles from './OrganizationsPane.module.css';
+import { syncNotificationsNow } from '../core/sync/engine.ts';
 
 /**
  * An organization's own screen (docs/TEAMS.md, D6; Matt: "There should be a way to view an organization ... when on
@@ -452,6 +453,8 @@ export function OrganizationSheet({ orgId, from, onClose, onNotes, landOnMembers
             me={me}
             onInvite={async (handle) => {
               await inviteByHandle(orgId, handle);
+              // The key wrapped for them now (docs/SHARED.md, S2), so the team's notes are theirs the moment they accept.
+              void syncNotificationsNow();
               await read();
             }}
             onDo={onDo}

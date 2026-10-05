@@ -11,7 +11,7 @@ import { fetchOrg, inviteByHandle, setOrgColour, useOrgs } from '../core/orgs/or
 import type { Member, Org, OrgRow } from '../core/orgs/types.ts';
 import { usePreferences } from '../core/preferences.ts';
 import type { Note } from '../core/store.ts';
-import { syncNow } from '../core/sync/engine.ts';
+import { syncNotificationsNow, syncNow } from '../core/sync/engine.ts';
 import { orgWorkspaceId, useWorkspaces, type WorkspaceHue } from '../core/workspaces.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { Ghost } from '../art/Ghost.tsx';
@@ -262,6 +262,8 @@ export function OrganizationScreen({ orgId, notes, onBack, onOpenNote, onNew, on
                       field={inviteField}
                       onInvite={async (handle) => {
                         await inviteByHandle(orgId, handle);
+                        // The key wrapped for them now (docs/SHARED.md, S2), so the team's notes are theirs the moment they accept.
+                        void syncNotificationsNow();
                         await read();
                       }}
                     />
