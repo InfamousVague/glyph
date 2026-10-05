@@ -116,14 +116,18 @@
         What our service can see about a team note: which organization it belongs to, its id, its size, when it changed, and
         which account wrote each change. It also keeps each member's public encryption key and chosen colour. While team
         notes are being edited live, the service that passes the edits along can see which signed-in account has which team
-        note open, and when; the edits themselves, the note's title and where a cursor is are encrypted, and nothing passed
-        along is stored. Every change to a team note is listed by handle in the note's version history and in the
-        organization's activity log, which are inside the encryption and shown to its members.
+        note open, and when; it can also see that a member's device is in the app and when it has just saved a change to
+        the organization. The edits themselves, the note's title and where a cursor is are encrypted, and nothing passed
+        along is stored. Every change to a team note is listed by handle in the note's version history, which is inside the
+        encryption and shown to its members; the organization's activity log shows it to them alongside the membership
+        events described above.
       </p>
       <p>
         You can decline an invitation, leave an organization at any time, and mute its notifications; an owner or admin can
-        remove a member. Someone who leaves or is removed loses access at once, and the team's notes are then re-encrypted
-        under a new key they don't have. They keep whatever their devices had already downloaded. Deleting an organization
+        remove a member. Someone who leaves or is removed loses access to the service at once. The next time a remaining
+        member's device syncs, the team's notes are re-encrypted under a new key they don't have. They keep whatever their
+        devices had already downloaded. The organization's key is also kept, wrapped, for someone who has been invited and
+        has not yet accepted, so it is ready when they do; they cannot read it or anything else until they join. Deleting an organization
         removes its notes, files and keys from our service. Because we cannot read team notes, we do not review them, and
         there is no way to report another member's content to us: share only with people you trust, and write to the address
         under Contact about anything else.
