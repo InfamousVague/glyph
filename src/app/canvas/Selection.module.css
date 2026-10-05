@@ -12,6 +12,12 @@
   outline: calc(1.5px * var(--inv)) solid var(--app-ink);
   outline-offset: calc(3px * var(--inv));
   border-radius: var(--glacier-radius-lg);
+  /*
+   * How far outside the card the middle of the ring's line is: its offset and half its width. The handles are set
+   * on that line, not on the card's edge inside it (Matt: "the inner handles need to move just a bit like halfway
+   * over the line so it's in the middle of the line"): they sat 3.75px in from the line, beside it.
+   */
+  --ring: calc(3.75px * var(--inv));
 }
 
 .handles[data-kind='group'] {
@@ -38,8 +44,13 @@
   block-size: 13px;
   border: 2px solid var(--app-ink);
   border-radius: 999px;
+  /*
+   * Solid, and with a gap of the page's colour round it, so the ring's line stops short of the handle on each side
+   * and none of it shows through (Matt: "make it have a clip effect on the line so the line isn't shown behind the
+   * handle").
+   */
   background: var(--glacier-bg);
-  box-shadow: 0 1px 4px rgb(0 0 0 / 30%);
+  box-shadow: 0 0 0 2.5px var(--glacier-bg);
   transition: transform 120ms var(--glacier-ease-out, ease-out);
 }
 
@@ -48,14 +59,14 @@
   transform: scale(1.25);
 }
 
-.handle[data-handle='nw'] { left: 0; top: 0; cursor: nwse-resize; }
-.handle[data-handle='ne'] { left: 100%; top: 0; cursor: nesw-resize; }
-.handle[data-handle='se'] { left: 100%; top: 100%; cursor: nwse-resize; }
-.handle[data-handle='sw'] { left: 0; top: 100%; cursor: nesw-resize; }
-.handle[data-handle='n'] { left: 50%; top: 0; cursor: ns-resize; }
-.handle[data-handle='s'] { left: 50%; top: 100%; cursor: ns-resize; }
-.handle[data-handle='e'] { left: 100%; top: 50%; cursor: ew-resize; }
-.handle[data-handle='w'] { left: 0; top: 50%; cursor: ew-resize; }
+.handle[data-handle='nw'] { left: calc(-1 * var(--ring)); top: calc(-1 * var(--ring)); cursor: nwse-resize; }
+.handle[data-handle='ne'] { left: calc(100% + var(--ring)); top: calc(-1 * var(--ring)); cursor: nesw-resize; }
+.handle[data-handle='se'] { left: calc(100% + var(--ring)); top: calc(100% + var(--ring)); cursor: nwse-resize; }
+.handle[data-handle='sw'] { left: calc(-1 * var(--ring)); top: calc(100% + var(--ring)); cursor: nesw-resize; }
+.handle[data-handle='n'] { left: 50%; top: calc(-1 * var(--ring)); cursor: ns-resize; }
+.handle[data-handle='s'] { left: 50%; top: calc(100% + var(--ring)); cursor: ns-resize; }
+.handle[data-handle='e'] { left: calc(100% + var(--ring)); top: 50%; cursor: ew-resize; }
+.handle[data-handle='w'] { left: calc(-1 * var(--ring)); top: 50%; cursor: ew-resize; }
 
 /* The middle of a side: a short bar along it, for a pointer. */
 .handle[data-handle='n']::after,
