@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Bell, DoorOpen, FolderOpen, SlidersHorizontal, Trash2, Users } from '@glacier/icons';
+import { Bell, DoorOpen, Flag, FolderOpen, SlidersHorizontal, Trash2, Users } from '@glacier/icons';
 import { Input, Switch } from '@glacier/react';
 import { useAccount } from '../core/account/account.ts';
 import { failureText } from '../core/failure.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
+import { openLink } from '../core/linkPreview.ts';
 import { deleteOrg, fetchOrg, inviteByHandle, removeMember, setOrgColour, setRole, updateOrg, useOrgs } from '../core/orgs/orgs.ts';
 import type { Member, Org, OrgRow, Role } from '../core/orgs/types.ts';
 import { setPreferences, usePreferences } from '../core/preferences.ts';
@@ -22,15 +23,17 @@ import { syncNotificationsNow } from '../core/sync/engine.ts';
  * An organization's own screen (docs/TEAMS.md, D6; Matt: "There should be a way to view an organization ... when on
  * the organization view make a new settings screen copying the same layout and stuff from the normal settings page
  * but make it tailored towards organization features"): the Settings surface itself (SettingsScreen.tsx), with the
- * organization's name where "Settings" stood, no search over its five sections, and opened landed on Members, so the
+ * organization's name where "Settings" stood, no search over its six sections, and opened landed on Members, so the
  * first thing seen is the team - a hero of the name, its colour, how many and what you are - and not a menu. Back
  * from Members steps to the list of sections, which is the organization's settings; from there back closes.
  *
  * The sections: General (the name and the colour, which owners and admins change; the workspace follows), Members
  * (the list with each one's role, invite by handle or by link, remove, and for the owner a role to set or the organization to
  * hand over), Workspace (the organization's workspace on this device, and the way to the notes filed in it),
- * Notifications (mute this organization's team news) and, last and on its own, Leave or Delete, each tapped twice
- * as a reset is (DeveloperPane.tsx). The service's refusals are shown in its own words under the row that asked.
+ * Notifications (mute this organization's team news), Report (an email to the app's maker about a member or what
+ * they wrote, which a store that lists an app where people share notes asks for beside removing and leaving) and,
+ * last and on its own, Leave or Delete, each tapped twice as a reset is (DeveloperPane.tsx). The service's refusals
+ * are shown in its own words under the row that asked.
  *
  * Opened from Settings › Account › Organizations (`from: 'settings'`), its head reads "← Organizations" and closing
  * reopens Settings on that page (App.tsx); from the organization's dashboard's cog (`from: 'dashboard'`), closing
@@ -61,6 +64,20 @@ interface OrganizationSheetProps {
 
 /** How long a leave or a delete stays armed after its first tap, as a reset does. */
 const ARMED_MS = 5000;
+
+/** Where a report goes: the address on the privacy page and on both stores' listings. */
+const REPORT_TO = 'infamousvaguerat@gmail.com';
+
+/**
+ * The email a report opens, addressed and titled so it can be acted on: the organization's name and its id, and who
+ * is reporting. The body is left to the person, with one line asking for what the service cannot see for itself -
+ * team notes are sealed under the organization's key, so a report has to carry the words it is about.
+ */
+function reportMail(org: { id: string; name: string }, handle: string | null): string {
+  const subject = `Ghost.md report: ${org.name} (${org.id})`;
+  const body = `Reported by: ${handle ?? 'not signed in'}\nOrganization: ${org.name} (${org.id})\n\nWho or what is this about, and what happened? Paste the words or attach a screenshot: team notes are sealed, so we cannot read them ourselves.\n\n`;
+  return `mailto:${REPORT_TO}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
 
 /** The sentence about the workspace, said on Members and on Workspace (docs/TEAMS.md, D1). */
 const TEAMS_NOTES = 'Notes filed here are the team’s: everyone in it reads and edits them, and edits made apart merge.';
@@ -503,6 +520,23 @@ export function OrganizationSheet({ orgId, from, onClose, onNotes, landOnMembers
             }
           />
           <SettingsFootnote>The four switches over what reaches you at all are under Settings › Notifications.</SettingsFootnote>
+        </PaneSection>
+      ),
+    },
+    {
+      id: 'report',
+      label: 'Report',
+      icon: <Flag size={16} />,
+      hue: 'amber',
+      group: 2,
+      content: (
+        <PaneSection title="Report a problem" footer="Team notes are sealed, so we cannot read what is reported unless the email carries it. Reports are read within a few days. To stop seeing an organization’s notes at once, leave it; an owner or an admin can remove a member on Members.">
+          <SettingRow
+            icon={<Flag size={20} />}
+            label="Report a member or a note"
+            hint="Opens an email to Ghost.md’s maker, with this organization named."
+            onPress={() => void openLink(reportMail({ id: orgId, name }, account.session?.handle ?? null))}
+          />
         </PaneSection>
       ),
     },

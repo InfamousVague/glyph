@@ -15,6 +15,9 @@ vi.mock('../core/useWideScreen.ts', () => ({ useSidebar: () => wide }));
 vi.mock('../art/wispEdge.ts', () => ({ useWispEdge: () => undefined }));
 // The motor, which a twice-tapped row warns through.
 vi.mock('../core/haptics.ts', async (importOriginal) => ({ ...(await importOriginal<typeof import('../core/haptics.ts')>()), fireNativeHaptic: () => undefined }));
+// The way out to the phone's mail app, which a report opens.
+const opened: string[] = [];
+vi.mock('../core/linkPreview.ts', async (importOriginal) => ({ ...(await importOriginal<typeof import('../core/linkPreview.ts')>()), openLink: async (url: string) => void opened.push(url) }));
 // Signed in as matt, with a token the service in memory minted: every call the screen makes reaches that service.
 let session: Session | null = null;
 vi.mock('../core/account/account.ts', () => ({
@@ -120,7 +123,7 @@ describe('the screen', () => {
     await waitUntil(() => expect(section().querySelector('.setk__footer')?.textContent).toContain('Your account’s colour'));
   });
 
-  it('steps back from Members to the five sections, Delete last for the owner, and closes from there', async () => {
+  it('steps back from Members to the six sections, Delete last for the owner, and closes from there', async () => {
     const onClose = vi.fn();
     const id = await ghost();
     const host = sheet(id, { onClose });
@@ -128,7 +131,7 @@ describe('the screen', () => {
       goBack();
     });
     expect(display(host)).toBeNull();
-    expect(labels(host)).toEqual(['General', 'Members', 'Workspace', 'Notifications', 'Delete']);
+    expect(labels(host)).toEqual(['General', 'Members', 'Workspace', 'Notifications', 'Report', 'Delete']);
     expect(host.querySelector('.settingsScreen__headWord')?.getAttribute('aria-label')).toBe('Back to your notes');
     act(() => {
       goBack();
@@ -218,7 +221,7 @@ describe('Members', () => {
     act(() => {
       goBack();
     });
-    expect(labels(host)).toEqual(['General', 'Members', 'Workspace', 'Notifications', 'Leave']);
+    expect(labels(host)).toEqual(['General', 'Members', 'Workspace', 'Notifications', 'Report', 'Leave']);
   });
 
   it('shows the service’s refusal under the row it was asked on', async () => {
@@ -353,6 +356,24 @@ describe('the rest', () => {
     expect(preferences().notifications.mutedOrgs).toEqual([id]);
     act(() => host.querySelector<HTMLInputElement>('[aria-label="Mute this organization"]')!.click());
     expect(preferences().notifications.mutedOrgs).toEqual([]);
+  });
+
+  it('opens an email to the maker from Report, naming the organization and who reports', async () => {
+    opened.length = 0;
+    const id = await ghost();
+    const host = sheet(id);
+    act(() => {
+      goBack();
+    });
+    act(() => rowFor(host, 'Report').click());
+    expect(host.textContent).toContain('Team notes are sealed');
+    act(() => buttonSaying(host, 'Report a member or a note')!.click());
+    expect(opened).toHaveLength(1);
+    const mail = new URL(opened[0]!);
+    expect(mail.protocol).toBe('mailto:');
+    expect(mail.pathname).toBe('infamousvaguerat@gmail.com');
+    expect(mail.searchParams.get('subject')).toBe(`Ghost.md report: Ghost (${id})`);
+    expect(mail.searchParams.get('body')).toContain('Reported by: matt');
   });
 
   it('deletes on a second tap, the workspace going with it, and closes', async () => {

@@ -10859,3 +10859,20 @@ registry.test.ts without the plugin.
 
 Cites: §167, §187, §204.
 
+## 206. Report, in an organization's settings (2026-10-05)
+
+Google Play's rules for an app where people share what they write ask for a way to block and a way to report, in the
+app. Blocking was already there in the organization's own terms: decline an invitation, leave, and for an owner or an
+admin, remove a member. Reporting was not. **Report** is a sixth section of an organization's settings
+(settings/OrganizationSheet.tsx), amber, in the last group above Leave or Delete, with one row: "Report a member or a
+note" opens an email to the address on the privacy page, its subject naming the organization and its id, its body who
+is reporting.
+
+It is an email and not a form to the service because team notes are sealed under the organization's key (docs/SHARED.md):
+the service could carry a report's id but never what it is about, so the person has to bring the words, and the page
+says so. The opener's default scope already lets `mailto:` through (src-tauri/capabilities/default.json), so nothing
+native changed.
+
+Tests: settings/OrganizationSheet.test.tsx (six sections; the email's address, subject and body).
+
+Cites: §171.
