@@ -1,8 +1,9 @@
 import { createPortal } from 'react-dom';
 import { Archive, ArchiveRestore, ExternalLink, Pin, PinOff, Trash2 } from '@glacier/icons';
-import { Menu, MenuItem, MenuSeparator } from '@glacier/react';
+import { MenuItem, MenuSeparator } from '@glacier/react';
 import { noteTitle, type Note } from '../core/store.ts';
-import { closeNoteMenu, useNoteMenu } from './noteMenu.ts';
+import { PopMenu } from '../editor/PopMenu.tsx';
+import { closeNoteMenu, noteMenuNow, useNoteMenu } from './noteMenu.ts';
 import styles from './NoteMenu.module.css';
 
 /**
@@ -10,8 +11,11 @@ import styles from './NoteMenu.module.css';
  * and Delete in the danger tone. Each does what the card's swipe does (notes/swipe.ts) through the same actions, so a
  * deleted note goes to the Trash with an Undo (notes/useNoteActions.ts) and a right-click is never a way to lose one.
  *
- * Drawn from the kit's Menu, the tab row's menus' (notes/TabMenus.tsx), hung from a point of no size where the pointer
- * was, in a layer of its own on the body so nothing the page is drawn inside can move it.
+ * Drawn from the kit's Menu through editor/PopMenu.tsx, as the tab row's menus are (notes/TabMenus.tsx), hung from a
+ * point of no size where the pointer was, at the body so nothing the page is drawn inside can move it (Matt: "Allow the
+ * header to be overlapped by the popup menus use the glacierUI context menus"). PopMenu closes it on the back gesture
+ * and Escape, on a press anywhere else heard before a card can keep it to itself, and holds it to half the window's
+ * height, so a right-click near the foot turns it upward whole.
  */
 
 interface NoteMenuHostProps {
@@ -30,12 +34,14 @@ export function NoteMenuHost({ notes, onOpen, onPin, onArchive, onDelete }: Note
   const archived = !!note.archivedAt;
   const title = noteTitle(note.body) || 'Untitled';
   return createPortal(
-    <Menu
+    <PopMenu
       // A fresh menu for each right-click, so a second one somewhere else opens there.
       key={`${at.id}:${at.x}:${at.y}`}
-      open
-      onOpenChange={(still) => !still && closeNoteMenu()}
-      trigger={<span data-note-menu-anchor="" style={{ position: 'fixed', left: at.x, top: at.y, inlineSize: 0, blockSize: 0 }} />}
+      at={at}
+      // Told a microtask after it closes: a right-click elsewhere has opened the next one by then, which stays.
+      onDismiss={() => {
+        if (noteMenuNow() === at) closeNoteMenu();
+      }}
       placement="bottom-start"
       aria-label={`${title}, note`}
     >
@@ -52,7 +58,7 @@ export function NoteMenuHost({ notes, onOpen, onPin, onArchive, onDelete }: Note
       <MenuItem danger className={styles.danger} icon={<Trash2 size={16} aria-hidden="true" />} onSelect={() => onDelete(note)}>
         Delete
       </MenuItem>
-    </Menu>,
+    </PopMenu>,
     document.body,
   );
 }

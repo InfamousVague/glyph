@@ -26,7 +26,7 @@ export function holdToDrag(card: HTMLElement, held: Card, land: (column: number,
     if (event.button !== 0 && event.pointerType === 'mouse') return;
     // A press on one of the card's controls is that control's: a finger resting on the tick box a little past the
     // hold used to lift the card instead of ticking it, so a slow tap did nothing and the next landed on the words.
-    if ((event.target as Element | null)?.closest?.('.cm-boardTick, .cm-boardMove, .cm-boardAdd, .cm-boardMore, .cm-boardMenu')) return;
+    if ((event.target as Element | null)?.closest?.('.cm-boardTick, .cm-boardMove, .cm-boardAdd, .cm-boardMore')) return;
     const board = card.closest('.cm-board') as HTMLElement | null;
     if (!board) return;
     // The card answers its own press and hold: the note's long-press menu is for the words, not for a card.

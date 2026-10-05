@@ -20,12 +20,13 @@
 
 /**
  * A `matchMedia` that answers every query with `matches` - no by default, so no reduced motion, no dark scheme and no
- * narrow window - and never changes its mind. Replaces whatever the window had.
+ * narrow window - and never changes its mind. Replaces whatever the window had. Given a function, it answers each
+ * query by it instead, so a test can say yes to one query (a mouse, the opened Fold) and no to the rest.
  */
-export function stubMatchMedia(matches = false): void {
+export function stubMatchMedia(matches: boolean | ((query: string) => boolean) = false): void {
   window.matchMedia = (query: string) =>
     ({
-      matches,
+      matches: typeof matches === 'function' ? matches(query) : matches,
       media: query,
       onchange: null,
       addListener: () => undefined,

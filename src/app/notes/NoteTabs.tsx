@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Bell, PanelLeft, Plus, UserGroup, X } from '@glacier/icons';
-import { Menu, MenuItem, MenuLabel, MenuSeparator } from '@glacier/react';
+import { MenuItem, MenuLabel, MenuSeparator } from '@glacier/react';
 import { newGroup, NO_GROUPS, renameGroup, toggleGroup, type TabGroups } from './tabGroups.ts';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { isBookBody } from '../book/book.ts';
@@ -11,6 +11,7 @@ import { titleNow, useLiveTitles } from '../core/liveTitles.ts';
 import { setTopBarTail, setTopBarTools } from '../core/topBarTools.ts';
 import { House } from '../art/Icons.tsx';
 import { scrollSideways } from '../core/scrollSideways.ts';
+import { PopMenu } from '../editor/PopMenu.tsx';
 import { GroupChip } from './GroupChip.tsx';
 import { GroupMenu, TabMenu } from './TabMenus.tsx';
 import { useTabDrag } from './useTabDrag.ts';
@@ -151,6 +152,9 @@ export function NoteTabs({
    * `user-select`), and the menu the phone would raise is refused here whatever raises it.
    */
   const [menu, setMenu] = useState<{ kind: 'group' | 'tab'; id: string } | null>(null);
+  /** The organizations' picker, open, and the icon it hangs from. */
+  const [pickingOrg, setPickingOrg] = useState(false);
+  const orgsAnchor = useRef<HTMLButtonElement>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   /** The tab whose name is open as a field, and the words in it: a canvas being renamed in the row. */
   const [naming, setNaming] = useState<{ id: string; draft: string } | null>(null);
@@ -264,29 +268,39 @@ export function NoteTabs({
   */
   const orgs = (asWord: boolean) => {
     if (!onOrganizations) return null;
+    const picks = !!(organizations?.length && onOrganization);
+    // With a picker, the icon opens it and a second press closes it again; without, it goes to Settings.
+    const press = picks ? () => setPickingOrg((was) => !was) : onOrganizations;
     const trigger = asWord ? (
-      <button type="button" className={`app-word ${styles.word}`} aria-label="Organizations" title="Organizations" onClick={organizations?.length && onOrganization ? undefined : onOrganizations}>
+      <button ref={orgsAnchor} type="button" className={`app-word ${styles.word}`} aria-label="Organizations" title="Organizations" aria-haspopup={picks ? 'menu' : undefined} onClick={press}>
         Teams
       </button>
     ) : (
-      <button type="button" className={`${styles.sidebar} ${styles.orgs}`} aria-label="Organizations" title="Organizations" onClick={organizations?.length && onOrganization ? undefined : onOrganizations}>
+      <button ref={orgsAnchor} type="button" className={`${styles.sidebar} ${styles.orgs}`} aria-label="Organizations" title="Organizations" aria-haspopup={picks ? 'menu' : undefined} onClick={press}>
         <UserGroup size={19} strokeWidth={2.1} aria-hidden="true" />
       </button>
     );
     // A picker of the organizations you belong to, hung from the icon: a pick goes straight to that one's
-    // dashboard; the last row is the whole list in Settings, where one is made or an invitation answered.
-    if (!(organizations?.length && onOrganization)) return trigger;
+    // dashboard; the last row is the whole list in Settings, where one is made or an invitation answered. Through
+    // editor/PopMenu.tsx, as the tab and group menus are, so the back gesture and a press anywhere close it too.
+    if (!picks || !organizations || !onOrganization) return trigger;
+    // Always in a fragment, open or not, so the icon is never drawn anew under the press that opened the picker.
     return (
-      <Menu trigger={trigger} placement="bottom-end" aria-label="Choose an organization">
-        <MenuLabel>Organizations</MenuLabel>
-        {organizations.map((org) => (
-          <MenuItem key={org.id} onSelect={() => onOrganization(org.id)} icon={<span className={styles.hueDot} data-hue={org.hue ?? 'ink'} aria-hidden="true" />}>
-            {org.name}
-          </MenuItem>
-        ))}
-        <MenuSeparator />
-        <MenuItem onSelect={onOrganizations}>All organizations…</MenuItem>
-      </Menu>
+      <>
+        {trigger}
+        {pickingOrg ? (
+          <PopMenu anchor={orgsAnchor} placement="bottom-end" reach="down" aria-label="Choose an organization" onDismiss={() => setPickingOrg(false)}>
+            <MenuLabel>Organizations</MenuLabel>
+            {organizations.map((org) => (
+              <MenuItem key={org.id} onSelect={() => onOrganization(org.id)} icon={<span className={styles.hueDot} data-hue={org.hue ?? 'ink'} aria-hidden="true" />}>
+                {org.name}
+              </MenuItem>
+            ))}
+            <MenuSeparator />
+            <MenuItem onSelect={onOrganizations}>All organizations…</MenuItem>
+          </PopMenu>
+        ) : null}
+      </>
     );
   };
   const bell = onNotifications ? (

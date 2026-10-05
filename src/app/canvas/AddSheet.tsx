@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ChartNoAxesCombined, FileText, Group, Image, Link2, SquarePen, Table } from '@glacier/icons';
 import { Sheet } from '../editor/Sheet.tsx';
 import { SheetGroup, SheetRow, SheetTitle } from '../plugins/kit.tsx';
@@ -9,6 +10,11 @@ import styles from './AddSheet.module.css';
  * to add - words, a note, a link, a picture, a chart, a table, a group - and then, for a note or a link, its title or
  * its address. The sheet is only mounted while it is open, so its back gesture is held for as long as it is there, and
  * a press on its scrim is kept from the canvas's gestures under it.
+ *
+ * Drawn at the body (Matt: "Allow the header to be overlapped by the popup menus"): mounted inside the canvas, in the
+ * note's page, the wisp's mask and filter and the body's entrance transform kept its scrim under the header, which
+ * painted over the top of it. React still bubbles its events through CanvasView, so the scrim's stopPropagation keeps
+ * its press from the canvas's own gestures.
  */
 
 /** Where the sheet is: choosing what to add, a note's title, or a web address. */
@@ -34,7 +40,7 @@ interface AddSheetProps {
 export function AddSheet({ step, titles, onClose, onWords, onNote, onLink, onPicture, onChart, onTable, onGroup, aboutCard, onStep }: AddSheetProps) {
   const [words, setWords] = useState('');
   const found = step === 'note' ? titles.filter((t) => t.toLowerCase().includes(words.trim().toLowerCase())).slice(0, 12) : [];
-  return (
+  return createPortal(
     <Sheet label="Add a card" onClose={onClose} onScrimPointerDown={(event) => event.stopPropagation()}>
       <SheetTitle>{step === 'what' ? 'Add a card' : step === 'note' ? 'Which note?' : 'Which address?'}</SheetTitle>
       {step === 'what' ? (
@@ -81,6 +87,7 @@ export function AddSheet({ step, titles, onClose, onWords, onNote, onLink, onPic
           )}
         </div>
       )}
-    </Sheet>
+    </Sheet>,
+    document.body,
   );
 }

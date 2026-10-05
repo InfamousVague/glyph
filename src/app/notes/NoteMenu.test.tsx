@@ -1,5 +1,6 @@
 import { act } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { goBack } from '../core/back.ts';
 
 // The Glacier kit asks matchMedia as it loads.
 await vi.hoisted(async () => (await import('../../test/stubs.ts')).stubMatchMedia());
@@ -24,6 +25,9 @@ function host() {
   show(<NoteMenuHost notes={[GROCERIES]} {...actions} />);
   return actions;
 }
+
+/** What the menu hands its owner a microtask after it closes (editor/PopMenu.tsx), heard, and drawn. */
+const settle = () => act(async () => undefined);
 
 const menuItem = (label: string) => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent?.trim() === label);
 
@@ -53,12 +57,51 @@ describe('a note’s menu', () => {
     expect(document.querySelector('[role="menu"]')?.getAttribute('aria-label')).toBe('Groceries, note');
   });
 
-  it('deletes the note it was opened on, and closes', () => {
+  it('deletes the note it was opened on, and closes', async () => {
     const actions = host();
     act(() => openNoteMenu('g', 10, 10));
     act(() => menuItem('Delete')!.click());
     expect(actions.onDelete).toHaveBeenCalledWith(GROCERIES);
+    await settle();
     expect(document.querySelector('[role="menu"]')).toBeNull();
+    expect(noteMenuNow()).toBeNull();
+  });
+
+  it('hangs from a mark at the pointer, at the body, and closes on the back gesture with the mark', async () => {
+    host();
+    act(() => openNoteMenu('g', 120, 80));
+    const mark = document.querySelector<HTMLElement>('[data-pop-point]')!;
+    expect(mark.parentElement).toBe(document.body);
+    expect([mark.style.left, mark.style.top]).toEqual(['120px', '80px']);
+    expect(document.querySelector('[role="menu"]')?.parentElement).toBe(document.body);
+    let took = false;
+    act(() => void (took = goBack()));
+    await settle();
+    expect(took).toBe(true);
+    expect(noteMenuNow()).toBeNull();
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+    expect(document.querySelector('[data-pop-point]')).toBeNull();
+  });
+
+  it('closes on a press anywhere else, even one kept from the page, and a right-click there opens the next', async () => {
+    host();
+    const card = document.body.appendChild(document.createElement('div'));
+    // As a card keeps its press for its swipe.
+    card.addEventListener('pointerdown', (event) => event.stopPropagation());
+    try {
+      act(() => openNoteMenu('g', 10, 10));
+      act(() => void card.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 2 })));
+      // The right-click that follows the press opens the menu again, somewhere else, before the close is heard.
+      act(() => openNoteMenu('g', 200, 150));
+      await settle();
+      expect(noteMenuNow()).toEqual({ id: 'g', x: 200, y: 150 });
+      expect(document.querySelectorAll('[role="menu"]')).toHaveLength(1);
+      act(() => void card.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
+      await settle();
+      expect(noteMenuNow()).toBeNull();
+    } finally {
+      card.remove();
+    }
   });
 
   it('says Unpin and Unarchive for a note pinned and archived', () => {

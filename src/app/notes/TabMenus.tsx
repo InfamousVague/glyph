@@ -1,6 +1,8 @@
-import { Menu, MenuItem, MenuSeparator, MenuSub } from '@glacier/react';
+import { MenuItem, MenuSeparator } from '@glacier/react';
+import { useRef } from 'react';
 import { capitalise } from '../core/text.ts';
 import { WORKSPACE_HUES } from '../core/workspaces.ts';
+import { PopMenu, PopSub } from '../editor/PopMenu.tsx';
 import { joinGroup, leaveGroup, membersOf, recolourGroup, ungroup, type TabGroup, type TabGroups } from './tabGroups.ts';
 import styles from './NoteTabs.module.css';
 import menu from './NoteMenu.module.css';
@@ -10,6 +12,13 @@ import menu from './NoteMenu.module.css';
  * right-click; a finger opens a tab's by holding it and letting go where it was (notes/useTabDrag.ts), and a chip's by
  * a long press, since a chip is never dragged. Each hangs from an anchor in its tab or chip and says what it is for,
  * so a screen reader hears "Groceries tab" rather than a bare list of verbs.
+ *
+ * Both are the kit's menu through editor/PopMenu.tsx, hanging down from the bar (Matt: "Allow the header to be
+ * overlapped by the popup menus use the glacierUI context menus"), which gives them what the kit's alone did not: the
+ * back gesture closes one, where a back swipe used to go to the screen under it; a press anywhere closes one; under a
+ * finger the rows are a thumb's height; and none runs taller than the room under the bar. The rows under a name (Add to
+ * group, Colour) are listed in place under it, each with its whole name, except for a mouse on a window wide enough
+ * for a flyout either side of the menu: the kit's flyout ran off a phone's edge.
  *
  * Drawn from the row's own stylesheet: the anchor and the hue dots are the row's, and a menu of its own would be one
  * more place for them to drift.
@@ -39,30 +48,39 @@ export function TabMenu({
   /** The tab's note to the Trash, with an Undo; absent, the menu has no Delete. */
   onDeleteNote?: () => void;
 }) {
+  const anchor = useRef<HTMLSpanElement>(null);
   const groupId = groups.of[noteId];
   const others = groups.list.filter((g) => g.id !== groupId);
   return (
-    <Menu open onOpenChange={(open) => !open && onDismiss()} trigger={<span className={styles.menuAnchor} />} placement="bottom-start" aria-label={`${title} tab`}>
-      {onRename ? <MenuItem onSelect={onRename}>Rename</MenuItem> : null}
-      <MenuItem onSelect={onNewGroup}>Add to a new group</MenuItem>
-      {others.length ? (
-        <MenuSub label="Add to group">
-          {others.map((g) => (
-            <MenuItem key={g.id} onSelect={() => onGroups(joinGroup(groups, noteId, g.id))} icon={<span className={styles.hueDot} data-hue={g.hue} aria-hidden="true" />}>
-              {g.name}
-            </MenuItem>
-          ))}
-        </MenuSub>
-      ) : null}
-      {groupId ? <MenuItem onSelect={() => onGroups(leaveGroup(groups, noteId))}>Remove from group</MenuItem> : null}
-      <MenuSeparator />
-      <MenuItem onSelect={onCloseTab}>Close tab</MenuItem>
-      {onDeleteNote ? (
-        <MenuItem danger className={menu.danger} onSelect={onDeleteNote}>
-          Delete note
-        </MenuItem>
-      ) : null}
-    </Menu>
+    <>
+      <span ref={anchor} className={styles.menuAnchor} />
+      <PopMenu anchor={anchor} placement="bottom-start" reach="down" aria-label={`${title} tab`} onDismiss={onDismiss}>
+        {onRename ? <MenuItem onSelect={onRename}>Rename</MenuItem> : null}
+        <MenuItem onSelect={onNewGroup}>Add to a new group</MenuItem>
+        {others.length ? (
+          <PopSub label="Add to group" reach="down">
+            {others.map((g) => (
+              <MenuItem
+                key={g.id}
+                aria-label={`Add to ${g.name}`}
+                onSelect={() => onGroups(joinGroup(groups, noteId, g.id))}
+                icon={<span className={styles.hueDot} data-hue={g.hue} aria-hidden="true" />}
+              >
+                {g.name}
+              </MenuItem>
+            ))}
+          </PopSub>
+        ) : null}
+        {groupId ? <MenuItem onSelect={() => onGroups(leaveGroup(groups, noteId))}>Remove from group</MenuItem> : null}
+        <MenuSeparator />
+        <MenuItem onSelect={onCloseTab}>Close tab</MenuItem>
+        {onDeleteNote ? (
+          <MenuItem danger className={menu.danger} onSelect={onDeleteNote}>
+            Delete note
+          </MenuItem>
+        ) : null}
+      </PopMenu>
+    </>
   );
 }
 
@@ -85,21 +103,30 @@ export function GroupMenu({
   onGroups: (next: TabGroups) => void;
   onCloseTabs?: (ids: string[]) => void;
 }) {
+  const anchor = useRef<HTMLSpanElement>(null);
   return (
-    <Menu open onOpenChange={(open) => !open && onDismiss()} trigger={<span className={styles.menuAnchor} />} placement="bottom-start" aria-label={`${group.name} group`}>
-      <MenuItem onSelect={onRename}>Rename</MenuItem>
-      <MenuSub label="Colour">
-        {WORKSPACE_HUES.map((hue) => (
-          <MenuItem key={hue} onSelect={() => onGroups(recolourGroup(groups, group.id, hue))} icon={<span className={styles.hueDot} data-hue={hue} aria-hidden="true" />}>
-            {capitalise(hue)}
-          </MenuItem>
-        ))}
-      </MenuSub>
-      <MenuSeparator />
-      <MenuItem onSelect={() => onGroups(ungroup(groups, group.id))}>Ungroup</MenuItem>
-      <MenuItem danger onSelect={() => onCloseTabs?.(membersOf(groups, group.id, tabIds))}>
-        Close group
-      </MenuItem>
-    </Menu>
+    <>
+      <span ref={anchor} className={styles.menuAnchor} />
+      <PopMenu anchor={anchor} placement="bottom-start" reach="down" aria-label={`${group.name} group`} onDismiss={onDismiss}>
+        <MenuItem onSelect={onRename}>Rename</MenuItem>
+        <PopSub label="Colour" reach="down">
+          {WORKSPACE_HUES.map((hue) => (
+            <MenuItem
+              key={hue}
+              aria-label={`Colour: ${capitalise(hue)}`}
+              onSelect={() => onGroups(recolourGroup(groups, group.id, hue))}
+              icon={<span className={styles.hueDot} data-hue={hue} aria-hidden="true" />}
+            >
+              {capitalise(hue)}
+            </MenuItem>
+          ))}
+        </PopSub>
+        <MenuSeparator />
+        <MenuItem onSelect={() => onGroups(ungroup(groups, group.id))}>Ungroup</MenuItem>
+        <MenuItem danger onSelect={() => onCloseTabs?.(membersOf(groups, group.id, tabIds))}>
+          Close group
+        </MenuItem>
+      </PopMenu>
+    </>
   );
 }

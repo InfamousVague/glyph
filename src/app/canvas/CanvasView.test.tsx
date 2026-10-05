@@ -349,6 +349,15 @@ describe('more ways to add', () => {
     expect((onChange.mock.calls[0]![0] as Canvas).nodes.at(-1)).toMatchObject({ type: 'file', file: 'Launch week.md' });
   });
 
+  it('draws the + sheet at the body, where nothing in the note’s page can keep it under the header', () => {
+    const shown = show(<CanvasView canvas={canvas} dark={false} onChange={vi.fn()} />);
+    tap(shown.querySelector('button[aria-label="Add a card"]')!);
+    const sheet = document.querySelector('[role="dialog"]')!;
+    expect(shown.contains(sheet)).toBe(false);
+    // The scrim, which dims the whole page from its top.
+    expect(sheet.parentElement!.parentElement).toBe(document.body);
+  });
+
   it('closes the + sheet on a back gesture and on a tap beside it, adding nothing', () => {
     const onChange = vi.fn();
     const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);

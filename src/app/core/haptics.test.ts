@@ -167,6 +167,55 @@ describe('the tap tick', () => {
     expect(said).toEqual(['selection']);
   });
 
+  it('lets off a button or a row in a menu that says its own tick, and not a field there, nor a row elsewhere', async () => {
+    const own = document.body.appendChild(document.createElement('div'));
+    own.dataset.haptics = 'own';
+    const mine = own.appendChild(document.createElement('button'));
+    const row = own.appendChild(document.createElement('div'));
+    row.setAttribute('role', 'menuitem');
+    const field = own.appendChild(document.createElement('input'));
+    const kitRow = document.body.appendChild(document.createElement('div'));
+    kitRow.setAttribute('role', 'menuitem');
+    try {
+      tap(mine);
+      tap(row);
+      await settle();
+      expect(said).toEqual([]);
+      // A field says nothing of its own, so it ticks as every field does; a row of the kit's menu calls nothing itself.
+      tap(field);
+      tap(kitRow);
+      await settle();
+      expect(said).toEqual(['selection', 'selection']);
+    } finally {
+      own.remove();
+      kitRow.remove();
+    }
+  });
+
+  it('ticks once for a menu opened by holding, however long the hold', async () => {
+    // A tab held 300ms and let go: the tap tick speaks on the lift, and the menu opening after it keeps quiet.
+    pointer('pointerdown', button);
+    pointer('pointerup', button, { at: 300 });
+    haptics.tickHeld();
+    await settle();
+    expect(said).toEqual(['selection']);
+    // Held 900ms: too long for a tap, so the menu's tick is the one.
+    said.length = 0;
+    pointer('pointerdown', button);
+    pointer('pointerup', button, { at: 900 });
+    haptics.tickHeld();
+    await settle();
+    expect(said).toEqual(['selection']);
+    // A chip's long press opens its menu with the finger still down: one tick then, and none as it lifts.
+    said.length = 0;
+    pointer('pointerdown', button);
+    haptics.tickHeld();
+    haptics.tickHeld();
+    pointer('pointerup', button, { at: 500 });
+    await settle();
+    expect(said).toEqual(['selection']);
+  });
+
   it('is taken down by its cleanup, and is never put up without a motor', async () => {
     stop();
     tap(button);

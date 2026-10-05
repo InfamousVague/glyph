@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, useState, type ComponentProps } from 'react';
 import { canvasNoteBody } from '../canvas/jsonCanvas.ts';
+import { goBack } from '../core/back.ts';
 import { reloadPreferences } from '../core/preferences.ts';
 import { makeNote } from '../../test/notes.ts';
 import { button, rerender, show, typeInto, waitUntil } from '../../test/render.tsx';
@@ -15,6 +16,9 @@ import { NO_GROUPS, type TabGroups } from './tabGroups.ts';
 
 // The Glacier kit asks matchMedia as it loads.
 await vi.hoisted(async () => (await import('../../test/stubs.ts')).stubMatchMedia());
+/** The tick a menu opened by holding says (core/haptics.ts), counted. */
+const held = vi.hoisted(() => vi.fn());
+vi.mock('../core/haptics.ts', async (importOriginal) => ({ ...(await importOriginal<typeof import('../core/haptics.ts')>()), tickHeld: held }));
 const { NoteTabs } = await import('./NoteTabs.tsx');
 
 // The row watches its own size and its ends; jsdom lays nothing out, so nothing ever resizes.
@@ -40,6 +44,11 @@ const pointer = (type: string, target: EventTarget, x: number, pointerType = 'mo
     target.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX: x, pointerType, button: 0 }));
   });
 const menuItems = () => [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent?.trim());
+/** A menu row by its whole name: its label where it has one (a row under a name), else its words. */
+const menuRow = (name: string) =>
+  [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => (item.getAttribute('aria-label') ?? item.textContent?.trim()) === name);
+/** What a menu hands its owner a microtask after it closes (editor/PopMenu.tsx), heard, and drawn. */
+const settle = () => act(async () => undefined);
 
 beforeEach(() => {
   localStorage.clear();
@@ -134,6 +143,37 @@ describe('the top bar', () => {
     expect(onOrganizations).not.toHaveBeenCalled();
   });
 
+  it('closes the organizations’ picker on the back gesture, a second press on the icon, and a press anywhere else', async () => {
+    const organizations = [{ id: 'o1', name: 'Studio', hue: 'teal' }];
+    show(bar({ onOrganizations: vi.fn(), onOrganization: vi.fn(), organizations }));
+    const picker = () => document.querySelector('[role="menu"][aria-label="Choose an organization"]');
+    const icon = button('Organizations');
+    const open = async () => {
+      act(() => icon.click());
+      await waitUntil(() => expect(picker()).not.toBeNull());
+    };
+    await open();
+    // Hung from the icon, which says so while it is open (editor/PopMenu.tsx).
+    expect(icon.getAttribute('aria-haspopup')).toBe('menu');
+    expect(icon.getAttribute('aria-expanded')).toBe('true');
+    let took = false;
+    act(() => void (took = goBack()));
+    await settle();
+    expect(took).toBe(true);
+    expect(picker()).toBeNull();
+    expect(icon.hasAttribute('aria-expanded')).toBe(false);
+    // A press on the icon is the picker's own: it closes it, and does not close and open it again.
+    await open();
+    act(() => void icon.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
+    act(() => icon.click());
+    await settle();
+    expect(picker()).toBeNull();
+    await open();
+    act(() => void document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
+    await settle();
+    expect(picker()).toBeNull();
+  });
+
   it('goes to Settings from the people icon when you belong to no organization yet', () => {
     const onOrganizations = vi.fn();
     show(bar({ onOrganizations, onOrganization: vi.fn(), organizations: [] }));
@@ -185,10 +225,13 @@ describe('a tab’s menu', () => {
     vi.useFakeTimers();
     const onOpen = vi.fn();
     show(bar({ onOpen, onMove: () => undefined, onGroups: () => undefined }));
+    held.mockClear();
     pointer('pointerdown', tab('b').querySelector('[role="tab"]')!, 150, 'touch');
     act(() => void vi.advanceTimersByTime(220));
     pointer('pointerup', window, 150, 'touch');
     expect(menuItems()).toContain('Close tab');
+    // One tick for the press, the tap tick's or the hold's (core/haptics.ts `tickHeld`).
+    expect(held).toHaveBeenCalledOnce();
     act(() => button('Bread').click());
     expect(onOpen).not.toHaveBeenCalled();
   });
@@ -377,15 +420,54 @@ describe('a group’s chip', () => {
     expect(button('Lunch, 2 tabs, folded')).toBeTruthy();
   });
 
-  it('offers its colours, ungrouping, and closing every tab it holds', () => {
+  const chipMenu = () => act(() => void button('Lunch, 2 tabs').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+
+  it('offers its colours in place under their name, ungrouping, and closing every tab it holds', async () => {
+    // The file's matchMedia answers no to everything: no mouse, so no flyout, as under a finger.
+    const onGroups = vi.fn();
     const onCloseTabs = vi.fn();
-    show(bar({ groups, onGroups: () => undefined, onCloseTabs }));
-    act(() => void button('Lunch, 2 tabs').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
-    expect(menuItems()).toEqual(expect.arrayContaining(['Rename', 'Ungroup', 'Close group']));
-    act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent?.trim() === 'Colour')!.click());
-    expect(menuItems()).toEqual(expect.arrayContaining(['Ink', 'Sea']));
-    act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent === 'Close group')!.click());
+    show(bar({ groups, onGroups, onCloseTabs }));
+    chipMenu();
+    expect(menuItems()).toEqual(['Rename', 'Ink', 'Ember', 'Amber', 'Moss', 'Sea', 'Violet', 'Rose', 'Ungroup', 'Close group']);
+    // "Colour" is a name over its rows, not a row, and each row says the whole of what it is.
+    expect(document.querySelector('[role="presentation"]')?.textContent).toBe('Colour');
+    expect(document.querySelector('[aria-haspopup="menu"]')).toBeNull();
+    expect(menuRow('Colour: Sea')?.textContent).toBe('Sea');
+    act(() => menuRow('Colour: Moss')!.click());
+    await settle();
+    expect(onGroups).toHaveBeenCalledWith({ list: [{ ...groups.list[0]!, hue: 'moss' }], of: groups.of });
+    expect(menuItems()).toEqual([]);
+    chipMenu();
+    act(() => menuRow('Close group')!.click());
+    await settle();
     expect(onCloseTabs).toHaveBeenCalledWith(['b', 'c']);
+  });
+
+  it('flies its colours out for a mouse on a wide window', async () => {
+    stubMatchMedia((query) => query.includes('pointer: fine') || query.includes('hover: hover'));
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+    try {
+      show(bar({ groups, onGroups: () => undefined }));
+      chipMenu();
+      const colour = menuRow('Colour')!;
+      expect(colour.getAttribute('aria-haspopup')).toBe('menu');
+      expect(menuItems()).toEqual(['Rename', 'Colour', 'Ungroup', 'Close group']);
+      act(() => colour.click());
+      await settle();
+      expect(menuItems()).toEqual(expect.arrayContaining(['Ink', 'Sea']));
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 });
+    }
+  });
+
+  it('closes on the back gesture, and leaves the gesture to nothing else', async () => {
+    show(bar({ groups, onGroups: () => undefined }));
+    chipMenu();
+    let took = false;
+    act(() => void (took = goBack()));
+    await settle();
+    expect(took).toBe(true);
+    expect(menuItems()).toEqual([]);
   });
 });
 
@@ -398,12 +480,16 @@ describe('grouping tabs from their menus', () => {
     return bar({ groups, onGroups: setGroups });
   }
   const menuOf = (id: string) => act(() => void tab(id).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
-  const choose = (words: string) => act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent?.trim() === words)!.click());
+  /** A row chosen, by its words, and the menu closed after it. */
+  const choose = async (words: string) => {
+    act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent?.trim() === words)!.click());
+    await settle();
+  };
 
-  it('makes a group around a tab and names it at once: Enter keeps the name, Escape the one it had', () => {
+  it('makes a group around a tab and names it at once: Enter keeps the name, Escape the one it had', async () => {
     show(<Grouping />);
     menuOf('a');
-    choose('Add to a new group');
+    await choose('Add to a new group');
     expect(held.of).toEqual({ a: held.list[0]!.id });
     const field = document.querySelector<HTMLInputElement>('input[aria-label="Group name"]')!;
     expect(field.value).toBe('Group');
@@ -411,25 +497,35 @@ describe('grouping tabs from their menus', () => {
     act(() => void field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
     expect(held.list[0]!.name).toBe('Lunch');
     act(() => void button('Lunch, 1 tab').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
-    choose('Rename');
+    await choose('Rename');
     const again = document.querySelector<HTMLInputElement>('input[aria-label="Group name"]')!;
     typeInto(again, 'Dinner');
     act(() => void again.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
     expect(held.list[0]!.name).toBe('Lunch');
   });
 
-  it('adds a tab to a group there already is, and takes it out again', () => {
+  it('adds a tab to a group there already is, and takes it out again', async () => {
     show(<Grouping />);
     menuOf('a');
-    choose('Add to a new group');
+    await choose('Add to a new group');
     act(() => void document.querySelector<HTMLInputElement>('input[aria-label="Group name"]')!.blur());
     menuOf('c');
-    act(() => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent?.includes('Add to group'))!.click());
-    choose('Group');
+    // The groups there are, listed in place under "Add to group", each named for what choosing it does.
+    expect(menuRow('Add to Group')?.textContent).toBe('Group');
+    await choose('Group');
     expect(held.of.c).toBe(held.of.a);
     menuOf('c');
-    choose('Remove from group');
+    await choose('Remove from group');
     expect(held.of.c).toBeUndefined();
+  });
+
+  it('closes a tab’s menu on the back gesture', async () => {
+    show(<Grouping />);
+    menuOf('b');
+    expect(menuItems()).toContain('Close tab');
+    act(() => void goBack());
+    await settle();
+    expect(menuItems()).toEqual([]);
   });
 });
 
