@@ -22,6 +22,7 @@
 mod accounts;
 mod keys;
 mod notes;
+mod org_notes;
 mod notifications;
 mod org_links;
 mod orgs;
@@ -32,6 +33,7 @@ mod shares;
 pub use accounts::DeleteAccount;
 pub use keys::{AccountKey, KeyWrite, OrgKeys, Wrap};
 pub use notes::NoteRow;
+pub use org_notes::{OrgNoteRow, OrgNoteWrite, UpdateRow};
 #[cfg(test)]
 pub use notifications::KEPT;
 pub use notifications::{NotificationRow, NotificationWrite, SERVER_KINDS};
@@ -178,6 +180,42 @@ CREATE TABLE IF NOT EXISTS org_key_state (
     generation INTEGER NOT NULL,
     made_by    INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
     made_at    INTEGER NOT NULL
+);
+-- Team notes (docs/SHARED.md, S4; store/org_notes.rs): an organization's notes as ciphertext under its key, with the
+-- organization's own write counter so a member's feed cursor is per organization, the CRDT's update log beside each
+-- note (S5), and the organization's sealed files - a note's versions file, its pictures - as an account's recordings.
+-- Who wrote a row is only a reference. All of it goes with the organization.
+CREATE TABLE IF NOT EXISTS org_revs (
+    org_id TEXT PRIMARY KEY REFERENCES orgs(id) ON DELETE CASCADE,
+    rev    INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS org_notes (
+    org_id     TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+    id         TEXT NOT NULL,
+    rev        INTEGER NOT NULL,
+    deleted    INTEGER NOT NULL DEFAULT 0,
+    blob       TEXT,
+    by_id      INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (org_id, id)
+);
+CREATE INDEX IF NOT EXISTS org_notes_by_rev ON org_notes(org_id, rev);
+CREATE TABLE IF NOT EXISTS org_note_updates (
+    org_id  TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+    note_id TEXT NOT NULL,
+    seq     INTEGER NOT NULL,
+    blob    TEXT NOT NULL,
+    by_id   INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+    at      INTEGER NOT NULL,
+    PRIMARY KEY (org_id, note_id, seq)
+);
+CREATE TABLE IF NOT EXISTS org_files (
+    org_id     TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+    id         TEXT NOT NULL,
+    rev        INTEGER NOT NULL,
+    size       INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (org_id, id)
 );
 CREATE TABLE IF NOT EXISTS org_keys (
     org_id     TEXT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,

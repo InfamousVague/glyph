@@ -35,6 +35,7 @@ mod store;
 mod live;
 mod mcp_proxy;
 mod notifications;
+mod org_notes;
 mod orgs;
 mod shares;
 mod sync;
@@ -49,6 +50,8 @@ mod shares_tests;
 mod live_tests;
 #[cfg(test)]
 mod orgs_tests;
+#[cfg(test)]
+mod org_notes_tests;
 #[cfg(test)]
 mod notifications_tests;
 
@@ -164,6 +167,7 @@ fn router(app: Arc<format::App>, accounts: Option<Arc<accounts::Accounts>>) -> R
             .merge(shares::router(accounts.clone()))
             // Organizations and the notifications feed (docs/TEAMS.md): the same accounts, invited by handle.
             .merge(orgs::router(accounts.clone()))
+            .merge(org_notes::router(accounts.clone()))
             .merge(notifications::router(accounts.clone()))
             // Live sync's relay (docs/LIVE.md): the same accounts, a socket instead of requests.
             .merge(live::router(accounts));

@@ -56,11 +56,13 @@ the same name collides with nothing; `addWorkspace` dedupes names among personal
 pill, chip and folder row carry `data-org` and a small mark before the name. Its hue follows the organization and is
 set in the organization's General section; the personal swatch is not offered for it, and Rename and Remove refuse it.
 
-**Not shared yet.** Notes stay per account and end-to-end encrypted, so in this slice the workspace is one each member
-has, not a shared store: a note filed in it is the person's own, and nobody else in the organization sees it. The
-Workspace section and the Members hero say so in Matt's register: "Notes filed here stay yours for now; sharing them
-with the team comes next." Sharing needs an organization key wrapped per member under a new per-account encryption
-key (only Ed25519 signing keys exist today), which is the follow-up.
+**Shared, since the second slice of docs/SHARED.md (D1, revised).** A note filed in an organization's workspace is
+the team's: on every member's devices, read and edited by all, sealed under the organization key and carried by the
+organization channel (core/team/sync.ts) rather than the account's feed, its document a CRDT so edits made apart
+merge. The Workspace section and the Members hero say so: "Notes filed here are the team's: everyone in it reads
+and edits them, and edits made apart merge." Taking a note out of the workspace takes it from the team, and the
+picker asks twice. Before that slice the workspace was one each member had, and the sentence was "Notes filed here
+stay yours for now; sharing them with the team comes next."
 
 **Leaving and deleting.** A member removing their own handle is leaving: the row goes, every remaining member is told
 (`member-left`), and the workspace is dropped on their devices with its notes unfiled. The owner deleting the

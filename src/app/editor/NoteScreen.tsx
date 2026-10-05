@@ -103,6 +103,7 @@ import { useBookmark } from './useBookmark.ts';
 import { useLandAt } from './useLandAt.ts';
 import { useLanding } from './useLanding.ts';
 import { useLiveNote } from './useLiveNote.ts';
+import { useTeamNote } from './useTeamNote.ts';
 import { useNoteAi, type NoteAsk } from './useNoteAi.ts';
 import { fillPlanOf } from './blanks.ts';
 import { useNotePictures } from './useNotePictures.ts';
@@ -511,6 +512,7 @@ export function NoteScreen({
     fireNativeHaptic('selection');
   };
   useLiveNote(view, note.id);
+  useTeamNote(view, note.id);
   // The tab says the note's name as line 1 is written (core/liveTitles.ts), a name tapped on its blank page included.
   useEffect(() => setLiveTitle(note.id, title), [note.id, title]);
   // "Added to House TODOs", with an Undo that is an edit here; and no better words written under the open note.

@@ -10317,3 +10317,49 @@ the sliders.
 Tests: art/iconWash.test.ts (a body, a path that comes back to its start, and the stylesheet against the icons in use).
 
 Cites: §132.
+
+## 193. Team notes: the second slice of notes shared in an organization (2026-10-05)
+
+docs/SHARED.md, S1, S4 and S5: a note filed in an organization's workspace is the team's. Matt: "Organizations should
+have real time sync on documents so everyones stuff stays up to date" - this is the durable half; the live half,
+over the relay, is the next slice.
+
+**Filed is shared.** Filing is the sharing: a note in the organization's workspace is on every member's devices, read
+and edited by every member. The dashboard's hero, the organization's Workspace section, the join sheet and the
+workspace sheet now say "Notes filed here are the team's: everyone in it reads and edits them, and edits made apart
+merge." Taking a note out of the workspace, or moving it to another, takes it from everyone, so the picker
+(editor/WorkspacePicker.tsx) asks twice, armed for four seconds in between, as leaving an organization is.
+
+**The organization channel.** A second sync, after the account's own in every full pass and once for each
+organization joined whose key this device holds (core/team/sync.ts; core/sync/engine.ts): the organization's feed of
+rows, each note's update log, and the organization's files. On the service: `org_notes`, `org_note_updates`,
+`org_files` and `org_revs` (the organization's own write counter, so a cursor is per organization), and the routes
+under `orgs/{id}/notes`, `…/updates` and `orgs/{id}/files` (server/src/org_notes.rs, store/org_notes.rs), every body
+ciphertext under the organization key, checked for size and shape. The account's sync leaves team notes alone
+(`teamNote` in core/sync/notes.ts): one that was the account's is deleted from its feed, so the account's other
+devices take it from the team, and a stale row of it in the feed is passed over.
+
+**The document of record is the CRDT.** Each team note is a Yjs document held on the device (core/team/doc.ts,
+kept in IndexedDB by core/team/docs.ts: the state, the seq of the log applied, the seq its last snapshot covered,
+and the updates made here not yet posted). The editor binds to it while the note is filed in an organization's
+workspace (editor/useTeamNote.ts, the live binding's `bindLive` over the document's text, undo the document's);
+words that reach the note without the editor - a capture, a journal entry, Claude - are reconciled into it as one
+change (`reconcile`: the common head and foot kept, what lies between replaced), so a change made anywhere merges
+with the team's rather than writing over it. The organization's row for a note carries a snapshot - the state, the
+note's words and particulars - and the log carries every update since; a pass pulls the rows (adopting each into the
+document held, merged and never doubled; this device's own words from before the team had the note reconciled in as
+a change), applies the log, reconciles the note's words, posts the updates made here, and puts the row again for a
+changed pin, archive or folder, or after two hundred updates, cutting the log to the snapshot. Two members who
+edited apart merge by the CRDT: the channel keeps no conflict copies. The note's versions file travels by the
+organization's files, merged version by version as before, so every member's edits are in its history by handle,
+which the audit log (§183) reads; its pictures travel the same way.
+
+**Not yet.** The live half (S6): the relay's organization rooms, presence, cursors in colour and "editing Roadmap"
+with Jump to cursor. Recordings do not travel with a team note. Claude's connector writes the account's feed and
+cannot reach a team note yet. The live-typing trial switch leaves team notes to their own binding.
+
+Tests: core/team/doc.test.ts, core/team/sync.test.ts (two devices on one organization through the service in
+memory), the team cases in core/sync/notes.test.ts, editor/WorkspacePicker.test.tsx; on the service,
+store/org_notes.rs's own and org_notes_tests.rs.
+
+Cites: §175, §182, §183, §191.

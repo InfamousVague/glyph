@@ -77,6 +77,11 @@ function stateOf(accountId: number): OrgState {
   return cache.state;
 }
 
+/** The rows kept for an account, signed in or not: for the sync engine forgetting an account's channels (core/sync/engine.ts). */
+export function orgRowsOf(accountId: number): readonly OrgRow[] {
+  return stateOf(accountId).list;
+}
+
 /** Keeps the list for an account: on this device for the next launch, and for everything watching it now. */
 export function saveOrgs(accountId: number, state: OrgState): void {
   cache = { accountId, state };

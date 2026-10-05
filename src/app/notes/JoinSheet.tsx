@@ -131,7 +131,7 @@ export function JoinSheet({ code, onClose, onOpen, onAccount }: {
       </SheetTitle>
       <SheetNote>
         {preview.by ? `${preview.by} shared this invite link. ` : ''}
-        {memberWords(org.members)} so far. You join as a member, and its workspace is made on each of your devices. Notes you file there stay yours for now.
+        {memberWords(org.members)} so far. You join as a member, and its workspace is made on each of your devices. Notes filed there are the team’s: everyone in it reads and edits them.
       </SheetNote>
       {problem ? <SheetNote>{problem}</SheetNote> : null}
       <SheetGroup>

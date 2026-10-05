@@ -118,7 +118,7 @@ describe('an organization’s dashboard', () => {
     page(id);
     expect(document.querySelector('h1')?.textContent).toBe('Ghost');
     expect(document.querySelector('h1 [data-hue="sea"]')).not.toBeNull();
-    expect(document.body.textContent).toContain('Notes filed here stay yours for now; sharing them with the team comes next.');
+    expect(document.body.textContent).toContain('Notes filed here are the team’s: everyone in it reads and edits them, and edits made apart merge.');
     await waitUntil(() => expect(members()).toHaveLength(2));
     expect(members()[0]).toContain('matt');
     expect(members()[0]).toContain('Owner');

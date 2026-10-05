@@ -13,8 +13,8 @@ import { tellArrived } from '../notifications/arrived.ts';
 import { feedState, forgetNotifications, listed, syncNotifications, updateFeed } from '../notifications/feed.ts';
 import { postNewRows, syncPhoneWatch } from '../notifications/phone.ts';
 import { record } from '../notifications/record.ts';
-import { forgetOrgKeys, syncOrgKeys } from '../orgs/orgKeys.ts';
-import { forgetOrgs, saveOrgs, syncOrgs } from '../orgs/orgs.ts';
+import { forgetOrgKeys, orgKeyOf, syncOrgKeys } from '../orgs/orgKeys.ts';
+import { forgetOrgs, orgRowsOf, saveOrgs, syncOrgs } from '../orgs/orgs.ts';
 import type { OrgRow } from '../orgs/types.ts';
 import { isIOS } from '../platform.ts';
 import { onPreferences, preferences, setPreferences } from '../preferences.ts';
@@ -22,6 +22,10 @@ import { recordingDigest } from '../recordings.ts';
 import { announceNotesChanged, applyNote, deleteNote, getNote, listNotes, NOTE_SAVED, type Note } from '../store.ts';
 import { readStored, writeStored } from '../stored.ts';
 import { invoke, isTauri } from '../tauri.ts';
+import { forgetTeamDocs } from '../team/doc.ts';
+import { deviceDocs } from '../team/docs.ts';
+import { emptyTeamState, syncTeamNotes, type TeamSyncState } from '../team/sync.ts';
+import { fileNote, isOrgWorkspace, orgWorkspaceId, workspaceOf } from '../workspaces.ts';
 import { readVersionsFile, sentVersions, unsentVersions, writeVersionsFile } from '../versions/store.ts';
 import type { Bytes } from './crypto.ts';
 import { emptyState, mark, syncNotes, type FileKind, type LocalFiles, type LocalNotes, type SyncState } from './notes.ts';
@@ -124,6 +128,9 @@ export function hasUnsyncedChanges(note: Note): boolean {
 /** Forgets what this device knew of an account's sync: for signing out. The feed and the organizations are theirs to forget. */
 function forgetSync(accountId: number): void {
   for (const part of ['notes', 'prefs']) writeStored(stateKey(accountId, part), null);
+  // And each organization's channel (core/team/sync.ts), kept under `team-<org id>`: read before the organizations go.
+  for (const row of orgRowsOf(accountId)) writeStored(stateKey(accountId, `team-${row.id}`), null);
+  forgetTeamDocs();
   forgetNotifications(accountId);
   forgetOrgs(accountId);
   forgetOrgKeys();
@@ -345,6 +352,11 @@ async function once(parts: Parts): Promise<void> {
       },
       // A note kept twice is worth a row in the feed: the person has two copies to look at (docs/TEAMS.md, "Kinds").
       onConflict: (copy) => void record('sync-conflict', copy),
+      // A note filed in an organization's workspace is the team's (docs/SHARED.md, S1): the organization channel's below.
+      teamNote: (id) => {
+        const space = workspaceOf(id);
+        return space !== null && isOrgWorkspace(space);
+      },
     });
     if (outcome.changed) announceNotesChanged();
 
@@ -363,7 +375,32 @@ async function once(parts: Parts): Promise<void> {
       applyingRemote = false;
     }
     const list = await orgs();
-    if (list) await teamKeys(list);
+    if (list) {
+      await teamKeys(list);
+      // The organization channel (core/team/sync.ts), for each organization joined whose key this device holds.
+      for (const row of list) {
+        if (row.state !== 'member') continue;
+        const orgKey = orgKeyOf(row.id);
+        if (!orgKey) continue;
+        const teamKey = stateKey(session.accountId, `team-${row.id}`);
+        const workspace = orgWorkspaceId(row.id);
+        const team = await syncTeamNotes({
+          token: session.token,
+          orgId: row.id,
+          key: orgKey,
+          notes: deviceNotes,
+          files: deviceFiles,
+          docs: deviceDocs(),
+          state: load<TeamSyncState>(teamKey, emptyTeamState()),
+          save: (state) => store(teamKey, state),
+          isTeamNote: (id) => workspaceOf(id)?.id === workspace,
+          file: (id) => fileNote(id, workspace),
+        });
+        if (team.changed) announceNotesChanged();
+        outcome.unsent += team.unsent;
+        outcome.reason ??= team.reason;
+      }
+    }
     setStatus({ phase: 'idle', lastAt: Date.now(), message: null, conflicts: outcome.conflicts, unsent: outcome.unsent, unsentReason: outcome.reason });
   } catch (failure) {
     if (failure instanceof ApiError && failure.status === 401) {

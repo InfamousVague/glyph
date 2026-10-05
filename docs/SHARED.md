@@ -132,11 +132,12 @@ device to sync, wrapped for the members who remain, with every team note re-seal
 
 ## Slices
 
-1. **Keys and colours.** S3, S2 (the key made and wrapped; nothing uses it yet), S7. Server: the four tables and
-   their routes; the member rows carry `pub` and `colour`. App: the key pair made and kept, the organization key
-   fetched, made and filled, the colour pickers, the member rows coloured.
-2. **Team notes.** S1, S4, S5: the organization channel in the sync engine, the CRDT of record, versions and pictures
-   by the organization, the dashboard's "yours for now" words gone, the move-out asking first.
+1. **Keys and colours** - shipped 2026-10-05 (DESIGN §191). S3, S2 (the key made and wrapped; nothing uses it yet),
+   S7. Server: the four tables and their routes; the member rows carry `pub` and `colour`. App: the key pair made
+   and kept, the organization key fetched, made and filled, the colour pickers, the member rows coloured.
+2. **Team notes** - shipped 2026-10-05 (DESIGN §193). S1, S4, S5: the organization channel in the sync engine, the
+   CRDT of record, versions and pictures by the organization, the dashboard's "yours for now" words gone, the
+   move-out asking first.
 3. **Live for the team.** S6: organization rooms, presence, cursors and selections in the editor, "editing Roadmap",
    the profile card and Jump to cursor.
 4. **Comments.** S8 on notes.

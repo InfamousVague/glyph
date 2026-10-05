@@ -97,7 +97,7 @@ describe('the screen', () => {
     expect(host.querySelector('.setk-hero__title')?.textContent).toBe('Ghost');
     expect(host.querySelector('.setk-hero__meta')?.textContent).toBe('1 member · You are owner');
     expect(host.querySelector('.setk-hero__glyph')?.querySelector('[data-hue="sea"]')).not.toBeNull();
-    expect(host.querySelector('.setk__footer')?.textContent).toBe('Notes filed here stay yours for now; sharing them with the team comes next.');
+    expect(host.querySelector('.setk__footer')?.textContent).toBe('Notes filed here are the team’s: everyone in it reads and edits them, and edits made apart merge.');
     await waitUntil(() => expect(member(host, 'matt')?.chip).toBe('Owner'));
     // The owner's own row offers nothing: leaving is the last section, and nobody removes the owner.
     expect(member(host, 'matt')?.words).toEqual([]);
@@ -342,7 +342,7 @@ describe('the rest', () => {
       goBack();
     });
     act(() => rowFor(host, 'Workspace').click());
-    expect(host.textContent).toContain('Notes filed here stay yours for now');
+    expect(host.textContent).toContain('Notes filed here are the team’s');
     act(() => buttonSaying(host, 'Notes filed here')!.click());
     expect(onNotes).toHaveBeenCalledOnce();
     act(() => {

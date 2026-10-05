@@ -12,7 +12,7 @@ import { localUndo, undoSlot } from './undoSlot.ts';
  * swapped for Yjs's (editor/undoSlot.ts), with its keys - `yCollab` handles the phone keyboard's undo on its own, but
  * not Cmd-Z, which needs the keymap alongside it.
  */
-export function bindLive(view: EditorView, session: LiveSession): void {
+export function bindLive(view: EditorView, session: Pick<LiveSession, 'text'>): void {
   const words = session.text.toString();
   if (view.state.doc.toString() !== words) {
     view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: words } });

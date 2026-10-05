@@ -37,7 +37,7 @@ import styles from './OrganizationScreen.module.css';
  *
  * - **The other organizations**, as a row of pills to move between them, when there is more than one.
  * - **The hero**: the colour, the name, how many and what you are, and what its workspace is and is not yet (D1:
- *   notes filed there stay yours for now), with New note (made filed in its workspace) and Invite (for an owner or
+ *   notes filed there are the team’s, docs/SHARED.md), with New note (made filed in its workspace) and Invite (for an owner or
  *   an admin, which brings the invite field into view).
  * - **Notes**: the newest of the notes filed in its workspace, as cards, and the way to all of them.
  * - **Members**: who is in it and who is invited, with their roles, and for an owner or an admin the invite field and
@@ -81,7 +81,7 @@ const NOTES_SHOWN = 6;
 const ACTIVITY_SHOWN = 8;
 
 /** The sentence about the workspace, as the organization's settings say it (docs/TEAMS.md, D1). */
-const YOURS_FOR_NOW = 'Notes filed here stay yours for now; sharing them with the team comes next.';
+const TEAMS_NOTES = 'Notes filed here are the team’s: everyone in it reads and edits them, and edits made apart merge.';
 
 /** When, mid-sentence: "yesterday" and "just now" lose their capital, a weekday or a month keeps its own. */
 function since(ms: number): string {
@@ -332,7 +332,7 @@ function Hero({ row, count, canInvite, onNewNote, onInvite }: { row: OrgRow; cou
         <p className={styles.heroMeta}>
           {memberWords(count)} · You are {roleWords(row.role).toLowerCase()}
         </p>
-        <p className={styles.heroNote}>{YOURS_FOR_NOW}</p>
+        <p className={styles.heroNote}>{TEAMS_NOTES}</p>
       </div>
       <div className={styles.heroActions}>
         <button type="button" className={styles.action} onClick={onNewNote}>

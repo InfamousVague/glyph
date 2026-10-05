@@ -517,3 +517,29 @@ describe('a notebook on two devices', () => {
     expect(await mac.sync()).toMatchObject({ conflicts: 1 });
   });
 });
+
+/** A note filed in an organization's workspace is the team's (docs/SHARED.md, S1): the organization channel carries it, not this feed. */
+describe('a team’s note and the account’s feed', () => {
+  it('is deleted from the feed once it is the team’s, and a row of it in the feed is passed over', async () => {
+    const { phone, mac } = await pair();
+    phone.notes.set('a', makeNote('a', '# Roadmap'));
+    await phone.sync();
+    await mac.sync();
+    expect(mac.notes.get('a')?.body).toBe('# Roadmap');
+    // Filed in a team on the phone: the account's row goes, so the mac takes the note from the team instead.
+    const team = new Set(['a']);
+    phone.notes.set('a', edited(phone.notes.get('a')!, '# Roadmap\n- for the team', 5));
+    await phone.sync({ teamNote: (id) => team.has(id) });
+    expect(phone.state.notes.a).toBeUndefined();
+    await mac.sync();
+    expect(mac.notes.has('a')).toBe(false);
+    // On the mac the note is the team's too now (the organization channel brought it): the deletion, and any row
+    // of it the feed still holds, are passed over, and the note is not sent as the account's own.
+    mac.notes.set('a', makeNote('a', '# Roadmap\n- for the team'));
+    await mac.sync({ teamNote: (id) => team.has(id) });
+    expect(mac.notes.get('a')?.body).toBe('# Roadmap\n- for the team');
+    expect(mac.state.notes.a).toBeUndefined();
+    // Nothing of it was sent again: the feed holds one row, the deletion.
+    expect(phone.state.notes.a).toBeUndefined();
+  });
+});

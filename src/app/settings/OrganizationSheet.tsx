@@ -62,7 +62,7 @@ interface OrganizationSheetProps {
 const ARMED_MS = 5000;
 
 /** The sentence about the workspace, said on Members and on Workspace (docs/TEAMS.md, D1). */
-const YOURS_FOR_NOW = 'Notes filed here stay yours for now; sharing them with the team comes next.';
+const TEAMS_NOTES = 'Notes filed here are the team’s: everyone in it reads and edits them, and edits made apart merge.';
 
 /** When, mid-sentence: "yesterday" and "just now" lose their capital, a weekday or a month keeps its own. */
 function since(ms: number): string {
@@ -256,7 +256,7 @@ function Members({ row, org, me, onInvite, onDo }: { row: OrgRow; org: Org | nul
   const canInvite = row.state === 'member' && (row.role === 'owner' || row.role === 'admin');
   return (
     <>
-      <PaneSection footer={YOURS_FOR_NOW}>
+      <PaneSection footer={TEAMS_NOTES}>
         <PaneHero glyph={<HueGlyph hue={row.hue} />} title={row.name} meta={`${memberWords(joined)} · ${row.state === 'invited' ? 'You are invited' : `You are ${roleWords(row.role).toLowerCase()}`}`} />
       </PaneSection>
       {row.state === 'invited' ? (
@@ -469,7 +469,7 @@ export function OrganizationSheet({ orgId, from, onClose, onNotes, landOnMembers
       group: 1,
       summary: workspace ? workspace.name : 'Not on this device yet',
       content: (
-        <PaneSection title="Its workspace" footer={YOURS_FOR_NOW}>
+        <PaneSection title="Its workspace" footer={TEAMS_NOTES}>
           <SettingRow icon={<span className={styles.hue} data-hue={row?.hue ?? 'ink'} aria-hidden="true" />} label={workspace?.name ?? name} hint={workspace ? 'Made on every member’s device, named and coloured after the organization.' : 'Made here once you have joined and the next sync lands.'} />
           <SettingRow icon={<FolderOpen size={20} />} label="Notes filed here" hint="The home page, with this workspace chosen." onPress={workspace ? onNotes : undefined} disabledReason={workspace ? undefined : 'Nothing is filed here yet.'} />
         </PaneSection>

@@ -93,7 +93,20 @@ export interface SyncContext {
   syncMeetingRecordings?: boolean;
   /** Told of each copy kept because both sides had changed a note: the copy's id and title (core/notifications/record.ts). */
   onConflict?(copy: { noteId: string; title: string }): void;
+  /**
+   * Whether a note on this device is a team's (docs/SHARED.md, S1): filed in an organization's workspace, and synced by
+   * the organization channel (core/team/sync.ts) rather than here. One that was the account's is deleted from the
+   * account's feed, so its other devices take it from the team instead; a row of one in the feed is passed over.
+   */
+  teamNote?(id: string): boolean;
+  /** Where the files are: the account's `recordings`, or an organization's `orgs/<id>/files`. */
+  filesRoute?: string;
 }
+
+/** What the file helpers need of a context: the account's, or a team's (core/team/sync.ts), whose files have a route of their own. */
+export type FilesContext = Pick<SyncContext, 'token' | 'key' | 'files' | 'fetcher' | 'filesRoute'> & { state: Pick<SyncState, 'files'> };
+
+const filesRoute = (ctx: FilesContext): string => ctx.filesRoute ?? 'recordings';
 
 /** The most a recording may be to travel: the service's own limit (server/src/sync.rs), about 35 minutes of 16 kHz PCM. */
 export const RECORDING_SYNC_LIMIT = 64 * 1024 * 1024;
@@ -184,7 +197,7 @@ export function fileId(kind: FileKind, name: string): string | null {
   return id.length <= 64 ? id : null;
 }
 
-async function sha(bytes: Bytes): Promise<string> {
+export async function sha(bytes: Bytes): Promise<string> {
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
   return toHex(digest.slice(0, 16));
 }
@@ -195,12 +208,12 @@ function blank(note: Note): boolean {
 
 // --- files -----------------------------------------------------------------------------
 
-async function sendFile(ctx: SyncContext, kind: FileKind, name: string, bytes: Bytes, digest?: string): Promise<void> {
+export async function sendFile(ctx: FilesContext, kind: FileKind, name: string, bytes: Bytes, digest?: string): Promise<void> {
   const id = fileId(kind, name);
   if (!id) return;
   const known = ctx.state.files[id];
   const sealed = await sealBytes(ctx.key, bytes, `file:${id}`);
-  const put = (base: number) => call<{ rev: number }>('PUT', `recordings/${id}?base=${base}`, { token: ctx.token, bytes: sealed, fetcher: ctx.fetcher, timeoutMs: 300_000 });
+  const put = (base: number) => call<{ rev: number }>('PUT', `${filesRoute(ctx)}/${id}?base=${base}`, { token: ctx.token, bytes: sealed, fetcher: ctx.fetcher, timeoutMs: 300_000 });
   let rev: number;
   try {
     rev = (await put(known?.rev ?? 0)).rev;
@@ -219,11 +232,11 @@ async function sendFile(ctx: SyncContext, kind: FileKind, name: string, bytes: B
 }
 
 /** Fetches a file into this device; false when the account has none by that id yet. */
-async function fetchFile(ctx: SyncContext, kind: FileKind, name: string, digest?: string): Promise<boolean> {
+export async function fetchFile(ctx: FilesContext, kind: FileKind, name: string, digest?: string): Promise<boolean> {
   const id = fileId(kind, name);
   if (!id) return false;
   try {
-    const { bytes, rev } = await callBytes('GET', `recordings/${id}`, { token: ctx.token, fetcher: ctx.fetcher, timeoutMs: 300_000 });
+    const { bytes, rev } = await callBytes('GET', `${filesRoute(ctx)}/${id}`, { token: ctx.token, fetcher: ctx.fetcher, timeoutMs: 300_000 });
     await ctx.files.write(kind, name, await openBytes(ctx.key, bytes, `file:${id}`));
     ctx.state.files[id] = digest ? { rev, sha: digest } : { rev };
     return true;
@@ -239,9 +252,9 @@ async function fetchFile(ctx: SyncContext, kind: FileKind, name: string, digest?
  * not be asked (no answer to a HEAD at all), and sending is the way to find out. Asked by its head, so a picture the
  * account already has is not uploaded again to learn so.
  */
-async function heldRev(ctx: SyncContext, id: string): Promise<number | null | undefined> {
+async function heldRev(ctx: FilesContext, id: string): Promise<number | null | undefined> {
   try {
-    const { rev } = await callBytes('HEAD', `recordings/${id}`, { token: ctx.token, fetcher: ctx.fetcher });
+    const { rev } = await callBytes('HEAD', `${filesRoute(ctx)}/${id}`, { token: ctx.token, fetcher: ctx.fetcher });
     // A picture's revision only says the account has it: pictures are never sent against a base.
     return Math.max(rev || 0, 1);
   } catch (failure) {
@@ -294,7 +307,7 @@ const asBytes = (text: string): Bytes => new TextEncoder().encode(text);
  * device wrote the account's since this one last saw it (a 409), theirs is fetched and merged with this one's, the
  * merge is kept here, and the merge is what is sent.
  */
-async function sendVersionsOf(ctx: SyncContext, noteId: string): Promise<string | undefined> {
+export async function sendVersionsOf(ctx: FilesContext, noteId: string): Promise<string | undefined> {
   const id = fileId('versions', noteId);
   if (!id) return undefined;
   const bytes = await ctx.files.read('versions', noteId);
@@ -307,14 +320,14 @@ async function sendVersionsOf(ctx: SyncContext, noteId: string): Promise<string 
     return digest;
   }
   const put = async (base: number, body: string) =>
-    call<{ rev: number }>('PUT', `recordings/${id}?base=${base}`, { token: ctx.token, bytes: await sealBytes(ctx.key, asBytes(body), `file:${id}`), fetcher: ctx.fetcher, timeoutMs: 300_000 });
+    call<{ rev: number }>('PUT', `${filesRoute(ctx)}/${id}?base=${base}`, { token: ctx.token, bytes: await sealBytes(ctx.key, asBytes(body), `file:${id}`), fetcher: ctx.fetcher, timeoutMs: 300_000 });
   let rev: number;
   try {
     rev = (await put(known?.rev ?? 0, text)).rev;
   } catch (failure) {
     if (!(failure instanceof ApiError) || failure.status !== 409) throw failure;
     // Another device kept versions too: both sides' versions, once each, are what goes.
-    const theirs = await callBytes('GET', `recordings/${id}`, { token: ctx.token, fetcher: ctx.fetcher, timeoutMs: 300_000 });
+    const theirs = await callBytes('GET', `${filesRoute(ctx)}/${id}`, { token: ctx.token, fetcher: ctx.fetcher, timeoutMs: 300_000 });
     const merged = mergeFiles(text, words.decode(await openBytes(ctx.key, theirs.bytes, `file:${id}`)), noteId);
     if (merged !== null && merged !== text) {
       // Kept here and sent at once below; the others hear of it by the note this file goes with.
@@ -333,12 +346,12 @@ async function sendVersionsOf(ctx: SyncContext, noteId: string): Promise<string 
  * A note's versions file from another device, merged into this one's: theirs as it is where this device has none, and
  * every version of both where it has one. Remembered at their hash, so a merge that holds versions they lack is sent.
  */
-async function fetchVersionsOf(ctx: SyncContext, noteId: string, digest: string): Promise<void> {
+export async function fetchVersionsOf(ctx: FilesContext, noteId: string, digest: string): Promise<void> {
   const id = fileId('versions', noteId);
   if (!id || ctx.state.files[id]?.sha === digest) return;
   let fetched: { bytes: Bytes; rev: number };
   try {
-    fetched = await callBytes('GET', `recordings/${id}`, { token: ctx.token, fetcher: ctx.fetcher, timeoutMs: 300_000 });
+    fetched = await callBytes('GET', `${filesRoute(ctx)}/${id}`, { token: ctx.token, fetcher: ctx.fetcher, timeoutMs: 300_000 });
   } catch (failure) {
     if (failure instanceof ApiError && failure.status === 404) return;
     throw failure;
@@ -541,6 +554,8 @@ async function pull(ctx: SyncContext, outcome: Outcome): Promise<void> {
       for (const item of page.items) {
         // A revision already seen is this device's own write coming back.
         if (ctx.state.notes[item.id]?.rev === item.rev) continue;
+        // A team's note now (docs/SHARED.md, S1): the organization channel has it, and the account's row is stale.
+        if (ctx.teamNote?.(item.id)) continue;
         // Live with another device right now: its words are arriving a keystroke at a time already, and a merge made
         // mid-sentence would take the few characters still in flight for a conflict. Its revision stays unrecorded, so
         // once the session ends the push meets it as a 409 and finds the same words (docs/LIVE.md).
@@ -610,6 +625,12 @@ async function push(ctx: SyncContext, outcome: Outcome): Promise<void> {
   for (const note of here) {
     present.add(note.id);
     const known = ctx.state.notes[note.id];
+    // Filed in an organization's workspace, the note is the team's (docs/SHARED.md, S1): the organization channel
+    // carries it from here on, and the account's own row goes, so the account's other devices take it from the team.
+    if (ctx.teamNote?.(note.id)) {
+      if (known) await sendCounted(ctx, note.id, null, outcome);
+      continue;
+    }
     if (known && known.mark === mark(note) && !recordingOwed(ctx, note)) continue;
     // Live with another device: sent once the session ends, when both hold the same words (docs/LIVE.md).
     if (isSharedLive(note.id)) continue;
@@ -626,7 +647,7 @@ async function push(ctx: SyncContext, outcome: Outcome): Promise<void> {
   const notes = new Map(here.map((note) => [note.id, note]));
   for (const id of ctx.files.owed?.() ?? []) {
     const note = notes.get(id);
-    if (!note || isSharedLive(id)) continue;
+    if (!note || isSharedLive(id) || ctx.teamNote?.(id)) continue;
     await sendCounted(ctx, id, note, outcome);
   }
   ctx.save(ctx.state);

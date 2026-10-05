@@ -99,6 +99,21 @@ interface StoredOrg {
   generation?: number;
   /** The key wrapped per member, by handle lower-cased, then by generation. */
   wraps?: Map<string, Map<number, string>>;
+  /** The team's notes (S4), its write counter, each note's log and its next seq, and its files. */
+  rev?: number;
+  notes?: Map<string, TeamRow>;
+  updates?: Map<string, { seq: number; blob: string; by: string; at: number }[]>;
+  seqs?: Map<string, number>;
+  files?: Map<string, { rev: number; bytes: Bytes }>;
+}
+
+/** A team note's row as the service keeps it (server/src/store/org_notes.rs). */
+interface TeamRow {
+  rev: number;
+  deleted: boolean;
+  blob: string | null;
+  by: string;
+  updatedAt: number;
 }
 
 /** The most rows an organization holds, and the most invitations one account may have waiting (docs/TEAMS.md). */
@@ -405,6 +420,75 @@ export async function fakeService(seed?: { handle: string; password: string }, {
         }
         return json(200, { orgs: rows, colour: mine.hue ?? null });
       }
+      // Team notes (docs/SHARED.md, S4, S5): the feed, a row, its log, and the organization's files.
+      const teamNotes = /^orgs\/([^/]+)\/notes(?:\/([^/]+))?(\/updates)?$/.exec(path);
+      if (teamNotes) {
+        const found = inOrg(decodeURIComponent(teamNotes[1]!));
+        if (!found) return refuse(404, 'No such organization.');
+        const { org } = found;
+        org.notes ??= new Map();
+        org.updates ??= new Map();
+        org.seqs ??= new Map();
+        const rowJson = (id: string, row: TeamRow) => ({ id, ...row });
+        const bump = () => (org.rev = (org.rev ?? 0) + 1);
+        if (teamNotes[2] === undefined && method === 'GET') {
+          const since = Number(url.searchParams.get('since') ?? 0);
+          const items = [...org.notes.entries()]
+            .filter(([, n]) => n.rev > since)
+            .sort(([, a], [, b]) => a.rev - b.rev)
+            .map(([id, n]) => rowJson(id, n));
+          return json(200, { rev: org.rev ?? 0, items, more: false });
+        }
+        const id = decodeURIComponent(teamNotes[2] ?? '');
+        if (teamNotes[3]) {
+          const row = org.notes.get(id);
+          if (!row || row.deleted) return refuse(404, 'No such note.');
+          const log = org.updates.get(id) ?? [];
+          if (method === 'GET') {
+            const since = Number(url.searchParams.get('since') ?? 0);
+            const items = log.filter((u) => u.seq > since);
+            return json(200, { seq: log.length ? log[log.length - 1]!.seq : (org.seqs.get(id) ?? 0), items, more: false });
+          }
+          if (method === 'POST') {
+            const blobs = Array.isArray(body.blobs) ? (body.blobs as string[]) : [];
+            if (!blobs.length || blobs.some((b) => typeof b !== 'string' || !b)) return refuse(400, 'Those updates could not be read.');
+            let seq = org.seqs.get(id) ?? 0;
+            for (const blob of blobs) log.push({ seq: ++seq, blob, by: me, at: Date.now() });
+            org.updates.set(id, log);
+            org.seqs.set(id, seq);
+            return json(200, { seq });
+          }
+        }
+        if (method === 'PUT' || method === 'DELETE') {
+          const current = org.notes.get(id);
+          if (current && current.rev !== Number(body.base ?? 0)) return json(409, rowJson(id, current));
+          if (method === 'PUT' && (typeof body.blob !== 'string' || !body.blob)) return refuse(400, 'That note is empty or too large to sync.');
+          const rev = bump();
+          const row: TeamRow = method === 'PUT' ? { rev, deleted: false, blob: String(body.blob), by: me, updatedAt: Date.now() } : { rev, deleted: true, blob: null, by: me, updatedAt: Date.now() };
+          org.notes.set(id, row);
+          if (method === 'DELETE') org.updates.delete(id);
+          else if (typeof body.upTo === 'number') org.updates.set(id, (org.updates.get(id) ?? []).filter((u) => u.seq > (body.upTo as number)));
+          return json(200, { rev });
+        }
+      }
+      const teamFile = /^orgs\/([^/]+)\/files\/([^/]+)$/.exec(path);
+      if (teamFile) {
+        const found = inOrg(decodeURIComponent(teamFile[1]!));
+        if (!found) return refuse(404, 'No such organization.');
+        const { org } = found;
+        org.files ??= new Map();
+        const id = teamFile[2]!;
+        const had = org.files.get(id);
+        if (method === 'HEAD') return had ? new Response(null, { status: 200, headers: { 'x-glyph-rev': String(had.rev) } }) : new Response(null, { status: 404 });
+        if (method === 'GET') return had ? new Response(had.bytes, { status: 200, headers: { 'x-glyph-rev': String(had.rev) } }) : refuse(404, 'No file by that id.');
+        if (method === 'PUT') {
+          const base = Number(url.searchParams.get('base') ?? 0);
+          if (had && had.rev !== base) return json(409, { rev: had.rev });
+          const rev = (org.rev = (org.rev ?? 0) + 1);
+          org.files.set(id, { rev, bytes: new Uint8Array(init?.body as Bytes) });
+          return json(200, { rev });
+        }
+      }
       // The caller's colour in one organization (docs/SHARED.md, S7), and the organization key's wraps (S2).
       const colour = /^orgs\/([^/]+)\/colour$/.exec(path);
       if (colour && method === 'PUT') {
@@ -700,6 +784,16 @@ export async function fakeService(seed?: { handle: string; password: string }, {
     peerKey(handle: string, pub: string | null): void {
       if (pub === null) peerKeys.delete(lower(handle));
       else peerKeys.set(lower(handle), pub);
+    },
+    /** A team's notes as stored, by id: each row's revision, blob and writer; and its logs by note. */
+    teamNotes(orgId: string): Map<string, TeamRow> {
+      return orgs.get(orgId)?.notes ?? new Map();
+    },
+    teamUpdates(orgId: string, noteId: string): { seq: number; blob: string; by: string }[] {
+      return orgs.get(orgId)?.updates?.get(noteId) ?? [];
+    },
+    teamFiles(orgId: string): Map<string, { rev: number; bytes: Bytes }> {
+      return orgs.get(orgId)?.files ?? new Map();
     },
     /** The organization key's state as stored: the generation in force and each member's wraps by generation. */
     keysOf(orgId: string): { generation: number; wraps: Record<string, Record<number, string>> } {

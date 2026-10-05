@@ -42,7 +42,7 @@ export function WorkspaceSheet({ which, onClose, onOrganization }: { which: Work
           <OrgMark />
           {editing.name}
         </SheetTitle>
-        <SheetNote>An organization’s workspace: its name and colour follow the organization, and it is on every member’s device. Notes filed here stay yours for now.</SheetNote>
+        <SheetNote>An organization’s workspace: its name and colour follow the organization, and it is on every member’s device. Notes filed here are the team’s: everyone in it reads and edits them.</SheetNote>
         <SheetGroup>
           <SheetRow
             label="Organization settings"

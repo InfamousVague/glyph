@@ -150,7 +150,7 @@ describe('an organization’s workspace', () => {
     expect(host.querySelector('[role="radiogroup"]')).toBeNull();
     expect(buttonSaying(host, 'Delete workspace')).toBeUndefined();
     expect(buttonSaying(host, 'Rename')).toBeUndefined();
-    expect(host.textContent).toContain('Notes filed here stay yours for now.');
+    expect(host.textContent).toContain('Notes filed here are the team’s');
     act(() => buttonSaying(host, 'Organization settings')!.click());
     expect(onOrganization).toHaveBeenCalledWith('o1');
   });

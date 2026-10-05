@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { EditorView } from '@codemirror/view';
 import { liveEnabled } from '../core/live/enabled.ts';
+import { isTeamNote } from './useTeamNote.ts';
 
 /**
  * Live sync on the open note (docs/LIVE.md): the note open on another device too, typed into on either and arriving a
@@ -13,7 +14,8 @@ import { liveEnabled } from '../core/live/enabled.ts';
  */
 export function useLiveNote(view: EditorView | null, noteId: string): void {
   useEffect(() => {
-    if (!view || !liveEnabled()) return undefined;
+    // A team's note has a document of its own (useTeamNote.ts), and its live typing comes with the team's rooms.
+    if (!view || !liveEnabled() || isTeamNote(noteId)) return undefined;
     let stop: (() => void) | null = null;
     let gone = false;
     void import('../core/live/open.ts')

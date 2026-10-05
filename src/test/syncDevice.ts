@@ -78,7 +78,7 @@ export function syncDevice(
       state = next;
     },
     /** One pass; `extra` is what the app hands the pass besides its stores (which notes are meetings, and whether their audio goes). */
-    sync: (extra: Pick<SyncContext, 'meetings' | 'syncMeetingRecordings'> = {}) =>
+    sync: (extra: Pick<SyncContext, 'meetings' | 'syncMeetingRecordings' | 'teamNote'> = {}) =>
       syncNotes({ token, key, notes: local, files, state, save: (s) => (state = s), fetcher, now: () => clock.at, ...extra }),
   };
 }

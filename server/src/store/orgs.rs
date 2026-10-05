@@ -385,6 +385,7 @@ impl Store {
         Self::tell(&tx, &others, &Notice { kind: "org-deleted", from: Some(actor), org, body: json!({ "name": name }), state: None }, now)?;
         tx.execute("DELETE FROM orgs WHERE id = ?1", params![org])?;
         tx.commit()?;
+        self.drop_org_files(org);
         Ok(())
     }
 
