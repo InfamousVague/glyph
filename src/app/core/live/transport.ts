@@ -10,22 +10,29 @@ export interface LiveEvents {
   /** Signed in: this socket's connection id, which is what `from` means on a message. */
   ready(id: number): void;
   /** In a room. `first`: the room was empty until now, so this device makes the document (LIVE.md, Seeding). */
-  joined(room: string, first: boolean, peers: number): void;
-  /** Another device came into a room or left it: how many others are there now. */
-  peers(room: string, peers: number): void;
+  joined(room: string, first: boolean, peers: number, org?: string): void;
+  /** Another device came into a room or left it: how many others are there now, and which connection left, if one did. */
+  peers(room: string, peers: number, org?: string, left?: number): void;
   /** A sealed message from another device, not yet opened. */
-  message(room: string, from: number, data: string): void;
+  message(room: string, from: number, data: string, org?: string): void;
   /** The connection is gone. `signIn`: the relay refused the token, so there is no point trying again until it changes. */
   down(why: 'signIn' | 'network'): void;
 }
 
+/**
+ * The rooms, each the account's own or an organization's (docs/SHARED.md, S6: `org` names whose, and the relay checks
+ * the device's account is a member). Every event about an organization's room carries its `org` back.
+ */
 export interface LiveTransport {
-  join(room: string): void;
-  leave(room: string): void;
+  join(room: string, org?: string): void;
+  leave(room: string, org?: string): void;
   /** To every other device in the room, or to one of them. Dropped while disconnected: a room is whole again on rejoin. */
-  send(room: string, data: string, to?: number): void;
+  send(room: string, data: string, to?: number, org?: string): void;
   close(): void;
 }
+
+/** A room's key on this side: the organization's id and the room, or the room alone for the account's own. */
+export const roomKey = (room: string, org?: string): string => (org ? `${org}/${room}` : room);
 
 /** The relay's address, from the service's: `https://attack.fm/api` becomes `wss://attack.fm/api/v1/live`. */
 export function liveUrl(apiBase: string): string {
@@ -63,7 +70,8 @@ export class WebSocketTransport implements LiveTransport {
   private closed = false;
   private attempt = 0;
   private retry: unknown = null;
-  private readonly rooms = new Set<string>();
+  /** The rooms joined, by key, with the frame that joins each: sent again whenever the socket comes back. */
+  private readonly rooms = new Map<string, { room: string; org?: string }>();
   private readonly options: WebSocketTransportOptions;
   private readonly wake = () => this.soon();
 
@@ -77,19 +85,19 @@ export class WebSocketTransport implements LiveTransport {
     this.connect();
   }
 
-  join(room: string): void {
-    this.rooms.add(room);
-    this.frame({ t: 'join', room });
+  join(room: string, org?: string): void {
+    this.rooms.set(roomKey(room, org), org ? { room, org } : { room });
+    this.frame(org ? { t: 'join', room, org } : { t: 'join', room });
   }
 
-  leave(room: string): void {
-    if (!this.rooms.delete(room)) return;
-    this.frame({ t: 'leave', room });
+  leave(room: string, org?: string): void {
+    if (!this.rooms.delete(roomKey(room, org))) return;
+    this.frame(org ? { t: 'leave', room, org } : { t: 'leave', room });
   }
 
-  send(room: string, data: string, to?: number): void {
-    if (!this.rooms.has(room)) return;
-    this.frame(to === undefined ? { t: 'msg', room, data } : { t: 'msg', room, data, to });
+  send(room: string, data: string, to?: number, org?: string): void {
+    if (!this.rooms.has(roomKey(room, org))) return;
+    this.frame({ t: 'msg', room, ...(org ? { org } : {}), data, ...(to === undefined ? {} : { to }) });
   }
 
   close(): void {
@@ -138,7 +146,7 @@ export class WebSocketTransport implements LiveTransport {
   }
 
   private receive(raw: unknown): void {
-    let frame: { t?: string; id?: number; room?: string; first?: boolean; peers?: number; from?: number; data?: string };
+    let frame: { t?: string; id?: number; room?: string; org?: string; first?: boolean; peers?: number; from?: number; data?: string; left?: number };
     try {
       frame = JSON.parse(String(raw));
     } catch {
@@ -151,16 +159,16 @@ export class WebSocketTransport implements LiveTransport {
         this.attempt = 0;
         events.ready(Number(frame.id));
         // Back in every room it was in. The relay answers each with `joined`, and the document above catches up.
-        for (const room of this.rooms) this.frame({ t: 'join', room });
+        for (const { room, org } of this.rooms.values()) this.frame(org ? { t: 'join', room, org } : { t: 'join', room });
         break;
       case 'joined':
-        if (frame.room) events.joined(frame.room, Boolean(frame.first), Number(frame.peers ?? 0));
+        if (frame.room) events.joined(frame.room, Boolean(frame.first), Number(frame.peers ?? 0), frame.org);
         break;
       case 'peers':
-        if (frame.room) events.peers(frame.room, Number(frame.peers ?? 0));
+        if (frame.room) events.peers(frame.room, Number(frame.peers ?? 0), frame.org, typeof frame.left === 'number' ? frame.left : undefined);
         break;
       case 'msg':
-        if (frame.room && typeof frame.data === 'string') events.message(frame.room, Number(frame.from), frame.data);
+        if (frame.room && typeof frame.data === 'string') events.message(frame.room, Number(frame.from), frame.data, frame.org);
         break;
       default:
         // `error` frames say a request was refused; the socket stays, and there is nothing a device can do about one.

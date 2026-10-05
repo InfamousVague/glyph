@@ -72,17 +72,19 @@ connector and every extension read the note as ever. The pass sync (SYNC.md) lea
 channel is theirs. A device compacts when the log it reads is long (`PUT` the row with a fresh state and the `seq` it
 holds; the service drops the updates up to it).
 
-**S6. Live for the team.** The relay's rooms grow an organization form, `org:<org id>:<note id>`, which a member of
-the organization may join: the service checks membership on `join` and tells the room's sockets when a member is
-removed, which closes them out of it. Over the room go the document's updates, sealed under the organization key,
-exactly as an account's rooms carry them today, so typing crosses in the time a message takes; and **presence**, the
-`presence` kind LIVE.md reserved: the awareness protocol (y-protocols) sealed the same way, carrying the member's
-handle, colour and selection as Yjs relative positions, drawn by `yRemoteSelections` - the caret in their colour with
-their handle on it, the selection a wash of it. The organization's own room, `org:<org id>`, is joined by every
-member's device while the app is open: its awareness says who is in the app, which note or canvas they have open and
-where their caret or pointer is, so an organization's dashboard reads "editing Roadmap" beside a member, and
-**Jump to cursor** on their profile opens that note at that point (the relative position resolved against the
-document once it is loaded). What the relay learns grows by this, and S10 says so.
+**S6. Live for the team.** The relay's rooms grow an organization form - `org` on the frame names whose, the room is
+the note id as ever - which a member of the organization may join: the service checks membership on `join` and again
+on a message once a minute, so a member removed is out of the organization's rooms within that long, and its `peers`
+notice says which connection left. Over the room go the document's updates, sealed under the organization key (with
+`live:org:<org id>:<room>` bound in), so typing crosses in the time a message takes - and since the document is the
+CRDT of record on every device, a room never makes one: devices trade what each lacks by state vector; and
+**presence**, the `presence` kind LIVE.md reserved: the awareness protocol (y-protocols) sealed the same way, carrying
+the member's handle, colour and selection as Yjs relative positions, drawn by `yRemoteSelections` - the caret in their
+colour with their handle on it, the selection a wash of it. The organization's own room, `presence`, is joined by
+every member's device while the app is open and signed in: its awareness says who is in the app, which note or canvas
+they have open and where their caret or pointer is, so an organization's dashboard reads "editing Roadmap" beside a
+member, and **Jump to cursor** on their profile opens that note at that point (the relative position resolved against
+the document once it is bound). What the relay learns grows by this, and S10 says so. (LIVE.md, "The team's rooms".)
 
 **S7. Colours.** A person's colour is one of the app's seven hues (core/workspaces.ts `WORKSPACE_HUES`; `ink`, the
 default, is no colour). The account's is `account_hues(account, hue)`, set under Settings › Account › Your colour;
@@ -139,8 +141,8 @@ device to sync, wrapped for the members who remain, with every team note re-seal
 2. **Team notes** - shipped 2026-10-05 (DESIGN §193). S1, S4, S5: the organization channel in the sync engine, the
    CRDT of record, versions and pictures by the organization, the dashboard's "yours for now" words gone, the
    move-out asking first.
-3. **Live for the team.** S6: organization rooms, presence, cursors and selections in the editor, "editing Roadmap",
-   the profile card and Jump to cursor.
+3. **Live for the team** - shipped 2026-10-05 (DESIGN §195). S6: organization rooms, presence, cursors and
+   selections in the editor, "editing Roadmap", the profile card and Jump to cursor.
 4. **Comments** - shipped 2026-10-05 (DESIGN §196). S8 on notes: the anchor and the fence read and written by
    core/comments, the rounds, washes and drawn list in the editor, the thread card, and Comment on the press-and-hold
    band, in the bar, in More and on a note's menu in a list. The audit log's line and the profile card's counts wait.

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { modelSpec, useModels, type Download, type ModelInfo } from '../core/ai.ts';
-import { hasNativeGeneration, nativeGeneration } from '../core/nativeGeneration.ts';
+import { nativeGeneration } from '../core/nativeGeneration.ts';
 import { isIOS } from '../core/platform.ts';
 import { preferences, usePreferences } from '../core/preferences.ts';
 import { runnable } from '../core/runnable.ts';
@@ -95,11 +95,6 @@ export function availability(models: readonly ModelInfo[], chosen: string, where
     return { ok: false, reason: 'No model is on the phone, and Local only is on, so none can be downloaded. Turn it off in Settings to get one.', get: null, waiting: false };
   }
   return { ok: false, reason: 'The AI needs a model on the phone. It runs here, and nothing leaves the phone.', get: chosen, waiting: false };
-}
-
-/** Whether the binary can run a model at all (native generation 10). */
-export function canRunModels(): Promise<boolean> {
-  return hasNativeGeneration(AI_GENERATION);
 }
 
 export interface AvailabilityState {

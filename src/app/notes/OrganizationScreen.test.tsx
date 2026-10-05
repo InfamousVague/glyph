@@ -30,6 +30,26 @@ vi.mock('../core/sync/engine.ts', async (importOriginal) => ({
     passes.count += 1;
   },
 }));
+// Who is in the organization now and where (core/live/presence.ts): what the test says it is.
+const presence = vi.hoisted(() => ({ seen: [] as unknown[], listeners: new Set<() => void>() }));
+vi.mock('../core/live/presence.ts', async () => {
+  const { useSyncExternalStore } = await import('react');
+  return {
+    usePresence: () =>
+      useSyncExternalStore(
+        (listener: () => void) => {
+          presence.listeners.add(listener);
+          return () => presence.listeners.delete(listener);
+        },
+        () => presence.seen,
+      ),
+  };
+});
+/** The relay says who is where. */
+function seen(list: unknown[]) {
+  presence.seen = list;
+  act(() => presence.listeners.forEach((listener) => listener()));
+}
 
 const { OrganizationScreen } = await import('./OrganizationScreen.tsx');
 const { createOrg, forgetOrgs, orgsState, saveOrgs } = await import('../core/orgs/orgs.ts');
@@ -83,6 +103,7 @@ const page = (orgId: string, over: Partial<Props> = {}) =>
       onOpenOrganization={() => undefined}
       onLog={() => undefined}
       onAccount={() => undefined}
+      onJumpTo={() => undefined}
       {...over}
     />,
   );
@@ -102,6 +123,7 @@ beforeEach(async () => {
   passes.count = 0;
   forgetOrgs(7);
   forgetNotifications(7);
+  presence.seen = [];
 });
 
 afterEach(() => {
@@ -213,7 +235,7 @@ describe('an organization’s dashboard', () => {
     service.peerColour('sam', 'rose');
     page(id);
     await waitUntil(() => expect(members()).toHaveLength(2));
-    const avatars = () => [...document.querySelectorAll<HTMLElement>('ul[aria-label="Members"] li > span:first-child')].map((a) => a.dataset.hue ?? null);
+    const avatars = () => [...document.querySelectorAll<HTMLElement>('ul[aria-label="Members"] li > button > span:first-child')].map((a) => a.dataset.hue ?? null);
     expect(avatars()).toEqual([null, 'rose']);
     expect(document.body.textContent).toContain('Your account’s, from Settings.');
     // Sea, here alone: the service keeps it on matt's row, the initial wears it, and the way back is offered.
@@ -224,6 +246,35 @@ describe('an organization’s dashboard', () => {
     act(() => buttonSaying(document.body, 'Use your account’s colour')!.click());
     await waitUntil(() => expect(service.orgs.get(id)!.rows.get('matt')!.hue).toBeNull());
     await waitUntil(() => expect(avatars()).toEqual([null, 'rose']));
+  });
+
+  it('says who is in the app and what they are editing, and opens the note at their caret from their profile', async () => {
+    const id = await made('Ghost');
+    await sam(id, true);
+    const jumps: unknown[] = [];
+    page(id, { onJumpTo: (noteId, cursor) => jumps.push({ noteId, cursor }) });
+    await waitUntil(() => expect(members()).toHaveLength(2));
+    expect(members()[1]).toContain('joined');
+    const caret = { anchor: { type: null, tname: 'body', item: { client: 1, clock: 4 }, assoc: 0 }, head: { type: null, tname: 'body', item: { client: 1, clock: 4 }, assoc: 0 } };
+    seen([{ handle: 'sam', hue: 'rose', at: { note: 'n-road', title: 'Roadmap', kind: 'note', cursor: caret, pointer: null }, client: 1 }]);
+    expect(members()[1]).toContain('editing Roadmap');
+    expect(members()[1]).not.toContain('joined');
+    expect(document.querySelector('ul[aria-label="Members"] li[data-present]')).not.toBeNull();
+    // Their profile, from the row: where they are, and the way to their caret.
+    act(() => document.querySelector<HTMLButtonElement>('ul[aria-label="Members"] li:nth-child(2) > button')!.click());
+    const profile = document.querySelector<HTMLElement>('[aria-label="sam’s profile"]');
+    expect(profile?.textContent).toContain('Editing Roadmap now');
+    act(() => buttonSaying(profile!, 'Jump to cursor')!.click());
+    expect(jumps).toEqual([{ noteId: 'n-road', cursor: caret }]);
+    // In the app with nothing open: here, and the profile says so without a jump.
+    seen([{ handle: 'sam', hue: 'rose', at: null, client: 1 }]);
+    expect(members()[1]).toContain('here now');
+    expect(profile?.textContent).toContain('In the app now');
+    expect(buttonSaying(profile!, 'Jump to cursor')).toBeUndefined();
+    // Gone: the row says since when again.
+    seen([]);
+    expect(members()[1]).toContain('joined');
+    expect(document.querySelector('ul[aria-label="Members"] li[data-present]')).toBeNull();
   });
 
   it('shows the organization’s own news, newest first, and not another’s or an invitation', async () => {

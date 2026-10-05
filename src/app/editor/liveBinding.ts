@@ -1,7 +1,7 @@
 import { keymap, type EditorView } from '@codemirror/view';
 import { yCollab, yUndoManagerKeymap } from 'y-codemirror.next';
+import type { Awareness } from 'y-protocols/awareness';
 import * as Y from 'yjs';
-import type { LiveSession } from '../core/live/session.ts';
 import { localUndo, undoSlot } from './undoSlot.ts';
 
 /**
@@ -11,15 +11,23 @@ import { localUndo, undoSlot } from './undoSlot.ts';
  * another device may have typed in between, and the binding assumes the two start equal. Then CodeMirror's undo is
  * swapped for Yjs's (editor/undoSlot.ts), with its keys - `yCollab` handles the phone keyboard's undo on its own, but
  * not Cmd-Z, which needs the keymap alongside it.
+ *
+ * With an `awareness` (a team's note; core/live/team.ts), the others' carets and selections are drawn in their
+ * colours with their handles on them, and this editor's selection is put in it for theirs (docs/SHARED.md, S6).
  */
-export function bindLive(view: EditorView, session: Pick<LiveSession, 'text'>): void {
+export interface LiveDocument {
+  text: Y.Text;
+  awareness?: Awareness | null;
+}
+
+export function bindLive(view: EditorView, session: LiveDocument): void {
   const words = session.text.toString();
   if (view.state.doc.toString() !== words) {
     view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: words } });
   }
   const undoManager = new Y.UndoManager(session.text);
   view.dispatch({
-    effects: undoSlot.reconfigure([yCollab(session.text, null, { undoManager }), keymap.of(yUndoManagerKeymap)]),
+    effects: undoSlot.reconfigure([yCollab(session.text, session.awareness ?? null, { undoManager }), keymap.of(yUndoManagerKeymap)]),
   });
 }
 

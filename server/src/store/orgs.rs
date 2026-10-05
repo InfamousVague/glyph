@@ -235,6 +235,11 @@ impl Store {
         )
     }
 
+    /// Whether an account has joined an organization: the relay's question (src/live.rs), asked often, so it is one row.
+    pub fn is_member(&self, account: i64, org: &str) -> bool {
+        self.one("SELECT 1 FROM org_members WHERE org_id = ?1 AND account_id = ?2 AND state = 'member'", params![org, account], |r| r.get::<_, i64>(0)).is_some()
+    }
+
     /// An organization with its people, for an account that has joined it; nothing for an invitee or a stranger.
     pub fn org_of(&self, account: i64, org: &str) -> Option<Org> {
         Self::org_in(&self.lock(), account, org).ok().flatten()

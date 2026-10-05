@@ -105,6 +105,7 @@ import { useLandAt } from './useLandAt.ts';
 import { useLanding } from './useLanding.ts';
 import { useLiveNote } from './useLiveNote.ts';
 import { useTeamNote } from './useTeamNote.ts';
+import type { Caret } from '../core/live/presence.ts';
 import { useNoteAi, type NoteAsk } from './useNoteAi.ts';
 import { fillPlanOf } from './blanks.ts';
 import { useNotePictures } from './useNotePictures.ts';
@@ -197,6 +198,8 @@ interface NoteScreenProps {
    * keyboard up where the phone allows it (shell/screen.ts). Absent, a note opened to be read, which takes no focus.
    */
   caret?: number | 'end';
+  /** A member's caret to open at (shell/screen.ts `cursor`): the selection put there once the team's document is bound. */
+  cursor?: Caret;
   /** Every note's title, for a canvas's + to choose a note from. */
   allTitles?: () => string[];
   /** The titles a notebook's index offers to add as a page: every note's but a journal's entries; absent, every note's. */
@@ -301,6 +304,7 @@ export function NoteScreen({
   onNewEntry,
   onJournal,
   caret,
+  cursor,
   allTitles,
   pageTitles,
   at,
@@ -513,7 +517,7 @@ export function NoteScreen({
     fireNativeHaptic('selection');
   };
   useLiveNote(view, note.id);
-  useTeamNote(view, note.id);
+  useTeamNote(view, note.id, cursor);
   // The tab says the note's name as line 1 is written (core/liveTitles.ts), a name tapped on its blank page included.
   useEffect(() => setLiveTitle(note.id, title), [note.id, title]);
   // "Added to House TODOs", with an Undo that is an edit here; and no better words written under the open note.

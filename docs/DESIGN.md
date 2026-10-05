@@ -8333,7 +8333,10 @@ code or Matt: the Rust namer's title rule (src-tauri/src/library/names.rs keeps 
 name until it reads core/titles.fixture.json in a binary of its own), Gemma's template, automatic fills on leaving a
 note and the `[[?` alias (both Matt's to choose), and a measure on the Fold, which was not reachable. The Model card
 names the fills, and its about lines are §146's to reword ("Careful with facts" for the 4B, which the probes showed
-confidently wrong). With no Settings › AI page yet (§146's), Get a model opens Recording at the Model card.
+confidently wrong). With no Settings › AI page yet (§146's), Get a model opens Recording at the Model card. (2026-10-05, finishing what was left: the namer reads the same rows now - `title_of` reads a note's first line
+through a port of `titleWords`, and a Rust test runs every row of core/titles.fixture.json - so a note titled
+`# Trip to {?capital of Japan}` is "Trip to.md", in the next binary. The 4B's line says "check a fact it answers from
+memory" in place of "Careful with facts". §146 was never merged: its branch, voice/assistant-flag, waits on Matt.)
 
 **What the shots found.** The built page, driven in Chromium as the Fold and as the Mac with the 4B's own answers
 handed back, showed faults the unit tests had passed over. Each is fixed with a test that fails on the old code. Every
@@ -10386,6 +10389,62 @@ Tests: canvas/CanvasView.snap.test.tsx and the grid's cases in edits.test.ts.
 
 Cites: §190.
 
+## 195. Live for the team: the third slice of notes shared in an organization (2026-10-05)
+
+docs/SHARED.md, S6. Matt: "the color will be used to tag the persons cursor when they are live editing a document or
+have a section of the document highlighted. I would like to be able to see the activity for users in organizations
+like "editing <doc_name>" and be able to click the user's profile and "jump to cursor" to open the doc they're editing
+to the exact point" - and, seeing none of it in the app after the second slice: "Did we ever ship the "follow cursor"
+and the live updates of who's viewing what file etc etc?"
+
+**The organization's rooms.** The relay (server/src/live.rs) takes `org` on a join, a leave and a message: the room
+is the note id as ever, scoped to the organization rather than the account, so its members' devices reach each other
+across their accounts and nobody else does. Membership is checked at the join and again on a message once a minute
+(`RECHECK_SECS`), so a member removed is out of the organization's rooms within that long, told "No such
+organization." as a stranger is. The `peers` notice now says which connection left, for the presence below. The
+transport and the hub (core/live/transport.ts, hub.ts) carry `org` on every frame and event and key their rooms by
+it, so an organization's room and the account's own of the same name are told apart; `holdRoom` and `releaseRoom`
+let anything hold a room on the device's one connection.
+
+**A team note's room** (core/live/team.ts, held by editor/useTeamNote.ts while the note is open) never makes a
+document, which is where an account's own rooms needed their seeding rule (§LIVE.md): the document is the team's CRDT
+of record (§193), one lineage on every member's devices. In the room a device says who it is and asks with its state
+vector; each of the others answers with what it lacks, and asks back once if the asker's vector shows it holds
+something they lack; from then on every change goes out as it is made and is applied as the channel applies a log,
+which still posts it for the members not in the room. Messages are sealed under the organization key with
+`live:org:<org>:<room>` bound in, and opened in order.
+
+**Carets in colour.** The room's awareness (y-protocols) carries each device's handle, hue and the hue as CSS, and in
+a note's room the selection as relative positions, so `yCollab` with it (editor/liveBinding.ts) draws every other
+member's caret in their colour with their handle riding on it - always shown, since a phone has no hover - and their
+selection as a wash of it. The caret's colour is the hue at the lightness the paper needs, read where it is drawn
+(`--app-hue-lift`, `--app-hue-chroma`; ink for a member without a colour). When the relay says a connection left,
+the room drops the states that connection spoke for at once, rather than at the protocol's thirty-second timeout.
+
+**"Editing Roadmap", and Jump to cursor.** Every member's device holds the organization's own room, `presence`
+(core/live/presence.ts, watched from App.tsx), while signed in with the organization key in hand and not local-only,
+and says in it where it is: the note open, its title, and the caret as it moves, at most every 400 ms. The dashboard
+reads it (notes/OrganizationScreen.tsx): a dot on the member's initial in the colour they wear, "here now" or "editing
+Roadmap" on their row in that colour, and the row opens their profile - since when, the colour they wear here, where
+they are - with **Jump to cursor**, which opens that note with the caret on the screen (shell/screen.ts `cursor`); the
+team-note hook puts the selection there once the document is bound and scrolls it to the middle. A caret whose words
+are gone, or that was never of this document, is left alone. None of it is behind the live-typing trial switch: a
+team's notes are live by being the team's.
+
+**Not yet.** Comments (S8, the fourth slice, being built beside this), canvases live with pointers (S9, the fifth),
+rotation of the key (S11). A member's profile card counts no comments until the fourth slice. Between an account's
+own devices carets are still not shared.
+
+Tests: core/live/team.test.ts (a relay in memory with an organization's rooms: typing both ways, a device with offline
+changes caught up both ways on joining, a caret seen, moved along and dropped with its connection, a message for
+another room or under another key ignored, the organization's own room saying where each device is),
+core/live/presence.test.ts, the organization cases in core/live/hub.test.ts and transport.test.ts, the team seal in
+wire.test.ts, a member's caret drawn in editor/liveBinding.test.ts, "editing Roadmap" and the jump in
+notes/OrganizationScreen.test.tsx; on the service, an organization's room reaching its members across accounts and
+nobody else, and a removed member put out, in server/src/live_tests.rs.
+
+Cites: §183, §191, §193; docs/LIVE.md "The team's rooms".
+
 ## 196. Comments on notes: the fourth slice of notes shared in an organization (2026-10-05)
 
 docs/SHARED.md, S8, on notes. Matt: "please make sure comments were added to the app like we discussed previously and
@@ -10433,10 +10492,11 @@ title leaves its anchor out (core/noteTitle.ts), so a title commented on keeps i
 account's handle, or `me` without one (core/comments/author.ts).
 
 **Not yet.** The audit log's "sam commented on Roadmap" and the profile card's counts (S8's last sentence) read what is
-here but are not drawn; live cursors are slice 3; a canvas's comments are slice 5.
+here but are not drawn; a canvas's comments are slice 5. A comment made in a team note reaches the others live, as
+any edit does (§195).
 
 Tests: core/comments/format.test.ts and colours.test.tsx, editor/comments.test.ts, editor/CommentCard.test.tsx, and
 the comment cases in editor/NoteScreen.test.tsx, ContextMenu.test.tsx, NoteSettings.test.tsx, notes/NoteMenu.test.tsx
 and academy/lessons.test.ts.
 
-Cites: §159, §172, §191, §193.
+Cites: §159, §172, §191, §193, §195.

@@ -1,23 +1,29 @@
 //! Live sync's relay (docs/LIVE.md): a WebSocket per device, passing sealed edits between one account's own devices
-//! while they have the same note open.
+//! while they have the same note open - and, for a team's notes (docs/SHARED.md, S6), between an organization's
+//! members across their accounts.
 //!
-//! It knows accounts and rooms and nothing else. What passes through is ciphertext under a key it never sees - the
-//! devices seal every message with the account key before sending - so it cannot read a word, and it keeps nothing:
-//! no message is stored or logged. A room is a note id, which the sync feed already shows it.
+//! It knows accounts, organizations and rooms and nothing else. What passes through is ciphertext under a key it
+//! never sees - the devices seal every message with the account key, or the organization key, before sending - so
+//! it cannot read a word, and it keeps nothing: no message is stored or logged. A room is a note id, which the sync
+//! feed already shows it, or an organization's own room for who is in the app (`org` on the frame says whose).
 //!
 //! The protocol, all JSON text frames:
 //!
 //! ```text
 //! client -> server   { t: "auth",  token }                 first frame, within AUTH_WAIT, or the socket is closed
 //! server -> client   { t: "ready", id }                    this socket's connection id
-//! client -> server   { t: "join",  room }
-//! client -> server   { t: "leave", room }
-//! client -> server   { t: "msg",   room, data, to? }       data: base64url ciphertext; to: one connection, or all
-//! server -> client   { t: "joined", room, first, peers }   first: the room was empty until now (see LIVE.md, Seeding)
-//! server -> client   { t: "peers",  room, peers }          another device came or went
-//! server -> client   { t: "msg",    room, from, data }
+//! client -> server   { t: "join",  room, org? }            org: an organization's room, for its members
+//! client -> server   { t: "leave", room, org? }
+//! client -> server   { t: "msg",   room, org?, data, to? } data: base64url ciphertext; to: one connection, or all
+//! server -> client   { t: "joined", room, org?, first, peers }  first: the room was empty until now (see LIVE.md, Seeding)
+//! server -> client   { t: "peers",  room, org?, peers, left? }  another device came or went; left: the connection that went
+//! server -> client   { t: "msg",    room, org?, from, data }
 //! server -> client   { t: "error",  message }              a frame refused, the socket kept
 //! ```
+//!
+//! An organization's room is joined by its members alone, checked fresh at every join and again, on a message, once
+//! `RECHECK_SECS` have passed since the last check: a member removed is out of the organization's rooms within that
+//! long, told "No such organization." as a stranger is.
 //!
 //! A browser cannot put an Authorization header on a WebSocket, so the token comes in the first frame rather than the
 //! URL, where access logs would keep it.
@@ -60,6 +66,10 @@ const PER_SECOND: f64 = 100.0;
 /// way in.
 const ROOM_LENGTH: std::ops::RangeInclusive<usize> = 1..=64;
 
+/// How long a socket's membership of an organization stands before a message makes the relay look again (seconds);
+/// a test sets it to 0 to see a removed member cut off at once.
+pub(crate) static RECHECK_SECS: AtomicU64 = AtomicU64::new(60);
+
 /// Close codes. 4000-4999 are the application's own; a client reconnects after all of these but CLOSE_AUTH.
 pub const CLOSE_AUTH: u16 = 4401;
 pub const CLOSE_BUSY: u16 = 4429;
@@ -72,10 +82,17 @@ pub struct Live {
     next: AtomicU64,
 }
 
+/// Whose room: one account's own devices (LIVE.md), or an organization's members across their accounts (SHARED.md, S6).
+#[derive(Clone, PartialEq, Eq, Hash)]
+enum Scope {
+    Account(i64),
+    Org(String),
+}
+
 /// Who is where. Members are kept in the order they joined, and a room with none is removed.
 #[derive(Default)]
 struct Hub {
-    rooms: HashMap<(i64, String), Vec<Member>>,
+    rooms: HashMap<(Scope, String), Vec<Member>>,
     sockets: HashMap<i64, usize>,
 }
 
@@ -88,9 +105,40 @@ struct Member {
 #[derive(Deserialize)]
 #[serde(tag = "t", rename_all = "lowercase")]
 enum Incoming {
-    Join { room: String },
-    Leave { room: String },
-    Msg { room: String, data: String, to: Option<u64> },
+    Join {
+        room: String,
+        #[serde(default)]
+        org: Option<String>,
+    },
+    Leave {
+        room: String,
+        #[serde(default)]
+        org: Option<String>,
+    },
+    Msg {
+        room: String,
+        #[serde(default)]
+        org: Option<String>,
+        data: String,
+        to: Option<u64>,
+    },
+}
+
+/// A frame about a room, with the organization on it when the room is one's.
+fn about(scope: &Scope, room: &str, mut value: Value) -> Value {
+    value["room"] = json!(room);
+    if let Scope::Org(org) = scope {
+        value["org"] = json!(org);
+    }
+    value
+}
+
+/// The scope a device's frame names: the organization's, or the account's own.
+fn scope_of(account: i64, org: Option<&str>) -> Scope {
+    match org {
+        Some(org) => Scope::Org(org.to_string()),
+        None => Scope::Account(account),
+    }
 }
 
 #[derive(Deserialize)]
@@ -163,18 +211,24 @@ impl Live {
         }
     }
 
+    /// Whether an account has joined an organization, asked of the store: at every join, and on a message once the
+    /// last answer is older than RECHECK_SECS.
+    fn member(&self, account: i64, org: &str) -> bool {
+        self.accounts.store.is_member(account, org)
+    }
+
     /// Puts a socket in a room. Answers whether it opened the room, and the devices already there, each of which is
     /// told the new count.
-    fn join(&self, account: i64, room: &str, member: Member) -> (bool, usize) {
+    fn join(&self, scope: Scope, room: &str, member: Member) -> (bool, usize) {
         let mut hub = self.hub();
-        let members = hub.rooms.entry((account, room.to_string())).or_default();
+        let members = hub.rooms.entry((scope.clone(), room.to_string())).or_default();
         if members.iter().any(|m| m.id == member.id) {
             return (false, members.len() - 1);
         }
         let first = members.is_empty();
         members.push(member);
         let peers = members.len() - 1;
-        let told = json!({ "t": "peers", "room": room, "peers": peers });
+        let told = about(&scope, room, json!({ "t": "peers", "peers": peers }));
         for other in members.iter().take(members.len() - 1) {
             let _ = other.out.try_send(text(told.clone()));
         }
@@ -182,16 +236,17 @@ impl Live {
     }
 
     /// Takes a socket out of a room, telling whoever is left.
-    fn leave(&self, account: i64, room: &str, id: u64) {
+    fn leave(&self, scope: &Scope, room: &str, id: u64) {
         let mut hub = self.hub();
-        let key = (account, room.to_string());
+        let key = (scope.clone(), room.to_string());
         let Some(members) = hub.rooms.get_mut(&key) else { return };
         members.retain(|m| m.id != id);
         if members.is_empty() {
             hub.rooms.remove(&key);
             return;
         }
-        let told = text(json!({ "t": "peers", "room": room, "peers": members.len() - 1 }));
+        // Who went, so the others can drop its presence at once rather than when it times out (docs/SHARED.md, S6).
+        let told = text(about(scope, room, json!({ "t": "peers", "peers": members.len() - 1, "left": id })));
         for other in members.iter() {
             let _ = other.out.try_send(told.clone());
         }
@@ -199,11 +254,11 @@ impl Live {
 
     /// Passes a sealed message to the room's other devices, or to one of them. A device whose queue is full has fallen
     /// too far behind to catch up message by message: it is taken out and closed, and comes back whole.
-    fn relay(&self, account: i64, room: &str, from: u64, data: &str, to: Option<u64>) {
-        let message = text(json!({ "t": "msg", "room": room, "from": from, "data": data }));
+    fn relay(&self, scope: &Scope, room: &str, from: u64, data: &str, to: Option<u64>) {
+        let message = text(about(scope, room, json!({ "t": "msg", "from": from, "data": data })));
         let behind: Vec<Member> = {
             let hub = self.hub();
-            let Some(members) = hub.rooms.get(&(account, room.to_string())) else { return };
+            let Some(members) = hub.rooms.get(&(scope.clone(), room.to_string())) else { return };
             members
                 .iter()
                 .filter(|m| m.id != from && to.is_none_or(|to| m.id == to))
@@ -212,7 +267,7 @@ impl Live {
                 .collect()
         };
         for member in behind {
-            self.drop_everywhere(account, member.id);
+            self.drop_everywhere(member.id);
             // Queued behind what it has not read yet: it arrives when the backlog does, and then the socket ends.
             tokio::spawn(async move {
                 let _ = member.out.send(close(CLOSE_BEHIND, "Fell behind. Reconnect.")).await;
@@ -220,17 +275,14 @@ impl Live {
         }
     }
 
-    fn drop_everywhere(&self, account: i64, id: u64) {
-        let rooms: Vec<String> = {
+    /// A socket out of every room it is in, whoever's: its id is one of a kind across the relay.
+    fn drop_everywhere(&self, id: u64) {
+        let rooms: Vec<(Scope, String)> = {
             let hub = self.hub();
-            hub.rooms
-                .iter()
-                .filter(|((a, _), members)| *a == account && members.iter().any(|m| m.id == id))
-                .map(|((_, room), _)| room.clone())
-                .collect()
+            hub.rooms.iter().filter(|(_, members)| members.iter().any(|m| m.id == id)).map(|(key, _)| key.clone()).collect()
         };
-        for room in rooms {
-            self.leave(account, &room, id);
+        for (scope, room) in rooms {
+            self.leave(&scope, &room, id);
         }
     }
 }
@@ -282,7 +334,10 @@ async fn serve(live: Arc<Live>, mut socket: WebSocket) {
     });
 
     let _ = out.send(text(json!({ "t": "ready", "id": id }))).await;
-    let mut rooms: HashSet<String> = HashSet::new();
+    // The rooms this socket is in: the organization’s, or none for the account’s own, and the room.
+    let mut rooms: HashSet<(Option<String>, String)> = HashSet::new();
+    // When each organization’s membership was last confirmed for this socket.
+    let mut verified: HashMap<String, Instant> = HashMap::new();
     // `BURST` frames at once, refilled at `PER_SECOND`.
     let mut bucket = Bucket::new(BURST, PER_SECOND, Instant::now());
     // The socket lasts as long as the token does; the device comes back with a fresh one.
@@ -314,30 +369,57 @@ async fn serve(live: Arc<Live>, mut socket: WebSocket) {
         }
         let refuse = |message: &'static str| text(json!({ "t": "error", "message": message }));
         match serde_json::from_str::<Incoming>(&frame) {
-            Ok(Incoming::Join { room }) => {
-                if !base64url(&room, ROOM_LENGTH) {
+            Ok(Incoming::Join { room, org }) => {
+                let key = (org.clone(), room.clone());
+                if !base64url(&room, ROOM_LENGTH) || org.as_deref().is_some_and(|org| !base64url(org, ROOM_LENGTH)) {
                     let _ = out.try_send(refuse("That room name could not be read."));
-                } else if !rooms.contains(&room) && rooms.len() >= ROOMS_PER_SOCKET {
+                } else if !rooms.contains(&key) && rooms.len() >= ROOMS_PER_SOCKET {
                     let _ = out.try_send(refuse("Too many notes live at once on this device."));
+                } else if org.as_deref().is_some_and(|org| !live.member(account, org)) {
+                    // An organization's room is its members': a stranger, and an invitee who has not joined, get the
+                    // organization's own refusal (orgs.rs), which says nothing about whether it exists.
+                    let _ = out.try_send(refuse("No such organization."));
                 } else {
-                    let (first, peers) = live.join(account, &room, Member { id, out: out.clone() });
-                    rooms.insert(room.clone());
-                    let _ = out.try_send(text(json!({ "t": "joined", "room": room, "first": first, "peers": peers })));
+                    if let Some(org) = &org {
+                        verified.insert(org.clone(), Instant::now());
+                    }
+                    let scope = scope_of(account, org.as_deref());
+                    let (first, peers) = live.join(scope.clone(), &room, Member { id, out: out.clone() });
+                    rooms.insert(key);
+                    let _ = out.try_send(text(about(&scope, &room, json!({ "t": "joined", "first": first, "peers": peers }))));
                 }
             }
-            Ok(Incoming::Leave { room }) => {
-                if rooms.remove(&room) {
-                    live.leave(account, &room, id);
+            Ok(Incoming::Leave { room, org }) => {
+                if rooms.remove(&(org.clone(), room.clone())) {
+                    live.leave(&scope_of(account, org.as_deref()), &room, id);
                 }
             }
             // Ciphertext as base64url, and nothing else: the relay only ever carries sealed bytes it cannot read.
-            Ok(Incoming::Msg { room, data, to }) => {
-                if !rooms.contains(&room) {
+            Ok(Incoming::Msg { room, org, data, to }) => {
+                if !rooms.contains(&(org.clone(), room.clone())) {
                     let _ = out.try_send(refuse("Join the room first."));
                 } else if !base64url(&data, 1..=MAX_FRAME) {
                     let _ = out.try_send(refuse("That message could not be read."));
+                } else if let Some(org_id) = org {
+                    // Membership looked at again now and then: a member removed is out of the organization's rooms
+                    // within RECHECK_SECS, and told as a stranger is.
+                    let stale = verified.get(&org_id).is_none_or(|at| at.elapsed() >= Duration::from_secs(RECHECK_SECS.load(Ordering::Relaxed)));
+                    if stale && !live.member(account, &org_id) {
+                        let gone: Vec<String> = rooms.iter().filter(|(o, _)| o.as_deref() == Some(org_id.as_str())).map(|(_, r)| r.clone()).collect();
+                        for r in gone {
+                            rooms.remove(&(Some(org_id.clone()), r.clone()));
+                            live.leave(&Scope::Org(org_id.clone()), &r, id);
+                        }
+                        verified.remove(&org_id);
+                        let _ = out.try_send(refuse("No such organization."));
+                    } else {
+                        if stale {
+                            verified.insert(org_id.clone(), Instant::now());
+                        }
+                        live.relay(&Scope::Org(org_id), &room, id, &data, to);
+                    }
                 } else {
-                    live.relay(account, &room, id, &data, to);
+                    live.relay(&Scope::Account(account), &room, id, &data, to);
                 }
             }
             Err(_) => {
@@ -346,8 +428,8 @@ async fn serve(live: Arc<Live>, mut socket: WebSocket) {
         }
     }
 
-    for room in &rooms {
-        live.leave(account, room, id);
+    for (org, room) in &rooms {
+        live.leave(&scope_of(account, org.as_deref()), room, id);
     }
     live.release(account);
     // Let a close already queued go out before the writer is stopped.

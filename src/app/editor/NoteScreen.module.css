@@ -368,6 +368,33 @@
   }
 }
 
+/*
+ * A member's caret and selection in a team's note (docs/SHARED.md, S6; editor/liveBinding.ts): y-codemirror draws
+ * them in the colour their presence carries, the selection a wash of it. The handle rides on the caret in the page's
+ * own face, small, and is always shown, since a phone has no hover to show it on; the dot the binding puts on the
+ * caret is not needed beside it. Written past the editor's own rules, which arrive later in the page.
+ */
+.body :global(.cm-editor .cm-ySelectionCaret) {
+  border-inline-width: 2px;
+  margin-inline: -1px;
+}
+
+.body :global(.cm-editor .cm-ySelectionCaretDot) {
+  display: none;
+}
+
+.body :global(.cm-editor .cm-ySelectionInfo) {
+  top: -1.25em;
+  opacity: 1;
+  padding: 0.05em 0.4em;
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 0.62em;
+  font-weight: var(--glacier-font-weight-medium);
+  line-height: 1.4;
+  color: var(--app-paper);
+}
+
 /* The note's authors (authors/Byline.tsx), in the note's own column, over its first line. */
 .byline {
   padding-inline: var(--app-gutter);

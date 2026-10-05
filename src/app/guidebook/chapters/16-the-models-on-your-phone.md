@@ -31,7 +31,7 @@ Settings › Recording › Model lists four, each once. The one you choose rewri
 | Model | Download | What Settings says |
 |---|---|---|
 | Qwen3.5 2B | 1.28 GB | Quick. Good for short notes, and it can shorten long ones. |
-| Qwen3.5 4B | 2.74 GB | The balance. Careful with facts, fits most phones. |
+| Qwen3.5 4B | 2.74 GB | The balance. Fits most phones; check a fact it answers from memory. |
 | Qwen3.5 9B | 5.68 GB | The most careful, and the slowest. Wants 12 GB of memory. |
 | Gemma 4 E4B | 4.98 GB | A different voice. Runs like a 4B, with a bigger file. |
 
