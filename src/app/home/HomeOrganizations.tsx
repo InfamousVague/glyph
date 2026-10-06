@@ -11,7 +11,7 @@ import styles from './HomeOrganizations.module.css';
 /**
  * The organizations on the home page (Matt: "add organizations to the home page"): a card for each one joined, in its
  * colour, with how many are in it, how many notes are filed in its workspace, and who is in the app now and what
- * they are editing (core/live/presence.ts). A tap opens its dashboard (notes/OrganizationScreen.tsx). An invitation
+ * they are editing (core/live/presence.ts), or that nobody is, so every card is the same three lines tall. A tap opens its dashboard (notes/OrganizationScreen.tsx). An invitation
  * still waiting is the notice above, not a card. Nothing is drawn for an account in no organization.
  */
 export function HomeOrganizations({ notes, onOpen }: { notes: readonly Note[]; onOpen: (orgId: string) => void }) {
@@ -52,12 +52,13 @@ function OrgCard({ row, notes, onOpen }: { row: OrgRow; notes: readonly Note[]; 
           <span className={styles.meta}>
             {row.members === 1 ? '1 member' : `${row.members} members`} · {count === 1 ? '1 note' : `${count} notes`}
           </span>
-          {here ? (
-            <span className={styles.here}>
-              <span className={styles.dot} aria-hidden="true" />
-              {here}
-            </span>
-          ) : null}
+          {/* Always a line, said quietly when nobody is in: a card with someone in it was a line taller than the one
+              beside it (Matt: "i don't like how the heights are different on the organization cards when there is or is
+              not people online"). */}
+          <span className={styles.here} data-quiet={here ? undefined : ''}>
+            <span className={styles.dot} aria-hidden="true" />
+            {here ?? 'Nobody here now'}
+          </span>
         </span>
       </button>
     </li>

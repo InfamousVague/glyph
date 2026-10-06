@@ -8,11 +8,17 @@
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
 }
 
+/* A card fills its cell, so two in a row are one height even where a long name wraps in one of them. */
+.orgs > li {
+  display: grid;
+}
+
 .org {
   display: flex;
   align-items: flex-start;
   gap: var(--glacier-space-3);
   inline-size: 100%;
+  block-size: 100%;
   padding: var(--glacier-space-4);
   /* Mixed with nothing, not with the rule's grey: a grey has a hue of 0 in oklch, and green mixed toward it came out brown. */
   border: var(--glacier-hairline) solid color-mix(in oklch, var(--app-space) 45%, transparent);
@@ -68,6 +74,17 @@
   font-size: var(--glacier-font-size-sm);
   font-weight: var(--glacier-font-weight-medium);
   color: var(--app-space);
+}
+
+/* Nobody in: the same line, in the meta's quiet ink, with a ring where the dot is. */
+.here[data-quiet] {
+  font-weight: var(--glacier-font-weight-regular);
+  color: var(--app-ink-4);
+}
+
+.here[data-quiet] .dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px currentColor;
 }
 
 .dot {

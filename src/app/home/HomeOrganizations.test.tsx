@@ -53,4 +53,14 @@ describe('the organizations on the home page', () => {
     act(() => buttons[1]!.click());
     expect(opened).toEqual(['o2']);
   });
+
+  // Matt: "i don't like how the heights are different on the organization cards when there is or is not people online".
+  it('keeps the line with nobody in, said quietly, so every card is three lines', () => {
+    orgs.list = [row('o1', 'Ghost'), row('o2', 'Attack', { hue: null, members: 1 })];
+    presence.seen = { o1: [{ handle: 'sam', hue: 'rose', at: null, client: 1 }] };
+    show(<HomeOrganizations notes={[]} onOpen={() => undefined} />);
+    expect(cards()).toEqual(['Ghost3 members · 0 notessam is here now', 'Attack1 member · 0 notesNobody here now']);
+    const lines = [...document.querySelectorAll<HTMLElement>('ul[aria-label="Organizations"] button')].map((card) => card.querySelector('span > span:last-child'));
+    expect(lines.map((line) => line?.hasAttribute('data-quiet'))).toEqual([false, true]);
+  });
 });
