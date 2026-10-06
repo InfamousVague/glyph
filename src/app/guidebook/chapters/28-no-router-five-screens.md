@@ -96,7 +96,7 @@ The parts of the Shell that are machines of their own live in `shell/`, one hook
 
 The sheet carries more than settings. It holds the open tabs (`openNotes`), the tab groups, the workspaces and which note is filed in each, the trash, and the notes shared by link with their keys. They live here because the notes are Rust's, and a new field there is a native change and a new APK, while a preference ships over the air.
 
-`core/sync/prefs.ts` lists the keys that travel, sealed as one blob; when two devices both changed their settings, the one sending now wins. The interface size, the sidebar style, the accent, the corner rounding, the formatting model and Local only stay on the device, and so does which workspace the list is showing.
+`core/sync/prefs.ts` lists the keys that travel, sealed as one blob; when two devices both changed their settings, each setting goes to whichever changed it, and which note is filed where is merged a note at a time; only the same setting changed on both goes to the one sending now. The interface size, the sidebar style, the accent, the corner rounding, the formatting model and Local only stay on the device, and so does which workspace the list is showing.
 
 ## Haptics off, and on
 

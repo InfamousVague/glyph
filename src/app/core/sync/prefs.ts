@@ -5,8 +5,9 @@ import { open, seal } from './crypto.ts';
 /**
  * Settings kept the same on every device (docs/SYNC.md): AttackFM's settings blob, one sealed object written from the
  * revision last seen. A device that changed nothing takes what another device wrote; a device that changed its
- * settings sends them, and when two did, the one sending now wins - settings are chosen, not typed, and choosing again
- * is a tap.
+ * settings sends them. When two did, each setting goes to whichever changed it, measured from what this device last
+ * saw (`merged`): a tab opened here must not undo a note filed there. Only when both changed the same setting does
+ * the one sending now win - settings are chosen, not typed, and choosing again is a tap.
  *
  * Only the settings that describe the person travel. Which model this phone has downloaded, and whether this device
  * talks to the network at all, stay with the device.
@@ -78,6 +79,52 @@ function known(value: unknown): Partial<SyncedPrefs> {
   return out as Partial<SyncedPrefs>;
 }
 
+type Entries = Record<string, unknown>;
+
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+const entries = (value: unknown): value is Entries => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+/** One map, entry by entry: an entry changed here since `base` stays as it is here, and every other is theirs. */
+function mergedEntries(base: Entries, mine: Entries, theirs: Entries): Entries {
+  const out: Entries = {};
+  for (const key of new Set([...Object.keys(theirs), ...Object.keys(mine)])) {
+    const value = same(mine[key], base[key]) ? theirs[key] : mine[key];
+    if (value !== undefined) out[key] = value;
+  }
+  return out;
+}
+
+/** A list of things with ids, the same way: theirs in their order, with what was added or changed here. */
+function mergedList(base: unknown[], mine: unknown[], theirs: unknown[]): unknown[] {
+  const byId = (list: unknown[]) => Object.fromEntries(list.filter(entries).map((each) => [String(each.id), each]));
+  const kept = mergedEntries(byId(base), byId(mine), byId(theirs));
+  const order = [...theirs, ...mine].filter(entries).map((each) => String(each.id));
+  return [...new Set(order)].filter((id) => id in kept).map((id) => kept[id]);
+}
+
+/**
+ * This device's settings and another's, both changed since `base`. A setting only one of them changed is that
+ * one's. The maps (which note is filed where, what is in the trash) are merged an entry at a time, since a filing
+ * made on one device and another made elsewhere are two changes, not one. What both changed stays as it is here.
+ */
+export function merged(base: Partial<SyncedPrefs>, mine: SyncedPrefs, theirs: Partial<SyncedPrefs>): SyncedPrefs {
+  const out: Entries = { ...mine };
+  for (const key of SYNCED_PREFS) {
+    if (!(key in theirs)) continue;
+    const [b, m, t] = [base[key], mine[key], theirs[key]] as unknown[];
+    if (same(m, b)) out[key] = t;
+    else if (same(t, b) || same(t, m)) continue;
+    else if (key === 'workspaces' && entries(b) && entries(m) && entries(t) && [b, m, t].every((each) => Array.isArray(each.list) && entries(each.notes))) {
+      const list = mergedList(b.list as unknown[], m.list as unknown[], t.list as unknown[]) as Entries[];
+      const notes = mergedEntries(b.notes as Entries, m.notes as Entries, t.notes as Entries);
+      // A note filed in a workspace the other device removed is in none.
+      for (const [note, space] of Object.entries(notes)) if (!list.some((each) => each.id === space)) delete notes[note];
+      out[key] = { ...m, list, notes };
+    } else if (entries(b) && entries(m) && entries(t)) out[key] = mergedEntries(b, m, t);
+  }
+  return out as SyncedPrefs;
+}
+
 export interface PrefsState {
   rev: number;
   /** The synced settings as they were at `rev`, as JSON: what "changed here" is measured from. */
@@ -114,14 +161,22 @@ export async function syncPrefs(ctx: PrefsContext, retry = true): Promise<boolea
   }
   if (!changedHere && rev === ctx.state.rev) return false;
 
+  let sending = mine;
+  if (rev !== ctx.state.rev && blob && ctx.state.seen !== null) {
+    // Both wrote: what the other device changed and this one did not is taken before this one's are sent.
+    const theirs = known(await open<unknown>(ctx.key, blob, 'prefs'));
+    ctx.write(merged(JSON.parse(ctx.state.seen) as Partial<SyncedPrefs>, pickSynced(ctx.read()), theirs));
+    sending = JSON.stringify(pickSynced(ctx.read()));
+    took = sending !== mine;
+  }
   try {
     const sealed = await seal(ctx.key, pickSynced(ctx.read()), 'prefs');
     const written = await call<{ rev: number }>('PUT', 'prefs', { token: ctx.token, fetcher: ctx.fetcher, body: { base: rev, blob: sealed } });
-    ctx.state = { rev: written.rev, seen: mine };
+    ctx.state = { rev: written.rev, seen: sending };
     ctx.save(ctx.state);
   } catch (failure) {
     // Written by another device between the read and the write: read again, once.
-    if (retry && failure instanceof ApiError && failure.status === 409) return syncPrefs(ctx, false);
+    if (retry && failure instanceof ApiError && failure.status === 409) return (await syncPrefs(ctx, false)) || took;
     throw failure;
   }
   return took;

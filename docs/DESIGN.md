@@ -10948,3 +10948,25 @@ Tests: scripts/lib/pe.test.mjs; the Windows way in core/backup.test.ts; the runn
 
 Cites: §14, §167, §186, §204.
 
+
+## 210. Settings merge, and Command-R (2026-10-06)
+
+Matt filed the forty-one pages of a book in an organization from the connector, and the others saw only titles:
+"pages are showing blank for other people almost like the content isn't being synced". The filing had been undone
+within minutes. The settings travel as one sealed object, the open tabs are in it beside which note is filed where,
+and the rule was that a device with a change of its own sends the lot. So a tab opened on the Mac sent the Mac's
+filing map over the connector's, the pages were in no organization again, and no device ever sent them to the team.
+What the others had was the book's index, whose links opened pages they did not hold.
+
+Now a device that changed its settings while another did too takes the other's first (core/sync/prefs.ts `merged`),
+measured from the settings it last saw: a setting only one of them changed is that one's; the maps (`workspaces.notes`,
+the trash, the meetings) are merged an entry at a time, and the workspaces by id; a note filed in a workspace the other
+device removed is in none. Only the same setting, or the same note's filing, changed on both still goes to the one
+sending now, settings being chosen, not typed.
+
+"there is no pull to refresh on mac": the pull (§152) is a touch. The Mac app takes Command-R for the same sync and
+says "Synced", "Still syncing" past five seconds, or why not. Settings › Account › Sync now is as it was.
+
+Tests: core/sync/prefs.test.ts ("keep a note filed on one device...").
+
+Cites: §152, §193.

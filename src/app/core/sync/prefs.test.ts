@@ -8,7 +8,7 @@ import { syncPrefs, type PrefsContext, type PrefsState } from './prefs.ts';
 /**
  * Settings on every device (prefs.ts), against the service in memory: one sealed blob, written from the revision
  * last seen. A device that changed nothing takes what another wrote; one that changed something sends it, and the
- * one sending now wins; a write that loses a race reads again, once.
+ * one sending now wins the settings both changed; a write that loses a race reads again, once.
  */
 
 const ACCOUNT = { handle: 'matt', password: 'correct horse' };
@@ -68,13 +68,40 @@ describe('settings kept the same on every device', () => {
     await desk.sync();
     expect(await phone.sync()).toBe(true);
     expect(phone.prefs.theme).toBe('dawn');
-    // Both change: the one sending now wins, settings being chosen rather than typed.
+    // Both change the same setting: the one sending now wins, settings being chosen rather than typed.
     phone.set({ theme: 'boreal' });
     desk.set({ theme: 'ember' });
     await desk.sync();
     await phone.sync();
     expect(await desk.sync()).toBe(true);
     expect(desk.prefs.theme).toBe('boreal');
+  });
+
+  it('keep a note filed on one device when another, with a tab just opened, sends its own settings', async () => {
+    const service = await fakeService(ACCOUNT);
+    const desk = device(service);
+    const other = device(service);
+    const team = { id: 'org-a', name: 'Team' };
+    desk.set({ workspaces: { list: [team], notes: { n1: 'org-a' } } });
+    await desk.sync();
+    await other.sync();
+    // Filed elsewhere (the connector, a phone), while this desk opened a tab and filed a note of its own.
+    other.set({ workspaces: { list: [team], notes: { n1: 'org-a', n2: 'org-a', n3: 'org-a' } }, trash: { gone: 5 } });
+    await other.sync();
+    desk.set({ openNotes: ['n1'], workspaces: { list: [team, { id: 'w-1', name: 'Mine' }], notes: { n4: 'w-1' } } });
+    expect(await desk.sync()).toBe(true);
+    expect(desk.prefs.workspaces.notes).toEqual({ n2: 'org-a', n3: 'org-a', n4: 'w-1' });
+    expect(desk.prefs.workspaces.list.map((each) => each.id)).toEqual(['org-a', 'w-1']);
+    expect(desk.prefs.trash).toEqual({ gone: 5 });
+    expect(desk.prefs.openNotes).toEqual(['n1']);
+    // The other device takes the lot, and then neither has anything to say.
+    expect(await other.sync()).toBe(true);
+    expect(other.prefs.workspaces).toEqual(desk.prefs.workspaces);
+    expect(other.prefs.openNotes).toEqual(['n1']);
+    service.calls.length = 0;
+    await desk.sync();
+    await other.sync();
+    expect(service.calls).toEqual(['GET prefs', 'GET prefs']);
   });
 
   it('carry only what describes the person: which model a phone formats with, and whether it syncs, stay with it', async () => {

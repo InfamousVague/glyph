@@ -45,7 +45,7 @@ import { useUpdates } from './core/ota.ts';
 import { LaunchScreen } from './launch/LaunchScreen.tsx';
 import { SceneBench } from './diag/SceneBench.tsx';
 import { sceneQuery } from './scene/scripted.ts';
-import { syncNotificationsNow, syncNow, syncTeamsNow, syncWithin, useSyncStatus } from './core/sync/engine.ts';
+import { syncNotificationsNow, syncNow, syncStatusNow, syncTeamsNow, syncWithin, useSyncStatus } from './core/sync/engine.ts';
 import { createNote, deleteNote, getNote, newNoteId, noteTitle, updateNote, useNotes, type Note, listNotes } from './core/store.ts';
 import { sameTitle } from './editor/wikiLinks.ts';
 import { titleKey } from './core/titleKey.ts';
@@ -638,6 +638,12 @@ function Shell() {
    * not while a sheet, the palette or the Guide is open over the page, each a modal dialog, whose own keys come first.
    */
   const newNoteByKey = useRef<() => void>(() => undefined);
+  const refreshByKey = useRef<() => Promise<void>>(async () => undefined);
+  refreshByKey.current = async () => {
+    await pullRefresh();
+    const now = syncStatusNow();
+    toast({ message: now.phase === 'error' ? (now.message ?? 'Could not sync.') : now.phase === 'syncing' ? 'Still syncing' : 'Synced' });
+  };
   newNoteByKey.current = () => {
     if (!isPlace(screen) || document.querySelector('[aria-modal="true"]')) return;
     void newNote();
@@ -645,9 +651,16 @@ function Shell() {
   useEffect(() => {
     if (!isMacApp) return undefined;
     const onKey = (event: KeyboardEvent) => {
-      if (!event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.repeat || event.key.toLowerCase() !== 'n') return;
-      event.preventDefault();
-      newNoteByKey.current();
+      if (!event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.repeat) return;
+      const key = event.key.toLowerCase();
+      if (key === 'n') {
+        event.preventDefault();
+        newNoteByKey.current();
+      } else if (key === 'r') {
+        // A Mac has no page to pull down (docs/DESIGN.md §152): Command-R is the same sync, and says when it is done.
+        event.preventDefault();
+        void refreshByKey.current();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
