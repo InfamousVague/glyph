@@ -6,6 +6,7 @@
  */
 :where(svg.lucide-alarm-clock) > :nth-child(1),
 :where(svg.lucide-archive) > :nth-child(1),
+:where(svg.lucide-archive) > :nth-child(2),
 :where(svg.lucide-archive-restore) > :nth-child(1),
 :where(svg.lucide-at-sign) > :nth-child(1),
 :where(svg.lucide-ban) > :nth-child(1),

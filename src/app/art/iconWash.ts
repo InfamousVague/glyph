@@ -231,6 +231,10 @@ export const OPEN_BODIES: Readonly<Record<string, readonly number[]>> = {
   gauge: [1],
   // The history clock: a ring open only where its arrow turns back.
   'rotate-ccw-clock': [0],
+  // The archive's box under its lid, open along the top the lid draws (Matt: "The archive icon's bottom box is missing
+  // the icon fill style"). With its X too. Not archive-restore, whose box is two open halves either side of its arrow.
+  archive: [1],
+  'archive-x': [1],
 };
 
 /** The wash itself: a third of the icon's own ink, as the house's body and the seven whole icons wear (app.css). */
