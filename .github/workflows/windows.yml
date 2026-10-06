@@ -44,6 +44,35 @@ jobs:
         env:
           LIBCLANG_PATH: C:\Program Files\LLVM\bin
 
+      # It built; does it run? The installer run silently as a person's double click would, the app started, and a look
+      # twenty seconds later: still up, with a window, and what the screen shows kept beside the installer.
+      - name: Install it and start it
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1
+          Start-Process -FilePath $setup.FullName -ArgumentList '/S' -Wait
+          $app = Get-ChildItem "$env:LOCALAPPDATA\Ghost.md", "$env:ProgramFiles\Ghost.md" -Filter *.exe -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'uninstall' } | Select-Object -First 1
+          if (-not $app) { throw 'The installer left no app behind.' }
+          "installed: $($app.FullName)"
+          $running = Start-Process -FilePath $app.FullName -PassThru
+          Start-Sleep -Seconds 20
+          $running.Refresh()
+          if ($running.HasExited) { throw "The app exited with code $($running.ExitCode)." }
+          "window: '$($running.MainWindowTitle)' handle $($running.MainWindowHandle)"
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $shot = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+          [System.Drawing.Graphics]::FromImage($shot).CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+          $shot.Save("$PWD\windows-first-launch.png")
+          Stop-Process -Id $running.Id -Force
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ghost-md-windows-first-launch
+          path: windows-first-launch.png
+          if-no-files-found: warn
+
       - uses: actions/upload-artifact@v4
         with:
           name: ghost-md-windows
