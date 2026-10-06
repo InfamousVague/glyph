@@ -121,12 +121,13 @@ if (!keepConnection) box.close();
 // From here, as a visitor would.
 const curl = (curlArgs) => spawnSync('curl', ['-s', '--max-time', '20', ...curlArgs], { encoding: 'utf8' }).stdout;
 const live = curl(['https://attack.fm/glyph/windows.json']);
-let said = null;
-try {
-  said = JSON.parse(live);
-} catch {
-  said = null;
-}
+const said = (() => {
+  try {
+    return JSON.parse(live);
+  } catch {
+    return null;
+  }
+})();
 if (said?.sha256 !== info.sha256) fail(`https://attack.fm/glyph/windows.json does not say this installer yet:\n${live}`);
 console.log(`ok Windows app live: ${info.version}, ${info.bytes} bytes`);
 console.log('  the installer   https://attack.fm/glyph/glyph-setup.exe');
