@@ -54,7 +54,7 @@ pub struct BackupRequest {
 /// The drive a request names, as a `Target`, with its room where it is known.
 fn target_of(drive: Option<&str>, tree: Option<&str>) -> Result<(Box<dyn Target>, Option<u64>), String> {
     if let Some(path) = drive {
-        let root = mac_drive(path)?;
+        let root = drive_root(path)?;
         let free = free_bytes(&root);
         return Ok((Box::new(backup::FolderTarget { root }), free));
     }
@@ -75,14 +75,31 @@ fn android_tree(_tree: &str) -> Result<(Box<dyn Target>, Option<u64>), String> {
     Err("Only the Android app backs up through a drive's tree.".into())
 }
 
-/// A path the page names as a drive: one of `/Volumes`'s, and one `backup_drives` would list.
-fn mac_drive(path: &str) -> Result<PathBuf, String> {
-    let path = PathBuf::from(path);
-    let inside = path.parent() == Some(Path::new("/Volumes")) && path.file_name().is_some();
-    if !inside || !is_removable(&path) {
-        return Err("That drive isn’t plugged in any more.".into());
-    }
-    Ok(path)
+/// A path the page names as a drive: one `backup_drives` lists right now, and no other place on the computer.
+fn drive_root(path: &str) -> Result<PathBuf, String> {
+    let asked = Path::new(path);
+    listed().into_iter().map(|(root, _)| root).find(|root| root == asked).ok_or_else(|| "That drive isn’t plugged in any more.".to_string())
+}
+
+/// The removable drives plugged in now, by their roots, each with the name the page shows: the Mac's mounts under
+/// `/Volumes`, Windows' drive letters.
+#[cfg(not(windows))]
+fn listed() -> Vec<(PathBuf, String)> {
+    let Ok(entries) = std::fs::read_dir("/Volumes") else { return Vec::new() };
+    entries
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| is_removable(path))
+        .map(|path| {
+            let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            (path, name)
+        })
+        .collect()
+}
+
+#[cfg(windows)]
+fn listed() -> Vec<(PathBuf, String)> {
+    win::drives()
 }
 
 /// Claims the one backup that may run; the guard lets it go however it ends.
@@ -116,20 +133,11 @@ fn said(error: std::io::Error) -> String {
 /// Every removable drive the Mac has mounted, with its room and the last backup it holds.
 #[tauri::command(async)]
 pub fn backup_drives() -> Vec<Drive> {
-    let Ok(entries) = std::fs::read_dir("/Volumes") else { return Vec::new() };
-    let mut drives: Vec<Drive> = entries
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| is_removable(path))
-        .map(|path| {
+    let mut drives: Vec<Drive> = listed()
+        .into_iter()
+        .map(|(path, name)| {
             let target = backup::FolderTarget { root: path.clone() };
-            Drive {
-                id: path.to_string_lossy().into_owned(),
-                name: path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
-                free: free_bytes(&path),
-                total: total_bytes(&path),
-                last: backup::last(&target),
-            }
+            Drive { id: path.to_string_lossy().into_owned(), name, free: free_bytes(&path), total: total_bytes(&path), last: backup::last(&target) }
         })
         .collect();
     drives.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
@@ -179,7 +187,10 @@ pub fn backup_eject(state: State<'_, BackupState>, drive: String) -> Result<(), 
     if state.running.load(Ordering::SeqCst) {
         return Err("Wait for the backup to finish.".into());
     }
-    let path = mac_drive(&drive)?;
+    let path = drive_root(&drive)?;
+    if !cfg!(target_os = "macos") {
+        return Err("Eject the drive from the taskbar before unplugging it.".into());
+    }
     let out = std::process::Command::new("/usr/sbin/diskutil").arg("eject").arg(&path).output().map_err(|e| e.to_string())?;
     if out.status.success() {
         Ok(())
@@ -253,9 +264,81 @@ fn removable_by(said: &serde_json::Value) -> bool {
     outside && yes("WritableVolume")
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(not(target_os = "macos"), not(windows)))]
 fn is_removable(_path: &Path) -> bool {
     false
+}
+
+/// Windows' removable drives, through kernel32 itself: a drive letter Windows calls removable (a USB stick, an SD
+/// card), with a volume in it. A USB hard disk is "fixed" to Windows and is not listed; telling one from the PC's own
+/// disk takes a device query this does not make yet.
+#[cfg(windows)]
+mod win {
+    use std::path::{Path, PathBuf};
+    use std::ptr::null_mut;
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetLogicalDrives() -> u32;
+        fn GetDriveTypeW(root: *const u16) -> u32;
+        fn GetDiskFreeSpaceExW(dir: *const u16, free_to_caller: *mut u64, total: *mut u64, total_free: *mut u64) -> i32;
+        fn GetVolumeInformationW(root: *const u16, name: *mut u16, name_len: u32, serial: *mut u32, max_component: *mut u32, flags: *mut u32, fs_name: *mut u16, fs_len: u32) -> i32;
+    }
+
+    const DRIVE_REMOVABLE: u32 = 2;
+
+    fn wide(text: &str) -> Vec<u16> {
+        text.encode_utf16().chain(std::iter::once(0)).collect()
+    }
+
+    pub fn drives() -> Vec<(PathBuf, String)> {
+        // SAFETY: no arguments; answers a bit for each drive letter in use.
+        let mask = unsafe { GetLogicalDrives() };
+        let mut out = Vec::new();
+        for bit in 0..26u8 {
+            if mask & (1 << bit) == 0 {
+                continue;
+            }
+            let letter = (b'A' + bit) as char;
+            let root = format!("{letter}:\\");
+            let root_w = wide(&root);
+            // SAFETY: `root_w` is a NUL-terminated wide string that outlives the call.
+            if unsafe { GetDriveTypeW(root_w.as_ptr()) } != DRIVE_REMOVABLE {
+                continue;
+            }
+            // A card reader with no card in it has a letter and no volume: asked for its label, it says no.
+            let mut label = [0u16; 261];
+            // SAFETY: `label` is writable for the length given; the pointers left null are optional outputs.
+            let has_volume = unsafe { GetVolumeInformationW(root_w.as_ptr(), label.as_mut_ptr(), label.len() as u32, null_mut(), null_mut(), null_mut(), null_mut(), 0) } != 0;
+            if !has_volume {
+                continue;
+            }
+            let len = label.iter().position(|&c| c == 0).unwrap_or(label.len());
+            let label = String::from_utf16_lossy(&label[..len]);
+            let name = if label.trim().is_empty() { format!("USB drive ({letter}:)") } else { format!("{} ({letter}:)", label.trim()) };
+            out.push((PathBuf::from(root), name));
+        }
+        out
+    }
+
+    /// The room on a drive: what this account may use, and its size.
+    pub fn space(root: &Path) -> Option<(u64, u64)> {
+        let root_w = wide(&root.to_string_lossy());
+        let (mut free, mut total, mut total_free) = (0u64, 0u64, 0u64);
+        // SAFETY: `root_w` is NUL-terminated, and the three outputs are valid u64s to write.
+        let ok = unsafe { GetDiskFreeSpaceExW(root_w.as_ptr(), &mut free, &mut total, &mut total_free) } != 0;
+        ok.then_some((free, total))
+    }
+}
+
+#[cfg(windows)]
+fn free_bytes(path: &Path) -> Option<u64> {
+    win::space(path).map(|(free, _)| free)
+}
+
+#[cfg(windows)]
+fn total_bytes(path: &Path) -> Option<u64> {
+    win::space(path).map(|(_, total)| total)
 }
 
 #[cfg(unix)]
@@ -282,12 +365,12 @@ fn total_bytes(path: &Path) -> Option<u64> {
     statvfs(path).map(|stat| stat.f_blocks as u64 * stat.f_frsize as u64)
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 fn free_bytes(_path: &Path) -> Option<u64> {
     None
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 fn total_bytes(_path: &Path) -> Option<u64> {
     None
 }
@@ -313,8 +396,8 @@ mod tests {
 
     #[test]
     fn names_only_a_drive_under_volumes() {
-        assert!(mac_drive("/Users/matt").is_err());
-        assert!(mac_drive("/Volumes").is_err());
-        assert!(mac_drive("/Volumes/Nothing plugged in here").is_err());
+        assert!(drive_root("/Users/matt").is_err());
+        assert!(drive_root("/Volumes").is_err());
+        assert!(drive_root("/Volumes/Nothing plugged in here").is_err());
     }
 }

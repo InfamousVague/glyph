@@ -1,7 +1,7 @@
 import { answerHost } from './host.ts';
 import { listenTo } from './events.ts';
 import { hasNativeGeneration } from './nativeGeneration.ts';
-import { isAndroid, isIOS } from './platform.ts';
+import { isAndroid, isIOS, isMacApp } from './platform.ts';
 import { invoke, isTauri } from './tauri.ts';
 
 /**
@@ -20,14 +20,17 @@ import { invoke, isTauri } from './tauri.ts';
 /** The native generation with the backup's commands and Android's drives. */
 export const BACKUP_GENERATION = 26;
 
-/** Where a backup can go from here: the Mac's drives, Android's, an app to update first, or nowhere (a browser, an iPhone). */
-export type BackupWay = 'mac' | 'android' | 'update' | 'none';
+/**
+ * Where a backup can go from here: the Mac's drives, Windows' (its removable drive letters, with no Eject of the
+ * app's own), Android's, an app to update first, or nowhere (a browser, an iPhone).
+ */
+export type BackupWay = 'mac' | 'windows' | 'android' | 'update' | 'none';
 
 export async function backupWay(): Promise<BackupWay> {
   if (!isTauri() || isIOS) return 'none';
   if (!(await hasNativeGeneration(BACKUP_GENERATION))) return 'update';
   if (isAndroid) return typeof window.GlyphHost?.backupDrives === 'function' ? 'android' : 'update';
-  return 'mac';
+  return isMacApp ? 'mac' : 'windows';
 }
 
 /** The last backup a drive holds. */
@@ -100,7 +103,7 @@ export function readAndroidDrives(json: string): BackupDrive[] {
 
 /** The drives plugged in now, each with the last backup it holds where that can be read. */
 export async function listDrives(way: BackupWay): Promise<BackupDrive[]> {
-  if (way === 'mac') {
+  if (way === 'mac' || way === 'windows') {
     const drives = await invoke<Array<Omit<BackupDrive, 'tree' | 'last'> & { last?: unknown }>>('backup_drives');
     return drives.map((drive) => ({ id: drive.id, name: drive.name, free: num(drive.free), total: num(drive.total), tree: null, last: lastOf(drive.last) }));
   }
@@ -172,7 +175,7 @@ export async function runBackup(way: BackupWay, drive: BackupDrive, onProgress: 
   if (way === 'none') throw new Error('Backing up isn’t on this device.');
   if (way === 'update') throw new Error('Update Ghost.md to back up to a drive.');
   const request = {
-    ...(way === 'mac' ? { drive: drive.id } : { tree: drive.tree }),
+    ...(way === 'android' ? { tree: drive.tree } : { drive: drive.id }),
     backedUpAt: at.toISOString(),
     readme: backupReadme(at),
   };

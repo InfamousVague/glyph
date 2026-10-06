@@ -71,7 +71,7 @@ export function BackupPane() {
   }, []);
 
   useEffect(() => {
-    if (way !== 'mac' && way !== 'android') return undefined;
+    if (way !== 'mac' && way !== 'windows' && way !== 'android') return undefined;
     let live = true;
     const look = () => {
       if (busy.current) return;

@@ -12,6 +12,7 @@ const device = vi.hoisted(() => ({
   tauri: true,
   android: false,
   ios: false,
+  mac: true,
   generation: 26,
   commands: [] as { command: string; args: unknown }[],
   answers: {} as Record<string, unknown>,
@@ -43,6 +44,9 @@ vi.mock('./platform.ts', async (importOriginal) => ({
   get isIOS() {
     return device.ios;
   },
+  get isMacApp() {
+    return device.mac;
+  },
 }));
 
 const { BACKUP_GENERATION, allowDrive, backedSaid, backupReadme, backupWay, lastSaid, listDrives, readAndroidDrives, readDriveAnswer, runBackup } = await import('./backup.ts');
@@ -53,6 +57,7 @@ beforeEach(() => {
   device.tauri = true;
   device.android = false;
   device.ios = false;
+  device.mac = true;
   device.generation = BACKUP_GENERATION;
   device.commands = [];
   device.answers = {};
@@ -66,6 +71,10 @@ afterEach(() => {
 describe('where a backup can go', () => {
   it('is the Mac’s drives, Android’s, an app to update, or nowhere', async () => {
     expect(await backupWay()).toBe('mac');
+    // A desktop that is not a Mac is Windows: the same drive list, by its letters, with no Eject of the app's own.
+    device.mac = false;
+    expect(await backupWay()).toBe('windows');
+    device.mac = true;
     device.generation = BACKUP_GENERATION - 1;
     expect(await backupWay()).toBe('update');
     device.generation = BACKUP_GENERATION;
