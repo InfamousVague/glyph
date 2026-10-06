@@ -18,7 +18,7 @@
       what the app does: the Guide and the code are the sources.
 
       The downloads are the release's own files, their versions and sizes read from the manifests the apps update from
-      (/apk.json, /desktop.json). The stores are one line each in home.js (`STORES`): Coming soon until a listing is live.
+      (/apk.json, /desktop.json, /windows.json). The stores are one line each in home.js (`STORES`): Coming soon until a listing is live.
     -->
     <link rel="preload" href="fonts/inter.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="glacier/tokens.css" />
@@ -528,6 +528,10 @@ v3 2026-10-01T09:41:30.000Z matt 8bf4ec9b
               <svg class="i" aria-hidden="true"><use href="icons.svg#i-laptop"/></svg>
               <span class="way-words"><b>Mac</b><span data-meta="dmg">macOS 13.1 or later</span></span>
             </a>
+            <a class="way" id="windows" href="/glyph-setup.exe" download>
+              <svg class="i" aria-hidden="true"><use href="icons.svg#i-monitor"/></svg>
+              <span class="way-words"><b>Windows</b><span data-meta="exe">Windows 10 or later</span></span>
+            </a>
             <a class="way" id="web" href="https://attack.fm/glyph/">
               <svg class="i" aria-hidden="true"><use href="icons.svg#i-globe"/></svg>
               <span class="way-words"><b>Browser</b><span>No install</span></span>
@@ -545,6 +549,9 @@ v3 2026-10-01T09:41:30.000Z matt 8bf4ec9b
               <em>Coming soon</em>
             </span>
           </div>
+          <p class="fine center" id="windows-note" hidden>
+            The Windows app is not signed yet. The first time, Windows says it protected your PC: choose More info, then Run anyway.
+          </p>
           <p class="fine center" id="mac-note" hidden>
             The Mac app is not notarized yet. The first time, macOS says it can't check it: choose Done, then System Settings › Privacy &amp; Security › Open Anyway. On macOS 14 or older,
             Control-click it and choose Open.

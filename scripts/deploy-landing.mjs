@@ -19,8 +19,10 @@
  * fails, or any site answering differently after, puts the backup back and reloads it. Caddy then gets the
  * certificate from Let's Encrypt by itself, and retries on its own while the domain's DNS is still settling.
  *
- * The box counts connections, not deploys (deploy-ota.mjs): this spends ONE. The password reaches sshpass through
- * SSHPASS, read from .env, never an argument.
+ * The box counts connections, not deploys (deploy-ota.mjs): this spends ONE, or none after a deploy that left its
+ * connection open (`deploy-ota.mjs --keep-connection`, `deploy-windows.mjs --keep-connection`), which it rides; pass
+ * --keep-connection here to leave it open in turn. The password reaches sshpass through SSHPASS, read from .env,
+ * never an argument.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -69,7 +71,7 @@ ${DOMAIN} {
 	}
 	# The release's own files, so a release updates this page's downloads and versions (scripts/deploy-landing.mjs).
 	# And the reader page shared links open, with its scripts, styles and icon.
-	@release path /glyph.apk /glyph.dmg /apk.json /desktop.json /read.html /assets/* /favicon.svg
+	@release path /glyph.apk /glyph.dmg /glyph-setup.exe /apk.json /desktop.json /windows.json /read.html /assets/* /favicon.svg
 	handle @release {
 		root * ${RELEASE}
 		header Cache-Control "no-cache"
@@ -127,8 +129,10 @@ echo "ok ${DOMAIN}'s block written and live"
 `;
 
 const site = tarball(LANDING, 64 * 1024 * 1024);
-// Its own connection, not deploy-ota's shared one: one login of its own every run.
-const SSH_OPTS = boxSshOptions({ connectTimeout: 20, shareConnection: false, knownHosts: join(homedir(), '.ssh', 'known_hosts') });
+// The shared connection (lib/box.mjs): after `deploy-ota.mjs --keep-connection` this rides that deploy's login, and
+// alone it opens one of its own. It had a connection to itself until 2026-10-06, so a chain thought to be one login
+// was two, which the box counts.
+const SSH_OPTS = boxSshOptions({ connectTimeout: 20, knownHosts: join(homedir(), '.ssh', 'known_hosts') });
 console.log(`> Shipping ${DOMAIN}${withCaddy ? ' and its Caddy block' : ''} (one ssh session)`);
 // --print: the script the box would run, for reading before it does.
 if (process.argv.includes('--print')) {
@@ -136,10 +140,13 @@ if (process.argv.includes('--print')) {
   process.exit(0);
 }
 const env = loadEnv(BOX_ENV_KEYS);
-const result = openBox(env, SSH_OPTS).exec(REMOTE, {
+const box = openBox(env, SSH_OPTS);
+box.logIn();
+const result = box.exec(REMOTE, {
   input: site,
   stdio: ['pipe', 'inherit', 'inherit'],
 });
+if (!process.argv.includes('--keep-connection')) box.close();
 if (result.status !== 0) fail(result.status === 5 ? 'ssh refused the password: if .env is right, this is the box\'s lockout; wait it out.' : 'The remote step failed (output above).');
 
 // From here, as a visitor would: the page, and a download's headers.

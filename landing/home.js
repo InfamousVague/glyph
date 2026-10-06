@@ -41,7 +41,7 @@
 
   var ua = navigator.userAgent;
   var ios = /iPhone|iPad|iPod/i.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
-  var first = /Android/i.test(ua) ? 'android' : ios ? 'web' : /Macintosh|Mac OS X/.test(ua) ? 'mac' : null;
+  var first = /Android/i.test(ua) ? 'android' : ios ? 'web' : /Macintosh|Mac OS X/.test(ua) ? 'mac' : /Windows NT/.test(ua) ? 'windows' : null;
   if (first) {
     var way = $('#' + first);
     way.setAttribute('data-first', '');
@@ -49,10 +49,11 @@
     way.parentNode.insertBefore(way, way.parentNode.firstChild);
     var get = $('#hero-get');
     var word = $('#hero-get-word');
-    if (first === 'android' || first === 'mac') {
-      get.href = first === 'android' ? '/glyph.apk' : '/glyph.dmg';
+    var gets = { android: ['/glyph.apk', 'Download for Android'], mac: ['/glyph.dmg', 'Download for Mac'], windows: ['/glyph-setup.exe', 'Download for Windows'] };
+    if (gets[first]) {
+      get.href = gets[first][0];
       get.setAttribute('download', '');
-      word.textContent = first === 'android' ? 'Download for Android' : 'Download for Mac';
+      word.textContent = gets[first][1];
     }
   }
   // The Open Anyway note is shown only while the Mac app on offer is not notarised (desktop.json says), below: a
@@ -62,6 +63,7 @@
   [
     ['apk.json', 'apk'],
     ['desktop.json', 'dmg'],
+    ['windows.json', 'exe'],
   ].forEach(function (pair) {
     fetch('/' + pair[0], { cache: 'no-store' })
       .then(function (r) {
@@ -72,6 +74,8 @@
         var meta = $('[data-meta="' + pair[1] + '"]');
         if (meta) meta.textContent = manifest.version + ' · ' + Math.round(manifest.bytes / 1e6) + ' MB';
         if (pair[1] === 'dmg' && first === 'mac' && manifest.notarized === false) $('#mac-note').hidden = false;
+        // And the Run anyway note only while the Windows app on offer is unsigned (windows.json says).
+        if (pair[1] === 'exe' && first === 'windows' && manifest.signed === false) $('#windows-note').hidden = false;
       })
       .catch(function () {
         return undefined;

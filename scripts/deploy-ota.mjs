@@ -585,12 +585,14 @@ box.ssh(
    # SAFETY in the header.
    # glyph.dmg and desktop.json the same way as the APK and its manifest: protected, so a deploy without --desktop
    # neither deletes the Mac download nor the page's note of it, and desktop.json placed last, after the DMG.
+   # glyph-setup.exe and windows.json, the Windows app and its manifest, are never staged here at all: a Windows
+   # runner builds the installer and scripts/deploy-windows.mjs places both, so they are protected from every deploy.
    # mcp/ (Claude's MCP server, docs/MCP.md) is protected the same way, and the staged file is excluded here and
    # placed into it below by rename, so it is never half-written where a person downloads it from.
    sudo rsync -a --delete \\
-     --filter 'P /models/' --filter 'P /glyph.apk' --filter 'P /glyph.dmg' --filter 'P /mcp/' \\
+     --filter 'P /models/' --filter 'P /glyph.apk' --filter 'P /glyph.dmg' --filter 'P /glyph-setup.exe' --filter 'P /mcp/' \\
      --exclude '/ota.json' --exclude '/ota.json.sig' --exclude '/apk.json' --exclude '/apk.json.sig' \\
-     --exclude '/desktop.json' --exclude '/glyph-mcp.mjs' \\
+     --exclude '/desktop.json' --exclude '/windows.json' --exclude '/glyph-mcp.mjs' \\
      ${STAGE}/ ${REMOTE}/
    sudo chown -R root:root ${REMOTE}
    # Caddy runs as its own user and only needs to read.
