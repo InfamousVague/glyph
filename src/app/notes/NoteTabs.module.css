@@ -187,9 +187,10 @@
 }
 
 /*
- * The bell (docs/TEAMS.md): unread is the ring every "on" button wears and a 6px dot of ink at the bell's shoulder, no
+ * The bell (docs/TEAMS.md): unread is the ring every "on" button wears and a 6px dot at the bell's shoulder, no
  * number - the count is the Notifications page's and the Settings row's, and nothing else in the bar carries a figure.
- * Ringed in the page's paper so it reads on the bell's own stroke.
+ * Ringed in the page's paper so it reads on the bell's own stroke. The dot is gold, the bookmark's colour (ink.css
+ * `.app-gold`; Matt: "Make the notification dot on the bell have a yellow color"), so it is seen at a glance.
  */
 .bell {
   position: relative;
@@ -203,7 +204,7 @@
   inline-size: 6px;
   block-size: 6px;
   border-radius: var(--glacier-radius-full);
-  background: var(--glacier-text);
+  background: var(--app-gold, var(--glacier-text));
   box-shadow: 0 0 0 2px var(--glacier-bg);
 }
 

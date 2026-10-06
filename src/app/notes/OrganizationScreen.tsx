@@ -6,7 +6,7 @@ import { useBack } from '../core/back.ts';
 import { failureText } from '../core/failure.ts';
 import { usePresence, type Jump, type Seen } from '../core/live/presence.ts';
 import { useNotifications } from '../core/notifications/feed.ts';
-import { sentenceOf, type Notification } from '../core/notifications/kinds.ts';
+import { KIND_HUES, sentenceOf, type Notification } from '../core/notifications/kinds.ts';
 import { fetchOrg, inviteByHandle, setOrgColour, useOrgs } from '../core/orgs/orgs.ts';
 import type { Member, Org, OrgRow } from '../core/orgs/types.ts';
 import { usePreferences } from '../core/preferences.ts';
@@ -432,7 +432,7 @@ function MemberLine({ member, me, index, seen, onJump }: { member: Member; me: s
 function NewsLine({ n, index }: { n: Notification; index: number }) {
   return (
     <li className={styles.news} data-unread={n.readAt === null || undefined} style={{ '--i': Math.min(index, 12) } as CSSProperties}>
-      <span className={styles.newsMark}>{MARKS[n.kind] ?? null}</span>
+      <span className={styles.newsMark} data-hue={KIND_HUES[n.kind]}>{MARKS[n.kind] ?? null}</span>
       <span className={styles.newsWords}>{sentenceOf(n, null)}</span>
       <span className={styles.when}>{when(n.at)}</span>
     </li>

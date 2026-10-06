@@ -520,6 +520,11 @@
   color: var(--app-ink-3);
 }
 
+/* Each kind of news in its colour, as the notifications drawer draws it (core/notifications/kinds.ts `KIND_HUES`). */
+.newsMark[data-hue] {
+  color: var(--app-space);
+}
+
 .newsWords {
   flex: 1;
   min-inline-size: 0;

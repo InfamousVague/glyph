@@ -82,6 +82,11 @@
   color: var(--app-ink-3);
 }
 
+/* A piece of news in its kind's colour, as the notifications drawer draws it. */
+.mark[data-hue] {
+  color: var(--app-space);
+}
+
 .dot {
   inline-size: 0.5rem;
   block-size: 0.5rem;

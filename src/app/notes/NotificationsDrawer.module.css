@@ -175,6 +175,12 @@
   color: var(--app-ink-2);
 }
 
+/* Each kind in its colour (core/notifications/kinds.ts `KIND_HUES`): the mark's ink, and a wash of it behind. */
+.mark[data-hue] {
+  background: color-mix(in oklch, var(--app-space) 16%, transparent);
+  color: var(--app-space);
+}
+
 .row[data-unread] .mark {
   color: var(--app-ink);
 }

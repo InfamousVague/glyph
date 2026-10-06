@@ -312,7 +312,7 @@ export function NoteTabs({
   const bell = onNotifications ? (
     <button
       type="button"
-      className={`${styles.sidebar} ${styles.bell}`}
+      className={`app-gold ${styles.sidebar} ${styles.bell}`}
       onClick={onNotifications}
       aria-label={unread ? 'Notifications, something new' : 'Notifications'}
       title="Notifications"

@@ -2,7 +2,7 @@ import { useEffect, useReducer, type CSSProperties, type ReactNode } from 'react
 import { AudioLines, BookOpen, BrushCleaning, CheckCheck, Crown, FilePlus, ListPlus, Mail, PenLine, Pencil, ScrollText, Trash2, TriangleAlert, UserCheck, UserMinus, UserPlus, UserX, X } from '@glacier/icons';
 import { useAccount } from '../core/account/account.ts';
 import { hide, hideAll, isWanted, markAllRead, markRead, onNotifications, openDetails, unreadCount, useNotifications } from '../core/notifications/feed.ts';
-import { detailOf, sentenceOf, type Kind, type Notification } from '../core/notifications/kinds.ts';
+import { KIND_HUES, detailOf, sentenceOf, type Kind, type Notification } from '../core/notifications/kinds.ts';
 import { useOrgs } from '../core/orgs/orgs.ts';
 import { usePreferences } from '../core/preferences.ts';
 import { syncNotificationsNow } from '../core/sync/engine.ts';
@@ -193,7 +193,7 @@ function Row({ n, index, onOpen, onClear }: { n: Notification; index: number; on
   return (
     <li className={styles.row} style={{ '--i': Math.min(index, 12) } as CSSProperties} data-unread={n.readAt === null || undefined} data-kind={n.kind}>
       <button type="button" className={styles.body} onClick={onOpen}>
-        <span className={styles.mark}>{MARKS[n.kind]}</span>
+        <span className={styles.mark} data-hue={KIND_HUES[n.kind]}>{MARKS[n.kind]}</span>
         <span className={styles.words}>
           <span className={styles.sentence}>{sentence}</span>
           {detail ? <span className={styles.detail}>{detail}</span> : null}

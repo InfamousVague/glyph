@@ -26,6 +26,31 @@ export type ServerKind = (typeof SERVER_KINDS)[number];
 export type SelfKind = (typeof SELF_KINDS)[number];
 export type Kind = (typeof KINDS)[number];
 
+/**
+ * The colour each kind's mark wears (Matt: "color code different notification icons so they're easier to match at
+ * first sight"), one of the app's hues (ink.css `[data-hue]`) by what the news is: someone arriving is moss, someone
+ * going or a refusal is rose, an invitation waiting is violet, a role or a name changed is amber, a note written by
+ * Claude or the phone is sea, and something that wants looking at is ember.
+ */
+export const KIND_HUES: Record<Kind, 'ember' | 'amber' | 'moss' | 'sea' | 'violet' | 'rose'> = {
+  invite: 'violet',
+  'invite-accepted': 'moss',
+  'invite-declined': 'rose',
+  'member-joined': 'moss',
+  'member-left': 'rose',
+  'member-removed': 'rose',
+  'role-changed': 'amber',
+  'org-renamed': 'amber',
+  'org-deleted': 'rose',
+  'note-created': 'sea',
+  'note-edited': 'sea',
+  'note-appended': 'sea',
+  'journal-entry': 'sea',
+  'rule-added': 'violet',
+  'summary-written': 'sea',
+  'sync-conflict': 'ember',
+};
+
 export function isKind(value: unknown): value is Kind {
   return typeof value === 'string' && (KINDS as readonly string[]).includes(value);
 }

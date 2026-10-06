@@ -2,7 +2,7 @@ import { useMemo, type ReactNode } from 'react';
 import { Activity, FileText } from '@glacier/icons';
 import { usePresence } from '../core/live/presence.ts';
 import { useNotifications } from '../core/notifications/feed.ts';
-import { sentenceOf } from '../core/notifications/kinds.ts';
+import { KIND_HUES, sentenceOf } from '../core/notifications/kinds.ts';
 import { noteTitle } from '../core/noteTitle.ts';
 import type { Note } from '../core/store.ts';
 import { orgWorkspaceId, useWorkspaces } from '../core/workspaces.ts';
@@ -28,6 +28,8 @@ interface Line {
   words: string;
   note?: string;
   live?: boolean;
+  /** The colour its mark wears: a kind of news's (core/notifications/kinds.ts `KIND_HUES`). */
+  hue?: string;
 }
 
 export function HomeOrgEvents({ orgId, name, notes, onOpenNote, onOpen }: { orgId: string; name: string; notes: readonly Note[]; onOpenNote: (id: string) => void; onOpen: (orgId: string) => void }) {
@@ -42,7 +44,7 @@ export function HomeOrgEvents({ orgId, name, notes, onOpenNote, onOpen }: { orgI
     const changed: Line[] = notes
       .filter((note) => filed[note.id] === workspace && !note.archivedAt)
       .map((note) => ({ key: `note-${note.id}`, at: note.updatedAt, mark: <FileText size={15} strokeWidth={2} aria-hidden="true" />, words: `${noteTitle(note.body) || 'An untitled note'} changed`, note: note.id }));
-    const news: Line[] = feed.filter((n) => n.org?.id === orgId && NEWS.has(n.kind)).map((n) => ({ key: `news-${n.id}`, at: n.at, mark: MARKS[n.kind] ?? null, words: sentenceOf(n, null) }));
+    const news: Line[] = feed.filter((n) => n.org?.id === orgId && NEWS.has(n.kind)).map((n) => ({ key: `news-${n.id}`, at: n.at, mark: MARKS[n.kind] ?? null, words: sentenceOf(n, null), hue: KIND_HUES[n.kind] }));
     return [...editing, ...[...changed, ...news].sort((a, b) => b.at - a.at)].slice(0, MOST);
   }, [seen, notes, filed, workspace, feed, orgId]);
   return (
@@ -55,7 +57,7 @@ export function HomeOrgEvents({ orgId, name, notes, onOpenNote, onOpen }: { orgI
         <ol className={styles.lines} aria-label={`Recent in ${name}`}>
           {lines.map((line) => (
             <li key={line.key} className={styles.line} data-live={line.live || undefined}>
-              <span className={styles.mark}>{line.mark}</span>
+              <span className={styles.mark} data-hue={line.hue}>{line.mark}</span>
               {line.note ? (
                 <button type="button" className={styles.words} onClick={() => onOpenNote(line.note!)}>
                   {line.words}

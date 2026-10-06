@@ -4,7 +4,7 @@ import { useBack } from '../core/back.ts';
 import { agoText } from '../core/markDetails.ts';
 import { noteTitle } from '../core/noteTitle.ts';
 import { useNotifications } from '../core/notifications/feed.ts';
-import { sentenceOf, type Notification } from '../core/notifications/kinds.ts';
+import { KIND_HUES, sentenceOf, type Notification } from '../core/notifications/kinds.ts';
 import { useOrgs } from '../core/orgs/orgs.ts';
 import { usePreferences } from '../core/preferences.ts';
 import type { Note } from '../core/store.ts';
@@ -282,7 +282,7 @@ function NewsLine({ n }: { n: Notification }) {
   return (
     <li className={styles.entry}>
       <div className={styles.newsRow}>
-        <span className={styles.newsRing} aria-hidden="true">
+        <span className={styles.newsRing} data-hue={KIND_HUES[n.kind]} aria-hidden="true">
           {MARKS[n.kind] ?? null}
         </span>
         <span className={styles.entryBody}>

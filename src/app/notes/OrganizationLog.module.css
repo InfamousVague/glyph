@@ -271,3 +271,8 @@
     justify-content: flex-end;
   }
 }
+
+/* Each kind of news in its colour, as the notifications drawer draws it (core/notifications/kinds.ts `KIND_HUES`). */
+.newsRing[data-hue] {
+  color: var(--app-space);
+}
