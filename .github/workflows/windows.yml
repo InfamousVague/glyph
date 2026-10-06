@@ -12,6 +12,10 @@ on:
   push:
     branches: [windows]
 
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   installer:
     runs-on: windows-latest
@@ -29,6 +33,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          # The engines' C++ takes a quarter of an hour: kept even when the app's own code then fails to build.
+          cache-on-failure: true
 
       - run: npm ci
 

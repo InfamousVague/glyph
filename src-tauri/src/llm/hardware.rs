@@ -137,16 +137,30 @@ fn thermal_zones() -> Vec<PathBuf> {
         .collect()
 }
 
+#[cfg(unix)]
 fn page_size() -> u64 {
     // SAFETY: sysconf reads a constant; it has no preconditions.
     let size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
     if size > 0 { size as u64 } else { 4096 }
 }
 
+#[cfg(unix)]
 fn clock_ticks_per_second() -> f64 {
     // SAFETY: as above.
     let ticks = unsafe { libc::sysconf(libc::_SC_CLK_TCK) };
     if ticks > 0 { ticks as f64 } else { 100.0 }
+}
+
+// Windows has no sysconf, and no /proc for these to scale: the readings they feed are never taken there, and the
+// usual values keep the arithmetic whole.
+#[cfg(not(unix))]
+fn page_size() -> u64 {
+    4096
+}
+
+#[cfg(not(unix))]
+fn clock_ticks_per_second() -> f64 {
+    100.0
 }
 
 #[cfg(test)]

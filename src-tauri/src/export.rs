@@ -360,6 +360,7 @@ fn fd_path(fd: i32) -> Option<PathBuf> {
     }
 }
 
+#[cfg(unix)]
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]
 pub fn adopt_descriptor(fd: i32, own: &[PathBuf]) -> Result<std::fs::File, String> {
     use std::mem::ManuallyDrop;
