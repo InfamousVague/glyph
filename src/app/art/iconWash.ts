@@ -216,7 +216,8 @@ export function bodiesOf(shapes: readonly IconShape[]): number[] {
  * an icon is only added here once it has been looked at washed.
  */
 export const OPEN_BODIES: Readonly<Record<string, readonly number[]>> = {
-  trash: [2],
+  // The bin's can, and the handle on its lid, each closed along the rim (Matt: "the trashcan icon also needs fixing").
+  trash: [2, 4],
   // The book: closed across its page edge, which leaves the pages clear under the washed cover.
   book: [0],
   flag: [0],
@@ -235,6 +236,19 @@ export const OPEN_BODIES: Readonly<Record<string, readonly number[]>> = {
   // the icon fill style"). With its X too. Not archive-restore, whose box is two open halves either side of its arrow.
   archive: [1],
   'archive-x': [1],
+  // Looked at one by one on a sheet of every icon the app draws, washed (Matt: "please look at the rest of the icons to
+  // make sure they all fill right"). A calendar and a square with one corner cut for what sits on it, as the picture
+  // with a plus and the box with an arrow already were; the cylinder under the database's lid; the highlighter's tip
+  // and its body, each closed along the edge they share. Left as they are, since a fill would close them with a line
+  // across the middle of the shape: the brain, the ear, the scroll, the clipboard being pasted into, the grid with a
+  // plus, and archive-restore's two half boxes.
+  'calendar-plus': [3],
+  'calendar-search': [1],
+  database: [1],
+  'square-pen': [0],
+  'square-check-big': [0],
+  'square-arrow-out-up-right': [0],
+  highlighter: [0, 1],
 };
 
 /** The wash itself: a third of the icon's own ink, as the house's body and the seven whole icons wear (app.css). */
