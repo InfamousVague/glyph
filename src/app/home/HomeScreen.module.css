@@ -288,20 +288,12 @@
   transform: rotate(90deg);
 }
 
-.cog:active svg {
-  transform: rotate(45deg);
-}
-
 /* The magnifier leans in when pressed, rather than turning. */
 .search:active svg {
   transform: scale(0.9);
 }
 
 /* The column's order, top to bottom, and Speak as a circle whose word is kept for a screen reader. */
-.cog {
-  order: 1;
-}
-
 .search {
   order: 2;
 }

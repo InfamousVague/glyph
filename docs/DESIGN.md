@@ -10899,3 +10899,13 @@ Tests: art/dockSmoke.test.tsx.
 
 Cites: §94 (the wisp and the blur under a header), GLY-81.
 
+## 207. Settings is the header's cog (2026-10-06)
+
+Matt: "Move the settings cog from the floating dock to the header to the right of the notification bell". The cog
+is a ring in the tab bar (notes/NoteTabs.tsx `onSettings`), after the bell and before the screen's More, in all four
+bar styles; the home dock (home/HomeScreen.tsx) is the palette, write and Speak. A phone's note screen, whose bar is
+quiet, has neither the bell nor the cog, as before for the bell.
+
+Tests: notes/NoteTabs.test.tsx (the cog after the bell), home/HomeScreen.test.tsx (no Settings in the dock).
+
+Cites: §206.

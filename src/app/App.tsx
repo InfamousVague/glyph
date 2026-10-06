@@ -1489,6 +1489,7 @@ function Shell() {
                     setNotificationsOpen((open) => !open);
                   }
             }
+            onSettings={quietBar ? undefined : () => setSettings(true)}
             onOrganizations={
               quietBar
                 ? undefined

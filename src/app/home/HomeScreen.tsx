@@ -13,7 +13,7 @@ import { isAndroid } from '../core/platform.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
 import { useDockSmoke } from '../art/dockSmoke.ts';
 import { Ghost } from '../art/Ghost.tsx';
-import { Cassette, Clock, Cog, Grid, Magnifier, Notebook, Pin, Plus } from '../art/Icons.tsx';
+import { Cassette, Clock, Grid, Magnifier, Notebook, Pin, Plus } from '../art/Icons.tsx';
 import { NoteCard } from '../notes/NoteCard.tsx';
 import { TicketMark } from '../notes/TicketMark.tsx';
 import { isTicket } from '../core/properties.ts';
@@ -67,7 +67,8 @@ interface HomeScreenProps {
   onNew: () => void;
   /** Speak: left out where nothing records (the iPhone app, core/platform.ts `recordsVoice`), and Speak with it. */
   onCapture?: () => void;
-  onSettings: () => void;
+  /** Kept for the callers: Settings is the header's cog now (notes/NoteTabs.tsx), not the dock's. */
+  onSettings?: () => void;
   /** Settings at the Model card. Kept for the callers; the page no longer offers it. */
   onGetModel?: () => void;
   /** The command palette (commands/CommandBar.tsx); absent until it has handed back its opener. */
@@ -99,7 +100,7 @@ interface HomeScreenProps {
 /** How many of the first cards get a line written under their titles (format/gist.ts), the rest waiting for a scroll. */
 const GISTED = 16;
 
-export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSettings, onSearch, onAllNotes, onSwipe, onRefresh, voiceModel, onRetryVoiceModel, updates, onOrganization, onOrganizationSettings }: HomeScreenProps) {
+export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSearch, onAllNotes, onSwipe, onRefresh, voiceModel, onRetryVoiceModel, updates, onOrganization, onOrganizationSettings }: HomeScreenProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const topBar = useRef<HTMLElement>(null);
   useWispEdge(scroller, 'home', topBar, { foot: true });
@@ -251,7 +252,7 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
         </div>
       </div>
 
-      {/* The dock: a floating column in the bottom right, Settings, write, then Speak nearest the thumb (HomeScreen.module.css). */}
+      {/* The dock: a floating column in the bottom right, the palette, write, then Speak nearest the thumb (HomeScreen.module.css). Settings is the header's cog now (notes/NoteTabs.tsx). */}
       <div className={styles.dockSpot}>
         {/* The ghost blur around it: a sibling, since the dock's own glass would keep a halo inside it from seeing the page. */}
         <div ref={dockHalo} className={styles.dockHalo} aria-hidden="true" />
@@ -265,9 +266,6 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
               <span className={styles.speakWord}>Speak</span>
             </button>
           ) : null}
-          <button type="button" className={`${styles.round} ${styles.cog}`} onClick={onSettings} aria-label="Settings">
-            <Cog />
-          </button>
           {onSearch ? (
             <button type="button" className={`${styles.round} ${styles.search}`} onClick={onSearch} aria-label="Search and commands">
               <Magnifier />
