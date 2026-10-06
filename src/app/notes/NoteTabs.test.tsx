@@ -121,6 +121,18 @@ describe('the top bar', () => {
     expect(() => button('Notifications')).toThrow();
   });
 
+  it('has the Settings cog to the right of the bell, before the screen’s More, and none without somewhere to go', () => {
+    const onSettings = vi.fn();
+    show(bar({ onNotifications: () => undefined, onSettings }));
+    const cog = button('Settings');
+    expect(cog.previousElementSibling).toBe(button('Notifications'));
+    expect(cog.nextElementSibling?.className).toContain('tail');
+    act(() => cog.click());
+    expect(onSettings).toHaveBeenCalledOnce();
+    rerender(bar({ onNotifications: () => undefined }));
+    expect(() => button('Settings')).toThrow();
+  });
+
   it('opens a picker of your organizations from the people icon, a pick going straight to its dashboard', async () => {
     const onOrganizations = vi.fn();
     const onOrganization = vi.fn();

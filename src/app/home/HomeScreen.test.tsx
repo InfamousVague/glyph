@@ -280,7 +280,7 @@ describe('the filters beside the search', () => {
     expect(filterButton()?.getAttribute('aria-expanded')).toBe('false');
     openFilters();
     // Shift+Tab from the first choice lands on the page's last button, the dock's.
-    const away = button('Settings');
+    const away = button('Write a note');
     act(() => choices('Show')[0]!.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: away })));
     expect(filterButton()?.getAttribute('aria-expanded')).toBe('false');
     // Moving between its own choices keeps it open.
@@ -673,8 +673,9 @@ describe('the rest of the page', () => {
     expect(document.querySelector('button[aria-label="Search and commands"]')).toBeNull();
     act(() => button('Write a note').click());
     act(() => button('Speak a voice note').click());
-    act(() => button('Settings').click());
-    expect([onNew, onCapture, onSettings].map((fn) => fn.mock.calls.length)).toEqual([1, 1, 1]);
+    // Settings is the header's cog (notes/NoteTabs.tsx): the dock has none.
+    expect(document.querySelector('button[aria-label="Settings"]')).toBeNull();
+    expect([onNew, onCapture, onSettings].map((fn) => fn.mock.calls.length)).toEqual([1, 1, 0]);
     const onSearch = vi.fn();
     rerender(page([], { onNew, onCapture, onSettings, onSearch }));
     act(() => button('Search and commands').click());

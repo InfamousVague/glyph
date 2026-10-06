@@ -27,7 +27,7 @@ From the top: today's date, then your workspaces as a row of pills once you have
 
 At the foot, **All notes · 42** opens the grid. Archived notes are never on the home page, and a to-do inside a code block is an example of one, so it is left out.
 
-The dock holds four buttons: **Speak** for a voice note, **+** for a note, a canvas, a notebook or a copy from a shared link, **Settings**, and **Search**, which opens the command palette.
+The dock holds three buttons: **Speak** for a voice note, **+** for a note, a canvas, a notebook or a copy from a shared link, and **Search**, which opens the command palette. **Settings** is the cog at the top, to the right of the bell.
 
 ## All notes
 

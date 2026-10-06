@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Bell, PanelLeft, Plus, UserGroup, X } from '@glacier/icons';
+import { ArrowLeft, ArrowRight, Bell, PanelLeft, Plus, Settings, UserGroup, X } from '@glacier/icons';
 import { MenuItem, MenuLabel, MenuSeparator } from '@glacier/react';
 import { newGroup, NO_GROUPS, renameGroup, toggleGroup, type TabGroups } from './tabGroups.ts';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
@@ -98,6 +98,11 @@ interface NoteTabsProps {
   onOrganization?: (orgId: string) => void;
   /** Opens or closes the notifications drawer (notes/NotificationsDrawer.tsx), from the bell before More; absent, and there is no bell. */
   onNotifications?: () => void;
+  /**
+   * Opens Settings, from the cog after the bell (Matt: "Move the settings cog from the floating dock to the header to
+   * the right of the notification bell"); absent, and there is no cog.
+   */
+  onSettings?: () => void;
   /** Whether something unread and wanted has arrived: the bell wears its ring and a dot (core/notifications/feed.ts `unreadCount`). */
   unread?: boolean;
   /** Whether the notifications drawer is open: the bell is lit and says it is expanded. */
@@ -130,6 +135,7 @@ export function NoteTabs({
   canGoBack = false,
   canGoOn = false,
   onNotifications,
+  onSettings,
   onOrganizations,
   organizations,
   onOrganization,
@@ -319,7 +325,13 @@ export function NoteTabs({
       <Bell size={19} strokeWidth={2.1} aria-hidden="true" />
     </button>
   ) : null;
-  /* The screen's last control, its More, after the bell. */
+  /* Settings, to the right of the bell: it was the home dock's top button until 2026-10-06. */
+  const cog = onSettings ? (
+    <button type="button" className={styles.sidebar} onClick={onSettings} aria-label="Settings" title="Settings" data-settings-toggle>
+      <Settings size={19} strokeWidth={2.1} aria-hidden="true" />
+    </button>
+  ) : null;
+  /* The screen's last control, its More, after the bell and the cog. */
   const tailSlotEl = <div ref={tailSlot} className={styles.tail} />;
   /* The aside's toggle, last of all: the sidebar's icon reversed (Matt: "a sidebar toggle on the right with the icon reversed"). */
   const asideRing = onAside ? (
@@ -510,6 +522,7 @@ export function NoteTabs({
             {toolSlot}
             {orgs(false)}
             {bell}
+            {cog}
             {tailSlotEl}
             {asideRing}
           </div>
@@ -525,6 +538,7 @@ export function NoteTabs({
             {toolSlot}
             {orgs(true)}
             {bell}
+            {cog}
             {tailSlotEl}
             {asideRing}
           </div>
@@ -544,6 +558,7 @@ export function NoteTabs({
             {toolSlot}
             {orgs(false)}
             {bell}
+            {cog}
             {tailSlotEl}
             {asideRing}
           </div>
@@ -559,6 +574,7 @@ export function NoteTabs({
             {toolSlot}
             {orgs(false)}
             {bell}
+            {cog}
             {tailSlotEl}
             {asideRing}
           </div>
