@@ -10909,3 +10909,42 @@ quiet, has neither the bell nor the cog, as before for the bell.
 Tests: notes/NoteTabs.test.tsx (the cog after the bell), home/HomeScreen.test.tsx (no Settings in the dock).
 
 Cites: §206.
+
+## 209. Ghost.md for Windows (2026-10-06)
+
+Matt: "Build and compile a windows build and host it on the website ideally signed and notorized if possible".
+
+**Built on a Windows runner** (.github/workflows/windows.yml), by hand or on a push to the `windows` branch: a Mac
+cannot build it, since the speech and language engines are C++ built with MSVC, and the repository is public, so the
+runner costs nothing. It makes the NSIS installer (x64, about 15 MB; WebView2, the page's engine, is fetched by the
+installer where a PC has none), then runs it silently, starts the app, and twenty seconds later checks it is still up
+with a window, keeping what the screen shows as an artifact beside the installer. About thirteen minutes cold; the
+engines' build is cached, failed runs included.
+
+**What the code needed** was little, since the desktop app was the Mac's and the page already asks which it is
+(`isMacApp` for the title bar): `sysconf` and a descriptor adopted from Android's picker are Unix's (llm/hardware.rs,
+export.rs), and the bundle's icons had no `.ico`. Backup (§204) lists Windows' removable drive letters through
+kernel32 itself (backup_commands.rs `win`), a stick or a card with a volume in it; a USB hard disk is "fixed" to
+Windows and is not listed yet, and there is no Eject of the app's own. A meeting's own sound (§186) and the Mac's
+traffic lights are not there.
+
+**Published by scripts/deploy-windows.mjs**, which fetches the run's artifact with `gh`, reads the installer's PE
+header for whether it is signed (scripts/lib/pe.mjs; macOS has no signtool), hashes it, and places
+`/glyph/glyph-setup.exe` and then `/glyph/windows.json` by rename, as the APK and the Mac app are placed.
+deploy-ota.mjs protects both from its `rsync --delete`. The download page offers it (landing/: a Windows way, the hero
+button for a Windows visitor, the version and size from windows.json), and ghostmarkdown.com's Caddy block serves the
+two paths from the release directory (deploy-landing.mjs, which now rides an open connection rather than logging in
+again: a chain thought to be one login had been two).
+
+**Not signed.** Windows has no notary; what it has is Authenticode, which needs a certificate bought in Matt's name
+(Azure Trusted Signing, or a certificate from a CA), and none is held. So the installer is unsigned, SmartScreen says
+"Windows protected your PC" until More info › Run anyway, and the page says so under the downloads for as long as
+windows.json says `signed: false`. The workflow's header names the two secrets a certificate would go in.
+
+It does not update itself as a binary: the page inside it takes over-the-air builds as every app does (§14), and a
+new installer is a new run and a new deploy-windows.
+
+Tests: scripts/lib/pe.test.mjs; the Windows way in core/backup.test.ts; the runner's own first launch.
+
+Cites: §14, §167, §186, §204.
+

@@ -81,7 +81,8 @@ It lives in `landing/` and ships with `node scripts/deploy-landing.mjs`, one ssh
   `landing/privacy.html` and `landing/delete-account.html`. They are the addresses given to Play Console and App Store
   Connect (docs/store/PLAY_STORE.md), and Settings › Account › Privacy policy opens the first. Changing either is a
   landing deploy, not an OTA.
-- **The device in hand goes first.** Android gets the APK filled and first, a Mac gets the Mac app, with a line on
+- **The device in hand goes first.** Android gets the APK filled and first, a Windows PC the installer (with a line on
+  Run anyway while it is unsigned, DESIGN §209), a Mac gets the Mac app, with a line on
   opening an app that isn't notarised yet, and an iPhone or iPad gets the web app, since there's no iOS app.
 - **The certificate** is Caddy's own, from Let's Encrypt, for `ghostmarkdown.com`. `www.ghostmarkdown.com` still
   points at the registrar's redirect service, not the box, so it has no block. Point it at the box and add it to the
