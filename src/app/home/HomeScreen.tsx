@@ -11,6 +11,7 @@ import type { Updates } from '../core/ota.ts';
 import { useGlideToTop } from '../core/glideToTop.ts';
 import { isAndroid } from '../core/platform.ts';
 import { useWispEdge } from '../art/wispEdge.ts';
+import { useDockSmoke } from '../art/dockSmoke.ts';
 import { Ghost } from '../art/Ghost.tsx';
 import { Cassette, Clock, Cog, Grid, Magnifier, Notebook, Pin, Plus } from '../art/Icons.tsx';
 import { NoteCard } from '../notes/NoteCard.tsx';
@@ -102,6 +103,9 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
   const scroller = useRef<HTMLDivElement>(null);
   const topBar = useRef<HTMLElement>(null);
   useWispEdge(scroller, 'home', topBar, { foot: true });
+  // The dock's halo, its edge torn into the header's smoke (art/dockSmoke.ts).
+  const dockHalo = useRef<HTMLDivElement>(null);
+  useDockSmoke(dockHalo);
   // The meeting being recorded now, whose note has no tape until it stops: its row says so (capture/meetingLive.ts).
   const meeting = useMeetingState();
   const recording = meeting?.recording ? meeting.noteId : null;
@@ -250,7 +254,7 @@ export function HomeScreen({ notes, loading, onOpen, onNew, onCapture, onSetting
       {/* The dock: a floating column in the bottom right, Settings, write, then Speak nearest the thumb (HomeScreen.module.css). */}
       <div className={styles.dockSpot}>
         {/* The ghost blur around it: a sibling, since the dock's own glass would keep a halo inside it from seeing the page. */}
-        <div className={styles.dockHalo} aria-hidden="true" />
+        <div ref={dockHalo} className={styles.dockHalo} aria-hidden="true" />
         <nav className={styles.dock} aria-label="New note">
           <button type="button" className={`${styles.round} ${styles.add}`} onClick={onNew} aria-label="Write a note">
             <Plus />

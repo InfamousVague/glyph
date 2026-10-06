@@ -169,7 +169,8 @@
   background: color-mix(in srgb, var(--glacier-bg) 82%, transparent);
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
-  box-shadow: 0 8px 28px color-mix(in srgb, #000 22%, transparent);
+  /* No drop shadow: what stands the dock off the page is the wisp round it (`.dockHalo`; Matt: "Change the shadow
+     behind the floating dock to be the wisp blur effect we use on the bottom under the header"). */
 }
 
 /*
@@ -201,6 +202,20 @@
     linear-gradient(to right, transparent, #000 3rem, #000 calc(100% - 3rem), transparent),
     linear-gradient(to bottom, transparent, #000 3rem, #000 calc(100% - 3rem), transparent);
   mask-composite: intersect;
+}
+
+/*
+ * The halo's edge as the header's smoke (art/dockSmoke.ts `useDockSmoke`): one image made for the halo's own size,
+ * the blur and the wash torn into tendrils over the 3rem round the pill instead of feathered evenly. It replaces the
+ * two gradients above, which stay as the halo's edge until it is measured and where nothing lays out.
+ */
+.dockHalo[data-smoke] {
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-composite: source-over;
+  mask-composite: add;
 }
 
 /* Without a backdrop filter to layer, the halo is the paper wash alone, a little stronger. */

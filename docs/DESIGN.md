@@ -10876,3 +10876,26 @@ native changed.
 Tests: settings/OrganizationSheet.test.tsx (six sections; the email's address, subject and body).
 
 Cites: §171.
+
+## 207. The dock's shadow is the wisp (2026-10-06)
+
+Matt: "Change the shadow behind the floating dock to be the wisp blur effect we use on the bottom under the header".
+
+The home page's dock had a dark drop shadow (`0 8px 28px`), and behind it the halo of GLY-81: a blur and a paper wash
+feathered evenly over 3rem. The drop shadow is gone, and the halo's edge is the header's smoke (art/dockSmoke.ts):
+the recipe art/wispMask.ts makes the header's band from - turbulence over a soft ramp, taken to alpha through a curve
+- with the ramp wrapped round the dock's pill, so what scrolls toward the dock dissolves in wisps that thin out as
+they leave it. The ramp is blurred from a pill standing half the reach out, not the dock's own edge: a blurred edge is
+half gone where the edge was, and a ramp from the dock's edge left smoke a few pixels deep (seen by tinting the halo
+red in the pane, which is how this was tuned; a count of pixels would not have said). The curve is gentler than the
+header's and the noise the same both ways, since a halo leaves on every side where a header has one lip.
+
+A mask on every engine, as the Mac's header wears: the filter that bends the page under a phone's header is worn by
+the page itself, and nothing can bend only what lies round a floating thing (`backdrop-filter: url()` is not in
+WebKit). The image is made for the halo's measured size (`useDockSmoke`), and again when the dock changes size; until
+then, and where nothing lays out, the halo keeps its two feathering gradients. Still, as the halo was: nothing drifts.
+
+Tests: art/dockSmoke.test.tsx.
+
+Cites: §94 (the wisp and the blur under a header), GLY-81.
+
