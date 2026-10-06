@@ -63,13 +63,13 @@ through the App Store Connect API. What follows the 2026-09-24 plan below is how
 ### The reviewers' demo account
 
 A Ghost.md account for App Review, with the app's own examples in it (2026-10-02, Matt: "create a 'test' 'test' user
-for apple reviewers to login with with some examples"). The password is `testtest`, since the app asks for at least
+for apple reviewers to login with with some examples"). The password is `testapple`, since the app asks for at least
 eight characters (core/account/account.ts `passwordProblem`).
 
 | Field | Value |
 | --- | --- |
 | Handle (App Store Connect's "User name") | `test` |
-| Password | `testtest` |
+| Password | `testapple` |
 
 Matt makes it in the app himself, since the agents don't create accounts on the live service:
 
@@ -81,7 +81,7 @@ Matt makes it in the app himself, since the agents don't create accounts on the 
 Paste into App Review › Notes:
 
 > Accounts are optional: the app works fully without one, with notes kept on the device. To try sync, sign in under
-> Settings › Account with the demo account (handle `test`, password `testtest`); it holds the app's example notes, a
+> Settings › Account with the demo account (handle `test`, password `testapple`); it holds the app's example notes, a
 > board and two canvases. Notes are encrypted on the device before they are sent, so the server cannot read them. The
 > account can be deleted under Settings › Account › Delete account.
 
