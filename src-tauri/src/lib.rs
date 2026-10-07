@@ -246,6 +246,7 @@ pub fn run() {
             export_commands::export_cancel,
             backup_commands::backup_drives,
             backup_commands::backup_last,
+            backup_commands::backup_files,
             backup_commands::backup_run,
             backup_commands::backup_cancel,
             backup_commands::backup_eject,

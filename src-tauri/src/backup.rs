@@ -262,6 +262,32 @@ pub fn last(target: &dyn Target) -> Option<Last> {
     Some(Last { backed_up_at: manifest.backed_up_at, notes: manifest.notes })
 }
 
+/// One file the drive's `FOLDER` holds, as Settings draws its tree: the path under `FOLDER`, and its size.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Held {
+    pub path: String,
+    pub size: u64,
+}
+
+/// Every file the last backup left in `FOLDER` (Matt: "show a logical file tree of all the files on the USB drive
+/// inside the ghost folder specifically"): the notes, versions files and attachments the manifest names, in its own
+/// order (by path), then the README and the manifest themselves where the drive has them. Read from the manifest and
+/// not by walking the drive, so it costs one read on a slow stick and is the same on a Mac's folder and an Android
+/// tree, which has no cheap way to list; a file a person put in the folder by hand is not the backup's and is not
+/// listed. Nothing, where the drive holds no backup.
+pub fn held(target: &dyn Target) -> io::Result<Vec<Held>> {
+    let Some(text) = target.read_text(&in_folder(MANIFEST))? else {
+        return Ok(Vec::new());
+    };
+    let manifest: Manifest = serde_json::from_str(&text).unwrap_or_default();
+    let mut files: Vec<Held> = manifest.files.iter().map(|(path, mark)| Held { path: path.clone(), size: mark.size }).collect();
+    if let Some(size) = target.size(&in_folder(README))? {
+        files.push(Held { path: README.into(), size });
+    }
+    files.push(Held { path: MANIFEST.into(), size: text.len() as u64 });
+    Ok(files)
+}
+
 /// Bytes still to write: what the drive does not already hold as the manifest says.
 fn owed(target: &dyn Target, items: &[Item], before: &Manifest) -> io::Result<Vec<bool>> {
     items
@@ -476,6 +502,22 @@ mod tests {
             assert!(checked(bad).is_err(), "{bad}");
         }
         assert!(checked("Workspaces/Work/Plan.md").is_ok());
+    }
+
+    #[test]
+    fn lists_what_the_last_backup_left_in_the_folder_and_nothing_on_a_drive_without_one() {
+        let drive = Drive::default();
+        assert_eq!(held(&drive).unwrap(), Vec::new());
+        let items = plan(texts(&[("Inbox/A.md", "# A"), ("Inbox/A.versions", "v1"), ("workspaces/Work/B.md", "# B")]), &[]).unwrap();
+        back_up(&drive, &items);
+        // A file a person put there by hand is not the backup's.
+        drive.files.borrow_mut().insert("Ghost.md/mine.txt".into(), b"mine".to_vec());
+        let files = held(&drive).unwrap();
+        let paths: Vec<&str> = files.iter().map(|f| f.path.as_str()).collect();
+        assert_eq!(paths, ["Inbox/A.md", "Inbox/A.versions", "Workspaces/Work/B.md", "README.txt", ".ghostmd-backup.json"]);
+        assert_eq!(files[0].size, 3);
+        assert_eq!(files[3].size, "readme".len() as u64);
+        assert!(files[4].size > 0);
     }
 
     #[test]

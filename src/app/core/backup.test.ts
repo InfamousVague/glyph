@@ -49,7 +49,7 @@ vi.mock('./platform.ts', async (importOriginal) => ({
   },
 }));
 
-const { BACKUP_GENERATION, allowDrive, backedSaid, backupReadme, backupWay, lastSaid, listDrives, readAndroidDrives, readDriveAnswer, runBackup } = await import('./backup.ts');
+const { BACKUP_GENERATION, allowDrive, backedSaid, backupReadme, backupTree, backupWay, lastSaid, listBackupFiles, listDrives, readAndroidDrives, readDriveAnswer, runBackup } = await import('./backup.ts');
 
 const DRIVE = { id: '/Volumes/KINGSTON', name: 'KINGSTON', free: 30_000_000_000, total: 32_000_000_000, tree: null, last: null };
 
@@ -187,5 +187,49 @@ describe('the backup', () => {
   it('leaves a README that says what each folder is', () => {
     const readme = backupReadme(new Date('2026-10-05T20:00:00Z'));
     for (const folder of ['Inbox/', 'Workspaces/', 'Organizations/', 'Attachments/']) expect(readme).toContain(folder);
+  });
+});
+
+describe('the files a drive holds', () => {
+  it('asks Rust for a drive’s files by its path or its tree, and not at all from an app before the list', async () => {
+    device.generation = 27;
+    device.answers.backup_files = [{ path: 'Inbox/A.md', size: 3 }, { path: '', size: 1 }, 'nonsense', { path: 'README.txt' }];
+    expect(await listBackupFiles('mac', DRIVE)).toEqual([
+      { path: 'Inbox/A.md', size: 3 },
+      { path: 'README.txt', size: 0 },
+    ]);
+    expect(device.commands.at(-1)).toEqual({ command: 'backup_files', args: { drive: '/Volumes/KINGSTON' } });
+    await listBackupFiles('android', { ...DRIVE, id: 'usb', tree: 'content://tree/usb' });
+    expect(device.commands.at(-1)).toEqual({ command: 'backup_files', args: { tree: 'content://tree/usb' } });
+    const before = device.commands.length;
+    expect(await listBackupFiles('android', { ...DRIVE, id: 'usb', tree: null })).toBeNull();
+    device.generation = 26;
+    expect(await listBackupFiles('mac', DRIVE)).toBeNull();
+    expect(await listBackupFiles('none', DRIVE)).toBeNull();
+    expect(device.commands.length).toBe(before);
+  });
+
+  it('builds the folders the files are in, folders before files, each by name, counting what is under it', () => {
+    const tree = backupTree([
+      { path: 'Workspaces/Work/b.md', size: 20 },
+      { path: 'Workspaces/Work/a.md', size: 10 },
+      { path: 'Workspaces/Home/list.md', size: 5 },
+      { path: 'README.txt', size: 7 },
+      { path: 'Inbox/Note 10.md', size: 1 },
+      { path: 'Inbox/Note 2.md', size: 1 },
+    ]);
+    expect(tree).toMatchObject({ name: 'Ghost.md', path: '', files: 6, size: 44 });
+    expect(tree.folders.map((f) => [f.name, f.files, f.size])).toEqual([
+      ['Inbox', 2, 2],
+      ['Workspaces', 3, 35],
+    ]);
+    expect(tree.leaves.map((l) => l.name)).toEqual(['README.txt']);
+    expect(tree.folders[0]!.leaves.map((l) => l.name)).toEqual(['Note 2.md', 'Note 10.md']);
+    const work = tree.folders[1]!.folders.find((f) => f.name === 'Work')!;
+    expect(work.path).toBe('Workspaces/Work');
+    expect(work.leaves.map((l) => [l.name, l.path, l.size])).toEqual([
+      ['a.md', 'Workspaces/Work/a.md', 10],
+      ['b.md', 'Workspaces/Work/b.md', 20],
+    ]);
   });
 });

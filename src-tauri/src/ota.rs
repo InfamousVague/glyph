@@ -249,7 +249,10 @@ pub use install::peek;
 /// `backup_eject`; on Android the activity's `GlyphHost.backupDrives` and `chooseBackupDrive`, answered as
 /// `window.__glyph.backupDrive` (files/BackupDrives.kt, the system's picker opened on the drive's root, no storage
 /// permission), and LibraryTree.kt's `copyIn`, which streams a file of the app's own onto the drive.
-pub const NATIVE_GENERATION: u32 = 26;
+///
+/// 27: `backup_files`, every file the last backup left in a drive's Ghost.md folder, read from its manifest
+/// (backup.rs `held`), for the tree Settings › Backup draws under a drive (docs/DESIGN.md §213).
+pub const NATIVE_GENERATION: u32 = 27;
 
 /// What the page built from THIS tree needs. vite.config.ts reads this line
 /// with a regex and stamps it into `ota.json`, so keep it a literal. Nothing in

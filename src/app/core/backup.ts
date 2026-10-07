@@ -188,6 +188,77 @@ export async function runBackup(way: BackupWay, drive: BackupDrive, onProgress: 
   }
 }
 
+/** The native generation with `backup_files`, the list a drive's tree is drawn from. */
+export const BACKUP_FILES_GENERATION = 27;
+
+/** One file the drive's Ghost.md folder holds: its path under the folder, and its size. */
+export interface HeldFile {
+  path: string;
+  size: number;
+}
+
+/**
+ * Every file the last backup left in the drive's Ghost.md folder (src-tauri/src/backup.rs `held`, from the backup's
+ * own manifest), for the tree under the drive (Matt: "show a logical file tree of all the files on the USB drive
+ * inside the ghost folder specifically"). Null where it cannot be asked: an app from before the command, or an
+ * Android drive not yet allowed.
+ */
+export async function listBackupFiles(way: BackupWay, drive: BackupDrive): Promise<HeldFile[] | null> {
+  if (way !== 'mac' && way !== 'windows' && way !== 'android') return null;
+  if (way === 'android' && !drive.tree) return null;
+  if (!(await hasNativeGeneration(BACKUP_FILES_GENERATION))) return null;
+  const said = await invoke<unknown>('backup_files', way === 'android' ? { tree: drive.tree } : { drive: drive.id });
+  if (!Array.isArray(said)) return [];
+  return said.flatMap((value): HeldFile[] => {
+    if (!value || typeof value !== 'object') return [];
+    const file = value as Record<string, unknown>;
+    return typeof file.path === 'string' && file.path ? [{ path: file.path, size: num(file.size) ?? 0 }] : [];
+  });
+}
+
+/** A folder of the tree: its folders first, then its files, each by name; `files` and `size` count everything under it. */
+export interface TreeFolder {
+  name: string;
+  /** The path under Ghost.md, with no slash at either end; '' for the folder itself. */
+  path: string;
+  folders: TreeFolder[];
+  leaves: { name: string; path: string; size: number }[];
+  files: number;
+  size: number;
+}
+
+/** The files as the folders they are in, under one root named for the folder on the drive. */
+export function backupTree(files: readonly HeldFile[], root = 'Ghost.md'): TreeFolder {
+  const top: TreeFolder = { name: root, path: '', folders: [], leaves: [], files: 0, size: 0 };
+  for (const file of files) {
+    const parts = file.path.split('/').filter(Boolean);
+    const name = parts.pop();
+    if (!name) continue;
+    let folder = top;
+    folder.files += 1;
+    folder.size += file.size;
+    for (const part of parts) {
+      let next = folder.folders.find((each) => each.name === part);
+      if (!next) {
+        next = { name: part, path: folder.path ? `${folder.path}/${part}` : part, folders: [], leaves: [], files: 0, size: 0 };
+        folder.folders.push(next);
+      }
+      next.files += 1;
+      next.size += file.size;
+      folder = next;
+    }
+    folder.leaves.push({ name, path: file.path, size: file.size });
+  }
+  const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+  const sort = (folder: TreeFolder) => {
+    folder.folders.sort(byName);
+    folder.leaves.sort(byName);
+    folder.folders.forEach(sort);
+  };
+  sort(top);
+  return top;
+}
+
 /** Stops the backup under way, between files. */
 export function cancelBackup(): void {
   if (isTauri()) void invoke('backup_cancel').catch(() => undefined);

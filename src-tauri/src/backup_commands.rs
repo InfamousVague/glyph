@@ -151,6 +151,13 @@ pub fn backup_last(drive: Option<String>, tree: Option<String>) -> Result<Option
     Ok(backup::last(target.as_ref()))
 }
 
+/// Every file the drive's Ghost.md folder holds from the last backup, for Settings' tree (native generation 27).
+#[tauri::command(async)]
+pub fn backup_files(drive: Option<String>, tree: Option<String>) -> Result<Vec<backup::Held>, String> {
+    let (target, _) = target_of(drive.as_deref(), tree.as_deref())?;
+    backup::held(target.as_ref()).map_err(said)
+}
+
 /// The backup: every note and versions file in the library, and the pictures, films and recordings, onto the drive.
 #[tauri::command(async)]
 pub fn backup_run(app: AppHandle, state: State<'_, BackupState>, request: BackupRequest) -> Result<Backed, String> {

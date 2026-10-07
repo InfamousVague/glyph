@@ -1,13 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CircleCheck, HardDrive, HardDriveUpload, Usb } from '@glacier/icons';
 import { ProgressBar } from '@glacier/react';
 import {
+  BACKUP_FILES_GENERATION,
   allowDrive,
   backedSaid,
+  backupTree,
   backupWay,
   cancelBackup,
   ejectDrive,
   lastSaid,
+  listBackupFiles,
   listDrives,
   runBackup,
   sizeSaid,
@@ -15,7 +18,10 @@ import {
   type BackupDrive,
   type BackupProgress,
   type BackupWay,
+  type HeldFile,
 } from '../core/backup.ts';
+import { hasNativeGeneration } from '../core/nativeGeneration.ts';
+import { BackupTree } from './BackupTree.tsx';
 import { PaneSection, RowAction, SettingRow, SettingsCallout, SettingsEmpty, SettingsFootnote } from './kit/settingsKit.tsx';
 
 /**
@@ -28,6 +34,10 @@ import { PaneSection, RowAction, SettingRow, SettingsCallout, SettingsEmpty, Set
  * into `Ghost.md/` on its root (core/backup.ts). On Android the first backup to a drive opens the system's picker on
  * its root to allow it, once. While a backup runs, how far it has got and Stop; after, what it wrote, and on the Mac a
  * word to eject the drive.
+ *
+ * Under the drives, each one that holds a backup has its Ghost.md folder as a tree (BackupTree.tsx; docs/DESIGN.md
+ * §213): read once for a drive and again when its last backup's time changes, not at every look. An app from before
+ * the list (native generation 27) says to update instead.
  */
 
 /** How often the drives are looked for while the page is open. */
@@ -46,6 +56,19 @@ function failureOf(error: unknown): string {
   if (typeof error === 'string') return error;
   if (error instanceof Error) return error.message;
   return 'The backup could not be written.';
+}
+
+/** What a drive's files were read for: the drive, the way in to it, and the backup it held then. */
+const heldKey = (drive: BackupDrive) => `${drive.id}|${drive.tree ?? ''}|${drive.last?.backedUpAt ?? ''}`;
+
+/** One drive's tree, built once for the files it was read with. */
+function DriveTree({ drive, files }: { drive: BackupDrive; files: HeldFile[] }) {
+  const tree = useMemo(() => backupTree(files), [files]);
+  return (
+    <PaneSection title={`On ${drive.name}`}>
+      <BackupTree tree={tree} />
+    </PaneSection>
+  );
 }
 
 /** A drive's row's hint: its room, and the last backup it holds. */
@@ -87,6 +110,31 @@ export function BackupPane() {
       window.clearInterval(timer);
     };
   }, [way]);
+
+  // The files each drive's Ghost.md folder holds, by `heldKey`: asked once for a drive and the backup on it.
+  const [held, setHeld] = useState<Record<string, HeldFile[] | null>>({});
+  const asked = useRef(new Set<string>());
+  const [canList, setCanList] = useState(true);
+  useEffect(() => {
+    let live = true;
+    void hasNativeGeneration(BACKUP_FILES_GENERATION).then((can) => live && setCanList(can));
+    return () => {
+      live = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (!way || !drives) return;
+    for (const drive of drives) {
+      if (!drive.last) continue;
+      const key = heldKey(drive);
+      if (asked.current.has(key)) continue;
+      asked.current.add(key);
+      void listBackupFiles(way, drive).then(
+        (files) => setHeld((was) => ({ ...was, [key]: files })),
+        () => setHeld((was) => ({ ...was, [key]: null })),
+      );
+    }
+  }, [way, drives]);
 
   const backUp = async (given: BackupDrive) => {
     if (!way) return;
@@ -176,6 +224,11 @@ export function BackupPane() {
           ))}
         </PaneSection>
       )}
+      {(drives ?? []).map((drive) => {
+        const files = drive.last ? held[heldKey(drive)] : null;
+        return files && files.length > 0 ? <DriveTree key={drive.id} drive={drive} files={files} /> : null;
+      })}
+      {!canList && (drives ?? []).some((drive) => drive.last) ? <SettingsFootnote>Update Ghost.md to see the files a drive holds here.</SettingsFootnote> : null}
       <SettingsFootnote>
         Every note goes into a Ghost.md folder at the top of the drive, in your workspaces’ folders, with its version history and its pictures, films and
         recordings. The next backup to the same drive only writes what changed. Nothing leaves this device but onto the drive.

@@ -1,0 +1,68 @@
+/* The tree under a drive (BackupTree.tsx): what the last backup left in its Ghost.md folder, folders opened by a tap. */
+
+.tree {
+  padding: var(--glacier-space-2) var(--glacier-space-3) var(--glacier-space-3);
+  min-inline-size: 0;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* A folder's own files and folders, set in under it with a hairline down their side. */
+.list .list {
+  margin-inline-start: 0.55rem;
+  padding-inline-start: var(--glacier-space-3);
+  border-inline-start: var(--glacier-hairline) solid var(--app-rule);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  inline-size: 100%;
+  min-block-size: 2rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--app-ink);
+  font: inherit;
+  font-size: var(--glacier-font-size-sm);
+  text-align: start;
+}
+
+button.row {
+  cursor: pointer;
+}
+
+button.row:focus-visible {
+  outline: 2px solid var(--glacier-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--glacier-radius-sm);
+}
+
+.mark {
+  flex: none;
+  color: var(--app-ink-3);
+}
+
+.name {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder .name {
+  font-weight: var(--glacier-font-weight-medium);
+}
+
+.said {
+  flex: none;
+  font-size: var(--glacier-font-size-xs);
+  color: var(--app-ink-3);
+  font-variant-numeric: tabular-nums;
+}

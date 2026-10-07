@@ -11035,3 +11035,27 @@ copy and its two ways are as they were.
 Tests: src/read/Reader.test.tsx.
 
 Cites: docs/SHARING.md, §211.
+
+## 213. Backup shows what the drive holds (2026-10-07, native generation 27)
+
+Matt: "On the backup page, show a logical file tree of all the files on the USB drive inside the ghost folder
+specifically". Under the drives on Settings › Backup, each drive that holds a backup has a section, "On <its name>",
+with its `Ghost.md` folder as a tree (settings/BackupTree.tsx): the folder open, its folders - Inbox, Workspaces,
+Organizations, Attachments - closed until tapped, each saying how many files are under it and their size, a file its
+own size. Only what is opened is drawn, since a library is hundreds of files.
+
+The tree is the backup's own account of the folder, not a walk of the drive: `backup_files` (backup.rs `held`) reads
+`.ghostmd-backup.json`, the manifest the last backup wrote, and adds the README and the manifest themselves. That is
+one read on a slow stick, it is the same on a Mac's or Windows' folder and on an Android tree (which has no cheap way
+to list a folder through the Storage Access Framework), and it is "the ghost folder specifically": a file a person
+dropped in the folder by hand is not the backup's and is not shown. It is asked once for a drive and again when the
+drive's last backup's time changes, never at the two-second look for drives.
+
+It needs a binary with the command, native generation 27. An older app, which still backs up, says "Update Ghost.md
+to see the files a drive holds here." and draws no tree; `BUNDLE_REQUIRES` stays where it was.
+
+Tests: backup.rs (`lists_what_the_last_backup_left...`), core/backup.test.ts (the ask, and the folders built),
+settings/BackupPane.test.tsx (the tree, read once; the older app).
+
+Cites: §204.
+
