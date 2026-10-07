@@ -205,17 +205,35 @@
 }
 
 /*
- * The halo's edge as the header's smoke (art/dockSmoke.ts `useDockSmoke`): one image made for the halo's own size,
- * the blur and the wash torn into tendrils over the 3rem round the pill instead of feathered evenly. It replaces the
- * two gradients above, which stay as the halo's edge until it is measured and where nothing lays out.
+ * The halo's edge as the header's smoke (art/dockSmoke.ts `useDockSmoke`), in three layers: a soft core that keeps
+ * the halo whole at the pill, over a wider ramp cut by a tile of smoke (the core, added to the ramp where the tile is).
+ * Only the tile is placed by the drift, so the tendrils past the core sway with the header's while the halo keeps its
+ * shape. It replaces the two gradients above, which stay as the halo's edge until it is measured and where nothing
+ * lays out. The prefixed composite is the old engines' spelling of the same two operators, written first.
  */
 .dockHalo[data-smoke] {
-  -webkit-mask-size: 100% 100%;
-  mask-size: 100% 100%;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-composite: source-over;
-  mask-composite: add;
+  -webkit-mask-image: var(--dock-smoke-core, none), var(--dock-smoke-ramp, none), var(--dock-smoke-tile, none);
+  mask-image: var(--dock-smoke-core, none), var(--dock-smoke-ramp, none), var(--dock-smoke-tile, none);
+  -webkit-mask-size:
+    100% 100%,
+    100% 100%,
+    256px 256px;
+  mask-size:
+    100% 100%,
+    100% 100%,
+    256px 256px;
+  -webkit-mask-repeat: no-repeat, no-repeat, repeat;
+  mask-repeat: no-repeat, no-repeat, repeat;
+  -webkit-mask-position:
+    0 0,
+    0 0,
+    var(--dock-smoke-x, 0px) var(--dock-smoke-y, 0px);
+  mask-position:
+    0 0,
+    0 0,
+    var(--dock-smoke-x, 0px) var(--dock-smoke-y, 0px);
+  -webkit-mask-composite: source-over, source-in;
+  mask-composite: add, intersect;
 }
 
 /* Without a backdrop filter to layer, the halo is the paper wash alone, a little stronger. */

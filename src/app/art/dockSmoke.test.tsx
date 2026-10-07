@@ -3,12 +3,21 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DOCK_SMOKE_REACH, dockSmokeMask, useDockSmoke } from './dockSmoke.ts';
+const drift = vi.hoisted(() => ({ followers: new Set<(dx: number, dy: number) => void>() }));
+vi.mock('./wispEdge.ts', () => ({
+  followWispDrift: (follower: (dx: number, dy: number) => void) => {
+    drift.followers.add(follower);
+    return () => drift.followers.delete(follower);
+  },
+}));
+
+const { DOCK_SMOKE_REACH, DOCK_SMOKE_TILE, dockSmokeCore, dockSmokeRamp, dockSmokeTile, useDockSmoke } = await import('./dockSmoke.ts');
 
 /**
  * The wisp round the home page's dock (art/dockSmoke.ts; Matt: "Change the shadow behind the floating dock to be the
- * wisp blur effect we use on the bottom under the header"): the mask's image, made for the halo's size from the
- * header's recipe, the hook that gives it to the halo once it is measured, and the dock with no drop shadow.
+ * wisp blur effect we use on the bottom under the header"; "it's static on the dock and it doesn't match"): the three
+ * pictures the halo's mask is composed from, the hook that gives them to the halo once it is measured and slides the
+ * smoke with the page's, and the dock with no drop shadow.
  */
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -50,20 +59,44 @@ function draw(width: number, height: number): HTMLElement {
 }
 
 describe('the smoke round the dock', () => {
-  it('is an image the halo’s size, the header’s turbulence over a ramp from a pill half the reach out', () => {
-    const svg = svgOf(dockSmokeMask(155.4, 299.2));
-    expect(svg).toContain('width="155" height="299"');
+  it('is a core and a ramp the halo’s size, pills round the dock, the ramp the wider and the softer', () => {
+    const core = svgOf(dockSmokeCore(155.4, 299.2));
+    const ramp = svgOf(dockSmokeRamp(155.4, 299.2));
+    for (const svg of [core, ramp]) expect(svg).toContain('width="155" height="299"');
+    const pill = (out: number) => {
+      const inset = DOCK_SMOKE_REACH - out;
+      return `<rect x="${inset}" y="${inset}" width="${155 - 2 * inset}" height="${299 - 2 * inset}" rx="${(155 - 2 * inset) / 2}" fill="#000" filter="url(#b)"/>`;
+    };
+    expect(core).toContain(pill(Math.round(DOCK_SMOKE_REACH * 0.12)));
+    expect(ramp).toContain(pill(DOCK_SMOKE_REACH / 2));
+    const soft = (svg: string) => Number(/stdDeviation="([\d.]+)"/.exec(svg)![1]);
+    expect(soft(ramp)).toBeGreaterThan(soft(core));
+    // Neither holds noise: they stay put while the smoke slides.
+    expect(core + ramp).not.toContain('feTurbulence');
+  });
+
+  it('is a tile of the header’s turbulence, stitched so it can slide without a seam', () => {
+    const svg = svgOf(dockSmokeTile());
+    expect(svg).toContain(`width="${DOCK_SMOKE_TILE}" height="${DOCK_SMOKE_TILE}"`);
     expect(svg).toContain('<feTurbulence type="fractalNoise"');
-    // The noise on the ramp and the curve to alpha, as art/wispMask.ts makes the header's band.
-    expect(svg).toContain('operator="arithmetic" k1="0" k2="0.9" k3="1" k4="-0.45"');
-    const out = DOCK_SMOKE_REACH / 2;
-    expect(svg).toContain(`<rect x="${out}" y="${out}" width="${155 - 2 * out}" height="${299 - 2 * out}" rx="${(155 - 2 * out) / 2}" fill="#fff"/>`);
+    expect(svg).toContain('stitchTiles="stitch"');
   });
 
   it('is given to the halo once it is measured', () => {
     const halo = draw(155, 299);
     expect(halo.dataset.smoke).toBe('');
-    expect(halo.style.getPropertyValue('mask-image') || halo.style.getPropertyValue('-webkit-mask-image')).toContain('data:image/svg+xml');
+    for (const name of ['--dock-smoke-core', '--dock-smoke-ramp', '--dock-smoke-tile']) expect(halo.style.getPropertyValue(name)).toContain('data:image/svg+xml');
+  });
+
+  it('slides with the page’s smoke, and lets go when the dock is gone', () => {
+    const halo = draw(155, 299);
+    expect(drift.followers.size).toBe(1);
+    for (const follower of drift.followers) follower(2.5, 14);
+    expect(halo.style.getPropertyValue('--dock-smoke-x')).toBe('2.5px');
+    expect(halo.style.getPropertyValue('--dock-smoke-y')).toBe('14px');
+    act(() => root?.unmount());
+    root = null;
+    expect(drift.followers.size).toBe(0);
   });
 
   it('leaves the stylesheet’s feather where nothing lays out', () => {
@@ -77,5 +110,7 @@ describe('the smoke round the dock', () => {
     const dock = css.slice(css.indexOf('\n.dock {'), css.indexOf('}', css.indexOf('\n.dock {')));
     expect(dock).not.toMatch(/box-shadow\s*:/);
     expect(css).toContain('.dockHalo[data-smoke]');
+    // The tile alone is placed by the drift: the core and the ramp stay.
+    expect(css).toMatch(/\n {2}mask-position:\s+0 0,\s+0 0,\s+var\(--dock-smoke-x, 0px\) var\(--dock-smoke-y, 0px\);/);
   });
 });

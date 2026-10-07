@@ -10893,7 +10893,15 @@ header's and the noise the same both ways, since a halo leaves on every side whe
 A mask on every engine, as the Mac's header wears: the filter that bends the page under a phone's header is worn by
 the page itself, and nothing can bend only what lies round a floating thing (`backdrop-filter: url()` is not in
 WebKit). The image is made for the halo's measured size (`useDockSmoke`), and again when the dock changes size; until
-then, and where nothing lays out, the halo keeps its two feathering gradients. Still, as the halo was: nothing drifts.
+then, and where nothing lays out, the halo keeps its two feathering gradients.
+
+**It drifts as the header's does** (the same day; Matt: "it's static on the dock and it doesn't match"). The first cut
+was one picture, noise and ramp together, and so it stood still: a pill's ramp cannot slide. The mask is three layers
+now, composed in the stylesheet (`mask-composite: add, intersect`): a soft core that keeps the halo whole at the
+pill, over a wider ramp cut by a 256px tile of the turbulence, stitched so it repeats without a seam. Only the tile
+is placed by `--dock-smoke-x/y`, which the hook writes from the page band's own drift (art/wispEdge.ts
+`followWispDrift`): the same few pixels on the same clock, only while the page is scrolled, still under reduced
+motion and while a recording holds the drift. So the tendrils sway and the halo keeps its shape.
 
 Tests: art/dockSmoke.test.tsx.
 

@@ -275,6 +275,20 @@ function driftStep(now: number): void {
   for (const band of BANDS) if (lanes[band].moving > 0) stepBand(band, lanes[band].clock);
 }
 
+/**
+ * What else moves with the page's smoke: told each step's slide, in px, so it drifts as one smoke with the header and
+ * the foot and holds still when they do (art/dockSmoke.ts, the halo round the home page's dock).
+ */
+const followers = new Set<(dx: number, dy: number) => void>();
+
+/** Follows the page band's drift until the answer is called. */
+export function followWispDrift(follower: (dx: number, dy: number) => void): () => void {
+  followers.add(follower);
+  return () => {
+    followers.delete(follower);
+  };
+}
+
 /** One band's step, at `t` on its own clock. */
 function stepBand(band: WispBand, t: number): void {
   const ids = WISP_EDGE_BANDS[band];
@@ -296,6 +310,7 @@ function stepBand(band: WispBand, t: number): void {
     view.style.setProperty('--wisp-noise-y', `${dy}px`);
   }
   if (band !== 'page') return;
+  for (const follower of followers) follower(Number(dx), Number(dy));
   // The foot's own noise drifts with the top's, so both ends of a view move as one smoke.
   document.getElementById(WISP_EDGE_FOOT_NOISE_ID)?.setAttribute('baseFrequency', `${x.toFixed(4)} ${y.toFixed(4)}`);
   const footSlide = document.getElementById(WISP_EDGE_FOOT_DRIFT_ID);
