@@ -4,6 +4,7 @@ import 'package:flutter/painting.dart';
 import 'css_value.dart';
 import 'oklch.dart';
 import 'sheet.dart';
+import 'line_height.dart';
 
 /// Font families the stylesheets name that are not fonts of the app's: the system's stand-ins, which Flutter has its
 /// own answer for.
@@ -57,6 +58,9 @@ class Tokens {
   }
 
   final TokenSheet _sheet;
+
+  /// The sheet these were resolved from: for a subtree that lays the page's attributes again over the same rules.
+  TokenSheet get sheet => _sheet;
   final Tokens? parent;
 
   /// The `data-` attributes in force here, without the prefix: `theme`, `density`, `accent`, ...
@@ -239,12 +243,13 @@ class Tokens {
 
   /// Text at a size of the caller's own, as a page sets it outside the kit's components: `line-height: normal` unless
   /// [height] is given (a multiple, as a unitless line-height is), no tracking unless [tracking] (in px), the sans
-  /// face unless [mono]. Not inherited unless asked, so that a null [height] is the face's own and not the leading of
-  /// whatever default style stands above.
+  /// face unless [mono]. `normal` is a browser's: the face's ascent and descent each rounded to a whole pixel
+  /// ([normalLineHeight]). Not inherited unless asked, so the leading of whatever default style stands above
+  /// cannot arrive in it.
   TextStyle textAt(double px, {String weight = 'regular', bool mono = false, Color? color, double? height, double tracking = 0, bool inherit = false}) {
     final fonts = families(mono ? 'glacier-font-mono' : 'glacier-font-sans');
     final fallback = [...fonts.skip(1), for (final family in fonts) ...?typography.fallbacks[family]];
-    return TextStyle(
+    final face = TextStyle(
       inherit: inherit,
       fontFamily: fonts.isEmpty ? null : fonts.first,
       fontFamilyFallback: fallback.isEmpty ? null : fallback,
@@ -260,6 +265,8 @@ class Tokens {
       color: color ?? this.color('glacier-text'),
       decoration: TextDecoration.none,
     );
+    // `line-height: normal` as a browser works it out (line_height.dart), which is not the face's own sum.
+    return height != null || px <= 0 ? face : face.copyWith(height: normalLineHeight(face) / px);
   }
 
   /// [style] at another size, with the optical size that goes with it: `copyWith(fontSize:)` alone would keep the cut
