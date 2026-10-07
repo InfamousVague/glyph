@@ -25,6 +25,13 @@ with data of its own.
     `lib/src/haptics/` is the kit's haptics (one listener for every press, the feedback bus, `useHaptics`);
     `lib/src/components/` is one widget per `@glacier/react` component the app uses.
 - `lib/` is the app. `assets/fonts/` are the web app's own faces converted from woff2 (`tool/fonts.py`).
+- **Text is set the way the page sets it.** `t.text('sm')` is a step of the kit's scale with the kit's leading and
+  tracking, right inside kit components. Page text outside them has `line-height: normal`: `t.textAt(px, ...)`. Both
+  ask for Inter's optical size for their size, which a browser applies by itself; without it a 28 px title is 5%
+  too wide. Change a style's size with `Tokens.resized`, never `copyWith(fontSize:)`.
+- **A screen is held to the page by measurement.** `test/launch/launch_screen_test.dart` is the pattern: rectangles
+  read from the web app with `getBoundingClientRect` at 390 x 844, asserted to half a pixel, and a picture of the
+  screen (`test/support/render.dart`, written to a `shots/` folder beside the test) looked at beside the page's.
 
 ## Stages
 
@@ -34,13 +41,13 @@ Each stage ends installed on the Fold. Sizes are the web app's non-test source t
 | - | ----- | --------------- | ----- |
 | 0 | Ground: project, token engine, motion, haptics, fonts | `vendor/@glacier/tokens`, `@glacier/motion`, `ink.css`, `app.css` | done |
 | 1 | The kit: Switch, SegmentedControl, DensitySelector, ProgressBar, Pill, Toast, Input, SearchField, Kbd, CommandPalette, Popover, Menu, and a gallery of them on the phone | `@glacier/react` (12 of its components, ~4k lines) | done 2026-10-07, on the Fold |
-| 2 | The shell: launch, the tab bar in its four styles, home with its sections, cards and dock, the Settings surface and its kit, the sidebar; the art: wisp and smoke as shaders, the ghost | `shell/`, `home/`, `launch/`, `art/`, `scene/`, `settings/` kit, part of `notes/` (~12k) | |
+| 2 | The shell: launch, the tab bar in its four styles, home with its sections, cards and dock, the Settings surface and its kit, the sidebar and the app's sheet; the art: wisp and smoke as shaders, the ghost | `shell/`, `home/`, `launch/`, `art/`, `settings/` kit, part of `notes/` (~12k) | under way: launch done and on the Fold 2026-10-07 |
 | 3 | The library: the Rust core behind FFI; notes as Markdown files, the store, search, workspaces, tabs and the note tree | `src-tauri/src` (27k Rust, kept), `core/` (24k TS, to Dart or into Rust), `notes/` | |
 | 4 | The editor: live Markdown, the marks and the five effects, tables, links, pictures, the + menu | `editor/` (26k), `format/` | |
 | 5 | Structured notes: boards, tickets, queries, databases, notebooks, journals, templates | `editor/`, `book/`, `notes/` | |
 | 6 | Canvas | `canvas/` (3.5k) | |
 | 7 | Account and sync: keys, the sync engine, organizations and team notes, live typing, notifications, shared links | `core/sync`, `core/orgs`, `core/live`, `share/` | |
-| 8 | Voice and AI: the recorder, Whisper, meetings and their service, summaries, the language model, fills | `capture/` (12k), `ai/` (6.5k), `tapes/`, Kotlin (6.5k) | |
+| 8 | Voice and AI: the recorder, Whisper, meetings and their service, summaries, the language model, fills, the at-work scene | `capture/` (12k), `ai/` (6.5k), `tapes/`, `scene/`, Kotlin (6.5k) | |
 | 9 | The rest: backup, export, plugins, the Academy and the guide, diagnostics, updates | `plugins/`, `academy/`, `guide/`, `diag/` | |
 | 10 | Platforms and release: the Fold's wide layouts, Mac, Windows, iPhone; signing; moving a library over from the Tauri app | | |
 
@@ -72,7 +79,7 @@ on the same phone.
 export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ANDROID_HOME=$HOME/Library/Android/sdk
 (cd packages/glacier && flutter test)       # the kit, tokens against the page first
 flutter analyze && flutter test             # the app
-flutter build apk --debug --target-platform android-arm64
+flutter build apk --debug --target-platform android-arm64   # add -t lib/main_launch.dart for the launch screen alone
 adb install -r build/app/outputs/flutter-apk/app-debug.apk
 ```
 
