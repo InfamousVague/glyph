@@ -5,6 +5,7 @@ import { listenTo } from './events.ts';
 import { failureText } from './failure.ts';
 import { isIOS } from './platform.ts';
 import { preferences } from './preferences.ts';
+import { readStoredText, writeStoredText } from './stored.ts';
 import { invoke, isTauri } from './tauri.ts';
 
 /**
@@ -183,19 +184,16 @@ const AUTO_RELOAD_KEY = 'glyph-ota-auto-reload';
 
 /**
  * Whether the screen opening may reload into `build` by itself (launch/LaunchScreen.tsx), asked once: yes the first
- * time for a build in this run of the app, and never again for it. A build that reloads and does not come up is put
+ * time this device is offered the build, and never again for it. A build that reloads and does not come up is put
  * aside by the loader and the page falls back to the one before, where the same build can still be standing as the
- * one to load; without this the launch would reload into it again, and again. Kept in the session, which outlives a
- * reload and not the app. Where nothing can be kept there is no way to tell, so no.
+ * one to load; without this the launch would reload into it again, and again. A build that did come up is the one
+ * running and is never offered again, so once is all a good build needs.
  */
 export function claimAutoReload(build: string): boolean {
-  try {
-    if (sessionStorage.getItem(AUTO_RELOAD_KEY) === build) return false;
-    sessionStorage.setItem(AUTO_RELOAD_KEY, build);
-    return true;
-  } catch {
-    return false;
-  }
+  if (readStoredText(AUTO_RELOAD_KEY) === build) return false;
+  writeStoredText(AUTO_RELOAD_KEY, build);
+  // Where nothing can be kept there is no way to tell a second time from a first, so no.
+  return readStoredText(AUTO_RELOAD_KEY) === build;
 }
 
 export function useUpdates(): Updates {

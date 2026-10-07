@@ -68,7 +68,7 @@ describe('the screen opening shows', () => {
   it('takes an update found while it is up: says so, reloads, and does not hand over meanwhile', () => {
     vi.useFakeTimers();
     native = true;
-    sessionStorage.clear();
+    localStorage.clear();
     const onDone = vi.fn();
     const reload = vi.fn();
     host = show(<LaunchScreen loading={false} notes={2} updates={updates({ checking: true, reload })} sync={sync} onDone={onDone} />);
@@ -84,7 +84,7 @@ describe('the screen opening shows', () => {
   it('takes a build once: back on the old page with the same build still waiting, it opens as it used to', () => {
     vi.useFakeTimers();
     native = true;
-    sessionStorage.clear();
+    localStorage.clear();
     const reload = vi.fn();
     const ready = { build: '20261007020000', version: '1.14.0' };
     host = show(<LaunchScreen loading={false} notes={2} updates={updates({ ready, reload })} sync={sync} onDone={vi.fn()} />);
@@ -105,7 +105,7 @@ describe('the screen opening shows', () => {
   it('leaves an update for later when the app was opened to record', () => {
     vi.useFakeTimers();
     native = true;
-    sessionStorage.clear();
+    localStorage.clear();
     const reload = vi.fn();
     host = show(<LaunchScreen loading={false} notes={2} updates={updates({ ready: { build: '20261007020000', version: '1.14.0' }, reload })} sync={sync} holdUpdate onDone={vi.fn()} />);
     act(() => void vi.advanceTimersByTime(1000));

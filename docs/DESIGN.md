@@ -11000,7 +11000,7 @@ what it finds; it then said "An update is ready for next time" and opened the ol
 still up, it says "Updating Ghost.md" and reloads the page after a beat (450ms, to be read), and the launch that
 follows is the new build's. The screen does not hand over meanwhile.
 
-- **Once for a build** (core/ota.ts `claimAutoReload`, kept in the session, which outlives a reload and not the app).
+- **Once for a build** on a device (core/ota.ts `claimAutoReload`, kept with the app's other settings).
   A build that does not come up is put aside by the loader and the page falls back, where the same build can still
   stand as the one to load: without the claim the launch would reload into it for ever. The second time it reads
   "An update is ready for next time", as before.
