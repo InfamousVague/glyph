@@ -18,9 +18,12 @@ const interFallbacks = [
 /// The app: the design tokens over everything, haptics for every press, and the page's own type
 /// (app.css `html { font-feature-settings: 'cv11', 'ss01' }`, `html, body { font-family; color; background }`).
 class GhostApp extends StatelessWidget {
-  const GhostApp({super.key, required this.sheet});
+  const GhostApp({super.key, required this.sheet, this.home = const KitGallery()});
 
   final TokenSheet sheet;
+
+  /// The screen under the page's theme: the app's own, or one screen alone for a test's picture.
+  final Widget home;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +44,7 @@ class GhostApp extends StatelessWidget {
             ),
             child: HapticsProvider(enabled: prefs.haptics, child: _InkOverrides(child: _Page(child: GlacierToastProvider(child: child!)))),
           ),
-          home: const KitGallery(),
+          home: home,
         );
       },
     );

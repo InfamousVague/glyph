@@ -45,8 +45,8 @@ Future<void> loadAppFonts() async {
 }
 
 /// The app on a phone's screen (or [size]), ready for a picture: real fonts, real shadows, the token sheets the app
-/// loads, and [prefs] as the person's choices.
-Future<void> pumpApp(WidgetTester tester, {Size size = const Size(390, 844), AppPreferences prefs = const AppPreferences(theme: 'light'), double ratio = 2}) async {
+/// loads, and [prefs] as the person's choices. [home] puts one screen under the app's theme in place of the app's own.
+Future<void> pumpApp(WidgetTester tester, {Size size = const Size(390, 844), AppPreferences prefs = const AppPreferences(theme: 'light'), double ratio = 2, Widget? home}) async {
   debugDisableShadows = false;
   tester.view.physicalSize = size * ratio;
   tester.view.devicePixelRatio = ratio;
@@ -55,7 +55,7 @@ Future<void> pumpApp(WidgetTester tester, {Size size = const Size(390, 844), App
   addTearDown(tester.view.reset);
   preferences.value = prefs;
   final sheet = await tester.runAsync(() => loadTokenSheet(more: appStyleSheets));
-  await tester.pumpWidget(GhostApp(sheet: sheet!));
+  await tester.pumpWidget(home == null ? GhostApp(sheet: sheet!) : GhostApp(sheet: sheet!, home: home));
   await tester.pump();
 }
 
