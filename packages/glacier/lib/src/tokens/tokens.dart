@@ -1,0 +1,230 @@
+import 'package:flutter/animation.dart';
+import 'package:flutter/painting.dart';
+
+import 'css_value.dart';
+import 'oklch.dart';
+import 'sheet.dart';
+
+/// Font families the stylesheets name that are not fonts of the app's: the system's stand-ins, which Flutter has its
+/// own answer for.
+const _genericFamilies = {
+  'ui-sans-serif',
+  'ui-monospace',
+  'ui-serif',
+  'system-ui',
+  '-apple-system',
+  'segoe ui',
+  'sf mono',
+  'sfmono-regular',
+  'menlo',
+  'sans-serif',
+  'serif',
+  'monospace',
+};
+
+/// The design tokens as they stand in one place of the app: every custom property of the token sheets, resolved for a
+/// theme, a density and a window, and read as the type the caller wants.
+///
+/// A name is a custom property's, with or without its two dashes: `glacier-space-3`, `--app-ink`. The root holds what
+/// `:root` holds on the page; [child] is an element inside it with classes or attributes of its own (`.app-inverse`,
+/// `data-hue`), which inherits the root's computed values and lays its own rules over them, as CSS does.
+class Tokens {
+  Tokens.root(
+    TokenSheet sheet, {
+    Map<String, String> attrs = const {},
+    Map<String, String> env = const {},
+    bool reducedMotion = false,
+    CssContext css = const CssContext(),
+  }) : this._(sheet, null, Map.unmodifiable(attrs), const {}, env, reducedMotion, css, attrs.keys.toSet(), const {}, root: true);
+
+  Tokens._(this._sheet, this.parent, this.attrs, this.classes, this._env, this.reducedMotion, this.css, Set<String> ownAttrs, Set<String> ownClasses, {required bool root}) {
+    for (final rule in _sheet.rules) {
+      if (rule.reducedMotion && !reducedMotion) continue;
+      if (!rule.matches(attrs, classes)) continue;
+      if (!root && !rule.asksFor(ownAttrs, ownClasses)) continue;
+      if (root && rule.conditions.any((c) => c.isClass)) continue;
+      _declared.addAll(rule.declarations);
+    }
+  }
+
+  final TokenSheet _sheet;
+  final Tokens? parent;
+
+  /// The `data-` attributes in force here, without the prefix: `theme`, `density`, `accent`, ...
+  final Map<String, String> attrs;
+  final Set<String> classes;
+  final Map<String, String> _env;
+  final bool reducedMotion;
+  final CssContext css;
+
+  final Map<String, String> _declared = {};
+  final Map<String, String?> _computed = {};
+  final Map<String, Object?> _typed = {};
+
+  /// An element inside this one with [classes] or [attrs] of its own.
+  Tokens child({Map<String, String> attrs = const {}, Set<String> classes = const {}}) {
+    return Tokens._(
+      _sheet,
+      this,
+      Map.unmodifiable({...this.attrs, ...attrs}),
+      Set.unmodifiable({...this.classes, ...classes}),
+      _env,
+      reducedMotion,
+      css,
+      attrs.keys.toSet(),
+      classes,
+      root: false,
+    );
+  }
+
+  bool get isDark => attrs['theme'] == 'dark';
+
+  static String _name(String name) => name.startsWith('--') ? name : '--$name';
+
+  /// The property's computed value, every `var()` and `env()` in it resolved, or null where nothing declares it.
+  String? raw(String name) => _rawOf(_name(name), const {});
+
+  String? _rawOf(String name, Set<String> seen) {
+    if (_computed.containsKey(name)) return _computed[name];
+    final declared = _declared[name];
+    final value = declared != null ? resolve(declared, seen: {...seen, name}) : parent?._rawOf(name, const {});
+    return _computed[name] = value;
+  }
+
+  /// [value] with each `var(--x, fallback)` and `env(x, fallback)` replaced by what it stands for here.
+  String resolve(String value, {Set<String> seen = const {}}) {
+    if (!value.contains('var(') && !value.contains('env(')) return value;
+    final out = StringBuffer();
+    var i = 0;
+    while (i < value.length) {
+      final isVar = value.startsWith('var(', i), isEnv = value.startsWith('env(', i);
+      final wordBefore = i > 0 && RegExp(r'[\w-]').hasMatch(value[i - 1]);
+      if ((!isVar && !isEnv) || wordBefore) {
+        out.write(value[i]);
+        i++;
+        continue;
+      }
+      var depth = 1, end = i + 4;
+      while (end < value.length && depth > 0) {
+        if (value[end] == '(') depth++;
+        if (value[end] == ')') depth--;
+        end++;
+      }
+      final inner = value.substring(i + 4, end - 1);
+      final comma = _topComma(inner);
+      final name = (comma < 0 ? inner : inner.substring(0, comma)).trim();
+      final fallback = comma < 0 ? null : inner.substring(comma + 1).trim();
+      String? found;
+      if (isEnv) {
+        found = _env[name];
+      } else if (!seen.contains(name)) {
+        // A property that names itself, straight or round a ring, has no value: its fallback stands.
+        found = _rawOf(name, seen);
+      }
+      found ??= fallback == null ? null : resolve(fallback, seen: seen);
+      out.write(found ?? '');
+      i = end;
+    }
+    return out.toString();
+  }
+
+  static int _topComma(String s) {
+    var depth = 0;
+    for (var i = 0; i < s.length; i++) {
+      if (s[i] == '(') depth++;
+      if (s[i] == ')') depth--;
+      if (s[i] == ',' && depth == 0) return i;
+    }
+    return -1;
+  }
+
+  String _need(String name) {
+    final value = raw(name);
+    if (value == null || value.isEmpty) throw CssFormatException('no token "${_name(name)}"');
+    return value;
+  }
+
+  T _cached<T>(String kind, String key, T Function() make) => (_typed['$kind $key'] ??= make()) as T;
+
+  // --- by name ---------------------------------------------------------------------------------------------------
+
+  /// A length in logical pixels, a time in milliseconds, or a plain number. [em] is the font size an `em` in it
+  /// measures, where the property is one.
+  double len(String name, {double? em}) =>
+      em == null ? _cached('len', name, () => evalNumber(_need(name), css)) : evalNumber(_need(name), css.withEm(em));
+
+  double number(String name) => len(name);
+
+  Color color(String name) => _cached('color', name, () => evalColor(_need(name), ctx: css).toColor());
+
+  /// The colour in the space the sheets write it in, for mixing.
+  Oklch oklch(String name) => _cached('oklch', name, () => evalColor(_need(name), ctx: css));
+
+  Duration duration(String name) => _cached('duration', name, () => evalDuration(_need(name)));
+
+  Curve curve(String name) => _cached('curve', name, () => evalCurve(_need(name)));
+
+  /// A property written as a time and an easing together, as the app's `--app-pop` is.
+  ({Duration duration, Curve curve}) transition(String name) => _cached('transition', name, () => evalTransition(_need(name)));
+
+  List<CssShadow> cssShadows(String name) => _cached('shadows', name, () => evalShadows(_need(name), ctx: css));
+
+  /// The outer layers of a `box-shadow` token, as Flutter draws them.
+  List<BoxShadow> shadow(String name) => _cached('shadow', name, () => cssShadows(name).where((s) => !s.inset).map((s) => s.toBoxShadow()).toList());
+
+  /// A gradient token made for [size], or null where the token is `none`.
+  Gradient? gradient(String name, [Size size = const Size(1, 1)]) => evalGradient(_need(name), ctx: css)?.toGradient(size);
+
+  /// The fonts a `font-family` token names that the app ships, first choice first.
+  List<String> families(String name) => _cached(
+        'families',
+        name,
+        () => splitTop(_need(name), ',').map((f) => f.replaceAll(RegExp('''^['"]|['"]\$'''), '')).where((f) => !_genericFamilies.contains(f.toLowerCase())).toList(),
+      );
+
+  // --- by value --------------------------------------------------------------------------------------------------
+
+  /// A CSS expression worked out here, for a rule that computes its own: `calc(var(--glacier-space-10) * 0.74)`.
+  double lenOf(String expression, {double? em}) => evalNumber(resolve(expression), em == null ? css : css.withEm(em));
+
+  Color colorOf(String expression, {Color? current}) =>
+      evalColor(resolve(expression), ctx: css, current: current == null ? null : Oklch.fromColor(current)).toColor();
+
+  List<BoxShadow> shadowOf(String expression, {Color? current}) =>
+      evalShadows(resolve(expression), ctx: css, current: current == null ? null : Oklch.fromColor(current)).where((s) => !s.inset).map((s) => s.toBoxShadow()).toList();
+
+  Gradient? gradientOf(String expression, [Size size = const Size(1, 1)]) => evalGradient(resolve(expression), ctx: css)?.toGradient(size);
+
+  // --- the kit's own scales, by their short names ---------------------------------------------------------------------
+
+  /// `--glacier-space-N`: 0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24.
+  double space(int step) => len('glacier-space-$step');
+
+  /// `--glacier-radius-NAME`: none, xs, sm, md, lg, xl, 2xl, full.
+  double radius(String name) => len('glacier-radius-$name');
+
+  /// `--glacier-font-size-NAME`: xs, sm, md, lg, xl, 2xl, 3xl, 4xl, 5xl.
+  double fontSize(String name) => len('glacier-font-size-$name');
+
+  FontWeight weight(String name) => _weight(len('glacier-font-weight-$name'));
+
+  static FontWeight _weight(double value) => FontWeight.values[((value / 100).round() - 1).clamp(0, 8)];
+
+  /// The kit's text at a step of its scale: size, leading and tracking together, in the sans face unless [mono].
+  TextStyle text(String size, {String weight = 'regular', bool mono = false, Color? color}) {
+    final px = fontSize(size);
+    final fonts = families(mono ? 'glacier-font-mono' : 'glacier-font-sans');
+    return TextStyle(
+      fontFamily: fonts.isEmpty ? null : fonts.first,
+      fontFamilyFallback: fonts.length > 1 ? fonts.sublist(1) : null,
+      fontSize: px,
+      height: len('glacier-leading-$size'),
+      leadingDistribution: TextLeadingDistribution.even,
+      letterSpacing: len('glacier-tracking-$size', em: px),
+      fontWeight: this.weight(weight),
+      fontVariations: [FontVariation('wght', len('glacier-font-weight-$weight'))],
+      color: color ?? this.color('glacier-text'),
+      decoration: TextDecoration.none,
+    );
+  }
+}
