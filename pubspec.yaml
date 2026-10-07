@@ -27,6 +27,12 @@ flutter:
     - assets/css/app.css
     - assets/css/typefaces.css
     - assets/launch/ghost-icon-eyeless.webp
+    # The ghost's scenes (lib/art/ghost.dart), the web app's own masks from src/app/art/ghosts.
+    - assets/art/ghosts/
+  # The wisp (lib/art/): feTurbulence and feDisplacementMap as fragment shaders.
+  shaders:
+    - shaders/wisp_bend.frag
+    - shaders/wisp_merge.frag
   fonts:
     # The faces the web app ships (@fontsource-variable/inter, @fontsource/maple-mono), converted from their woff2
     # by tool/fonts.py. Inter comes in subsets, as it does on the page: Latin is the family, the rest fall back.
