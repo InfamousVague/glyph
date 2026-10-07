@@ -245,7 +245,9 @@ class Tokens {
       leadingDistribution: TextLeadingDistribution.even,
       letterSpacing: len('glacier-tracking-$size', em: px),
       fontWeight: this.weight(weight),
-      fontVariations: [FontVariation('wght', len('glacier-font-weight-$weight'))],
+      // `font-optical-sizing: auto`, a page's default: a face with an optical size axis (Inter's runs 14 to 32) is
+      // drawn at the cut for its size, which is narrower as it grows. A face without the axis ignores this.
+      fontVariations: [FontVariation('wght', len('glacier-font-weight-$weight')), if (!mono) FontVariation('opsz', px)],
       color: color ?? this.color('glacier-text'),
       decoration: TextDecoration.none,
     );

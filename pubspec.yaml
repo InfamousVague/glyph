@@ -26,6 +26,7 @@ flutter:
     - assets/css/ink.css
     - assets/css/app.css
     - assets/css/typefaces.css
+    - assets/launch/ghost-icon-eyeless.webp
   fonts:
     # The faces the web app ships (@fontsource-variable/inter, @fontsource/maple-mono), converted from their woff2
     # by tool/fonts.py. Inter comes in subsets, as it does on the page: Latin is the family, the rest fall back.
