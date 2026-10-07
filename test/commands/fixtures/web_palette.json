@@ -1,0 +1,3761 @@
+{
+ "phone-dark-empty": {
+  "panel": [
+   26.77,
+   101.27,
+   336.47,
+   448
+  ],
+  "field": [
+   36.69,
+   111.19,
+   316.63,
+   44
+  ],
+  "list": [
+   36.69,
+   164.11,
+   316.63,
+   335.23
+  ],
+  "scrollHeight": 1460,
+  "footer": [
+   36.69,
+   508.27,
+   316.63,
+   31.08
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "NOTES",
+    "rect": [
+     36.69,
+     164.11,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "New note | ⌘N",
+    "rect": [
+     36.69,
+     191.48,
+     316.63,
+     36.91
+    ],
+    "selected": true
+   },
+   {
+    "kind": "row",
+    "text": "New notebook",
+    "rect": [
+     36.69,
+     228.39,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "New journal",
+    "rect": [
+     36.69,
+     262.23,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Speak a new note",
+    "rect": [
+     36.69,
+     296.08,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Home",
+    "rect": [
+     36.69,
+     329.92,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "All notes",
+    "rect": [
+     36.69,
+     363.77,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "head",
+    "text": "WORKSPACES",
+    "rect": [
+     36.69,
+     397.61,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Show Work",
+    "rect": [
+     36.69,
+     424.98,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Show Home",
+    "rect": [
+     36.69,
+     458.83,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "head",
+    "text": "NOTES BY NAME",
+    "rect": [
+     36.69,
+     492.67,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Fix the sign-in loop",
+    "rect": [
+     36.69,
+     520.05,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Monday standup",
+    "rect": [
+     36.69,
+     553.89,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Flat",
+    "rect": [
+     36.69,
+     587.73,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Open tickets",
+    "rect": [
+     36.69,
+     621.58,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open This sprint",
+    "rect": [
+     36.69,
+     655.42,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Reading list",
+    "rect": [
+     36.69,
+     689.27,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Weekend trip",
+    "rect": [
+     36.69,
+     723.11,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Groceries",
+    "rect": [
+     36.69,
+     756.95,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open House TODOs",
+    "rect": [
+     36.69,
+     790.8,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Pricing page copy",
+    "rect": [
+     36.69,
+     824.64,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Launch week",
+    "rect": [
+     36.69,
+     858.48,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Product",
+    "rect": [
+     36.69,
+     892.33,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Release notes",
+    "rect": [
+     36.69,
+     926.17,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open The coast",
+    "rect": [
+     36.69,
+     960.02,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Lisbon, the first three days",
+    "rect": [
+     36.69,
+     993.86,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Packing",
+    "rect": [
+     36.69,
+     1027.7,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Portugal",
+    "rect": [
+     36.69,
+     1061.55,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Offline search",
+    "rect": [
+     36.69,
+     1095.39,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Cabin weekend, laid out",
+    "rect": [
+     36.69,
+     1129.23,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Planning call with Sam",
+    "rect": [
+     36.69,
+     1163.08,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "head",
+    "text": "LOOK",
+    "rect": [
+     36.69,
+     1196.92,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Follow the phone",
+    "rect": [
+     36.69,
+     1224.3,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Light",
+    "rect": [
+     36.69,
+     1258.14,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Dawn",
+    "rect": [
+     36.69,
+     1291.98,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Boreal",
+    "rect": [
+     36.69,
+     1325.83,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Ember",
+    "rect": [
+     36.69,
+     1359.67,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "head",
+    "text": "GHOST.MD",
+    "rect": [
+     36.69,
+     1393.52,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Settings",
+    "rect": [
+     36.69,
+     1420.89,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Notifications",
+    "rect": [
+     36.69,
+     1454.73,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Organizations",
+    "rect": [
+     36.69,
+     1488.58,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Cheat sheet",
+    "rect": [
+     36.69,
+     1522.42,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Ghost.md Academy",
+    "rect": [
+     36.69,
+     1556.27,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "The welcome walkthrough",
+    "rect": [
+     36.69,
+     1590.11,
+     316.63,
+     33.84
+    ]
+   }
+  ],
+  "kbd": [
+   314.36,
+   200.41,
+   25.56,
+   19.06
+  ]
+ },
+ "phone-dark-Weekend trip": {
+  "panel": [
+   26.77,
+   101.27,
+   336.47,
+   173.98
+  ],
+  "field": [
+   36.69,
+   111.19,
+   316.63,
+   44
+  ],
+  "list": [
+   36.69,
+   164.11,
+   316.63,
+   61.22
+  ],
+  "scrollHeight": 61,
+  "footer": [
+   36.69,
+   234.25,
+   316.63,
+   31.08
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "NOTES BY NAME",
+    "rect": [
+     36.69,
+     164.11,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Weekend trip",
+    "rect": [
+     36.69,
+     191.48,
+     316.63,
+     33.84
+    ],
+    "selected": true
+   }
+  ]
+ },
+ "phone-dark-set": {
+  "panel": [
+   26.77,
+   101.27,
+   336.47,
+   173.98
+  ],
+  "field": [
+   36.69,
+   111.19,
+   316.63,
+   44
+  ],
+  "list": [
+   36.69,
+   164.11,
+   316.63,
+   61.22
+  ],
+  "scrollHeight": 61,
+  "footer": [
+   36.69,
+   234.25,
+   316.63,
+   31.08
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "GHOST.MD",
+    "rect": [
+     36.69,
+     164.11,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Settings",
+    "rect": [
+     36.69,
+     191.48,
+     316.63,
+     33.84
+    ],
+    "selected": true
+   }
+  ]
+ },
+ "phone-dark-theme": {
+  "panel": [
+   26.77,
+   101.27,
+   336.47,
+   309.36
+  ],
+  "field": [
+   36.69,
+   111.19,
+   316.63,
+   44
+  ],
+  "list": [
+   36.69,
+   164.11,
+   316.63,
+   196.59
+  ],
+  "scrollHeight": 197,
+  "footer": [
+   36.69,
+   369.63,
+   316.63,
+   31.08
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "LOOK",
+    "rect": [
+     36.69,
+     164.11,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Follow the phone",
+    "rect": [
+     36.69,
+     191.48,
+     316.63,
+     33.84
+    ],
+    "selected": true
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Light",
+    "rect": [
+     36.69,
+     225.33,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Dawn",
+    "rect": [
+     36.69,
+     259.17,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Boreal",
+    "rect": [
+     36.69,
+     293.02,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Ember",
+    "rect": [
+     36.69,
+     326.86,
+     316.63,
+     33.84
+    ]
+   }
+  ]
+ },
+ "phone-dark-Work": {
+  "panel": [
+   26.77,
+   101.27,
+   336.47,
+   207.83
+  ],
+  "field": [
+   36.69,
+   111.19,
+   316.63,
+   44
+  ],
+  "list": [
+   36.69,
+   164.11,
+   316.63,
+   95.06
+  ],
+  "scrollHeight": 95,
+  "footer": [
+   36.69,
+   268.09,
+   316.63,
+   31.08
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "WORKSPACES",
+    "rect": [
+     36.69,
+     164.11,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Show Work",
+    "rect": [
+     36.69,
+     191.48,
+     316.63,
+     33.84
+    ],
+    "selected": true
+   },
+   {
+    "kind": "row",
+    "text": "workspace · Show Home",
+    "rect": [
+     36.69,
+     225.33,
+     316.63,
+     33.84
+    ]
+   }
+  ]
+ },
+ "phone-dark-zzzqq": {
+  "panel": [
+   26.77,
+   101.27,
+   336.47,
+   448
+  ],
+  "field": [
+   36.69,
+   111.19,
+   316.63,
+   44
+  ],
+  "list": null,
+  "scrollHeight": null,
+  "footer": [
+   36.69,
+   633.3,
+   316.63,
+   31.08
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [],
+  "ghost": [
+   97.08,
+   208.72,
+   195.83,
+   337.58
+  ],
+  "empty": [
+   36.69,
+   164.11,
+   316.63,
+   460.27
+  ]
+ },
+ "phone-dark-groc": {
+  "panel": [
+   26.77,
+   101.27,
+   336.47,
+   173.98
+  ],
+  "field": [
+   36.69,
+   111.19,
+   316.63,
+   44
+  ],
+  "list": [
+   36.69,
+   164.11,
+   316.63,
+   61.22
+  ],
+  "scrollHeight": 61,
+  "footer": [
+   36.69,
+   234.25,
+   316.63,
+   31.08
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "NOTES BY NAME",
+    "rect": [
+     36.69,
+     164.11,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Groceries",
+    "rect": [
+     36.69,
+     191.48,
+     316.63,
+     33.84
+    ],
+    "selected": true
+   }
+  ]
+ },
+ "phone-dark-new": {
+  "panel": [
+   26.77,
+   101.27,
+   336.47,
+   278.58
+  ],
+  "field": [
+   36.69,
+   111.19,
+   316.63,
+   44
+  ],
+  "list": [
+   36.69,
+   164.11,
+   316.63,
+   165.81
+  ],
+  "scrollHeight": 166,
+  "footer": [
+   36.69,
+   338.84,
+   316.63,
+   31.08
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "NOTES",
+    "rect": [
+     36.69,
+     164.11,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "New note | ⌘N",
+    "rect": [
+     36.69,
+     191.48,
+     316.63,
+     36.91
+    ],
+    "selected": true
+   },
+   {
+    "kind": "row",
+    "text": "New notebook",
+    "rect": [
+     36.69,
+     228.39,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "New journal",
+    "rect": [
+     36.69,
+     262.23,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Speak a new note",
+    "rect": [
+     36.69,
+     296.08,
+     316.63,
+     33.84
+    ]
+   }
+  ],
+  "kbd": [
+   314.36,
+   200.41,
+   25.56,
+   19.06
+  ]
+ },
+ "phone-light-empty": {
+  "panel": [
+   26.77,
+   101.27,
+   336.47,
+   448
+  ],
+  "field": [
+   36.69,
+   111.19,
+   316.63,
+   44
+  ],
+  "list": [
+   36.69,
+   164.11,
+   316.63,
+   335.23
+  ],
+  "scrollHeight": 1460,
+  "footer": [
+   36.69,
+   508.27,
+   316.63,
+   31.08
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "NOTES",
+    "rect": [
+     36.69,
+     164.11,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "New note | ⌘N",
+    "rect": [
+     36.69,
+     191.48,
+     316.63,
+     36.91
+    ],
+    "selected": true
+   },
+   {
+    "kind": "row",
+    "text": "New notebook",
+    "rect": [
+     36.69,
+     228.39,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "New journal",
+    "rect": [
+     36.69,
+     262.23,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Speak a new note",
+    "rect": [
+     36.69,
+     296.08,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Home",
+    "rect": [
+     36.69,
+     329.92,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "All notes",
+    "rect": [
+     36.69,
+     363.77,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "head",
+    "text": "WORKSPACES",
+    "rect": [
+     36.69,
+     397.61,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Show Work",
+    "rect": [
+     36.69,
+     424.98,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Show Home",
+    "rect": [
+     36.69,
+     458.83,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "head",
+    "text": "NOTES BY NAME",
+    "rect": [
+     36.69,
+     492.67,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Fix the sign-in loop",
+    "rect": [
+     36.69,
+     520.05,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Monday standup",
+    "rect": [
+     36.69,
+     553.89,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Flat",
+    "rect": [
+     36.69,
+     587.73,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Open tickets",
+    "rect": [
+     36.69,
+     621.58,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open This sprint",
+    "rect": [
+     36.69,
+     655.42,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Reading list",
+    "rect": [
+     36.69,
+     689.27,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Weekend trip",
+    "rect": [
+     36.69,
+     723.11,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Groceries",
+    "rect": [
+     36.69,
+     756.95,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open House TODOs",
+    "rect": [
+     36.69,
+     790.8,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Pricing page copy",
+    "rect": [
+     36.69,
+     824.64,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Launch week",
+    "rect": [
+     36.69,
+     858.48,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Product",
+    "rect": [
+     36.69,
+     892.33,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Release notes",
+    "rect": [
+     36.69,
+     926.17,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open The coast",
+    "rect": [
+     36.69,
+     960.02,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Lisbon, the first three days",
+    "rect": [
+     36.69,
+     993.86,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Packing",
+    "rect": [
+     36.69,
+     1027.7,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Portugal",
+    "rect": [
+     36.69,
+     1061.55,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Offline search",
+    "rect": [
+     36.69,
+     1095.39,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Cabin weekend, laid out",
+    "rect": [
+     36.69,
+     1129.23,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Planning call with Sam",
+    "rect": [
+     36.69,
+     1163.08,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "head",
+    "text": "LOOK",
+    "rect": [
+     36.69,
+     1196.92,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Follow the phone",
+    "rect": [
+     36.69,
+     1224.3,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Dark",
+    "rect": [
+     36.69,
+     1258.14,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Dawn",
+    "rect": [
+     36.69,
+     1291.98,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Boreal",
+    "rect": [
+     36.69,
+     1325.83,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Ember",
+    "rect": [
+     36.69,
+     1359.67,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "head",
+    "text": "GHOST.MD",
+    "rect": [
+     36.69,
+     1393.52,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Settings",
+    "rect": [
+     36.69,
+     1420.89,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Notifications",
+    "rect": [
+     36.69,
+     1454.73,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Organizations",
+    "rect": [
+     36.69,
+     1488.58,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Cheat sheet",
+    "rect": [
+     36.69,
+     1522.42,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Ghost.md Academy",
+    "rect": [
+     36.69,
+     1556.27,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "The welcome walkthrough",
+    "rect": [
+     36.69,
+     1590.11,
+     316.63,
+     33.84
+    ]
+   }
+  ],
+  "kbd": [
+   314.36,
+   200.41,
+   25.56,
+   19.06
+  ]
+ },
+ "phone-light-Weekend trip": {
+  "panel": [
+   26.77,
+   101.27,
+   336.47,
+   173.98
+  ],
+  "field": [
+   36.69,
+   111.19,
+   316.63,
+   44
+  ],
+  "list": [
+   36.69,
+   164.11,
+   316.63,
+   61.22
+  ],
+  "scrollHeight": 61,
+  "footer": [
+   36.69,
+   234.25,
+   316.63,
+   31.08
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "NOTES BY NAME",
+    "rect": [
+     36.69,
+     164.11,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Weekend trip",
+    "rect": [
+     36.69,
+     191.48,
+     316.63,
+     33.84
+    ],
+    "selected": true
+   }
+  ]
+ },
+ "phone-light-set": {
+  "panel": [
+   26.77,
+   101.27,
+   336.47,
+   173.98
+  ],
+  "field": [
+   36.69,
+   111.19,
+   316.63,
+   44
+  ],
+  "list": [
+   36.69,
+   164.11,
+   316.63,
+   61.22
+  ],
+  "scrollHeight": 61,
+  "footer": [
+   36.69,
+   234.25,
+   316.63,
+   31.08
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "GHOST.MD",
+    "rect": [
+     36.69,
+     164.11,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Settings",
+    "rect": [
+     36.69,
+     191.48,
+     316.63,
+     33.84
+    ],
+    "selected": true
+   }
+  ]
+ },
+ "phone-light-theme": {
+  "panel": [
+   26.77,
+   101.27,
+   336.47,
+   309.36
+  ],
+  "field": [
+   36.69,
+   111.19,
+   316.63,
+   44
+  ],
+  "list": [
+   36.69,
+   164.11,
+   316.63,
+   196.59
+  ],
+  "scrollHeight": 197,
+  "footer": [
+   36.69,
+   369.63,
+   316.63,
+   31.08
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "LOOK",
+    "rect": [
+     36.69,
+     164.11,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Follow the phone",
+    "rect": [
+     36.69,
+     191.48,
+     316.63,
+     33.84
+    ],
+    "selected": true
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Dark",
+    "rect": [
+     36.69,
+     225.33,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Dawn",
+    "rect": [
+     36.69,
+     259.17,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Boreal",
+    "rect": [
+     36.69,
+     293.02,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Ember",
+    "rect": [
+     36.69,
+     326.86,
+     316.63,
+     33.84
+    ]
+   }
+  ]
+ },
+ "phone-light-Work": {
+  "panel": [
+   26.77,
+   101.27,
+   336.47,
+   207.83
+  ],
+  "field": [
+   36.69,
+   111.19,
+   316.63,
+   44
+  ],
+  "list": [
+   36.69,
+   164.11,
+   316.63,
+   95.06
+  ],
+  "scrollHeight": 95,
+  "footer": [
+   36.69,
+   268.09,
+   316.63,
+   31.08
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "WORKSPACES",
+    "rect": [
+     36.69,
+     164.11,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Show Work",
+    "rect": [
+     36.69,
+     191.48,
+     316.63,
+     33.84
+    ],
+    "selected": true
+   },
+   {
+    "kind": "row",
+    "text": "workspace · Show Home",
+    "rect": [
+     36.69,
+     225.33,
+     316.63,
+     33.84
+    ]
+   }
+  ]
+ },
+ "phone-light-zzzqq": {
+  "panel": [
+   26.77,
+   101.27,
+   336.47,
+   448
+  ],
+  "field": [
+   36.69,
+   111.19,
+   316.63,
+   44
+  ],
+  "list": null,
+  "scrollHeight": null,
+  "footer": [
+   36.69,
+   633.3,
+   316.63,
+   31.08
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [],
+  "ghost": [
+   97.08,
+   208.72,
+   195.83,
+   337.58
+  ],
+  "empty": [
+   36.69,
+   164.11,
+   316.63,
+   460.27
+  ]
+ },
+ "phone-light-groc": {
+  "panel": [
+   26.77,
+   101.27,
+   336.47,
+   173.98
+  ],
+  "field": [
+   36.69,
+   111.19,
+   316.63,
+   44
+  ],
+  "list": [
+   36.69,
+   164.11,
+   316.63,
+   61.22
+  ],
+  "scrollHeight": 61,
+  "footer": [
+   36.69,
+   234.25,
+   316.63,
+   31.08
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "NOTES BY NAME",
+    "rect": [
+     36.69,
+     164.11,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Groceries",
+    "rect": [
+     36.69,
+     191.48,
+     316.63,
+     33.84
+    ],
+    "selected": true
+   }
+  ]
+ },
+ "phone-light-new": {
+  "panel": [
+   26.77,
+   101.27,
+   336.47,
+   278.58
+  ],
+  "field": [
+   36.69,
+   111.19,
+   316.63,
+   44
+  ],
+  "list": [
+   36.69,
+   164.11,
+   316.63,
+   165.81
+  ],
+  "scrollHeight": 166,
+  "footer": [
+   36.69,
+   338.84,
+   316.63,
+   31.08
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "NOTES",
+    "rect": [
+     36.69,
+     164.11,
+     316.63,
+     27.38
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "New note | ⌘N",
+    "rect": [
+     36.69,
+     191.48,
+     316.63,
+     36.91
+    ],
+    "selected": true
+   },
+   {
+    "kind": "row",
+    "text": "New notebook",
+    "rect": [
+     36.69,
+     228.39,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "New journal",
+    "rect": [
+     36.69,
+     262.23,
+     316.63,
+     33.84
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Speak a new note",
+    "rect": [
+     36.69,
+     296.08,
+     316.63,
+     33.84
+    ]
+   }
+  ],
+  "kbd": [
+   314.36,
+   200.41,
+   25.56,
+   19.06
+  ]
+ },
+ "wide-dark-empty": {
+  "panel": [
+   384,
+   96,
+   512,
+   448
+  ],
+  "field": [
+   395.53,
+   107.53,
+   488.94,
+   44
+  ],
+  "list": [
+   395.53,
+   162.06,
+   488.94,
+   325.92
+  ],
+  "scrollHeight": 1636,
+  "footer": [
+   395.53,
+   498.52,
+   488.94,
+   33.95
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "NOTES",
+    "rect": [
+     395.53,
+     162.06,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "New note | ⌘N",
+    "rect": [
+     395.53,
+     191.86,
+     488.94,
+     41.06
+    ],
+    "selected": true
+   },
+   {
+    "kind": "row",
+    "text": "New notebook",
+    "rect": [
+     395.53,
+     232.92,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "New journal",
+    "rect": [
+     395.53,
+     270.98,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Speak a new note",
+    "rect": [
+     395.53,
+     309.05,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Home",
+    "rect": [
+     395.53,
+     347.11,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "All notes",
+    "rect": [
+     395.53,
+     385.17,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "head",
+    "text": "WORKSPACES",
+    "rect": [
+     395.53,
+     423.23,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Show Work",
+    "rect": [
+     395.53,
+     453.03,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Show Home",
+    "rect": [
+     395.53,
+     491.09,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "head",
+    "text": "NOTES BY NAME",
+    "rect": [
+     395.53,
+     529.16,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Fix the sign-in loop",
+    "rect": [
+     395.53,
+     558.95,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Monday standup",
+    "rect": [
+     395.53,
+     597.02,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Flat",
+    "rect": [
+     395.53,
+     635.08,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Open tickets",
+    "rect": [
+     395.53,
+     673.14,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open This sprint",
+    "rect": [
+     395.53,
+     711.2,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Reading list",
+    "rect": [
+     395.53,
+     749.27,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Weekend trip",
+    "rect": [
+     395.53,
+     787.33,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Groceries",
+    "rect": [
+     395.53,
+     825.39,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open House TODOs",
+    "rect": [
+     395.53,
+     863.45,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Pricing page copy",
+    "rect": [
+     395.53,
+     901.52,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Launch week",
+    "rect": [
+     395.53,
+     939.58,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Product",
+    "rect": [
+     395.53,
+     977.64,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Release notes",
+    "rect": [
+     395.53,
+     1015.7,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open The coast",
+    "rect": [
+     395.53,
+     1053.77,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Lisbon, the first three days",
+    "rect": [
+     395.53,
+     1091.83,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Packing",
+    "rect": [
+     395.53,
+     1129.89,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Portugal",
+    "rect": [
+     395.53,
+     1167.95,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Offline search",
+    "rect": [
+     395.53,
+     1206.02,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Cabin weekend, laid out",
+    "rect": [
+     395.53,
+     1244.08,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Planning call with Sam",
+    "rect": [
+     395.53,
+     1282.14,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "head",
+    "text": "LOOK",
+    "rect": [
+     395.53,
+     1320.2,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Follow the phone",
+    "rect": [
+     395.53,
+     1350,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Light",
+    "rect": [
+     395.53,
+     1388.06,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Dawn",
+    "rect": [
+     395.53,
+     1426.13,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Boreal",
+    "rect": [
+     395.53,
+     1464.19,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Ember",
+    "rect": [
+     395.53,
+     1502.25,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "head",
+    "text": "GHOST.MD",
+    "rect": [
+     395.53,
+     1540.31,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Settings",
+    "rect": [
+     395.53,
+     1570.11,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Notifications",
+    "rect": [
+     395.53,
+     1608.17,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Organizations",
+    "rect": [
+     395.53,
+     1646.23,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Cheat sheet",
+    "rect": [
+     395.53,
+     1684.3,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Ghost.md Academy",
+    "rect": [
+     395.53,
+     1722.36,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "The welcome walkthrough",
+    "rect": [
+     395.53,
+     1760.42,
+     488.94,
+     38.06
+    ]
+   }
+  ],
+  "kbd": [
+   841.72,
+   202.39,
+   26.95,
+   20
+  ]
+ },
+ "wide-dark-Weekend trip": {
+  "panel": [
+   384,
+   96,
+   512,
+   189.94
+  ],
+  "field": [
+   395.53,
+   107.53,
+   488.94,
+   44
+  ],
+  "list": [
+   395.53,
+   162.06,
+   488.94,
+   67.86
+  ],
+  "scrollHeight": 68,
+  "footer": [
+   395.53,
+   240.45,
+   488.94,
+   33.95
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "NOTES BY NAME",
+    "rect": [
+     395.53,
+     162.06,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Weekend trip",
+    "rect": [
+     395.53,
+     191.86,
+     488.94,
+     38.06
+    ],
+    "selected": true
+   }
+  ]
+ },
+ "wide-dark-set": {
+  "panel": [
+   384,
+   96,
+   512,
+   189.94
+  ],
+  "field": [
+   395.53,
+   107.53,
+   488.94,
+   44
+  ],
+  "list": [
+   395.53,
+   162.06,
+   488.94,
+   67.86
+  ],
+  "scrollHeight": 68,
+  "footer": [
+   395.53,
+   240.45,
+   488.94,
+   33.95
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "GHOST.MD",
+    "rect": [
+     395.53,
+     162.06,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Settings",
+    "rect": [
+     395.53,
+     191.86,
+     488.94,
+     38.06
+    ],
+    "selected": true
+   }
+  ]
+ },
+ "wide-dark-theme": {
+  "panel": [
+   384,
+   96,
+   512,
+   342.19
+  ],
+  "field": [
+   395.53,
+   107.53,
+   488.94,
+   44
+  ],
+  "list": [
+   395.53,
+   162.06,
+   488.94,
+   220.11
+  ],
+  "scrollHeight": 220,
+  "footer": [
+   395.53,
+   392.7,
+   488.94,
+   33.95
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "LOOK",
+    "rect": [
+     395.53,
+     162.06,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Follow the phone",
+    "rect": [
+     395.53,
+     191.86,
+     488.94,
+     38.06
+    ],
+    "selected": true
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Light",
+    "rect": [
+     395.53,
+     229.92,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Dawn",
+    "rect": [
+     395.53,
+     267.98,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Boreal",
+    "rect": [
+     395.53,
+     306.05,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Ember",
+    "rect": [
+     395.53,
+     344.11,
+     488.94,
+     38.06
+    ]
+   }
+  ]
+ },
+ "wide-dark-Work": {
+  "panel": [
+   384,
+   96,
+   512,
+   228
+  ],
+  "field": [
+   395.53,
+   107.53,
+   488.94,
+   44
+  ],
+  "list": [
+   395.53,
+   162.06,
+   488.94,
+   105.92
+  ],
+  "scrollHeight": 106,
+  "footer": [
+   395.53,
+   278.52,
+   488.94,
+   33.95
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "WORKSPACES",
+    "rect": [
+     395.53,
+     162.06,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Show Work",
+    "rect": [
+     395.53,
+     191.86,
+     488.94,
+     38.06
+    ],
+    "selected": true
+   },
+   {
+    "kind": "row",
+    "text": "workspace · Show Home",
+    "rect": [
+     395.53,
+     229.92,
+     488.94,
+     38.06
+    ]
+   }
+  ]
+ },
+ "wide-dark-zzzqq": {
+  "panel": [
+   384,
+   96,
+   512,
+   448
+  ],
+  "field": [
+   395.53,
+   107.53,
+   488.94,
+   44
+  ],
+  "list": null,
+  "scrollHeight": null,
+  "footer": [
+   395.53,
+   634.98,
+   488.94,
+   33.95
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [],
+  "ghost": [
+   547.19,
+   214.73,
+   185.63,
+   320
+  ],
+  "empty": [
+   395.53,
+   162.06,
+   488.94,
+   462.39
+  ]
+ },
+ "wide-dark-groc": {
+  "panel": [
+   384,
+   96,
+   512,
+   189.94
+  ],
+  "field": [
+   395.53,
+   107.53,
+   488.94,
+   44
+  ],
+  "list": [
+   395.53,
+   162.06,
+   488.94,
+   67.86
+  ],
+  "scrollHeight": 68,
+  "footer": [
+   395.53,
+   240.45,
+   488.94,
+   33.95
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "NOTES BY NAME",
+    "rect": [
+     395.53,
+     162.06,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Groceries",
+    "rect": [
+     395.53,
+     191.86,
+     488.94,
+     38.06
+    ],
+    "selected": true
+   }
+  ]
+ },
+ "wide-dark-new": {
+  "panel": [
+   384,
+   96,
+   512,
+   307.13
+  ],
+  "field": [
+   395.53,
+   107.53,
+   488.94,
+   44
+  ],
+  "list": [
+   395.53,
+   162.06,
+   488.94,
+   185.05
+  ],
+  "scrollHeight": 185,
+  "footer": [
+   395.53,
+   357.64,
+   488.94,
+   33.95
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "NOTES",
+    "rect": [
+     395.53,
+     162.06,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "New note | ⌘N",
+    "rect": [
+     395.53,
+     191.86,
+     488.94,
+     41.06
+    ],
+    "selected": true
+   },
+   {
+    "kind": "row",
+    "text": "New notebook",
+    "rect": [
+     395.53,
+     232.92,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "New journal",
+    "rect": [
+     395.53,
+     270.98,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Speak a new note",
+    "rect": [
+     395.53,
+     309.05,
+     488.94,
+     38.06
+    ]
+   }
+  ],
+  "kbd": [
+   841.72,
+   202.39,
+   26.95,
+   20
+  ]
+ },
+ "wide-light-empty": {
+  "panel": [
+   384,
+   96,
+   512,
+   448
+  ],
+  "field": [
+   395.53,
+   107.53,
+   488.94,
+   44
+  ],
+  "list": [
+   395.53,
+   162.06,
+   488.94,
+   325.92
+  ],
+  "scrollHeight": 1636,
+  "footer": [
+   395.53,
+   498.52,
+   488.94,
+   33.95
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "NOTES",
+    "rect": [
+     395.53,
+     162.06,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "New note | ⌘N",
+    "rect": [
+     395.53,
+     191.86,
+     488.94,
+     41.06
+    ],
+    "selected": true
+   },
+   {
+    "kind": "row",
+    "text": "New notebook",
+    "rect": [
+     395.53,
+     232.92,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "New journal",
+    "rect": [
+     395.53,
+     270.98,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Speak a new note",
+    "rect": [
+     395.53,
+     309.05,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Home",
+    "rect": [
+     395.53,
+     347.11,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "All notes",
+    "rect": [
+     395.53,
+     385.17,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "head",
+    "text": "WORKSPACES",
+    "rect": [
+     395.53,
+     423.23,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Show Work",
+    "rect": [
+     395.53,
+     453.03,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Show Home",
+    "rect": [
+     395.53,
+     491.09,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "head",
+    "text": "NOTES BY NAME",
+    "rect": [
+     395.53,
+     529.16,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Fix the sign-in loop",
+    "rect": [
+     395.53,
+     558.95,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Monday standup",
+    "rect": [
+     395.53,
+     597.02,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Flat",
+    "rect": [
+     395.53,
+     635.08,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Open tickets",
+    "rect": [
+     395.53,
+     673.14,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open This sprint",
+    "rect": [
+     395.53,
+     711.2,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Reading list",
+    "rect": [
+     395.53,
+     749.27,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Weekend trip",
+    "rect": [
+     395.53,
+     787.33,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Groceries",
+    "rect": [
+     395.53,
+     825.39,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open House TODOs",
+    "rect": [
+     395.53,
+     863.45,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Pricing page copy",
+    "rect": [
+     395.53,
+     901.52,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Launch week",
+    "rect": [
+     395.53,
+     939.58,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Product",
+    "rect": [
+     395.53,
+     977.64,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Release notes",
+    "rect": [
+     395.53,
+     1015.7,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open The coast",
+    "rect": [
+     395.53,
+     1053.77,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Lisbon, the first three days",
+    "rect": [
+     395.53,
+     1091.83,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Packing",
+    "rect": [
+     395.53,
+     1129.89,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Portugal",
+    "rect": [
+     395.53,
+     1167.95,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Offline search",
+    "rect": [
+     395.53,
+     1206.02,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Cabin weekend, laid out",
+    "rect": [
+     395.53,
+     1244.08,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Planning call with Sam",
+    "rect": [
+     395.53,
+     1282.14,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "head",
+    "text": "LOOK",
+    "rect": [
+     395.53,
+     1320.2,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Follow the phone",
+    "rect": [
+     395.53,
+     1350,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Dark",
+    "rect": [
+     395.53,
+     1388.06,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Dawn",
+    "rect": [
+     395.53,
+     1426.13,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Boreal",
+    "rect": [
+     395.53,
+     1464.19,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Ember",
+    "rect": [
+     395.53,
+     1502.25,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "head",
+    "text": "GHOST.MD",
+    "rect": [
+     395.53,
+     1540.31,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Settings",
+    "rect": [
+     395.53,
+     1570.11,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Notifications",
+    "rect": [
+     395.53,
+     1608.17,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Organizations",
+    "rect": [
+     395.53,
+     1646.23,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Cheat sheet",
+    "rect": [
+     395.53,
+     1684.3,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Ghost.md Academy",
+    "rect": [
+     395.53,
+     1722.36,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "The welcome walkthrough",
+    "rect": [
+     395.53,
+     1760.42,
+     488.94,
+     38.06
+    ]
+   }
+  ],
+  "kbd": [
+   841.72,
+   202.39,
+   26.95,
+   20
+  ]
+ },
+ "wide-light-Weekend trip": {
+  "panel": [
+   384,
+   96,
+   512,
+   189.94
+  ],
+  "field": [
+   395.53,
+   107.53,
+   488.94,
+   44
+  ],
+  "list": [
+   395.53,
+   162.06,
+   488.94,
+   67.86
+  ],
+  "scrollHeight": 68,
+  "footer": [
+   395.53,
+   240.45,
+   488.94,
+   33.95
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "NOTES BY NAME",
+    "rect": [
+     395.53,
+     162.06,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Weekend trip",
+    "rect": [
+     395.53,
+     191.86,
+     488.94,
+     38.06
+    ],
+    "selected": true
+   }
+  ]
+ },
+ "wide-light-set": {
+  "panel": [
+   384,
+   96,
+   512,
+   189.94
+  ],
+  "field": [
+   395.53,
+   107.53,
+   488.94,
+   44
+  ],
+  "list": [
+   395.53,
+   162.06,
+   488.94,
+   67.86
+  ],
+  "scrollHeight": 68,
+  "footer": [
+   395.53,
+   240.45,
+   488.94,
+   33.95
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "GHOST.MD",
+    "rect": [
+     395.53,
+     162.06,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Settings",
+    "rect": [
+     395.53,
+     191.86,
+     488.94,
+     38.06
+    ],
+    "selected": true
+   }
+  ]
+ },
+ "wide-light-theme": {
+  "panel": [
+   384,
+   96,
+   512,
+   342.19
+  ],
+  "field": [
+   395.53,
+   107.53,
+   488.94,
+   44
+  ],
+  "list": [
+   395.53,
+   162.06,
+   488.94,
+   220.11
+  ],
+  "scrollHeight": 220,
+  "footer": [
+   395.53,
+   392.7,
+   488.94,
+   33.95
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "LOOK",
+    "rect": [
+     395.53,
+     162.06,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Follow the phone",
+    "rect": [
+     395.53,
+     191.86,
+     488.94,
+     38.06
+    ],
+    "selected": true
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Dark",
+    "rect": [
+     395.53,
+     229.92,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Dawn",
+    "rect": [
+     395.53,
+     267.98,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Boreal",
+    "rect": [
+     395.53,
+     306.05,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Theme: Ember",
+    "rect": [
+     395.53,
+     344.11,
+     488.94,
+     38.06
+    ]
+   }
+  ]
+ },
+ "wide-light-Work": {
+  "panel": [
+   384,
+   96,
+   512,
+   228
+  ],
+  "field": [
+   395.53,
+   107.53,
+   488.94,
+   44
+  ],
+  "list": [
+   395.53,
+   162.06,
+   488.94,
+   105.92
+  ],
+  "scrollHeight": 106,
+  "footer": [
+   395.53,
+   278.52,
+   488.94,
+   33.95
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "WORKSPACES",
+    "rect": [
+     395.53,
+     162.06,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Show Work",
+    "rect": [
+     395.53,
+     191.86,
+     488.94,
+     38.06
+    ],
+    "selected": true
+   },
+   {
+    "kind": "row",
+    "text": "workspace · Show Home",
+    "rect": [
+     395.53,
+     229.92,
+     488.94,
+     38.06
+    ]
+   }
+  ]
+ },
+ "wide-light-zzzqq": {
+  "panel": [
+   384,
+   96,
+   512,
+   448
+  ],
+  "field": [
+   395.53,
+   107.53,
+   488.94,
+   44
+  ],
+  "list": null,
+  "scrollHeight": null,
+  "footer": [
+   395.53,
+   634.98,
+   488.94,
+   33.95
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [],
+  "ghost": [
+   547.19,
+   214.73,
+   185.63,
+   320
+  ],
+  "empty": [
+   395.53,
+   162.06,
+   488.94,
+   462.39
+  ]
+ },
+ "wide-light-groc": {
+  "panel": [
+   384,
+   96,
+   512,
+   189.94
+  ],
+  "field": [
+   395.53,
+   107.53,
+   488.94,
+   44
+  ],
+  "list": [
+   395.53,
+   162.06,
+   488.94,
+   67.86
+  ],
+  "scrollHeight": 68,
+  "footer": [
+   395.53,
+   240.45,
+   488.94,
+   33.95
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "NOTES BY NAME",
+    "rect": [
+     395.53,
+     162.06,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Open Groceries",
+    "rect": [
+     395.53,
+     191.86,
+     488.94,
+     38.06
+    ],
+    "selected": true
+   }
+  ]
+ },
+ "wide-light-new": {
+  "panel": [
+   384,
+   96,
+   512,
+   307.13
+  ],
+  "field": [
+   395.53,
+   107.53,
+   488.94,
+   44
+  ],
+  "list": [
+   395.53,
+   162.06,
+   488.94,
+   185.05
+  ],
+  "scrollHeight": 185,
+  "footer": [
+   395.53,
+   357.64,
+   488.94,
+   33.95
+  ],
+  "placeholder": "What would you like to do?",
+  "rows": [
+   {
+    "kind": "head",
+    "text": "NOTES",
+    "rect": [
+     395.53,
+     162.06,
+     488.94,
+     29.8
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "New note | ⌘N",
+    "rect": [
+     395.53,
+     191.86,
+     488.94,
+     41.06
+    ],
+    "selected": true
+   },
+   {
+    "kind": "row",
+    "text": "New notebook",
+    "rect": [
+     395.53,
+     232.92,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "New journal",
+    "rect": [
+     395.53,
+     270.98,
+     488.94,
+     38.06
+    ]
+   },
+   {
+    "kind": "row",
+    "text": "Speak a new note",
+    "rect": [
+     395.53,
+     309.05,
+     488.94,
+     38.06
+    ]
+   }
+  ],
+  "kbd": [
+   841.72,
+   202.39,
+   26.95,
+   20
+  ]
+ },
+ "styles": {
+  "phone-dark": {
+   "row": {
+    "font-size": "13.3948px",
+    "font-weight": "400",
+    "line-height": "normal",
+    "letter-spacing": "normal",
+    "color": "oklch(0.965 0 0)",
+    "font-family": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+    "text-transform": "none",
+    "padding": "8.92667px 13.3907px",
+    "margin": "0px",
+    "border-radius": "10px",
+    "background-color": "oklch(0.17 0 0)",
+    "border": "0px none oklch(0.965 0 0)",
+    "gap": "13.3907px",
+    "max-height": "none",
+    "max-width": "none",
+    "box-shadow": "none",
+    "backdrop-filter": "none"
+   },
+   "head": {
+    "font-size": "11.1342px",
+    "font-weight": "500",
+    "line-height": "normal",
+    "letter-spacing": "0.44537px",
+    "color": "oklch(0.6 0 0)",
+    "font-family": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+    "text-transform": "uppercase",
+    "padding": "8.92667px 13.3907px 4.464px",
+    "margin": "0px",
+    "border-radius": "0px",
+    "background-color": "rgba(0, 0, 0, 0)",
+    "border": "0px none oklch(0.6 0 0)",
+    "gap": "normal",
+    "max-height": "none",
+    "max-width": "none",
+    "box-shadow": "none",
+    "backdrop-filter": "none"
+   },
+   "kbd": {
+    "font-size": "10.7159px",
+    "font-weight": "400",
+    "line-height": "10.7159px",
+    "letter-spacing": "normal",
+    "color": "oklch(0.8 0 0)",
+    "font-family": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "text-transform": "none",
+    "padding": "2.67897px 5.35793px",
+    "margin": "0px",
+    "border-radius": "6px",
+    "background-color": "oklch(0.14 0 0)",
+    "border": "",
+    "gap": "normal",
+    "max-height": "none",
+    "max-width": "none",
+    "box-shadow": "none",
+    "backdrop-filter": "none"
+   },
+   "panel": {
+    "padding": "8.92667px",
+    "margin": "0px",
+    "border-radius": "28px",
+    "background-color": "oklch(0.11 0 0 / 0.9)",
+    "border": "1px solid oklch(0.205 0 0)",
+    "gap": "8.92667px",
+    "max-height": "448px",
+    "max-width": "512px",
+    "box-shadow": "rgba(0, 0, 0, 0) 0px 1px 0px 0px inset, oklch(0.2 0.02 260 / 0.6) 0px 16px 32px -12px, oklch(0.2 0.02 260 / 0.45) 0px 32px 64px -12px",
+    "backdrop-filter": "blur(32px) saturate(1.8)",
+    "font-size": "16px",
+    "font-weight": "400",
+    "line-height": "normal",
+    "letter-spacing": "normal",
+    "color": "oklch(0.965 0 0)",
+    "font-family": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+    "text-transform": "none"
+   }
+  },
+  "wide-dark": {
+   "row": {
+    "font-size": "14.1754px",
+    "font-weight": "400",
+    "line-height": "normal",
+    "letter-spacing": "normal",
+    "color": "oklch(0.965 0 0)",
+    "font-family": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+    "text-transform": "none",
+    "padding": "10.5371px 15.8059px",
+    "margin": "0px",
+    "border-radius": "10px",
+    "background-color": "oklch(0.17 0 0)",
+    "border": "0px none oklch(0.965 0 0)",
+    "gap": "15.8059px",
+    "max-height": "none",
+    "max-width": "none",
+    "box-shadow": "none",
+    "backdrop-filter": "none"
+   },
+   "head": {
+    "font-size": "11.4333px",
+    "font-weight": "500",
+    "line-height": "normal",
+    "letter-spacing": "0.457331px",
+    "color": "oklch(0.6 0 0)",
+    "font-family": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+    "text-transform": "uppercase",
+    "padding": "10.5371px 15.8059px 5.26874px",
+    "margin": "0px",
+    "border-radius": "0px",
+    "background-color": "rgba(0, 0, 0, 0)",
+    "border": "0px none oklch(0.6 0 0)",
+    "gap": "normal",
+    "max-height": "none",
+    "max-width": "none",
+    "box-shadow": "none",
+    "backdrop-filter": "none"
+   },
+   "kbd": {
+    "font-size": "11.3403px",
+    "font-weight": "400",
+    "line-height": "11.3403px",
+    "letter-spacing": "normal",
+    "color": "oklch(0.8 0 0)",
+    "font-family": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "text-transform": "none",
+    "padding": "2.83507px 5.67014px",
+    "margin": "0px",
+    "border-radius": "6px",
+    "background-color": "oklch(0.14 0 0)",
+    "border": "",
+    "gap": "normal",
+    "max-height": "none",
+    "max-width": "none",
+    "box-shadow": "none",
+    "backdrop-filter": "none"
+   }
+  }
+ }
+}

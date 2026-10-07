@@ -2,6 +2,8 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../art/art.dart';
+import '../commands/app_commands.dart';
+import '../commands/command_bar.dart';
 import '../core/note.dart';
 import '../core/preferences.dart';
 import '../core/sample_library.dart';
@@ -15,6 +17,7 @@ import '../notes/note_tree.dart';
 import '../notes/notes_drawer.dart';
 import '../notes/notifications_drawer.dart';
 import '../notes/workspace_sheet.dart';
+import '../settings/settings_screen.dart';
 import '../settings/settings_sheet.dart';
 import '../shell/app_shell.dart';
 import '../shell/top_bar.dart';
@@ -27,8 +30,8 @@ import '../shell/top_bar.dart';
 /// - **The library** is [SampleLibrary], the invented notes the store's screenshots are taken over, held in memory:
 ///   pinning, archiving, deleting to a trash and making a note all work and none of it is kept (stage 3).
 /// - **A note's own screen** is the shell's stand-in, its title over its Markdown as written (stage 4).
-/// - **Search and commands**, **Speak**, organizations and the notifications' feed are not here yet: the dock and
-///   the sidebar leave those buttons out, and the bell opens an empty card (stages 5, 7 and 8).
+/// - **Speak**, organizations and the notifications' feed are not here yet: the dock leaves Speak out, and the bell
+///   opens an empty card (stages 7 and 8). The command bar has every command whose feature exists.
 class GhostRoot extends StatefulWidget {
   const GhostRoot({super.key, this.sheet, this.library, this.workspaces, this.stored, this.launch = true});
 
@@ -56,6 +59,12 @@ class _GhostRootState extends State<GhostRoot> {
   late final Listenable _all = Listenable.merge([_library, _workspaces, preferences]);
 
   final GlobalKey<AppShellState> _shell = GlobalKey<AppShellState>();
+  final GlobalKey<CommandBarState> _commands = GlobalKey<CommandBarState>();
+
+  /// Settings asked for at a page, by when it was asked (settings/settings_sheet.dart `toPage`).
+  SettingsTarget? _settingsPage;
+
+  void _search() => _commands.currentState?.show();
 
   /// The trash: what was deleted, newest first, until it is emptied.
   final List<Note> _trashed = [];
@@ -112,7 +121,10 @@ class _GhostRootState extends State<GhostRoot> {
   void _new(AppShellState shell) {
     final note = _library.create('');
     _workspaces.fileNewNote(note.id);
-    shell.openNote(note.id);
+    // Once the shell has been handed the library with the note in it: it opens only what it has.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) shell.openNote(note.id);
+    });
   }
 
   List<String> _notesIn(String workspaceId) => [
@@ -135,6 +147,7 @@ class _GhostRootState extends State<GhostRoot> {
         _new(shell);
       },
       onClose: onClose,
+      onCommands: _search,
       onSettings: () {
         onClose?.call();
         setState(() => _settings = true);
@@ -181,6 +194,7 @@ class _GhostRootState extends State<GhostRoot> {
                 onOpen: shell.openNote,
                 onNew: () => _new(shell),
                 onAllNotes: shell.showAllNotes,
+                onSearch: _search,
                 onSwipe: _swipe,
                 onRefresh: _library.refresh,
                 onManageWorkspace: (workspace) => setState(() => _workspace = (editing: workspace)),
@@ -211,6 +225,7 @@ class _GhostRootState extends State<GhostRoot> {
                   _new(shell);
                 },
                 onClose: close,
+                onCommands: _search,
                 onSettings: () {
                   close();
                   setState(() => _settings = true);
@@ -240,7 +255,23 @@ class _GhostRootState extends State<GhostRoot> {
                 },
               ),
             ),
-            SettingsSheet(open: _settings, onClose: () => setState(() => _settings = false)),
+            SettingsSheet(open: _settings, toPage: _settingsPage, onClose: () => setState(() => _settings = false)),
+            CommandBar.over(
+              key: _commands,
+              world: () => paletteWorldFor(shell: _shell.currentState!, workspaces: _workspaces.value, prefs: preferences.value),
+              doing: () => paletteDoingFor(
+                shell: _shell.currentState!,
+                library: _library,
+                workspaces: _workspaces,
+                newNote: () => _new(_shell.currentState!),
+                removeNote: _delete,
+                settings: () => setState(() => _settings = true),
+                settingsPage: (id) => setState(() {
+                  _settings = true;
+                  _settingsPage = SettingsTarget(id, nonce: DateTime.now().microsecondsSinceEpoch);
+                }),
+              ),
+            ),
             if (_workspace case final sheet?)
               WorkspaceManageSheet(
                 store: _workspaces,
