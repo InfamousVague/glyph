@@ -143,9 +143,7 @@ class _GlacierDensitySelectorState extends State<GlacierDensitySelector> {
     final disabled = widget.disabled;
     // `opacity: var(--glacier-opacity-disabled)`, which is no opacity at all while the token is undefined.
     final dimmed = t.raw('glacier-opacity-disabled') == null ? 1.0 : t.len('glacier-opacity-disabled');
-    final style = t
-        .text('sm', weight: 'medium', color: t.color(selected ? 'glacier-text' : 'glacier-text-muted'))
-        .copyWith(fontSize: t.lenOf('0.675rem'), height: t.len('glacier-leading-sm'));
+    final style = Tokens.resized(t.text('sm', weight: 'medium', color: t.color(selected ? 'glacier-text' : 'glacier-text-muted')), t.lenOf('0.675rem'));
     return Semantics(
       container: true,
       inMutuallyExclusiveGroup: true,

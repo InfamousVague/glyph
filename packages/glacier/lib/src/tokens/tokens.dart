@@ -234,16 +234,25 @@ class Tokens {
   /// The kit's text at a step of its scale: size, leading and tracking together, in the sans face unless [mono].
   TextStyle text(String size, {String weight = 'regular', bool mono = false, Color? color}) {
     final px = fontSize(size);
+    return textAt(px, weight: weight, mono: mono, color: color, height: len('glacier-leading-$size'), tracking: len('glacier-tracking-$size', em: px), inherit: true);
+  }
+
+  /// Text at a size of the caller's own, as a page sets it outside the kit's components: `line-height: normal` unless
+  /// [height] is given (a multiple, as a unitless line-height is), no tracking unless [tracking] (in px), the sans
+  /// face unless [mono]. Not inherited unless asked, so that a null [height] is the face's own and not the leading of
+  /// whatever default style stands above.
+  TextStyle textAt(double px, {String weight = 'regular', bool mono = false, Color? color, double? height, double tracking = 0, bool inherit = false}) {
     final fonts = families(mono ? 'glacier-font-mono' : 'glacier-font-sans');
     final fallback = [...fonts.skip(1), for (final family in fonts) ...?typography.fallbacks[family]];
     return TextStyle(
+      inherit: inherit,
       fontFamily: fonts.isEmpty ? null : fonts.first,
       fontFamilyFallback: fallback.isEmpty ? null : fallback,
       fontFeatures: mono || typography.features.isEmpty ? null : typography.features,
       fontSize: px,
-      height: len('glacier-leading-$size'),
+      height: height,
       leadingDistribution: TextLeadingDistribution.even,
-      letterSpacing: len('glacier-tracking-$size', em: px),
+      letterSpacing: tracking,
       fontWeight: this.weight(weight),
       // `font-optical-sizing: auto`, a page's default: a face with an optical size axis (Inter's runs 14 to 32) is
       // drawn at the cut for its size, which is narrower as it grows. A face without the axis ignores this.
@@ -252,4 +261,14 @@ class Tokens {
       decoration: TextDecoration.none,
     );
   }
+
+  /// [style] at another size, with the optical size that goes with it: `copyWith(fontSize:)` alone would keep the cut
+  /// of the size it was made at.
+  static TextStyle resized(TextStyle style, double px) => style.copyWith(
+        fontSize: px,
+        fontVariations: [
+          for (final variation in style.fontVariations ?? const <FontVariation>[])
+            variation.axis == 'opsz' ? FontVariation('opsz', px) : variation,
+        ],
+      );
 }

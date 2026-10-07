@@ -203,7 +203,7 @@ class _LaunchScreenState extends State<LaunchScreen> {
 
     final still = t.reducedMotion;
     final ease = t.curve('glacier-ease-out');
-    final name = t.text('2xl', weight: 'bold');
+    final title = t.fontSize('2xl');
     final small = t.fontSize('sm');
     // `.launch`: a grid with everything in its middle, `--glacier-space-3` between the three; the name's own margins
     // (space-2 above, space-3 below) add to that, as a grid's gaps and its items' margins do not collapse.
@@ -230,7 +230,8 @@ class _LaunchScreenState extends State<LaunchScreen> {
                     delay: const Duration(milliseconds: 60),
                     curve: ease,
                     still: still,
-                    child: Text('Ghost.md', style: _normal(name).copyWith(letterSpacing: t.len('app-tracking-title', em: name.fontSize!))),
+                    // `.name`: the page's own text, `line-height: normal`, where the kit's sizes carry a leading of their own.
+                    child: Text('Ghost.md', style: t.textAt(title, weight: 'bold', tracking: t.len('app-tracking-title', em: title))),
                   ),
                   SizedBox(height: t.space(3) + t.space(3)),
                   // `.lines`: a grid at least 5.4em tall whose rows share what is left over, each line in the middle
@@ -265,20 +266,6 @@ class _LaunchScreenState extends State<LaunchScreen> {
   }
 }
 
-/// The page's own text: `line-height: normal` and no tracking, where the kit's sizes carry a leading of their own.
-TextStyle _normal(TextStyle style) => TextStyle(
-      // Not inherited: the page's default style above this carries the kit's leading, and a null here would take it.
-      inherit: false,
-      fontFamily: style.fontFamily,
-      fontFamilyFallback: style.fontFamilyFallback,
-      fontFeatures: style.fontFeatures,
-      fontSize: style.fontSize,
-      fontWeight: style.fontWeight,
-      fontVariations: style.fontVariations,
-      color: style.color,
-      decoration: TextDecoration.none,
-    );
-
 /// `.line`: its mark, then its words; in the page's ink once done, muted until then.
 class _LineRow extends StatelessWidget {
   const _LineRow({required this.line, required this.still});
@@ -308,7 +295,7 @@ class _LineRow extends StatelessWidget {
           ),
         ),
         SizedBox(width: 0.55 * em),
-        Text(line.words, style: _normal(t.text('sm', color: color))),
+        Text(line.words, style: t.textAt(em, color: color)),
       ],
     );
   }
