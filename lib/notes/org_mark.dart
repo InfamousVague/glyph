@@ -40,7 +40,7 @@ class OrgMark extends StatelessWidget {
         label: 'Organization',
         image: true,
         // `inline-size: 0.9em; block-size: 0.9em; color: currentColor; opacity: 0.85`
-        child: ExcludeSemantics(child: lucide(LucideIcons.userGroup, size: 0.9 * size, color: ink.withValues(alpha: ink.a * 0.85))),
+        child: ExcludeSemantics(child: lucide(Lucide.userGroup, size: 0.9 * size, strokeWidth: 2.2, color: ink.withValues(alpha: ink.a * 0.85))),
       ),
     );
   }

@@ -17,6 +17,7 @@ import 'package:ghost_md/sheet/css.dart';
 import 'package:ghost_md/sheet/sheet.dart';
 import 'package:glacier/glacier.dart';
 
+import '../support/icons.dart';
 import '../support/render.dart';
 import 'support.dart';
 
@@ -110,7 +111,7 @@ void main() {
       expect(find.byType(NotePeek), findsNothing);
       expect(local.getItem('glyph-tree-compact'), '1');
       // A book, a page of words, a canvas.
-      expect([for (final icon in tester.widgetList<Icon>(find.descendant(of: kinds, matching: find.byType(Icon)))) icon.icon], unorderedEquals([LucideIcons.bookOpen, LucideIcons.fileText, LucideIcons.workflow]));
+      expect([for (final icon in tester.widgetList<AppIcon>(find.descendant(of: kinds, matching: find.byType(AppIcon)))) icon.icon], unorderedEquals([Lucide.bookOpen, Lucide.fileText, Lucide.workflow]));
       // Names only has no room for the book a page is in.
       expect(find.byType(BookPlaceMark), findsNothing);
       await tester.tap(button('Show each note drawn small'));
@@ -432,7 +433,7 @@ void main() {
     testWidgets('hides a folder’s More until its row is pointed at, once there is a mouse to point with', (tester) async {
       spaces.addWorkspace('Kitchen');
       await show(tester, tree(notes: [makeNote('a')]));
-      double shown() => tester.widget<Opacity>(find.ancestor(of: find.byIcon(LucideIcons.ellipsis), matching: find.byType(Opacity)).first).opacity;
+      double shown() => tester.widget<Opacity>(find.ancestor(of: byLucide(Lucide.ellipsis), matching: find.byType(Opacity)).first).opacity;
       // A finger has no hover: always there.
       expect(shown(), 1);
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);

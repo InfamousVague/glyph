@@ -122,7 +122,7 @@ class OrgMark extends StatelessWidget {
       image: true,
       child: Padding(
         padding: EdgeInsetsDirectional.only(end: 0.35 * em),
-        child: HomeIcon(HomeGlyph.organization, size: size ?? 0.9 * em, color: color.withValues(alpha: color.a * 0.85)),
+        child: HomeIcon(HomeGlyph.organization, size: size ?? 0.9 * em, strokeWidth: 2.2, color: color.withValues(alpha: color.a * 0.85)),
       ),
     );
   }

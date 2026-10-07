@@ -88,6 +88,7 @@ const _flag = LucideIcon('flag', ['M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2
 const _flame = LucideIcon('flame', ['M12 3q1 4 4 6.5t3 5.5a1 1 0 0 1-14 0 5 5 0 0 1 1-3 1 1 0 0 0 5 0c0-2-1.5-3-1.5-5q0-2 2.5-4'], [0]);
 const _flaskConical = LucideIcon('flask-conical', ['M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2', 'M6.453 15h11.094', 'M8.5 2h7'], [0]);
 const _folder = LucideIcon('folder', ['M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z'], [0]);
+const _folderInput = LucideIcon('folder-input', ['M2 9V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-1', 'M2 13h10', 'm9 16 3-3-3-3'], []);
 const _folderOpen = LucideIcon('folder-open', ['m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2'], []);
 const _folderPlus = LucideIcon('folder-plus', ['M12 10v6', 'M9 13h6', 'M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z'], [2]);
 const _gauge = LucideIcon('gauge', ['m12 14 4-4', 'M3.34 19a10 10 0 1 1 17.32 0'], [1]);
@@ -310,6 +311,7 @@ abstract final class Lucide {
   static const flame = _flame;
   static const flaskConical = _flaskConical;
   static const folder = _folder;
+  static const folderInput = _folderInput;
   static const folderOpen = _folderOpen;
   static const folderPlus = _folderPlus;
   static const gauge = _gauge;
@@ -538,6 +540,7 @@ abstract final class Lucide {
     'flame': _flame,
     'flask-conical': _flaskConical,
     'folder': _folder,
+    'folder-input': _folderInput,
     'folder-open': _folderOpen,
     'folder-plus': _folderPlus,
     'gauge': _gauge,

@@ -12,6 +12,7 @@ import 'package:ghost_md/notes/notifications_drawer.dart';
 import 'package:ghost_md/sheet/css.dart';
 import 'package:glacier/glacier.dart';
 
+import '../support/icons.dart';
 import '../support/render.dart';
 import 'support.dart';
 
@@ -126,19 +127,19 @@ void main() {
       await show(tester);
       final t = tester.element(card).tokens;
       Finder mark(String id) => find.descendant(of: rowOf(id), matching: find.byKey(const ValueKey('notification-mark')));
-      Icon icon(String id) => tester.widget<Icon>(find.descendant(of: mark(id), matching: find.byType(Icon)));
+      AppIcon icon(String id) => tester.widget<AppIcon>(find.descendant(of: mark(id), matching: find.byType(AppIcon)));
       Color ground(String id) => (tester.widget<Container>(find.descendant(of: mark(id), matching: find.byType(Container)).first).decoration! as BoxDecoration).color!;
       Tokens hue(String name) => t.child(attrs: {'hue': name});
       // Unread: the ink, on a wash of its kind's colour, with the dot at the round's corner.
-      expect([icon('n1').icon, icon('n1').color], [LucideIcons.mail, t.color('app-ink')]);
+      expect([icon('n1').icon, icon('n1').color], [Lucide.mail, t.color('app-ink')]);
       expect(ground('n1'), hue('violet').colorOf('color-mix(in oklch, var(--app-space) 16%, transparent)'));
       expect(find.descendant(of: rowOf('n1'), matching: find.byKey(const ValueKey('notification-unread'))), findsOneWidget);
       expect(tester.widget<Text>(find.text('sam invited you to Harbour Press')).style!.fontWeight, FontWeight.w500);
       // Read: the kind's own colour, and no dot.
-      expect([icon('n3').icon, icon('n3').color], [LucideIcons.penLine, hue('sea').color('app-space')]);
-      expect([icon('n4').icon, icon('n4').color], [LucideIcons.crown, hue('amber').color('app-space')]);
-      expect([icon('n6').icon, icon('n6').color], [LucideIcons.triangleAlert, hue('ember').color('app-space')]);
-      expect([icon('n7').icon, icon('n7').color], [LucideIcons.userMinus, hue('rose').color('app-space')]);
+      expect([icon('n3').icon, icon('n3').color], [Lucide.penLine, hue('sea').color('app-space')]);
+      expect([icon('n4').icon, icon('n4').color], [Lucide.crown, hue('amber').color('app-space')]);
+      expect([icon('n6').icon, icon('n6').color], [Lucide.triangleAlert, hue('ember').color('app-space')]);
+      expect([icon('n7').icon, icon('n7').color], [Lucide.userMinus, hue('rose').color('app-space')]);
       expect(find.descendant(of: rowOf('n3'), matching: find.byKey(const ValueKey('notification-unread'))), findsNothing);
       expect(tester.widget<Text>(find.text('Claude edited a note')).style!.color, t.color('app-ink-2'));
       await away(tester);

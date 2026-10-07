@@ -284,9 +284,9 @@ class _NotificationsDrawerState extends State<NotificationsDrawer> {
                     ),
                   ),
                   // Mark all read: the app's quiet word with the kit's double tick, there only while something is unread.
-                  if (unread > 0) _Word(key: const ValueKey('mark-all-read'), icon: LucideIcons.checkCheck, word: 'Mark all read', onPressed: () => widget.onMarkAllRead?.call()),
-                  if (clearable.isNotEmpty) _Word(key: const ValueKey('clear-all'), icon: LucideIcons.brushCleaning, word: 'Clear all', onPressed: () => widget.onHideAll?.call([for (final n in clearable) n.id])),
-                  _Round(label: 'Close notifications', icon: LucideIcons.x, iconSize: 16, side: t.lenOf('2rem'), ink: 'app-ink-2', wash: 6, onPressed: widget.onClose),
+                  if (unread > 0) _Word(key: const ValueKey('mark-all-read'), icon: Lucide.checkCheck, word: 'Mark all read', onPressed: () => widget.onMarkAllRead?.call()),
+                  if (clearable.isNotEmpty) _Word(key: const ValueKey('clear-all'), icon: Lucide.brushCleaning, word: 'Clear all', onPressed: () => widget.onHideAll?.call([for (final n in clearable) n.id])),
+                  _Round(label: 'Close notifications', icon: Lucide.x, iconSize: 16, stroke: 2.2, side: t.lenOf('2rem'), ink: 'app-ink-2', wash: 6, onPressed: widget.onClose),
                 ],
               ),
             ),
@@ -334,7 +334,7 @@ class _Count extends StatelessWidget {
 /// small size; under an invitation it is Accept or Decline at the page's own size.
 class _Word extends StatelessWidget {
   const _Word({super.key, this.icon, required this.word, required this.onPressed, this.size, this.weight = 'medium', this.ink = 'app-ink-2'});
-  final IconData? icon;
+  final LucideIcon? icon;
   final String word;
   final VoidCallback? onPressed;
 
@@ -370,7 +370,7 @@ class _Word extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 spacing: 0.35 * px,
                 children: [
-                  if (icon != null) ExcludeSemantics(child: lucide(icon!, size: 15, color: color)),
+                  if (icon != null) ExcludeSemantics(child: lucide(icon!, size: 15, strokeWidth: 2.2, color: color)),
                   Text(word, maxLines: 1, softWrap: false, style: pageText(t, px, weight: weight, color: color)),
                 ],
               ),
@@ -384,10 +384,13 @@ class _Word extends StatelessWidget {
 
 /// `.close` and `.clear`: a round bare button, lit when pointed at.
 class _Round extends StatelessWidget {
-  const _Round({required this.label, required this.icon, required this.iconSize, required this.side, required this.ink, required this.wash, required this.onPressed});
+  const _Round({required this.label, required this.icon, required this.iconSize, required this.stroke, required this.side, required this.ink, required this.wash, required this.onPressed});
   final String label;
-  final IconData icon;
+  final LucideIcon icon;
   final double iconSize;
+
+  /// `strokeWidth={…}`: 2.2 on the head's Close, 2.4 on a row's Clear.
+  final double stroke;
   final double side;
 
   /// Its ink at rest; pointed at, it is `--app-ink`.
@@ -413,7 +416,7 @@ class _Round extends StatelessWidget {
           alignment: Alignment.center,
           // `:hover { background: color-mix(in oklch, var(--app-ink) N%, transparent); color: var(--app-ink) }`
           decoration: BoxDecoration(shape: BoxShape.circle, color: state.hovered ? t.colorOf('color-mix(in oklch, var(--app-ink) $wash%, transparent)') : null),
-          child: ExcludeSemantics(child: lucide(icon, size: iconSize, color: t.color(state.hovered ? 'app-ink' : ink))),
+          child: ExcludeSemantics(child: lucide(icon, size: iconSize, strokeWidth: stroke, color: t.color(state.hovered ? 'app-ink' : ink))),
         ),
       ),
     );
@@ -449,23 +452,23 @@ class _GoWord extends StatelessWidget {
 }
 
 /// Each kind's mark at the start of its row, from the kit (`MARKS`).
-const Map<String, IconData> _marks = {
-  'invite': LucideIcons.mail,
-  'invite-accepted': LucideIcons.userCheck,
-  'invite-declined': LucideIcons.userX,
-  'member-joined': LucideIcons.userPlus,
-  'member-left': LucideIcons.userMinus,
-  'member-removed': LucideIcons.userMinus,
-  'role-changed': LucideIcons.crown,
-  'org-renamed': LucideIcons.pencil,
-  'org-deleted': LucideIcons.trash2,
-  'note-created': LucideIcons.filePlus,
-  'note-edited': LucideIcons.penLine,
-  'note-appended': LucideIcons.listPlus,
-  'journal-entry': LucideIcons.bookOpen,
-  'rule-added': LucideIcons.scrollText,
-  'summary-written': LucideIcons.audioLines,
-  'sync-conflict': LucideIcons.triangleAlert,
+const Map<String, LucideIcon> _marks = {
+  'invite': Lucide.mail,
+  'invite-accepted': Lucide.userCheck,
+  'invite-declined': Lucide.userX,
+  'member-joined': Lucide.userPlus,
+  'member-left': Lucide.userMinus,
+  'member-removed': Lucide.userMinus,
+  'role-changed': Lucide.crown,
+  'org-renamed': Lucide.pencil,
+  'org-deleted': Lucide.trash2,
+  'note-created': Lucide.filePlus,
+  'note-edited': Lucide.penLine,
+  'note-appended': Lucide.listPlus,
+  'journal-entry': Lucide.bookOpen,
+  'rule-added': Lucide.scrollText,
+  'summary-written': Lucide.audioLines,
+  'sync-conflict': Lucide.triangleAlert,
 };
 
 /// One notification (`Row`): its mark, its sentence and the line under it, when, and Accept and Decline for an
@@ -641,7 +644,7 @@ class _RowState extends State<_Row> with SingleTickerProviderStateMixin {
                                   opacity: shown ? 1 : 0,
                                   duration: const Duration(milliseconds: 120),
                                   curve: Curves.ease,
-                                  child: _Round(label: 'Clear: $sentence', icon: LucideIcons.x, iconSize: 14, side: 1.75 * rem, ink: 'app-ink-3', wash: 8, onPressed: clear),
+                                  child: _Round(label: 'Clear: $sentence', icon: Lucide.x, iconSize: 14, stroke: 2.4, side: 1.75 * rem, ink: 'app-ink-3', wash: 8, onPressed: clear),
                                 );
                               },
                             ),
@@ -694,7 +697,7 @@ class _KindRound extends StatelessWidget {
                     // `.row[data-unread] .mark { color: var(--app-ink) }`
                     decoration: BoxDecoration(shape: BoxShape.circle, color: hue == null ? t.color('app-paper-2') : t.colorOf('color-mix(in oklch, var(--app-space) 16%, transparent)')),
                     child: lucide(
-                      _marks[kind] ?? LucideIcons.mail,
+                      _marks[kind] ?? Lucide.mail,
                       size: 18,
                       color: unread
                           ? t.color('app-ink')

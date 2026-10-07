@@ -17,6 +17,7 @@ import 'package:ghost_md/sheet/css.dart';
 import 'package:ghost_md/sheet/sheet.dart';
 import 'package:glacier/glacier.dart';
 
+import '../support/icons.dart';
 import '../support/render.dart';
 import 'support.dart';
 
@@ -345,10 +346,10 @@ void main() {
       near(tester.getRect(button('Show each note drawn small')), [137.52, 65.27, 32.13, 32.13], what: 'names only');
       near(tester.getRect(button('Fold every folder')), [174.09, 65.27, 32.13, 32.13], what: 'fold');
       near(tester.getRect(button('Close')), [286.88, 65.27, 32.13, 32.13], what: 'Close');
-      near(tester.getRect(find.byIcon(LucideIcons.squarePen)), [35.34, 72.83, 17, 17], what: 'its mark');
+      near(tester.getRect(byLucide(Lucide.squarePen)), [35.34, 72.83, 17, 17], what: 'its mark');
 
       // A workspace's folder: the chevron, its colour, its name, how many, and More.
-      near(tester.getRect(find.byIcon(LucideIcons.chevronRight).at(0)), [27.53, 112.47, 15, 15], what: 'the chevron');
+      near(tester.getRect(byLucide(Lucide.chevronRight).at(0)), [27.53, 112.47, 15, 15], what: 'the chevron');
       near(tester.getRect(find.byKey(const ValueKey('folder-hue')).at(0)), [47.95, 116.66, 6.63, 6.63], what: 'the hue');
       final work = tester.getRect(find.text('Work'));
       expect([work.left, work.top, work.height], [closeTo(60, 0.5), closeTo(112.47, 0.5), 15]);
@@ -356,7 +357,7 @@ void main() {
       final count = tester.getRect(find.text('2').first);
       expect([count.left, count.right, count.top, count.height], [closeTo(280.09 + 6.03, 0.5), closeTo(280.09 + 13.83, 0.5), closeTo(112.47, 0.5), 15]);
       near(tester.getRect(button('Rename, recolour or delete Work')), [298.14, 107.31, 25.33, 25.33], what: 'More');
-      near(tester.getRect(find.byIcon(LucideIcons.ellipsis).at(0)), [302.8, 111.97, 16, 16], what: 'its dots');
+      near(tester.getRect(byLucide(Lucide.ellipsis).at(0)), [302.8, 111.97, 16, 16], what: 'its dots');
 
       // Its notes, in from its name on the guide: 26.83 a row.
       near(tester.getRect(find.byKey(const ValueKey('note-row-launch'))), [45.09, 132.64, 278.38, 26.83], what: 'Launch week');
@@ -384,7 +385,7 @@ void main() {
 
       // The archive, which has no More, and the trash, which has Empty.
       near(tester.getRect(find.byKey(const ValueKey('folder-archive'))), [23.31, 462.25, 300.16, 51.45], what: 'the archive');
-      near(tester.getRect(find.byIcon(LucideIcons.archive)), [47.95, 467.56, 14, 14], what: 'its mark');
+      near(tester.getRect(byLucide(Lucide.archive)), [47.95, 467.56, 14, 14], what: 'its mark');
       expect(tester.getRect(find.text('Archive')).left, closeTo(67.38, 0.5));
       near(tester.getRect(find.byKey(const ValueKey('note-row-old'))), [45.09, 486.88, 278.38, 26.83], what: 'Old plans');
       near(tester.getRect(find.byKey(const ValueKey('folder-trash'))), [23.31, 514.7, 300.16, 99.66], what: 'the trash');
@@ -393,13 +394,13 @@ void main() {
       near(tester.getRect(find.ancestor(of: find.text('Torn page'), matching: find.byType(CssLines))), [54.69, 550.28, 200.55, 16.61], what: 'its name');
       near(tester.getRect(button('Restore Torn page')), [260.83, 545.92, 25.33, 25.33], what: 'Restore');
       near(tester.getRect(button('Delete Torn page for good')), [291.75, 545.92, 25.33, 25.33], what: 'Delete for good');
-      near(tester.getRect(find.byIcon(LucideIcons.rotateCcw).at(0)), [265.98, 551.08, 15, 15], what: 'its mark');
+      near(tester.getRect(byLucide(Lucide.rotateCcw).at(0)), [265.98, 551.08, 15, 15], what: 'its mark');
       near(tester.getRect(find.byKey(const ValueKey('trash-row-scrap'))), [45.09, 577.84, 278.38, 36.52], what: 'the other');
 
       // The foot.
       near(tester.getRect(find.byKey(const ValueKey('tree-foot'))), [14.39, 633.2, 318, 50.97], what: 'the foot');
       near(boxOf('Speak'), [27.78, 644.5, 87.89, 29.38], what: 'Speak');
-      near(tester.getRect(find.byIcon(LucideIcons.mic)), [40.5, 651.19, 16, 16], what: 'its mic');
+      near(tester.getRect(byLucide(Lucide.mic)), [40.5, 651.19, 16, 16], what: 'its mic');
       near(tester.getRect(button('Settings')), [286.88, 643.13, 32.13, 32.13], what: 'Settings');
       await away(tester);
     });
@@ -419,8 +420,8 @@ void main() {
       expect([style('Torn page').color, style('Nothing here yet.').color], [t.color('app-ink-2'), t.color('app-ink-4')]);
       expect([style('Nothing here yet.').fontSize, style('Empty').fontSize], everyElement(closeTo(10.0208, 0.001)));
       expect([style('Speak').fontSize, style('Speak').fontWeight, style('Speak').color], [closeTo(13.3948, 0.001), FontWeight.w600, t.color('app-paper')]);
-      expect(tester.widget<Icon>(find.byIcon(LucideIcons.squarePen)).color, t.color('app-ink-3'));
-      expect(tester.widget<Icon>(find.byIcon(LucideIcons.chevronRight).first).color, t.color('app-ink-3'));
+      expect(tester.widget<AppIcon>(byLucide(Lucide.squarePen)).color, t.color('app-ink-3'));
+      expect(tester.widget<AppIcon>(byLucide(Lucide.chevronRight).first).color, t.color('app-ink-3'));
       await away(tester);
     });
 
@@ -470,7 +471,7 @@ void main() {
       expect([long.width, long.height], [closeTo(280.97, 0.5), closeTo(33.22, 0.05)]);
       // A page of a book says which, 2.4 under its name: the mark 12 square, the name 3.34 after it, 14 tall.
       final name = tester.getRect(find.ancestor(of: find.text('Packing list'), matching: find.byType(CssLines)));
-      final book = tester.getRect(find.byIcon(LucideIcons.book));
+      final book = tester.getRect(byLucide(Lucide.book));
       final title = tester.getRect(find.text('Portugal').first);
       expect([book.left, book.top, book.size], [closeTo(32.91, 0.5), closeTo(name.bottom + 2.4 + 1, 0.01), const Size(12, 12)]);
       expect([title.left, title.top, title.width, title.height], [closeTo(48.23, 0.5), closeTo(name.bottom + 2.4, 0.01), closeTo(44.09, 0.5), 14]);

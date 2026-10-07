@@ -32,7 +32,7 @@ class BookPlaceMark extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         spacing: 0.3 * size,
         children: [
-          ExcludeSemantics(child: lucide(LucideIcons.book, size: 12, color: color)),
+          ExcludeSemantics(child: lucide(Lucide.book, size: 12, color: color)),
           // `.name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }`
           Flexible(child: Text(place.title, style: pageText(t, size, color: color), maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis)),
         ],

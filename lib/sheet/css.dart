@@ -8,7 +8,10 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
-export 'package:lucide_icons_flutter/lucide_icons.dart' show LucideIcons;
+import '../art/app_icon.dart';
+
+export '../art/app_icon.dart' show LucideIcon;
+export '../art/lucide.g.dart' show Lucide;
 
 /// What each [Tokens] has been asked for, so a line is measured once per face, size and weight for as long as those
 /// tokens stand (a window that changes width makes new ones).
@@ -57,10 +60,11 @@ double blurSigma(Tokens t, String name) {
   return found == null ? 0 : double.parse(found.group(1)!);
 }
 
-/// One of Lucide's marks at [size] pixels, in [color]: the one way the sheet and the sidebar draw an icon until the
-/// app's own icon widget is here. The web app gives each a stroke between 2 and 2.4 (`strokeWidth`); the icon font
-/// has Lucide's own 2 for all of them.
-Widget lucide(IconData icon, {required double size, required Color color}) => Icon(icon, size: size, color: color);
+/// One of the kit's Lucide marks at [size] pixels, in [color]: the one way the sheet and the sidebar draw an icon.
+/// `<Search size={17} strokeWidth={2.1} />` is `lucide(Lucide.search, size: 17, strokeWidth: 2.1, color: …)`: the
+/// stroke is the JSX's at that place, Lucide's own 2 where it says none, and the icon wears the page's wash inside
+/// its body ([AppIcon]).
+Widget lucide(LucideIcon icon, {required double size, required Color color, double strokeWidth = 2}) => AppIcon(icon, size: size, strokeWidth: strokeWidth, color: color);
 
 /// Text whose lines are as tall as its stylesheet says, to the fraction: `line-height: 1.3` at 12.78px is 16.61px a
 /// line on the page, and two of them are 33.22. Flutter's text engine makes every line a whole number of pixels

@@ -228,7 +228,7 @@ class NoteCard extends StatelessWidget {
                     top: t.space(3) - pad + hairline,
                     end: t.space(3) - pad + hairline,
                     child: working
-                        ? Semantics(label: "The AI is writing this note's line", child: _Turning(child: HomeIcon(HomeGlyph.loader, size: 14, color: t.color('app-ink-3'))))
+                        ? Semantics(label: "The AI is writing this note's line", child: _Turning(child: HomeIcon(HomeGlyph.loader, size: 14, strokeWidth: 2.2, color: t.color('app-ink-3'))))
                         : Semantics(
                             label: 'Changes from the AI are marked in this note',
                             image: true,

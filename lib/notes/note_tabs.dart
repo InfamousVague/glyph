@@ -63,8 +63,7 @@ import 'tabs/tab_row.dart';
 ///   third capsule stood beside the first.
 /// - The Islands' third capsule is not drawn when it would hold nothing, which the page never came to (a note's
 ///   screen always has tools).
-/// - The icons are Lucide's font, hollow and at one weight (notes/tabs/bar_icon.dart), and the smoke at the row's
-///   fading ends is not drawn (notes/tabs/tab_row.dart says what else differs in the row).
+/// - The smoke at the row's fading ends is not drawn (notes/tabs/tab_row.dart says what else differs in the row).
 class NoteTabs extends StatefulWidget {
   const NoteTabs({
     super.key,

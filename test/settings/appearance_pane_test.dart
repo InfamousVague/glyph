@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/art/app_icon.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/settings/accent_swatch.dart';
 import 'package:ghost_md/settings/appearance_pane.dart';
@@ -372,7 +373,7 @@ void main() {
         final name = {'ink': 'Ink', 'graphite': 'Graphite', 'red': 'Red', 'amber': 'Amber', 'green': 'Green', 'teal': 'Teal', 'purple': 'Purple'}[one]!;
         expect(tester.getSemantics(find.ancestor(of: dot(one), matching: find.bySemanticsLabel(name)).first), isSemantics(label: name, hasCheckedState: true, isChecked: one == 'teal', isInMutuallyExclusiveGroup: true, hasTapAction: true, isFocusable: true, hasFocusAction: true));
         // Ticked as well as ringed, so it is never colour alone that says which is picked.
-        expect(find.descendant(of: dot(one), matching: find.byType(Icon)), one == 'teal' ? findsOneWidget : findsNothing);
+        expect(find.descendant(of: dot(one), matching: find.byType(AppIcon)), one == 'teal' ? findsOneWidget : findsNothing);
       }
       // Each dot is drawn in the ramp choosing it would put on the app, measured on the page; Ink is the page's own.
       Color fill(String one) => (tester.widget<AnimatedContainer>(dot(one)).decoration! as BoxDecoration).color!;

@@ -286,7 +286,7 @@ class _NoteTreeState extends State<NoteTree> {
           children: children,
         );
 
-    Widget folder(String id, String name, int count, List<Note> children, {String? hue, Workspace? space, IconData? icon}) {
+    Widget folder(String id, String name, int count, List<Note> children, {String? hue, Workspace? space, LucideIcon? icon}) {
       final open = !_closed.contains(id);
       final org = space?.org;
       return CssFlow(
@@ -299,7 +299,7 @@ class _NoteTreeState extends State<NoteTree> {
             look: look,
             open: open,
             onToggle: () => _toggle(id),
-            lead: icon != null ? lucide(icon, size: 14, color: t.color('app-ink-3')) : _Hue(hue: hue ?? 'ink', em: look.folderSize),
+            lead: icon != null ? lucide(icon, size: 14, strokeWidth: 2.1, color: t.color('app-ink-3')) : _Hue(hue: hue ?? 'ink', em: look.folderSize),
             org: org != null,
             name: name,
             count: count,
@@ -311,8 +311,9 @@ class _NoteTreeState extends State<NoteTree> {
                       hides: true,
                       rowHovered: hovered,
                       label: org != null ? '${space.name}, organization settings' : 'Rename, recolour or delete ${space.name}',
-                      icon: LucideIcons.ellipsis,
+                      icon: Lucide.ellipsis,
                       iconSize: 16,
+                      stroke: 2.2,
                       onPressed: () {
                         if (org != null && widget.onOrganization != null) {
                           widget.onOrganization!(org);
@@ -352,7 +353,7 @@ class _NoteTreeState extends State<NoteTree> {
                 writeTrashOpen(!_trashOpen, widget.stored);
                 setState(() => _trashOpen = !_trashOpen);
               },
-              lead: lucide(LucideIcons.trash2, size: 14, color: t.color('app-ink-3')),
+              lead: lucide(Lucide.trash2, size: 14, strokeWidth: 2.1, color: t.color('app-ink-3')),
               org: false,
               name: 'Trash',
               count: trashed.length,
@@ -397,9 +398,9 @@ class _NoteTreeState extends State<NoteTree> {
                                 ),
                               ),
                               if (widget.onRestore != null)
-                                _Small(look: look, hides: false, rowHovered: hovered, label: 'Restore $said', icon: LucideIcons.rotateCcw, iconSize: 15, onPressed: () => widget.onRestore!(note)),
+                                _Small(look: look, hides: false, rowHovered: hovered, label: 'Restore $said', icon: Lucide.rotateCcw, iconSize: 15, stroke: 2.2, onPressed: () => widget.onRestore!(note)),
                               if (widget.onDestroy != null)
-                                _Small(look: look, hides: false, rowHovered: hovered, label: 'Delete $said for good', icon: LucideIcons.x, iconSize: 15, danger: true, onPressed: () => widget.onDestroy!(note)),
+                                _Small(look: look, hides: false, rowHovered: hovered, label: 'Delete $said for good', icon: Lucide.x, iconSize: 15, stroke: 2.4, danger: true, onPressed: () => widget.onDestroy!(note)),
                             ],
                           ),
                         ),
@@ -441,7 +442,7 @@ class _NoteTreeState extends State<NoteTree> {
               children: [
                 for (final f in tree.folders) folder(f.id, f.name, f.notes.length, f.notes, hue: f.hue, space: spaceOf(f.id)),
                 for (final note in tree.loose) row(note),
-                if (tree.archived.isNotEmpty) folder(archiveFolder, 'Archive', tree.archived.length, tree.archived, icon: LucideIcons.archive),
+                if (tree.archived.isNotEmpty) folder(archiveFolder, 'Archive', tree.archived.length, tree.archived, icon: Lucide.archive),
                 if (trashed.isNotEmpty) trashFolder(),
               ],
             ),
@@ -475,19 +476,19 @@ class _NoteTreeState extends State<NoteTree> {
                 child: Row(
                   spacing: t.space(1),
                   children: [
-                    _Tool(label: 'New note', icon: LucideIcons.squarePen, onPressed: widget.onNew),
-                    _Tool(label: 'New workspace', icon: LucideIcons.folderPlus, onPressed: () => setState(() => _manage = const _Manage())),
-                    if (widget.onCommands != null) _Tool(label: 'Search and commands', icon: LucideIcons.search, onPressed: widget.onCommands!),
-                    _Tool(label: compact ? 'Show each note drawn small' : 'Show names only', icon: compact ? LucideIcons.layoutList : LucideIcons.list, onPressed: _flipCompact),
-                    if (widget.onBrowseFiles != null) _Tool(label: 'Browse files', icon: LucideIcons.folderOpen, onPressed: widget.onBrowseFiles!),
+                    _Tool(label: 'New note', icon: Lucide.squarePen, onPressed: widget.onNew),
+                    _Tool(label: 'New workspace', icon: Lucide.folderPlus, onPressed: () => setState(() => _manage = const _Manage())),
+                    if (widget.onCommands != null) _Tool(label: 'Search and commands', icon: Lucide.search, onPressed: widget.onCommands!),
+                    _Tool(label: compact ? 'Show each note drawn small' : 'Show names only', icon: compact ? Lucide.layoutList : Lucide.list, onPressed: _flipCompact),
+                    if (widget.onBrowseFiles != null) _Tool(label: 'Browse files', icon: Lucide.folderOpen, onPressed: widget.onBrowseFiles!),
                     if (every.isNotEmpty)
                       _Tool(
                         label: allShut ? 'Open every folder' : 'Fold every folder',
-                        icon: allShut ? LucideIcons.chevronsUpDown : LucideIcons.chevronsDownUp,
+                        icon: allShut ? Lucide.chevronsUpDown : Lucide.chevronsDownUp,
                         onPressed: () => _setAndKeep(allShut ? {} : {...every}),
                       ),
                     // The last tool sits at the far end (`.tool[data-end] { margin-inline-start: auto }`).
-                    if (popup) ...[const Spacer(), _Tool(label: 'Close', icon: LucideIcons.x, onPressed: widget.onClose!)],
+                    if (popup) ...[const Spacer(), _Tool(label: 'Close', icon: Lucide.x, stroke: 2.2, onPressed: widget.onClose!)],
                   ],
                 ),
               ),
@@ -513,7 +514,7 @@ class _NoteTreeState extends State<NoteTree> {
                     spacing: t.space(2),
                     children: [
                       if (widget.onSpeak != null) _Speak(onPressed: widget.onSpeak!),
-                      if (widget.onSettings != null) ...[const Spacer(), _Tool(label: 'Settings', icon: LucideIcons.settings, onPressed: widget.onSettings!)],
+                      if (widget.onSettings != null) ...[const Spacer(), _Tool(label: 'Settings', icon: Lucide.settings, onPressed: widget.onSettings!)],
                     ],
                   ),
                 ),
@@ -591,9 +592,12 @@ class _HoverState extends State<_Hover> {
 
 /// `Tool` (`.tool`): a small bare glyph in the row over the notes, as Obsidian has them over its files.
 class _Tool extends StatelessWidget {
-  const _Tool({required this.label, required this.icon, required this.onPressed});
+  const _Tool({required this.label, required this.icon, required this.onPressed, this.stroke = 2.1});
   final String label;
-  final IconData icon;
+  final LucideIcon icon;
+
+  /// `strokeWidth={…}`: 2.1 on every tool of the row and the foot's cog; the pop-up's Close asks for 2.2.
+  final double stroke;
   final VoidCallback onPressed;
 
   @override
@@ -616,7 +620,7 @@ class _Tool extends StatelessWidget {
           alignment: Alignment.center,
           // `border-radius: var(--glacier-radius-sm)`; `.tool:hover { background: var(--app-paper-2); color: var(--app-ink) }`
           decoration: BoxDecoration(color: state.hovered ? t.color('app-paper-2') : null, borderRadius: BorderRadius.circular(t.radius('sm'))),
-          child: ExcludeSemantics(child: lucide(icon, size: 17, color: t.color(state.hovered ? 'app-ink' : 'app-ink-3'))),
+          child: lucide(icon, size: 17, strokeWidth: stroke, color: t.color(state.hovered ? 'app-ink' : 'app-ink-3')),
         ),
       ),
     );
@@ -632,10 +636,10 @@ class _KindMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final icon = isBookBody(body)
-        ? LucideIcons.bookOpen
+        ? Lucide.bookOpen
         : isCanvasBody(body)
-            ? LucideIcons.workflow
-            : LucideIcons.fileText;
+            ? Lucide.workflow
+            : Lucide.fileText;
     return ExcludeSemantics(child: KeyedSubtree(key: const ValueKey('kind-mark'), child: lucide(icon, size: 14, color: color)));
   }
 }
@@ -718,7 +722,7 @@ class _FolderRow extends StatelessWidget {
                               turns: open ? 0.25 : 0,
                               duration: t.reducedMotion ? Duration.zero : const Duration(milliseconds: 140),
                               curve: t.curve('glacier-ease-out'),
-                              child: lucide(LucideIcons.chevronRight, size: 15, color: t.color('app-ink-3')),
+                              child: lucide(Lucide.chevronRight, size: 15, strokeWidth: 2.2, color: t.color('app-ink-3')),
                             ),
                           ),
                           lead,
@@ -754,7 +758,7 @@ class _FolderRow extends StatelessWidget {
 /// `.folderMore`, `.trashAction`: a small square button at a row's end: a folder's More, and a note in the trash's
 /// two things to do.
 class _Small extends StatelessWidget {
-  const _Small({required this.look, required this.hides, required this.rowHovered, required this.label, required this.icon, required this.iconSize, required this.onPressed, this.danger = false});
+  const _Small({required this.look, required this.hides, required this.rowHovered, required this.label, required this.icon, required this.iconSize, required this.stroke, required this.onPressed, this.danger = false});
 
   final _Look look;
 
@@ -762,8 +766,11 @@ class _Small extends StatelessWidget {
   final bool hides;
   final bool rowHovered;
   final String label;
-  final IconData icon;
+  final LucideIcon icon;
   final double iconSize;
+
+  /// `strokeWidth={…}` as the tree's JSX gives this button's icon.
+  final double stroke;
   final VoidCallback onPressed;
 
   /// Delete for good: the kit's danger ink when pointed at.
@@ -796,7 +803,7 @@ class _Small extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(color: lit ? t.colorOf('color-mix(in oklch, var(--app-ink) 8%, transparent)') : null, borderRadius: BorderRadius.circular(t.radius('sm'))),
               child: ExcludeSemantics(
-                child: lucide(icon, size: iconSize, color: t.color(lit ? (danger ? 'glacier-danger-text' : 'app-ink') : 'app-ink-3')),
+                child: lucide(icon, size: iconSize, strokeWidth: stroke, color: t.color(lit ? (danger ? 'glacier-danger-text' : 'app-ink') : 'app-ink-3')),
               ),
             ),
           ),
@@ -875,7 +882,7 @@ class _Speak extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             spacing: 0.45 * size,
             children: [
-              ExcludeSemantics(child: lucide(LucideIcons.mic, size: 16, color: paper)),
+              ExcludeSemantics(child: lucide(Lucide.mic, size: 16, strokeWidth: 2.2, color: paper)),
               Text('Speak', style: pageText(t, size, weight: 'semibold', color: paper)),
             ],
           ),

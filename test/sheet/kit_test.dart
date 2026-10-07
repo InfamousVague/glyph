@@ -9,6 +9,7 @@ import 'package:ghost_md/sheet/kit.dart';
 import 'package:glacier/glacier.dart';
 
 import '../sidebar/support.dart';
+import '../support/icons.dart';
 import '../support/render.dart';
 
 /// The pieces a sheet is built from (sheet/kit.dart, the web's plugins/kit.tsx): what each draws, what it says, and
@@ -148,7 +149,7 @@ void main() {
       await show(tester, [
         SheetGroup(
           children: [
-            SheetRow.rich(icon: Icon(LucideIcons.trash2), label: const Text('Throw away'), hint: const Text('For good.'), danger: true, onPress: () {}),
+            SheetRow.rich(icon: const AppIcon(Lucide.trash2, size: 18), label: const Text('Throw away'), hint: const Text('For good.'), danger: true, onPress: () {}),
             SheetRow(icon: StrokeMark(path: Path()..addOval(const Rect.fromLTWH(4, 4, 16, 16))), label: 'A round', onPress: () {}),
           ],
         ),
@@ -158,8 +159,8 @@ void main() {
       expect(tester.getSize(ring), const Size(30, 30));
       final border = (tester.widget<Container>(ring).decoration! as BoxDecoration).border! as Border;
       expect([border.top.color, border.top.width], [t.color('glacier-red-9'), 1.5]);
-      expect(tester.getSize(find.byIcon(LucideIcons.trash2)), const Size(18, 18));
-      expect(IconTheme.of(tester.element(find.byIcon(LucideIcons.trash2))).color, t.color('glacier-red-9'));
+      expect(tester.getSize(byLucide(Lucide.trash2)), const Size(18, 18));
+      expect(IconTheme.of(tester.element(byLucide(Lucide.trash2))).color, t.color('glacier-red-9'));
       expect(tester.getSize(find.byType(StrokeMark)), const Size(18, 18));
       // The words start a ring and `var(--glacier-space-3)` in.
       expect(tester.getRect(find.text('Throw away')).left, closeTo(17.85 + 30 + 13.39, 0.02));

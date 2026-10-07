@@ -14,7 +14,10 @@ import 'dart:io';
 import 'package:ghost_md/art/icon_wash.dart';
 
 /// Icons to carry that the web app does not import, by lucide's own name (`arrow-up-right`).
-const also = <String>[];
+const also = <String>[
+  // lib/gallery/kit_gallery.dart: the menu's "Move to".
+  'folder-input',
+];
 
 const glyph = '../glyph';
 const lucide = '$glyph/node_modules/lucide-react/dist/esm';

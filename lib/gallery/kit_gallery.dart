@@ -2,10 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../app/preferences.dart';
 import '../app/widgets.dart';
+import '../art/app_icon.dart';
+import '../art/lucide.g.dart';
 
 /// Stage one's screen: every component of the kit the app uses, live, on the phone, over the app's own theme. The
 /// controls at the top are the app's preferences, so the whole page answers to them as Settings › Appearance does.
@@ -159,7 +160,7 @@ class _KitGalleryState extends State<KitGallery> {
                         runSpacing: t.space(2),
                         children: [
                           for (final name in _pills)
-                            GlacierPill(icon: const Icon(LucideIcons.folder), onRemove: () => setState(() => _pills.remove(name)), child: Text(name)),
+                            GlacierPill(icon: const _KitIcon(Lucide.folder), onRemove: () => setState(() => _pills.remove(name)), child: Text(name)),
                           const GlacierPill(size: GlacierPillSize.sm, tone: GlacierPillTone.accent, child: Text('small')),
                         ],
                       ),
@@ -169,7 +170,7 @@ class _KitGalleryState extends State<KitGallery> {
                       GlacierInput(
                         ariaLabel: 'Name',
                         placeholder: 'Name this note',
-                        leadingIcon: const Icon(LucideIcons.pencil),
+                        leadingIcon: const _KitIcon(Lucide.pencil),
                         glass: _glass,
                         onChange: (v) => setState(() => _name = v),
                       ),
@@ -206,7 +207,7 @@ class _KitGalleryState extends State<KitGallery> {
                         children: [
                           GlacierPopover(
                             ariaLabel: 'About this note',
-                            trigger: (context, trigger) => AppPill(onPressed: trigger.toggle, icon: const Icon(LucideIcons.info), child: const Text('Popover')),
+                            trigger: (context, trigger) => AppPill(onPressed: trigger.toggle, icon: const _KitIcon(Lucide.info), child: const Text('Popover')),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -220,23 +221,23 @@ class _KitGalleryState extends State<KitGallery> {
                           GlacierMenu(
                             ariaLabel: 'Note actions',
                             placement: Placement.bottomEnd,
-                            trigger: (context, trigger) => AppPill(onPressed: trigger.toggle, icon: const Icon(LucideIcons.ellipsis), child: const Text('Menu')),
+                            trigger: (context, trigger) => AppPill(onPressed: trigger.toggle, icon: const _KitIcon(Lucide.ellipsis), child: const Text('Menu')),
                             children: [
                               const GlacierMenuLabel(child: Text('Weekend trip')),
-                              GlacierMenuItem(icon: const Icon(LucideIcons.share2), onSelect: () => _toast(GlacierToastTone.neutral, 'Share'), child: const Text('Share')),
-                              GlacierMenuItem(icon: const Icon(LucideIcons.pin), shortcut: const Text('⌘P'), onSelect: () => _toast(GlacierToastTone.neutral, 'Pinned'), child: const Text('Pin')),
+                              GlacierMenuItem(icon: const _KitIcon(Lucide.share2), onSelect: () => _toast(GlacierToastTone.neutral, 'Share'), child: const Text('Share')),
+                              GlacierMenuItem(icon: const _KitIcon(Lucide.pin), shortcut: const Text('⌘P'), onSelect: () => _toast(GlacierToastTone.neutral, 'Pinned'), child: const Text('Pin')),
                               GlacierMenuSub(
                                 label: const Text('Move to'),
-                                icon: const Icon(LucideIcons.folderInput),
+                                icon: const _KitIcon(Lucide.folderInput),
                                 children: [
                                   GlacierMenuItem(onSelect: () => _toast(GlacierToastTone.neutral, 'Moved to Work'), child: const Text('Work')),
                                   GlacierMenuItem(onSelect: () => _toast(GlacierToastTone.neutral, 'Moved to Home'), child: const Text('Home')),
                                   GlacierMenuItem(onSelect: () => _toast(GlacierToastTone.neutral, 'Moved to HelloTrade'), child: const Text('HelloTrade')),
                                 ],
                               ),
-                              const GlacierMenuItem(icon: Icon(LucideIcons.archive), disabled: true, child: Text('Archive')),
+                              const GlacierMenuItem(icon: _KitIcon(Lucide.archive), disabled: true, child: Text('Archive')),
                               const GlacierMenuSeparator(),
-                              GlacierMenuItem(icon: const Icon(LucideIcons.trash2), danger: true, onSelect: () => _toast(GlacierToastTone.danger, 'Moved to the bin'), child: const Text('Delete')),
+                              GlacierMenuItem(icon: const _KitIcon(Lucide.trash2), danger: true, onSelect: () => _toast(GlacierToastTone.danger, 'Moved to the bin'), child: const Text('Delete')),
                             ],
                           ),
                         ],
@@ -246,7 +247,7 @@ class _KitGalleryState extends State<KitGallery> {
                     _Section('Command palette', [
                       Align(
                         alignment: Alignment.centerLeft,
-                        child: AppPill(onPressed: () => setState(() => _palette = true), icon: const Icon(LucideIcons.search), child: const Text('Search and commands')),
+                        child: AppPill(onPressed: () => setState(() => _palette = true), icon: const _KitIcon(Lucide.search), child: const Text('Search and commands')),
                       ),
                     ]),
 
@@ -356,4 +357,14 @@ class _Row extends StatelessWidget {
       ],
     );
   }
+}
+
+/// One of the kit's lucide icons in a component that sizes and colours its icon by the [IconTheme] it sets round it
+/// (a pill's 1.05em, a menu row's 16): [AppIcon] at that size, at Lucide's own stroke.
+class _KitIcon extends StatelessWidget {
+  const _KitIcon(this.icon);
+  final LucideIcon icon;
+
+  @override
+  Widget build(BuildContext context) => AppIcon(icon, size: IconTheme.of(context).size ?? 24);
 }

@@ -138,8 +138,8 @@ class SheetGroup extends StatelessWidget {
 
 /// `SheetIcon` (`.icon`): the sheet's icon slot, an 18 px drawing in a 30 px ring of the row's own colour.
 ///
-/// Differs from the web: [icon] is a widget drawn at the size and in the colour of the [IconTheme] this gives it (an
-/// [Icon], a [StrokeMark]), where the page took a component and sized its `svg` by a rule.
+/// Differs from the web: [icon] is a widget drawn at the size and in the colour of the [IconTheme] this gives it (a
+/// [StrokeMark]; an [AppIcon] takes the colour and is given its 18 by the caller), where the page took a component and sized its `svg` by a rule.
 class SheetIcon extends StatelessWidget {
   const SheetIcon({super.key, required this.icon});
   final Widget icon;

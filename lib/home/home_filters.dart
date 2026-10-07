@@ -190,7 +190,7 @@ class HomeFiltersState extends State<HomeFilters> {
                     color: on ? t.color('app-ink') : t.colorOf('color-mix(in oklch, var(--app-ink) 4%, transparent)'),
                     border: Border.all(color: on ? t.color('app-ink') : (lit ? t.color('glacier-border-strong') : t.color('app-rule')), width: t.len('glacier-hairline')),
                   ),
-                  child: HomeIcon(HomeGlyph.filters, size: 16, color: ink),
+                  child: HomeIcon(HomeGlyph.filters, size: 16, strokeWidth: 2.2, color: ink),
                 ),
               );
             },
@@ -358,7 +358,7 @@ class _SearchFieldState extends State<_SearchField> implements TextSelectionGest
           ),
           child: Row(
             children: [
-              HomeIcon(HomeGlyph.search, size: 15, color: focused ? t.color('app-ink-2') : t.color('app-ink-3')),
+              HomeIcon(HomeGlyph.search, size: 15, strokeWidth: 2.2, color: focused ? t.color('app-ink-2') : t.color('app-ink-3')),
               SizedBox(width: t.space(2)),
               Expanded(
                 child: _gestures.buildGestureDetector(
@@ -394,7 +394,7 @@ class _SearchFieldState extends State<_SearchField> implements TextSelectionGest
                       height: t.space(6),
                       alignment: Alignment.center,
                       decoration: BoxDecoration(shape: BoxShape.circle, color: t.colorOf('color-mix(in oklch, var(--app-ink) 8%, transparent)')),
-                      child: HomeIcon(HomeGlyph.cross, size: 14, color: t.color('app-ink-2')),
+                      child: HomeIcon(HomeGlyph.cross, size: 14, strokeWidth: 2.4, color: t.color('app-ink-2')),
                     ),
                   ),
                 ),
@@ -438,7 +438,7 @@ class _Chip extends StatelessWidget {
               style: pageText(t, sm, weight: 'medium', color: t.color('app-ink')),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
-                children: [...children, SizedBox(width: 0.4 * sm), HomeIcon(HomeGlyph.cross, size: 13, color: t.color('app-ink'))],
+                children: [...children, SizedBox(width: 0.4 * sm), HomeIcon(HomeGlyph.cross, size: 13, strokeWidth: 2.4, color: t.color('app-ink'))],
               ),
             ),
           ),
@@ -594,6 +594,8 @@ class _PanelBodyState extends State<_PanelBody> {
                 mark: HomeIcon(
                   switch (each.id) { HomeFilter.all => HomeGlyph.grid, HomeFilter.books => HomeGlyph.notebook, HomeFilter.notes => HomeGlyph.note, HomeFilter.pinned => HomeGlyph.pin },
                   size: md,
+                  // `<FileText size="1em" strokeWidth={2.2} />`, the one of the four that is the kit's.
+                  strokeWidth: 2.2,
                   color: t.color('app-ink-2'),
                 ),
               ),
@@ -644,7 +646,7 @@ class _PanelBodyState extends State<_PanelBody> {
           children: [
             _PanelAction(label: 'New workspace', onPressed: widget.onNew, mark: HomeIcon(HomeGlyph.plus, size: md, color: t.color('app-ink-2'))),
             if (widget.onNewOrganization != null)
-              _PanelAction(label: 'New organization', onPressed: widget.onNewOrganization!, mark: HomeIcon(HomeGlyph.organization, size: md, color: t.color('app-ink-2'))),
+              _PanelAction(label: 'New organization', onPressed: widget.onNewOrganization!, mark: HomeIcon(HomeGlyph.organization, size: md, strokeWidth: 2.2, color: t.color('app-ink-2'))),
             if (current != null)
               GlacierScope(
                 attrs: {'hue': current.hue ?? 'ink'},
@@ -748,7 +750,7 @@ class _Choice extends StatelessWidget {
                     if (count != null) ...[SizedBox(width: t.space(3)), Text('$count', style: tabular(pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))))],
                     SizedBox(width: t.space(3)),
                     // `visibility: hidden` until it is the one chosen: the tick keeps its room either way.
-                    Visibility(visible: checked, maintainSize: true, maintainAnimation: true, maintainState: true, child: HomeIcon(HomeGlyph.check, size: 16, color: t.color('app-ink'))),
+                    Visibility(visible: checked, maintainSize: true, maintainAnimation: true, maintainState: true, child: HomeIcon(HomeGlyph.check, size: 16, strokeWidth: 2.4, color: t.color('app-ink'))),
                   ],
                 ),
               ),

@@ -248,14 +248,14 @@ class _PullToRefreshState extends State<PullToRefresh> {
                             painter: _PullRing(progress: progress, color: ink.withValues(alpha: armed ? 1 : 0.6)),
                             child: Center(
                               child: switch (_phase) {
-                                _Phase.refreshing => _Spin(reduced: t.reducedMotion, child: HomeIcon(HomeGlyph.loader, size: 18, color: ink)),
-                                _Phase.done => HomeIcon(HomeGlyph.check, size: 18, color: ink),
+                                _Phase.refreshing => _Spin(reduced: t.reducedMotion, child: HomeIcon(HomeGlyph.loader, size: 18, strokeWidth: 2.4, color: ink)),
+                                _Phase.done => HomeIcon(HomeGlyph.check, size: 18, strokeWidth: 2.6, color: ink),
                                 // The arrow turns over once a let-go would refresh: it points at what happens next.
                                 _ => AnimatedRotation(
                                     turns: armed ? 0.5 : 0,
                                     duration: t.reducedMotion ? Duration.zero : const Duration(milliseconds: 160),
                                     curve: t.curve('glacier-ease-out'),
-                                    child: HomeIcon(HomeGlyph.arrowDown, size: 18, color: ink),
+                                    child: HomeIcon(HomeGlyph.arrowDown, size: 18, strokeWidth: 2.4, color: ink),
                                   ),
                               },
                             ),

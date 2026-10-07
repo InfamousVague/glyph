@@ -6,6 +6,8 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../art/app_icon.dart';
+import '../art/lucide.g.dart';
 import 'eyes.dart';
 
 /// Where the account's sync stands (`core/sync/engine.ts` `SyncStatus.phase`). The engine itself is stage 7; the
@@ -287,9 +289,9 @@ class _LineRow extends StatelessWidget {
             width: 1.1 * em,
             child: Center(
               child: switch (line.state) {
-                _LineState.working => _Turn(still: still, child: _Mark(_MarkKind.loader, color: color, strokeWidth: 2.4)),
-                _LineState.done => _Mark(_MarkKind.check, color: color, strokeWidth: 2.6),
-                _LineState.note => _Mark(_MarkKind.alert, color: color, strokeWidth: 2.4),
+                _LineState.working => _Turn(still: still, child: _Mark(Lucide.loaderCircle, color: color, strokeWidth: 2.4)),
+                _LineState.done => _Mark(Lucide.check, color: color, strokeWidth: 2.6),
+                _LineState.note => _Mark(Lucide.circleAlert, color: color, strokeWidth: 2.4),
               },
             ),
           ),
@@ -301,64 +303,18 @@ class _LineRow extends StatelessWidget {
   }
 }
 
-enum _MarkKind { loader, check, alert }
-
-/// The three Lucide marks a line wears (`LoaderCircle`, `Check`, `CircleAlert`), 14 px, drawn from Lucide's own
-/// paths so the stroke is the web's: its width is in the icon's 24 units, as lucide-react scales it.
+/// One of the three Lucide marks a line wears, 14 px: `LoaderCircle` and `CircleAlert` at a stroke of 2.4, `Check`
+/// at 2.6 (LaunchScreen.tsx). The kit's own paths at the web's stroke, and in the alert's ring the wash the page
+/// gives a closed icon (iconWash.css).
 class _Mark extends StatelessWidget {
-  const _Mark(this.kind, {required this.color, required this.strokeWidth});
+  const _Mark(this.icon, {required this.color, required this.strokeWidth});
 
-  final _MarkKind kind;
+  final LucideIcon icon;
   final Color color;
   final double strokeWidth;
 
   @override
-  Widget build(BuildContext context) => CustomPaint(size: const Size.square(14), painter: _MarkPainter(kind, color, strokeWidth));
-}
-
-class _MarkPainter extends CustomPainter {
-  const _MarkPainter(this.kind, this.color, this.strokeWidth);
-
-  final _MarkKind kind;
-  final Color color;
-  final double strokeWidth;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.scale(size.width / 24);
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..color = color;
-    switch (kind) {
-      case _MarkKind.loader:
-        // M21 12a9 9 0 1 1-6.219-8.56
-        canvas.drawPath(
-          Path()
-            ..moveTo(21, 12)
-            ..arcToPoint(const Offset(14.781, 3.44), radius: const Radius.circular(9), largeArc: true),
-          paint,
-        );
-      case _MarkKind.check:
-        // M20 6 9 17l-5-5
-        canvas.drawPath(
-          Path()
-            ..moveTo(20, 6)
-            ..lineTo(9, 17)
-            ..lineTo(4, 12),
-          paint,
-        );
-      case _MarkKind.alert:
-        canvas.drawCircle(const Offset(12, 12), 10, paint);
-        canvas.drawLine(const Offset(12, 8), const Offset(12, 12), paint);
-        canvas.drawLine(const Offset(12, 16), const Offset(12.01, 16), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_MarkPainter old) => old.kind != kind || old.color != color || old.strokeWidth != strokeWidth;
+  Widget build(BuildContext context) => AppIcon(icon, size: 14, strokeWidth: strokeWidth, color: color);
 }
 
 /// `@keyframes turn`: once round every 900 ms, for as long as the line is working.
