@@ -1,0 +1,886 @@
+import 'dart:async';
+
+import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/widgets.dart';
+import 'package:glacier/glacier.dart';
+
+import '../core/book.dart';
+import '../core/canvas_body.dart';
+import '../core/note.dart';
+import '../core/note_text.dart';
+import '../core/stored.dart';
+import '../core/workspaces.dart' show Workspace, WorkspaceStore, Workspaces;
+import '../sheet/css.dart';
+import '../sheet/flow.dart';
+import 'book_place_mark.dart';
+import 'note_peek.dart';
+import 'org_mark.dart';
+import 'tree.dart';
+import 'workspace_sheet.dart';
+
+/// The sidebar: one tree of notes, the same whether it sits beside the note on a desktop or opens over it on a phone
+/// (Matt: "Make the sidebar on desktop the same sidebar that shows up in the pop-up sidebar. Make it more similar to
+/// the obsidian sidebar"). A port of `src/app/notes/NoteTree.tsx` and `NoteTree.module.css`.
+///
+/// Shaped like Obsidian's file explorer: a row of small tools across the top, the workspaces as folders that fold
+/// shut, the notes filed in none below them, the archive as a folder that starts shut, and the trash last, shut until
+/// opened, where a note is brought back or deleted for good and Empty asks once on the button itself. Each note keeps
+/// its drawing underneath its name unless names only is chosen, and the open one wears a ring rather than a fill.
+///
+/// [onClose] makes it the pop-up: a close button joins the tools. [notices] is what a docked sidebar must still
+/// carry - an update waiting - and sits at the bottom, over the foot.
+///
+/// What differs from the web:
+/// - The workspaces are the [workspaces] store it is handed, and which folders are shut, the trash and names only
+///   are kept in [stored] (the app's own unless one is given), where the web's modules had one of each.
+/// - A row's small drawing is [peek]: the web's is the note in its own editor (`NotePeek.tsx`), which waits for the
+///   editor's stage; until then it is [NotePeek.plain], two lines of the note's words.
+/// - [emptyArt] is the ghost asleep on its blank sheet (`Ghost scene="no-notes"`), which is lib/art's to draw;
+///   without it the words stand alone.
+/// - Browse files is offered when [onBrowseFiles] is given, where the web asked the device itself
+///   (`canBrowseFiles()`); showing the folder is the library's stage.
+/// - A row cannot be dragged onto a canvas (`draggable`, `application/x-glyph-note`): that comes with the canvas.
+/// - A mouse's right-click on a row tells [onNoteMenu] which note and where; the menu itself (`notes/NoteMenu.tsx`)
+///   is not ported.
+/// - What a workspace's sheet does to notes is asked of the caller ([notesInWorkspace], [onTrashNotes]; see
+///   workspace_sheet.dart).
+/// - A folder's More and a note in the trash's two buttons are hidden until pointed at when a mouse is connected,
+///   and always shown otherwise, where the page asked `@media (hover: hover)`.
+/// - [notices] is a list, spaced as the page's wrapper spaces its children; an empty one takes no room.
+class NoteTree extends StatefulWidget {
+  const NoteTree({
+    super.key,
+    required this.notes,
+    required this.activeId,
+    required this.onOpen,
+    required this.onNew,
+    required this.workspaces,
+    this.onCommands,
+    this.onSettings,
+    this.onSpeak,
+    this.onClose,
+    this.notices = const [],
+    this.trashed = const [],
+    this.onRestore,
+    this.onDestroy,
+    this.onEmptyTrash,
+    this.onOrganization,
+    this.onBrowseFiles,
+    this.onNoteMenu,
+    this.notesInWorkspace,
+    this.onTrashNotes,
+    this.stored,
+    this.peek = NotePeek.plain,
+    this.emptyArt,
+  });
+
+  final List<Note> notes;
+  final String? activeId;
+  final void Function(String id) onOpen;
+  final VoidCallback onNew;
+  final WorkspaceStore workspaces;
+  final VoidCallback? onCommands;
+  final VoidCallback? onSettings;
+  final VoidCallback? onSpeak;
+  final VoidCallback? onClose;
+  final List<Widget> notices;
+
+  /// The notes in the trash, newest first, and what can be done with them.
+  final List<Note> trashed;
+  final void Function(Note note)? onRestore;
+  final void Function(Note note)? onDestroy;
+  final VoidCallback? onEmptyTrash;
+
+  /// An organization's own screen, from its folder's menu.
+  final void Function(String orgId)? onOrganization;
+
+  /// Shows the notes' folder in the Files app or Finder; the tool is there only when this is.
+  final VoidCallback? onBrowseFiles;
+
+  /// A mouse's right-click on a note's row: the note, and where the pointer was.
+  final void Function(String id, Offset at)? onNoteMenu;
+  final List<String> Function(String workspaceId)? notesInWorkspace;
+  final void Function(List<String> noteIds)? onTrashNotes;
+
+  /// Where the folds, the trash's and names only are kept; the app's own memory when left out.
+  final Stored? stored;
+
+  /// A note drawn small under its name.
+  final NotePeekBuilder peek;
+
+  /// What is drawn over "No notes yet.".
+  final Widget? emptyArt;
+
+  @override
+  State<NoteTree> createState() => _NoteTreeState();
+}
+
+/// Which workspace the sheet is up for: one that exists, or a new one.
+class _Manage {
+  const _Manage([this.space]);
+  final Workspace? space;
+}
+
+class _NoteTreeState extends State<NoteTree> {
+  late Set<String> _closed = readClosed(widget.stored);
+
+  /// Names only (Matt: "Start with compact mode"): each note a line with its kind's mark, the way a file browser
+  /// lists files, instead of its drawing. Kept to this device, as which folders are shut is.
+  late bool _compact = readCompact(widget.stored);
+  late bool _trashOpen = readTrashOpen(widget.stored);
+  _Manage? _manage;
+
+  /// Emptying asks once, on the button itself: the first press turns it into the question, a second press within a
+  /// few seconds answers it.
+  bool _asking = false;
+  Timer? _askingFor;
+
+  @override
+  void initState() {
+    super.initState();
+    // A mouse plugged in, or taken away, changes what waits to be pointed at (`@media (hover: hover)`).
+    RendererBinding.instance.mouseTracker.addListener(_onMouse);
+  }
+
+  void _onMouse() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    RendererBinding.instance.mouseTracker.removeListener(_onMouse);
+    _askingFor?.cancel();
+    super.dispose();
+  }
+
+  void _flipCompact() {
+    writeCompact(!_compact, widget.stored);
+    setState(() => _compact = !_compact);
+  }
+
+  void _setAndKeep(Set<String> next) {
+    writeClosed(next, widget.stored);
+    setState(() => _closed = next);
+  }
+
+  void _toggle(String id) {
+    final next = {..._closed};
+    if (!next.remove(id)) next.add(id);
+    _setAndKeep(next);
+  }
+
+  void _ask(bool asking) {
+    _askingFor?.cancel();
+    _askingFor = asking ? Timer(const Duration(milliseconds: 4000), () => _ask(false)) : null;
+    if (mounted) setState(() => _asking = asking);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<Workspaces>(
+      valueListenable: widget.workspaces,
+      builder: (context, spaces, _) => _build(context, spaces),
+    );
+  }
+
+  Widget _build(BuildContext context, Workspaces spaces) {
+    final t = context.tokens;
+    final look = _Look(context, t);
+    final tree = noteTreeOf(widget.notes, spaces);
+    final trashed = widget.trashed;
+    final popup = widget.onClose != null;
+    final compact = _compact;
+
+    final every = [for (final folder in tree.folders) folder.id, if (tree.archived.isNotEmpty) archiveFolder];
+    final allShut = every.isNotEmpty && every.every(_closed.contains);
+
+    /// Every page's book, for the rows' marks.
+    final inBooks = bookIndex(widget.notes);
+
+    Widget row(Note note) {
+      final title = noteTitle(note.body);
+      final place = placeOf(inBooks, note);
+      final active = note.id == widget.activeId;
+      final small = compact ? null : widget.peek(context, note.body);
+      final name = cssLines(
+        title.isEmpty ? 'Untitled' : title,
+        look.rowTitle(untitled: title.isEmpty, weight: compact ? 'medium' : 'semibold'),
+        // `-webkit-line-clamp: 2`; names only, `white-space: nowrap; text-overflow: ellipsis`.
+        maxLines: compact ? 1 : 2,
+        softWrap: !compact,
+        overflow: TextOverflow.ellipsis,
+      );
+      return CssFlow.block(
+        key: ValueKey('note-row-${note.id}'),
+        // `.row { margin-block: 1px }`; `.tree[data-compact] .row { margin-block: 0 }`
+        margin: EdgeInsets.symmetric(vertical: compact ? 0 : 1),
+        child: Listener(
+          // A mouse's right-click only: on a phone the same gesture is a press and hold, which the lists use.
+          onPointerDown: widget.onNoteMenu == null
+              ? null
+              : (event) {
+                  if (event.kind == PointerDeviceKind.mouse && event.buttons == kSecondaryMouseButton) widget.onNoteMenu!(note.id, event.position);
+                },
+          child: GlacierPressable(
+            onPressed: () => widget.onOpen(note.id),
+            // `aria-current="page"`
+            selected: active ? true : null,
+            builder: (context, state) => GlacierFocusRing(
+              // `.row:focus-visible { outline: 2px solid var(--glacier-focus-ring); outline-offset: -2px }`
+              visible: state.focused,
+              offset: -2,
+              radius: t.radius('md'),
+              child: DecoratedBox(
+                // `.row:hover { background: var(--app-paper-2) }`; `.row[data-active] { background: none }`
+                decoration: BoxDecoration(color: state.hovered && !active ? t.color('app-paper-2') : null, borderRadius: BorderRadius.circular(t.radius('md'))),
+                child: DecoratedBox(
+                  position: DecorationPosition.foreground,
+                  // The open note: a ring, not a fill.
+                  // `box-shadow: inset 0 0 0 var(--app-line) color-mix(in oklch, var(--app-ink) 55%, transparent)`
+                  decoration: BoxDecoration(
+                    border: active ? Border.all(color: t.colorOf('color-mix(in oklch, var(--app-ink) 55%, transparent)'), width: snapBorder(context, t.len('app-line'))) : null,
+                    borderRadius: BorderRadius.circular(t.radius('md')),
+                  ),
+                  child: Padding(
+                    // `padding: 0.5em 0.6em`; names only, `0.32em 0.6em`
+                    padding: EdgeInsets.symmetric(vertical: (compact ? 0.32 : 0.5) * look.em, horizontal: 0.6 * look.em),
+                    child: compact
+                        // `grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0.5em`
+                        ? Row(
+                            spacing: 0.5 * look.em,
+                            children: [
+                              _KindMark(body: note.body, color: t.color('app-ink-3')),
+                              Expanded(child: name),
+                            ],
+                          )
+                        // `display: grid; gap: 0.15em`
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            mainAxisSize: MainAxisSize.min,
+                            spacing: 0.15 * look.em,
+                            children: [
+                              name,
+                              // A page of a book says which: the mark, and the book's name.
+                              if (place != null) Align(alignment: AlignmentDirectional.centerStart, child: BookPlaceMark(place: place)),
+                              // `.rowPeek { margin-block-start: var(--glacier-space-1) }`
+                              if (small != null) Padding(padding: EdgeInsets.only(top: t.space(1)), child: small),
+                            ],
+                          ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    /// `.inside`: a folder's notes sit in from its name, on a faint guide down the side - Obsidian's indent line.
+    Widget inside(List<Widget> children) => CssFlow(
+          // `margin-inline-start: 0.95em; padding-inline-start: 0.35em; border-inline-start: 1px solid var(--app-rule)`
+          margin: EdgeInsets.only(left: 0.95 * look.em),
+          padding: EdgeInsets.only(left: look.rule + 0.35 * look.em),
+          decoration: BoxDecoration(border: Border(left: BorderSide(color: t.color('app-rule'), width: look.rule))),
+          collapse: true,
+          children: children,
+        );
+
+    Widget folder(String id, String name, int count, List<Note> children, {String? hue, Workspace? space, IconData? icon}) {
+      final open = !_closed.contains(id);
+      final org = space?.org;
+      return CssFlow(
+        key: ValueKey('folder-$id'),
+        // `.folder { margin-block: 1px }`
+        margin: const EdgeInsets.symmetric(vertical: 1),
+        collapse: true,
+        children: [
+          _FolderRow(
+            look: look,
+            open: open,
+            onToggle: () => _toggle(id),
+            lead: icon != null ? lucide(icon, size: 14, color: t.color('app-ink-3')) : _Hue(hue: hue ?? 'ink', em: look.folderSize),
+            org: org != null,
+            name: name,
+            count: count,
+            // A workspace's menu: its sheet, or for an organization's workspace the organization's own screen.
+            end: space == null
+                ? null
+                : (hovered) => _Small(
+                      look: look,
+                      hides: true,
+                      rowHovered: hovered,
+                      label: org != null ? '${space.name}, organization settings' : 'Rename, recolour or delete ${space.name}',
+                      icon: LucideIcons.ellipsis,
+                      iconSize: 16,
+                      onPressed: () {
+                        if (org != null && widget.onOrganization != null) {
+                          widget.onOrganization!(org);
+                        } else {
+                          setState(() => _manage = _Manage(space));
+                        }
+                      },
+                    ),
+          ),
+          if (open)
+            if (children.isNotEmpty)
+              inside([for (final note in children) row(note)])
+            else
+              CssFlow.block(
+                // `.emptyFolder { margin: 0.2em 0 0.4em 1.3em; font-size: calc(var(--glacier-font-size-xs) * var(--app-text-scale)); color: var(--app-ink-4) }`
+                margin: EdgeInsets.fromLTRB(1.3 * look.smallSize, 0.2 * look.smallSize, 0, 0.4 * look.smallSize),
+                child: Text('Nothing here yet.', style: pageText(t, look.smallSize, color: t.color('app-ink-4'))),
+              ),
+        ],
+      );
+    }
+
+    /*
+     * The trash (Matt: "Send deleted notes to a trash folder where we can empty it to perma delete notes or restore
+     * notes"): last, under the archive, and shut until opened. A note in it is not opened from here - it has been
+     * thrown away - but brought back, or deleted for good.
+     */
+    Widget trashFolder() => CssFlow(
+          key: const ValueKey('folder-trash'),
+          margin: const EdgeInsets.symmetric(vertical: 1),
+          collapse: true,
+          children: [
+            _FolderRow(
+              look: look,
+              open: _trashOpen,
+              onToggle: () {
+                writeTrashOpen(!_trashOpen, widget.stored);
+                setState(() => _trashOpen = !_trashOpen);
+              },
+              lead: lucide(LucideIcons.trash2, size: 14, color: t.color('app-ink-3')),
+              org: false,
+              name: 'Trash',
+              count: trashed.length,
+              end: widget.onEmptyTrash == null
+                  ? null
+                  : (_) => _EmptyTrash(
+                        look: look,
+                        asking: _asking,
+                        count: trashed.length,
+                        onPressed: () {
+                          if (!_asking) return _ask(true);
+                          _ask(false);
+                          widget.onEmptyTrash!();
+                        },
+                      ),
+            ),
+            if (_trashOpen)
+              inside([
+                for (final note in trashed)
+                  () {
+                    final title = noteTitle(note.body);
+                    final said = title.isEmpty ? 'Untitled' : title;
+                    return CssFlow.block(
+                      key: ValueKey('trash-row-${note.id}'),
+                      // `.trashRow { margin-block: 1px; padding: 0.35em 0.4em 0.35em 0.6em; display: flex; align-items: center; gap: 0.35em }`
+                      margin: const EdgeInsets.symmetric(vertical: 1),
+                      child: _Hover(
+                        builder: (context, hovered) => Padding(
+                          padding: EdgeInsets.fromLTRB(0.6 * look.em, 0.35 * look.em, 0.4 * look.em, 0.35 * look.em),
+                          child: Row(
+                            spacing: 0.35 * look.em,
+                            children: [
+                              Expanded(
+                                // `.trashRow .rowTitle { flex: 1; white-space: nowrap; text-overflow: ellipsis; color: var(--app-ink-2) }`,
+                                // under `.rowTitle[data-untitled]`, which comes later in the sheet and so keeps its colour.
+                                child: cssLines(
+                                  said,
+                                  look.rowTitle(untitled: title.isEmpty, weight: compact ? 'medium' : 'semibold', color: t.color('app-ink-2')),
+                                  maxLines: 1,
+                                  softWrap: false,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (widget.onRestore != null)
+                                _Small(look: look, hides: false, rowHovered: hovered, label: 'Restore $said', icon: LucideIcons.rotateCcw, iconSize: 15, onPressed: () => widget.onRestore!(note)),
+                              if (widget.onDestroy != null)
+                                _Small(look: look, hides: false, rowHovered: hovered, label: 'Delete $said for good', icon: LucideIcons.x, iconSize: 15, danger: true, onPressed: () => widget.onDestroy!(note)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }(),
+              ]),
+          ],
+        );
+
+    Workspace? spaceOf(String id) {
+      for (final space in spaces.list) {
+        if (space.id == id) return space;
+      }
+      return null;
+    }
+
+    final nothing = widget.notes.isEmpty && trashed.isEmpty;
+    final Widget list = nothing
+        // `.empty { margin: var(--glacier-space-4) var(--glacier-space-2); color: var(--glacier-text-muted) }`
+        ? Padding(
+            padding: EdgeInsets.symmetric(vertical: t.space(4), horizontal: t.space(2)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // `.emptyArt { margin-block-end: var(--glacier-space-3) }`
+                if (widget.emptyArt != null) Padding(padding: EdgeInsets.only(bottom: t.space(3)), child: widget.emptyArt),
+                Text('No notes yet.', style: pageText(t, look.em, color: t.color('glacier-text-muted'))),
+              ],
+            ),
+          )
+        : Semantics(
+            // `<ul aria-label="Your notes">`
+            container: true,
+            explicitChildNodes: true,
+            label: 'Your notes',
+            child: CssFlow(
+              children: [
+                for (final f in tree.folders) folder(f.id, f.name, f.notes.length, f.notes, hue: f.hue, space: spaceOf(f.id)),
+                for (final note in tree.loose) row(note),
+                if (tree.archived.isNotEmpty) folder(archiveFolder, 'Archive', tree.archived.length, tree.archived, icon: LucideIcons.archive),
+                if (trashed.isNotEmpty) trashFolder(),
+              ],
+            ),
+          );
+
+    final scroll = SingleChildScrollView(
+      // `.scroll { overflow-y: auto; overscroll-behavior: contain; padding: 0 var(--glacier-space-2) var(--glacier-space-4) }`
+      padding: EdgeInsets.fromLTRB(t.space(2), 0, t.space(2), t.space(4)),
+      child: list,
+    );
+
+    final manage = _manage;
+    return DefaultTextStyle(
+      // `.tree { color: var(--app-ink) }`
+      style: pageText(t, look.em, color: t.color('app-ink')),
+      child: Padding(
+        // `.tree { padding-block-start: var(--app-safe-top) }`; `.tree[data-popup] { padding-block-start: 0 }`
+        padding: EdgeInsets.only(top: popup ? 0 : t.len('app-safe-top')),
+        child: Column(
+          // `block-size: 100%`: docked, it fills its column; in the card, the card is as tall as it.
+          mainAxisSize: popup ? MainAxisSize.min : MainAxisSize.max,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // `.tools { display: flex; align-items: center; gap: var(--glacier-space-1); padding: var(--glacier-space-2) var(--glacier-space-3) }`
+            Semantics(
+              container: true,
+              explicitChildNodes: true,
+              label: 'Notes',
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: t.space(2), horizontal: t.space(3)),
+                child: Row(
+                  spacing: t.space(1),
+                  children: [
+                    _Tool(label: 'New note', icon: LucideIcons.squarePen, onPressed: widget.onNew),
+                    _Tool(label: 'New workspace', icon: LucideIcons.folderPlus, onPressed: () => setState(() => _manage = const _Manage())),
+                    if (widget.onCommands != null) _Tool(label: 'Search and commands', icon: LucideIcons.search, onPressed: widget.onCommands!),
+                    _Tool(label: compact ? 'Show each note drawn small' : 'Show names only', icon: compact ? LucideIcons.layoutList : LucideIcons.list, onPressed: _flipCompact),
+                    if (widget.onBrowseFiles != null) _Tool(label: 'Browse files', icon: LucideIcons.folderOpen, onPressed: widget.onBrowseFiles!),
+                    if (every.isNotEmpty)
+                      _Tool(
+                        label: allShut ? 'Open every folder' : 'Fold every folder',
+                        icon: allShut ? LucideIcons.chevronsUpDown : LucideIcons.chevronsDownUp,
+                        onPressed: () => _setAndKeep(allShut ? {} : {...every}),
+                      ),
+                    // The last tool sits at the far end (`.tool[data-end] { margin-inline-start: auto }`).
+                    if (popup) ...[const Spacer(), _Tool(label: 'Close', icon: LucideIcons.x, onPressed: widget.onClose!)],
+                  ],
+                ),
+              ),
+            ),
+            if (popup) Flexible(child: scroll) else Expanded(child: scroll),
+            // At the bottom, over the foot, with room all round.
+            // `.notices { display: flex; flex-direction: column; gap: var(--glacier-space-2); padding: var(--glacier-space-3) }`
+            if (widget.notices.isNotEmpty)
+              Padding(
+                key: const ValueKey('tree-notices'),
+                padding: EdgeInsets.all(t.space(3)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, spacing: t.space(2), children: widget.notices),
+              ),
+            if (widget.onSpeak != null || widget.onSettings != null)
+              DecoratedBox(
+                key: const ValueKey('tree-foot'),
+                // `.foot { border-block-start: var(--glacier-hairline) solid var(--app-rule) }`
+                decoration: BoxDecoration(border: Border(top: BorderSide(color: t.color('app-rule'), width: look.hairline))),
+                child: Padding(
+                  // `padding: var(--glacier-space-2) var(--glacier-space-3) calc(var(--app-safe-bottom) + var(--glacier-space-2))`
+                  padding: EdgeInsets.fromLTRB(t.space(3), look.hairline + t.space(2), t.space(3), t.len('app-safe-bottom') + t.space(2)),
+                  child: Row(
+                    spacing: t.space(2),
+                    children: [
+                      if (widget.onSpeak != null) _Speak(onPressed: widget.onSpeak!),
+                      if (widget.onSettings != null) ...[const Spacer(), _Tool(label: 'Settings', icon: LucideIcons.settings, onPressed: widget.onSettings!)],
+                    ],
+                  ),
+                ),
+              ),
+            if (manage != null)
+              WorkspaceManageSheet(
+                store: widget.workspaces,
+                editing: manage.space,
+                onClose: () => setState(() => _manage = null),
+                onOrganization: widget.onOrganization,
+                notesIn: widget.notesInWorkspace,
+                onTrashNotes: widget.onTrashNotes,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The sizes the tree's rules are written in, worked out once for a build.
+class _Look {
+  _Look(BuildContext context, this.t)
+      // `1em` where nothing has set a size: the page's own.
+      : em = t.lenOf('1rem'),
+        scale = t.number('app-text-scale'),
+        rule = snapBorder(context, 1),
+        hairline = snapBorder(context, t.len('glacier-hairline'));
+
+  final Tokens t;
+  final double em;
+  final double scale;
+  final double rule;
+  final double hairline;
+
+  /// `1em` in a `<button>` that sets no font of its own: the browser's size for a control, which no token carries.
+  static const double buttonEm = 13.3333;
+
+  /// `.folderToggle { font-size: calc(var(--glacier-font-size-sm) * var(--app-text-scale)) }`
+  double get folderSize => t.fontSize('sm') * scale;
+
+  /// `calc(var(--glacier-font-size-xs) * var(--app-text-scale))`: Empty, and "Nothing here yet.".
+  double get smallSize => t.fontSize('xs') * scale;
+
+  /// `.rowTitle { font-size: calc(var(--glacier-font-size-sm) * var(--app-text-scale) * 1.06); line-height: 1.3 }`,
+  /// and `.rowTitle[data-untitled] { color: var(--glacier-text-subtle) }`.
+  TextStyle rowTitle({required bool untitled, required String weight, Color? color}) =>
+      pageText(t, t.fontSize('sm') * scale * 1.06, weight: weight, height: 1.3, color: untitled ? t.color('glacier-text-subtle') : color ?? t.color('app-ink'));
+}
+
+/// Whether a mouse is connected, which is when a control may wait to be pointed at (`@media (hover: hover)`).
+bool _hovers() => RendererBinding.instance.mouseTracker.mouseIsConnected;
+
+/// Rebuilds with whether the pointer is over it.
+class _Hover extends StatefulWidget {
+  const _Hover({required this.builder});
+  final Widget Function(BuildContext context, bool hovered) builder;
+
+  @override
+  State<_Hover> createState() => _HoverState();
+}
+
+class _HoverState extends State<_Hover> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: widget.builder(context, _hovered),
+    );
+  }
+}
+
+/// `Tool` (`.tool`): a small bare glyph in the row over the notes, as Obsidian has them over its files.
+class _Tool extends StatelessWidget {
+  const _Tool({required this.label, required this.icon, required this.onPressed});
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    // `inline-size: calc(var(--glacier-space-8) * 0.9); block-size: calc(var(--glacier-space-8) * 0.9)`
+    final side = t.space(8) * 0.9;
+    return GlacierPressable(
+      onPressed: onPressed,
+      // `aria-label={label} title={label}`
+      semanticLabel: label,
+      builder: (context, state) => GlacierFocusRing(
+        // `.tool:focus-visible { outline: 2px solid var(--glacier-focus-ring); outline-offset: -2px }`
+        visible: state.focused,
+        offset: -2,
+        radius: t.radius('sm'),
+        child: Container(
+          width: side,
+          height: side,
+          alignment: Alignment.center,
+          // `border-radius: var(--glacier-radius-sm)`; `.tool:hover { background: var(--app-paper-2); color: var(--app-ink) }`
+          decoration: BoxDecoration(color: state.hovered ? t.color('app-paper-2') : null, borderRadius: BorderRadius.circular(t.radius('sm'))),
+          child: ExcludeSemantics(child: lucide(icon, size: 17, color: t.color(state.hovered ? 'app-ink' : 'app-ink-3'))),
+        ),
+      ),
+    );
+  }
+}
+
+/// `KindMark` (`.kind`): a note's kind as a file browser would mark it: a book, a canvas, or a page of words.
+class _KindMark extends StatelessWidget {
+  const _KindMark({required this.body, required this.color});
+  final String body;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = isBookBody(body)
+        ? LucideIcons.bookOpen
+        : isCanvasBody(body)
+            ? LucideIcons.workflow
+            : LucideIcons.fileText;
+    return ExcludeSemantics(child: KeyedSubtree(key: const ValueKey('kind-mark'), child: lucide(icon, size: 14, color: color)));
+  }
+}
+
+/// `.hue`: the workspace's own colour, the same one its pill and its tabs wear (ink.css `[data-hue]`).
+class _Hue extends StatelessWidget {
+  const _Hue({required this.hue, required this.em});
+  final String hue;
+  final double em;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlacierScope(
+      attrs: {'hue': hue},
+      child: Builder(
+        builder: (context) => ExcludeSemantics(
+          // `inline-size: 0.55em; block-size: 0.55em; border-radius: 50%; background: var(--app-space, var(--app-ink-3))`
+          child: Container(
+            key: const ValueKey('folder-hue'),
+            width: 0.55 * em,
+            height: 0.55 * em,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: context.tokens.colorOf('var(--app-space, var(--app-ink-3))')),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// `.folderRow`: the folder's name, which folds it, and what stands at the row's end.
+class _FolderRow extends StatelessWidget {
+  const _FolderRow({required this.look, required this.open, required this.onToggle, required this.lead, required this.org, required this.name, required this.count, required this.end});
+
+  final _Look look;
+  final bool open;
+  final VoidCallback onToggle;
+
+  /// The hue's dot, or the archive's or the trash's mark.
+  final Widget lead;
+  final bool org;
+  final String name;
+  final int count;
+
+  /// A workspace's More, or the trash's Empty, told whether the row is pointed at.
+  final Widget Function(bool hovered)? end;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = look.t;
+    final size = look.folderSize;
+    final ink = t.color('app-ink');
+    return _Hover(
+      builder: (context, hovered) => DecoratedBox(
+        // `.folderRow { border-radius: var(--glacier-radius-sm) }`; `.folderRow:hover { background: var(--app-paper-2) }`
+        decoration: BoxDecoration(color: hovered ? t.color('app-paper-2') : null, borderRadius: BorderRadius.circular(t.radius('sm'))),
+        // `display: flex; align-items: center`
+        child: Row(
+          children: [
+            Expanded(
+              child: Semantics(
+                // `aria-expanded={open}`
+                expanded: open,
+                child: GlacierPressable(
+                  onPressed: onToggle,
+                  builder: (context, state) => GlacierFocusRing(
+                    // `.folderToggle:focus-visible { outline: 2px solid var(--glacier-focus-ring); outline-offset: -2px; border-radius: var(--glacier-radius-sm) }`
+                    visible: state.focused,
+                    offset: -2,
+                    radius: t.radius('sm'),
+                    child: Padding(
+                      // `.folderToggle { display: flex; align-items: center; gap: 0.45em; padding: 0.4em 0.35em }`
+                      padding: EdgeInsets.symmetric(vertical: 0.4 * size, horizontal: 0.35 * size),
+                      child: Row(
+                        spacing: 0.45 * size,
+                        children: [
+                          // `.chevron { color: var(--app-ink-3); transition: transform 140ms var(--glacier-ease-out) }`,
+                          // `.chevron[data-open] { transform: rotate(90deg) }`
+                          ExcludeSemantics(
+                            child: AnimatedRotation(
+                              turns: open ? 0.25 : 0,
+                              duration: t.reducedMotion ? Duration.zero : const Duration(milliseconds: 140),
+                              curve: t.curve('glacier-ease-out'),
+                              child: lucide(LucideIcons.chevronRight, size: 15, color: t.color('app-ink-3')),
+                            ),
+                          ),
+                          lead,
+                          if (org) OrgMark(em: size, color: ink),
+                          // `.folderName { min-inline-size: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis }`
+                          Expanded(
+                            child: Text(name, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: pageText(t, size, weight: 'semibold', color: ink)),
+                          ),
+                          // `.count { margin-inline-start: auto; padding-inline-start: 0.5em; font-weight: medium;
+                          // font-variant-numeric: tabular-nums; color: var(--app-ink-4) }`
+                          Padding(
+                            padding: EdgeInsets.only(left: 0.5 * size),
+                            child: Text(
+                              '$count',
+                              style: pageText(t, size, weight: 'medium', color: t.color('app-ink-4')).copyWith(fontFeatures: [...t.typography.features, const FontFeature.tabularFigures()]),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (end != null) end!(hovered),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// `.folderMore`, `.trashAction`: a small square button at a row's end: a folder's More, and a note in the trash's
+/// two things to do.
+class _Small extends StatelessWidget {
+  const _Small({required this.look, required this.hides, required this.rowHovered, required this.label, required this.icon, required this.iconSize, required this.onPressed, this.danger = false});
+
+  final _Look look;
+
+  /// A folder's More: there on a hover or a focus with a pointer, and always on a finger, which has no hover.
+  final bool hides;
+  final bool rowHovered;
+  final String label;
+  final IconData icon;
+  final double iconSize;
+  final VoidCallback onPressed;
+
+  /// Delete for good: the kit's danger ink when pointed at.
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = look.t;
+    // `inline-size: 1.9em; block-size: 1.9em`, of a button's own size.
+    const side = 1.9 * _Look.buttonEm;
+    return GlacierPressable(
+      onPressed: onPressed,
+      semanticLabel: label,
+      builder: (context, state) {
+        // `@media (hover: hover) { .folderMore { opacity: 0 } .folderRow:hover .folderMore, .folderMore:focus-visible { opacity: 1 } }`
+        final shown = !hides || !_hovers() || rowHovered || state.focused;
+        // `.trashAction:hover { color: var(--app-ink); background: color-mix(in oklch, var(--app-ink) 8%, transparent) }`,
+        // `.trashAction[data-danger]:hover { color: var(--glacier-danger-text) }`
+        final lit = !hides && state.hovered;
+        return Opacity(
+          opacity: shown ? 1 : 0,
+          child: GlacierFocusRing(
+            // `.trashAction:focus-visible { outline: 2px solid var(--glacier-focus-ring); outline-offset: 1px }`
+            visible: state.focused,
+            offset: 1,
+            radius: t.radius('sm'),
+            child: Container(
+              width: side,
+              height: side,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: lit ? t.colorOf('color-mix(in oklch, var(--app-ink) 8%, transparent)') : null, borderRadius: BorderRadius.circular(t.radius('sm'))),
+              child: ExcludeSemantics(
+                child: lucide(icon, size: iconSize, color: t.color(lit ? (danger ? 'glacier-danger-text' : 'app-ink') : 'app-ink-3')),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// `.emptyTrash`: a quiet word at the folder's end, which turns into the question on the first press.
+class _EmptyTrash extends StatelessWidget {
+  const _EmptyTrash({required this.look, required this.asking, required this.count, required this.onPressed});
+  final _Look look;
+  final bool asking;
+  final int count;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = look.t;
+    final size = look.smallSize;
+    return GlacierPressable(
+      onPressed: onPressed,
+      builder: (context, state) {
+        // `.emptyTrash { color: var(--app-ink-3) }`,
+        // `.emptyTrash:hover { color: var(--app-ink); background: color-mix(in oklch, var(--app-ink) 6%, transparent) }`,
+        // `.emptyTrash[data-asking] { color: var(--glacier-danger-text); background: color-mix(in oklch, var(--glacier-danger-text) 14%, transparent) }`
+        final color = asking
+            ? t.color('glacier-danger-text')
+            : state.hovered
+                ? t.color('app-ink')
+                : t.color('app-ink-3');
+        final ground = asking
+            ? t.colorOf('color-mix(in oklch, var(--glacier-danger-text) 14%, transparent)')
+            : state.hovered
+                ? t.colorOf('color-mix(in oklch, var(--app-ink) 6%, transparent)')
+                : null;
+        return GlacierFocusRing(
+          visible: state.focused,
+          offset: 1,
+          radius: t.radius('sm'),
+          child: Container(
+            // `padding: 0.25em 0.6em; border-radius: var(--glacier-radius-sm)`
+            padding: EdgeInsets.symmetric(vertical: 0.25 * size, horizontal: 0.6 * size),
+            decoration: BoxDecoration(color: ground, borderRadius: BorderRadius.circular(t.radius('sm'))),
+            child: Text(asking ? 'Delete $count for good?' : 'Empty', style: pageText(t, size, color: color)),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// `.speak`: the foot's one filled button.
+class _Speak extends StatelessWidget {
+  const _Speak({required this.onPressed});
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    // `font-size: var(--glacier-font-size-sm); font-weight: var(--glacier-font-weight-semibold)`
+    final size = t.fontSize('sm');
+    final paper = t.color('app-paper');
+    return GlacierPressable(
+      onPressed: onPressed,
+      builder: (context, state) => GlacierFocusRing(
+        // `.speak:focus-visible { outline: 2px solid var(--glacier-focus-ring); outline-offset: 2px }`
+        visible: state.focused,
+        child: Container(
+          // `padding: 0.5em 0.95em; border-radius: var(--glacier-radius-full); background: var(--app-ink); color: var(--app-paper)`
+          padding: EdgeInsets.symmetric(vertical: 0.5 * size, horizontal: 0.95 * size),
+          decoration: BoxDecoration(color: t.color('app-ink'), borderRadius: BorderRadius.circular(t.radius('full'))),
+          // `display: inline-flex; align-items: center; gap: 0.45em`
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 0.45 * size,
+            children: [
+              ExcludeSemantics(child: lucide(LucideIcons.mic, size: 16, color: paper)),
+              Text('Speak', style: pageText(t, size, weight: 'semibold', color: paper)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

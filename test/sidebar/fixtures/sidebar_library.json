@@ -1,0 +1,196 @@
+{
+ "now": 1791194400000,
+ "notes": [
+  {
+   "id": "portugal",
+   "body": "---\ntitle: \"Portugal\"\nbook: true\n---\n# Portugal\n\n- [[Packing list]]\n- [[Lisbon]]\n",
+   "createdAt": 1790500000000,
+   "updatedAt": 1791000000000
+  },
+  {
+   "id": "packing",
+   "body": "# Packing list\n\n- [ ] Passport\n- [x] Charger\n- [ ] Sun cream",
+   "createdAt": 1790500000000,
+   "updatedAt": 1791100000000
+  },
+  {
+   "id": "standup",
+   "body": "# Monday standup\n\nSam is on the release notes.\n\n## Blockers\n\n- The staging box is down",
+   "createdAt": 1790500000000,
+   "updatedAt": 1791190000000
+  },
+  {
+   "id": "launch",
+   "body": "# Launch week\n\n1. Draft the post\n2. Book the venue",
+   "createdAt": 1790500000000,
+   "updatedAt": 1791050000000,
+   "starred": true
+  },
+  {
+   "id": "groceries",
+   "body": "# Groceries\n\n- Oat milk\n- Lemons",
+   "createdAt": 1790500000000,
+   "updatedAt": 1791180000000
+  },
+  {
+   "id": "cabin",
+   "body": "---\ntitle: \"Cabin weekend, laid out\"\n---\n{\"nodes\":[],\"edges\":[]}",
+   "createdAt": 1790500000000,
+   "updatedAt": 1790900000000
+  },
+  {
+   "id": "blank",
+   "body": "",
+   "createdAt": 1790500000000,
+   "updatedAt": 1790800000000
+  },
+  {
+   "id": "long",
+   "body": "# A note whose name is long enough that it has to wrap onto a second line of its row\n\nAnd a line under it.",
+   "createdAt": 1790500000000,
+   "updatedAt": 1791150000000
+  },
+  {
+   "id": "old",
+   "body": "# Old plans\n\nShelved.",
+   "createdAt": 1790000000000,
+   "updatedAt": 1790100000000,
+   "archivedAt": 1790200000000
+  },
+  {
+   "id": "torn",
+   "body": "# Torn page",
+   "createdAt": 1790000000000,
+   "updatedAt": 1790100000000
+  },
+  {
+   "id": "scrap",
+   "body": "",
+   "createdAt": 1790000000000,
+   "updatedAt": 1790100000000
+  }
+ ],
+ "workspaces": {
+  "list": [
+   {
+    "id": "work",
+    "name": "Work",
+    "hue": "moss"
+   },
+   {
+    "id": "home",
+    "name": "Home",
+    "hue": "sea"
+   },
+   {
+    "id": "garden",
+    "name": "Garden"
+   },
+   {
+    "id": "org-o1",
+    "name": "Ghost",
+    "hue": "violet"
+   }
+  ],
+  "notes": {
+   "standup": "work",
+   "launch": "work",
+   "groceries": "home"
+  }
+ },
+ "trash": {
+  "torn": 1791190000000,
+  "scrap": 1791100000000
+ },
+ "notifications": [
+  {
+   "id": "n1",
+   "rev": 9,
+   "kind": "invite",
+   "at": 1791194160000,
+   "readAt": null,
+   "hidden": false,
+   "from": "sam",
+   "org": {
+    "id": "o2",
+    "name": "Harbour Press"
+   },
+   "state": "pending"
+  },
+  {
+   "id": "n2",
+   "rev": 8,
+   "kind": "member-joined",
+   "at": 1791191400000,
+   "readAt": null,
+   "hidden": false,
+   "from": "ana",
+   "org": {
+    "id": "o1",
+    "name": "Ghost"
+   }
+  },
+  {
+   "id": "n3",
+   "rev": 7,
+   "kind": "note-edited",
+   "at": 1791183600000,
+   "readAt": 1791190800000,
+   "hidden": false
+  },
+  {
+   "id": "n4",
+   "rev": 6,
+   "kind": "role-changed",
+   "at": 1791100800000,
+   "readAt": 1791190800000,
+   "hidden": false,
+   "from": "ali",
+   "org": {
+    "id": "o1",
+    "name": "Ghost"
+   },
+   "body": {
+    "role": "admin"
+   }
+  },
+  {
+   "id": "n5",
+   "rev": 5,
+   "kind": "invite",
+   "at": 1790935200000,
+   "readAt": 1791190800000,
+   "hidden": false,
+   "from": "ali",
+   "org": {
+    "id": "o1",
+    "name": "Ghost"
+   },
+   "state": "accepted"
+  },
+  {
+   "id": "n6",
+   "rev": 4,
+   "kind": "sync-conflict",
+   "at": 1790848800000,
+   "readAt": 1791190800000,
+   "hidden": false
+  },
+  {
+   "id": "n7",
+   "rev": 3,
+   "kind": "member-removed",
+   "at": 1790416800000,
+   "readAt": 1791190800000,
+   "hidden": false,
+   "from": null,
+   "org": {
+    "id": "o3",
+    "name": "A workshop with a name long enough to wrap onto the next line"
+   },
+   "body": {
+    "handle": "jo"
+   }
+  }
+ ]
+}
