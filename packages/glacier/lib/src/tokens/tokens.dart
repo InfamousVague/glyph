@@ -22,6 +22,14 @@ const _genericFamilies = {
   'monospace',
 };
 
+/// What the page sets on `html` for all its text that no token carries: the font features, and for each family the
+/// further families its glyphs fall back to (the subsets a web font reaches by `unicode-range`).
+class GlacierTypography {
+  const GlacierTypography({this.features = const [], this.fallbacks = const {}});
+  final List<FontFeature> features;
+  final Map<String, List<String>> fallbacks;
+}
+
 /// The design tokens as they stand in one place of the app: every custom property of the token sheets, resolved for a
 /// theme, a density and a window, and read as the type the caller wants.
 ///
@@ -35,9 +43,10 @@ class Tokens {
     Map<String, String> env = const {},
     bool reducedMotion = false,
     CssContext css = const CssContext(),
-  }) : this._(sheet, null, Map.unmodifiable(attrs), const {}, env, reducedMotion, css, attrs.keys.toSet(), const {}, root: true);
+    GlacierTypography typography = const GlacierTypography(),
+  }) : this._(sheet, null, Map.unmodifiable(attrs), const {}, env, reducedMotion, css, typography, attrs.keys.toSet(), const {}, root: true);
 
-  Tokens._(this._sheet, this.parent, this.attrs, this.classes, this._env, this.reducedMotion, this.css, Set<String> ownAttrs, Set<String> ownClasses, {required bool root}) {
+  Tokens._(this._sheet, this.parent, this.attrs, this.classes, this._env, this.reducedMotion, this.css, this.typography, Set<String> ownAttrs, Set<String> ownClasses, {required bool root}) {
     for (final rule in _sheet.rules) {
       if (rule.reducedMotion && !reducedMotion) continue;
       if (!rule.matches(attrs, classes)) continue;
@@ -56,6 +65,17 @@ class Tokens {
   final Map<String, String> _env;
   final bool reducedMotion;
   final CssContext css;
+  final GlacierTypography typography;
+
+  /// The tokens of the page itself, from anywhere inside it: what a panel drawn over the page (a menu, a toast)
+  /// takes, as a portal to `body` does.
+  Tokens get rootTokens {
+    var at = this;
+    while (at.parent != null) {
+      at = at.parent!;
+    }
+    return at;
+  }
 
   final Map<String, String> _declared = {};
   final Map<String, String?> _computed = {};
@@ -71,6 +91,7 @@ class Tokens {
       _env,
       reducedMotion,
       css,
+      typography,
       attrs.keys.toSet(),
       classes,
       root: false,
@@ -214,9 +235,11 @@ class Tokens {
   TextStyle text(String size, {String weight = 'regular', bool mono = false, Color? color}) {
     final px = fontSize(size);
     final fonts = families(mono ? 'glacier-font-mono' : 'glacier-font-sans');
+    final fallback = [...fonts.skip(1), for (final family in fonts) ...?typography.fallbacks[family]];
     return TextStyle(
       fontFamily: fonts.isEmpty ? null : fonts.first,
-      fontFamilyFallback: fonts.length > 1 ? fonts.sublist(1) : null,
+      fontFamilyFallback: fallback.isEmpty ? null : fallback,
+      fontFeatures: mono || typography.features.isEmpty ? null : typography.features,
       fontSize: px,
       height: len('glacier-leading-$size'),
       leadingDistribution: TextLeadingDistribution.even,

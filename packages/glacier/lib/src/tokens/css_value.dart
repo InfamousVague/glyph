@@ -357,8 +357,13 @@ class CssShadow {
   final Color color;
   final bool inset;
 
-  /// CSS's blur radius is twice the sigma a Gaussian takes; [BoxShadow.blurRadius] converts the same way.
-  BoxShadow toBoxShadow() => BoxShadow(offset: offset, blurRadius: blur, spreadRadius: spread, color: color);
+  /// The sigma CSS blurs this layer by: half its blur radius.
+  double get sigma => blur / 2;
+
+  /// As a Flutter shadow that blurs by the same sigma. Flutter turns a blur radius into a sigma its own way
+  /// (`radius * 0.57735 + 0.5`), so the radius given here is the one that comes out at CSS's `blur / 2`.
+  BoxShadow toBoxShadow() =>
+      BoxShadow(offset: offset, blurRadius: sigma <= 0.5 ? 0 : (sigma - 0.5) / 0.57735, spreadRadius: spread, color: color);
 }
 
 List<CssShadow> evalShadows(String value, {CssContext ctx = const CssContext(), Oklch? current}) {

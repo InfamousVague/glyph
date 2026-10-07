@@ -253,11 +253,14 @@ class _GlacierMotionState extends State<GlacierMotion> with SingleTickerProvider
             final eased = curve.transform(t);
             pose = _leaving ? _Pose.lerp(spec.rest, spec.exit!, eased) : _Pose.lerp(spec.initial, spec.rest, eased);
         }
+        // The same wrappers at every moment, so the child keeps its state from its first frame to its last.
         Widget out = child!;
-        if (pose.height != 1) out = ClipRect(child: Align(alignment: Alignment.topCenter, heightFactor: pose.height.clamp(0.0, 1.0), child: out));
-        if (pose.dx != 0 || pose.dy != 0) out = Transform.translate(offset: Offset(pose.dx, pose.dy), child: out);
-        if (pose.scale != 1) out = Transform.scale(scale: pose.scale, alignment: widget.alignment, child: out);
-        if (pose.opacity != 1) out = Opacity(opacity: pose.opacity.clamp(0.0, 1.0), child: out);
+        if (spec.initial.height != 1 || spec.rest.height != 1 || (spec.exit?.height ?? 1) != 1) {
+          out = ClipRect(child: Align(alignment: Alignment.topCenter, heightFactor: pose.height.clamp(0.0, 1.0), child: out));
+        }
+        out = Transform.translate(offset: Offset(pose.dx, pose.dy), child: out);
+        out = Transform.scale(scale: pose.scale, alignment: widget.alignment, child: out);
+        out = Opacity(opacity: pose.opacity.clamp(0.0, 1.0), child: out);
         return out;
       },
     );

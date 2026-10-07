@@ -24,10 +24,13 @@ Future<TokenSheet> loadTokenSheet({List<String> more = const [], AssetBundle? bu
 /// light or dark. The tokens are worked out again when the window's width changes (the type and space scales are
 /// fluid) or its safe areas do.
 class GlacierTheme extends StatefulWidget {
-  const GlacierTheme({super.key, required this.sheet, this.attrs = const {}, required this.child});
+  const GlacierTheme({super.key, required this.sheet, this.attrs = const {}, this.typography = const GlacierTypography(), required this.child});
 
   final TokenSheet sheet;
   final Map<String, String> attrs;
+
+  /// The page's own type settings (`html { font-feature-settings }`, a web font's subsets).
+  final GlacierTypography typography;
   final Widget child;
 
   /// The tokens in force at [context].
@@ -60,10 +63,10 @@ class _GlacierThemeState extends State<GlacierTheme> {
       'safe-area-inset-right': '${pad.right}px',
     };
     final css = CssContext(vw: media.size.width, vh: media.size.height);
-    final key = Object.hash(widget.sheet, Object.hashAll(attrs.entries.map((e) => Object.hash(e.key, e.value))), Object.hashAll(env.values), css, media.disableAnimations);
+    final key = Object.hash(widget.sheet, Object.hashAll(attrs.entries.map((e) => Object.hash(e.key, e.value))), Object.hashAll(env.values), css, media.disableAnimations, widget.typography);
     if (_tokens == null || key != _key) {
       _key = key;
-      _tokens = Tokens.root(widget.sheet, attrs: attrs, env: env, reducedMotion: media.disableAnimations, css: css);
+      _tokens = Tokens.root(widget.sheet, attrs: attrs, env: env, reducedMotion: media.disableAnimations, css: css, typography: widget.typography);
     }
     return _TokensScope(tokens: _tokens!, child: widget.child);
   }

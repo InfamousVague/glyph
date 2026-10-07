@@ -99,6 +99,9 @@ class _GlacierPressableState extends State<GlacierPressable> {
     }
     child = GestureDetector(
       behavior: widget.behavior,
+      // The Semantics below carries the tap, and a second one from here would be a second node; a caller that
+      // writes its own semantics (a radio in its group) takes the tap from here instead.
+      excludeFromSemantics: !widget.excludeSemantics,
       onTapDown: _disabled ? null : (_) => _set(() => _pressed = true),
       onTapUp: _disabled ? null : (_) => _set(() => _pressed = false),
       onTapCancel: _disabled ? null : () => _set(() => _pressed = false),
@@ -142,8 +145,8 @@ class _GlacierPressableState extends State<GlacierPressable> {
 
 /// `outline: 2px solid var(--glacier-focus-ring); outline-offset: 2px` on `:focus-visible`: a ring drawn outside the
 /// child's own box, which takes no room in the layout.
-class GlacierFocusRing extends StatelessWidget {
-  const GlacierFocusRing({super.key, required this.visible, this.radius, this.offset = 2, this.width = 2, required this.child});
+class GlacierFocusRing extends StatefulWidget {
+  const GlacierFocusRing({super.key, required this.visible, this.radius, this.offset = 2, this.width = 2, this.color, required this.child});
 
   final bool visible;
 
@@ -151,13 +154,25 @@ class GlacierFocusRing extends StatelessWidget {
   final double? radius;
   final double offset;
   final double width;
+
+  /// The ring's colour; the focus-ring token unless a rule asks for another (`outline-color: currentColor`).
+  final Color? color;
   final Widget child;
 
   @override
+  State<GlacierFocusRing> createState() => _GlacierFocusRingState();
+}
+
+class _GlacierFocusRingState extends State<GlacierFocusRing> {
+  // The ring is a painter put round the child only while it shows; the key carries the child's state across.
+  final GlobalKey _child = GlobalKey();
+
+  @override
   Widget build(BuildContext context) {
-    if (!visible) return child;
-    final color = GlacierTheme.of(context).color('glacier-focus-ring');
-    return CustomPaint(foregroundPainter: _RingPainter(color, radius, offset, width), child: child);
+    final child = KeyedSubtree(key: _child, child: widget.child);
+    if (!widget.visible) return child;
+    final color = widget.color ?? GlacierTheme.of(context).color('glacier-focus-ring');
+    return CustomPaint(foregroundPainter: _RingPainter(color, widget.radius, widget.offset, widget.width), child: child);
   }
 }
 

@@ -30,11 +30,7 @@ Future<void> pumpKit(WidgetTester tester, Widget child, {String theme = 'light',
           attrs: {...testAttrs, 'theme': theme, ...attrs},
           child: HapticsProvider(
             enabled: haptics,
-            child: Overlay(
-              initialEntries: [
-                OverlayEntry(builder: (context) => Align(alignment: Alignment.topLeft, child: child)),
-              ],
-            ),
+            child: _Host(child: child),
           ),
         ),
       ),
@@ -45,3 +41,36 @@ Future<void> pumpKit(WidgetTester tester, Widget child, {String theme = 'light',
 /// The tokens the harness resolves, for a test to compare a widget's paint against.
 Tokens testTokens({String theme = 'light', Map<String, String> attrs = const {}}) =>
     Tokens.root(testSheet, attrs: {...testAttrs, 'theme': theme, ...attrs}, css: const CssContext(vw: 390, vh: 844));
+
+/// The overlay a page has, with the widget under test as its one entry: pumped again, it shows the new widget in
+/// the same place, so state carries over as it would on a rebuild.
+class _Host extends StatefulWidget {
+  const _Host({required this.child});
+  final Widget child;
+
+  @override
+  State<_Host> createState() => _HostState();
+}
+
+class _HostState extends State<_Host> {
+  late final OverlayEntry _entry = OverlayEntry(builder: (context) => Align(alignment: Alignment.topLeft, child: widget.child));
+
+  @override
+  void didUpdateWidget(_Host old) {
+    super.didUpdateWidget(old);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _entry.markNeedsBuild();
+    });
+    _entry.markNeedsBuild();
+  }
+
+  @override
+  void dispose() {
+    _entry.remove();
+    _entry.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Overlay(initialEntries: [_entry]);
+}
