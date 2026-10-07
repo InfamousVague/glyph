@@ -88,9 +88,6 @@ vec4 wispSource(vec2 p) {
   if (uv.x < 0.0 || uv.y < 0.0 || uv.x >= 1.0 || uv.y >= 1.0) {
     return vec4(0.0);
   }
-#ifdef IMPELLER_TARGET_OPENGLES
-  uv.y = 1.0 - uv.y;
-#endif
   return texture(uSource, uv);
 }
 

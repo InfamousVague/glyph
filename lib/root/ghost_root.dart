@@ -66,9 +66,20 @@ class _GhostRootState extends State<GhostRoot> {
   /// The workspace sheet: shut, a new one, or one to change.
   ({Workspace? editing})? _workspace;
 
+  /// The smoke at the edges is the art's own switch (lib/art/wisp_settings.dart), which follows the preference.
+  void _smoke() => WispSettings.instance.wanted = preferences.value.wispEdge;
+
+  @override
+  void dispose() {
+    preferences.removeListener(_smoke);
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
+    _smoke();
+    preferences.addListener(_smoke);
     // The notes are in memory, so reading them is no wait; a beat, so the launch's first line is seen to be done.
     Future<void>.delayed(const Duration(milliseconds: 350), () {
       if (mounted) setState(() => _read = true);
@@ -173,8 +184,8 @@ class _GhostRootState extends State<GhostRoot> {
                 onSwipe: _swipe,
                 onRefresh: _library.refresh,
                 onManageWorkspace: (workspace) => setState(() => _workspace = (editing: workspace)),
-                headerEdge: prefs.wispEdge ? (context, edge, scroller) => WispEdge(under: edge.under, foot: true, child: scroller) : null,
-                dockHalo: prefs.wispEdge ? (context, it) => DockSmoke(behind: it.behind, dock: it.dock, alignment: it.alignment, padding: it.padding) : null,
+                headerEdge: (context, edge, scroller) => WispEdge(under: edge.under, foot: true, child: scroller),
+                dockHalo: (context, it) => DockSmoke(behind: it.behind, dock: it.dock, alignment: it.alignment, padding: it.padding),
                 ghost: (context, it) => Ghost(
                   scene: switch (it.scene) {
                     HomeGhostScene.noNotes => GhostScene.noNotes,

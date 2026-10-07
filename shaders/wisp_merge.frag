@@ -53,20 +53,15 @@ bool outside(vec2 uv) {
   return uv.x < 0.0 || uv.y < 0.0 || uv.x >= 1.0 || uv.y >= 1.0;
 }
 
-// A picture made by the engine is upside down in one backend's own samplers.
-vec2 upright(vec2 uv) {
-#ifdef IMPELLER_TARGET_OPENGLES
-  uv.y = 1.0 - uv.y;
-#endif
-  return uv;
-}
-
+// A picture the engine made (toImageSync) is sampled the right way up on every backend: flipping it for OpenGL ES,
+// as Flutter's notes on fragment shaders say to, drew each strip upside down on Impeller's OpenGL ES (seen on the
+// Android emulator, 2026-10-07). Vulkan was never flipped.
 vec4 sourceAt(vec2 p) {
   vec2 uv = inRect(uSourceRect, p);
   if (outside(uv)) {
     return vec4(0.0);
   }
-  return texture(uSource, upright(uv));
+  return texture(uSource, uv);
 }
 
 vec4 bentAt(vec2 p) {
@@ -74,7 +69,7 @@ vec4 bentAt(vec2 p) {
   if (outside(uv)) {
     return vec4(0.0);
   }
-  return texture(uBent, upright(uv));
+  return texture(uBent, uv);
 }
 
 vec4 softAt(vec2 p) {
@@ -82,7 +77,7 @@ vec4 softAt(vec2 p) {
   if (outside(uv)) {
     return vec4(0.0);
   }
-  return texture(uSoft, upright(uv));
+  return texture(uSoft, uv);
 }
 
 float bentAlpha(vec2 p, float dx, float dy) {
