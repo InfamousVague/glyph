@@ -35,7 +35,11 @@ class GhostApp extends StatelessWidget {
           builder: (context, child) => GlacierTheme(
             sheet: sheet,
             attrs: prefs.attrs,
-            child: HapticsProvider(enabled: prefs.haptics, child: _Page(child: child!)),
+            typography: const GlacierTypography(
+              features: [FontFeature('cv11'), FontFeature('ss01')],
+              fallbacks: {'Inter Variable': interFallbacks},
+            ),
+            child: HapticsProvider(enabled: prefs.haptics, child: _InkOverrides(child: _Page(child: GlacierToastProvider(child: child!)))),
           ),
           home: const KitGallery(),
         );
@@ -52,10 +56,7 @@ class _Page extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final style = t.text('md').copyWith(
-      fontFamilyFallback: interFallbacks,
-      fontFeatures: const [FontFeature('cv11'), FontFeature('ss01')],
-    );
+    final style = t.text('md');
     final dark = t.isDark;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
@@ -71,4 +72,26 @@ class _Page extends StatelessWidget {
       ),
     );
   }
+}
+
+/// ink.css's rules that reach into the kit's parts, where no token does:
+/// `[role='switch'] + span > span { background: var(--app-paper) }`,
+/// `[role='radiogroup'] > label[data-selected] > span:last-child { color: var(--app-paper) }` and
+/// `[role='radiogroup'] > label > span[aria-hidden='true'] { box-shadow: none }`.
+class _InkOverrides extends StatelessWidget {
+  const _InkOverrides({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return GlacierOverrides(
+      switchThumbColor: _paper,
+      segmentedSelectedLabelColor: _paper,
+      segmentedThumbShadow: _none,
+      child: child,
+    );
+  }
+
+  static Color _paper(Tokens t) => t.color('app-paper');
+  static List<BoxShadow> _none(Tokens t) => const [];
 }

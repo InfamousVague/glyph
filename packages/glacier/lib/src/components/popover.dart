@@ -40,13 +40,15 @@ typedef GlacierPanelBuilder = Widget Function(BuildContext context, AnchoredPosi
 ///
 /// CSS `blur(N)` takes the Gaussian's standard deviation itself (Filter Effects 1: "the value of the standard
 /// deviation to the Gaussian function"), so sigma is N; it is a box shadow's blur radius that is twice its sigma.
-/// The blur is a bounded one: it reads nothing from outside the panel, as a browser's backdrop is cut to the
-/// element's box before it is blurred, so what stands beside a panel does not bleed into its edge.
+/// The blur is the ordinary one under the panel's clip. A bounded blur (which reads nothing from outside the panel,
+/// as a browser cuts the backdrop to the element's box first) would be the closer match, but on the Fold under
+/// Impeller it filled only part of the panel (2026-10-07: a menu's glass stopped two thirds of the way across), so
+/// what stands beside a panel may tint its outermost pixels.
 ImageFilterConfig glacierGlassFilter(Tokens tokens, {double? blur}) {
   final sigma = blur ?? tokens.len('glacier-blur-lg');
   return ImageFilterConfig.compose(
     outer: ImageFilterConfig(ui.ColorFilter.saturation(tokens.number('glacier-glass-saturate'))),
-    inner: ImageFilterConfig.blur(sigmaX: sigma, sigmaY: sigma, bounded: true),
+    inner: ImageFilterConfig.blur(sigmaX: sigma, sigmaY: sigma),
   );
 }
 

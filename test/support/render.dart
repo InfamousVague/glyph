@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -62,7 +61,13 @@ Future<void> pumpApp(WidgetTester tester, {Size size = const Size(390, 844), App
 
 /// Writes or checks `test/shots/<name>.png` (`flutter test --update-goldens` writes). Call it last: it puts back the
 /// test binding's own switch for shadows, which [pumpApp] turned on and the binding checks as a test ends.
-Future<void> shot(WidgetTester tester, String name) async {
+Future<void> shot(WidgetTester tester, String name, {Duration settle = const Duration(seconds: 1)}) async {
+  // Past the entrances, so the picture is the screen at rest; what loops (a working bar) is caught where it stands.
+  for (var i = 0; i < 4; i++) {
+    await tester.pump(settle ~/ 4);
+  }
   await expectLater(find.byType(GhostApp), matchesGoldenFile('shots/$name.png'));
   debugDisableShadows = true;
+  await tester.pumpWidget(const SizedBox.shrink());
+  await tester.pump(const Duration(seconds: 1));
 }

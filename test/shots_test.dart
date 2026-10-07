@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/preferences.dart';
 
@@ -10,7 +12,8 @@ void main() {
 
   for (final theme in ['light', 'dark']) {
     testWidgets('the kit gallery, $theme', (tester) async {
-      await pumpApp(tester, prefs: AppPreferences(theme: theme));
+      // Tall enough for the whole page in one picture.
+      await pumpApp(tester, size: const Size(390, 3300), prefs: AppPreferences(theme: theme), ratio: 1.5);
       await shot(tester, 'gallery-$theme');
     });
   }

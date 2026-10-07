@@ -33,7 +33,7 @@ Each stage ends installed on the Fold. Sizes are the web app's non-test source t
 | # | Stage | From `../glyph` | State |
 | - | ----- | --------------- | ----- |
 | 0 | Ground: project, token engine, motion, haptics, fonts | `vendor/@glacier/tokens`, `@glacier/motion`, `ink.css`, `app.css` | done |
-| 1 | The kit: Switch, SegmentedControl, DensitySelector, ProgressBar, Pill, Toast, Input, SearchField, CommandPalette, Popover, Menu, and a gallery of them on the phone | `@glacier/react` (12 of its components, ~4k lines) | in progress |
+| 1 | The kit: Switch, SegmentedControl, DensitySelector, ProgressBar, Pill, Toast, Input, SearchField, Kbd, CommandPalette, Popover, Menu, and a gallery of them on the phone | `@glacier/react` (12 of its components, ~4k lines) | done 2026-10-07, on the Fold |
 | 2 | The shell: launch, the tab bar in its four styles, home with its sections, cards and dock, the Settings surface and its kit, the sidebar; the art: wisp and smoke as shaders, the ghost | `shell/`, `home/`, `launch/`, `art/`, `scene/`, `settings/` kit, part of `notes/` (~12k) | |
 | 3 | The library: the Rust core behind FFI; notes as Markdown files, the store, search, workspaces, tabs and the note tree | `src-tauri/src` (27k Rust, kept), `core/` (24k TS, to Dart or into Rust), `notes/` | |
 | 4 | The editor: live Markdown, the marks and the five effects, tables, links, pictures, the + menu | `editor/` (26k), `format/` | |
@@ -47,6 +47,24 @@ Each stage ends installed on the Fold. Sizes are the web app's non-test source t
 The web app is about 110,000 lines of TypeScript, 21,500 of CSS, 27,000 of Rust and 6,500 of Kotlin, with 5,600
 tests. Parity is the bar for every stage; a stage is not done until its screens have been compared with the web app's
 on the same phone.
+
+## What stage 1 left open
+
+- **Not ported from the kit:** the `skeleton` prop everywhere, the `shape` system (ShapeLayer), `ContextMenu`, and the
+  kit's `LocaleProvider` (the few strings are local, English first; the palette's are in eight languages).
+- **Three files do the same job** and want merging: `css_effects.dart`, `field_core.dart` and the private painters in
+  `menu.dart` / `popover.dart` each draw inset shadows, outer shadows and a glass backdrop.
+- **A panel over the page takes the tokens where its trigger is**, where the web kit's portal took the body's.
+  `Tokens.rootTokens` is there for it; the popover, menu and palette do not use it yet.
+- **Hover styles** only show on Android once a key has been pressed (Flutter's highlight mode); a mouse on the Fold's
+  desktop mode will want that looked at in stage 10.
+- **Checked against the web kit:** the tokens (35 values measured on the page), the palette's logic (the kit's own 48
+  cases), the positioning maths and arrow outlines (string for string), and the fields and palette by pixels against
+  Chromium drawing the kit's CSS. **Not yet compared side by side on the phone** with the web app: the switch, the
+  segmented control, the density selector, the pill, the toast and the menu, whose sizes and colours are asserted
+  against the tokens in tests but were only looked at, not measured, on the device.
+- **On the device (2026-10-07, Fold 8, Android 17, Impeller):** a bounded backdrop blur filled only part of a menu's
+  panel, so the glass uses an ordinary blur under its clip.
 
 ## Working on it
 

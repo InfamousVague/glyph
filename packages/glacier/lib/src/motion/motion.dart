@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import '../tokens/theme.dart';
@@ -151,6 +153,9 @@ class _GlacierMotionState extends State<GlacierMotion> with SingleTickerProvider
   bool _leaving = false;
   bool _gone = false;
 
+  /// The wait before a delayed entrance begins: a staggered row's turn.
+  Timer? _wait;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -170,13 +175,21 @@ class _GlacierMotionState extends State<GlacierMotion> with SingleTickerProvider
     }
   }
 
-  Future<void> _enter() async {
+  void _enter() {
+    _controller.value = 0;
+    _wait?.cancel();
+    if (widget.delay > Duration.zero) {
+      _wait = Timer(widget.delay, _begin);
+    } else {
+      _begin();
+    }
+  }
+
+  void _begin() {
+    if (!mounted) return;
     final tokens = GlacierTheme.of(context);
     final spec = _spec(widget.kind);
     final timing = transition(tokens, widget.speed ?? spec.speed, widget.ease ?? spec.ease);
-    _controller.value = 0;
-    if (widget.delay > Duration.zero) await Future<void>.delayed(widget.delay);
-    if (!mounted) return;
     switch (widget.kind) {
       case Motion.shake:
         _controller.duration = tokens.duration('glacier-duration-slow');
@@ -199,6 +212,7 @@ class _GlacierMotionState extends State<GlacierMotion> with SingleTickerProvider
   Duration _reduced(Tokens tokens, Duration looped) => tokens.reducedMotion ? Duration.zero : looped;
 
   void _leave() {
+    _wait?.cancel();
     final spec = _spec(widget.kind);
     if (spec.exit == null) {
       setState(() => _gone = true);
@@ -217,6 +231,7 @@ class _GlacierMotionState extends State<GlacierMotion> with SingleTickerProvider
 
   @override
   void dispose() {
+    _wait?.cancel();
     _controller.dispose();
     super.dispose();
   }

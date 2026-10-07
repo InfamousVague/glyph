@@ -4,12 +4,12 @@ import 'package:flutter/foundation.dart';
 /// `data-` attribute on the page there, and on the theme here.
 @immutable
 class AppPreferences {
-  const AppPreferences({this.theme = 'system', this.density = 'default', this.textSize = 'default', this.rounding = 'default', this.haptics = true});
+  const AppPreferences({this.theme = 'system', this.density = 'comfortable', this.textSize = 'default', this.rounding = 'default', this.haptics = true});
 
   /// `system`, `light`, `dark`, or a named theme: `dawn`, `boreal`, `ember`.
   final String theme;
 
-  /// `default`, `extra-compact`, `compact`, `spacious`, `more-space`.
+  /// `extra-compact`, `compact`, `comfortable` (the default, which stamps nothing), `spacious`, `more-space`.
   final String density;
 
   /// `default`, `larger`, `largest`.
@@ -36,7 +36,7 @@ class AppPreferences {
         'note-font': 'maple',
         'tabs': 'on',
         if (presets.containsKey(theme)) ...{'theme': presets[theme]!, 'theme-preset': theme} else if (theme != 'system') 'theme': theme,
-        if (density != 'default') 'density': density,
+        if (density != 'comfortable') 'density': density,
         if (textSize != 'default') 'text-size': textSize,
         if (rounding != 'default') 'rounding': rounding,
       };

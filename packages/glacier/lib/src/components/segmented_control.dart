@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart';
 import '../haptics/haptics.dart';
 import '../motion/motion.dart';
 import '../tokens/theme.dart';
+import '../tokens/overrides.dart';
 import 'css_effects.dart';
 import 'pressable.dart';
 
@@ -241,13 +242,15 @@ class _GlacierSegmentedControlState extends State<GlacierSegmentedControl> with 
     final selected = _selectedIndex;
 
     final thumbShadows = cssShadowsOf(t, 'inset 0 var(--glacier-hairline) 0 var(--glacier-glass-highlight), var(--glacier-shadow-2)');
+    final overrides = GlacierOverrides.maybeOf(context);
+    final ownShadow = widget.thumbShadow ?? overrides?.segmentedThumbShadow?.call(t);
     final Widget thumb = DecoratedBox(
       decoration: BoxDecoration(
         color: t.color('glacier-segment-thumb'),
         borderRadius: BorderRadius.circular(radius),
-        boxShadow: widget.thumbShadow ?? thumbShadows.outer,
+        boxShadow: ownShadow ?? thumbShadows.outer,
       ),
-      child: GlacierInsetShadows(shadows: widget.thumbShadow == null ? thumbShadows : const [], radius: radius),
+      child: GlacierInsetShadows(shadows: ownShadow == null ? thumbShadows : const [], radius: radius),
     );
 
     Widget segment(int index) {
@@ -256,7 +259,7 @@ class _GlacierSegmentedControlState extends State<GlacierSegmentedControl> with 
       final isDisabled = _isDisabled(index);
       // `.segment.disabled .label` comes after `.segment[data-selected] .label` at the same weight, so it wins.
       final kitColor = t.color(isDisabled ? 'glacier-text-disabled' : (isSelected ? 'glacier-text' : 'glacier-text-muted'));
-      final color = isSelected ? (widget.selectedLabelColor ?? kitColor) : kitColor;
+      final color = isSelected ? (widget.selectedLabelColor ?? overrides?.segmentedSelectedLabelColor?.call(t) ?? kitColor) : kitColor;
       final style = t.text(font, weight: isSelected ? 'semibold' : 'medium').copyWith(height: 1);
       return Semantics(
         container: true,

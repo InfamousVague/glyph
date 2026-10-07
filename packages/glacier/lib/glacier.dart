@@ -4,6 +4,7 @@ library;
 
 export 'src/tokens/css_value.dart';
 export 'src/tokens/oklch.dart';
+export 'src/tokens/overrides.dart';
 export 'src/tokens/sheet.dart';
 export 'src/tokens/theme.dart';
 export 'src/tokens/tokens.dart';

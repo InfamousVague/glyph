@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import '../haptics/haptics.dart';
 import '../motion/motion.dart';
 import '../tokens/theme.dart';
+import '../tokens/overrides.dart';
 import '../tokens/tokens.dart';
 import 'css_effects.dart';
 import 'pressable.dart';
@@ -163,7 +164,7 @@ class _GlacierSwitchState extends State<GlacierSwitch> with SingleTickerProvider
         height: thumbSize,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: widget.thumbColor ?? t.colorOf('oklch(0.995 0 0)'),
+            color: widget.thumbColor ?? GlacierOverrides.maybeOf(context)?.switchThumbColor?.call(t) ?? t.colorOf('oklch(0.995 0 0)'),
             borderRadius: BorderRadius.circular(full),
             boxShadow: thumbShadows.outer,
           ),
