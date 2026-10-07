@@ -279,10 +279,11 @@ function driftStep(now: number): void {
  * What else moves with the page's smoke: told each step's slide, in px, so it drifts as one smoke with the header and
  * the foot and holds still when they do (art/dockSmoke.ts, the halo round the home page's dock).
  */
-const followers = new Set<(dx: number, dy: number) => void>();
+export type WispFollower = (dx: number, dy: number, frequency: string) => void;
+const followers = new Set<WispFollower>();
 
-/** Follows the page band's drift until the answer is called. */
-export function followWispDrift(follower: (dx: number, dy: number) => void): () => void {
+/** Follows the page band's drift, its slide and the noise's breathing frequency, until the answer is called. */
+export function followWispDrift(follower: WispFollower): () => void {
   followers.add(follower);
   return () => {
     followers.delete(follower);
@@ -299,7 +300,8 @@ function stepBand(band: WispBand, t: number): void {
   const y = BASE_Y + 0.01 * Math.sin(t / 3400 + 1.3);
   const dx = (4 * Math.sin(t / 2300 + 0.7)).toFixed(2);
   const dy = (SLIDE_PX / 2 + (SLIDE_PX / 2) * Math.sin(t / 3100)).toFixed(2);
-  noise.setAttribute('baseFrequency', `${x.toFixed(4)} ${y.toFixed(4)}`);
+  const frequency = `${x.toFixed(4)} ${y.toFixed(4)}`;
+  noise.setAttribute('baseFrequency', frequency);
   slide.setAttribute('dx', dx);
   slide.setAttribute('dy', dy);
   // A view drawn as a mask (art/wispMask.ts) slides its smoke by the same amounts. Written on the views wearing it,
@@ -310,9 +312,9 @@ function stepBand(band: WispBand, t: number): void {
     view.style.setProperty('--wisp-noise-y', `${dy}px`);
   }
   if (band !== 'page') return;
-  for (const follower of followers) follower(Number(dx), Number(dy));
+  for (const follower of followers) follower(Number(dx), Number(dy), frequency);
   // The foot's own noise drifts with the top's, so both ends of a view move as one smoke.
-  document.getElementById(WISP_EDGE_FOOT_NOISE_ID)?.setAttribute('baseFrequency', `${x.toFixed(4)} ${y.toFixed(4)}`);
+  document.getElementById(WISP_EDGE_FOOT_NOISE_ID)?.setAttribute('baseFrequency', frequency);
   const footSlide = document.getElementById(WISP_EDGE_FOOT_DRIFT_ID);
   footSlide?.setAttribute('dx', dx);
   footSlide?.setAttribute('dy', dy);

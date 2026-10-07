@@ -10903,6 +10903,18 @@ is placed by `--dock-smoke-x/y`, which the hook writes from the page band's own 
 `followWispDrift`): the same few pixels on the same clock, only while the page is scrolled, still under reduced
 motion and while a recording holds the drift. So the tendrils sway and the halo keeps its shape.
 
+**And on Android it bends what scrolls behind it** (2026-10-07; Matt: "the smoke effect warbles and wobbles as I
+scroll but the dock remains static breaking the effect"). The slide was true to the header's and too faint to see: a
+few pixels over twenty seconds, on a blur. What warbles at the foot is the page itself, bent by the noise as it
+scrolls through, and a mask bends nothing. Chromium takes an SVG filter as a backdrop filter, so on Android
+(`dockBends`: Android, drawing the filter, with smoke under its headers) the halo's backdrop is `#dockWisp`
+(art/WispEdgeFilter.tsx): the foot's turbulence at the foot's strength, softened a little, its frequency breathed by
+the page's drift, under a lighter wash (35%) so the paper does not hide the bend. Two things found in the pane, each
+of which made Chromium draw the backdrop with no filter at all: a flood merged under the noise, and a `blur()`
+chained after the reference in the stylesheet. So the noise is not slid (a slide's gap wanted the flood) and the
+softening is inside the filter. WebKit has no such backdrop filter, and a desktop's header has no smoke to match:
+there the halo is the blur under the sliding mask, as before. Not yet seen on the phone itself when written.
+
 Tests: art/dockSmoke.test.tsx.
 
 Cites: §94 (the wisp and the blur under a header), GLY-81.

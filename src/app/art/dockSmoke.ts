@@ -1,5 +1,7 @@
 import { useLayoutEffect, type RefObject } from 'react';
+import { isAndroid } from '../core/platform.ts';
 import { followWispDrift } from './wispEdge.ts';
+import { wispDraw, wispHead } from './wispMask.ts';
 
 /**
  * The wisp around the home page's floating dock (home/HomeScreen.module.css `.dockHalo`; Matt: "Change the shadow
@@ -19,6 +21,15 @@ import { followWispDrift } from './wispEdge.ts';
  * is the page band's own (art/wispEdge.ts `followWispDrift`): the same few pixels, on the same clock, only while the
  * page is being scrolled, still with reduced motion and while a recording holds the drift.
  *
+ * **And on a phone it bends what scrolls behind it, as the foot does** (Matt: "the smoke effect warbles and wobbles as
+ * I scroll but the dock remains static breaking the effect"). The slide alone was true to the header's and too faint
+ * to see: a few pixels over twenty seconds, on a blur. What warbles at the foot is the page itself, bent by the noise
+ * as it scrolls through, and a mask bends nothing. Chromium takes an SVG filter as a backdrop filter, which is the one
+ * way to bend only what lies behind a floating thing, so on Android the halo's backdrop is the foot's own recipe
+ * (`DOCK_BEND_FILTER_ID`, drawn by art/WispEdgeFilter.tsx): the same turbulence, the same strength, breathed by the
+ * same drift. WebKit has no such backdrop filter, and the Mac's header has no smoke to match, so there the
+ * halo stays the blur under the sliding mask.
+ *
  * The core and the ramp are made for the halo's own size, measured, since they follow the pill and the pill's size is
  * the dock's: two buttons or four, a phone or the Fold. Until it is measured, and where nothing lays out (a test),
  * the halo keeps the plain feather its stylesheet gives it.
@@ -28,6 +39,18 @@ import { followWispDrift } from './wispEdge.ts';
 export const DOCK_SMOKE_REACH = 48;
 /** The smoke tile's side, in px: it repeats, stitched so no seam shows as it slides. */
 export const DOCK_SMOKE_TILE = 256;
+
+/** The filter that bends the halo's backdrop, and its noise, which the drift breathes (art/WispEdgeFilter.tsx). */
+export const DOCK_BEND_FILTER_ID = 'dockWisp';
+export const DOCK_BEND_NOISE_ID = 'dockWispNoise';
+
+/**
+ * Whether the halo bends its backdrop: where the page's own foot is bent (a phone drawing the filter), on the one
+ * engine that takes an SVG filter as a backdrop filter.
+ */
+export function dockBends(): boolean {
+  return isAndroid && wispDraw() === 'filter' && wispHead() === 'smoke';
+}
 
 const image = (svg: string) => `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 
@@ -105,9 +128,13 @@ export function useDockSmoke(ref: RefObject<HTMLElement | null>): void {
     sizes.observe(halo);
     // Written on the halo alone, as the header's slide is written on its own views: a property set on the root this
     // often would restyle the whole document.
-    const unfollow = followWispDrift((dx, dy) => {
+    const bends = dockBends();
+    if (bends) halo.dataset.bend = '';
+    const unfollow = followWispDrift((dx, dy, frequency) => {
       halo.style.setProperty('--dock-smoke-x', `${dx}px`);
       halo.style.setProperty('--dock-smoke-y', `${dy}px`);
+      if (!bends) return;
+      document.getElementById(DOCK_BEND_NOISE_ID)?.setAttribute('baseFrequency', frequency);
     });
     return () => {
       sizes.disconnect();

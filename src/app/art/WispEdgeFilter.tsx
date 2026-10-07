@@ -1,3 +1,4 @@
+import { DOCK_BEND_FILTER_ID, DOCK_BEND_NOISE_ID } from './dockSmoke.ts';
 import {
   WISP_EDGE_ABOVE,
   WISP_EDGE_BAND,
@@ -95,6 +96,19 @@ export function WispEdgeFilter() {
           <feMergeNode in="footBentIn" />
           <feMergeNode in="footSmoke" />
         </feMerge>
+      </filter>
+
+      {/* The dock's halo, on Android (art/dockSmoke.ts): the foot's noise and the foot's strength, bending the halo's
+          backdrop over its whole box, since the halo's mask says where it shows. The noise is made opaque as the bands'
+          is. It breathes with the page's drift and is not slid: a slide opens a gap at the box's edge, and the grey
+          laid under it to keep the gap still (a flood, merged) made Chromium draw the backdrop with no filter at all.
+          The softening is in here and not a `blur()` after it in the stylesheet, for the same reason: a backdrop
+          filter that chains a reference with a function is drawn as the function alone (both seen in the pane). */}
+      <filter id={DOCK_BEND_FILTER_ID} x="0" y="0" width="1" height="1" colorInterpolationFilters="sRGB">
+        <feTurbulence id={DOCK_BEND_NOISE_ID} type="fractalNoise" baseFrequency="0.018 0.06" numOctaves="2" seed="3" result="rawDockNoise" />
+        <feColorMatrix in="rawDockNoise" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0 1" result="dockNoise" />
+        <feDisplacementMap in="SourceGraphic" in2="dockNoise" scale="23" xChannelSelector="R" yChannelSelector="G" result="dockBent" />
+        <feGaussianBlur in="dockBent" stdDeviation="1.6" />
       </filter>
     </svg>
   );

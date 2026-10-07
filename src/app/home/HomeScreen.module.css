@@ -236,6 +236,17 @@
   mask-composite: add, intersect;
 }
 
+/*
+ * On Android the halo bends what scrolls behind it with the foot's own noise (art/dockSmoke.ts `dockBends`), then
+ * softens it a little inside the same filter, as the foot's smoke is: the page warbles round the dock as it does at the foot (Matt: "the
+ * smoke effect warbles and wobbles as I scroll but the dock remains static breaking the effect"). A lighter wash, or
+ * the paper would hide the bend it is there to show.
+ */
+.dockHalo[data-bend] {
+  backdrop-filter: url('#dockWisp');
+  background: color-mix(in srgb, var(--glacier-bg) 35%, transparent);
+}
+
 /* Without a backdrop filter to layer, the halo is the paper wash alone, a little stronger. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .dockHalo {
