@@ -15,8 +15,8 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.mattssoftware.ghost_md"
+        // Beside the real app (com.mattssoftware.glyph), never over it: its own id, its own data.
+        applicationId = "com.mattssoftware.glyph.flutter"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
