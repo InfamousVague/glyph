@@ -46,6 +46,7 @@
 :where(svg.lucide-external-link) > :nth-child(3),
 :where(svg.lucide-eye) > :nth-child(2),
 :where(svg.lucide-feather) > :nth-child(1),
+:where(svg.lucide-file) > :nth-child(1),
 :where(svg.lucide-file-code) > :nth-child(1),
 :where(svg.lucide-file-plus) > :nth-child(1),
 :where(svg.lucide-file-text) > :nth-child(1),
