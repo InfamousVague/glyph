@@ -10990,3 +10990,27 @@ says "Synced", "Still syncing" past five seconds, or why not. Settings › Accou
 Tests: core/sync/prefs.test.ts ("keep a note filed on one device...").
 
 Cites: §152, §193.
+
+## 211. An update found while opening is taken at once (2026-10-07)
+
+Matt: "If an update is found on the loading screen apply and restart automatically".
+
+The screen opening asks for the update check at once (launch/LaunchScreen.tsx), and the check downloads and installs
+what it finds; it then said "An update is ready for next time" and opened the old build. Now, while that screen is
+still up, it says "Updating Ghost.md" and reloads the page after a beat (450ms, to be read), and the launch that
+follows is the new build's. The screen does not hand over meanwhile.
+
+- **Once for a build** (core/ota.ts `claimAutoReload`, kept in the session, which outlives a reload and not the app).
+  A build that does not come up is put aside by the loader and the page falls back, where the same build can still
+  stand as the one to load: without the claim the launch would reload into it for ever. The second time it reads
+  "An update is ready for next time", as before.
+- **Not into a recording**: not while a meeting records, and not when the side key opened the app to start one
+  (`holdUpdate`), since a reload ends it.
+- **Only while the screen is up.** The check stops holding the door after three seconds, as it did; an update that
+  lands after that is offered by the notice, since someone is in the app by then.
+- **The page only.** A newer app (the APK) still needs Android's installer and its own Install, which no app can
+  press; the Mac app and the stores are as they were.
+
+Tests: launch/LaunchScreen.test.tsx.
+
+Cites: §41 of the guidebook (over the air), core/ota.ts.

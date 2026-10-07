@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, CircleAlert, LoaderCircle } from '@glacier/icons';
 import { prefersStill } from '../core/motion.ts';
-import type { Updates } from '../core/ota.ts';
+import { meetingStateNow } from '../capture/meetingLive.ts';
+import { claimAutoReload, type Updates } from '../core/ota.ts';
 import type { SyncStatus } from '../core/sync/engine.ts';
 import { isTauri } from '../core/tauri.ts';
 import icon from './ghost-icon-eyeless.webp';
@@ -15,6 +16,14 @@ import styles from './LaunchScreen.module.css';
  * update check (asked now, on the app, rather than after the usual settling pause), and the account's sync when
  * there is one.
  *
+ * An update found while it is up is taken there and then (Matt: "If an update is found on the loading screen apply
+ * and restart automatically"): the check has already downloaded and installed the build, so the line says so and the
+ * page reloads into it, and the launch that follows is the new build's. Once for a build (core/ota.ts
+ * `claimAutoReload`), so a build that will not come up cannot loop the launch; not while a recording runs or the side
+ * key opened the app to start one (`holdUpdate`), since a reload would end it; and only while this screen is still
+ * up, since past it someone is already in the app. A newer app (the APK) is not this: Android's installer asks first,
+ * and no app can answer for the person.
+ *
  * It goes when the notes are read and the update check has answered, or three seconds on, whichever is first, so a slow
  * network never holds anyone at the door; and it stays at least long enough to be read rather than flash.
  */
@@ -26,12 +35,16 @@ const LONGEST_MS = 3000;
 const FADE_MS = 260;
 /** A check that hasn't started by now isn't going to: this build or this device doesn't check. */
 const SKIP_AFTER_MS = 500;
+/** How long "Updating" is shown before the reload: long enough to be read as the reason the launch starts again. */
+const APPLY_BEAT_MS = 450;
 
 interface LaunchScreenProps {
   loading: boolean;
   notes: number;
   updates: Updates;
   sync: SyncStatus;
+  /** Leave an update for later: the app was opened to record, which a reload would end. */
+  holdUpdate?: boolean;
   onDone: () => void;
 }
 
@@ -161,7 +174,7 @@ function IconChase({ finishing, onFinished }: { finishing: boolean; onFinished: 
   );
 }
 
-export function LaunchScreen({ loading, notes, updates, sync, onDone }: LaunchScreenProps) {
+export function LaunchScreen({ loading, notes, updates, sync, holdUpdate = false, onDone }: LaunchScreenProps) {
   const native = isTauri();
   const started = useRef(Date.now());
   const [now, setNow] = useState(() => Date.now());
@@ -194,11 +207,28 @@ export function LaunchScreen({ loading, notes, updates, sync, onDone }: LaunchSc
     return () => window.clearTimeout(timer);
   }, [native]);
 
+  // An update found while this screen is up: loaded now, after a beat for its line to be read (the header).
+  const [applying, setApplying] = useState(false);
+  const readyBuild = updates.ready?.build ?? null;
+  const reload = useRef(updates.reload);
+  reload.current = updates.reload;
+  useEffect(() => {
+    if (!readyBuild || applying || leaving || holdUpdate) return;
+    if (meetingStateNow()?.recording) return;
+    if (claimAutoReload(readyBuild)) setApplying(true);
+  }, [readyBuild, applying, leaving, holdUpdate]);
+  useEffect(() => {
+    if (!applying) return undefined;
+    const timer = window.setTimeout(() => reload.current(), APPLY_BEAT_MS);
+    return () => window.clearTimeout(timer);
+  }, [applying]);
+
   const elapsed = now - started.current;
   const checked = skipped || (begun.current && !updates.checking);
   // Ready once, and ready from then on: a second check starting mid-fade can't hold the screen up again.
   const latched = useRef(false);
-  if (!loading && elapsed >= SHORTEST_MS && (checked || elapsed >= LONGEST_MS)) latched.current = true;
+  // Not while an update is being taken: the page is about to start again, and the ghost's wink is the new build's to give.
+  if (!applying && !loading && elapsed >= SHORTEST_MS && (checked || elapsed >= LONGEST_MS)) latched.current = true;
   const ready = latched.current;
 
   // Once ready it stays ready: the ghost looks out and winks (IconChase), then the screen fades and hands over. The
@@ -221,7 +251,9 @@ export function LaunchScreen({ loading, notes, updates, sync, onDone }: LaunchSc
   ];
   if (!skipped) {
     lines.push(
-      !checked
+      applying
+        ? { key: 'updates', state: 'working', words: 'Updating Ghost.md' }
+        : !checked
         ? { key: 'updates', state: 'working', words: 'Checking for updates' }
         : updates.ready
           ? { key: 'updates', state: 'done', words: 'An update is ready for next time' }

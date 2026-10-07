@@ -1652,7 +1652,7 @@ function Shell() {
       />
       {/* After an update: what it changed, once (notes/WhatsNewSheet.tsx). Not over the guide or a recording. */}
       <WhatsNewSheet sources={updates.status?.sources} hold={accountGate.open || guide.open || isRecording(screen)} />
-      {launching ? <LaunchScreen loading={loading} notes={notes.filter((n) => !n.archivedAt).length} updates={updates} sync={syncStatus} onDone={() => setLaunching(false)} /> : null}
+      {launching ? <LaunchScreen loading={loading} notes={notes.filter((n) => !n.archivedAt).length} updates={updates} sync={syncStatus} holdUpdate={launchedByKey} onDone={() => setLaunching(false)} /> : null}
       <SceneBench script={sceneBench} onClose={() => setSceneBench(null)} />
       {/* Every note, in a card over the one being read; the tab row's icon opens it (notes/NotesDrawer.tsx). */}
       <NotesDrawer

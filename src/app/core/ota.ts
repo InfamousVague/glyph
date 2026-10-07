@@ -21,7 +21,9 @@ import { invoke, isTauri } from './tauri.ts';
  *    comes back to the screen a minute or more after it last looked, and on a
  *    two-minute beat while it stays in front; install it in the background,
  *    and say so. A downloaded build runs on the next page load; the list
- *    offers a reload, and a cold start picks it up regardless.
+ *    offers a reload, and a cold start picks it up regardless. One found
+ *    while the app is still opening is loaded there and then
+ *    (launch/LaunchScreen.tsx, `claimAutoReload`).
  * 3. The APK - when the published APK is newer than this binary, download it
  *    (in Rust, verified) and hand it to Android's installer through the
  *    activity. The installer's own confirmation screen is the one step no app
@@ -176,6 +178,25 @@ export function isNewerVersion(offered: string, installed: string): boolean {
 
 /** Whether this page was built as the staging app (vite.config.ts): its own id, its own data, no updates. */
 export const STAGING: boolean = typeof __GLYPH_STAGING__ !== 'undefined' && __GLYPH_STAGING__;
+
+const AUTO_RELOAD_KEY = 'glyph-ota-auto-reload';
+
+/**
+ * Whether the screen opening may reload into `build` by itself (launch/LaunchScreen.tsx), asked once: yes the first
+ * time for a build in this run of the app, and never again for it. A build that reloads and does not come up is put
+ * aside by the loader and the page falls back to the one before, where the same build can still be standing as the
+ * one to load; without this the launch would reload into it again, and again. Kept in the session, which outlives a
+ * reload and not the app. Where nothing can be kept there is no way to tell, so no.
+ */
+export function claimAutoReload(build: string): boolean {
+  try {
+    if (sessionStorage.getItem(AUTO_RELOAD_KEY) === build) return false;
+    sessionStorage.setItem(AUTO_RELOAD_KEY, build);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export function useUpdates(): Updates {
   const [ready, setReady] = useState<Updates['ready']>(null);

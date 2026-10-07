@@ -65,6 +65,53 @@ describe('the screen opening shows', () => {
     expect(onDone).toHaveBeenCalledTimes(1);
   });
 
+  it('takes an update found while it is up: says so, reloads, and does not hand over meanwhile', () => {
+    vi.useFakeTimers();
+    native = true;
+    sessionStorage.clear();
+    const onDone = vi.fn();
+    const reload = vi.fn();
+    host = show(<LaunchScreen loading={false} notes={2} updates={updates({ checking: true, reload })} sync={sync} onDone={onDone} />);
+    rerender(<LaunchScreen loading={false} notes={2} updates={updates({ ready: { build: '20261007020000', version: '1.14.0' }, reload })} sync={sync} onDone={onDone} />);
+    expect(text()).toContain('Updating Ghost.md');
+    expect(reload).not.toHaveBeenCalled();
+    act(() => void vi.advanceTimersByTime(500));
+    expect(reload).toHaveBeenCalledTimes(1);
+    act(() => void vi.advanceTimersByTime(4000));
+    expect(onDone).not.toHaveBeenCalled();
+  });
+
+  it('takes a build once: back on the old page with the same build still waiting, it opens as it used to', () => {
+    vi.useFakeTimers();
+    native = true;
+    sessionStorage.clear();
+    const reload = vi.fn();
+    const ready = { build: '20261007020000', version: '1.14.0' };
+    host = show(<LaunchScreen loading={false} notes={2} updates={updates({ ready, reload })} sync={sync} onDone={vi.fn()} />);
+    act(() => void vi.advanceTimersByTime(500));
+    expect(reload).toHaveBeenCalledTimes(1);
+    unmount();
+    // The launch after the reload, where the new build did not come up.
+    const onDone = vi.fn();
+    host = show(<LaunchScreen loading={false} notes={2} updates={updates({ checking: true, reload })} sync={sync} onDone={onDone} />);
+    rerender(<LaunchScreen loading={false} notes={2} updates={updates({ ready, reload })} sync={sync} onDone={onDone} />);
+    expect(text()).toContain('An update is ready for next time');
+    act(() => void vi.advanceTimersByTime(1000));
+    act(() => void vi.advanceTimersByTime(300));
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(onDone).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves an update for later when the app was opened to record', () => {
+    vi.useFakeTimers();
+    native = true;
+    sessionStorage.clear();
+    const reload = vi.fn();
+    host = show(<LaunchScreen loading={false} notes={2} updates={updates({ ready: { build: '20261007020000', version: '1.14.0' }, reload })} sync={sync} holdUpdate onDone={vi.fn()} />);
+    act(() => void vi.advanceTimersByTime(1000));
+    expect(reload).not.toHaveBeenCalled();
+  });
+
   it('shows no update line where no check runs, and doesn’t wait for one', () => {
     vi.useFakeTimers();
     native = true;
