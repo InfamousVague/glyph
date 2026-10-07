@@ -1,45 +1,12 @@
-import 'package:flutter/foundation.dart';
+import '../core/preferences.dart';
 
-/// The look a person chose, as the web app's preferences name it (src/app/core/preferences.ts): each field is a
-/// `data-` attribute on the page there, and on the theme here.
-@immutable
-class AppPreferences {
-  const AppPreferences({this.theme = 'system', this.density = 'comfortable', this.textSize = 'default', this.rounding = 'default', this.haptics = true});
+export '../core/preferences.dart';
 
-  /// `system`, `light`, `dark`, or a named theme: `dawn`, `boreal`, `ember`.
-  final String theme;
-
-  /// `extra-compact`, `compact`, `comfortable` (the default, which stamps nothing), `spacious`, `more-space`.
-  final String density;
-
-  /// `default`, `larger`, `largest`.
-  final String textSize;
-
-  /// `default`, `square`, `soft`, `rounder`.
-  final String rounding;
-  final bool haptics;
-
-  static const presets = {'dawn': 'light', 'boreal': 'dark', 'ember': 'dark'};
-
-  AppPreferences copyWith({String? theme, String? density, String? textSize, String? rounding, bool? haptics}) => AppPreferences(
-        theme: theme ?? this.theme,
-        density: density ?? this.density,
-        textSize: textSize ?? this.textSize,
-        rounding: rounding ?? this.rounding,
-        haptics: haptics ?? this.haptics,
-      );
-
-  /// The page's attributes for these choices (preferences.ts `applyPreferences`). `theme` is left out for `system`,
-  /// so the theme follows the phone's; a named theme is stamped twice, as its side and as its name.
-  Map<String, String> get attrs => {
-        'platform': defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS ? 'mobile' : 'desktop',
-        'note-font': 'maple',
-        'tabs': 'on',
-        if (presets.containsKey(theme)) ...{'theme': presets[theme]!, 'theme-preset': theme} else if (theme != 'system') 'theme': theme,
-        if (density != 'comfortable') 'density': density,
-        if (textSize != 'default') 'text-size': textSize,
-        if (rounding != 'default') 'rounding': rounding,
-      };
-}
-
-final ValueNotifier<AppPreferences> preferences = ValueNotifier(const AppPreferences());
+/// The preferences under the name they had while this file was a stand-in for them. They are
+/// lib/core/preferences.dart now, a port of the web app's src/app/core/preferences.ts: [Preferences], and the store
+/// `preferences`, which this file hands on. New code imports that file and says [Preferences].
+///
+/// What changed for code written against the stand-in: the defaults are the web's (the theme is `dark`, not
+/// `system`; the text size `large` and the rounding `round`, not `default`), and the haptics switch is no longer a
+/// preference but this device's own flag, `hapticsPref`.
+typedef AppPreferences = Preferences;

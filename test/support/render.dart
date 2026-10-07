@@ -8,10 +8,15 @@ import 'package:ghost_md/app/ghost_app.dart';
 import 'package:ghost_md/app/preferences.dart';
 import 'package:ghost_md/main.dart';
 import 'package:glacier/glacier.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// A test draws text as boxes unless the faces are loaded by hand. This loads the app's own (pubspec.yaml) and each
 /// package's icon font, so a picture taken in a test is the picture the phone draws.
 Future<void> loadAppFonts() async {
+  // Storage that answers, and holds nothing: without it the preferences' first read asks the real device, which
+  // never answers under a test's clock, and every test that draws the app hangs. A test that wants something kept
+  // sets its own values after this (`SharedPreferences.setMockInitialValues`), before it draws.
+  SharedPreferences.setMockInitialValues(<String, Object>{});
   Future<void> family(String name, Iterable<String> files) async {
     final loader = FontLoader(name);
     for (final file in files) {
@@ -53,6 +58,9 @@ Future<void> pumpApp(WidgetTester tester, {Size size = const Size(390, 844), App
   tester.view.padding = FakeViewPadding(top: 36 * ratio, bottom: 20 * ratio);
   tester.view.viewPadding = FakeViewPadding(top: 36 * ratio, bottom: 20 * ratio);
   addTearDown(tester.view.reset);
+  // The preferences as a launch leaves them on a device that has kept nothing, then the test's own choices over
+  // them. No storage is asked: a plugin's answer never arrives on a test's clock, and nothing is kept between tests.
+  preferences.startWithoutStorage();
   preferences.value = prefs;
   final sheet = await tester.runAsync(() => loadTokenSheet(more: appStyleSheets));
   await tester.pumpWidget(home == null ? GhostApp(sheet: sheet!) : GhostApp(sheet: sheet!, home: home));

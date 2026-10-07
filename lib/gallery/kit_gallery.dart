@@ -78,7 +78,7 @@ class _KitGalleryState extends State<KitGallery> {
                       GlacierSegmentedControl(
                         ariaLabel: 'Theme',
                         fullWidth: true,
-                        value: AppPreferences.presets.containsKey(prefs.theme) ? 'system' : prefs.theme,
+                        value: isThemePreset(prefs.theme) ? 'system' : prefs.theme,
                         onValueChange: (v) => preferences.value = prefs.copyWith(theme: v),
                         options: const [
                           GlacierSegmentedOption(value: 'system', label: Text('System')),
@@ -114,7 +114,7 @@ class _KitGalleryState extends State<KitGallery> {
                     ]),
 
                     _Section('Switch', [
-                      _Row('Haptics', GlacierSwitch(ariaLabel: 'Haptics', checked: prefs.haptics, onCheckedChange: (on) => preferences.value = prefs.copyWith(haptics: on))),
+                      _Row('Haptics', ValueListenableBuilder<bool>(valueListenable: hapticsPref, builder: (context, on, _) => GlacierSwitch(ariaLabel: 'Haptics', checked: on, onCheckedChange: hapticsPref.set))),
                       _Row('Glass surfaces', GlacierSwitch(ariaLabel: 'Glass surfaces', checked: _glass, glass: _glass, onCheckedChange: (on) => setState(() => _glass = on))),
                       _Row('Small', GlacierSwitch(ariaLabel: 'Small', size: GlacierSwitchSize.sm, checked: _small, onCheckedChange: (on) => setState(() => _small = on))),
                       const _Row('Disabled', GlacierSwitch(ariaLabel: 'Disabled', defaultChecked: true, disabled: true)),
