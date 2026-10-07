@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Download, Plus } from '@glacier/icons';
 import { failureText } from '../app/core/failure.ts';
 import { withFrontMatterValue } from '../app/core/frontMatter.ts';
@@ -35,6 +35,11 @@ const MapCard = lazy(() => import('../app/editor/MapCard.tsx').then((module) => 
  * A page that says where it was written (core/geotag.ts; the owner chose to share that) draws the map card under its
  * byline, quiet until it is tapped: opening a link fetches nothing from openstreetmap.org until the reader chooses
  * to. The page never asks for a name; it draws what the front matter holds.
+ *
+ * As the share opens it asks where to read it (Matt: "prompt with a popup when they view the file to say "View in App"
+ * or "Continue in Browser""): View in App is the app's own link, which saves the copy there and opens it; Continue
+ * in Browser puts the question away and the page is read here. Asked once a visit, over the page already drawn, so
+ * whoever has no app sees what they were sent behind it and loses nothing by the answer.
  */
 
 const dark = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
@@ -49,6 +54,8 @@ export function Reader() {
   const [isDark, setDark] = useState(dark);
   /** The page whose map the reader asked to see, if any. */
   const [mapOn, setMapOn] = useState<number | null>(null);
+  /** Whether the reader has yet to say where to read: the app, or here. */
+  const [asking, setAsking] = useState(true);
 
   useEffect(() => {
     document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
@@ -83,7 +90,56 @@ export function Reader() {
       </main>
     );
   }
-  return <Read shared={state.shared} page={page} setPage={setPage} dark={isDark} saving={saving} setSaving={setSaving} copied={copied} setCopied={setCopied} mapOn={mapOn} setMapOn={setMapOn} />;
+  const found = readShareLink(location.href);
+  return (
+    <>
+      <Read shared={state.shared} page={page} setPage={setPage} dark={isDark} saving={saving} setSaving={setSaving} copied={copied} setCopied={setCopied} mapOn={mapOn} setMapOn={setMapOn} />
+      {asking && found ? <WhereToRead shared={state.shared} appLink={`ghostmd://fork#${found.id}.${found.key}`} onDone={() => setAsking(false)} /> : null}
+    </>
+  );
+}
+
+/**
+ * The question a share opens with: in the app, or here. The app's link is a plain link, so the phone or the computer
+ * hands it to Ghost.md itself; where there is no app nothing happens, and the page behind is still the share, with
+ * the way to get the app said under the two answers. Escape, or a tap outside, is Continue in Browser.
+ */
+function WhereToRead({ shared, appLink, onDone }: { shared: Shared; appLink: string; onDone: () => void }) {
+  const first = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    first.current?.focus();
+    const key = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onDone();
+    };
+    document.addEventListener('keydown', key);
+    return () => document.removeEventListener('keydown', key);
+  }, [onDone]);
+  return (
+    <div className={styles.askScrim} onClick={onDone}>
+      <section className={styles.ask} role="dialog" aria-modal="true" aria-labelledby="where-to-read" onClick={(event) => event.stopPropagation()}>
+        <h2 id="where-to-read" className={styles.askTitle}>
+          Open in Ghost.md?
+        </h2>
+        <p className={styles.quiet}>
+          “{shared.title}” is a shared {shared.kind === 'book' ? 'notebook' : 'note'}. The app saves a copy of your own; here it is read as it was sent.
+        </p>
+        <span className={styles.askWays}>
+          <a ref={first} className={styles.primary} href={appLink} onClick={onDone}>
+            View in App
+          </a>
+          <button type="button" className={styles.action} onClick={onDone}>
+            Continue in Browser
+          </button>
+        </span>
+        <p className={styles.askFoot}>
+          No app yet?{' '}
+          <a className={styles.getApp} href={INSTALL_URL}>
+            Get Ghost.md
+          </a>
+        </p>
+      </section>
+    </div>
+  );
 }
 
 function Read({

@@ -181,3 +181,65 @@
   font-size: var(--glacier-font-size-2xl);
   letter-spacing: var(--app-tracking-title);
 }
+
+/*
+ * The question a share opens with (Reader.tsx `WhereToRead`): the app, or here. Over the page already drawn, at the
+ * foot of a phone where a thumb is and in the middle of anything wider.
+ */
+.askScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  padding: var(--app-gutter);
+  background: color-mix(in srgb, var(--glacier-bg) 60%, transparent);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.ask {
+  display: grid;
+  gap: var(--glacier-space-3);
+  inline-size: min(100%, 24rem);
+  padding: var(--glacier-space-5);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-lg);
+  background: var(--app-paper-2);
+  color: var(--glacier-text);
+}
+
+.ask p {
+  margin: 0;
+}
+
+.askTitle {
+  margin: 0;
+  font-size: var(--glacier-font-size-xl);
+  letter-spacing: var(--app-tracking-title);
+}
+
+/* The two answers, each a full row to hit: the app first. */
+.askWays {
+  display: grid;
+  gap: var(--glacier-space-2);
+}
+
+.askWays > * {
+  justify-content: center;
+  min-block-size: 2.75rem;
+  font-size: var(--glacier-font-size-sm);
+}
+
+.askFoot {
+  color: var(--glacier-text-muted);
+  font-size: var(--glacier-font-size-sm);
+  text-align: center;
+}
+
+@media (min-width: 34rem) {
+  .askScrim {
+    align-items: center;
+  }
+}

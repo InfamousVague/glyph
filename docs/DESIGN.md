@@ -11014,3 +11014,24 @@ follows is the new build's. The screen does not hand over meanwhile.
 Tests: launch/LaunchScreen.test.tsx.
 
 Cites: §41 of the guidebook (over the air), core/ota.ts.
+
+## 212. A share asks where to read it (2026-10-07)
+
+Matt: "Please allow for users to "open in ghost" when I share links to files, prompt with a popup when they view the
+file to say "View in App" or "Continue in Browser"".
+
+The reader page (src/read/Reader.tsx) had the app's link two taps in, under Save a copy. Now, as a share opens, a
+popup over the page already drawn asks "Open in Ghost.md?" with two answers. **View in App** is the app's own link,
+`ghostmd://fork#<id>.<key>` (src-tauri/src/links.rs), which the phone or the computer hands to Ghost.md: the app saves
+the copy and opens it, as that link always did. **Continue in Browser** puts the question away; so do Escape and a
+tap outside. Under them, the way to get the app.
+
+Asked once a visit and not remembered: a link opened again asks again, since the answer is about this reading. The
+share is drawn behind it, so someone with no app sees what they were sent and loses nothing by tapping View in App,
+which then does nothing; a page cannot tell whether the app is there, and a timed guess at it would be wrong as often
+as right. Only a link that opened asks: a dead link or one missing its key says so, as before. The banner's Save a
+copy and its two ways are as they were.
+
+Tests: src/read/Reader.test.tsx.
+
+Cites: docs/SHARING.md, §211.

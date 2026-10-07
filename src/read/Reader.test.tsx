@@ -54,6 +54,31 @@ describe('the reader page', () => {
     expect(document.querySelector('button[aria-label="Download as Markdown (.zip)"]')).toBeTruthy();
   });
 
+  it('asks where to read as it opens: the app’s own link, or here, and Continue in Browser puts the question away', async () => {
+    const id = 'a'.repeat(22);
+    const key = 'b'.repeat(43);
+    history.replaceState(null, '', `/read.html#${id}.${key}`);
+    show(<Reader />);
+    await waitUntil(() => expect(document.querySelector('[role="dialog"]')).toBeTruthy());
+    const dialog = document.querySelector('[role="dialog"]')!;
+    const inApp = [...dialog.querySelectorAll('a')].find((a) => a.textContent === 'View in App')!;
+    expect(inApp.getAttribute('href')).toBe(`ghostmd://fork#${id}.${key}`);
+    // The share is drawn behind the question, for whoever has no app.
+    expect(document.querySelector('.cm-editor')).toBeTruthy();
+    const here = [...dialog.querySelectorAll('button')].find((b) => b.textContent === 'Continue in Browser')!;
+    act(() => here.click());
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.querySelector('.cm-editor')).toBeTruthy();
+  });
+
+  it('takes Escape as Continue in Browser', async () => {
+    history.replaceState(null, '', `/read.html#${'a'.repeat(22)}.${'b'.repeat(43)}`);
+    show(<Reader />);
+    await waitUntil(() => expect(document.querySelector('[role="dialog"]')).toBeTruthy());
+    act(() => void document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
   it('says a shared notebook is one, and lists its pages as pages', async () => {
     const index = '---\ntitle: "Field guide"\nbook: true\n---\n# Field guide\n\n- [[Trees]]\n';
     vi.mocked(readShared).mockResolvedValueOnce({ v: 1, kind: 'book', title: 'Field guide', pages: [{ title: 'Field guide', body: index }, { title: 'Trees', body: '# Trees\n\nOaks.' }], at: 1 });
