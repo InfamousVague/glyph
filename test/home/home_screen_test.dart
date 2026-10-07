@@ -1,0 +1,928 @@
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/core/note.dart';
+import 'package:ghost_md/core/sample_library.dart';
+import 'package:ghost_md/core/workspaces.dart';
+import 'package:ghost_md/home/home_layout.dart';
+import 'package:ghost_md/home/home_organizations.dart';
+import 'package:ghost_md/home/home_parts.dart';
+import 'package:ghost_md/home/home_rows.dart';
+import 'package:ghost_md/home/home_screen.dart';
+import 'package:ghost_md/home/note_card.dart';
+import 'package:ghost_md/notes/swipe_row.dart';
+import 'package:ghost_md/shell/header_pane.dart';
+import 'package:glacier/glacier.dart';
+
+import '../core/make_note.dart';
+import '../support/render.dart';
+import 'support.dart';
+
+/// The home page (lib/home/home_screen.dart), over the library the store screenshots were taken over: what it
+/// lists in each layout, its search and filters, its swipes and its pull, its dock, its empty pages, and where
+/// things stand, held to what the web page measured (the dev server at 430x932 and 669x951, dark, the same notes at
+/// the same moment; the numbers are that page's `getBoundingClientRect`s).
+void main() {
+  setUpAll(loadAppFonts);
+
+  /// Takes the page down, and puts back the binding's switch for shadows that [pumpApp] turned on.
+  Future<void> away(WidgetTester tester) async {
+    debugDisableShadows = true;
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 1));
+  }
+
+  Finder key(String name) => find.byKey(ValueKey(name));
+  Finder words(String part) => find.textContaining(part, findRichText: true);
+
+  /// The page's own scroller (the search field has one of its own inside it).
+  final scroller = find.descendant(of: key('home-scroll'), matching: find.byType(Scrollable)).first;
+
+  /// The filters' button, whatever it says is on: "Filters", "Filters: Pinned, Home".
+  final filters = find.byWidgetPredicate((widget) => widget is Semantics && widget.properties.button == true && (widget.properties.label ?? '').startsWith('Filters'));
+
+  /// Puts what [finder] finds a third of the way down the screen, clear of the header and the dock.
+  Future<void> bring(WidgetTester tester, Finder finder) async {
+    final position = tester.state<ScrollableState>(scroller).position;
+    await tester.scrollUntilVisible(finder, 300, scrollable: scroller);
+    position.jumpTo((position.pixels + tester.getRect(finder).top - 300).clamp(0.0, position.maxScrollExtent));
+    await tester.pump();
+  }
+
+  /// A choice of the filters' panel, by what it says: a radio, apart from a heading or the page's name that says the
+  /// same words.
+  Finder radio(String label) => find.byWidgetPredicate((widget) => widget is Semantics && widget.properties.label == label && widget.properties.checked != null);
+
+  /// The page's headings, in order: "Pinned 1", "Recent", "Today 3".
+  List<String> headings(WidgetTester tester) => [
+        for (final heading in tester.widgetList<HomeHeading>(find.byType(HomeHeading))) heading.count == null ? heading.words : '${heading.words} ${heading.count}',
+      ];
+
+  /// Whether [rect] is where the web page had it, to [within] of a pixel each way.
+  void at(Rect rect, double left, double top, double width, double height, {double within = 0.75, String? reason}) {
+    expect(rect.left, closeTo(left, within), reason: '${reason ?? ''} left');
+    expect(rect.top, closeTo(top, within), reason: '${reason ?? ''} top');
+    expect(rect.width, closeTo(width, within), reason: '${reason ?? ''} width');
+    expect(rect.height, closeTo(height, within), reason: '${reason ?? ''} height');
+  }
+
+  group('what the page lists, in each layout', () {
+    testWidgets('Spotlight: the pinned notes as lines, the four touched last as cards, then the rest by when', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
+      await settle(tester);
+      expect(headings(tester), ['Pinned 1', 'Recent', 'Today 3', 'Yesterday 5', 'Earlier this week 7']);
+      expect([for (final line in tester.widgetList<HomeLine>(find.byType(HomeLine))) line.note.id], ['weekend']);
+      expect([for (final card in tester.widgetList<NoteCard>(find.byType(NoteCard))) card.note.id], ['prd11', 'standup', 'flat', 'open-tickets']);
+      expect([for (final row in tester.widgetList<HomeRow>(find.byType(HomeRow))) row.note.id].take(4), ['sprint', 'reading', 'groceries', 'house']);
+      expect(find.text('All notes · 20'), findsOneWidget);
+      // The archive is never on the page.
+      it.library.archive('flat', archived: true);
+      await settle(tester);
+      expect(key('card-flat'), findsNothing);
+      expect(find.text('All notes · 19'), findsOneWidget);
+      await away(tester);
+    });
+
+    testWidgets('Cards: the notebooks, then the notes, each drawn small', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, layout: HomeLayout.cards));
+      await settle(tester);
+      expect(headings(tester), ['Notebooks 2', 'Notes 18']);
+      final cards = [for (final card in tester.widgetList<NoteCard>(find.byType(NoteCard))) card.note.id];
+      expect(cards.take(4), ['product', 'portugal', 'weekend', 'prd11']);
+      expect(cards.length, 20);
+      // A notebook's card: how many pages, and the first of them, numbered.
+      expect(find.descendant(of: key('card-product'), matching: find.text('4 pages')), findsOneWidget);
+      expect(find.descendant(of: key('card-product'), matching: find.text('Pricing page copy')), findsOneWidget);
+      expect(find.byType(HomeRow), findsNothing);
+      await away(tester);
+    });
+
+    testWidgets('Timeline: everything by when it was touched, a row each', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, layout: HomeLayout.timeline));
+      await settle(tester);
+      expect(headings(tester), ['Today 8', 'Yesterday 5', 'Earlier this week 7']);
+      expect([for (final row in tester.widgetList<HomeRow>(find.byType(HomeRow))) row.note.id].take(8), ['prd11', 'standup', 'flat', 'open-tickets', 'sprint', 'reading', 'weekend', 'groceries']);
+      expect(find.byType(NoteCard), findsNothing);
+      // A row says its notebook, its ticket's key and status, and how it starts.
+      expect(words('Product ·'), findsWidgets);
+      expect(find.descendant(of: key('row-prd11'), matching: find.text('PRD-11')), findsOneWidget);
+      expect(find.descendant(of: key('row-prd11'), matching: find.text('In progress')), findsOneWidget);
+      expect(find.descendant(of: key('row-standup'), matching: words('Summary')), findsOneWidget);
+      await away(tester);
+    });
+
+    testWidgets('List: the notebooks then the notes, a row each, pinned first', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, layout: HomeLayout.list));
+      await settle(tester);
+      expect(headings(tester), ['Notebooks 2', 'Notes 18']);
+      expect([for (final row in tester.widgetList<HomeRow>(find.byType(HomeRow))) row.note.id].take(4), ['product', 'portugal', 'weekend', 'prd11']);
+      expect(find.descendant(of: key('row-product'), matching: words('4 pages')), findsOneWidget);
+      await away(tester);
+    });
+
+    testWidgets('says what a canvas, a journal and a recording are on their rows, and the meeting being recorded', (tester) async {
+      final journal = exampleJournal(DateTime.fromMillisecondsSinceEpoch(seedNow));
+      final library = SampleLibrary([
+        ...seedLibrary(),
+        makeNote('journal', body: journal.journal, createdAt: seedNow - 1000, updatedAt: seedNow - 1000),
+        makeNote('entry', body: journal.entry, createdAt: seedNow - 2000, updatedAt: seedNow - 2000),
+        makeNote('tape', body: '# Ideas on the walk\n\nThe app should open on the day.', source: NoteSource.capture, recordingMs: 40000, createdAt: seedNow - 3000, updatedAt: seedNow - 3000),
+        makeNote('meeting', body: '# Meeting, 28 Sep 09:58', source: NoteSource.capture, createdAt: seedNow - 4000, updatedAt: seedNow - 4000),
+      ], clock: () => seedNow);
+      await pumpHome(tester, Home(library: library, workspaces: WorkspaceStore(), asked: Asked(), layout: HomeLayout.timeline, recording: 'meeting'));
+      await settle(tester);
+      expect(find.descendant(of: key('row-journal'), matching: words('1 entry')), findsOneWidget);
+      expect(find.descendant(of: key('row-tape'), matching: words('0:40')), findsOneWidget);
+      expect(find.descendant(of: key('row-meeting'), matching: words('Recording now')), findsOneWidget);
+      await bring(tester, key('row-cabin-canvas'));
+      expect(find.descendant(of: key('row-cabin-canvas'), matching: words('8 cards')), findsOneWidget);
+      await away(tester);
+    });
+
+    testWidgets('stops Cards at the most it may draw, and sends the rest to All notes', (tester) async {
+      final library = SampleLibrary([for (var i = 0; i < 50; i += 1) makeNote('n$i', body: '# Note $i', updatedAt: seedNow - i * 60000)], clock: () => seedNow);
+      await pumpHome(tester, Home(library: library, workspaces: WorkspaceStore(), asked: Asked(), layout: HomeLayout.cards), ratio: 1);
+      await settle(tester);
+      expect(tester.widgetList<NoteCard>(find.byType(NoteCard)).length, cardsAtMost);
+      expect(find.text('2 more in All notes'), findsOneWidget);
+      await away(tester);
+    });
+  });
+
+  group('where things stand, as the web page measured them', () {
+    testWidgets('on a phone (430x932): the search, the headings, a pinned line, the cards and the dock', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
+      await settle(tester);
+      // The header pane is the tab bar's height, and the page begins a row's air under it.
+      expect(tester.getSize(find.byType(HeaderPane)).height, closeTo(46.78, 0.1));
+      expect(tester.getRect(find.byType(EditableText)).left, closeTo(60.95, 0.75), reason: 'the field, past its mark');
+      at(tester.getRect(find.bySemanticsLabel('Filters')), 362.53, 87.48, 44.98, 44.98, reason: 'filters button');
+      at(tester.getRect(find.bySemanticsLabel('Search notebooks and notes').first), 22.48, 87.48, 331.06, 44.98, reason: 'search');
+      at(tester.getRect(find.text('Pinned')), 46.23, 159.44, 44.94, 16, reason: 'Pinned');
+      at(tester.getRect(key('line-weekend')), 22.48, 185.42, 385.03, 44.98, reason: 'the pinned line');
+      at(tester.getRect(find.text('Weekend trip')), 56.47, 197.91, 101.73, 20, reason: 'its name');
+      at(tester.getRect(find.descendant(of: key('line-weekend'), matching: find.text('1 hr ago'))), 359.23, 200.91, 43.78, 14, reason: 'its when');
+      at(tester.getRect(find.text('Recent')), 46.23, 258.38, 45.27, 16, reason: 'Recent');
+      at(tester.getRect(key('card-prd11')), 22.48, 283.36, 385.03, 249.44, reason: 'the first card');
+      at(tester.getRect(key('card-standup')), 22.48, 546.28, 385.03, 207.05, reason: 'the second card');
+      at(tester.getRect(key('card-flat')), 22.48, 766.81, 385.03, 168.69, reason: 'the third card');
+      // Inside a card: its title, its notebook, its ticket's key and status, and when.
+      expect(tester.getRect(find.text('Fix the sign-in loop')).top, closeTo(302.34, 0.75));
+      at(tester.getRect(find.descendant(of: key('card-prd11'), matching: find.text('Product'))), 56.81, 331.53, 41.25, 14, reason: 'the notebook');
+      at(tester.getRect(find.descendant(of: key('card-prd11'), matching: find.text('PRD-11'))), 41.47, 354.52, 41.48, 14, reason: 'the key');
+      expect(tester.getRect(find.descendant(of: key('card-prd11'), matching: find.text('In progress'))).left, closeTo(102.57, 0.75));
+      expect(tester.getRect(find.text('20 min ago')).top, closeTo(499.81, 0.75));
+      // The words of the preview: a paragraph's two lines, then the to-dos hung on their boxes.
+      at(tester.getRect(find.ancestor(of: words('Signing'), matching: find.byType(CssLines)).first), 41.47, 386.48, 347.06, 34.78, reason: 'the preview: two lines, 17.4 each');
+      expect(tester.getRect(words('Find')).left, closeTo(80.63, 0.75), reason: 'a to-do hangs past "- [x] "');
+      at(tester.getRect(key('dock-search')), 362.44, 815.86, 39.59, 39.59, reason: 'Search');
+      at(tester.getRect(key('dock-add')), 362.44, 864.44, 39.59, 39.59, reason: '+');
+      await away(tester);
+    });
+
+    testWidgets('on a phone, a timeline: the rows', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, layout: HomeLayout.timeline, speak: true));
+      await settle(tester);
+      at(tester.getRect(find.text('Today')), 22.48, 159.44, 39.78, 16, reason: 'Today');
+      at(tester.getRect(key('row-prd11')), 22.48, 185.42, 385.03, 64.97, reason: 'a row');
+      at(tester.getRect(key('row-standup')), 22.48, 251.39, 385.03, 64.97, reason: 'the next row, a hairline down');
+      expect(tester.getRect(find.descendant(of: key('row-prd11'), matching: find.text('Fix the sign-in loop'))).topLeft, within(distance: 0.75, from: const Offset(56.47, 198.91)));
+      at(tester.getRect(find.descendant(of: key('row-prd11'), matching: find.text('20 min ago'))), 343.73, 203.73, 59.28, 14, reason: 'when');
+      at(tester.getRect(find.descendant(of: key('row-prd11'), matching: find.text('PRD-11'))), 120.5, 222.91, 41.48, 14, reason: 'the ticket in the lead');
+      expect(tester.getRect(find.descendant(of: key('row-standup'), matching: words('Summary'))).top, closeTo(286.88, 0.75));
+      // With Speak, the dock is three: Search, +, and Speak nearest the thumb.
+      at(tester.getRect(key('dock-search')), 362.44, 767.28, 39.59, 39.59, reason: 'Search');
+      at(tester.getRect(key('dock-add')), 362.44, 815.86, 39.59, 39.59, reason: '+');
+      at(tester.getRect(key('dock-speak')), 362.44, 864.44, 39.59, 39.59, reason: 'Speak');
+      await away(tester);
+    });
+
+    testWidgets('on an opened Fold (669x951): three cards across, one height, and the dock', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked), size: const Size(669, 951), split: true);
+      await settle(tester);
+      at(tester.getRect(find.bySemanticsLabel('Filters')), 598.27, 100.91, 47.16, 47.16, reason: 'filters button');
+      at(tester.getRect(key('line-weekend')), 23.58, 202.77, 621.84, 47.16, reason: 'the pinned line');
+      at(tester.getRect(key('card-prd11')), 23.58, 304.63, 197.84, 261.05, reason: 'card 1');
+      at(tester.getRect(key('card-standup')), 235.56, 304.63, 197.86, 261.05, reason: 'card 2');
+      at(tester.getRect(key('card-flat')), 447.56, 304.63, 197.84, 261.05, reason: 'card 3');
+      at(tester.getRect(key('card-open-tickets')), 23.58, 579.81, 197.84, 214.2, reason: 'card 4');
+      // The dates of a row of cards: the short cards' stand together, under previews grown to their six lines.
+      expect(tester.getRect(find.text('40 min ago')).top, closeTo(484.97, 0.75));
+      expect(tester.getRect(find.text('48 min ago')).top, closeTo(484.97, 0.75));
+      expect(tester.getRect(find.text('20 min ago')).top, closeTo(531.81, 0.75));
+      expect(tester.getRect(find.text('Today')).top, closeTo(822.3, 1));
+      at(tester.getRect(key('dock-add')), 598.23, 880.23, 41.48, 41.48, reason: '+');
+      at(tester.getRect(key('dock-search')), 598.23, 829.33, 41.48, 41.48, reason: 'Search');
+      await away(tester);
+    });
+
+    testWidgets('pads by the notch and the home bar where the phone has them', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked), insets: true);
+      await settle(tester);
+      // pumpApp's phone: 36 at the top, 20 at the foot.
+      expect(tester.getSize(find.byType(HeaderPane)).height, closeTo(36 + 46.78, 0.1));
+      expect(tester.getRect(find.bySemanticsLabel('Filters')).top, closeTo(36 + 87.48, 0.75));
+      expect(tester.getRect(key('dock-add')).bottom, closeTo(932 - 20 - 17.98 - 9.99, 0.75));
+      await away(tester);
+    });
+  });
+
+  group('the search', () {
+    testWidgets('narrows the page as it is typed, every word anywhere in a note, and says when nothing has it', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
+      await settle(tester);
+      await tester.enterText(find.byType(EditableText), 'cabin friday');
+      await settle(tester);
+      // The trip's note, pinned, and the canvas that lays the same weekend out.
+      expect(headings(tester), ['Pinned 1', 'Recent']);
+      expect(key('line-weekend'), findsOneWidget);
+      expect([for (final card in tester.widgetList<NoteCard>(find.byType(NoteCard))) card.note.id], ['cabin-canvas']);
+      // The count at the foot is the library's, not the search's.
+      expect(find.text('All notes · 20'), findsOneWidget);
+
+      await tester.enterText(find.byType(EditableText), 'no note says this');
+      await settle(tester);
+      expect(headings(tester), isEmpty);
+      expect(find.text('Nothing has “no note says this”.'), findsOneWidget);
+      expect(find.text('Try fewer words, or look through All notes.'), findsOneWidget);
+
+      // Its cross clears it, and the page is whole again.
+      await tester.tap(find.bySemanticsLabel('Clear the search'));
+      await settle(tester);
+      expect(headings(tester).first, 'Pinned 1');
+      expect(find.bySemanticsLabel('Clear the search'), findsNothing);
+      await away(tester);
+    });
+  });
+
+  group('the filters', () {
+    Future<void> open(WidgetTester tester) async {
+      await tester.tap(filters);
+      await settle(tester);
+    }
+
+    testWidgets('open from the button in a panel under it: what to show, with how many of each, and which workspace', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
+      await settle(tester);
+      await open(tester);
+      // Where the web page's panel stood: hung from the button's end, seventeen rem wide.
+      expect(tester.getRect(find.text('SHOW')).topLeft, within(distance: 1.5, from: const Offset(153.97, 157.48)));
+      expect(tester.getRect(find.text('Notebooks').last).topLeft, within(distance: 1.5, from: const Offset(183.63, 237.45)));
+      expect(tester.getRect(find.text('New workspace')).topLeft, within(distance: 1.5, from: const Offset(183.63, 558.85)));
+      for (final choice in ['All, 20', 'Notebooks, 2', 'Notes, 18', 'Pinned, 1', 'Every workspace', 'Work', 'Home']) {
+        expect(radio(choice), findsOneWidget, reason: choice);
+      }
+      // Signed out, there is no New organization.
+      expect(find.text('New organization'), findsNothing);
+      // A press outside closes it (here in the page's gutter, where it lands on nothing else).
+      await tester.tapAt(const Offset(8, 600));
+      await settle(tester);
+      expect(find.text('SHOW'), findsNothing);
+      await away(tester);
+    });
+
+    testWidgets('show only what is chosen, ink the button, and name each choice in a chip whose cross takes it off', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
+      await settle(tester);
+      await open(tester);
+      await tester.tap(radio('Pinned, 1'));
+      await settle(tester);
+      // The panel stays for another choice: only the notebooks, the two of them touched last.
+      await tester.tap(radio('Notebooks, 2'));
+      await settle(tester);
+      expect(headings(tester), ['Recent']);
+      expect([for (final card in tester.widgetList<NoteCard>(find.byType(NoteCard))) card.note.id], ['product', 'portugal']);
+      await tester.tap(radio('Pinned, 1'));
+      await tester.tapAt(const Offset(8, 600));
+      await settle(tester);
+      expect(headings(tester), ['Pinned 1']);
+      expect(find.bySemanticsLabel('Filters: Pinned'), findsOneWidget);
+      at(tester.getRect(find.bySemanticsLabel('Pinned: show everything')), 22.48, 145.95, 106.64, 35.98, within: 1.5, reason: 'the chip');
+      // Nothing pinned, said plainly.
+      it.library.pin('weekend', pinned: false);
+      await settle(tester);
+      expect(find.text('Nothing is pinned.'), findsOneWidget);
+      await tester.tap(find.bySemanticsLabel('Pinned: show everything'));
+      await settle(tester);
+      expect(find.bySemanticsLabel('Filters'), findsOneWidget);
+      expect(headings(tester).first, 'Recent');
+      await away(tester);
+    });
+
+    testWidgets('filter to a workspace, whose notes alone are listed and counted', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
+      await settle(tester);
+      await open(tester);
+      await tester.tap(radio('Home'));
+      await tester.tapAt(const Offset(8, 600));
+      await settle(tester);
+      expect(it.workspaces.value.current?.name, 'Home');
+      expect(headings(tester), ['Recent']);
+      expect([for (final card in tester.widgetList<NoteCard>(find.byType(NoteCard))) card.note.id], ['flat', 'groceries', 'house']);
+      expect(find.text('All notes · 3'), findsOneWidget);
+      expect(find.bySemanticsLabel('Filters: Home'), findsOneWidget);
+      // Its chip under the search, where the web page's stood, and the notes a row further down for it.
+      final chip = tester.getRect(find.bySemanticsLabel('Home: every workspace'));
+      expect(chip.topLeft, within(distance: 0.75, from: const Offset(22.48, 145.95)));
+      expect(chip.height, closeTo(35.98, 0.75));
+      expect(tester.getRect(find.text('Recent')).top, closeTo(208.91, 0.75));
+      // The panel offers its name and colour to change, and a new one.
+      await open(tester);
+      await tester.tap(find.text('Edit Home'));
+      await settle(tester);
+      expect(it.asked.said, ['edit Home']);
+      expect(find.text('SHOW'), findsNothing, reason: 'the panel closes for the sheet');
+      await open(tester);
+      await tester.tap(find.text('New workspace'));
+      await settle(tester);
+      expect(it.asked.said, ['edit Home', 'new workspace']);
+      // The chip's cross leaves the workspace.
+      await tester.tap(find.bySemanticsLabel('Home: every workspace'));
+      await settle(tester);
+      expect(it.workspaces.value.current, isNull);
+      expect(find.text('All notes · 20'), findsOneWidget);
+      await away(tester);
+    });
+
+    testWidgets('say a pinned note’s workspace in a pill, until the page is filtered to one', (tester) async {
+      final it = seeded();
+      it.workspaces.fileNote('weekend', 'home');
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
+      await settle(tester);
+      expect(find.descendant(of: key('line-weekend'), matching: find.text('Home')), findsOneWidget);
+      it.workspaces.chooseWorkspace('home');
+      await settle(tester);
+      expect(find.descendant(of: key('line-weekend'), matching: find.text('Home')), findsNothing);
+      await away(tester);
+    });
+
+    testWidgets('are walked with the arrow keys, each choice chosen as it is reached', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
+      await settle(tester);
+      await open(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await settle(tester);
+      expect(find.bySemanticsLabel('Filters: Notebooks'), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await settle(tester);
+      expect(find.bySemanticsLabel('Filters: Pinned'), findsOneWidget, reason: 'round the end');
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await settle(tester);
+      expect(find.text('SHOW'), findsNothing);
+      await away(tester);
+    });
+  });
+
+  group('the swipes (docs/DESIGN.md §151)', () {
+    Future<void> swipe(WidgetTester tester, Finder what, double dx) async {
+      final gesture = await tester.startGesture(tester.getCenter(what));
+      // Past the slop, then the rest: the row follows the finger from where it went down.
+      await gesture.moveBy(Offset(dx.sign * 30, 0));
+      await tester.pump();
+      await gesture.moveBy(Offset(dx - dx.sign * 30, 0));
+      await tester.pump();
+      await gesture.up();
+      await settle(tester);
+    }
+
+    testWidgets('right pins a note or unpins it, left archives it, and further left deletes it instead', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
+      await settle(tester);
+      // A card, 385 wide: a quarter of the way right is past the pin's detent.
+      await swipe(tester, key('card-standup'), 110);
+      expect(it.asked.said, ['swipe pin standup']);
+      expect(it.library.noteOf('standup')!.starred, isTrue);
+      expect(headings(tester).first, 'Pinned 2');
+      // A line swipes too: back out of Pinned.
+      await swipe(tester, key('line-standup'), 110);
+      expect(it.library.noteOf('standup')!.starred, isFalse);
+      // Left past the first detent: archived, and gone from the page.
+      await swipe(tester, key('card-flat'), -110);
+      expect(it.asked.said.last, 'swipe archive flat');
+      expect(it.library.noteOf('flat')!.archivedAt, isNotNull);
+      expect(key('card-flat'), findsNothing);
+      // Further left, past the second: deleted.
+      await swipe(tester, key('card-prd11'), -240);
+      expect(it.asked.said.last, 'swipe delete prd11');
+      expect(it.library.noteOf('prd11'), isNull);
+      await away(tester);
+    });
+
+    testWidgets('do nothing short of the first detent, and never open the note they moved', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
+      await settle(tester);
+      await swipe(tester, key('card-standup'), 60);
+      expect(it.asked.said, isEmpty);
+      await tester.tap(key('card-standup'));
+      expect(it.asked.said, ['open standup']);
+      await away(tester);
+    });
+
+    testWidgets('show the action in the gap as it nears, and name the one further along once armed', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
+      await settle(tester);
+      final gesture = await tester.startGesture(tester.getCenter(key('card-standup')));
+      await gesture.moveBy(const Offset(-30, 0));
+      await tester.pump();
+      await gesture.moveBy(const Offset(-30, 0));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.text('ARCHIVE'), findsOneWidget);
+      expect(find.text('Further to delete'), findsNothing, reason: 'not armed yet');
+      await gesture.moveBy(const Offset(-60, 0));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.text('Further to delete'), findsOneWidget);
+      await gesture.moveBy(const Offset(-140, 0));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.text('DELETE'), findsOneWidget);
+      // Let go nowhere: the row goes home, and nothing is done.
+      await gesture.cancel();
+      await settle(tester);
+      expect(it.asked.said, isEmpty);
+      expect(find.text('DELETE'), findsNothing);
+      await away(tester);
+    });
+
+    testWidgets('are not there where the page was given nothing to do with them', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, swipes: false));
+      await settle(tester);
+      expect(find.byType(SwipeRow), findsNothing);
+      await away(tester);
+    });
+
+    testWidgets('are offered to a screen reader as each note’s own actions', (tester) async {
+      final handle = tester.ensureSemantics();
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
+      await settle(tester);
+      final node = tester.getSemantics(find.bySemanticsLabel('Weekend trip, 1 hr ago'));
+      final actions = <String>[];
+      void gather(SemanticsNode at) {
+        final data = at.getSemanticsData();
+        for (final id in data.customSemanticsActionIds ?? const <int>[]) {
+          actions.add(CustomSemanticsAction.getAction(id)!.label!);
+        }
+        at.visitChildren((child) {
+          gather(child);
+          return true;
+        });
+      }
+
+      gather(node);
+      expect(actions, containsAll(['Unpin', 'Archive', 'Delete']));
+      handle.dispose();
+      await away(tester);
+    });
+  });
+
+  group('a pull down from the top (docs/DESIGN.md §152)', () {
+    testWidgets('refreshes once it is let go past the detent, and not short of it', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, refresh: true));
+      await settle(tester);
+      // Short of it: the page goes back up.
+      var gesture = await tester.startGesture(const Offset(200, 300));
+      await gesture.moveBy(const Offset(0, 14));
+      await tester.pump(const Duration(milliseconds: 16));
+      await gesture.moveBy(const Offset(0, 60));
+      await tester.pump(const Duration(milliseconds: 16));
+      await gesture.up();
+      await tester.pump(const Duration(seconds: 1));
+      expect(it.asked.said, isEmpty);
+
+      gesture = await tester.startGesture(const Offset(200, 300));
+      await gesture.moveBy(const Offset(0, 14));
+      await tester.pump(const Duration(milliseconds: 16));
+      await gesture.moveBy(const Offset(0, 150));
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(find.bySemanticsLabel('Let go to refresh'), findsOneWidget);
+      // The page comes down with the finger, at half its travel.
+      expect(tester.getRect(find.bySemanticsLabel('Filters')).top, closeTo(87.48 + 64 + (82 - 64) / 3, 1));
+      await gesture.up();
+      await tester.pump();
+      expect(it.asked.said, ['refresh']);
+      expect(find.bySemanticsLabel('Refreshing'), findsOneWidget);
+      // It spins at least half a second, says it is done, and the page goes back up.
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.bySemanticsLabel('Up to date'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tester.getRect(find.bySemanticsLabel('Filters')).top, closeTo(87.48, 0.75));
+      await away(tester);
+    });
+
+    testWidgets('is a scroll, not a pull, from a page that is not at its top', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, refresh: true));
+      await settle(tester);
+      await tester.drag(key('home-scroll'), const Offset(0, -400));
+      await settle(tester);
+      final gesture = await tester.startGesture(const Offset(200, 300));
+      await gesture.moveBy(const Offset(0, 14));
+      await tester.pump(const Duration(milliseconds: 16));
+      await gesture.moveBy(const Offset(0, 200));
+      await tester.pump(const Duration(milliseconds: 16));
+      await gesture.up();
+      await tester.pump(const Duration(seconds: 1));
+      expect(it.asked.said, isEmpty);
+      await away(tester);
+    });
+  });
+
+  group('the dock', () {
+    testWidgets('writes, speaks and opens the palette, each by its own callback', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, speak: true));
+      await settle(tester);
+      await tester.tap(find.bySemanticsLabel('Write a note'));
+      await tester.tap(find.bySemanticsLabel('Speak a voice note'));
+      await tester.tap(find.bySemanticsLabel('Search and commands'));
+      expect(it.asked.said, ['new', 'speak', 'search']);
+      // Search on top, write in the middle, Speak last, nearest the thumb.
+      expect(tester.getRect(key('dock-search')).top, lessThan(tester.getRect(key('dock-add')).top));
+      expect(tester.getRect(key('dock-add')).top, lessThan(tester.getRect(key('dock-speak')).top));
+      await settle(tester);
+      await away(tester);
+    });
+
+    testWidgets('has no Speak where nothing records, and no Search until the palette is there', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, search: false));
+      await settle(tester);
+      expect(find.bySemanticsLabel('Write a note'), findsOneWidget);
+      expect(find.bySemanticsLabel('Speak a voice note'), findsNothing);
+      expect(find.bySemanticsLabel('Search and commands'), findsNothing);
+      await away(tester);
+    });
+
+    testWidgets('turns its + a quarter when pressed, and leans its magnifier in', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
+      await settle(tester);
+      final plus = await tester.startGesture(tester.getCenter(key('dock-add')));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(tester.widget<AnimatedRotation>(find.descendant(of: key('dock-add'), matching: find.byType(AnimatedRotation))).turns, 0.25);
+      await plus.up();
+      await tester.pump(const Duration(seconds: 1));
+      expect(tester.widget<AnimatedRotation>(find.descendant(of: key('dock-add'), matching: find.byType(AnimatedRotation))).turns, 0);
+      final search = await tester.startGesture(tester.getCenter(key('dock-search')));
+      await tester.pump();
+      expect(tester.widget<AnimatedScale>(find.descendant(of: key('dock-search'), matching: find.byType(AnimatedScale))).scale, 0.9);
+      await search.up();
+      await tester.pump(const Duration(seconds: 1));
+      await away(tester);
+    });
+  });
+
+  group('what leaves the page', () {
+    testWidgets('a card, a row and a line open their note; the foot opens All notes; a long press asks for the menu', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
+      await settle(tester);
+      await tester.tap(key('line-weekend'));
+      await tester.tap(key('card-prd11'));
+      await tester.longPress(key('card-standup'));
+      await settle(tester);
+      await bring(tester, key('row-sprint'));
+      await tester.tap(key('row-sprint'));
+      await bring(tester, find.text('All notes · 20'));
+      await tester.tap(find.text('All notes · 20'));
+      expect(it.asked.said, ['open weekend', 'open prd11', 'menu standup', 'open sprint', 'all notes']);
+      await settle(tester);
+      await away(tester);
+    });
+  });
+
+  group('an empty page', () {
+    testWidgets('is a blank page with no search, and says how to fill it', (tester) async {
+      await pumpHome(tester, Home(library: SampleLibrary(const []), workspaces: WorkspaceStore(), asked: Asked(), speak: true));
+      await settle(tester);
+      expect(find.byType(EditableText), findsNothing);
+      // The words, as the page sets them (measured on the web page, less its ghost above them).
+      final lead = tester.widget<Text>(find.text('A blank page.')).style!;
+      expect(lead.fontSize, closeTo(34.15, 0.01));
+      expect(lead.letterSpacing, closeTo(-0.854, 0.001));
+      expect(tester.getRect(find.text('A blank page.')).height, closeTo(40.98, 0.6));
+      expect(tester.getRect(find.text('Write it, or tap Speak and say it.')).height, closeTo(24.25, 0.75), reason: 'one line: 28ch holds it');
+      expect(find.text('Write it, or tap Speak and say it.'), findsOneWidget);
+      expect(find.text('All notes · 0'), findsNothing);
+      await away(tester);
+    });
+
+    testWidgets('says the side key on a phone that has one, and + alone where nothing records', (tester) async {
+      await pumpHome(tester, Home(library: SampleLibrary(const []), workspaces: WorkspaceStore(), asked: Asked(), sideKey: true));
+      await settle(tester);
+      expect(find.text('Write it, or hold the side key and say it.'), findsOneWidget);
+      await away(tester);
+      await pumpHome(tester, Home(library: SampleLibrary(const []), workspaces: WorkspaceStore(), asked: Asked()));
+      await settle(tester);
+      expect(find.text('Tap + to write it.'), findsOneWidget);
+      await away(tester);
+    });
+
+    testWidgets('in a workspace names it, and keeps the filters to leave it by', (tester) async {
+      final workspaces = WorkspaceStore();
+      final empty = workspaces.addWorkspace('Trips', 'amber')!;
+      workspaces.chooseWorkspace(empty.id);
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: workspaces, asked: it.asked));
+      await settle(tester);
+      expect(find.text('Nothing in Trips yet.'), findsOneWidget);
+      expect(find.bySemanticsLabel('Filters: Trips'), findsOneWidget);
+      expect(find.bySemanticsLabel('Trips: every workspace'), findsOneWidget);
+      await away(tester);
+    });
+
+    testWidgets('says nothing while the library is still being read', (tester) async {
+      await pumpHome(tester, Home(library: SampleLibrary(const []), workspaces: WorkspaceStore(), asked: Asked(), loading: true));
+      await settle(tester);
+      expect(find.text('A blank page.'), findsNothing);
+      await away(tester);
+    });
+
+    testWidgets('draws its ghost where one is handed in, by the scene the page is in', (tester) async {
+      final asked = <HomeGhost>[];
+      Widget ghost(BuildContext context, HomeGhost it) {
+        asked.add(it);
+        return const SizedBox(key: ValueKey('ghost'), width: 120, height: 40);
+      }
+
+      final it = seeded();
+      await pumpHome(tester, Home(library: SampleLibrary(const []), workspaces: WorkspaceStore(), asked: Asked(), ghost: ghost));
+      await settle(tester);
+      // Stacked over its words on a phone, held to 38% of the window's height, a group's air over the words.
+      expect([asked.last.scene, asked.last.lead, asked.last.heightShare], [HomeGhostScene.noNotes, true, 0.38]);
+      expect(tester.getRect(key('ghost')).left, closeTo(22.48, 0.75));
+      expect(tester.getRect(find.text('A blank page.')).top - tester.getRect(key('ghost')).bottom, closeTo(22.5, 0.75));
+      await away(tester);
+
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, ghost: ghost));
+      await settle(tester);
+      await tester.enterText(find.byType(EditableText), 'zzzz');
+      await settle(tester);
+      expect([asked.last.scene, asked.last.lead, asked.last.heightShare], [HomeGhostScene.searchNothing, false, null]);
+      // A small ghost, then the line (the web page's: the ghost's foot, then nine pixels to the words).
+      expect(tester.getRect(key('ghost')).top, closeTo(172.94, 0.75));
+      expect(tester.getRect(find.text('Nothing has “zzzz”.')).top - tester.getRect(key('ghost')).bottom, closeTo(9, 0.75));
+      expect(tester.widget<Text>(find.text('Nothing has “zzzz”.')).style!.fontSize, closeTo(23.5, 0.01));
+      at(tester.getRect(find.bySemanticsLabel('Clear the search')), 321.06, 96.48, 26.98, 26.98, reason: 'the cross in the search');
+      await away(tester);
+
+      // Wider, the ghost and its words stand side by side.
+      await pumpHome(tester, Home(library: SampleLibrary(const []), workspaces: WorkspaceStore(), asked: Asked(), ghost: ghost), size: const Size(900, 700));
+      await settle(tester);
+      expect(asked.last.heightShare, isNull, reason: 'beside its words it may have a lead’s full share');
+      expect(tester.getRect(key('ghost')).right, lessThan(tester.getRect(find.text('A blank page.')).left));
+      await away(tester);
+    });
+  });
+
+  group('a phone and a wider page', () {
+    testWidgets('one card to a row on a phone held upright, and as many as fit twelve rem across past 600', (tester) async {
+      expect(NoteCards.columnsFor(385, 430, gap: 13.5, least: 192), 1);
+      expect(NoteCards.columnsFor(555, 599, gap: 13.5, least: 192), 1);
+      expect(NoteCards.columnsFor(621.84, 669, gap: 14.15, least: 192), 3);
+      expect(NoteCards.columnsFor(1024, 1280, gap: 16, least: 192), 5);
+
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, layout: HomeLayout.cards), size: const Size(1280, 800), ratio: 1);
+      await settle(tester);
+      // The page keeps to 64rem, in the middle of the window.
+      final product = tester.getRect(key('card-product')), portugal = tester.getRect(key('card-portugal'));
+      expect(product.left, closeTo((1280 - 1024) / 2, 0.75));
+      expect(portugal.top, product.top);
+      expect(portugal.height, product.height, reason: 'the cards of a row are one height');
+      await away(tester);
+    });
+
+    testWidgets('the rows’ layouts keep one readable column on a wide page', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, layout: HomeLayout.timeline), size: const Size(1280, 800), ratio: 1);
+      await settle(tester);
+      expect(tester.getRect(key('row-prd11')).width, closeTo(768, 0.75));
+      expect(tester.getRect(key('row-prd11')).center.dx, closeTo(640, 0.75));
+      await away(tester);
+    });
+  });
+
+  group('the organizations', () {
+    const orgs = [
+      HomeOrg(id: 'acme', name: 'Acme', hue: 'violet', members: 3, here: [OrgPresence(client: 'c1', handle: 'ana', editingNote: 'weekend', editingTitle: 'Weekend trip'), OrgPresence(client: 'c2', handle: 'ali')]),
+      HomeOrg(id: 'cabin', name: 'Cabin club', hue: 'moss', members: 1),
+    ];
+
+    testWidgets('are a card each, saying who is in and what is filed, and open on a tap', (tester) async {
+      final it = seeded();
+      it.workspaces.ensureOrgWorkspace(const OrgLike(id: 'acme', name: 'Acme', hue: 'violet'));
+      it.workspaces.fileNote('weekend', 'org-acme');
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, organizations: orgs));
+      await settle(tester);
+      expect(headings(tester).first, 'Organizations 2');
+      expect(find.text('3 members · 1 note'), findsOneWidget);
+      expect(find.text('ana is editing Weekend trip, 1 more here'), findsOneWidget);
+      expect(find.text('1 member · 0 notes'), findsOneWidget);
+      expect(find.text('Nobody here now'), findsOneWidget);
+      await tester.tap(find.text('Cabin club'));
+      expect(it.asked.said, ['organization cabin']);
+      // Signed in, the filters' panel makes an organization beside a workspace.
+      await tester.tap(find.bySemanticsLabel('Filters'));
+      await settle(tester);
+      await tester.tap(find.text('New organization'));
+      await settle(tester);
+      expect(it.asked.said.last, 'new organization');
+      // Not while searching.
+      await tester.enterText(find.byType(EditableText), 'trip');
+      await settle(tester);
+      expect(find.text('Organizations'), findsNothing);
+      await away(tester);
+    });
+
+    testWidgets('filtered to one, the page says what has happened lately in it, over the notes on a phone', (tester) async {
+      final it = seeded();
+      it.workspaces.ensureOrgWorkspace(const OrgLike(id: 'acme', name: 'Acme', hue: 'violet'));
+      it.workspaces.fileNote('weekend', 'org-acme');
+      it.workspaces.fileNote('flat', 'org-acme');
+      it.workspaces.chooseWorkspace('org-acme');
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, organizations: orgs));
+      await settle(tester);
+      // Inside one workspace there are no organization cards, only its own events.
+      expect(find.text('Organizations'), findsNothing);
+      expect(find.text('Recent in Acme'), findsOneWidget);
+      expect(find.text('ana is editing Weekend trip'), findsOneWidget);
+      expect(find.text('Flat changed'), findsOneWidget);
+      expect(tester.getRect(find.text('Recent in Acme')).top, lessThan(tester.getRect(find.text('Pinned')).top));
+      await tester.tap(find.text('Flat changed'));
+      await tester.tap(find.text('Open Acme'));
+      expect(it.asked.said, ['open flat', 'organization acme']);
+      // "Edit" on an organization's workspace is the organization's screen.
+      await tester.tap(filters);
+      await settle(tester);
+      await tester.tap(find.text('Edit Acme'));
+      await settle(tester);
+      expect(it.asked.said.last, 'organization acme');
+      await away(tester);
+    });
+
+    testWidgets('are not drawn for an account in none', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, organizations: const []));
+      await settle(tester);
+      expect(find.text('Organizations'), findsNothing);
+      await away(tester);
+    });
+  });
+
+  group('the seams for the smoke', () {
+    testWidgets('hand the scroller, with where the header ends and the dock stands, to whoever draws the wisp; and the dock to its halo', (tester) async {
+      final it = seeded();
+      HomeEdge? given;
+      HomeDock? docked;
+      await pumpHome(
+        tester,
+        Home(
+          library: it.library,
+          workspaces: it.workspaces,
+          asked: it.asked,
+          headerEdge: (context, edge, scroller) {
+            given = edge;
+            return KeyedSubtree(key: const ValueKey('wisp'), child: scroller);
+          },
+          dockHalo: (context, it) {
+            docked = it;
+            return Stack(
+              fit: StackFit.expand,
+              children: [KeyedSubtree(key: const ValueKey('behind'), child: it.behind), Padding(padding: it.padding, child: Align(alignment: it.alignment, child: it.dock))],
+            );
+          },
+        ),
+      );
+      await settle(tester);
+      expect(given!.under, closeTo(47, 0.01), reason: 'the header pane, to the whole pixel the web measured');
+      expect(given!.foot, closeTo(0 + 17.99 + 39.59 * 4 + 8.99 * 5 + 26.98, 0.5));
+      expect(given!.controller.hasClients, isTrue);
+      expect(find.descendant(of: key('wisp'), matching: key('home-scroll')), findsOneWidget);
+      // The halo's drawer has what scrolls behind the dock, the dock, and where it stands: a gutter in from the
+      // bottom end corner, as the web page's `.dockSpot`.
+      expect(find.descendant(of: key('behind'), matching: key('home-scroll')), findsOneWidget);
+      expect(docked!.alignment, AlignmentDirectional.bottomEnd);
+      expect(docked!.padding.resolve(TextDirection.ltr).right, closeTo(17.99, 0.01));
+      expect(docked!.padding.resolve(TextDirection.ltr).bottom, closeTo(17.99, 0.01));
+      at(tester.getRect(key('dock-add')), 362.44, 864.44, 39.59, 39.59, reason: 'the dock is where it was');
+      await away(tester);
+    });
+  });
+
+  group('how it moves', () {
+    testWidgets('its cards and rows arrive from below, a beat apart, and stand still under reduced motion', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
+      double shown(String name) => tester.widget<Opacity>(find.descendant(of: key(name), matching: find.byType(Opacity)).first).opacity;
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(shown('line-weekend'), greaterThan(0));
+      expect(shown('card-flat'), 0, reason: 'the fourth thing on the page waits its beats');
+      await settle(tester);
+      expect(shown('card-flat'), 1);
+      await away(tester);
+
+      tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
+      await tester.pump();
+      expect(shown('card-flat'), 1);
+      await away(tester);
+    });
+
+    testWidgets('another filter glides the page back to its top', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, layout: HomeLayout.timeline));
+      await settle(tester);
+      await tester.drag(key('home-scroll'), const Offset(0, -500));
+      await settle(tester);
+      final position = tester.state<ScrollableState>(scroller).position;
+      expect(position.pixels, greaterThan(300));
+      it.workspaces.chooseWorkspace('work');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(position.pixels, greaterThan(0), reason: 'on its way, not jumped');
+      await settle(tester);
+      expect(position.pixels, 0);
+      await away(tester);
+    });
+  });
+
+  group('what a screen reader is told', () {
+    testWidgets('the page’s name, its headings, each note in a sentence, and every control by what it does', (tester) async {
+      final handle = tester.ensureSemantics();
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, speak: true));
+      await settle(tester);
+      expect(find.bySemanticsLabel('Home'), findsOneWidget);
+      expect(tester.getSemantics(find.bySemanticsLabel('Home')), matchesSemantics(label: 'Home', isHeader: true));
+      expect(tester.getSemantics(find.bySemanticsLabel('Pinned, 1')), matchesSemantics(label: 'Pinned, 1', isHeader: true));
+      expect(tester.getSemantics(find.bySemanticsLabel('Recent')), matchesSemantics(label: 'Recent', isHeader: true));
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('Weekend trip, 1 hr ago')),
+        matchesSemantics(
+          label: 'Weekend trip, 1 hr ago',
+          isButton: true,
+          hasTapAction: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          isFocusable: true,
+          hasFocusAction: true,
+          // Its swipes, for a finger that cannot make them.
+          customActions: const [CustomSemanticsAction(label: 'Unpin'), CustomSemanticsAction(label: 'Archive'), CustomSemanticsAction(label: 'Delete')],
+        ),
+      );
+      expect(find.bySemanticsLabel('Fix the sign-in loop, 20 min ago'), findsOneWidget);
+      expect(find.bySemanticsLabel('Search notebooks and notes'), findsWidgets);
+      for (final label in ['Filters', 'Write a note', 'Speak a voice note', 'Search and commands', 'New note']) {
+        expect(find.bySemanticsLabel(label), findsOneWidget, reason: label);
+      }
+      // A row says its name, its notebook, how it starts and when.
+      await bring(tester, key('row-sprint'));
+      expect(find.bySemanticsLabel('This sprint, query, 55 min ago'), findsOneWidget);
+      // The filters: a dialog of radios, the chosen one checked.
+      await tester.drag(key('home-scroll'), const Offset(0, 2000));
+      await settle(tester);
+      await tester.tap(find.bySemanticsLabel('Filters'));
+      await settle(tester);
+      expect(tester.getSemantics(radio('All, 20')), matchesSemantics(label: 'All, 20', hasCheckedState: true, isChecked: true, isInMutuallyExclusiveGroup: true, hasTapAction: true));
+      expect(tester.getSemantics(radio('Notebooks, 2')), matchesSemantics(label: 'Notebooks, 2', hasCheckedState: true, isInMutuallyExclusiveGroup: true, hasTapAction: true));
+      handle.dispose();
+      await away(tester);
+    });
+  });
+
+  group('in the light', () {
+    testWidgets('the page is ink on paper, from the same tokens', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked), theme: 'light');
+      await settle(tester);
+      final t = tester.element(key('home-scroll')).tokens;
+      expect(t.isDark, isFalse);
+      expect(tester.widget<Text>(find.text('Weekend trip')).style!.color, t.color('app-ink'));
+      expect(tester.widget<ColoredBox>(find.descendant(of: find.byType(HomeScreen), matching: find.byType(ColoredBox)).first).color, t.color('glacier-bg'));
+      await away(tester);
+    });
+  });
+}

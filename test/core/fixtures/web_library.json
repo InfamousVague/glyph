@@ -1,0 +1,706 @@
+{
+ "now": 1790586000000,
+ "notes": [
+  {
+   "id": "call-sam",
+   "body": "# Planning call with Sam\n\n## Summary\nWhat the call settled about the March launch.\n\n- Launch moves to the second week of March.\n- Sam: the press list by Friday.\n- Decided: no paid ads until the beta closes.\n- [ ] Book the venue before the 10th.\n- [ ] Send Sam the deck this week.\n\nWe started with the launch date. Sam wants the second week of March so the press list has time to go out, and nobody argued with that.\n\nThe beta is the other thing. It closes at the end of February, and until it does we hold off on paid ads. Ana thinks the numbers from the beta are what the launch post should lead with.\n\nI said I would book the venue before the 10th and send Sam the deck this week. Sam takes the press list.\n\nLast thing, the pricing page. Nothing decided. We look at it again on Thursday.",
+   "starred": false,
+   "createdAgo": 244500000,
+   "updatedAgo": 242340000
+  },
+  {
+   "id": "standup",
+   "body": "# Monday standup\n\n## Summary\nWho has what this week, and the one thing blocking the beta.\n\n- Ana: the launch post draft by Wednesday.\n- Ali: the sign-up form, then the emails.\n- Decided: the beta closes on the 28th.\n- [ ] Ask Ali about the form.\n\nWe went round the room. Ana has the launch post and wants it drafted by Wednesday so there is time to argue about it.\n\nAli is on the sign-up form, then the emails after that. The form is what is blocking the beta right now.\n\nWe agreed the beta closes on the 28th whatever state it is in.",
+   "starred": false,
+   "createdAgo": 3480000,
+   "updatedAgo": 2400000
+  },
+  {
+   "id": "weekend",
+   "body": "# Weekend trip\n\nThree days at the cabin, the second weekend of October. **Book by Friday**, the deposit is 200. #cabin\n\n## Before we go\n\n- [ ] Book the cabin\n- [ ] Ask Sam about the dog\n- [x] Pick the weekend\n- [ ] Oil change for the car\n- Bottles of water [3/8]\n\nThe ==cabin key== is under ||the third stone||. Saturday the lake, Sunday the long walk if it is dry.\n\n## Who brings what\n\n| Who | Brings |\n| --- | --- |\n| Sam | The tent |\n| Ali | Food for Saturday |\n| Me | The car, and the coffee |\n\n> The note you make on the way is the one you keep.\n\n## Where do we stay\n\n- ( ) Tent\n- (x) Cabin\n\n= 200 + 3 * 45",
+   "starred": true,
+   "createdAgo": 135900000,
+   "updatedAgo": 6600000
+  },
+  {
+   "id": "house",
+   "body": "# House TODOs\n\n## Electrical\n\n- [ ] Replace the hall bulb\n- [x] Label the fuse box\n\n## Kitchen\n\n- [ ] Fix the leaking tap\n- [ ] Descale the kettle",
+   "starred": false,
+   "createdAgo": 514800000,
+   "updatedAgo": 55800000
+  },
+  {
+   "id": "groceries",
+   "body": "# Groceries\n\n- Oat milk\n- Eggs\n- Bread\n- The good coffee\n- Bin bags",
+   "starred": false,
+   "createdAgo": 352800000,
+   "updatedAgo": 7500000
+  },
+  {
+   "id": "launch",
+   "body": "# Launch week\n\nSecond week of March. What is left is below; Sam has the photos and the press list.\n\n```board\nThis week: pricing-page, beta-list, deck\nWaiting on Sam: photos, press-list\nDone: launch-date\n```\n\n## The work\n\n- [ ] Write the pricing page ^pricing-page\n- [ ] Email the beta list ^beta-list\n- [ ] Send Sam the deck ^deck\n- [ ] Get the photos back from Sam ^photos\n- [ ] The press list ^press-list\n- [x] Pick the launch date ^launch-date",
+   "starred": false,
+   "createdAgo": 432000000,
+   "updatedAgo": 79200000
+  },
+  {
+   "id": "portugal",
+   "body": "---\ntitle: \"Portugal\"\nbook: true\n---\n# Portugal\n\nTen days in October, written up a day at a time.\n\n- [[Packing]]\n- [[Lisbon, the first three days]]\n- [[The coast]]\n",
+   "starred": false,
+   "createdAgo": 651600000,
+   "updatedAgo": 133200000
+  },
+  {
+   "id": "packing",
+   "body": "# Packing\n\n- [ ] Adapter\n- [ ] Boots\n- [x] Passport\n- [ ] The small bag for the train",
+   "starred": false,
+   "createdAgo": 651300000,
+   "updatedAgo": 132900000
+  },
+  {
+   "id": "lisbon",
+   "body": "# Lisbon, the first three days\n\nThe flat is above the bakery, which is either a good thing or a bad thing at six in the morning.\n\nDay one, the castle and the long way down. Day two, the tram to Belém. Day three, nothing planned.\n\n> [!TIP]\n> The number 28 tram is full by nine. Walk up, ride down.",
+   "starred": false,
+   "createdAgo": 651000000,
+   "updatedAgo": 132600000
+  },
+  {
+   "id": "coast",
+   "body": "# The coast\n\nTrain to Cascais, then the bikes along the front to Guincho if the wind lets us.\n\n- [ ] Book the bikes the night before",
+   "starred": false,
+   "createdAgo": 650700000,
+   "updatedAgo": 132300000
+  },
+  {
+   "id": "reading",
+   "body": "# Reading list\n\n1. Piranesi\n2. The Peregrine\n3. The lamp book Ana mentioned",
+   "starred": false,
+   "createdAgo": 734400000,
+   "updatedAgo": 4200000
+  },
+  {
+   "id": "flat",
+   "body": "# Flat\n\n- [ ] Send the deposit\n- Keys on Tuesday\n- The landlord is Ana's cousin, which explains the price",
+   "starred": false,
+   "createdAgo": 176400000,
+   "updatedAgo": 2880000
+  },
+  {
+   "id": "cabin-canvas",
+   "body": "---\ntitle: \"Cabin weekend, laid out\"\n---\n{\n  \"nodes\": [\n    {\n      \"id\": \"before\",\n      \"type\": \"group\",\n      \"x\": -40,\n      \"y\": -60,\n      \"width\": 640,\n      \"height\": 400,\n      \"label\": \"Before we go\",\n      \"color\": \"5\"\n    },\n    {\n      \"id\": \"book\",\n      \"type\": \"text\",\n      \"x\": 0,\n      \"y\": 0,\n      \"width\": 260,\n      \"height\": 110,\n      \"color\": \"4\",\n      \"text\": \"# Book the cabin\\n\\nBy Friday. The deposit is **200**.\"\n    },\n    {\n      \"id\": \"pack\",\n      \"type\": \"text\",\n      \"x\": 320,\n      \"y\": 0,\n      \"width\": 260,\n      \"height\": 110,\n      \"text\": \"- [ ] Snacks\\n- [ ] A charger for the drive\\n- [x] The good coffee\"\n    },\n    {\n      \"id\": \"sam\",\n      \"type\": \"text\",\n      \"x\": 0,\n      \"y\": 160,\n      \"width\": 260,\n      \"height\": 90,\n      \"color\": \"2\",\n      \"text\": \"Ask Sam about the dog\"\n    },\n    {\n      \"id\": \"kit\",\n      \"type\": \"text\",\n      \"x\": 320,\n      \"y\": 160,\n      \"width\": 260,\n      \"height\": 150,\n      \"text\": \"| Who | Brings |\\n| --- | --- |\\n| Sam | The tent |\\n| Ali | Food for Saturday |\\n| Me | The car, and the coffee |\"\n    },\n    {\n      \"id\": \"days\",\n      \"type\": \"text\",\n      \"x\": 720,\n      \"y\": -40,\n      \"width\": 380,\n      \"height\": 120,\n      \"color\": \"6\",\n      \"text\": \"```mermaid\\nflowchart LR\\n  F[Friday: drive up] --> S[Saturday: the lake]\\n  S --> U[Sunday: the long walk]\\n  U --> H[Home by dark]\\n```\\n\"\n    },\n    {\n      \"id\": \"there\",\n      \"type\": \"text\",\n      \"x\": 720,\n      \"y\": 140,\n      \"width\": 380,\n      \"height\": 190,\n      \"color\": \"6\",\n      \"text\": \"# The weekend\\n\\nSaturday the lake, Sunday the long walk if it is dry. Nothing planned for the evenings.\"\n    },\n    {\n      \"id\": \"trip\",\n      \"type\": \"file\",\n      \"x\": 0,\n      \"y\": 300,\n      \"width\": 260,\n      \"height\": 210,\n      \"file\": \"Weekend trip.md\"\n    }\n  ],\n  \"edges\": [\n    {\n      \"id\": \"e1\",\n      \"fromNode\": \"book\",\n      \"toNode\": \"pack\",\n      \"fromSide\": \"right\",\n      \"toSide\": \"left\",\n      \"label\": \"then\"\n    },\n    {\n      \"id\": \"e2\",\n      \"fromNode\": \"book\",\n      \"toNode\": \"sam\",\n      \"fromSide\": \"bottom\",\n      \"toSide\": \"top\"\n    },\n    {\n      \"id\": \"e3\",\n      \"fromNode\": \"pack\",\n      \"toNode\": \"kit\",\n      \"fromSide\": \"bottom\",\n      \"toSide\": \"top\",\n      \"color\": \"2\",\n      \"label\": \"who brings what\"\n    },\n    {\n      \"id\": \"e4\",\n      \"fromNode\": \"before\",\n      \"toNode\": \"days\",\n      \"fromSide\": \"right\",\n      \"toSide\": \"left\",\n      \"label\": \"and then\"\n    },\n    {\n      \"id\": \"e5\",\n      \"fromNode\": \"sam\",\n      \"toNode\": \"trip\",\n      \"fromSide\": \"bottom\",\n      \"toSide\": \"top\",\n      \"toEnd\": \"none\"\n    },\n    {\n      \"id\": \"e6\",\n      \"fromNode\": \"days\",\n      \"toNode\": \"there\",\n      \"fromSide\": \"bottom\",\n      \"toSide\": \"top\",\n      \"color\": \"6\"\n    }\n  ]\n}\n",
+   "starred": false,
+   "createdAgo": 583200000,
+   "updatedAgo": 237600000
+  },
+  {
+   "id": "product",
+   "body": "---\ntitle: \"Product\"\nbook: true\nkey: PRD\nstatuses: [To do, In progress, In review, Done]\n---\n# Product\n\nWhat we are shipping for the launch.\n\n- [[Fix the sign-in loop]]\n- [[Pricing page copy]]\n- [[Release notes]]\n- [[Offline search]]\n",
+   "starred": false,
+   "createdAgo": 522000000,
+   "updatedAgo": 82800000
+  },
+  {
+   "id": "prd11",
+   "body": "---\ntype: ticket\nid: PRD-11\nstatus: In progress\nassignee: Sam\npriority: highest\ndue: 2026-09-30\nestimate: 3\nblocked-by: \"[[PRD-9]]\"\nlabels: [bug, auth]\n---\n# Fix the sign-in loop\n\nSigning in on the phone sends you back to the sign-in page once the cookie has expired.\n\n- [x] Find where the cookie is dropped\n- [ ] Refresh it before it expires @sam\n- [ ] Test it on a slow network",
+   "starred": false,
+   "createdAgo": 158400000,
+   "updatedAgo": 1200000
+  },
+  {
+   "id": "prd10",
+   "body": "---\ntype: ticket\nid: PRD-10\nstatus: In review\nassignee: Matt\npriority: high\ndue: 2026-10-01\nestimate: 1\n---\n# Pricing page copy\n\nThree plans, said plainly.",
+   "starred": false,
+   "createdAgo": 259200000,
+   "updatedAgo": 64800000
+  },
+  {
+   "id": "prd12",
+   "body": "---\ntype: ticket\nid: PRD-12\nstatus: To do\nassignee: Matt\npriority: medium\ndue: 2026-10-03\nestimate: 1\n---\n# Release notes\n\nWhat changed, in a line each.",
+   "starred": false,
+   "createdAgo": 169200000,
+   "updatedAgo": 82800000
+  },
+  {
+   "id": "prd13",
+   "body": "---\ntype: ticket\nid: PRD-13\nstatus: To do\nassignee: Ana\npriority: low\ndue: 2026-10-06\nestimate: 5\n---\n# Offline search\n\nSearch every note with no network.",
+   "starred": false,
+   "createdAgo": 327600000,
+   "updatedAgo": 154800000
+  },
+  {
+   "id": "sprint",
+   "body": "# This sprint\n\n```query\nfrom: tickets [[Product]]\nwhere: status != Done\nsort: priority, due\nshow: board\n```\n",
+   "starred": false,
+   "createdAgo": 90000000,
+   "updatedAgo": 3300000
+  },
+  {
+   "id": "open-tickets",
+   "body": "# Open tickets\n\n```query\nfrom: tickets [[Product]]\nwhere: status != Done\nsort: priority, due\ncolumns: id, title, status, estimate\ntotal: estimate\nshow: table\n```\n",
+   "starred": false,
+   "createdAgo": 89400000,
+   "updatedAgo": 3000000
+  }
+ ],
+ "starters": {
+  "tickets": [
+   "---\ntype: ticket\nid: EX-1\nstatus: Done\nassignee: Alex\npriority: high\n---\n# Plan the first release\n\nWhat goes in the first release, and what waits for the second.\n\n- [x] List what the release needs\n- [x] Cut what can wait\n",
+   "---\ntype: ticket\nid: EX-2\nstatus: In progress\nassignee: Sam\npriority: highest\ndue: 2026-09-30\n---\n# Fix the sign-in loop\n\nSigning in on the phone sends you back to the sign-in page once the cookie has expired.\n\nA ticket is a note: its properties are the panel above, kept in the note’s front matter. Tap a value to change it.\n\n- [ ] Write the failing test\n- [ ] Refresh the token once, not twice\n",
+   "---\ntype: ticket\nid: EX-3\nstatus: To do\npriority: medium\ndue: 2026-10-05\nblocked-by: \"[[EX-2]]\"\n---\n# Write the welcome page\n\nThe first page a new person sees. It waits on EX-2, and says so with a lock until that is done.\n\n- [ ] Draft the words\n- [ ] Pick a picture\n"
+  ],
+  "notebook": "---\ntitle: \"Example project\"\nbook: true\nkey: EX\n---\n# Example project\n\nA notebook with a ticket key: every page made from New ticket is a ticket, numbered EX-1, EX-2 and on. Tap a ticket's status to move it along.\n\n- [[Plan the first release]]\n- [[Fix the sign-in loop]]\n- [[Write the welcome page]]\n",
+  "board": "# Launch week\n\nA board is two ordinary things: this fence, which lays out the columns, and the list under it, each item ending with\na name after a `^`. The cards are those items. Tick one here and the to-do below is ticked; tap its words and you\nland on the line; press and hold a card to drag it into another column.\n\n```board\nThis week: pricing-page, beta-list\nWaiting on Sam: photos\nDone: launch-date\n```\n\n## The work\n\n- [ ] Write the pricing page ^pricing-page\n- [ ] Email the beta list ^beta-list\n- [ ] Get the photos back from Sam ^photos\n- [x] Pick the launch date ^launch-date\n- [ ] Book the venue, which is not on the board at all\n\n## Anything in a list can be a card\n\nA name after a `^` is not only for to-dos. A bullet takes one, and so does a numbered step, which is how something\nwith nothing to tick gets onto a board: a question to ask, a thing to keep an eye on.\n\n- Ask Sam which photos are cleared ^ask-sam\n- The old pricing page, until the new one is up ^old-page\n\nThe name is also how the words point at the work: the pricing page is waiting on [[#^ask-sam]], and tapping that\ngoes to the line. One name, pointed at from the board and from the middle of a sentence.\n\n## How to change it\n\n- Press and hold a card, then drag it: into another column, or up and down its own.\n- Move a card with the chevrons on it instead; the fence above is rewritten either way.\n- Add one with the **+** on a column: it writes a new to-do into the note and puts the card in that column.\n- Take a card off the board by taking its name out of the fence. The item stays in the note.\n- Tap the fence itself to edit the columns as text: rename one, add one, reorder them.\n\nA second board in the same note is another fence, and an item can sit on both.\n\n```board\nSomeday: venue\n```\n\n- [ ] Find a venue for the party ^venue\n",
+  "journal": "---\ntitle: \"Journal\"\nbook: true\njournal: true\ntemplate: \"# {{date}}\\n\\n**{{time}}** \"\n---\n# Journal\n\n- [[2026-09-28 10.00]]\n",
+  "entry": "---\ntitle: \"2026-09-28 10.00\"\ndate: 2026-09-28T10:00\n---\n# Monday, September 28\n\n**10:00** The first entry. A journal keeps one for each time you write, named by the minute, and its page lists them by day. New entry starts the next from the journal's template.\n",
+  "sample": "# How to format a note\n\nA note is plain Markdown: words with a few marks around them. Type a mark, or say its word while recording, and Ghost.md draws it. The marks stay on the page, a little dimmed. Try each one here, then delete this note.\n\n## Headings\n\nType `#` and a space for the note's name, `##` for a section, and more hashes, up to six, for smaller ones. Say \"heading\", or \"subheading\".\n\n### Three hashes\n\n#### Four\n\n##### Five\n\n###### Six\n\n## Words\n\nTwo stars for **bold**, underscores for _italic_, three stars for ***both***, two tildes to ~~strike~~, and backticks for `code`. Say \"bold\", then \"end bold\"; italic works the same way. A backslash makes a mark mean itself: \\*not italic\\*.\n\nTwo pipes each side keep a secret, drawn as smoke until the caret is in it: ||the key is under the third stone||. Say \"spoiler\", then \"end spoiler\".\n\nOne caret each side raises part of a word, and one tilde lowers it: the 2^nd^ of June, H~2~O. Say \"superscript\", then \"end superscript\"; \"subscript\" works the same way.\n\n## Ghost.md's own marks\n\nTwo of the same sign each side: ==highlight==, %%an aside%%, ??unsure?? (with a reason in brackets after it: ??the deposit??(ask Sam)), @@redact@@, ^^shout^^, and ++added++. A redaction is a bar of ink over its words, lifted while the caret is in them; the words are still in the note, and in the file a share gives, and where there is no caret to lift it, on a shared note's page or a card, the bar stays. A colour's name in brackets after a highlight changes its colour: ==the cabin key==(green). Say \"highlight\", then \"end highlight\"; the others work the same way.\n\n## Effects\n\nWords that move, each written as its emoji twice either side, so the note still says what it means in any other app. Heat bends the line above it, like air over a hot road:\n\n- 🔥🔥Heat🔥🔥 goes bold, and the line above it wavers.\n- ❄️❄️Frost❄️❄️ grows a rime over the edges of the letters.\n- 🌊🌊Wave🌊🌊 bobs along the line.\n- ✨✨Shimmer✨✨ catches a glint every few seconds.\n- 👻👻Haunt👻👻 fades almost away, and back.\n\nSay \"heated\", then \"end heated\"; \"frosted\", \"wavy\", \"shimmering\" and \"haunted\" work the same way. An effect lifts while the caret is in its words, so they edit as plain text, and it holds still when the phone is set to reduce motion.\n\n## Lists\n\nA dash for a point, indented for a smaller one. Say \"bullet point\".\n\n- Milk\n  - Oat, if they have it\n\nA number and a dot for steps. Say \"number one\", \"number two\".\n\n1. Wake up\n2. Write it down\n\nA dash and a box for a to-do; tap the box to tick it. Say \"remember to\", or \"done task\" for one that is done already. The heading above counts them.\n\n- [ ] Book the cabin ^book-cabin\n- [x] Call Sam ^call-sam\n\nA caret and a name at the end of an item name it, so something else can point at it: [[#^book-cabin]]. Say \"anchor\", the name, then \"end anchor\".\n\nRound brackets make a choice, and a tap picks one. Say \"option\", or \"picked option\" for the one you chose.\n\nWhere do we stay?\n- ( ) Tent\n- (x) Cabin\n\nA count and a goal in square brackets is a counter: tap it to add one, hold it to take one away. Say \"counter three of eight\".\n\n- Water [3/8]\n\nAn equals sign and a space at the start of a line work out the sum after them, and show its answer without writing it into the note. Say \"calculate\".\n\n= $450 + 120 * 2\n\nA hash against a word tags the line: #cabin. Say \"hashtag\", then the word.\n\n## Quotes\n\nA line that starts with `>`. Say \"quote\".\n\n> The note you make on the way is the one you keep.\n\nA quote that opens with `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]` or `[!CAUTION]` is a callout. Say \"info box\", or \"warning callout\".\n\n> [!TIP]\n> Say it now, and fix it after.\n\nA bar straight after the `>` keeps the line in smoke until the caret is in it. Say \"hidden line\".\n\n>| The answer is forty-two.\n\n## Links\n\nWords in brackets and the address after: [Ghost.md](https://attack.fm/glyph). An address on its own line gets a card with the page's title:\n\nhttps://attack.fm/glyph\n\nTwo square brackets each side link to another note by its name: [[Weekend trip]]. A name with no note yet is drawn dashed, and a tap makes that note. Say \"note link\", the name, then \"end link\".\n\nA caret and a name in square brackets mark a footnote, and a line starting with the same mark says what it is: the deposit is four hundred[^sam]. Tap the mark to read it. Say \"footnote\", what it says, then \"end footnote\".\n\n[^sam]: Sam said so.\n\nTwo section signs, `§§`, at the end of a line are the note's bookmark, and the note opens there. The bookmark button at the top of the note moves it to the line you are on. Say \"bookmark this\" at the end of a line.\n\n## Tables\n\nPipes between cells and a row of dashes under the first. Or press and hold, choose Style, then Table. Tap a drawn table to change it.\n\n| What | Where |\n| :--- | ---: |\n| Tent | Garage |\n| Stove | Loft |\n\n## A few more\n\nA word, and its meaning on the next line after a colon, is a definition. Say \"define deposit as what you pay up front\".\n\nDeposit\n: what you pay up front\n\nDollar signs each side set maths apart, exactly as typed: $x^2 + y$. Say \"maths\", the formula, then \"end maths\".\n\nA name between colons is its emoji: shipped :tada:. Say \"emoji\", then its name.\n\n## Code\n\nThree backticks above and below, with the language after the first three:\n\n```js\nconst note = 'said, then written';\n```\n\n## Boards and diagrams\n\nA block marked board lays items out as columns, by their names. These are the to-dos from Lists; tick one there and its card moves here.\n\n```board\nTo do: book-cabin\nDone: call-sam\n```\n\nA block marked mermaid is drawn as the diagram it describes. Tap it to change the words.\n\n```mermaid\nflowchart LR\n  A[Say it] --> B[A note]\n```\n\nA canvas can sit in a note in a frame you can look around in: its name in `![[ ]]`, on a line of its own.\n\n## A line across\n\nThree dashes on a line of their own:\n\n---\n\n## Without typing\n\nPress and hold on any words and choose Style to put one of these marks on them. Every mark is in the cheat sheet as well: tap the three dots at the top of any note, then Formatting cheat sheet.\n"
+ },
+ "read": {
+  "call-sam": {
+   "title": "Planning call with Sam",
+   "firstLine": "Summary",
+   "kind": "note",
+   "peek": "## Summary\nWhat the call settled about the March launch.\n\n- Launch moves to the second week of March.\n- Sam: the press list by Friday.\n- Decided: no paid ads until the beta closes.\n- [ ] Book the venue before the 10th.\n- [ ] Send Sam the deck this week.\n\nWe started with the launch date. Sam wants the second week of March so the press list has time to go out, and nobody argued with that.\n\nThe beta is the other thing. It closes at the end of February, and until it does we hold off on paid ads. Ana thinks the numbers from the beta are what the launch post should lead with.\n\nI said I would book the venue before the 10th and send Sam the deck this week. Sam takes the press list.",
+   "book": null,
+   "at": null,
+   "chapters": [],
+   "ticket": null,
+   "cards": null,
+   "when": "Friday"
+  },
+  "standup": {
+   "title": "Monday standup",
+   "firstLine": "Summary",
+   "kind": "note",
+   "peek": "## Summary\nWho has what this week, and the one thing blocking the beta.\n\n- Ana: the launch post draft by Wednesday.\n- Ali: the sign-up form, then the emails.\n- Decided: the beta closes on the 28th.\n- [ ] Ask Ali about the form.\n\nWe went round the room. Ana has the launch post and wants it drafted by Wednesday so there is time to argue about it.\n\nAli is on the sign-up form, then the emails after that. The form is what is blocking the beta right now.\n\nWe agreed the beta closes on the 28th whatever state it is in.",
+   "book": null,
+   "at": null,
+   "chapters": [],
+   "ticket": null,
+   "cards": null,
+   "when": "40 min ago"
+  },
+  "weekend": {
+   "title": "Weekend trip",
+   "firstLine": "Three days at the cabin, the second weekend of October. Book by Friday, the deposit is 200. #cabin",
+   "kind": "note",
+   "peek": "Three days at the cabin, the second weekend of October. **Book by Friday**, the deposit is 200. #cabin\n\n## Before we go\n\n- [ ] Book the cabin\n- [ ] Ask Sam about the dog\n- [x] Pick the weekend\n- [ ] Oil change for the car\n- Bottles of water [3/8]\n\nThe ==cabin key== is under ||the third stone||. Saturday the lake, Sunday the long walk if it is dry.\n\n## Who brings what",
+   "book": null,
+   "at": null,
+   "chapters": [],
+   "ticket": null,
+   "cards": null,
+   "when": "1 hr ago"
+  },
+  "house": {
+   "title": "House TODOs",
+   "firstLine": "Electrical",
+   "kind": "note",
+   "peek": "## Electrical\n\n- [ ] Replace the hall bulb\n- [x] Label the fuse box\n\n## Kitchen\n\n- [ ] Fix the leaking tap\n- [ ] Descale the kettle",
+   "book": null,
+   "at": null,
+   "chapters": [],
+   "ticket": null,
+   "cards": null,
+   "when": "15 hr ago"
+  },
+  "groceries": {
+   "title": "Groceries",
+   "firstLine": "Oat milk",
+   "kind": "note",
+   "peek": "- Oat milk\n- Eggs\n- Bread\n- The good coffee\n- Bin bags",
+   "book": null,
+   "at": null,
+   "chapters": [],
+   "ticket": null,
+   "cards": null,
+   "when": "2 hr ago"
+  },
+  "launch": {
+   "title": "Launch week",
+   "firstLine": "Second week of March. What is left is below; Sam has the photos and the press list.",
+   "kind": "note",
+   "peek": "Second week of March. What is left is below; Sam has the photos and the press list.\n\n## The work\n\n- [ ] Write the pricing page\n- [ ] Email the beta list\n- [ ] Send Sam the deck\n- [ ] Get the photos back from Sam\n- [ ] The press list\n- [x] Pick the launch date",
+   "book": null,
+   "at": null,
+   "chapters": [],
+   "ticket": null,
+   "cards": null,
+   "when": "22 hr ago"
+  },
+  "portugal": {
+   "title": "Portugal",
+   "firstLine": "Ten days in October, written up a day at a time.",
+   "kind": "book",
+   "peek": "# Portugal\n\nTen days in October, written up a day at a time.\n\n- [[Packing]]\n- [[Lisbon, the first three days]]\n- [[The coast]]",
+   "book": null,
+   "at": null,
+   "chapters": [
+    "Packing",
+    "Lisbon, the first three days",
+    "The coast"
+   ],
+   "ticket": null,
+   "cards": null,
+   "when": "Yesterday"
+  },
+  "packing": {
+   "title": "Packing",
+   "firstLine": "Adapter",
+   "kind": "note",
+   "peek": "- [ ] Adapter\n- [ ] Boots\n- [x] Passport\n- [ ] The small bag for the train",
+   "book": "Portugal",
+   "at": 0,
+   "chapters": [],
+   "ticket": null,
+   "cards": null,
+   "when": "Yesterday"
+  },
+  "lisbon": {
+   "title": "Lisbon, the first three days",
+   "firstLine": "The flat is above the bakery, which is either a good thing or a bad thing at six in the morning.",
+   "kind": "note",
+   "peek": "The flat is above the bakery, which is either a good thing or a bad thing at six in the morning.\n\nDay one, the castle and the long way down. Day two, the tram to Belém. Day three, nothing planned.\n\n> [!TIP]\n> The number 28 tram is full by nine. Walk up, ride down.",
+   "book": "Portugal",
+   "at": 1,
+   "chapters": [],
+   "ticket": null,
+   "cards": null,
+   "when": "Yesterday"
+  },
+  "coast": {
+   "title": "The coast",
+   "firstLine": "Train to Cascais, then the bikes along the front to Guincho if the wind lets us.",
+   "kind": "note",
+   "peek": "Train to Cascais, then the bikes along the front to Guincho if the wind lets us.\n\n- [ ] Book the bikes the night before",
+   "book": "Portugal",
+   "at": 2,
+   "chapters": [],
+   "ticket": null,
+   "cards": null,
+   "when": "Yesterday"
+  },
+  "reading": {
+   "title": "Reading list",
+   "firstLine": "Piranesi",
+   "kind": "note",
+   "peek": "1. Piranesi\n2. The Peregrine\n3. The lamp book Ana mentioned",
+   "book": null,
+   "at": null,
+   "chapters": [],
+   "ticket": null,
+   "cards": null,
+   "when": "1 hr ago"
+  },
+  "flat": {
+   "title": "Flat",
+   "firstLine": "Send the deposit",
+   "kind": "note",
+   "peek": "- [ ] Send the deposit\n- Keys on Tuesday\n- The landlord is Ana's cousin, which explains the price",
+   "book": null,
+   "at": null,
+   "chapters": [],
+   "ticket": null,
+   "cards": null,
+   "when": "48 min ago"
+  },
+  "cabin-canvas": {
+   "title": "Cabin weekend, laid out",
+   "firstLine": "{",
+   "kind": "canvas",
+   "peek": "{\n  \"nodes\": [\n    {\n      \"id\": \"before\",\n      \"type\": \"group\",\n      \"x\": -40,\n      \"y\": -60,\n      \"width\": 640,\n      \"height\": 400,\n      \"label\": \"Before we go\",\n      \"color\": \"5\"\n    },\n    {\n      \"id\": \"book\",",
+   "book": null,
+   "at": null,
+   "chapters": [],
+   "ticket": null,
+   "cards": 8,
+   "when": "Friday"
+  },
+  "product": {
+   "title": "Product",
+   "firstLine": "What we are shipping for the launch.",
+   "kind": "book",
+   "peek": "# Product\n\nWhat we are shipping for the launch.\n\n- [[Fix the sign-in loop]]\n- [[Pricing page copy]]\n- [[Release notes]]\n- [[Offline search]]",
+   "book": null,
+   "at": null,
+   "chapters": [
+    "Fix the sign-in loop",
+    "Pricing page copy",
+    "Release notes",
+    "Offline search"
+   ],
+   "ticket": null,
+   "cards": null,
+   "when": "23 hr ago"
+  },
+  "prd11": {
+   "title": "Fix the sign-in loop",
+   "firstLine": "Signing in on the phone sends you back to the sign-in page once the cookie has expired.",
+   "kind": "note",
+   "peek": "Signing in on the phone sends you back to the sign-in page once the cookie has expired.\n\n- [x] Find where the cookie is dropped\n- [ ] Refresh it before it expires @sam\n- [ ] Test it on a slow network",
+   "book": "Product",
+   "at": 0,
+   "chapters": [],
+   "ticket": {
+    "id": "PRD-11",
+    "status": "In progress",
+    "category": "doing",
+    "assignee": "Sam"
+   },
+   "cards": null,
+   "when": "20 min ago"
+  },
+  "prd10": {
+   "title": "Pricing page copy",
+   "firstLine": "Three plans, said plainly.",
+   "kind": "note",
+   "peek": "Three plans, said plainly.",
+   "book": "Product",
+   "at": 1,
+   "chapters": [],
+   "ticket": {
+    "id": "PRD-10",
+    "status": "In review",
+    "category": "doing",
+    "assignee": "Matt"
+   },
+   "cards": null,
+   "when": "18 hr ago"
+  },
+  "prd12": {
+   "title": "Release notes",
+   "firstLine": "What changed, in a line each.",
+   "kind": "note",
+   "peek": "What changed, in a line each.",
+   "book": "Product",
+   "at": 2,
+   "chapters": [],
+   "ticket": {
+    "id": "PRD-12",
+    "status": "To do",
+    "category": "todo",
+    "assignee": "Matt"
+   },
+   "cards": null,
+   "when": "23 hr ago"
+  },
+  "prd13": {
+   "title": "Offline search",
+   "firstLine": "Search every note with no network.",
+   "kind": "note",
+   "peek": "Search every note with no network.",
+   "book": "Product",
+   "at": 3,
+   "chapters": [],
+   "ticket": {
+    "id": "PRD-13",
+    "status": "To do",
+    "category": "todo",
+    "assignee": "Ana"
+   },
+   "cards": null,
+   "when": "Yesterday"
+  },
+  "sprint": {
+   "title": "This sprint",
+   "firstLine": "query",
+   "kind": "note",
+   "peek": "```query\nfrom: tickets [[Product]]\nwhere: status != Done\nsort: priority, due\nshow: board\n```",
+   "book": null,
+   "at": null,
+   "chapters": [],
+   "ticket": null,
+   "cards": null,
+   "when": "55 min ago"
+  },
+  "open-tickets": {
+   "title": "Open tickets",
+   "firstLine": "query",
+   "kind": "note",
+   "peek": "```query\nfrom: tickets [[Product]]\nwhere: status != Done\nsort: priority, due\ncolumns: id, title, status, estimate\ntotal: estimate\nshow: table\n```",
+   "book": null,
+   "at": null,
+   "chapters": [],
+   "ticket": null,
+   "cards": null,
+   "when": "50 min ago"
+  }
+ },
+ "counts": {
+  "all": 20,
+  "books": 2,
+  "notes": 18,
+  "pinned": 1
+ },
+ "plans": {
+  "spotlight": {
+   "cut": 0,
+   "sections": [
+    {
+     "key": "pinned",
+     "heading": "Pinned",
+     "mark": "pinned",
+     "count": 1,
+     "draw": "lines",
+     "notes": [
+      "weekend"
+     ]
+    },
+    {
+     "key": "recent",
+     "heading": "Recent",
+     "mark": "recent",
+     "count": null,
+     "draw": "cards",
+     "notes": [
+      "prd11",
+      "standup",
+      "flat",
+      "open-tickets"
+     ]
+    },
+    {
+     "key": "today",
+     "heading": "Today",
+     "mark": null,
+     "count": 3,
+     "draw": "rows",
+     "notes": [
+      "sprint",
+      "reading",
+      "groceries"
+     ]
+    },
+    {
+     "key": "yesterday",
+     "heading": "Yesterday",
+     "mark": null,
+     "count": 5,
+     "draw": "rows",
+     "notes": [
+      "house",
+      "prd10",
+      "launch",
+      "product",
+      "prd12"
+     ]
+    },
+    {
+     "key": "week",
+     "heading": "Earlier this week",
+     "mark": null,
+     "count": 7,
+     "draw": "rows",
+     "notes": [
+      "coast",
+      "lisbon",
+      "packing",
+      "portugal",
+      "prd13",
+      "cabin-canvas",
+      "call-sam"
+     ]
+    }
+   ]
+  },
+  "cards": {
+   "cut": 0,
+   "sections": [
+    {
+     "key": "books",
+     "heading": "Notebooks",
+     "mark": "notebook",
+     "count": 2,
+     "draw": "cards",
+     "notes": [
+      "product",
+      "portugal"
+     ]
+    },
+    {
+     "key": "notes",
+     "heading": "Notes",
+     "mark": "note",
+     "count": 18,
+     "draw": "cards",
+     "notes": [
+      "weekend",
+      "prd11",
+      "standup",
+      "flat",
+      "open-tickets",
+      "sprint",
+      "reading",
+      "groceries",
+      "house",
+      "prd10",
+      "launch",
+      "prd12",
+      "coast",
+      "lisbon",
+      "packing",
+      "prd13",
+      "cabin-canvas",
+      "call-sam"
+     ]
+    }
+   ]
+  },
+  "timeline": {
+   "cut": 0,
+   "sections": [
+    {
+     "key": "today",
+     "heading": "Today",
+     "mark": null,
+     "count": 8,
+     "draw": "rows",
+     "notes": [
+      "prd11",
+      "standup",
+      "flat",
+      "open-tickets",
+      "sprint",
+      "reading",
+      "weekend",
+      "groceries"
+     ]
+    },
+    {
+     "key": "yesterday",
+     "heading": "Yesterday",
+     "mark": null,
+     "count": 5,
+     "draw": "rows",
+     "notes": [
+      "house",
+      "prd10",
+      "launch",
+      "product",
+      "prd12"
+     ]
+    },
+    {
+     "key": "week",
+     "heading": "Earlier this week",
+     "mark": null,
+     "count": 7,
+     "draw": "rows",
+     "notes": [
+      "coast",
+      "lisbon",
+      "packing",
+      "portugal",
+      "prd13",
+      "cabin-canvas",
+      "call-sam"
+     ]
+    }
+   ]
+  },
+  "list": {
+   "cut": 0,
+   "sections": [
+    {
+     "key": "books",
+     "heading": "Notebooks",
+     "mark": "notebook",
+     "count": 2,
+     "draw": "rows",
+     "notes": [
+      "product",
+      "portugal"
+     ]
+    },
+    {
+     "key": "notes",
+     "heading": "Notes",
+     "mark": "note",
+     "count": 18,
+     "draw": "rows",
+     "notes": [
+      "weekend",
+      "prd11",
+      "standup",
+      "flat",
+      "open-tickets",
+      "sprint",
+      "reading",
+      "groceries",
+      "house",
+      "prd10",
+      "launch",
+      "prd12",
+      "coast",
+      "lisbon",
+      "packing",
+      "prd13",
+      "cabin-canvas",
+      "call-sam"
+     ]
+    }
+   ]
+  }
+ },
+ "searched": {
+  "sam": [
+   "call-sam",
+   "weekend",
+   "launch",
+   "cabin-canvas",
+   "prd11"
+  ],
+  "cabin friday": [
+   "weekend",
+   "cabin-canvas"
+  ],
+  "PRD-11": [
+   "prd11"
+  ],
+  "beta 28th": [
+   "standup"
+  ],
+  "nothing-has-this": []
+ },
+ "pinnedOnly": {
+  "cut": 0,
+  "sections": [
+   {
+    "key": "pinned",
+    "heading": "Pinned",
+    "mark": "pinned",
+    "count": 1,
+    "draw": "lines",
+    "notes": [
+     "weekend"
+    ]
+   }
+  ]
+ },
+ "booksOnly": {
+  "cut": 0,
+  "sections": [
+   {
+    "key": "books",
+    "heading": "Notebooks",
+    "mark": "notebook",
+    "count": 2,
+    "draw": "cards",
+    "notes": [
+     "product",
+     "portugal"
+    ]
+   }
+  ]
+ },
+ "journalCards": {
+  "j": {
+   "count": 1,
+   "newest": [
+    {
+     "title": "2026-09-28 10.00",
+     "when": "Mon, Sep 28, 10:00"
+    }
+   ]
+  }
+ }
+}
