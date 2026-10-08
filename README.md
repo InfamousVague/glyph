@@ -44,8 +44,8 @@ Each stage ends installed on the Fold. Sizes are the web app's non-test source t
 | 2 | The shell: launch, the tab bar in its four styles, home, All notes, the sidebar, notifications, the command bar, the app's sheet, a note's menu and the + sheet, Settings with its kit and a live Appearance page; the art: wisp and smoke as shaders, the ghost, the icons | `shell/`, `home/`, `launch/`, `art/`, `commands/`, `settings/` kit, most of `notes/` (~15k) | on the Fold 2026-10-07; see "What stage 2 left open" |
 | 3 | The library: the web app's Rust library included unchanged behind FFI (`native/`), a worker isolate, notes as Markdown files in the app's own folder, trash and workspaces as the web's preferences, search, starter notes | `src-tauri/src/library` (kept), `core/store.ts`, `trash.ts`, `workspaces.ts`, `noteFolders.ts` | on the Fold 2026-10-07; a chosen folder, sync and moving a Tauri library over come later |
 | 4 | The editor: live Markdown, the marks and the five effects, tables, links, pictures, the + menu | `editor/` (26k), `format/` | put together 2026-10-08 (`lib/root/note_desk.dart`) and walked on an Android emulator, phone and unfolded, dark and light; **not yet on the Fold**; see "What stage 4 left open" |
-| 5 | Structured notes: boards, tickets, queries, databases, notebooks, journals, templates | `editor/`, `book/`, `notes/` | |
-| 6 | Canvas | `canvas/` (3.5k) | |
+| 5 | Structured notes: boards, tickets, queries, databases, notebooks, journals, templates | `editor/`, `book/`, `notes/` | in the app 2026-10-08 (`lib/root/note_desk.dart`, `lib/root/library_reads.dart`, `lib/root/ghost_root.dart`): boards, queries and a ticket's panel drawn in a note, the notebook's index and the journal's entries, the + sheet and New notebook, a blank note's names and template cards; **not yet on the Fold**; see "What stages 5 and 6 left open" |
+| 6 | Canvas | `canvas/` (3.5k) | in the app 2026-10-08 as a note's own view (`NoteSeams.canvas`), made from the + and from a notebook's index; a team's canvas (6G) is not ported; **not yet on the Fold** |
 | 7 | Account and sync: keys, the sync engine, organizations and team notes, live typing, notifications, shared links | `core/sync`, `core/orgs`, `core/live`, `share/` | in the app 2026-10-08, **off unless the build is given `--dart-define=GHOST_API=http://…`** (`lib/root/account_wiring.dart`); walked on the emulator against the service run on this Mac (sign up, sync read back by a second device, an organization, a team note, a shared link); live typing, links that open the app and the phone's own notifications are not ported |
 | 8 | Voice and AI: the recorder, Whisper, meetings and their service, summaries, the language model, fills, the at-work scene | `capture/` (12k), `ai/` (6.5k), `tapes/`, `scene/`, Kotlin (6.5k) | |
 | 9 | The rest: backup, export, plugins, the Academy and the guide, diagnostics, updates | `plugins/`, `academy/`, `guide/`, `diag/` | |
@@ -54,6 +54,36 @@ Each stage ends installed on the Fold. Sizes are the web app's non-test source t
 The web app is about 110,000 lines of TypeScript, 21,500 of CSS, 27,000 of Rust and 6,500 of Kotlin, with 5,600
 tests. Parity is the bar for every stage; a stage is not done until its screens have been compared with the web app's
 on the same phone.
+
+## What stages 5 and 6 left open
+
+The pieces (docs/STAGES_5_6_8_9.md) are in the app: each open note's desk (`lib/root/note_desk.dart`) lists
+`drawnBoards()`, `tickets(…)` and `queries(…)` among its extensions and tells them when the library changes, and
+gives the note's screen its canvas, its notebook's index, its journal and the bar and foot a page wears; the root
+(`lib/root/ghost_root.dart`) answers what they ask of the app as `App.tsx` does, over one reading of the library per
+change (`lib/root/library_reads.dart`). `test/root/structured_test.dart` holds the wiring.
+
+- **An entry or a named note nobody wrote in is not taken back.** `App.tsx` deletes a journal's entry, or a new note
+  given a name or a template from its blank page, once it is left untouched (`takeBack`), with its line in the
+  journal. The records are kept here (core/untouched.dart) and nothing reads them when a note is left.
+- **A blank page's cards have no map.** A map at the top is left out (`TemplateCards.canLocate` is false: nothing
+  says where the phone is), and a template with a map asks for no place.
+- **A new note, a journal's entry and a journal keep no place** (Tag new notes, a journal's place switch): the
+  switch is drawn in the New notebook sheet and written to the journal, and nothing reads it.
+- **The + sheet has no Meeting and no From a shared link**: recording is stage 8's to wire, and a shared link's copy
+  is the account's (`forkShared`).
+- **A canvas** has no picture picker and opens no link (as a note), no comment sheet (`CanvasView.threads`), is not
+  framed in a note from the + (`AddConfig.canvases`), and a team's canvas (6G) is not ported. A canvas renamed from
+  its tab is written to the store and not through its open screen (`rename`).
+- **A board's card has no plugin's rows** (`drawnBoards(actions:)`), and a date in a ticket's panel or a query is
+  not picked from a calendar (`dayPicker`).
+- **`Notices` is still not wired**: the update card waits for stage 9's updates, the invitation for its buttons
+  (`InviteActions`), the voice model's line for stage 8.
+- **The aside** (the open note's notebook beside it on a wide window, `aside/`) is still the shell's placeholder.
+- **Checked where:** on the Android emulator, by hand, 2026-10-08 (see the commit that wired them); in tests, the
+  wiring and each piece's own. **Still to see on the Fold:** a card carried between a board's lanes and a query's
+  under a real finger, the canvas's pinch and its cards' words on Vulkan, the keyboard's own toolbar over a canvas
+  card being written in.
 
 ## What stage 4 left open
 
@@ -66,15 +96,14 @@ The editor's pieces (docs/STAGE4.md) are assembled for each open note by `lib/ro
   signed-out one, whose way in says the build has no service. A define naming ghostmarkdown.com or attack.fm is
   refused in a build that is not a release (`accountBase`), and by the `Api`'s assert after it.
   `test/root/second_device_test.dart` is the second device that reads back what a phone wrote.
-- **Not drawn yet on a note's page:** the blank page's names and template cards (lib/note has `names`, `nameIt` and
-  `offering`, lib/notes has `TemplateCards`, and the screen has no place for them), the placeholder ("Write
-  something."), comments, the AI's rows, the place row and the map card, a notebook's bar and foot. A canvas, a
-  notebook and a journal still say which stage draws them.
+- **Not drawn yet on a note's page:** the placeholder ("Write something."), comments, the AI's rows, the place row
+  and the map card. (The blank page's names and template cards, a notebook's bar and foot, and the canvas, the
+  notebook and the journal themselves came with stages 5 and 6.)
 - **Nothing can be added that needs the phone:** no picture picker (the band's Add image and the +'s Picture are not
   offered; a picture a note already names is drawn from the kept files), no place, film or voice memo, no calendar
   for Pick a date, and a link's tap opens nothing (no way to hand an address to the phone).
-- **A new note is not opened ready to type:** the shell's `openNote` carries no caret, so the first tap raises the
-  keyboard. The + of the dock makes a note directly (`NewSheet` is still not wired).
+- **A new note is opened ready to type** since stages 5 and 6 were wired (the shell's `openNote` carries a caret),
+  from the + sheet's Note.
 - **Links that open the app** (`ghostmd://join/…`, a shared link) have no Android intent behind them: an invitation
   is answered from its notification, and `JoinInvites` only asks about a code held from before.
 - **A shared link** made by a build on a local service still names the real reader page (lib/share), where nothing
@@ -93,10 +122,10 @@ The editor's pieces (docs/STAGE4.md) are assembled for each open note by `lib/ro
 - **Stand-ins until their stage:** the notes are the store screenshots' invented library in memory (`SampleLibrary`;
   stage 3, planned in `docs/STAGE3.md`); an opened note is its title over its Markdown as written (stage 4); Settings'
   Library folder, Backup and Plugins open a card that says they are not ported, and its signed-in pages wait for
-  the account; the notifications card is empty and Speak,
-  organizations, notebooks and journals have no way in yet.
-- **Not wired though built:** `NoteActions` (delete with the web's Undo toast; the root keeps a plain trash),
-  `NewSheet` (the dock's + makes a note directly), `Notices`, `TemplateCards`.
+  the account; the notifications card is empty and Speak has
+  no way in yet (organizations came with stage 7; notebooks, journals and canvases with stages 5 and 6, from the +).
+- **Not wired though built:** `Notices` (see "What stages 5 and 6 left open"). `NoteActions` (delete, archive and
+  pin with the web's Undo toast, the Trash), `NewSheet` and `TemplateCards` are wired now.
 - **Two previews of a note:** the drawn one (`lib/home/note_peek.dart`) and the sidebar's two plain lines
   (`lib/notes/note_peek.dart`); the sidebar should take the drawn one, and a dense card wants it clipped to 4.2 lines
   where it is 6.2. `BookPlaceMark` and `OrgMark` exist twice the same way.
