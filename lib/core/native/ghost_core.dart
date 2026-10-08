@@ -10,6 +10,8 @@
 /// - **Commands are answered in the order they were asked**, one at a time, off the isolate that draws.
 /// - **An error is a [CoreError]** with the sentence Rust's `Err(String)` carried, where the page's promise
 ///   rejected with the bare string.
+/// - **Events** are one stream, [GhostCore.events] (events.dart), where the page called `listen` per name.
+/// - **A long job** is a command that answers `{id}` at once and reports by events: [GhostCore.startJob].
 ///
 /// ```dart
 /// final core = await GhostCore.open();
@@ -23,6 +25,7 @@ import 'dart:async';
 import 'dart:isolate';
 
 import 'core.dart';
+import 'events.dart';
 import 'ghost_worker.dart';
 
 class GhostCore {
@@ -37,6 +40,66 @@ class GhostCore {
   int _nextId = 0;
   bool _closed = false;
   final Completer<void> _ended = Completer<void>();
+  final StreamController<CoreEvent> _events = StreamController<CoreEvent>.broadcast(sync: true);
+
+  /// Everything the core says without being asked (native/src/events.rs), in the order it arrived: a broadcast
+  /// stream, so each screen filters for the names it wants. An event emitted while nobody listens is gone, as
+  /// a Tauri event was. Closed when the worker ends.
+  Stream<CoreEvent> get events => _events.stream;
+
+  /// Starts a long job: [command] must be one that answers `{id: ...}` at once (native/src/work.rs). The
+  /// [CoreJob] has the job's own events from the first one and a future for its end. Throws [CoreError] when
+  /// the command itself refuses.
+  Future<CoreJob> startJob(String command, [Map<String, Object?> args = const {}]) async {
+    // Listening from before the command is sent: the job's thread may speak before the id has been read here.
+    final early = <CoreEvent>[];
+    String? id;
+    final mine = StreamController<CoreEvent>();
+    final done = Completer<Object?>();
+    late final StreamSubscription<CoreEvent> heard;
+    void take(CoreEvent event) {
+      if (event.jobId != id) return;
+      if (event.event != jobEnd) {
+        mine.add(event);
+        return;
+      }
+      heard.cancel();
+      mine.close();
+      final said = event.map;
+      if (said.containsKey('err')) {
+        done.completeError(CoreError('${said['err']}'));
+      } else {
+        done.complete(said['ok']);
+      }
+    }
+
+    heard = _events.stream.listen(
+      (event) => id == null ? early.add(event) : take(event),
+      onDone: () {
+        mine.close();
+        if (!done.isCompleted) done.completeError(const CoreError('Ghost.md\'s core stopped before the job ended.'));
+      },
+    );
+    // A job nobody awaits the end of must not be an unhandled error.
+    done.future.ignore();
+    try {
+      final answer = await invoke(command, args);
+      if (answer case {'id': final String jobId}) {
+        id = jobId;
+      } else {
+        throw CoreError('$command did not answer with a job\'s id.');
+      }
+    } on Object {
+      await heard.cancel();
+      // Not awaited: with nobody listening, a controller's close never completes.
+      unawaited(mine.close());
+      rethrow;
+    }
+    final jobId = id;
+    early.forEach(take);
+    early.clear();
+    return CoreJob(jobId, mine.stream, done.future, () async => await invoke('job_cancel', {'id': jobId}) as bool);
+  }
 
   /// Starts the worker isolate and has it load the library: `libghost_core.so` from the APK by default, or the
   /// file at [libraryPath] (a test's `native/target/debug/libghost_core.dylib`). Throws [CoreError] when the
@@ -117,12 +180,17 @@ class GhostCore {
       // The worker has ended. After a close nothing is waiting; after a crash everything is.
       _closed = true;
       _answers.close();
+      _events.close();
       final lost = _waiting.values.toList();
       _waiting.clear();
       for (final answer in lost) {
         answer.completeError(const CoreError('Ghost.md\'s core stopped before it answered.'));
       }
       if (!_ended.isCompleted) _ended.complete();
+      return;
+    }
+    if (message case [final String event, final payload]) {
+      if (!_events.isClosed) _events.add(CoreEvent(event, payload));
       return;
     }
     final [id as int, ok as bool, value] = message as List<Object?>;

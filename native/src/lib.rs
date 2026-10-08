@@ -15,7 +15,10 @@
 //!   does, taking the same camelCase JSON the web page sent to `invoke`.
 //! - `crypto`, `crdt`, `files`: stage 7 (docs/STAGE7.md). The account's keys and the sealed wire, as the web app
 //!   asks them of WebCrypto; Yjs documents, by `yrs`; and the files sync carries. Each lists its commands.
-//! - `ffi`: the three C functions Dart calls (lib/core/native/ghost_worker.dart).
+//! - `ffi`: the C functions Dart calls (lib/core/native/ghost_worker.dart).
+//! - `events`, `work`: stage 8B. Events from any Rust thread to the app, and the long job: a command that
+//!   answers an id at once, works on a thread of its own and reports by events.
+//! - `smoke` (the `voice` feature): stage 8A's one command per engine, proving each through the C functions.
 //!
 //! Never built from inside ../glyph, and it builds nothing there: cargo's target directory is `native/target`.
 //!
@@ -52,6 +55,46 @@ pub mod library_root;
 #[path = "../../../glyph/src-tauri/src/jobs.rs"]
 pub mod jobs;
 
+// Stage 8A, the engines (the `voice` feature; docs/STAGES_5_6_8_9.md). All Tauri-free but model_files.rs, which
+// names `tauri::async_runtime`: shims/tauri answers to that name with those two functions.
+
+// A recording's phrases as the paragraphs of its transcript.
+#[cfg(feature = "voice")]
+#[path = "../../../glyph/src-tauri/src/transcript.rs"]
+pub mod transcript;
+
+// Speech to text: whisper.cpp, the streaming core, WAV files.
+#[cfg(feature = "voice")]
+#[path = "../../../glyph/src-tauri/src/whisper/mod.rs"]
+pub mod whisper;
+
+// A model file, whichever engine reads it, and its verified, resumable download.
+#[cfg(feature = "voice")]
+#[path = "../../../glyph/src-tauri/src/model_files.rs"]
+pub mod model_files;
+
+// The language model: llama.cpp, the prompt, the catalogue.
+#[cfg(feature = "voice")]
+#[path = "../../../glyph/src-tauri/src/llm/mod.rs"]
+pub mod llm;
+
+// A meeting's write-up, start to end. Called by the JNI door below on the phone, and by nothing yet on the Mac
+// (as in the Tauri app): 8C's commands are its first caller here.
+#[cfg(feature = "voice")]
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+#[path = "../../../glyph/src-tauri/src/write_up.rs"]
+pub mod write_up;
+
+// The JNI door the meeting service and its WorkManager job call: finish, run, cancel. Its symbols name the
+// Kotlin class `com.mattssoftware.glyph.recordings.RecordingJob`.
+#[cfg(all(feature = "voice", target_os = "android"))]
+#[path = "../../../glyph/src-tauri/src/recording_jobs.rs"]
+pub mod recording_jobs;
+
+// write_up.rs asks `crate::recordings` where a note's recording is: the two functions held in `kept`.
+#[cfg(feature = "voice")]
+pub use kept::recordings;
+
 #[cfg(test)]
 #[path = "../../../glyph/src-tauri/src/test_support/temp.rs"]
 pub mod test_support;
@@ -59,8 +102,12 @@ pub mod test_support;
 pub mod crdt;
 pub mod crypto;
 pub mod dispatch;
+pub mod events;
 pub mod ffi;
 pub mod files;
 pub mod kept;
 pub mod paths;
 pub mod saf;
+#[cfg(feature = "voice")]
+pub mod smoke;
+pub mod work;

@@ -6,6 +6,10 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+# With the stand-in for `tauri` (shims/tauri), so both share one Cargo.lock and one target directory.
+[workspace]
+members = ["shims/tauri"]
+
 [lib]
 name = "ghost_core"
 path = "src/lib.rs"
@@ -41,6 +45,26 @@ base64 = "0.22"
 # tests/yjs_vectors.rs before it is taken.
 yrs = "=0.26.0"
 
+# Stage 8A, the engines (the `voice` feature below): whisper.cpp and llama.cpp as ../glyph/src-tauri/Cargo.toml
+# has them, which says why each line is as it is. In short: ONE ggml (the patched whisper-rs-sys at the foot of
+# this file builds whisper.cpp against llama-cpp-sys-2's), so llama-cpp-2 is pinned exactly; no default features
+# (no OpenMP, no `common`); the C++ runtime static on Android; reqwest 0.12 with rustls so nothing needs OpenSSL
+# or the JVM.
+whisper-rs = { version = "0.16", optional = true }
+whisper-rs-sys = { version = "0.15", optional = true }
+llama-cpp-2 = { version = "=0.1.156", default-features = false, features = ["android-static-stdcxx"], optional = true }
+encoding_rs = { version = "0.8", optional = true }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"], optional = true }
+libc = { version = "0.2", optional = true }
+minijinja = { version = "2.24", features = ["loop_controls", "json"], optional = true }
+minijinja-contrib = { version = "2.24", default-features = false, features = ["pycompat"], optional = true }
+# Not Tauri: the two functions of `tauri::async_runtime` model_files.rs calls (shims/tauri).
+tauri = { path = "shims/tauri", optional = true }
+
+# recording_jobs.rs, the JNI door a meeting's service and its WorkManager job call with the app closed.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = { version = "0.21", optional = true }
+
 [dev-dependencies]
 pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
 
@@ -48,6 +72,11 @@ pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
 # A `test_panic` command, so a test on the Dart side can see a panic come back as an `err`. tool/build-native.sh
 # turns it on for the Mac's library only; the phone's has no such command.
 test-hooks = []
+# Speech to text and the language model: `whisper/**`, `llm/**`, `model_files.rs`, `transcript.rs`, `write_up.rs`
+# and (Android) `recording_jobs.rs` of the Tauri app, included as they are. Off by default so the notes-only core
+# still builds in seconds; tool/build-native.sh turns it on (GHOST_VOICE=0 for without). The first build compiles
+# llama.cpp and whisper.cpp: minutes.
+voice = ["dep:whisper-rs", "dep:whisper-rs-sys", "dep:llama-cpp-2", "dep:encoding_rs", "dep:reqwest", "dep:libc", "dep:minijinja", "dep:minijinja-contrib", "dep:tauri", "dep:jni"]
 
 # A debug build is what the Mac's tests and Dart's tests open, and 600,000 rounds of unoptimised SHA-256 is half a
 # minute: the hashing and the ciphers are built optimised in every profile.
@@ -77,6 +106,12 @@ opt-level = 3
 opt-level = 3
 [profile.dev.package.curve25519-dalek]
 opt-level = 3
+
+# whisper-rs-sys 0.15.0 with the Tauri app's build.rs patch (WHISPER_USE_SYSTEM_GGML against llama-cpp-sys-2's
+# ggml): its copy, by path, so there is no second one to drift. The build copies whisper.cpp into OUT_DIR under
+# native/target and writes nothing beside the source.
+[patch.crates-io]
+whisper-rs-sys = { path = "../../glyph/src-tauri/vendor/whisper-rs-sys" }
 
 # Panics must unwind (the default): ffi.rs catches them at the boundary. Do not set `panic = "abort"`.
 [profile.release]

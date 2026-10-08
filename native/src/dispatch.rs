@@ -249,7 +249,7 @@ struct WriteVersions {
 }
 
 /// A command's arguments read from what was sent, or the sentence that says what was wrong with them.
-fn read<T: DeserializeOwned>(command: &str, args: Value) -> Result<T, String> {
+pub(crate) fn read<T: DeserializeOwned>(command: &str, args: Value) -> Result<T, String> {
     serde_json::from_value(args).map_err(|e| format!("invalid args for command `{command}`: {e}"))
 }
 
@@ -269,6 +269,16 @@ impl Core {
     /// The directory `init` named for the cache. Nothing in stage 3 writes there; `picked/` will.
     pub fn cache_dir(&self) -> &Path {
         &self.cache
+    }
+
+    /// The notes, for a job's thread (work.rs): locked for one read or one write, never across its work.
+    pub fn notes(&self) -> &NotesStore {
+        &self.notes
+    }
+
+    /// The app's data directory, which `init` named.
+    pub fn data_dir(&self) -> &Path {
+        &self.data
     }
 
     /// One command, or the sentence that says why not.
@@ -393,11 +403,20 @@ pub fn invoke(command: &str, args: Value) -> Result<Value, String> {
         // Keys, sealing and documents hold tables of their own: no library, and none of its lock.
         command if crate::crypto::has(command) => crate::crypto::call(command, args),
         command if crate::crdt::has(command) => crate::crdt::call(command, args),
+        // Long jobs are cancelled and listed with no library either (work.rs).
+        command if crate::work::has(command) => crate::work::call(command, args),
+        // Stage 8A's proof that each engine runs: a model file and a job, no library (smoke.rs).
+        #[cfg(feature = "voice")]
+        command if crate::smoke::has(command) => crate::smoke::call(command, args),
         _ => {
             // The core is taken out from under its lock before the command runs, so a slow command holds only the
             // library's own.
             let core = crate::lock::lock(&CORE).clone();
             let core = core.ok_or_else(|| format!("Ghost.md's core is not open yet, so it cannot answer {command}."))?;
+            // What starts a job takes the `Arc`: its thread keeps the core, and answers with an id at once.
+            if crate::work::has_with_core(command) {
+                return crate::work::call_with_core(&core, command, args);
+            }
             core.call(command, args)
         }
     }

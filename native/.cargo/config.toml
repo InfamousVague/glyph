@@ -1,0 +1,20 @@
+# What the engines' build scripts and tests read (the `voice` feature; docs/STAGES_5_6_8_9.md, stage 8). The
+# Tauri app's own is ../glyph/.cargo/config.toml, which says at length why each exists; cargo finds this one
+# because tool/build-native.sh runs it from native/. Without `voice` nothing reads any of it.
+#
+# What names an NDK (CC_, CXX_, AR_, the linker, BINDGEN_EXTRA_CLANG_ARGS_, ANDROID_NDK) is NOT here: the script
+# exports those for the NDK it chose. [env] never overrides what the environment already has.
+
+[env]
+# The Arm features ggml-cpu is compiled for, on the phone and (a subset of what it has) on the Mac: llama-cpp-sys-2
+# reads it unsuffixed and builds the one ggml both engines use.
+GGML_CPU_ARM_ARCH = "armv8.2-a+dotprod+fp16"
+# llama-cpp-sys-2's API level: minSdk. Left alone it takes 28.
+ANDROID_API_LEVEL = "24"
+# whisper.cpp's door to the NDK's CMake toolchain (arm64, the API level of CC's name, c++_static, the empty
+# libggml-blas.a): the Tauri app's own wrapper, which finds the NDK from CC_aarch64_linux_android.
+CMAKE_TOOLCHAIN_FILE_aarch64_linux_android = { value = "../../glyph/src-tauri/.cargo/aarch64-linux-android.toolchain.cmake", relative = true }
+# The included tests find the web app's repository and its models by these, since CARGO_MANIFEST_DIR here is
+# native/ and not ../glyph/src-tauri (transcript.rs, llm/tests.rs, whisper/fixtures.rs, write_up.rs).
+GLYPH_REPO_DIR = { value = "../../glyph", relative = true }
+GLYPH_MODELS_DIR = { value = "../../glyph/models", relative = true }

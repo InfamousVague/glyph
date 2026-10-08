@@ -4,7 +4,8 @@
 //! uint8_t *ghost_alloc(size_t len);
 //! uint8_t *ghost_invoke(const uint8_t *cmd, size_t cmd_len, const uint8_t *args_json, size_t args_len, size_t *out_len);
 //! void     ghost_free(uint8_t *ptr, size_t len);
-//! void     ghost_set_listener(void (*listener)(const uint8_t *json, size_t len));
+//! void     ghost_set_listener(void (*listener)(uint8_t *json, size_t len));
+//! void     ghost_forget_listener(void (*listener)(uint8_t *json, size_t len));
 //! ```
 //!
 //! - **`ghost_invoke`** takes a command's name and its arguments as UTF-8 JSON (no bytes at all for none), and
@@ -16,8 +17,13 @@
 //! - **`ghost_alloc`** is how Dart gets memory for what it sends, so the app needs no `package:ffi` and no
 //!   `malloc` looked up by name: every buffer on either side of the boundary is this crate's, 8-aligned, and
 //!   goes back through `ghost_free`.
-//! - **`ghost_set_listener`** keeps a function for events from Rust to the app. Nothing calls it yet: the
-//!   library emits none (docs/STAGE3.md), and the first to will be a meeting's write-up.
+//! - **`ghost_set_listener`** keeps a function for events from Rust to the app (events.rs's `emit`, from any
+//!   thread). Each event is UTF-8 JSON, `{"event": "<name>", "payload": <value>}`, in a buffer of this crate's
+//!   that the LISTENER OWNS: it gives it back with `ghost_free(json, len)`. Owned and not borrowed because the
+//!   app's listener is a `NativeCallable.listener`, which only posts the call to its isolate and returns: the
+//!   bytes are read later, on the worker isolate's own turn. `ghost_forget_listener` forgets a listener only if
+//!   it is still the one kept, so a worker that closes cannot silence the worker opened after it; once either
+//!   returns, the old listener is never called again (the call is made under the same lock).
 //!
 //! Every function may be called from any thread; the Dart side calls from one worker isolate.
 
@@ -73,7 +79,7 @@ unsafe fn hand_over(bytes: &[u8], out_len: *mut usize) -> *mut u8 {
 }
 
 /// What a panic said, for the `err` it becomes.
-fn panic_said(payload: Box<dyn std::any::Any + Send>) -> String {
+pub(crate) fn panic_said(payload: Box<dyn std::any::Any + Send>) -> String {
     let said = payload.downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| payload.downcast_ref::<String>().cloned());
     match said {
         Some(said) => format!("Ghost.md's core stopped in the middle of that: {said}"),
@@ -118,20 +124,46 @@ pub unsafe extern "C" fn ghost_invoke(cmd: *const u8, cmd_len: usize, args_json:
     hand_over(said.as_bytes(), out_len)
 }
 
-/// A function of the app's for events from Rust: UTF-8 JSON, borrowed for the call.
-pub type Listener = extern "C" fn(json: *const u8, len: usize);
+/// A function of the app's for events from Rust: UTF-8 JSON in a buffer the listener gives back with
+/// `ghost_free(json, len)`.
+pub type Listener = extern "C" fn(json: *mut u8, len: usize);
 
 static LISTENER: Mutex<Option<Listener>> = Mutex::new(None);
 
-/// Keeps `listener` (null forgets it). Stored, and not yet called by anything.
+/// Keeps `listener` in place of any other (null forgets it).
 #[no_mangle]
 pub extern "C" fn ghost_set_listener(listener: Option<Listener>) {
     *crate::lock::lock(&LISTENER) = listener;
 }
 
-/// The listener kept, for the first thing that has an event to send.
+/// Forgets `listener` if it is the one kept, and leaves another alone.
+#[no_mangle]
+pub extern "C" fn ghost_forget_listener(listener: Option<Listener>) {
+    let mut kept = crate::lock::lock(&LISTENER);
+    if listener.is_some() && kept.map(|l| l as usize) == listener.map(|l| l as usize) {
+        *kept = None;
+    }
+}
+
+/// The listener kept, if there is one.
 pub fn listener() -> Option<Listener> {
     *crate::lock::lock(&LISTENER)
+}
+
+/// Hands `bytes` to the listener in a buffer it will free; `false` when nobody listens (nothing is allocated).
+/// The lock is held across the call, which is why forgetting a listener is final: the listener only posts to
+/// its isolate, so the wait is a message's.
+pub(crate) fn send(bytes: &[u8]) -> bool {
+    let kept = crate::lock::lock(&LISTENER);
+    let Some(listener) = *kept else { return false };
+    let ptr = ghost_alloc(bytes.len());
+    if ptr.is_null() {
+        return false;
+    }
+    // SAFETY: `ptr` is `bytes.len()` writable bytes (at least one), fresh from the allocator.
+    unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr, bytes.len()) };
+    listener(ptr, bytes.len());
+    true
 }
 
 #[cfg(test)]
@@ -179,12 +211,46 @@ mod tests {
         assert_eq!(panic_said(caught), "Ghost.md's core stopped in the middle of that.");
     }
 
+    /// The listener is one slot for the process: the tests that fill it take turns.
+    pub(crate) static LISTENING: Mutex<()> = Mutex::new(());
+    static HEARD: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+    extern "C" fn hears(json: *mut u8, len: usize) {
+        let said = unsafe { String::from_utf8_lossy(std::slice::from_raw_parts(json, len)).into_owned() };
+        unsafe { ghost_free(json, len) };
+        HEARD.lock().unwrap().push(said);
+    }
+
+    extern "C" fn other(json: *mut u8, len: usize) {
+        unsafe { ghost_free(json, len) };
+    }
+
     #[test]
-    fn a_listener_is_kept_and_forgotten() {
-        extern "C" fn hears(_json: *const u8, _len: usize) {}
+    fn a_listener_is_kept_called_from_any_thread_and_forgotten() {
+        let _turn = crate::lock::lock(&LISTENING);
+        ghost_set_listener(None);
+        assert!(!send(b"{}"), "nobody listens, nothing is sent");
         ghost_set_listener(Some(hears));
         assert!(listener().is_some());
-        ghost_set_listener(None);
+        let threads: Vec<_> = (0..8).map(|n| std::thread::spawn(move || crate::events::emit("test://from-a-thread", &json!({ "n": n })))).collect();
+        for thread in threads {
+            thread.join().unwrap();
+        }
+        crate::events::emit_json("test://raw", "");
+        let heard = std::mem::take(&mut *HEARD.lock().unwrap());
+        let mine: Vec<Value> = heard.iter().map(|said| serde_json::from_str(said).unwrap()).collect();
+        let mut seen: Vec<u64> = mine.iter().filter(|e| e["event"] == "test://from-a-thread").map(|e| e["payload"]["n"].as_u64().unwrap()).collect();
+        seen.sort();
+        assert_eq!(seen, (0..8).collect::<Vec<u64>>());
+        assert!(mine.iter().any(|e| e["event"] == "test://raw" && e["payload"].is_null()), "no payload is null");
+
+        // Forgetting another listener leaves this one; forgetting this one is final.
+        ghost_forget_listener(Some(other));
+        assert!(listener().is_some());
+        ghost_forget_listener(None);
+        assert!(listener().is_some());
+        ghost_forget_listener(Some(hears));
         assert!(listener().is_none());
+        assert!(!send(b"{}"));
     }
 }

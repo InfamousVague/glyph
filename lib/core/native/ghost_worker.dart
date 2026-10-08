@@ -14,7 +14,14 @@
 /// - to the worker: `[id, command, args]` for a command (`args` the JSON-able map the page would have sent), or
 ///   `null` to close;
 /// - from the worker, once: its `SendPort`, or a `String` saying why the library could not be opened;
-/// - from the worker, per request: `[id, true, value]` or `[id, false, sentence]`.
+/// - from the worker, per request: `[id, true, value]` or `[id, false, sentence]`;
+/// - from the worker, per event from Rust: `[event, payload]` (a name and its decoded payload).
+///
+/// **Events** (native/src/events.rs) reach this isolate through a `NativeCallable.listener`, which any Rust
+/// thread may call: the call is posted here and read on this isolate's next turn, so an event waits for the
+/// command in hand, and that is why a long job answers its id at once (native/src/work.rs). Rust allocated the
+/// event's bytes; they are decoded and given back to `ghost_free` here. The last worker to open is the one that
+/// hears: a process has one core and the core one listener.
 ///
 /// The arguments are written as JSON here and the answer is read from JSON here, so the drawing isolate neither
 /// encodes nor parses: it receives the decoded value.
@@ -49,14 +56,21 @@ typedef _ListenerC = Void Function(Pointer<Uint8> json, Size len);
 typedef _SetListenerC = Void Function(Pointer<NativeFunction<_ListenerC>> listener);
 typedef _SetListener = void Function(Pointer<NativeFunction<_ListenerC>> listener);
 
+/// What an event from Rust is decoded to before it crosses to the app's isolate: `[event, payload]`, or null
+/// for bytes that are not an event.
+List<Object?>? _eventOf(Object? said) {
+  if (said case {'event': final String event}) return [event, said['payload']];
+  return null;
+}
+
 /// The core's C functions, looked up once.
 class _Native {
   _Native(DynamicLibrary library)
     : _alloc = library.lookupFunction<_AllocC, _Alloc>('ghost_alloc'),
       _free = library.lookupFunction<_FreeC, _Free>('ghost_free'),
       _invoke = library.lookupFunction<_InvokeC, _Invoke>('ghost_invoke'),
-      // Looked up so a library without it fails here, at open, and not on the day an event is wanted.
-      setListener = library.lookupFunction<_SetListenerC, _SetListener>('ghost_set_listener') {
+      setListener = library.lookupFunction<_SetListenerC, _SetListener>('ghost_set_listener'),
+      forgetListener = library.lookupFunction<_SetListenerC, _SetListener>('ghost_forget_listener') {
     _outLen = _alloc(sizeOf<Size>()).cast<Size>();
     if (_outLen == nullptr) throw StateError('no memory');
   }
@@ -65,6 +79,7 @@ class _Native {
   final _Free _free;
   final _Invoke _invoke;
   final _SetListener setListener;
+  final _SetListener forgetListener;
 
   /// Where `ghost_invoke` writes its answer's length: one slot, kept for the life of the worker.
   late final Pointer<Size> _outLen;
@@ -77,6 +92,17 @@ class _Native {
     if (ptr == nullptr) throw StateError('no memory');
     ptr.asTypedList(bytes.length).setAll(0, bytes);
     return ptr;
+  }
+
+  /// An event's bytes (Rust's buffer, ours to give back) as `[event, payload]`.
+  List<Object?>? takeEvent(Pointer<Uint8> json, int length) {
+    try {
+      return _eventOf(_readAnswer.convert(json.asTypedList(length)));
+    } on Object {
+      return null;
+    } finally {
+      _free(json, length);
+    }
   }
 
   /// One command, answered as the core's `{"ok": ..}` or `{"err": ".."}`, decoded.
@@ -112,11 +138,20 @@ void ghostWorkerMain(GhostWorkerStart start) {
     return;
   }
   final requests = ReceivePort('ghost core requests');
+  // Rust calls this from its own threads; the body runs here, on this isolate, a turn later.
+  final listener = NativeCallable<_ListenerC>.listener((Pointer<Uint8> json, int length) {
+    final event = native.takeEvent(json, length);
+    if (event != null) answers.send(event);
+  });
+  native.setListener(listener.nativeFunction);
   answers.send(requests.sendPort);
   requests.listen((message) {
     if (message == null) {
       // The library stays loaded and its notes stay open: a process has one core (dispatch.rs `CORE`), which
-      // another worker opened after this one finds as it was left.
+      // another worker opened after this one finds as it was left. Rust forgets this listener before it is
+      // closed (and only this one: a newer worker's stays), after which it is never called again.
+      native.forgetListener(listener.nativeFunction);
+      listener.close();
       requests.close();
       return;
     }
