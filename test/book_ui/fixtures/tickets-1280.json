@@ -1,0 +1,469 @@
+{
+ "book": [
+  {
+   "x": 0,
+   "y": 120.8,
+   "w": 1280,
+   "h": 258.7,
+   "text": "1Fix the login loopGHO-12In progress2Write the docs Add a page New ticket Add a ",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "byline": [],
+ "preface": [],
+ "index": [
+  {
+   "x": 26.33,
+   "y": 157.66,
+   "w": 1227.34,
+   "h": 114.28,
+   "text": "1Fix the login loopGHO-12In progress2Write the docs",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "rows": [
+  {
+   "x": 26.33,
+   "y": 157.66,
+   "w": 1227.34,
+   "h": 63.27,
+   "text": "1Fix the login loopGHO-12In progress",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 1px",
+   "radius": "0px"
+  },
+  {
+   "x": 26.33,
+   "y": 220.92,
+   "w": 1227.34,
+   "h": 51.02,
+   "text": "2Write the docs",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 1px",
+   "radius": "0px"
+  }
+ ],
+ "grips": [
+  {
+   "x": 26.33,
+   "y": 169.17,
+   "w": 27.47,
+   "h": 39.23,
+   "text": "",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.56 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 26.33,
+   "y": 226.31,
+   "w": 27.47,
+   "h": 39.23,
+   "text": "",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.56 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "gripIcons": [
+  {
+   "x": 32.06,
+   "y": 180.78,
+   "w": 16,
+   "h": 16,
+   "text": "",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.56 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 32.06,
+   "y": 237.92,
+   "w": 16,
+   "h": 16,
+   "text": "",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.56 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "numbers": [
+  {
+   "x": 64.33,
+   "y": 174.06,
+   "w": 39.23,
+   "h": 29.44,
+   "text": "1",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 64.33,
+   "y": 231.2,
+   "w": 39.23,
+   "h": 29.44,
+   "text": "2",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "chapters": [
+  {
+   "x": 114.09,
+   "y": 157.66,
+   "w": 954.8,
+   "h": 62.27,
+   "text": "Fix the login loopGHO-12",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "6px"
+  },
+  {
+   "x": 114.09,
+   "y": 224.34,
+   "w": 1045.08,
+   "h": 43.16,
+   "text": "Write the docs",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "6px"
+  }
+ ],
+ "titles": [
+  {
+   "x": 118.02,
+   "y": 164.52,
+   "w": 153.89,
+   "h": 29.44,
+   "text": "Fix the login loop",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 118.02,
+   "y": 231.2,
+   "w": 131.17,
+   "h": 29.44,
+   "text": "Write the docs",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "waiting": [],
+ "tools": [
+  {
+   "x": 670.02,
+   "y": 10.53,
+   "w": 336.08,
+   "h": 38.98,
+   "text": "",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 1079.42,
+   "y": 175.45,
+   "w": 174.25,
+   "h": 26.66,
+   "text": "In progress",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 1169.7,
+   "y": 232.59,
+   "w": 83.97,
+   "h": 26.66,
+   "text": "",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "tool": [
+  {
+   "x": 1169.7,
+   "y": 175.45,
+   "w": 26.66,
+   "h": 26.66,
+   "text": "",
+   "size": 13.33,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "999px"
+  },
+  {
+   "x": 1198.36,
+   "y": 175.45,
+   "w": 26.66,
+   "h": 26.66,
+   "text": "",
+   "size": 13.33,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "999px"
+  },
+  {
+   "x": 1227.02,
+   "y": 175.45,
+   "w": 26.66,
+   "h": 26.66,
+   "text": "",
+   "size": 13.33,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "999px"
+  },
+  {
+   "x": 1169.7,
+   "y": 232.59,
+   "w": 26.66,
+   "h": 26.66,
+   "text": "",
+   "size": 13.33,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "999px"
+  },
+  {
+   "x": 1198.36,
+   "y": 232.59,
+   "w": 26.66,
+   "h": 26.66,
+   "text": "",
+   "size": 13.33,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "999px"
+  },
+  {
+   "x": 1227.02,
+   "y": 232.59,
+   "w": 26.66,
+   "h": 26.66,
+   "text": "",
+   "size": 13.33,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "999px"
+  }
+ ],
+ "marks": [
+  {
+   "x": 118.02,
+   "y": 195.91,
+   "w": 42.53,
+   "h": 17.16,
+   "text": "GHO-12",
+   "size": 11.43,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "17.1499px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 1079.42,
+   "y": 175.45,
+   "w": 88.28,
+   "h": 26.66,
+   "text": "In progress",
+   "size": 11.43,
+   "weight": "400",
+   "color": "oklch(0.498 0.1275 228)",
+   "line": "17.1499px",
+   "bg": "color(srgb -0.244541 0.5934 0.810059 / 0.14)",
+   "border": "0px 0px",
+   "radius": "9999px"
+  }
+ ],
+ "statusButtons": [
+  {
+   "x": 1079.42,
+   "y": 175.45,
+   "w": 88.28,
+   "h": 26.66,
+   "text": "In progress",
+   "size": 11.43,
+   "weight": "400",
+   "color": "oklch(0.498 0.1275 228)",
+   "line": "17.1499px",
+   "bg": "color(srgb -0.244541 0.5934 0.810059 / 0.14)",
+   "border": "0px 0px",
+   "radius": "9999px"
+  }
+ ],
+ "canvasMarks": [],
+ "adds": [
+  {
+   "x": 26.33,
+   "y": 293,
+   "w": 1227.34,
+   "h": 44.36,
+   "text": "Add a page New ticket Add a note you have Read straight through",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "actions": [
+  {
+   "x": 26.33,
+   "y": 293,
+   "w": 150.94,
+   "h": 44.36,
+   "text": "Add a page",
+   "size": 17.66,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "26.4932px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "999px"
+  },
+  {
+   "x": 187.8,
+   "y": 293,
+   "w": 143.66,
+   "h": 44.36,
+   "text": "New ticket",
+   "size": 17.66,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "26.4932px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "999px"
+  },
+  {
+   "x": 341.98,
+   "y": 293,
+   "w": 225.02,
+   "h": 44.36,
+   "text": "Add a note you have",
+   "size": 17.66,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "26.4932px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "999px"
+  },
+  {
+   "x": 577.53,
+   "y": 293,
+   "w": 233.97,
+   "h": 44.36,
+   "text": "Read straight through",
+   "size": 17.66,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "26.4932px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "999px"
+  }
+ ],
+ "empty": []
+}

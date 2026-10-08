@@ -1,0 +1,693 @@
+{
+ "sheet": [
+  {
+   "x": 368,
+   "y": 72,
+   "w": 544,
+   "h": 656,
+   "text": "New journalNameNotebookJournalEach entry starts withThe date and the timeJust th",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "oklch(0.955 0 0)",
+   "border": "1px 1px",
+   "radius": "22px"
+  }
+ ],
+ "title": [
+  {
+   "x": 395.33,
+   "y": -87.67,
+   "w": 489.34,
+   "h": 26,
+   "text": "New journal",
+   "size": 21.81,
+   "weight": "700",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "fields": [
+  {
+   "x": 395.33,
+   "y": -40.61,
+   "w": 489.34,
+   "h": 93.92,
+   "text": "Name",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 819.61,
+   "y": 690.16,
+   "w": 44,
+   "h": 26,
+   "text": "",
+   "size": 14.18,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "inputs": [
+  {
+   "x": 416.39,
+   "y": -5.55,
+   "w": 447.22,
+   "h": 43.06,
+   "text": "",
+   "size": 17.58,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 1px",
+   "radius": "0px"
+  },
+  {
+   "x": 818.61,
+   "y": 702.66,
+   "w": 1,
+   "h": 1,
+   "text": "",
+   "size": 13.33,
+   "weight": "400",
+   "color": "rgb(0, 0, 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "kind": [
+  {
+   "x": 395.33,
+   "y": 69.11,
+   "w": 489.34,
+   "h": 40,
+   "text": "NotebookJournal",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "choice": [
+  {
+   "x": 395.33,
+   "y": 69.11,
+   "w": 189.72,
+   "h": 40,
+   "text": "NotebookJournal",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "9999px"
+  }
+ ],
+ "radios": [
+  {
+   "x": 399.33,
+   "y": 73.11,
+   "w": 98.36,
+   "h": 32,
+   "text": "Notebook",
+   "size": 14.18,
+   "weight": "600",
+   "color": "oklch(0.36 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "9999px"
+  },
+  {
+   "x": 497.69,
+   "y": 73.11,
+   "w": 83.36,
+   "h": 32,
+   "text": "Journal",
+   "size": 14.18,
+   "weight": "600",
+   "color": "oklch(0.995 0 0)",
+   "line": "normal",
+   "bg": "oklch(0.16 0 0)",
+   "border": "0px 0px",
+   "radius": "9999px"
+  }
+ ],
+ "note": [],
+ "pages": [],
+ "page": [
+  {
+   "x": 26.33,
+   "y": 112.73,
+   "w": 1227.34,
+   "h": 1674.98,
+   "text": "RecentField guide5 pages1Introduction2Trees3Oaks4Birdsand 1 more1 hr agoIntroduc",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 128,
+   "y": 112.73,
+   "w": 1024,
+   "h": 1674.98,
+   "text": "RecentField guide5 pages1Introduction2Trees3Oaks4Birdsand 1 more1 hr agoIntroduc",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 416.39,
+   "y": 550.98,
+   "w": 447.22,
+   "h": 71.02,
+   "text": "# Thursday, October 8**15:30**",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "pageTitle": [],
+ "grips": [
+  {
+   "x": 0,
+   "y": 0,
+   "w": 0,
+   "h": 0,
+   "text": "",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "numbers": [],
+ "tools": [],
+ "found": [],
+ "pick": [],
+ "pickMark": [],
+ "pickTitle": [],
+ "none": [],
+ "groups": [
+  {
+   "x": 395.33,
+   "y": 159.97,
+   "w": 489.34,
+   "h": 316.09,
+   "text": "The date and the timeJust the timeA morning pageA day’s to-dosMy own",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "oklch(0.995 0 0)",
+   "border": "0px 0px",
+   "radius": "16px"
+  },
+  {
+   "x": 395.33,
+   "y": 658.86,
+   "w": 489.34,
+   "h": 88.59,
+   "text": "With where you areEach entry keeps where you are. Its name is asked of OpenStree",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "oklch(0.995 0 0)",
+   "border": "0px 0px",
+   "radius": "16px"
+  },
+  {
+   "x": 395.33,
+   "y": 779.05,
+   "w": 489.34,
+   "h": 71.59,
+   "text": "Make the journalEmpty, ready for its first entry.",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "oklch(0.995 0 0)",
+   "border": "0px 0px",
+   "radius": "16px"
+  }
+ ],
+ "rows": [
+  {
+   "x": 395.33,
+   "y": 159.97,
+   "w": 489.34,
+   "h": 63.22,
+   "text": "The date and the time",
+   "size": 17.58,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 395.33,
+   "y": 223.19,
+   "w": 489.34,
+   "h": 63.22,
+   "text": "Just the time",
+   "size": 17.58,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 395.33,
+   "y": 286.41,
+   "w": 489.34,
+   "h": 63.22,
+   "text": "A morning page",
+   "size": 17.58,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 395.33,
+   "y": 349.63,
+   "w": 489.34,
+   "h": 63.22,
+   "text": "A day’s to-dos",
+   "size": 17.58,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 395.33,
+   "y": 412.84,
+   "w": 489.34,
+   "h": 63.22,
+   "text": "My own",
+   "size": 17.58,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 395.33,
+   "y": 658.86,
+   "w": 489.34,
+   "h": 88.59,
+   "text": "With where you areEach entry keeps where you are. Its name is asked of OpenStree",
+   "size": 17.58,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 395.33,
+   "y": 779.05,
+   "w": 489.34,
+   "h": 71.59,
+   "text": "Make the journalEmpty, ready for its first entry.",
+   "size": 17.58,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "labels": [
+  {
+   "x": 416.39,
+   "y": 181.08,
+   "w": 180.22,
+   "h": 21,
+   "text": "The date and the time",
+   "size": 17.58,
+   "weight": "500",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 416.39,
+   "y": 244.8,
+   "w": 107.33,
+   "h": 21,
+   "text": "Just the time",
+   "size": 17.58,
+   "weight": "500",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 416.39,
+   "y": 308.02,
+   "w": 131.77,
+   "h": 21,
+   "text": "A morning page",
+   "size": 17.58,
+   "weight": "500",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 416.39,
+   "y": 371.23,
+   "w": 119.14,
+   "h": 21,
+   "text": "A day’s to-dos",
+   "size": 17.58,
+   "weight": "500",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 416.39,
+   "y": 434.45,
+   "w": 65.48,
+   "h": 21,
+   "text": "My own",
+   "size": 17.58,
+   "weight": "500",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 462.19,
+   "y": 674.66,
+   "w": 341.63,
+   "h": 57,
+   "text": "With where you areEach entry keeps where you are. Its name is asked of OpenStree",
+   "size": 17.58,
+   "weight": "500",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 416.39,
+   "y": 794.84,
+   "w": 202.28,
+   "h": 40,
+   "text": "Make the journalEmpty, ready for its first entry.",
+   "size": 17.58,
+   "weight": "500",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "hints": [
+  {
+   "x": 462.19,
+   "y": 697.66,
+   "w": 341.63,
+   "h": 34,
+   "text": "Each entry keeps where you are. Its name is asked of OpenStreetMap once.",
+   "size": 14.18,
+   "weight": "400",
+   "color": "oklch(0.56 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 416.39,
+   "y": 817.84,
+   "w": 202.28,
+   "h": 17,
+   "text": "Empty, ready for its first entry.",
+   "size": 14.18,
+   "weight": "400",
+   "color": "oklch(0.56 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "headings": [
+  {
+   "x": 395.33,
+   "y": 135.44,
+   "w": 489.34,
+   "h": 14,
+   "text": "Each entry starts with",
+   "size": 11.43,
+   "weight": "700",
+   "color": "oklch(0.56 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "picker": [
+  {
+   "x": 395.33,
+   "y": 124.91,
+   "w": 489.34,
+   "h": 638.34,
+   "text": "Each entry starts withThe date and the timeJust the timeA morning pageA day’s to",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "layout": [
+  {
+   "x": 395.33,
+   "y": 124.91,
+   "w": 489.34,
+   "h": 638.34,
+   "text": "Each entry starts withThe date and the timeJust the timeA morning pageA day’s to",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "choiceCol": [
+  {
+   "x": 395.33,
+   "y": 124.91,
+   "w": 489.34,
+   "h": 366.95,
+   "text": "Each entry starts withThe date and the timeJust the timeA morning pageA day’s to",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "preview": [
+  {
+   "x": 395.33,
+   "y": 502.39,
+   "w": 489.34,
+   "h": 140.67,
+   "text": "Where you are, with the map, at the top.# Thursday, October 8**15:30**",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "oklch(0.995 0 0)",
+   "border": "0px 0px",
+   "radius": "16px"
+  }
+ ],
+ "where": [
+  {
+   "x": 416.39,
+   "y": 523.45,
+   "w": 447.22,
+   "h": 17,
+   "text": "Where you are, with the map, at the top.",
+   "size": 14.18,
+   "weight": "400",
+   "color": "oklch(0.56 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "previewPage": [
+  {
+   "x": 416.39,
+   "y": 550.98,
+   "w": 447.22,
+   "h": 71.02,
+   "text": "# Thursday, October 8**15:30**",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "previewLines": [
+  {
+   "x": 416.39,
+   "y": 550.98,
+   "w": 447.22,
+   "h": 25.67,
+   "text": "# Thursday, October 8",
+   "size": 14.18,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "22.6806px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 416.39,
+   "y": 576.66,
+   "w": 447.22,
+   "h": 22.67,
+   "text": "",
+   "size": 14.18,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "22.6806px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 416.39,
+   "y": 599.33,
+   "w": 447.22,
+   "h": 22.67,
+   "text": "**15:30**",
+   "size": 14.18,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "22.6806px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "place": [
+  {
+   "x": 395.33,
+   "y": 658.86,
+   "w": 489.34,
+   "h": 104.39,
+   "text": "With where you areEach entry keeps where you are. Its name is asked of OpenStree",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "switchRow": [
+  {
+   "x": 395.33,
+   "y": 658.86,
+   "w": 489.34,
+   "h": 88.59,
+   "text": "With where you areEach entry keeps where you are. Its name is asked of OpenStree",
+   "size": 17.58,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "own": [],
+ "box": [],
+ "chips": [],
+ "chip": [],
+ "rule": []
+}

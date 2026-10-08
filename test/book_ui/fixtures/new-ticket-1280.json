@@ -1,0 +1,234 @@
+{
+ "add": [
+  {
+   "x": 26.33,
+   "y": 293,
+   "w": 1227.34,
+   "h": 402.77,
+   "text": "Start withJust the titleGHO-…, “Session cookie expires” and its status, and noth",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "field": [
+  {
+   "x": 26.33,
+   "y": 293,
+   "w": 1227.34,
+   "h": 49.09,
+   "text": "",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "color(srgb 0.0517453 0.0517638 0.0517655 / 0.04)",
+   "border": "1px 1px",
+   "radius": "10px"
+  }
+ ],
+ "starts": [
+  {
+   "x": 26.33,
+   "y": 352.63,
+   "w": 1227.34,
+   "h": 288.25,
+   "text": "Start withJust the titleGHO-…, “Session cookie expires” and its status, and noth",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "10px"
+  }
+ ],
+ "startsTitle": [
+  {
+   "x": 43.13,
+   "y": 364.16,
+   "w": 1193.75,
+   "h": 20.59,
+   "text": "Start with",
+   "size": 13.74,
+   "weight": "700",
+   "color": "oklch(0.56 0 0)",
+   "line": "20.6058px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "start": [
+  {
+   "x": 32.59,
+   "y": 392.02,
+   "w": 1214.81,
+   "h": 79.53,
+   "text": "Just the titleGHO-…, “Session cookie expires” and its status, and nothing under ",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "color(srgb 0.0517453 0.0517638 0.0517655 / 0.07)",
+   "border": "1px 1px",
+   "radius": "6px"
+  },
+  {
+   "x": 32.59,
+   "y": 473.55,
+   "w": 1214.81,
+   "h": 79.53,
+   "text": "Bug reportA ticket: how to make it happen, what should, and what did.",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "6px"
+  },
+  {
+   "x": 32.59,
+   "y": 555.08,
+   "w": 1214.81,
+   "h": 79.53,
+   "text": "FeatureA ticket: the problem, the proposal, and when it is done.",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "6px"
+  }
+ ],
+ "startName": [
+  {
+   "x": 44.13,
+   "y": 403.55,
+   "w": 1191.75,
+   "h": 29.44,
+   "text": "Just the title",
+   "size": 19.62,
+   "weight": "600",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 44.13,
+   "y": 485.08,
+   "w": 1191.75,
+   "h": 29.44,
+   "text": "Bug report",
+   "size": 19.62,
+   "weight": "600",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 44.13,
+   "y": 566.61,
+   "w": 1191.75,
+   "h": 29.44,
+   "text": "Feature",
+   "size": 19.62,
+   "weight": "600",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "startLine": [
+  {
+   "x": 44.13,
+   "y": 434.98,
+   "w": 1191.75,
+   "h": 25.03,
+   "text": "GHO-…, “Session cookie expires” and its status, and nothing under them",
+   "size": 16.68,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "25.0214px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 44.13,
+   "y": 516.52,
+   "w": 1191.75,
+   "h": 25.03,
+   "text": "A ticket: how to make it happen, what should, and what did.",
+   "size": 16.68,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "25.0214px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 44.13,
+   "y": 598.05,
+   "w": 1191.75,
+   "h": 25.03,
+   "text": "A ticket: the problem, the proposal, and when it is done.",
+   "size": 16.68,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "25.0214px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "actions": [
+  {
+   "x": 26.33,
+   "y": 651.41,
+   "w": 148.91,
+   "h": 44.36,
+   "text": "Add and open",
+   "size": 17.66,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "26.4932px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "999px"
+  }
+ ],
+ "quiet": [
+  {
+   "x": 185.77,
+   "y": 652.41,
+   "w": 78.3,
+   "h": 42.36,
+   "text": "Cancel",
+   "size": 17.66,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "26.4932px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "picker": [],
+ "pick": [],
+ "pickMark": [],
+ "none": []
+}

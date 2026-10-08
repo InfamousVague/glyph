@@ -1,0 +1,332 @@
+{
+ "add": [
+  {
+   "x": 26.33,
+   "y": 624.36,
+   "w": 1227.34,
+   "h": 565.83,
+   "text": "Start withJust the titleRivers of the northThe date and the timeThursday, Octobe",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "field": [
+  {
+   "x": 26.33,
+   "y": 624.36,
+   "w": 1227.34,
+   "h": 49.09,
+   "text": "",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "color(srgb 0.0517453 0.0517638 0.0517655 / 0.04)",
+   "border": "1px 1px",
+   "radius": "10px"
+  }
+ ],
+ "starts": [
+  {
+   "x": 26.33,
+   "y": 683.98,
+   "w": 1227.34,
+   "h": 451.31,
+   "text": "Start withJust the titleRivers of the northThe date and the timeThursday, Octobe",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "10px"
+  }
+ ],
+ "startsTitle": [
+  {
+   "x": 43.13,
+   "y": 695.52,
+   "w": 1193.75,
+   "h": 20.59,
+   "text": "Start with",
+   "size": 13.74,
+   "weight": "700",
+   "color": "oklch(0.56 0 0)",
+   "line": "20.6058px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "start": [
+  {
+   "x": 32.59,
+   "y": 723.38,
+   "w": 1214.81,
+   "h": 79.53,
+   "text": "Just the titleRivers of the north",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "color(srgb 0.0517453 0.0517638 0.0517655 / 0.07)",
+   "border": "1px 1px",
+   "radius": "6px"
+  },
+  {
+   "x": 32.59,
+   "y": 804.91,
+   "w": 1214.81,
+   "h": 79.53,
+   "text": "The date and the timeThursday, October 8 · 15:30",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "6px"
+  },
+  {
+   "x": 32.59,
+   "y": 886.44,
+   "w": 1214.81,
+   "h": 79.53,
+   "text": "Just the time15:30",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "6px"
+  },
+  {
+   "x": 32.59,
+   "y": 967.97,
+   "w": 1214.81,
+   "h": 79.53,
+   "text": "A morning pageThursday, October 8 · What is on your mind this morning?",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "6px"
+  },
+  {
+   "x": 32.59,
+   "y": 1049.5,
+   "w": 1214.81,
+   "h": 79.53,
+   "text": "A day’s to-dosThursday, October 8 · To do",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "6px"
+  }
+ ],
+ "startName": [
+  {
+   "x": 44.13,
+   "y": 734.91,
+   "w": 1191.75,
+   "h": 29.44,
+   "text": "Just the title",
+   "size": 19.62,
+   "weight": "600",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 44.13,
+   "y": 816.44,
+   "w": 1191.75,
+   "h": 29.44,
+   "text": "The date and the time",
+   "size": 19.62,
+   "weight": "600",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 44.13,
+   "y": 897.97,
+   "w": 1191.75,
+   "h": 29.44,
+   "text": "Just the time",
+   "size": 19.62,
+   "weight": "600",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 44.13,
+   "y": 979.5,
+   "w": 1191.75,
+   "h": 29.44,
+   "text": "A morning page",
+   "size": 19.62,
+   "weight": "600",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 44.13,
+   "y": 1061.03,
+   "w": 1191.75,
+   "h": 29.44,
+   "text": "A day’s to-dos",
+   "size": 19.62,
+   "weight": "600",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "startLine": [
+  {
+   "x": 44.13,
+   "y": 766.34,
+   "w": 1191.75,
+   "h": 25.03,
+   "text": "Rivers of the north",
+   "size": 16.68,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "25.0214px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 44.13,
+   "y": 847.88,
+   "w": 1191.75,
+   "h": 25.03,
+   "text": "Thursday, October 8 · 15:30",
+   "size": 16.68,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "25.0214px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 44.13,
+   "y": 929.41,
+   "w": 1191.75,
+   "h": 25.03,
+   "text": "15:30",
+   "size": 16.68,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "25.0214px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 44.13,
+   "y": 1010.94,
+   "w": 1191.75,
+   "h": 25.03,
+   "text": "Thursday, October 8 · What is on your mind this morning?",
+   "size": 16.68,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "25.0214px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  },
+  {
+   "x": 44.13,
+   "y": 1092.47,
+   "w": 1191.75,
+   "h": 25.03,
+   "text": "Thursday, October 8 · To do",
+   "size": 16.68,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "25.0214px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "actions": [
+  {
+   "x": 26.33,
+   "y": 1145.83,
+   "w": 148.91,
+   "h": 44.36,
+   "text": "Add and open",
+   "size": 17.66,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "26.4932px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "999px"
+  },
+  {
+   "x": 185.77,
+   "y": 1145.83,
+   "w": 191.66,
+   "h": 44.36,
+   "text": "Add as a canvas",
+   "size": 17.66,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "26.4932px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "999px"
+  }
+ ],
+ "quiet": [
+  {
+   "x": 387.95,
+   "y": 1146.83,
+   "w": 78.3,
+   "h": 42.36,
+   "text": "Cancel",
+   "size": 17.66,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "26.4932px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "picker": [],
+ "pick": [],
+ "pickMark": [],
+ "none": []
+}
