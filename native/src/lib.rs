@@ -10,7 +10,8 @@
 //! - `paths`: the directory names, which the original keeps beside code that needs a Tauri `AppHandle`.
 //! - `saf`: the folder chosen through Android's picker, which the Tauri app reaches over JNI into its own
 //!   Kotlin. The Flutter app has no such Kotlin yet, so this one answers that it cannot.
-//! - `kept`: the few functions `delete_note` needs from three files that do name Tauri, copied word for word.
+//! - `kept`: the few functions `delete_note`, the reset and the library's move need from files that do name
+//!   Tauri, copied word for word.
 //! - `dispatch`: the commands, each doing what its `#[tauri::command]` in commands.rs or library_commands.rs
 //!   does, taking the same camelCase JSON the web page sent to `invoke`.
 //! - `crypto`, `crdt`, `files`: stage 7 (docs/STAGE7.md). The account's keys and the sealed wire, as the web app
@@ -97,6 +98,9 @@ pub mod recording_jobs;
 // write_up.rs asks `crate::recordings` where a note's recording is: the two functions held in `kept`.
 #[cfg(feature = "voice")]
 pub use kept::recordings;
+
+// The reset's own lines ask `crate::library_commands` which folders are a chosen library's bookkeeping.
+pub use kept::library_commands;
 
 #[cfg(test)]
 #[path = "../../../glyph/src-tauri/src/test_support/temp.rs"]

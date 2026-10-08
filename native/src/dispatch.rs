@@ -24,6 +24,8 @@
 //!   language model (ai.rs), a meeting's write-up and tapes (recording.rs), over models.rs's downloads. Each
 //!   lists its commands and events; `call_on` hands them the open core for its directories.
 //!
+//! - **`reset_local_data {models}`** is reset.rs's, its lines held in kept/reset.rs.
+//!
 //! Not here yet, each waiting for the stage that needs it: `set_note_formatted`, `library_reveal`, and the folder
 //! plugin's moves (`library_choose_folder`, `library_inspect`, `library_move`, `library_use_app_folder`).
 
@@ -247,6 +249,11 @@ struct Undo {
 }
 
 #[derive(Deserialize)]
+struct Reset {
+    models: bool,
+}
+
+#[derive(Deserialize)]
 struct WriteVersions {
     id: String,
     text: String,
@@ -368,6 +375,12 @@ impl Core {
             }
             // Where the library is now.
             "library_root" => answer(status_of(&self.data, store)),
+            // Starting over: every note, recording, picture, film and write-up, and the models when asked. A
+            // folder of the person's is forgotten, never emptied (kept/reset.rs).
+            "reset_local_data" => {
+                let Reset { models } = read(command, args)?;
+                answer(crate::kept::reset::reset_local_data(&self.data, &self.cache, store, models)?)
+            }
             // The files sync carries: a recording, a picture, a versions file (files.rs).
             command if crate::files::has(command) => crate::files::call(&self.data, store, command, args),
             // A panic with the library's lock held, for the tests of what the boundary does with one.
@@ -673,6 +686,27 @@ mod tests {
         let away = Core::open(&root.join("data"), &root.join("cache")).unwrap();
         let status = away.call("library_root", json!({})).unwrap();
         assert_eq!((status["kind"].as_str(), status["name"].as_str(), status["reachable"].as_bool()), (Some("tree"), Some("Notes"), Some(false)));
+    }
+
+    #[test]
+    fn a_reset_empties_the_phone_and_the_library_carries_on() {
+        let (core, root) = core();
+        core.call("create_note", json!({"id": "n1", "body": "# Kept until now\n", "source": "editor"})).unwrap();
+        for file in ["data/recordings/n1.wav", "data/images/a.jpg", "data/video/f.mp4", "data/jobs/n1.progress", "cache/picked/p.mp4", "cache/other", "data/models/m.bin", "data/notion.json"] {
+            std::fs::create_dir_all(root.join(file).parent().unwrap()).unwrap();
+            std::fs::write(root.join(file), b"bytes").unwrap();
+        }
+        assert!(core.call("reset_local_data", json!({})).unwrap_err().starts_with("invalid args for command `reset_local_data`: missing field `models`"));
+        assert_eq!(core.call("reset_local_data", json!({"models": false})), Ok(Value::Null));
+        assert_eq!(core.call("list_notes", json!({})).unwrap(), json!([]));
+        for gone in ["data/recordings", "data/images", "data/video", "data/jobs", "cache/picked", "data/notion.json", "data/Library/Inbox/Kept until now.md"] {
+            assert!(!root.join(gone).exists(), "{gone} goes");
+        }
+        assert!(root.join("cache/other").exists() && root.join("data/models/m.bin").exists(), "the rest of the cache and the models stay");
+        assert_eq!(core.call("reset_local_data", json!({"models": true})), Ok(Value::Null));
+        assert!(!root.join("data/models").exists());
+        core.call("create_note", json!({"id": "n2", "body": "After.\n", "source": "editor"})).unwrap();
+        assert_eq!(core.call("list_notes", json!({})).unwrap().as_array().map(Vec::len), Some(1));
     }
 
     #[test]

@@ -130,6 +130,18 @@ class SecureStore(context: Context) {
         fileOf(name).delete()
     }
 
+    /**
+     * Every value gone, whatever its name: a reset's (ResetChannel.kt). Done on the store's own worker, behind any
+     * write already asked for, and `done` hears on the main thread whether every file went. The Keystore's key
+     * stays: it opens nothing once the files are gone, and the next value is sealed under it.
+     */
+    fun clear(done: (Boolean) -> Unit) {
+        worker.execute {
+            val left = (folder.listFiles() ?: emptyArray()).count { !it.delete() }
+            main.post { done(left == 0) }
+        }
+    }
+
     companion object {
         const val CHANNEL = "ghost_md/secure_store"
         private const val KEYSTORE = "AndroidKeyStore"

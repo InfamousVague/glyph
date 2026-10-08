@@ -75,13 +75,15 @@ class MainActivity : FlutterActivity() {
         }
         // The session and the account's keys, under a key the Android Keystore holds (SecureStore.kt;
         // lib/account/device_keys.dart).
-        SecureStore(applicationContext).register(messenger)
+        val secrets = SecureStore(applicationContext).also { it.register(messenger) }
         // Stage 8: meetings, the write-up and the capture launch (MeetingBridge.kt; lib/capture/meeting_host.dart),
         // and the dictation microphone (DictationMic.kt; lib/capture/device_mic.dart).
         (meeting ?: MeetingBridge(this).also { meeting = it }).register(messenger)
         DictationMic.register(this, messenger)
         // An address handed to the phone's browser, mail, dialler or maps (OpenLink.kt; lib/core/open_link.dart).
         OpenLink(this).register(messenger)
+        // Starting over: the phone's half (ResetChannel.kt; lib/core/reset_native.dart).
+        ResetChannel(this, secrets).register(messenger)
     }
 
     override fun onNewIntent(intent: Intent) {
