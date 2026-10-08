@@ -482,6 +482,23 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
     });
   }
 
+  /// The page back at its top, where the note now starts (`backToTop`): a card lower down is pressed with the page
+  /// scrolled, which keeps its scroll as the cards go. Once the words are laid out, and only then the caret asked
+  /// into view: from the top, that only ever brings it up from below, where asked first it left the heading under
+  /// the header (seen on the emulator, 2026-10-08).
+  void _backToTop(EditorView editor) {
+    void top() {
+      if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.minScrollExtent);
+    }
+
+    top();
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !identical(editor, _view)) return;
+      top();
+      editor.dispatch(const TransactionSpec(scrollIntoView: true));
+    });
+  }
+
   /// A card pressed: the blank note becomes that template, as one change, so one undo takes it back to the blank
   /// page with its names and cards. Its record first, so a note left without a word of the person's own is taken
   /// back; its name settled against every other note's; the caret in its first open line, the focus kept; and the
@@ -494,8 +511,8 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
     _records.remember(_id, UntouchedRecord(title: filled.title, words: filled.words, at: now.millisecondsSinceEpoch));
     _drafted = true;
     setState(() => _untouched = true);
-    editor.dispatch(TransactionSpec(changes: ChangeSpec(from: 0, to: editor.state.doc.length, insert: filled.body), selection: EditorSelection.single(filled.caret.clamp(0, filled.body.length)), scrollIntoView: true, userEvent: 'input.template'));
-    if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.minScrollExtent);
+    editor.dispatch(TransactionSpec(changes: ChangeSpec(from: 0, to: editor.state.doc.length, insert: filled.body), selection: EditorSelection.single(filled.caret.clamp(0, filled.body.length)), userEvent: 'input.template'));
+    _backToTop(editor);
     flush();
     editor.focus();
     HapticsProvider.of(context)(HapticKind.selection);
@@ -751,8 +768,8 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
     _drafted = true;
     setState(() => _untouched = true);
     final from = frontMatterOffset(editor.state.doc.toString());
-    editor.dispatch(TransactionSpec(changes: ChangeSpec(from: from, to: editor.state.doc.length, insert: words), selection: EditorSelection.single(from + words.length), scrollIntoView: true, userEvent: 'input.name'));
-    if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.minScrollExtent);
+    editor.dispatch(TransactionSpec(changes: ChangeSpec(from: from, to: editor.state.doc.length, insert: words), selection: EditorSelection.single(from + words.length), userEvent: 'input.name'));
+    _backToTop(editor);
     // Kept now, not on typing's beat: a note named and left at once is looked at by its take-back from the store.
     flush();
     editor.focus();
@@ -1003,6 +1020,12 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
     final tag = _tag;
     final book = widget.book;
 
+    // The keyboard up is the page ready for words, and once ready it stays ready.
+    if (!_ready && MediaQuery.viewInsetsOf(context).bottom > 0) _ready = true;
+    final offered = offersShown ? names : null;
+    final cards = offered != null && cardsShown;
+    _watchMinute(offering);
+
     final spec = NoteEditorSpec(
       // A canvas's JSON or a book's Markdown, once asked for, is what the view has written by now.
       value: _typed && _source ? _saving.body : widget.note.body,
@@ -1016,14 +1039,10 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
       headClear: headerHeight,
       // The line being typed stays above the page's foot smoke, where there is smoke to keep clear of.
       footClear: !_isCanvas && smokes ? wispEdgeFootClear : 0,
+      // The names and cards are under line 1 and over the room the words keep under their last line.
+      contentBottom: offered != null ? 0 : null,
       meHue: null,
     );
-
-    // The keyboard up is the page ready for words, and once ready it stays ready.
-    if (!_ready && MediaQuery.viewInsetsOf(context).bottom > 0) _ready = true;
-    final offered = offersShown ? names : null;
-    final cards = offered != null && cardsShown;
-    _watchMinute(offering);
 
     final words = CustomScrollView(
       key: _page,
@@ -1053,8 +1072,9 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
                 cards: cards ? TemplateCards(at: widget.clock?.call() ?? DateTime.now(), taken: widget.takenTitles, onChoose: startFrom, templates: widget.templates, onYours: widget.onTemplates, localOnly: prefs.localOnly) : null,
               ),
             ),
-          // `.body { padding-block-end: var(--app-safe-bottom) }`
-          SliverToBoxAdapter(child: SizedBox(height: t.len('app-safe-bottom'))),
+          // `.cm-content { padding-block-end: var(--glacier-space-24) }`, taken from the editor while the offers are
+          // drawn, and `.body { padding-block-end: var(--app-safe-bottom) }`.
+          SliverToBoxAdapter(child: SizedBox(height: (offered != null ? t.space(24) : 0) + t.len('app-safe-bottom'))),
           if (book != null && seams.bookFoot != null) SliverToBoxAdapter(child: seams.bookFoot!(context, book)),
           // `.page[data-scrolls] > .body { flex: 1 0 auto }`: the editor is the rest of the page, and a tap there is a tap in it.
           SliverFillRemaining(

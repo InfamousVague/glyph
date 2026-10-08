@@ -49,6 +49,7 @@ class NoteEditorSpec {
     this.pageWidth,
     this.headClear = 0,
     this.footClear = 0,
+    this.contentBottom,
     this.placeholder = 'Write something.',
     this.meHue,
     this.extensions = const <Extension>[],
@@ -83,6 +84,11 @@ class NoteEditorSpec {
   final double headClear;
   final double footClear;
 
+  /// The room under the last line (`.cm-content { padding-block-end }`); the look's own where null. The screen
+  /// takes it for itself while a blank page's names and cards are drawn under line 1, which on the page are inside
+  /// the content and so above that room.
+  final double? contentBottom;
+
   final String placeholder;
 
   /// The hue the person wears, for their own selection (`data-me-hue`).
@@ -108,7 +114,7 @@ Widget readOnlyNoteEditor(BuildContext context, NoteEditorSpec spec) => NoteEdit
 /// What differs: the reading column is made by widening the gutters to the column's edges, where the page centres
 /// the content box; a line's own ground (a code block's, a quote's bar) then starts at the column and not at the
 /// page's edge, which is where the page draws it too.
-LookEnv noteLookEnv(BuildContext context, {double zoom = 1, String? look, String? meHue, int tabSize = 4, double? pageWidth}) {
+LookEnv noteLookEnv(BuildContext context, {double zoom = 1, String? look, String? meHue, int tabSize = 4, double? pageWidth, double? contentBottom}) {
   final t = context.tokens;
   double step(String name) => t.lenOf('calc(var(--glacier-font-size-$name) * var(--app-text-scale))') * zoom;
   final reading = look == 'reading';
@@ -125,6 +131,7 @@ LookEnv noteLookEnv(BuildContext context, {double zoom = 1, String? look, String
     meHue: meHue,
     attrs: look == null ? const <String, String>{} : <String, String>{'data-look': look},
     tabSize: tabSize,
+    contentBottom: contentBottom,
   );
 }
 
@@ -223,7 +230,7 @@ class _NoteEditorHostState extends State<NoteEditorHost> {
   @override
   Widget build(BuildContext context) {
     final spec = widget.spec;
-    final env = noteLookEnv(context, zoom: spec.zoom, look: spec.look, meHue: spec.meHue, tabSize: _view.state.tabSize, pageWidth: spec.pageWidth);
+    final env = noteLookEnv(context, zoom: spec.zoom, look: spec.look, meHue: spec.meHue, tabSize: _view.state.tabSize, pageWidth: spec.pageWidth, contentBottom: spec.contentBottom);
     return widget.draw?.call(context, _view, env) ?? EditorSliver(view: _view, env: env, meHue: spec.meHue);
   }
 }
