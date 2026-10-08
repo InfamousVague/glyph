@@ -52,9 +52,13 @@ class MainActivity : FlutterActivity() {
 
     private var meeting: MeetingBridge? = null
 
+    /** Links that open the app, kept until Dart asks (AppLinks.kt). */
+    private val links = AppLinks()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Before super: a capture launch decides the window's lock-screen behaviour before the window is shown.
         meeting = MeetingBridge(this).also { it.onCreate(intent) }
+        links.onCreate(intent, restored = savedInstanceState != null)
         super.onCreate(savedInstanceState)
     }
 
@@ -84,12 +88,15 @@ class MainActivity : FlutterActivity() {
         OpenLink(this).register(messenger)
         // Starting over: the phone's half (ResetChannel.kt; lib/core/reset_native.dart).
         ResetChannel(this, secrets).register(messenger)
+        // Links that open the app, handed over when asked for (AppLinks.kt; lib/core/phone_links.dart).
+        links.register(messenger)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         meeting?.onNewIntent(intent)
+        links.onNewIntent(intent)
     }
 
     override fun onResume() {
