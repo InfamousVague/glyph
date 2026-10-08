@@ -8,8 +8,9 @@
 //! What is this crate's own:
 //!
 //! - `paths`: the directory names, which the original keeps beside code that needs a Tauri `AppHandle`.
-//! - `saf`: the folder chosen through Android's picker, which the Tauri app reaches over JNI into its own
-//!   Kotlin. The Flutter app has no such Kotlin yet, so this one answers that it cannot.
+//! - `saf`: off Android only, the stand-in for the folder chosen through Android's picker. On a phone it is the
+//!   Tauri app's own saf.rs, included below, calling this app's port of its Kotlin
+//!   (android/…/glyph/files/LibraryTree.kt).
 //! - `kept`: the few functions `delete_note`, the reset and the library's move need from files that do name
 //!   Tauri, copied word for word.
 //! - `dispatch`: the commands, each doing what its `#[tauri::command]` in commands.rs or library_commands.rs
@@ -55,6 +56,18 @@ pub mod library;
 
 #[path = "../../../glyph/src-tauri/src/library_root.rs"]
 pub mod library_root;
+
+// Stage 9A, a folder chosen through Android's picker: Rust's calls into Kotlin (files/LibraryTree.kt), which
+// `library_root::open_root` and the backup stand on. Compiled for Android only, as in the Tauri app; anywhere else
+// src/saf.rs answers that no such folder can be opened, which is true there.
+#[cfg(target_os = "android")]
+#[path = "../../../glyph/src-tauri/src/saf.rs"]
+pub mod saf;
+
+// Every note onto a removable drive, as plain files (stage 9B). Here from 9A on, since saf.rs writes a drive's
+// tree as this file's `Target`.
+#[path = "../../../glyph/src-tauri/src/backup.rs"]
+pub mod backup;
 
 // A meeting's write-up files, for the two a deleted note takes with it.
 #[path = "../../../glyph/src-tauri/src/jobs.rs"]
@@ -122,6 +135,7 @@ pub mod models;
 pub mod paths;
 #[cfg(feature = "voice")]
 pub mod recording;
+#[cfg(not(target_os = "android"))]
 pub mod saf;
 #[cfg(feature = "voice")]
 pub mod smoke;

@@ -1,7 +1,7 @@
 package com.mattssoftware.glyph.recordings
 
 // PORTED from ../glyph/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/recordings/WriteUp.kt, line for line, for the
-// Flutter app (docs/STAGES_5_6_8_9.md, stage 8). What differs: the activity is the Flutter one, and `LibraryTree.install` is left out until stage 9A.
+// Flutter app (docs/STAGES_5_6_8_9.md, stage 8). What differs: the activity is the Flutter one.
 
 import android.content.Context
 import android.os.BatteryManager
@@ -12,6 +12,7 @@ import android.util.Log
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.mattssoftware.ghost_md.MainActivity
+import com.mattssoftware.glyph.files.LibraryTree
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -92,7 +93,8 @@ internal object WriteUp {
     watcher.isDaemon = true
     watcher.start()
     val answer = try {
-      // (The Tauri app installs LibraryTree here; the Flutter app has no chosen folder yet: stage 9A.)
+      // The note may be in a folder chosen through Android's picker, which Rust reaches through Kotlin.
+      LibraryTree.install(context)
       RecordingJob.run(dataDir, noteId, options(context, now, fresh, title, requestedAt))
     } catch (error: Throwable) {
       Log.w(TAG, "write-up threw", error)

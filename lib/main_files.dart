@@ -10,6 +10,8 @@
 /// - **Recording?**, **Reset (keep models)**: the phone's half of starting over (`ghost.md/reset`,
 ///   ResetChannel.kt) with the core's `reset_local_data`; **Seed** writes a note and a secret first, and **Count**
 ///   says what is there.
+/// - **Pages**: Settings' own pages for the library's folder (9A), as Settings will draw them once its table of
+///   sections lists them, over the real core and the phone's pickers. The head's way out comes back to the log.
 ///
 /// Every line of the log is also printed as `[files] …`, for `adb logcat -s flutter`.
 library;
@@ -19,20 +21,36 @@ import 'dart:io';
 
 import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
+import 'package:glacier/glacier.dart';
 
 import 'account/device_keys.dart';
+import 'app/ghost_app.dart';
+import 'core/back.dart';
+import 'core/library_folder.dart';
 import 'core/native/device_paths.dart';
 import 'core/native/ghost_core.dart';
 import 'core/open_link.dart';
 import 'core/phone_links.dart';
+import 'core/preferences.dart';
 import 'core/reset_native.dart';
+import 'main.dart' show appStyleSheets;
+import 'settings/kit/settings_icons.dart';
+import 'settings/panes/library_folder_pane.dart';
+import 'settings/settings_screen.dart';
 import 'share/app_links.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // So each button has a name `uiautomator` can find.
   SemanticsBinding.instance.ensureSemantics();
-  runApp(const _FilesApp());
+  // The page's theme, for Settings' pages: the log itself is drawn without it.
+  final sheet = await loadTokenSheet(more: appStyleSheets);
+  try {
+    await preferences.load().timeout(const Duration(seconds: 2));
+  } catch (_) {
+    // A device that cannot remember: the defaults.
+  }
+  runApp(GhostApp(sheet: sheet, home: const _FilesApp()));
 }
 
 class _FilesApp extends StatefulWidget {
@@ -51,6 +69,10 @@ class _FilesState extends State<_FilesApp> {
   final SecureStore _secrets = deviceSecureStore();
   void Function()? _stopLinks;
   bool _ready = false;
+
+  /// Whether Settings' pages are up in place of the log.
+  bool _pages = false;
+  final BackStack _back = BackStack();
 
   @override
   void initState() {
@@ -129,8 +151,32 @@ class _FilesState extends State<_FilesApp> {
         await _count();
       });
 
+  Widget _settings() {
+    final folder = LibraryFolder(invoke: _core.invoke, onNotesChanged: () => _say('the notes changed: the list would be read again'));
+    return BackScope(
+      stack: _back,
+      child: SettingsScreen(
+        open: true,
+        onClose: () => setState(() => _pages = false),
+        title: 'Files',
+        search: false,
+        sections: [
+          SettingsSection(
+            id: 'library-folder',
+            label: 'Library folder',
+            icon: const SettingsIcon(SettingsGlyph.folder, size: 16),
+            content: (context) => LibraryFolderPane(folder: folder),
+            summary: 'Where your notes are kept',
+            group: 1,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_pages && _ready) return _settings();
     final buttons = <(String, VoidCallback)>[
       ('Open web', () => _openAddress('https://example.com/')),
       ('Open mail', () => _openAddress('mailto:someone@example.com')),
@@ -140,6 +186,7 @@ class _FilesState extends State<_FilesApp> {
       ('Count', _count),
       ('Recording?', () => _guard('recording', () async => _say('recording: ${await resetChannel.invokeMethod<bool>('recording')}'))),
       ('Reset (keep models)', _resetNow),
+      ('Pages', () => setState(() => _pages = true)),
     ];
     const ink = Color(0xFFEDEDED), paper = Color(0xFF111111), line = Color(0xFF3A3A3A);
     const text = TextStyle(color: ink, fontSize: 13, height: 1.3, decoration: TextDecoration.none);

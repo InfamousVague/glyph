@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import com.mattssoftware.glyph.capture.DictationMic
+import com.mattssoftware.glyph.files.LibraryTree
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -55,10 +56,17 @@ class MainActivity : FlutterActivity() {
     /** Links that open the app, kept until Dart asks (AppLinks.kt). */
     private val links = AppLinks()
 
+    /** The system's pickers, each answered when its activity result arrives (FilesBridge.kt). */
+    private val files = FilesBridge(this)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Before super: a capture launch decides the window's lock-screen behaviour before the window is shown.
         meeting = MeetingBridge(this).also { it.onCreate(intent) }
         links.onCreate(intent, restored = savedInstanceState != null)
+        // Before the engine starts, and so before the core opens the library: the library may be in a folder chosen
+        // through Android's picker (files/LibraryTree.kt), and Rust can reach Kotlin only once it has been handed the
+        // class. The tidy lets go of grants for folders that are not the library any more.
+        LibraryTree.install(applicationContext, tidy = true)
         super.onCreate(savedInstanceState)
     }
 
@@ -90,6 +98,8 @@ class MainActivity : FlutterActivity() {
         ResetChannel(this, secrets).register(messenger)
         // Links that open the app, handed over when asked for (AppLinks.kt; lib/core/phone_links.dart).
         links.register(messenger)
+        // The phone's pickers for the library's folder (FilesBridge.kt; lib/core/library_folder.dart).
+        files.register(messenger)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -132,6 +142,7 @@ class MainActivity : FlutterActivity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (files.onActivityResult(requestCode, resultCode, data)) return
         meeting?.onActivityResult(requestCode, resultCode, data)
     }
 }

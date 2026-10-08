@@ -139,6 +139,8 @@ build_android() {
     exit 1
   }
   symbols="ghost_alloc ghost_invoke ghost_free ghost_set_listener ghost_forget_listener"
+  # The door a chosen folder's Kotlin hands itself to Rust through (saf.rs; android/.../glyph/files/LibraryTree.kt).
+  symbols="$symbols Java_com_mattssoftware_glyph_files_LibraryTree_attach"
   # The JNI door a meeting's service and its job call (recording_jobs.rs), and the audio door the dictation
   # microphone pushes through (capture.rs; android/.../glyph/capture/DictationMic.kt): Kotlin finds these by name.
   [ -z "$voice" ] || symbols="$symbols Java_com_mattssoftware_glyph_recordings_RecordingJob_finish Java_com_mattssoftware_glyph_recordings_RecordingJob_run Java_com_mattssoftware_glyph_recordings_RecordingJob_cancel ghost_capture_push Java_com_mattssoftware_glyph_capture_DictationMic_push"

@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../../core/library_folder.dart' show LibraryFolder;
 import '../../core/preferences.dart';
 import '../../core/workspaces.dart';
 import '../settings_screen.dart' show SettingsTarget;
@@ -138,6 +139,7 @@ class SettingsFeatures {
     this.signedIn = false,
     this.onWayIn,
     this.orgs = const [],
+    this.libraryFolder,
     this.onExport,
     this.models,
     this.onGetModel,
@@ -169,6 +171,10 @@ class SettingsFeatures {
 
   /// The organizations the account is a member of, for Notifications' mutes.
   final List<SettingsOrg> orgs;
+
+  /// Where the library is and the calls that move it (core/libraryFolder.ts): Settings › Library folder. Null is a
+  /// build that keeps the notes in its own folder only.
+  final LibraryFolder? libraryFolder;
 
   /// Export everything as one zip (core/exportAll.ts).
   final VoidCallback? onExport;

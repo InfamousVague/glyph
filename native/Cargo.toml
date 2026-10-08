@@ -61,9 +61,10 @@ minijinja-contrib = { version = "2.24", default-features = false, features = ["p
 # Not Tauri: the two functions of `tauri::async_runtime` model_files.rs calls (shims/tauri).
 tauri = { path = "shims/tauri", optional = true }
 
-# recording_jobs.rs, the JNI door a meeting's service and its WorkManager job call with the app closed.
+# saf.rs, Rust's calls into Kotlin for a folder chosen through Android's picker (stage 9A), and recording_jobs.rs,
+# the JNI door a meeting's service and its WorkManager job call with the app closed.
 [target.'cfg(target_os = "android")'.dependencies]
-jni = { version = "0.21", optional = true }
+jni = "0.21"
 
 [dev-dependencies]
 pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
@@ -76,7 +77,12 @@ test-hooks = []
 # and (Android) `recording_jobs.rs` of the Tauri app, included as they are. Off by default so the notes-only core
 # still builds in seconds; tool/build-native.sh turns it on (GHOST_VOICE=0 for without). The first build compiles
 # llama.cpp and whisper.cpp: minutes.
-voice = ["dep:whisper-rs", "dep:whisper-rs-sys", "dep:llama-cpp-2", "dep:encoding_rs", "dep:reqwest", "dep:libc", "dep:minijinja", "dep:minijinja-contrib", "dep:tauri", "dep:jni"]
+voice = ["dep:whisper-rs", "dep:whisper-rs-sys", "dep:llama-cpp-2", "dep:encoding_rs", "dep:reqwest", "dep:libc", "dep:minijinja", "dep:minijinja-contrib", "dep:tauri"]
+
+# kept/library_commands.rs holds lines of the Tauri app's that are gated on `mobile`, a cfg Tauri's build script
+# sets and nothing here does: named so the compiler does not take it for a misspelling.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(mobile)'] }
 
 # A debug build is what the Mac's tests and Dart's tests open, and 600,000 rounds of unoptimised SHA-256 is half a
 # minute: the hashing and the ciphers are built optimised in every profile.

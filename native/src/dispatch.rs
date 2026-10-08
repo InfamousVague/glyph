@@ -25,9 +25,11 @@
 //!   lists its commands and events; `call_on` hands them the open core for its directories.
 //!
 //! - **`reset_local_data {models}`** is reset.rs's, its lines held in kept/reset.rs.
+//! - **The library's folder** (`library_inspect`, `library_move`, `library_use_app_folder`; stage 9A) is
+//!   library_commands.rs's, its lines held in kept/library_commands.rs, which lists them.
 //!
-//! Not here yet, each waiting for the stage that needs it: `set_note_formatted`, `library_reveal`, and the folder
-//! plugin's moves (`library_choose_folder`, `library_inspect`, `library_move`, `library_use_app_folder`).
+//! Not here yet, each waiting for the stage that needs it: `set_note_formatted`, `library_reveal`, and the Mac's
+//! folder panel (`library_choose_folder`).
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -159,11 +161,11 @@ pub struct Status {
     own: Option<String>,
 }
 
-fn named(path: &Path) -> String {
+pub(crate) fn named(path: &Path) -> String {
     path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| path.display().to_string())
 }
 
-fn status_of(data: &Path, store: &NotesStore) -> Status {
+pub(crate) fn status_of(data: &Path, store: &NotesStore) -> Status {
     let chosen = Root::read(data);
     let library = store.lock();
     let reachable = chosen == Root::App || !library.in_own_folder();
@@ -181,6 +183,8 @@ pub struct Core {
     data: PathBuf,
     cache: PathBuf,
     notes: NotesStore,
+    /// The folder picked for the library and looked into, until it is moved into (kept/library_commands.rs).
+    pick: crate::kept::library_commands::LibraryPick,
 }
 
 // What each command takes, as the page sends it. A field Tauri's command had as an `Option` may be left out.
@@ -274,7 +278,7 @@ impl Core {
     pub fn open(data: &Path, cache: &Path) -> Result<Core, String> {
         crate::fsx::make_dir(data)?;
         let library = crate::library_root::open(data, true)?;
-        Ok(Core { data: data.to_path_buf(), cache: cache.to_path_buf(), notes: NotesStore(Mutex::new(library)) })
+        Ok(Core { data: data.to_path_buf(), cache: cache.to_path_buf(), notes: NotesStore(Mutex::new(library)), pick: Default::default() })
     }
 
     /// The directory `init` named for the cache. Nothing in stage 3 writes there; `picked/` will.
@@ -381,6 +385,8 @@ impl Core {
                 let Reset { models } = read(command, args)?;
                 answer(crate::kept::reset::reset_local_data(&self.data, &self.cache, store, models)?)
             }
+            // A folder of the person's for the library: looked into, moved into, gone back from.
+            command if crate::kept::library_commands::has(command) => crate::kept::library_commands::call(&self.data, store, &self.pick, command, args),
             // The files sync carries: a recording, a picture, a versions file (files.rs).
             command if crate::files::has(command) => crate::files::call(&self.data, store, command, args),
             // A panic with the library's lock held, for the tests of what the boundary does with one.
@@ -681,7 +687,7 @@ mod tests {
         core.call("create_note", json!({"id": "n1", "body": "One.\n", "source": "editor"})).unwrap();
         let status = core.call("library_root", json!({})).unwrap();
         assert_eq!(status, json!({"kind": "app", "path": null, "name": null, "reachable": true, "notes": 1, "own": root.join("data/Library").display().to_string()}));
-        // A folder chosen on a phone cannot be opened here (saf.rs), so the app's own is, and the page is told.
+        // A folder chosen on a phone cannot be opened on a Mac (saf.rs), so the app's own is, and the page is told.
         Root::Tree { uri: "content://x/tree/y".into(), name: "Notes".into() }.write(&root.join("data")).unwrap();
         let away = Core::open(&root.join("data"), &root.join("cache")).unwrap();
         let status = away.call("library_root", json!({})).unwrap();

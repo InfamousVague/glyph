@@ -2,8 +2,7 @@ package com.mattssoftware.glyph.capture
 
 // PORTED from ../glyph/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/capture/MeetingService.kt, line for line, for the
 // Flutter app (docs/STAGES_5_6_8_9.md, stage 8). What differs: the activity is the Flutter one (`MainActivity.tell` sends over the
-// `ghost_md/meeting/events` channel where the Tauri one called `window.__glyph`), and `LibraryTree.install` is left out
-// until stage 9A brings a chosen folder. The package stays `com.mattssoftware.glyph.capture`, with RecordingJob's.
+// `ghost_md/meeting/events` channel where the Tauri one called `window.__glyph`). The package stays `com.mattssoftware.glyph.capture`, with RecordingJob's.
 
 import android.app.Service
 import android.content.Context
@@ -24,6 +23,7 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.mattssoftware.ghost_md.MainActivity
+import com.mattssoftware.glyph.files.LibraryTree
 import com.mattssoftware.glyph.recordings.Outcome
 import com.mattssoftware.glyph.recordings.RecordingAlerts
 import com.mattssoftware.glyph.recordings.RecordingJob
@@ -552,8 +552,8 @@ class MeetingService : Service() {
     recording = false
     silenced = false
     val answer = try {
-      // (The Tauri app installs LibraryTree here, for a library in a folder chosen through Android's picker. The
-      // Flutter app has no such folder yet: native/src/saf.rs, stage 9A.)
+      // The note may be in a folder chosen through Android's picker, which Rust reaches through Kotlin.
+      LibraryTree.install(this)
       JSONObject(RecordingJob.finish(dataDir.absolutePath, id, name) ?: "{}")
     } catch (error: Throwable) {
       Log.w(TAG, "finish threw", error)
