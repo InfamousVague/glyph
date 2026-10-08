@@ -1,0 +1,4013 @@
+{
+ "formats": [
+  {
+   "word": "spoiler",
+   "delimiter": "||"
+  },
+  {
+   "word": "highlight",
+   "delimiter": "=="
+  },
+  {
+   "word": "aside",
+   "delimiter": "%%"
+  },
+  {
+   "word": "unsure",
+   "delimiter": "??"
+  },
+  {
+   "word": "redact",
+   "delimiter": "@@"
+  },
+  {
+   "word": "shout",
+   "delimiter": "^^"
+  },
+  {
+   "word": "added",
+   "delimiter": "++"
+  },
+  {
+   "word": "heated",
+   "delimiter": "🔥🔥"
+  },
+  {
+   "word": "frosted",
+   "delimiter": "❄️❄️"
+  },
+  {
+   "word": "wavy",
+   "delimiter": "🌊🌊"
+  },
+  {
+   "word": "shimmering",
+   "delimiter": "✨✨"
+  },
+  {
+   "word": "haunted",
+   "delimiter": "👻👻"
+  }
+ ],
+ "cases": [
+  {
+   "id": "001",
+   "file": "001-title-cue",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Title: weekend trip.",
+      "startMs": 0,
+      "endMs": 1590
+     },
+     {
+      "text": "We leave on Friday after work.",
+      "startMs": 1590,
+      "endMs": 4770
+     }
+    ],
+    "audioMs": 5970
+   },
+   "outcome": {
+    "note": "# Weekend trip\n\nWe leave on Friday after work.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4770,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "002",
+   "file": "002-call-this-note",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Call this note: garden plans.",
+      "startMs": 0,
+      "endMs": 2250
+     },
+     {
+      "text": "The roses need pruning before the frost.",
+      "startMs": 2250,
+      "endMs": 5760
+     }
+    ],
+    "audioMs": 6960
+   },
+   "outcome": {
+    "note": "# Garden plans\n\nThe roses need pruning before the frost.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 5760,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "003",
+   "file": "003-short-first-sentence-title",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Grocery run.",
+      "startMs": 0,
+      "endMs": 1260
+     },
+     {
+      "text": "We are out of coffee again this morning.",
+      "startMs": 1260,
+      "endMs": 5100
+     }
+    ],
+    "audioMs": 6300
+   },
+   "outcome": {
+    "note": "# Grocery run\n\nWe are out of coffee again this morning.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 5100,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "004",
+   "file": "004-question-is-not-a-title",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Did anyone book the cabin?",
+      "startMs": 0,
+      "endMs": 2250
+     },
+     {
+      "text": "I think Sam did it last week.",
+      "startMs": 2250,
+      "endMs": 5560
+     }
+    ],
+    "audioMs": 6760
+   },
+   "outcome": {
+    "note": "Did anyone book the cabin? I think Sam did it last week.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 5560,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "005",
+   "file": "005-heading-cue",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "We spent the whole call going over the house with Sam.",
+      "startMs": 0,
+      "endMs": 4230
+     },
+     {
+      "text": "Heading: the budget.",
+      "startMs": 4230,
+      "endMs": 6220
+     },
+     {
+      "text": "We agreed on four thousand for the kitchen.",
+      "startMs": 6220,
+      "endMs": 10060
+     }
+    ],
+    "audioMs": 11260
+   },
+   "outcome": {
+    "note": "We spent the whole call going over the house with Sam.\n\n## The budget\n\nWe agreed on four thousand for the kitchen.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 10060,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "006",
+   "file": "006-new-section-cue",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "We spent the whole call going over the house with Sam.",
+      "startMs": 0,
+      "endMs": 4230
+     },
+     {
+      "text": "New section: the garden.",
+      "startMs": 4230,
+      "endMs": 6550
+     },
+     {
+      "text": "The fence needs painting before spring.",
+      "startMs": 6550,
+      "endMs": 9730
+     }
+    ],
+    "audioMs": 10930
+   },
+   "outcome": {
+    "note": "We spent the whole call going over the house with Sam.\n\n## The garden\n\nThe fence needs painting before spring.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 9730,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "007",
+   "file": "007-subheading-cue",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Heading: packing.",
+      "startMs": 0,
+      "endMs": 1260
+     },
+     {
+      "text": "Subheading: the kitchen.",
+      "startMs": 1260,
+      "endMs": 3450
+     },
+     {
+      "text": "Pots, pans and the good knife.",
+      "startMs": 3450,
+      "endMs": 6630
+     }
+    ],
+    "audioMs": 7830
+   },
+   "outcome": {
+    "note": "## Packing\n\n### The kitchen\n\nPots, pans and the good knife.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 6630,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "008",
+   "file": "008-heading-said-alone",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "We spent the whole call going over the house with Sam.",
+      "startMs": 0,
+      "endMs": 4230
+     },
+     {
+      "text": "Heading.",
+      "startMs": 4230,
+      "endMs": 5730
+     },
+     {
+      "text": "The numbers.",
+      "startMs": 5730,
+      "endMs": 7590
+     },
+     {
+      "text": "They look fine for now.",
+      "startMs": 7590,
+      "endMs": 10440
+     }
+    ],
+    "audioMs": 11640
+   },
+   "outcome": {
+    "note": "We spent the whole call going over the house with Sam.\n\n## The numbers\n\nThey look fine for now.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 10440,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "009",
+   "file": "009-new-paragraph-cue",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The kitchen needs work before we list the house.",
+      "startMs": 0,
+      "endMs": 3570
+     },
+     {
+      "text": "New paragraph.",
+      "startMs": 3570,
+      "endMs": 5230
+     },
+     {
+      "text": "The garden is fine as it is.",
+      "startMs": 5230,
+      "endMs": 8540
+     }
+    ],
+    "audioMs": 9740
+   },
+   "outcome": {
+    "note": "The kitchen needs work before we list the house.\n\nThe garden is fine as it is.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 8540,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "010",
+   "file": "010-long-pause-paragraph",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The kitchen needs work before we list the house.",
+      "startMs": 0,
+      "endMs": 3570
+     },
+     {
+      "text": "The garden is fine as it is.",
+      "startMs": 5270,
+      "endMs": 8680
+     }
+    ],
+    "audioMs": 9880
+   },
+   "outcome": {
+    "note": "The kitchen needs work before we list the house.\n\nThe garden is fine as it is.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 8680,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "011",
+   "file": "011-short-pause-same-paragraph",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The kitchen needs work before we list the house.",
+      "startMs": 0,
+      "endMs": 3570
+     },
+     {
+      "text": "The garden is fine as it is.",
+      "startMs": 3570,
+      "endMs": 6880
+     }
+    ],
+    "audioMs": 8080
+   },
+   "outcome": {
+    "note": "The kitchen needs work before we list the house. The garden is fine as it is.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 6880,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "012",
+   "file": "012-bullet-cues",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Things to check at the cabin before we leave.",
+      "startMs": 0,
+      "endMs": 3570
+     },
+     {
+      "text": "Bullet point: the heating.",
+      "startMs": 3570,
+      "endMs": 5890
+     },
+     {
+      "text": "Next point: the water pressure.",
+      "startMs": 5890,
+      "endMs": 8440
+     },
+     {
+      "text": "New item: the smoke alarm.",
+      "startMs": 8440,
+      "endMs": 10990
+     }
+    ],
+    "audioMs": 12190
+   },
+   "outcome": {
+    "note": "Things to check at the cabin before we leave.\n\n- The heating\n- The water pressure\n- The smoke alarm",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 10990,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "013",
+   "file": "013-bullet-said-alone",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Shopping for the weekend is below this line.",
+      "startMs": 0,
+      "endMs": 3240
+     },
+     {
+      "text": "Bullet point.",
+      "startMs": 3240,
+      "endMs": 4900
+     },
+     {
+      "text": "Oat milk.",
+      "startMs": 4900,
+      "endMs": 6760
+     }
+    ],
+    "audioMs": 7960
+   },
+   "outcome": {
+    "note": "Shopping for the weekend is below this line.\n\n- Oat milk",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 6760,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "014",
+   "file": "014-list-in-one-breath",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "For the drive we need snacks, water, a charger and the good playlist.",
+      "startMs": 0,
+      "endMs": 4890
+     }
+    ],
+    "audioMs": 6090
+   },
+   "outcome": {
+    "note": "For the drive we need:\n- snacks\n- water\n- a charger\n- the good playlist",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4890,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "015",
+   "file": "015-list-after-a-colon",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "We sorted out the camping gear this morning.",
+      "startMs": 0,
+      "endMs": 3240
+     },
+     {
+      "text": "Pack these: the tent, the stove and the lantern.",
+      "startMs": 3240,
+      "endMs": 7210
+     }
+    ],
+    "audioMs": 8410
+   },
+   "outcome": {
+    "note": "We sorted out the camping gear this morning.\n\nPack these:\n- the tent\n- the stove\n- the lantern",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 7210,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "016",
+   "file": "016-commas-stay-a-sentence",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "We went to the store, bought some food, and came home.",
+      "startMs": 0,
+      "endMs": 4230
+     }
+    ],
+    "audioMs": 5430
+   },
+   "outcome": {
+    "note": "We went to the store, bought some food, and came home.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4230,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "017",
+   "file": "017-number-cues",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The packing order for the morning is below.",
+      "startMs": 0,
+      "endMs": 3240
+     },
+     {
+      "text": "Number one: passports.",
+      "startMs": 3240,
+      "endMs": 5230
+     },
+     {
+      "text": "Number two: chargers.",
+      "startMs": 5230,
+      "endMs": 7120
+     },
+     {
+      "text": "Number three: snacks.",
+      "startMs": 7120,
+      "endMs": 9010
+     }
+    ],
+    "audioMs": 10210
+   },
+   "outcome": {
+    "note": "The packing order for the morning is below.\n\n1. Passports\n2. Chargers\n3. Snacks",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 9010,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "018",
+   "file": "018-number-one-priority-stays",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Honestly our number one priority this weekend is sleep.",
+      "startMs": 0,
+      "endMs": 3570
+     }
+    ],
+    "audioMs": 4770
+   },
+   "outcome": {
+    "note": "Honestly our number one priority this weekend is sleep.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 3570,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "019",
+   "file": "019-steps-in-order",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Here is how to reset the router when it hangs.",
+      "startMs": 0,
+      "endMs": 3900
+     },
+     {
+      "text": "First, unplug it.",
+      "startMs": 3900,
+      "endMs": 5890
+     },
+     {
+      "text": "Second, wait a moment.",
+      "startMs": 5890,
+      "endMs": 8110
+     },
+     {
+      "text": "Finally, plug it back in.",
+      "startMs": 8110,
+      "endMs": 10660
+     }
+    ],
+    "audioMs": 11860
+   },
+   "outcome": {
+    "note": "Here is how to reset the router when it hangs.\n\n1. Unplug it\n2. Wait a moment\n3. Plug it back in",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 10660,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "020",
+   "file": "020-then-alone-stays",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "We ate dinner at the pub, then we watched a film.",
+      "startMs": 0,
+      "endMs": 4230
+     }
+    ],
+    "audioMs": 5430
+   },
+   "outcome": {
+    "note": "We ate dinner at the pub, then we watched a film.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4230,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "021",
+   "file": "021-announced-list",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Here's my shopping list.",
+      "startMs": 0,
+      "endMs": 1920
+     },
+     {
+      "text": "Eggs.",
+      "startMs": 1920,
+      "endMs": 3420
+     },
+     {
+      "text": "Bread.",
+      "startMs": 3420,
+      "endMs": 4720
+     },
+     {
+      "text": "Coffee beans.",
+      "startMs": 4720,
+      "endMs": 6180
+     },
+     {
+      "text": "That is everything I can think of for now, thanks.",
+      "startMs": 6180,
+      "endMs": 10480
+     }
+    ],
+    "audioMs": 11680
+   },
+   "outcome": {
+    "note": "# Here's my shopping list\n\n- Eggs\n- Bread\n- Coffee beans\n\nThat is everything I can think of for now, thanks.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 10480,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "022",
+   "file": "022-announced-numbered-list",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Weekend chores.",
+      "startMs": 0,
+      "endMs": 1260
+     },
+     {
+      "text": "Make a numbered list.",
+      "startMs": 1260,
+      "endMs": 3580
+     },
+     {
+      "text": "Laundry.",
+      "startMs": 3580,
+      "endMs": 5080
+     },
+     {
+      "text": "Groceries.",
+      "startMs": 5080,
+      "endMs": 6380
+     },
+     {
+      "text": "Mow the lawn.",
+      "startMs": 6380,
+      "endMs": 8170
+     }
+    ],
+    "audioMs": 9370
+   },
+   "outcome": {
+    "note": "# Weekend chores\n\nMake a numbered list.\n\n1. Laundry\n2. Groceries\n3. Mow the lawn",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 8170,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "023",
+   "file": "023-item-phrases",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Packing for the coast.",
+      "startMs": 0,
+      "endMs": 1920
+     },
+     {
+      "text": "The first item is sunscreen.",
+      "startMs": 1920,
+      "endMs": 4570
+     },
+     {
+      "text": "The next item is a towel.",
+      "startMs": 4570,
+      "endMs": 7450
+     },
+     {
+      "text": "And the last thing we need on our list is a good book.",
+      "startMs": 7450,
+      "endMs": 12640
+     }
+    ],
+    "audioMs": 13840
+   },
+   "outcome": {
+    "note": "# Packing for the coast\n\n- Sunscreen\n- A towel\n- A good book",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 12640,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "024",
+   "file": "024-item-phrase-split-by-a-breath",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Road trip snacks.",
+      "startMs": 0,
+      "endMs": 1590
+     },
+     {
+      "text": "The next item is.",
+      "startMs": 1590,
+      "endMs": 3910
+     },
+     {
+      "text": "Pretzels.",
+      "startMs": 3910,
+      "endMs": 5410
+     }
+    ],
+    "audioMs": 6610
+   },
+   "outcome": {
+    "note": "# Road trip snacks\n\n- Pretzels",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 5410,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "025",
+   "file": "025-the-thing-is-stays",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The thing is, I am tired of driving every weekend.",
+      "startMs": 0,
+      "endMs": 3900
+     }
+    ],
+    "audioMs": 5100
+   },
+   "outcome": {
+    "note": "The thing is, I am tired of driving every weekend.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 3900,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "026",
+   "file": "026-todo-phrases",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Before Saturday we have a lot to sort out.",
+      "startMs": 0,
+      "endMs": 3570
+     },
+     {
+      "text": "Remember to book the cabin.",
+      "startMs": 3570,
+      "endMs": 6220
+     },
+     {
+      "text": "I need to call Sam about the keys.",
+      "startMs": 6220,
+      "endMs": 9760
+     },
+     {
+      "text": "Don't forget to fill the car up.",
+      "startMs": 9760,
+      "endMs": 12970
+     },
+     {
+      "text": "Remind me to pack the first aid kit.",
+      "startMs": 12970,
+      "endMs": 16510
+     }
+    ],
+    "audioMs": 17710
+   },
+   "outcome": {
+    "note": "Before Saturday we have a lot to sort out.\n\n- [ ] Book the cabin\n- [ ] Call Sam about the keys\n- [ ] Fill the car up\n- [ ] Pack the first aid kit",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 16510,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "027",
+   "file": "027-checkbox-todo-task-cues",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Before Saturday we have a lot to sort out.",
+      "startMs": 0,
+      "endMs": 3570
+     },
+     {
+      "text": "Check box: call the plumber.",
+      "startMs": 3570,
+      "endMs": 6220
+     },
+     {
+      "text": "To-do: buy ice.",
+      "startMs": 6220,
+      "endMs": 8110
+     },
+     {
+      "text": "Task: charge the lantern.",
+      "startMs": 8110,
+      "endMs": 10330
+     }
+    ],
+    "audioMs": 11530
+   },
+   "outcome": {
+    "note": "Before Saturday we have a lot to sort out.\n\n- [ ] Call the plumber\n- [ ] Buy ice\n- [ ] Charge the lantern",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 10330,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "028",
+   "file": "028-quote",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "This is what the landlord said at the end of the call.",
+      "startMs": 0,
+      "endMs": 4560
+     },
+     {
+      "text": "Quote: the deposit comes back in full.",
+      "startMs": 4560,
+      "endMs": 7870
+     }
+    ],
+    "audioMs": 9070
+   },
+   "outcome": {
+    "note": "This is what the landlord said at the end of the call.\n\n> The deposit comes back in full.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 7870,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "029",
+   "file": "029-important-and-key-point",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "These are my thoughts on the offer from Friday.",
+      "startMs": 0,
+      "endMs": 3570
+     },
+     {
+      "text": "Important: they need an answer by Monday.",
+      "startMs": 3570,
+      "endMs": 6880
+     },
+     {
+      "text": "Key point: the price includes parking.",
+      "startMs": 6880,
+      "endMs": 9860
+     }
+    ],
+    "audioMs": 11060
+   },
+   "outcome": {
+    "note": "These are my thoughts on the offer from Friday.\n\n**Important:** They need an answer by Monday.\n\n**Key point:** The price includes parking.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 9860,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "030",
+   "file": "030-divider",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "That covers everything we planned for the morning.",
+      "startMs": 0,
+      "endMs": 3240
+     },
+     {
+      "text": "Divider.",
+      "startMs": 3240,
+      "endMs": 4740
+     },
+     {
+      "text": "The afternoon is completely free.",
+      "startMs": 4740,
+      "endMs": 7390
+     }
+    ],
+    "audioMs": 8590
+   },
+   "outcome": {
+    "note": "That covers everything we planned for the morning.\n\n---\n\nThe afternoon is completely free.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 7390,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "031",
+   "file": "031-callout",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Before you arrive at the cabin, please read this.",
+      "startMs": 0,
+      "endMs": 3570
+     },
+     {
+      "text": "Info box: the gate sticks, so lift it first.",
+      "startMs": 3570,
+      "endMs": 7540
+     }
+    ],
+    "audioMs": 8740
+   },
+   "outcome": {
+    "note": "Before you arrive at the cabin, please read this.\n\n> [!NOTE]\n> The gate sticks, so lift it first.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 7540,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "032",
+   "file": "032-hidden-line",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Here is the answer to the riddle from the party.",
+      "startMs": 0,
+      "endMs": 3900
+     },
+     {
+      "text": "Hidden line: it was the butler.",
+      "startMs": 3900,
+      "endMs": 6880
+     }
+    ],
+    "audioMs": 8080
+   },
+   "outcome": {
+    "note": "Here is the answer to the riddle from the party.\n\n>| It was the butler.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 6880,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "033",
+   "file": "033-bold",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The deadline is bold Friday at noon end bold, not Monday.",
+      "startMs": 0,
+      "endMs": 4230
+     }
+    ],
+    "audioMs": 5430
+   },
+   "outcome": {
+    "note": "The deadline is **Friday at noon**, not Monday.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4230,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "034",
+   "file": "034-italic",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The owner said the hot tub is italic strictly off limits end italic after ten.",
+      "startMs": 0,
+      "endMs": 5550
+     }
+    ],
+    "audioMs": 6750
+   },
+   "outcome": {
+    "note": "The owner said the hot tub is _strictly off limits_ after ten.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 5550,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "035",
+   "file": "035-bold-closed-with-and",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The deadline for the balance is bold Friday at noon and bold.",
+      "startMs": 0,
+      "endMs": 4560
+     }
+    ],
+    "audioMs": 5760
+   },
+   "outcome": {
+    "note": "The deadline for the balance is **Friday at noon**.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4560,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "036",
+   "file": "036-bold-as-a-word-stays",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "It was a bold move and a bold plan.",
+      "startMs": 0,
+      "endMs": 3570
+     }
+    ],
+    "audioMs": 4770
+   },
+   "outcome": {
+    "note": "It was a bold move and a bold plan.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 3570,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "037",
+   "file": "037-spoiler",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The gate code is spoiler four four one seven end spoiler.",
+      "startMs": 0,
+      "endMs": 4230
+     }
+    ],
+    "audioMs": 5430
+   },
+   "outcome": {
+    "note": "The gate code is ||four four one seven||.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4230,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "038",
+   "file": "038-highlight",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Remember that highlight the wifi password is on the fridge end highlight.",
+      "startMs": 0,
+      "endMs": 4560
+     }
+    ],
+    "audioMs": 5760
+   },
+   "outcome": {
+    "note": "Remember that ==the wifi password is on the fridge==.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4560,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "039",
+   "file": "039-aside",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "We booked the cabin, aside I still prefer the other place end aside.",
+      "startMs": 0,
+      "endMs": 4890
+     }
+    ],
+    "audioMs": 6090
+   },
+   "outcome": {
+    "note": "We booked the cabin, %%I still prefer the other place%%.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4890,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "040",
+   "file": "040-unsure",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The stove is unsure gas end unsure, it might be electric.",
+      "startMs": 0,
+      "endMs": 4230
+     }
+    ],
+    "audioMs": 5430
+   },
+   "outcome": {
+    "note": "The stove is ??gas??, it might be electric.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4230,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "041",
+   "file": "041-shout",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The first rule is shout no shoes on the rug end shout.",
+      "startMs": 0,
+      "endMs": 4560
+     }
+    ],
+    "audioMs": 5760
+   },
+   "outcome": {
+    "note": "The first rule is ^^no shoes on the rug^^.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4560,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "042",
+   "file": "042-added",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Our plan for Sunday breakfast is added pancakes end added.",
+      "startMs": 0,
+      "endMs": 3900
+     }
+    ],
+    "audioMs": 5100
+   },
+   "outcome": {
+    "note": "Our plan for Sunday breakfast is ++pancakes++.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 3900,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "043",
+   "file": "043-strike",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The meeting moved from strike Tuesday end strike to Wednesday.",
+      "startMs": 0,
+      "endMs": 3900
+     }
+    ],
+    "audioMs": 5100
+   },
+   "outcome": {
+    "note": "The meeting moved from ~~Tuesday~~ to Wednesday.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 3900,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "044",
+   "file": "044-code",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Before you push, run code npm run build end code on your machine.",
+      "startMs": 0,
+      "endMs": 4890
+     }
+    ],
+    "audioMs": 6090
+   },
+   "outcome": {
+    "note": "Before you push, run `npm run build` on your machine.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4890,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "045",
+   "file": "045-tags",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Shopping and errands for the week ahead.",
+      "startMs": 0,
+      "endMs": 2910
+     },
+     {
+      "text": "Bullet point: book the ferry hashtag travel hashtag urgent.",
+      "startMs": 2910,
+      "endMs": 6880
+     }
+    ],
+    "audioMs": 8080
+   },
+   "outcome": {
+    "note": "Shopping and errands for the week ahead.\n\n- Book the ferry #travel #urgent",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 6880,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "046",
+   "file": "046-counter",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "My daily goals for this week are below.",
+      "startMs": 0,
+      "endMs": 3240
+     },
+     {
+      "text": "Bullet point: drink water, counter zero of eight.",
+      "startMs": 3240,
+      "endMs": 6880
+     }
+    ],
+    "audioMs": 8080
+   },
+   "outcome": {
+    "note": "My daily goals for this week are below.\n\n- Drink water [0/8]",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 6880,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "047",
+   "file": "047-choices",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Where should we stay?",
+      "startMs": 0,
+      "endMs": 1920
+     },
+     {
+      "text": "Option: tent.",
+      "startMs": 1920,
+      "endMs": 3580
+     },
+     {
+      "text": "Option: cabin.",
+      "startMs": 3580,
+      "endMs": 5140
+     },
+     {
+      "text": "Picked option: hotel.",
+      "startMs": 5140,
+      "endMs": 7030
+     }
+    ],
+    "audioMs": 8230
+   },
+   "outcome": {
+    "note": "Where should we stay?\n\n- ( ) Tent\n- ( ) Cabin\n- (x) Hotel",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 7030,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "048",
+   "file": "048-sum",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The cost of the trip adds up like this.",
+      "startMs": 0,
+      "endMs": 3570
+     },
+     {
+      "text": "Calculate: four hundred fifty plus one hundred twenty times two.",
+      "startMs": 3570,
+      "endMs": 7870
+     }
+    ],
+    "audioMs": 9070
+   },
+   "outcome": {
+    "note": "The cost of the trip adds up like this.\n\n= 450 + 120 * 2",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 7870,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "049",
+   "file": "049-link-to-a-note",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The deposit details are in note link weekend trip end link.",
+      "startMs": 0,
+      "endMs": 4230
+     }
+    ],
+    "audioMs": 5430
+   },
+   "outcome": {
+    "note": "The deposit details are in [[Weekend trip]].",
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4230,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "050",
+   "file": "050-cue-words-mid-sentence-stay",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "We stood at the trail heading and marked a bullet point on the map.",
+      "startMs": 0,
+      "endMs": 5220
+     }
+    ],
+    "audioMs": 6420
+   },
+   "outcome": {
+    "note": "We stood at the trail heading and marked a bullet point on the map.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 5220,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "051",
+   "file": "051-add-to-a-note",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Glyph, add oat milk to groceries.",
+      "startMs": 0,
+      "endMs": 2580
+     }
+    ],
+    "audioMs": 3780
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n- Oat milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 2580,
+    "log": [
+     "Writing to Groceries"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "052",
+   "file": "052-add-a-list-item",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Glyph, add a list item to groceries.",
+      "startMs": 0,
+      "endMs": 2910
+     },
+     {
+      "text": "Coffee beans.",
+      "startMs": 2910,
+      "endMs": 4770
+     }
+    ],
+    "audioMs": 5970
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n- Coffee beans\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4770,
+    "log": [
+     "Writing to Groceries"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "053",
+   "file": "053-add-several-tasks",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Glyph, add tasks to work.",
+      "startMs": 0,
+      "endMs": 2250
+     },
+     {
+      "text": "Call the bank.",
+      "startMs": 2250,
+      "endMs": 4440
+     },
+     {
+      "text": "Email the landlord.",
+      "startMs": 4440,
+      "endMs": 6230
+     }
+    ],
+    "audioMs": 9430
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n- [ ] Call the bank\n- [ ] Email the landlord\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 6230,
+    "log": [
+     "Writing to Work"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "054",
+   "file": "054-put-on-a-list",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Glyph, put call Sam on the work list.",
+      "startMs": 0,
+      "endMs": 3240
+     }
+    ],
+    "audioMs": 4440
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n- [ ] Call Sam\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 3240,
+    "log": [
+     "Writing to Work"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "055",
+   "file": "055-leave-a-note",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Glyph, leave a note for the weekend trip that says we need to book it by Thursday.",
+      "startMs": 0,
+      "endMs": 6210
+     }
+    ],
+    "audioMs": 7410
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n\n- [ ] Book it by Thursday",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 6210,
+    "log": [
+     "Writing to Weekend trip"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "056",
+   "file": "056-words-before-the-keyword-stay",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The heating in the cabin is fixed now, Glyph, add call the plumber to work.",
+      "startMs": 0,
+      "endMs": 5550
+     }
+    ],
+    "audioMs": 6750
+   },
+   "outcome": {
+    "note": "The heating in the cabin is fixed now.",
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n- [ ] Call the plumber\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 5550,
+    "log": [
+     "Added to Work, in its to-do list"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "058",
+   "file": "058-talk-on-without-answering",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Glyph, add eggs to groceries.",
+      "startMs": 0,
+      "endMs": 2250
+     },
+     {
+      "text": "Glyph, new note.",
+      "startMs": 2250,
+      "endMs": 4740
+     },
+     {
+      "text": "The weather is lovely out there today.",
+      "startMs": 4740,
+      "endMs": 8250
+     }
+    ],
+    "audioMs": 9450
+   },
+   "outcome": {
+    "note": "The weather is lovely out there today.",
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n- Eggs\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": true,
+    "stoppedAtMs": null,
+    "lastWordsMs": 8250,
+    "log": [
+     "Writing to Groceries",
+     "Started a new note"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "059",
+   "file": "059-no-keyword-no-command",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Add oat milk to groceries before the weekend.",
+      "startMs": 0,
+      "endMs": 3240
+     }
+    ],
+    "audioMs": 4440
+   },
+   "outcome": {
+    "note": "Add oat milk to groceries before the weekend.",
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 3240,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "060",
+   "file": "060-unknown-note-gives-words-back",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Glyph, add eggs to the moon base.",
+      "startMs": 0,
+      "endMs": 2910
+     }
+    ],
+    "audioMs": 8110
+   },
+   "outcome": {
+    "note": "# Eggs",
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 2910,
+    "log": [
+     "No note called “moon base”, so the words stay here."
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "061",
+   "file": "061-switch-to-a-note",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Our budget for the trip is four hundred.",
+      "startMs": 0,
+      "endMs": 3240
+     },
+     {
+      "text": "Glyph, switch to weekend trip.",
+      "startMs": 3240,
+      "endMs": 5890
+     },
+     {
+      "text": "The cabin has two bedrooms.",
+      "startMs": 5890,
+      "endMs": 9040
+     }
+    ],
+    "audioMs": 10240
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n\nOur budget for the trip is four hundred.\n\nThe cabin has two bedrooms.",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 9040,
+    "log": [
+     "Moved this recording to Weekend trip"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "062",
+   "file": "062-new-note",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Glyph, new note.",
+      "startMs": 0,
+      "endMs": 1590
+     },
+     {
+      "text": "Title: tax receipts.",
+      "startMs": 1590,
+      "endMs": 4080
+     },
+     {
+      "text": "Keep them in the blue folder.",
+      "startMs": 4080,
+      "endMs": 7260
+     }
+    ],
+    "audioMs": 8460
+   },
+   "outcome": {
+    "note": "# Tax receipts\n\nKeep them in the blue folder.",
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": true,
+    "stoppedAtMs": null,
+    "lastWordsMs": 7260,
+    "log": [
+     "Started a new note"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "066",
+   "file": "066-glyph-as-a-note-name",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Add a note to the Glyph note saying testing if this works.",
+      "startMs": 0,
+      "endMs": 4560
+     }
+    ],
+    "audioMs": 5760
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n\nTesting if this works.",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4560,
+    "log": [
+     "Writing to Glyph"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "067",
+   "file": "067-command-into-the-glyph-note",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Glyph, add testing if this works to the Glyph note.",
+      "startMs": 0,
+      "endMs": 3900
+     }
+    ],
+    "audioMs": 5100
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n\nTesting if this works.",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 3900,
+    "log": [
+     "Writing to Glyph"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "069",
+   "file": "069-add-to-a-board-lane",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Glyph, add fix the login bug to doing.",
+      "startMs": 0,
+      "endMs": 3240
+     }
+    ],
+    "audioMs": 4440
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: fix-login-bug, pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n- [ ] Fix the login bug ^fix-login-bug\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 3240,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "074",
+   "file": "074-stop-when-quiet",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Just a short thought about lunch tomorrow.",
+      "startMs": 0,
+      "endMs": 2910
+     }
+    ],
+    "audioMs": 11610
+   },
+   "outcome": {
+    "note": "Just a short thought about lunch tomorrow.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": 7500,
+    "lastWordsMs": 2910,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "075",
+   "file": "075-continue-the-last-note",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Title: packing.",
+      "startMs": 0,
+      "endMs": 1260
+     },
+     {
+      "text": "Bring the rain jackets.",
+      "startMs": 1260,
+      "endMs": 3780
+     }
+    ],
+    "audioMs": 4980
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n\n## Packing\n\nBring the rain jackets.",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 3780,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "076",
+   "file": "076-prose-stays-prose",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "So I was thinking about the trip, and honestly the first thing we should sort out is where everyone sleeps, then we can figure out food.",
+      "startMs": 0,
+      "endMs": 9180
+     },
+     {
+      "text": "Sam said he would bring the big cool box, which helps a lot.",
+      "startMs": 9180,
+      "endMs": 14470
+     }
+    ],
+    "audioMs": 23170
+   },
+   "outcome": {
+    "note": "So I was thinking about the trip, and honestly the first thing we should sort out is where everyone sleeps, then we can figure out food. Sam said he would bring the big cool box, which helps a lot.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 14470,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "077",
+   "file": "077-bold-italic",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The launch is bold italic really close end bold italic, so we should hurry.",
+      "startMs": 0,
+      "endMs": 5220
+     }
+    ],
+    "audioMs": 6420
+   },
+   "outcome": {
+    "note": "The launch is ***really close***, so we should hurry.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 5220,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "078",
+   "file": "078-link-with-words",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The new site lives at link our app to attack dot fm slash notes end link for now.",
+      "startMs": 0,
+      "endMs": 6540
+     }
+    ],
+    "audioMs": 7740
+   },
+   "outcome": {
+    "note": "The new site lives at [our app](https://attack.fm/notes) for now.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 6540,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "079",
+   "file": "079-bare-link",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Sam sent the page, link example dot com end link, this morning.",
+      "startMs": 0,
+      "endMs": 4560
+     }
+    ],
+    "audioMs": 5760
+   },
+   "outcome": {
+    "note": "Sam sent the page, <https://example.com>, this morning.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4560,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "080",
+   "file": "080-done-task",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Launch jobs for this week are below.",
+      "startMs": 0,
+      "endMs": 2910
+     },
+     {
+      "text": "Done task: call Sam.",
+      "startMs": 2910,
+      "endMs": 5230
+     },
+     {
+      "text": "Check box: book the cabin.",
+      "startMs": 5230,
+      "endMs": 7880
+     }
+    ],
+    "audioMs": 9080
+   },
+   "outcome": {
+    "note": "Launch jobs for this week are below.\n\n- [x] Call Sam\n- [ ] Book the cabin",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 7880,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "081",
+   "file": "081-anchor-and-item-link",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Here is the plan for the launch this week.",
+      "startMs": 0,
+      "endMs": 3570
+     },
+     {
+      "text": "Check box: ship the pricing page, anchor pricing page, end anchor.",
+      "startMs": 3570,
+      "endMs": 8200
+     },
+     {
+      "text": "The copy is waiting on item link pricing page end link.",
+      "startMs": 8200,
+      "endMs": 12830
+     }
+    ],
+    "audioMs": 14030
+   },
+   "outcome": {
+    "note": "Here is the plan for the launch this week.\n\n- [ ] Ship the pricing page ^pricing-page\n\nThe copy is waiting on [[#^pricing-page]].",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 12830,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "082",
+   "file": "082-bookmark",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The deposit for the cabin is four hundred, bookmark this.",
+      "startMs": 0,
+      "endMs": 3900
+     },
+     {
+      "text": "We pay the rest when we arrive.",
+      "startMs": 3900,
+      "endMs": 7210
+     }
+    ],
+    "audioMs": 8410
+   },
+   "outcome": {
+    "note": "The deposit for the cabin is four hundred. We pay the rest when we arrive. §§",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 7210,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "083",
+   "file": "083-footnote",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The deposit is four hundred, footnote Sam said so on Friday, end footnote.",
+      "startMs": 0,
+      "endMs": 4890
+     },
+     {
+      "text": "We pay the rest when we arrive.",
+      "startMs": 4890,
+      "endMs": 8200
+     }
+    ],
+    "audioMs": 9400
+   },
+   "outcome": {
+    "note": "The deposit is four hundred[^1]. We pay the rest when we arrive.\n\n[^1]: Sam said so on Friday.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 8200,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "084",
+   "file": "084-subscript",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The bottle says H subscript two end subscript O, and nothing else.",
+      "startMs": 0,
+      "endMs": 4560
+     }
+    ],
+    "audioMs": 5760
+   },
+   "outcome": {
+    "note": "The bottle says H~2~O, and nothing else.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4560,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "085",
+   "file": "085-superscript",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The room is ten meters superscript two end superscript in total.",
+      "startMs": 0,
+      "endMs": 4230
+     }
+    ],
+    "audioMs": 5430
+   },
+   "outcome": {
+    "note": "The room is ten meters^2^ in total.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4230,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "086",
+   "file": "086-maths",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The rule holds when maths x squared plus y end maths stays small.",
+      "startMs": 0,
+      "endMs": 4890
+     }
+    ],
+    "audioMs": 6090
+   },
+   "outcome": {
+    "note": "The rule holds when $x^2 + y$ stays small.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4890,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "087",
+   "file": "087-definition",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Our cabin words for the weekend are below.",
+      "startMs": 0,
+      "endMs": 3240
+     },
+     {
+      "text": "Define deposit as what you pay up front.",
+      "startMs": 3240,
+      "endMs": 6880
+     }
+    ],
+    "audioMs": 8080
+   },
+   "outcome": {
+    "note": "Our cabin words for the weekend are below.\n\nDeposit\n: What you pay up front.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 6880,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "088",
+   "file": "088-emoji",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "We finally shipped the app, emoji party popper.",
+      "startMs": 0,
+      "endMs": 3240
+     }
+    ],
+    "audioMs": 4440
+   },
+   "outcome": {
+    "note": "We finally shipped the app, :tada:.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 3240,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "089",
+   "file": "089-code-block",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Here is how to build the app on a laptop.",
+      "startMs": 0,
+      "endMs": 3900
+     },
+     {
+      "text": "Code block in bash.",
+      "startMs": 3900,
+      "endMs": 6220
+     },
+     {
+      "text": "npm install.",
+      "startMs": 6220,
+      "endMs": 7880
+     },
+     {
+      "text": "npm run build.",
+      "startMs": 7880,
+      "endMs": 9870
+     },
+     {
+      "text": "End code block.",
+      "startMs": 9870,
+      "endMs": 11860
+     },
+     {
+      "text": "Then open the app folder.",
+      "startMs": 11860,
+      "endMs": 14510
+     }
+    ],
+    "audioMs": 15710
+   },
+   "outcome": {
+    "note": "Here is how to build the app on a laptop.\n\n```bash\nnpm install\nnpm run build\n```\n\nThen open the app folder.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 14510,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "090",
+   "file": "090-note-on-a-mark",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The deposit is unsure four hundred end unsure, note Sam said so, end note.",
+      "startMs": 0,
+      "endMs": 5220
+     }
+    ],
+    "audioMs": 6420
+   },
+   "outcome": {
+    "note": "The deposit is ??four hundred??(Sam said so).",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 5220,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "091",
+   "file": "091-new-line",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "We wrote a short poem for the card today.",
+      "startMs": 0,
+      "endMs": 3570
+     },
+     {
+      "text": "Roses are red.",
+      "startMs": 3570,
+      "endMs": 5560
+     },
+     {
+      "text": "New line.",
+      "startMs": 5560,
+      "endMs": 7020
+     },
+     {
+      "text": "Violets are blue.",
+      "startMs": 7020,
+      "endMs": 8810
+     }
+    ],
+    "audioMs": 10010
+   },
+   "outcome": {
+    "note": "We wrote a short poem for the card today. Roses are red.  \nViolets are blue.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 8810,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "092",
+   "file": "092-cue-words-as-words",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "They launched a new line of shoes last spring.",
+      "startMs": 0,
+      "endMs": 3570
+     },
+     {
+      "text": "The link between the two teams is weak.",
+      "startMs": 3570,
+      "endMs": 7210
+     },
+     {
+      "text": "I sent Sam an emoji to say thanks.",
+      "startMs": 7210,
+      "endMs": 10850
+     },
+     {
+      "text": "The anchor held all night in the storm.",
+      "startMs": 10850,
+      "endMs": 14490
+     },
+     {
+      "text": "I checked the oven twice before we left.",
+      "startMs": 14490,
+      "endMs": 18130
+     }
+    ],
+    "audioMs": 19330
+   },
+   "outcome": {
+    "note": "They launched a new line of shoes last spring. The link between the two teams is weak. I sent Sam an emoji to say thanks. The anchor held all night in the storm. I checked the oven twice before we left.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 18130,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "093",
+   "file": "093-house-todos-in-two-phrases",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Hey Ghost, add a note to house to do's.",
+      "startMs": 0,
+      "endMs": 3570
+     },
+     {
+      "text": "The note is call an electrician to fix the light sockets.",
+      "startMs": 3570,
+      "endMs": 8400
+     }
+    ],
+    "audioMs": 9600
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call an electrician to fix the light sockets\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 8400,
+    "log": [
+     "Writing to House TODOs"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "094",
+   "file": "094-house-todos-the-note-is",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Hey Ghost, add a note to house to do's, the note is call an electrician to fix the light sockets.",
+      "startMs": 0,
+      "endMs": 7200
+     }
+    ],
+    "audioMs": 8400
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call an electrician to fix the light sockets\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 7200,
+    "log": [
+     "Writing to House TODOs"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "095",
+   "file": "095-house-chores",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Hey Ghost, add a note to house chores. Call an electrician to fix the light sockets.",
+      "startMs": 0,
+      "endMs": 5880
+     }
+    ],
+    "audioMs": 7080
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call an electrician to fix the light sockets\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 5880,
+    "log": [
+     "Writing to House TODOs"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "096",
+   "file": "096-hey-like",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Hey, like, add a note to house to do's, the note is call an electrician to fix the light sockets.",
+      "startMs": 0,
+      "endMs": 7200
+     }
+    ],
+    "audioMs": 8400
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call an electrician to fix the light sockets\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 7200,
+    "log": [
+     "Writing to House TODOs"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "097",
+   "file": "097-hey-goes",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Hey goes add a note to house to-dos. Call an electrician to fix the light sockets.",
+      "startMs": 0,
+      "endMs": 5880
+     }
+    ],
+    "audioMs": 7080
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call an electrician to fix the light sockets\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 5880,
+    "log": [
+     "Writing to House TODOs"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "098",
+   "file": "098-name-split-by-a-pause",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Hey Ghost, add a note to house",
+      "startMs": 0,
+      "endMs": 2910
+     },
+     {
+      "text": "to-dos. Call an electrician to fix the light sockets.",
+      "startMs": 2910,
+      "endMs": 6680
+     }
+    ],
+    "audioMs": 7880
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call an electrician to fix the light sockets\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 6680,
+    "log": [
+     "Writing to House TODOs"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "099",
+   "file": "099-the-list-it-fits",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Hey Ghost, add call an electrician to home jobs.",
+      "startMs": 0,
+      "endMs": 3570
+     }
+    ],
+    "audioMs": 4770
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n- [ ] Call an electrician\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 3570,
+    "log": [
+     "Writing to Home jobs"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "100",
+   "file": "100-one-shot-mid-take",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Kevin owns the release.",
+      "startMs": 0,
+      "endMs": 1920
+     },
+     {
+      "text": "Hey Ghost, add call the electrician to house to-dos.",
+      "startMs": 1920,
+      "endMs": 5890
+     },
+     {
+      "text": "Next, the budget review is Friday.",
+      "startMs": 5890,
+      "endMs": 8870
+     }
+    ],
+    "audioMs": 10070
+   },
+   "outcome": {
+    "note": "# Kevin owns the release\n\nNext, the budget review is Friday.",
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call the electrician\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 8870,
+    "log": [
+     "Added to House TODOs, in its to-do list"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "101",
+   "file": "101-a-card-answered",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Glyph, add a note to the moon base.",
+      "startMs": 0,
+      "endMs": 3240
+     },
+     {
+      "text": "Pack the tent.",
+      "startMs": 3240,
+      "endMs": 5430
+     }
+    ],
+    "audioMs": 6630
+   },
+   "outcome": {
+    "note": "Moon base\n\nPack the tent.",
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 5430,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "102",
+   "file": "102-new-item-for",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Hey Ghost, new item for groceries.",
+      "startMs": 0,
+      "endMs": 2580
+     },
+     {
+      "text": "Oat milk.",
+      "startMs": 2580,
+      "endMs": 4240
+     }
+    ],
+    "audioMs": 5440
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n- Oat milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4240,
+    "log": [
+     "Writing to Groceries"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "103",
+   "file": "103-scratch-that",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Pick up the parcel.",
+      "startMs": 0,
+      "endMs": 1920
+     },
+     {
+      "text": "Call the plumber.",
+      "startMs": 1920,
+      "endMs": 3910
+     },
+     {
+      "text": "Scratch that.",
+      "startMs": 3910,
+      "endMs": 5570
+     }
+    ],
+    "audioMs": 6770
+   },
+   "outcome": {
+    "note": "# Pick up the parcel",
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 5570,
+    "log": [
+     "Took back “Call the plumber”"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "104",
+   "file": "104-scratch-that-twice",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Pick up the parcel.",
+      "startMs": 0,
+      "endMs": 1920
+     },
+     {
+      "text": "Call the plumber.",
+      "startMs": 1920,
+      "endMs": 3910
+     },
+     {
+      "text": "Ring the bank.",
+      "startMs": 3910,
+      "endMs": 5900
+     },
+     {
+      "text": "Scratch that.",
+      "startMs": 5900,
+      "endMs": 7560
+     },
+     {
+      "text": "Scratch that.",
+      "startMs": 7560,
+      "endMs": 9220
+     }
+    ],
+    "audioMs": 10420
+   },
+   "outcome": {
+    "note": "# Pick up the parcel",
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 9220,
+    "log": [
+     "Took back “Ring the bank”",
+     "Took back “Call the plumber”"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "105",
+   "file": "105-actually-the-sentence-again",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The meeting is at three.",
+      "startMs": 0,
+      "endMs": 2250
+     },
+     {
+      "text": "Actually, the meeting is at four.",
+      "startMs": 2250,
+      "endMs": 5230
+     }
+    ],
+    "audioMs": 6430
+   },
+   "outcome": {
+    "note": "# The meeting is at four",
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 5230,
+    "log": [
+     "Replaced “The meeting is at three” with “The meeting is at four”"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "106",
+   "file": "106-actually-a-new-sentence",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The heating is fixed.",
+      "startMs": 0,
+      "endMs": 1920
+     },
+     {
+      "text": "Actually, I think we should go.",
+      "startMs": 1920,
+      "endMs": 4900
+     }
+    ],
+    "audioMs": 6100
+   },
+   "outcome": {
+    "note": "# The heating is fixed\n\nActually, I think we should go.",
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4900,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "107",
+   "file": "107-scratch-that-add-it-to",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Pick up the parcel.",
+      "startMs": 0,
+      "endMs": 1920
+     },
+     {
+      "text": "Oat milk.",
+      "startMs": 1920,
+      "endMs": 3580
+     },
+     {
+      "text": "Scratch that, add it to groceries instead.",
+      "startMs": 3580,
+      "endMs": 6890
+     }
+    ],
+    "audioMs": 8090
+   },
+   "outcome": {
+    "note": "# Pick up the parcel",
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n- Oat milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 6890,
+    "log": [
+     "Took back “Oat milk” and sent it to Groceries"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "108",
+   "file": "108-scratch-that-then-add-it-to",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Pick up the parcel.",
+      "startMs": 0,
+      "endMs": 1920
+     },
+     {
+      "text": "Oat milk.",
+      "startMs": 1920,
+      "endMs": 3580
+     },
+     {
+      "text": "Scratch that.",
+      "startMs": 3580,
+      "endMs": 5240
+     },
+     {
+      "text": "Add it to groceries instead.",
+      "startMs": 5240,
+      "endMs": 8390
+     }
+    ],
+    "audioMs": 9590
+   },
+   "outcome": {
+    "note": "# Pick up the parcel",
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n- Oat milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 8390,
+    "log": [
+     "Took back “Oat milk”",
+     "Took back “Oat milk” and sent it to Groceries"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "109",
+   "file": "109-scratch-an-item-for-a-note",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Hey Ghost, new item for groceries.",
+      "startMs": 0,
+      "endMs": 2580
+     },
+     {
+      "text": "Oat milk.",
+      "startMs": 2580,
+      "endMs": 4240
+     },
+     {
+      "text": "Scratch that.",
+      "startMs": 4240,
+      "endMs": 5900
+     }
+    ],
+    "audioMs": 7100
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 5900,
+    "log": [
+     "Writing to Groceries",
+     "Took back “Oat milk”"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "110",
+   "file": "110-no-wait-one-word",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The meeting is at three.",
+      "startMs": 0,
+      "endMs": 2250
+     },
+     {
+      "text": "No wait, four.",
+      "startMs": 2250,
+      "endMs": 4240
+     }
+    ],
+    "audioMs": 5440
+   },
+   "outcome": {
+    "note": "# The meeting is at four",
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4240,
+    "log": [
+     "Changed “three” to “four” in “The meeting is at three”"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "111",
+   "file": "111-scratch-that-add-it-to-split",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Pick up the parcel.",
+      "startMs": 0,
+      "endMs": 1920
+     },
+     {
+      "text": "Oat milk.",
+      "startMs": 1920,
+      "endMs": 3580
+     },
+     {
+      "text": "Scratch that, add it to",
+      "startMs": 3580,
+      "endMs": 6230
+     },
+     {
+      "text": "Groceries instead.",
+      "startMs": 6230,
+      "endMs": 7490
+     }
+    ],
+    "audioMs": 8690
+   },
+   "outcome": {
+    "note": "# Pick up the parcel",
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n- Oat milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 7490,
+    "log": [
+     "Took back “Oat milk”",
+     "Took back “Oat milk” and sent it to Groceries"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "112",
+   "file": "112-bare-add-to-groceries",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Add oat milk to groceries.",
+      "startMs": 0,
+      "endMs": 2250
+     }
+    ],
+    "audioMs": 3450
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n- Oat milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 2250,
+    "log": [
+     "Writing to Groceries"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "113",
+   "file": "113-bare-one-shot-mid-take",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Our budget for the trip is four hundred.",
+      "startMs": 0,
+      "endMs": 3240
+     },
+     {
+      "text": "Add call the plumber to House TODOs.",
+      "startMs": 3240,
+      "endMs": 6550
+     },
+     {
+      "text": "The cabin has two bedrooms.",
+      "startMs": 6550,
+      "endMs": 9200
+     }
+    ],
+    "audioMs": 10400
+   },
+   "outcome": {
+    "note": "Our budget for the trip is four hundred.\n\nThe cabin has two bedrooms.",
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call the plumber\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 9200,
+    "log": [
+     "Added to House TODOs, in its to-do list"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "114",
+   "file": "114-bare-move-this-to",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "The ferry leaves at nine.",
+      "startMs": 0,
+      "endMs": 2250
+     },
+     {
+      "text": "Move this to weekend trip.",
+      "startMs": 2250,
+      "endMs": 4900
+     },
+     {
+      "text": "Pack the tent.",
+      "startMs": 4900,
+      "endMs": 6890
+     }
+    ],
+    "audioMs": 8090
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n\nThe ferry leaves at nine.\n\nPack the tent.",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 6890,
+    "log": [
+     "Moved this recording to Weekend trip"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "115",
+   "file": "115-house-todos-in-two-phrases-bare",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Add a note to house to do's.",
+      "startMs": 0,
+      "endMs": 2910
+     },
+     {
+      "text": "The note is call an electrician to fix the light sockets.",
+      "startMs": 2910,
+      "endMs": 7740
+     }
+    ],
+    "audioMs": 8940
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call an electrician to fix the light sockets\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 7740,
+    "log": [
+     "Writing to House TODOs"
+    ]
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "116",
+   "file": "116-bare-names-no-note",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Put the parcel in the post.",
+      "startMs": 0,
+      "endMs": 2580
+     },
+     {
+      "text": "Add a note to the moon base, pack the tent.",
+      "startMs": 2580,
+      "endMs": 6880
+     }
+    ],
+    "audioMs": 8080
+   },
+   "outcome": {
+    "note": "# Put the parcel in the post\n\nAdd a note to the moon base, pack the tent.",
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 6880,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "117",
+   "file": "117-go-to-work-is-words",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Buy milk.",
+      "startMs": 0,
+      "endMs": 1260
+     },
+     {
+      "text": "Go to work.",
+      "startMs": 1260,
+      "endMs": 3250
+     },
+     {
+      "text": "Ring the plumber.",
+      "startMs": 3250,
+      "endMs": 5240
+     }
+    ],
+    "audioMs": 6440
+   },
+   "outcome": {
+    "note": "# Buy milk\n\nGo to work. Ring the plumber.",
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 5240,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "118",
+   "file": "118-a-sentence-that-opens-with-a-run",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Fix the spelling of Kowalski on the sign.",
+      "startMs": 0,
+      "endMs": 3240
+     }
+    ],
+    "audioMs": 4440
+   },
+   "outcome": {
+    "note": null,
+    "notes": {
+     "Groceries": "# Groceries\n\nWe need:\n- eggs\n- milk\n",
+     "Work": "# Work\n\n- [ ] Email Jo\n",
+     "AttackFM bug bash": "# AttackFM bug bash\n\nThings we found.\n",
+     "Weekend trip": "# Weekend trip\n\nWe leave Friday.\n\nFix the spelling of Kowalski on the sign.",
+     "Glyph": "# Glyph\n\nIdeas.\n",
+     "Launch board": "# Launch board\n\n```board\nTo do: write-copy\nDoing: pricing-page\nDone: pick-date\n```\n\n- [ ] Write the copy ^write-copy\n- [ ] Pricing page ^pricing-page\n- [x] Pick a date ^pick-date\n",
+     "House TODOs": "# House TODOs\n\n- [ ] Fix the gutter\n",
+     "Home jobs": "# Home jobs\n\n## Kitchen\n- [ ] Fix tap\n\n## Electrical\n- [ ] Rewire porch light\n"
+    },
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 3240,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "119",
+   "file": "119-due-friday",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "I need to call the plumber due Friday.",
+      "startMs": 0,
+      "endMs": 3240
+     }
+    ],
+    "audioMs": 4440
+   },
+   "outcome": {
+    "note": "- [ ] Call the plumber 📅 2026-10-09",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 3240,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "120",
+   "file": "120-due-tomorrow-high-priority",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Check box, fix the login loop, due tomorrow, high priority.",
+      "startMs": 0,
+      "endMs": 3900
+     }
+    ],
+    "audioMs": 5100
+   },
+   "outcome": {
+    "note": "- [ ] Fix the login loop ⏫ 📅 2026-10-09",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 3900,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "121",
+   "file": "121-for-sam-on-a-date",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "To do: book the venue for Sam, due the third of October.",
+      "startMs": 0,
+      "endMs": 4560
+     }
+    ],
+    "audioMs": 5760
+   },
+   "outcome": {
+    "note": "- [ ] Book the venue @Sam 📅 2027-10-03",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4560,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "122",
+   "file": "122-urgent-assigned-to",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "Bullet point, renew the passport, urgent, assigned to Matt.",
+      "startMs": 0,
+      "endMs": 3570
+     }
+    ],
+    "audioMs": 4770
+   },
+   "outcome": {
+    "note": "- Renew the passport @Matt ⏫",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 3570,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "123",
+   "file": "123-due-next-week-a-breath-later",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "I need to send the invoice.",
+      "startMs": 0,
+      "endMs": 2580
+     },
+     {
+      "text": "Due next week.",
+      "startMs": 2580,
+      "endMs": 4570
+     }
+    ],
+    "audioMs": 5770
+   },
+   "outcome": {
+    "note": "- [ ] Send the invoice 📅 2026-10-12",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 4570,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  },
+  {
+   "id": "124",
+   "file": "124-fields-that-stay-words",
+   "skip": null,
+   "heard": {
+    "segments": [
+     {
+      "text": "I need to buy a present for Sam.",
+      "startMs": 0,
+      "endMs": 3240
+     },
+     {
+      "text": "The rent is due soon.",
+      "startMs": 3240,
+      "endMs": 5890
+     }
+    ],
+    "audioMs": 7090
+   },
+   "outcome": {
+    "note": "- [ ] Buy a present for Sam\n\nThe rent is due soon.",
+    "notes": {},
+    "newNote": false,
+    "stoppedAtMs": null,
+    "lastWordsMs": 5890,
+    "log": []
+   },
+   "problems": [],
+   "pass": true
+  }
+ ]
+}
