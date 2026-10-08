@@ -1,0 +1,814 @@
+{
+ "url": "http://127.0.0.1:5278/?simulate=say&say=Hello%20there.",
+ "viewport": {
+  "width": 1200,
+  "height": 800,
+  "deviceScaleFactor": 2
+ },
+ "at": {
+  "waitedFor": "listening, no time run: before the first guess at 180 ms, the card of things to say naming a note",
+  "ranMs": 80,
+  "counter": "0:00",
+  "lines": [
+   "Start talking."
+  ],
+  "chip": null,
+  "chipPhase": null
+ },
+ "rects": {
+  "screen": {
+   "x": 0,
+   "y": 0,
+   "width": 1200,
+   "height": 800
+  },
+  "top": {
+   "x": 0,
+   "y": 0,
+   "width": 1200,
+   "height": 88.3125
+  },
+  "mic": {
+   "x": 25.96875,
+   "y": 39.75,
+   "width": 14,
+   "height": 14
+  },
+  "micIcon": {
+   "x": 25.96875,
+   "y": 39.75,
+   "width": 14,
+   "height": 14
+  },
+  "where": {
+   "x": 60.75,
+   "y": 15.578125,
+   "width": 64.078125,
+   "height": 62.34375
+  },
+  "counter": {
+   "x": 1142.8125,
+   "y": 38.25,
+   "width": 31.21875,
+   "height": 17
+  },
+  "headerBlur": {
+   "x": 0,
+   "y": 88,
+   "width": 1200,
+   "height": 28
+  },
+  "body": {
+   "x": 25.96875,
+   "y": 0,
+   "width": 1148.0625,
+   "height": 494.03125
+  },
+  "livePage": {
+   "x": 0,
+   "y": 0,
+   "width": 1200,
+   "height": 275.484375
+  },
+  "editor": {
+   "x": 0,
+   "y": 88,
+   "width": 1200,
+   "height": 187.484375
+  },
+  "content": {
+   "x": 0,
+   "y": 88,
+   "width": 1200,
+   "height": 187.484375
+  },
+  "placeholder": {
+   "x": 25.96875,
+   "y": 113.96875,
+   "width": 163.140625,
+   "height": 31.0625
+  },
+  "ghost": {
+   "x": 521.484375,
+   "y": 291.0625,
+   "width": 157.03125,
+   "height": 160
+  },
+  "pageHint": {
+   "x": 25.96875,
+   "y": 461.453125,
+   "width": 1148.0625,
+   "height": 17
+  },
+  "sayCard": {
+   "x": 25.96875,
+   "y": 494.03125,
+   "width": 1148.0625,
+   "height": 196.875
+  },
+  "sayTitle": {
+   "x": 47.75,
+   "y": 510.609375,
+   "width": 1104.5,
+   "height": 14
+  },
+  "footer": {
+   "x": 25.96875,
+   "y": 706.484375,
+   "width": 1148.0625,
+   "height": 93.515625
+  },
+  "discard": {
+   "x": 25.96875,
+   "y": 716.875,
+   "width": 57.96875,
+   "height": 62.34375
+  },
+  "done": {
+   "x": 1041.921875,
+   "y": 716.875,
+   "width": 132.109375,
+   "height": 62.34375
+  },
+  "doneIcon": {
+   "x": 1073.09375,
+   "y": 740.046875,
+   "width": 16,
+   "height": 16
+  },
+  "meter": {
+   "x": 1041.921875,
+   "y": 716.875,
+   "width": 132.109375,
+   "height": 62.34375
+  },
+  "line0": {
+   "x": 0,
+   "y": 113.96875,
+   "width": 1200,
+   "height": 31.0625
+  },
+  "sayGroup0": {
+   "x": 47.75,
+   "y": 540.1875,
+   "width": 1104.5,
+   "height": 59.28125
+  },
+  "sayGroup1": {
+   "x": 47.75,
+   "y": 615.046875,
+   "width": 1104.5,
+   "height": 59.28125
+  },
+  "sayHeading0": {
+   "x": 47.75,
+   "y": 540.1875,
+   "width": 1104.5,
+   "height": 14
+  },
+  "sayHeading1": {
+   "x": 47.75,
+   "y": 615.046875,
+   "width": 1104.5,
+   "height": 14
+  },
+  "sayHeadingIcon0": {
+   "x": 47.75,
+   "y": 540.6875,
+   "width": 13,
+   "height": 13
+  },
+  "sayHeadingIcon1": {
+   "x": 47.75,
+   "y": 615.546875,
+   "width": 13,
+   "height": 13
+  },
+  "sayLine0": {
+   "x": 47.75,
+   "y": 559.375,
+   "width": 1104.5,
+   "height": 19.046875
+  },
+  "sayLine1": {
+   "x": 47.75,
+   "y": 580.421875,
+   "width": 1104.5,
+   "height": 19.046875
+  },
+  "sayLine2": {
+   "x": 47.75,
+   "y": 634.234375,
+   "width": 1104.5,
+   "height": 19.046875
+  },
+  "sayLine3": {
+   "x": 47.75,
+   "y": 655.28125,
+   "width": 1104.5,
+   "height": 19.046875
+  },
+  "sayLineSay0": {
+   "x": 47.75,
+   "y": 560.375,
+   "width": 91.140625,
+   "height": 17
+  },
+  "sayLineSay1": {
+   "x": 47.75,
+   "y": 581.421875,
+   "width": 137.84375,
+   "height": 17
+  },
+  "sayLineSay2": {
+   "x": 47.75,
+   "y": 635.234375,
+   "width": 166.578125,
+   "height": 17
+  },
+  "sayLineSay3": {
+   "x": 47.75,
+   "y": 656.28125,
+   "width": 189.859375,
+   "height": 17
+  },
+  "sayLineDoes0": {
+   "x": 142.859375,
+   "y": 560.375,
+   "width": 81.78125,
+   "height": 17
+  },
+  "sayLineDoes1": {
+   "x": 189.5625,
+   "y": 581.421875,
+   "width": 93.671875,
+   "height": 17
+  },
+  "sayLineDoes2": {
+   "x": 218.296875,
+   "y": 635.234375,
+   "width": 244.859375,
+   "height": 17
+  },
+  "sayLineDoes3": {
+   "x": 241.578125,
+   "y": 656.28125,
+   "width": 183.515625,
+   "height": 17
+  }
+ },
+ "text": {
+  "top": {
+   "text": "New note0:00",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "where": {
+   "text": "New note",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "500",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "counter": {
+   "text": "0:00",
+   "color": "oklch(0.36 0 0)",
+   "colorRgb": "rgb(61, 61, 61)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.8 0 0)",
+   "colorDarkRgb": "rgb(189, 190, 190)"
+  },
+  "body": {
+   "text": "Start talking.Tap Done to stop.",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "livePage": {
+   "text": "Start talking.",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "editor": {
+   "text": "Start talking.",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "content": {
+   "text": "Start talking.",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+   "fontSize": "19.4292px",
+   "fontWeight": "400",
+   "lineHeight": "31.0867px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "placeholder": {
+   "text": "Start talking.",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+   "fontSize": "19.4292px",
+   "fontWeight": "400",
+   "lineHeight": "31.0867px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "pageHint": {
+   "text": "Tap Done to stop.",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "sayCard": {
+   "text": "Things to sayTo shape it“Bullet point” to start a list“The next item is …” to add to a listTo send it somewhere“Add … to Shopping list” to put it there, into its list if it has one“Move this to Shopping list” to send this recording there",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "sayTitle": {
+   "text": "Things to say",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "11.4064px",
+   "fontWeight": "700",
+   "lineHeight": "normal",
+   "letterSpacing": "0.912512px",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "footer": {
+   "text": "DiscardDone",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "discard": {
+   "text": "Discard",
+   "color": "oklch(0.36 0 0)",
+   "colorRgb": "rgb(61, 61, 61)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "500",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.8 0 0)",
+   "colorDarkRgb": "rgb(189, 190, 190)"
+  },
+  "done": {
+   "text": "Done",
+   "color": "oklch(0.995 0 0)",
+   "colorRgb": "rgb(253, 253, 253)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "17.4476px",
+   "fontWeight": "600",
+   "lineHeight": "normal",
+   "letterSpacing": "-0.087238px",
+   "colorDark": "oklch(0.11 0 0)",
+   "colorDarkRgb": "rgb(4, 4, 4)"
+  },
+  "line0": {
+   "text": "Start talking.",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+   "fontSize": "19.4292px",
+   "fontWeight": "400",
+   "lineHeight": "31.0867px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "sayGroup0": {
+   "text": "To shape it“Bullet point” to start a list“The next item is …” to add to a list",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "sayGroup1": {
+   "text": "To send it somewhere“Add … to Shopping list” to put it there, into its list if it has one“Move this to Shopping list” to send this recording there",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "sayHeading0": {
+   "text": "To shape it",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "11.4064px",
+   "fontWeight": "600",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "sayHeading1": {
+   "text": "To send it somewhere",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "11.4064px",
+   "fontWeight": "600",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "sayLine0": {
+   "text": "“Bullet point” to start a list",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "400",
+   "lineHeight": "19.042px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "sayLine1": {
+   "text": "“The next item is …” to add to a list",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "400",
+   "lineHeight": "19.042px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "sayLine2": {
+   "text": "“Add … to Shopping list” to put it there, into its list if it has one",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "400",
+   "lineHeight": "19.042px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "sayLine3": {
+   "text": "“Move this to Shopping list” to send this recording there",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "400",
+   "lineHeight": "19.042px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "sayLineSay0": {
+   "text": "“Bullet point”",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "600",
+   "lineHeight": "19.042px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "sayLineSay1": {
+   "text": "“The next item is …”",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "600",
+   "lineHeight": "19.042px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "sayLineSay2": {
+   "text": "“Add … to Shopping list”",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "600",
+   "lineHeight": "19.042px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "sayLineSay3": {
+   "text": "“Move this to Shopping list”",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "600",
+   "lineHeight": "19.042px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "sayLineDoes0": {
+   "text": "to start a list",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "400",
+   "lineHeight": "19.042px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "sayLineDoes1": {
+   "text": "to add to a list",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "400",
+   "lineHeight": "19.042px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "sayLineDoes2": {
+   "text": "to put it there, into its list if it has one",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "400",
+   "lineHeight": "19.042px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "sayLineDoes3": {
+   "text": "to send this recording there",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "400",
+   "lineHeight": "19.042px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  }
+ },
+ "box": {
+  "screen": {
+   "padding": "0px 25.9811px 0px 25.9811px",
+   "background": "oklch(0.995 0 0)",
+   "backgroundRgb": "rgb(253, 253, 253)",
+   "backgroundDark": "oklch(0.11 0 0)",
+   "backgroundDarkRgb": "rgb(4, 4, 4)"
+  },
+  "top": {
+   "padding": "15.5888px 25.9811px 10.3924px 25.9811px",
+   "gap": "20.7834px"
+  },
+  "where": {
+   "padding": "10.3924px 0px 10.3924px 0px"
+  },
+  "counter": {
+   "margin": "0px 0px 0px 997.203px"
+  },
+  "headerBlur": {
+   "opacity": "0"
+  },
+  "livePage": {
+   "padding": "88px 0px 0px 0px",
+   "margin": "0px -25.9811px 0px -25.9811px"
+  },
+  "editor": {
+   "background": "oklch(0.995 0 0)",
+   "backgroundRgb": "rgb(253, 253, 253)",
+   "backgroundDark": "oklch(0.11 0 0)",
+   "backgroundDarkRgb": "rgb(4, 4, 4)"
+  },
+  "content": {
+   "padding": "25.9811px 0px 124.706px 0px"
+  },
+  "ghost": {
+   "margin": "15.5888px 495.516px 10.3924px 495.516px",
+   "background": "oklch(0.56 0 0)",
+   "backgroundRgb": "rgb(116, 116, 116)",
+   "backgroundDark": "oklch(0.6 0 0)",
+   "backgroundDarkRgb": "rgb(128, 128, 128)"
+  },
+  "pageHint": {
+   "margin": "0px 0px 15.5888px 0px"
+  },
+  "sayCard": {
+   "padding": "15.5888px 20.7834px 15.5888px 20.7834px",
+   "margin": "0px 0px 15.5888px 0px",
+   "borderWidth": "1px 1px 1px 1px",
+   "borderStyle": "solid solid solid solid",
+   "borderColor": "oklch(0.925 0 0)",
+   "borderRadius": "16px",
+   "background": "oklch(0.955 0 0)",
+   "gap": "15.5888px",
+   "ownWidth": 1148,
+   "ownHeight": 197,
+   "backgroundRgb": "rgb(240, 240, 240)",
+   "borderColorRgb": "rgb(230, 230, 230)",
+   "backgroundDark": "oklch(0.17 0 0)",
+   "backgroundDarkRgb": "rgb(15, 15, 15)",
+   "borderColorDark": "oklch(0.205 0 0)",
+   "borderColorDarkRgb": "rgb(23, 23, 23)"
+  },
+  "footer": {
+   "padding": "10.3924px 0px 20.7834px 0px"
+  },
+  "discard": {
+   "padding": "10.3924px 0px 10.3924px 0px"
+  },
+  "done": {
+   "padding": "0px 31.1758px 0px 31.1758px",
+   "borderRadius": "9999px",
+   "background": "oklch(0.16 0 0)",
+   "gap": "10.3924px",
+   "backgroundRgb": "rgb(13, 13, 13)",
+   "backgroundDark": "oklch(0.965 0 0)",
+   "backgroundDarkRgb": "rgb(243, 243, 243)"
+  },
+  "meter": {
+   "borderWidth": "2px 2px 2px 2px",
+   "borderStyle": "solid solid solid solid",
+   "borderColor": "oklch(0.16 0 0)",
+   "borderRadius": "9999px",
+   "opacity": "0.25",
+   "ownWidth": 132,
+   "ownHeight": 62,
+   "borderColorRgb": "rgb(13, 13, 13)",
+   "borderColorDark": "oklch(0.965 0 0)",
+   "borderColorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "line0": {
+   "padding": "0px 25.9811px 0px 25.9811px"
+  },
+  "sayGroup0": {
+   "gap": "5.1964px"
+  },
+  "sayGroup1": {
+   "gap": "5.1964px"
+  },
+  "sayHeading0": {
+   "gap": "4.56256px"
+  },
+  "sayHeading1": {
+   "gap": "4.56256px"
+  }
+ },
+ "runs": {
+  "line0": [
+   {
+    "text": "Start talking.",
+    "classes": "cm-placeholder",
+    "x": 25.96875,
+    "y": 115.96875,
+    "width": 163.140625,
+    "height": 26,
+    "color": "oklch(0.56 0 0)",
+    "colorRgb": "rgb(116, 116, 116)",
+    "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "fontSize": "19.4292px",
+    "fontWeight": "400",
+    "lineHeight": "31.0867px",
+    "letterSpacing": "normal"
+   }
+  ]
+ },
+ "scroll": {
+  "scrollTop": 0,
+  "scrollHeight": 275,
+  "clientHeight": 275
+ },
+ "vars": {
+  "--app-safe-top": {
+   "written": "calc(0px + 0px)",
+   "px": 0
+  },
+  "--app-safe-bottom": {
+   "written": "0px",
+   "px": 0
+  },
+  "--app-gutter-start": {
+   "written": "calc(0px + calc(clamp(1.25rem, 1.1678rem + 0.4112vw, 1.5625rem) * 1.1))",
+   "px": 25.96875
+  },
+  "--app-gutter-end": {
+   "written": "calc(0px + calc(clamp(1.25rem, 1.1678rem + 0.4112vw, 1.5625rem) * 1.1))",
+   "px": 25.96875
+  },
+  "--app-gutter": {
+   "written": "calc(clamp(1.25rem, 1.1678rem + 0.4112vw, 1.5625rem) * 1.1)",
+   "px": 25.96875
+  },
+  "--recorder-top": {
+   "written": "88px",
+   "px": 88
+  }
+ },
+ "html": {
+  "data-theme": "light",
+  "data-platform": "desktop",
+  "data-note-font": "maple",
+  "data-code-light": "pastel",
+  "data-code-dark": "pastel",
+  "data-split": "on"
+ },
+ "rootData": {
+  "phase": "listening"
+ },
+ "animations": [
+  {
+   "name": "say-in",
+   "target": "card",
+   "endless": false,
+   "heldAt": "end"
+  },
+  {
+   "name": "",
+   "target": "ring",
+   "endless": false,
+   "heldAt": "end"
+  }
+ ]
+}

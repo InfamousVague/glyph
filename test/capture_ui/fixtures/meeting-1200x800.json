@@ -1,0 +1,286 @@
+{
+ "url": "http://127.0.0.1:5278/",
+ "viewport": {
+  "width": 1200,
+  "height": 800,
+  "deviceScaleFactor": 2
+ },
+ "at": {
+  "waitedFor": "the meeting screen at boot over a pretended host, the clock run one second: 12:34",
+  "ranMs": 80,
+  "counter": "12:34",
+  "lines": [],
+  "chip": null,
+  "chipPhase": null
+ },
+ "rects": {
+  "screen": {
+   "x": 0,
+   "y": 0,
+   "width": 1200,
+   "height": 800
+  },
+  "top": {
+   "x": 0,
+   "y": 0,
+   "width": 1200,
+   "height": 51.953125
+  },
+  "where": {
+   "x": 25.96875,
+   "y": 15.578125,
+   "width": 54.171875,
+   "height": 17
+  },
+  "counter": {
+   "x": 1133.671875,
+   "y": 15.578125,
+   "width": 40.359375,
+   "height": 17
+  },
+  "body": {
+   "x": 25.96875,
+   "y": 0,
+   "width": 1148.0625,
+   "height": 706.484375
+  },
+  "footer": {
+   "x": 25.96875,
+   "y": 706.484375,
+   "width": 1148.0625,
+   "height": 93.515625
+  },
+  "discard": {
+   "x": 25.96875,
+   "y": 716.875,
+   "width": 57.96875,
+   "height": 62.34375
+  },
+  "done": {
+   "x": 1041.921875,
+   "y": 716.875,
+   "width": 132.109375,
+   "height": 62.34375
+  },
+  "doneIcon": {
+   "x": 1073.09375,
+   "y": 740.046875,
+   "width": 16,
+   "height": 16
+  },
+  "tape": {
+   "x": 424,
+   "y": 204.484375,
+   "width": 352,
+   "height": 224.390625
+  },
+  "line0": {
+   "x": 376,
+   "y": 449.65625,
+   "width": 448,
+   "height": 52.34375
+  }
+ },
+ "text": {
+  "top": {
+   "text": "Meeting12:34",
+   "color": "oklch(0.36 0 0)",
+   "colorRgb": "rgb(61, 61, 61)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.8 0 0)",
+   "colorDarkRgb": "rgb(189, 190, 190)"
+  },
+  "where": {
+   "text": "Meeting",
+   "color": "oklch(0.36 0 0)",
+   "colorRgb": "rgb(61, 61, 61)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.8 0 0)",
+   "colorDarkRgb": "rgb(189, 190, 190)"
+  },
+  "counter": {
+   "text": "12:34",
+   "color": "oklch(0.36 0 0)",
+   "colorRgb": "rgb(61, 61, 61)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.8 0 0)",
+   "colorDarkRgb": "rgb(189, 190, 190)"
+  },
+  "body": {
+   "text": "ARecording. The screen can go off and you can leave. Stop here or from the notification.",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "footer": {
+   "text": "DiscardDone",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "discard": {
+   "text": "Discard",
+   "color": "oklch(0.36 0 0)",
+   "colorRgb": "rgb(61, 61, 61)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "500",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.8 0 0)",
+   "colorDarkRgb": "rgb(189, 190, 190)"
+  },
+  "done": {
+   "text": "Done",
+   "color": "oklch(0.995 0 0)",
+   "colorRgb": "rgb(253, 253, 253)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "17.4476px",
+   "fontWeight": "600",
+   "lineHeight": "normal",
+   "letterSpacing": "-0.087238px",
+   "colorDark": "oklch(0.11 0 0)",
+   "colorDarkRgb": "rgb(4, 4, 4)"
+  },
+  "line0": {
+   "text": "Recording. The screen can go off and you can leave. Stop here or from the notification.",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "17.4476px",
+   "fontWeight": "400",
+   "lineHeight": "26.1714px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  }
+ },
+ "box": {
+  "screen": {
+   "padding": "0px 25.9811px 0px 25.9811px",
+   "background": "oklch(0.995 0 0)",
+   "backgroundRgb": "rgb(253, 253, 253)",
+   "backgroundDark": "oklch(0.11 0 0)",
+   "backgroundDarkRgb": "rgb(4, 4, 4)"
+  },
+  "top": {
+   "padding": "15.5888px 25.9811px 10.3924px 25.9811px",
+   "gap": "20.7834px"
+  },
+  "counter": {
+   "margin": "0px 0px 0px 1032.75px"
+  },
+  "body": {
+   "gap": "20.7834px"
+  },
+  "footer": {
+   "padding": "10.3924px 0px 20.7834px 0px"
+  },
+  "discard": {
+   "padding": "10.3924px 0px 10.3924px 0px"
+  },
+  "done": {
+   "padding": "0px 31.1758px 0px 31.1758px",
+   "borderRadius": "9999px",
+   "background": "oklch(0.16 0 0)",
+   "gap": "10.3924px",
+   "backgroundRgb": "rgb(13, 13, 13)",
+   "backgroundDark": "oklch(0.965 0 0)",
+   "backgroundDarkRgb": "rgb(243, 243, 243)"
+  }
+ },
+ "runs": {},
+ "vars": {
+  "--app-safe-top": {
+   "written": "calc(0px + 0px)",
+   "px": 0
+  },
+  "--app-safe-bottom": {
+   "written": "0px",
+   "px": 0
+  },
+  "--app-gutter-start": {
+   "written": "calc(0px + calc(clamp(1.25rem, 1.1678rem + 0.4112vw, 1.5625rem) * 1.1))",
+   "px": 25.96875
+  },
+  "--app-gutter-end": {
+   "written": "calc(0px + calc(clamp(1.25rem, 1.1678rem + 0.4112vw, 1.5625rem) * 1.1))",
+   "px": 25.96875
+  },
+  "--app-gutter": {
+   "written": "calc(clamp(1.25rem, 1.1678rem + 0.4112vw, 1.5625rem) * 1.1)",
+   "px": 25.96875
+  },
+  "--recorder-top": {
+   "written": "",
+   "px": 0
+  }
+ },
+ "html": {
+  "data-theme": "light",
+  "data-platform": "desktop",
+  "data-note-font": "maple",
+  "data-code-light": "pastel",
+  "data-code-dark": "pastel",
+  "data-split": "on"
+ },
+ "rootData": {
+  "recording": ""
+ },
+ "animations": [
+  {
+   "name": "opacity",
+   "target": "launch",
+   "endless": false,
+   "heldAt": "end"
+  },
+  {
+   "name": "rise",
+   "target": "chase",
+   "endless": false,
+   "heldAt": "end"
+  },
+  {
+   "name": "wink",
+   "target": "wink",
+   "endless": false,
+   "heldAt": "end"
+  },
+  {
+   "name": "rise",
+   "target": "name",
+   "endless": false,
+   "heldAt": "end"
+  },
+  {
+   "name": "rise",
+   "target": "line",
+   "endless": false,
+   "heldAt": "end"
+  }
+ ]
+}

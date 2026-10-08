@@ -1,0 +1,739 @@
+{
+ "url": "http://127.0.0.1:5278/?simulate=route",
+ "viewport": {
+  "width": 390,
+  "height": 844,
+  "deviceScaleFactor": 2
+ },
+ "at": {
+  "waitedFor": "\"Hey Ghost, move this to shopping list.\" committed: the chip is filled, and the page is the list with the words on its end",
+  "ranMs": 3640,
+  "counter": "0:03",
+  "lines": [
+   "Shopping list",
+   "",
+   "- Oat milk",
+   "- Eggs",
+   "- Coffee",
+   "",
+   "Oat milk, eggs and the good coffee."
+  ],
+  "chip": "Now on Shopping list",
+  "chipPhase": "moved"
+ },
+ "rects": {
+  "screen": {
+   "x": 0,
+   "y": 0,
+   "width": 390,
+   "height": 844
+  },
+  "top": {
+   "x": 0,
+   "y": 0,
+   "width": 390,
+   "height": 75.859375
+  },
+  "mic": {
+   "x": 22.3125,
+   "y": 33.15625,
+   "width": 14,
+   "height": 14
+  },
+  "micIcon": {
+   "x": 22.3125,
+   "y": 33.15625,
+   "width": 14,
+   "height": 14
+  },
+  "where": {
+   "x": 54.15625,
+   "y": 13.390625,
+   "width": 161.171875,
+   "height": 53.546875
+  },
+  "newNote": {
+   "x": 233.171875,
+   "y": 13.390625,
+   "width": 82.46875,
+   "height": 53.546875
+  },
+  "counter": {
+   "x": 338.03125,
+   "y": 32.15625,
+   "width": 29.65625,
+   "height": 16
+  },
+  "headerBlur": {
+   "x": 0,
+   "y": 76,
+   "width": 390,
+   "height": 28
+  },
+  "body": {
+   "x": 22.3125,
+   "y": 0,
+   "width": 345.375,
+   "height": 710.453125
+  },
+  "livePage": {
+   "x": 0,
+   "y": 0,
+   "width": 390,
+   "height": 710.453125
+  },
+  "editor": {
+   "x": 0,
+   "y": 76,
+   "width": 390,
+   "height": 634.453125
+  },
+  "content": {
+   "x": 0,
+   "y": 76,
+   "width": 390,
+   "height": 634.453125
+  },
+  "route": {
+   "x": 84.609375,
+   "y": 710.453125,
+   "width": 220.765625,
+   "height": 39.84375
+  },
+  "routeTick": {
+   "x": 102.70013427734375,
+   "y": 722.1163940429688,
+   "width": 11.9434814453125,
+   "height": 11.9434814453125
+  },
+  "routeText": {
+   "x": 122.015625,
+   "y": 720.375,
+   "width": 164.515625,
+   "height": 20
+  },
+  "routeStrong": {
+   "x": 184.34375,
+   "y": 720.375,
+   "width": 102.1875,
+   "height": 20
+  },
+  "footer": {
+   "x": 22.3125,
+   "y": 763.6875,
+   "width": 345.375,
+   "height": 80.3125
+  },
+  "discard": {
+   "x": 22.3125,
+   "y": 772.609375,
+   "width": 57.96875,
+   "height": 53.546875
+  },
+  "done": {
+   "x": 248.984375,
+   "y": 772.609375,
+   "width": 118.703125,
+   "height": 53.546875
+  },
+  "doneIcon": {
+   "x": 275.75,
+   "y": 791.375,
+   "width": 16,
+   "height": 16
+  },
+  "meter": {
+   "x": 248.984375,
+   "y": 772.609375,
+   "width": 118.703125,
+   "height": 53.546875
+  },
+  "line0": {
+   "x": 0,
+   "y": 98.3125,
+   "width": 390,
+   "height": 39.921875
+  },
+  "line1": {
+   "x": 0,
+   "y": 138.234375,
+   "width": 390,
+   "height": 27.921875
+  },
+  "line2": {
+   "x": 0,
+   "y": 166.15625,
+   "width": 390,
+   "height": 27.921875
+  },
+  "line3": {
+   "x": 0,
+   "y": 194.078125,
+   "width": 390,
+   "height": 27.921875
+  },
+  "line4": {
+   "x": 0,
+   "y": 222,
+   "width": 390,
+   "height": 27.921875
+  },
+  "line5": {
+   "x": 0,
+   "y": 249.921875,
+   "width": 390,
+   "height": 27.921875
+  },
+  "line6": {
+   "x": 0,
+   "y": 277.84375,
+   "width": 390,
+   "height": 55.84375
+  }
+ },
+ "text": {
+  "top": {
+   "text": "Adding to “Shopping list”Not this note0:03",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "13.3948px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "where": {
+   "text": "Adding to “Shopping list”",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "13.3948px",
+   "fontWeight": "500",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "newNote": {
+   "text": "Not this note",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "13.3948px",
+   "fontWeight": "600",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "counter": {
+   "text": "0:03",
+   "color": "oklch(0.36 0 0)",
+   "colorRgb": "rgb(61, 61, 61)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "13.3948px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.8 0 0)",
+   "colorDarkRgb": "rgb(189, 190, 190)"
+  },
+  "body": {
+   "text": "Shopping list- Oat milk- Eggs- CoffeeOat milk, eggs and the good coffee.",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "livePage": {
+   "text": "Shopping list- Oat milk- Eggs- CoffeeOat milk, eggs and the good coffee.",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "editor": {
+   "text": "Shopping list- Oat milk- Eggs- CoffeeOat milk, eggs and the good coffee.",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "content": {
+   "text": "Shopping list- Oat milk- Eggs- CoffeeOat milk, eggs and the good coffee.",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+   "fontSize": "17.4507px",
+   "fontWeight": "400",
+   "lineHeight": "27.9211px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "route": {
+   "text": "Now on Shopping list",
+   "color": "oklch(0.995 0 0)",
+   "colorRgb": "rgb(253, 253, 253)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16.1152px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.11 0 0)",
+   "colorDarkRgb": "rgb(4, 4, 4)"
+  },
+  "routeText": {
+   "text": "Now on Shopping list",
+   "color": "oklch(0.995 0 0)",
+   "colorRgb": "rgb(253, 253, 253)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16.1152px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.11 0 0)",
+   "colorDarkRgb": "rgb(4, 4, 4)"
+  },
+  "routeStrong": {
+   "text": "Shopping list",
+   "color": "oklch(0.995 0 0)",
+   "colorRgb": "rgb(253, 253, 253)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16.1152px",
+   "fontWeight": "700",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.11 0 0)",
+   "colorDarkRgb": "rgb(4, 4, 4)"
+  },
+  "footer": {
+   "text": "DiscardDone",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "discard": {
+   "text": "Discard",
+   "color": "oklch(0.36 0 0)",
+   "colorRgb": "rgb(61, 61, 61)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "500",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.8 0 0)",
+   "colorDarkRgb": "rgb(189, 190, 190)"
+  },
+  "done": {
+   "text": "Done",
+   "color": "oklch(0.995 0 0)",
+   "colorRgb": "rgb(253, 253, 253)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16.1152px",
+   "fontWeight": "600",
+   "lineHeight": "normal",
+   "letterSpacing": "-0.0805757px",
+   "colorDark": "oklch(0.11 0 0)",
+   "colorDarkRgb": "rgb(4, 4, 4)"
+  },
+  "line0": {
+   "text": "Shopping list",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+   "fontSize": "17.4507px",
+   "fontWeight": "400",
+   "lineHeight": "27.9211px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "line2": {
+   "text": "- Oat milk",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+   "fontSize": "17.4507px",
+   "fontWeight": "400",
+   "lineHeight": "27.9211px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "line3": {
+   "text": "- Eggs",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+   "fontSize": "17.4507px",
+   "fontWeight": "400",
+   "lineHeight": "27.9211px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "line4": {
+   "text": "- Coffee",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+   "fontSize": "17.4507px",
+   "fontWeight": "400",
+   "lineHeight": "27.9211px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "line6": {
+   "text": "Oat milk, eggs and the good coffee.",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+   "fontSize": "17.4507px",
+   "fontWeight": "400",
+   "lineHeight": "27.9211px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  }
+ },
+ "box": {
+  "screen": {
+   "padding": "0px 22.3173px 0px 22.3173px",
+   "background": "oklch(0.995 0 0)",
+   "backgroundRgb": "rgb(253, 253, 253)",
+   "backgroundDark": "oklch(0.11 0 0)",
+   "backgroundDarkRgb": "rgb(4, 4, 4)"
+  },
+  "top": {
+   "padding": "13.3907px 22.3173px 8.92667px 22.3173px",
+   "background": "color(srgb 0.993282 0.993463 0.99348 / 0.66)",
+   "gap": "17.8529px",
+   "backgroundRgb": "rgba(253, 253, 253, 0.659)",
+   "backgroundDark": "color(srgb 0.0171915 0.0171986 0.0171993 / 0.66)",
+   "backgroundDarkRgb": "rgba(5, 5, 5, 0.659)"
+  },
+  "where": {
+   "padding": "8.92667px 0px 8.92667px 0px"
+  },
+  "newNote": {
+   "padding": "8.92667px 0px 8.92667px 0px"
+  },
+  "counter": {
+   "margin": "0px 0px 0px 4.54688px"
+  },
+  "headerBlur": {
+   "opacity": "0"
+  },
+  "livePage": {
+   "padding": "76px 0px 0px 0px",
+   "margin": "0px -22.3173px 0px -22.3173px"
+  },
+  "editor": {
+   "background": "oklch(0.995 0 0)",
+   "backgroundRgb": "rgb(253, 253, 253)",
+   "backgroundDark": "oklch(0.11 0 0)",
+   "backgroundDarkRgb": "rgb(4, 4, 4)"
+  },
+  "content": {
+   "padding": "22.3173px 0px 107.12px 0px"
+  },
+  "route": {
+   "padding": "8.92667px 17.8529px 8.92667px 17.8529px",
+   "margin": "0px 0px 13.3907px 0px",
+   "borderWidth": "1px 1px 1px 1px",
+   "borderStyle": "solid solid solid solid",
+   "borderColor": "oklch(0.16 0 0)",
+   "borderRadius": "9999px",
+   "background": "oklch(0.16 0 0)",
+   "gap": "8.92667px",
+   "ownWidth": 221,
+   "ownHeight": 40,
+   "backgroundRgb": "rgb(13, 13, 13)",
+   "borderColorRgb": "rgb(13, 13, 13)",
+   "backgroundDark": "oklch(0.965 0 0)",
+   "backgroundDarkRgb": "rgb(243, 243, 243)",
+   "borderColorDark": "oklch(0.965 0 0)",
+   "borderColorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "routeTick": {
+   "margin": "0px 1.61152px 0px 2.41727px",
+   "borderWidth": "0px 2px 2px 0px",
+   "borderStyle": "none solid solid none",
+   "borderColor": "oklch(0.995 0 0)",
+   "transform": "matrix(0.707107, 0.707107, -0.707107, 0.707107, 0, -2.27903)",
+   "ownWidth": 6,
+   "ownHeight": 11,
+   "borderColorRgb": "rgb(253, 253, 253)",
+   "borderColorDark": "oklch(0.11 0 0)",
+   "borderColorDarkRgb": "rgb(4, 4, 4)"
+  },
+  "footer": {
+   "padding": "8.92667px 0px 17.8529px 0px"
+  },
+  "discard": {
+   "padding": "8.92667px 0px 8.92667px 0px"
+  },
+  "done": {
+   "padding": "0px 26.7796px 0px 26.7796px",
+   "borderRadius": "9999px",
+   "background": "oklch(0.16 0 0)",
+   "gap": "8.92667px",
+   "backgroundRgb": "rgb(13, 13, 13)",
+   "backgroundDark": "oklch(0.965 0 0)",
+   "backgroundDarkRgb": "rgb(243, 243, 243)"
+  },
+  "meter": {
+   "borderWidth": "2px 2px 2px 2px",
+   "borderStyle": "solid solid solid solid",
+   "borderColor": "oklch(0.16 0 0)",
+   "borderRadius": "9999px",
+   "opacity": "0.25",
+   "ownWidth": 119,
+   "ownHeight": 54,
+   "borderColorRgb": "rgb(13, 13, 13)",
+   "borderColorDark": "oklch(0.965 0 0)",
+   "borderColorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "line0": {
+   "padding": "0px 22.3173px 0px 22.3173px"
+  },
+  "line1": {
+   "padding": "0px 22.3173px 0px 22.3173px"
+  },
+  "line2": {
+   "padding": "0px 22.3173px 0px 43.2673px"
+  },
+  "line3": {
+   "padding": "0px 22.3173px 0px 43.2673px"
+  },
+  "line4": {
+   "padding": "0px 22.3173px 0px 43.2673px"
+  },
+  "line5": {
+   "padding": "0px 22.3173px 0px 22.3173px"
+  },
+  "line6": {
+   "padding": "0px 22.3173px 0px 22.3173px"
+  }
+ },
+ "runs": {
+  "line0": [
+   {
+    "text": "Shopping list",
+    "classes": "_h1_3xzvf_6",
+    "x": 22.3125,
+    "y": 93.3125,
+    "width": 285.5625,
+    "height": 48,
+    "color": "color(srgb 0.0517453 0.0517638 0.0517655 / 0.88)",
+    "colorRgb": "rgba(13, 13, 13, 0.878)",
+    "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "fontSize": "36.6157px",
+    "fontWeight": "700",
+    "lineHeight": "39.5449px",
+    "letterSpacing": "normal"
+   }
+  ],
+  "line1": [],
+  "line2": [
+   {
+    "text": "-",
+    "classes": "_list_3xzvf_187 _mark_3xzvf_6",
+    "x": 22.328125,
+    "y": 168.15625,
+    "width": 10.484375,
+    "height": 23,
+    "color": "oklch(0.56 0 0)",
+    "colorRgb": "rgb(116, 116, 116)",
+    "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "fontSize": "17.4507px",
+    "fontWeight": "400",
+    "lineHeight": "27.9211px",
+    "letterSpacing": "normal"
+   },
+   {
+    "text": " Oat milk",
+    "classes": "_list_3xzvf_187",
+    "x": 32.8125,
+    "y": 168.15625,
+    "width": 94.234375,
+    "height": 23,
+    "color": "oklch(0.16 0 0)",
+    "colorRgb": "rgb(13, 13, 13)",
+    "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "fontSize": "17.4507px",
+    "fontWeight": "400",
+    "lineHeight": "27.9211px",
+    "letterSpacing": "normal"
+   }
+  ],
+  "line3": [
+   {
+    "text": "-",
+    "classes": "_list_3xzvf_187 _mark_3xzvf_6",
+    "x": 22.328125,
+    "y": 196.078125,
+    "width": 10.484375,
+    "height": 23,
+    "color": "oklch(0.56 0 0)",
+    "colorRgb": "rgb(116, 116, 116)",
+    "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "fontSize": "17.4507px",
+    "fontWeight": "400",
+    "lineHeight": "27.9211px",
+    "letterSpacing": "normal"
+   },
+   {
+    "text": " Eggs",
+    "classes": "_list_3xzvf_187",
+    "x": 32.8125,
+    "y": 196.078125,
+    "width": 52.359375,
+    "height": 23,
+    "color": "oklch(0.16 0 0)",
+    "colorRgb": "rgb(13, 13, 13)",
+    "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "fontSize": "17.4507px",
+    "fontWeight": "400",
+    "lineHeight": "27.9211px",
+    "letterSpacing": "normal"
+   }
+  ],
+  "line4": [
+   {
+    "text": "-",
+    "classes": "_list_3xzvf_187 _mark_3xzvf_6",
+    "x": 22.328125,
+    "y": 224,
+    "width": 10.484375,
+    "height": 23,
+    "color": "oklch(0.56 0 0)",
+    "colorRgb": "rgb(116, 116, 116)",
+    "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "fontSize": "17.4507px",
+    "fontWeight": "400",
+    "lineHeight": "27.9211px",
+    "letterSpacing": "normal"
+   },
+   {
+    "text": " Coffee",
+    "classes": "_list_3xzvf_187",
+    "x": 32.8125,
+    "y": 224,
+    "width": 73.296875,
+    "height": 23,
+    "color": "oklch(0.16 0 0)",
+    "colorRgb": "rgb(13, 13, 13)",
+    "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "fontSize": "17.4507px",
+    "fontWeight": "400",
+    "lineHeight": "27.9211px",
+    "letterSpacing": "normal"
+   }
+  ],
+  "line5": [],
+  "line6": [
+   {
+    "text": "Oat milk, eggs and the good coffee.",
+    "classes": "cm-line",
+    "x": 22.3125,
+    "y": 279.84375,
+    "width": 293.171875,
+    "height": 50.921875,
+    "color": "oklch(0.16 0 0)",
+    "colorRgb": "rgb(13, 13, 13)",
+    "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "fontSize": "17.4507px",
+    "fontWeight": "400",
+    "lineHeight": "27.9211px",
+    "letterSpacing": "normal"
+   }
+  ]
+ },
+ "scroll": {
+  "scrollTop": 0,
+  "scrollHeight": 710,
+  "clientHeight": 710
+ },
+ "vars": {
+  "--app-safe-top": {
+   "written": "calc(0px + 0px)",
+   "px": 0
+  },
+  "--app-safe-bottom": {
+   "written": "0px",
+   "px": 0
+  },
+  "--app-gutter-start": {
+   "written": "calc(0px + calc(clamp(1.25rem, 1.1678rem + 0.4112vw, 1.5625rem) * 1.1))",
+   "px": 22.3125
+  },
+  "--app-gutter-end": {
+   "written": "calc(0px + calc(clamp(1.25rem, 1.1678rem + 0.4112vw, 1.5625rem) * 1.1))",
+   "px": 22.3125
+  },
+  "--app-gutter": {
+   "written": "calc(clamp(1.25rem, 1.1678rem + 0.4112vw, 1.5625rem) * 1.1)",
+   "px": 22.3125
+  },
+  "--recorder-top": {
+   "written": "76px",
+   "px": 76
+  }
+ },
+ "html": {
+  "data-theme": "light",
+  "data-platform": "desktop",
+  "data-note-font": "maple",
+  "data-code-light": "pastel",
+  "data-code-dark": "pastel"
+ },
+ "rootData": {
+  "phase": "listening"
+ },
+ "animations": [
+  {
+   "name": "chip-pop",
+   "target": "route",
+   "endless": false,
+   "heldAt": "end"
+  },
+  {
+   "name": "",
+   "target": "ring",
+   "endless": false,
+   "heldAt": "end"
+  },
+  {
+   "name": "",
+   "target": "ring",
+   "endless": false,
+   "heldAt": "end"
+  }
+ ]
+}

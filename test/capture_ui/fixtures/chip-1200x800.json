@@ -1,0 +1,467 @@
+{
+ "url": "http://127.0.0.1:5278/?simulate=say&say=Milk%20and%20eggs.%7CHey%20Ghost.%7CAdd%20bin%20bags%20to%20shopping%20list.",
+ "viewport": {
+  "width": 1200,
+  "height": 800,
+  "deviceScaleFactor": 2
+ },
+ "at": {
+  "waitedFor": "\"Hey Ghost.\" committed, the next phrase a guess three words long: the chip reads \"Hey Ghost: Add bin bags\"",
+  "ranMs": 2840,
+  "counter": "0:02",
+  "lines": [
+   "Milk and eggs"
+  ],
+  "chip": "Hey Ghost: Add bin bags",
+  "chipPhase": "hearing"
+ },
+ "rects": {
+  "screen": {
+   "x": 0,
+   "y": 0,
+   "width": 1200,
+   "height": 800
+  },
+  "top": {
+   "x": 0,
+   "y": 0,
+   "width": 1200,
+   "height": 88.3125
+  },
+  "mic": {
+   "x": 25.96875,
+   "y": 39.75,
+   "width": 14,
+   "height": 14
+  },
+  "micIcon": {
+   "x": 25.96875,
+   "y": 39.75,
+   "width": 14,
+   "height": 14
+  },
+  "where": {
+   "x": 60.75,
+   "y": 15.578125,
+   "width": 64.078125,
+   "height": 62.34375
+  },
+  "counter": {
+   "x": 1142.8125,
+   "y": 38.25,
+   "width": 31.21875,
+   "height": 17
+  },
+  "headerBlur": {
+   "x": 0,
+   "y": 88,
+   "width": 1200,
+   "height": 28
+  },
+  "body": {
+   "x": 25.96875,
+   "y": 0,
+   "width": 1148.0625,
+   "height": 647.125
+  },
+  "livePage": {
+   "x": 0,
+   "y": 0,
+   "width": 1200,
+   "height": 647.125
+  },
+  "editor": {
+   "x": 0,
+   "y": 88,
+   "width": 1200,
+   "height": 559.125
+  },
+  "content": {
+   "x": 0,
+   "y": 88,
+   "width": 1200,
+   "height": 559.125
+  },
+  "route": {
+   "x": 458.5625,
+   "y": 647.125,
+   "width": 282.859375,
+   "height": 43.78125
+  },
+  "routeDots": {
+   "x": 480.34375,
+   "y": 665.96875,
+   "width": 24.421875,
+   "height": 6.09375
+  },
+  "routeStrong": {
+   "x": 515.15625,
+   "y": 658.515625,
+   "width": 87.71875,
+   "height": 21
+  },
+  "footer": {
+   "x": 25.96875,
+   "y": 706.484375,
+   "width": 1148.0625,
+   "height": 93.515625
+  },
+  "discard": {
+   "x": 25.96875,
+   "y": 716.875,
+   "width": 57.96875,
+   "height": 62.34375
+  },
+  "done": {
+   "x": 1041.921875,
+   "y": 716.875,
+   "width": 132.109375,
+   "height": 62.34375
+  },
+  "doneIcon": {
+   "x": 1073.09375,
+   "y": 740.046875,
+   "width": 16,
+   "height": 16
+  },
+  "meter": {
+   "x": 1041.921875,
+   "y": 716.875,
+   "width": 132.109375,
+   "height": 62.34375
+  },
+  "line0": {
+   "x": 0,
+   "y": 113.96875,
+   "width": 1200,
+   "height": 50.0625
+  }
+ },
+ "text": {
+  "top": {
+   "text": "New note0:02",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "where": {
+   "text": "New note",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "500",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "counter": {
+   "text": "0:02",
+   "color": "oklch(0.36 0 0)",
+   "colorRgb": "rgb(61, 61, 61)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "14.1052px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.8 0 0)",
+   "colorDarkRgb": "rgb(189, 190, 190)"
+  },
+  "body": {
+   "text": "Milk and eggs",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "livePage": {
+   "text": "Milk and eggs",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "editor": {
+   "text": "Milk and eggs",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "content": {
+   "text": "Milk and eggs",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+   "fontSize": "19.4292px",
+   "fontWeight": "400",
+   "lineHeight": "31.0867px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "route": {
+   "text": "Hey Ghost: Add bin bags",
+   "color": "oklch(0.36 0 0)",
+   "colorRgb": "rgb(61, 61, 61)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "17.4476px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.8 0 0)",
+   "colorDarkRgb": "rgb(189, 190, 190)"
+  },
+  "routeStrong": {
+   "text": "Hey Ghost",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "17.4476px",
+   "fontWeight": "700",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "footer": {
+   "text": "DiscardDone",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "discard": {
+   "text": "Discard",
+   "color": "oklch(0.36 0 0)",
+   "colorRgb": "rgb(61, 61, 61)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "500",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.8 0 0)",
+   "colorDarkRgb": "rgb(189, 190, 190)"
+  },
+  "done": {
+   "text": "Done",
+   "color": "oklch(0.995 0 0)",
+   "colorRgb": "rgb(253, 253, 253)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "17.4476px",
+   "fontWeight": "600",
+   "lineHeight": "normal",
+   "letterSpacing": "-0.087238px",
+   "colorDark": "oklch(0.11 0 0)",
+   "colorDarkRgb": "rgb(4, 4, 4)"
+  },
+  "line0": {
+   "text": "Milk and eggs",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+   "fontSize": "19.4292px",
+   "fontWeight": "400",
+   "lineHeight": "31.0867px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  }
+ },
+ "box": {
+  "screen": {
+   "padding": "0px 25.9811px 0px 25.9811px",
+   "background": "oklch(0.995 0 0)",
+   "backgroundRgb": "rgb(253, 253, 253)",
+   "backgroundDark": "oklch(0.11 0 0)",
+   "backgroundDarkRgb": "rgb(4, 4, 4)"
+  },
+  "top": {
+   "padding": "15.5888px 25.9811px 10.3924px 25.9811px",
+   "gap": "20.7834px"
+  },
+  "where": {
+   "padding": "10.3924px 0px 10.3924px 0px"
+  },
+  "counter": {
+   "margin": "0px 0px 0px 997.203px"
+  },
+  "headerBlur": {
+   "opacity": "0"
+  },
+  "livePage": {
+   "padding": "88px 0px 0px 0px",
+   "margin": "0px -25.9811px 0px -25.9811px"
+  },
+  "editor": {
+   "background": "oklch(0.995 0 0)",
+   "backgroundRgb": "rgb(253, 253, 253)",
+   "backgroundDark": "oklch(0.11 0 0)",
+   "backgroundDarkRgb": "rgb(4, 4, 4)"
+  },
+  "content": {
+   "padding": "25.9811px 0px 124.706px 0px"
+  },
+  "route": {
+   "padding": "10.3924px 20.7834px 10.3924px 20.7834px",
+   "margin": "0px 0px 15.5888px 0px",
+   "borderWidth": "1px 1px 1px 1px",
+   "borderStyle": "solid solid solid solid",
+   "borderColor": "oklch(0.56 0 0)",
+   "borderRadius": "9999px",
+   "gap": "10.3924px",
+   "ownWidth": 283,
+   "ownHeight": 44,
+   "borderColorRgb": "rgb(116, 116, 116)",
+   "borderColorDark": "oklch(0.6 0 0)",
+   "borderColorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "routeDots": {
+   "opacity": "0.8"
+  },
+  "footer": {
+   "padding": "10.3924px 0px 20.7834px 0px"
+  },
+  "discard": {
+   "padding": "10.3924px 0px 10.3924px 0px"
+  },
+  "done": {
+   "padding": "0px 31.1758px 0px 31.1758px",
+   "borderRadius": "9999px",
+   "background": "oklch(0.16 0 0)",
+   "gap": "10.3924px",
+   "backgroundRgb": "rgb(13, 13, 13)",
+   "backgroundDark": "oklch(0.965 0 0)",
+   "backgroundDarkRgb": "rgb(243, 243, 243)"
+  },
+  "meter": {
+   "borderWidth": "2px 2px 2px 2px",
+   "borderStyle": "solid solid solid solid",
+   "borderColor": "oklch(0.16 0 0)",
+   "borderRadius": "9999px",
+   "opacity": "0.25",
+   "ownWidth": 132,
+   "ownHeight": 62,
+   "borderColorRgb": "rgb(13, 13, 13)",
+   "borderColorDark": "oklch(0.965 0 0)",
+   "borderColorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "line0": {
+   "padding": "0px 25.9811px 0px 25.9811px"
+  }
+ },
+ "runs": {
+  "line0": [
+   {
+    "text": "Milk and eggs",
+    "classes": "_h1_3xzvf_6",
+    "x": 25.96875,
+    "y": 107.96875,
+    "width": 356.234375,
+    "height": 61,
+    "color": "color(srgb 0.0517453 0.0517638 0.0517655 / 0.88)",
+    "colorRgb": "rgba(13, 13, 13, 0.878)",
+    "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "fontSize": "45.6793px",
+    "fontWeight": "700",
+    "lineHeight": "49.3337px",
+    "letterSpacing": "normal"
+   }
+  ]
+ },
+ "scroll": {
+  "scrollTop": 0,
+  "scrollHeight": 647,
+  "clientHeight": 647
+ },
+ "vars": {
+  "--app-safe-top": {
+   "written": "calc(0px + 0px)",
+   "px": 0
+  },
+  "--app-safe-bottom": {
+   "written": "0px",
+   "px": 0
+  },
+  "--app-gutter-start": {
+   "written": "calc(0px + calc(clamp(1.25rem, 1.1678rem + 0.4112vw, 1.5625rem) * 1.1))",
+   "px": 25.96875
+  },
+  "--app-gutter-end": {
+   "written": "calc(0px + calc(clamp(1.25rem, 1.1678rem + 0.4112vw, 1.5625rem) * 1.1))",
+   "px": 25.96875
+  },
+  "--app-gutter": {
+   "written": "calc(clamp(1.25rem, 1.1678rem + 0.4112vw, 1.5625rem) * 1.1)",
+   "px": 25.96875
+  },
+  "--recorder-top": {
+   "written": "88px",
+   "px": 88
+  }
+ },
+ "html": {
+  "data-theme": "light",
+  "data-platform": "desktop",
+  "data-note-font": "maple",
+  "data-code-light": "pastel",
+  "data-code-dark": "pastel",
+  "data-split": "on"
+ },
+ "rootData": {
+  "phase": "listening"
+ },
+ "animations": [
+  {
+   "name": "chip-in",
+   "target": "route",
+   "endless": false,
+   "heldAt": "end"
+  },
+  {
+   "name": "dots",
+   "target": "routeDots",
+   "endless": true,
+   "heldAt": "the last step of a turn"
+  },
+  {
+   "name": "",
+   "target": "ring",
+   "endless": false,
+   "heldAt": "end"
+  },
+  {
+   "name": "",
+   "target": "ring",
+   "endless": false,
+   "heldAt": "end"
+  }
+ ]
+}
