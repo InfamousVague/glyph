@@ -13,6 +13,8 @@
 //! - `kept`: the few functions `delete_note` needs from three files that do name Tauri, copied word for word.
 //! - `dispatch`: the commands, each doing what its `#[tauri::command]` in commands.rs or library_commands.rs
 //!   does, taking the same camelCase JSON the web page sent to `invoke`.
+//! - `crypto`, `crdt`, `files`: stage 7 (docs/STAGE7.md). The account's keys and the sealed wire, as the web app
+//!   asks them of WebCrypto; Yjs documents, by `yrs`; and the files sync carries. Each lists its commands.
 //! - `ffi`: the three C functions Dart calls (lib/core/native/ghost_worker.dart).
 //!
 //! Never built from inside ../glyph, and it builds nothing there: cargo's target directory is `native/target`.
@@ -54,8 +56,11 @@ pub mod jobs;
 #[path = "../../../glyph/src-tauri/src/test_support/temp.rs"]
 pub mod test_support;
 
+pub mod crdt;
+pub mod crypto;
 pub mod dispatch;
 pub mod ffi;
+pub mod files;
 pub mod kept;
 pub mod paths;
 pub mod saf;

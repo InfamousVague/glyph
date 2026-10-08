@@ -21,11 +21,62 @@ rusqlite = { version = "0.40.2", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1.26.1", features = ["v4"] }
+# The account's keys and the sealed wire (src/crypto.rs, docs/STAGE7.md): what the web app asks of WebCrypto, in pure
+# Rust, so the phone's .so needs no OpenSSL. PBKDF2 is written over hmac in crypto.rs (its two blocks on two
+# threads); the pbkdf2 crate below is only the test that holds it to the standard.
+aes-gcm = "0.10"
+sha2 = "0.10"
+hmac = "0.12"
+hkdf = "0.12"
+p256 = { version = "0.13", default-features = false, features = ["arithmetic", "ecdh", "std"] }
+ed25519-dalek = "2"
+zeroize = "1"
+getrandom = "0.2"
+# Standard base64 where the Tauri commands read it (`sync_put_file`), URL-safe on the sealed wire. 0.22 is the Tauri
+# app's own.
+base64 = "0.22"
+# Team notes and live typing (src/crdt.rs): Yjs's documents and wire format, in Rust. Pinned: 0.27 and later use
+# `if let` guards, which the Rust this builds with (1.94) does not have yet; and crdt.rs makes up for two things
+# this version does not do as Yjs does, each held by a fixture, so a newer one is to be tried against
+# tests/yjs_vectors.rs before it is taken.
+yrs = "=0.26.0"
+
+[dev-dependencies]
+pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
 
 [features]
 # A `test_panic` command, so a test on the Dart side can see a panic come back as an `err`. tool/build-native.sh
 # turns it on for the Mac's library only; the phone's has no such command.
 test-hooks = []
+
+# A debug build is what the Mac's tests and Dart's tests open, and 600,000 rounds of unoptimised SHA-256 is half a
+# minute: the hashing and the ciphers are built optimised in every profile.
+[profile.dev.package.sha2]
+opt-level = 3
+[profile.dev.package.hmac]
+opt-level = 3
+[profile.dev.package.digest]
+opt-level = 3
+[profile.dev.package.aes]
+opt-level = 3
+[profile.dev.package.aes-gcm]
+opt-level = 3
+[profile.dev.package.ghash]
+opt-level = 3
+[profile.dev.package.polyval]
+opt-level = 3
+[profile.dev.package.ctr]
+opt-level = 3
+[profile.dev.package.p256]
+opt-level = 3
+[profile.dev.package.primeorder]
+opt-level = 3
+[profile.dev.package.elliptic-curve]
+opt-level = 3
+[profile.dev.package.crypto-bigint]
+opt-level = 3
+[profile.dev.package.curve25519-dalek]
+opt-level = 3
 
 # Panics must unwind (the default): ffi.rs catches them at the boundary. Do not set `panic = "abort"`.
 [profile.release]

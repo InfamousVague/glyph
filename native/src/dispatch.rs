@@ -15,9 +15,13 @@
 //! - `ApplyCommandRequest::into_mutation`, `delete_with_files` and `status_of` are those files' own, moved here
 //!   because the files name Tauri. Their tests came with them.
 //!
-//! Not here yet, each waiting for the stage that needs it: `set_note_formatted`, `sync_put_file`,
-//! `library_reveal`, and the folder plugin's moves (`library_choose_folder`, `library_inspect`, `library_move`,
-//! `library_use_app_folder`).
+//! - **Stage 7's commands live in files of their own** and are only handed on from here: the account's keys and
+//!   the sealed wire (crypto.rs) and Yjs documents (crdt.rs) are answered before the library is looked for, so
+//!   they need no `init` and never wait on the notes' lock; the files sync carries (files.rs, `sync_put_file`
+//!   among them) are answered with the library's directories.
+//!
+//! Not here yet, each waiting for the stage that needs it: `set_note_formatted`, `library_reveal`, and the folder
+//! plugin's moves (`library_choose_folder`, `library_inspect`, `library_move`, `library_use_app_folder`).
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -350,6 +354,8 @@ impl Core {
             }
             // Where the library is now.
             "library_root" => answer(status_of(&self.data, store)),
+            // The files sync carries: a recording, a picture, a versions file (files.rs).
+            command if crate::files::has(command) => crate::files::call(&self.data, store, command, args),
             // A panic with the library's lock held, for the tests of what the boundary does with one.
             #[cfg(any(test, feature = "test-hooks"))]
             "test_panic" => {
@@ -384,6 +390,9 @@ pub fn invoke(command: &str, args: Value) -> Result<Value, String> {
     match command {
         "init" => init(args),
         "new_id" => Ok(Value::String(crate::note::new_id())),
+        // Keys, sealing and documents hold tables of their own: no library, and none of its lock.
+        command if crate::crypto::has(command) => crate::crypto::call(command, args),
+        command if crate::crdt::has(command) => crate::crdt::call(command, args),
         _ => {
             // The core is taken out from under its lock before the command runs, so a slow command holds only the
             // library's own.
