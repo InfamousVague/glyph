@@ -17,6 +17,16 @@
 //   hits    `view.posAtCoords` over a grid of points
 // and test/editor/view/fixtures/<name>.png, the picture.
 //
+// Pieces E and F (lib/editor/marks, lib/editor/items) have cases of their own, drawn by the FULL editor and written
+// beside their tests (test/editor/marks/fixtures, test/editor/items/fixtures). Beside the above each has
+//   marks   every element the marks and the inline items draw (`DRAWN` below): its classes, attributes, text, the
+//           document position under it, its rectangle and client rectangles, and its computed colour, ground, size,
+//           weight, decoration, opacity, `top`, filter and text-shadow
+//   today   the day the page counted a due date from, and `locale`, the language it named it in
+// The `marks-at-*` cases hold the page's clock: the frame loop is told `at` seconds and CSS and SVG animations are
+// set to it, so the moving marks can be compared at a moment (test/editor/marks/effects_test.dart). `still` cases
+// ask for reduced motion.
+//
 //   (cd ../glyph && npx vite --port 5270 --strictPort --host 127.0.0.1) &     # read-only: never `vite build` there
 //   node tool/editor_reference.mjs [name ...]
 //
@@ -46,11 +56,20 @@ const DOCS = {
   front: `---\ntitle: A note\nplace: Lisbon\n---\n# After the front matter\nwords`,
   empty: '',
   blank: 'one\n\n\n\nfive',
+  // Pieces E and F (lib/editor/marks, lib/editor/items): the twelve marks, and the items drawn in the words.
+  marks: 'A ||secret|| here and ==the key== and ==green==(green) words.\nAn %%aside%% and ??unsure??(Sam said so) and @@redacted@@ text.\nA ^^shout^^ and ++added++ and plain.\nThe line above the heat, which wavers.\n🔥🔥too hot🔥🔥 and ❄️❄️frozen❄️❄️ here.\n🌊🌊out to sea🌊🌊 and ✨✨silver✨✨ and 👻👻nobody there👻👻.\n>| the answer is hidden\n# Heading ==lit== and @@bar@@',
+  items: '# Packing\n- [x] Tent #gear\n- [ ] Stove @sam ⏫ 📅 2026-10-03\n- [ ] Food 🔁 every week [effort:: 3] 🛫 2026-12-25\n- [ ] Later 📅 2027-03-09 🔽 @ana-ortiz\n## Counts\n- Water [3/8] and [8/8] and [0/50]\n= 450 + 120 * 2\n- ( ) Tent\n- (x) Cabin\nA footnote[^sam] and a [[Known note]] and a [[New note]].\nA bookmarked line §§\n- [ ] Ship the page ^ship-page\nSee [[#^ship-page]] and [[#^gone]] and :tada: here.\n\n[^sam]: Sam said so.',
+  open: '# ',
 };
+
+/** What pieces E and F draw in the words: every one of these on the page is written to a case's `marks`. */
+const DRAWN = '.cm-tag, .cm-field, .cm-fieldInitial, .cm-fieldName, .cm-fieldWords, .cm-field > svg, .cm-counter, .cm-sumAnswer, .cm-headingCount, .cm-choiceBox, .cm-footMark, .cm-wiki, .cm-bookmarkMark, .cm-itemAnchor, .cm-itemRef, .cm-formatLook, .cm-textEffect, .cm-textEffectAbove, .cm-wispFormat, .cm-openHint, .cm-emoji';
 
 /** The cases: a note, how it is shown, and where the caret is (which focuses the editor). */
 const CASES = [];
 for (const name of Object.keys(DOCS)) {
+  // The marks' and the items' notes are drawn by the whole editor only, further down.
+  if (['marks', 'items', 'open'].includes(name)) continue;
   CASES.push({ name: `${name}-mixed`, doc: name, display: 'mixed' });
   CASES.push({ name: `${name}-formatted`, doc: name, display: 'formatted' });
 }
@@ -77,6 +96,30 @@ CASES.push({ name: 'tasks-peek', doc: 'tasks', display: 'formatted', peek: true 
 CASES.push({ name: 'mixed-peek-whole', doc: 'mixed', display: 'formatted', peek: true, whole: true });
 // The web `Editor` itself, every extension in it, for the pieces after this one.
 for (const one of [...CASES]) if (/^(mixed|inline|tasks|headings)-(mixed|formatted|peek)$/.test(one.name)) CASES.push({ ...one, name: `full/${one.name}`, full: true });
+
+// Pieces E and F: the web `Editor` itself over their notes, written beside their own tests.
+const MARKS_OUT = new URL('../test/editor/marks/fixtures/', import.meta.url).pathname;
+const ITEMS_OUT = new URL('../test/editor/items/fixtures/', import.meta.url).pathname;
+mkdirSync(MARKS_OUT, { recursive: true });
+mkdirSync(ITEMS_OUT, { recursive: true });
+for (const display of ['mixed', 'formatted']) {
+  CASES.push({ name: `marks-${display}`, doc: 'marks', display, full: true, out: MARKS_OUT, still: true });
+  CASES.push({ name: `items-${display}`, doc: 'items', display, full: true, out: ITEMS_OUT, wiki: true });
+}
+CASES.push({ name: 'marks-dark', doc: 'marks', display: 'mixed', theme: 'dark', full: true, out: MARKS_OUT, still: true });
+CASES.push({ name: 'marks-readonly', doc: 'marks', display: 'mixed', readOnly: true, full: true, out: MARKS_OUT, still: true });
+// The caret in the redaction (the bar lifts) and on the fields' line (the chips are their characters again).
+CASES.push({ name: 'marks-caret', doc: 'marks', display: 'mixed', caret: 112, full: true, out: MARKS_OUT, still: true });
+CASES.push({ name: 'items-caret', doc: 'items', display: 'mixed', caret: 40, full: true, out: ITEMS_OUT, wiki: true });
+CASES.push({ name: 'items-readonly', doc: 'items', display: 'formatted', readOnly: true, full: true, out: ITEMS_OUT, wiki: true });
+CASES.push({ name: 'items-inter', doc: 'items', display: 'mixed', noteFace: 'inter', full: true, out: ITEMS_OUT, wiki: true });
+CASES.push({ name: 'items-peek', doc: 'items', display: 'formatted', peek: true, full: true, out: ITEMS_OUT });
+CASES.push({ name: 'open-mixed', doc: 'open', display: 'mixed', full: true, out: ITEMS_OUT, openHeading: true });
+// The moving marks at fixed times, for pictures: the page's clock is held at `at` seconds (test/editor/marks).
+// Formatted, so the effects' own delimiters (emoji, which no test has a face for) are not on the line.
+for (const at of [0, 0.7, 1.9]) CASES.push({ name: `marks-at-${String(at).replace('.', '_')}`, doc: 'marks', display: 'formatted', full: true, out: MARKS_OUT, at });
+// And on the dark page, where the shimmer is a glow and not a sheen.
+CASES.push({ name: 'marks-dark-at-0', doc: 'marks', display: 'formatted', theme: 'dark', full: true, out: MARKS_OUT, at: 0 });
 
 const only = process.argv.slice(2);
 const browser = await chromium.launch();
@@ -188,8 +231,10 @@ if (only.includes('--breaks')) {
 for (const one of CASES) {
   if (only.length && !only.includes(one.name)) continue;
   const doc = DOCS[one.doc];
+  // `still` is reduced motion, which the app reads from the media query (core/motion.ts `prefersStill`).
+  await page.emulateMedia({ reducedMotion: one.still ? 'reduce' : 'no-preference' });
   const result = await page.evaluate(
-    async ({ one, doc }) => {
+    async ({ one, doc, DRAWN }) => {
       const { React, ReactDOM, EditorModule, PeekModule, Prefs } = window;
       const theme = one.theme ?? 'light';
       Prefs.applyPreferences({ ...Prefs.DEFAULT_PREFERENCES, theme, noteFace: one.noteFace ?? Prefs.DEFAULT_PREFERENCES.noteFace, textSize: one.textSize ?? Prefs.DEFAULT_PREFERENCES.textSize });
@@ -199,6 +244,10 @@ for (const one of CASES) {
       window.madeView = null;
       const stage = document.getElementById('stage');
       stage.replaceChildren();
+      // A held clock for the moving marks: the frame loop is told `at` seconds, and CSS and SVG animations are set
+      // to it below.
+      window.realRaf ??= window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = one.at === undefined ? window.realRaf : (run) => window.realRaf(() => run(one.at * 1000));
       document.body.style.background = 'var(--glacier-bg)';
       const host = document.createElement('div');
       // The page's width, and as tall as the note: the editor grows, as on the note screen.
@@ -218,6 +267,8 @@ for (const one of CASES) {
           readOnly,
           peek: one.peek || false,
           grow: true,
+          openHeading: one.openHeading || false,
+          wiki: one.wiki ? { known: (title) => /^known/i.test(title), open: () => {} } : undefined,
           onView: (made) => {
             view = made;
           },
@@ -276,6 +327,18 @@ for (const one of CASES) {
       // Asked for here, so `posAtCoords` (which looks a line up by its measured height) is the settled page's.
       view.requestMeasure();
       await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+      if (one.at !== undefined) {
+        for (const svg of document.querySelectorAll('svg')) {
+          svg.pauseAnimations?.();
+          svg.setCurrentTime?.(one.at);
+        }
+        for (const animation of document.getAnimations()) {
+          animation.pause();
+          // A letter's negative delay is its phase: the clock's time is laid over it.
+          animation.currentTime = one.at * 1000;
+        }
+        await new Promise((done) => window.realRaf(() => window.realRaf(done)));
+      }
       const origin = host.getBoundingClientRect();
       const rect = (r) => (r ? { left: +(r.left - origin.left).toFixed(3), top: +(r.top - origin.top).toFixed(3), right: +(r.right - origin.left).toFixed(3), bottom: +(r.bottom - origin.top).toFixed(3) } : null);
       const lines = [];
@@ -312,6 +375,39 @@ for (const one of CASES) {
           runs,
         });
       }
+      const marks = [];
+      for (const el of view.contentDOM.querySelectorAll(DRAWN)) {
+        const at = getComputedStyle(el);
+        const attrs = {};
+        for (const attr of el.attributes) if (attr.name !== 'class') attrs[attr.name] = attr.value;
+        let pos = null;
+        try {
+          pos = view.posAtDOM(el);
+        } catch {
+          pos = null;
+        }
+        marks.push({
+          classes: [...(el.classList ?? [])].map((c) => c.replace(/^_|_[a-z0-9]+_\d+$/gi, '')),
+          tag: el.tagName.toLowerCase(),
+          text: el.textContent,
+          attrs,
+          pos,
+          rect: rect(el.getBoundingClientRect()),
+          rects: [...el.getClientRects()].map(rect),
+          color: at.color,
+          background: at.backgroundColor,
+          size: parseFloat(at.fontSize),
+          weight: at.fontWeight,
+          family: at.fontFamily.split(',')[0].replace(/['"]/g, ''),
+          decoration: at.textDecoration,
+          opacity: at.opacity,
+          top: at.top,
+          filter: at.filter,
+          shadow: at.textShadow,
+        });
+      }
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       const coords = [];
       for (let pos = 0; pos <= view.state.doc.length; pos += 1) {
         coords.push({ pos, after: rect(view.coordsAtPos(pos, 1)), before: rect(view.coordsAtPos(pos, -1)) });
@@ -343,16 +439,21 @@ for (const one of CASES) {
         face: { family: scroller.fontFamily, size: parseFloat(scroller.fontSize), lineHeight: scroller.lineHeight, color: getComputedStyle(view.dom).color, page: root.getPropertyValue('--glacier-bg') },
         lines,
         blocks,
+        marks,
+        today,
+        locale: navigator.language,
+        at: one.at ?? null,
         coords,
         hits,
         clip: { x: 0, y: 0, width: Math.ceil(origin.width), height: Math.min(844, Math.ceil(view.dom.getBoundingClientRect().bottom - origin.top)) },
       };
     },
-    { one, doc },
+    { one, doc, DRAWN },
   );
   const { clip, ...kept } = result;
-  writeFileSync(`${OUT}${one.name}.json`, `${JSON.stringify(kept)}\n`);
-  writeFileSync(`${OUT}${one.name}.png`, await page.screenshot({ clip: { ...clip, height: Math.max(1, clip.height) } }));
+  const out = one.out ?? OUT;
+  writeFileSync(`${out}${one.name}.json`, `${JSON.stringify(kept)}\n`);
+  writeFileSync(`${out}${one.name}.png`, await page.screenshot({ clip: { ...clip, height: Math.max(1, clip.height) } }));
   console.log(one.name, kept.lines.length, 'lines');
 }
 

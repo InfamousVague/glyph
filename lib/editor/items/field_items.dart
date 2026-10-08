@@ -1,0 +1,249 @@
+/// The press-and-hold menu's pages for a to-do's fields. Ports `src/app/editor/FieldItems.tsx` and
+/// `FieldItems.module.css`.
+///
+/// - **A day** (the due day, or a start or scheduled day tapped): Today, Tomorrow, Next week, Pick a date and
+///   Remove when it has one. The day it has is lit.
+/// - **Priority**: the five, the most urgent first, in the marks the chips draw, and None. The one it has is lit.
+/// - **A person** tapped: Remove.
+/// - **Assign**: the people the note already names, lit where they are on the line, each pressed on and off, and
+///   Someone new, which writes the at sign where a person goes and leaves the caret after it for the name.
+///
+/// Every press writes through `lib/core/task_fields.dart` and closes the menu, but a person pressed on Assign,
+/// which stays so a second can be added. The editor gets its focus back only where it had it: a chip tapped on a
+/// note being read must not raise the keyboard.
+///
+/// What differs: on the web these are rows of the note's own press-and-hold band (`ContextMenu.tsx`,
+/// `MenuBand.tsx`), which is the band's piece to port. [fieldItems] is the page as data - each choice's icon,
+/// word, name, whether it is lit, its priority's tone and its press - for that band to draw as its rows; until
+/// then [FieldMenuHost] draws a tapped chip's page in the kit's menu, hung from the chip. Lit is said with the
+/// kit's own selected row; a priority's mark wears its chip's colour, as `FieldItems.module.css` gives it.
+library;
+
+import 'package:flutter/widgets.dart' hide Decoration;
+import 'package:glacier/glacier.dart';
+
+import '../../art/app_icon.dart';
+import '../../art/lucide.g.dart';
+import '../../core/task_fields.dart';
+import '../../core/text.dart' show capitalise;
+import '../editor.dart';
+import 'field_chips.dart';
+import 'field_menu.dart';
+import 'task_fields.dart' show fieldsToday;
+
+const Map<String, LucideIcon> _dayIcon = <String, LucideIcon>{'today': Lucide.sun, 'tomorrow': Lucide.sunrise, 'next-week': Lucide.calendarDays};
+
+/// How many of the note's people Assign offers before Someone new: a band's width on a phone, about.
+const int _mostPeople = 6;
+
+/// A field's choice: its icon over its word, lit where the line has it.
+class FieldItem {
+  const FieldItem({required this.icon, required this.label, this.name, this.lit, this.tone, required this.onPress, this.closes = true});
+
+  final LucideIcon icon;
+  final String label;
+
+  /// What a screen reader hears, where it is more than the label.
+  final String? name;
+
+  /// Null for a row that is not one of a set (`menuitem`); else whether it is the one the line has
+  /// (`menuitemradio`).
+  final bool? lit;
+
+  /// A priority's name, whose mark wears its chip's colour.
+  final String? tone;
+
+  /// The press, with where the row is on the screen.
+  final void Function(Rect box) onPress;
+
+  /// Whether the menu closes on the press: all but a person pressed on Assign.
+  final bool closes;
+}
+
+/// The rows of `page` for line `line` (from 1) of `view`, or null where there is no such line. `onClose` closes
+/// the menu, `onBack` (absent for a page a chip opened) goes back to the line's actions, `refocus` is whether the
+/// editor had its focus when the menu opened, and so gets it back, and `redraw` asks for the rows again.
+List<FieldItem>? fieldItems(EditorViewLike view, int line, FieldPage page, {VoidCallback? onBack, required VoidCallback onClose, bool refocus = false, VoidCallback? redraw, String? today}) {
+  final fields = lineFields(view, line);
+  if (fields == null) return null;
+  final day = today ?? todayIs();
+
+  // A press that writes and closes: the menu first, then the edit, then the focus where it was.
+  void Function(Rect) write(void Function() run) => (_) {
+    haptic(HapticKind.selection);
+    onClose();
+    run();
+    if (refocus) view.focus();
+  };
+
+  final items = <FieldItem>[if (onBack != null) FieldItem(icon: Lucide.chevronLeft, label: 'Back', name: "Back to the note's actions", onPress: (_) => onBack(), closes: false)];
+
+  switch (page) {
+    case DatePage(:final key):
+      final current = fields.date(key);
+      for (final choice in dayChoices(day)) {
+        items.add(
+          FieldItem(icon: _dayIcon[choice.id]!, label: choice.label, name: '${capitalise(key)} ${choice.label.toLowerCase()}', lit: current == choice.day, onPress: write(() => setLineField(view, line, key, choice.day))),
+        );
+      }
+      if (view.state.facet(dayPicker) != null) {
+        items.add(
+          FieldItem(
+            icon: Lucide.calendarSearch,
+            label: 'Pick a date',
+            onPress: (box) {
+              // Opened from the press itself, before the menu goes.
+              pickDay(view, box.topLeft, current, (picked) {
+                setLineField(view, line, key, picked);
+                if (refocus) view.focus();
+              });
+              haptic(HapticKind.selection);
+              onClose();
+            },
+          ),
+        );
+      }
+      if (current != null) items.add(FieldItem(icon: Lucide.calendarX, label: 'Remove', name: 'Remove the $key date', onPress: write(() => setLineField(view, line, key, null))));
+    case PriorityPage():
+      for (final priority in priorities) {
+        items.add(
+          FieldItem(
+            icon: priorityIcon[priority.name]!,
+            label: priority.label,
+            name: '${priority.label} priority',
+            tone: priority.name,
+            lit: fields.priority == priority.name,
+            onPress: write(() => setLineField(view, line, 'priority', priority.name)),
+          ),
+        );
+      }
+      items.add(FieldItem(icon: Lucide.ban, label: 'None', name: 'No priority', lit: fields.priority == null, onPress: write(() => setLineField(view, line, 'priority', null))));
+    case PersonPage(:final name):
+      final shown = personShown(name);
+      items.add(FieldItem(icon: Lucide.userMinus, label: 'Remove', name: 'Take $shown off', onPress: write(() => setLinePerson(view, line, name, false))));
+    case AssignPage():
+      // Assign: who the note names, then someone new.
+      for (final person in peopleIn(view.state.doc.toString()).take(_mostPeople)) {
+        final on = fields.assignees.any((name) => samePerson(name, person));
+        final shown = personShown(person);
+        items.add(
+          FieldItem(
+            icon: Lucide.userRound,
+            label: shown,
+            name: on ? 'Take $shown off' : 'Assign $shown',
+            lit: on,
+            closes: false,
+            onPress: (_) {
+              haptic(HapticKind.selection);
+              setLinePerson(view, line, person, !on);
+              redraw?.call();
+            },
+          ),
+        );
+      }
+      items.add(
+        FieldItem(
+          icon: Lucide.userPlus,
+          label: 'Someone new',
+          onPress: (_) {
+            haptic(HapticKind.selection);
+            onClose();
+            startPerson(view, line);
+          },
+        ),
+      );
+  }
+  return items;
+}
+
+/// A priority's mark in its chip's colour (`FieldItems.module.css`); null for the row's own ink.
+Color? fieldToneColor(Tokens t, String? tone) => switch (tone) {
+  'highest' || 'high' => t.color('glacier-red-11'),
+  'medium' => t.color('glacier-amber-11'),
+  'low' => t.color('glacier-blue-11'),
+  'lowest' => t.color('app-ink-3'),
+  _ => null,
+};
+
+/// Draws a tapped chip's page in the kit's menu, hung from the chip, over `child` (the editor). The band takes
+/// this over when it is ported; the rows are [fieldItems] either way.
+class FieldMenuHost extends StatefulWidget {
+  const FieldMenuHost({super.key, required this.view, required this.child});
+
+  final EditorViewLike view;
+  final Widget child;
+
+  @override
+  State<FieldMenuHost> createState() => _FieldMenuHostState();
+}
+
+class _FieldMenuHostState extends State<FieldMenuHost> {
+  bool _refocus = false;
+
+  ValueNotifier<FieldTap?> get _tap => fieldTapOf(widget.view);
+
+  void _changed() {
+    if (!mounted) return;
+    if (_tap.value != null) _refocus = widget.view.hasFocus;
+    setState(() {});
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _tap.addListener(_changed);
+  }
+
+  @override
+  void didUpdateWidget(FieldMenuHost oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.view, widget.view)) {
+      fieldTapOf(oldWidget.view).removeListener(_changed);
+      _tap.addListener(_changed);
+    }
+  }
+
+  @override
+  void dispose() {
+    _tap.removeListener(_changed);
+    super.dispose();
+  }
+
+  void _close() => _tap.value = null;
+
+  @override
+  Widget build(BuildContext context) {
+    final tap = _tap.value;
+    final items = tap == null ? null : fieldItems(widget.view, tap.line, tap.page, onClose: _close, refocus: _refocus, redraw: () => setState(() {}), today: widget.view.state.facet(fieldsToday)?.call());
+    if (tap == null || items == null) return widget.child;
+    final t = context.tokens;
+    return Stack(
+      children: <Widget>[
+        widget.child,
+        GlacierMenu(
+          anchor: GlacierAnchor.rect(Rect.fromLTWH(tap.x, tap.y, 0, t.len('app-body') * 1.35)),
+          open: true,
+          onOpenChange: (open) {
+            if (!open) _close();
+          },
+          ariaLabel: 'Field',
+          children: <Widget>[
+            for (final item in items)
+              Builder(
+                builder: (context) => GlacierMenuItem(
+                  icon: AppIcon(item.icon, size: 16, color: item.lit == true ? null : fieldToneColor(t, item.tone), wash: false),
+                  ariaLabel: item.name,
+                  shortcut: item.lit == true ? const AppIcon(Lucide.check, size: 14, wash: false) : null,
+                  onSelect: () {
+                    final box = context.findRenderObject();
+                    item.onPress(box is RenderBox && box.attached ? box.localToGlobal(Offset.zero) & box.size : Rect.zero);
+                  },
+                  child: Text(item.label),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
