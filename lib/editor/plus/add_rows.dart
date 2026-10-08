@@ -46,7 +46,7 @@ import '../../core/front_matter.dart';
 import '../../core/item_syntax.dart';
 import '../../core/properties.dart';
 import '../../core/task_fields.dart';
-import '../../notes/note_templates.dart' show clockTime, formatStamp, withFrontMatterValue;
+import '../../notes/note_templates.dart' show clockTime, formatStamp;
 import '../commands/format.dart';
 import '../commands/inserts.dart';
 import '../state/change.dart';

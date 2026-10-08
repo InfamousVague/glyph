@@ -28,14 +28,13 @@
 ///     columns.dart   columns as data: cards moved, dropped, taken off, drawn in Done, paired with their items
 ///     settle.dart    a tick carried to every fence, so the markdown agrees with the boxes
 ///     make.dart      boards and cards made from a note's own lists
+///     lanes.dart     lanes found by name and filled, for "add … to Doing" said on a board's own Speak
 ///
 /// Every transform answers new text or new columns and never changes what it was given.
 ///
-/// What differs: the web's sixth module, `lanes.ts` (lanes found by name and filled, for "add … to Doing" said on a
-/// board's own Speak: `addToLane`, `lanesOf`, `matchLane`, `moveToLane`, `Lane`), is not here yet. It needs
-/// `capture/route.ts`, the recorder's, which is a later stage of the port; it joins this door when that lands. The
-/// constants are lowerCamel: `BOARD_HEIGHT` is `boardHeight` and `NEW_COLUMNS` is `newColumns`. `fencedLines` stays
-/// behind the door, as on the web, where only make.ts reads it.
+/// What differs: the constants are lowerCamel: `BOARD_HEIGHT` is `boardHeight` and `NEW_COLUMNS` is `newColumns`.
+/// `fencedLines` stays behind the door, as on the web, where only make.ts reads it. lanes.dart writes out the
+/// recorder's `similarity` itself until `capture/route.ts` is ported (see there).
 library;
 
 export 'boards/columns.dart'
@@ -44,5 +43,6 @@ export 'boards/fence.dart'
     show Board, BoardColumn, boardAt, boardCopy, boardHeight, boardsIn, clampHeight, readBoard, withBoardHeight, writeBoard;
 export 'boards/items.dart'
     show Item, ItemRef, anchorFor, cardText, isItemLine, itemAt, itemOnLine, itemWords, itemsIn, refFor, refsIn, setItemDone, withAnchor;
+export 'boards/lanes.dart' show Lane, addToLane, lanesOf, matchLane, moveToLane;
 export 'boards/make.dart' show BoardMade, CardAdded, CardMade, ListBoard, addToBoard, boardFrom, boardFromList, listAround, newCard, newColumns;
 export 'boards/settle.dart' show FenceEdit, SettledTicks, settleBoards, settleTicks;

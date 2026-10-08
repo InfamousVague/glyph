@@ -20,9 +20,9 @@
 ///   there; Note alone is here until those arrive.
 /// - **The switch for a meeting's own sound** is [NewSheet.sound], its words and whether it is on handed in, where
 ///   the page asked `capture/systemSound.ts` and wrote the preference itself.
-/// - `book/entryStarts.ts` ([entryStarts], [startLine]) and the journal's presets (`book/journal.ts` `PRESETS`) are
-///   ported here, since the journal is not; a template's line is filled by lib/notes/note_templates.dart, whose days
-///   and months are English (see there).
+/// - `book/entryStarts.ts` ([entryStarts], [startLine]) and the journal's presets (`book/journal.ts` `PRESETS`) were
+///   ported here first; they are lib/book/entry_starts.dart and lib/book/journal.dart now, and this file hands them
+///   on. A template's line is filled by lib/core/template.dart, whose days and months are English (see there).
 /// - A failure saving a copy is said as `'$failure'` says it, less a leading "Exception: " (`core/failure.ts` took an
 ///   `Error`'s message).
 /// - The template cards a new note can start from are not in this sheet on the page either: they are on the new
@@ -34,73 +34,14 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../art/art.dart';
+import '../book/entry_starts.dart' show entryStarts, startLine;
 import '../sheet/css.dart';
 import '../sheet/flow.dart';
 import '../sheet/kit.dart';
 import '../sheet/sheet.dart';
-import 'note_templates.dart';
 
-// ---- book/journal.ts, book/entryStarts.ts -------------------------------------------------------------------------
-
-/// A template a journal's entries can start from (`Preset`).
-@immutable
-class EntryPreset {
-  const EntryPreset({required this.id, required this.name, required this.text, required this.sentence});
-  final String id;
-  final String name;
-  final String text;
-  final String sentence;
-}
-
-/// The templates offered, in the order the sheet lists them: the first is every journal's default (`PRESETS`).
-const List<EntryPreset> entryPresets = [
-  EntryPreset(id: 'stamped', name: 'The date and the time', text: '# {{date}}\n\n**{{time}}** ', sentence: 'Starts with the date and the time.'),
-  EntryPreset(id: 'time', name: 'Just the time', text: '**{{time}}** ', sentence: 'Starts with the time.'),
-  EntryPreset(id: 'morning', name: 'A morning page', text: '# {{date}}\n\n> What is on your mind this morning?\n\n', sentence: 'Starts with a question for the morning.'),
-  EntryPreset(id: 'todos', name: 'A day’s to-dos', text: '# {{date}}\n\n## To do\n\n- [ ] ', sentence: 'Starts with a to-do list.'),
-];
-
-/// One way to start an entry: its name, and the text it starts with (`Start`).
-@immutable
-class EntryStart {
-  const EntryStart({required this.id, required this.name, required this.text});
-  final String id;
-  final String name;
-  final String text;
-}
-
-/// The journal's usual template first, then the presets it is not, then an empty page (`entryStarts`).
-List<EntryStart> entryStarts(String usual) {
-  EntryPreset? preset;
-  for (final each in entryPresets) {
-    if (each.text == usual) preset = each;
-  }
-  return [
-    // `OWN.name`: a template of the person's own writing.
-    EntryStart(id: 'usual', name: preset?.name ?? 'My own', text: usual),
-    for (final each in entryPresets)
-      if (each.text != usual) EntryStart(id: each.id, name: each.name, text: each.text),
-    if (usual.trim().isNotEmpty) const EntryStart(id: 'empty', name: 'An empty page', text: ''),
-  ];
-}
-
-String _two(int n) => n.toString().padLeft(2, '0');
-
-/// An entry's name, by the minute it was made: "2026-09-28 14.05" (`entryTitle`).
-String entryTitle(DateTime at) => '${at.year}-${_two(at.month)}-${_two(at.day)} ${_two(at.hour)}.${_two(at.minute)}';
-
-final RegExp _lineMark = RegExp(r'^\s*(?:#{1,6}\s+|>\s?|[-*+]\s+\[[ xX]\]\s*|[-*+]\s+)');
-final RegExp _emphasis = RegExp(r'\*\*|__|\*|_');
-
-/// How a template starts, on one line: filled for now, its marks taken off, its lines joined (`startLine`).
-String startLine(String text, String journal, DateTime at) {
-  final filled = fillTemplate(text, at: at, title: entryTitle(at), journal: journal.trim().isEmpty ? 'Journal' : journal.trim());
-  final lines = [
-    for (final line in filled.split('\n'))
-      if (line.replaceFirst(_lineMark, '').replaceAll(_emphasis, '').trim() case final words when words.isNotEmpty) words,
-  ];
-  return lines.isNotEmpty ? lines.join(' · ') : 'Nothing, a blank page';
-}
+export '../book/entry_starts.dart' show EntryStart, entryStarts, startLine;
+export '../book/journal.dart' show EntryPreset, entryPresets, entryTitle;
 
 /// How long a template's line runs on its row before it stops (`HINT_MOST`).
 const int _hintMost = 90;
