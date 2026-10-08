@@ -20,5 +20,8 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+        // The session and the account's keys, under a key the Android Keystore holds (SecureStore.kt;
+        // lib/account/device_keys.dart).
+        SecureStore(applicationContext).register(flutterEngine.dartExecutor.binaryMessenger)
     }
 }

@@ -927,7 +927,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
     List<Rect> boxesOf(Segment seg, RunLook run) => <Rect>[
       for (final rect in rectsForRange(seg.from, seg.to))
         for (final line in _lines)
-          if (line.top == rect.top) Rect.fromLTRB(rect.left, line.baseline - run.shift - run.ascent, rect.right, line.baseline - run.shift + run.descent).shift(offset),
+          if (math.min(line.top, line.contentTop) == rect.top) Rect.fromLTRB(rect.left, line.baseline - run.shift - run.ascent, rect.right, line.baseline - run.shift + run.descent).shift(offset),
     ];
     for (var s = 0; s < proj.segments.length; s++) {
       final seg = proj.segments[s], run = _spec.runs[s];

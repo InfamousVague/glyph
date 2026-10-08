@@ -46,6 +46,7 @@
 //! | `recovery_sheet` | `{handle, key, rounds?}` | `{codes, entries: [{login, wrapped}]}` |
 //! | `device_key_new` | | `{key, public}` |
 //! | `device_key_sign` | `{key, nonce}` | the signature |
+//! | `device_key_verify` | `{public, nonce, signature}` | whether that device signed that nonce: the service's half, for a service in memory |
 //! | `pair_new` | | `{key, public}` |
 //! | `pair_seal` | `{key, accountKey}` | the private half's JWK, sealed as `encryption-key` |
 //! | `pair_open` | `{sealed, accountKey}` | `{key, public}` |
@@ -114,7 +115,7 @@ const BAD_WRAP: &str = "That wrap could not be read.";
 const NEWER_SHARE: &str = "This link was shared by a newer Ghost.md. Update the app to read it.";
 
 /// Every command this module answers. dispatch.rs asks before it looks for the library.
-const COMMANDS: [&str; 38] = [
+const COMMANDS: [&str; 39] = [
     "salt",
     "normalise_code",
     "derive",
@@ -131,6 +132,7 @@ const COMMANDS: [&str; 38] = [
     "recovery_sheet",
     "device_key_new",
     "device_key_sign",
+    "device_key_verify",
     "pair_new",
     "pair_seal",
     "pair_open",
@@ -781,6 +783,13 @@ struct Sign {
 }
 
 #[derive(Deserialize)]
+struct Verify {
+    public: String,
+    nonce: String,
+    signature: String,
+}
+
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PairSeal {
     key: u64,
@@ -983,6 +992,17 @@ pub fn call(command: &str, args: Value) -> Result<Value, String> {
                 Key::Device(device) => Ok(json!(to_base64url(&device.sign(nonce.as_bytes()).to_bytes()))),
                 other => Err(format!("A {} key does not sign.", other.kind())),
             }
+        }
+        // What server/src/accounts.rs does with a device's signature at `login/device`: no key of this device's is
+        // asked for, and anything that is not a key or a signature is simply not a match.
+        "device_key_verify" => {
+            use ed25519_dalek::Verifier as _;
+            let Verify { public, nonce, signature } = read(command, args)?;
+            let public: Option<[u8; 32]> = from_base64url(&public).ok().and_then(|bytes| bytes.try_into().ok());
+            let signature: Option<[u8; 64]> = from_base64url(&signature).ok().and_then(|bytes| bytes.try_into().ok());
+            let (Some(public), Some(signature)) = (public, signature) else { return Ok(json!(false)) };
+            let Ok(verifying) = ed25519_dalek::VerifyingKey::from_bytes(&public) else { return Ok(json!(false)) };
+            Ok(json!(verifying.verify(nonce.as_bytes(), &ed25519_dalek::Signature::from_bytes(&signature)).is_ok()))
         }
         "pair_new" => {
             let secret = new_pair()?;
@@ -1339,6 +1359,11 @@ mod tests {
         assert!(verifying.verify(b"nonce-1", &ed25519_dalek::Signature::from_bytes(&signature)).is_ok());
         assert!(verifying.verify(b"nonce-2", &ed25519_dalek::Signature::from_bytes(&signature)).is_err());
         assert_eq!(ask("key_public", json!({"key": made["key"]})), made["public"]);
+        // And the core's own check, which a service in memory is handed, says what dalek's said.
+        let said = to_base64url(&signature);
+        assert_eq!(ask("device_key_verify", json!({"public": made["public"], "nonce": "nonce-1", "signature": said})), json!(true));
+        assert_eq!(ask("device_key_verify", json!({"public": made["public"], "nonce": "nonce-2", "signature": said})), json!(false));
+        assert_eq!(ask("device_key_verify", json!({"public": "not a key", "nonce": "nonce-1", "signature": said})), json!(false));
         // Kept, restored: the same key signs the same.
         let again = ask("key_restore", ask("key_keep", json!({"key": made["key"]})));
         assert_eq!(again["public"], made["public"]);

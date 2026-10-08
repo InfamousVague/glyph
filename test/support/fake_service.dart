@@ -24,7 +24,8 @@
 /// What differs from the web's:
 /// - Its crypto is `test/support/fake_crypto.dart`, which is NOT cryptography: a device under test must be given the
 ///   same kind, and nothing here proves the wire. The device signature at `login/device` is checked by
-///   [FakeCrypto.verifyNonce] where the web's fake asks WebCrypto.
+///   [FakeCrypto.verifyNonce] where the web's fake asks WebCrypto. A test may hand it the real crypto and the core's
+///   own Ed25519 check instead ([FakeService.start]; test/e2e/real_crypto_test.dart).
 /// - It is a class, made by [FakeService.start], with the web's returned object's members as its own.
 /// - `Date.now()` is [FakeService.clock], which a test may set.
 /// - A second signup under another handle throws a [StateError], which the app's [Api] lets through to the test
@@ -206,25 +207,37 @@ bool _isHue(Object? hue) => hue == null || (hue is String && workspaceHues.conta
 
 /// The service in memory (`fakeService`).
 class FakeService {
-  FakeService._(this.crypto, this._account, {required this.head, required this.teams, required this.peers});
+  FakeService._(this.crypto, this._verify, this._account, {required this.head, required this.teams, required this.peers});
 
   /// The service, holding the account [seed] names, signed up with that password, or none. [head] false: a HEAD
   /// never reaches the service, and the fetch throws as a browser's does when something drops it. [teams] false: a
   /// service from before organizations, answering every orgs and notifications route `no such route`. [peers]:
-  /// handles that resolve for an invitation without being the account.
-  static Future<FakeService> start({({String handle, String password})? seed, bool head = true, bool teams = true, List<String> peers = const ['sam'], FakeCrypto? crypto}) async {
+  /// handles that resolve for an invitation without being the account. [crypto] is the fake's unless given; with
+  /// the real one (lib/account/crypto.dart, for the proof that the flows hold under real cryptography) [verify] must
+  /// be given too: the service's check of a device's signature, which no client's crypto has.
+  static Future<FakeService> start({
+    ({String handle, String password})? seed,
+    bool head = true,
+    bool teams = true,
+    List<String> peers = const ['sam'],
+    AccountCrypto? crypto,
+    Future<bool> Function(String publicKey, String nonce, String signature)? verify,
+  }) async {
     final fake = crypto ?? FakeCrypto();
+    final checked = verify ?? (fake is FakeCrypto ? fake.verifyNonce : null);
+    if (checked == null) throw ArgumentError('A service given its own crypto must be given a way to verify a device signature too.');
     _Account? account;
     if (seed != null) {
       final key = await fake.newAccountKey();
       final derived = await fake.derive(seed.password, passwordSalt(seed.handle), iterations: fastRounds);
       account = _Account(handle: seed.handle, loginSecret: derived.login, wrapped: await fake.wrap(key, derived.wrapKey), devices: [], recovery: {}, key: key);
     }
-    return FakeService._(fake, account, head: head, teams: teams, peers: List.of(peers));
+    return FakeService._(fake, checked, account, head: head, teams: teams, peers: List.of(peers));
   }
 
-  /// The crypto this service seals and verifies with: a device in the same test uses the same kind.
-  final FakeCrypto crypto;
+  /// The crypto this service seals with: a device in the same test uses the same kind.
+  final AccountCrypto crypto;
+  final Future<bool> Function(String publicKey, String nonce, String signature) _verify;
   final bool head;
   final bool teams;
 
@@ -468,7 +481,7 @@ class FakeService {
       if (!_nonces.remove(_str(body['nonce']))) return _refuse(401, 'That sign-in took too long. Try again.');
       if (account == null || !_sameHandle(account, body['handle'])) return _refuse(401, 'This device could not be verified.');
       for (final device in account.devices) {
-        if (await crypto.verifyNonce(device, _str(body['nonce']), _str(body['signature']))) return _signedIn(account);
+        if (await _verify(device, _str(body['nonce']), _str(body['signature']))) return _signedIn(account);
       }
       return _refuse(401, 'This device could not be verified.');
     }
