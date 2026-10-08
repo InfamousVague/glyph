@@ -1,0 +1,322 @@
+{
+ "now": 1791388800000,
+ "width": 1280,
+ "height": 800,
+ "things": {
+  "display": [
+   {
+    "x": 346.33,
+    "y": 73.75,
+    "w": 907.34,
+    "h": 34.75,
+    "text": "Members"
+   }
+  ],
+  "headWord": [
+   {
+    "x": 26.33,
+    "y": 5.27,
+    "w": 203.59,
+    "h": 63.22,
+    "text": "Organizations"
+   }
+  ],
+  "titles": [
+   {
+    "x": 346.33,
+    "y": 290.36,
+    "w": 907.34,
+    "h": 14,
+    "text": "Members"
+   },
+   {
+    "x": 346.33,
+    "y": 706.59,
+    "w": 907.34,
+    "h": 14,
+    "text": "Your colour here"
+   },
+   {
+    "x": 346.33,
+    "y": 884.42,
+    "w": 907.34,
+    "h": 14,
+    "text": "Invite"
+   },
+   {
+    "x": 346.33,
+    "y": 1111.14,
+    "w": 907.34,
+    "h": 14,
+    "text": "Invite by link"
+   }
+  ],
+  "cards": [
+   {
+    "x": 346.33,
+    "y": 145.36,
+    "w": 907.34,
+    "h": 92.16,
+    "text": "Ghost2 members · You are owner"
+   },
+   {
+    "x": 346.33,
+    "y": 314.89,
+    "w": 907.34,
+    "h": 370.64,
+    "text": "mattOwnerYou, owner since SundaysamMemberjoined MondayMake adminHand overRemovel"
+   },
+   {
+    "x": 346.33,
+    "y": 731.13,
+    "w": 907.34,
+    "h": 100.45,
+    "text": ""
+   },
+   {
+    "x": 346.33,
+    "y": 940.73,
+    "w": 907.34,
+    "h": 149.34,
+    "text": "Invite"
+   },
+   {
+    "x": 346.33,
+    "y": 1167.45,
+    "w": 907.34,
+    "h": 136.19,
+    "text": "Link ending 12345Stops in 7 days · none joined yetNew link"
+   }
+  ],
+  "rows": [
+   {
+    "x": 346.33,
+    "y": 314.89,
+    "w": 907.34,
+    "h": 77.23,
+    "text": "mattOwnerYou, owner since Sunday"
+   },
+   {
+    "x": 346.33,
+    "y": 392.13,
+    "w": 907.34,
+    "h": 146.7,
+    "text": "samMemberjoined MondayMake adminHand overRemove"
+   },
+   {
+    "x": 346.33,
+    "y": 538.83,
+    "w": 907.34,
+    "h": 146.7,
+    "text": "leeInvitedInvited by matt 1 hr agoWithdraw"
+   }
+  ],
+  "labels": [
+   {
+    "x": 362.13,
+    "y": 330.69,
+    "w": 875.75,
+    "h": 22,
+    "text": "mattOwner"
+   },
+   {
+    "x": 362.13,
+    "y": 408.92,
+    "w": 875.75,
+    "h": 22,
+    "text": "samMember"
+   },
+   {
+    "x": 362.13,
+    "y": 555.63,
+    "w": 875.75,
+    "h": 22,
+    "text": "leeInvited"
+   }
+  ],
+  "heroTitle": [
+   {
+    "x": 421.92,
+    "y": 161.16,
+    "w": 815.95,
+    "h": 36.92,
+    "text": "Ghost"
+   }
+  ],
+  "heroMeta": [
+   {
+    "x": 421.92,
+    "y": 200.47,
+    "w": 815.95,
+    "h": 21.25,
+    "text": "2 members · You are owner"
+   }
+  ],
+  "heroGlyph": [
+   {
+    "x": 362.13,
+    "y": 169.44,
+    "w": 44,
+    "h": 44,
+    "text": ""
+   }
+  ],
+  "footers": [
+   {
+    "x": 346.33,
+    "y": 248.05,
+    "w": 907.34,
+    "h": 21.25,
+    "text": "Notes filed here are the team’s: everyone in it reads and edits them, and edits "
+   },
+   {
+    "x": 346.33,
+    "y": 842.11,
+    "w": 907.34,
+    "h": 21.25,
+    "text": "Your account’s colour, from Settings › Account. Pick another to wear it in this "
+   }
+  ],
+  "inputs": [
+   {
+    "x": 362.13,
+    "y": 956.53,
+    "w": 875.75,
+    "h": 44,
+    "text": "Handle"
+   }
+  ],
+  "submits": [
+   {
+    "x": 362.13,
+    "y": 1011.06,
+    "w": 41.28,
+    "h": 63.22,
+    "text": "Invite"
+   }
+  ],
+  "chips": [
+   {
+    "x": 409.7,
+    "y": 332.41,
+    "w": 49.66,
+    "h": 20.28,
+    "text": "Owner"
+   },
+   {
+    "x": 407.28,
+    "y": 410.64,
+    "w": 58.91,
+    "h": 20.28,
+    "text": "Member"
+   },
+   {
+    "x": 397.31,
+    "y": 557.34,
+    "w": 50.23,
+    "h": 20.28,
+    "text": "Invited"
+   }
+  ],
+  "actions": [
+   {
+    "x": 362.13,
+    "y": 470.36,
+    "w": 103.67,
+    "h": 52.67,
+    "text": "Make admin"
+   },
+   {
+    "x": 481.59,
+    "y": 470.36,
+    "w": 89.23,
+    "h": 52.67,
+    "text": "Hand over"
+   },
+   {
+    "x": 586.63,
+    "y": 470.36,
+    "w": 72.27,
+    "h": 52.67,
+    "text": "Remove"
+   },
+   {
+    "x": 362.13,
+    "y": 617.06,
+    "w": 84.88,
+    "h": 52.67,
+    "text": "Withdraw"
+   }
+  ],
+  "swatchDots": [
+   {
+    "x": 382.23,
+    "y": 761.76,
+    "w": 33.92,
+    "h": 33.92,
+    "text": "Ink"
+   },
+   {
+    "x": 516.8,
+    "y": 762.72,
+    "w": 32,
+    "h": 32,
+    "text": "Ember"
+   },
+   {
+    "x": 650.39,
+    "y": 762.72,
+    "w": 32,
+    "h": 32,
+    "text": "Amber"
+   },
+   {
+    "x": 784,
+    "y": 762.72,
+    "w": 32,
+    "h": 32,
+    "text": "Moss"
+   },
+   {
+    "x": 917.61,
+    "y": 762.72,
+    "w": 32,
+    "h": 32,
+    "text": "Sea"
+   },
+   {
+    "x": 1051.2,
+    "y": 762.72,
+    "w": 32,
+    "h": 32,
+    "text": "Violet"
+   },
+   {
+    "x": 1184.81,
+    "y": 762.72,
+    "w": 32,
+    "h": 32,
+    "text": "Rose"
+   }
+  ],
+  "linkRows": [
+   {
+    "x": 362.13,
+    "y": 1183.25,
+    "w": 875.75,
+    "h": 58.06,
+    "text": "Link ending 12345Stops in 7 days · none joined yet"
+   }
+  ],
+  "linkButtons": [
+   {
+    "x": 362.13,
+    "y": 1251.84,
+    "w": 108.59,
+    "h": 36,
+    "text": "New link"
+   }
+  ],
+  "inviteWords": []
+ }
+}

@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../../account/ui_state.dart';
 import '../../core/preferences.dart';
 import '../kit/settings_kit.dart';
 import '../settings_search.dart';
@@ -33,13 +34,14 @@ const Map<String, (String, String)> _switches = {
 /// which lib/core/notifications.dart reads to decide what is drawn and counted.
 ///
 /// What differs from the web original:
-/// - There is no account yet, so [signedIn] and [orgs] are handed in: signed out, the callout sends the person to
-///   Account; with no organizations there is no card of mutes.
+/// - The account and its organizations are the [AccountServices] it is handed ([services], or the [AccountScope]
+///   over Settings): signed out, the callout sends the person to Account; a member of an organization gets its row
+///   to mute. Without one, [signedIn] and [orgs] are what it was handed before there was an account.
 /// - "On this phone", the bell's rows as the phone's own notifications, and its Allow, wait for the native side
 ///   (core/notifications/phone.ts): nothing here raises a phone notification yet, so the card is not drawn, as on a
 ///   binary from before them.
 class NotificationsPane extends StatelessWidget {
-  const NotificationsPane({super.key, this.store, this.signedIn = false, this.orgs = const [], this.onOpenAccount});
+  const NotificationsPane({super.key, this.store, this.signedIn = false, this.orgs = const [], this.services, this.onOpenAccount});
 
   /// The preferences to read and write; the app's own when null.
   final PreferencesStore? store;
@@ -47,6 +49,9 @@ class NotificationsPane extends StatelessWidget {
 
   /// The organizations the account is a member of.
   final List<SettingsOrg> orgs;
+
+  /// The account; with one, who is signed in and the organizations are read from it.
+  final AccountServices? services;
 
   /// Lands on Account; without it the word is a plain word.
   final VoidCallback? onOpenAccount;
@@ -56,13 +61,25 @@ class NotificationsPane extends StatelessWidget {
     return NotificationsPane(
       signedIn: host?.features.signedIn ?? false,
       orgs: host?.features.orgs ?? const [],
+      services: AccountScope.maybeOf(context),
       onOpenAccount: host == null ? null : () => host.go('account'),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final store = this.store ?? preferences;
+    final services = this.services;
+    final store = this.store ?? services?.prefs ?? preferences;
+    return AccountBuilder(
+      services: services,
+      builder: (context) => _page(context, store, services),
+    );
+  }
+
+  Widget _page(BuildContext context, PreferencesStore store, AccountServices? services) {
+    final signedIn = services?.signedIn ?? this.signedIn;
+    // Team news comes to members; an invitation has nothing to mute yet, and is never muted anyway.
+    final orgs = services == null ? this.orgs : [for (final row in services.joined) SettingsOrg(id: row.id, name: row.name, members: row.members)];
     return ValueListenableBuilder<Preferences>(
       valueListenable: store,
       builder: (context, prefs, _) {

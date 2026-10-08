@@ -4,14 +4,23 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../../account/ui_state.dart';
 import '../../art/art.dart';
 import '../../core/preferences.dart';
+import '../../sync/engine.dart' show syncSummary, syncedWhen, unsentLine;
+import '../../sync/notes.dart' show stayedHere;
+import '../account_forms.dart';
+import '../colour_card.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
+import '../privacy_card.dart';
 import '../settings_search.dart';
 import '../settings_sections.dart' show SettingsNotPortedCard, settingsSections;
+import '../shared_links.dart';
 import 'pane_parts.dart';
 import 'settings_host.dart';
+
+export '../privacy_card.dart' show PrivacyCard, privacyUrl;
 
 /// The Privacy card's names (AccountPane.findable.ts `privacy`, for the app, where a model runs).
 const List<SettingsFindable> privacyFindable = [
@@ -30,11 +39,25 @@ const List<SettingsFindable> locationFindable = [
   SettingsFindable('Tag new notes with my location', 'automatic gps position geotag place where front matter'),
 ];
 
-/// What Settings' search finds on Account signed out (`findable(false, true)`, src/app/settings/AccountPane.findable.ts):
-/// the ways in, then the Privacy and Location cards. Signed in, the account's own page is not ported, and nothing of
-/// it is listed.
-List<SettingsFindable> accountFindable({required bool signedIn}) => signedIn
-    ? const []
+/// What Settings' search finds on Account (`findable(signedIn, true)`, src/app/settings/AccountPane.findable.ts), by
+/// the names the page draws: signed in the page is the account's, signed out it is the ways in, and the Privacy and
+/// Location cards are on it either way. [ported] false is a build with no account to hand the page: its signed-in
+/// page is the card that says so, and nothing of the account's own is listed.
+List<SettingsFindable> accountFindable({required bool signedIn, bool ported = false, bool shared = false}) => signedIn
+    ? (ported
+        ? [
+            const SettingsFindable('Sync now', 'devices'),
+            const SettingsFindable('Sync meeting recordings', 'audio meeting meetings tapes'),
+            const SettingsFindable('Live typing (trial)', 'realtime collaborate'),
+            const SettingsFindable('Password and recovery codes', 'change'),
+            const SettingsFindable('Sign out', 'log out logout'),
+            // The page lists it always; here only while the card is drawn, so a hit always has somewhere to land.
+            if (shared) const SettingsFindable('Shared links', 'share publish read'),
+            ...privacyFindable,
+            ...locationFindable,
+            const SettingsFindable('Delete account', 'remove close erase data'),
+          ]
+        : const [])
     : const [
         SettingsFindable('I have an account', 'sign in login'),
         SettingsFindable('Create an account', 'sign up register'),
@@ -43,35 +66,48 @@ List<SettingsFindable> accountFindable({required bool signedIn}) => signedIn
         ...locationFindable,
       ];
 
-/// Account's row in the list, signed out (core/sync/engine.ts `syncSummary` with no handle): Local only holds the
-/// sync off, so the line says it is on.
-String accountSummary(Preferences prefs) => 'Not signed in${prefs.localOnly ? ' · Local only' : ''}';
+/// Account's row in the list (SettingsSheet.tsx: `syncSummary` with " · Local only" while that holds the sync off).
+/// Without [services] it is the signed-out line.
+String accountSummary(Preferences prefs, [AccountServices? services]) =>
+    '${services == null ? 'Not signed in' : syncSummary(services.session?.handle, services.status, now: services.now())}${prefs.localOnly ? ' · Local only' : ''}';
 
-/// The privacy policy (landing/privacy.html), on the download site (`PRIVACY_URL`).
-const String privacyUrl = 'https://ghostmarkdown.com/privacy.html';
-
-/// Port of `AccountPane` (src/app/settings/AccountPane.tsx) **signed out** (`SignedOut`): the ghost, the way in (sign
-/// in, make an account, or recover one, with a new account's recovery codes shown once), the three rows that change
-/// which, what a lost password means, and then what leaves the phone: the Privacy card ([PrivacyCard]) and the
-/// Location card ([LocationCard]). While Local only holds the sync off, a callout says so, and its "Local only" is a
-/// word that brings the card into view.
+/// Port of `AccountPane` (src/app/settings/AccountPane.tsx): a Ghost.md account keeps notes, their recordings and
+/// pictures, and settings the same on every device. Everything is sealed on the device before it is sent, so the
+/// page says so plainly, and says the one consequence that follows: a password and every recovery code lost is an
+/// account nobody can open.
+///
+/// **Signed out** (`SignedOut`): the ghost, the way in (sign in, make an account, or recover one, with a new
+/// account's recovery codes shown once), the three rows that change which, what a lost password means, and then
+/// what leaves the phone: the Privacy card ([PrivacyCard]) and the Location card ([LocationCard]).
+///
+/// **Signed in**: the hero (the handle, "End-to-end encrypted", where the sync stands), what the last sync kept
+/// twice or could not send, the Sync card (Sync now, Sync meeting recordings, Live typing, Password and recovery
+/// codes, Sign out), then Your colour ([ColourCard]), Shared links ([SharedLinks]), Privacy, Location, and Delete
+/// account. Password and recovery codes, and Delete account, each put a form where the Sync card was and take the
+/// cards after it off the page until it is done or cancelled.
+///
+/// While Local only holds the sync off, a callout says so, signed in or out, and its "Local only" is a word that
+/// brings the card into view: a plain word while a form has the card off the page.
 ///
 /// What differs from the web original:
-/// - **There is no account yet** (stage 7). The form is the page's, and its button runs
-///   [SettingsFeatures.onWayIn]; until that is given the button cannot be pressed whatever is typed. The page's
-///   early checks of a handle and a password (`handleProblem`, `passwordProblem`) are the account's to port, so
-///   they are the callback's to make, and what it throws is said under the fields.
-/// - **Signed in** ([SettingsFeatures.signedIn]) the account's own page (the hero, Sync, the password, the colour,
-///   shared links, Delete account) is not ported: it draws the card that says so, then Privacy and Location, which
-///   are on the page either way.
+/// - The account is the [AccountServices] the page is handed ([services], or the [AccountScope] over Settings),
+///   where the page reached for its modules. **Without one the page is as it was before there was an account**:
+///   signed out, with the button running [SettingsFeatures.onWayIn] (or unpressable without it), and
+///   [SettingsFeatures.signedIn] drawing the card that says the signed-in page waits.
+/// - How many recordings stayed on this phone is counted from [AccountServices.listNotes], and is none without it.
+/// - Live typing's switch writes [AccountServices.liveTyping]; nothing reads it until live typing is ported.
 /// - The form's fields are the kit's `GlacierInput`; a password manager is not told which is which
 ///   (`autocomplete`) beyond what the kit passes on.
+/// - There is no list of this account's devices: the web's page has none either.
 class AccountPane extends StatefulWidget {
-  const AccountPane({super.key, this.store, this.features = const SettingsFeatures(), this.onOpenPrivacy, this.onOpenLink});
+  const AccountPane({super.key, this.store, this.features = const SettingsFeatures(), this.services, this.onOpenPrivacy, this.onOpenLink});
 
-  /// The preferences to read and write; the app's own when null.
+  /// The preferences to read and write; the services' when there are some, else the app's own.
   final PreferencesStore? store;
   final SettingsFeatures features;
+
+  /// The account; null draws the page as it was before there was one.
+  final AccountServices? services;
 
   /// Brings the Privacy card into view (`onOpen({ id: 'account', setting: 'Privacy' })`).
   final VoidCallback? onOpenPrivacy;
@@ -81,6 +117,7 @@ class AccountPane extends StatefulWidget {
     final host = SettingsHost.maybeOf(context);
     return AccountPane(
       features: host?.features ?? const SettingsFeatures(),
+      services: AccountScope.maybeOf(context),
       onOpenPrivacy: host == null ? null : () => host.go('account', setting: 'Privacy'),
       onOpenLink: host?.onOpenLink,
     );
@@ -90,141 +127,572 @@ class AccountPane extends StatefulWidget {
   State<AccountPane> createState() => _AccountPaneState();
 }
 
-class _AccountPaneState extends State<AccountPane> {
+/// The way-in form's state and its submit, for the long form (`SignedOut`) and the card ([SignInFlow]) alike
+/// (`useWayIn`).
+class WayIn extends ChangeNotifier {
+  WayIn({required this.submitWith, this.onCodes, this.onIn});
+
+  /// Runs the way in: [AccountServices.wayIn], or a page's own. Null leaves the button unpressable.
+  final SettingsWayIn? Function() submitWith;
+  final ValueChanged<List<String>>? onCodes;
+  final VoidCallback? onIn;
+
   /// `in`, `up` or `recover` (`Mode`).
-  String _mode = 'in';
-  String _handle = '', _password = '', _code = '';
+  String mode = 'in';
+  String handle = '', password = '', code = '';
+  bool busy = false;
+  String? problem;
+  bool _gone = false;
+
+  void _tell() {
+    if (!_gone) notifyListeners();
+  }
+
+  void setMode(String next) {
+    mode = next;
+    problem = null;
+    _tell();
+  }
+
+  void set({String? handle, String? password, String? code}) {
+    this.handle = handle ?? this.handle;
+    this.password = password ?? this.password;
+    this.code = code ?? this.code;
+    _tell();
+  }
+
+  bool get ready => !busy && handle.isNotEmpty && password.isNotEmpty && (mode != 'recover' || code.isNotEmpty) && submitWith() != null;
+
+  String get verb => mode == 'up' ? 'Create account' : (mode == 'recover' ? 'Recover and set password' : 'Sign in');
+
+  Future<void> submit() async {
+    final wayIn = submitWith();
+    if (wayIn == null || !ready) return;
+    busy = true;
+    problem = null;
+    _tell();
+    try {
+      final codes = await wayIn(mode: mode, handle: handle, password: password, code: mode == 'recover' ? code : null);
+      if (codes != null) {
+        onCodes?.call(codes);
+      } else {
+        onIn?.call();
+      }
+    } catch (failure) {
+      problem = failureText(failure);
+    }
+    busy = false;
+    _tell();
+  }
+
+  @override
+  void dispose() {
+    _gone = true;
+    super.dispose();
+  }
+}
+
+/// The way-in form (`WayInForm`): the handle, a recovery code when recovering, the password, what went wrong, and
+/// the word that submits. [bare] is the form in the sign-in card, unpadded and with its word across the card.
+class WayInForm extends StatelessWidget {
+  const WayInForm({super.key, required this.form, this.bare = false});
+  final WayIn form;
+  final bool bare;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: form,
+        builder: (context, _) {
+          final recover = form.mode == 'recover';
+          final problem = form.problem;
+          return SettingsForm(
+            bare: bare,
+            children: [
+              GlacierInput(
+                ariaLabel: 'Handle',
+                placeholder: 'Handle',
+                autoCapitalize: TextCapitalization.none,
+                spellCheck: false,
+                autoCorrect: false,
+                value: form.handle,
+                onChange: (text) => form.set(handle: text),
+              ),
+              if (recover)
+                GlacierInput(
+                  ariaLabel: 'Recovery code',
+                  placeholder: 'Recovery code',
+                  autoCapitalize: TextCapitalization.characters,
+                  spellCheck: false,
+                  autoCorrect: false,
+                  value: form.code,
+                  onChange: (text) => form.set(code: text),
+                ),
+              GlacierInput(
+                ariaLabel: recover ? 'New password' : 'Password',
+                placeholder: recover ? 'New password' : 'Password',
+                type: GlacierInputType.password,
+                value: form.password,
+                onChange: (text) => form.set(password: text),
+                onSubmitted: (_) => unawaited(form.submit()),
+              ),
+              if (problem != null) FormProblem(problem),
+              FormSubmit(wordKey: const ValueKey('account-submit'), form.busy ? 'One moment…' : form.verb, stretch: bare, onPressed: form.ready ? () => unawaited(form.submit()) : null),
+            ],
+          );
+        },
+      );
+}
+
+/// The callout while Local only holds the sync off; its words bring the Privacy card into view, where there is one
+/// (`LocalOnlyCallout`).
+class LocalOnlyCallout extends StatelessWidget {
+  const LocalOnlyCallout({super.key, this.onOpen});
+  final VoidCallback? onOpen;
+
+  @override
+  Widget build(BuildContext context) => SettingsCallout(
+        child: Text.rich(
+          TextSpan(
+            children: [
+              WidgetSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, child: GoWord('Local only', onPress: onOpen)),
+              const TextSpan(text: ' is on, so nothing syncs until it is off.'),
+            ],
+          ),
+        ),
+      );
+}
+
+class _AccountPaneState extends State<AccountPane> {
+  late final WayIn _form = WayIn(submitWith: () => widget.services?.wayIn ?? widget.features.onWayIn, onCodes: (codes) => setState(() => _codes = codes));
+  List<String>? _codes;
+  bool _editing = false;
+  bool _deleting = false;
+
+  /// Said on the signed-out page that follows a deletion, so it is clear the account went and the notes didn't.
+  bool _deleted = false;
+
+  /// How many recordings stayed on this phone, counted as the page opens and whenever the two rules change.
+  int _stayed = 0;
+  Object? _stayedFor;
+  SharedLinksModel? _shared;
+
+  PreferencesStore get _store => widget.store ?? widget.services?.prefs ?? preferences;
+
+  @override
+  void initState() {
+    super.initState();
+    final services = widget.services;
+    if (services != null) _shared = SharedLinksModel(services)..addListener(_changed);
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _shared?.removeListener(_changed);
+    _shared?.dispose();
+    _form.dispose();
+    super.dispose();
+  }
+
+  void _countStayed(Preferences prefs) {
+    final list = widget.services?.listNotes;
+    final rules = (prefs.meetings, prefs.syncMeetingRecordings);
+    if (list == null || rules == _stayedFor) return;
+    _stayedFor = rules;
+    unawaited(() async {
+      try {
+        final count = stayedHere(await list(), meetings: prefs.meetings, syncMeetingRecordings: prefs.syncMeetingRecordings);
+        if (mounted && rules == _stayedFor) setState(() => _stayed = count);
+      } catch (_) {
+        // The footer says nothing of them.
+      }
+    }());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final store = _store;
+    final features = widget.features;
+    final services = widget.services;
+    final codes = _codes;
+    // A new or recovered account's codes, shown this once (`Codes`).
+    if (codes != null) return PaneBody(children: [RecoveryCodes(codes: codes, onDone: () => setState(() => _codes = null))]);
+
+    return AccountBuilder(
+      services: services,
+      builder: (context) => ValueListenableBuilder<Preferences>(
+        valueListenable: store,
+        builder: (context, prefs, _) {
+          final privacy = PrivacyCard(store: store, onOpenLink: widget.onOpenLink);
+          final location = LocationCard(store: store, onLocate: features.onLocate, cannot: features.cannotLocate);
+          if (services == null && features.signedIn) {
+            return PaneBody(children: [SettingsNotPortedCard(spec: settingsSections.firstWhere((spec) => spec.id == 'account')), privacy, ...location.parts(prefs)]);
+          }
+          if (services == null || !services.signedIn) return _signedOut(prefs, privacy, location);
+          _countStayed(prefs);
+          return _signedIn(services, store, prefs, privacy, location);
+        },
+      ),
+    );
+  }
+
+  Widget _signedOut(Preferences prefs, Widget privacy, LocationCard location) => ListenableBuilder(
+        listenable: _form,
+        builder: (context, _) {
+          final mode = _form.mode;
+          return PaneBody(
+            children: [
+              if (_deleted) const SettingsCallout(child: Text('Your account is deleted. The notes on this device are still here.')),
+              if (prefs.localOnly) LocalOnlyCallout(onOpen: widget.onOpenPrivacy),
+              const Ghost(scene: GhostScene.signedOut, align: GhostAlign.center),
+              PaneSection(
+                title: mode == 'up' ? 'New account' : (mode == 'recover' ? 'Recover' : 'Sign in'),
+                description: const Text('Keep your notes, recordings and settings the same on your phone and computer. They are encrypted on the device first. The service stores only what it cannot read.'),
+                children: [WayInForm(form: _form)],
+              ),
+              PaneSection(
+                children: [
+                  if (mode != 'in') SettingRow(label: 'I have an account', onPress: () => _form.setMode('in')),
+                  if (mode != 'up') SettingRow(label: 'Create an account', onPress: () => _form.setMode('up')),
+                  if (mode != 'recover') SettingRow(label: 'Lost the password', hint: const Text('Use one of your recovery codes.'), onPress: () => _form.setMode('recover')),
+                ],
+              ),
+              const SettingsFootnote(
+                child: Text("Your password never leaves this device, and nobody can reset it for you. Without it or a recovery code, the notes in an account can't be opened by anyone. Notes on this device stay here either way."),
+              ),
+              privacy,
+              ...location.parts(prefs),
+            ],
+          );
+        },
+      );
+
+  Widget _signedIn(AccountServices services, PreferencesStore store, Preferences prefs, Widget privacy, LocationCard location) {
+    final status = services.status;
+    final lastAt = status.lastAt;
+    final statusText = status.phase == 'syncing'
+        ? 'Syncing'
+        : status.phase == 'error'
+            ? (status.message ?? 'Not synced')
+            : lastAt != null && lastAt != 0
+                ? 'Synced ${syncedWhen(lastAt, now: services.now())}'
+                : services.unlocked
+                    ? 'Waiting to sync'
+                    : 'Sign in again to sync';
+    final form = _editing || _deleting;
+    final shared = _shared;
+    final stayed = _stayed;
+    return PaneBody(
+      children: [
+        PaneSection(
+          children: [
+            PaneHero(
+              glyph: const AppIcon(Lucide.shieldCheck, size: 22),
+              title: services.session!.handle,
+              meta: const Text('End-to-end encrypted'),
+              status: PaneHeroStatus(statusText, pulse: status.phase == 'syncing'),
+            ),
+          ],
+        ),
+        if (status.conflicts != 0)
+          SettingsCallout(child: Text('${status.conflicts == 1 ? 'A note was' : '${status.conflicts} notes were'} changed on two devices at once. Both versions are kept as separate notes.')),
+        if (status.unsent != 0) SettingsCallout(child: Text('${unsentLine(status.unsent)}. ${status.unsentReason ?? 'They are sent again next time.'}')),
+        // The password and delete forms take the Privacy card off the page: the word has nowhere to go while one is open.
+        if (prefs.localOnly) LocalOnlyCallout(onOpen: form ? null : widget.onOpenPrivacy),
+        if (_deleting)
+          DeleteAccountForm(
+            services: services,
+            onDeleted: () => setState(() {
+              _deleting = false;
+              _deleted = true;
+            }),
+            onDone: () => setState(() => _deleting = false),
+          )
+        else if (_editing)
+          PasswordForm(
+            services: services,
+            onCodes: (next) => setState(() {
+              _editing = false;
+              _codes = next;
+            }),
+            onDone: () => setState(() => _editing = false),
+          )
+        else
+          PaneSection(
+            title: 'Sync',
+            footer: Text(
+              'Notes, their recordings and pictures, and your settings. The model you downloaded and Developer settings stay on each device.${stayed != 0 ? ' ${stayed == 1 ? '1 recording' : '$stayed recordings'} stayed on this phone.' : ''}',
+            ),
+            children: [
+              SettingRow(icon: const AppIcon(Lucide.refreshCw, size: 20), label: 'Sync now', onPress: () => unawaited(services.syncNow()), disabled: status.phase == 'syncing'),
+              SettingRow(
+                label: 'Sync meeting recordings',
+                hint: const Text("A meeting is other people's voices. Off, the words sync and the audio stays on the device it was made on."),
+                control: GlacierSwitch(ariaLabel: 'Sync meeting recordings', checked: prefs.syncMeetingRecordings, onCheckedChange: (on) => store.update((now) => now.copyWith(syncMeetingRecordings: on))),
+              ),
+              // Live sync (docs/LIVE.md), on by hand while it is being tried.
+              SettingRow(
+                label: 'Live typing (trial)',
+                hint: const Text('A note open on two of your devices shows what is typed on either as it is typed, end to end encrypted like everything else. Starts with the next note you open.'),
+                control: GlacierSwitch(ariaLabel: 'Live typing', checked: services.liveTyping.value, onCheckedChange: (on) => services.liveTyping.value = on),
+              ),
+              SettingRow(icon: const AppIcon(Lucide.keyRound, size: 20), label: 'Password and recovery codes', onPress: () => setState(() => _editing = true)),
+              SettingRow(icon: const AppIcon(Lucide.logOut, size: 20), label: 'Sign out', hint: const Text('Your notes stay on this device.'), onPress: () => unawaited(services.signOut())),
+            ],
+          ),
+        if (!form) ...[
+          ColourCard(services: services),
+          if (shared != null && shared.any) SharedLinks(services: services, model: shared),
+          privacy,
+          ...location.parts(prefs),
+          PaneSection(
+            children: [
+              SettingRow(
+                icon: const AppIcon(Lucide.trash2, size: 20),
+                label: 'Delete account',
+                hint: const Text('Your account and everything synced to it. The notes on this device stay.'),
+                onPress: () => setState(() => _deleting = true),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// The password changed, or a new sheet of recovery codes made, each needing the current password
+/// (AccountPane.tsx `PasswordForm`).
+class PasswordForm extends StatefulWidget {
+  const PasswordForm({super.key, required this.services, required this.onCodes, required this.onDone});
+  final AccountServices services;
+  final ValueChanged<List<String>> onCodes;
+  final VoidCallback onDone;
+
+  @override
+  State<PasswordForm> createState() => _PasswordFormState();
+}
+
+class _PasswordFormState extends State<PasswordForm> {
+  /// `password` or `codes`.
+  String _what = 'password';
+  String _current = '', _next = '';
   bool _busy = false;
   String? _problem;
-  List<String>? _codes;
 
-  void _setMode(String next) => setState(() {
-        _mode = next;
-        _problem = null;
-      });
+  bool get _ready => !_busy && _current.isNotEmpty && (_what != 'password' || _next.isNotEmpty);
 
   Future<void> _submit() async {
-    final wayIn = widget.features.onWayIn;
-    if (wayIn == null || _busy || _handle.isEmpty || _password.isEmpty || (_mode == 'recover' && _code.isEmpty)) return;
+    if (!_ready) return;
     setState(() {
       _busy = true;
       _problem = null;
     });
     try {
-      final codes = await wayIn(mode: _mode, handle: _handle, password: _password, code: _mode == 'recover' ? _code : null);
-      if (mounted && codes != null) setState(() => _codes = codes);
+      if (_what == 'password') {
+        await widget.services.account.changePassword(_current, _next);
+        if (mounted) widget.onDone();
+        return;
+      }
+      final made = await widget.services.account.newRecoveryCodes(_current);
+      if (mounted) widget.onCodes(made.codes);
+      return;
     } catch (failure) {
-      if (mounted) setState(() => _problem = failureText(failure));
+      if (mounted) setState(() => _problem = accountFailureText(failure));
     }
     if (mounted) setState(() => _busy = false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final store = widget.store ?? preferences;
-    final features = widget.features;
-    final codes = _codes;
-    // A new or recovered account's codes, shown this once (`Codes`).
-    if (codes != null) return PaneBody(children: [RecoveryCodes(codes: codes, onDone: () => setState(() => _codes = null))]);
-
-    return ValueListenableBuilder<Preferences>(
-      valueListenable: store,
-      builder: (context, prefs, _) {
-        final t = context.tokens;
-        final privacy = PrivacyCard(store: store, onOpenLink: widget.onOpenLink);
-        final location = LocationCard(store: store, onLocate: features.onLocate, cannot: features.cannotLocate);
-        if (features.signedIn) {
-          return PaneBody(children: [SettingsNotPortedCard(spec: settingsSections.firstWhere((spec) => spec.id == 'account')), privacy, ...location.parts(prefs)]);
-        }
-        final verb = _mode == 'up' ? 'Create account' : (_mode == 'recover' ? 'Recover and set password' : 'Sign in');
-        final ready = !_busy && _handle.isNotEmpty && _password.isNotEmpty && (_mode != 'recover' || _code.isNotEmpty) && features.onWayIn != null;
-        return PaneBody(
+    final t = context.tokens;
+    final password = _what == 'password';
+    final problem = _problem;
+    return PaneSection(
+      title: password ? 'Change password' : 'New recovery codes',
+      footer: Align(alignment: AlignmentDirectional.centerStart, child: RowAction(onPress: widget.onDone, child: const Text('Cancel'))),
+      children: [
+        SettingsForm(
           children: [
-            if (prefs.localOnly)
-              SettingsCallout(
-                child: Text.rich(
-                  TextSpan(
-                    children: [
-                      WidgetSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, child: GoWord('Local only', onPress: widget.onOpenPrivacy)),
-                      const TextSpan(text: ' is on, so nothing syncs until it is off.'),
-                    ],
-                  ),
+            GlacierInput(ariaLabel: 'Current password', placeholder: 'Current password', type: GlacierInputType.password, value: _current, onChange: (text) => setState(() => _current = text), onSubmitted: (_) => unawaited(_submit())),
+            if (password)
+              GlacierInput(ariaLabel: 'New password', placeholder: 'New password', type: GlacierInputType.password, value: _next, onChange: (text) => setState(() => _next = text), onSubmitted: (_) => unawaited(_submit())),
+            if (problem != null) FormProblem(problem),
+            FormSubmit(_busy ? 'One moment…' : (password ? 'Change password' : 'Make new codes'), onPressed: _ready ? () => unawaited(_submit()) : null),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: DefaultTextStyle(
+                style: pageText(t, t.lenOf('1rem')),
+                child: SettingsWord(
+                  onPressed: () => setState(() {
+                    _what = password ? 'codes' : 'password';
+                    _problem = null;
+                  }),
+                  child: Text(password ? 'Make new recovery codes instead' : 'Change the password instead'),
                 ),
               ),
-            const Ghost(scene: GhostScene.signedOut, align: GhostAlign.center),
-            PaneSection(
-              title: _mode == 'up' ? 'New account' : (_mode == 'recover' ? 'Recover' : 'Sign in'),
-              description: const Text('Keep your notes, recordings and settings the same on your phone and computer. They are encrypted on the device first. The service stores only what it cannot read.'),
-              children: [
-                // `.setk-form`: the fields in a column a `--glacier-space-2` apart, in a row's padding.
-                Padding(
-                  padding: EdgeInsets.all(t.space(3)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      GlacierInput(
-                        ariaLabel: 'Handle',
-                        placeholder: 'Handle',
-                        autoCapitalize: TextCapitalization.none,
-                        spellCheck: false,
-                        autoCorrect: false,
-                        value: _handle,
-                        onChange: (text) => setState(() => _handle = text),
-                      ),
-                      if (_mode == 'recover') ...[
-                        SizedBox(height: t.space(2)),
-                        GlacierInput(
-                          ariaLabel: 'Recovery code',
-                          placeholder: 'Recovery code',
-                          autoCapitalize: TextCapitalization.characters,
-                          spellCheck: false,
-                          autoCorrect: false,
-                          value: _code,
-                          onChange: (text) => setState(() => _code = text),
-                        ),
-                      ],
-                      SizedBox(height: t.space(2)),
-                      GlacierInput(
-                        ariaLabel: _mode == 'recover' ? 'New password' : 'Password',
-                        placeholder: _mode == 'recover' ? 'New password' : 'Password',
-                        type: GlacierInputType.password,
-                        value: _password,
-                        onChange: (text) => setState(() => _password = text),
-                        onSubmitted: (_) => unawaited(_submit()),
-                      ),
-                      if (_problem != null) ...[
-                        SizedBox(height: t.space(2)),
-                        Semantics(liveRegion: true, child: Text(_problem!, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink')))),
-                      ],
-                      SizedBox(height: t.space(2)),
-                      // `.app-word.setk-form__submit { align-self: flex-start }`
-                      Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        child: DefaultTextStyle(
-                          style: pageText(t, t.lenOf('1rem')),
-                          child: SettingsWord(key: const ValueKey('account-submit'), onPressed: ready ? () => unawaited(_submit()) : null, child: Text(_busy ? 'One moment…' : verb)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
             ),
-            PaneSection(
-              children: [
-                if (_mode != 'in') SettingRow(label: 'I have an account', onPress: () => _setMode('in')),
-                if (_mode != 'up') SettingRow(label: 'Create an account', onPress: () => _setMode('up')),
-                if (_mode != 'recover') SettingRow(label: 'Lost the password', hint: const Text('Use one of your recovery codes.'), onPress: () => _setMode('recover')),
-              ],
-            ),
-            const SettingsFootnote(
-              child: Text("Your password never leaves this device, and nobody can reset it for you. Without it or a recovery code, the notes in an account can't be opened by anyone. Notes on this device stay here either way."),
-            ),
-            privacy,
-            ...location.parts(prefs),
           ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Deleting the account (AccountPane.tsx `DeleteAccountForm`; App Store 5.1.1(v) and Google Play both ask for it in
+/// the app): what goes and what stays said first, then the password asked for, as a phone left unlocked shouldn't
+/// be able to lose its owner's account. Everything the account keeps on the service goes at once and for good; the
+/// notes on this device stay.
+class DeleteAccountForm extends StatefulWidget {
+  const DeleteAccountForm({super.key, required this.services, required this.onDeleted, required this.onDone});
+  final AccountServices services;
+  final VoidCallback onDeleted;
+  final VoidCallback onDone;
+
+  @override
+  State<DeleteAccountForm> createState() => _DeleteAccountFormState();
+}
+
+class _DeleteAccountFormState extends State<DeleteAccountForm> {
+  String _password = '';
+  bool _busy = false;
+  String? _problem;
+
+  Future<void> _submit() async {
+    if (_busy || _password.isEmpty) return;
+    // Read before the wait: the page under this form is the signed-out one by the time the account is gone.
+    final deleted = widget.onDeleted;
+    setState(() {
+      _busy = true;
+      _problem = null;
+    });
+    try {
+      await widget.services.deleteAccount(_password);
+      deleted();
+    } catch (failure) {
+      if (mounted) {
+        setState(() {
+          _problem = accountFailureText(failure);
+          _busy = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final problem = _problem;
+    return PaneSection(
+      title: 'Delete account',
+      description: const Text(
+        "This deletes your account and everything it keeps on the sync service, for good: your synced notes, their recordings and pictures, your settings, and every link you've shared, which will stop opening. Your other devices are signed out. The notes on this device stay here.",
+      ),
+      footer: Align(alignment: AlignmentDirectional.centerStart, child: RowAction(onPress: widget.onDone, child: const Text('Cancel'))),
+      children: [
+        SettingsForm(
+          children: [
+            GlacierInput(ariaLabel: 'Password', placeholder: 'Password', type: GlacierInputType.password, value: _password, onChange: (text) => setState(() => _password = text), onSubmitted: (_) => unawaited(_submit())),
+            if (problem != null) FormProblem(problem),
+            FormSubmit(wordKey: const ValueKey('delete-account-submit'), _busy ? 'Deleting…' : 'Delete my account', onPressed: _busy || _password.isEmpty ? null : () => unawaited(_submit())),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Port of `SignInFlow` (AccountPane.tsx): the way in on its own, as one plain card - sign in or make an account,
+/// and keep a new account's recovery codes, or recover one. The first screen on open draws it
+/// (lib/shell/account_gate.dart), told by [onIn] once the person is in: straight after a sign-in, and after the
+/// codes are put away for a new or recovered account, so the codes are never skipped.
+///
+/// What differs from the web original: the flows are [AccountServices.wayIn], or [onWayIn] where a page has its
+/// own; with neither, the card is drawn and its button cannot be pressed.
+class SignInFlow extends StatefulWidget {
+  const SignInFlow({super.key, this.services, this.onWayIn, required this.onIn});
+  final AccountServices? services;
+  final SettingsWayIn? onWayIn;
+  final VoidCallback onIn;
+
+  @override
+  State<SignInFlow> createState() => _SignInFlowState();
+}
+
+class _SignInFlowState extends State<SignInFlow> {
+  late final WayIn _form = WayIn(submitWith: () => widget.services?.wayIn ?? widget.onWayIn, onCodes: (codes) => setState(() => _codes = codes), onIn: () => widget.onIn());
+  List<String>? _codes;
+
+  @override
+  void dispose() {
+    _form.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final codes = _codes;
+    Widget card(String label, List<Widget> children) => Semantics(
+          container: true,
+          label: label,
+          child: Container(
+            key: const ValueKey('sign-in-card'),
+            // `.setk-signIn`
+            padding: EdgeInsets.fromLTRB(t.space(5), t.space(6), t.space(5), t.space(4)),
+            decoration: BoxDecoration(color: t.color('app-paper'), borderRadius: BorderRadius.circular(t.radius('lg')), border: Border.all(color: t.color('app-rule'))),
+            child: DefaultTextStyle(
+              style: pageText(t, t.lenOf('1rem'), color: t.color('glacier-text')),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = 0; i < children.length; i++) ...[
+                    if (i > 0) SizedBox(height: t.space(3)),
+                    children[i],
+                  ],
+                ],
+              ),
+            ),
+          ),
         );
+    if (codes != null) return card('Recovery codes', [RecoveryCodes(codes: codes, onDone: widget.onIn)]);
+    return ListenableBuilder(
+      listenable: _form,
+      builder: (context, _) {
+        final mode = _form.mode;
+        final recover = mode == 'recover';
+        final sm = t.fontSize('sm');
+        return card(mode == 'up' ? 'Create an account' : (recover ? 'Recover an account' : 'Sign in'), [
+          Semantics(
+            header: true,
+            child: Text(mode == 'up' ? 'Create an account' : (recover ? 'Recover an account' : 'Sign in to Ghost.md'), style: pageText(t, t.fontSize('xl'), weight: 'semibold', color: t.color('glacier-text'))),
+          ),
+          Text(recover ? 'A recovery code and a new password open it again.' : 'Your notes, the same on every device, encrypted before they leave this one.', style: pageText(t, sm, color: t.color('glacier-text-subtle'))),
+          if (!recover)
+            GlacierSegmentedControl(
+              ariaLabel: 'Sign in or sign up',
+              fullWidth: true,
+              size: GlacierSegmentedSize.sm,
+              options: const [GlacierSegmentedOption(value: 'in', label: Text('Sign in')), GlacierSegmentedOption(value: 'up', label: Text('Sign up'))],
+              value: mode,
+              onValueChange: _form.setMode,
+            ),
+          WayInForm(form: _form, bare: true),
+          Align(
+            child: DefaultTextStyle(
+              style: pageText(t, sm),
+              child: SettingsWord(
+                key: const ValueKey('sign-in-other'),
+                color: t.color('glacier-text-subtle'),
+                onPressed: () => _form.setMode(recover ? 'in' : 'recover'),
+                child: Text(recover ? 'Back to sign in' : 'Lost the password?'),
+              ),
+            ),
+          ),
+        ]);
       },
     );
   }
@@ -267,60 +735,6 @@ class RecoveryCodes extends StatelessWidget {
         ),
         SettingRow(label: 'Copy all', onPress: () => unawaited(Clipboard.setData(ClipboardData(text: codes.join('\n'))))),
       ],
-    );
-  }
-}
-
-/// Port of `PrivacyCard` (src/app/settings/PrivacyCard.tsx): the switches that decide what leaves the device, and the
-/// policy with what it comes to in two lines. Local only is the whole network switch; Link previews says whether a
-/// link's card is drawn at all; Look up blanks online is greyed off under Local only, which keeps such blanks
-/// waiting. Each is a stored preference (`localOnly`, `linkPreviews`, `lookUpBlanks`), live at once.
-///
-/// What differs from the web original: the words are the app's (the page had a second set for a browser), and the
-/// policy's row opens its link through [onOpenLink], or cannot be pressed without one. Nothing reads these switches
-/// yet but Settings' own rows: there is no sync, link card or fill to hold off.
-class PrivacyCard extends StatelessWidget {
-  const PrivacyCard({super.key, this.store, this.onOpenLink});
-  final PreferencesStore? store;
-  final void Function(String url)? onOpenLink;
-
-  @override
-  Widget build(BuildContext context) {
-    final store = this.store ?? preferences;
-    final open = onOpenLink;
-    return ValueListenableBuilder<Preferences>(
-      valueListenable: store,
-      builder: (context, prefs, _) => PaneSection(
-        title: 'Privacy',
-        footer: const Text(
-          'Your notes, recordings and pictures stay on this device, and your voice is turned into text here. Signed in, they sync encrypted on the device first, so only your own devices can read them. No ads, no analytics, no tracking.',
-        ),
-        children: [
-          SettingRow(
-            label: 'Local only',
-            hint: const Text('No sync, updates, downloads or link titles, and plugins that use the internet are held off. Ghost.md runs from what is on this device.'),
-            control: GlacierSwitch(ariaLabel: 'Local only', checked: prefs.localOnly, onCheckedChange: (on) => store.update((now) => now.copyWith(localOnly: on))),
-          ),
-          SettingRow(
-            label: 'Link previews',
-            hint: const Text("A card under a line that is only a link. In the app, the page's title is read from that site."),
-            control: GlacierSwitch(ariaLabel: 'Link previews', checked: prefs.linkPreviews, onCheckedChange: (on) => store.update((now) => now.copyWith(linkPreviews: on))),
-          ),
-          SettingRow(
-            label: 'Look up blanks online',
-            hint: const Text('On Fill, a blank that needs something live asks Open-Meteo, Frankfurter’s bank rates or Wikipedia. Only its question goes.'),
-            control: GlacierSwitch(ariaLabel: 'Look up blanks online', checked: prefs.lookUpBlanks && !prefs.localOnly, onCheckedChange: (on) => store.update((now) => now.copyWith(lookUpBlanks: on))),
-            disabledReason: prefs.localOnly ? 'Local only is on, so such blanks wait.' : null,
-          ),
-          SettingRow(
-            icon: const AppIcon(Lucide.shieldCheck, size: 20),
-            label: 'Privacy policy',
-            hint: const Text('What stays on this device, and what an account, a shared link or a plugin sends.'),
-            onPress: open == null ? () {} : () => open(privacyUrl),
-            disabled: open == null,
-          ),
-        ],
-      ),
     );
   }
 }

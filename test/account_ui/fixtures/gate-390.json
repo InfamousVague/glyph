@@ -1,0 +1,86 @@
+{
+ "now": 1791388800000,
+ "width": 390,
+ "height": 844,
+ "things": {
+  "card": [
+   {
+    "x": 22.31,
+    "y": 178.02,
+    "w": 345.38,
+    "h": 412.11,
+    "text": "Sign in"
+   }
+  ],
+  "title": [
+   {
+    "x": 45.63,
+    "y": 205.78,
+    "w": 298.75,
+    "h": 29,
+    "text": "Sign in to Ghost.md"
+   }
+  ],
+  "line": [
+   {
+    "x": 45.63,
+    "y": 248.17,
+    "w": 298.75,
+    "h": 32,
+    "text": "Your notes, the same on every device, encrypted before they leave this one."
+   }
+  ],
+  "segmented": [
+   {
+    "x": 45.63,
+    "y": 293.56,
+    "w": 298.75,
+    "h": 38,
+    "text": "Sign in or sign up"
+   }
+  ],
+  "inputs": [
+   {
+    "x": 45.63,
+    "y": 344.95,
+    "w": 298.75,
+    "h": 44,
+    "text": "Handle"
+   },
+   {
+    "x": 45.63,
+    "y": 397.88,
+    "w": 298.75,
+    "h": 44,
+    "text": "Password"
+   }
+  ],
+  "submit": [
+   {
+    "x": 45.63,
+    "y": 450.8,
+    "w": 298.75,
+    "h": 53.55,
+    "text": "Sign in"
+   }
+  ],
+  "other": [
+   {
+    "x": 132.64,
+    "y": 517.73,
+    "w": 124.72,
+    "h": 53.55,
+    "text": "Lost the password?"
+   }
+  ],
+  "skip": [
+   {
+    "x": 105.5,
+    "y": 612.44,
+    "w": 178.98,
+    "h": 53.55,
+    "text": "Use without an account"
+   }
+  ]
+ }
+}

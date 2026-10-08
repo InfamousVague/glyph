@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import '../account/ui_state.dart';
 import '../core/preferences.dart';
 import '../core/workspaces.dart';
 import 'kit/settings_icons.dart';
@@ -178,6 +179,8 @@ class _SettingsSheetState extends State<SettingsSheet> {
     final store = preferences;
     final wide = widget.split ?? settingsSplitFits(context);
     final spaces = _spaces;
+    // The account, where the app put one over Settings: its rows and its pages read it, and are told when it changes.
+    final services = AccountScope.maybeOf(context);
     return SettingsHost(
       go: _go,
       workspaces: spaces,
@@ -195,7 +198,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
       notesInWorkspace: widget.notesInWorkspace,
       onTrashNotes: widget.onTrashNotes,
       child: ListenableBuilder(
-        listenable: Listenable.merge([store, developerMode, spaces]),
+        listenable: Listenable.merge([store, developerMode, spaces, services?.changes]),
         builder: (context, _) {
           final facts = SettingsFacts(
             prefs: store.value,
@@ -207,6 +210,8 @@ class _SettingsSheetState extends State<SettingsSheet> {
             workspaces: spaces.value.list.length,
             updates: widget.updates,
             features: widget.features,
+            services: services,
+            sharedLinks: services != null && services.signedIn && (services.shares?.sharedLinks().isNotEmpty ?? false),
           );
           final sections = [
             for (final spec in settingsSections)

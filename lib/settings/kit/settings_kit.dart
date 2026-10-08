@@ -402,11 +402,14 @@ class SettingRowBox extends StatelessWidget implements PaneRow {
 /// What differs from the web original:
 /// - [label] is words, not any content: it is what the search finds the row by, and what a pressable row is called.
 /// - A pressable row shows the kit's focus ring inside its edge, where the page left the browser's own.
+/// - What else the page put in a label (a member's role after their handle, OrganizationSheet.tsx) is [labelAfter],
+///   set in the label's line after its words.
 class SettingRow extends StatelessWidget implements PaneRow {
   const SettingRow({
     super.key,
     this.icon,
     required this.label,
+    this.labelAfter,
     this.hint,
     this.control,
     this.value,
@@ -418,6 +421,9 @@ class SettingRow extends StatelessWidget implements PaneRow {
 
   final Widget? icon;
   final String label;
+
+  /// Something small in the label's line after its words, on their baseline: a chip.
+  final Widget? labelAfter;
 
   /// The caption, bound under the label.
   final Widget? hint;
@@ -465,7 +471,16 @@ class SettingRow extends StatelessWidget implements PaneRow {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label, style: pageText(t, t.fontSize('md'), weight: 'medium')),
+        if (labelAfter == null)
+          Text(label, style: pageText(t, t.fontSize('md'), weight: 'medium'))
+        else
+          Text.rich(
+            TextSpan(
+              text: label,
+              children: [WidgetSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, child: labelAfter!)],
+            ),
+            style: pageText(t, t.fontSize('md'), weight: 'medium'),
+          ),
         if (hint != null) ...[
           SizedBox(height: t.lenOf('0.15rem')),
           DefaultTextStyle(style: pageText(t, sm, height: t.len('glacier-leading-sm'), color: t.color('app-ink-2')), child: hint!),

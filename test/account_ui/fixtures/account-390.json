@@ -1,0 +1,379 @@
+{
+ "now": 1791388800000,
+ "width": 390,
+ "height": 844,
+ "things": {
+  "display": [
+   {
+    "x": 22.31,
+    "y": 62.45,
+    "w": 345.38,
+    "h": 29.05,
+    "text": "Account"
+   }
+  ],
+  "headWord": [
+   {
+    "x": 22.31,
+    "y": 4.45,
+    "w": 117.3,
+    "h": 53.55,
+    "text": "Settings"
+   }
+  ],
+  "titles": [
+   {
+    "x": 22.31,
+    "y": 239.09,
+    "w": 345.38,
+    "h": 14,
+    "text": "Sync"
+   },
+   {
+    "x": 22.31,
+    "y": 793.98,
+    "w": 345.38,
+    "h": 14,
+    "text": "Your colour"
+   },
+   {
+    "x": 22.31,
+    "y": 1014,
+    "w": 345.38,
+    "h": 14,
+    "text": "Privacy"
+   },
+   {
+    "x": 22.31,
+    "y": 1494.3,
+    "w": 345.38,
+    "h": 14,
+    "text": "Location"
+   }
+  ],
+  "cards": [
+   {
+    "x": 22.31,
+    "y": 122.73,
+    "w": 345.38,
+    "h": 98.52,
+    "text": "mattEnd-to-end encryptedSign in again to sync"
+   },
+   {
+    "x": 22.31,
+    "y": 262.02,
+    "w": 345.38,
+    "h": 444.97,
+    "text": "Sync nowSync meeting recordingsA meeting is other people's voices. Off, the word"
+   },
+   {
+    "x": 22.31,
+    "y": 816.91,
+    "w": 345.38,
+    "h": 90.02,
+    "text": ""
+   },
+   {
+    "x": 22.31,
+    "y": 1036.92,
+    "w": 345.38,
+    "h": 310.14,
+    "text": "Local onlyNo sync, and plugins that use the internet are held off.Link previewsA"
+   },
+   {
+    "x": 22.31,
+    "y": 1606.45,
+    "w": 345.38,
+    "h": 410.53,
+    "text": "Map on a tagged noteA small map at the top of the note, and under each place you"
+   },
+   {
+    "x": 22.31,
+    "y": 2034.83,
+    "w": 345.38,
+    "h": 89.33,
+    "text": "Delete accountYour account and everything synced to it. The notes on this device"
+   }
+  ],
+  "rows": [
+   {
+    "x": 22.31,
+    "y": 262.02,
+    "w": 345.38,
+    "h": 56.38,
+    "text": "Sync now"
+   },
+   {
+    "x": 22.31,
+    "y": 318.39,
+    "w": 345.38,
+    "h": 110.41,
+    "text": "Sync meeting recordingsA meeting is other people's voices. Off, the words sync a"
+   },
+   {
+    "x": 22.31,
+    "y": 428.8,
+    "w": 345.38,
+    "h": 150.56,
+    "text": "Live typing (trial)A note open on two of your devices shows what is typed on eit"
+   },
+   {
+    "x": 22.31,
+    "y": 579.36,
+    "w": 345.38,
+    "h": 57.38,
+    "text": "Password and recovery codes"
+   },
+   {
+    "x": 22.31,
+    "y": 636.73,
+    "w": 345.38,
+    "h": 70.25,
+    "text": "Sign outYour notes stay on this device."
+   },
+   {
+    "x": 22.31,
+    "y": 1036.92,
+    "w": 345.38,
+    "h": 89.33,
+    "text": "Local onlyNo sync, and plugins that use the internet are held off."
+   },
+   {
+    "x": 22.31,
+    "y": 1126.25,
+    "w": 345.38,
+    "h": 110.41,
+    "text": "Link previewsA card under a line that is only a link. In the app, the page's tit"
+   },
+   {
+    "x": 22.31,
+    "y": 1236.66,
+    "w": 345.38,
+    "h": 110.41,
+    "text": "Privacy policyWhat stays on this device, and what an account, a shared link or a"
+   },
+   {
+    "x": 22.31,
+    "y": 1606.45,
+    "w": 345.38,
+    "h": 149.56,
+    "text": "Map on a tagged noteA small map at the top of the note, and under each place you"
+   },
+   {
+    "x": 22.31,
+    "y": 1756.02,
+    "w": 345.38,
+    "h": 130.48,
+    "text": "Place namesThe name of the place, asked of OpenStreetMap once when you add a loc"
+   },
+   {
+    "x": 22.31,
+    "y": 1886.5,
+    "w": 345.38,
+    "h": 130.48,
+    "text": "Tag new notes with my locationEvery note you make here starts with where you wer"
+   },
+   {
+    "x": 22.31,
+    "y": 2034.83,
+    "w": 345.38,
+    "h": 89.33,
+    "text": "Delete accountYour account and everything synced to it. The notes on this device"
+   }
+  ],
+  "labels": [
+   {
+    "x": 78.69,
+    "y": 280.2,
+    "w": 244.22,
+    "h": 20,
+    "text": "Sync now"
+   },
+   {
+    "x": 35.7,
+    "y": 332.78,
+    "w": 261.2,
+    "h": 20,
+    "text": "Sync meeting recordings"
+   },
+   {
+    "x": 35.7,
+    "y": 443.19,
+    "w": 261.2,
+    "h": 20,
+    "text": "Live typing (trial)"
+   },
+   {
+    "x": 78.69,
+    "y": 598.55,
+    "w": 244.22,
+    "h": 20,
+    "text": "Password and recovery codes"
+   },
+   {
+    "x": 78.69,
+    "y": 651.13,
+    "w": 244.22,
+    "h": 20,
+    "text": "Sign out"
+   },
+   {
+    "x": 35.7,
+    "y": 1050.31,
+    "w": 261.2,
+    "h": 20,
+    "text": "Local only"
+   },
+   {
+    "x": 35.7,
+    "y": 1140.64,
+    "w": 261.2,
+    "h": 20,
+    "text": "Link previews"
+   },
+   {
+    "x": 78.69,
+    "y": 1251.05,
+    "w": 244.22,
+    "h": 20,
+    "text": "Privacy policy"
+   },
+   {
+    "x": 35.7,
+    "y": 1619.84,
+    "w": 261.2,
+    "h": 20,
+    "text": "Map on a tagged note"
+   },
+   {
+    "x": 35.7,
+    "y": 1770.41,
+    "w": 261.2,
+    "h": 20,
+    "text": "Place names"
+   },
+   {
+    "x": 35.7,
+    "y": 1900.89,
+    "w": 261.2,
+    "h": 20,
+    "text": "Tag new notes with my location"
+   },
+   {
+    "x": 78.69,
+    "y": 2048.22,
+    "w": 244.22,
+    "h": 20,
+    "text": "Delete account"
+   }
+  ],
+  "heroTitle": [
+   {
+    "x": 93.09,
+    "y": 136.13,
+    "w": 261.2,
+    "h": 30.88,
+    "text": "matt"
+   }
+  ],
+  "heroMeta": [
+   {
+    "x": 93.09,
+    "y": 169.39,
+    "w": 261.2,
+    "h": 20.08,
+    "text": "End-to-end encrypted"
+   }
+  ],
+  "heroGlyph": [
+   {
+    "x": 35.7,
+    "y": 149.98,
+    "w": 44,
+    "h": 44,
+    "text": ""
+   }
+  ],
+  "footers": [
+   {
+    "x": 22.31,
+    "y": 715.91,
+    "w": 345.38,
+    "h": 60.23,
+    "text": "Notes, their recordings and pictures, and your settings. The model you downloade"
+   },
+   {
+    "x": 22.31,
+    "y": 915.84,
+    "w": 345.38,
+    "h": 80.31,
+    "text": "Worn by your cursor and your selections while you edit a team note, by your comm"
+   },
+   {
+    "x": 22.31,
+    "y": 1355.98,
+    "w": 345.38,
+    "h": 120.47,
+    "text": "Your notes stay in this browser. Speech is turned into text by the browser's own"
+   }
+  ],
+  "inputs": [],
+  "submits": [],
+  "chips": [],
+  "actions": [],
+  "swatchDots": [
+   {
+    "x": 52.59,
+    "y": 842.73,
+    "w": 33.92,
+    "h": 33.92,
+    "text": "Ink"
+   },
+   {
+    "x": 95.36,
+    "y": 843.69,
+    "w": 32,
+    "h": 32,
+    "text": "Ember"
+   },
+   {
+    "x": 137.19,
+    "y": 843.69,
+    "w": 32,
+    "h": 32,
+    "text": "Amber"
+   },
+   {
+    "x": 179,
+    "y": 843.69,
+    "w": 32,
+    "h": 32,
+    "text": "Moss"
+   },
+   {
+    "x": 220.81,
+    "y": 843.69,
+    "w": 32,
+    "h": 32,
+    "text": "Sea"
+   },
+   {
+    "x": 262.64,
+    "y": 843.69,
+    "w": 32,
+    "h": 32,
+    "text": "Violet"
+   },
+   {
+    "x": 304.45,
+    "y": 843.69,
+    "w": 32,
+    "h": 32,
+    "text": "Rose"
+   }
+  ],
+  "linkRows": [],
+  "linkButtons": [],
+  "inviteWords": []
+ }
+}

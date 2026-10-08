@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../account/ui_state.dart';
 import '../core/preferences.dart';
 import 'appearance_pane.dart';
 import 'kit/settings_icons.dart';
@@ -36,9 +37,20 @@ class SettingsFacts {
     this.workspaces,
     this.updates,
     this.features = const SettingsFeatures(),
+    this.services,
+    this.sharedLinks = false,
   });
 
   final Preferences prefs;
+
+  /// The account, where the app has one to hand Settings ([AccountScope]); null reads as before there was one.
+  final AccountServices? services;
+
+  /// Whether the account has anything shared by a link, which is when Account draws that card.
+  final bool sharedLinks;
+
+  /// Whether someone is signed in: the account's word where there is one, else [SettingsFeatures.signedIn].
+  bool get signedIn => services?.signedIn ?? features.signedIn;
 
   /// How many workspaces the sheet's store holds; null reads the preferences' own.
   final int? workspaces;
@@ -128,8 +140,8 @@ String _static(String line, SettingsFacts _) => line;
 /// beyond the phone (Plugins); the app itself (About); and the hidden pages (Developer, Test results) once unlocked.
 ///
 /// What differs from the web original:
-/// - There is no account yet, so Account reads "Not signed in", Organizations "Signed out", and each lists what a
-///   signed-out page draws.
+/// - The account is the [AccountServices] the sheet finds over it ([SettingsFacts.services]). With none, Account
+///   reads "Not signed in", Organizations "Signed out", and each lists what a signed-out page draws.
 /// - Three pages wait, each on a feature with no Flutter port, and open the card that says so: Library folder (the
 ///   library's status and a folder picker, stage 3), Backup (drives, stage 9) and Plugins (the registry, stage 9).
 ///   Plugins' row is without its second line, how many are on, for the same reason.
@@ -147,8 +159,8 @@ final List<SettingsSectionSpec> settingsSections = [
     group: 0,
     webFile: 'settings/AccountPane.tsx',
     // Local only holds the sync off, so the line says it is on.
-    summary: (facts) => accountSummary(facts.prefs),
-    settings: (facts) => accountFindable(signedIn: facts.features.signedIn),
+    summary: (facts) => accountSummary(facts.prefs, facts.services),
+    settings: (facts) => accountFindable(signedIn: facts.signedIn, ported: facts.services != null, shared: facts.sharedLinks),
     pane: AccountPane.hosted,
   ),
   // The teams the account is in: its own row under Account; one sentence signed out.
@@ -159,7 +171,8 @@ final List<SettingsSectionSpec> settingsSections = [
     glyph: SettingsGlyph.userGroup,
     group: 0,
     webFile: 'settings/OrganizationsPane.tsx',
-    summary: (facts) => 'Signed out',
+    summary: (facts) => organizationsSummary(facts.services),
+    settings: (facts) => organizationsFindable(signedIn: facts.services?.signedIn ?? false),
     pane: OrganizationsPane.hosted,
   ),
   // Every workspace, to rename, colour or delete: beside Organizations, whose workspaces it lists too.
@@ -184,7 +197,7 @@ final List<SettingsSectionSpec> settingsSections = [
     group: 0,
     webFile: 'settings/NotificationsPane.tsx',
     summary: (facts) => notificationsSummary(facts.prefs.notifications),
-    settings: (facts) => notificationsFindable(orgs: facts.features.orgs.isNotEmpty),
+    settings: (facts) => notificationsFindable(orgs: facts.services != null ? facts.services!.joined.isNotEmpty : facts.features.orgs.isNotEmpty),
     pane: NotificationsPane.hosted,
   ),
   // Where the notes are, and the two ways to carry them off: a card of their own, where the app keeps its notes in
