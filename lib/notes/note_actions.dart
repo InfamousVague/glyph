@@ -26,8 +26,9 @@
 /// - **Without a [Trash]** the delete is what the home page did before there was one (lib/home/library_home.dart):
 ///   the note is taken out of the library, and Undo puts it back where it was with its workspace. The words in the
 ///   toast are the web's either way.
-/// - The library's writes are immediate (lib/core/sample_library.dart), where the web's are awaited; the order of
-///   what happens is the web's.
+/// - A pin and an archive are asked for and not waited on, where the web's handlers await them before the haptic
+///   and the toast; the list is read again once the library has answered, as there. Deleting for good is
+///   [NoteLibrary.destroy], awaited, as the web awaits `deleteNote`.
 library;
 
 import 'dart:async';
@@ -136,7 +137,7 @@ class NoteActions extends ChangeNotifier with WidgetsBindingObserver {
     due.timer.cancel();
     final run = _committing.then((_) async {
       try {
-        library.delete(due.id);
+        await library.destroy(due.id);
         _forgetKept(due.id);
         trash?.forget([due.id]);
       } catch (error) {
@@ -216,14 +217,18 @@ class NoteActions extends ChangeNotifier with WidgetsBindingObserver {
     unawaited(_commit());
     for (final note in notes) {
       try {
-        library.delete(note.id);
+        await library.destroy(note.id);
         _forgetKept(note.id);
       } catch (error) {
         debugPrint('[glyph] delete failed: $error');
       }
     }
     trash?.forget([for (final note in notes) note.id]);
-    await library.refresh();
+    try {
+      await library.refresh();
+    } catch (error) {
+      debugPrint('[glyph] refresh after delete failed: $error');
+    }
     haptic?.call(HapticKind.warning);
     say(NoteToast(notes.length == 1 ? 'Deleted 1 note for good.' : 'Deleted ${notes.length} notes for good.'));
   }
@@ -255,25 +260,31 @@ class NoteActions extends ChangeNotifier with WidgetsBindingObserver {
     ));
   }
 
+  /// A pin or an archive asked of the library, and the list read again once it has answered. A library that refuses
+  /// is said and no more: the list still shows the note as it is.
+  Future<void> _flag(Future<void> Function() change) async {
+    try {
+      await change();
+      await library.refresh();
+    } catch (error) {
+      debugPrint('[glyph] the note could not be changed: $error');
+    }
+  }
+
   /// Into the archive or out of it, with an Undo that sets it back.
   void archive(Note note, {required bool archived}) {
-    library.archive(note.id, archived: archived);
-    unawaited(library.refresh());
+    unawaited(_flag(() => library.archive(note.id, archived: archived)));
     haptic?.call(HapticKind.success);
     say(NoteToast(
       archived ? 'Archived ${noteLabel(note)}.' : '${_capitalise(noteLabel(note))} is back in your notes.',
       duration: noteUndo,
-      undo: () {
-        library.archive(note.id, archived: !archived);
-        unawaited(library.refresh());
-      },
+      undo: () => unawaited(_flag(() => library.archive(note.id, archived: !archived))),
     ));
   }
 
   /// Pin or unpin: a pinned note sits at the top of the list (stored as `starred`).
   void pin(Note note) {
-    library.pin(note.id, pinned: !note.starred);
-    unawaited(library.refresh());
+    unawaited(_flag(() => library.pin(note.id, pinned: !note.starred)));
     haptic?.call(HapticKind.success);
   }
 

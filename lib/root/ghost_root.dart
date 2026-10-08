@@ -4,16 +4,22 @@ import 'package:glacier/glacier.dart';
 import '../art/art.dart';
 import '../commands/app_commands.dart';
 import '../commands/command_bar.dart';
+import '../core/core_library.dart';
+import '../core/kept_trash.dart';
+import '../core/kept_workspaces.dart';
+import '../core/native/core.dart';
 import '../core/note.dart';
+import '../core/note_folders.dart';
 import '../core/preferences.dart';
 import '../core/sample_library.dart';
 import '../core/stored.dart';
-import '../core/swipe.dart';
+import '../core/trash.dart';
 import '../core/workspaces.dart';
 import '../home/home_layout.dart';
 import '../home/home_screen.dart';
 import '../launch/launch_screen.dart';
 import '../notes/all_notes_screen.dart';
+import '../notes/note_actions.dart';
 import '../notes/note_menu.dart';
 import '../notes/note_tree.dart';
 import '../notes/notes_drawer.dart';
@@ -28,26 +34,31 @@ import '../shell/top_bar.dart';
 /// shell (lib/shell/app_shell.dart); in the shell the home page, the notes' sidebar as a card or docked, and the
 /// notifications; over it Settings and a workspace's sheet; and the art in the seams each of them left for it.
 ///
-/// What it stands on until the stages that bring the real things:
-/// - **The library** is [SampleLibrary], the invented notes the store's screenshots are taken over, held in memory:
-///   pinning, archiving, deleting to a trash and making a note all work and none of it is kept (stage 3).
-/// - **Deleting** goes to a trash kept here, without the web's Undo toast: notes/note_actions.dart has that, and takes
-///   over when the trash becomes the preference it is on the web (stage 3).
+/// What it stands on:
+/// - **The library** is the Rust core's ([core], lib/core/core_library.dart): the notes are Markdown files in the app's
+///   own folder, as the Tauri app keeps them; the workspaces and the trash are preferences; a fresh library is given
+///   the starter notes once. Without a core (a test, a picture) it is the store screenshots' invented library in memory.
 /// - **A note's own screen** is the shell's stand-in, its title over its Markdown as written (stage 4).
-/// - **Speak**, organizations and the notifications' feed are not here yet: the dock leaves Speak out, and the bell
-///   opens an empty card (stages 7 and 8). The command bar has every command whose feature exists.
+/// - **Speak**, organizations and the notifications' feed are not here yet (stages 7 and 8).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.library, this.workspaces, this.stored, this.launch = true});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
 
-  /// The notes; the store screenshots' library unless a test brings its own.
+  /// The Rust core (lib/core/native): given, the notes are the real library's files, and the workspaces and the
+  /// trash are kept in the preferences as on the web. Absent, everything is in memory over the invented library.
+  final CoreInvoke? core;
+
+  /// The notes, where a test brings its own.
   final NoteLibrary? library;
   final WorkspaceStore? workspaces;
 
   /// Where this device keeps how its sidebar was left; the app's own (core/stored.dart) unless given.
   final Stored? stored;
+
+  /// The time, for a picture that must say the same "2 hr ago" every day.
+  final int Function()? clock;
 
   /// Whether the app opens behind its launch screen. A test's picture of a screen does not.
   final bool launch;
@@ -57,10 +68,29 @@ class GhostRoot extends StatefulWidget {
 }
 
 class _GhostRootState extends State<GhostRoot> {
-  late final NoteLibrary _library = widget.library ?? SampleLibrary.seeded(now: DateTime.now().millisecondsSinceEpoch);
-  late final WorkspaceStore _workspaces = widget.workspaces ?? WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces()));
+  late final bool _real = widget.core != null && widget.library == null;
+  late final NoteLibrary _library = widget.library ?? (_real ? CoreLibrary(widget.core!) : SampleLibrary.seeded(now: DateTime.now().millisecondsSinceEpoch));
+  late final Trash _trash = _real ? KeptTrash() : MemoryTrash();
+  late final WorkspaceStore _workspaces = widget.workspaces ??
+      (_real
+          ? WorkspaceStore(storage: KeptWorkspaceStorage(), trash: _trash, onFiled: NoteFolders(_library).fileNotesInFolder)
+          : WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces()), trash: _trash));
+  NoteActions? _made;
+
+  /// Pin, archive, delete and their Undo (notes/note_actions.dart); made once there is a toast to say them with.
+  NoteActions get _actions => _made ??= NoteActions(library: _library, workspaces: _workspaces, trash: _trash, say: NoteActions.toaster(context))..addListener(_changed);
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  List<Note> get _shown => [
+        for (final note in outOfTrash(_library.value, _trash.value))
+          if (!(_made?.hidden.contains(note.id) ?? false)) note,
+      ];
+  List<Note> get _trashed => inTrash(_library.value, _trash.value);
   late final Stored _stored = widget.stored ?? stored;
-  late final Listenable _all = Listenable.merge([_library, _workspaces, preferences]);
+  late final Listenable _all = Listenable.merge([_library, _workspaces, _trash, preferences]);
 
   final GlobalKey<AppShellState> _shell = GlobalKey<AppShellState>();
   final GlobalKey<CommandBarState> _commands = GlobalKey<CommandBarState>();
@@ -73,10 +103,8 @@ class _GhostRootState extends State<GhostRoot> {
   /// A note's menu, from a long press or a right-click on it in any list (notes/note_menu.dart).
   final NoteMenuController _menu = NoteMenuController();
 
-  /// The trash: what was deleted, newest first, until it is emptied.
-  final List<Note> _trashed = [];
   late bool _launching = widget.launch;
-  bool _read = false;
+  bool get _read => !_library.loading;
   bool _settings = false;
 
   /// The workspace sheet: shut, a new one, or one to change.
@@ -88,6 +116,7 @@ class _GhostRootState extends State<GhostRoot> {
   @override
   void dispose() {
     preferences.removeListener(_smoke);
+    _made?.dispose();
     super.dispose();
   }
 
@@ -96,33 +125,25 @@ class _GhostRootState extends State<GhostRoot> {
     super.initState();
     _smoke();
     preferences.addListener(_smoke);
-    // The notes are in memory, so reading them is no wait; a beat, so the launch's first line is seen to be done.
-    Future<void>.delayed(const Duration(milliseconds: 350), () {
-      if (mounted) setState(() => _read = true);
-    });
+    _open();
+  }
+
+  /// Reads the library, and gives a fresh one the starter notes once (core/seed.ts: `glyph-sample-note`).
+  Future<void> _open() async {
+    await _library.load();
+    if (!_real || !mounted) return;
+    final seeded = _stored.flag('glyph-sample-note', unreadable: true);
+    if (seeded.isMarked) return;
+    seeded.mark();
+    if (_library.value.isNotEmpty) return;
+    for (final note in starterNotes(DateTime.now().millisecondsSinceEpoch)) {
+      await _library.createNote(note.body);
+    }
   }
 
   void _delete(String id) {
-    final note = _library.delete(id);
-    if (note == null) return;
-    _workspaces.forgetNote(id);
-    setState(() => _trashed.insert(0, note));
-  }
-
-  void _restore(Note note) {
-    _library.restore(note);
-    setState(() => _trashed.remove(note));
-  }
-
-  void _swipe(Note note, NoteSwipe action) {
-    switch (action) {
-      case NoteSwipe.pin:
-        _library.pin(note.id, pinned: !note.starred);
-      case NoteSwipe.archive:
-        _library.archive(note.id, archived: note.archivedAt == null);
-      case NoteSwipe.delete:
-        _delete(note.id);
-    }
+    final note = _library.noteOf(id);
+    if (note != null) _actions.remove(note);
   }
 
   void _new(AppShellState shell) {
@@ -160,11 +181,11 @@ class _GhostRootState extends State<GhostRoot> {
         setState(() => _settings = true);
       },
       trashed: _trashed,
-      onRestore: _restore,
-      onDestroy: (note) => setState(() => _trashed.remove(note)),
-      onEmptyTrash: () => setState(_trashed.clear),
+      onRestore: _actions.restore,
+      onDestroy: _actions.destroy,
+      onEmptyTrash: () => _actions.emptyTrash(_trashed),
       notesInWorkspace: _notesIn,
-      onTrashNotes: (ids) => ids.forEach(_delete),
+      onTrashNotes: (ids) => ids.forEach(_trash.trashNote),
       emptyArt: const Ghost(scene: GhostScene.noNotes),
     );
   }
@@ -181,7 +202,7 @@ class _GhostRootState extends State<GhostRoot> {
             AppShell(
               key: _shell,
               sheet: widget.sheet ?? context.tokens.sheet,
-              notes: _library.value,
+              notes: _shown,
               topBar: TopBarStyle.parse(prefs.topBar),
               sidebarStyle: prefs.sidebarStyle == 'docked' ? SidebarStyle.docked : SidebarStyle.popover,
               workspaces: _workspaces.value,
@@ -200,9 +221,10 @@ class _GhostRootState extends State<GhostRoot> {
                 layout: homeLayoutOf(prefs.homeLayout),
                 onOpen: shell.openNote,
                 onNew: () => _new(shell),
+                clock: widget.clock,
                 onAllNotes: shell.showAllNotes,
                 onSearch: _search,
-                onSwipe: _swipe,
+                onSwipe: _actions.swipe,
                 onRefresh: _library.refresh,
                 onNoteMenu: (id) => _menu.open(id, MediaQuery.sizeOf(context).center(Offset.zero)),
                 onManageWorkspace: (workspace) => setState(() => _workspace = (editing: workspace)),
@@ -224,12 +246,13 @@ class _GhostRootState extends State<GhostRoot> {
                 workspaces: _workspaces,
                 stored: _stored,
                 tapes: screen.tapes,
+                clock: widget.clock,
                 onOpen: shell.openNote,
                 onBack: shell.backToList,
                 onRefresh: _library.refresh,
                 onNoteMenu: (note, at) => _menu.open(note.id, at),
                 notesInWorkspace: _notesIn,
-                onTrashNotes: (ids) => ids.forEach(_delete),
+                onTrashNotes: (ids) => ids.forEach(_trash.trashNote),
                 wisp: prefs.wispEdge,
               ),
               sidebarBuilder: (context, shell, close) => NotesDrawer(
@@ -253,11 +276,11 @@ class _GhostRootState extends State<GhostRoot> {
                   setState(() => _settings = true);
                 },
                 trashed: _trashed,
-                onRestore: _restore,
-                onDestroy: (note) => setState(() => _trashed.remove(note)),
-                onEmptyTrash: () => setState(_trashed.clear),
+                onRestore: _actions.restore,
+                onDestroy: _actions.destroy,
+                onEmptyTrash: () => _actions.emptyTrash(_trashed),
                 notesInWorkspace: _notesIn,
-                onTrashNotes: (ids) => ids.forEach(_delete),
+                onTrashNotes: (ids) => ids.forEach(_trash.trashNote),
                 emptyArt: const Ghost(scene: GhostScene.noNotes),
               ),
               dockedSidebarBuilder: (context, shell) => _tree(shell),
@@ -296,10 +319,10 @@ class _GhostRootState extends State<GhostRoot> {
             ),
             NoteMenuHost(
               controller: _menu,
-              notes: _library.value,
+              notes: _shown,
               onOpen: (note) => _shell.currentState?.openNote(note.id),
-              onPin: (note) => _library.pin(note.id, pinned: !note.starred),
-              onArchive: (note, archived) => _library.archive(note.id, archived: archived),
+              onPin: _actions.pin,
+              onArchive: (note, archived) => _actions.archive(note, archived: archived),
               onDelete: (note) => _delete(note.id),
             ),
             if (_workspace case final sheet?)
@@ -308,9 +331,9 @@ class _GhostRootState extends State<GhostRoot> {
                 editing: sheet.editing,
                 onClose: () => setState(() => _workspace = null),
                 notesIn: _notesIn,
-                onTrashNotes: (ids) => ids.forEach(_delete),
+                onTrashNotes: (ids) => ids.forEach(_trash.trashNote),
               ),
-            if (_launching) LaunchScreen(loading: !_read, notes: _library.value.length, onDone: () => setState(() => _launching = false)),
+            if (_launching) LaunchScreen(loading: !_read, notes: _shown.length, onDone: () => setState(() => _launching = false)),
           ],
         );
       },

@@ -6,9 +6,9 @@
 /// untouched until the trash is emptied; only then is it deleted from the library.
 ///
 /// What differs: the web keeps which note went in and when as a preference (`preferences().trash`), which syncs.
-/// Here it is [Trash], an interface that can be listened to (the web's `useTrash`), with [MemoryTrash] behind it for
-/// this run; whoever brings the synced preferences puts theirs behind the same interface. The module's functions are
-/// its methods, under the web's own names.
+/// Here it is [Trash], an interface that can be listened to (the web's `useTrash`): the app's is the preference
+/// (lib/core/kept_trash.dart), and [MemoryTrash] is one for this run, for a test. The module's functions are its
+/// methods, under the web's own names.
 library;
 
 import 'package:flutter/foundation.dart';
@@ -34,7 +34,7 @@ abstract class Trash implements ValueListenable<TrashHeld> {
   void forget(Iterable<String> ids);
 }
 
-/// [Trash] held in memory for this run. The web's is a preference that is kept and synced; see the library doc.
+/// [Trash] held in memory for this run. The app's is the preference (lib/core/kept_trash.dart).
 class MemoryTrash extends ValueNotifier<TrashHeld> implements Trash {
   MemoryTrash([TrashHeld held = const {}, int Function()? clock])
       : _clock = clock ?? (() => DateTime.now().millisecondsSinceEpoch),

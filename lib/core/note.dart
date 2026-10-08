@@ -10,6 +10,12 @@ class Segment {
   final int startMs;
   final int endMs;
   final String text;
+
+  @override
+  bool operator ==(Object other) => other is Segment && other.startMs == startMs && other.endMs == endMs && other.text == text;
+
+  @override
+  int get hashCode => Object.hash(startMs, endMs, text);
 }
 
 /// A note, as the web app's store holds it (`Note`, src/app/core/store.ts): its Markdown body and what the library
@@ -23,6 +29,7 @@ class Note {
     required this.createdAt,
     required this.updatedAt,
     this.source = NoteSource.editor,
+    this.sourceName,
     this.starred = false,
     this.archivedAt,
     this.recordingMs,
@@ -41,6 +48,14 @@ class Note {
   final int createdAt;
   final int updatedAt;
   final NoteSource source;
+
+  /// The source as the library said it, where it is neither of the two: the core keeps a free string (`source`,
+  /// src-tauri/src/note.rs), and a note handed back whole (`store_apply`) must say the word it came with. Such a note
+  /// reads as typed ([source] is [NoteSource.editor]), as the page's `source === 'capture'` reads it.
+  final String? sourceName;
+
+  /// The source's word as the library keeps it: `editor`, `capture`, or whatever else it was born with.
+  String get sourceWord => sourceName ?? source.name;
 
   /// Pinned to the top of the list.
   final bool starred;
@@ -69,6 +84,7 @@ class Note {
         createdAt: createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
         source: source,
+        sourceName: sourceName,
         starred: starred ?? this.starred,
         archivedAt: archivedAt == null ? this.archivedAt : archivedAt(),
         recordingMs: recordingMs,

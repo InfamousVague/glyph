@@ -8,10 +8,13 @@
 ///
 /// What differs:
 /// - The web kept one module-level sheet in the preferences and one filter in localStorage; here it is a
-///   [WorkspaceStore] over a [WorkspaceStorage], which is in memory until the preferences and the library arrive, so
-///   a test or a screen makes its own. The function names are the web's, as methods.
-/// - A note's file does not follow its filing yet (`core/noteFolders.ts`), and `deleteWorkspace`'s trash is the
-///   library's to port.
+///   [WorkspaceStore] over a [WorkspaceStorage], so a test or a screen makes its own. The app's storage is the
+///   preferences and the device's own key, as on the web (lib/core/kept_workspaces.dart); [MemoryWorkspaceStorage]
+///   is one for this run. The function names are the web's, as methods.
+/// - The web's module reaches for `core/noteFolders.ts` and the trash itself; here both are handed in. A note's file
+///   follows its filing through [WorkspaceStore.onFiled] (lib/core/note_folders.dart gives the function), and
+///   `deleteWorkspace` puts the notes in the [Trash] the store was made with. Without them nothing moves and nothing
+///   is trashed, as in a browser with no library.
 /// - The move of a set kept under the old `glyph-workspaces` key into the preferences is the web's own history and
 ///   is not carried.
 library;
@@ -19,6 +22,8 @@ library;
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+
+import 'trash.dart';
 
 /// The hues a workspace can wear (`WORKSPACE_HUES`). A name, not a colour: what each looks like is ink.css `[data-hue]`.
 const List<String> workspaceHues = ['ink', 'ember', 'amber', 'moss', 'sea', 'violet', 'rose'];
@@ -93,6 +98,9 @@ class WorkspaceSheet {
 
 /// Where the sheet is kept. On the web the list and the filings are a preference, so they travel, and the filter
 /// stays on the device; one small interface stands for both here.
+///
+/// A storage that is also a [Listenable] is one whose sheet can change without the store's doing (settings from
+/// another device landing in the preferences): the store listens, and reads the sheet again when it is told.
 abstract class WorkspaceStorage {
   WorkspaceSheet read();
   void write(WorkspaceSheet sheet);
@@ -121,15 +129,33 @@ class OrgLike {
 
 String _tidy(String name) => name.replaceAll(RegExp(r'\s+'), ' ').trim();
 
+/// Moves notes' files to the folder of the workspace they are now filed in, or back to the inbox for null
+/// (`fileNotesInFolder`, core/noteFolders.ts). Asked for and not waited on: the pill changes now, and the file
+/// catches up when the library answers.
+typedef NotesFiled = void Function(List<String> noteIds, Workspace? workspace);
+
 /// The workspaces, and everything done to them. Listen to it as a [ValueListenable]: its value is the same snapshot
 /// until something changes, and each change tells its listeners once.
 class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspaces> {
-  WorkspaceStore({WorkspaceStorage? storage, Random? random})
+  WorkspaceStore({WorkspaceStorage? storage, Random? random, this.trash, this.onFiled, int Function()? clock})
       : _storage = storage ?? MemoryWorkspaceStorage(),
-        _random = random ?? Random();
+        _random = random ?? Random(),
+        _clock = clock ?? (() => DateTime.now().millisecondsSinceEpoch) {
+    final storage = _storage;
+    if (storage is Listenable) (storage as Listenable).addListener(reloadWorkspaces);
+  }
 
   final WorkspaceStorage _storage;
   final Random _random;
+  final int Function() _clock;
+
+  /// The trash [deleteWorkspace] puts a workspace's notes in, and [notesInWorkspace] leaves out; none, and nothing
+  /// is trashed and every filed note counts.
+  final Trash? trash;
+
+  /// Told each time notes' filing changed where their files should be: a note filed or unfiled, a workspace renamed
+  /// or removed.
+  final NotesFiled? onFiled;
   WorkspaceSheet? _sheet;
   Workspaces? _snapshot;
 
@@ -228,12 +254,49 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
   void _rename(String id, String name) {
     final clean = _tidy(name);
     final sheet = _current;
-    if (clean.isEmpty || !sheet.list.any((w) => w.id == id)) return;
+    Workspace? was;
+    for (final w in sheet.list) {
+      if (w.id == id) was = w;
+    }
+    if (clean.isEmpty || was == null) return;
+    final renamed = Workspace(id: was.id, name: clean, hue: was.hue);
     _write(WorkspaceSheet(
-      list: [for (final w in sheet.list) w.id == id ? Workspace(id: w.id, name: clean, hue: w.hue) : w],
+      list: [for (final w in sheet.list) w.id == id ? renamed : w],
       notes: sheet.notes,
       current: sheet.current,
     ));
+    // The folder is named after the workspace, so renaming one moves its notes into a folder of the new name.
+    onFiled?.call(_filedIn(sheet.notes, id), renamed);
+  }
+
+  /// The notes filed in workspace [id], from the sheet's filings (`filedIn`).
+  static List<String> _filedIn(Map<String, String> notes, String id) => [
+        for (final entry in notes.entries)
+          if (entry.value == id) entry.key,
+      ];
+
+  /// The notes filed in workspace [id] that are not already in the trash: what deleting it would ask about
+  /// (`notesInWorkspace`).
+  List<String> notesInWorkspace(String id) {
+    final held = trash?.value ?? const <String, int>{};
+    return [
+      for (final note in _filedIn(_current.notes, id))
+        if (!held.containsKey(note)) note,
+    ];
+  }
+
+  /// Deletes the workspace, asked each time what becomes of its notes: kept, and only unfiled, as [removeWorkspace]
+  /// leaves them, or put in the trash with it, where they wait to be restored or emptied like any deleted note
+  /// (`deleteWorkspace`). Nothing is deleted for good here. Not an organization's, which goes when the person leaves.
+  void deleteWorkspace(String id, {required bool trashNotes}) {
+    if (isOrgWorkspace(id)) return;
+    if (trashNotes) {
+      final now = _clock();
+      for (final note in notesInWorkspace(id)) {
+        trash?.trashNote(note, now);
+      }
+    }
+    _remove(id);
   }
 
   /// Removes the workspace; its notes are simply not filed any more, and the list shows all notes if it was chosen.
@@ -245,6 +308,8 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
 
   void _remove(String id) {
     final sheet = _current;
+    // Its notes are not filed any more, so their files go back to the inbox.
+    onFiled?.call(_filedIn(sheet.notes, id), null);
     if (!sheet.list.any((w) => w.id == id)) return;
     _write(WorkspaceSheet(
       list: [for (final w in sheet.list) if (w.id != id) w],
@@ -295,7 +360,8 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
   /// The organization's workspace gone, as when the person leaves it: its notes are unfiled, never deleted.
   void dropOrgWorkspace(String orgId) => _remove(orgWorkspaceId(orgId));
 
-  /// Files [noteId] in a workspace, or in none with null.
+  /// Files [noteId] in a workspace, or in none with null. The note's file follows its filing: into
+  /// `workspaces/<the workspace>/`, or back to `Inbox/` ([onFiled]).
   void fileNote(String noteId, String? id) {
     final sheet = _current;
     if (id != null && !sheet.list.any((w) => w.id == id)) return;
@@ -307,6 +373,11 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
       next[noteId] = id;
     }
     _write(WorkspaceSheet(list: sheet.list, notes: next, current: sheet.current));
+    Workspace? to;
+    for (final w in sheet.list) {
+      if (w.id == id) to = w;
+    }
+    onFiled?.call([noteId], to);
   }
 
   /// A note just made: filed in the chosen workspace, if there is one and the note is not filed yet.
@@ -336,5 +407,12 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
     if (id == null) return [...notes];
     final filed = _current.notes;
     return [for (final note in notes) if (filed[idOf(note)] == id) note];
+  }
+
+  @override
+  void dispose() {
+    final storage = _storage;
+    if (storage is Listenable) (storage as Listenable).removeListener(reloadWorkspaces);
+    super.dispose();
   }
 }

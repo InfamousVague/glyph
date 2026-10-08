@@ -9,9 +9,9 @@
 ///   `core/boardNote.ts` and `core/sampleNote.ts`: [starterNotes].
 ///
 /// What differs:
-/// - The store is [NoteLibrary], an interface, with [SampleLibrary] behind it in memory. The web's is `core/store.ts`
-///   over Rust, and its Undo toasts are `notes/useNoteActions.ts`'s; here a delete hands back what it took, and
-///   [NoteLibrary.restore] puts it back.
+/// - The store is [NoteLibrary] (lib/core/library.dart, handed on from here for the files that found it here), with
+///   [SampleLibrary] behind it in memory; the real one is lib/core/core_library.dart. A delete here hands back what it
+///   took, and [NoteLibrary.restore] puts it back, for the screens from before the trash was a preference.
 /// - seed.mjs pins its clock to ten on a Monday morning in London; [seedNow] is that wall clock on this device, so the
 ///   same notes fall in "Today" wherever the page is drawn.
 /// - The sample note is made without its picture, as the web makes it where a picture cannot be kept.
@@ -22,36 +22,19 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import 'library.dart';
+import 'native/core.dart';
 import 'note.dart';
 import 'workspaces.dart';
 
+export 'library.dart' show NoteLibrary;
+
 // ---- the store ---------------------------------------------------------------------------------------------------
 
-/// The notes, and what the home page does to them. A real library replaces [SampleLibrary] behind this.
-abstract class NoteLibrary implements ValueListenable<List<Note>> {
-  /// The note by that id, or null.
-  Note? noteOf(String id);
-
-  /// Pins the note to the top, or takes its pin off.
-  void pin(String id, {required bool pinned});
-
-  /// Puts the note in the archive, or brings it out again.
-  void archive(String id, {required bool archived});
-
-  /// Takes the note out of the library, and answers it, for an Undo; null where there was none.
-  Note? delete(String id);
-
-  /// Puts back a note [delete] took, where it was.
-  void restore(Note note);
-
-  /// A new note with those words, made now, first in the list.
-  Note create(String body, {NoteSource source = NoteSource.editor});
-
-  /// Reads the notes again: what a pull down the page asks for.
-  Future<void> refresh();
-}
-
-/// [NoteLibrary] over a list held in memory.
+/// [NoteLibrary] over a list held in memory: the store screenshots' library, and what a test draws a screen over.
+/// It keeps the store's rules where a screen can meet them (a save over the revision it read, an id made once, a
+/// pin that is not an edit), as the browser half of `core/store.ts` does, and nothing of the library's files: a note
+/// here has no path, and a blank one is a note like any other.
 class SampleLibrary extends ValueNotifier<List<Note>> implements NoteLibrary {
   SampleLibrary(List<Note> notes, {int Function()? clock, Random? random})
       : _clock = clock ?? (() => DateTime.now().millisecondsSinceEpoch),
@@ -67,6 +50,13 @@ class SampleLibrary extends ValueNotifier<List<Note>> implements NoteLibrary {
   final int Function() _clock;
   final Random _random;
 
+  /// The notes are here: there is never a first read to wait for.
+  @override
+  bool get loading => false;
+
+  @override
+  Future<void> load() => Future<void>.value();
+
   @override
   Note? noteOf(String id) {
     for (final note in value) {
@@ -75,18 +65,25 @@ class SampleLibrary extends ValueNotifier<List<Note>> implements NoteLibrary {
     return null;
   }
 
+  @override
+  Future<Note?> get(String id) => Future<Note?>.value(noteOf(id));
+
   void _replace(String id, Note Function(Note note) change) {
     if (noteOf(id) == null) return;
     value = List.unmodifiable([for (final note in value) note.id == id ? change(note) : note]);
   }
 
   @override
-  void pin(String id, {required bool pinned}) => _replace(id, (note) => note.copyWith(starred: pinned));
+  Future<void> pin(String id, {required bool pinned}) {
+    _replace(id, (note) => note.copyWith(starred: pinned));
+    return Future<void>.value();
+  }
 
   @override
-  void archive(String id, {required bool archived}) {
+  Future<void> archive(String id, {required bool archived}) {
     final at = _clock();
     _replace(id, (note) => note.copyWith(archivedAt: () => archived ? at : null));
+    return Future<void>.value();
   }
 
   @override
@@ -98,9 +95,22 @@ class SampleLibrary extends ValueNotifier<List<Note>> implements NoteLibrary {
   }
 
   @override
+  Future<void> destroy(String id) {
+    delete(id);
+    return Future<void>.value();
+  }
+
+  @override
   void restore(Note note) {
     if (noteOf(note.id) != null) return;
     value = List.unmodifiable([...value, note]);
+  }
+
+  Note _make(String id, String body, NoteSource source) {
+    final at = _clock();
+    final note = Note(id: id, body: body, createdAt: at, updatedAt: at, source: source);
+    value = List.unmodifiable([note, ...value]);
+    return note;
   }
 
   @override
@@ -110,10 +120,35 @@ class SampleLibrary extends ValueNotifier<List<Note>> implements NoteLibrary {
     do {
       id = 'n-${List.generate(10, (_) => letters[_random.nextInt(letters.length)]).join()}';
     } while (noteOf(id) != null);
-    final at = _clock();
-    final note = Note(id: id, body: body, createdAt: at, updatedAt: at, source: source);
-    value = List.unmodifiable([note, ...value]);
-    return note;
+    return _make(id, body, source);
+  }
+
+  @override
+  Future<Note> createNote(String body, {NoteSource source = NoteSource.editor, String? id}) {
+    if (id == null) return Future<Note>.value(create(body, source: source));
+    if (noteOf(id) != null) return Future<Note>.error(const CoreError(noteIdTaken));
+    return Future<Note>.value(_make(id, body, source));
+  }
+
+  @override
+  Future<Note> update(String id, String body, int expectedRevision) {
+    final existing = noteOf(id);
+    if (existing == null || existing.revision != expectedRevision) return Future<Note>.error(noteChangedError());
+    final note = existing.copyWith(body: body, updatedAt: _clock(), revision: expectedRevision + 1);
+    _replace(id, (_) => note);
+    return Future<Note>.value(note);
+  }
+
+  @override
+  Future<Note> save(String id, String body) {
+    final known = noteOf(id);
+    return known == null ? Future<Note>.error(noteChangedError()) : update(id, body, known.revision);
+  }
+
+  @override
+  Future<Note> apply(Note note) {
+    value = List.unmodifiable([note, ...value.where((each) => each.id != note.id)]);
+    return Future<Note>.value(note);
   }
 
   @override

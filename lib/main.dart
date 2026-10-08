@@ -3,6 +3,9 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import 'app/ghost_app.dart';
+import 'core/native/core.dart';
+import 'core/native/device_paths.dart';
+import 'core/native/ghost_core.dart';
 import 'core/preferences.dart';
 import 'core/stored.dart';
 import 'core/stored_device.dart';
@@ -25,5 +28,16 @@ Future<void> main() async {
   } catch (_) {
     // Refused (core/stored.dart): a device that cannot remember, not an error.
   }
-  runApp(GhostApp(sheet: sheet, home: const GhostRoot()));
+  // The notes library: the web app's own Rust, asked across FFI (lib/core/native). A phone where it will not load
+  // still opens, on the invented library, rather than on nothing.
+  CoreInvoke? core;
+  try {
+    final native = await GhostCore.open();
+    final dirs = await DevicePaths.find();
+    await native.init(dataDir: dirs.dataDir, cacheDir: dirs.cacheDir);
+    core = native.invoke;
+  } catch (failure) {
+    debugPrint('[ghost] the library would not open: $failure');
+  }
+  runApp(GhostApp(sheet: sheet, home: GhostRoot(core: core)));
 }
