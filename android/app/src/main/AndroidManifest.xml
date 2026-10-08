@@ -1,4 +1,44 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- A model's download (native/src/models.rs) and the account's sync: the only things that leave the phone. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      The microphone, for dictation (capture/DictationMic.kt) and meetings. Asked for at the moment a person first
+      records, never before; MODIFY_AUDIO_SETTINGS is for the noise suppression and gain control attached to it.
+      NO ALWAYS-ON MICROPHONE: it is open only between a recording's start and its stop.
+    -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- "Written up" and the recording's own notification; Android 13+ asks at the meeting screen's prompt. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
+      Meetings (capture/MeetingService.kt, ported from ../glyph): a recording that keeps going with the screen
+      off, and the write-up that follows it with the app closed. A foreground service needs FOREGROUND_SERVICE,
+      and from Android 14 each of its types needs its own permission and a matching type on the <service> below:
+      MICROPHONE while it records (the only type Android lets hold a microphone in the background, and only when
+      started while the app is in front), MEDIA_PROCESSING for the write-up on Android 15 and later, SPECIAL_USE
+      for the same on Android 14, where that type does not exist yet. Without one of these the start throws and
+      no meeting can be recorded. WAKE_LOCK keeps the CPU on while the phone is on the table with the screen off.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!--
+      The sound of other apps in a meeting, when "Include sound from other apps" is on (capture/OtherApps.kt):
+      AudioPlaybackCapture runs on a MediaProjection, which Android 14 lets a service use only as a foreground
+      service of type mediaProjection. Asked for nowhere else: the consent is the screen-share dialog Android shows
+      each time, and only when the switch is on. Calls are never in it.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+
+    <!-- A phone with no microphone still lists the app: notes can be typed. -->
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
     <application
         android:label="Ghost Flutter"
         android:name="${applicationName}"
@@ -28,7 +68,107 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- "Record note" on a long press of the icon: shown only with the assistant on (ghost_shortcuts.xml). -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/ghost_shortcuts" />
         </activity>
+
+        <!--
+          8F, THE PHONE ASSISTANT AND THE SIDE KEY: ported from ../glyph and DISABLED unless the build turns it on
+          (`@bool/ghost_assistant`, false by default; android/app/build.gradle.kts says how), as the web app keeps
+          the phone assistant behind a developer flag. Four things hang on the one switch: this alias, which is the
+          activity's two capture doors (ASSIST for launchers and OEM builds that invoke the assistant by activity,
+          and the capture action the side key and the launcher shortcut send; DEFAULT is not optional, the role
+          controller matches with MATCH_DEFAULT_ONLY), and the three services below. Disabled, none of them exists
+          as far as the system is concerned: the app is not offered as a digital assistant and nothing can start a
+          capture from outside it.
+        -->
+        <activity-alias
+            android:name=".CaptureDoor"
+            android:targetActivity=".MainActivity"
+            android:enabled="@bool/ghost_assistant"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.mattssoftware.glyph.CAPTURE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity-alias>
+
+        <!--
+          The digital assistant. Selecting the app under Settings > Apps > Default apps > Digital assistant app is
+          what routes a held side key here. Exported and guarded by BIND_VOICE_INTERACTION, which only the system
+          holds, so no other app can bind it.
+        -->
+        <service
+            android:name="com.mattssoftware.glyph.capture.GlyphInteractionService"
+            android:enabled="@bool/ghost_assistant"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <meta-data
+                android:name="android.voice_interaction"
+                android:resource="@xml/ghost_voice_interaction" />
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionService" />
+            </intent-filter>
+        </service>
+
+        <!-- One per press of the side key. Bound only by the system, so not exported. -->
+        <service
+            android:name="com.mattssoftware.glyph.capture.GlyphSessionService"
+            android:enabled="@bool/ghost_assistant"
+            android:exported="false"
+            android:permission="android.permission.BIND_VOICE_INTERACTION" />
+
+        <!-- Required by the assistant role and deliberately inert; see GlyphRecognitionService. -->
+        <service
+            android:name="com.mattssoftware.glyph.capture.GlyphRecognitionService"
+            android:enabled="@bool/ghost_assistant"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <intent-filter>
+                <action android:name="android.speech.RecognitionService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.speech"
+                android:resource="@xml/ghost_recognition" />
+        </service>
+
+        <!--
+          A meeting being recorded, then written up (capture/MeetingService.kt). Not exported: only this app starts
+          it, from the activity while in front and from its own notification's Stop and Discard. The types are the
+          ones the service passes to startForeground as it goes: microphone while recording (with mediaProjection
+          too when other apps' sound is in the meeting), then mediaProcessing (Android 15+) or specialUse (Android
+          14) for the write-up. A type passed that is not declared here throws. The property is what specialUse
+          asks for: a sentence saying what the special use is, which a store reviews.
+        -->
+        <service
+            android:name="com.mattssoftware.glyph.capture.MeetingService"
+            android:exported="false"
+            android:foregroundServiceType="microphone|mediaProjection|mediaProcessing|specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Writing up a meeting recording on the device" />
+        </service>
+
+        <!--
+          WorkManager's own foreground service, given the write-up's types (recordings/RecordingWorker.kt calls
+          setForegroundAsync with them on Android 14+). Merged onto the library's declaration, which has no type;
+          without this the worker's foreground start throws InvalidForegroundServiceTypeException and the retry
+          path runs with no notification at all.
+        -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="mediaProcessing|specialUse"
+            tools:node="merge">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Writing up a meeting recording on the device" />
+        </service>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

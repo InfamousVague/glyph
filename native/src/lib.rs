@@ -18,6 +18,10 @@
 //! - `ffi`: the C functions Dart calls (lib/core/native/ghost_worker.dart).
 //! - `events`, `work`: stage 8B. Events from any Rust thread to the app, and the long job: a command that
 //!   answers an id at once, works on a thread of its own and reports by events.
+//! - `capture`, `ai`, `recording`, `models` (the `voice` feature): stage 8C. The Tauri app's dictation, language
+//!   model and write-up commands, each answering the JSON its `#[tauri::command]` answered and emitting the web's
+//!   event names; and the audio door the phone's microphone pushes through (`ghost_capture_push`, and its JNI
+//!   twin for `DictationMic.kt`).
 //! - `smoke` (the `voice` feature): stage 8A's one command per engine, proving each through the C functions.
 //!
 //! Never built from inside ../glyph, and it builds nothing there: cargo's target directory is `native/target`.
@@ -78,10 +82,9 @@ pub mod model_files;
 #[path = "../../../glyph/src-tauri/src/llm/mod.rs"]
 pub mod llm;
 
-// A meeting's write-up, start to end. Called by the JNI door below on the phone, and by nothing yet on the Mac
-// (as in the Tauri app): 8C's commands are its first caller here.
+// A meeting's write-up, start to end. Called by the JNI door below on the phone, and by recording.rs's three
+// `write_up_*` commands everywhere.
 #[cfg(feature = "voice")]
-#[cfg_attr(not(target_os = "android"), allow(dead_code))]
 #[path = "../../../glyph/src-tauri/src/write_up.rs"]
 pub mod write_up;
 
@@ -99,6 +102,10 @@ pub use kept::recordings;
 #[path = "../../../glyph/src-tauri/src/test_support/temp.rs"]
 pub mod test_support;
 
+#[cfg(feature = "voice")]
+pub mod ai;
+#[cfg(feature = "voice")]
+pub mod capture;
 pub mod crdt;
 pub mod crypto;
 pub mod dispatch;
@@ -106,7 +113,11 @@ pub mod events;
 pub mod ffi;
 pub mod files;
 pub mod kept;
+#[cfg(feature = "voice")]
+pub mod models;
 pub mod paths;
+#[cfg(feature = "voice")]
+pub mod recording;
 pub mod saf;
 #[cfg(feature = "voice")]
 pub mod smoke;

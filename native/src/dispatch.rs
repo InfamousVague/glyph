@@ -20,6 +20,10 @@
 //!   they need no `init` and never wait on the notes' lock; the files sync carries (files.rs, `sync_put_file`
 //!   among them) are answered with the library's directories.
 //!
+//! - **Stage 8C's commands live in files of their own** too (the `voice` feature): dictation (capture.rs), the
+//!   language model (ai.rs), a meeting's write-up and tapes (recording.rs), over models.rs's downloads. Each
+//!   lists its commands and events; `call_on` hands them the open core for its directories.
+//!
 //! Not here yet, each waiting for the stage that needs it: `set_note_formatted`, `library_reveal`, and the folder
 //! plugin's moves (`library_choose_folder`, `library_inspect`, `library_move`, `library_use_app_folder`).
 
@@ -408,18 +412,40 @@ pub fn invoke(command: &str, args: Value) -> Result<Value, String> {
         // Stage 8A's proof that each engine runs: a model file and a job, no library (smoke.rs).
         #[cfg(feature = "voice")]
         command if crate::smoke::has(command) => crate::smoke::call(command, args),
+        // What this binary's voice and AI commands promise, said with no library (ai.rs).
+        #[cfg(feature = "voice")]
+        command if crate::ai::has_without_core(command) => crate::ai::call_without_core(command),
         _ => {
             // The core is taken out from under its lock before the command runs, so a slow command holds only the
             // library's own.
             let core = crate::lock::lock(&CORE).clone();
             let core = core.ok_or_else(|| format!("Ghost.md's core is not open yet, so it cannot answer {command}."))?;
-            // What starts a job takes the `Arc`: its thread keeps the core, and answers with an id at once.
-            if crate::work::has_with_core(command) {
-                return crate::work::call_with_core(&core, command, args);
-            }
-            core.call(command, args)
+            call_on(&core, command, args)
         }
     }
+}
+
+/// One command to an open core: what `invoke` comes to once it has found the process's one, and what a test
+/// asks of a core of its own.
+pub(crate) fn call_on(core: &Arc<Core>, command: &str, args: Value) -> Result<Value, String> {
+    // What starts a job takes the `Arc`: its thread keeps the core, and answers with an id at once.
+    if crate::work::has_with_core(command) {
+        return crate::work::call_with_core(core, command, args);
+    }
+    // Stage 8C: dictation, the language model, a meeting's write-up and tapes, each on the core's directories.
+    #[cfg(feature = "voice")]
+    {
+        if crate::capture::has(command) {
+            return crate::capture::call(core, command, args);
+        }
+        if crate::ai::has(command) {
+            return crate::ai::call(core, command, args);
+        }
+        if crate::recording::has(command) {
+            return crate::recording::call(core, command, args);
+        }
+    }
+    core.call(command, args)
 }
 
 #[cfg(test)]

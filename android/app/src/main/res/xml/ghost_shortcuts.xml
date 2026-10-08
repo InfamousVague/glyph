@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Long-press the icon for "Record note": the same capture action the side key sends, so both land in the same
+  place. Shown only in a build with the assistant on (res/values/voice_assistant.xml); the package is filled in by
+  the build, since this app's id is not the Tauri app's.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="capture"
+        android:enabled="@bool/ghost_assistant"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/ghost_capture_short"
+        android:shortcutLongLabel="@string/ghost_capture_long">
+        <intent
+            android:action="com.mattssoftware.glyph.CAPTURE"
+            android:targetPackage="com.mattssoftware.glyph.flutter"
+            android:targetClass="com.mattssoftware.ghost_md.MainActivity" />
+    </shortcut>
+</shortcuts>

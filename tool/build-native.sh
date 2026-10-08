@@ -139,8 +139,9 @@ build_android() {
     exit 1
   }
   symbols="ghost_alloc ghost_invoke ghost_free ghost_set_listener ghost_forget_listener"
-  # The JNI door a meeting's service and its job call (recording_jobs.rs): Kotlin finds these by name.
-  [ -z "$voice" ] || symbols="$symbols Java_com_mattssoftware_glyph_recordings_RecordingJob_finish Java_com_mattssoftware_glyph_recordings_RecordingJob_run Java_com_mattssoftware_glyph_recordings_RecordingJob_cancel"
+  # The JNI door a meeting's service and its job call (recording_jobs.rs), and the audio door the dictation
+  # microphone pushes through (capture.rs; android/.../glyph/capture/DictationMic.kt): Kotlin finds these by name.
+  [ -z "$voice" ] || symbols="$symbols Java_com_mattssoftware_glyph_recordings_RecordingJob_finish Java_com_mattssoftware_glyph_recordings_RecordingJob_run Java_com_mattssoftware_glyph_recordings_RecordingJob_cancel ghost_capture_push Java_com_mattssoftware_glyph_capture_DictationMic_push"
   "$bin/llvm-readelf" --dyn-syms -W "$built" > "$CARGO_TARGET_DIR/$target/.ghost-symbols"
   for symbol in $symbols; do
     grep -qw "$symbol" "$CARGO_TARGET_DIR/$target/.ghost-symbols" || { echo "build-native: $symbol is not exported." >&2; exit 1; }
@@ -171,6 +172,6 @@ esac
 cat <<'SAID'
 
 To run it:
-  flutter test --no-pub test/native                             # Dart over the Mac's library (needs: host)
+  flutter test --no-pub test/native test/capture_native test/ai_native   # Dart over the Mac's library (needs: host)
   flutter build apk --debug --target-platform android-arm64     # packs jniLibs/arm64-v8a/libghost_core.so (needs: android)
 SAID

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The phone assistant and the capture launch (docs/STAGES_5_6_8_9.md, 8F), OFF in an ordinary build: the web app
+  keeps the phone assistant behind a developer flag, and so does this one. The switch itself, `ghost_assistant`, is
+  made by android/app/build.gradle.kts (a `resValue`, false unless the build is asked: GHOST_ASSISTANT=1 in the
+  environment, or `-Pghost.assistant=true`), which says how. It is read by the manifest (the three services and
+  the activity's alias are `android:enabled="@bool/ghost_assistant"`), by the launcher shortcut
+  (res/xml/ghost_shortcuts.xml) and by MeetingBridge.kt (a capture launch is ignored without it).
+-->
+<resources>
+    <string name="ghost_capture_short">Record note</string>
+    <string name="ghost_capture_long">Record a voice note</string>
+</resources>
