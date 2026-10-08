@@ -56,6 +56,10 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            // Nothing is shrunk or renamed: the core calls Kotlin by name over JNI (MeetingService and friends),
+            // and R8 took WorkManager's database with it, so a release build died before its first frame.
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
