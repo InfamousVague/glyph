@@ -80,6 +80,8 @@ class MainActivity : FlutterActivity() {
         // and the dictation microphone (DictationMic.kt; lib/capture/device_mic.dart).
         (meeting ?: MeetingBridge(this).also { meeting = it }).register(messenger)
         DictationMic.register(this, messenger)
+        // An address handed to the phone's browser, mail, dialler or maps (OpenLink.kt; lib/core/open_link.dart).
+        OpenLink(this).register(messenger)
     }
 
     override fun onNewIntent(intent: Intent) {
