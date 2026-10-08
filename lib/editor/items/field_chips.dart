@@ -182,9 +182,13 @@ bool sameLook(ChipLook a, ChipLook b) => a.text == b.text && identical(a.icon, b
 /// rank, the least in the third ink; a person's initial in a purple ring; and the rest in the third ink, unfilled,
 /// quieter than a tag. A finished item's chips all go to the third ink.
 class FieldChip extends StatelessWidget {
-  const FieldChip(this.look, {super.key, this.onTap});
+  const FieldChip(this.look, {super.key, this.onTap, this.lineHeight = 1.35});
 
   final ChipLook look;
+
+  /// The chip's own line, against its type: the stylesheet's 1.35 on a line of the note. A board's card draws its
+  /// chips as buttons, whose `font: inherit` takes the editor's 1.6 back (measured on the page: 19.44 at 12.15).
+  final double lineHeight;
 
   /// A tap on a chip that has a menu, with the chip's box on the screen.
   final void Function(Rect box)? onTap;
@@ -247,7 +251,7 @@ class FieldChip extends StatelessWidget {
     // with the upper half floored.
     final face = FaceMetrics.of(style);
     final ascent = (face.ascent * em).roundToDouble(), descent = (face.descent * em).roundToDouble();
-    final height = layoutUnit(1.35 * em);
+    final height = layoutUnit(lineHeight * em);
     final baseline = ascent + ((height - ascent - descent) / 2).floorToDouble();
     Widget words(String text, TextStyle of, double size) => Dropped(
       top: baseline - FaceMetrics.of(of).ascent * size,
