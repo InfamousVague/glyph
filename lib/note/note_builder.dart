@@ -1,18 +1,20 @@
 /// A note's screen as the app's shell wants it: the builder to hand `AppShell.noteBuilder` (shell/app_shell.dart),
 /// in place of the stand-in of shell/placeholders.dart. What `App.tsx` passes its `<NoteScreen>`: the way back, the
 /// delete with its Undo, pin and archive (notes/note_actions.dart), the note's book, every title that is taken, and
-/// what the note was opened with (`at`, `caret`).
+/// what the note was opened with (`at`, `caret`), your own templates for a blank page's cards, and the way a journal
+/// on screen is written from outside it.
 ///
 /// What differs: App.tsx is one component with everything in reach; here whoever wires the app (lib/root) makes
 /// the pieces and names them once. The lookups a wiki link and a canvas card need (`onOpenTitle`, `hasTitle`,
-/// `bodyOfTitle`), the journal's writer, tickets, queries and templates come in with those pieces, through
-/// [NoteSeams] or as new fields.
+/// `bodyOfTitle`), tickets and queries come in with those pieces, through [NoteSeams] (lib/root/note_desk.dart).
 library;
 
 import 'package:flutter/widgets.dart';
 
 import '../core/book.dart';
+import '../book/journal.dart' show JournalWriter;
 import '../core/library.dart';
+import '../core/note.dart';
 import '../core/note_text.dart';
 import '../core/stored.dart';
 import '../core/trash.dart';
@@ -20,6 +22,7 @@ import '../core/untouched.dart';
 import '../core/versions_record.dart';
 import '../core/workspaces.dart';
 import '../notes/note_actions.dart';
+import '../notes/note_templates.dart' show NoteTemplate;
 import '../shell/app_shell.dart';
 import 'note_editor.dart';
 import 'note_screen.dart';
@@ -27,7 +30,10 @@ import 'note_screen.dart';
 /// The builder for `AppShell.noteBuilder`.
 ///
 /// [actions] is asked for when a note is pinned, archived or deleted, since it is made once there is a toast to say
-/// them with; [say] is a toast of the screen's own (a version put back, a board made).
+/// them with; [say] is a toast of the screen's own (a version put back, a board made). [bookOf] is the note's place in
+/// its notebook as the app reads it (App.tsx `placeInBook`: a journal's entries in the order they were written);
+/// left out, it is the first book whose index names the note. [templates] and [onTemplates] are the blank page's
+/// cards; [onJournal] is told of the journal on screen.
 ShellNoteBuilder noteScreenBuilder({
   required NoteLibrary library,
   required WorkspaceStore workspaces,
@@ -40,6 +46,10 @@ ShellNoteBuilder noteScreenBuilder({
   NoteSeams seams = const NoteSeams(),
   void Function(BuildContext context, String message)? say,
   ValueChanged<String>? onSpeak,
+  BookPlace? Function(Note note)? bookOf,
+  List<NoteTemplate>? Function()? templates,
+  VoidCallback? onTemplates,
+  ValueChanged<JournalWriter?>? onJournal,
 }) {
   return (context, shell, screen) {
     final note = screen.note;
@@ -66,9 +76,16 @@ ShellNoteBuilder noteScreenBuilder({
       onSpeak: onSpeak,
       at: screen.at,
       caret: screen.caret,
-      book: placeOf(bookIndex(all), note),
-      // Every note's title key, archived and in the Trash too: a name another note has is not offered.
-      takenTitles: {for (final each in all) titleKey(noteTitle(each.body))}..remove(''),
+      book: bookOf != null ? bookOf(note) : placeOf(bookIndex(all), note),
+      // Every other note's title key, archived and in the Trash too: a name another note has is not offered. Not this
+      // note's own, which an undo back to its blank page would otherwise find taken.
+      takenTitles: {
+        for (final each in all)
+          if (each.id != note.id) titleKey(noteTitle(each.body)),
+      }..remove(''),
+      templates: templates?.call(),
+      onTemplates: onTemplates,
+      onJournal: onJournal,
       readOnly: trash?.isTrashed(note.id) ?? false,
       editorBuilder: editor,
       seams: seams,

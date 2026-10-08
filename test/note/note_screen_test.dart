@@ -226,23 +226,31 @@ void main() {
       await closeNote(tester);
 
       const canvas = '---\ntitle: "Plan"\n---\n{"nodes":[{"id":"a","type":"text","text":"hi","x":0,"y":0,"width":100,"height":50}],"edges":[]}';
-      await pumpNote(tester, world, await seeded(tester, world, canvas));
-      expect(find.text('This note is a canvas.'), findsOneWidget);
+      // The three views that take the page are the app's to give (lib/root/note_desk.dart): handed the body.
+      Widget Function(BuildContext, String, ValueChanged<String>) drawn(String what) => (context, body, onChange) => SizedBox(height: 40, child: Text('$what of ${body.length}'));
+      final views = NoteSeams(canvas: drawn('canvas'), book: drawn('notebook'), journal: drawn('journal'));
+      await pumpNote(tester, world, await seeded(tester, world, canvas), seams: views);
+      expect(find.text('canvas of ${canvas.length}'), findsOneWidget);
       await tester.tap(find.bySemanticsLabel('Showing the canvas. Show its JSON.'));
       await tester.pump();
       await tester.pump();
-      expect(find.text('This note is a canvas.'), findsNothing);
+      expect(find.text('canvas of ${canvas.length}'), findsNothing);
       expect(find.bySemanticsLabel('Showing the canvas as JSON. Show the canvas.'), findsOneWidget);
       expect(world.prefs.value.noteView, 'formatted', reason: 'a canvas has its own switch, not the preference every note shares');
       await closeNote(tester);
 
-      await pumpNote(tester, world, await seeded(tester, world, '---\nbook: true\ntitle: "Guide"\n---\n- [[One]]\n'));
-      expect(find.text('This note is a notebook.'), findsOneWidget);
+      await pumpNote(tester, world, await seeded(tester, world, '---\nbook: true\ntitle: "Guide"\n---\n- [[One]]\n'), seams: views);
+      expect(find.textContaining('notebook of '), findsOneWidget);
       expect(find.bySemanticsLabel('Showing the index. Show its Markdown.'), findsOneWidget);
       await closeNote(tester);
 
-      await pumpNote(tester, world, await seeded(tester, world, '---\nbook: true\njournal: true\ntitle: "Days"\n---\n- [[One]]\n'));
-      expect(find.text('This note is a journal.'), findsOneWidget);
+      await pumpNote(tester, world, await seeded(tester, world, '---\nbook: true\njournal: true\ntitle: "Days"\n---\n- [[One]]\n'), seams: views);
+      expect(find.textContaining('journal of '), findsOneWidget);
+      await closeNote(tester);
+
+      // Not given, nothing is drawn in their place.
+      await pumpNote(tester, world, await seeded(tester, world, '---\nbook: true\ntitle: "Bare"\n---\n- [[One]]\n'));
+      expect(find.textContaining('notebook of '), findsNothing);
       await closeNote(tester);
     });
 

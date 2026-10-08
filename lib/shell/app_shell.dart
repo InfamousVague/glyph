@@ -326,20 +326,21 @@ class AppShellState extends State<AppShell> {
   /// Puts [next] up, whatever it is: a capture begun, the Academy, a note opened at an item or to be written in.
   void show(Screen next) => _change(() => _screen = next);
 
-  /// [id] in a tab of its own: a tab pressed, an arrow's step, a title tapped on the home page.
-  void openNote(String id, {String? at}) => _change(() {
+  /// [id] in a tab of its own: a tab pressed, an arrow's step, a title tapped on the home page. With [caret], a note
+  /// just made, opened to be written in (App.tsx `showMade`).
+  void openNote(String id, {String? at, Caret? caret}) => _change(() {
         _tabs.replaceNext(null);
         final note = _noteOf(id);
-        if (note != null) _screen = ScreenNote(note, at: at);
+        if (note != null) _screen = ScreenNote(note, at: at, caret: caret);
         _drawer = false;
       });
 
-  /// [id] opened in the current note's tab: a page of the book being read.
-  void openNoteWithin(String id) => _change(() {
+  /// [id] opened in the current note's tab: a page of the book being read, or one just made from its index.
+  void openNoteWithin(String id, {Caret? caret}) => _change(() {
         final from = shown;
         _tabs.replaceNext(from != null && from != id ? from : null);
         final note = _noteOf(id);
-        if (note != null) _screen = ScreenNote(note);
+        if (note != null) _screen = ScreenNote(note, caret: caret);
         _drawer = false;
       });
 

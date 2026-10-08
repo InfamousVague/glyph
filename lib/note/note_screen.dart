@@ -22,11 +22,15 @@
 ///   draws and takes the screen's own changes but has no caret.
 /// - **What other pieces and stages own comes in through [NoteSeams]**, each nullable, each named for the web file
 ///   it ports: find, the bookmark, comments, sharing, the AI, plugins' links, the place and its map card, the
-///   book's bar and foot, and the canvas, book and journal views, which draw a card saying which stage draws them
-///   until they are given. The tape and its transcript, the AI's strip, the models' scene, the + and its list, the
-///   blank page's names and template cards, live and team notes, pull to refresh and the unfold's crease are not
-///   drawn at all yet; the screen's own half of each (when a + may show, what a name tapped writes) is here where
-///   it could be written without them ([NoteScreenState.nameIt], [NoteScreenState.offering]).
+///   book's bar and foot, and the canvas, book and journal views, each drawn only where it is given (lib/root gives
+///   all three). The tape and its transcript, the AI's strip, the models' scene, live and team notes, pull to
+///   refresh and the unfold's crease are not drawn at all yet.
+/// - **The blank page's names and template cards are a sliver under the editor**, where the page drew them in a
+///   block after line 1 inside it (editor/nameChips.ts): a note with no words is its one empty line, so under the
+///   editor is under that line, and the page scrolls them with it. They wait for what the page's waited for: the
+///   editor focused, and the page ready for words (a device with no keyboard on the screen, the keyboard up, or a
+///   press of the person's own ended on the page). A map at the top's card is not offered: nothing here says where
+///   the phone is.
 /// - **The tools are handed to the bar**, not put there by a portal (shell/top_bar_tools.dart), so they listen to a
 ///   model this screen changes.
 /// - **The page is a scroll view of slivers**: the page's padding, the byline and the editor are slivers of one
@@ -44,6 +48,7 @@ library;
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart' hide Decoration;
@@ -66,9 +71,13 @@ import '../core/untouched.dart';
 import '../core/versions_file.dart';
 import '../core/versions_record.dart';
 import '../core/workspaces.dart';
+import '../book/book_spot.dart' show ChapterSpot, writeBookSpot;
+import '../book/journal.dart' show JournalWriter;
 import '../editor/editor.dart';
 import '../editor/view/editor_view.dart';
 import '../editor/view/view_mode.dart';
+import '../notes/note_templates.dart' show NoteTemplate, fillNoteTemplate;
+import '../notes/template_cards.dart';
 import '../shell/header_pane.dart';
 import '../shell/screen.dart' show Caret;
 import '../shell/top_bar_tools.dart';
@@ -196,6 +205,9 @@ class NoteScreen extends StatefulWidget {
     this.caret,
     this.book,
     this.takenTitles = const {},
+    this.templates,
+    this.onTemplates,
+    this.onJournal,
     this.readOnly = false,
     this.editorBuilder = readOnlyNoteEditor,
     this.seams = const NoteSeams(),
@@ -243,6 +255,16 @@ class NoteScreen extends StatefulWidget {
 
   /// Every note's title key, for the names a blank page offers.
   final Set<String> takenTitles;
+
+  /// Your own templates, the pages of a Templates notebook, for the blank page's cards; null for the ones built in.
+  final List<NoteTemplate>? templates;
+
+  /// Your templates, the cards' last: the notebook they are kept in, made the first time. Left out, no such card.
+  final VoidCallback? onTemplates;
+
+  /// A journal open hands the app the way to write its index through this screen, and takes it back as it goes
+  /// (`onJournal`).
+  final ValueChanged<JournalWriter?>? onJournal;
 
   /// A note in the Trash: read, not written.
   final bool readOnly;
@@ -294,6 +316,15 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
   ({double distance, double zoom, int? pos, double y})? _pinching;
   ScrollHoldController? _held;
 
+  /// The blank page's offers: whether the page is ready for words, whether the editor had the focus when last
+  /// asked, the cards put away by a press elsewhere on the page, and the press that may be one.
+  bool _ready = !(defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
+  bool _focused = false;
+  bool _cardsGone = false;
+  ({int pointer, Offset at})? _armed;
+  final GlobalKey _offers = GlobalKey();
+  Timer? _minute;
+
   late final ValueNotifier<NoteToolsModel> _toolsModel = ValueNotifier(_model());
   late final Widget _tools = NoteTools(model: _toolsModel);
   late final Widget _more = NoteMore(onMore: _openMore);
@@ -342,6 +373,12 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
   /// The names on offer now, or null where none are (core/note_names.dart).
   List<NameOffer>? get names => offering ? nameOffers(widget.clock?.call() ?? DateTime.now(), widget.takenTitles) : null;
 
+  /// Whether the names are drawn now (`offersShown`): offered, the editor focused, the page ready for words.
+  bool get offersShown => offering && _focused && _ready && _words;
+
+  /// Whether the template cards are drawn under them (`cardsShown`).
+  bool get cardsShown => offersShown && !_cardsGone;
+
   @override
   void initState() {
     super.initState();
@@ -358,6 +395,12 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
     widget.workspaces.addListener(_redraw);
     _zoom.addListener(_redraw);
     _caretPlaced = widget.caret == null;
+    FocusManager.instance.addListener(_focusMoved);
+    // A chapter open is where its book was left, so the book opens here again from outside it (book/bookSpot.ts).
+    // Not a journal's entry: a journal always opens on itself, where New entry is.
+    final book = widget.book;
+    if (book != null && !book.journal) writeBookSpot(book.book.id, ChapterSpot(_saving.title), on: widget.device);
+    if (_isJournal) _tellJournal();
     // After the frame: the tab row listens, and a listener outside this screen may not be told while the tree is
     // being built (a note opened by the shell is mounted in the middle of the shell's own build).
     if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
@@ -372,6 +415,13 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
 
   @override
   void dispose() {
+    FocusManager.instance.removeListener(_focusMoved);
+    _minute?.cancel();
+    if (_toldJournal) {
+      final told = widget.onJournal;
+      // After the frame: whoever listens may be building.
+      if (told != null) SchedulerBinding.instance.addPostFrameCallback((_) => told(null));
+    }
     _checking?.cancel();
     _keeper?.dispose();
     _landing?.dispose();
@@ -403,6 +453,81 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
       return;
     }
     setState(() => change?.call());
+  }
+
+  // ---- the blank page's offers --------------------------------------------------------------------------------------
+
+  /// The focus moved somewhere: the names are drawn only while the editor has it.
+  void _focusMoved() {
+    // After the frame: the editor is told of its focus by its own listener, which may come after this one.
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      final focused = _view?.hasFocus ?? false;
+      if (mounted && focused != _focused) setState(() => _focused = focused);
+    });
+    SchedulerBinding.instance.ensureVisualUpdate();
+  }
+
+  /// The names follow the clock: read again at the turn of each minute while they are offered (`useMinute`).
+  void _watchMinute(bool on) {
+    if (!on) {
+      _minute?.cancel();
+      _minute = null;
+      return;
+    }
+    if (_minute != null) return;
+    final now = DateTime.now();
+    _minute = Timer(Duration(seconds: 60 - now.second, milliseconds: 50), () {
+      _minute = null;
+      if (mounted) setState(() {});
+    });
+  }
+
+  /// A card pressed: the blank note becomes that template, as one change, so one undo takes it back to the blank
+  /// page with its names and cards. Its record first, so a note left without a word of the person's own is taken
+  /// back; its name settled against every other note's; the caret in its first open line, the focus kept; and the
+  /// page back at its top, where the note now starts (`startFrom`).
+  void startFrom(NoteTemplate template) {
+    final editor = _view;
+    if (editor == null || !_records.isFresh(_id) || editor.state.doc.toString().trim().isNotEmpty) return;
+    final now = widget.clock?.call() ?? DateTime.now();
+    final filled = fillNoteTemplate(template, now, widget.takenTitles);
+    _records.remember(_id, UntouchedRecord(title: filled.title, words: filled.words, at: now.millisecondsSinceEpoch));
+    _drafted = true;
+    setState(() => _untouched = true);
+    editor.dispatch(TransactionSpec(changes: ChangeSpec(from: 0, to: editor.state.doc.length, insert: filled.body), selection: EditorSelection.single(filled.caret.clamp(0, filled.body.length)), scrollIntoView: true, userEvent: 'input.template'));
+    if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.minScrollExtent);
+    flush();
+    editor.focus();
+    HapticsProvider.of(context)(HapticKind.selection);
+  }
+
+  // ---- a notebook's index written from outside ----------------------------------------------------------------------
+
+  bool _toldJournal = false;
+
+  void _tellJournal() {
+    final told = widget.onJournal;
+    if (told == null) return;
+    _toldJournal = true;
+    final writer = JournalWriter(id: _id, write: writeNotebook);
+    // After the frame: whoever listens may be building.
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted) told(writer);
+    });
+  }
+
+  /// A change to a notebook's or a journal's index made by the app (an entry's line put in or taken out): through
+  /// this screen, whose next save would otherwise write the old index back, and kept at once (`writeIndex`).
+  void writeNotebook(String Function(String body) change) {
+    final next = change(_saving.body);
+    if (next == _saving.body) return;
+    if (_source && _view != null) {
+      _external(next);
+    } else {
+      _onChange(next);
+    }
+    if (mounted) setState(() => _typedBody = next);
+    flush();
   }
 
   // ---- saving -------------------------------------------------------------------------------------------------------
@@ -482,7 +607,10 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
   void _onView(EditorView view) {
     if (!mounted) return;
     final first = _view == null;
-    setState(() => _view = view);
+    setState(() {
+      _view = view;
+      _focused = view.hasFocus;
+    });
     // Words the store had newer than the copy this screen was opened with can be taken before the editor is here
     // to be handed them (the page's store answers later than its editor mounts): they are put in now.
     if (first && !(_typed && _source) && view.state.doc.toString() != _saving.body) _external(_saving.body);
@@ -756,6 +884,8 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
   void _pointerDown(PointerDownEvent event) {
     // The person's own touch ends a restore of where the note was left.
     _keeper?.touched();
+    // A press that starts while the cards are shown, and not on them, may be the tap that puts them away.
+    _armed = cardsShown && !_onOffers(event.position) ? (pointer: event.pointer, at: event.position) : null;
     if (event.kind != PointerDeviceKind.touch) return;
     _pinch.put(event.pointer, event.position);
     final view = _view;
@@ -791,7 +921,26 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
     if ((to - page.pixels).abs() > 0.01) page.jumpTo(to);
   }
 
+  /// Whether a point on the screen is on the blank page's names or cards.
+  bool _onOffers(Offset at) {
+    final box = _offers.currentContext?.findRenderObject();
+    return box is RenderBox && box.attached && box.hasSize && (box.localToGlobal(Offset.zero) & box.size).contains(at);
+  }
+
   void _pointerUp(PointerEvent event) {
+    if (event is PointerUpEvent) {
+      final armed = _armed;
+      final tapped = armed != null && armed.pointer == event.pointer && (event.position - armed.at).distance <= kTouchSlop;
+      // A tap elsewhere on the page says the page is to be written on as it is: the cards go. And any press of the
+      // person's own that ends on the page makes it ready for words.
+      if ((tapped && !_cardsGone) || !_ready) {
+        setState(() {
+          if (tapped) _cardsGone = true;
+          _ready = true;
+        });
+      }
+    }
+    _armed = null;
     if (event.kind != PointerDeviceKind.touch) return;
     _pinch.lift(event.pointer);
     final start = _pinching;
@@ -810,33 +959,6 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
   /// (`.header:empty`); with its own row, the row and its padding.
   static double _headerHeight(Tokens t, bool inBar) => inBar ? t.len('app-safe-top') : t.len('app-safe-top') + t.space(1) + t.len('app-bar-ring') + t.space(2);
 
-  /// A card where a view of another stage will be drawn.
-  Widget _standIn(BuildContext context, String what, String stage) {
-    final t = context.tokens;
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: t.len('app-gutter'), vertical: t.space(5)),
-      child: Semantics(
-        container: true,
-        label: '$what. $stage',
-        child: ExcludeSemantics(
-          child: Container(
-            padding: EdgeInsets.all(t.space(4)),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(t.radius('lg')), border: Border.all(color: t.color('app-rule'), width: snapBorder(context, t.len('app-line')))),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              spacing: t.space(1),
-              children: [
-                Text(what, style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color('glacier-text'))),
-                Text(stage, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _view0(BuildContext context) {
     final seams = widget.seams;
     void write(String next) {
@@ -845,12 +967,12 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
     }
 
     if (_drawing) {
-      return seams.canvas?.call(context, _typedBody, write) ?? _standIn(context, 'This note is a canvas.', 'The canvas is drawn in stage 6. Its JSON is behind the view switch.');
+      return seams.canvas?.call(context, _typedBody, write) ?? const SizedBox.shrink();
     }
     if (_isJournal) {
-      return seams.journal?.call(context, _typedBody, write) ?? _standIn(context, 'This note is a journal.', 'A journal’s entries are drawn in stage 5. Its Markdown is behind the view switch.');
+      return seams.journal?.call(context, _typedBody, write) ?? const SizedBox.shrink();
     }
-    return seams.book?.call(context, _typedBody, write) ?? _standIn(context, 'This note is a notebook.', 'A notebook’s index is drawn in stage 5. Its Markdown is behind the view switch.');
+    return seams.book?.call(context, _typedBody, write) ?? const SizedBox.shrink();
   }
 
   @override
@@ -897,9 +1019,17 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
       meHue: null,
     );
 
+    // The keyboard up is the page ready for words, and once ready it stays ready.
+    if (!_ready && MediaQuery.viewInsetsOf(context).bottom > 0) _ready = true;
+    final offered = offersShown ? names : null;
+    final cards = offered != null && cardsShown;
+    _watchMinute(offering);
+
     final words = CustomScrollView(
       key: _page,
       controller: _scroll,
+      // A canvas is not a column of words: it takes the whole page and moves under the fingers rather than scrolling.
+      physics: _drawing ? const NeverScrollableScrollPhysics() : null,
       slivers: [
         SliverToBoxAdapter(child: SizedBox(height: padTop)),
         // A chapter's book, its place in it and the chapters either side (docs/BOOKS.md).
@@ -908,10 +1038,21 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
         if (!_paging && authors.isNotEmpty) SliverToBoxAdapter(child: NoteByline(authors: authors, start: columnStart)),
         // Where it was written: the map at the top of the note, where the page scrolls with the words.
         if (tag != null && _words && seams.mapCard != null) SliverToBoxAdapter(child: seams.mapCard!(context, tag, header: look == Look.map)),
-        if (!_words) SliverToBoxAdapter(child: _view0(context)),
+        if (_drawing) SliverFillRemaining(hasScrollBody: true, child: _view0(context)) else if (!_words) SliverToBoxAdapter(child: _view0(context)),
         // The editor stays mounted behind a canvas or an index, hidden, so its caret keeps its place.
         SliverOffstage(offstage: !_words, sliver: widget.editorBuilder(context, spec)),
         if (_words) ...[
+          // A new note's blank page: the names under its first line, the template cards under them, and the ghost
+          // under those, in the page's flow so it is never behind them.
+          if (offered != null)
+            SliverToBoxAdapter(
+              child: _BlankOffers(
+                key: _offers,
+                names: offered,
+                onName: nameIt,
+                cards: cards ? TemplateCards(at: widget.clock?.call() ?? DateTime.now(), taken: widget.takenTitles, onChoose: startFrom, templates: widget.templates, onYours: widget.onTemplates, localOnly: prefs.localOnly) : null,
+              ),
+            ),
           // `.body { padding-block-end: var(--app-safe-bottom) }`
           SliverToBoxAdapter(child: SizedBox(height: t.len('app-safe-bottom'))),
           if (book != null && seams.bookFoot != null) SliverToBoxAdapter(child: seams.bookFoot!(context, book)),
@@ -961,7 +1102,7 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
             ),
           ),
           // A note with no words yet: the ghost with its pen, a little under the first line, gone at the first word.
-          if (_saving.blank && !_typed) _BlankGhost(scroll: _scroll, top: padTop + (authors.isEmpty ? 0 : t.space(2) + 1.5 * 0.85 * t.fontSize('sm')) + t.lenOf('9rem')),
+          if (_saving.blank && !_typed && offered == null) _BlankGhost(scroll: _scroll, top: padTop + (authors.isEmpty ? 0 : t.space(2) + 1.5 * 0.85 * t.fontSize('sm')) + t.lenOf('9rem')),
           // The header: glass over the page, holding the note's own controls where the app's bar is not there to.
           HeaderPane(
             child: inBar
@@ -1084,6 +1225,88 @@ class _BlankGhost extends StatelessWidget {
       animation: scroll,
       builder: (context, child) => Positioned(top: top - (scroll.hasClients && scroll.position.hasPixels ? scroll.position.pixels : 0), left: 0, right: 0, child: child!),
       child: const IgnorePointer(child: Ghost(scene: GhostScene.newNote, align: GhostAlign.center)),
+    );
+  }
+}
+
+/// `.cm-blankOffers`: what a new note's blank page offers under its first line. The names it can be given, a row of
+/// quiet chips that wraps (`.cm-nameChips`, editor/nameChips.ts); under them the template cards, while they are
+/// shown; and under those the ghost (`.offersGhost`).
+class _BlankOffers extends StatelessWidget {
+  const _BlankOffers({super.key, required this.names, required this.onName, this.cards});
+
+  final List<NameOffer> names;
+  final ValueChanged<String> onName;
+  final Widget? cards;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final gutter = t.len('app-gutter');
+    return Padding(
+      // `padding-block-start: 0.75rem; padding-inline: var(--app-gutter)`: the gap under line 1 is padding, so a tap
+      // aimed at the line lands on the line.
+      padding: EdgeInsets.fromLTRB(gutter, t.lenOf('0.75rem'), gutter, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (names.isNotEmpty)
+            Semantics(
+              container: true,
+              label: 'Names for this note',
+              // `display: flex; flex-wrap: wrap; gap: var(--glacier-space-2)`
+              child: Wrap(spacing: t.space(2), runSpacing: t.space(2), children: [for (final offer in names) _NameChip(offer: offer, onName: onName)]),
+            ),
+          ?cards,
+          // `.offersGhost { padding-block: var(--glacier-space-8) var(--glacier-space-4); pointer-events: none }`
+          IgnorePointer(
+            child: Padding(
+              padding: EdgeInsets.only(top: t.space(8), bottom: t.space(4)),
+              child: const Ghost(scene: GhostScene.newNote, align: GhostAlign.center),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// `.cm-nameChip`: one name. Quiet: the interface's face, the third ink and a hairline, a size under the words. Its
+/// press takes no focus, so the caret stays where it is and the keyboard stays up.
+class _NameChip extends StatelessWidget {
+  const _NameChip({required this.offer, required this.onName});
+
+  final NameOffer offer;
+  final ValueChanged<String> onName;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final sm = t.fontSize('sm');
+    return GlacierPressable(
+      key: ValueKey('name-${offer.kind.name}'),
+      semanticLabel: offer.label,
+      excludeSemantics: true,
+      canRequestFocus: false,
+      onPressed: () => onName(offer.name),
+      builder: (context, state) {
+        final lit = state.hovered || state.focused;
+        return GlacierFocusRing(
+          visible: state.focused,
+          radius: t.radius('full'),
+          child: Container(
+            // `padding: var(--glacier-space-1) var(--glacier-space-3); border: hairline solid var(--app-rule);
+            // border-radius: full; line-height: 1.5; white-space: nowrap`
+            padding: EdgeInsets.symmetric(vertical: t.space(1), horizontal: t.space(3)),
+            decoration: BoxDecoration(
+              border: Border.all(color: lit ? t.color('app-ink-3') : t.color('app-rule'), width: t.len('glacier-hairline')),
+              borderRadius: BorderRadius.circular(t.radius('full')),
+            ),
+            child: Text(offer.name, maxLines: 1, softWrap: false, style: pageText(t, sm, height: 1.5, color: lit ? t.color('app-ink-2') : t.color('app-ink-3'))),
+          ),
+        );
+      },
     );
   }
 }

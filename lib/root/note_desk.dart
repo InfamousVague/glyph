@@ -6,10 +6,15 @@
 /// - the editor that is typed in (lib/editor/editor_widget.dart `Editor`), over the view lib/note's host keeps,
 ///   with every piece's extensions in one list made once: the input, the twelve marks and the five effects with
 ///   typing's smoke, the inline items with links between notes and the hint in an open first heading, drawn tables,
-///   links, pictures and media, the + beside an empty line, and find's marks;
-/// - the press-and-hold band (lib/editor/band), opened by the editor's own hold, with the marks on its Style page
-///   and a list item's fields as its pages;
-/// - the + and its list (lib/editor/plus), with the effects as rows and every note's title for A note;
+///   boards drawn as boards (lib/editor/boards), a ticket's panel and its keys' titles (lib/editor/tickets), a
+///   ```query drawn as what it finds (lib/editor/queries), links, pictures and media, the + beside an empty line,
+///   and find's marks; the queries and the tickets are drawn again whenever the library changes;
+/// - the press-and-hold band (lib/editor/band), opened by the editor's own hold, with the marks on its Style page,
+///   a list item's fields as its pages, and its rows for boards;
+/// - the + and its list (lib/editor/plus), with the effects as rows, every note's title for A note, and a board, a
+///   database and Make this a ticket;
+/// - what takes the page for a note that is not words: the canvas (lib/canvas), a notebook's index and a journal's
+///   entries (lib/book), and the bar and the foot a notebook's page wears;
 /// - a tapped chip's menu (lib/editor/items `FieldMenuHost`);
 /// - find and replace (lib/editor/find_bar), from the More sheet and from the band, resting on the keyboard;
 /// - the bookmark (lib/editor/items `NoteBookmark`), the cheat sheet's page, and a note's sharing where the build
@@ -21,17 +26,30 @@
 /// - **No place, film or voice memo is added** from the + (no location, no player): their rows are not offered.
 /// - **A link's tap opens nothing**: nothing here hands an address to the phone.
 /// - **A date is not picked from a calendar** (`dayPicker` is not given): Today, Tomorrow and Next week are.
-/// - **The blank page's names and template cards are not drawn**: lib/note has the logic and no place for them.
+/// - **A canvas has no picture picker, no comments and opens no link**, for the same reasons; a team's canvas is
+///   piece 6G. A canvas is not framed in a note from the + (`AddConfig.canvases` is not given).
+/// - **A board's card has no plugin's rows** (`drawnBoards(actions:)`): the plugins are stage 9.
 library;
 
 import 'package:flutter/widgets.dart' hide Decoration;
+import 'dart:async';
+
+import 'package:flutter/scheduler.dart';
 import '../account/ui_state.dart';
 import '../art/lucide.g.dart';
+import '../book/book_nav.dart';
+import '../book/book_view.dart';
+import '../book/journal_view.dart';
+import '../canvas/canvas_view.dart';
 import '../core/book.dart';
 import '../core/canvas_body.dart';
 import '../core/images.dart';
+import '../core/note.dart';
+import '../core/note_text.dart';
 import '../core/preferences.dart';
+import '../core/query/query.dart';
 import '../editor/band/band.dart' as band;
+import '../editor/boards/boards.dart' show drawnBoards;
 import '../editor/editor.dart';
 import '../editor/editor_widget.dart';
 import '../editor/find_bar/find_bar.dart';
@@ -40,11 +58,14 @@ import '../editor/items/items.dart';
 import '../editor/marks/marks.dart';
 import '../editor/media/media.dart';
 import '../editor/plus/plus.dart';
+import '../editor/queries/queries.dart';
 import '../editor/tables/tables.dart';
+import '../editor/tickets/tickets.dart';
 import '../editor/view/editor_view.dart';
 import '../note/note_editor.dart';
 import '../note/note_place.dart';
 import '../note/note_screen.dart';
+import '../notes/note_templates.dart' show NoteTemplate;
 import '../settings/panes/cheat_sheet.dart';
 import '../share/ui/share_rows.dart';
 
@@ -92,7 +113,28 @@ final band.BandFields bandFields = band.BandFields(
 /// What a desk asks of the app: the notes by their titles, and what the build can do.
 @immutable
 class NoteDeskWorld {
-  const NoteDeskWorld({required this.titles, required this.known, required this.open, this.bodyOf, this.pictures, this.services});
+  const NoteDeskWorld({
+    required this.titles,
+    required this.known,
+    required this.open,
+    this.bodyOf,
+    this.pictures,
+    this.services,
+    this.changes,
+    this.queryNotes,
+    this.openAt,
+    this.write,
+    this.addTicket,
+    this.tickets,
+    this.openWithin,
+    this.openCanvas,
+    this.openPage,
+    this.openTicket,
+    this.ticketTemplates,
+    this.pageTitles,
+    this.noteOf,
+    this.newEntry,
+  });
 
   /// Every note's title, for the +'s A note.
   final List<String> Function() titles;
@@ -109,6 +151,47 @@ class NoteDeskWorld {
 
   /// The account, where the build has one: a note's sharing is drawn with it.
   final AccountServices? services;
+
+  /// Says when the library changed: every query and every ticket's panel in the open note is drawn again.
+  final Listenable? changes;
+
+  /// The library a ```query reads (lib/root/library_reads.dart); absent, a query is drawn as its lines.
+  final List<QueryNote> Function()? queryNotes;
+
+  /// A note a query listed, opened: the note itself, or a to-do's note at its line, from 0.
+  final void Function(String noteId, int? line)? openAt;
+
+  /// Another note's words changed from this one: a to-do ticked in a query, a card dragged to another lane, a
+  /// page's status picked in its notebook's index.
+  final void Function(String noteId, NoteChange change)? write;
+
+  /// A ticket typed at the + of a lane of a query's board (App.tsx `addFromQuery`).
+  final Future<bool> Function(TicketDraft draft, String title, String? from)? addTicket;
+
+  /// What a ticket's panel and a `[[GHO-12]]` are drawn with, for the note by that id; absent, the front matter is
+  /// folded as any note's is.
+  final TicketOptions Function(String noteId)? tickets;
+
+  /// A title opened from inside a notebook, in its tab's place (`openTitleWithin`); [open] where it is left out.
+  final void Function(String title)? openWithin;
+
+  /// A canvas, a page from a template and a ticket made from a notebook's index and opened in its tab
+  /// (`openCanvasWithin`, `openPageWithin`, `openTicketWithin`, which is handed the notebook's words).
+  final void Function(String title)? openCanvas;
+  final void Function(String title, String template)? openPage;
+  final void Function(String title, String notebook, NoteTemplate? template)? openTicket;
+
+  /// The templates New ticket offers.
+  final List<NoteTemplate> Function()? ticketTemplates;
+
+  /// What can be a page of a notebook: every title but a journal's entries'; [titles] where it is left out.
+  final List<String> Function()? pageTitles;
+
+  /// The note by its title, for a journal's entries: when each was written, where, and how it starts.
+  final Note? Function(String title)? noteOf;
+
+  /// A journal's New entry, from the template chosen for it.
+  final void Function(String journalId, String template)? newEntry;
 }
 
 /// Builds a note's screen with the editor and the seams the desk made for it.
@@ -117,7 +200,7 @@ typedef NoteDeskBuilder = Widget Function(BuildContext context, NoteEditorBuilde
 /// The editor and everything round it for one open note. Keyed by the note by whoever builds it, so each note
 /// has its own.
 class NoteDesk extends StatefulWidget {
-  const NoteDesk({super.key, required this.noteId, required this.title, required this.world, required this.say, required this.builder, this.prefs});
+  const NoteDesk({super.key, required this.noteId, required this.title, required this.world, required this.say, required this.builder, this.prefs, this.readOnly = false});
 
   final String noteId;
 
@@ -131,6 +214,9 @@ class NoteDesk extends StatefulWidget {
 
   /// The preferences; the app's own unless given.
   final PreferencesStore? prefs;
+
+  /// A note in the Trash: its canvas and its index are read, not changed.
+  final bool readOnly;
 
   @override
   State<NoteDesk> createState() => NoteDeskState();
@@ -169,6 +255,12 @@ class NoteDeskState extends State<NoteDesk> {
       openHeading: true,
     ),
     drawnTables(),
+    // Boards drawn as boards, the fence still there to edit (Editor.tsx `drawnBoards()`).
+    drawnBoards(),
+    // A ticket's front matter as its properties, and a [[GHO-12]] with the ticket's title.
+    if (_world.tickets != null) tickets(() => _world.tickets?.call(widget.noteId)),
+    // A ```query fence drawn as what it finds in the library: its lines where there is none.
+    if (_world.queryNotes != null) queries(() => _queries),
     mediaExtensions(
       seams: MediaSeams(
         pictures: _world.pictures,
@@ -180,6 +272,48 @@ class NoteDeskState extends State<NoteDesk> {
     findBarExtensions,
   ];
 
+  /// What the open note's queries read and do (shell/useQueries.ts): the library, a row opened, another note's
+  /// to-do ticked or its field set, and a ticket typed at a lane's +.
+  late final QueryOptions? _queries = _world.queryNotes == null
+      ? null
+      : QueryOptions(
+          notes: () => _world.queryNotes!(),
+          noteId: widget.noteId,
+          open: (id, line) => _world.openAt?.call(id, line),
+          write: (id, change) => _world.write?.call(id, change),
+          add: _world.addTicket == null ? null : (draft, title, from) => _world.addTicket!(draft, title, from),
+        );
+
+  @override
+  void initState() {
+    super.initState();
+    _world.changes?.addListener(_libraryChanged);
+  }
+
+  @override
+  void didUpdateWidget(NoteDesk oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (identical(oldWidget.world.changes, _world.changes)) return;
+    oldWidget.world.changes?.removeListener(_libraryChanged);
+    _world.changes?.addListener(_libraryChanged);
+  }
+
+  /// The library changed: any note changed may change what a query finds, and another ticket closed or a person
+  /// named changes a panel (Editor.tsx's two effects). Told after the frame where one is being built.
+  void _libraryChanged() {
+    void tell() {
+      final view = _view;
+      if (!mounted || view == null) return;
+      view.dispatch(TransactionSpec(effects: <StateEffect<Object?>>[if (_world.queryNotes != null) refreshQueries.of(null), if (_world.tickets != null) refreshTickets.of(null)]));
+    }
+
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.idle) {
+      tell();
+    } else {
+      SchedulerBinding.instance.addPostFrameCallback((_) => tell());
+    }
+  }
+
   /// A + may show: a note of words that can be written, with find put away.
   bool _plusAllowed() {
     final view = _view;
@@ -190,6 +324,7 @@ class NoteDeskState extends State<NoteDesk> {
 
   @override
   void dispose() {
+    _world.changes?.removeListener(_libraryChanged);
     _bookmark?.dispose();
     _band.dispose();
     _plus.dispose();
@@ -250,7 +385,7 @@ class NoteDeskState extends State<NoteDesk> {
       child: PlusLayer(
         view: view,
         controller: _plus,
-        config: AddConfig(titles: _world.titles, own: widget.title, localOnly: _prefs.value.localOnly, effects: plusEffects),
+        config: AddConfig(titles: _world.titles, own: widget.title, localOnly: _prefs.value.localOnly, effects: plusEffects, boards: true, databases: _world.queryNotes != null, tickets: _world.tickets != null),
         child: band.ContextBand(
           view: view,
           controller: _band,
@@ -258,6 +393,7 @@ class NoteDeskState extends State<NoteDesk> {
           onFind: view == null ? null : (text) => _openFind(view, text),
           formats: bandFormats,
           fields: bandFields,
+          boards: true,
           child: page,
         ),
       ),
@@ -292,6 +428,47 @@ class NoteDeskState extends State<NoteDesk> {
     return Place(view.state.doc.line(line).from, 0);
   }
 
+  void _openWithin(String title) => (_world.openWithin ?? _world.open)(title);
+
+  /// A page's ticket status picked in its notebook's index, written into that page through the queries' writer
+  /// (lib/core/query/move.dart), which reads the library again after.
+  void _setStatus(String page, String? status) {
+    final key = titleKey(page);
+    for (final note in _world.queryNotes?.call() ?? const <QueryNote>[]) {
+      if (titleKey(noteTitle(note.body)) != key) continue;
+      _world.write?.call(note.id, (body) => movedBody(body, -1, '', RecordKind.ticket, 'status', status));
+      return;
+    }
+  }
+
+  /// A notebook's index (book/BookView.tsx), in place of its Markdown.
+  Widget _book(BuildContext context, String body, ValueChanged<String> onChange) => BookView(
+        body: body,
+        title: noteTitle(body),
+        known: _world.known,
+        open: _openWithin,
+        openCanvas: widget.readOnly ? null : _world.openCanvas,
+        openNew: widget.readOnly ? null : _world.openPage,
+        openTicket: widget.readOnly || _world.openTicket == null ? null : (title, template) => _world.openTicket!(title, body, template),
+        ticketTemplates: _world.ticketTemplates?.call() ?? const <NoteTemplate>[],
+        titles: _world.pageTitles ?? _world.titles,
+        bodyOf: _world.bodyOf,
+        spot: widget.noteId,
+        setStatus: widget.readOnly || _world.write == null ? null : _setStatus,
+        readOnly: widget.readOnly,
+        onChange: onChange,
+      );
+
+  /// A journal's entries by month (book/JournalView.tsx).
+  Widget _journal(BuildContext context, String body, ValueChanged<String> onChange) => JournalView(
+        body: body,
+        noteOf: (title) => _world.noteOf?.call(title),
+        known: _world.known,
+        open: _openWithin,
+        onNewEntry: widget.readOnly || _world.newEntry == null ? null : (template) => _world.newEntry!(widget.noteId, template),
+        onChange: onChange,
+      );
+
   @override
   Widget build(BuildContext context) {
     final services = _world.services;
@@ -302,6 +479,18 @@ class NoteDeskState extends State<NoteDesk> {
       cheatSheet: (context) => const CheatSheet(),
       // A share is kept with an account: no rows in a build that has none.
       sharingSection: services == null ? null : (context) => ShareRows(services: services, noteId: widget.noteId),
+      // A page's notebook, its place in it and the pages either side, over and under its words.
+      bookBar: (context, place) => BookBar(place: place, open: _openWithin),
+      bookFoot: (context, place) => BookFoot(place: place, open: _openWithin),
+      // A change to the canvas is a change to the note: written into the body as the spec's JSON, and saved the way
+      // typing is.
+      canvas: canvasSeam(
+        wiki: CanvasWiki(known: _world.known, open: _world.open, body: _world.bodyOf, titles: _world.titles),
+        pictures: _world.pictures,
+        readOnly: widget.readOnly,
+      ),
+      book: _book,
+      journal: _journal,
       around: _around,
       over: _over,
     );
