@@ -41,7 +41,7 @@ Each stage ends installed on the Fold. Sizes are the web app's non-test source t
 | - | ----- | --------------- | ----- |
 | 0 | Ground: project, token engine, motion, haptics, fonts | `vendor/@glacier/tokens`, `@glacier/motion`, `ink.css`, `app.css` | done |
 | 1 | The kit: Switch, SegmentedControl, DensitySelector, ProgressBar, Pill, Toast, Input, SearchField, Kbd, CommandPalette, Popover, Menu, and a gallery of them on the phone | `@glacier/react` (12 of its components, ~4k lines) | done 2026-10-07, on the Fold |
-| 2 | The shell: launch, the tab bar in its four styles, home with its sections, cards and dock, the Settings surface and its kit, the sidebar and the app's sheet; the art: wisp and smoke as shaders, the ghost | `shell/`, `home/`, `launch/`, `art/`, `settings/` kit, part of `notes/` (~12k) | under way: launch done and on the Fold 2026-10-07 |
+| 2 | The shell: launch, the tab bar in its four styles, home, All notes, the sidebar, notifications, the command bar, the app's sheet, a note's menu and the + sheet, Settings with its kit and a live Appearance page; the art: wisp and smoke as shaders, the ghost, the icons | `shell/`, `home/`, `launch/`, `art/`, `commands/`, `settings/` kit, most of `notes/` (~15k) | on the Fold 2026-10-07; see "What stage 2 left open" |
 | 3 | The library: the Rust core behind FFI; notes as Markdown files, the store, search, workspaces, tabs and the note tree | `src-tauri/src` (27k Rust, kept), `core/` (24k TS, to Dart or into Rust), `notes/` | |
 | 4 | The editor: live Markdown, the marks and the five effects, tables, links, pictures, the + menu | `editor/` (26k), `format/` | |
 | 5 | Structured notes: boards, tickets, queries, databases, notebooks, journals, templates | `editor/`, `book/`, `notes/` | |
@@ -54,6 +54,25 @@ Each stage ends installed on the Fold. Sizes are the web app's non-test source t
 The web app is about 110,000 lines of TypeScript, 21,500 of CSS, 27,000 of Rust and 6,500 of Kotlin, with 5,600
 tests. Parity is the bar for every stage; a stage is not done until its screens have been compared with the web app's
 on the same phone.
+
+## What stage 2 left open
+
+- **Stand-ins until their stage:** the notes are the store screenshots' invented library in memory (`SampleLibrary`;
+  stage 3, planned in `docs/STAGE3.md`); an opened note is its title over its Markdown as written (stage 4); every
+  Settings section but Appearance opens a card that says it is not ported; the notifications card is empty and Speak,
+  organizations, notebooks and journals have no way in yet.
+- **Not wired though built:** `NoteActions` (delete with the web's Undo toast; the root keeps a plain trash),
+  `NewSheet` (the dock's + makes a note directly), `Notices`, `TemplateCards`.
+- **Two previews of a note:** the drawn one (`lib/home/note_peek.dart`) and the sidebar's two plain lines
+  (`lib/notes/note_peek.dart`); the sidebar should take the drawn one, and a dense card wants it clipped to 4.2 lines
+  where it is 6.2. `BookPlaceMark` and `OrgMark` exist twice the same way.
+- **Kit gaps the ports worked round:** no stylesheet or inline style on `GlacierTheme` (Settings appends rules to the
+  sheet; the shell lays a second root to stamp `data-topbar`), no root font size (the interface scale magnifies the
+  window), `AppIcon` does not read `IconTheme`, a line height given as a multiple rounds to a whole pixel.
+- **Checked where:** every screen's rectangles against the web page in tests; the whole app on an Android emulator
+  (Impeller on OpenGL ES: home, scrolling under the smoke, the sidebar, Settings, a note, the command bar, the
+  unfolded width). **Not yet looked at on the Fold itself**, whose Impeller is Vulkan: the smoke shaders, the glass,
+  the feel of swipes and of holding a tab. `lucide_icons_flutter` is no longer used and can leave pubspec.
 
 ## What stage 1 left open
 
@@ -79,7 +98,7 @@ on the same phone.
 export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home ANDROID_HOME=$HOME/Library/Android/sdk
 (cd packages/glacier && flutter test)       # the kit, tokens against the page first
 flutter analyze && flutter test             # the app
-flutter build apk --debug --target-platform android-arm64   # add -t lib/main_launch.dart for the launch screen alone
+flutter build apk --debug --target-platform android-arm64   # -t lib/main_kit.dart, lib/art/main.dart or lib/main_launch.dart for one gallery alone
 adb install -r build/app/outputs/flutter-apk/app-debug.apk
 ```
 
