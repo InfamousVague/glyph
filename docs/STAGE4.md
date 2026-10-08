@@ -44,3 +44,23 @@ parallel; J after I; L's frame once C reads, finished after D.
 `tool/editor_reference.mjs` (to write, after `tool/wisp_reference.mjs`): mounts the web `Editor` at 390 x 844 with a
 fixture note per feature, writes each `.cm-line` rectangle, chosen ranges' client rects and widgets' rectangles, plus a
 picture; Dart tests assert line boxes and `coordsAtPos` to half a pixel.
+
+## Piece 0, the keyboard (run on the emulator, Gboard 15.1, 2026-10-07; lib/spike/ime_spike.dart)
+A windowed delta client works for typing, suggestions, glide, Enter, Backspace across the window's start, caret moves
+and cross-line selections. Composing and autocorrect could not be exercised (the emulator's Gboard never composes):
+still to see on the Fold, with Samsung Keyboard and a CJK keyboard.
+Rules for the input layer:
+1. The IME's value is always a real contiguous range of the document (window start + offset). Never push what the
+   keyboard already holds.
+2. Backspace arrives as a KEY EVENT (`KEYCODE_DEL`), not a delta, and the engine no longer applies it: the editor
+   deletes (or joins lines at offset 0) itself, then pushes. A deletion delta (with a selection) is accepted too.
+3. Enter arrives as an inserted "\n" delta, never `performAction`.
+4. A window swap whose selection and composing offsets come out identical is invisible to the keyboard (stale
+   suggestions corrupt the line): re-attach, or nudge the caret by one and back.
+5. Window = the caret's line plus a neighbour each side, kept lazily: re-window only when the caret reaches its first
+   or last line or it passes about a dozen lines; not mid-composition if avoidable.
+6. Apply every delta of a batch, then re-sync once; check each delta's `oldText` against what the keyboard is believed
+   to hold.
+7. A push that changes the composing text restarts the input; clear composing on an editor-made caret move.
+8. Send `setEditableSizeAndTransform`, `setCaretRect`, `setComposingRect`.
+Why a window: pushing a 169 kB document costs ~47 ms on Android's main thread per editor-made change against ~0.5 ms.
