@@ -1,0 +1,1028 @@
+{
+ "wisp": {
+  "over": [
+   {
+    "x": 0,
+    "y": 0,
+    "w": 390,
+    "h": 844,
+    "text": "Smoke benchThe same page wearing the smoke as a filter, as a mask, or not at all",
+    "size": "16px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "oklch(0.995 0 0)"
+   }
+  ],
+  "bar": [
+   {
+    "x": 0,
+    "y": 0,
+    "w": 390,
+    "h": 63.78,
+    "text": "Smoke bench",
+    "size": "16px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "title": [
+   {
+    "x": 17.84,
+    "y": 21.39,
+    "w": 304.92,
+    "h": 20,
+    "text": "Smoke bench",
+    "size": "16.1152px",
+    "weight": "600",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "close": [
+   {
+    "x": 336.16,
+    "y": 13.39,
+    "w": 36,
+    "h": 36,
+    "text": "",
+    "size": "13.3333px",
+    "weight": "400",
+    "color": "oklch(0.36 0 0)",
+    "line": "normal",
+    "family": "Arial",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "closeIcon": [
+   {
+    "x": 345.16,
+    "y": 22.39,
+    "w": 18,
+    "h": 18,
+    "text": "",
+    "size": "13.3333px",
+    "weight": "400",
+    "color": "oklch(0.36 0 0)",
+    "line": "normal",
+    "family": "Arial",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "body": [
+   {
+    "x": 0,
+    "y": 63.78,
+    "w": 390,
+    "h": 780.22,
+    "text": "The same page wearing the smoke as a filter, as a mask, or not at all. Scroll it",
+    "size": "16px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "lede": [
+   {
+    "x": 17.84,
+    "y": 81.63,
+    "w": 354.31,
+    "h": 120.47,
+    "text": "The same page wearing the smoke as a filter, as a mask, or not at all. Scroll it",
+    "size": "13.3948px",
+    "weight": "400",
+    "color": "oklch(0.36 0 0)",
+    "line": "20.0922px",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 17.84,
+    "y": 333.8,
+    "w": 354.31,
+    "h": 40.16,
+    "text": "The whole app draws the filter unless told otherwise. Use the filter app-wide",
+    "size": "13.3948px",
+    "weight": "400",
+    "color": "oklch(0.36 0 0)",
+    "line": "20.0922px",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "controls": [
+   {
+    "x": 17.84,
+    "y": 219.94,
+    "w": 354.31,
+    "h": 96.02,
+    "text": "FilterMaskNo smokeSide by sideRun the benchRun long",
+    "size": "16px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "choice": [
+   {
+    "x": 17.84,
+    "y": 219.94,
+    "w": 354.31,
+    "h": 38,
+    "text": "FilterMaskNo smoke",
+    "size": "16px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "segmented": [
+   {
+    "x": 17.84,
+    "y": 219.94,
+    "w": 354.31,
+    "h": 38,
+    "text": "FilterMaskNo smoke",
+    "size": "16px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "oklch(0.955 0 0)"
+   }
+  ],
+  "option": [
+   {
+    "x": 21.84,
+    "y": 223.94,
+    "w": 115.44,
+    "h": 30,
+    "text": "Filter",
+    "size": "16px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 137.28,
+    "y": 223.94,
+    "w": 115.44,
+    "h": 30,
+    "text": "Mask",
+    "size": "16px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 252.72,
+    "y": 223.94,
+    "w": 115.44,
+    "h": 30,
+    "text": "No smoke",
+    "size": "16px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "buttons": [
+   {
+    "x": 17.84,
+    "y": 271.33,
+    "w": 315.45,
+    "h": 44.63,
+    "text": "Side by sideRun the benchRun long",
+    "size": "16px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "button": [
+   {
+    "x": 17.84,
+    "y": 271.33,
+    "w": 101.83,
+    "h": 44.63,
+    "text": "Side by side",
+    "size": "16px",
+    "weight": "600",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 128.59,
+    "y": 271.33,
+    "w": 119.55,
+    "h": 44.63,
+    "text": "Run the bench",
+    "size": "16px",
+    "weight": "600",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 257.06,
+    "y": 271.33,
+    "w": 76.23,
+    "h": 44.63,
+    "text": "Run long",
+    "size": "16px",
+    "weight": "600",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "link": [
+   {
+    "x": 17.84,
+    "y": 353.88,
+    "w": 145.3,
+    "h": 20.08,
+    "text": "Use the filter app-wide",
+    "size": "13.3948px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "20.0922px",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "surfaces": [
+   {
+    "x": 17.84,
+    "y": 391.8,
+    "w": 354.31,
+    "h": 384,
+    "text": "Filter16.7 · p90 18.2 · worst 18.7A page to scrollThis page exists to be scrolle",
+    "size": "16px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "surface": [
+   {
+    "x": 17.84,
+    "y": 391.8,
+    "w": 354.31,
+    "h": 384,
+    "text": "Filter16.7 · p90 18.2 · worst 18.7A page to scrollThis page exists to be scrolle",
+    "size": "16px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "oklch(0.995 0 0)"
+   }
+  ],
+  "head": [
+   {
+    "x": 18.84,
+    "y": 392.8,
+    "w": 352.31,
+    "h": 48,
+    "text": "Filter16.7 · p90 18.2 · worst 18.7",
+    "size": "13.3948px",
+    "weight": "600",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "color(srgb 0.993282 0.993463 0.99348 / 0.66)"
+   }
+  ],
+  "headLabel": [
+   {
+    "x": 36.69,
+    "y": 408.8,
+    "w": 32.92,
+    "h": 16,
+    "text": "Filter",
+    "size": "13.3948px",
+    "weight": "600",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "counter": [
+   {
+    "x": 151.7,
+    "y": 408.8,
+    "w": 201.61,
+    "h": 16,
+    "text": "16.7 · p90 18.2 · worst 18.7",
+    "size": "12px",
+    "weight": "500",
+    "color": "oklch(0.36 0 0)",
+    "line": "normal",
+    "family": "\"Maple Mono\", ui-monospace, \"SF Mono\", M",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "page": [
+   {
+    "x": 18.84,
+    "y": 392.8,
+    "w": 352.31,
+    "h": 382,
+    "text": "A page to scrollThis page exists to be scrolled. Every word on it is here so the",
+    "size": "16px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "prose": [
+   {
+    "x": 41.16,
+    "y": 449.19,
+    "w": 307.69,
+    "h": 7323.13,
+    "text": "A page to scrollThis page exists to be scrolled. Every word on it is here so the",
+    "size": "15px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "24px",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "h3": [
+   {
+    "x": 41.16,
+    "y": 449.19,
+    "w": 307.69,
+    "h": 26.88,
+    "text": "A page to scroll",
+    "size": "16.8px",
+    "weight": "600",
+    "color": "oklch(0.16 0 0)",
+    "line": "26.88px",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "p": [
+   {
+    "x": 41.16,
+    "y": 484.45,
+    "w": 307.69,
+    "h": 120,
+    "text": "This page exists to be scrolled. Every word on it is here so the surface has the",
+    "size": "15px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "24px",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 41.16,
+    "y": 619.45,
+    "w": 307.69,
+    "h": 168,
+    "text": "What is being measured is not the words but the frame. Each time the page repain",
+    "size": "15px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "24px",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 41.16,
+    "y": 802.45,
+    "w": 307.69,
+    "h": 144,
+    "text": "A mask is a different bargain. The band’s shape is made once, as a picture, and ",
+    "size": "15px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "24px",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 41.16,
+    "y": 961.45,
+    "w": 307.69,
+    "h": 144,
+    "text": "The counter in the header is the last hundred and twenty frames, read as a media",
+    "size": "15px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "24px",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 41.16,
+    "y": 1120.45,
+    "w": 307.69,
+    "h": 120,
+    "text": "The run below drives the surface the three ways the first rig did: left alone, a",
+    "size": "15px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "24px",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 41.16,
+    "y": 1255.45,
+    "w": 307.69,
+    "h": 96,
+    "text": "Nothing here is a model of the app. The surface wears the hook the app’s pages w",
+    "size": "15px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "24px",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ]
+ },
+ "wispRun": {
+  "body": [
+   {
+    "x": 0,
+    "y": 63.78,
+    "w": 390,
+    "h": 780.22,
+    "text": "The same page wearing the smoke as a filter, as a mask, or not at all. Scroll it",
+    "size": "16px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "results": [
+   {
+    "x": 17.84,
+    "y": 63.64,
+    "w": 354.31,
+    "h": 1019.98,
+    "text": "Ghost.md 1.15.0 · browser · Chromium · 390x844 @2The page without smoke held its",
+    "size": "16px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "meta": [
+   {
+    "x": 17.84,
+    "y": 63.64,
+    "w": 354.31,
+    "h": 16,
+    "text": "Ghost.md 1.15.0 · browser · Chromium · 390x844 @2",
+    "size": "12px",
+    "weight": "400",
+    "color": "oklch(0.36 0 0)",
+    "line": "normal",
+    "family": "\"Maple Mono\", ui-monospace, \"SF Mono\", M",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "verdict": [
+   {
+    "x": 17.84,
+    "y": 88.56,
+    "w": 354.31,
+    "h": 40.16,
+    "text": "The page without smoke held its frames (median 17.3ms), so the rest can be read ",
+    "size": "13.3948px",
+    "weight": "400",
+    "color": "oklch(0.36 0 0)",
+    "line": "20.0922px",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "table": [
+   {
+    "x": 17.84,
+    "y": 137.64,
+    "w": 444.97,
+    "h": 892.44,
+    "text": "DrawingConditionWearingnMedianp90WorstNo smokeAt restnothing217.317.317.3No smok",
+    "size": "13.3948px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "th": [
+   {
+    "x": 17.84,
+    "y": 137.64,
+    "w": 79.3,
+    "h": 34.34,
+    "text": "Drawing",
+    "size": "12px",
+    "weight": "600",
+    "color": "oklch(0.36 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 97.14,
+    "y": 137.64,
+    "w": 90.91,
+    "h": 34.34,
+    "text": "Condition",
+    "size": "12px",
+    "weight": "600",
+    "color": "oklch(0.36 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 188.05,
+    "y": 137.64,
+    "w": 78.7,
+    "h": 34.34,
+    "text": "Wearing",
+    "size": "12px",
+    "weight": "600",
+    "color": "oklch(0.36 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 266.75,
+    "y": 137.64,
+    "w": 25.89,
+    "h": 34.34,
+    "text": "n",
+    "size": "12px",
+    "weight": "600",
+    "color": "oklch(0.36 0 0)",
+    "line": "normal",
+    "family": "\"Maple Mono\", ui-monospace, \"SF Mono\", M",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 292.64,
+    "y": 137.64,
+    "w": 63.94,
+    "h": 34.34,
+    "text": "Median",
+    "size": "12px",
+    "weight": "600",
+    "color": "oklch(0.36 0 0)",
+    "line": "normal",
+    "family": "\"Maple Mono\", ui-monospace, \"SF Mono\", M",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 356.58,
+    "y": 137.64,
+    "w": 49.98,
+    "h": 34.34,
+    "text": "p90",
+    "size": "12px",
+    "weight": "600",
+    "color": "oklch(0.36 0 0)",
+    "line": "normal",
+    "family": "\"Maple Mono\", ui-monospace, \"SF Mono\", M",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 406.56,
+    "y": 137.64,
+    "w": 56.25,
+    "h": 34.34,
+    "text": "Worst",
+    "size": "12px",
+    "weight": "600",
+    "color": "oklch(0.36 0 0)",
+    "line": "normal",
+    "family": "\"Maple Mono\", ui-monospace, \"SF Mono\", M",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "row": [
+   {
+    "x": 17.84,
+    "y": 171.98,
+    "w": 444.97,
+    "h": 50.84,
+    "text": "No smokeAt restnothing217.317.317.3",
+    "size": "13.3948px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 17.84,
+    "y": 222.83,
+    "w": 444.97,
+    "h": 66.84,
+    "text": "No smokeOne repaint a framenothing215.915.915.9",
+    "size": "13.3948px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 17.84,
+    "y": 289.67,
+    "w": 444.97,
+    "h": 50.84,
+    "text": "No smokeScrollingnothing217.117.117.1",
+    "size": "13.3948px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 17.84,
+    "y": 340.52,
+    "w": 444.97,
+    "h": 162.84,
+    "text": "FilterAt restfilter: top + foot (url(\"#wispEdge\") url(\"#wispEdgeFoot\"))216.916.9",
+    "size": "13.3948px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 17.84,
+    "y": 503.36,
+    "w": 444.97,
+    "h": 162.84,
+    "text": "FilterOne repaint a framefilter: top + foot (url(\"#wispEdge\") url(\"#wispEdgeFoot",
+    "size": "13.3948px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 17.84,
+    "y": 666.2,
+    "w": 444.97,
+    "h": 162.84,
+    "text": "FilterScrollingfilter: top + foot (url(\"#wispEdge\") url(\"#wispEdgeFoot\"))217.617",
+    "size": "13.3948px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 17.84,
+    "y": 829.05,
+    "w": 444.97,
+    "h": 66.84,
+    "text": "MaskAt restmask: top + foot217.917.917.9",
+    "size": "13.3948px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 17.84,
+    "y": 895.89,
+    "w": 444.97,
+    "h": 66.84,
+    "text": "MaskOne repaint a framemask: top + foot218.218.218.2",
+    "size": "13.3948px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 17.84,
+    "y": 962.73,
+    "w": 444.97,
+    "h": 66.84,
+    "text": "MaskScrollingmask: top + foot217.917.917.9",
+    "size": "13.3948px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "td1": [
+   {
+    "x": 17.84,
+    "y": 171.98,
+    "w": 79.3,
+    "h": 50.84,
+    "text": "No smoke",
+    "size": "13.3948px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 97.14,
+    "y": 171.98,
+    "w": 90.91,
+    "h": 50.84,
+    "text": "At rest",
+    "size": "13.3948px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 188.05,
+    "y": 171.98,
+    "w": 78.7,
+    "h": 50.84,
+    "text": "nothing",
+    "size": "12px",
+    "weight": "400",
+    "color": "oklch(0.36 0 0)",
+    "line": "normal",
+    "family": "\"Maple Mono\", ui-monospace, \"SF Mono\", M",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 266.75,
+    "y": 171.98,
+    "w": 25.89,
+    "h": 50.84,
+    "text": "2",
+    "size": "13.3948px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Maple Mono\", ui-monospace, \"SF Mono\", M",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 292.64,
+    "y": 171.98,
+    "w": 63.94,
+    "h": 50.84,
+    "text": "17.3",
+    "size": "13.3948px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Maple Mono\", ui-monospace, \"SF Mono\", M",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 356.58,
+    "y": 171.98,
+    "w": 49.98,
+    "h": 50.84,
+    "text": "17.3",
+    "size": "13.3948px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Maple Mono\", ui-monospace, \"SF Mono\", M",
+    "bg": "rgba(0, 0, 0, 0)"
+   },
+   {
+    "x": 406.56,
+    "y": 171.98,
+    "w": 56.25,
+    "h": 50.84,
+    "text": "17.3",
+    "size": "13.3948px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Maple Mono\", ui-monospace, \"SF Mono\", M",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "copy": [
+   {
+    "x": 17.84,
+    "y": 1039,
+    "w": 122.56,
+    "h": 44.63,
+    "text": " Copy as text",
+    "size": "16px",
+    "weight": "600",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ]
+ },
+ "scene": {
+  "over": [
+   {
+    "x": 0,
+    "y": 0,
+    "w": 390,
+    "h": 844,
+    "text": "The phone at workPlay againPlayed. Play again to watch it once more.Listening ag",
+    "size": "16px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "oklch(0.995 0 0)"
+   }
+  ],
+  "bar": [
+   {
+    "x": 0,
+    "y": 0,
+    "w": 390,
+    "h": 63.78,
+    "text": "The phone at workPlay again",
+    "size": "16px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "title": [
+   {
+    "x": 22.31,
+    "y": 21.39,
+    "w": 179.42,
+    "h": 20,
+    "text": "The phone at work",
+    "size": "16.1152px",
+    "weight": "600",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "again": [
+   {
+    "x": 215.13,
+    "y": 18.94,
+    "w": 103.17,
+    "h": 24.91,
+    "text": "Play again",
+    "size": "13.3948px",
+    "weight": "600",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "againIcon": [
+   {
+    "x": 224.05,
+    "y": 23.89,
+    "w": 15,
+    "h": 15,
+    "text": "",
+    "size": "13.3948px",
+    "weight": "600",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "againWord": [
+   {
+    "x": 243.06,
+    "y": 23.39,
+    "w": 66.31,
+    "h": 16,
+    "text": "Play again",
+    "size": "13.3948px",
+    "weight": "600",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "close": [
+   {
+    "x": 331.69,
+    "y": 13.39,
+    "w": 36,
+    "h": 36,
+    "text": "",
+    "size": "13.3333px",
+    "weight": "400",
+    "color": "oklch(0.56 0 0)",
+    "line": "normal",
+    "family": "Arial",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "closeIcon": [
+   {
+    "x": 340.69,
+    "y": 22.39,
+    "w": 18,
+    "h": 18,
+    "text": "",
+    "size": "13.3333px",
+    "weight": "400",
+    "color": "oklch(0.56 0 0)",
+    "line": "normal",
+    "family": "Arial",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "body": [
+   {
+    "x": 0,
+    "y": 63.78,
+    "w": 390,
+    "h": 780.22,
+    "text": "Played. Play again to watch it once more.Listening again, 40%.The slower speech ",
+    "size": "16px",
+    "weight": "400",
+    "color": "oklch(0.16 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ],
+  "played": [
+   {
+    "x": 0,
+    "y": 63.78,
+    "w": 390,
+    "h": 780.22,
+    "text": "Played. Play again to watch it once more.",
+    "size": "13.3948px",
+    "weight": "400",
+    "color": "oklch(0.56 0 0)",
+    "line": "normal",
+    "family": "\"Inter Variable\", ui-sans-serif, system-",
+    "bg": "rgba(0, 0, 0, 0)"
+   }
+  ]
+ }
+}

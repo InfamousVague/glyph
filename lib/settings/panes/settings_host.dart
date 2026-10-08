@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../../core/backup.dart' show Backups;
 import '../../core/library_folder.dart' show LibraryFolder;
 import '../../core/preferences.dart';
 import '../../core/workspaces.dart';
@@ -140,6 +141,7 @@ class SettingsFeatures {
     this.onWayIn,
     this.orgs = const [],
     this.libraryFolder,
+    this.backup,
     this.onExport,
     this.models,
     this.onGetModel,
@@ -175,6 +177,10 @@ class SettingsFeatures {
   /// Where the library is and the calls that move it (core/libraryFolder.ts): Settings › Library folder. Null is a
   /// build that keeps the notes in its own folder only.
   final LibraryFolder? libraryFolder;
+
+  /// The drives a backup can go to and the backup itself (core/backup.ts): Settings › Backup. Null is a device
+  /// backups are not on.
+  final Backups? backup;
 
   /// Export everything as one zip (core/exportAll.ts).
   final VoidCallback? onExport;

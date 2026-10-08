@@ -29,6 +29,9 @@ flutter:
     - assets/launch/ghost-icon-eyeless.webp
     # The ghost's scenes (lib/art/ghost.dart), the web app's own masks from src/app/art/ghosts.
     - assets/art/ghosts/
+    # Ghost.md: The Guide (lib/guide/guidebook.dart): the web app's own index and chapters, src/app/guidebook.
+    - assets/guidebook/
+    - assets/guidebook/chapters/
   # The wisp (lib/art/): feTurbulence and feDisplacementMap as fragment shaders.
   shaders:
     - shaders/wisp_bend.frag

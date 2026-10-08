@@ -20,13 +20,13 @@
 ///   it is drawn; an inline widget is not a run of the line's text for a [LookSheet] to dress.
 ///   `white-space: nowrap` is what an inline widget is; `user-select: none` and the `title` (the whole address on
 ///   a long press) have no counterpart.
-/// - `hasMarkDetails(name)` (core/markDetails.ts, the plugins' registry, stage 9) is the facet [markRead]: nobody
-///   reads a mark until a plugin says it does, so every mark is its pill.
+/// - `hasMarkDetails(name)` (lib/plugins/mark_details.dart) is asked as on the page; the facet [markRead] is kept
+///   beside it for a caller that knows of a reader the plugins' registry does not.
 /// - `coveringLooks` and `underCover` are editor/formatLooks.ts's, which is the marks' piece
 ///   (lib/editor/marks): until that names its covering nodes for this file, [coveringLooks] here is the facet they
 ///   are told through, and it is the one this file reads.
-/// - `markReads({still})` (editor/markReads.ts: the reads that keep the rows under linked lines current) is the
-///   plugins', stage 9, and `detailsArrived` with it: [shortLinks] takes `still` and installs nothing for it yet.
+/// - `markReads({still})` (items/mark_reads.dart: the reads that keep the rows under linked lines current) comes
+///   with [shortLinks], as on the page, and the marks are drawn again on its `detailsArrived`.
 /// - ADDED, at the port's brief: `onOpen`. On the page a tap on a link in the words never opens it (it lands the
 ///   caret); only a card's tap does. With `onOpen`, a tap on an address in a view that cannot be edited is handed
 ///   to the caller. A view being written in keeps the page's behaviour.
@@ -39,7 +39,9 @@ import '../../core/item_links.dart';
 import '../../core/item_syntax.dart' show afterMark;
 import '../../core/short_url.dart';
 import '../../core/text.dart';
+import '../../plugins/mark_details.dart' show hasMarkDetails;
 import '../editor.dart';
+import '../items/mark_reads.dart';
 import '../looks/look.dart';
 import '../syntax/tree.dart' show SyntaxNode;
 import '../view/line.dart' show EditorRunScope;
@@ -182,7 +184,7 @@ DecorationSet _decorate(EditorViewLike view) {
           final line = state.doc.lineAt(node.from);
           if (mark != null && text == '[${mark.name}](${mark.url})' && _lastOnLine(line.text.substring(node.to - line.from)) && itemWords(line.text) != null) {
             if (!active.contains(line.number)) {
-              final EditorWidget widget = reads.any((read) => read(mark.name)) ? const HiddenMark() : ItemMarkWidget(mark.name, mark.url);
+              final EditorWidget widget = hasMarkDetails(mark.name) || reads.any((read) => read(mark.name)) ? const HiddenMark() : ItemMarkWidget(mark.name, mark.url);
               builder.add(node.from, node.to, Decoration.replace(widget: widget));
             }
             return false;
@@ -217,7 +219,9 @@ class _ShortLinks extends PluginValue {
       if (update.docChanged) decorations = decorations.map(update.changes);
       return;
     }
-    if (update.docChanged || update.viewportChanged || update.selectionSet || update.focusChanged || !identical(syntaxTree(update.startState), syntaxTree(update.state))) {
+    // Details arrived from a plugin (items/mark_reads.dart): a mark it reads steps aside for its row.
+    final arrived = update.transactions.any((tr) => tr.effects.any((effect) => effect.isOf(detailsArrived)));
+    if (arrived || update.docChanged || update.viewportChanged || update.selectionSet || update.focusChanged || !identical(syntaxTree(update.startState), syntaxTree(update.state))) {
       decorations = _decorate(update.view);
     }
   }
@@ -239,11 +243,13 @@ String? linkAt(EditorState state, int pos) {
   return found;
 }
 
-/// Link addresses shown short, and item marks as pills, away from the caret's line. `still` is for the reads that
-/// keep the rows under linked lines current, which a note drawn small on a card does without (stage 9). `onOpen`
+/// Link addresses shown short, and item marks as pills, away from the caret's line. With them come the reads that
+/// keep the rows under linked lines current (items/mark_reads.dart), which `still` stops: a note drawn small on a
+/// card is drawn from what is already known. `onOpen`
 /// is told the address a tap lands on in a view that cannot be edited.
 Extension shortLinks({bool still = false, void Function(String url)? onOpen}) => Extension.list(<Extension>[
   _shortLinksPlugin,
+  markReads(still: still),
   if (onOpen != null)
     EditorViewLike.eventHandlers(
       EditorEventHandlers(

@@ -1,0 +1,7119 @@
+{
+ "clocks": {
+  "london": {
+   "now": 1790600700000,
+   "zone": "Europe/London"
+  },
+  "newYork": {
+   "now": 1800023400000,
+   "zone": "America/New_York"
+  },
+  "kolkata": {
+   "now": 1835430300000,
+   "zone": "Asia/Kolkata"
+  },
+  "sydney": {
+   "now": 1774612740000,
+   "zone": "Australia/Sydney"
+  }
+ },
+ "cases": [
+  {
+   "text": "## Cabin weekend\n- Cabin deposit $200\n- Ferry $45\n- Food $80\n\nTotal so far: {?total}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "$325",
+    "working": "$200 + $45 + $80 = $325.",
+    "changes": null
+   }
+  },
+  {
+   "text": "## Cabin weekend\n- Cabin deposit $200\n- Ferry $45\n- Food $80\n\nTotal so far: {?total}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "$325",
+    "working": "$200 + $45 + $80 = $325.",
+    "changes": null
+   }
+  },
+  {
+   "text": "## Cabin weekend\n- Cabin deposit $200\n- Ferry $45\n- Food $80\n\nTotal so far: {?total}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "$325",
+    "working": "$200 + $45 + $80 = $325.",
+    "changes": null
+   }
+  },
+  {
+   "text": "## Cabin weekend\n- Cabin deposit $200\n- Ferry $45\n- Food $80\n\nTotal so far: {?total}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "$325",
+    "working": "$200 + $45 + $80 = $325.",
+    "changes": null
+   }
+  },
+  {
+   "text": "## Cabin weekend\n- Cabin deposit $200\n- Ferry $45\n- Food $95\n\nTotal so far: {?total}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "$340",
+    "working": "$200 + $45 + $95 = $340.",
+    "changes": null
+   }
+  },
+  {
+   "text": "## Cabin weekend\n- Cabin deposit $200\n- Ferry $45\n- Food $95\n\nTotal so far: {?total}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "$340",
+    "working": "$200 + $45 + $95 = $340.",
+    "changes": null
+   }
+  },
+  {
+   "text": "## Cabin weekend\n- Cabin deposit $200\n- Ferry $45\n- Food $95\n\nTotal so far: {?total}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "$340",
+    "working": "$200 + $45 + $95 = $340.",
+    "changes": null
+   }
+  },
+  {
+   "text": "## Cabin weekend\n- Cabin deposit $200\n- Ferry $45\n- Food $95\n\nTotal so far: {?total}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "$340",
+    "working": "$200 + $45 + $95 = $340.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Cabin deposit $200\n- Ferry $45\n- Dinner on 3 Oct\n\nTotal: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "$245",
+    "working": "$200 + $45 = $245. Dinner on 3 Oct has no amount.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Japan 2019\n- Peru 2022\n\nCountries so far: {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "- Japan $200\n- Peru $300\n\nThe total came as a surprise. Countries so far: {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "What’s the average lifespan of a cat? {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "- Cabin $200\n- Ferry £45\n\nTotal: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "cannot",
+    "solver": "total",
+    "icon": "calculator",
+    "words": "The app adds these up itself, and $200 and £45 are different money."
+   }
+  },
+  {
+   "text": "- Cabin 200\n- Ferry $45\n\nTotal: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "cannot",
+    "solver": "total",
+    "icon": "calculator",
+    "words": "The app adds these up itself, and 200 and $45 are not the same kind of number."
+   }
+  },
+  {
+   "text": "- Cabin $200\n- Ferry $45, $30 back\n\nTotal: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "cannot",
+    "solver": "total",
+    "icon": "calculator",
+    "words": "The app adds these up itself, and one line has two amounts: Ferry $45, $30 back. Keep one to a line."
+   }
+  },
+  {
+   "text": "- $200\n- $45\n- $80\n\nThe average: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "average",
+    "icon": "calculator",
+    "answer": "$108.33",
+    "working": "($200 + $45 + $80) ÷ 3 = $108.33.",
+    "changes": null
+   }
+  },
+  {
+   "text": "1. Flour 2 kg\n2. Sugar 1.5 kg\n\nTotal: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "3.5 kg",
+    "working": "2 kg + 1.5 kg = 3.5 kg.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Hotel 200 EUR\n- Train 45 EUR\n\nIn all: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "245 EUR",
+    "working": "200 EUR + 45 EUR = 245 EUR.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Hotel 200 EUR\n- Train 45 EUR\n\nIn all: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "245 EUR",
+    "working": "200 EUR + 45 EUR = 245 EUR.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Hotel 200 EUR\n- Train 45 EUR\n\nIn all: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "245 EUR",
+    "working": "200 EUR + 45 EUR = 245 EUR.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Hotel 200 EUR\n- Train 45 EUR\n\nIn all: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "245 EUR",
+    "working": "200 EUR + 45 EUR = 245 EUR.",
+    "changes": null
+   }
+  },
+  {
+   "text": "| Item | Cost |\n| --- | --- |\n| Cabin | $200 |\n| Ferry | $45 |\n| Total | {?} |",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "$245",
+    "working": "$200 + $45 = $245.",
+    "changes": null
+   }
+  },
+  {
+   "text": "| Item | Cost | Weight |\n| --- | --- | --- |\n| Cabin | $200 | 2 kg |\n| Ferry | $45 | 3.25 kg |\n| **Average** | {?} | {?} |",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "| Item | Cost |\n| --- | --- |\n| Cabin | $200 |\n| Ferry | n/a |\n| Sum: | {?} |",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "| Item | Cost |\n| --- | --- |\n| Cabin | $200 |\n| Ferry | $45 |\n| Notes | {?total} |",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "$245",
+    "working": "$200 + $45 = $245. | Item | Cost | has no amount. | --- | --- | has no amount.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Rent $1,200\n- Car $2,300.50\n- Food $499.75\n\nTotal: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "$4,000.25",
+    "working": "$1,200 + $2,300.50 + $499.75 = $4,000.25.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Rent €1,200\n- Car €2,300\n\nAltogether: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "€3,500",
+    "working": "€1,200 + €2,300 = €3,500.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Sand 800 kg\n- Gravel 950.5 kg\n\nSum: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "1,750.5 kg",
+    "working": "800 kg + 950.5 kg = 1,750.5 kg.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Run 5 km\n- Run 7.5 km\n- Run 10 km\n\nMean: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "average",
+    "icon": "calculator",
+    "answer": "7.5 km",
+    "working": "(5 km + 7.5 km + 10 km) ÷ 3 = 7.5 km.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- 12\n- 30\n- 0.5\n\nTotal: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "42.5",
+    "working": "12 + 30 + 0.5 = 42.5.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- 1,200\n- 2,300\n\nTotal: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "3500",
+    "working": "1,200 + 2,300 = 3500.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- 10\n- 20\n- 35\n\nThe mean: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "average",
+    "icon": "calculator",
+    "answer": "21.67",
+    "working": "(10 + 20 + 35) ÷ 3 = 21.67.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Paid ¥12000 for the hotel\n- Paid ¥3500 for dinner on 14:05\n- [Receipt 44](https://x.y/44)\n\nIt comes to {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "¥15,500",
+    "working": "¥12000 + ¥3500 = ¥15,500. [Receipt 44](https://x.y/44) has no amount.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- A4 paper 3\n- B5 paper 4\n\nTotal: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "7",
+    "working": "3 + 4 = 7.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Version 1.2.3 cost 20\n- 20% off was 5\n- Call +44 20 7946 0958 about 7\n\nTotal: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "32",
+    "working": "20 + 5 + 7 = 32.",
+    "changes": null
+   }
+  },
+  {
+   "text": "> - Tea $3\n> - Cake $4.50\n\nTotal: {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "- Tea $3\n- Cake ??$4.50??(Qwen3.5 4B from memory, 2026-09-28)\n- `$99` in code\n\nTotal: {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "- Tea $3\n- Cake ??$4.50??(Qwen3.5 4B from memory, 2026-09-28)\n- `$99` in code\n\nTotal: {?}",
+   "clock": "newYork",
+   "worked": null
+  },
+  {
+   "text": "- Tea $3\n- Cake ??$4.50??(Qwen3.5 4B from memory, 2026-09-28)\n- `$99` in code\n\nTotal: {?}",
+   "clock": "kolkata",
+   "worked": null
+  },
+  {
+   "text": "- Tea $3\n- Cake ??$4.50??(Qwen3.5 4B from memory, 2026-09-28)\n- `$99` in code\n\nTotal: {?}",
+   "clock": "sydney",
+   "worked": null
+  },
+  {
+   "text": "- Tea $3\n\nTotal: {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "- Tea 3 USD\n- Cake 4 GBP\n\nTotal: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "cannot",
+    "solver": "total",
+    "icon": "calculator",
+    "words": "The app adds these up itself, and 3 USD and 4 GBP are different money."
+   }
+  },
+  {
+   "text": "- Tea 3 kg\n- Cake 4 l\n\nTotal: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "cannot",
+    "solver": "total",
+    "icon": "calculator",
+    "words": "The app adds these up itself, and 3 kg and 4 l are not the same kind of number."
+   }
+  },
+  {
+   "text": "- Tea 3rd\n- Cake on 3/10\n- Mar 4\n- at 9am\n\nTotal: {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "# Costs\n- Tea $3\n- Cake $4\n\n\nTotal: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "$7",
+    "working": "$3 + $4 = $7.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Tea $3\n- Cake $4\n\nA note.\n\nTotal: {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "- Tea $3\n- Cake $4\n- Tip.\n- Tax:\n{?total}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "$7",
+    "working": "$3 + $4 = $7. Tip has no amount. Tax has no amount.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Tea $3\n- Cake $4\n{?the total}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "$7",
+    "working": "$3 + $4 = $7.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Tea $3\n- Cake $4\n\nHow much in all? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "$7",
+    "working": "$3 + $4 = $7.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Tea $3\n- Cake $4\n\nHow much in all? {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "$7",
+    "working": "$3 + $4 = $7.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Tea $3\n- Cake $4\n\nHow much in all? {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "$7",
+    "working": "$3 + $4 = $7.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Tea $3\n- Cake $4\n\nHow much in all? {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "$7",
+    "working": "$3 + $4 = $7.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Tea $3\n- Cake $4\n\nWhat does it add up to? A: {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "- Tea $0.1\n- Cake $0.2\n\nTotal: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "$0.30",
+    "working": "$0.1 + $0.2 = $0.30.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Tea $1000000\n- Cake $2500000.555\n\nTotal: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "$3,500,000.56",
+    "working": "$1000000 + $2500000.555 = $3,500,000.56.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- 1000 mm\n- 2500.5 mm\n\ngrand total {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "3,500.5 mm",
+    "working": "1000 mm + 2500.5 mm = 3,500.5 mm.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- 0.001 g\n- 0.002 g\n\nTotal: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "total",
+    "icon": "calculator",
+    "answer": "0 g",
+    "working": "0.001 g + 0.002 g = 0 g.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- 3 oz\n- 4 oz\n- 4 oz\n\nAverage: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "average",
+    "icon": "calculator",
+    "answer": "3.67 oz",
+    "working": "(3 oz + 4 oz + 4 oz) ÷ 3 = 3.67 oz.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- [x] Found the leak\n- [ ] Buy a washer\n- [ ] Fit it\n- [ ] Test\n\nTo-dos left: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "count",
+    "icon": "calculator",
+    "answer": "3 left",
+    "working": "3 of 4 to-dos in this note are not ticked.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- [x] Found the leak\n- [ ] Buy a washer\n- [ ] Fit it\n- [ ] Test\n\nTasks done: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "count",
+    "icon": "calculator",
+    "answer": "1 done",
+    "working": "1 of 4 to-dos in this note is ticked.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- [x] Found the leak\n- [ ] Buy a washer\n- [ ] Fit it\n- [ ] Test\n\nTasks ticked: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "count",
+    "icon": "calculator",
+    "answer": "1 done",
+    "working": "1 of 4 to-dos in this note is ticked.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- [x] Found the leak\n- [ ] Buy a washer\n- [ ] Fit it\n- [ ] Test\n\nHow many todos in this note? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "count",
+    "icon": "calculator",
+    "answer": "4 to-dos",
+    "working": "This note has 4 to-dos.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- [x] Found the leak\n- [ ] Buy a washer\n- [ ] Fit it\n- [ ] Test\n\nHow many todos in this note? {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "count",
+    "icon": "calculator",
+    "answer": "4 to-dos",
+    "working": "This note has 4 to-dos.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- [x] Found the leak\n- [ ] Buy a washer\n- [ ] Fit it\n- [ ] Test\n\nHow many todos in this note? {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "count",
+    "icon": "calculator",
+    "answer": "4 to-dos",
+    "working": "This note has 4 to-dos.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- [x] Found the leak\n- [ ] Buy a washer\n- [ ] Fit it\n- [ ] Test\n\nHow many todos in this note? {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "count",
+    "icon": "calculator",
+    "answer": "4 to-dos",
+    "working": "This note has 4 to-dos.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- [x] Found the leak\n- [ ] Buy a washer\n- [ ] Fit it\n- [ ] Test\n\nTasks still open: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "count",
+    "icon": "calculator",
+    "answer": "3 left",
+    "working": "3 of 4 to-dos in this note are not ticked.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- [ ] One\n\nTo-dos to go: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "count",
+    "icon": "calculator",
+    "answer": "1 left",
+    "working": "1 of 1 to-do in this note is not ticked.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- [x] One\n\nTasks done: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "count",
+    "icon": "calculator",
+    "answer": "1 done",
+    "working": "1 of 1 to-do in this note is ticked.",
+    "changes": null
+   }
+  },
+  {
+   "text": "```\n- [ ] in code\n```\n- [ ] Real\n\nTasks left: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "count",
+    "icon": "calculator",
+    "answer": "1 left",
+    "working": "1 of 1 to-do in this note is not ticked.",
+    "changes": null
+   }
+  },
+  {
+   "text": "```\n- [ ] in code\n```\n- [ ] Real\n\nTasks left: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "count",
+    "icon": "calculator",
+    "answer": "1 left",
+    "working": "1 of 1 to-do in this note is not ticked.",
+    "changes": null
+   }
+  },
+  {
+   "text": "```\n- [ ] in code\n```\n- [ ] Real\n\nTasks left: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "count",
+    "icon": "calculator",
+    "answer": "1 left",
+    "working": "1 of 1 to-do in this note is not ticked.",
+    "changes": null
+   }
+  },
+  {
+   "text": "```\n- [ ] in code\n```\n- [ ] Real\n\nTasks left: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "count",
+    "icon": "calculator",
+    "answer": "1 left",
+    "working": "1 of 1 to-do in this note is not ticked.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Passport\n- Plug adapter\n- Rail pass\nItems on this list: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "count",
+    "icon": "calculator",
+    "answer": "3 items",
+    "working": "The list above has 3 items.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Passport\nThings above: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "count",
+    "icon": "calculator",
+    "answer": "1 thing",
+    "working": "The list above has 1 item.",
+    "changes": null
+   }
+  },
+  {
+   "text": "- Passport\n- Adapter\nThings above: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "count",
+    "icon": "calculator",
+    "answer": "2 things",
+    "working": "The list above has 2 items.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Plain words.\nItems above: {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "How many items can I take in hand luggage? {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "How many items can I take in hand luggage? {?}",
+   "clock": "newYork",
+   "worked": null
+  },
+  {
+   "text": "How many items can I take in hand luggage? {?}",
+   "clock": "kolkata",
+   "worked": null
+  },
+  {
+   "text": "How many items can I take in hand luggage? {?}",
+   "clock": "sydney",
+   "worked": null
+  },
+  {
+   "text": "Days until Christmas: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "88 days",
+    "working": "From today, Monday, 28 September 2026, to Friday, 25 December 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until Christmas: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "344 days",
+    "working": "From today, Friday, 15 January 2027, to Saturday, 25 December 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until Christmas: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "300 days",
+    "working": "From today, Tuesday, 29 February 2028, to Monday, 25 December 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until Christmas: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "273 days",
+    "working": "From today, Friday, 27 March 2026, to Friday, 25 December 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days since Christmas: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "277 days",
+    "working": "From Thursday, 25 December 2025 to today, Monday, 28 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days since Christmas: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "21 days",
+    "working": "From Friday, 25 December 2026 to today, Friday, 15 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days since Christmas: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "66 days",
+    "working": "From Saturday, 25 December 2027 to today, Tuesday, 29 February 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days since Christmas: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "92 days",
+    "working": "From Thursday, 25 December 2025 to today, Friday, 27 March 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "How many days until Christmas? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "88 days",
+    "working": "From today, Monday, 28 September 2026, to Friday, 25 December 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "How many days until Christmas? {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "344 days",
+    "working": "From today, Friday, 15 January 2027, to Saturday, 25 December 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "How many days until Christmas? {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "300 days",
+    "working": "From today, Tuesday, 29 February 2028, to Monday, 25 December 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "How many days until Christmas? {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "273 days",
+    "working": "From today, Friday, 27 March 2026, to Friday, 25 December 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until 28 September: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "0 days",
+    "working": "From today, Monday, 28 September 2026, to Monday, 28 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until 28 September: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "256 days",
+    "working": "From today, Friday, 15 January 2027, to Tuesday, 28 September 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until 28 September: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "212 days",
+    "working": "From today, Tuesday, 29 February 2028, to Thursday, 28 September 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until 28 September: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "185 days",
+    "working": "From today, Friday, 27 March 2026, to Monday, 28 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Weeks until Christmas: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "12 weeks and 4 days",
+    "working": "From today, Monday, 28 September 2026, to Friday, 25 December 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Weeks until Christmas: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "49 weeks and 1 day",
+    "working": "From today, Friday, 15 January 2027, to Saturday, 25 December 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Weeks until Christmas: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "42 weeks and 6 days",
+    "working": "From today, Tuesday, 29 February 2028, to Monday, 25 December 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Weeks until Christmas: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "39 weeks",
+    "working": "From today, Friday, 27 March 2026, to Friday, 25 December 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Months until Christmas: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "2 months and 27 days",
+    "working": "From today, Monday, 28 September 2026, to Friday, 25 December 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Months until Christmas: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "11 months and 10 days",
+    "working": "From today, Friday, 15 January 2027, to Saturday, 25 December 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Months until Christmas: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "9 months and 26 days",
+    "working": "From today, Tuesday, 29 February 2028, to Monday, 25 December 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Months until Christmas: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "8 months and 28 days",
+    "working": "From today, Friday, 27 March 2026, to Friday, 25 December 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Months since 31 January: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "7 months and 28 days",
+    "working": "From Saturday, 31 January 2026 to today, Monday, 28 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Months since 31 January: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "11 months and 15 days",
+    "working": "From Saturday, 31 January 2026 to today, Friday, 15 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Months since 31 January: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "0 months and 29 days",
+    "working": "From Monday, 31 January 2028 to today, Tuesday, 29 February 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Months since 31 January: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "1 month and 27 days",
+    "working": "From Saturday, 31 January 2026 to today, Friday, 27 March 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Months until 2027-03-30: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "6 months and 2 days",
+    "working": "From today, Monday, 28 September 2026, to Tuesday, 30 March 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Months until 2027-03-30: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "2 months and 15 days",
+    "working": "From today, Friday, 15 January 2027, to Tuesday, 30 March 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Months until 2027-03-30: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "10 months and 30 days",
+    "working": "From Tuesday, 30 March 2027 to today, Tuesday, 29 February 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Months until 2027-03-30: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "12 months and 3 days",
+    "working": "From today, Friday, 27 March 2026, to Tuesday, 30 March 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Weeks since 2026-09-14: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "2 weeks",
+    "working": "From Monday, 14 September 2026 to today, Monday, 28 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Weeks since 2026-09-14: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "17 weeks and 4 days",
+    "working": "From Monday, 14 September 2026 to today, Friday, 15 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Weeks since 2026-09-14: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "76 weeks and 1 day",
+    "working": "From Monday, 14 September 2026 to today, Tuesday, 29 February 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Weeks since 2026-09-14: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "24 weeks and 3 days",
+    "working": "From today, Friday, 27 March 2026, to Monday, 14 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until 05/11: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "05/11 is a different day in London and in New York. Write it as 11 May or 5 November."
+   }
+  },
+  {
+   "text": "Days until 05/11: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "05/11 is a different day in London and in New York. Write it as 11 May or 5 November."
+   }
+  },
+  {
+   "text": "Days until 05/11: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "05/11 is a different day in London and in New York. Write it as 11 May or 5 November."
+   }
+  },
+  {
+   "text": "Days until 05/11: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "05/11 is a different day in London and in New York. Write it as 11 May or 5 November."
+   }
+  },
+  {
+   "text": "Days until 25/12: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "88 days",
+    "working": "From today, Monday, 28 September 2026, to Friday, 25 December 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until 25/12: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "344 days",
+    "working": "From today, Friday, 15 January 2027, to Saturday, 25 December 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until 25/12: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "300 days",
+    "working": "From today, Tuesday, 29 February 2028, to Monday, 25 December 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until 25/12: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "273 days",
+    "working": "From today, Friday, 27 March 2026, to Friday, 25 December 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until 25/12/27: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "453 days",
+    "working": "From today, Monday, 28 September 2026, to Saturday, 25 December 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until 25/12/27: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "344 days",
+    "working": "From today, Friday, 15 January 2027, to Saturday, 25 December 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until 25/12/27: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "66 days",
+    "working": "From Saturday, 25 December 2027 to today, Tuesday, 29 February 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until 25/12/27: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "638 days",
+    "working": "From today, Friday, 27 March 2026, to Saturday, 25 December 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until 12/25: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "12/25 could be read two ways. Write the month as a word."
+   }
+  },
+  {
+   "text": "Days until 12/25: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "12/25 could be read two ways. Write the month as a word."
+   }
+  },
+  {
+   "text": "Days until 12/25: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "12/25 could be read two ways. Write the month as a word."
+   }
+  },
+  {
+   "text": "Days until 12/25: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "12/25 could be read two ways. Write the month as a word."
+   }
+  },
+  {
+   "text": "Days until 13/13: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "13/13 could be read two ways. Write the month as a word."
+   }
+  },
+  {
+   "text": "Days until 13/13: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "13/13 could be read two ways. Write the month as a word."
+   }
+  },
+  {
+   "text": "Days until 13/13: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "13/13 could be read two ways. Write the month as a word."
+   }
+  },
+  {
+   "text": "Days until 13/13: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "13/13 could be read two ways. Write the month as a word."
+   }
+  },
+  {
+   "text": "Days until 5/5: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "219 days",
+    "working": "From today, Monday, 28 September 2026, to Wednesday, 5 May 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until 5/5: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "110 days",
+    "working": "From today, Friday, 15 January 2027, to Wednesday, 5 May 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until 5/5: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "66 days",
+    "working": "From today, Tuesday, 29 February 2028, to Friday, 5 May 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until 5/5: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "39 days",
+    "working": "From today, Friday, 27 March 2026, to Tuesday, 5 May 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until 0/5: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "0/5 is a different day in London and in New York. Write it as 5 December or 0 May."
+   }
+  },
+  {
+   "text": "Days until 0/5: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "0/5 is a different day in London and in New York. Write it as 5 December or 0 May."
+   }
+  },
+  {
+   "text": "Days until 0/5: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "0/5 is a different day in London and in New York. Write it as 5 December or 0 May."
+   }
+  },
+  {
+   "text": "Days until 0/5: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "0/5 is a different day in London and in New York. Write it as 5 December or 0 May."
+   }
+  },
+  {
+   "text": "Days until Easter: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "Easter moves each year, and the app does not know when it falls."
+   }
+  },
+  {
+   "text": "Days until Easter: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "Easter moves each year, and the app does not know when it falls."
+   }
+  },
+  {
+   "text": "Days until Easter: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "Easter moves each year, and the app does not know when it falls."
+   }
+  },
+  {
+   "text": "Days until Easter: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "Easter moves each year, and the app does not know when it falls."
+   }
+  },
+  {
+   "text": "Days until Mother's Day: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "Mother's Day moves each year, and the app does not know when it falls."
+   }
+  },
+  {
+   "text": "Days until Mother's Day: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "Mother's Day moves each year, and the app does not know when it falls."
+   }
+  },
+  {
+   "text": "Days until Mother's Day: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "Mother's Day moves each year, and the app does not know when it falls."
+   }
+  },
+  {
+   "text": "Days until Mother's Day: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "Mother's Day moves each year, and the app does not know when it falls."
+   }
+  },
+  {
+   "text": "Days until Chinese New Year: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "Chinese New Year moves each year, and the app does not know when it falls."
+   }
+  },
+  {
+   "text": "Days until Chinese New Year: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "Chinese New Year moves each year, and the app does not know when it falls."
+   }
+  },
+  {
+   "text": "Days until Chinese New Year: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "Chinese New Year moves each year, and the app does not know when it falls."
+   }
+  },
+  {
+   "text": "Days until Chinese New Year: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "Chinese New Year moves each year, and the app does not know when it falls."
+   }
+  },
+  {
+   "text": "How many days until we fly? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "The app counts days itself, and there is no date here to count to."
+   }
+  },
+  {
+   "text": "How many days until we fly? {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "The app counts days itself, and there is no date here to count to."
+   }
+  },
+  {
+   "text": "How many days until we fly? {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "The app counts days itself, and there is no date here to count to."
+   }
+  },
+  {
+   "text": "How many days until we fly? {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "The app counts days itself, and there is no date here to count to."
+   }
+  },
+  {
+   "text": "How long until the bread is proven? {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "How long until Halloween? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "33 days",
+    "working": "From today, Monday, 28 September 2026, to Saturday, 31 October 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "How long ago was 1 January 2020? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "2462 days",
+    "working": "From Wednesday, 1 January 2020 to today, Monday, 28 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "How long since Bonfire Night? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "327 days",
+    "working": "From Wednesday, 5 November 2025 to today, Monday, 28 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "I have 3 days until my exam, so revise {?what}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "I have 3 days until my exam, so revise {?what}",
+   "clock": "newYork",
+   "worked": null
+  },
+  {
+   "text": "I have 3 days until my exam, so revise {?what}",
+   "clock": "kolkata",
+   "worked": null
+  },
+  {
+   "text": "I have 3 days until my exam, so revise {?what}",
+   "clock": "sydney",
+   "worked": null
+  },
+  {
+   "text": "I fly out in two days, so pack {?what}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "I fly out in two days, so pack {?what}",
+   "clock": "newYork",
+   "worked": null
+  },
+  {
+   "text": "I fly out in two days, so pack {?what}",
+   "clock": "kolkata",
+   "worked": null
+  },
+  {
+   "text": "I fly out in two days, so pack {?what}",
+   "clock": "sydney",
+   "worked": null
+  },
+  {
+   "text": "Days until tomorrow: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "1 day",
+    "working": "From today, Monday, 28 September 2026, to Tuesday, 29 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until tomorrow: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "1 day",
+    "working": "From today, Friday, 15 January 2027, to Saturday, 16 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until tomorrow: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "1 day",
+    "working": "From today, Tuesday, 29 February 2028, to Wednesday, 1 March 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until tomorrow: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "1 day",
+    "working": "From today, Friday, 27 March 2026, to Saturday, 28 March 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days since yesterday: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "1 day",
+    "working": "From Sunday, 27 September 2026 to today, Monday, 28 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days since yesterday: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "1 day",
+    "working": "From Thursday, 14 January 2027 to today, Friday, 15 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days since yesterday: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "1 day",
+    "working": "From Monday, 28 February 2028 to today, Tuesday, 29 February 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days since yesterday: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "1 day",
+    "working": "From Thursday, 26 March 2026 to today, Friday, 27 March 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until next Friday: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "4 days",
+    "working": "From today, Monday, 28 September 2026, to Friday, 2 October 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until next Friday: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "7 days",
+    "working": "From today, Friday, 15 January 2027, to Friday, 22 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until next Friday: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "3 days",
+    "working": "From today, Tuesday, 29 February 2028, to Friday, 3 March 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until next Friday: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "7 days",
+    "working": "From today, Friday, 27 March 2026, to Friday, 3 April 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until Monday: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "0 days",
+    "working": "From today, Monday, 28 September 2026, to Monday, 28 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until Monday: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "3 days",
+    "working": "From today, Friday, 15 January 2027, to Monday, 18 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until Monday: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "6 days",
+    "working": "From today, Tuesday, 29 February 2028, to Monday, 6 March 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until Monday: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "3 days",
+    "working": "From today, Friday, 27 March 2026, to Monday, 30 March 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until next Monday: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "7 days",
+    "working": "From today, Monday, 28 September 2026, to Monday, 5 October 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until next Monday: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "3 days",
+    "working": "From today, Friday, 15 January 2027, to Monday, 18 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until next Monday: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "6 days",
+    "working": "From today, Tuesday, 29 February 2028, to Monday, 6 March 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until next Monday: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "3 days",
+    "working": "From today, Friday, 27 March 2026, to Monday, 30 March 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days since last Monday: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "7 days",
+    "working": "From Monday, 21 September 2026 to today, Monday, 28 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days since last Monday: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "4 days",
+    "working": "From Monday, 11 January 2027 to today, Friday, 15 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days since last Monday: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "1 day",
+    "working": "From Monday, 28 February 2028 to today, Tuesday, 29 February 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days since last Monday: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "4 days",
+    "working": "From Monday, 23 March 2026 to today, Friday, 27 March 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days since last Tuesday: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "6 days",
+    "working": "From Tuesday, 22 September 2026 to today, Monday, 28 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days since last Tuesday: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "3 days",
+    "working": "From Tuesday, 12 January 2027 to today, Friday, 15 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days since last Tuesday: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "7 days",
+    "working": "From Tuesday, 22 February 2028 to today, Tuesday, 29 February 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days since last Tuesday: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "3 days",
+    "working": "From Tuesday, 24 March 2026 to today, Friday, 27 March 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until this Sunday: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "6 days",
+    "working": "From today, Monday, 28 September 2026, to Sunday, 4 October 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until this Sunday: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "2 days",
+    "working": "From today, Friday, 15 January 2027, to Sunday, 17 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until this Sunday: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "5 days",
+    "working": "From today, Tuesday, 29 February 2028, to Sunday, 5 March 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until this Sunday: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "2 days",
+    "working": "From today, Friday, 27 March 2026, to Sunday, 29 March 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until New Year's Eve: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "94 days",
+    "working": "From today, Monday, 28 September 2026, to Thursday, 31 December 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until New Year's Eve: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "350 days",
+    "working": "From today, Friday, 15 January 2027, to Friday, 31 December 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until New Year's Eve: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "306 days",
+    "working": "From today, Tuesday, 29 February 2028, to Sunday, 31 December 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until New Year's Eve: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "279 days",
+    "working": "From today, Friday, 27 March 2026, to Thursday, 31 December 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until New Years: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "95 days",
+    "working": "From today, Monday, 28 September 2026, to Friday, 1 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until New Years: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "351 days",
+    "working": "From today, Friday, 15 January 2027, to Saturday, 1 January 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until New Years: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "307 days",
+    "working": "From today, Tuesday, 29 February 2028, to Monday, 1 January 2029. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until New Years: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "280 days",
+    "working": "From today, Friday, 27 March 2026, to Friday, 1 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days to Valentine's Day: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "139 days",
+    "working": "From today, Monday, 28 September 2026, to Sunday, 14 February 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days to Valentine's Day: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "30 days",
+    "working": "From today, Friday, 15 January 2027, to Sunday, 14 February 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days to Valentine's Day: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "351 days",
+    "working": "From today, Tuesday, 29 February 2028, to Wednesday, 14 February 2029. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days to Valentine's Day: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "324 days",
+    "working": "From today, Friday, 27 March 2026, to Sunday, 14 February 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days left before Boxing Day: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "89 days",
+    "working": "From today, Monday, 28 September 2026, to Saturday, 26 December 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days left before Boxing Day: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "345 days",
+    "working": "From today, Friday, 15 January 2027, to Sunday, 26 December 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days left before Boxing Day: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "301 days",
+    "working": "From today, Tuesday, 29 February 2028, to Tuesday, 26 December 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days left before Boxing Day: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "274 days",
+    "working": "From today, Friday, 27 March 2026, to Saturday, 26 December 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until Christmas Eve: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "87 days",
+    "working": "From today, Monday, 28 September 2026, to Thursday, 24 December 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until Christmas Eve: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "343 days",
+    "working": "From today, Friday, 15 January 2027, to Friday, 24 December 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until Christmas Eve: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "299 days",
+    "working": "From today, Tuesday, 29 February 2028, to Sunday, 24 December 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until Christmas Eve: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "272 days",
+    "working": "From today, Friday, 27 March 2026, to Thursday, 24 December 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until Xmas: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "88 days",
+    "working": "From today, Monday, 28 September 2026, to Friday, 25 December 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until Xmas: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "344 days",
+    "working": "From today, Friday, 15 January 2027, to Saturday, 25 December 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until Xmas: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "300 days",
+    "working": "From today, Tuesday, 29 February 2028, to Monday, 25 December 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until Xmas: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "273 days",
+    "working": "From today, Friday, 27 March 2026, to Friday, 25 December 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until Oct 3rd, 2027: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "370 days",
+    "working": "From today, Monday, 28 September 2026, to Sunday, 3 October 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until Oct 3rd, 2027: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "261 days",
+    "working": "From today, Friday, 15 January 2027, to Sunday, 3 October 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until Oct 3rd, 2027: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "149 days",
+    "working": "From Sunday, 3 October 2027 to today, Tuesday, 29 February 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until Oct 3rd, 2027: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "555 days",
+    "working": "From today, Friday, 27 March 2026, to Sunday, 3 October 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until the 3rd of October: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "5 days",
+    "working": "From today, Monday, 28 September 2026, to Saturday, 3 October 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until the 3rd of October: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "261 days",
+    "working": "From today, Friday, 15 January 2027, to Sunday, 3 October 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until the 3rd of October: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "217 days",
+    "working": "From today, Tuesday, 29 February 2028, to Tuesday, 3 October 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until the 3rd of October: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "190 days",
+    "working": "From today, Friday, 27 March 2026, to Saturday, 3 October 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until Sept. 30: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "The app counts days itself, and there is no date here to count to."
+   }
+  },
+  {
+   "text": "Days until Sept. 30: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "The app counts days itself, and there is no date here to count to."
+   }
+  },
+  {
+   "text": "Days until Sept. 30: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "The app counts days itself, and there is no date here to count to."
+   }
+  },
+  {
+   "text": "Days until Sept. 30: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "cannot",
+    "solver": "days",
+    "icon": "calendar",
+    "words": "The app counts days itself, and there is no date here to count to."
+   }
+  },
+  {
+   "text": "Days until 1 Jan: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "95 days",
+    "working": "From today, Monday, 28 September 2026, to Friday, 1 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until 1 Jan: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "351 days",
+    "working": "From today, Friday, 15 January 2027, to Saturday, 1 January 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until 1 Jan: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "307 days",
+    "working": "From today, Tuesday, 29 February 2028, to Monday, 1 January 2029. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until 1 Jan: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "280 days",
+    "working": "From today, Friday, 27 March 2026, to Friday, 1 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days since 2 March 1999: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "10072 days",
+    "working": "From Tuesday, 2 March 1999 to today, Monday, 28 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days since 2 March 1999: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "10181 days",
+    "working": "From Tuesday, 2 March 1999 to today, Friday, 15 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days since 2 March 1999: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "10591 days",
+    "working": "From Tuesday, 2 March 1999 to today, Tuesday, 29 February 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days since 2 March 1999: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "9887 days",
+    "working": "From Tuesday, 2 March 1999 to today, Friday, 27 March 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Weeks until 5 October: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "1 week",
+    "working": "From today, Monday, 28 September 2026, to Monday, 5 October 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Weeks until 5 October: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "37 weeks and 4 days",
+    "working": "From today, Friday, 15 January 2027, to Tuesday, 5 October 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Weeks until 5 October: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "31 weeks and 2 days",
+    "working": "From today, Tuesday, 29 February 2028, to Thursday, 5 October 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Weeks until 5 October: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "27 weeks and 3 days",
+    "working": "From today, Friday, 27 March 2026, to Monday, 5 October 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until today: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "0 days",
+    "working": "From today, Monday, 28 September 2026, to Monday, 28 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until today: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "0 days",
+    "working": "From today, Friday, 15 January 2027, to Friday, 15 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until today: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "0 days",
+    "working": "From today, Tuesday, 29 February 2028, to Tuesday, 29 February 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Days until today: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "days",
+    "icon": "calendar",
+    "answer": "0 days",
+    "working": "From today, Friday, 27 March 2026, to Friday, 27 March 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Sam’s birthday, 14 November, is a {?weekday}.",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Saturday",
+    "working": "Saturday, 14 November 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Sam’s birthday, 14 November, is a {?weekday}.",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Sunday",
+    "working": "Sunday, 14 November 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Sam’s birthday, 14 November, is a {?weekday}.",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Tuesday",
+    "working": "Tuesday, 14 November 2028.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Sam’s birthday, 14 November, is a {?weekday}.",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Saturday",
+    "working": "Saturday, 14 November 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "What day is 25 December? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Friday",
+    "working": "Friday, 25 December 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "What day is 25 December? {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Saturday",
+    "working": "Saturday, 25 December 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "What day is 25 December? {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Monday",
+    "working": "Monday, 25 December 2028.",
+    "changes": null
+   }
+  },
+  {
+   "text": "What day is 25 December? {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Friday",
+    "working": "Friday, 25 December 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "What day of the week was 1 January 2000? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Saturday",
+    "working": "Saturday, 1 January 2000.",
+    "changes": null
+   }
+  },
+  {
+   "text": "What day of the week was 1 January 2000? {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Saturday",
+    "working": "Saturday, 1 January 2000.",
+    "changes": null
+   }
+  },
+  {
+   "text": "What day of the week was 1 January 2000? {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Saturday",
+    "working": "Saturday, 1 January 2000.",
+    "changes": null
+   }
+  },
+  {
+   "text": "What day of the week was 1 January 2000? {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Saturday",
+    "working": "Saturday, 1 January 2000.",
+    "changes": null
+   }
+  },
+  {
+   "text": "4 July was a {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Saturday",
+    "working": "Saturday, 4 July 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "4 July was a {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Saturday",
+    "working": "Saturday, 4 July 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "4 July was a {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Sunday",
+    "working": "Sunday, 4 July 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "4 July was a {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Friday",
+    "working": "Friday, 4 July 2025.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Christmas falls on a {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Friday",
+    "working": "Friday, 25 December 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Halloween is a {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Saturday",
+    "working": "Saturday, 31 October 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Halloween is a {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Sunday",
+    "working": "Sunday, 31 October 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Halloween is a {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Tuesday",
+    "working": "Tuesday, 31 October 2028.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Halloween is a {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Saturday",
+    "working": "Saturday, 31 October 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "2027-02-28 is a {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Sunday",
+    "working": "Sunday, 28 February 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "2027-02-28 is a {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Sunday",
+    "working": "Sunday, 28 February 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "2027-02-28 is a {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Sunday",
+    "working": "Sunday, 28 February 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "2027-02-28 is a {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Sunday",
+    "working": "Sunday, 28 February 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Tomorrow is a {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Tuesday",
+    "working": "Tuesday, 29 September 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Tomorrow is a {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Saturday",
+    "working": "Saturday, 16 January 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Tomorrow is a {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Wednesday",
+    "working": "Wednesday, 1 March 2028.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Tomorrow is a {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Saturday",
+    "working": "Saturday, 28 March 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "What day is Easter? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "cannot",
+    "solver": "weekday",
+    "icon": "calendar",
+    "words": "Easter moves each year, and the app does not know when it falls."
+   }
+  },
+  {
+   "text": "What day is Easter? {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "cannot",
+    "solver": "weekday",
+    "icon": "calendar",
+    "words": "Easter moves each year, and the app does not know when it falls."
+   }
+  },
+  {
+   "text": "What day is Easter? {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "cannot",
+    "solver": "weekday",
+    "icon": "calendar",
+    "words": "Easter moves each year, and the app does not know when it falls."
+   }
+  },
+  {
+   "text": "What day is Easter? {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "cannot",
+    "solver": "weekday",
+    "icon": "calendar",
+    "words": "Easter moves each year, and the app does not know when it falls."
+   }
+  },
+  {
+   "text": "What day is 05/11? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "cannot",
+    "solver": "weekday",
+    "icon": "calendar",
+    "words": "05/11 is a different day in London and in New York. Write it as 11 May or 5 November."
+   }
+  },
+  {
+   "text": "What day is 05/11? {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "cannot",
+    "solver": "weekday",
+    "icon": "calendar",
+    "words": "05/11 is a different day in London and in New York. Write it as 11 May or 5 November."
+   }
+  },
+  {
+   "text": "What day is 05/11? {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "cannot",
+    "solver": "weekday",
+    "icon": "calendar",
+    "words": "05/11 is a different day in London and in New York. Write it as 11 May or 5 November."
+   }
+  },
+  {
+   "text": "What day is 05/11? {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "cannot",
+    "solver": "weekday",
+    "icon": "calendar",
+    "words": "05/11 is a different day in London and in New York. Write it as 11 May or 5 November."
+   }
+  },
+  {
+   "text": "Which day of our trip is best for the temple? {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "Which day of our trip is best for the temple? {?}",
+   "clock": "newYork",
+   "worked": null
+  },
+  {
+   "text": "Which day of our trip is best for the temple? {?}",
+   "clock": "kolkata",
+   "worked": null
+  },
+  {
+   "text": "Which day of our trip is best for the temple? {?}",
+   "clock": "sydney",
+   "worked": null
+  },
+  {
+   "text": "What day is it best to fly? {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "What day is it best to fly? {?}",
+   "clock": "newYork",
+   "worked": null
+  },
+  {
+   "text": "What day is it best to fly? {?}",
+   "clock": "kolkata",
+   "worked": null
+  },
+  {
+   "text": "What day is it best to fly? {?}",
+   "clock": "sydney",
+   "worked": null
+  },
+  {
+   "text": "The weekday of 1 March: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Monday",
+    "working": "Monday, 1 March 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "The weekday of 1 March: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Monday",
+    "working": "Monday, 1 March 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "The weekday of 1 March: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Wednesday",
+    "working": "Wednesday, 1 March 2028.",
+    "changes": null
+   }
+  },
+  {
+   "text": "The weekday of 1 March: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "weekday",
+    "icon": "calendar",
+    "answer": "Monday",
+    "working": "Monday, 1 March 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "3 weeks from today: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Monday, 19 October 2026",
+    "working": "3 weeks from today, Monday, 28 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "3 weeks from today: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Friday, 5 February 2027",
+    "working": "3 weeks from today, Friday, 15 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "3 weeks from today: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Tuesday, 21 March 2028",
+    "working": "3 weeks from today, Tuesday, 29 February 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "3 weeks from today: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Friday, 17 April 2026",
+    "working": "3 weeks from today, Friday, 27 March 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "In 3 weeks: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Monday, 19 October 2026",
+    "working": "3 weeks from today, Monday, 28 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "In 3 weeks: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Friday, 5 February 2027",
+    "working": "3 weeks from today, Friday, 15 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "In 3 weeks: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Tuesday, 21 March 2028",
+    "working": "3 weeks from today, Tuesday, 29 February 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "In 3 weeks: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Friday, 17 April 2026",
+    "working": "3 weeks from today, Friday, 27 March 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "In two weeks' time it will be {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Monday, 12 October 2026",
+    "working": "2 weeks from today, Monday, 28 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "In two weeks' time it will be {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Friday, 29 January 2027",
+    "working": "2 weeks from today, Friday, 15 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "In two weeks' time it will be {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Tuesday, 14 March 2028",
+    "working": "2 weeks from today, Tuesday, 29 February 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "In two weeks' time it will be {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Friday, 10 April 2026",
+    "working": "2 weeks from today, Friday, 27 March 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "In a month: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Wednesday, 28 October 2026",
+    "working": "1 month from today, Monday, 28 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "In a month: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Monday, 15 February 2027",
+    "working": "1 month from today, Friday, 15 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "In a month: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Wednesday, 29 March 2028",
+    "working": "1 month from today, Tuesday, 29 February 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "In a month: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Monday, 27 April 2026",
+    "working": "1 month from today, Friday, 27 March 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "In 10 days it is {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Thursday, 8 October 2026",
+    "working": "10 days from today, Monday, 28 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "In 10 days it is {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Monday, 25 January 2027",
+    "working": "10 days from today, Friday, 15 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "In 10 days it is {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Friday, 10 March 2028",
+    "working": "10 days from today, Tuesday, 29 February 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "In 10 days it is {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Monday, 6 April 2026",
+    "working": "10 days from today, Friday, 27 March 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "10 days before Christmas: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Tuesday, 15 December 2026",
+    "working": "10 days before Friday, 25 December 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "10 days before Christmas: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Wednesday, 15 December 2027",
+    "working": "10 days before Saturday, 25 December 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "10 days before Christmas: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Friday, 15 December 2028",
+    "working": "10 days before Monday, 25 December 2028.",
+    "changes": null
+   }
+  },
+  {
+   "text": "10 days before Christmas: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Tuesday, 15 December 2026",
+    "working": "10 days before Friday, 25 December 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Two months after 31 January: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Wednesday, 31 March 2027",
+    "working": "2 months from Sunday, 31 January 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Two months after 31 January: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Wednesday, 31 March 2027",
+    "working": "2 months from Sunday, 31 January 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Two months after 31 January: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Saturday, 31 March 2029",
+    "working": "2 months from Wednesday, 31 January 2029.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Two months after 31 January: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Wednesday, 31 March 2027",
+    "working": "2 months from Sunday, 31 January 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "A year from today: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Tuesday, 28 September 2027",
+    "working": "1 year from today, Monday, 28 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "A year from today: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Saturday, 15 January 2028",
+    "working": "1 year from today, Friday, 15 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "A year from today: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Wednesday, 28 February 2029",
+    "working": "1 year from today, Tuesday, 29 February 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "A year from today: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Saturday, 27 March 2027",
+    "working": "1 year from today, Friday, 27 March 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "one month from 31 January 2027: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Sunday, 28 February 2027",
+    "working": "1 month from Sunday, 31 January 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "one month from 31 January 2027: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Sunday, 28 February 2027",
+    "working": "1 month from Sunday, 31 January 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "one month from 31 January 2027: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Sunday, 28 February 2027",
+    "working": "1 month from Sunday, 31 January 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "one month from 31 January 2027: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Sunday, 28 February 2027",
+    "working": "1 month from Sunday, 31 January 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "3 days from later today: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Thursday, 1 October 2026",
+    "working": "3 days from Monday, 28 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "3 days from later today: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Monday, 18 January 2027",
+    "working": "3 days from Friday, 15 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "3 days from later today: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Friday, 3 March 2028",
+    "working": "3 days from Tuesday, 29 February 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "3 days from later today: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Monday, 30 March 2026",
+    "working": "3 days from Friday, 27 March 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "90 days from now is {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Sunday, 27 December 2026",
+    "working": "90 days from today, Monday, 28 September 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "90 days from now is {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Thursday, 15 April 2027",
+    "working": "90 days from today, Friday, 15 January 2027. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "90 days from now is {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Monday, 29 May 2028",
+    "working": "90 days from today, Tuesday, 29 February 2028. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "90 days from now is {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Thursday, 25 June 2026",
+    "working": "90 days from today, Friday, 27 March 2026. It changes each day.",
+    "changes": "day"
+   }
+  },
+  {
+   "text": "Six weeks after 1 September 2026 is {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Tuesday, 13 October 2026",
+    "working": "6 weeks from Tuesday, 1 September 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Six weeks after 1 September 2026 is {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Tuesday, 13 October 2026",
+    "working": "6 weeks from Tuesday, 1 September 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Six weeks after 1 September 2026 is {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Tuesday, 13 October 2026",
+    "working": "6 weeks from Tuesday, 1 September 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Six weeks after 1 September 2026 is {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Tuesday, 13 October 2026",
+    "working": "6 weeks from Tuesday, 1 September 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "2 years before 29 February 2028: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Saturday, 28 February 2026",
+    "working": "2 years before Tuesday, 29 February 2028.",
+    "changes": null
+   }
+  },
+  {
+   "text": "2 years before 29 February 2028: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Saturday, 28 February 2026",
+    "working": "2 years before Tuesday, 29 February 2028.",
+    "changes": null
+   }
+  },
+  {
+   "text": "2 years before 29 February 2028: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Saturday, 28 February 2026",
+    "working": "2 years before Tuesday, 29 February 2028.",
+    "changes": null
+   }
+  },
+  {
+   "text": "2 years before 29 February 2028: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Saturday, 28 February 2026",
+    "working": "2 years before Tuesday, 29 February 2028.",
+    "changes": null
+   }
+  },
+  {
+   "text": "3 days from Easter: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "cannot",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "words": "Easter moves each year, and the app does not know when it falls."
+   }
+  },
+  {
+   "text": "3 days from Easter: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "cannot",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "words": "Easter moves each year, and the app does not know when it falls."
+   }
+  },
+  {
+   "text": "3 days from Easter: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "cannot",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "words": "Easter moves each year, and the app does not know when it falls."
+   }
+  },
+  {
+   "text": "3 days from Easter: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "cannot",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "words": "Easter moves each year, and the app does not know when it falls."
+   }
+  },
+  {
+   "text": "3 days from the party: {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "3 days from the party: {?}",
+   "clock": "newYork",
+   "worked": null
+  },
+  {
+   "text": "3 days from the party: {?}",
+   "clock": "kolkata",
+   "worked": null
+  },
+  {
+   "text": "3 days from the party: {?}",
+   "clock": "sydney",
+   "worked": null
+  },
+  {
+   "text": "What is the date 45 days from 2026-12-01? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Friday, 15 January 2027",
+    "working": "45 days from Tuesday, 1 December 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "What is the date 45 days from 2026-12-01? {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Friday, 15 January 2027",
+    "working": "45 days from Tuesday, 1 December 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "What is the date 45 days from 2026-12-01? {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Friday, 15 January 2027",
+    "working": "45 days from Tuesday, 1 December 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "What is the date 45 days from 2026-12-01? {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Friday, 15 January 2027",
+    "working": "45 days from Tuesday, 1 December 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "12 months from 31 August: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Thursday, 31 August 2028",
+    "working": "12 months from Tuesday, 31 August 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "12 months from 31 August: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Thursday, 31 August 2028",
+    "working": "12 months from Tuesday, 31 August 2027.",
+    "changes": null
+   }
+  },
+  {
+   "text": "12 months from 31 August: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Friday, 31 August 2029",
+    "working": "12 months from Thursday, 31 August 2028.",
+    "changes": null
+   }
+  },
+  {
+   "text": "12 months from 31 August: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "dateOn",
+    "icon": "calendar",
+    "answer": "Tuesday, 31 August 2027",
+    "working": "12 months from Monday, 31 August 2026.",
+    "changes": null
+   }
+  },
+  {
+   "text": "An hour from now: {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "180 °C in Fahrenheit is {?°F}.",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "356 °F",
+    "working": "180 × 9 ÷ 5 + 32 = 356.",
+    "changes": null
+   }
+  },
+  {
+   "text": "180 °C in Fahrenheit is {?°F}.",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "356 °F",
+    "working": "180 × 9 ÷ 5 + 32 = 356.",
+    "changes": null
+   }
+  },
+  {
+   "text": "180 °C in Fahrenheit is {?°F}.",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "356 °F",
+    "working": "180 × 9 ÷ 5 + 32 = 356.",
+    "changes": null
+   }
+  },
+  {
+   "text": "180 °C in Fahrenheit is {?°F}.",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "356 °F",
+    "working": "180 × 9 ÷ 5 + 32 = 356.",
+    "changes": null
+   }
+  },
+  {
+   "text": "10 km is {?} miles.",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "6.2 mi",
+    "working": "10 km × 0.6214 = 6.2 mi.",
+    "changes": null
+   }
+  },
+  {
+   "text": "How far is 10 km in miles? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "6.2 mi",
+    "working": "10 km × 0.6214 = 6.2 mi.",
+    "changes": null
+   }
+  },
+  {
+   "text": "How far is 10 km in miles? {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "6.2 mi",
+    "working": "10 km × 0.6214 = 6.2 mi.",
+    "changes": null
+   }
+  },
+  {
+   "text": "How far is 10 km in miles? {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "6.2 mi",
+    "working": "10 km × 0.6214 = 6.2 mi.",
+    "changes": null
+   }
+  },
+  {
+   "text": "How far is 10 km in miles? {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "6.2 mi",
+    "working": "10 km × 0.6214 = 6.2 mi.",
+    "changes": null
+   }
+  },
+  {
+   "text": "2 lb in kg: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "0.9 kg",
+    "working": "2 lb × 0.4536 = 0.9 kg.",
+    "changes": null
+   }
+  },
+  {
+   "text": "2 lb in kg: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "0.9 kg",
+    "working": "2 lb × 0.4536 = 0.9 kg.",
+    "changes": null
+   }
+  },
+  {
+   "text": "2 lb in kg: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "0.9 kg",
+    "working": "2 lb × 0.4536 = 0.9 kg.",
+    "changes": null
+   }
+  },
+  {
+   "text": "2 lb in kg: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "0.9 kg",
+    "working": "2 lb × 0.4536 = 0.9 kg.",
+    "changes": null
+   }
+  },
+  {
+   "text": "1 cup of plain flour is about {?grams} grams.",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "A tablespoon of butter is about {?grams} grams.",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "350 °F is {?} celsius.",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "176.7 °C",
+    "working": "(350 − 32) × 5 ÷ 9 = 176.7.",
+    "changes": null
+   }
+  },
+  {
+   "text": "-40 °F in celsius: {?°C}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "4.4 °C",
+    "working": "(40 − 32) × 5 ÷ 9 = 4.4.",
+    "changes": null
+   }
+  },
+  {
+   "text": "-40 °F in celsius: {?°C}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "4.4 °C",
+    "working": "(40 − 32) × 5 ÷ 9 = 4.4.",
+    "changes": null
+   }
+  },
+  {
+   "text": "-40 °F in celsius: {?°C}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "4.4 °C",
+    "working": "(40 − 32) × 5 ÷ 9 = 4.4.",
+    "changes": null
+   }
+  },
+  {
+   "text": "-40 °F in celsius: {?°C}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "4.4 °C",
+    "working": "(40 − 32) × 5 ÷ 9 = 4.4.",
+    "changes": null
+   }
+  },
+  {
+   "text": "32 °F in celsius: {?°C}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "0 °C",
+    "working": "(32 − 32) × 5 ÷ 9 = 0.",
+    "changes": null
+   }
+  },
+  {
+   "text": "32 °F in celsius: {?°C}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "0 °C",
+    "working": "(32 − 32) × 5 ÷ 9 = 0.",
+    "changes": null
+   }
+  },
+  {
+   "text": "32 °F in celsius: {?°C}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "0 °C",
+    "working": "(32 − 32) × 5 ÷ 9 = 0.",
+    "changes": null
+   }
+  },
+  {
+   "text": "32 °F in celsius: {?°C}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "0 °C",
+    "working": "(32 − 32) × 5 ÷ 9 = 0.",
+    "changes": null
+   }
+  },
+  {
+   "text": "31.99 °F in celsius: {?°C}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "-0 °C",
+    "working": "(31.99 − 32) × 5 ÷ 9 = -0.",
+    "changes": null
+   }
+  },
+  {
+   "text": "31.99 °F in celsius: {?°C}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "-0 °C",
+    "working": "(31.99 − 32) × 5 ÷ 9 = -0.",
+    "changes": null
+   }
+  },
+  {
+   "text": "31.99 °F in celsius: {?°C}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "-0 °C",
+    "working": "(31.99 − 32) × 5 ÷ 9 = -0.",
+    "changes": null
+   }
+  },
+  {
+   "text": "31.99 °F in celsius: {?°C}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "-0 °C",
+    "working": "(31.99 − 32) × 5 ÷ 9 = -0.",
+    "changes": null
+   }
+  },
+  {
+   "text": "10 °F in celsius: {?°C}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "-12.2 °C",
+    "working": "(10 − 32) × 5 ÷ 9 = -12.2.",
+    "changes": null
+   }
+  },
+  {
+   "text": "10 °F in celsius: {?°C}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "-12.2 °C",
+    "working": "(10 − 32) × 5 ÷ 9 = -12.2.",
+    "changes": null
+   }
+  },
+  {
+   "text": "10 °F in celsius: {?°C}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "-12.2 °C",
+    "working": "(10 − 32) × 5 ÷ 9 = -12.2.",
+    "changes": null
+   }
+  },
+  {
+   "text": "10 °F in celsius: {?°C}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "-12.2 °C",
+    "working": "(10 − 32) × 5 ÷ 9 = -12.2.",
+    "changes": null
+   }
+  },
+  {
+   "text": "0 °F is {?°C}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "-17.8 °C",
+    "working": "(0 − 32) × 5 ÷ 9 = -17.8.",
+    "changes": null
+   }
+  },
+  {
+   "text": "1234567 m in km is {?km}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "1,234.6 km",
+    "working": "1234567 m × 0.001 = 1,234.6 km.",
+    "changes": null
+   }
+  },
+  {
+   "text": "1234567 m in km is {?km}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "1,234.6 km",
+    "working": "1234567 m × 0.001 = 1,234.6 km.",
+    "changes": null
+   }
+  },
+  {
+   "text": "1234567 m in km is {?km}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "1,234.6 km",
+    "working": "1234567 m × 0.001 = 1,234.6 km.",
+    "changes": null
+   }
+  },
+  {
+   "text": "1234567 m in km is {?km}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "1,234.6 km",
+    "working": "1234567 m × 0.001 = 1,234.6 km.",
+    "changes": null
+   }
+  },
+  {
+   "text": "2000 kg in g: {?g}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "2,000,000 g",
+    "working": "2000 kg × 1,000 = 2,000,000 g.",
+    "changes": null
+   }
+  },
+  {
+   "text": "2000 kg in g: {?g}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "2,000,000 g",
+    "working": "2000 kg × 1,000 = 2,000,000 g.",
+    "changes": null
+   }
+  },
+  {
+   "text": "2000 kg in g: {?g}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "2,000,000 g",
+    "working": "2000 kg × 1,000 = 2,000,000 g.",
+    "changes": null
+   }
+  },
+  {
+   "text": "2000 kg in g: {?g}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "2,000,000 g",
+    "working": "2000 kg × 1,000 = 2,000,000 g.",
+    "changes": null
+   }
+  },
+  {
+   "text": "98.6 fahrenheit is {?in celsius}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "37 °C",
+    "working": "(98.6 − 32) × 5 ÷ 9 = 37.",
+    "changes": null
+   }
+  },
+  {
+   "text": "98.6 fahrenheit is {?in celsius}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "37 °C",
+    "working": "(98.6 − 32) × 5 ÷ 9 = 37.",
+    "changes": null
+   }
+  },
+  {
+   "text": "98.6 fahrenheit is {?in celsius}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "37 °C",
+    "working": "(98.6 − 32) × 5 ÷ 9 = 37.",
+    "changes": null
+   }
+  },
+  {
+   "text": "98.6 fahrenheit is {?in celsius}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "37 °C",
+    "working": "(98.6 − 32) × 5 ÷ 9 = 37.",
+    "changes": null
+   }
+  },
+  {
+   "text": "5 feet is {?in cm}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "152.4 cm",
+    "working": "5 ft × 30.48 = 152.4 cm.",
+    "changes": null
+   }
+  },
+  {
+   "text": "5 feet is {?in cm}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "152.4 cm",
+    "working": "5 ft × 30.48 = 152.4 cm.",
+    "changes": null
+   }
+  },
+  {
+   "text": "5 feet is {?in cm}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "152.4 cm",
+    "working": "5 ft × 30.48 = 152.4 cm.",
+    "changes": null
+   }
+  },
+  {
+   "text": "5 feet is {?in cm}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "152.4 cm",
+    "working": "5 ft × 30.48 = 152.4 cm.",
+    "changes": null
+   }
+  },
+  {
+   "text": "5 ft 11 in is {?cm}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "152.4 cm",
+    "working": "5 ft × 30.48 = 152.4 cm.",
+    "changes": null
+   }
+  },
+  {
+   "text": "5 ft 11 in is {?cm}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "152.4 cm",
+    "working": "5 ft × 30.48 = 152.4 cm.",
+    "changes": null
+   }
+  },
+  {
+   "text": "5 ft 11 in is {?cm}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "152.4 cm",
+    "working": "5 ft × 30.48 = 152.4 cm.",
+    "changes": null
+   }
+  },
+  {
+   "text": "5 ft 11 in is {?cm}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "152.4 cm",
+    "working": "5 ft × 30.48 = 152.4 cm.",
+    "changes": null
+   }
+  },
+  {
+   "text": "12 stone in kg is {?kg}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "76.2 kg",
+    "working": "12 st × 6.3503 = 76.2 kg.",
+    "changes": null
+   }
+  },
+  {
+   "text": "12 stone in kg is {?kg}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "76.2 kg",
+    "working": "12 st × 6.3503 = 76.2 kg.",
+    "changes": null
+   }
+  },
+  {
+   "text": "12 stone in kg is {?kg}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "76.2 kg",
+    "working": "12 st × 6.3503 = 76.2 kg.",
+    "changes": null
+   }
+  },
+  {
+   "text": "12 stone in kg is {?kg}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "76.2 kg",
+    "working": "12 st × 6.3503 = 76.2 kg.",
+    "changes": null
+   }
+  },
+  {
+   "text": "70 mph is {?km/h}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "112.7 km/h",
+    "working": "70 mph × 1.6093 = 112.7 km/h.",
+    "changes": null
+   }
+  },
+  {
+   "text": "100 kph in mph: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "62.1 mph",
+    "working": "100 km/h × 0.6214 = 62.1 mph.",
+    "changes": null
+   }
+  },
+  {
+   "text": "100 kph in mph: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "62.1 mph",
+    "working": "100 km/h × 0.6214 = 62.1 mph.",
+    "changes": null
+   }
+  },
+  {
+   "text": "100 kph in mph: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "62.1 mph",
+    "working": "100 km/h × 0.6214 = 62.1 mph.",
+    "changes": null
+   }
+  },
+  {
+   "text": "100 kph in mph: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "62.1 mph",
+    "working": "100 km/h × 0.6214 = 62.1 mph.",
+    "changes": null
+   }
+  },
+  {
+   "text": "2 tbsp is {?} ml.",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "30 ml",
+    "working": "2 tbsp × 15 = 30 ml.",
+    "changes": null
+   }
+  },
+  {
+   "text": "2,5 kilos is {?} pounds.",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "5.5 lb",
+    "working": "2.5 kg × 2.2046 = 5.5 lb.",
+    "changes": null
+   }
+  },
+  {
+   "text": "1500 m in miles is {?mi}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "0.9 mi",
+    "working": "1500 m × 0.0006 = 0.9 mi.",
+    "changes": null
+   }
+  },
+  {
+   "text": "1500 m in miles is {?mi}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "0.9 mi",
+    "working": "1500 m × 0.0006 = 0.9 mi.",
+    "changes": null
+   }
+  },
+  {
+   "text": "1500 m in miles is {?mi}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "0.9 mi",
+    "working": "1500 m × 0.0006 = 0.9 mi.",
+    "changes": null
+   }
+  },
+  {
+   "text": "1500 m in miles is {?mi}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "0.9 mi",
+    "working": "1500 m × 0.0006 = 0.9 mi.",
+    "changes": null
+   }
+  },
+  {
+   "text": "26.2 miles is {?km}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "42.2 km",
+    "working": "26.2 mi × 1.6093 = 42.2 km.",
+    "changes": null
+   }
+  },
+  {
+   "text": "1,000 km in miles: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "0.6 mi",
+    "working": "1 km × 0.6214 = 0.6 mi.",
+    "changes": null
+   }
+  },
+  {
+   "text": "1,000 km in miles: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "0.6 mi",
+    "working": "1 km × 0.6214 = 0.6 mi.",
+    "changes": null
+   }
+  },
+  {
+   "text": "1,000 km in miles: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "0.6 mi",
+    "working": "1 km × 0.6214 = 0.6 mi.",
+    "changes": null
+   }
+  },
+  {
+   "text": "1,000 km in miles: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "0.6 mi",
+    "working": "1 km × 0.6214 = 0.6 mi.",
+    "changes": null
+   }
+  },
+  {
+   "text": "100000 cm in km: {?km}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "1 km",
+    "working": "100000 cm × 0 = 1 km.",
+    "changes": null
+   }
+  },
+  {
+   "text": "100000 cm in km: {?km}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "1 km",
+    "working": "100000 cm × 0 = 1 km.",
+    "changes": null
+   }
+  },
+  {
+   "text": "100000 cm in km: {?km}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "1 km",
+    "working": "100000 cm × 0 = 1 km.",
+    "changes": null
+   }
+  },
+  {
+   "text": "100000 cm in km: {?km}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "1 km",
+    "working": "100000 cm × 0 = 1 km.",
+    "changes": null
+   }
+  },
+  {
+   "text": "3 tsp in tablespoons: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "1 tbsp",
+    "working": "3 tsp × 0.3333 = 1 tbsp.",
+    "changes": null
+   }
+  },
+  {
+   "text": "3 tsp in tablespoons: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "1 tbsp",
+    "working": "3 tsp × 0.3333 = 1 tbsp.",
+    "changes": null
+   }
+  },
+  {
+   "text": "3 tsp in tablespoons: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "1 tbsp",
+    "working": "3 tsp × 0.3333 = 1 tbsp.",
+    "changes": null
+   }
+  },
+  {
+   "text": "3 tsp in tablespoons: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "1 tbsp",
+    "working": "3 tsp × 0.3333 = 1 tbsp.",
+    "changes": null
+   }
+  },
+  {
+   "text": "1 inch in mm: {?mm}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "25.4 mm",
+    "working": "1 in × 25.4 = 25.4 mm.",
+    "changes": null
+   }
+  },
+  {
+   "text": "1 inch in mm: {?mm}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "25.4 mm",
+    "working": "1 in × 25.4 = 25.4 mm.",
+    "changes": null
+   }
+  },
+  {
+   "text": "1 inch in mm: {?mm}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "25.4 mm",
+    "working": "1 in × 25.4 = 25.4 mm.",
+    "changes": null
+   }
+  },
+  {
+   "text": "1 inch in mm: {?mm}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "25.4 mm",
+    "working": "1 in × 25.4 = 25.4 mm.",
+    "changes": null
+   }
+  },
+  {
+   "text": "0.5 l in ml is {?ml}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "500 ml",
+    "working": "0.5 l × 1,000 = 500 ml.",
+    "changes": null
+   }
+  },
+  {
+   "text": "0.5 l in ml is {?ml}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "500 ml",
+    "working": "0.5 l × 1,000 = 500 ml.",
+    "changes": null
+   }
+  },
+  {
+   "text": "0.5 l in ml is {?ml}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "500 ml",
+    "working": "0.5 l × 1,000 = 500 ml.",
+    "changes": null
+   }
+  },
+  {
+   "text": "0.5 l in ml is {?ml}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "500 ml",
+    "working": "0.5 l × 1,000 = 500 ml.",
+    "changes": null
+   }
+  },
+  {
+   "text": "10 kg in litres: {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "10 kg in litres: {?}",
+   "clock": "newYork",
+   "worked": null
+  },
+  {
+   "text": "10 kg in litres: {?}",
+   "clock": "kolkata",
+   "worked": null
+  },
+  {
+   "text": "10 kg in litres: {?}",
+   "clock": "sydney",
+   "worked": null
+  },
+  {
+   "text": "10 km in km: {?km}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "10 km in km: {?km}",
+   "clock": "newYork",
+   "worked": null
+  },
+  {
+   "text": "10 km in km: {?km}",
+   "clock": "kolkata",
+   "worked": null
+  },
+  {
+   "text": "10 km in km: {?km}",
+   "clock": "sydney",
+   "worked": null
+  },
+  {
+   "text": "How many ounces is 250 g? {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "How many grams in 8 oz? {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "8 oz is {?how many grams}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "226.8 g",
+    "working": "8 oz × 28.3495 = 226.8 g.",
+    "changes": null
+   }
+  },
+  {
+   "text": "The oven goes to 220 °C. In Fahrenheit: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "428 °F",
+    "working": "220 × 9 ÷ 5 + 32 = 428.",
+    "changes": null
+   }
+  },
+  {
+   "text": "The oven goes to 220 °C. In Fahrenheit: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "428 °F",
+    "working": "220 × 9 ÷ 5 + 32 = 428.",
+    "changes": null
+   }
+  },
+  {
+   "text": "The oven goes to 220 °C. In Fahrenheit: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "428 °F",
+    "working": "220 × 9 ÷ 5 + 32 = 428.",
+    "changes": null
+   }
+  },
+  {
+   "text": "The oven goes to 220 °C. In Fahrenheit: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "428 °F",
+    "working": "220 × 9 ÷ 5 + 32 = 428.",
+    "changes": null
+   }
+  },
+  {
+   "text": "6 yards is {?} metres",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "5.5 m",
+    "working": "6 yd × 0.9144 = 5.5 m.",
+    "changes": null
+   }
+  },
+  {
+   "text": "0.04 km is {?} m.",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "1 mm in km: {?km}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "0 km",
+    "working": "1 mm × 0 = 0 km.",
+    "changes": null
+   }
+  },
+  {
+   "text": "1 mm in km: {?km}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "0 km",
+    "working": "1 mm × 0 = 0 km.",
+    "changes": null
+   }
+  },
+  {
+   "text": "1 mm in km: {?km}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "0 km",
+    "working": "1 mm × 0 = 0 km.",
+    "changes": null
+   }
+  },
+  {
+   "text": "1 mm in km: {?km}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "units",
+    "icon": "calculator",
+    "answer": "0 km",
+    "working": "1 mm × 0 = 0 km.",
+    "changes": null
+   }
+  },
+  {
+   "text": "What time is it in Tokyo now? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "22:05 Monday",
+    "working": "Tokyo is 8 hours ahead of London today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in Tokyo now? {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "23:30 Friday",
+    "working": "Tokyo is 14 hours ahead of New York today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in Tokyo now? {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "18:45 Tuesday",
+    "working": "Tokyo is 3 hours 30 minutes ahead of Kolkata today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in Tokyo now? {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "20:59 Friday",
+    "working": "Tokyo is 2 hours behind Sydney today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in New York? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "09:05 Monday",
+    "working": "New York is 5 hours behind London today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in New York? {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "09:30 Friday",
+    "working": "New York keeps the same time as New York today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in New York? {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "04:45 Tuesday",
+    "working": "New York is 10 hours 30 minutes behind Kolkata today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in New York? {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "07:59 Friday",
+    "working": "New York is 15 hours behind Sydney today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in new delhi? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "18:35 Monday",
+    "working": "New Delhi is 4 hours 30 minutes ahead of London today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in new delhi? {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "20:00 Friday",
+    "working": "New Delhi is 10 hours 30 minutes ahead of New York today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in new delhi? {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "15:15 Tuesday",
+    "working": "New Delhi keeps the same time as Kolkata today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in new delhi? {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "17:29 Friday",
+    "working": "New Delhi is 5 hours 30 minutes behind Sydney today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "The time in Mumbai: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "18:35 Monday",
+    "working": "Mumbai is 4 hours 30 minutes ahead of London today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "The time in Mumbai: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "20:00 Friday",
+    "working": "Mumbai is 10 hours 30 minutes ahead of New York today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "The time in Mumbai: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "15:15 Tuesday",
+    "working": "Mumbai keeps the same time as Kolkata today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "The time in Mumbai: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "17:29 Friday",
+    "working": "Mumbai is 5 hours 30 minutes behind Sydney today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in London? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "14:05 Monday",
+    "working": "London keeps the same time as London today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in London? {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "14:30 Friday",
+    "working": "London is 5 hours ahead of New York today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in London? {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "09:45 Tuesday",
+    "working": "London is 5 hours 30 minutes behind Kolkata today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in London? {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "11:59 Friday",
+    "working": "London is 11 hours behind Sydney today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in Kathmandu right now? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "18:50 Monday",
+    "working": "Kathmandu is 4 hours 45 minutes ahead of London today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in Kathmandu right now? {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "20:15 Friday",
+    "working": "Kathmandu is 10 hours 45 minutes ahead of New York today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in Kathmandu right now? {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "15:30 Tuesday",
+    "working": "Kathmandu is 0 hours 15 minutes ahead of Kolkata today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in Kathmandu right now? {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "17:44 Friday",
+    "working": "Kathmandu is 5 hours 15 minutes behind Sydney today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in Honolulu? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "03:05 Monday",
+    "working": "Honolulu is 11 hours behind London today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in Honolulu? {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "04:30 Friday",
+    "working": "Honolulu is 5 hours behind New York today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in Honolulu? {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "23:45 Monday",
+    "working": "Honolulu is 15 hours 30 minutes behind Kolkata today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in Honolulu? {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "01:59 Friday",
+    "working": "Honolulu is 21 hours behind Sydney today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in Auckland? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "02:05 Tuesday",
+    "working": "Auckland is 12 hours ahead of London today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in Auckland? {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "03:30 Saturday",
+    "working": "Auckland is 18 hours ahead of New York today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in Auckland? {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "22:45 Tuesday",
+    "working": "Auckland is 7 hours 30 minutes ahead of Kolkata today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in Auckland? {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "00:59 Saturday",
+    "working": "Auckland is 2 hours ahead of Sydney today. It changes each minute.",
+    "changes": "minute"
+   }
+  },
+  {
+   "text": "What time is it in Ulaanbaatar? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "cannot",
+    "solver": "time",
+    "icon": "globe",
+    "words": "The app knows the time in about sixty cities, and Ulaanbaatar is not one."
+   }
+  },
+  {
+   "text": "What time is it in Ulaanbaatar? {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "cannot",
+    "solver": "time",
+    "icon": "globe",
+    "words": "The app knows the time in about sixty cities, and Ulaanbaatar is not one."
+   }
+  },
+  {
+   "text": "What time is it in Ulaanbaatar? {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "cannot",
+    "solver": "time",
+    "icon": "globe",
+    "words": "The app knows the time in about sixty cities, and Ulaanbaatar is not one."
+   }
+  },
+  {
+   "text": "What time is it in Ulaanbaatar? {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "cannot",
+    "solver": "time",
+    "icon": "globe",
+    "words": "The app knows the time in about sixty cities, and Ulaanbaatar is not one."
+   }
+  },
+  {
+   "text": "What time is it in St. Louis? {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "What time is it in St. Louis? {?}",
+   "clock": "newYork",
+   "worked": null
+  },
+  {
+   "text": "What time is it in St. Louis? {?}",
+   "clock": "kolkata",
+   "worked": null
+  },
+  {
+   "text": "What time is it in St. Louis? {?}",
+   "clock": "sydney",
+   "worked": null
+  },
+  {
+   "text": "Tokyo is {?how many hours} ahead of London in October.",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "8 hours, 9 from 25 October",
+    "working": "Tokyo is 8 hours ahead of London until 25 October, then 9 hours. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Tokyo is {?how many hours} ahead of London in October.",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "8 hours, 9 from 31 October",
+    "working": "Tokyo is 8 hours ahead of London until 31 October, then 9 hours. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Tokyo is {?how many hours} ahead of London in October.",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "8 hours, 9 from 29 October",
+    "working": "Tokyo is 8 hours ahead of London until 29 October, then 9 hours. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Tokyo is {?how many hours} ahead of London in October.",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "8 hours, 9 from 25 October",
+    "working": "Tokyo is 8 hours ahead of London until 25 October, then 9 hours. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Tokyo is {?how many hours} ahead of London in July.",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "8 hours",
+    "working": "Tokyo is 8 hours ahead of London all through July.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Tokyo is {?how many hours} ahead of London in July.",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "8 hours",
+    "working": "Tokyo is 8 hours ahead of London all through July.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Tokyo is {?how many hours} ahead of London in July.",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "8 hours",
+    "working": "Tokyo is 8 hours ahead of London all through July.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Tokyo is {?how many hours} ahead of London in July.",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "8 hours",
+    "working": "Tokyo is 8 hours ahead of London all through July.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Tokyo is {?how many hours} ahead of London in December.",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "9 hours",
+    "working": "Tokyo is 9 hours ahead of London all through December.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Tokyo is {?how many hours} ahead of London in December.",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "9 hours",
+    "working": "Tokyo is 9 hours ahead of London all through December.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Tokyo is {?how many hours} ahead of London in December.",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "9 hours",
+    "working": "Tokyo is 9 hours ahead of London all through December.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Tokyo is {?how many hours} ahead of London in December.",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "9 hours",
+    "working": "Tokyo is 9 hours ahead of London all through December.",
+    "changes": null
+   }
+  },
+  {
+   "text": "London is {?how many hours} ahead of Tokyo.",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "8 hours behind",
+    "working": "London is 8 hours behind Tokyo today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "London is {?how many hours} ahead of Tokyo.",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "9 hours behind",
+    "working": "London is 9 hours behind Tokyo today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "London is {?how many hours} ahead of Tokyo.",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "9 hours behind",
+    "working": "London is 9 hours behind Tokyo today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "London is {?how many hours} ahead of Tokyo.",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "9 hours behind",
+    "working": "London is 9 hours behind Tokyo today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "London is {?how many hours} behind Tokyo.",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "8 hours",
+    "working": "London is 8 hours behind Tokyo today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "London is {?how many hours} behind Tokyo.",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "9 hours",
+    "working": "London is 9 hours behind Tokyo today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "London is {?how many hours} behind Tokyo.",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "9 hours",
+    "working": "London is 9 hours behind Tokyo today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "London is {?how many hours} behind Tokyo.",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "9 hours",
+    "working": "London is 9 hours behind Tokyo today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "New York is {?how many hours} behind London in March.",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "5 hours, 4 from 14 March",
+    "working": "New York is 5 hours behind London until 14 March, then 4 hours. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "New York is {?how many hours} behind London in March.",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "5 hours, 4 from 14 March",
+    "working": "New York is 5 hours behind London until 14 March, then 4 hours. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "New York is {?how many hours} behind London in March.",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "5 hours, 4 from 12 March",
+    "working": "New York is 5 hours behind London until 12 March, then 4 hours. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "New York is {?how many hours} behind London in March.",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "5 hours, 4 from 8 March",
+    "working": "New York is 5 hours behind London until 8 March, then 4 hours. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "New York is {?how many hours} behind London in November.",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "5 hours",
+    "working": "New York is 5 hours behind London all through November.",
+    "changes": null
+   }
+  },
+  {
+   "text": "New York is {?how many hours} behind London in November.",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "4 hours, 5 from 7 November",
+    "working": "New York is 4 hours behind London until 7 November, then 5 hours. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "New York is {?how many hours} behind London in November.",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "4 hours, 5 from 5 November",
+    "working": "New York is 4 hours behind London until 5 November, then 5 hours. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "New York is {?how many hours} behind London in November.",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "5 hours",
+    "working": "New York is 5 hours behind London all through November.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Sydney is {?how many hours} ahead of London in April.",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "10 hours, 9 from 4 April",
+    "working": "Sydney is 10 hours ahead of London until 4 April, then 9 hours. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Sydney is {?how many hours} ahead of London in April.",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "10 hours, 9 from 4 April",
+    "working": "Sydney is 10 hours ahead of London until 4 April, then 9 hours. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Sydney is {?how many hours} ahead of London in April.",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "10 hours, 9 from 2 April",
+    "working": "Sydney is 10 hours ahead of London until 2 April, then 9 hours. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Sydney is {?how many hours} ahead of London in April.",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "10 hours, 9 from 5 April",
+    "working": "Sydney is 10 hours ahead of London until 5 April, then 9 hours. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Sydney is {?} hours ahead of Los Angeles in January.",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "19 hours",
+    "working": "Sydney is 19 hours ahead of Los Angeles all through January.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Sydney is {?} hours ahead of Los Angeles in January.",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "19 hours",
+    "working": "Sydney is 19 hours ahead of Los Angeles all through January.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Sydney is {?} hours ahead of Los Angeles in January.",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "19 hours",
+    "working": "Sydney is 19 hours ahead of Los Angeles all through January.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Sydney is {?} hours ahead of Los Angeles in January.",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "19 hours",
+    "working": "Sydney is 19 hours ahead of Los Angeles all through January.",
+    "changes": null
+   }
+  },
+  {
+   "text": "What is the time difference between London and Mumbai? {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "4 hours 30 minutes",
+    "working": "London is 4 hours 30 minutes behind Mumbai today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "What is the time difference between London and Mumbai? {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "5 hours 30 minutes",
+    "working": "London is 5 hours 30 minutes behind Mumbai today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "What is the time difference between London and Mumbai? {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "5 hours 30 minutes",
+    "working": "London is 5 hours 30 minutes behind Mumbai today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "What is the time difference between London and Mumbai? {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "5 hours 30 minutes",
+    "working": "London is 5 hours 30 minutes behind Mumbai today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "The time difference between Kathmandu and New York in March: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "10 hours 45 minutes, 9 hours 45 minutes from 14 March",
+    "working": "Kathmandu is 10 hours 45 minutes ahead of New York until 14 March, then 9 hours 45 minutes. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "The time difference between Kathmandu and New York in March: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "10 hours 45 minutes, 9 hours 45 minutes from 14 March",
+    "working": "Kathmandu is 10 hours 45 minutes ahead of New York until 14 March, then 9 hours 45 minutes. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "The time difference between Kathmandu and New York in March: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "10 hours 45 minutes, 9 hours 45 minutes from 12 March",
+    "working": "Kathmandu is 10 hours 45 minutes ahead of New York until 12 March, then 9 hours 45 minutes. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "The time difference between Kathmandu and New York in March: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "10 hours 45 minutes, 9 hours 45 minutes from 8 March",
+    "working": "Kathmandu is 10 hours 45 minutes ahead of New York until 8 March, then 9 hours 45 minutes. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Hours between Paris and Berlin: {?}",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "0 hours",
+    "working": "Paris is 0 hours ahead of Berlin today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Hours between Paris and Berlin: {?}",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "0 hours",
+    "working": "Paris is 0 hours ahead of Berlin today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Hours between Paris and Berlin: {?}",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "0 hours",
+    "working": "Paris is 0 hours ahead of Berlin today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Hours between Paris and Berlin: {?}",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "0 hours",
+    "working": "Paris is 0 hours ahead of Berlin today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Mumbai is {?} ahead of Kathmandu.",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "0 hours 15 minutes behind",
+    "working": "Mumbai is 0 hours 15 minutes behind Kathmandu today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Mumbai is {?} ahead of Kathmandu.",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "0 hours 15 minutes behind",
+    "working": "Mumbai is 0 hours 15 minutes behind Kathmandu today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Mumbai is {?} ahead of Kathmandu.",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "0 hours 15 minutes behind",
+    "working": "Mumbai is 0 hours 15 minutes behind Kathmandu today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Mumbai is {?} ahead of Kathmandu.",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "0 hours 15 minutes behind",
+    "working": "Mumbai is 0 hours 15 minutes behind Kathmandu today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Tehran is {?how many hours} ahead of Cairo in September.",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "0 hours 30 minutes",
+    "working": "Tehran is 0 hours 30 minutes ahead of Cairo all through September.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Tehran is {?how many hours} ahead of Cairo in September.",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "0 hours 30 minutes",
+    "working": "Tehran is 0 hours 30 minutes ahead of Cairo all through September.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Tehran is {?how many hours} ahead of Cairo in September.",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "0 hours 30 minutes",
+    "working": "Tehran is 0 hours 30 minutes ahead of Cairo all through September.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Tehran is {?how many hours} ahead of Cairo in September.",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "0 hours 30 minutes",
+    "working": "Tehran is 0 hours 30 minutes ahead of Cairo all through September.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Santiago is {?how many hours} behind Sao Paulo in April.",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "0 hours, 1 from 4 April",
+    "working": "Santiago is 0 hours ahead of Sao Paulo until 4 April, then 1 hour. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Santiago is {?how many hours} behind Sao Paulo in April.",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "0 hours, 1 from 4 April",
+    "working": "Santiago is 0 hours ahead of Sao Paulo until 4 April, then 1 hour. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Santiago is {?how many hours} behind Sao Paulo in April.",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "0 hours, 1 from 2 April",
+    "working": "Santiago is 0 hours ahead of Sao Paulo until 2 April, then 1 hour. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "Santiago is {?how many hours} behind Sao Paulo in April.",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "0 hours, 1 from 5 April",
+    "working": "Santiago is 0 hours ahead of Sao Paulo until 5 April, then 1 hour. The clocks change then.",
+    "changes": null
+   }
+  },
+  {
+   "text": "14:00 in London is {?} in Tokyo",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "22:00",
+    "working": "14:00 in London is 22:00 in Tokyo, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "14:00 in London is {?} in Tokyo",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "23:00",
+    "working": "14:00 in London is 23:00 in Tokyo, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "14:00 in London is {?} in Tokyo",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "23:00",
+    "working": "14:00 in London is 23:00 in Tokyo, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "14:00 in London is {?} in Tokyo",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "23:00",
+    "working": "14:00 in London is 23:00 in Tokyo, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "9am in New York is {?} in Sydney",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "23:00",
+    "working": "09:00 in New York is 23:00 in Sydney, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "9am in New York is {?} in Sydney",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "01:00 Saturday",
+    "working": "09:00 in New York is 01:00 on Saturday in Sydney, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "9am in New York is {?} in Sydney",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "01:00 Wednesday",
+    "working": "09:00 in New York is 01:00 on Wednesday in Sydney, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "9am in New York is {?} in Sydney",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "00:00 Saturday",
+    "working": "09:00 in New York is 00:00 on Saturday in Sydney, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "3pm in Los Angeles is {?} in Tokyo",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "07:00 Tuesday",
+    "working": "15:00 in Los Angeles is 07:00 on Tuesday in Tokyo, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "3pm in Los Angeles is {?} in Tokyo",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "08:00 Saturday",
+    "working": "15:00 in Los Angeles is 08:00 on Saturday in Tokyo, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "3pm in Los Angeles is {?} in Tokyo",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "08:00 Wednesday",
+    "working": "15:00 in Los Angeles is 08:00 on Wednesday in Tokyo, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "3pm in Los Angeles is {?} in Tokyo",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "07:00 Saturday",
+    "working": "15:00 in Los Angeles is 07:00 on Saturday in Tokyo, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "12am in London is {?} in Honolulu",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "13:00 Sunday",
+    "working": "00:00 in London is 13:00 on Sunday in Honolulu, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "12am in London is {?} in Honolulu",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "14:00 Thursday",
+    "working": "00:00 in London is 14:00 on Thursday in Honolulu, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "12am in London is {?} in Honolulu",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "14:00 Monday",
+    "working": "00:00 in London is 14:00 on Monday in Honolulu, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "12am in London is {?} in Honolulu",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "14:00 Thursday",
+    "working": "00:00 in London is 14:00 on Thursday in Honolulu, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "12pm in London is {?} in Mumbai",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "16:30",
+    "working": "12:00 in London is 16:30 in Mumbai, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "12pm in London is {?} in Mumbai",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "17:30",
+    "working": "12:00 in London is 17:30 in Mumbai, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "12pm in London is {?} in Mumbai",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "17:30",
+    "working": "12:00 in London is 17:30 in Mumbai, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "12pm in London is {?} in Mumbai",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "17:30",
+    "working": "12:00 in London is 17:30 in Mumbai, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "23:30 in Auckland is {?} in London",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "11:30",
+    "working": "23:30 in Auckland is 11:30 in London, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "23:30 in Auckland is {?} in London",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "10:30",
+    "working": "23:30 in Auckland is 10:30 in London, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "23:30 in Auckland is {?} in London",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "10:30",
+    "working": "23:30 in Auckland is 10:30 in London, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "23:30 in Auckland is {?} in London",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "10:30",
+    "working": "23:30 in Auckland is 10:30 in London, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "7:15 pm in Mexico City is {?} in Buenos Aires",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "22:15",
+    "working": "19:15 in Mexico City is 22:15 in Buenos Aires, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "7:15 pm in Mexico City is {?} in Buenos Aires",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "22:15",
+    "working": "19:15 in Mexico City is 22:15 in Buenos Aires, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "7:15 pm in Mexico City is {?} in Buenos Aires",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "22:15",
+    "working": "19:15 in Mexico City is 22:15 in Buenos Aires, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "7:15 pm in Mexico City is {?} in Buenos Aires",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "22:15",
+    "working": "19:15 in Mexico City is 22:15 in Buenos Aires, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "The 2026 call at 10:30 in Rio de Janeiro is {?} in Cape Town",
+   "clock": "london",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "15:30",
+    "working": "10:30 in Rio de Janeiro is 15:30 in Cape Town, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "The 2026 call at 10:30 in Rio de Janeiro is {?} in Cape Town",
+   "clock": "newYork",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "15:30",
+    "working": "10:30 in Rio de Janeiro is 15:30 in Cape Town, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "The 2026 call at 10:30 in Rio de Janeiro is {?} in Cape Town",
+   "clock": "kolkata",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "15:30",
+    "working": "10:30 in Rio de Janeiro is 15:30 in Cape Town, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "The 2026 call at 10:30 in Rio de Janeiro is {?} in Cape Town",
+   "clock": "sydney",
+   "worked": {
+    "kind": "answer",
+    "solver": "time",
+    "icon": "globe",
+    "answer": "15:30",
+    "working": "10:30 in Rio de Janeiro is 15:30 in Cape Town, today.",
+    "changes": null
+   }
+  },
+  {
+   "text": "9 in London is {?} in Tokyo",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "9 in London is {?} in Tokyo",
+   "clock": "newYork",
+   "worked": null
+  },
+  {
+   "text": "9 in London is {?} in Tokyo",
+   "clock": "kolkata",
+   "worked": null
+  },
+  {
+   "text": "9 in London is {?} in Tokyo",
+   "clock": "sydney",
+   "worked": null
+  },
+  {
+   "text": "What time is the call? {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "What time is the call? {?}",
+   "clock": "newYork",
+   "worked": null
+  },
+  {
+   "text": "What time is the call? {?}",
+   "clock": "kolkata",
+   "worked": null
+  },
+  {
+   "text": "What time is the call? {?}",
+   "clock": "sydney",
+   "worked": null
+  },
+  {
+   "text": "How many hours ahead? {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "How many hours ahead? {?}",
+   "clock": "newYork",
+   "worked": null
+  },
+  {
+   "text": "How many hours ahead? {?}",
+   "clock": "kolkata",
+   "worked": null
+  },
+  {
+   "text": "How many hours ahead? {?}",
+   "clock": "sydney",
+   "worked": null
+  },
+  {
+   "text": "Tokyo and London: what time is it? {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "Tokyo and London: what time is it? {?}",
+   "clock": "newYork",
+   "worked": null
+  },
+  {
+   "text": "Tokyo and London: what time is it? {?}",
+   "clock": "kolkata",
+   "worked": null
+  },
+  {
+   "text": "Tokyo and London: what time is it? {?}",
+   "clock": "sydney",
+   "worked": null
+  },
+  {
+   "text": "# Tokyo trip\n\nFlights are cheapest to Tokyo on {?what day / time?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "# Tokyo trip\n\nFlights are cheapest to Tokyo on {?what day / time?}",
+   "clock": "newYork",
+   "worked": null
+  },
+  {
+   "text": "# Tokyo trip\n\nFlights are cheapest to Tokyo on {?what day / time?}",
+   "clock": "kolkata",
+   "worked": null
+  },
+  {
+   "text": "# Tokyo trip\n\nFlights are cheapest to Tokyo on {?what day / time?}",
+   "clock": "sydney",
+   "worked": null
+  },
+  {
+   "text": "The capital of Australia is {?}.",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "Sam said she would bring the charger and the dog food. I am booking the ferry.\n\nWho brings the charger? {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "Priya: export bug fixed, in review, lands Tuesday.\n\nIn one line: {?summary}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "Priya: export bug fixed, in review, lands Tuesday.\n\nIn one line: {?summary}",
+   "clock": "newYork",
+   "worked": null
+  },
+  {
+   "text": "Priya: export bug fixed, in review, lands Tuesday.\n\nIn one line: {?summary}",
+   "clock": "kolkata",
+   "worked": null
+  },
+  {
+   "text": "Priya: export bug fixed, in review, lands Tuesday.\n\nIn one line: {?summary}",
+   "clock": "sydney",
+   "worked": null
+  },
+  {
+   "text": "# Kitchen tap\n- [x] Found the leak under the sink\n- [ ] {?the next step}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "## Japan packing\n- Passport\n- Plug adapter\n- {?three more things}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "| Say | In Japanese |\n| --- | --- |\n| Thank you | {?} |",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "| Say | In Japanese |\n| --- | --- |\n| Thank you | {?} |",
+   "clock": "newYork",
+   "worked": null
+  },
+  {
+   "text": "| Say | In Japanese |\n| --- | --- |\n| Thank you | {?} |",
+   "clock": "kolkata",
+   "worked": null
+  },
+  {
+   "text": "| Say | In Japanese |\n| --- | --- |\n| Thank you | {?} |",
+   "clock": "sydney",
+   "worked": null
+  },
+  {
+   "text": "| Book | Author | Year |\n| --- | --- | --- |\n| The Remains of the Day | {?} | {?} |",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "| Book | Author | Year |\n| --- | --- | --- |\n| The Remains of the Day | {?} | {?} |",
+   "clock": "newYork",
+   "worked": null
+  },
+  {
+   "text": "| Book | Author | Year |\n| --- | --- | --- |\n| The Remains of the Day | {?} | {?} |",
+   "clock": "kolkata",
+   "worked": null
+  },
+  {
+   "text": "| Book | Author | Year |\n| --- | --- | --- |\n| The Remains of the Day | {?} | {?} |",
+   "clock": "sydney",
+   "worked": null
+  },
+  {
+   "text": "Petrichor: {?what it means}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "# {?}\n\nBook the cabin for the second week of October.",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "# {?}\n\nBook the cabin for the second week of October.",
+   "clock": "newYork",
+   "worked": null
+  },
+  {
+   "text": "# {?}\n\nBook the cabin for the second week of October.",
+   "clock": "kolkata",
+   "worked": null
+  },
+  {
+   "text": "# {?}\n\nBook the cabin for the second week of October.",
+   "clock": "sydney",
+   "worked": null
+  },
+  {
+   "text": "The 2022 World Cup was won by {?}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "Opening line, friendlier: {?a friendlier way to say: fix the boiler now}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "{?how long to boil an egg}",
+   "clock": "london",
+   "worked": null
+  },
+  {
+   "text": "# Trip to {?capital of Japan}",
+   "clock": "london",
+   "worked": null
+  }
+ ]
+}

@@ -68,7 +68,8 @@ void main() {
         'Appearance': 'Light · Maple Mono',
         'Recording': 'Better words',
         'AI': 'Qwen3.5 4B, 2.7 GB to get',
-        'Plugins': null,
+        // The app's registry is empty until the built-in plugins are put in place (lib/plugins/built_in.dart).
+        'Plugins': '0 of 0 on',
         'About': '0.1.0',
       });
       expect(_rows(tester).keys, ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Library folder', 'Backup', 'Export', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
@@ -97,9 +98,9 @@ void main() {
       ]);
       // The sub-pages are off the list, each behind About.
       expect([for (final spec in settingsSections) if (!spec.listed) (spec.id, spec.parent)], [('cheatsheet', 'about'), ('spec', 'about'), ('examples', 'about')]);
-      // Three wait on a feature that is not ported (the library's folder, drives, the plugins) and name where they
-      // come from; the rest are pages (lib/settings/panes/, and Appearance).
-      expect([for (final spec in settingsSections) if (spec.pane == null) spec.id], ['library', 'backup', 'plugins']);
+      // Two wait on a feature that is not ported (the library's folder, drives) and name where they come from; the
+      // rest are pages (lib/settings/panes/, and Appearance).
+      expect([for (final spec in settingsSections) if (spec.pane == null) spec.id], ['library', 'backup']);
       final web = Directory('../glyph/src/app');
       for (final spec in settingsSections) {
         expect(spec.webFile, matches(RegExp(r'^(settings|plugins|guide)/\w+\.tsx$')), reason: spec.id);
@@ -163,13 +164,13 @@ void main() {
 
     testWidgets('open a page that is not ported yet on a card that says so, and where it comes from', (tester) async {
       await _open(tester);
-      await _tap(tester, _rowFor('Plugins'));
-      expect(_display(tester), 'Plugins');
+      await _tap(tester, _rowFor('Backup'));
+      expect(_display(tester), 'Backup');
       expect(find.text('Not ported yet'), findsOneWidget);
-      expect(find.textContaining('src/app/plugins/PluginsPane.tsx'), findsOneWidget);
+      expect(find.textContaining('src/app/settings/BackupPane.tsx'), findsOneWidget);
       // In the section's colour, as its page will be.
       final tile = find.descendant(of: find.byType(SettingsEmpty), matching: find.byType(Container)).at(1);
-      expect((tester.widget<Container>(tile).decoration! as BoxDecoration).color, sameColor(cssColor(tester, '#2a9d4b').withValues(alpha: 0.16)));
+      expect((tester.widget<Container>(tile).decoration! as BoxDecoration).color, sameColor(cssColor(tester, '#7c7c82').withValues(alpha: 0.16)));
       // Back to the list, and Appearance is the page itself.
       await _tap(tester, find.byKey(const ValueKey('settings-head-word')));
       await _tap(tester, _rowFor('Appearance'));

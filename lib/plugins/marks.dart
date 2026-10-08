@@ -11,8 +11,9 @@
 /// - A style look's CSS is kept as the web writes it, word for word, and read by the small interpreter in
 ///   `lib/editor/marks/run_paint.dart` (`StyleCss`), which knows the properties these seven looks use and no
 ///   others. A plugin's own CSS beyond them is not drawn.
-/// - There is no plugin registry yet (stage 9): the marks are a list, and "switched off" is whoever makes the
-///   editor not passing them.
+/// - The marks are a list the editor's parser can read without the plugin types; the plugin they are, with its one
+///   switch in Settings > Plugins, is marks_plugin.dart, and "switched off" is the registry (registry.dart) leaving
+///   them out of `formats()`.
 /// - `icon` is the kit's icon by its Lucide name, for the Style page when the band is ported.
 library;
 

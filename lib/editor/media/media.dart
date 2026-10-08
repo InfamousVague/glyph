@@ -4,6 +4,7 @@
 /// | --- | --- |
 /// | editor/links.ts | links.dart: [shortLinks] |
 /// | editor/linkCards.ts | link_cards.dart: [linkCards] |
+/// | editor/linkedRows.ts | linked_rows.dart: [linkedRows] |
 /// | editor/images.ts, useNotePictures.ts | images.dart: [inlineImages], [insertImage], [pasteImages], [NotePictures] |
 /// | editor/placeCards.ts | place_cards.dart: [placeCards] |
 /// | editor/MapCard.tsx, MapCard.module.css | map_card.dart: [MapCard], [MapPicture] |
@@ -24,6 +25,7 @@ import '../editor.dart';
 import 'clips.dart';
 import 'images.dart';
 import 'link_cards.dart';
+import 'linked_rows.dart';
 import 'links.dart';
 import 'map_card.dart';
 import 'place_cards.dart';
@@ -34,6 +36,7 @@ export 'clips.dart';
 export 'images.dart';
 export 'inline_box.dart';
 export 'link_cards.dart';
+export 'linked_rows.dart';
 export 'links.dart';
 export 'map_card.dart';
 export 'place_cards.dart';
@@ -52,6 +55,7 @@ class MediaSeams {
     this.placeSwitches,
     this.switches,
     this.linkRead,
+    this.linkMenus,
     this.onOpenPlace,
     this.mapTiles,
     this.dark,
@@ -81,8 +85,13 @@ class MediaSeams {
   /// Says when a switch changed (`onPreferences`).
   final Listenable? switches;
 
-  /// Whether a plugin reads a link, which then has its own row and no card.
+  /// Whether a plugin reads a link, which then has its own row and no card. The plugins' own answer
+  /// (linked_rows.dart `pluginReadsLink`) unless another is given.
   final LinkRead? linkRead;
+
+  /// Linked lines' rows open their menu on a tap, and a menu action's sentence is said with this
+  /// (`linkMenus` of Editor.tsx). Absent: the rows show, and open nothing.
+  final LinkMenus? linkMenus;
 
   /// A map card's tap: opens the place on a map.
   final void Function(GeoTag tag)? onOpenPlace;
@@ -104,7 +113,7 @@ class MediaSeams {
 }
 
 /// Editor.tsx's lines for this piece, in its order: pictures, places, films, short links, link cards (none in a
-/// note drawn small: `peek`), and voice memos with the note's tape.
+/// note drawn small: `peek`), the rows under linked lines, and voice memos with the note's tape.
 ///
 /// `places` and `videos` say who is reading, as Editor.tsx's props of those names do (`off` and `still` by
 /// default); `peek` is a note drawn small on a card. The tape can be changed later by putting
@@ -114,7 +123,8 @@ Extension mediaExtensions({MediaSeams seams = const MediaSeams(), PlaceMode plac
   placeCards(places, dark: seams.dark, switches: seams.placeSwitches, changed: seams.switches, onOpen: seams.onOpenPlace, tiles: seams.mapTiles),
   videoCards(videos, seams: seams.films),
   shortLinks(still: peek, onOpen: seams.onLinkTap),
-  if (!peek) linkCards(previewer: seams.previewer, open: seams.openLink, enabled: seams.linkPreviews, switches: seams.switches, reads: seams.linkRead),
+  if (!peek) linkCards(previewer: seams.previewer, open: seams.openLink, enabled: seams.linkPreviews, switches: seams.switches, reads: seams.linkRead ?? pluginReadsLink),
+  linkedRows(seams.linkMenus),
   clips(),
   if (seams.clipPlayer != null) clipPlayer.of(seams.clipPlayer!),
   if (seams.tape != Tape.none) tapeSource.of(seams.tape),

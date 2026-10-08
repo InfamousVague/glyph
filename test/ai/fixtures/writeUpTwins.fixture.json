@@ -1,0 +1,98 @@
+{
+  "about": "The write-up's twins, asserted on both sides: the page's (ai/summaryText.ts transcriptPieces, format/prompt.ts recordingSummaryBudget and recordingNotesBudget, capture/markdown.ts withTranscript and withoutTranscript) in ai/writeUpTwins.test.ts, and Rust's (transcript.rs pieces, with_transcript and without_transcript, write_up.rs summary_budget and notes_budget) in their own tests. A piece's text is given by a unit repeated, and its answer by each piece's length in characters. Every transcript here is over the one-pass length, where the two sides split alike.",
+  "pieces": [
+    {
+      "name": "paragraphs, each short",
+      "unit": "We agreed to ship the launch in March and Sam will send the press list on Friday.",
+      "times": 300,
+      "joiner": "\n\n",
+      "size": 12000,
+      "pieces": [
+        11950,
+        11950,
+        994
+      ]
+    },
+    {
+      "name": "one long paragraph of sentences",
+      "unit": "This is one sentence of a very long monologue with no pause in it. ",
+      "times": 400,
+      "joiner": "",
+      "size": 12000,
+      "pieces": [
+        11992,
+        11992,
+        2813
+      ]
+    },
+    {
+      "name": "words with no full stop",
+      "unit": "word ",
+      "times": 5000,
+      "joiner": "",
+      "size": 12000,
+      "pieces": [
+        12000,
+        12000,
+        999
+      ]
+    }
+  ],
+  "budgets": [
+    {
+      "chars": 0,
+      "summary": 200,
+      "notes": 128
+    },
+    {
+      "chars": 100,
+      "summary": 200,
+      "notes": 128
+    },
+    {
+      "chars": 4000,
+      "summary": 263,
+      "notes": 314
+    },
+    {
+      "chars": 12000,
+      "summary": 596,
+      "notes": 512
+    },
+    {
+      "chars": 20000,
+      "summary": 930,
+      "notes": 512
+    },
+    {
+      "chars": 41230,
+      "summary": 1024,
+      "notes": 512
+    },
+    {
+      "chars": 400000,
+      "summary": 1024,
+      "notes": 512
+    }
+  ],
+  "sections": [
+    {
+      "body": "# Meeting\n",
+      "words": "We agreed.\n\nThen we left.",
+      "withTranscript": "# Meeting\n\n## Transcript\n\nWe agreed.\n\nThen we left.",
+      "withoutTranscript": "# Meeting"
+    },
+    {
+      "body": "# Launch\n\n## Summary\n\nA call.\n\n## Transcript\n\nOld words.\n",
+      "words": "New words.",
+      "withTranscript": "# Launch\n\n## Summary\n\nA call.\n\n## Transcript\n\nNew words.",
+      "withoutTranscript": "# Launch\n\n## Summary\n\nA call."
+    },
+    {
+      "body": "",
+      "words": "Only words.",
+      "withTranscript": "## Transcript\n\nOnly words.",
+      "withoutTranscript": ""
+    }
+  ]
+}

@@ -1,0 +1,369 @@
+{
+ "guide": [
+  {
+   "x": 0,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "text": "CloseLearn it, or just start.The marks, the words you can say, boards, canvases and the rest are in the Ghost.md Academy",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "tracking": "normal",
+   "bg": "oklch(0.995 0 0)",
+   "radius": "0px",
+   "border": "0px oklch(0.16 0 0)",
+   "opacity": "1",
+   "family": "\"Inter Variable\", ui-sans-serif, system-"
+  }
+ ],
+ "top": [
+  {
+   "x": 0,
+   "y": 0,
+   "w": 390,
+   "h": 66.92,
+   "text": "Close",
+   "size": 20.53,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "tracking": "-0.513334px",
+   "bg": "color(srgb 0.993282 0.993463 0.99348 / 0.66)",
+   "radius": "0px",
+   "border": "0px oklch(0.16 0 0)",
+   "opacity": "1",
+   "family": "\"Inter Variable\", ui-sans-serif, system-"
+  }
+ ],
+ "progress": [
+  {
+   "x": 22.31,
+   "y": 27.72,
+   "w": 57,
+   "h": 7,
+   "text": "",
+   "size": 20.53,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "tracking": "-0.513334px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "radius": "0px",
+   "border": "0px oklch(0.16 0 0)",
+   "opacity": "1",
+   "family": "\"Inter Variable\", ui-sans-serif, system-"
+  }
+ ],
+ "dots": [
+  {
+   "x": 22.31,
+   "y": 27.72,
+   "w": 7,
+   "h": 7,
+   "text": "",
+   "size": 20.53,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "tracking": "-0.513334px",
+   "bg": "oklch(0.56 0 0)",
+   "radius": "999px",
+   "border": "1px oklch(0.56 0 0)",
+   "opacity": "1",
+   "family": "\"Inter Variable\", ui-sans-serif, system-"
+  },
+  {
+   "x": 35.31,
+   "y": 27.72,
+   "w": 7,
+   "h": 7,
+   "text": "",
+   "size": 20.53,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "tracking": "-0.513334px",
+   "bg": "oklch(0.56 0 0)",
+   "radius": "999px",
+   "border": "1px oklch(0.56 0 0)",
+   "opacity": "1",
+   "family": "\"Inter Variable\", ui-sans-serif, system-"
+  },
+  {
+   "x": 48.31,
+   "y": 27.72,
+   "w": 7,
+   "h": 7,
+   "text": "",
+   "size": 20.53,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "tracking": "-0.513334px",
+   "bg": "oklch(0.56 0 0)",
+   "radius": "999px",
+   "border": "1px oklch(0.56 0 0)",
+   "opacity": "1",
+   "family": "\"Inter Variable\", ui-sans-serif, system-"
+  },
+  {
+   "x": 61.31,
+   "y": 27.72,
+   "w": 18,
+   "h": 7,
+   "text": "",
+   "size": 20.53,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "tracking": "-0.513334px",
+   "bg": "oklch(0.16 0 0)",
+   "radius": "999px",
+   "border": "1px oklch(0.16 0 0)",
+   "opacity": "1",
+   "family": "\"Inter Variable\", ui-sans-serif, system-"
+  }
+ ],
+ "skip": [
+  {
+   "x": 303.56,
+   "y": 4.45,
+   "w": 73.05,
+   "h": 53.55,
+   "text": "Close",
+   "size": 20.53,
+   "weight": "600",
+   "color": "oklch(0.36 0 0)",
+   "line": "normal",
+   "tracking": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "radius": "0px",
+   "border": "0px oklch(0.36 0 0)",
+   "opacity": "1",
+   "family": "\"Inter Variable\", ui-sans-serif, system-"
+  }
+ ],
+ "page": [
+  {
+   "x": 0,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "text": "Learn it, or just start.The marks, the words you can say, boards, canvases and the rest are in the Ghost.md Academy: sho",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "tracking": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "radius": "0px",
+   "border": "0px oklch(0.16 0 0)",
+   "opacity": "1",
+   "family": "\"Inter Variable\", ui-sans-serif, system-"
+  }
+ ],
+ "tooSoon": [],
+ "title": [
+  {
+   "x": 22.31,
+   "y": 227.16,
+   "w": 345.38,
+   "h": 41.5,
+   "text": "Learn it, or just start.",
+   "size": 40.68,
+   "weight": "700",
+   "color": "oklch(0.16 0 0)",
+   "line": "41.4978px",
+   "tracking": "-1.83078px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "radius": "0px",
+   "border": "0px oklch(0.16 0 0)",
+   "opacity": "1",
+   "family": "\"Inter Variable\", ui-sans-serif, system-"
+  }
+ ],
+ "lead": [
+  {
+   "x": 22.31,
+   "y": 290.97,
+   "w": 345.38,
+   "h": 168.66,
+   "text": "The marks, the words you can say, boards, canvases and the rest are in the Ghost.md Academy: short lessons inside the ap",
+   "size": 19.39,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "28.115px",
+   "tracking": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "radius": "0px",
+   "border": "0px oklch(0.36 0 0)",
+   "opacity": "1",
+   "family": "\"Inter Variable\", ui-sans-serif, system-"
+  }
+ ],
+ "promises": [],
+ "promise": [],
+ "promiseIcon": [],
+ "promiseSvg": [],
+ "choices": [],
+ "choice": [],
+ "swatch": [],
+ "choiceText": [],
+ "stepTitle": [],
+ "note": [],
+ "fine": [],
+ "dock": [
+  {
+   "x": 0,
+   "y": 741.36,
+   "w": 390,
+   "h": 102.64,
+   "text": "BackThe good bit’s lower.Start",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "tracking": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "radius": "0px",
+   "border": "0px oklch(0.16 0 0)",
+   "opacity": "1",
+   "family": "\"Inter Variable\", ui-sans-serif, system-"
+  }
+ ],
+ "nav": [
+  {
+   "x": 13.39,
+   "y": 777.06,
+   "w": 69.7,
+   "h": 53.55,
+   "text": "Back",
+   "size": 23.33,
+   "weight": "600",
+   "color": "oklch(0.36 0 0)",
+   "line": "normal",
+   "tracking": "-0.583335px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "radius": "0px",
+   "border": "0px oklch(0.36 0 0)",
+   "opacity": "1",
+   "family": "\"Inter Variable\", ui-sans-serif, system-"
+  }
+ ],
+ "nextSlot": [
+  {
+   "x": 128.83,
+   "y": 777.06,
+   "w": 238.86,
+   "h": 53.55,
+   "text": "The good bit’s lower.Start",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "tracking": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "radius": "0px",
+   "border": "0px oklch(0.16 0 0)",
+   "opacity": "1",
+   "family": "\"Inter Variable\", ui-sans-serif, system-"
+  }
+ ],
+ "next": [
+  {
+   "x": 231.69,
+   "y": 777.06,
+   "w": 136,
+   "h": 53.55,
+   "text": "Start",
+   "size": 16.12,
+   "weight": "600",
+   "color": "oklch(0.995 0 0)",
+   "line": "normal",
+   "tracking": "-0.0805757px",
+   "bg": "oklch(0.16 0 0)",
+   "radius": "9999px",
+   "border": "0px oklch(0.995 0 0)",
+   "opacity": "1",
+   "family": "\"Inter Variable\", ui-sans-serif, system-"
+  }
+ ],
+ "nudge": [
+  {
+   "x": 128.83,
+   "y": 785.06,
+   "w": 238.86,
+   "h": 53.55,
+   "text": "The good bit’s lower.",
+   "size": 16.12,
+   "weight": "600",
+   "color": "oklch(0.995 0 0)",
+   "line": "normal",
+   "tracking": "-0.0805757px",
+   "bg": "oklch(0.16 0 0)",
+   "radius": "9999px",
+   "border": "0px oklch(0.995 0 0)",
+   "opacity": "0",
+   "family": "\"Inter Variable\", ui-sans-serif, system-"
+  }
+ ],
+ "art": [
+  {
+   "x": 22.31,
+   "y": 84.84,
+   "w": 120,
+   "h": 120,
+   "text": "",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.56 0 0)",
+   "line": "normal",
+   "tracking": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "radius": "0px",
+   "border": "0px oklch(0.56 0 0)",
+   "opacity": "1",
+   "family": "\"Inter Variable\", ui-sans-serif, system-"
+  }
+ ],
+ "learn": [
+  {
+   "x": 22.31,
+   "y": 486.39,
+   "w": 300.63,
+   "h": 53.55,
+   "text": "Take the Ghost.md Academy",
+   "size": 16.12,
+   "weight": "600",
+   "color": "oklch(0.995 0 0)",
+   "line": "normal",
+   "tracking": "-0.0805757px",
+   "bg": "oklch(0.16 0 0)",
+   "radius": "9999px",
+   "border": "0px oklch(0.995 0 0)",
+   "opacity": "1",
+   "family": "\"Inter Variable\", ui-sans-serif, system-"
+  }
+ ],
+ "learnSvg": [
+  {
+   "x": 49.08,
+   "y": 504.16,
+   "w": 18,
+   "h": 18,
+   "text": "",
+   "size": 16.12,
+   "weight": "600",
+   "color": "oklch(0.995 0 0)",
+   "line": "normal",
+   "tracking": "-0.0805757px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "radius": "0px",
+   "border": "0px oklch(0.995 0 0)",
+   "opacity": "1",
+   "family": "\"Inter Variable\", ui-sans-serif, system-"
+  }
+ ]
+}

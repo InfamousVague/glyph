@@ -1,6 +1,7 @@
-/// The summary section a note carries in its body, as it is found, placed, written and taken off. A port of the half
-/// of `src/app/ai/summaryText.ts` that the sync merge leans on (core/sync/notes.ts): [summarySection],
-/// [withSummary], [withoutSummary], [summaryLine], [summaryPlace], [hasWords], [dateTitled] and [retitled].
+/// The summary section a note carries in its body, as it is shaped, found, placed, written and taken off. A port of
+/// `src/app/ai/summaryText.ts`: the half the sync merge leans on (core/sync/notes.ts), [summarySection],
+/// [withSummary], [withoutSummary], [summaryLine], [summaryPlace], [hasWords], [dateTitled] and [retitled], and the
+/// model's half, [shapeSummary], [carryTicked] and [transcriptPieces]. The AI reaches it as ai/summary_text.dart.
 ///
 /// The summary is words in the body, under the title, so it syncs, shares and is in the `.md` file. It has a shape the
 /// app owns: the heading `## Summary`, one prose line, then only item lines, with blanks between groups. That shape is
@@ -12,11 +13,17 @@
 /// Its place is after the front matter and after the first line of words, whatever its marks: never above them, since
 /// `noteTitle` takes the first line and `## Summary` on top would title every card "Summary".
 ///
-/// What differs: the model's half - `shapeSummary`, `carryTicked` and `transcriptPieces` - comes with the summaries
-/// themselves (stage 8). Offsets are UTF-16 units, as the page's are.
+/// The section has a SHAPE THE APP OWNS ([shapeSummary]): the model's answer is read into it, whatever a 4B reached
+/// for, and the same reading works on the answer so far, so a run's lines only ever grow as it streams. [carryTicked]
+/// keeps every `- [x]` line of an old section in the new one, so a to-do he ticked never comes back open in To do,
+/// however the model rephrases. [transcriptPieces] cuts a long transcript for the pieces pass.
+///
+/// What differs: nothing but where it lives (lib/core, since the sync merge came first). Offsets are UTF-16 units, as
+/// the page's are.
 library;
 
 import 'front_matter.dart';
+import 'item_syntax.dart' show jsTrim;
 import 'note_text.dart';
 
 /// The heading the section is known by (`SUMMARY_HEADING`).
@@ -39,6 +46,132 @@ final RegExp _picture = RegExp(r'^!\[[^\]]*\]\([^)]*\)\s*$');
 
 /// A to-do line with its box as an open one, for reading a kept section against a body where some were ticked.
 String _untick(String line) => line.replaceFirst(_todo, '- [ ] ');
+
+/// A bullet the model wrote with another mark, `*`, `+`, a number, a typographic bullet: made a dash.
+final RegExp _otherBullet = RegExp(r'^(\s*)(?:[*+•·▪‣]|\d+[.)])\s+');
+
+/// A box written tight against its dash, `-[ ]`: given its space.
+final RegExp _tightBox = RegExp(r'^(\s*)-\[([ xX])\]');
+
+/// A decision written without its dash: made an item, as the prompt asked.
+final RegExp _bareDecided = RegExp(r'^(\s*)(decided:)', caseSensitive: false);
+
+/// A label the model puts on the prose line, which the heading already says.
+final RegExp _label = RegExp(r'^(?:\*\*summary:?\*\*:?|summary:)\s*', caseSensitive: false);
+
+/// An introduction, "Here is the summary:", that says nothing itself.
+final RegExp _intro = RegExp(r':$');
+
+/// A prose line that ends its sentence; one that does not was wrapped, and the next line goes on from it.
+final RegExp _sentenceDone = RegExp(r'[.!?…:]["”’)\]]*$');
+
+/// A to-do that has been ticked.
+final RegExp _ticked = RegExp(r'^\s*-\s+\[[xX]\]\s+');
+
+/// A code fence, which the model sometimes puts round its answer.
+final RegExp _fence = RegExp(r'^```');
+
+/// A mark still under the pen as the model streams: a heading's hashes, an item's dash or number, a box not yet
+/// closed.
+final RegExp _underPen = RegExp(r'^(?:#{1,6}|-|-\s+\[[ xX]?\]?|\d+[.)]?|[*+•·▪‣])\s*$');
+
+final RegExp _trailingSpace = RegExp(r'\s+$');
+
+/// A transcript up to this many characters goes to the model in one pass (`ONE_PASS_CHARS`).
+const int onePassChars = 20000;
+
+/// About how many characters a piece of a longer transcript holds: about 3,000 tokens (`PIECE_CHARS`).
+const int pieceChars = 12000;
+
+// ---- the shape -------------------------------------------------------------------------------
+
+/// The model's answer in the section's shape (`ShapedSummary`).
+class ShapedSummary {
+  const ShapedSummary({required this.title, required this.section});
+
+  /// The model's `# heading`, for a note still wearing its date title; null when it gave none.
+  final String? title;
+
+  /// The section, in its shape: the heading, the prose line, the items. Empty when the model gave nothing to keep.
+  final String section;
+
+  @override
+  bool operator ==(Object other) => other is ShapedSummary && other.title == title && other.section == section;
+
+  @override
+  int get hashCode => Object.hash(title, section);
+
+  @override
+  String toString() => 'ShapedSummary(title: $title, section: $section)';
+}
+
+/// The model's answer as the section the app writes: `## Summary`, one prose line, then only item lines, blanks
+/// collapsed to one between groups (`shapeSummary`). The model's `# heading` first line is taken for the title and
+/// never written into the section; a second prose line, a heading, a rule and a closing remark are dropped. What a
+/// 4B reaches for is read as what was meant: a numbered or typographic bullet is an item, a label or an introduction
+/// on the prose line is not the prose, and a sentence wrapped over two lines is one sentence. Works on the answer so
+/// far as well as the finished one, so a run's lines only ever grow as it streams (ai/runs.dart `restore`).
+ShapedSummary shapeSummary(String modelText) {
+  String? title;
+  String? prose;
+  // The prose line may still go on: no blank, item or heading has come since it.
+  var proseOpen = false;
+  // A line of prose has come, if only a label: the heading is the section's from then on, so it never un-lands.
+  var sawProse = false;
+  final items = <String>[];
+  var seenItem = false;
+  for (final raw in modelText.split('\n')) {
+    final line = raw
+        .replaceFirst(_trailingSpace, '')
+        .replaceFirstMapped(_otherBullet, (m) => '${m[1]}- ')
+        .replaceFirstMapped(_tightBox, (m) => '${m[1]}- [${m[2]}]')
+        .replaceFirstMapped(_bareDecided, (m) => '${m[1]}- ${m[2]}');
+    final bare = jsTrim(line);
+    if (bare.isEmpty) {
+      proseOpen = false;
+      // A blank between groups, once; none before the first item.
+      if (items.isNotEmpty && items.last != '') items.add('');
+      continue;
+    }
+    if (_fence.hasMatch(bare) || _underPen.hasMatch(bare)) continue;
+    if (_item.hasMatch(line)) {
+      proseOpen = false;
+      items.add(bare);
+      seenItem = true;
+      continue;
+    }
+    if (_heading.hasMatch(bare)) {
+      proseOpen = false;
+      final words = jsTrim(bare.replaceFirst(_heading, ''));
+      // The first heading names the recording; the section's own heading, echoed, is not a title.
+      if (title == null && prose == null && !seenItem && words.isNotEmpty && words.toLowerCase() != 'summary') title = words;
+      continue;
+    }
+    if (_rule.hasMatch(bare)) continue;
+    if (seenItem) continue;
+    sawProse = true;
+    // The one prose line: a label alone or an introduction is not it, and the next line of prose is. A line that
+    // did not end its sentence was wrapped, and the line after it goes on from it; every other line of prose is
+    // dropped.
+    if (prose == null) {
+      final stripped = bare.replaceFirst(_label, '');
+      if (stripped.isNotEmpty && !_intro.hasMatch(stripped)) {
+        prose = stripped;
+        proseOpen = true;
+      }
+    } else if (proseOpen && !_sentenceDone.hasMatch(prose)) {
+      prose = '$prose $bare';
+    }
+  }
+  while (items.isNotEmpty && items.last == '') {
+    items.removeLast();
+  }
+  if (prose == null && items.isEmpty) return ShapedSummary(title: title, section: sawProse ? summaryHeading : '');
+  final lines = [summaryHeading, ?prose, if (items.isNotEmpty) ...['', ...items]];
+  return ShapedSummary(title: title, section: lines.join('\n'));
+}
+
+// ---- finding it -----------------------------------------------------------------------------
 
 /// Where the section is in a body (`SummarySpan`).
 class SummarySpan {
@@ -228,6 +361,38 @@ String withoutSummary(String body, [String? kept]) {
   return rest.join('\n');
 }
 
+final RegExp _tickedTail = RegExp(r'[\s.!?,;:]+$');
+
+/// A ticked line as it is matched against the new section: the box lower-cased, trailing punctuation and space
+/// ignored.
+String _tickedKey(String line) => jsTrim(line).replaceFirst(_ticked, '- [x] ').replaceFirst(_tickedTail, '').toLowerCase();
+
+/// The new section with every ticked to-do of the old one carried in verbatim, after the new to-dos (`carryTicked`):
+/// a to-do he ticked does not come back open, however the model rephrases it. Un-ticked old to-dos are not carried:
+/// the new list is the new list. A ticked line the new section already has, whatever the case of its box or its
+/// closing full stop, is not doubled.
+String carryTicked(String old, String next) {
+  final nextLines = next.split('\n');
+  final have = {for (final line in nextLines) _tickedKey(line)};
+  final ticked = [
+    for (final line in old.split('\n').map(jsTrim))
+      if (_ticked.hasMatch(line) && !have.contains(_tickedKey(line))) line,
+  ];
+  if (ticked.isEmpty) return next;
+  var at = -1;
+  for (var n = 0; n < nextLines.length; n += 1) {
+    if (_todo.hasMatch(nextLines[n])) at = n;
+  }
+  if (at >= 0) {
+    nextLines.insertAll(at + 1, ticked);
+  } else {
+    nextLines.addAll(['', ...ticked]);
+  }
+  return nextLines.join('\n');
+}
+
+// ---- the title -----------------------------------------------------------------------------
+
 /// A meeting's title as it is made: "Meeting, 26 Sep 14:05", the day and the month in the device's own order.
 final RegExp _dateTitle = RegExp(r'^Meeting, (?:\d{1,2} [A-Za-z]{3,}\.?|[A-Za-z]{3,}\.? \d{1,2}) \d{1,2}:\d{2}$');
 
@@ -244,4 +409,55 @@ String retitled(String body, String title) {
   if (at == null) return body;
   lines[at] = '# $title';
   return lines.join('\n');
+}
+
+// ---- long recordings ----------------------------------------------------------------------
+
+/// A sentence's end, for cutting a paragraph that is longer than a piece.
+final RegExp _sentenceEnd = RegExp(r'(?<=[.!?]["”’)]?)\s+');
+
+final RegExp _paragraphBreak = RegExp(r'\n\s*\n');
+
+/// The transcript in pieces of about [size] characters, cut at paragraph breaks; a paragraph longer than a piece is
+/// cut at sentence ends (`transcriptPieces`). Up to [onePassChars] goes in one piece. Nothing is dropped: the pieces
+/// joined by paragraph breaks are the transcript's paragraphs again.
+List<String> transcriptPieces(String plain, [int size = pieceChars]) {
+  final text = jsTrim(plain);
+  if (text.isEmpty) return [];
+  if (text.length <= onePassChars) return [text];
+  final units = <String>[
+    for (final paragraph in text.split(_paragraphBreak).map(jsTrim))
+      if (paragraph.isNotEmpty) ...(paragraph.length <= size ? [paragraph] : _sentencesUnder(paragraph, size)),
+  ];
+  final pieces = <String>[];
+  var piece = '';
+  for (final unit in units) {
+    if (piece.isNotEmpty && piece.length + 2 + unit.length > size) {
+      pieces.add(piece);
+      piece = unit;
+    } else {
+      piece = piece.isNotEmpty ? '$piece\n\n$unit' : unit;
+    }
+  }
+  if (piece.isNotEmpty) pieces.add(piece);
+  return pieces;
+}
+
+/// A long paragraph as runs of sentences each under [size], a sentence longer than that cut where it must be.
+List<String> _sentencesUnder(String paragraph, int size) {
+  final out = <String>[];
+  var run = '';
+  for (final sentence in paragraph.split(_sentenceEnd)) {
+    for (var at = 0; at < sentence.length; at += size) {
+      final part = sentence.substring(at, at + size < sentence.length ? at + size : sentence.length);
+      if (run.isNotEmpty && run.length + 1 + part.length > size) {
+        out.add(run);
+        run = part;
+      } else {
+        run = run.isNotEmpty ? '$run $part' : part;
+      }
+    }
+  }
+  if (run.isNotEmpty) out.add(run);
+  return out;
 }

@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import '../account/ui_state.dart';
 import '../core/preferences.dart';
+import '../plugins/registry.dart' show plugins;
 import 'appearance_pane.dart';
 import 'kit/settings_icons.dart';
 import 'kit/settings_kit.dart';
@@ -14,6 +15,7 @@ import 'panes/examples_pane.dart';
 import 'panes/export_pane.dart';
 import 'panes/notifications_pane.dart';
 import 'panes/organizations_pane.dart';
+import 'panes/plugins_pane.dart';
 import 'panes/recording_pane.dart';
 import 'panes/settings_host.dart';
 import 'panes/spec_pane.dart';
@@ -107,7 +109,7 @@ class SettingsSectionSpec {
   final String? words;
 
   /// The row's second line. Null where the web's reading needs something Flutter does not have yet (the account, the
-  /// plugins, the model, the version).
+  /// model, the version).
   final String Function(SettingsFacts facts)? summary;
 
   /// The settings on its page, by the names the page gives them (its `.findable.ts`).
@@ -142,14 +144,49 @@ String _static(String line, SettingsFacts _) => line;
 /// What differs from the web original:
 /// - The account is the [AccountServices] the sheet finds over it ([SettingsFacts.services]). With none, Account
 ///   reads "Not signed in", Organizations "Signed out", and each lists what a signed-out page draws.
-/// - Three pages wait, each on a feature with no Flutter port, and open the card that says so: Library folder (the
-///   library's status and a folder picker, stage 3), Backup (drives, stage 9) and Plugins (the registry, stage 9).
-///   Plugins' row is without its second line, how many are on, for the same reason.
+/// - Two pages wait, each on a feature with no Flutter port, and open the card that says so: Library folder (the
+///   library's status and a folder picker, stage 3) and Backup (drives, stage 9).
 /// - AI's reading is the chosen model and what it takes to get, from the catalogue; About's is the version alone
 ///   until the app has an updater; Test results' is "No report yet" until a report is built in.
-/// - A switched-on plugin's own page, and the search's words for every plugin, wait for the plugins.
+/// - Plugins reads the app's registry (lib/plugins/registry.dart `plugins`), which is empty until the built-in
+///   plugins are put in place: its row then says "0 of 0 on". Each switched-on plugin's own page follows Plugins as a
+///   sub-page of it ([pluginPageSections]), so this table is read afresh each time it is asked for, where the web
+///   built its list on every draw. The sheet has to be drawn again when a switch moves for the row's count to
+///   follow it.
 /// - "The app" is always true here: the web asked whether it ran inside Tauri, to leave a browser's rows out.
-final List<SettingsSectionSpec> settingsSections = [
+List<SettingsSectionSpec> get settingsSections => [
+      for (final spec in _sections) ...[
+        spec,
+        if (spec.id == 'plugins') ...pluginPageSections(),
+      ],
+    ];
+
+/// Each switched-on plugin's own page, behind its card (SettingsSheet.tsx): a sub-page of Plugins in the plugin's
+/// own colour, found by the search by the plugin's name, what it does, and what its page lists. A plugin switched
+/// off, or held off by Local only, has no page.
+///
+/// What differs from the web original: a section's glyph is one of Settings' own ([SettingsGlyph]), so a plugin's
+/// page wears the puzzle piece where the search lists it, not the plugin's icon; its card on Plugins wears its own.
+List<SettingsSectionSpec> pluginPageSections() => [
+      for (final plugin in plugins.enabled())
+        if (plugin.settings case final own?)
+          SettingsSectionSpec(
+            id: pluginPageId(plugin.manifest.id),
+            label: plugin.manifest.name,
+            words: plugin.manifest.description,
+            glyph: SettingsGlyph.puzzle,
+            group: 2,
+            webFile: 'plugins/PluginsPane.tsx',
+            summary: (facts) => own.summary(),
+            settings: (facts) => own.settings,
+            hue: own.hue,
+            pane: own.pane,
+            listed: false,
+            parent: 'plugins',
+          ),
+    ];
+
+final List<SettingsSectionSpec> _sections = [
   // Who you are, first and on its own card: it is what a person opens Settings for on a new phone.
   SettingsSectionSpec(
     id: 'account',
@@ -285,6 +322,11 @@ final List<SettingsSectionSpec> settingsSections = [
     glyph: SettingsGlyph.puzzle,
     group: 2,
     webFile: 'plugins/PluginsPane.tsx',
+    summary: (facts) => pluginsSummary(plugins),
+    // Every plugin, on or off: the way to switch on one that has no page yet.
+    settings: (facts) => pluginsFindable(plugins.all()),
+    // A card's row lands on that plugin's own page, and "Local only" on Account's Privacy card.
+    pane: PluginsPane.hosted,
   ),
   SettingsSectionSpec(
     id: 'about',

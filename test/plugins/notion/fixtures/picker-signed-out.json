@@ -1,0 +1,184 @@
+{
+ "sheet": [
+  {
+   "x": 26.77,
+   "y": 290.83,
+   "w": 336.47,
+   "h": 262.33,
+   "text": "JobsSign in to NotionNotion opens in your browser and asks which boards Ghost.md may use. ",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "oklch(0.955 0 0)",
+   "border": "1px 1px oklch(0.925 0 0)",
+   "radius": "22px",
+   "family": "\"Inter Variable\", ui-sans-serif, system-",
+   "shadow": "rgba(0, 0, 0, 0.34) 0px 16px 40px 0px",
+   "backdrop": "none",
+   "tracking": "normal"
+  }
+ ],
+ "back": [
+  {
+   "x": 50.08,
+   "y": 314.14,
+   "w": 62.02,
+   "h": 28.91,
+   "text": "Jobs",
+   "size": 16,
+   "weight": "500",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "0px",
+   "family": "\"Inter Variable\", ui-sans-serif, system-",
+   "shadow": "none",
+   "backdrop": "none",
+   "tracking": "normal"
+  }
+ ],
+ "title": [
+  {
+   "x": 50.08,
+   "y": 356.44,
+   "w": 289.84,
+   "h": 24,
+   "text": "Sign in to Notion",
+   "size": 19.39,
+   "weight": "700",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "0px",
+   "family": "\"Inter Variable\", ui-sans-serif, system-",
+   "shadow": "none",
+   "backdrop": "none",
+   "tracking": "normal"
+  }
+ ],
+ "notes": [
+  {
+   "x": 50.08,
+   "y": 398.28,
+   "w": 289.84,
+   "h": 48,
+   "text": "Notion opens in your browser and asks which boards Ghost.md may use. Pick them, then come ",
+   "size": 13.39,
+   "weight": "400",
+   "color": "oklch(0.56 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.56 0 0)",
+   "radius": "0px",
+   "family": "\"Inter Variable\", ui-sans-serif, system-",
+   "shadow": "none",
+   "backdrop": "none",
+   "tracking": "normal"
+  }
+ ],
+ "groups": [
+  {
+   "x": 50.08,
+   "y": 459.67,
+   "w": 289.84,
+   "h": 56.78,
+   "text": "Sign in with Notion",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "oklch(0.995 0 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "16px",
+   "family": "\"Inter Variable\", ui-sans-serif, system-",
+   "shadow": "none",
+   "backdrop": "none",
+   "tracking": "normal"
+  }
+ ],
+ "rows": [
+  {
+   "x": 50.08,
+   "y": 459.67,
+   "w": 289.84,
+   "h": 56.78,
+   "text": "Sign in with Notion",
+   "size": 16.12,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "0px",
+   "family": "\"Inter Variable\", ui-sans-serif, system-",
+   "shadow": "none",
+   "backdrop": "none",
+   "tracking": "normal"
+  }
+ ],
+ "icons": [
+  {
+   "x": 67.92,
+   "y": 473.06,
+   "w": 30,
+   "h": 30,
+   "text": "",
+   "size": 18,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px oklch(0.16 0 0)",
+   "radius": "50%",
+   "family": "\"Inter Variable\", ui-sans-serif, system-",
+   "shadow": "none",
+   "backdrop": "none",
+   "tracking": "normal"
+  }
+ ],
+ "iconGlyphs": [
+  {
+   "x": 73.92,
+   "y": 479.06,
+   "w": 18,
+   "h": 18,
+   "text": "",
+   "size": 18,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "0px",
+   "family": "\"Inter Variable\", ui-sans-serif, system-",
+   "shadow": "none",
+   "backdrop": "none",
+   "tracking": "normal"
+  }
+ ],
+ "labels": [
+  {
+   "x": 111.31,
+   "y": 478.06,
+   "w": 143.03,
+   "h": 20,
+   "text": "Sign in with Notion",
+   "size": 16.12,
+   "weight": "500",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "0px",
+   "family": "\"Inter Variable\", ui-sans-serif, system-",
+   "shadow": "none",
+   "backdrop": "none",
+   "tracking": "normal"
+  }
+ ],
+ "hints": [],
+ "ticks": []
+}

@@ -1,0 +1,98 @@
+{
+ "sections": [],
+ "titles": [],
+ "descs": [],
+ "cards": [],
+ "rows": [],
+ "labels": [],
+ "hints": [],
+ "icons": [],
+ "controls": [],
+ "wides": [],
+ "actions": [],
+ "inputs": [],
+ "empty": [
+  {
+   "x": 22.31,
+   "y": 0,
+   "w": 345.38,
+   "h": 195.61,
+   "text": "Slack works in the app.Add channels from Ghost.md on your phone or Mac, where each webhook",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "oklch(0.955 0 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "16px",
+   "pad": "26.7796px 17.8529px 26.7796px 17.8529px",
+   "opacity": "1"
+  }
+ ],
+ "emptyIcon": [
+  {
+   "x": 173,
+   "y": 26.77,
+   "w": 44,
+   "h": 44,
+   "text": "",
+   "size": 16,
+   "weight": "400",
+   "color": "rgb(95, 99, 104)",
+   "line": "normal",
+   "bg": "color(srgb 0.372549 0.388235 0.407843 / 0.16)",
+   "border": "0px 0px rgb(95, 99, 104)",
+   "radius": "16px",
+   "pad": "0px 0px 0px 0px",
+   "opacity": "1"
+  }
+ ],
+ "emptyTitle": [
+  {
+   "x": 107.19,
+   "y": 79.69,
+   "w": 175.61,
+   "h": 20,
+   "text": "Slack works in the app.",
+   "size": 16,
+   "weight": "500",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "0px",
+   "pad": "0px 0px 0px 0px",
+   "opacity": "1"
+  }
+ ],
+ "emptyBody": [
+  {
+   "x": 40.16,
+   "y": 108.61,
+   "w": 309.69,
+   "h": 60.23,
+   "text": "Add channels from Ghost.md on your phone or Mac, where each webhook is kept inside the app",
+   "size": 13.39,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "20.0922px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.36 0 0)",
+   "radius": "0px",
+   "pad": "0px 0px 0px 0px",
+   "opacity": "1"
+  }
+ ],
+ "footnote": [],
+ "callout": [],
+ "host": [
+  {
+   "pad": "0px 22.3173px 0px 22.3173px",
+   "border": "0px",
+   "gap": "17.8529px",
+   "htmlTheme": "light",
+   "bg": "rgba(0, 0, 0, 0)",
+   "stageBg": "oklch(0.995 0 0)"
+  }
+ ]
+}
