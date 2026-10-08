@@ -14,10 +14,14 @@ import '../core/preferences.dart';
 import '../core/sample_library.dart';
 import '../core/stored.dart';
 import '../core/trash.dart';
+import '../core/untouched.dart';
+import '../core/versions_record.dart';
+import '../core/versions_store.dart';
 import '../core/workspaces.dart';
 import '../home/home_layout.dart';
 import '../home/home_screen.dart';
 import '../launch/launch_screen.dart';
+import '../note/note_builder.dart';
 import '../notes/all_notes_screen.dart';
 import '../notes/note_actions.dart';
 import '../notes/note_menu.dart';
@@ -38,7 +42,7 @@ import '../shell/top_bar.dart';
 /// - **The library** is the Rust core's ([core], lib/core/core_library.dart): the notes are Markdown files in the app's
 ///   own folder, as the Tauri app keeps them; the workspaces and the trash are preferences; a fresh library is given
 ///   the starter notes once. Without a core (a test, a picture) it is the store screenshots' invented library in memory.
-/// - **A note's own screen** is the shell's stand-in, its title over its Markdown as written (stage 4).
+/// - **A note's own screen** is lib/note's, over the editor (lib/editor).
 /// - **Speak**, organizations and the notifications' feed are not here yet (stages 7 and 8).
 class GhostRoot extends StatefulWidget {
   const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true});
@@ -75,6 +79,16 @@ class _GhostRootState extends State<GhostRoot> {
       (_real
           ? WorkspaceStore(storage: KeptWorkspaceStorage(), trash: _trash, onFiled: NoteFolders(_library).fileNotesInFolder)
           : WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces()), trash: _trash));
+  late final VersionsRecord _versions = VersionsRecord(store: VersionsStore(widget.core, kept: _stored), preferences: preferences, workspaces: _workspaces);
+  late final ShellNoteBuilder _note = noteScreenBuilder(
+    library: _library,
+    workspaces: _workspaces,
+    actions: () => _actions,
+    versions: _versions,
+    trash: _trash,
+    device: _stored,
+    say: (context, message) => GlacierToast.of(context).toast(message: Text(message)),
+  );
   NoteActions? _made;
 
   /// Pin, archive, delete and their Undo (notes/note_actions.dart); made once there is a toast to say them with.
@@ -148,6 +162,7 @@ class _GhostRootState extends State<GhostRoot> {
 
   void _new(AppShellState shell) {
     final note = _library.create('');
+    untouchedNotes.markFresh(note.id);
     _workspaces.fileNewNote(note.id);
     // Once the shell has been handed the library with the note in it: it opens only what it has.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -214,6 +229,7 @@ class _GhostRootState extends State<GhostRoot> {
               onNew: () => _new(_shell.currentState!),
               onDeleteNote: _delete,
               onRefresh: () => _library.refresh(),
+              noteBuilder: _note,
               homeBuilder: (context, shell) => HomeScreen(
                 notes: shell.notes,
                 loading: !_read,
