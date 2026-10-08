@@ -4,8 +4,9 @@
 /// `book/journal.ts` [entryPages] and [stampOf], `book/journalMonths.ts` [journalCards], `guidebook/guidebook.ts`
 /// [guidePages] and [isGuideBook], and `notes/ownTemplates.ts` [templatePages].
 ///
-/// What differs: the index's writers (`withChapter` and its fellows) come with the notebook's own screen. A journal
-/// card's day is written in English ("Mon, Sep 28, 13:05"); the web asks the device's language for it.
+/// What differs: of the index's writers only [withChapter] is here, for the sync merge of two copies of one notebook
+/// (lib/sync/notes.dart `mergedIndex`); its fellows come with the notebook's own screen. A journal card's day is
+/// written in English ("Mon, Sep 28, 13:05"); the web asks the device's language for it.
 library;
 
 import 'package:flutter/foundation.dart';
@@ -70,6 +71,43 @@ List<Chapter> chaptersOf(String body) {
     for (final (chapter, ordered) in found)
       if (!numbers || ordered || chapter.depth == 1) chapter,
   ];
+}
+
+final RegExp _numbered = RegExp(r'^\s*(\d+)([.)])');
+
+/// The body with a chapter added: after [after] where that chapter is in the index, else last (`withChapter`).
+String withChapter(String body, String title, [String? after]) {
+  final clean = title.trim();
+  if (clean.isEmpty) return body;
+  final lines = body.split('\n');
+  final chapters = chaptersOf(body);
+  if (chapters.any((c) => sameTitle(c.title, clean))) return body;
+  // After the one named where it is in the index, else after the last: a name the index does not have is not a
+  // reason to start a second list under the first, which a numbered index would not count.
+  Chapter? place;
+  if (after != null && after.isNotEmpty) {
+    for (final c in chapters) {
+      if (sameTitle(c.title, after)) {
+        place = c;
+        break;
+      }
+    }
+  }
+  place ??= chapters.isEmpty ? null : chapters.last;
+  if (place != null) {
+    final indent = place.depth == 1 ? '  ' : '';
+    // In the index's own style: a numbered index goes on numbering, or the new chapter would be a bullet it skips.
+    final marker = _numbered.firstMatch(place.line < lines.length ? lines[place.line] : '');
+    final lead = marker != null ? '${int.parse(marker.group(1)!) + 1}${marker.group(2)}' : '-';
+    lines.insert(place.line + 1, '$indent$lead [[$clean]]');
+    return lines.join('\n');
+  }
+  // No index yet: the first chapter goes at the end, after a blank line, and the body ends with a newline.
+  while (lines.isNotEmpty && lines.last.trim().isEmpty) {
+    lines.removeLast();
+  }
+  lines.addAll(['', '- [[$clean]]', '']);
+  return lines.join('\n').replaceFirst(RegExp(r'^\n'), '');
 }
 
 /// Where a note stands in a book: the book, its chapters, and which one this is (`BookPlace`).
