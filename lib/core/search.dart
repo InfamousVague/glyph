@@ -9,10 +9,9 @@
 /// "Open <title>" and its keywords, which is the palette's own (lib/commands/palette.dart).
 ///
 /// What differs: nothing in the rule. It was ported with the home page as lib/core/note_text.dart `matches`, and
-/// that is the function here, under the web's name; [searchNotes] is the filter both pages write out by hand. The
-/// one known difference is that port's, not this file's: it names a to-do's priority wherever its sign is written,
-/// where the web reads the to-dos' fields (`core/taskFields.ts` `fieldsIn`, which comes with the tickets), so a `⏫`
-/// inside inline code or a redaction is found as "high" here and not there.
+/// that is the function here, under the web's name; [searchNotes] is the filter both pages write out by hand. A
+/// to-do's priority is named through the fields' own reader (lib/core/task_fields.dart `fieldsIn`), as the web's is,
+/// so a `⏫` inside inline code or a redaction is no priority here either.
 library;
 
 import 'note.dart';

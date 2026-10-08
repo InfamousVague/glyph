@@ -33,12 +33,7 @@ void main() {
       expect(matches(sprint, 'low'), isTrue);
       expect(matches(sprint, 'lowest'), isFalse);
       expect(matches(sprint, 'sam 2026-10-03'), isTrue);
-    });
-
-    test('differs from the web: a priority’s sign in inline code is found, where the web reads only a to-do’s fields', () {
-      // lib/core/note_text.dart `matches` (ported with the home page) looks for the sign anywhere; the web's
-      // `fieldsIn` (core/taskFields.ts) does not count one in code. This holds the difference where it can be seen.
-      expect(matches(makeNote('b', body: 'Inline code `⏫` is not a priority'), 'high'), isTrue);
+      expect(matches(makeNote('b', body: 'Inline code `⏫` is not a priority'), 'high'), isFalse);
     });
 
     test('shows every note for a blank search', () {

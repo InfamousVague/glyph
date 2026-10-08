@@ -32,12 +32,8 @@ void main() {
       expect(matches(sprint, 'low'), isTrue);
       expect(matches(sprint, 'lowest'), isFalse);
       expect(matches(sprint, 'sam 2026-10-03'), isTrue);
-    });
-
-    test('differs from the web in one row: a priority’s sign in inline code is found here, and is no priority there', () {
-      // The web's last line of the case above expects false: it reads the to-dos' fields (core/taskFields.ts), which
-      // come with the tickets. Held here so the day that port lands, this is the test that says so.
-      expect(matches(makeNote('b', body: 'Inline code `⏫` is not a priority'), 'high'), isTrue);
+      // The fields are read by lib/core/task_fields.dart, as the web reads them: a sign in code is no priority.
+      expect(matches(makeNote('b', body: 'Inline code `⏫` is not a priority'), 'high'), isFalse);
     });
 
     test('shows every note for a blank search', () {
