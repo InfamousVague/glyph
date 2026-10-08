@@ -130,11 +130,17 @@ void main() {
       expect(transform[12], closeTo(editor.left, 0.01));
       expect(transform[13], closeTo(editor.top, 0.01));
       expect((args['width'] as num) * 0.5, closeTo(editor.width, 0.01));
-      // The caret's rectangle is the editor's to send (lib/editor/input/ime.dart `sendGeometry`). It sends it in
-      // the screen's pixels from the editor's corner, which the keyboard then scales again by this transform: right
-      // at life size, and out by the canvas's scale at any other. Looked at here on 2026-10-08 (at 0.5, a caret
-      // 27px tall in the card was sent as 13.5 and so read as 6.75); left to the editor's input layer.
-      expect(tester.testTextInput.log.where((call) => call.method == 'TextInput.setCaretRect'), isNotEmpty);
+      // The caret's rectangle too is in the editor's own pixels (lib/editor/input/ime.dart `sendGeometry`), which
+      // that transform carries to the screen: at half size a caret is sent as tall as it is at life size, where it
+      // used to be sent as it was drawn on the screen and so read as half of that again.
+      final carets = tester.testTextInput.log.where((call) => call.method == 'TextInput.setCaretRect').toList();
+      expect(carets, isNotEmpty);
+      final caret = carets.last.arguments as Map;
+      final view = tester.widget<Editor>(find.descendant(of: find.byKey(const ValueKey('card t')), matching: find.byType(Editor))).view;
+      final at = view.coordsAtPos(view.state.selection.main.head, 1)!;
+      expect((caret['height'] as num) * 0.5, closeTo(at.bottom - at.top, 0.01));
+      expect(editor.left + (caret['x'] as num) * 0.5, closeTo(at.left, 0.01));
+      expect(editor.top + (caret['y'] as num) * 0.5, closeTo(at.top, 0.01));
       await shown.done();
     });
   });

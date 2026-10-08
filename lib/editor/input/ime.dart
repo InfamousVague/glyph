@@ -603,7 +603,10 @@ class EditorIme with TextInputClient, DeltaTextInputClient {
     final sel = view.state.selection.main;
     final at = view.coordsAtPos(sel.head, sel.assoc == 0 ? 1 : sel.assoc);
     if (at == null) return;
-    final caret = Rect.fromLTRB(at.left, at.top, at.left + 1, at.bottom).shift(-bounds.topLeft);
+    // In the box's own pixels, which the transform above carries to the screen: `coordsAtPos` answers the screen's,
+    // and inside a canvas zoomed in or out (lib/canvas, a card of words being written) the two differ by the zoom.
+    Rect own(Rect screen) => Rect.fromPoints(box.globalToLocal(screen.topLeft), box.globalToLocal(screen.bottomRight));
+    final caret = own(Rect.fromLTRB(at.left, at.top, at.left + 1, at.bottom));
     if (caret != _sentCaret) {
       _sentCaret = caret;
       _conn!.setCaretRect(caret);
@@ -612,7 +615,7 @@ class EditorIme with TextInputClient, DeltaTextInputClient {
     final range = composingRange;
     if (range != null) {
       final a = view.coordsAtPos(range.from, 1), b = view.coordsAtPos(range.to, -1);
-      if (a != null && b != null) composed = Rect.fromLTRB(math.min(a.left, b.left), math.min(a.top, b.top), math.max(a.right, b.right), math.max(a.bottom, b.bottom)).shift(-bounds.topLeft);
+      if (a != null && b != null) composed = own(Rect.fromLTRB(math.min(a.left, b.left), math.min(a.top, b.top), math.max(a.right, b.right), math.max(a.bottom, b.bottom)));
     }
     if (composed != _sentComposing) {
       _sentComposing = composed;
