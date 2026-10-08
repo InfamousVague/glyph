@@ -80,10 +80,18 @@ change (`lib/root/library_reads.dart`). `test/root/structured_test.dart` holds t
 - **`Notices` is still not wired**: the update card waits for stage 9's updates, the invitation for its buttons
   (`InviteActions`), the voice model's line for stage 8.
 - **The aside** (the open note's notebook beside it on a wide window, `aside/`) is still the shell's placeholder.
-- **Checked where:** on the Android emulator, by hand, 2026-10-08 (see the commit that wired them); in tests, the
-  wiring and each piece's own. **Still to see on the Fold:** a card carried between a board's lanes and a query's
-  under a real finger, the canvas's pinch and its cards' words on Vulkan, the keyboard's own toolbar over a canvas
-  card being written in.
+- **A note opened with the caret at its end** (a journal's new entry) is scrolled until that line is at the top of
+  the page as the keyboard comes up, its heading and the notebook's bar above it out of sight until the page is
+  pulled down (seen on the emulator; the editor's own keeping of the caret clear of the keyboard, not looked into).
+- **Checked where:** on an Android emulator (Gboard, dark) by hand, 2026-10-08: the + sheet and its Note, Entry in
+  Journal, Canvas and Notebook; a blank note's names and cards, and A day pressed; Launch week's board, a card moved
+  by its chevron; the Example project's index, a page opened from it with the notebook's bar and its ticket's panel,
+  a status picked; A ticket board from the +'s A database, its list, and a status picked there written into the
+  other note and drawn again; an entry made and its journal's months; a canvas made, a card added by a double tap
+  and written in, the canvas dragged and fitted. **Not exercised there:** a pinch on the canvas and a card carried
+  between lanes (adb sends one finger and no hold-and-drag worth trusting; both are held by the pieces' own tests).
+  **Still to see on the Fold:** those two under a real finger, the canvas's cards' words on Vulkan, the keyboard's
+  own toolbar over a canvas card being written in.
 
 ## What stage 4 left open
 
