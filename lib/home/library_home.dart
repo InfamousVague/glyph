@@ -2,7 +2,8 @@
 /// page is alive wherever it is put up, over the sample library today and the real one when it arrives.
 ///
 /// Stands for what `src/app/App.tsx` wires round the web's HomeScreen: `notes/useNoteActions.ts` (pin, archive and
-/// delete, each with its Undo in a toast: "Archived “Flat”.", "Moved “Flat” to the Trash."), `core/workspaces.ts`
+/// delete, each with its Undo in a toast: "Archived “Flat”.", "Moved “Flat” to the Trash."; ported as
+/// lib/notes/note_actions.dart, which this uses), `core/workspaces.ts`
 /// `fileNewNote` (a note made while a workspace is chosen is filed there) and `forgetNote`, and the refresh a pull
 /// asks for.
 ///
@@ -15,22 +16,13 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../core/note.dart';
-import '../core/note_text.dart';
 import '../core/sample_library.dart';
 import '../core/swipe.dart';
 import '../core/workspaces.dart';
+import '../notes/note_actions.dart';
 import 'home_layout.dart';
 import 'home_organizations.dart';
 import 'home_screen.dart';
-
-/// How long an Undo is offered (`UNDO_MS`).
-const Duration _undo = Duration(milliseconds: 5000);
-
-/// A note as a toast names it (`label`): its title in quotes, or "the note" where it has none or a long one.
-String _label(Note note) {
-  final title = noteTitle(note.body);
-  return title.isNotEmpty && title.length <= 28 ? '“$title”' : 'the note';
-}
 
 /// [HomeScreen] over a [NoteLibrary] and a [WorkspaceStore]: the part of the web's `App.tsx` and
 /// `notes/useNoteActions.ts` that makes the home page's swipes, pull and + do something. A deleted note is handed
@@ -79,41 +71,10 @@ class LibraryHome extends StatelessWidget {
   final HomeDockHaloBuilder? dockHalo;
   final HomeGhostBuilder? ghost;
 
-  void _swipe(BuildContext context, Note note, NoteSwipe action) {
-    final toast = GlacierToast.of(context);
-    final fire = HapticsProvider.of(context);
-    switch (action) {
-      case NoteSwipe.pin:
-        library.pin(note.id, pinned: !note.starred);
-        fire(HapticKind.success);
-      case NoteSwipe.archive:
-        library.archive(note.id, archived: true);
-        fire(HapticKind.success);
-        toast.toast(
-          message: Text('Archived ${_label(note)}.'),
-          duration: _undo,
-          action: GlacierToastAction(label: 'Undo', onPress: () => library.archive(note.id, archived: false)),
-        );
-      case NoteSwipe.delete:
-        final gone = library.delete(note.id);
-        if (gone == null) return;
-        final filed = workspaces.workspaceOf(note.id)?.id;
-        workspaces.forgetNote(note.id);
-        fire(HapticKind.warning);
-        toast.toast(
-          message: Text('Moved ${_label(note)} to the Trash.'),
-          duration: _undo,
-          action: GlacierToastAction(
-            label: 'Undo',
-            onPress: () {
-              library.restore(gone);
-              if (filed != null) workspaces.fileNote(gone.id, filed);
-              fire(HapticKind.success);
-            },
-          ),
-        );
-    }
-  }
+  /// A swipe, done to the library with the web's words and Undo (lib/notes/note_actions.dart). With no trash handed
+  /// in, a deleted note is taken out of the library and put back by Undo.
+  void _swipe(BuildContext context, Note note, NoteSwipe action) =>
+      NoteActions(library: library, workspaces: workspaces, say: NoteActions.toaster(context), haptic: HapticsProvider.of(context)).swipe(note, action);
 
   @override
   Widget build(BuildContext context) {

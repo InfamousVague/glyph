@@ -13,6 +13,8 @@ import '../core/workspaces.dart';
 import '../home/home_layout.dart';
 import '../home/home_screen.dart';
 import '../launch/launch_screen.dart';
+import '../notes/all_notes_screen.dart';
+import '../notes/note_menu.dart';
 import '../notes/note_tree.dart';
 import '../notes/notes_drawer.dart';
 import '../notes/notifications_drawer.dart';
@@ -29,6 +31,8 @@ import '../shell/top_bar.dart';
 /// What it stands on until the stages that bring the real things:
 /// - **The library** is [SampleLibrary], the invented notes the store's screenshots are taken over, held in memory:
 ///   pinning, archiving, deleting to a trash and making a note all work and none of it is kept (stage 3).
+/// - **Deleting** goes to a trash kept here, without the web's Undo toast: notes/note_actions.dart has that, and takes
+///   over when the trash becomes the preference it is on the web (stage 3).
 /// - **A note's own screen** is the shell's stand-in, its title over its Markdown as written (stage 4).
 /// - **Speak**, organizations and the notifications' feed are not here yet: the dock leaves Speak out, and the bell
 ///   opens an empty card (stages 7 and 8). The command bar has every command whose feature exists.
@@ -65,6 +69,9 @@ class _GhostRootState extends State<GhostRoot> {
   SettingsTarget? _settingsPage;
 
   void _search() => _commands.currentState?.show();
+
+  /// A note's menu, from a long press or a right-click on it in any list (notes/note_menu.dart).
+  final NoteMenuController _menu = NoteMenuController();
 
   /// The trash: what was deleted, newest first, until it is emptied.
   final List<Note> _trashed = [];
@@ -197,6 +204,7 @@ class _GhostRootState extends State<GhostRoot> {
                 onSearch: _search,
                 onSwipe: _swipe,
                 onRefresh: _library.refresh,
+                onNoteMenu: (id) => _menu.open(id, MediaQuery.sizeOf(context).center(Offset.zero)),
                 onManageWorkspace: (workspace) => setState(() => _workspace = (editing: workspace)),
                 headerEdge: (context, edge, scroller) => WispEdge(under: edge.under, foot: true, child: scroller),
                 dockHalo: (context, it) => DockSmoke(behind: it.behind, dock: it.dock, alignment: it.alignment, padding: it.padding),
@@ -209,6 +217,20 @@ class _GhostRootState extends State<GhostRoot> {
                   size: it.lead ? GhostSize.lead : GhostSize.small,
                   heightShare: it.heightShare,
                 ),
+              ),
+              allNotesBuilder: (context, shell, screen) => AllNotesScreen(
+                notes: shell.notes,
+                loading: !_read,
+                workspaces: _workspaces,
+                stored: _stored,
+                tapes: screen.tapes,
+                onOpen: shell.openNote,
+                onBack: shell.backToList,
+                onRefresh: _library.refresh,
+                onNoteMenu: (note, at) => _menu.open(note.id, at),
+                notesInWorkspace: _notesIn,
+                onTrashNotes: (ids) => ids.forEach(_delete),
+                wisp: prefs.wispEdge,
               ),
               sidebarBuilder: (context, shell, close) => NotesDrawer(
                 open: true,
@@ -271,6 +293,14 @@ class _GhostRootState extends State<GhostRoot> {
                   _settingsPage = SettingsTarget(id, nonce: DateTime.now().microsecondsSinceEpoch);
                 }),
               ),
+            ),
+            NoteMenuHost(
+              controller: _menu,
+              notes: _library.value,
+              onOpen: (note) => _shell.currentState?.openNote(note.id),
+              onPin: (note) => _library.pin(note.id, pinned: !note.starred),
+              onArchive: (note, archived) => _library.archive(note.id, archived: archived),
+              onDelete: (note) => _delete(note.id),
             ),
             if (_workspace case final sheet?)
               WorkspaceManageSheet(
