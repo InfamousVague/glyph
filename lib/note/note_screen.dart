@@ -1,0 +1,1050 @@
+/// One note, open: the words in their editor, and everything that floats over or beside them. A port of
+/// `src/app/editor/NoteScreen.tsx` with `NoteScreen.module.css`.
+///
+/// This screen owns SAVING: the words are kept by a [NoteSaving] (lib/core/library.dart, the port of
+/// `useNoteSaving`), saved on a debounce, and flushed on every way the app can go away and every way off the note
+/// this screen offers. Everything that changes the open note goes through the editor's view or [_onChange], never
+/// round them.
+///
+/// One screen shows several things in one place: the note's words, or, for a note that is a canvas or a book, the
+/// canvas drawn or the book's index, with the JSON or Markdown behind the view switch. The editor stays mounted
+/// behind whichever of the others is up, hidden, so nothing typed is lost and its caret keeps its place.
+///
+/// What is here, as on the page: the header's glass with the page's smoke under it; the page that scrolls, padded
+/// by the header; the byline; the editor filling the page; the note's tools, in the app's bar where there is one
+/// and in this header where there is not; the More sheet with its pages; saving; the look, the name and a version
+/// put back, each written through the editor as one change; landing at an item (`at`); opening where the note was
+/// left; two fingers pinching the text's size; the caret asked for in a note just made; the blank note's ghost.
+///
+/// What differs from the page:
+/// - **The editor is a seam** (lib/note/note_editor.dart): the screen is given a [NoteEditorBuilder] and works
+///   through the `EditorView` it is told of. Until piece D's widget is wired the builder is the stand-in, which
+///   draws and takes the screen's own changes but has no caret.
+/// - **What other pieces and stages own comes in through [NoteSeams]**, each nullable, each named for the web file
+///   it ports: find, the bookmark, comments, sharing, the AI, plugins' links, the place and its map card, the
+///   book's bar and foot, and the canvas, book and journal views, which draw a card saying which stage draws them
+///   until they are given. The tape and its transcript, the AI's strip, the models' scene, the + and its list, the
+///   blank page's names and template cards, live and team notes, pull to refresh and the unfold's crease are not
+///   drawn at all yet; the screen's own half of each (when a + may show, what a name tapped writes) is here where
+///   it could be written without them ([NoteScreenState.nameIt], [NoteScreenState.offering]).
+/// - **The tools are handed to the bar**, not put there by a portal (shell/top_bar_tools.dart), so they listen to a
+///   model this screen changes.
+/// - **The page is a scroll view of slivers**: the page's padding, the byline and the editor are slivers of one
+///   `CustomScrollView`, where the page was a flex column that scrolled. The body's `flex: 1 0 auto` (the editor as
+///   tall as the page at least) is a last sliver that fills what is left and gives the editor the focus on a tap.
+/// - **`--wisp-under` is always the header's height**. The page falls back to 3.6rem with the smoke switched off,
+///   which puts the byline under the bar (measured 2026-10-07: 79.9 against a pane 91.8 tall); that is not carried.
+/// - **A note in the Trash** is [NoteScreen.readOnly]: its editor takes no typing and nothing is saved. The page
+///   has no such state, since it never opens one.
+/// - **A save refused for good** is said in the note's one line of problems (`.problem`), under the header, for as
+///   long as the note is open; the page only logs it.
+/// - The arrival (`noteRise`: the body rising 8px as it fades in) is drawn for the page as a whole.
+library;
+
+import 'dart:async';
+
+import 'package:flutter/gestures.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/widgets.dart' hide Decoration;
+import 'package:glacier/glacier.dart';
+
+import '../art/art.dart';
+import '../core/book.dart';
+import '../core/boards/make.dart';
+import '../core/canvas_body.dart';
+import '../core/front_matter.dart';
+import '../core/geotag.dart';
+import '../core/library.dart';
+import '../core/live_titles.dart';
+import '../core/look.dart';
+import '../core/note.dart';
+import '../core/note_names.dart';
+import '../core/preferences.dart';
+import '../core/stored.dart';
+import '../core/untouched.dart';
+import '../core/versions_file.dart';
+import '../core/versions_record.dart';
+import '../core/workspaces.dart';
+import '../editor/editor.dart';
+import '../editor/view/editor_view.dart';
+import '../editor/view/view_mode.dart';
+import '../shell/header_pane.dart';
+import '../shell/screen.dart' show Caret;
+import '../shell/top_bar_tools.dart';
+import '../sheet/css.dart';
+import 'byline.dart';
+import 'land_at.dart';
+import 'note_editor.dart';
+import 'note_place.dart';
+import 'note_settings.dart';
+import 'note_tools.dart';
+import 'pinch_zoom.dart';
+import 'version_keeping.dart';
+
+/// What the screen is given by pieces and stages that are not its own. Every one is optional: left out, its row,
+/// its tool or its drawing is simply not there, or is a card that says which stage draws it.
+@immutable
+class NoteSeams {
+  const NoteSeams({
+    this.onFind,
+    this.onShare,
+    this.sharing,
+    this.onComment,
+    this.commentsSummary,
+    this.onCommentsList,
+    this.bookmark,
+    this.writtenBookmark,
+    this.onAi,
+    this.linked,
+    this.cheatSheet,
+    this.location,
+    this.shareVersionsFile,
+    this.mapCard,
+    this.bookBar,
+    this.bookFoot,
+    this.canvas,
+    this.book,
+    this.journal,
+    this.over,
+  });
+
+  /// Find and replace opened in the note with its first words (editor/FindBar.tsx, piece K).
+  final void Function(EditorView view, String initial)? onFind;
+
+  /// The note's share link in a window of its own (share/ShareRows.tsx).
+  final VoidCallback? onShare;
+
+  /// Sharing's rows on the More sheet.
+  final List<Widget> Function(BuildContext context)? sharing;
+
+  /// A comment started on the caret's line (editor/useNoteComments.tsx), how many threads there are, and their list.
+  final void Function(EditorView view)? onComment;
+  final String? Function()? commentsSummary;
+  final VoidCallback? onCommentsList;
+
+  /// The bookmark (editor/useBookmark.ts): whether the note has one, and the press that sets, moves or removes it.
+  final ({bool marked, VoidCallback onPress}) Function(EditorView view, ScrollPosition page)? bookmark;
+
+  /// The bookmark written in the note's words, as a place to open at (editor/bookmarkLine.ts).
+  final Place? Function(EditorView view)? writtenBookmark;
+
+  /// A run of the AI on this note (editor/useNoteAi.ts).
+  final void Function(EditorView view, String kind, [String? instruction])? onAi;
+
+  /// What the note is linked to: plugins' rows (plugins/registry.ts).
+  final List<Widget> Function(BuildContext context)? linked;
+
+  /// The formatting cheat sheet's page (guide/CheatSheet.tsx).
+  final WidgetBuilder? cheatSheet;
+
+  /// Where the note was written, for its row: the fix and its name are core/location.ts's.
+  final NoteLocation Function(GeoTag? tag)? location;
+
+  /// Shares a note's versions file (core/versions/share.ts).
+  final Future<String?> Function(String noteId, String title)? shareVersionsFile;
+
+  /// The map at the top of a tagged note (editor/MapCard.tsx): `header` for a map note, else the card.
+  final Widget Function(BuildContext context, GeoTag tag, {required bool header})? mapCard;
+
+  /// A chapter's book, its place in it and the chapters either side, over and under the words (book/BookNav.tsx).
+  final Widget Function(BuildContext context, BookPlace place)? bookBar;
+  final Widget Function(BuildContext context, BookPlace place)? bookFoot;
+
+  /// The three views that take the page for a note that is not words: canvas/CanvasView.tsx (stage 6),
+  /// book/BookView.tsx and book/JournalView.tsx (stage 5). Each is handed the body and writes the note through
+  /// `onChange`, as typing does.
+  final Widget Function(BuildContext context, String body, ValueChanged<String> onChange)? canvas;
+  final Widget Function(BuildContext context, String body, ValueChanged<String> onChange)? book;
+  final Widget Function(BuildContext context, String body, ValueChanged<String> onChange)? journal;
+
+  /// What floats over the page while the note's words are up: the press-and-hold band, the + list, the find bar.
+  final List<Widget> Function(BuildContext context, EditorView view)? over;
+}
+
+class NoteScreen extends StatefulWidget {
+  const NoteScreen({
+    super.key,
+    required this.note,
+    required this.library,
+    required this.workspaces,
+    required this.onBack,
+    required this.onDelete,
+    required this.onPin,
+    required this.onArchive,
+    this.versions,
+    this.preferences,
+    this.device,
+    this.untouched,
+    this.liveTitles,
+    this.onSpeak,
+    this.onHistory,
+    this.at,
+    this.caret,
+    this.book,
+    this.takenTitles = const {},
+    this.readOnly = false,
+    this.editorBuilder = readOnlyNoteEditor,
+    this.seams = const NoteSeams(),
+    this.say,
+    this.debounce = saveDebounce,
+    this.lifecycle = true,
+    this.clock,
+  });
+
+  final Note note;
+  final NoteLibrary library;
+  final WorkspaceStore workspaces;
+  final VoidCallback onBack;
+  final ValueChanged<String> onDelete;
+
+  /// Pin or unpin, given the note as it stands now (`onPin({...note, starred: pinned})`).
+  final ValueChanged<Note> onPin;
+  final ValueChanged<Note> onArchive;
+
+  /// The versions; without them the note has no history rows.
+  final VersionsRecord? versions;
+
+  /// The preferences (the view, the smoke); the app's own unless given.
+  final PreferencesStore? preferences;
+
+  /// This device's memory, for the places, the zoom and the untouched records; the app's own unless given.
+  final Stored? device;
+  final UntouchedNotes? untouched;
+  final LiveTitles? liveTitles;
+
+  /// Talk into this note; left out where nothing records.
+  final ValueChanged<String>? onSpeak;
+
+  /// The history in a side panel, from the bar's History button; left out, the More sheet's page opens.
+  final VoidCallback? onHistory;
+
+  /// The item to land on when the note was opened by a link pointing inside it: `^anchor`, or `line:12`.
+  final String? at;
+
+  /// A note just made, to be written in: where the caret goes.
+  final Caret? caret;
+
+  /// The book this note is a chapter of, for the bar under its header.
+  final BookPlace? book;
+
+  /// Every note's title key, for the names a blank page offers.
+  final Set<String> takenTitles;
+
+  /// A note in the Trash: read, not written.
+  final bool readOnly;
+
+  final NoteEditorBuilder editorBuilder;
+  final NoteSeams seams;
+
+  /// A toast.
+  final void Function(String message)? say;
+
+  /// For a test: the saving's debounce, whether the app's comings and goings are listened to, and the time.
+  final Duration debounce;
+  final bool lifecycle;
+  final DateTime Function()? clock;
+
+  @override
+  State<NoteScreen> createState() => NoteScreenState();
+}
+
+/// What the note says when its save was refused for good.
+const String saveStoppedWords = 'This note changed somewhere else. What you write here now is not being saved.';
+
+class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMixin {
+  late final NoteSaving _saving;
+  VersionKeeping? _versioning;
+  late final NoteZoom _zoom = NoteZoom(device: widget.device);
+  final PinchTracker _pinch = PinchTracker();
+  final ScrollController _scroll = ScrollController();
+  final GlobalKey _page = GlobalKey();
+  late final AnimationController _rise = AnimationController(vsync: this, duration: const Duration(milliseconds: 320));
+
+  EditorView? _view;
+  NotePlaceKeeper? _keeper;
+  LandAt? _landing;
+  Timer? _checking;
+
+  GeoTag? _tag;
+  Look? _look;
+  late bool _pinned = widget.note.starred;
+  late bool _drafted;
+  late bool _untouched;
+  late bool _fresh;
+  bool _source = false;
+  late String _typedBody = widget.note.body;
+  bool _settingsOpen = false;
+  NoteSettingsPage? _settingsAt;
+  bool _caretPlaced = false;
+  bool _stopped = false;
+  ({double distance, double zoom, int? pos, double y})? _pinching;
+  ScrollHoldController? _held;
+
+  late final ValueNotifier<NoteToolsModel> _toolsModel = ValueNotifier(_model());
+  late final Widget _tools = NoteTools(model: _toolsModel);
+  late final Widget _more = NoteMore(onMore: _openMore);
+  String _toolsKey = '';
+
+  PreferencesStore get _prefs => widget.preferences ?? preferences;
+  UntouchedNotes get _records => widget.untouched ?? untouchedNotes;
+  LiveTitles get _live => widget.liveTitles ?? liveTitles;
+  String get _id => widget.note.id;
+
+  /// The editor's view, once it has one.
+  EditorView? get view => _view;
+
+  /// The live words.
+  String get body => _saving.body;
+
+  /// The note's name as its words say it.
+  String get title => _saving.title;
+
+  /// Whether a save was refused for good.
+  bool get saveStopped => _stopped;
+
+  // ---- what the note is ---------------------------------------------------------------------------------------------
+
+  bool get _isCanvas => isCanvasBody(_typedBody);
+  bool get _isBook => isBookBody(_typedBody);
+  bool get _isJournal => isJournalBody(_typedBody);
+
+  /// A canvas or a book: a note with a view of its own in front of its words.
+  bool get _typed => _isCanvas || _isBook;
+  bool get _drawing => _isCanvas && !_source;
+  bool get _paging => _isBook && !_source;
+
+  /// Whether the editor is what is showing.
+  bool get _words => !_drawing && !_paging;
+  NoteKind get _kind => _isCanvas ? NoteKind.canvas : (_isBook ? NoteKind.book : NoteKind.words);
+  bool get _onPage => _typed ? !_source : _prefs.value.noteView == 'formatted';
+
+  /// Whether a + may show beside an empty line, which is also when a blank page offers its names
+  /// (`plusAllowed`): the note is words being written.
+  bool get plusAllowed => !_typed && !widget.readOnly;
+
+  /// Whether the blank page offers names and templates (`offering`): a note made in this run, with no words.
+  bool get offering => _fresh && _saving.blank && plusAllowed;
+
+  /// The names on offer now, or null where none are (core/note_names.dart).
+  List<NameOffer>? get names => offering ? nameOffers(widget.clock?.call() ?? DateTime.now(), widget.takenTitles) : null;
+
+  @override
+  void initState() {
+    super.initState();
+    final note = widget.note;
+    _saving = NoteSaving(widget.library, note, onExternalChange: _external, debounce: widget.debounce, lifecycle: widget.lifecycle && !widget.readOnly)..addListener(_saved);
+    _tag = geoTagOf(note.body);
+    _look = lookOf(note.body);
+    _drafted = _records.recordOf(_id) != null;
+    _untouched = _drafted && _records.isUntouched(_id, note.body, recordingMs: note.recordingMs, starred: note.starred, archivedAt: note.archivedAt);
+    _fresh = _records.isFresh(_id);
+    final versions = widget.versions;
+    if (versions != null && !widget.readOnly) _versioning = VersionKeeping(versions, _id, () => _saving.body, lifecycle: widget.lifecycle)..addListener(_redraw);
+    _prefs.addListener(_redraw);
+    widget.workspaces.addListener(_redraw);
+    _zoom.addListener(_redraw);
+    _caretPlaced = widget.caret == null;
+    _live.set(_id, _saving.title);
+    _rise.forward();
+  }
+
+  @override
+  void dispose() {
+    _checking?.cancel();
+    _keeper?.dispose();
+    _landing?.dispose();
+    _versioning
+      ?..removeListener(_redraw)
+      ..dispose();
+    _prefs.removeListener(_redraw);
+    widget.workspaces.removeListener(_redraw);
+    _zoom
+      ..removeListener(_redraw)
+      ..dispose();
+    _saving
+      ..removeListener(_saved)
+      ..dispose();
+    _toolsModel.dispose();
+    _scroll.dispose();
+    _rise.dispose();
+    super.dispose();
+  }
+
+  /// A change of state that may be asked for while the tree is building (the editor told of words from outside).
+  void _redraw([VoidCallback? change]) {
+    if (!mounted) return change?.call();
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+      change?.call();
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+      return;
+    }
+    setState(() => change?.call());
+  }
+
+  // ---- saving -------------------------------------------------------------------------------------------------------
+
+  /// The tab says the note's name as line 1 is written (core/liveTitles.ts), and the header its title.
+  void _saved() {
+    _live.set(_id, _saving.title);
+    _redraw();
+  }
+
+  /// Words that arrived from outside the editor - a meeting's transcript - are put into it whole.
+  void _external(String next) {
+    final editor = _view;
+    if (editor == null) return;
+    final now = editor.state.doc.toString();
+    if (now != next) editor.dispatch(TransactionSpec(changes: ChangeSpec(from: 0, to: now.length, insert: next)));
+  }
+
+  /// Saves what is waiting, and looks at whether the library is still taking this screen's words.
+  void flush() {
+    if (widget.readOnly) return;
+    _saving.flush();
+    _watch();
+  }
+
+  /// After the next save has been answered: a save refused for good is said on the note.
+  void _watch() {
+    _checking?.cancel();
+    _checking = Timer(widget.debounce + const Duration(milliseconds: 60), () {
+      unawaited(_saving.settled().whenComplete(() {
+        if (mounted && !_saving.writable && !_stopped) setState(() => _stopped = true);
+      }));
+    });
+  }
+
+  /// Every change to the words passes through here (`onChange`).
+  void _onChange(String next) {
+    if (widget.readOnly) return;
+    _saving.onChange(next);
+    _watch();
+    _versioning?.changed();
+    final tag = geoTagOf(next);
+    final look = lookOf(next);
+    var fresh = _fresh, untouched = _untouched;
+    if (_fresh) {
+      _records.keepFresh(_id, next);
+      fresh = _records.isFresh(_id);
+    }
+    if (_drafted) {
+      untouched = _records.isUntouched(_id, next);
+      if (!untouched) {
+        // Its first own words make it the person's there and then: the record goes on the keystroke.
+        _records.forget(_id);
+        _drafted = false;
+      }
+    }
+    if (tag != _tag || look != _look || fresh != _fresh || untouched != _untouched) {
+      _redraw(() {
+        _tag = tag;
+        _look = look;
+        _fresh = fresh;
+        _untouched = untouched;
+      });
+    }
+  }
+
+  void _back() {
+    flush();
+    widget.onBack();
+  }
+
+  /// The phone's way back from the note, for whoever holds the back gesture: what is typed is saved first.
+  void leave() => _back();
+
+  // ---- the editor arriving ------------------------------------------------------------------------------------------
+
+  void _onView(EditorView view) {
+    if (!mounted) return;
+    final first = _view == null;
+    setState(() => _view = view);
+    // Words the store had newer than the copy this screen was opened with can be taken before the editor is here
+    // to be handed them (the page's store answers later than its editor mounts): they are put in now.
+    if (first && !(_typed && _source) && view.state.doc.toString() != _saving.body) _external(_saving.body);
+    if (!_scroll.hasClients) return;
+    final page = _scroll.position;
+    _keeper?.dispose();
+    _keeper = null;
+    _landing?.dispose();
+    _landing = null;
+    final at = widget.at;
+    if (at != null && at.isNotEmpty) {
+      // Opened at an item, the note goes to that line rather than back to where it was left last time.
+      _landing = LandAt(at: at, view: view, page: page, headerBottom: _headerBottom);
+    } else {
+      _keeper = NotePlaceKeeper(noteId: _id, view: view, page: page, places: NotePlaces(widget.device), writtenBookmark: widget.seams.writtenBookmark, lifecycle: widget.lifecycle);
+    }
+    // A note just made, to be written in: the caret where it was asked for, once the editor is here, and the focus.
+    if (first && !_caretPlaced) {
+      _caretPlaced = true;
+      final length = view.state.doc.length;
+      final asked = widget.caret?.offset;
+      view.dispatch(TransactionSpec(selection: EditorSelection.single(asked == null ? length : asked.clamp(0, length)), scrollIntoView: true));
+      view.focus();
+    }
+  }
+
+  double _headerBottom() {
+    final box = context.findRenderObject();
+    final top = box is RenderBox && box.hasSize ? box.localToGlobal(Offset.zero).dy : 0.0;
+    return top + _headerHeight(context.tokens, TopBarTools.maybeOf(context) != null);
+  }
+
+  // ---- what the screen writes through the editor --------------------------------------------------------------------
+
+  /// A change to the front matter alone, as one undo step, the caret kept with the words: a caret in the block, or
+  /// at its end, goes to the start of the words; one in the words moves by what the block grew.
+  bool _writeFrontMatter(String Function(String doc) change, String userEvent, {bool scroll = false}) {
+    final editor = _view;
+    if (editor == null || !mounted || !_words) return false;
+    final doc = editor.state.doc.toString();
+    final after = change(doc);
+    if (after == doc) return false;
+    final was = frontMatterOffset(doc), now = frontMatterOffset(after);
+    int place(int pos) => pos <= was ? now : pos + now - was;
+    final selection = EditorSelection.create([for (final range in editor.state.selection.ranges) EditorSelection.range(place(range.anchor), place(range.head))], editor.state.selection.mainIndex);
+    editor.dispatch(TransactionSpec(changes: ChangeSpec(from: 0, to: was, insert: after.substring(0, now)), selection: selection, scrollIntoView: scroll, userEvent: userEvent));
+    return true;
+  }
+
+  /// The More sheet's Look: the key written into the front matter through the editor, as one undo step; Plain takes
+  /// it off. The person's own doing, so a note given its words by the app is theirs from here (`chooseLook`).
+  void chooseLook(Look? next) {
+    if (!_writeFrontMatter((doc) => withLook(doc, next), 'input.look')) return;
+    _records.forget(_id);
+    _records.spoilFresh(_id);
+    _drafted = false;
+    setState(() {
+      _untouched = false;
+      _fresh = false;
+    });
+    HapticsProvider.of(context)(HapticKind.selection);
+  }
+
+  /// The tag written into the note, or taken out, as one undo step; where the editor is hidden behind a canvas or a
+  /// book's index, through the words as a rename is (`writeTag`).
+  bool writeTag(GeoTag? next) {
+    if (_typed && !_source) {
+      final after = withGeoTag(_saving.body, next);
+      if (after != _saving.body) {
+        _onChange(after);
+        _typedBody = after;
+      }
+    } else if (!_writeFrontMatter((doc) => withGeoTag(doc, next), 'input.location', scroll: true)) {
+      if (geoTagOf(_saving.body) == next) return true;
+      return false;
+    }
+    setState(() => _tag = next);
+    return true;
+  }
+
+  /// The name typed in the More sheet, into the front matter; the index takes it too (`renameHere`).
+  void renameHere(String next) {
+    final named = withFrontMatterTitle(_saving.body, next);
+    if (named == _saving.body) return;
+    if (_source && _view != null) {
+      _external(named);
+    } else {
+      _onChange(named);
+    }
+    setState(() => _typedBody = named);
+  }
+
+  /// A version put back: the words as they are now kept as a version first, then the version's words put in
+  /// through the editor as one change, and kept as a version of their own, named for where they came from. So the
+  /// history only grows, as `git revert` does (`restoreVersion`).
+  void restoreVersion(String text, Version version) {
+    final editor = _view;
+    final versions = widget.versions;
+    if (editor == null || versions == null) return;
+    final now = editor.state.doc.toString();
+    if (now == text) return;
+    unawaited(versions.keepVersion(_id, now).then<void>((_) {}, onError: (Object _) {}));
+    editor.dispatch(TransactionSpec(changes: ChangeSpec(from: 0, to: now.length, insert: text), userEvent: 'input.restore', scrollIntoView: true));
+    unawaited(versions.keepVersion(_id, text, label: 'Back to version ${version.n}').then<void>((_) {}, onError: (Object _) {}));
+    widget.say?.call('Back to version ${version.n}.');
+    HapticsProvider.of(context)(HapticKind.success);
+  }
+
+  /// The note's list laid out as a board: one change, so one Undo puts the note back as it was (`makeBoard`).
+  void makeBoard() {
+    final editor = _view;
+    if (editor == null) return;
+    final made = boardFrom(editor.state.doc.toString());
+    setState(() => _settingsOpen = false);
+    if (made == null) return;
+    editor.dispatch(TransactionSpec(changes: ChangeSpec(from: 0, to: editor.state.doc.length, insert: made.doc), userEvent: 'input.board'));
+    HapticsProvider.of(context)(HapticKind.success);
+    widget.say?.call('${made.cards} ${made.cards == 1 ? 'item is' : 'items are'} now cards${made.done != 0 ? ', ${made.done} in Done' : ''}.');
+  }
+
+  /// A name tapped on the blank page: the note's heading, and the caret on the line under it. Its record first, so a
+  /// note named and left without a word of the person's own is taken back. One change, so one undo takes it back to
+  /// a blank page with the names on it (`nameIt`).
+  void nameIt(String name) {
+    final editor = _view;
+    if (editor == null || !_records.isFresh(_id)) return;
+    final words = '# $name\n\n';
+    _records.remember(_id, UntouchedRecord(title: name, words: words, at: DateTime.now().millisecondsSinceEpoch));
+    _drafted = true;
+    setState(() => _untouched = true);
+    final from = frontMatterOffset(editor.state.doc.toString());
+    editor.dispatch(TransactionSpec(changes: ChangeSpec(from: from, to: editor.state.doc.length, insert: words), selection: EditorSelection.single(from + words.length), scrollIntoView: true, userEvent: 'input.name'));
+    if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.minScrollExtent);
+    // Kept now, not on typing's beat: a note named and left at once is looked at by its take-back from the store.
+    flush();
+    editor.focus();
+    HapticsProvider.of(context)(HapticKind.selection);
+  }
+
+  // ---- the tools ----------------------------------------------------------------------------------------------------
+
+  void _chooseView(NoteView value) {
+    if (_prefs.value.noteView == value.name) return;
+    _prefs.update((now) => now.copyWith(noteView: value.name));
+    HapticsProvider.of(context)(HapticKind.selection);
+  }
+
+  /// A canvas's or a book's own switch, between its page and its source (`showSource`).
+  void _showSource(bool next) {
+    if (next == _source) return;
+    setState(() {
+      if (!next) _typedBody = _saving.body;
+      _source = next;
+    });
+    HapticsProvider.of(context)(HapticKind.selection);
+  }
+
+  void _switchView() => _typed ? _showSource(_onPage) : _chooseView(_onPage ? NoteView.mixed : NoteView.formatted);
+
+  void _openMore() => _openSettings();
+
+  void _openSettings([NoteSettingsPage? at]) => setState(() {
+        _settingsAt = at;
+        _settingsOpen = true;
+      });
+
+  /// Pin or unpin, from the bar or from More (`togglePin`).
+  void togglePin() {
+    flush();
+    widget.onPin(_noteNow(starred: _pinned));
+    setState(() {
+      _pinned = !_pinned;
+      _settingsOpen = false;
+    });
+    HapticsProvider.of(context)(HapticKind.selection);
+  }
+
+  void _archive() {
+    flush();
+    setState(() => _settingsOpen = false);
+    widget.onArchive(_noteNow(starred: _pinned));
+  }
+
+  void _remove() {
+    // No confirmation: it goes to the trash, with an Undo, and is only deleted for good from there.
+    setState(() => _settingsOpen = false);
+    HapticsProvider.of(context)(HapticKind.warning);
+    flush();
+    widget.onDelete(_id);
+  }
+
+  Note _noteNow({required bool starred}) {
+    final note = widget.note;
+    return Note(
+      id: note.id,
+      body: _saving.body,
+      createdAt: note.createdAt,
+      updatedAt: note.updatedAt,
+      source: note.source,
+      sourceName: note.sourceName,
+      starred: starred,
+      archivedAt: note.archivedAt,
+      recordingMs: note.recordingMs,
+      segments: note.segments,
+      formatted: note.formatted,
+      formattedFor: note.formattedFor,
+      formattedModel: note.formattedModel,
+      path: note.path,
+      revision: note.revision,
+    );
+  }
+
+  ({bool marked, VoidCallback onPress})? _bookmark() {
+    final view = _view;
+    final ask = widget.seams.bookmark;
+    return view == null || ask == null || !_scroll.hasClients ? null : ask(view, _scroll.position);
+  }
+
+  void _speak() {
+    flush();
+    widget.onSpeak?.call(_id);
+  }
+
+  String? get _speakWords => widget.onSpeak == null ? null : (_isJournal ? 'Speak an entry' : 'Talk into this note');
+
+  /// What comes out of More into the bar while there is room, in this order: Share, History, Comment, Bookmark,
+  /// Pin/Unpin, Archive, Speak (`actions`). Each is there only where More would have it, and stays in More too.
+  List<ToolAction> _actions() {
+    final seams = widget.seams;
+    final view = _view;
+    final mark = _bookmark();
+    final history = widget.versions != null && !_isCanvas && !widget.readOnly;
+    final speak = _speakWords;
+    return [
+      if (seams.onShare != null) ToolAction(id: 'share', label: 'Share', icon: Lucide.share2, onPress: seams.onShare!),
+      if (history) ToolAction(id: 'history', label: 'Version history', icon: Lucide.history, onPress: () => widget.onHistory != null ? widget.onHistory!() : _openSettings(NoteSettingsPage.history)),
+      if (seams.onComment != null && !_typed && view != null) ToolAction(id: 'comment', label: 'Comment', icon: Lucide.messageSquarePlus, onPress: () => seams.onComment!(view)),
+      if (mark != null) ToolAction(id: 'bookmark', label: mark.marked ? 'Move or remove the bookmark' : 'Bookmark this line', icon: mark.marked ? Lucide.bookmarkCheck : Lucide.bookmark, onPress: mark.onPress, on: mark.marked),
+      if (!widget.readOnly) ...[
+        ToolAction(id: 'pin', label: _pinned ? 'Unpin' : 'Pin to the top', icon: _pinned ? Lucide.pinOff : Lucide.pin, onPress: togglePin, on: _pinned),
+        ToolAction(id: 'archive', label: 'Archive', icon: Lucide.archive, onPress: _archive),
+      ],
+      if (speak != null && !widget.readOnly) ToolAction(id: 'speak', label: speak, icon: Lucide.mic, onPress: _speak),
+    ];
+  }
+
+  NoteToolsModel _model({bool more = true}) => NoteToolsModel(kind: _kind, page: _onPage, switchable: true, onSwitch: _switchView, onMore: _openMore, more: more, actions: _actions());
+
+  /// The tools follow the screen: handed a new model after the frame, when what they draw has changed.
+  void _syncTools({required bool more}) {
+    final model = _model(more: more);
+    final key = '${model.kind.name}|${model.page}|${model.more}|${[for (final action in model.actions) '${action.id}:${action.label}:${action.on}'].join(',')}';
+    if (key == _toolsKey) return;
+    _toolsKey = key;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _toolsModel.value = model;
+    });
+  }
+
+  // ---- two fingers --------------------------------------------------------------------------------------------------
+
+  void _pointerDown(PointerDownEvent event) {
+    // The person's own touch ends a restore of where the note was left.
+    _keeper?.touched();
+    if (event.kind != PointerDeviceKind.touch) return;
+    _pinch.put(event.pointer, event.position);
+    final view = _view;
+    final mid = _pinch.middle;
+    if (!_pinch.pinching || mid == null || view == null || !_words) return;
+    final pos = view.posAtCoords(mid, precise: false);
+    final at = pos == null ? null : view.coordsAtPos(pos);
+    _pinching = (distance: _pinch.apart, zoom: _zoom.value, pos: at == null ? null : pos, y: at?.top ?? mid.dy);
+    // Two fingers are a pinch, not a scroll: the page is held where it is, and the drag the first finger began is over.
+    if (_scroll.hasClients) _held = _scroll.position.hold(() => _held = null);
+  }
+
+  void _pointerMove(PointerMoveEvent event) {
+    if (event.kind != PointerDeviceKind.touch) return;
+    _pinch.put(event.pointer, event.position);
+    final start = _pinching;
+    if (start == null || !_pinch.pinching) return;
+    final wanted = pinched(start.zoom, start.distance, _pinch.apart);
+    if (wanted == _zoom.value) return;
+    _zoom.value = wanted;
+    // The words that were under the fingers go back under them as the lines reflow.
+    SchedulerBinding.instance.addPostFrameCallback((_) => _holdUnderFingers(start));
+  }
+
+  void _holdUnderFingers(({double distance, double zoom, int? pos, double y}) start) {
+    final view = _view;
+    final pos = start.pos;
+    if (!mounted || view == null || pos == null || !_scroll.hasClients) return;
+    final at = view.coordsAtPos(pos);
+    if (at == null) return;
+    final page = _scroll.position;
+    final to = (page.pixels + at.top - start.y).clamp(page.minScrollExtent, page.maxScrollExtent < page.minScrollExtent ? page.minScrollExtent : page.maxScrollExtent);
+    if ((to - page.pixels).abs() > 0.01) page.jumpTo(to);
+  }
+
+  void _pointerUp(PointerEvent event) {
+    if (event.kind != PointerDeviceKind.touch) return;
+    _pinch.lift(event.pointer);
+    final start = _pinching;
+    if (start == null || _pinch.fingers >= 2) return;
+    _holdUnderFingers(start);
+    _zoom.keep();
+    _pinching = null;
+    _held?.cancel();
+    _held = null;
+    _view?.requestMeasure<void>();
+  }
+
+  // ---- drawing ------------------------------------------------------------------------------------------------------
+
+  /// How tall the header's glass is: with the tools in the app's bar it holds nothing and is exactly the bar
+  /// (`.header:empty`); with its own row, the row and its padding.
+  static double _headerHeight(Tokens t, bool inBar) => inBar ? t.len('app-safe-top') : t.len('app-safe-top') + t.space(1) + t.len('app-bar-ring') + t.space(2);
+
+  /// A card where a view of another stage will be drawn.
+  Widget _standIn(BuildContext context, String what, String stage) {
+    final t = context.tokens;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: t.len('app-gutter'), vertical: t.space(5)),
+      child: Semantics(
+        container: true,
+        label: '$what. $stage',
+        child: ExcludeSemantics(
+          child: Container(
+            padding: EdgeInsets.all(t.space(4)),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(t.radius('lg')), border: Border.all(color: t.color('app-rule'), width: snapBorder(context, t.len('app-line')))),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              spacing: t.space(1),
+              children: [
+                Text(what, style: pageText(t, t.fontSize('md'), weight: 'medium', color: t.color('glacier-text'))),
+                Text(stage, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _view0(BuildContext context) {
+    final seams = widget.seams;
+    void write(String next) {
+      _onChange(next);
+      setState(() => _typedBody = next);
+    }
+
+    if (_drawing) {
+      return seams.canvas?.call(context, _typedBody, write) ?? _standIn(context, 'This note is a canvas.', 'The canvas is drawn in stage 6. Its JSON is behind the view switch.');
+    }
+    if (_isJournal) {
+      return seams.journal?.call(context, _typedBody, write) ?? _standIn(context, 'This note is a journal.', 'A journal’s entries are drawn in stage 5. Its Markdown is behind the view switch.');
+    }
+    return seams.book?.call(context, _typedBody, write) ?? _standIn(context, 'This note is a notebook.', 'A notebook’s index is drawn in stage 5. Its Markdown is behind the view switch.');
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, box) => _build(context, box.maxWidth));
+
+  Widget _build(BuildContext context, double pageWidth) {
+    final t = context.tokens;
+    final prefs = _prefs.value;
+    final seams = widget.seams;
+    final bar = TopBarTools.maybeOf(context);
+    final inBar = bar != null;
+    _syncTools(more: !inBar);
+
+    final headerHeight = _headerHeight(t, inBar);
+    // `--wisp-under`: the header's height as the page reads it, a whole pixel (`offsetHeight`).
+    final under = headerHeight.roundToDouble();
+    // `.header:empty ~ .page`: the room the header's padding used to be, kept by the page.
+    final padTop = inBar ? under + t.space(1) + t.space(2) : under;
+    final gutter = t.len('app-gutter');
+    final look = _typed ? null : _look;
+    // `.page[data-look='reading'] > .byline`: the column's own left edge, from 600px: half of what the page has past
+    // 36rem, or the gutter where it has less.
+    final past = (pageWidth - t.lenOf('36rem')) / 2;
+    final columnStart = look == Look.reading && MediaQuery.sizeOf(context).width >= 600 ? (gutter > past ? gutter : past) : null;
+    final smokes = footSmokes(prefs.wispEdge, still: t.reducedMotion);
+    final authors = authorsOf(widget.note.body);
+    final view = _view;
+    final tag = _tag;
+    final book = widget.book;
+
+    final spec = NoteEditorSpec(
+      // A canvas's JSON or a book's Markdown, once asked for, is what the view has written by now.
+      value: _typed && _source ? _saving.body : widget.note.body,
+      onChange: _onChange,
+      onView: _onView,
+      display: _typed ? NoteView.mixed : (noteViewNamed(prefs.noteView) ?? NoteView.mixed),
+      readOnly: widget.readOnly,
+      look: look?.name,
+      zoom: _zoom.value,
+      pageWidth: pageWidth,
+      headClear: headerHeight,
+      // The line being typed stays above the page's foot smoke, where there is smoke to keep clear of.
+      footClear: !_isCanvas && smokes ? wispEdgeFootClear : 0,
+      meHue: null,
+    );
+
+    final scroller = CustomScrollView(
+      key: _page,
+      controller: _scroll,
+      slivers: [
+        SliverToBoxAdapter(child: SizedBox(height: padTop)),
+        // A chapter's book, its place in it and the chapters either side (docs/BOOKS.md).
+        if (book != null && seams.bookBar != null) SliverToBoxAdapter(child: seams.bookBar!(context, book)),
+        // Who wrote it, when it names anyone: a book says so for all its pages, in its index.
+        if (!_paging && authors.isNotEmpty) SliverToBoxAdapter(child: NoteByline(authors: authors, start: columnStart)),
+        // Where it was written: the map at the top of the note, where the page scrolls with the words.
+        if (tag != null && _words && seams.mapCard != null) SliverToBoxAdapter(child: seams.mapCard!(context, tag, header: look == Look.map)),
+        if (!_words) SliverToBoxAdapter(child: _view0(context)),
+        // The editor stays mounted behind a canvas or an index, hidden, so its caret keeps its place.
+        SliverOffstage(offstage: !_words, sliver: widget.editorBuilder(context, spec)),
+        if (_words) ...[
+          // `.body { padding-block-end: var(--app-safe-bottom) }`
+          SliverToBoxAdapter(child: SizedBox(height: t.len('app-safe-bottom'))),
+          if (book != null && seams.bookFoot != null) SliverToBoxAdapter(child: seams.bookFoot!(context, book)),
+          // `.page[data-scrolls] > .body { flex: 1 0 auto }`: the editor is the rest of the page, and a tap there is a tap in it.
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: GestureDetector(behavior: HitTestBehavior.translucent, onTap: () => _view?.focus(), child: const SizedBox.expand()),
+          ),
+        ],
+      ],
+    );
+
+    // `noteRise`: 320ms ease-out, rising 8px as it fades in.
+    final curve = CurvedAnimation(parent: _rise, curve: Curves.easeOut);
+    final page = t.reducedMotion
+        ? scroller
+        : AnimatedBuilder(
+            animation: curve,
+            builder: (context, child) => Opacity(opacity: curve.value, child: Transform.translate(offset: Offset(0, 8 * (1 - curve.value)), child: child)),
+            child: scroller,
+          );
+
+    return ColoredBox(
+      color: t.color('glacier-bg'),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          TopBarFill(
+            tools: inBar ? _tools : null,
+            tail: inBar ? _more : null,
+            child: Listener(
+              onPointerDown: _pointerDown,
+              onPointerMove: _pointerMove,
+              onPointerUp: _pointerUp,
+              onPointerCancel: _pointerUp,
+              onPointerSignal: (_) => _keeper?.touched(),
+              // The note goes to smoke as it slips behind the header, and off the bottom where the dock is; not a
+              // canvas, which is not a page that scrolls off its foot.
+              child: WispEdge(under: under, foot: !_isCanvas, child: page),
+            ),
+          ),
+          // A note with no words yet: the ghost with its pen, a little under the first line, gone at the first word.
+          if (_saving.blank && !_typed) _BlankGhost(scroll: _scroll, top: padTop + (authors.isEmpty ? 0 : t.space(2) + 1.5 * 0.85 * t.fontSize('sm')) + t.lenOf('9rem')),
+          // The header: glass over the page, holding the note's own controls where the app's bar is not there to.
+          HeaderPane(
+            child: inBar
+                ? null
+                : Padding(
+                    // `.header { padding-inline: gutters; padding-block: safe-top + space-1, space-2 }`
+                    padding: EdgeInsets.fromLTRB(t.len('app-gutter-start'), t.space(1), t.len('app-gutter-end'), t.space(2)),
+                    child: LayoutBuilder(
+                      builder: (context, box) => Row(mainAxisAlignment: MainAxisAlignment.end, children: [NoteTools(model: _toolsModel, room: box.maxWidth)]),
+                    ),
+                  ),
+          ),
+          // The note's one line of problems.
+          if (_stopped)
+            Positioned(
+              top: headerHeight,
+              left: 0,
+              right: 0,
+              child: Semantics(
+                liveRegion: true,
+                child: ColoredBox(
+                  color: t.color('glacier-bg'),
+                  child: Padding(
+                    // `.problem { padding: var(--glacier-space-1) var(--app-gutter) 0; font-size: sm; color: var(--app-ink-3) }`
+                    padding: EdgeInsets.fromLTRB(gutter, t.space(1), gutter, t.space(1)),
+                    child: Text(saveStoppedWords, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+                  ),
+                ),
+              ),
+            ),
+          if (view != null && _words && seams.over != null) ...seams.over!(context, view),
+          if (_settingsOpen) _settings(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _settings(BuildContext context) {
+    final seams = widget.seams;
+    final view = _view;
+    final versions = widget.versions;
+    final mark = _bookmark();
+    final speak = _speakWords;
+    final words = !_typed || _source;
+    void close() => setState(() => _settingsOpen = false);
+    return NoteSettings(
+      noteId: _id,
+      title: _saving.title,
+      pinned: _pinned,
+      workspaces: widget.workspaces,
+      onClose: close,
+      onPin: togglePin,
+      onArchive: _archive,
+      onDelete: _remove,
+      marked: mark?.marked ?? false,
+      onBookmark: mark == null
+          ? null
+          : () {
+              close();
+              mark.onPress();
+            },
+      onFind: seams.onFind == null || view == null
+          ? null
+          : () {
+              close();
+              seams.onFind!(view, '');
+            },
+      onMakeBoard: !widget.readOnly && words && boardFrom(view?.state.doc.toString() ?? _saving.body) != null ? makeBoard : null,
+      name: _typed && !widget.readOnly ? NoteName(value: _saving.title, onChange: renameHere, kind: _isCanvas ? 'canvas' : (_isJournal ? 'journal' : 'notebook')) : null,
+      onSpeak: speak == null || widget.readOnly ? null : _speak,
+      speakLabel: speak ?? 'Talk into this note',
+      look: !_typed && !widget.readOnly ? NoteLook(value: _look, canMap: _tag != null || _look == Look.map, onChange: chooseLook) : null,
+      onAi: seams.onAi == null || view == null ? null : (kind, [instruction]) => seams.onAi!(view, kind, instruction),
+      onComment: seams.onComment == null || view == null || _typed ? null : () => seams.onComment!(view),
+      commentsSummary: seams.commentsSummary?.call(),
+      onCommentsList: seams.onCommentsList,
+      sharing: seams.sharing?.call(context),
+      linked: seams.linked?.call(context),
+      location: seams.location?.call(_tag),
+      history: versions != null && !_isCanvas && !widget.readOnly
+          ? NoteHistory(record: versions, keeps: _versioning?.keeps ?? versions.keepsVersions(_id), current: () => _view?.state.doc.toString() ?? _saving.body, onRestore: restoreVersion, onShareFile: seams.shareVersionsFile)
+          : null,
+      startAt: _settingsAt,
+      cheatSheet: seams.cheatSheet,
+      say: widget.say,
+    );
+  }
+}
+
+/// `withFrontMatterTitle` (core/frontMatter.ts): the body named by a `title:` key, first in its front matter, or
+/// with the key taken out where the name is empty, and a block that held nothing else with it.
+String withFrontMatterTitle(String body, String title) {
+  final clean = title.trim();
+  final named = clean.isEmpty ? null : 'title: ${quotedTitle(clean, clean)}';
+  final lines = body.split('\n');
+  final end = frontMatterEnd(lines);
+  if (end == 0) return named != null ? '---\n$named\n---\n$body' : body;
+  final own = RegExp(r'^\s*title\s*:', caseSensitive: false);
+  final keys = [
+    ?named,
+    for (final key in lines.sublist(1, end - 1))
+      if (!own.hasMatch(key)) key,
+  ];
+  final rest = lines.sublist(end);
+  if (keys.isEmpty) return rest.join('\n');
+  return [lines[0], ...keys, lines[end - 1], ...rest].join('\n');
+}
+
+/// `.blankGhost`: the ghost on a note with no words, in the middle of the column, [top] down the page and going up
+/// with it. Nothing to tap, so the editor under it still takes the finger.
+class _BlankGhost extends StatelessWidget {
+  const _BlankGhost({required this.scroll, required this.top});
+  final ScrollController scroll;
+  final double top;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: scroll,
+      builder: (context, child) => Positioned(top: top - (scroll.hasClients && scroll.position.hasPixels ? scroll.position.pixels : 0), left: 0, right: 0, child: child!),
+      child: const IgnorePointer(child: Ghost(scene: GhostScene.newNote, align: GhostAlign.center)),
+    );
+  }
+}
