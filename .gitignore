@@ -49,3 +49,7 @@ app.*.map.json
 
 # What a picture test writes when it differs.
 **/failures/
+
+# The Rust core (native/, tool/build-native.sh): cargo's output, and the phone's library it copies for Gradle.
+/native/target/
+/android/app/src/main/jniLibs/

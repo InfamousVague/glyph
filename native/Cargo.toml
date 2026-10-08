@@ -1,0 +1,32 @@
+# Ghost.md's Rust core for the Flutter app: the notes library of ../glyph/src-tauri, behind a C ABI.
+# Nothing of the library is copied here: src/lib.rs includes the real files by `#[path]`. docs/STAGE3.md.
+[package]
+name = "ghost_core"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "ghost_core"
+path = "src/lib.rs"
+# cdylib is what Dart opens (libghost_core.so on Android, .dylib on the Mac); rlib is what `cargo test` links.
+crate-type = ["cdylib", "rlib"]
+# The included files' doc comments are prose with indented examples, not doctests.
+doctest = false
+
+# Exactly what the included files use, at the versions ../glyph/src-tauri/Cargo.toml pins (Cargo.lock began as
+# ../glyph/tools/host-tests' own, so the versions resolved are the Tauri app's too).
+[dependencies]
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1.26.1", features = ["v4"] }
+
+[features]
+# A `test_panic` command, so a test on the Dart side can see a panic come back as an `err`. tool/build-native.sh
+# turns it on for the Mac's library only; the phone's has no such command.
+test-hooks = []
+
+# Panics must unwind (the default): ffi.rs catches them at the boundary. Do not set `panic = "abort"`.
+[profile.release]
+strip = true

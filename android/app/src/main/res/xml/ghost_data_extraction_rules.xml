@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Google's backup and a move to a new phone, on Android 12 and later (AndroidManifest.xml,
+  android:dataExtractionRules). The same as ghost_backup_rules.xml, which says why: the notes go, the library's
+  index (a cache the Rust core rebuilds) stays behind, for the cloud and for a move by cable alike.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" path="Library/.glyph/index.sqlite" />
+        <exclude domain="root" path="Library/.glyph/index.sqlite-wal" />
+        <exclude domain="root" path="Library/.glyph/index.sqlite-shm" />
+        <exclude domain="root" path="index/" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" path="Library/.glyph/index.sqlite" />
+        <exclude domain="root" path="Library/.glyph/index.sqlite-wal" />
+        <exclude domain="root" path="Library/.glyph/index.sqlite-shm" />
+        <exclude domain="root" path="index/" />
+    </device-transfer>
+</data-extraction-rules>

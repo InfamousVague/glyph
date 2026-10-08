@@ -2,7 +2,11 @@
     <application
         android:label="Ghost Flutter"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:fullBackupContent="@xml/ghost_backup_rules"
+        android:dataExtractionRules="@xml/ghost_data_extraction_rules">
+        <!-- The backup rules keep the library's index (Library/.glyph/index.sqlite, a cache) out of a backup;
+             the notes themselves go. res/xml/ghost_backup_rules.xml says why. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
