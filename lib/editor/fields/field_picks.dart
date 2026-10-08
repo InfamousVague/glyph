@@ -7,27 +7,10 @@
 ///   [PriorityPick], [PersonPick], [DayPick]), each with value equality, so a pick can be compared by what it says.
 ///   `StatusLook`, a union of five strings, is an enum whose names are those strings. `HUES` is [hues]; a hue is
 ///   its name as a string, the name its tokens are called by (`glacier-blue-11`).
-/// - **[pickOf] and [picksField] do not take the query core's `Row` and `Cell`** (`core/query/run.ts`), which were
-///   not ported when this was written (lib/core/query/ did not exist). They take the little of each that they read:
-///   a [PickRow] (whether the record is a to-do, its box, its workflow) and a [PickCell] (the status's words, the
-///   priority's name, the first person, or the day, whichever the cell holds). The query view calls it so:
-///
-///       pickOf(
-///         PickRow(task: row.kind == 'task', done: row.done, workflow: row.workflow),
-///         column.field,
-///         switch (cell) {
-///           a status cell => PickCell(status: cell.text),
-///           a priority cell => PickCell(priority: cell.name),
-///           a people cell => PickCell(person: cell.names.firstOrNull),
-///           a day cell => PickCell(day: cell.day),
-///           _ => PickCell.empty,
-///         },
-///         today,
-///         people,
-///       )
-///
-///   A cell of another kind than its field asks for is read as holding nothing, as on the page, because [pickOf]
-///   reads only the one value its field names.
+/// - [pickOf] and [picksField] take the query core's own [QueryRow] and [Cell] (lib/core/query/run.dart), as the
+///   page's take `Row` and `Cell`. They were written before that core was ported and read a `PickRow` and a
+///   `PickCell` of their own for a while; those are gone. A cell of another kind than its field asks for is read as
+///   holding nothing, as on the page.
 /// - A name's letters are added up by UTF-16 unit, a letter outside the basic plane by its first unit, as the page's
 ///   `for … of` with `charCodeAt(0)` adds them, so a name has the hue here that it has there.
 library;
@@ -35,6 +18,8 @@ library;
 import 'package:flutter/foundation.dart' show immutable, listEquals;
 
 import '../../core/properties.dart';
+import '../../core/query/records.dart' show RecordKind;
+import '../../core/query/run.dart' show Cell, DayCell, PeopleCell, PriorityCell, QueryRow, StatusCell;
 
 /// What a sheet picks, with what the field holds now (`FieldPick`).
 @immutable
@@ -149,51 +134,28 @@ String hueOf(String name) {
   return hues[sum % hues.length];
 }
 
-/// What [pickOf] reads of a query's row: whether it is a to-do (`row.kind === 'task'`), a to-do's box (`row.done`,
-/// null for a note or a to-do with no box), and the workflow its status moves through (`row.workflow`).
-@immutable
-class PickRow {
-  const PickRow({this.task = false, this.done, this.workflow = defaultStatuses});
-  final bool task;
-  final bool? done;
-  final List<String> workflow;
-}
-
-/// What [pickOf] reads of a query's cell: the one value it holds, by its kind. A status cell's words, a priority
-/// cell's name, a people cell's first name, a day cell's day; all null for any other cell ([empty]).
-@immutable
-class PickCell {
-  const PickCell({this.status, this.priority, this.person, this.day});
-  final String? status;
-  final String? priority;
-  final String? person;
-  final String? day;
-
-  static const PickCell empty = PickCell();
-}
-
 /// The days a sheet picks: a due and a start day, and a to-do's scheduled day, which a ticket does not have.
 const Set<String> _pickedDays = <String>{'due', 'start', 'scheduled'};
 
-bool _picksDay(PickRow row, String key) => _pickedDays.contains(key) && (row.task || key != 'scheduled');
+bool _picksDay(QueryRow row, String key) => _pickedDays.contains(key) && (row.kind == RecordKind.task || key != 'scheduled');
 
 /// What sheet a record's field opens, from what it holds now; null for a field nothing picks (a title, a tag, a
 /// note). [people] is asked only for a person, since answering it reads every note.
-FieldPick? pickOf(PickRow row, String field, PickCell cell, String today, List<String> Function() people) {
+FieldPick? pickOf(QueryRow row, String field, Cell cell, String today, List<String> Function() people) {
   final key = field.toLowerCase();
   if (key == 'status') {
-    if (row.task) return row.done == null ? null : BoxPick(done: row.done!);
-    return StatusPick(value: cell.status, workflow: row.workflow);
+    if (row.kind == RecordKind.task) return row.done == null ? null : BoxPick(done: row.done!);
+    return StatusPick(value: cell is StatusCell ? cell.text : null, workflow: row.workflow);
   }
-  if (key == 'priority') return PriorityPick(value: cell.priority);
-  if (key == 'assignee') return PersonPick(value: cell.person, people: people());
-  if (_picksDay(row, key)) return DayPick(value: cell.day, today: today);
+  if (key == 'priority') return PriorityPick(value: cell is PriorityCell ? cell.name : null);
+  if (key == 'assignee') return PersonPick(value: cell is PeopleCell ? cell.names.firstOrNull : null, people: people());
+  if (_picksDay(row, key)) return DayPick(value: cell is DayCell ? cell.day : null, today: today);
   return null;
 }
 
 /// Whether a field is one [pickOf] opens a sheet for, without reading the people.
-bool picksField(PickRow row, String field) {
+bool picksField(QueryRow row, String field) {
   final key = field.toLowerCase();
-  if (key == 'status') return !row.task || row.done != null;
+  if (key == 'status') return row.kind != RecordKind.task || row.done != null;
   return key == 'priority' || key == 'assignee' || _picksDay(row, key);
 }

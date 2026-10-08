@@ -1,15 +1,32 @@
 // Which sheet a query's value opens, with what it holds now (lib/editor/fields/field_picks.dart; docs/DESIGN.md
 // §169), and the marks a status and a person wear in it: `src/app/editor/fieldPicks.test.ts`, case for case.
 //
-// What is asked differently: the page's cases hand `pickOf` a query's whole `Row` and `Cell`; the port's takes the
-// little of each it reads (`PickRow`, `PickCell`; see the library's "What differs"), so a row here is its kind, its
-// box and its workflow, and a cell the one value it holds.
+// The rows and cells are the query core's own (lib/core/query/run.dart), as the page's cases hand `pickOf` a query's
+// `Row` and `Cell`.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/properties.dart';
+import 'package:ghost_md/core/query/query.dart';
 import 'package:ghost_md/editor/fields/field_picks.dart';
 
-PickRow row({bool task = false, bool? done, List<String> workflow = defaultStatuses}) => PickRow(task: task, done: done, workflow: workflow);
-const PickCell empty = PickCell.empty;
+QueryRow row({bool task = false, bool? done, List<String> workflow = defaultStatuses}) => QueryRow(
+  key: 'n',
+  kind: task ? RecordKind.task : RecordKind.ticket,
+  noteId: 'n',
+  line: task ? 0 : -1,
+  source: '',
+  anchor: null,
+  name: 'A record',
+  id: null,
+  done: done,
+  category: StatusCategory.todo,
+  workflow: workflow,
+  cells: const <Cell>[],
+  day: null,
+  start: null,
+  due: null,
+  overdue: false,
+);
+const Cell empty = EmptyCell();
 const String today = '2026-10-05';
 List<String> none() => const <String>[];
 
@@ -17,7 +34,7 @@ void main() {
   group('the sheet a value opens', () {
     test('opens a ticket’s status on its workflow, with the status it has', () {
       const workflow = <String>['Open', 'Doing', 'Shipped'];
-      expect(pickOf(row(workflow: workflow), 'status', const PickCell(status: 'Doing'), today, none), const StatusPick(value: 'Doing', workflow: workflow));
+      expect(pickOf(row(workflow: workflow), 'status', const StatusCell('Doing', StatusCategory.doing), today, none), const StatusPick(value: 'Doing', workflow: workflow));
       expect(pickOf(row(), 'status', empty, today, none), const StatusPick(value: null, workflow: defaultStatuses));
     });
 
@@ -27,9 +44,9 @@ void main() {
     });
 
     test('opens a priority, a person and a day with what each holds', () {
-      expect(pickOf(row(), 'priority', const PickCell(priority: 'high'), today, none), const PriorityPick(value: 'high'));
-      expect(pickOf(row(), 'Assignee', const PickCell(person: 'Sam'), today, () => const <String>['Sam', 'Alex']), const PersonPick(value: 'Sam', people: <String>['Sam', 'Alex']));
-      expect(pickOf(row(), 'due', const PickCell(day: '2026-10-03'), today, none), const DayPick(value: '2026-10-03', today: today));
+      expect(pickOf(row(), 'priority', const PriorityCell('high'), today, none), const PriorityPick(value: 'high'));
+      expect(pickOf(row(), 'Assignee', const PeopleCell(<String>['Sam']), today, () => const <String>['Sam', 'Alex']), const PersonPick(value: 'Sam', people: <String>['Sam', 'Alex']));
+      expect(pickOf(row(), 'due', const DayCell('2026-10-03'), today, none), const DayPick(value: '2026-10-03', today: today));
       expect(pickOf(row(task: true, done: false), 'scheduled', empty, today, none), const DayPick(value: null, today: today));
     });
 
