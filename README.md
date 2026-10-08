@@ -58,8 +58,9 @@ on the same phone.
 ## What stage 2 left open
 
 - **Stand-ins until their stage:** the notes are the store screenshots' invented library in memory (`SampleLibrary`;
-  stage 3, planned in `docs/STAGE3.md`); an opened note is its title over its Markdown as written (stage 4); every
-  Settings section but Appearance opens a card that says it is not ported; the notifications card is empty and Speak,
+  stage 3, planned in `docs/STAGE3.md`); an opened note is its title over its Markdown as written (stage 4); Settings'
+  Library folder, Backup and Plugins open a card that says they are not ported, and its signed-in pages wait for
+  the account; the notifications card is empty and Speak,
   organizations, notebooks and journals have no way in yet.
 - **Not wired though built:** `NoteActions` (delete with the web's Undo toast; the root keeps a plain trash),
   `NewSheet` (the dock's + makes a note directly), `Notices`, `TemplateCards`.

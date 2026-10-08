@@ -4,6 +4,20 @@ import '../core/preferences.dart';
 import 'appearance_pane.dart';
 import 'kit/settings_icons.dart';
 import 'kit/settings_kit.dart';
+import 'panes/about_pane.dart';
+import 'panes/account_pane.dart';
+import 'panes/ai_pane.dart';
+import 'panes/cheat_sheet.dart';
+import 'panes/developer_pane.dart';
+import 'panes/examples_pane.dart';
+import 'panes/export_pane.dart';
+import 'panes/notifications_pane.dart';
+import 'panes/organizations_pane.dart';
+import 'panes/recording_pane.dart';
+import 'panes/settings_host.dart';
+import 'panes/spec_pane.dart';
+import 'panes/test_results_pane.dart';
+import 'panes/workspaces_pane.dart';
 import 'settings_search.dart';
 import 'words.dart';
 
@@ -12,9 +26,28 @@ import 'words.dart';
 /// pane.
 @immutable
 class SettingsFacts {
-  const SettingsFacts({required this.prefs, required this.wide, required this.haptics, required this.android, required this.ios, required this.developer});
+  const SettingsFacts({
+    required this.prefs,
+    required this.wide,
+    required this.haptics,
+    required this.android,
+    required this.ios,
+    required this.developer,
+    this.workspaces,
+    this.updates,
+    this.features = const SettingsFeatures(),
+  });
 
   final Preferences prefs;
+
+  /// How many workspaces the sheet's store holds; null reads the preferences' own.
+  final int? workspaces;
+
+  /// What About says of this build; null until the app has an updater.
+  final SettingsUpdates? updates;
+
+  /// What the features that are not ported yet would say (the account, the models, the tests' report).
+  final SettingsFeatures features;
 
   /// Whether the window has room for the sidebar (`useSidebar`).
   final bool wide;
@@ -82,35 +115,12 @@ class SettingsSectionSpec {
   final WidgetBuilder? pane;
 }
 
-/// Workspaces' row in the list: how many there are (`workspaceSummary`).
-String _workspaceSummary(int count) => count == 0
-    ? 'None yet'
-    : count == 1
-        ? '1 workspace'
-        : '$count workspaces';
-
 String _static(String line, SettingsFacts _) => line;
 
-/// The Privacy card's (AccountPane.findable.ts `privacy`), for the app, where a model runs.
-const List<SettingsFindable> _privacy = [
-  SettingsFindable('Privacy', 'what leaves the phone'),
-  SettingsFindable('Local only', 'offline privacy network internet nothing leaves the phone'),
-  SettingsFindable('Link previews', 'links url cards'),
-  SettingsFindable('Look up blanks online', 'fill blank weather rates wikipedia web live internet'),
-  SettingsFindable('Privacy policy', 'data privacy personal information policy'),
-];
-
-/// The Location card's (AccountPane.findable.ts `LOCATION`).
-const List<SettingsFindable> _location = [
-  SettingsFindable('Location', 'map place where geotag gps'),
-  SettingsFindable('Map on a tagged note', 'openstreetmap tiles'),
-  SettingsFindable('Place names', 'nominatim address geocode'),
-  SettingsFindable('Tag new notes with my location', 'automatic gps position geotag place where front matter'),
-];
-
 /// Every section of the web app's Settings, in the list's order (SettingsSheet.tsx `sections`), in one table: the
-/// rows on a phone, and the sub-pages off the list. A page that is ported has its [SettingsSectionSpec.pane]; the
-/// rest name the web file they will come from. To port a page, write it and put it here.
+/// rows on a phone, and the sub-pages off the list. A page that is ported has its [SettingsSectionSpec.pane] (the
+/// pages are lib/settings/panes/, each built with what the sheet hands it, `X.hosted`); the rest name the web file
+/// they will come from. To port a page, write it and put it here.
 ///
 /// The rows: who you are and what leaves the phone (Account, and beside it Organizations, Workspaces and
 /// Notifications); where the notes are and the ways to carry them off (Library folder, Backup, Export); how it
@@ -120,10 +130,12 @@ const List<SettingsFindable> _location = [
 /// What differs from the web original:
 /// - There is no account yet, so Account reads "Not signed in", Organizations "Signed out", and each lists what a
 ///   signed-out page draws.
-/// - Rows whose reading needs a store Flutter does not have are without their second line: AI (the model and what
-///   it takes to get), Plugins (how many are on), About (the version and where it stands) and Test results.
-/// - A switched-on plugin's own page, and the search words that are read from live lists (every plugin, every mark
-///   on the cheat sheet, every definition of the specification), wait for those lists.
+/// - Three pages wait, each on a feature with no Flutter port, and open the card that says so: Library folder (the
+///   library's status and a folder picker, stage 3), Backup (drives, stage 9) and Plugins (the registry, stage 9).
+///   Plugins' row is without its second line, how many are on, for the same reason.
+/// - AI's reading is the chosen model and what it takes to get, from the catalogue; About's is the version alone
+///   until the app has an updater; Test results' is "No report yet" until a report is built in.
+/// - A switched-on plugin's own page, and the search's words for every plugin, wait for the plugins.
 /// - "The app" is always true here: the web asked whether it ran inside Tauri, to leave a browser's rows out.
 final List<SettingsSectionSpec> settingsSections = [
   // Who you are, first and on its own card: it is what a person opens Settings for on a new phone.
@@ -135,14 +147,9 @@ final List<SettingsSectionSpec> settingsSections = [
     group: 0,
     webFile: 'settings/AccountPane.tsx',
     // Local only holds the sync off, so the line says it is on.
-    summary: (facts) => 'Not signed in${facts.prefs.localOnly ? ' · Local only' : ''}',
-    settings: (facts) => const [
-      SettingsFindable('I have an account', 'sign in login'),
-      SettingsFindable('Create an account', 'sign up register'),
-      SettingsFindable('Lost the password', 'forgot recovery code reset'),
-      ..._privacy,
-      ..._location,
-    ],
+    summary: (facts) => accountSummary(facts.prefs),
+    settings: (facts) => accountFindable(signedIn: facts.features.signedIn),
+    pane: AccountPane.hosted,
   ),
   // The teams the account is in: its own row under Account; one sentence signed out.
   SettingsSectionSpec(
@@ -153,6 +160,7 @@ final List<SettingsSectionSpec> settingsSections = [
     group: 0,
     webFile: 'settings/OrganizationsPane.tsx',
     summary: (facts) => 'Signed out',
+    pane: OrganizationsPane.hosted,
   ),
   // Every workspace, to rename, colour or delete: beside Organizations, whose workspaces it lists too.
   SettingsSectionSpec(
@@ -162,11 +170,10 @@ final List<SettingsSectionSpec> settingsSections = [
     glyph: SettingsGlyph.folder,
     group: 0,
     webFile: 'settings/WorkspacesPane.tsx',
-    summary: (facts) => _workspaceSummary(facts.prefs.workspaces.list.length),
-    settings: (facts) => const [
-      SettingsFindable('Your workspaces', 'workspace rename colour color delete remove'),
-      SettingsFindable('New workspace', 'create make add workspace'),
-    ],
+    // The count from the store the page edits, so the row can never disagree with it.
+    summary: (facts) => workspaceSummary(facts.workspaces ?? facts.prefs.workspaces.list.length),
+    settings: (facts) => workspacesFindable,
+    pane: WorkspacesPane.hosted,
   ),
   // What reaches you: beside Account on the first card, in the coral the shell kept free.
   SettingsSectionSpec(
@@ -176,13 +183,9 @@ final List<SettingsSectionSpec> settingsSections = [
     glyph: SettingsGlyph.bell,
     group: 0,
     webFile: 'settings/NotificationsPane.tsx',
-    summary: (facts) => '${NotificationPrefs.categories.where(facts.prefs.notifications.isOn).length} of ${NotificationPrefs.categories.length} on',
-    settings: (facts) => const [
-      SettingsFindable('Team', 'organization members joined left removed renamed invitation accepted declined'),
-      SettingsFindable('Claude', 'mcp ai note created edited appended journal rule'),
-      SettingsFindable('Summaries', 'meeting written up summary recording'),
-      SettingsFindable('Conflicts', 'sync kept twice both devices'),
-    ],
+    summary: (facts) => notificationsSummary(facts.prefs.notifications),
+    settings: (facts) => notificationsFindable(orgs: facts.features.orgs.isNotEmpty),
+    pane: NotificationsPane.hosted,
   ),
   // Where the notes are, and the two ways to carry them off: a card of their own, where the app keeps its notes in
   // files (not an iPhone), and Export everywhere.
@@ -220,7 +223,8 @@ final List<SettingsSectionSpec> settingsSections = [
     group: 1,
     webFile: 'settings/ExportCard.tsx',
     summary: (facts) => _static('Everything as one zip', facts),
-    settings: (facts) => const [SettingsFindable('Export everything', 'backup back up usb drive stick zip archive copy save all notes')],
+    settings: (facts) => exportFindable,
+    pane: ExportPane.hosted,
   ),
   SettingsSectionSpec(
     id: 'theme',
@@ -244,22 +248,9 @@ final List<SettingsSectionSpec> settingsSections = [
     webFile: 'settings/RecordingPane.tsx',
     where: (facts) => !facts.ios,
     // What a take becomes: better words, or the words as heard.
-    summary: (facts) => facts.prefs.refine ? 'Better words' : 'Words as heard',
-    settings: (facts) => [
-      const SettingsFindable('Stop when I go quiet', 'silence auto stop'),
-      const SettingsFindable('Review after recording', 'check transcript'),
-      const SettingsFindable('Better words', 'refine clean up transcript'),
-      const SettingsFindable('Summaries', 'summary meeting write-up minutes long voice notes'),
-      if (facts.android) ...const [
-        SettingsFindable('Include sound from other apps', 'system audio media games screen share meeting record'),
-        SettingsFindable('Tell me when a meeting is written up', 'notification notify alert written up'),
-        SettingsFindable('Write up straight away', 'meeting battery charging background'),
-      ],
-      // The desktop's own Meetings card: one switch, for the computer's sound.
-      if (!facts.android) const SettingsFindable("Record the computer's sound too", 'system audio meeting call both sides zoom'),
-      const SettingsFindable('Tapes', 'your tapes storage audio remove space'),
-      const SettingsFindable('Remove audio older than a month', 'storage space delete recordings audio'),
-    ],
+    summary: (facts) => recordingSummary(facts.prefs),
+    settings: (facts) => recordingFindable(android: facts.android),
+    pane: RecordingPane.hosted,
   ),
   // The model and how it fills a note: its own section where a model runs, never an iPhone.
   SettingsSectionSpec(
@@ -270,10 +261,9 @@ final List<SettingsSectionSpec> settingsSections = [
     group: 2,
     webFile: 'settings/AiPane.tsx',
     where: (facts) => !facts.ios,
-    settings: (facts) => const [
-      SettingsFindable('Model', 'ai llm download formatting format enhance summarize choose your qwen gemma storage remove'),
-      SettingsFindable('Fill blanks on their own', 'auto fill blanks automatic weather live facts idle'),
-    ],
+    summary: (facts) => aiSummary(facts.prefs, facts.features.models),
+    settings: (facts) => aiFindable,
+    pane: AiPane.hosted,
   ),
   SettingsSectionSpec(
     id: 'plugins',
@@ -290,16 +280,10 @@ final List<SettingsSectionSpec> settingsSections = [
     glyph: SettingsGlyph.info,
     group: 3,
     webFile: 'settings/AboutPane.tsx',
-    settings: (facts) => [
-      const SettingsFindable('Updates', 'update check upgrade install'),
-      // Android's own switch, drawn only where the activity has alerts to switch.
-      const SettingsFindable('Update alerts', 'notifications notify'),
-      const SettingsFindable('Ghost.md Academy', 'learn tutorial lessons'),
-      const SettingsFindable('The welcome walkthrough', 'guide onboarding set-up first launch side key how to talk to ghost.md voice commands cues hey ghost keyword'),
-      const SettingsFindable('Ghost.md: The Guide', 'guide manual help book notebook chapters add'),
-      // The App Store says what is new on an iPhone, so About draws no What's new there.
-      if (!facts.ios) const SettingsFindable("What's new", 'changelog releases'),
-    ],
+    // The version and where it stands, now that updates live on this page too.
+    summary: (facts) => aboutSummary(facts.updates),
+    settings: (facts) => aboutFindable(updates: facts.updates != null, alerts: facts.updates?.alerts != null, whatsNew: facts.updates?.store != 'appstore'),
+    pane: AboutPane.hosted,
   ),
   // Help, not settings: pages behind About's Help card, still searched, and found by their own names alone.
   SettingsSectionSpec(
@@ -311,6 +295,9 @@ final List<SettingsSectionSpec> settingsSections = [
     group: 3,
     webFile: 'guide/CheatSheet.tsx',
     summary: (facts) => _static('Every mark you can type', facts),
+    // Every mark it shows, so looking for "bold" or "spoiler" lands on it.
+    settings: (facts) => cheatSheetFindable(),
+    pane: (context) => const CheatSheet(),
     listed: false,
     parent: 'about',
   ),
@@ -322,6 +309,8 @@ final List<SettingsSectionSpec> settingsSections = [
     group: 3,
     webFile: 'settings/SpecPane.tsx',
     summary: (facts) => _static('Every extension and fill, defined', facts),
+    settings: (facts) => specFindable(),
+    pane: SpecPane.hosted,
     listed: false,
     parent: 'about',
   ),
@@ -334,12 +323,8 @@ final List<SettingsSectionSpec> settingsSections = [
     webFile: 'settings/ExamplesPane.tsx',
     // As About's row says it.
     summary: (facts) => _static('A sample note, a board and two canvases', facts),
-    settings: (facts) => const [
-      SettingsFindable('Add the sample note', 'example sample'),
-      SettingsFindable('Add the example board', 'example kanban'),
-      SettingsFindable('Add the example canvas', 'example obsidian'),
-      SettingsFindable('Add the “How Ghost.md works” canvas', 'example canvas how it works'),
-    ],
+    settings: (facts) => examplesFindable,
+    pane: ExamplesPane.hosted,
     listed: false,
     parent: 'about',
   ),
@@ -353,14 +338,8 @@ final List<SettingsSectionSpec> settingsSections = [
     webFile: 'settings/DeveloperPane.tsx',
     where: (facts) => facts.developer,
     summary: (facts) => _static('Benches, reset', facts),
-    settings: (facts) => const [
-      SettingsFindable('Window', 'inset screen engine'),
-      SettingsFindable('Smoke bench', 'wisp performance frames'),
-      SettingsFindable('Play the scene', 'scene bench thermal heat readings'),
-      SettingsFindable('Developer settings', 'mode'),
-      SettingsFindable('Reset local data', 'clear erase'),
-      SettingsFindable('Reset everything', 'clear erase models'),
-    ],
+    settings: (facts) => developerFindable,
+    pane: DeveloperPane.hosted,
   ),
   SettingsSectionSpec(
     id: 'test-results',
@@ -370,6 +349,8 @@ final List<SettingsSectionSpec> settingsSections = [
     group: 4,
     webFile: 'settings/TestResultsPane.tsx',
     where: (facts) => facts.developer,
+    summary: (facts) => reportSummary(facts.features.testReport == null ? null : TestReport.fromJson(facts.features.testReport!), buildSource: facts.features.testBuildSource),
+    pane: TestResultsPane.hosted,
   ),
 ];
 
@@ -379,13 +360,18 @@ class SettingsNotPorted extends StatelessWidget {
   final SettingsSectionSpec spec;
 
   @override
-  Widget build(BuildContext context) => PaneBody(
-        children: [
-          SettingsEmpty(
-            icon: SettingsIcon(spec.glyph, size: 20),
-            title: 'Not ported yet',
-            body: Text('${spec.label} is still the web app’s. Its page will come from src/app/${spec.webFile}.'),
-          ),
-        ],
+  Widget build(BuildContext context) => PaneBody(children: [SettingsNotPortedCard(spec: spec)]);
+}
+
+/// The card [SettingsNotPorted] is, for a page that is ported in part and says so among its own cards.
+class SettingsNotPortedCard extends StatelessWidget {
+  const SettingsNotPortedCard({super.key, required this.spec});
+  final SettingsSectionSpec spec;
+
+  @override
+  Widget build(BuildContext context) => SettingsEmpty(
+        icon: SettingsIcon(spec.glyph, size: 20),
+        title: 'Not ported yet',
+        body: Text('${spec.label} is still the web app’s. Its page will come from src/app/${spec.webFile}.'),
       );
 }

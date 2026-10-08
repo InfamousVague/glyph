@@ -300,7 +300,14 @@ class _GhostRootState extends State<GhostRoot> {
                 },
               ),
             ),
-            SettingsSheet(open: _settings, toPage: _settingsPage, onClose: () => setState(() => _settings = false)),
+            SettingsSheet(
+              open: _settings,
+              toPage: _settingsPage,
+              onClose: () => setState(() => _settings = false),
+              workspaces: _workspaces,
+              notesInWorkspace: _notesIn,
+              onTrashNotes: (ids) => ids.forEach(_trash.trashNote),
+            ),
             CommandBar.over(
               key: _commands,
               world: () => paletteWorldFor(shell: _shell.currentState!, workspaces: _workspaces.value, prefs: preferences.value),

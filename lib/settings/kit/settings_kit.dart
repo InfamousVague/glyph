@@ -282,8 +282,8 @@ class _SettingsFindableMarkState extends State<SettingsFindableMark> with Single
 /// the group card. Rows inside share one surface and hairline separators.
 ///
 /// What differs from the web original: the hairline between two rows (`.setk-row + .setk-row`) is drawn by the card,
-/// which knows a row by its type ([SettingRow], [SettingRowBox]); a row wrapped in another widget is not seen as one
-/// and gets no line, so hand the card its rows directly.
+/// which knows a row by its type ([SettingRow], [SettingRowBox], or anything else that says it is a [PaneRow]); a
+/// row wrapped in another widget is not seen as one and gets no line, so hand the card its rows directly.
 class PaneSection extends StatelessWidget {
   const PaneSection({super.key, this.title, this.description, this.footer, required this.children});
 
@@ -353,7 +353,7 @@ class PaneSection extends StatelessWidget {
     return SettingsRise(index: nth != null && nth >= 2 && nth <= 6 ? nth - 1 : 0, child: section);
   }
 
-  static bool _isRow(Widget child) => child is SettingRow || child is SettingRowBox;
+  static bool _isRow(Widget child) => child is PaneRow;
 }
 
 /// `border-block-start: var(--glacier-hairline) solid var(--app-rule)`: the line over a row that follows a row.
@@ -378,12 +378,17 @@ class _RowRulePainter extends BoxPainter {
 
 // --- the row -----------------------------------------------------------------------------------------------------
 
+/// A widget that is one row of a card (`.setk-row`), for the hairline a card draws between two of them. [SettingRow]
+/// and [SettingRowBox] are; a page's own widget that builds exactly one row, with some state of its own, says so by
+/// implementing this.
+abstract interface class PaneRow {}
+
 /// `layout` of a [SettingRow]: the control at the row's end, or across the row under its words.
 enum SettingRowLayout { trailing, stacked }
 
 /// `<div className="setk-row">` on its own: a row's padding round something a pane lays out itself (Appearance's
 /// cards of cards). It counts as a row for the hairline between rows.
-class SettingRowBox extends StatelessWidget {
+class SettingRowBox extends StatelessWidget implements PaneRow {
   const SettingRowBox({super.key, required this.child});
   final Widget child;
 
@@ -397,7 +402,7 @@ class SettingRowBox extends StatelessWidget {
 /// What differs from the web original:
 /// - [label] is words, not any content: it is what the search finds the row by, and what a pressable row is called.
 /// - A pressable row shows the kit's focus ring inside its edge, where the page left the browser's own.
-class SettingRow extends StatelessWidget {
+class SettingRow extends StatelessWidget implements PaneRow {
   const SettingRow({
     super.key,
     this.icon,

@@ -7,6 +7,7 @@ import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/settings/appearance_pane.dart';
 import 'package:ghost_md/settings/kit/settings_icons.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
+import 'package:ghost_md/settings/panes/cheat_sheet.dart';
 import 'package:ghost_md/settings/settings_screen.dart';
 import 'package:ghost_md/settings/settings_sections.dart';
 import 'package:ghost_md/settings/settings_sheet.dart';
@@ -66,9 +67,9 @@ void main() {
         'Export': 'Everything as one zip',
         'Appearance': 'Light · Maple Mono',
         'Recording': 'Better words',
-        'AI': null,
+        'AI': 'Qwen3.5 4B, 2.7 GB to get',
         'Plugins': null,
-        'About': null,
+        'About': '0.1.0',
       });
       expect(_rows(tester).keys, ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Library folder', 'Backup', 'Export', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
       await endSettings(tester);
@@ -96,8 +97,9 @@ void main() {
       ]);
       // The sub-pages are off the list, each behind About.
       expect([for (final spec in settingsSections) if (!spec.listed) (spec.id, spec.parent)], [('cheatsheet', 'about'), ('spec', 'about'), ('examples', 'about')]);
-      // Only Appearance is ported so far; the rest name where they come from.
-      expect([for (final spec in settingsSections) if (spec.pane != null) spec.id], ['theme']);
+      // Three wait on a feature that is not ported (the library's folder, drives, the plugins) and name where they
+      // come from; the rest are pages (lib/settings/panes/, and Appearance).
+      expect([for (final spec in settingsSections) if (spec.pane == null) spec.id], ['library', 'backup', 'plugins']);
       final web = Directory('../glyph/src/app');
       for (final spec in settingsSections) {
         expect(spec.webFile, matches(RegExp(r'^(settings|plugins|guide)/\w+\.tsx$')), reason: spec.id);
@@ -161,13 +163,13 @@ void main() {
 
     testWidgets('open a page that is not ported yet on a card that says so, and where it comes from', (tester) async {
       await _open(tester);
-      await _tap(tester, _rowFor('Account'));
-      expect(_display(tester), 'Account');
+      await _tap(tester, _rowFor('Plugins'));
+      expect(_display(tester), 'Plugins');
       expect(find.text('Not ported yet'), findsOneWidget);
-      expect(find.textContaining('src/app/settings/AccountPane.tsx'), findsOneWidget);
+      expect(find.textContaining('src/app/plugins/PluginsPane.tsx'), findsOneWidget);
       // In the section's colour, as its page will be.
       final tile = find.descendant(of: find.byType(SettingsEmpty), matching: find.byType(Container)).at(1);
-      expect((tester.widget<Container>(tile).decoration! as BoxDecoration).color, sameColor(cssColor(tester, '#0a6fe0').withValues(alpha: 0.16)));
+      expect((tester.widget<Container>(tile).decoration! as BoxDecoration).color, sameColor(cssColor(tester, '#2a9d4b').withValues(alpha: 0.16)));
       // Back to the list, and Appearance is the page itself.
       await _tap(tester, find.byKey(const ValueKey('settings-head-word')));
       await _tap(tester, _rowFor('Appearance'));
@@ -187,7 +189,7 @@ void main() {
       await tester.pump();
       await settleSettings(tester);
       expect(_display(tester), 'Cheat sheet');
-      expect(find.textContaining('src/app/guide/CheatSheet.tsx'), findsOneWidget);
+      expect(find.byType(CheatSheet), findsOneWidget);
       testBack.goBack();
       await tester.pump();
       await settleSettings(tester);
