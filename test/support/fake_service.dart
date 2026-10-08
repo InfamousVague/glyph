@@ -243,6 +243,10 @@ class FakeService {
   final Map<String, StoredFile> files = {};
   ({int rev, String blob})? _prefs;
 
+  /// The links shared from the account, as stored: each share's sealed blob by its id, and when it was written, in
+  /// seconds. Not in the web's fake, whose share tests stand in for the call itself; here they go through the fetcher.
+  final Map<String, ({String blob, int updated})> shares = {};
+
   /// The organizations as stored, by id, with their rows by handle.
   final Map<String, StoredOrg> orgs = {};
 
@@ -282,6 +286,7 @@ class FakeService {
     notes.clear();
     files.clear();
     _prefs = null;
+    shares.clear();
     orgs.clear();
     links.clear();
     feed.clear();
@@ -476,6 +481,13 @@ class FakeService {
       return _signedIn(account, wrapped);
     }
 
+    // --- a share read by its link, which needs no session (server/src/shares.rs) ---
+    final share = RegExp(r'^shares/([^/]+)$').firstMatch(path);
+    if (share != null && method == 'GET') {
+      final kept = shares[Uri.decodeComponent(share[1]!)];
+      return kept != null ? _json(200, {'blob': kept.blob}) : _refuse(404, 'No share by that link.');
+    }
+
     // --- everything else is for a signed-in device ---
     if (bearer == null || bearer.isEmpty) return _refuse(401, 'Sign in first.');
     if (!_tokens.contains(bearer) || account == null) return _refuse(401, 'Your session has ended. Sign in again.');
@@ -543,6 +555,21 @@ class FakeService {
       final rev = _nextRev();
       notes[id] = method == 'PUT' ? StoredNote(rev: rev, deleted: false, blob: _str(body['blob'])) : StoredNote(rev: rev, deleted: true, blob: null);
       return _json(200, {'rev': rev});
+    }
+
+    // --- shared links (server/src/shares.rs): sealed blobs by id, the account's to write and take down ---
+    if (path == 'shares' && method == 'GET') {
+      return _json(200, {'shares': [for (final MapEntry(:key, :value) in shares.entries) {'id': key, 'updated': value.updated}]});
+    }
+    if (share != null && method == 'PUT') {
+      final blob = body['blob'];
+      if (blob is! String || blob.isEmpty) return _refuse(400, 'That share is empty or too large.');
+      shares[Uri.decodeComponent(share[1]!)] = (blob: blob, updated: clock() ~/ 1000);
+      return _json(200, {'ok': true});
+    }
+    if (share != null && method == 'DELETE') {
+      shares.remove(Uri.decodeComponent(share[1]!));
+      return _json(200, {'deleted': true});
     }
 
     if (path == 'prefs' && method == 'GET') return _json(200, {'rev': _prefs?.rev ?? 0, 'blob': _prefs?.blob});

@@ -8,6 +8,7 @@ import 'package:ghost_md/notes/template_cards.dart';
 import 'package:glacier/glacier.dart';
 
 import '../core/make_note.dart';
+import '../support/editor_text.dart';
 import '../support/render.dart';
 import 'support.dart';
 
@@ -74,11 +75,8 @@ void main() {
         for (final element in find.byWidgetPredicate((widget) => widget.key is ValueKey<String> && (widget.key! as ValueKey<String>).value.startsWith('template-')).evaluate())
           ((element.widget.key! as ValueKey<String>).value.substring('template-'.length)),
       ];
-  /// Whether the card's picture draws [words]: the peek sets its spaces as ones a line may break after.
-  bool draws(String id, String words) => find
-      .descendant(of: card(id), matching: find.byWidgetPredicate((widget) => widget is RichText && widget.text.toPlainText().replaceAll('\u00A0\u200B', ' ').contains(words)))
-      .evaluate()
-      .isNotEmpty;
+  /// Whether the card's picture draws [words]: one of the editor's lines in it shows them.
+  bool draws(String id, String words) => find.descendant(of: card(id), matching: editorText(words)).evaluate().isNotEmpty;
   bool says(String id, String words) => find.descendant(of: card(id), matching: find.text(words)).evaluate().isNotEmpty;
 
   testWidgets('are eight, each named by its template and described by its sentence, and a press chooses it', (tester) async {

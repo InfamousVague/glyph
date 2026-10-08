@@ -7,18 +7,11 @@
 /// [SyncDevice.fetcher] stands between this device and the service, for a test that has another device write at a
 /// moment of its choosing - between this one's pull and its push, say.
 ///
-/// What differs, and why: THE PASS IS NOT PORTED YET (`core/sync/notes.ts` `syncNotes`; docs/STAGE7.md, piece F).
-/// So this is the device WITHOUT the engine's types, shaped so the engine has nothing to change here but two
-/// `implements` clauses and one line:
-/// - [DeviceNotes] has the methods of the web's `LocalNotes` (`list`, `get`, `apply`, `remove`) and [DeviceFiles]
-///   those of `LocalFiles` (`read`, `write`, `owed`, `settled`, and `digest` when the test gives one), by the same
-///   names and with the same answers; [FileKind] is the web's three words.
-/// - What the device remembers of the account (`SyncState`: a cursor, each note's revision and mark, each file's) is
-///   the engine's to define, so it is a type parameter, [S], with the empty one handed in.
-/// - [SyncDevice.sync] takes the pass as a function of the device, where the web's calls `syncNotes` with the
-///   device's token, key, stores, state, `save`, fetcher and `now`: a test of the engine writes
-///   `device.sync((d) => syncNotes(SyncContext(token: d.token, key: d.key, notes: d.local, files: d.files, state:
-///   d.state, save: d.save, api: d.api, now: d.now)))`, or the engine's own helper does.
+/// What differs: [DeviceNotes] and [DeviceFiles] are the pass's own `LocalNotes` and `LocalFiles`
+/// (lib/sync/notes.dart), with [FileKind] and [FileDigest] from there. What the device remembers of the account is
+/// still a type parameter, [S] (`SyncState` for the notes' pass), and [SyncDevice.sync] still takes the pass as a
+/// function of the device, where the web's calls `syncNotes` itself: test/sync/support.dart has the one line that
+/// does. [DeviceFiles.tapeReads] counts how often a recording was read, where the web's tests wrap the map's `get`.
 library;
 
 import 'dart:convert';
@@ -27,28 +20,29 @@ import 'dart:typed_data';
 import 'package:ghost_md/account/api.dart';
 import 'package:ghost_md/account/crypto_api.dart';
 import 'package:ghost_md/core/note.dart';
+import 'package:ghost_md/sync/notes.dart' show FileDigest, FileKind, LocalFiles, LocalNotes;
 
 import 'fake_service.dart';
 
-/// Which of a device's files (`FileKind`): a recording or a versions file, by note id, or a picture, by name.
-enum FileKind { recording, image, versions }
-
-/// A recording's fingerprint without reading it into the page (`LocalFiles.digest`): null with no file.
-typedef FileDigest = Future<String?> Function(String name);
+export 'package:ghost_md/sync/notes.dart' show FileDigest, FileKind, RecordingDigest;
 
 /// This device's notes (`LocalNotes`).
-class DeviceNotes {
+class DeviceNotes implements LocalNotes {
   /// By id.
   final Map<String, Note> held = {};
 
+  @override
   Future<List<Note>> list() async => held.values.toList();
+  @override
   Future<Note?> get(String id) async => held[id];
+  @override
   Future<Note> apply(Note note) async => held[note.id] = note;
+  @override
   Future<void> remove(String id) async => held.remove(id);
 }
 
 /// This device's recordings and versions files (by note id) and pictures (by name) (`LocalFiles`).
-class DeviceFiles {
+class DeviceFiles implements LocalFiles {
   DeviceFiles({Map<String, Uint8List> pictures = const {}, this.digest}) : pictures = {...pictures};
 
   /// Pictures by name.
@@ -63,16 +57,23 @@ class DeviceFiles {
 
   /// A recording's fingerprint made without reading the file, where the test gives one; null where this device
   /// cannot say, and the pass reads and hashes the file itself (the web's `digest?`, left out).
+  @override
   final FileDigest? digest;
 
+  /// How many times a recording was read.
+  int tapeReads = 0;
+
+  @override
   Future<Uint8List?> read(FileKind kind, String name) async {
     if (kind == FileKind.versions) {
       final text = versions[name];
       return text == null ? null : utf8.encode(text);
     }
+    if (kind == FileKind.recording) tapeReads += 1;
     return (kind == FileKind.image ? pictures : tapes)[name];
   }
 
+  @override
   Future<void> write(FileKind kind, String name, Uint8List bytes) async {
     if (kind == FileKind.versions) {
       versions[name] = utf8.decode(bytes);
@@ -82,9 +83,11 @@ class DeviceFiles {
   }
 
   /// The notes whose versions file changed here since it was last sent.
+  @override
   List<String> owed() => owing.toList();
 
   /// Note [name]'s versions file is with the account now.
+  @override
   void settled(String name) => owing.remove(name);
 }
 

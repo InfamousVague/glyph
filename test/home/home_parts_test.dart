@@ -16,6 +16,7 @@ import 'package:glacier/glacier.dart';
 
 import '../core/make_note.dart';
 import '../support/render.dart';
+import '../support/editor_text.dart';
 import 'support.dart';
 
 /// The home page's pieces, each alone: a note drawn small, a card, a pinned line giving way, a ticket's mark, the
@@ -44,16 +45,13 @@ void main() {
       // The card's preview on the web page: 104.34 tall under its 8.98 of air. Two lines, a blank, three to-dos.
       expect(tester.getSize(find.byType(NotePeek)).height, closeTo(104.34 + 8.98, 0.5));
       // `white-space: break-spaces`: "sign-in" would fit, but not the space after it, so the line breaks at the hyphen.
-      final paragraph = tester.widget<RichText>(find.descendant(of: find.ancestor(of: words('Signing'), matching: find.byType(CssLines)).first, matching: find.byType(RichText)));
-      final painter = TextPainter(text: paragraph.text, textDirection: TextDirection.ltr, strutStyle: paragraph.strutStyle)..layout(maxWidth: 347.06);
-      final firstLine = paragraph.text.toPlainText().substring(0, painter.getLineBoundary(const TextPosition(offset: 0)).end);
-      expect(firstLine.replaceAll(' ', ' ').replaceAll('​', '').trimRight(), 'Signing in on the phone sends you back to the sign-');
+      expect(visualLinesOf(tester, 'Signing').first, 'Signing in on the phone sends you back to the sign-');
       // A to-do: its dash quiet, its box in the first ink, its words hung 39.17 in (six letters of the mono face).
-      expect(tester.getRect(words('Find')).left, closeTo(39.17, 0.3));
+      expect(editorTextRect(tester, 'Find').left, closeTo(39.17, 0.3));
       // A person, as the editor's chip: the initial in its ring, then the name.
       expect(find.text('S'), findsOneWidget);
       expect(find.text('sam'), findsOneWidget);
-      expect(words('@sam'), findsNothing);
+      expect(editorText('@sam'), findsNothing);
       await away(tester);
     });
 
@@ -64,22 +62,23 @@ void main() {
       expect(em, closeTo(10.88, 0.01));
       // `max-block-size: calc(1.6em * 6.2)`: 107.92 on the web page.
       expect(tester.getSize(find.byType(NotePeek)).height, closeTo(107.92 + 8.98, 0.3));
-      // A heading counts the to-dos under it, as the editor does, and its line is as tall as the page's (22.22).
+      // A heading counts the to-dos under it, as the editor does, and its line is as tall as the page's: 21.70
+      // (measured on the web page at 430 x 932 with tool/editor_reference.mjs's method, 2026-10-07; the hand-drawn
+      // preview this replaced had it 22.22).
       expect(find.text('0 of 1'), findsOneWidget);
-      final heading = tester.getRect(find.ancestor(of: words('Summary'), matching: find.byType(CssLines)).first);
-      expect(heading.height, closeTo(22.22, 0.3));
-      expect(tester.getRect(find.ancestor(of: words('Who'), matching: find.byType(CssLines)).first).top - heading.top, closeTo(22.22, 0.3));
+      final heading = tester.getRect(editorText('Summary').first);
+      expect(heading.height, closeTo(21.70, 0.3));
+      expect(tester.getRect(editorText('Who').first).top - heading.top, closeTo(21.70, 0.3));
       await away(tester);
     });
 
     testWidgets('says every to-do done, leaves a board’s fence out, and draws a block of code a step smaller', (tester) async {
       await show(tester, const NotePeek(body: '# Plan\n\n## Done\n- [x] One\n- [x] Two\n\n```board\nNow: a\n```\n\n```js\nconst a = 1;\n```'));
       expect(find.text('All 2 done'), findsOneWidget);
-      expect(words('Now:'), findsNothing);
-      final code = tester.widget<RichText>(find.descendant(of: find.ancestor(of: words('const'), matching: find.byType(CssLines)).first, matching: find.byType(RichText)));
-      expect(code.text.style!.fontSize, closeTo(10.88 * 0.82, 0.01));
+      expect(editorText('Now:'), findsNothing);
+      expect(editorLine(tester, 'const').spec.look.base.fontSize, closeTo(10.88 * 0.82, 0.01));
       // Set in from the card's edge by 0.85 of its own size (7.58 on the web page).
-      expect(tester.getRect(words('const')).left, closeTo(7.58, 0.2));
+      expect(editorTextRect(tester, 'const').left, closeTo(7.58, 0.2));
       await away(tester);
     });
 

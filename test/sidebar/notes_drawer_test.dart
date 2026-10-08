@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/workspaces.dart' hide WorkspaceSheet;
 import 'package:ghost_md/notes/floating_card.dart';
+import 'package:ghost_md/editor/view/line.dart';
 import 'package:ghost_md/notes/note_peek.dart';
 import 'package:ghost_md/notes/notes_drawer.dart';
 import 'package:ghost_md/notes/org_mark.dart';
@@ -464,7 +465,7 @@ void main() {
       // The page's peek starts 165.09 down: the name, the grid's 2.4, and `.rowPeek`'s 4.46.
       final peek = tester.getRect(find.byType(NotePeek).first);
       expect([peek.left, peek.top, peek.width], [closeTo(54.69, 0.5), closeTo(165.09, 0.5), closeTo(259.19, 0.5)]);
-      expect(tester.widget<Text>(find.descendant(of: find.byType(NotePeek).first, matching: find.byType(Text))).style!.fontSize, closeTo(10.8194, 0.001));
+      expect(tester.renderObject<RenderEditorLine>(find.descendant(of: find.byType(NotePeek).first, matching: find.byType(EditorLine)).first).spec.look.base.fontSize, closeTo(10.8194, 0.001));
       expect(row.bottom, closeTo(peek.bottom + 8, 0.01));
       // A long name wraps onto a second line and no further: 280.97 x 33.22 on the page.
       final long = tester.getRect(find.ancestor(of: find.textContaining('A note whose name'), matching: find.byType(CssLines)));

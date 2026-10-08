@@ -19,6 +19,7 @@ import 'package:glacier/glacier.dart';
 
 import '../support/icons.dart';
 import '../support/render.dart';
+import '../support/editor_text.dart';
 import 'support.dart';
 
 /// The sidebar's tree (notes/note_tree.dart): `notes/NoteTree.test.tsx` case for case, then what that file leaves to
@@ -399,17 +400,20 @@ void main() {
       await away(tester);
     });
 
-    testWidgets('until the note can be drawn, sets two lines of its words under its name; a canvas and a bare title, nothing', (tester) async {
+    testWidgets('by default draws the note small under its name, in the editor’s own lines; a canvas and a bare title, nothing', (tester) async {
       expect(peekWords('# Packing\n\n- [ ] Passport\n- [x] Charger\n\n## Later\n\n```js\nlet x\n```\n1. Tent ^t1'), 'Passport Charger Later let x Tent');
       expect(peekWords('# Only a title'), '');
       await show(tester, tree(notes: [makeNote('p', body: '# Packing\n\n- [ ] Passport'), makeNote('t', body: '# Only a title'), makeNote('c', body: '---\ntitle: "Map"\n---\n{"nodes":[],"edges":[]}')]));
       expect(find.byType(NotePeek), findsOneWidget);
-      final words = tester.widget<Text>(find.descendant(of: find.byType(NotePeek), matching: find.byType(Text)));
+      // The to-do as the note draws it: its dash, its box and its word.
+      final line = editorLine(tester, 'Passport');
       final t = tester.element(find.byType(NoteTree)).tokens;
-      expect([words.data, words.maxLines], ['Passport', 2]);
-      // `.peek`: the note's own face, at 0.62 of the body's size on this text scale, in the third ink.
-      expect(words.style!.fontSize, closeTo(t.fontSize('lg') * 0.62 * t.number('app-text-scale'), 1e-9));
-      expect([words.style!.fontFamily, words.style!.color], ['Maple Mono', t.color('app-ink-3')]);
+      expect(line.spec.projection.display, '- [ ] Passport');
+      // `.peek`: the note's own face, at 0.62 of the body's size on this text scale, in the third ink (a list's
+      // words are in the first, `.list`).
+      final own = line.spec.look.base.style;
+      expect(own.fontSize, closeTo(t.fontSize('lg') * 0.62 * t.number('app-text-scale'), 1e-9));
+      expect([own.fontFamily, own.color], ['Maple Mono', t.color('app-ink-3')]);
       await away(tester);
     });
 

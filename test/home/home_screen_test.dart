@@ -7,7 +7,6 @@ import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/home/home_layout.dart';
 import 'package:ghost_md/home/home_organizations.dart';
-import 'package:ghost_md/home/home_parts.dart';
 import 'package:ghost_md/home/home_rows.dart';
 import 'package:ghost_md/home/home_screen.dart';
 import 'package:ghost_md/home/note_card.dart';
@@ -17,6 +16,7 @@ import 'package:glacier/glacier.dart';
 
 import '../core/make_note.dart';
 import '../support/render.dart';
+import '../support/editor_text.dart';
 import 'support.dart';
 
 /// The home page (lib/home/home_screen.dart), over the library the store screenshots were taken over: what it
@@ -179,8 +179,8 @@ void main() {
       expect(tester.getRect(find.descendant(of: key('card-prd11'), matching: find.text('In progress'))).left, closeTo(102.57, 0.75));
       expect(tester.getRect(find.text('20 min ago')).top, closeTo(499.81, 0.75));
       // The words of the preview: a paragraph's two lines, then the to-dos hung on their boxes.
-      at(tester.getRect(find.ancestor(of: words('Signing'), matching: find.byType(CssLines)).first), 41.47, 386.48, 347.06, 34.78, reason: 'the preview: two lines, 17.4 each');
-      expect(tester.getRect(words('Find')).left, closeTo(80.63, 0.75), reason: 'a to-do hangs past "- [x] "');
+      at(tester.getRect(editorText('Signing').first), 41.47, 386.48, 347.06, 34.78, reason: 'the preview: two lines, 17.4 each');
+      expect(editorTextRect(tester, 'Find').left, closeTo(80.63, 0.75), reason: 'a to-do hangs past "- [x] "');
       at(tester.getRect(key('dock-search')), 362.44, 815.86, 39.59, 39.59, reason: 'Search');
       at(tester.getRect(key('dock-add')), 362.44, 864.44, 39.59, 39.59, reason: '+');
       await away(tester);
