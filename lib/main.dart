@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import 'account/crypto.dart';
 import 'app/ghost_app.dart';
 import 'core/native/core.dart';
 import 'core/native/device_paths.dart';
@@ -9,6 +10,7 @@ import 'core/native/ghost_core.dart';
 import 'core/preferences.dart';
 import 'core/stored.dart';
 import 'core/stored_device.dart';
+import 'root/account_wiring.dart';
 import 'root/ghost_root.dart';
 
 /// The stylesheets the token engine reads after the kit's own, in the order the web app's page loads them
@@ -31,13 +33,23 @@ Future<void> main() async {
   // The notes library: the web app's own Rust, asked across FFI (lib/core/native). A phone where it will not load
   // still opens, on the invented library, rather than on nothing.
   CoreInvoke? core;
+  AccountMaking? account;
   try {
     final native = await GhostCore.open();
     final dirs = await DevicePaths.find();
     await native.init(dataDir: dirs.dataDir, cacheDir: dirs.cacheDir);
     core = native.invoke;
+    // The account, only in a build told where its service is (`--dart-define=GHOST_API=http://…`), and never the
+    // real service from a debug build (docs/STAGE7.md). With none, nothing of the account is made at all.
+    final base = accountBase(ghostApiDefine);
+    if (base != null) {
+      account = AccountMaking(base: base, crypto: await CoreCrypto.withLane(native), dataDir: dirs.dataDir);
+      debugPrint('[ghost] this build has an account service: $base');
+    } else if (ghostApiDefine.isNotEmpty) {
+      debugPrint('[ghost] GHOST_API was refused: a development build never talks to the real service, and a base must be an http address.');
+    }
   } catch (failure) {
     debugPrint('[ghost] the library would not open: $failure');
   }
-  runApp(GhostApp(sheet: sheet, home: GhostRoot(core: core)));
+  runApp(GhostApp(sheet: sheet, home: GhostRoot(core: core, account: account)));
 }

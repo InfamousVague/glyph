@@ -250,7 +250,7 @@ class TestResultsPane extends StatefulWidget {
   static Widget hosted(BuildContext context) {
     final features = SettingsHost.maybeOf(context)?.features;
     final json = features?.testReport;
-    return TestResultsPane(report: json == null ? null : TestReport.fromJson(json), buildSource: features?.testBuildSource);
+    return TestResultsPane(report: json == null ? null : TestReport.fromJson(json), buildSource: features?.testBuildSource, now: features?.testNow);
   }
 
   @override

@@ -4,4 +4,7 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- A debug build given GHOST_API reaches the account service run on this Mac (tool/local-server.sh) over plain
+         http: 127.0.0.1, or 10.0.2.2 from the emulator. Only here: a release build has no cleartext traffic. -->
+    <application android:usesCleartextTraffic="true"/>
 </manifest>

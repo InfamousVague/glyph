@@ -43,10 +43,10 @@ Each stage ends installed on the Fold. Sizes are the web app's non-test source t
 | 1 | The kit: Switch, SegmentedControl, DensitySelector, ProgressBar, Pill, Toast, Input, SearchField, Kbd, CommandPalette, Popover, Menu, and a gallery of them on the phone | `@glacier/react` (12 of its components, ~4k lines) | done 2026-10-07, on the Fold |
 | 2 | The shell: launch, the tab bar in its four styles, home, All notes, the sidebar, notifications, the command bar, the app's sheet, a note's menu and the + sheet, Settings with its kit and a live Appearance page; the art: wisp and smoke as shaders, the ghost, the icons | `shell/`, `home/`, `launch/`, `art/`, `commands/`, `settings/` kit, most of `notes/` (~15k) | on the Fold 2026-10-07; see "What stage 2 left open" |
 | 3 | The library: the web app's Rust library included unchanged behind FFI (`native/`), a worker isolate, notes as Markdown files in the app's own folder, trash and workspaces as the web's preferences, search, starter notes | `src-tauri/src/library` (kept), `core/store.ts`, `trash.ts`, `workspaces.ts`, `noteFolders.ts` | on the Fold 2026-10-07; a chosen folder, sync and moving a Tauri library over come later |
-| 4 | The editor: live Markdown, the marks and the five effects, tables, links, pictures, the + menu | `editor/` (26k), `format/` | |
+| 4 | The editor: live Markdown, the marks and the five effects, tables, links, pictures, the + menu | `editor/` (26k), `format/` | put together 2026-10-08 (`lib/root/note_desk.dart`) and walked on an Android emulator, phone and unfolded, dark and light; **not yet on the Fold**; see "What stage 4 left open" |
 | 5 | Structured notes: boards, tickets, queries, databases, notebooks, journals, templates | `editor/`, `book/`, `notes/` | |
 | 6 | Canvas | `canvas/` (3.5k) | |
-| 7 | Account and sync: keys, the sync engine, organizations and team notes, live typing, notifications, shared links | `core/sync`, `core/orgs`, `core/live`, `share/` | |
+| 7 | Account and sync: keys, the sync engine, organizations and team notes, live typing, notifications, shared links | `core/sync`, `core/orgs`, `core/live`, `share/` | in the app 2026-10-08, **off unless the build is given `--dart-define=GHOST_API=http://…`** (`lib/root/account_wiring.dart`); walked on the emulator against the service run on this Mac (sign up, sync read back by a second device, an organization, a team note, a shared link); live typing, links that open the app and the phone's own notifications are not ported |
 | 8 | Voice and AI: the recorder, Whisper, meetings and their service, summaries, the language model, fills, the at-work scene | `capture/` (12k), `ai/` (6.5k), `tapes/`, `scene/`, Kotlin (6.5k) | |
 | 9 | The rest: backup, export, plugins, the Academy and the guide, diagnostics, updates | `plugins/`, `academy/`, `guide/`, `diag/` | |
 | 10 | Platforms and release: the Fold's wide layouts, Mac, Windows, iPhone; signing; moving a library over from the Tauri app | | |
@@ -54,6 +54,39 @@ Each stage ends installed on the Fold. Sizes are the web app's non-test source t
 The web app is about 110,000 lines of TypeScript, 21,500 of CSS, 27,000 of Rust and 6,500 of Kotlin, with 5,600
 tests. Parity is the bar for every stage; a stage is not done until its screens have been compared with the web app's
 on the same phone.
+
+## What stage 4 left open
+
+The editor's pieces (docs/STAGE4.md) are assembled for each open note by `lib/root/note_desk.dart`, and the account's
+(docs/STAGE7.md) by `lib/root/account_wiring.dart`; `lib/root/ghost_root.dart` is where both meet the shell.
+
+- **The account is off by default.** `flutter build apk --debug --no-pub --dart-define=GHOST_API=http://10.0.2.2:<port>/api`
+  after `tool/local-server.sh start` gives a build with one (10.0.2.2 is this Mac from the emulator; cleartext is
+  allowed in the debug manifest only). With no define nothing of the account is made and every screen is the
+  signed-out one, whose way in says the build has no service. A define naming ghostmarkdown.com or attack.fm is
+  refused in a build that is not a release (`accountBase`), and by the `Api`'s assert after it.
+  `test/root/second_device_test.dart` is the second device that reads back what a phone wrote.
+- **Not drawn yet on a note's page:** the blank page's names and template cards (lib/note has `names`, `nameIt` and
+  `offering`, lib/notes has `TemplateCards`, and the screen has no place for them), the placeholder ("Write
+  something."), comments, the AI's rows, the place row and the map card, a notebook's bar and foot. A canvas, a
+  notebook and a journal still say which stage draws them.
+- **Nothing can be added that needs the phone:** no picture picker (the band's Add image and the +'s Picture are not
+  offered; a picture a note already names is drawn from the kept files), no place, film or voice memo, no calendar
+  for Pick a date, and a link's tap opens nothing (no way to hand an address to the phone).
+- **A new note is not opened ready to type:** the shell's `openNote` carries no caret, so the first tap raises the
+  keyboard. The + of the dock makes a note directly (`NewSheet` is still not wired).
+- **Links that open the app** (`ghostmd://join/…`, a shared link) have no Android intent behind them: an invitation
+  is answered from its notification, and `JoinInvites` only asks about a code held from before.
+- **A shared link** made by a build on a local service still names the real reader page (lib/share), where nothing
+  will find it.
+- **Icons the generated set lacks** fall back: Wave's on the Style page and in the +'s list (`waves` is not in
+  `lib/art/lucide.g.dart`).
+- **Checked where:** on the emulator (Gboard, Impeller on OpenGL ES) by hand: typing, Enter in a list, a to-do's box,
+  the band and its Style and field pages, the + and its list, a table, find and replace, a chip's menu, each of the
+  twelve marks with the smoke and the five effects moving, a kept picture, links between notes, the bookmark, saving
+  to the note's file, the unfolded size, dark and light. **Still to see on the Fold:** composing and autocorrect
+  with Samsung Keyboard and a CJK keyboard, the selection's handles and loupe under a real finger, the band's place
+  beside the crease, the effects and the smoke on Vulkan, typing in a long note, and the pinch.
 
 ## What stage 2 left open
 

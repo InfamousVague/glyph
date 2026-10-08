@@ -30,7 +30,8 @@
 /// - **The tools are handed to the bar**, not put there by a portal (shell/top_bar_tools.dart), so they listen to a
 ///   model this screen changes.
 /// - **The page is a scroll view of slivers**: the page's padding, the byline and the editor are slivers of one
-///   `CustomScrollView`, where the page was a flex column that scrolled. The body's `flex: 1 0 auto` (the editor as
+///   `CustomScrollView`, where the page was a flex column that scrolled. The scroll view is padded by what the
+///   keyboard covers, since nothing above this screen shortens the window for it. The body's `flex: 1 0 auto` (the editor as
 ///   tall as the page at least) is a last sliver that fills what is left and gives the editor the focus on a tap.
 /// - **`--wisp-under` is always the header's height**. The page falls back to 3.6rem with the smoke switched off,
 ///   which puts the byline under the bar (measured 2026-10-07: 79.9 against a pane 91.8 tall); that is not carried.
@@ -89,6 +90,7 @@ class NoteSeams {
     this.onFind,
     this.onShare,
     this.sharing,
+    this.sharingSection,
     this.onComment,
     this.commentsSummary,
     this.onCommentsList,
@@ -106,6 +108,7 @@ class NoteSeams {
     this.book,
     this.journal,
     this.over,
+    this.around,
   });
 
   /// Find and replace opened in the note with its first words (editor/FindBar.tsx, piece K).
@@ -116,6 +119,10 @@ class NoteSeams {
 
   /// Sharing's rows on the More sheet.
   final List<Widget> Function(BuildContext context)? sharing;
+
+  /// Sharing as a section of its own, heading and group (lib/share/ui/share_rows.dart `ShareRows`), where
+  /// [sharing] is the rows alone.
+  final WidgetBuilder? sharingSection;
 
   /// A comment started on the caret's line (editor/useNoteComments.tsx), how many threads there are, and their list.
   final void Function(EditorView view)? onComment;
@@ -159,6 +166,13 @@ class NoteSeams {
 
   /// What floats over the page while the note's words are up: the press-and-hold band, the + list, the find bar.
   final List<Widget> Function(BuildContext context, EditorView view)? over;
+
+  /// What stands round the page that scrolls, and so hears its scrolling: the + and its list (editor/plus
+  /// `PlusLayer`), a chip's menu, the band. Given the page, it answers the page inside them. The view is null until
+  /// the editor has one and while the note's words are not what is up; what it answers must keep the page in the
+  /// same place in its tree either way, since a page that moves house takes a new scroll position, and the place
+  /// keeper and a landing hold the one they were made with.
+  final Widget Function(BuildContext context, EditorView? view, Widget page)? around;
 }
 
 class NoteScreen extends StatefulWidget {
@@ -344,7 +358,15 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
     widget.workspaces.addListener(_redraw);
     _zoom.addListener(_redraw);
     _caretPlaced = widget.caret == null;
-    _live.set(_id, _saving.title);
+    // After the frame: the tab row listens, and a listener outside this screen may not be told while the tree is
+    // being built (a note opened by the shell is mounted in the middle of the shell's own build).
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _live.set(_id, _saving.title);
+      });
+    } else {
+      _live.set(_id, _saving.title);
+    }
     _rise.forward();
   }
 
@@ -485,6 +507,15 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
       view.dispatch(TransactionSpec(selection: EditorSelection.single(asked == null ? length : asked.clamp(0, length)), scrollIntoView: true));
       view.focus();
     }
+  }
+
+  /// A tap on the paper under a short note: the caret at the end of its words, as a tap under the last line of a
+  /// page puts it, and the keyboard. A note that cannot be written only takes the focus.
+  void _tapUnder() {
+    final editor = _view;
+    if (editor == null) return;
+    if (!widget.readOnly) editor.dispatch(TransactionSpec(selection: EditorSelection.single(editor.state.doc.length), scrollIntoView: true, userEvent: 'select.pointer'));
+    editor.focus();
   }
 
   double _headerBottom() {
@@ -866,7 +897,7 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
       meHue: null,
     );
 
-    final scroller = CustomScrollView(
+    final words = CustomScrollView(
       key: _page,
       controller: _scroll,
       slivers: [
@@ -887,11 +918,13 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
           // `.page[data-scrolls] > .body { flex: 1 0 auto }`: the editor is the rest of the page, and a tap there is a tap in it.
           SliverFillRemaining(
             hasScrollBody: false,
-            child: GestureDetector(behavior: HitTestBehavior.translucent, onTap: () => _view?.focus(), child: const SizedBox.expand()),
+            child: GestureDetector(behavior: HitTestBehavior.translucent, onTap: _tapUnder, child: const SizedBox.expand()),
           ),
         ],
       ],
     );
+
+    final scroller = seams.around?.call(context, _words ? view : null, words) ?? words;
 
     // `noteRise`: 320ms ease-out, rising 8px as it fades in.
     final curve = CurvedAnimation(parent: _rise, curve: Curves.easeOut);
@@ -919,7 +952,12 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
               onPointerSignal: (_) => _keeper?.touched(),
               // The note goes to smoke as it slips behind the header, and off the bottom where the dock is; not a
               // canvas, which is not a page that scrolls off its foot.
-              child: WispEdge(under: under, foot: !_isCanvas, child: page),
+              // The page ends where the keyboard begins, as the web's does (its activity lays the page out above the
+              // keyboard): the line being typed can always be scrolled clear of it, and the foot's smoke rests on it.
+              child: Padding(
+                padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+                child: WispEdge(under: under, foot: !_isCanvas, child: page),
+              ),
             ),
           ),
           // A note with no words yet: the ghost with its pen, a little under the first line, gone at the first word.
@@ -1001,6 +1039,7 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
       commentsSummary: seams.commentsSummary?.call(),
       onCommentsList: seams.onCommentsList,
       sharing: seams.sharing?.call(context),
+      sharingSection: seams.sharingSection?.call(context),
       linked: seams.linked?.call(context),
       location: seams.location?.call(_tag),
       history: versions != null && !_isCanvas && !widget.readOnly

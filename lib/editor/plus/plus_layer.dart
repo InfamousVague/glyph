@@ -90,8 +90,9 @@ class PlusController extends ChangeNotifier {
 class PlusLayer extends StatefulWidget {
   const PlusLayer({super.key, required this.view, required this.child, this.controller, this.config = const AddConfig(), this.pane, this.clock, this.coarse});
 
-  /// The editor's view, whose state has [insertPlus] (or [PlusController.extension]) in it.
-  final EditorViewLike view;
+  /// The editor's view, whose state has [insertPlus] (or [PlusController.extension]) in it; null while there is
+  /// none yet, when [child] is drawn alone, in the same place in the tree as it will be with one.
+  final EditorViewLike? view;
 
   /// Holds the list open; without one only the + is drawn, and whoever made the hooks mounts the list.
   final PlusController? controller;
@@ -130,7 +131,8 @@ class _PlusLayerState extends State<PlusLayer> {
   /// The +'s plugin in the view: looked for again whenever the view says something changed, since a reconfigured
   /// editor makes its plugins anew.
   void _find() {
-    final found = plusViewOf(widget.view);
+    final view = widget.view;
+    final found = view == null ? null : plusViewOf(view);
     if (identical(found, _plus)) return;
     _plus?.removeListener(_changed);
     _plus = found;
@@ -139,14 +141,15 @@ class _PlusLayerState extends State<PlusLayer> {
 
   void _viewChanged() {
     if (!mounted) return;
-    if (!identical(plusViewOf(widget.view), _plus)) _changed();
+    final view = widget.view;
+    if (!identical(view == null ? null : plusViewOf(view), _plus)) _changed();
   }
 
-  void _listen(EditorViewLike view) {
+  void _listen(EditorViewLike? view) {
     if (view is EditorView) view.addListener(_viewChanged);
   }
 
-  void _unlisten(EditorViewLike view) {
+  void _unlisten(EditorViewLike? view) {
     if (view is EditorView) view.removeListener(_viewChanged);
   }
 
@@ -189,7 +192,8 @@ class _PlusLayerState extends State<PlusLayer> {
     plus?.gutter = gutter;
     // The row's height as the editor last laid it out: a build may read it, where a layout may not.
     final row = plus?.measure();
-    final opening = widget.controller?.opening;
+    final view = widget.view;
+    final opening = view == null ? null : widget.controller?.opening;
     return NotificationListener<ScrollNotification>(
       // The note scrolled: the + goes with its line, in the same frame.
       onNotification: (_) {
@@ -219,7 +223,7 @@ class _PlusLayerState extends State<PlusLayer> {
               AddList(
                 // One list for each opening: a second press of / after a close starts afresh.
                 key: ObjectKey(opening),
-                view: widget.view,
+                view: view!,
                 opening: opening,
                 pane: widget.pane,
                 onClose: widget.controller!.close,

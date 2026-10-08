@@ -161,6 +161,7 @@ class NoteSettings extends StatefulWidget {
     this.commentsSummary,
     this.onCommentsList,
     this.sharing,
+    this.sharingSection,
     this.linked,
     this.location,
     this.history,
@@ -204,6 +205,9 @@ class NoteSettings extends StatefulWidget {
 
   /// Sharing's rows (share/ShareRows.tsx), under their heading.
   final List<Widget>? sharing;
+
+  /// Sharing with its own heading and group, where [sharing] is rows for this sheet's.
+  final Widget? sharingSection;
 
   /// What the note is linked to, a plugin's row each.
   final List<Widget>? linked;
@@ -387,6 +391,7 @@ class _NoteSettingsState extends State<NoteSettings> {
         ],
         // Read by anyone with its link, and nobody else (share/share.ts, docs/SHARING.md).
         if (widget.sharing != null) ...[const SheetHeading('Sharing'), SheetGroup(children: widget.sharing!)],
+        ?widget.sharingSection,
         const SheetHeading('Where it sits'),
         SheetGroup(
           children: [

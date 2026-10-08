@@ -14,10 +14,10 @@
 /// - piece D's widget (lib/editor/editor_widget.dart `Editor`, the view with its keyboard and gestures) is one
 ///   line where the app is wired:
 ///
-///       editor: (context, spec) => NoteEditorHost(spec: spec, draw: (context, view, env) =>
+///       editor: (context, spec) => NoteEditorHost(spec: spec, formats: marks, extensions: pieces, draw: (context, view, env) =>
 ///           Editor(view: view, env: env, meHue: spec.meHue, footClear: spec.footClear, headerInset: spec.headClear)),
 ///
-///   with the input's own extensions, and every other piece's, in [NoteEditorSpec.extensions].
+///   with the input's own extensions, and every other piece's, in [NoteEditorHost.extensions]: lib/root/note_desk.dart.
 library;
 
 import 'dart:math' as math;
@@ -27,6 +27,7 @@ import 'package:glacier/glacier.dart';
 
 import '../editor/editor.dart';
 import '../editor/looks/look.dart';
+import '../editor/syntax/language.dart' show InlineFormatSyntax;
 import '../editor/view/base.dart';
 import '../editor/view/editor_view.dart';
 import '../editor/view/sliver.dart';
@@ -129,9 +130,17 @@ LookEnv noteLookEnv(BuildContext context, {double zoom = 1, String? look, String
 
 /// Makes and keeps the `EditorView` for a note's screen, as `Editor.tsx` makes CodeMirror's, and has it drawn.
 class NoteEditorHost extends StatefulWidget {
-  const NoteEditorHost({super.key, required this.spec, this.draw});
+  const NoteEditorHost({super.key, required this.spec, this.draw, this.formats = const <InlineFormatSyntax>[], this.extensions = const <Extension>[]});
 
   final NoteEditorSpec spec;
+
+  /// The marks the parser and the highlighter read (`noteExtensions(formats:)`): lib/plugins/marks.dart's list,
+  /// from whoever wires the app. The same list each build, or the view is made again.
+  final Iterable<InlineFormatSyntax> formats;
+
+  /// The pieces' extensions, from whoever wires the app, after the spec's own. The same list each build: another
+  /// list is another configuration, and the view is made again over the words as they are.
+  final List<Extension> extensions;
 
   /// What draws the view; an `EditorSliver`, which takes no typing, where it is left out.
   final NoteEditorDraw? draw;
@@ -149,6 +158,7 @@ class _NoteEditorHostState extends State<NoteEditorHost> {
         state: EditorState.create(
           doc: doc,
           extensions: noteExtensions(
+            formats: widget.formats,
             readOnly: widget.spec.readOnly,
             more: <Extension>[
               history(),
@@ -160,6 +170,7 @@ class _NoteEditorHostState extends State<NoteEditorHost> {
               // The line a change lands on stays clear of the header's glass and the foot's smoke.
               EditorViewLike.scrollMargins.of((_) => EdgeInsets.only(top: widget.spec.headClear, bottom: widget.spec.footClear)),
               ...widget.spec.extensions,
+              ...widget.extensions,
             ],
           ),
         ),
@@ -183,7 +194,7 @@ class _NoteEditorHostState extends State<NoteEditorHost> {
   void didUpdateWidget(NoteEditorHost oldWidget) {
     super.didUpdateWidget(oldWidget);
     final was = oldWidget.spec, now = widget.spec;
-    if (was.readOnly != now.readOnly || !identical(was.extensions, now.extensions)) {
+    if (was.readOnly != now.readOnly || !identical(was.extensions, now.extensions) || !identical(oldWidget.extensions, widget.extensions) || !identical(oldWidget.formats, widget.formats)) {
       // Another configuration: a new view over the words as they are.
       final doc = _view.state.doc.toString();
       _view.destroy();

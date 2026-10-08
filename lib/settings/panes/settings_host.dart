@@ -157,6 +157,7 @@ class SettingsFeatures {
     this.cannotLocate,
     this.testReport,
     this.testBuildSource,
+    this.testNow,
   });
 
   /// Whether an account is signed in on this device (core/account/account.ts). The signed-in pages are not ported:
@@ -216,6 +217,10 @@ class SettingsFeatures {
 
   /// This build's source fingerprint, to check the report against (`BUILD_SOURCE`); null for a development build.
   final String? testBuildSource;
+
+  /// The moment Test results says "8 hr ago" from; now when null. A picture of the page gives its own, so it is the
+  /// same picture tomorrow.
+  final DateTime? testNow;
 }
 
 /// An organization as Notifications lists it to mute.

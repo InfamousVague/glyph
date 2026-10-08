@@ -170,7 +170,8 @@ Color? fieldToneColor(Tokens t, String? tone) => switch (tone) {
 class FieldMenuHost extends StatefulWidget {
   const FieldMenuHost({super.key, required this.view, required this.child});
 
-  final EditorViewLike view;
+  /// The editor; null while there is none yet, when [child] is drawn alone.
+  final EditorViewLike? view;
   final Widget child;
 
   @override
@@ -180,46 +181,51 @@ class FieldMenuHost extends StatefulWidget {
 class _FieldMenuHostState extends State<FieldMenuHost> {
   bool _refocus = false;
 
-  ValueNotifier<FieldTap?> get _tap => fieldTapOf(widget.view);
+  ValueNotifier<FieldTap?>? _tapOf(EditorViewLike? view) => view == null ? null : fieldTapOf(view);
+  ValueNotifier<FieldTap?>? get _tap => _tapOf(widget.view);
 
   void _changed() {
     if (!mounted) return;
-    if (_tap.value != null) _refocus = widget.view.hasFocus;
+    if (_tap?.value != null) _refocus = widget.view?.hasFocus ?? false;
     setState(() {});
   }
 
   @override
   void initState() {
     super.initState();
-    _tap.addListener(_changed);
+    _tap?.addListener(_changed);
   }
 
   @override
   void didUpdateWidget(FieldMenuHost oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.view, widget.view)) {
-      fieldTapOf(oldWidget.view).removeListener(_changed);
-      _tap.addListener(_changed);
+      _tapOf(oldWidget.view)?.removeListener(_changed);
+      _tap?.addListener(_changed);
     }
   }
 
   @override
   void dispose() {
-    _tap.removeListener(_changed);
+    _tap?.removeListener(_changed);
     super.dispose();
   }
 
-  void _close() => _tap.value = null;
+  void _close() => _tap?.value = null;
 
   @override
   Widget build(BuildContext context) {
-    final tap = _tap.value;
-    final items = tap == null ? null : fieldItems(widget.view, tap.line, tap.page, onClose: _close, refocus: _refocus, redraw: () => setState(() {}), today: widget.view.state.facet(fieldsToday)?.call());
-    if (tap == null || items == null) return widget.child;
+    final view = widget.view;
+    final tap = _tap?.value;
+    final items = tap == null || view == null ? null : fieldItems(view, tap.line, tap.page, onClose: _close, refocus: _refocus, redraw: () => setState(() {}), today: view.state.facet(fieldsToday)?.call());
     final t = context.tokens;
+    // The child keeps its place in the tree whether a menu is up or not: a page that scrolls is not made to move
+    // house (and take a new scroll position) by a chip's tap.
     return Stack(
+      fit: StackFit.passthrough,
       children: <Widget>[
         widget.child,
+        if (tap != null && items != null)
         GlacierMenu(
           anchor: GlacierAnchor.rect(Rect.fromLTWH(tap.x, tap.y, 0, t.len('app-body') * 1.35)),
           open: true,
