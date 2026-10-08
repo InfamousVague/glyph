@@ -14,6 +14,7 @@ import '../state/text.dart';
 import '../syntax/language.dart';
 import '../syntax/markdown.dart';
 import '../syntax/tree.dart';
+import '../view/syntax_tree.dart' as kept;
 
 /// The parser the commands read a state's document with: the first one given, the app's Markdown otherwise.
 final Facet<MarkdownParser, MarkdownParser?> commandParser = Facet.define<MarkdownParser, MarkdownParser?>(
@@ -26,6 +27,10 @@ final Expando<({MarkdownParser parser, Tree tree})> _parsed = Expando<({Markdown
 
 /// The state's syntax tree, whole.
 Tree syntaxTree(EditorState state) {
+  // The tree the state already keeps (view/syntax_tree.dart), reparsed only where a change touched: a whole parse
+  // of a 380 kB note on every keystroke was 60 ms.
+  final held = kept.syntaxTreeOrNull(state);
+  if (held != null) return held;
   final parser = state.facet(commandParser) ?? _plain;
   final Doc doc = state.doc;
   final known = _parsed[doc];
