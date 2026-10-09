@@ -456,14 +456,22 @@ class RenderSliverEditor extends RenderSliver with RenderSliverHelpers implement
       case ScrollStrategy.center:
         pixels = (top + foot) / 2 - room / 2;
       case ScrollStrategy.nearest:
-        if (foot - top > room) {
-          // Taller than the screen: the head's end of it.
-          pixels = target.range.head == target.range.to ? foot - room : top;
-        } else if (top < pixels) {
-          pixels = top;
-        } else if (foot > pixels + room) {
-          pixels = foot - room;
+        // CodeMirror's `scrollRectIntoView` for "nearest": the range itself is held against the room the margins
+        // leave, and `yMargin` is only how far past the edge it is brought once it is out. Counting the margin in
+        // the test moved a caret that was in plain sight: a new note's first line went up under the tabs as the
+        // keyboard rose, where the page's stays (seen beside the web app on the emulator).
+        final rangeTop = start + from.y, rangeFoot = start + to.y;
+        final roomTop = pixels + margins.top, roomFoot = pixels + room - margins.bottom;
+        final side = target.range.empty ? 0 : (target.range.head == target.range.to ? 1 : -1);
+        var move = 0.0;
+        if (rangeTop < roomTop) {
+          move = rangeTop - (roomTop + target.yMargin);
+          if (side > 0 && rangeFoot > roomFoot + move) move = rangeFoot - roomFoot + target.yMargin;
+        } else if (rangeFoot > roomFoot) {
+          move = rangeFoot - roomFoot + target.yMargin;
+          if (side < 0 && rangeTop - move < roomTop) move = rangeTop - (roomTop + target.yMargin);
         }
+        pixels += move;
     }
     pixels = pixels.clamp(position.minScrollExtent, math.max(position.minScrollExtent, position.maxScrollExtent));
     if ((pixels - position.pixels).abs() > 0.5) position.jumpTo(pixels);
