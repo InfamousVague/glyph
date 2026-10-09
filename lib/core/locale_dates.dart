@@ -13,22 +13,21 @@
 /// en-US. Anything else is en-GB, another language included: the words are English either way, and the day before
 /// the month and a 24-hour clock are how most of the world writes them.
 ///
-/// **Until the phone has said.** Nothing is told until [useLocaleOf] hears the phone's locale (lib/main.dart, once,
-/// at launch). Until then [toldDate] and [toldDayMonth] answer null, and each place that words a date writes what
+/// **Until the phone has said.** Nothing is told until [useLocaleOf] hears the phone's language and country
+/// (lib/main.dart, once, at launch; as two words and not a `Locale`, so this file imports nothing and the cores that
+/// read it stay pure, which test/book_core/journal_test.dart holds them to). Until then [toldDate] and [toldDayMonth] answer null, and each place that words a date writes what
 /// it wrote before there was a table, so a test reads the same whatever machine runs it. A test of the phone's
 /// words tells a locale itself and takes it back in its `tearDown` (`toldLocale = null`).
 ///
 /// A form is named by its CLDR skeleton, as the fixture names it and as `package:intl` names its own, which is why
 /// the names are not lowerCamelCase. What each is asked with on the page is beside it below.
 ///
-/// What a table does not say: a weekday's name, a month's name in full and the 24-hour clock ("16:05", [DateForm.Hm23])
-/// are the same in both, so a place that writes only those reads no table. The space before "PM" is the browser's
-/// two ways: a narrow no-break space (U+202F) among the parts ([localeDateParts], `formatToParts`), and a plain
-/// space in the words whole ([localeDate], `format`), which is how Chrome has answered since it took the narrow one
-/// back out of `format` for the pages it broke. And en-GB's meridiem is lower case, "4 pm".
+/// What a table does not say: a weekday's name, a month's name in full and the 24-hour clock ("16:05",
+/// [DateForm.Hm23]) are the same in both, so a place that writes only those reads no table. The space before "PM" is
+/// the browser's two ways, as the fixture has them: a narrow no-break space (U+202F) among the parts
+/// ([localeDateParts], `formatToParts`), and a plain space in the words whole ([localeDate], `format`). And en-GB's
+/// meridiem is lower case, "4 pm".
 library;
-
-import 'dart:ui' show Locale;
 
 /// The two ways this app writes a date.
 enum DateLocale { enUS, enGB }
@@ -108,15 +107,15 @@ DateLocale? toldLocale;
 
 const Set<String> _monthFirstCountries = {'US', 'CA', 'PH'};
 
-/// Which table a locale reads (the rule is the file's).
-DateLocale dateLocaleOf(Locale locale) {
-  final country = locale.countryCode?.toUpperCase();
-  final american = locale.languageCode.toLowerCase() == 'en' && (country == null || country.isEmpty || _monthFirstCountries.contains(country));
+/// Which table a locale reads, by its language ("en") and its country ("US", or none): the rule is the file's.
+DateLocale dateLocaleOf(String language, [String? country]) {
+  final where = country?.toUpperCase();
+  final american = language.toLowerCase() == 'en' && (where == null || where.isEmpty || _monthFirstCountries.contains(where));
   return american ? DateLocale.enUS : DateLocale.enGB;
 }
 
-/// Hears the phone's locale: every date after this is in its words.
-void useLocaleOf(Locale locale) => toldLocale = dateLocaleOf(locale);
+/// Hears the phone's locale, its `languageCode` and `countryCode`: every date after this is in its words.
+void useLocaleOf(String language, [String? country]) => toldLocale = dateLocaleOf(language, country);
 
 const List<String> _weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const List<String> _months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];

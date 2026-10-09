@@ -47,7 +47,7 @@ Future<void> main() async {
   // The keyboard that was up when the app was left is up again when it is come back to (core/keep_keyboard.dart).
   KeepKeyboard.install();
   // Every date in the phone's own words and order, as the page's Intl writes them (core/locale_dates.dart).
-  useLocaleOf(PlatformDispatcher.instance.locale);
+  useLocaleOf(PlatformDispatcher.instance.locale.languageCode, PlatformDispatcher.instance.locale.countryCode);
   // Edge to edge, as the web app's page is under Android's bars: the page pads itself by the safe areas.
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   // The Mac app's window (its menu bar, its three lights) and a desktop's keys: nothing on a phone.

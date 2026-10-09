@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui' show Locale;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/locale_dates.dart';
@@ -58,18 +57,21 @@ void main() {
 
   group('which table', () {
     test('American, Canadian and Philippine English, and English with no country, read en-US', () {
-      expect(dateLocaleOf(const Locale('en', 'US')), DateLocale.enUS);
-      expect(dateLocaleOf(const Locale('en', 'CA')), DateLocale.enUS);
-      expect(dateLocaleOf(const Locale('en', 'PH')), DateLocale.enUS);
-      expect(dateLocaleOf(const Locale('en')), DateLocale.enUS);
+      expect(dateLocaleOf('en', 'US'), DateLocale.enUS);
+      expect(dateLocaleOf('en', 'CA'), DateLocale.enUS);
+      expect(dateLocaleOf('en', 'PH'), DateLocale.enUS);
+      expect(dateLocaleOf('en'), DateLocale.enUS);
+      expect(dateLocaleOf('en', ''), DateLocale.enUS);
     });
 
     test('any other English, and any other language, reads en-GB: the words are English either way', () {
-      expect(dateLocaleOf(const Locale('en', 'GB')), DateLocale.enGB);
-      expect(dateLocaleOf(const Locale('en', 'AU')), DateLocale.enGB);
-      expect(dateLocaleOf(const Locale('en', 'IN')), DateLocale.enGB);
-      expect(dateLocaleOf(const Locale('de', 'DE')), DateLocale.enGB);
-      expect(dateLocaleOf(const Locale('es', 'US')), DateLocale.enGB);
+      expect(dateLocaleOf('en', 'GB'), DateLocale.enGB);
+      expect(dateLocaleOf('en', 'AU'), DateLocale.enGB);
+      expect(dateLocaleOf('en', 'IN'), DateLocale.enGB);
+      expect(dateLocaleOf('en', '001'), DateLocale.enGB);
+      expect(dateLocaleOf('de', 'DE'), DateLocale.enGB);
+      expect(dateLocaleOf('de'), DateLocale.enGB);
+      expect(dateLocaleOf('es', 'US'), DateLocale.enGB);
     });
 
     test('nothing is told until the phone says, and then it is the phone’s', () {
@@ -81,12 +83,12 @@ void main() {
       // Asked without a locale and with none told, a form is en-GB's.
       expect(localeDate(day, DateForm.yMMMMEEEEd), 'Friday 9 October 2026');
 
-      useLocaleOf(const Locale('en', 'US'));
+      useLocaleOf('en', 'US');
       expect(toldLocale, DateLocale.enUS);
       expect(toldDate(day, DateForm.yMMMMEEEEd), 'Friday, October 9, 2026');
       expect(localeDate(day, DateForm.yMMMMEEEEd), 'Friday, October 9, 2026');
 
-      useLocaleOf(const Locale('en', 'GB'));
+      useLocaleOf('en', 'GB');
       expect(toldDate(day, DateForm.yMMMMEEEEd), 'Friday 9 October 2026');
     });
   });
