@@ -1,0 +1,59 @@
+import 'dart:io';
+
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:glacier/glacier.dart';
+import 'package:glacier/src/components/field_core.dart';
+
+import 'support/harness.dart';
+
+void main() {
+  Future<void> inter(WidgetTester tester) => tester.runAsync(() async {
+    final loader = FontLoader('Inter Variable')..addFont(Future.value(ByteData.view(File('../../assets/fonts/InterVariable-latin.ttf').readAsBytesSync().buffer)));
+    await loader.load();
+  });
+
+  testWidgets('a normal line and its baseline are the page\'s on a phone: the descent rounded down takes a pixel from the ascent', (tester) async {
+    await inter(tester);
+    await pumpKit(tester, const SizedBox.shrink());
+    final t = testTokens();
+    // Measured in Ghost.md's page on Android at 2.625 (height and baseline in device pixels): a Settings row's
+    // label 51 and 40 where the two rounded alone are 41 and 10, its summary 43 and 34, and three more.
+    final measured = <double, (int, int)>{16.2569: (51, 40), 13.4704: (43, 34), 10.0: (31, 24), 11.85: (38, 30), 19.62: (62, 49)};
+    for (final entry in measured.entries) {
+      final line = normalLineBox(kitFont(t, fontSize: entry.key, color: const Color(0xFF000000)), dpr: 2.625);
+      expect(line.height * 2.625, closeTo(entry.value.$1, 1e-6), reason: '${entry.key} height');
+      expect(line.baseline * 2.625, closeTo(entry.value.$2, 1e-6), reason: '${entry.key} baseline');
+    }
+    // A desktop's ratio: whole pixels, and the baseline is the ascent rounded.
+    expect(normalLineBox(kitFont(t, fontSize: 16, color: const Color(0xFF000000))), (height: 20.0, baseline: 16.0));
+  });
+
+  testWidgets('text takes the exact line where the engine rounds it, one line or several', (tester) async {
+    await inter(tester);
+    const style = TextStyle(fontFamily: 'Inter Variable', fontSize: 16.2569, height: 19.4286 / 16.2569, leadingDistribution: TextLeadingDistribution.even);
+    await pumpKit(
+      tester,
+      SizedBox(
+        width: 120,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Account', key: ValueKey('plain'), style: style),
+            ExactLines.of(const Text('Account', key: ValueKey('one'), style: style)),
+            ExactLines.of(const Text('Where your notes are kept on this phone', key: ValueKey('three'), style: style)),
+          ],
+        ),
+      ),
+    );
+    // The engine's own line is a whole pixel.
+    expect(tester.getSize(find.byKey(const ValueKey('plain'))).height, 19);
+    Size box(String key) => tester.getSize(find.ancestor(of: find.byKey(ValueKey(key)), matching: find.byType(ExactLines)));
+    expect(box('one').height, closeTo(19.4286, 1e-9));
+    final lines = (tester.getSize(find.byKey(const ValueKey('three'))).height / 19).round();
+    expect(lines, greaterThan(1));
+    expect(box('three').height, closeTo(lines * 19.4286, 1e-9));
+  });
+}

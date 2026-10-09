@@ -12,7 +12,15 @@ bool _watchingFonts = false;
 /// ascent and descent are rounded as 41.3 and 10.3 device pixels and its line is 51 of them, 19.43 logical, where
 /// rounding the logical 15.75 and 3.92 gave 20. On a desktop's ratio of 1, where the tests' rectangles were
 /// measured, the two are the same.
-double normalLineHeight(TextStyle face, {double dpr = 1}) {
+double normalLineHeight(TextStyle face, {double dpr = 1}) => normalLineBox(face, dpr: dpr).height;
+
+/// The line of `line-height: normal` for [face] and where its baseline is in it, both in logical pixels.
+///
+/// Chromium on Android and Linux does one thing more than round the two: where the descent was rounded DOWN it gives
+/// the descent a device pixel and takes it from the ascent, so the line is as tall and its words stand a device
+/// pixel higher. Measured on the page for Inter from 10px to 34px at 2.625, 66 sizes: every height and every baseline
+/// is this rule's (a 16.26px title: 41.3 and 10.3 round to 41 and 10, and the page has 40 and 11).
+({double height, double baseline}) normalLineBox(TextStyle face, {double dpr = 1}) {
   final size = face.fontSize!;
   final key = '${face.fontFamily}|${face.fontFamilyFallback?.join(',')}|${face.fontWeight?.value}';
   final (ascent, descent) = _faceMetrics.putIfAbsent(key, () {
@@ -31,5 +39,12 @@ double normalLineHeight(TextStyle face, {double dpr = 1}) {
     return (line.ascent / probe, line.descent / probe);
   });
   final ratio = dpr > 0 ? dpr : 1.0;
-  return ((ascent * size * ratio).roundToDouble() + (descent * size * ratio).roundToDouble()) / ratio;
+  var up = (ascent * size * ratio).roundToDouble();
+  var down = (descent * size * ratio).roundToDouble();
+  // The page's ratio of 1 is a desktop's, where the tests' rectangles were measured and no pixel is moved.
+  if (ratio != 1 && down < descent * size * ratio - 1e-4) {
+    down += 1;
+    up -= 1;
+  }
+  return (height: (up + down) / ratio, baseline: up / ratio);
 }

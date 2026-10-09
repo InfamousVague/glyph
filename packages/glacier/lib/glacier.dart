@@ -3,6 +3,7 @@
 library;
 
 export 'src/tokens/css_value.dart';
+export 'src/tokens/exact_lines.dart';
 export 'src/tokens/line_height.dart';
 export 'src/tokens/oklch.dart';
 export 'src/tokens/overrides.dart';

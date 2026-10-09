@@ -1037,16 +1037,22 @@ class _SectionRow extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(label, key: const ValueKey('settings-row-label'), style: pageText(t, t.fontSize('md'), weight: 'medium')),
+                          // Each line as tall as the page's, to the fraction: twelve rows of whole-pixel lines end a dozen
+                          // device pixels from where the page's do.
+                          ExactLines.of(Text(label, key: const ValueKey('settings-row-label'), style: pageText(t, t.fontSize('md'), weight: 'medium')), normal: true, dpr: t.css.lineDpr),
                           if (hasSummary) ...[
                             SizedBox(height: t.lenOf('0.1rem')),
-                            Text(
-                              summary!,
-                              key: const ValueKey('settings-row-summary'),
-                              maxLines: 1,
-                              softWrap: false,
-                              overflow: TextOverflow.ellipsis,
-                              style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')),
+                            ExactLines.of(
+                              Text(
+                                summary!,
+                                key: const ValueKey('settings-row-summary'),
+                                maxLines: 1,
+                                softWrap: false,
+                                overflow: TextOverflow.ellipsis,
+                                style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')),
+                              ),
+                              normal: true,
+                              dpr: t.css.lineDpr,
                             ),
                           ],
                         ],
