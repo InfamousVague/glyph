@@ -27,6 +27,9 @@ import org.json.JSONObject
  *   into it and closes it), `{cancelled: true}`, or `{error}`.
  * - `exportDone` -> null: the export is whole, and the file stays. `discardExport` -> null: it failed or was
  *   stopped, and the half-written file goes, so the drive holds only an archive that opens.
+ * - `canBrowseFiles` -> true: this activity can show the notes' folder (the page asked whether its `GlyphHost` had
+ *   `browseFiles`). `browseFiles` -> null: the phone's Files app opened at the notes (LibraryFiles.kt, over
+ *   files/LibraryDocuments.kt; lib/core/library_files.dart). Not a picker: nothing is answered later.
  *
  * ONE CALL, ANSWERED LATER, where the Tauri activity answered "started" at once and said the rest as an event on
  * its page: a method channel's result can wait, so the call that opens a picker is the call its answer comes back
@@ -62,6 +65,11 @@ class FilesBridge(private val activity: Activity) {
           result.success(null)
         }
         "chooseBackupDrive" -> asked(DRIVE, result) { BackupDrives.ask(activity, call.argument<String>("id") ?: "", tell(DRIVE)) }
+        "canBrowseFiles" -> result.success(true)
+        "browseFiles" -> {
+          LibraryFiles.browse(activity)
+          result.success(null)
+        }
         else -> result.notImplemented()
       }
     }
