@@ -331,7 +331,9 @@ class PaneSection extends StatelessWidget {
             ),
           ),
         if (title != null && title!.isNotEmpty) SizedBox(height: gap),
-        if (description != null) ...[Padding(padding: side, child: DefaultTextStyle(style: small, child: description!)), SizedBox(height: gap)],
+        // Each line as tall as the page's, to the fraction (the kit's ExactLines): a page of whole-pixel lines ended
+        // fifty device pixels short of the page's.
+        if (description != null) ...[Padding(padding: side, child: DefaultTextStyle(style: small, child: ExactLines(lineHeight: small.fontSize! * small.height!, child: description!))), SizedBox(height: gap)],
         GlacierScope(
           classes: const {'setk__card'},
           child: ClipRRect(
@@ -342,7 +344,7 @@ class PaneSection extends StatelessWidget {
             ),
           ),
         ),
-        if (footer != null) ...[SizedBox(height: gap), Padding(padding: side, child: DefaultTextStyle(style: small, child: footer!))],
+        if (footer != null) ...[SizedBox(height: gap), Padding(padding: side, child: DefaultTextStyle(style: small, child: ExactLines(lineHeight: small.fontSize! * small.height!, child: footer!)))],
       ],
     );
 
@@ -472,7 +474,7 @@ class SettingRow extends StatelessWidget implements PaneRow {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (labelAfter == null)
-          Text(label, style: pageText(t, t.fontSize('md'), weight: 'medium'))
+          ExactLines.of(Text(label, style: pageText(t, t.fontSize('md'), weight: 'medium')), normal: true, dpr: t.css.lineDpr)
         else
           Text.rich(
             TextSpan(
@@ -483,7 +485,7 @@ class SettingRow extends StatelessWidget implements PaneRow {
           ),
         if (hint != null) ...[
           SizedBox(height: t.lenOf('0.15rem')),
-          DefaultTextStyle(style: pageText(t, sm, height: t.len('glacier-leading-sm'), color: t.color('app-ink-2')), child: hint!),
+          DefaultTextStyle(style: pageText(t, sm, height: t.len('glacier-leading-sm'), color: t.color('app-ink-2')), child: ExactLines(lineHeight: sm * t.len('glacier-leading-sm'), child: hint!)),
         ],
         if (disabledReason != null && disabledReason!.isNotEmpty) ...[
           SizedBox(height: t.lenOf('0.15rem')),

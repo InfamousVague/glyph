@@ -154,17 +154,21 @@ class ThemeCards extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        option.label,
-                        maxLines: 1,
-                        softWrap: false,
-                        overflow: TextOverflow.ellipsis,
-                        style: pageText(t, t.fontSize('sm'), weight: 'semibold', height: t.len('glacier-leading-sm')),
+                      ExactLines.of(
+                        Text(
+                          option.label,
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
+                          style: pageText(t, t.fontSize('sm'), weight: 'semibold', height: t.len('glacier-leading-sm')),
+                        ),
                       ),
                       const SizedBox(height: 1),
-                      Text(
-                        option.description,
-                        style: pageText(t, t.fontSize('xs'), height: t.len('glacier-leading-sm'), color: t.color('glacier-text-muted')),
+                      ExactLines.of(
+                        Text(
+                          option.description,
+                          style: pageText(t, t.fontSize('xs'), height: t.len('glacier-leading-sm'), color: t.color('glacier-text-muted')),
+                        ),
                       ),
                     ],
                   ),

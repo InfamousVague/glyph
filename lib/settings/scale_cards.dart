@@ -53,10 +53,12 @@ class ScaleCards extends StatelessWidget {
               child: ClipRect(child: _Piece(em: t.lenOf('${scale}rem'))),
             ),
             SizedBox(height: t.space(1)),
-            Text(
-              scaleWords[scale]!,
-              textAlign: TextAlign.center,
-              style: pageText(t, t.fontSize('xs'), weight: 'semibold', height: t.len('glacier-leading-sm'), color: t.color(selected ? 'glacier-text' : 'glacier-text-muted')),
+            ExactLines.of(
+              Text(
+                scaleWords[scale]!,
+                textAlign: TextAlign.center,
+                style: pageText(t, t.fontSize('xs'), weight: 'semibold', height: t.len('glacier-leading-sm'), color: t.color(selected ? 'glacier-text' : 'glacier-text-muted')),
+              ),
             ),
           ],
         ),

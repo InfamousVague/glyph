@@ -72,16 +72,17 @@ void main() {
       ]);
       final row = tester.getRect(find.widgetWithText(SettingRow, 'Ghostly typing'));
       final label = tester.getRect(find.text('Ghostly typing'));
-      final hint = tester.getRect(find.textContaining('Words you say'));
+      // The caption's box is its lines at the page's own height (the kit's ExactLines), not the engine's whole pixels.
+      final hint = tester.getRect(find.ancestor(of: find.textContaining('Words you say'), matching: find.byType(ExactLines)).first);
       // Measured on the page: row 345.38 x 110.41 with its hairline; label 261.2 x 20; caption 2.4 under it, three
       // lines of 20.09; the switch 44 x 26 at the end, in the middle of the words' height.
-      expect(row.height, closeTo(110.41 - 1, 0.6));
+      expect(row.height, closeTo(110.41 - 1, 0.1));
       expect(label.left - row.left, closeTo(13.39, 0.05));
       expect(label.top - row.top, closeTo(13.39, 0.05));
       expect(label.height, 20);
       expect(hint.top - label.top, closeTo(22.39, 0.05));
       expect(hint.width, closeTo(261.2, 0.1));
-      expect(hint.height, closeTo(60.23, 0.6));
+      expect(hint.height, closeTo(3 * 20.0922, 0.01));
       final control = tester.getRect(find.byType(GlacierSwitch));
       expect(control.size, const Size(44, 26));
       expect(control.left - row.left, closeTo(310.3 - 22.31, 0.1));
@@ -209,9 +210,10 @@ void main() {
       expect(find.text('UPDATES'), findsOneWidget);
       expect(find.bySemanticsLabel('Updates'), findsOneWidget);
       final title = tester.getRect(find.text('UPDATES'));
-      final desc = tester.getRect(find.text('Where this build stands.'));
+      Rect lines(String words) => tester.getRect(find.ancestor(of: find.text(words), matching: find.byType(ExactLines)).first);
+      final desc = lines('Where this build stands.');
       final card = tester.getRect(find.widgetWithText(SettingRow, 'Up to date.'));
-      final footer = tester.getRect(find.text('From the Play Store.'));
+      final footer = lines('From the Play Store.');
       // Measured on the page (Appearance's first card): the title at the pane's first row, 122.73 down, 14 high in
       // 11.52px capitals spaced 0.9216px; then 8.93 to the caption, and 8.93 to the card.
       expect(title.top, closeTo(122.73, 0.1));

@@ -76,9 +76,11 @@ class TypefaceCards extends StatelessWidget {
           ),
           Padding(
             padding: EdgeInsets.fromLTRB(gap, t.space(1), gap, gap),
-            child: Text(
-              faceWords[face]!,
-              style: pageText(t, t.fontSize('xs'), weight: 'semibold', height: t.len('glacier-leading-sm'), color: t.color(selected ? 'glacier-text' : 'glacier-text-muted')),
+            child: ExactLines.of(
+              Text(
+                faceWords[face]!,
+                style: pageText(t, t.fontSize('xs'), weight: 'semibold', height: t.len('glacier-leading-sm'), color: t.color(selected ? 'glacier-text' : 'glacier-text-muted')),
+              ),
             ),
           ),
         ],

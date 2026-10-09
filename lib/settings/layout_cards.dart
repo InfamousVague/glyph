@@ -30,9 +30,10 @@ class ChoiceCardMeta extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(label, style: pageText(t, t.fontSize('sm'), weight: 'semibold')),
+                ExactLines.of(Text(label, style: pageText(t, t.fontSize('sm'), weight: 'semibold')), normal: true, dpr: t.css.lineDpr),
                 const SizedBox(height: 1),
-                Text(hint, style: pageText(t, t.fontSize('xs'), height: 1.35, color: t.color('glacier-text-muted'))),
+                // Its lines at the stylesheet's own height, to the fraction (the kit's ExactLines).
+                ExactLines.of(Text(hint, style: pageText(t, t.fontSize('xs'), height: 1.35, color: t.color('glacier-text-muted')))),
               ],
             ),
           ),

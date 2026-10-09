@@ -86,7 +86,9 @@ void main() {
         if (i == 0) {
           held.rect('the row $label', rectOf(tester, rowCalled(label)), page.rect('rows', i));
         } else {
-          held.span('the row $label', rectOf(tester, rowCalled(label)), page.rect('rows', i), by: 0.75);
+          // The page's row is measured with the hairline over it, which here is drawn round the row and not in it.
+          final own = rectOf(tester, rowCalled(label));
+          held.span('the row $label', Rect.fromLTRB(own.left, own.top - t.len('glacier-hairline'), own.right, own.bottom), page.rect('rows', i), by: 0.75);
         }
         held.block('the label $label', rectOf(tester, inRow(label, find.text(label))), page.rect('labels', i), by: by);
         held.block('the hint of $label', rectOf(tester, inRow(label, find.text(hints[i]))), page.rect('hints', i), by: by);

@@ -110,7 +110,9 @@ void main() {
     for (final (i, label) in rows.indexed) {
       final by = after.contains(label) ? 0.75 : 0.5;
       if (after.contains(label)) {
-        held.span('the row $label', rectOf(tester, rowCalled(label)), page.rect('rows', i), by: 0.75);
+        // The page's row is measured with the hairline over it, which here is drawn round the row and not in it.
+        final own = rectOf(tester, rowCalled(label));
+        held.span('the row $label', Rect.fromLTRB(own.left, own.top - t.len('glacier-hairline'), own.right, own.bottom), page.rect('rows', i), by: 0.75);
       } else {
         held.rect('the row $label', rectOf(tester, rowCalled(label)), page.rect('rows', i));
       }
