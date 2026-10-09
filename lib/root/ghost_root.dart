@@ -107,6 +107,7 @@ import 'capture_route.dart';
 import 'library_reads.dart';
 import 'note_desk.dart';
 import 'reset_wiring.dart';
+import 'scene_play.dart';
 import 'take_back.dart';
 import 'voice_wiring.dart';
 
@@ -621,7 +622,7 @@ class _GhostRootState extends State<GhostRoot> {
     final wayIn = services == null ? noServiceWayIn : null;
     // Developer's two benches, over everything (diag/WispBench.tsx, diag/SceneBench.tsx).
     void smoke() => unawaited(showWispBench(context));
-    void scene(String readings) => unawaited(showSceneBench(context, readings));
+    void scene(String readings) => unawaited(showSceneBench(context, readings, scene: scenePlay));
     // Starting over (lib/core/reset.dart over lib/root/reset_wiring.dart): only where the app can be built anew.
     final restart = widget.restart;
     final reset = restart == null

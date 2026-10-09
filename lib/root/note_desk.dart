@@ -98,6 +98,7 @@ import '../editor/queries/queries.dart';
 import '../editor/tables/tables.dart';
 import '../editor/tickets/tickets.dart';
 import '../editor/view/editor_view.dart';
+import '../editor/view/text_panel.dart' show EditorTextPanels;
 import '../note/note_editor.dart';
 import '../note/note_place.dart';
 import '../note/note_screen.dart';
@@ -728,6 +729,8 @@ class NoteDeskState extends State<NoteDesk> {
     final inBar = TopBarTools.maybeOf(context) != null;
     final headerEnd = inBar ? t.len('app-safe-top') + t.space(1) + t.space(2) : t.len('app-safe-top') + t.space(1) + t.len('app-bar-ring') + t.space(2);
     return <Widget>[
+      // The panels a view shows beside its words (lib/editor/view/text_panel.dart): a result under its line.
+      Positioned.fill(child: EditorTextPanels(view: view)),
       // The AI's one layer: the strip under the header and the panel a tap on a blank opens.
       if (ai != null) Positioned.fill(child: NoteAiLayer(ai: ai, top: headerEnd, deviceFacts: _aiWorld?.deviceFacts, canUndo: !widget.readOnly)),
       if (finding != null)

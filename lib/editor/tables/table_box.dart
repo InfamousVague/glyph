@@ -19,14 +19,17 @@
 /// - `cursor: text` on the wrap and `pointer` on a button are a `MouseRegion`'s.
 /// - A table that does not parse (`wrap.textContent = this.text`) is its text in the note's face; the syntax tree
 ///   does not name such a thing a Table, so it is not expected.
-/// - The blanks drawn in a cell and the Fill pill after the last row (`drawCell`, `tablePill` of editor/blanks.ts)
-///   are the blanks' piece's, and not here yet.
+/// - The Fill pill after the last row is `tablePill` (lib/editor/ai/blanks.dart), drawn where the table holds
+///   blanks for the model. **The blanks are not drawn in a cell** (`drawCell`): [GlyphTable] paints its cells'
+///   words itself and holds no widget in one, so a cell with a blank reads as it is written until the table's
+///   render object can host one.
 library;
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../ai/blanks.dart' show tablePill;
 import '../commands/inserts.dart' show Plan, applyPlan;
 import '../commands/tables.dart';
 import '../looks/look.dart';
@@ -175,6 +178,9 @@ class DrawnTable extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   inside(room),
+                  // The Fill pill after the last row, where the table holds blanks for the model
+                  // (editor/ai/blanks.dart `tablePill`); nothing where it holds none, or the note is only read.
+                  if (view != null) ?tablePill(view, from, from + text.length),
                   ?tools,
                 ],
               ),
