@@ -185,6 +185,20 @@ void main() {
       expect(changes, [true, false]);
     });
 
+    testWidgets('taken down while its scroll is still counted as moving, rests its band after the frame and tells nobody mid-build', (tester) async {
+      final v = await view(tester);
+      await v.scroll(v.page, 120);
+      await v.scroll(v.page, 140);
+      await v.run(3);
+      expect(WispDrift.instance.at(WispBand.page), isNot(WispDriftAt.rest));
+      // A listener of the band that rebuilds, as a view beside it would: telling it while the tree is locked throws.
+      final beside = ListenableBuilder(listenable: WispDrift.instance.of(WispBand.page), builder: (context, _) => const SizedBox.shrink());
+      await tester.pumpWidget(Directionality(textDirection: TextDirection.ltr, child: beside));
+      expect(tester.takeException(), isNull);
+      await tester.pump();
+      expect(WispDrift.instance.at(WispBand.page), WispDriftAt.rest);
+    });
+
     testWidgets('draws the strip through the shaders once they have loaded', (tester) async {
       final v = await view(tester, foot: true);
       await v.scroll(v.page, 120);

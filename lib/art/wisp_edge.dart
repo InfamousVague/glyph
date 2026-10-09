@@ -245,6 +245,11 @@ class WispDrift {
   /// A band at rest: its noise at the base frequency and not slid.
   void rest(WispBand band) => _lanes[band]!.set(WispDriftAt.rest);
 
+  /// [rest], unless a view of the band has begun to scroll since it was asked for.
+  void restIfStill(WispBand band) {
+    if (_lanes[band]!.moving == 0) rest(band);
+  }
+
   void _step(Duration timeStamp) {
     _frame = SchedulerBinding.instance.scheduleFrameCallback(_step);
     final now = timeStamp.inMicroseconds / 1000;
@@ -429,8 +434,15 @@ class _WispEdgeState extends State<WispEdge> with SingleTickerProviderStateMixin
   @override
   void dispose() {
     WispSettings.instance.removeListener(_settingsChanged);
-    _holdStill(true);
     _idle?.cancel();
+    if (_moving) {
+      // A view taken down within the idle of its last scroll (a page left as it was flicked): the band comes to
+      // rest once the frame is done, since the tree is locked now and the band's listeners would be told to rebuild.
+      _moving = false;
+      final band = _band;
+      WispDrift.instance.moving(band, false, reset: false);
+      SchedulerBinding.instance.addPostFrameCallback((_) => WispDrift.instance.restIfStill(band));
+    }
     _blur.dispose();
     _ready.dispose();
     super.dispose();
