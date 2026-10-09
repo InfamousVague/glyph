@@ -48,7 +48,7 @@ Each stage ends installed on the Fold. Sizes are the web app's non-test source t
 | 6 | Canvas | `canvas/` (3.5k) | in the app 2026-10-08 as a note's own view (`NoteSeams.canvas`), made from the + and from a notebook's index; a team's canvas (6G) since 2026-10-09: its structure in the team's document (`native/src/crdt.rs`, `lib/team/doc.dart`), drawn and edited through it with the other members' pointers (`lib/live/team_canvas.dart`), held to the web's own Yjs and its own canvas adapter, not walked on a device; **not yet on the Fold** |
 | 7 | Account and sync: keys, the sync engine, organizations and team notes, live typing, notifications, shared links | `core/sync`, `core/orgs`, `core/live`, `share/` | in the app 2026-10-08, **off unless the build is given `--dart-define=GHOST_API=http://…`** (`lib/root/account_wiring.dart`); walked on the emulator against the service run on this Mac (sign up, sync read back by a second device, an organization, a team note, a shared link); links that open the app are followed since 2026-10-09 (`lib/root/ghost_root.dart`, `lib/core/phone_links.dart`: a note, the notifications, an organization, an invitation asked about first, a shared link's copy); live typing since 2026-10-09 (`lib/live/`, `lib/root/account_wiring.dart`, `lib/root/note_desk.dart`): the relay, a team note's room with the others' carets, presence, the nudge, a note of the account's own, proven by two Dart devices and by the web app's own client under Node through the relay on this Mac, **not walked on a device**; see "What stage 7 left open". The phone's own notifications are not ported |
 | 8 | Voice and AI: the recorder, Whisper, meetings and their service, summaries, the language model, fills, the at-work scene | `capture/` (12k), `ai/` (6.5k), `tapes/`, `scene/`, Kotlin (6.5k) | Speak in the app 2026-10-09 (`lib/root/voice_wiring.dart`, `lib/root/capture_route.dart`, `lib/root/ghost_root.dart`): the dock's microphone, a note's own and a journal's spoken entry, the capture screen with its live page, the meeting service and its screen, the + sheet's Meeting, Settings' Recording and AI pages with their real rows; the summary queue, the review's gate and the write-up's configuration (lib/ai's), a spoken note's tape played by the phone, a landing's Undo; walked on an Android emulator; the AI in a note (`NoteAi`), the fills' queue, the gists and the scene since the third pass, run on the emulator with Qwen3.5 2B; **not yet on the Fold**; see "What stage 8 left open" |
-| 9 | The rest: backup, export, plugins, the Academy and the guide, diagnostics, updates | `plugins/`, `academy/`, `guide/`, `diag/` | 9A to 9C (the library's folder, backup, export) walked on the emulator 2026-10-09, and in Settings since (`lib/root/ghost_root.dart`); see "What stage 9A to 9C left open". The plugins (in Settings and in a note), the Academy, the walkthrough and the guide's notebook, link previews, Developer's benches and its resets are in the app 2026-10-09 (`lib/root/plugin_ground.dart`, `reset_wiring.dart`, `note_desk.dart`, `ghost_root.dart`); the app's own updates (9I: `lib/core/updates.dart`, `lib/root/update_wiring.dart`, `tool/release.md`) and the invitation's card are in the app 2026-10-09, the updates run on the emulator against a made-up release and **on in no build** until a key and a release address are chosen; a note's place and the phone's own update notifier are not; see "What stage 9's other pieces left open" |
+| 9 | The rest: backup, export, plugins, the Academy and the guide, diagnostics, updates | `plugins/`, `academy/`, `guide/`, `diag/` | 9A to 9C (the library's folder, backup, export) walked on the emulator 2026-10-09, and in Settings since (`lib/root/ghost_root.dart`); see "What stage 9A to 9C left open". The plugins (in Settings and in a note), the Academy, the walkthrough and the guide's notebook, link previews, Developer's benches and its resets are in the app 2026-10-09 (`lib/root/plugin_ground.dart`, `reset_wiring.dart`, `note_desk.dart`, `ghost_root.dart`); the app's own updates (9I: `lib/core/updates.dart`, `lib/root/update_wiring.dart`, `tool/release.md`) and the invitation's card are in the app 2026-10-09, the updates run on the emulator against a made-up release and **on in no build** until a key and a release address are chosen; a note's place, a picture from the phone, the phone's calendar for a date and a voice memo's player are in the app 2026-10-09 (`Position.kt`, `Pictures.kt`, `DayPick.kt`), walked on the emulator; a film and the phone's own update notifier are not; see "What stage 9's other pieces left open" |
 | 10 | Platforms and release: the Fold's wide layouts, Mac, Windows, iPhone; signing; moving a library over from the Tauri app | | |
 
 The web app is about 110,000 lines of TypeScript, 21,500 of CSS, 27,000 of Rust and 6,500 of Kotlin, with 5,600
@@ -103,18 +103,66 @@ on the same phone.
   - **The invitation's card** above the notes (`InviteWaiting`, `lib/root/update_wiring.dart`): the newest
     invitation still pending whose organization the account is still invited to, with `InviteActions`' Accept and
     Decline; accepted, the organization opens. Only in a build with an account.
+- **The phone, reached since 2026-10-09** (hand-written channels, no plugin; `Position.kt`, `Pictures.kt`,
+  `DayPick.kt` beside `OpenLink.kt`):
+  - **A note keeps its place.** `ghost_md/location` is the permission, its prompt and a fix from the platform's
+    own providers (`lib/core/phone_position.dart`; the manifest now declares coarse and fine). What
+    `lib/core/location.dart` left of `core/location.ts` is `lib/core/place_tags.dart` (`PlaceTags`: the tag that
+    waits for a note's first words or a recording's better ones, new notes tagged when Settings says so, the held
+    box, the watchers, the kept refusal), the note's half is `lib/note/note_screen.dart`'s as it is
+    `NoteScreen.tsx`'s (Add my location, Remove location, a name arriving, the box held under the byline), and the
+    root gives it to everything that makes a note: the + sheet's Note (asked before it is shown, so the box is
+    there from its first frame; the first ask is said in the app's words with Allow location on it), a journal's
+    entry and its place switch, a take's own new note once the recorder has gone (`CaptureRouteWorld.tagNew`,
+    `EntryAim.tag`), the take-back and the Trash (`forgetTag`), the sweep at launch and after a better-words pass.
+    A canvas, a notebook, the guide, a shared link's copy and a note made for a title are the app's and are never
+    tagged. The map card is `NoteSeams.mapCard`, quiet for a draft's waiting tag, with OpenStreetMap's tiles
+    (`lib/editor/media/map_tiles.dart`, the app named to the tile server) where the map switch is on and Local
+    only is off; the name is Nominatim's through `geocodePlace(geocodeFetcher())`; a tap opens `geo:`. The +'s
+    A place writes a place line with its card under it. Settings' Location card asks for its one fix and says a
+    refusal with Open settings. A toast is lifted over the keyboard now (the introduction was under it).
+  - **A picture from the phone**: Android's chooser, the picture shrunk to 1600 px and turned the right way up
+    (`Pictures.kt`), moved among the library's pictures under a fresh name by the core (`sync_put_file_path`, so
+    sync carries it as any picture), from the band's Add image, the +'s Picture and a canvas's picture card
+    (`lib/core/phone_pictures.dart`).
+  - **Pick a date** is Android's own calendar (`DayPick.kt`, `lib/core/phone_day.dart`), on a list item's date
+    page, in a ticket's panel and in a query.
+  - **A voice memo** left in a spoken note plays where it sits, a stretch of the note's recording on the app's
+    one player (`lib/tapes/clip_player.dart`, the editor told its tape through `tapeSource`).
+  - **The More sheet's "Linked to"** is the registry's links and actions (`NoteSeams.plugins`,
+    `lib/note/note_settings.dart` `NotePlugins`): a link's page inside the sheet, an action run on the note
+    through its editor, its places a page where it has several. **The walkthrough's model page** reads the
+    phone's models (`PhoneGuideModels`). `claudeHandle` is set at launch.
+  - **Seen on the emulator (2026-10-09, debug):** a new note's introduction toast over the keyboard, Allow
+    location raising Android's prompt, "While using the app", the box held and then the tag landing with the
+    note's first words (`location:` and `place: "Mendocino County, California"` in its file, the name asked of
+    Nominatim) and its card drawn with tiles, the pin and the credit; Remove location and Add my location from
+    the More sheet; Settings' Location card; the band's Add image opening the photo picker, a 2400 x 1800 picture
+    chosen and kept as a 60 KB JPEG in `images/` with its line written and drawn; the +'s A picture and A place
+    rows, A place writing its line with its map under it; Pick a date opening the phone's calendar and the day
+    written on the item; the More sheet's Notion board and GitHub repo rows and GitHub's page; a memo's player in
+    a spoken note playing its three seconds and stopping; a table's cells drawing their blanks and a filled
+    answer; the AI's strip with the page started under it.
+    **Not exercised there:** the position the emulator was told (`adb emu geo fix` answered OK and the phone's
+    providers kept their own place, in California); a refusal and its footnote, a blocked phone and Open
+    settings; a journal's entry and its place switch; a take's note tagged after the recorder; a locked phone; a
+    canvas's picture card; a picture that cannot be read; the model page's download; a plugin's action run on a
+    connected service. Each is held by tests.
+  - **Still open of it:** **a film** (`AddConfig.onVideo`, `FilmSeams`, `VideoMode.play`): the web's
+    `media/VideoPick.kt` (the Photo Picker, the copy and its poster), a `save_video` in the Flutter core
+    (`native/src/files.rs` keeps recordings and pictures and has no film; `native/src/kept/videos.rs` only sweeps)
+    and a player (a texture and a `MediaPlayer`, since there is no WebView to play one in) are none of them
+    here. A picture on the clipboard is not pasted (`ContextBand.onPasteImage`, `PictureStore.save`: nothing reads
+    the clipboard's picture, and Dart cannot write a JPEG without the phone). A place line's name that comes
+    later than three seconds is written only while its line is the newest change, without the web's count of the
+    note's own tag landing meanwhile (`tagSteps`). The map note's header on a phone is the card inset, where the
+    page's is the page's whole width with square corners.
 - **Not wired, each with its seam:**
-  - **A note keeping its place** (the web's geotag switch, on by default for notes the person makes): nothing
-    here can say where the phone is. It wants a Kotlin half for the device's position and its permission (there
-    is none under `android/`, and the manifest asks for no location), then what `lib/core/location.dart`'s header
-    lists as not ported (`pendingTag`, `tagNewNotesIfWanted`, `tagEntryIfWanted`, the held box, the watchers, the
-    kept refusal) over `Locations`, with `geocodeFetcher()` (`lib/core/geocode.dart`) for the name. Its seams in
-    what is wired: `NoteSeams.location` and `mapCard`, `TemplateCards.canLocate`, `TakeBack.forgetTag`, the
-    capture route's `tagAfter`, a journal's place switch.
-  - **The More sheet's "Linked to" rows** (`NoteSeams.linked`: each plugin's link, its page and its actions), a
-    board card's plugin rows (`drawnBoards(actions:)`), the editor's parser reading `plugins.formats()` (the desk
-    gives it the app's own marks), and `usePluginContext` / `claudeHandle` (docs/STAGE8_AI.md, "At launch", 1).
-  - **The walkthrough's model page** (`Guide(models:)`): a phone with none to fetch, as far as it is told.
+  - **A board card's plugin rows** (`drawnBoards(actions:)`, `cardActions`): left as the web app has them. Its
+    own `Editor.tsx` calls `drawnBoards()` with none, so a card's menu there has no plugin's rows either; the seam
+    is one line in `lib/root/note_desk.dart` (the desk already has `itemSend` and `lineOffers`, which are its two
+    halves) if that is wanted here.
+  - **The editor's parser reading `plugins.formats()`**: the desk gives it the app's own marks.
   - **The phone's own update notifier** (9I; the web's `UpdateCheckWorker.kt`, `UpdateAlerts.kt` and Rust's `peek`):
     nothing looks for an update while the app is closed, and About has no "Update alerts" switch. Not small: a
     WorkManager job in a process where Dart never started needs the check without Dart (the two requests in
@@ -188,20 +236,27 @@ recorder's screen that is on screen.
   **Not run:** a meeting written up with words and its summary landing (the meeting service hears the emulator's
   silent microphone; the fixture is the dictation microphone's only), an instruction on a selection, a spoken
   instruction, the scene in the bench after it was given lib/scene, the gists.
-  **Still open of it:** the strip's room is not kept clear by the page (`NoteAiLayer.onRoom`: the strip sits over
-  the top of the tape or the first line while it is up); blanks are not drawn in a table's cell (`drawCell`:
-  `GlyphTable` paints its cells and holds no widget in one; the Fill pill after the last row is there);
-  `claudeHandle` (docs/STAGE8_AI.md, launch item 1) is not set; `resumeParked()` is not called when Local only is
-  switched off; the bench's `SceneBenchPlay.played` is never told.
+  **Since (2026-10-09):** the strip's room is kept clear by the page (`NoteAiLayer.onRoom` to
+  `NoteSeams.headRoom`: the page starts that much lower while the strip is up); a blank and a filled answer are
+  drawn in a table's cell (`drawCell`: `GlyphTable` holds a box of its own in place of that cell's words,
+  `HeldCell`, laid out where `TableLayout` puts it, and the table is drawn again when its blanks change); such a
+  cell asks for its whole width up to 18em, where the page lets its words wrap. `claudeHandle` is set;
+  `resumeParked()` is called when Local only is switched off; the bench is told when its scene has left
+  (`AtWork.onGone`). Seen on the emulator: a table's two blanks as squares with their icons and a filled answer
+  with its dotted line, Fill 2 after the last row, and the strip ("Loading Qwen3.5 2B.") with the byline and the
+  words under it. **Not run:** a fill in a cell to its end (the emulator's model writes three tokens a second),
+  a tap on a cell's filled answer opening its panel (held by a test), the bench.
 - **What a recording wrote into a note is said, with its Undo** (`editor/useLanding.ts`, on the desk): an edit in
   the note's editor that takes out exactly what went in. Its writes to OTHER notes are not reversed: the store
   keeps no log of a command's change (`LibraryRecorderStore`, where the core's `apply_command` and `undo_command`
   are not bound), so each is counted as changed since and the toast says so.
 - **A spoken note's tape** is at its top (`NoteSeams.head`) with Play, Add and Remove with its Undo, and its
   phrases under its words (`NoteSeams.tail`), played by `PhoneTapePlayer` over `TapePlayer.kt` (a `MediaPlayer` on
-  `recordings/<id>.wav`). A voice memo's clip in a note (`MediaSeams.clipPlayer`, `tape`) is not given the player
-  yet, and there is no shelf to give it to: the web's went with its dashboard (lib/tapes/shelf.dart's header), and
-  a recording is a note's row and All notes' Tapes switch.
+  `recordings/<id>.wav`). A voice memo's clip in a note is played on the same player
+  (`lib/tapes/clip_player.dart`; see stage 9's other pieces): the tape's Play afterwards goes on from where the
+  memo stopped, the app having one voice where the page had an element for each. There is no shelf: the web's
+  went with its dashboard (lib/tapes/shelf.dart's header), and a recording is a note's row and All notes' Tapes
+  switch.
 - **The voice model's line** is above the notes while it is being fetched or has failed (`Notices`'
   `VoiceModelStatus`); the update's card and the invitation's are not given (`core/ota.ts`,
   `settings/InviteActions.tsx`).
@@ -211,7 +266,8 @@ recorder's screen that is on screen.
   stops it; that path is held by tests and was **not walked on a device** (no build with the assistant was made).
 - **Other apps' sound in a meeting** is asked for where the switch is on and the phone can (`Voice.sound`); the
   screen-share consent was not walked.
-- **No place is asked for** after a take's new note or a spoken entry (see stage 9's other pieces).
+- **A take's own new note and a spoken entry are tagged** once the recorder has gone, quietly over a locked
+  phone (see stage 9's other pieces); held by tests, not walked.
 - **Settings › Recording's Tapes** sums the lengths of the notes whose audio was not removed here; the web also
   asks each file whether it is on this device (`headStatus`; `TapePlayer.onDevice` could answer it now).
 - **Checked where:** on an Android emulator (2026-10-09, debug, dark): the dock's microphone, the system's
@@ -292,21 +348,22 @@ change (`lib/root/library_reads.dart`). `test/root/structured_test.dart` holds t
   `App.tsx`'s `takeBack` with its own conditions; `test/root/take_back_test.dart` holds each one that must not
   delete): looked at whenever the screen or the open tabs change and at launch, a delete with no Trash and no
   toast. The record is written before the line and the note now, as on the web, and Back from an untouched entry
-  gives the journal its tab again. What it lacks is the place waiting for the note's first words
-  (`TakeBack.forgetTag`), which nothing keeps yet. Seen on the emulator for a new note named from its blank page
+  gives the journal its tab again, and the place waiting for the note's first words goes with it
+  (`TakeBack.forgetTag`). Seen on the emulator for a new note named from its blank page
   and left; an entry's is held by tests.
-- **A blank page's cards have no map.** A map at the top is left out (`TemplateCards.canLocate` is false: nothing
-  says where the phone is), and a template with a map asks for no place.
-- **A new note, a journal's entry and a journal keep no place** (Tag new notes, a journal's place switch): the
-  switch is drawn in the New notebook sheet and written to the journal, and nothing reads it.
+- **A blank page's cards have A map at the top** where the phone can say where it is (`TemplateCards.canLocate`,
+  its header `MapPicture`), dimmed with the reason under Local only or a refusal that stands; pressed, the note's
+  box is held and its place asked for. **A new note, a journal's entry and a journal keep their place** (Tag new
+  notes, a journal's place switch; see stage 9's other pieces). Not walked: the card, and an entry.
 - **The + sheet's Meeting** is there where a meeting can be recorded (stage 8), and **From a shared link** in a
   build with an account's service; neither from an organization's +.
-- **A canvas** has no picture picker and opens no link (as a note), no comment sheet (`CanvasView.threads`), is not
-  framed in a note from the + (`AddConfig.canvases`). A team's canvas (6G) is its structure in the team's document
-  (see "What stage 7 left open"). A canvas renamed from
-  its tab is written to the store and not through its open screen (`rename`).
-- **A board's card has no plugin's rows** (`drawnBoards(actions:)`), and a date in a ticket's panel or a query is
-  not picked from a calendar (`dayPicker`).
+- **A canvas** has the phone's picture chooser for its picture card (not walked) and opens no link (as a note), no
+  comment sheet (`CanvasView.threads`), is not framed in a note from the + (`AddConfig.canvases`). A team's canvas
+  (6G) is its structure in the team's document (see "What stage 7 left open"). A canvas renamed from its tab is
+  written to the store and not through its open screen (`rename`).
+- **A board's card has no plugin's rows** (`drawnBoards(actions:)`), as on the web (see stage 9's other pieces).
+  A date in a ticket's panel or a query is picked from the phone's calendar (`dayPicker`); seen on a list item's
+  date page, not in a panel or a query.
 - **`Notices`**: the voice model's line (stage 8), the update's card and the invitation's (stage 9,
   `lib/root/update_wiring.dart`) are on the home page. `RefiningNotice` and the sidebar's notices are still given
   nothing.
@@ -355,13 +412,12 @@ The editor's pieces (docs/STAGE4.md) are assembled for each open note by `lib/ro
   signed-out one, whose way in says the build has no service. A define naming ghostmarkdown.com or attack.fm is
   refused in a build that is not a release (`accountBase`), and by the `Api`'s assert after it.
   `test/root/second_device_test.dart` is the second device that reads back what a phone wrote.
-- **Not drawn yet on a note's page:** the placeholder ("Write something."), comments, the AI's rows, the place row
-  and the map card. (The blank page's names and template cards, a notebook's bar and foot, and the canvas, the
-  notebook and the journal themselves came with stages 5 and 6.)
-- **Nothing can be added that needs the phone:** no picture picker (the band's Add image and the +'s Picture are not
-  offered; a picture a note already names is drawn from the kept files), no place, film or voice memo, no calendar
-  for Pick a date. A link card's tap, a canvas's link card and Settings' links are handed to the phone since
-  2026-10-09 (`lib/core/open_link.dart` over `ghost_md/open`; seen opening Chrome on the emulator).
+- **Not drawn yet on a note's page:** the placeholder ("Write something.") and comments. (The AI's rows, the place row
+  and the map card came with stages 8 and 9; the blank page's names and template cards, a notebook's bar and foot, and
+  the canvas, the notebook and the journal themselves came with stages 5 and 6.)
+- **What needs the phone is added** since 2026-10-09: a picture, a place and a day from the calendar (see stage 9's
+  other pieces). **A film is not.** A link card's tap, a canvas's link card and Settings' links are handed to the
+  phone since 2026-10-09 (`lib/core/open_link.dart` over `ghost_md/open`; seen opening Chrome on the emulator).
 - **A new note is opened ready to type** since stages 5 and 6 were wired (the shell's `openNote` carries a caret),
   from the + sheet's Note.
 - **Links that open the app** are followed once the notes are read (`lib/root/ghost_root.dart` over
