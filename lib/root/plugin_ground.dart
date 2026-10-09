@@ -24,6 +24,7 @@ import '../account/api.dart' show FetchResponse, Fetcher, isProductionHost;
 import '../account/device_keys.dart' show deviceSecureStore;
 import '../core/open_link.dart';
 import '../core/preferences.dart';
+import '../format/pipeline.dart' show PluginContext, usePluginContext;
 import '../plugins/built_in.dart';
 import '../plugins/host.dart';
 import '../plugins/registry.dart';
@@ -67,6 +68,8 @@ Registry installPlugins({PluginGround? ground, PreferencesStore? prefs}) {
   usePluginGround(ground ?? PluginGround(secrets: deviceSecureStore(), fetch: pluginFetcher(), open: openLink));
   final store = prefs ?? preferences;
   final registry = installBuiltInPlugins(localOnly: () => store.value.localOnly);
+  // A run's system message and a note's hash carry a linked repo's briefing (lib/format/pipeline.dart).
+  usePluginContext(PluginContext(contextFor: (noteId) => plugins.contextFor(noteId), contextVersion: (noteId) => plugins.contextVersion(noteId)));
   for (final plugin in builtIn) {
     // A store that will not answer leaves a plugin as not connected, which is what it then is.
     unawaited(createHost(plugin.manifest).secrets.warm().then<void>((_) {}, onError: (Object _) {}));

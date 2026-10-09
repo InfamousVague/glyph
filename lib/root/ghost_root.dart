@@ -5,7 +5,15 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../account/ui_state.dart';
-import '../ai/available.dart' show modelFor, presentIds;
+import '../ai/available.dart' show AvailabilityController, modelFor, presentIds;
+import '../ai/backend.dart' as engine show aiBackend, readDevice;
+import '../ai/fills/queue.dart' show startFills;
+import '../ai/note_ai.dart' show NoteAi;
+import '../ai/note_review.dart' show ReviewHost;
+import '../ai/start.dart' as ai_start;
+import '../ai/summaries.dart' show SummaryKind;
+import '../ai/summary_keep.dart' show keptText, summaryUnchanged;
+import '../ai/summary_text.dart' show summarySection;
 import '../ai/support/runnable.dart' show cannotRun;
 import '../art/art.dart';
 import '../book/book_spot.dart' show whereLeft;
@@ -55,6 +63,8 @@ import '../core/workspaces.dart';
 import '../diag/scene_bench.dart' show showSceneBench;
 import '../diag/wisp_bench.dart' show showWispBench;
 import '../editor/queries/queries.dart' show NoteChange;
+import '../format/device_facts.dart' show DeviceFactsController;
+import '../format/gist.dart' show Gists, gistVisible, gistsCameBack, pauseGists;
 import '../guide/guide.dart';
 import '../guide/guide_state.dart';
 import '../guide/guidebook.dart';
@@ -84,6 +94,7 @@ import '../orgs/ui/organization_screen.dart';
 import '../plugins/registry.dart' show plugins;
 import '../settings/organization_sheet.dart';
 import '../settings/settings_screen.dart';
+import '../scene/at_work.dart';
 import '../settings/settings_sheet.dart';
 import '../share/app_links.dart';
 import '../shell/account_gate.dart';
@@ -357,8 +368,12 @@ class _GhostRootState extends State<GhostRoot> {
     recorder.voiceModel.addListener(_voiceChanged);
     _voiceLife = AppLifecycleListener(onStateChange: (state) {
       recorder.lifecycle(state);
-      if (state == AppLifecycleState.resumed) unawaited(models?.refresh());
+      if (state == AppLifecycleState.resumed) {
+        unawaited(models?.refresh());
+        gistsCameBack();
+      }
     });
+    await _aiUp(voice);
     await voice.start(
       notesChanged: () => unawaited(_library.refresh().catchError((Object _) {})),
       // A summary landed with the app on screen: said, with the way to the note.
@@ -403,6 +418,113 @@ class _GhostRootState extends State<GhostRoot> {
     };
     if (state is notices.VoiceModelQuiet) return const [];
     return [notices.VoiceModelStatus(state: state, onRetry: model.retry)];
+  }
+
+  /// The AI, once voice has made its engine the app's (docs/STAGE8_AI.md, "At launch"): whether it can run here,
+  /// the phone as the strip's card names it, and the fills' queue. Null in a build with no engine.
+  AvailabilityController? _availability;
+  DeviceFactsController? _deviceFacts;
+  VoidCallback? _stopFills;
+
+  /// A line for each note that wants one, written by the smallest model while nothing else has the cores
+  /// (lib/format/gist.dart): the home page's cards read them.
+  Gists? _gists;
+  VoidCallback? _stopGistHold;
+
+  /// The AI of the note on screen, told by its desk: the scene over the window is drawn from it.
+  String? _noteAiId;
+  NoteAi? _noteAi;
+
+  Future<void> _aiUp(Voice voice) async {
+    if (!engine.aiBackend.available || voice.models == null) return;
+    // Who signs a note beside the AI.
+    ai_start.noteOwner = () => _services?.session?.handle;
+    final availability = AvailabilityController(models: voice.models)..addListener(_voiceChanged);
+    final device = await engine.readDevice();
+    if (!mounted) return availability.dispose();
+    final ram = device?.totalRamBytes;
+    setState(() {
+      _availability = availability;
+      _deviceFacts = DeviceFactsController(cores: device?.cores, memoryGb: ram == null ? null : ram / 1e9);
+    });
+    // The gists step aside for the recorder and a review, and are written only with the app on screen.
+    _stopGistHold = voice.recorder.refining?.onRefineHold(pauseGists);
+    gistVisible = () => WidgetsBinding.instance.lifecycleState == null || WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    _gists = Gists()
+      ..addListener(_voiceChanged)
+      ..show(_shown);
+    // The fills' queue: a press run to its end and landed, in the open note or a closed one.
+    _stopFills = startFills(
+      (said) {
+        if (!mounted) return;
+        final action = said.action;
+        GlacierToast.of(context).toast(
+          message: Text(said.message),
+          duration: said.duration == null ? null : Duration(milliseconds: said.duration!),
+          action: action == null ? null : GlacierToastAction(label: action.label, onPress: action.onPress),
+        );
+      },
+      (id) => _shell.currentState?.openNote(id),
+      getNote: _library.get,
+      // A write another writer won says so in the queue's own words.
+      updateNote: (id, body, expectedRevision) async {
+        final now = await _library.get(id);
+        if (now == null) throw StateError('The note was deleted.');
+        if (now.revision != expectedRevision) throw StateError('The note changed: its revision is another.');
+        return _library.update(id, body, expectedRevision);
+      },
+      syncNow: _services?.engine?.syncNow,
+      visible: () => WidgetsBinding.instance.lifecycleState == null || WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed,
+    );
+  }
+
+  /// What a desk's AI stands on (lib/root/note_desk.dart `NoteAiWorld`); null until there is an engine.
+  NoteAiWorld? _aiWorld() {
+    final availability = _availability;
+    final voice = _voice;
+    if (availability == null || voice == null) return null;
+    final refining = voice.recorder.refining;
+    final summaries = voice.summaries;
+    return NoteAiWorld(
+      availability: availability,
+      deviceFacts: _deviceFacts,
+      reviewHost: refining == null
+          ? null
+          : ReviewHost(
+              getNote: _library.get,
+              listNotes: () async => _library.value,
+              updateNote: (id, body, expectedRevision) async {
+                await _library.update(id, body, expectedRevision);
+              },
+              enqueueRefine: refining.enqueueRefine,
+              holdRefining: refining.holdRefining,
+              keepBetterPhrases: refining.keepBetterPhrases,
+              listenAgain: refining.listenAgain,
+            ),
+      openForSummaries: summaries?.openForSummaries,
+      onGetModel: () => setState(() {
+        _settings = true;
+        _settingsPage = SettingsTarget('ai', nonce: DateTime.now().microsecondsSinceEpoch);
+      }),
+      // The tape's real kind: a meeting's write-up for a meeting, a recording's otherwise.
+      summarize: summaries == null
+          ? null
+          : (id, replace) => summaries.enqueueSummary(id, preferences.value.meetings.containsKey(id) ? SummaryKind.meeting : SummaryKind.recording, replace: replace),
+      summaryEdited: (id, body) {
+        final section = summarySection(body, keptText(id));
+        return section != null && !summaryUnchanged(id, section.text);
+      },
+      opened: (id, ai) {
+        if (ai == null && _noteAiId != id) return;
+        _noteAi?.removeListener(_voiceChanged);
+        _noteAi?.reviewStage.removeListener(_voiceChanged);
+        _noteAiId = ai == null ? null : id;
+        _noteAi = ai;
+        ai?.addListener(_voiceChanged);
+        ai?.reviewStage.addListener(_voiceChanged);
+        _voiceChanged();
+      },
+    );
   }
 
   /// A Speak button (`speak`): a capture into a new note, or the note its first command names.
@@ -944,6 +1066,7 @@ class _GhostRootState extends State<GhostRoot> {
     newEntry: (id, template) => unawaited(_newEntry(id, template)),
     openLink: widget.openLink,
     previewer: _previews,
+    ai: _aiWorld,
     tapePlayer: widget.tapePlayer,
     noteById: _library.noteOf,
     getNote: _library.get,
@@ -992,6 +1115,7 @@ class _GhostRootState extends State<GhostRoot> {
 
   void _changed() {
     _reads.changed();
+    _gists?.show(_shown);
     // The notes changed: a meeting's note may have been written by the service, and a write-up's result may wait.
     _voice?.notesChanged();
     if (mounted) setState(() {});
@@ -1035,6 +1159,13 @@ class _GhostRootState extends State<GhostRoot> {
     _stopLinks?.call();
     _previews.dispose();
     _unwatchMeeting?.call();
+    _stopFills?.call();
+    _stopGistHold?.call();
+    _gists?.removeListener(_voiceChanged);
+    _gists?.dispose();
+    _availability?.removeListener(_voiceChanged);
+    _availability?.dispose();
+    _deviceFacts?.dispose();
     _voice?.live?.canNotify.removeListener(_voiceChanged);
     _voice?.models?.removeListener(_voiceChanged);
     _voice?.recorder.voiceModel.removeListener(_voiceChanged);
@@ -1328,6 +1459,7 @@ class _GhostRootState extends State<GhostRoot> {
                 recording: recordingNow,
                 sideKey: voice?.assistant ?? false,
                 notices: _notices(),
+                gists: _gists?.value ?? const {},
                 clock: widget.clock,
                 onAllNotes: shell.showAllNotes,
                 onSearch: _search,
@@ -1358,6 +1490,7 @@ class _GhostRootState extends State<GhostRoot> {
                 workspaces: _workspaces,
                 stored: _stored,
                 tapes: screen.tapes,
+                gists: _gists?.value ?? const {},
                 clock: widget.clock,
                 onOpen: shell.openNote,
                 onBack: shell.backToList,
@@ -1428,6 +1561,18 @@ class _GhostRootState extends State<GhostRoot> {
                 return NotificationsDrawer(notifications: const [], prefs: prefs.notifications, signedIn: false, onClose: close, onOpenNote: openNote, onOpenOrganization: (_) => close(), onAccount: account);
               },
             ),
+            // The phone at work, over the app, while a review is on the note being read (lib/scene/at_work.dart).
+            if (_noteAi case final noteAi? when _noteAiId != null)
+              AtWork(
+                noteId: _noteAiId!,
+                opening: noteAi.reviewKey,
+                heard: noteAi.handoff?.heard ?? '',
+                body: _library.noteOf(_noteAiId!)?.body ?? '',
+                hasJob: noteAi.handoff?.job != null,
+                stage: noteAi.reviewStage.value,
+                refining: voice?.recorder.refining?.refining,
+                summaryDue: voice?.summaries?.pendingFor(_noteAiId!),
+              ),
             SettingsSheet(
               open: _settings,
               toPage: _settingsPage,

@@ -28,6 +28,11 @@
 ///   with Add (talk more into the note) and Remove with its Undo (`editor/useNoteTape.ts`), and the phrases as they
 ///   were spoken under the words (lib/tapes/transcript_words.dart);
 ///
+/// - the AI in the open note (lib/ai/note_ai.dart `NoteAi`, one to a desk): its extensions among the editor's own
+///   (the blanks and their Fill pill, the panel a tap on one opens, what it writes arriving out of smoke, the tracked
+///   changes), its layer over the page (the strip under the header, the fills' panel), a run from the More sheet,
+///   a spoken instruction and a review the note was opened with, and the tape's Summarize;
+///
 /// What differs from the page:
 /// - **No picture can be added yet**: this build has no picker, so the band's Add image and the +'s Picture are
 ///   not offered. Pictures a note already names are drawn from the kept files.
@@ -40,10 +45,8 @@
 /// - **A landing's writes to other notes are not reversed by its Undo** (`undo_command`): the store here keeps no
 ///   log of a command's change (lib/capture/recorder.dart `LibraryRecorderStore`), so each is counted as changed
 ///   since and the toast says so. A tag waiting for the words is not let go (no note keeps a place yet).
-/// - **A spoken instruction and a review the note opened with** ([NoteDesk.ask], [NoteDesk.review]) are carried
-///   and not run: they are `NoteAi`'s (lib/ai/note_ai.dart), which is not on the desk yet.
-/// - **The tape has no Summarize** (`NoteTape.summary`): it is offered while the AI can run on the note
-///   (`NoteAi.canSummarize`), and the AI is not on the desk yet.
+/// - **The strip's room is not kept clear by the page** (`NoteAiLayer.onRoom`, the page's `--ai-strip-room`): the
+///   strip floats over the note's first lines while it is up.
 /// - **A board's card has no plugin's rows** (`drawnBoards(actions:)`).
 /// - **The plugins reach the note through the editor** (lib/editor/items/note_plugins.dart): a swipe on a list item
 ///   and the quiet words after a line are asked of the app's registry as they are used, a linked to-do's box and
@@ -56,8 +59,17 @@ import 'package:flutter/widgets.dart' hide Decoration;
 import 'dart:async';
 
 import 'package:flutter/scheduler.dart';
-import 'package:glacier/glacier.dart' show GlacierToast, GlacierToastAction, GlacierToastController;
+import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:glacier/glacier.dart';
 import '../account/ui_state.dart';
+import '../ai/available.dart' show AvailabilityController;
+import '../ai/kinds.dart' show RunKind;
+import '../ai/note_ai.dart';
+import '../ai/note_review.dart' show ReviewHost;
+import '../ai/review.dart' show ReviewHandoff;
+import '../ai/summaries.dart' show SummaryStarter;
+import '../capture/recorder.dart' show SpokenAsk;
+import '../format/device_facts.dart' show DeviceFacts;
 import '../art/lucide.g.dart';
 import '../book/book_nav.dart';
 import '../book/book_view.dart';
@@ -94,6 +106,7 @@ import '../plugins/types.dart' show NoteEditing;
 import '../notes/note_templates.dart' show NoteTemplate;
 import '../settings/panes/cheat_sheet.dart';
 import '../shell/screen.dart' show Keyed;
+import '../shell/top_bar_tools.dart' show TopBarTools;
 import '../share/ui/share_rows.dart';
 import '../tapes/note_tape.dart';
 import '../tapes/player.dart' as tape_player show Tape, TapePlayer;
@@ -174,6 +187,7 @@ class NoteDeskWorld {
     this.setNoteRecording,
     this.tapes,
     this.onSpeak,
+    this.ai,
   });
 
   /// Every note's title, for the +'s A note.
@@ -259,6 +273,38 @@ class NoteDeskWorld {
 
   /// Talk more into this note (the tape's Add); absent where nothing records.
   final void Function(String noteId)? onSpeak;
+
+  /// What the AI in a note stands on, asked as a desk is made: null where the build has no engine (a test, a
+  /// picture, a launch before voice is made), and the desk then has no AI at all.
+  final NoteAiWorld? Function()? ai;
+}
+
+/// What a desk's [NoteAi] is given of the app (lib/ai/note_ai.dart's own list).
+@immutable
+class NoteAiWorld {
+  const NoteAiWorld({required this.availability, this.deviceFacts, this.reviewHost, this.openForSummaries, this.onGetModel, this.summarize, this.summaryEdited, this.opened});
+
+  /// Whether the AI can run here: the app's one controller.
+  final AvailabilityController availability;
+
+  /// The phone as the app knows it, for the strip's card.
+  final ValueListenable<DeviceFacts>? deviceFacts;
+
+  /// What the review after a recording asks of the app, and the summary queue's door for an open note.
+  final ReviewHost? reviewHost;
+  final void Function(String id, SummaryStarter? starter)? openForSummaries;
+
+  /// Settings at the Model card, for a press that needs a model on the phone.
+  final VoidCallback? onGetModel;
+
+  /// The tape's Summarize: asks the queue for the note's summary, over a section the person edited with `replace`;
+  /// and whether the section in these words is no longer the one the app wrote.
+  final void Function(String noteId, bool replace)? summarize;
+  final bool Function(String noteId, String body)? summaryEdited;
+
+  /// Told the AI of the note on a desk as it is made, and null as it goes: the root draws the scene over the
+  /// window from it (lib/scene/at_work.dart).
+  final void Function(String noteId, NoteAi? ai)? opened;
 }
 
 /// Builds a note's screen with the editor and the seams the desk made for it.
@@ -321,10 +367,62 @@ class NoteDeskState extends State<NoteDesk> {
   /// Whether find and replace is up.
   bool get finding => _finding != null;
 
+  /// The AI in this note, where the app has an engine: made with the desk and let go with it.
+  late final NoteAiWorld? _aiWorld = _world.ai?.call();
+  late final NoteAi? _ai = _aiWorld == null
+      ? null
+      : (NoteAi(
+          noteId: widget.noteId,
+          flush: () => _flush?.call(),
+          body: () => _view?.state.doc.toString() ?? '',
+          wisp: () => _prefs.value.wisp,
+          toast: _aiToast,
+          onGetModel: _aiWorld.onGetModel,
+          availability: _aiWorld.availability,
+          reviewHost: _aiWorld.reviewHost,
+          openForSummaries: _aiWorld.openForSummaries,
+        )..addListener(_redraw));
+
+  /// Saves what is typed now, handed over by the note's screen as it is made.
+  VoidCallback? _flush;
+
+  /// A line for the person, as the AI asks for one.
+  void _aiToast(AiToast said) {
+    if (!mounted) return;
+    final action = said.onAction;
+    _toasts?.toast(
+      message: Text(said.message),
+      duration: said.duration == null ? null : Duration(milliseconds: said.duration!),
+      action: said.actionLabel == null || action == null ? null : GlacierToastAction(label: said.actionLabel!, onPress: action),
+    );
+  }
+
+  /// What the note was opened with (lib/root/capture_route.dart `finished`): a spoken instruction, run once the
+  /// editor and the AI are ready, and the review a recording handed it.
+  void _handed() {
+    final ai = _ai;
+    if (ai == null) return;
+    final ask = widget.ask;
+    final said = ask?.value;
+    if (ask != null && said is SpokenAsk) ai.ask(NoteAsk(kind: RunKind.of(said.kind) ?? RunKind.ask, instruction: said.instruction, key: ask.key));
+    final review = widget.review;
+    final handoff = review?.value;
+    if (review != null && handoff is ReviewHandoff) ai.review(handoff, review.key);
+  }
+
+  /// Reduced motion and the Motion setting's pace, read as the editor is first made (a state field has neither a
+  /// context nor a window to ask).
+  late final bool _still = context.tokens.reducedMotion;
+  late final double _pace = _prefs.value.motionScale;
+
   /// Every piece's extensions, once: another list would be another editor (lib/note/note_editor.dart).
   late final List<Extension> _extensions = <Extension>[
     editorInput(),
-    markExtensions(marks, wispTyping: true),
+    // The AI's arrivals bring the departures themselves: given twice, every ghost is drawn twice.
+    markExtensions(marks, wispTyping: _ai == null),
+    wispStill.of(_still),
+    wispPace.of(_pace),
+    if (_ai != null) ...noteAiExtensions(_ai, still: _still),
     itemExtensions(
       wiki: WikiOptions(known: (title) => _world.known(title), open: (title, [anchor]) => _world.open(title, anchor), body: (title) => _world.bodyOf?.call(title)),
       openHeading: true,
@@ -377,6 +475,8 @@ class NoteDeskState extends State<NoteDesk> {
     // While the note is open the better words wait to write it: the editor is its one writer.
     _world.holdNote?.call(widget.noteId, true);
     _land();
+    _aiWorld?.opened?.call(widget.noteId, _ai);
+    _handed();
   }
 
   /// The note's tape, once it has a recording and there is a player to play it.
@@ -496,6 +596,7 @@ class NoteDeskState extends State<NoteDesk> {
   void didUpdateWidget(NoteDesk oldWidget) {
     super.didUpdateWidget(oldWidget);
     _land();
+    if (oldWidget.ask?.key != widget.ask?.key || oldWidget.review?.key != widget.review?.key) _handed();
     if (identical(oldWidget.world.changes, _world.changes)) return;
     oldWidget.world.changes?.removeListener(_libraryChanged);
     _world.changes?.addListener(_libraryChanged);
@@ -530,6 +631,12 @@ class NoteDeskState extends State<NoteDesk> {
   @override
   void dispose() {
     _world.holdNote?.call(widget.noteId, false);
+    if (_ai case final ai?) {
+      _aiWorld?.opened?.call(widget.noteId, null);
+      ai.attach(null);
+      ai.removeListener(_redraw);
+      ai.dispose();
+    }
     _tape?.removeListener(_redraw);
     _tape?.dispose();
     // Leaving the note takes its toast with it: an Undo for words no longer on screen would undo them unseen.
@@ -545,6 +652,7 @@ class NoteDeskState extends State<NoteDesk> {
   void _adopt(EditorView view) {
     if (identical(view, _view)) return;
     _view = view;
+    _ai?.attach(view);
     _bookmark?.dispose();
     _bookmark = NoteBookmark(view: view, say: widget.say)..addListener(_redraw);
   }
@@ -613,7 +721,15 @@ class NoteDeskState extends State<NoteDesk> {
   List<Widget> _over(BuildContext context, EditorView view) {
     _adopt(view);
     final finding = _finding;
+    final ai = _ai;
+    final t = context.tokens;
+    // Where the header ends, as the note's screen counts it: the bar's own tools, or the header's ring under the
+    // phone's status bar.
+    final inBar = TopBarTools.maybeOf(context) != null;
+    final headerEnd = inBar ? t.len('app-safe-top') + t.space(1) + t.space(2) : t.len('app-safe-top') + t.space(1) + t.len('app-bar-ring') + t.space(2);
     return <Widget>[
+      // The AI's one layer: the strip under the header and the panel a tap on a blank opens.
+      if (ai != null) Positioned.fill(child: NoteAiLayer(ai: ai, top: headerEnd, deviceFacts: _aiWorld?.deviceFacts, canUndo: !widget.readOnly)),
       if (finding != null)
         Positioned(
           left: 0,
@@ -682,7 +798,14 @@ class NoteDeskState extends State<NoteDesk> {
   @override
   Widget build(BuildContext context) {
     final services = _world.services;
+    final ai = _ai;
     final seams = NoteSeams(
+      saving: (flush) => _flush = flush,
+      // The More sheet's AI rows: a run of that kind on this note.
+      onAi: ai == null || widget.readOnly ? null : (view, kind, [instruction]) {
+              final run = RunKind.of(kind);
+              if (run != null) ai.runAi(run, instruction);
+            },
       onFind: _openFind,
       bookmark: _bookmarkOf,
       writtenBookmark: _writtenBookmark,
@@ -714,6 +837,17 @@ class NoteDeskState extends State<NoteDesk> {
               onSpeak: speak == null || widget.readOnly ? null : () => speak(widget.noteId),
               onRemove: () => unawaited(_removeRecording()),
               hasMemos: hasClips(_view?.state.doc.toString() ?? ''),
+              // The recording's summary: queued from here, and landed in this editor as a run. Only where the AI
+              // can run.
+              summary: _ai != null && _ai.canSummarize && _aiWorld?.summarize != null
+                  ? TapeSummary(
+                      ask: (replace) {
+                        _flush?.call();
+                        _aiWorld!.summarize!(widget.noteId, replace);
+                      },
+                      edited: () => _aiWorld?.summaryEdited?.call(widget.noteId, _view?.state.doc.toString() ?? '') ?? false,
+                    )
+                  : null,
             ),
           LinkMarks(noteId: widget.noteId, onPress: openSettings),
         ];

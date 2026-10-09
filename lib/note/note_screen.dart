@@ -109,6 +109,7 @@ class NoteSeams {
     this.linked,
     this.head,
     this.tail,
+    this.saving,
     this.cheatSheet,
     this.location,
     this.shareVersionsFile,
@@ -160,6 +161,10 @@ class NoteSeams {
   /// What follows a note's words on its page: the phrases of its recording as they were spoken
   /// (tapes/NoteTape.tsx `TranscriptWords`).
   final List<Widget> Function(BuildContext context)? tail;
+
+  /// Handed the way to save what is typed now ([NoteScreenState.flush]) as the screen is made: the AI flushes
+  /// before a run, so the run's Undo has the note as it was.
+  final void Function(VoidCallback flush)? saving;
 
   /// The formatting cheat sheet's page (guide/CheatSheet.tsx).
   final WidgetBuilder? cheatSheet;
@@ -399,6 +404,7 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
     _look = lookOf(note.body);
     _drafted = _records.recordOf(_id) != null;
     _untouched = _drafted && _records.isUntouched(_id, note.body, recordingMs: note.recordingMs, starred: note.starred, archivedAt: note.archivedAt);
+    widget.seams.saving?.call(flush);
     _fresh = _records.isFresh(_id);
     final versions = widget.versions;
     if (versions != null && !widget.readOnly) _versioning = VersionKeeping(versions, _id, () => _saving.body, lifecycle: widget.lifecycle)..addListener(_redraw);
