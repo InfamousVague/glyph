@@ -676,9 +676,396 @@ async function prompts() {
   writeFileSync(`${HERE}test/ai/fixtures/fill_prompts_web.json`, `${JSON.stringify(strings, null, 1)}\n`);
 }
 
+// ---- landing: the fills' lookups, lanes, landings and sources ---------------------------------------------------------
+//
+// test/ai/fixtures/fills_landing_web.json, for lib/ai/fills/{web,lane,edits,source}.dart (stage 8J). Everything the
+// lookups read is the JSON recorded once from each source (ai/fills/recorded, copied to test/ai/fixtures/recorded) or
+// made up here; nothing asks the network.
+//
+//   web      {forecasts, rates, quantities, stands, wiki, best, claims, labels, facts, messages, urls, lookups}
+//   lanes    [{text, lanes: {on, local-only, off: [{lane, can, plan, live, worked, cannot, shape, fillable}]}}]
+//   edits    {landings: [{text, cases: [{blank, words, source, changes, applied}]}], all, applied, signatures}
+//   source   {words, notes, from}
+async function landing() {
+  // The device's own language, as the `fills` section takes it: a worked answer's dates are said in it.
+  const Real = Intl.DateTimeFormat;
+  Intl.DateTimeFormat = function made(asked, options) {
+    return new Real(asked ?? 'en-GB', options);
+  };
+  Intl.DateTimeFormat.supportedLocalesOf = Real.supportedLocalesOf;
+  const { readFileSync } = await import('node:fs');
+  const { blanksIn, fillsIn } = await import(`${GLYPH_APP}core/blanks.ts`);
+  const web = await import(`${GLYPH_APP}ai/fills/web.ts`);
+  const lane = await import(`${GLYPH_APP}ai/fills/lane.ts`);
+  const edits = await import(`${GLYPH_APP}ai/fills/edits.ts`);
+  const source = await import(`${GLYPH_APP}ai/fills/source.ts`);
+  const shape = await import(`${GLYPH_APP}ai/fills/shape.ts`);
+  const recorded = (name) => JSON.parse(readFileSync(`${GLYPH_APP}ai/fills/recorded/${name}.json`, 'utf8'));
+  const forecast = recorded('forecast-lisbon');
+  const geocodeLisbon = recorded('geocode-lisbon');
+  const geocodeNowhere = recorded('geocode-nowhere');
+  const ratesJpy = recorded('rates-usd-jpy');
+  const ratesUnknown = recorded('rates-unknown');
+  const wikiCup = recorded('wiki-world-cup');
+  const wikiNothing = recorded('wiki-nothing');
+  const wikidataCup = recorded('wikidata-world-cup');
+  const wikidataLabels = recorded('wikidata-labels');
+  const attempt = (fn) => {
+    try {
+      return { value: fn() ?? null };
+    } catch {
+      return { threw: true };
+    }
+  };
+
+  // ---- web ----
+  const lisbon = web.parseGeocode(geocodeLisbon);
+  const places = [lisbon, { name: 'Springfield', country: '', latitude: 39.5, longitude: -89 }, { name: 'Null Island', country: 'Nowhere', latitude: 0, longitude: -0.000001 }];
+  const week = {
+    current: { time: '2026-12-28T09:00', temperature_2m: -0.4, weather_code: 71, wind_speed_10m: 2.5 },
+    daily: {
+      time: ['2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02', '2027-01-03'],
+      weather_code: [0, 45, 99, 4, 61, 77, null],
+      temperature_2m_max: [2.5, -0.4, 0.5, 11.49, 30, 1.5],
+      temperature_2m_min: [-2.5, -3.5, -0.5, 10.5, 29.5, null],
+      precipitation_probability_max: [0, 100, 12.5, null, 3],
+      wind_speed_10m_max: [0.4, 99.5, null, 12],
+    },
+  };
+  const forecastJsons = [
+    forecast,
+    week,
+    {},
+    null,
+    'words',
+    { daily: {} },
+    { daily: { time: [] } },
+    { daily: { time: ['2026-09-29'] } },
+    { daily: { time: ['2026-09-29'], weather_code: [3] }, current: { weather_code: 3 } },
+    { daily: { time: ['2026-09-29'], weather_code: [3] }, current: { temperature_2m: 20 } },
+    { daily: { time: ['2026-02-30', '2026-13-01', '99-01-05'], weather_code: [1, 2, 3], temperature_2m_max: [1, 2, 3], temperature_2m_min: [0, 1, 2] } },
+  ];
+  const spans = [{ from: 0, to: 0 }, { from: 1, to: 1 }, { from: 0, to: 1 }, { from: 1, to: 2 }, { from: 5, to: 6 }, { from: 0, to: 6 }, { from: 7, to: 8 }, { from: 2, to: 1 }];
+  const forecasts = [];
+  forecastJsons.forEach((json, j) => {
+    for (const days of spans) for (const [p, place] of places.entries()) {
+      if (p > 0 && j > 1) continue;
+      forecasts.push({ json: j, place: p, days, lines: web.parseForecast(json, place, days), answer: web.forecastAnswer(json, days) });
+    }
+  });
+
+  const rateJsons = [ratesJpy, ratesUnknown.body, ratesUnknown, null, {}, { date: '2026-09-28' }, { rates: { JPY: 1 } }, { date: '', rates: { JPY: 1 } }];
+  const figures = [156.88, 0.0064, 1.005, 0.99995, 9.99995, 1234.5678, 1e-7, 123456789.125, 0.125, 2.5, 10, 9.99999, 1.00005, 0.00005, 0.105, 0.5, 1e21, 15.995, 0.07, 3];
+  for (const rate of figures) rateJsons.push({ date: '2026-01-05', rates: { JPY: rate } });
+  const amounts = [1, 100, 1234.56, 0.5, 1000000, 3, 0.001, 12.345, 99999.995];
+  const rates = [];
+  rateJsons.forEach((json, j) => {
+    for (const amount of j < 8 ? [100, 1] : amounts) {
+      const plan = { amount, from: j === 1 ? 'XXX' : 'USD', to: 'JPY' };
+      rates.push({ json: j, plan, lines: web.parseRates(json, plan), answer: web.ratesAnswer(json, plan) });
+    }
+  });
+
+  const quantity = (amount) => ({ entities: { Q1: { claims: { P1082: [{ rank: 'normal', mainsnak: { datavalue: { type: 'quantity', value: { amount } } } }] } } } });
+  const quantities = ['+1234567', '-5.25', '+0.123456', '+9.99995', '+10.005', '+67000000', '0', '+1.5e3'].map((amount) => ({ amount, claims: web.parseWikidataClaims(quantity(amount), 'Q1') }));
+
+  const stands = [
+    ['Spain', 'Spain won the 2026 World Cup.'],
+    ['Spain in 2026', 'Spain won the 2026 World Cup.'],
+    ['Spain in 2025', 'Spain won the 2026 World Cup.'],
+    ['France', 'Spain won the 2026 World Cup.'],
+    ['the winners', 'A winner was Spain.'],
+    ['newest', 'The Pixel 10 is the latest phone.'],
+    ['Pixel 10', 'The Pixel 10 is the latest phone.'],
+    ['1,200 people', 'About 1200 people came.'],
+    ['1200', 'About 1,200 people came.'],
+    ['15.5', 'It is 15.50 today.'],
+    ['15.50', 'It is 15.5 today.'],
+    ['São Paulo', 'Sao Paulo is in Brazil.'],
+    ['Cafés', 'a cafe in town'],
+    ['no', 'no'],
+    ['it', 'It is here.'],
+    ['', 'anything'],
+    ['the and for', 'the and for'],
+    ['Buses', 'A bus came.'],
+    ['Glass', 'The glas house'],
+    ['東京', '東京 is the capital.'],
+    ['Tokyo 東京都', '東京 is the capital, Tokyo.'],
+    ['12', 'It was 2012.'],
+    ['3 goals', 'They scored three goals in 13 minutes.'],
+  ].map(([answer, facts]) => ({ answer, facts, stands: web.standsIn(answer, facts) }));
+
+  const shuffled = { query: { pages: [...wikiCup.query.pages].reverse().concat([{ title: 'No extract', index: 0 }, { title: '', extract: 'No title', index: 9 }, { title: 'Spaces', extract: '  a \n\n b\t c  ', index: 2 }, { title: 'No index', extract: 'Kept first.' }, { title: 'Blank', extract: ' \n ' }]) } };
+  const wikiJsons = [wikiCup, wikiNothing, shuffled, null, {}, { query: {} }, { query: { pages: [] } }];
+  const wiki = wikiJsons.map((json) => web.parseWikiSearch(json));
+  const cupPages = web.parseWikiSearch(wikiCup);
+  const best = ['2026 World Cup won', 'world cup', 'Group B', 'knockout', 'nothing here', '', '  2026   FIFA ', 'FIFA World Cup 2026 Group B knockout stage'].flatMap((terms) => [cupPages, web.parseWikiSearch(shuffled), []].map((pages, p) => ({ pages: p, terms, title: web.bestPage(pages, terms)?.title ?? null })));
+
+  const date = (time, precision) => ({ mainsnak: { datavalue: { type: 'time', value: { time, precision } } } });
+  const made = {
+    entities: {
+      Q9: {
+        claims: {
+          P585: [date('+2026-07-19T00:00:00Z', 11), date('+2026-07-00T00:00:00Z', 10), date('+2026-00-00T00:00:00Z', 9), date('+2026-07-19T00:00:00Z', undefined)],
+          P580: [{ rank: 'deprecated', ...date('+1999-01-01T00:00:00Z', 11) }, { rank: 'normal', ...date('+2001-02-03T00:00:00Z', 7) }, date('nonsense', 11), date('+0033-04-03T00:00:00Z', 11)],
+          P582: [{ rank: 'preferred', ...date('+2030-12-31T00:00:00Z', 11) }, date('+2029-12-31T00:00:00Z', 11)],
+          P577: [date('+2026-07-00T00:00:00Z', 11), date('+2026-00-19T00:00:00Z', 11), date('2026-05-06T00:00:00Z', 10)],
+          P348: [{ mainsnak: { datavalue: { type: 'string', value: '16.0.1' } } }, { mainsnak: {} }, {}],
+          P1346: [{ mainsnak: { datavalue: { type: 'wikibase-entityid', value: { id: 'Q42267' } } } }, { mainsnak: { datavalue: { type: 'wikibase-entityid', value: { id: 'Q000' } } } }],
+          P6: [{ mainsnak: { datavalue: { type: 'monolingualtext', value: { text: 'x' } } } }],
+          P35: [],
+          P999: [date('+2026-07-19T00:00:00Z', 11)],
+        },
+      },
+    },
+  };
+  const claimCases = [
+    [wikidataCup, 'Q5020214'],
+    [wikidataCup, 'Q0'],
+    [made, 'Q9'],
+    [null, 'Q9'],
+    [{}, 'Q9'],
+  ];
+  const claims = claimCases.map(([json, id]) => web.parseWikidataClaims(json, id));
+  const labelJsons = [wikidataLabels, null, {}, { entities: { Q1: { labels: { en: { value: 'One' } } }, Q2: { labels: { de: { value: 'Zwei' } } }, Q3: {}, Q4: { labels: { en: { value: '' } } } } }];
+  const labels = labelJsons.map((json) => web.parseWikidataLabels(json));
+  const cupClaims = web.parseWikidataClaims(wikidataCup, 'Q5020214');
+  const facts = [
+    web.wikiFacts(cupPages, null),
+    web.wikiFacts(cupPages, { title: '2026 FIFA World Cup', claims: cupClaims, labels: web.parseWikidataLabels(wikidataLabels) }),
+    web.wikiFacts(cupPages, { title: '2026 FIFA World Cup', claims: cupClaims, labels: {} }),
+    web.wikiFacts(cupPages, { title: 'Made', claims: claims[2], labels: { Q42267: '  Spain  ' } }),
+    web.wikiFacts([], { title: 'Made', claims: [], labels: {} }),
+    web.wikiFacts([], null),
+  ];
+  const messages = [
+    ['Today is Monday 28 September 2026.\n\nThe note:\n# Lisbon\nWeather in Lisbon tomorrow: {?1 weather}\n\nAnswer blank 1.', 'Open-Meteo', 'Lisbon, Portugal, Tuesday 29 September 2026: rain.'],
+    ['One line only.', 'Wikipedia', 'Facts.'],
+    ['', 'Wikipedia', ''],
+    ['a\n\nb\n\nc', 'Wikipedia and Wikidata', 'x\ny'],
+  ].map(([message, name, said]) => ({ message, source: name, facts: said, out: web.webMessage(message, name, said) }));
+  const urls = {
+    geocode: ['Lisbon', 'São Paulo', "St. John's", 'A&B (C) *!~', '東京', ''].map((place) => [place, web.URLS.geocode(place)]),
+    forecast: places.flatMap((place, p) => [1, 7].map((days) => [p, days, web.URLS.forecast(place, days)])),
+    rates: [['USD', 'JPY'], ['A B', 'C/D']].map(([from, to]) => [from, to, web.URLS.rates(from, to)]),
+    wiki: ['2026 World Cup won', 'who’s “new” + next?', 'a/b&c=d#e'].map((terms) => [terms, web.URLS.wiki(terms)]),
+    claims: ['Q5020214', 'Q 1'].map((id) => [id, web.URLS.claims(id)]),
+    labels: [['Q1'], ['Q1', 'Q2', 'Q 3'], []].map((ids) => [ids, web.URLS.labels(ids)]),
+  };
+  const sets = {
+    weather: { 'geocoding-api.open-meteo.com': geocodeLisbon, 'api.open-meteo.com/v1/forecast': forecast },
+    nowhere: { 'geocoding-api.open-meteo.com': geocodeNowhere },
+    noForecast: { 'geocoding-api.open-meteo.com': geocodeLisbon, 'api.open-meteo.com/v1/forecast': {} },
+    rates: { 'api.frankfurter.dev': ratesJpy },
+    noRates: { 'api.frankfurter.dev': ratesUnknown.body },
+    wiki: { 'en.wikipedia.org': wikiCup, 'props=claims': wikidataCup, 'props=labels': wikidataLabels },
+    wikiAlone: { 'en.wikipedia.org': wikiCup },
+    wikiNoLabels: { 'en.wikipedia.org': wikiCup, 'props=claims': wikidataCup },
+    wikiNothing: { 'en.wikipedia.org': wikiNothing },
+    none: {},
+  };
+  const plans = [
+    { kind: 'weather', place: 'Lisbon', days: { from: 1, to: 1 } },
+    { kind: 'weather', place: 'Lisbon', days: { from: 0, to: 0 } },
+    { kind: 'weather', place: 'Lisbon', days: { from: 0, to: 2 } },
+    { kind: 'weather', place: 'Lisbon', days: { from: 5, to: 6 } },
+    { kind: 'weather', place: 'Lisbon', days: { from: 9, to: 12 } },
+    { kind: 'rates', amount: 100, from: 'USD', to: 'JPY' },
+    { kind: 'rates', amount: 0.5, from: 'USD', to: 'JPY' },
+    { kind: 'wiki', terms: '2026 World Cup won' },
+    { kind: 'wiki', terms: 'Group B' },
+    { kind: 'none', why: 'Because.' },
+  ];
+  const lookups = [];
+  for (const plan of plans) for (const [set, answers] of Object.entries(sets)) {
+    const asked = [];
+    const found = await web.lookUp(plan, async (url) => {
+      asked.push(url);
+      for (const [part, json] of Object.entries(answers)) if (url.includes(part)) return { status: 200, json };
+      return { status: 404, json: { message: 'not found' } };
+    });
+    lookups.push({ plan, set, asked, found });
+  }
+  lookups.push({ plan: plans[7], set: 'offline', asked: [], found: await web.lookUp(plans[7], async () => Promise.reject(new Error('offline'))) });
+
+  // ---- lanes ----
+  const now = new Date(2026, 8, 28, 14, 5);
+  const laneNotes = [
+    'Weather in Lisbon tomorrow: {?weather}',
+    'Weather in Lisbon today: {?}',
+    'Weather in São Paulo this weekend: {?}',
+    'Will it rain today? {?}',
+    '100 dollars is {?how many yen} yen.',
+    'What is the exchange rate? {?}',
+    'The 2026 World Cup was won by {?}',
+    'The newest Pixel phone is the {?}',
+    'A return flight London to Tokyo costs {?price today}',
+    'Kinkaku-ji opens at {?opening time}',
+    'The next train to Leeds leaves at {?}',
+    'Apple stock is trading at {?}',
+    'The capital of Australia is {?}.',
+    '- Is the museum open on Sundays? {?in German}',
+    '- How many days until Christmas? {?in French}',
+    'How many days until Christmas? {?}',
+    '- Cabin $200\n- Ferry $45\n\nTotal: {?}',
+    '- Cabin $200\n- Ferry £45\n\nTotal: {?}',
+    '# {?}\n\nBook the cabin for the second week of October. Ferry once Sam confirms dates with her brother. Deposit $200 by Friday.',
+    'Weather in Lisbon tomorrow: {?weather}\n\n100 dollars is {?how many yen} yen.\n\nWho won the 2025 Ballon d’Or? {?}\n\nThe capital of Peru is {?}.',
+    'What is in the news today? {?}',
+  ];
+  const lanes = laneNotes.map((text) => {
+    const by = {};
+    for (const lookupsNow of ['on', 'local-only', 'off']) {
+      by[lookupsNow] = blanksIn(text).map((blank) => {
+        const found = lane.laneOf(blank, text, { clock: { now, zone: 'Europe/London' }, learntUntil: 2024, lookups: lookupsNow });
+        return { lane: found.lane, can: found.can ?? null, plan: found.plan ?? null, live: found.live ?? null, worked: found.worked ?? null, cannot: found.cannot ?? null, shape: found.info?.shape ?? null, fillable: lane.fillable(found) };
+      });
+    }
+    return { text, lanes: by };
+  });
+
+  // ---- edits ----
+  const editNotes = [
+    '# Tokyo trip\n\nFlights are cheapest to Tokyo on {?what day / time?}',
+    '# Weather\n\nLisbon tomorrow: {?weather}',
+    '## Japan packing\n- Passport\n- Plug adapter\n- {?three more things}',
+    '# Trip\n\n1. Passport\n2. {?more}',
+    '# Trip\n\n  9) Passport\n  10) {?two more}',
+    '# Tap\n- [x] Found it\n- [ ] {?the next step}',
+    '# {?}\n\nBook the cabin for the second week of October. Ferry once Sam confirms dates with her brother. Deposit $200 by Friday.',
+    '# Trip to {?capital of Japan}\n\nFlights booked.',
+    '# {?who wrote Dune}',
+    '# {?who wrote Dune}\n\nA book.',
+    '{?how long to boil an egg}',
+    '{?how long to boil an egg}\nNext line.',
+    '---\nauthors: matt\n---\n{?how long to boil an egg}',
+    '# Reading\n\n| Book | Author | Year |\n| --- | --- | --- |\n| The Remains of the Day | {?} | {?} |',
+    'Is it done? {?}',
+    'Is it done?{?} And then {?what (exactly)?}.',
+    'Two on a line: {?} and {?} and {?}.\n\n- {?a few}\n- Last',
+    '# Mixed\n\nThe capital of France is {?}.\n\n- Thank you: {?in Japanese}\n\nIn one line: {?summary}\n\n| A | B |\n| - | - |\n| x | {?} |\n\n1. One\n2. {?a few}',
+    '> A quote with {?a blank}\n\n- nested\n  - {?two more}',
+  ];
+  const wordSets = [['midweek'], ['Rail pass', 'Walking shoes', 'Cash in yen'], ['Is it? Really??'], ['?? odd ?? words ?'], ['  spaced   out \n words  '], ['One', 'Two'], []];
+  const sources = [{ kind: 'memory' }, { kind: 'note' }, { kind: 'web', name: 'Open-Meteo' }, { kind: 'web', name: 'Wikipedia and Wikidata' }];
+  const meta = { model: 'Qwen3.5 4B', date: '2026-09-28' };
+  const landings = editNotes.map((text) => {
+    const cases = [];
+    blanksIn(text).forEach((blank, b) => {
+      const info = shape.shapeOf(blank, text);
+      wordSets.forEach((words, w) => {
+        const from = sources[(b + w) % sources.length];
+        const result = attempt(() => edits.landingChanges(text, { from: blank.from, to: blank.to, question: blank.question, info, words, source: from, ...meta }));
+        cases.push({ blank: b, words, source: from, changes: result.value ?? null, applied: result.value ? edits.applyChanges(text, result.value) : null });
+      });
+    });
+    return { text, cases };
+  });
+  const all = editNotes.map((text) => {
+    const answers = blanksIn(text).map((blank, b) => {
+      const info = shape.shapeOf(blank, text);
+      return { from: blank.from, to: blank.to, question: blank.question, info, words: info.shape === 'items' ? [`Item ${b}a`, `Item ${b}b`] : [`Answer ${b}`], source: sources[b % sources.length], ...meta };
+    });
+    // Out of order, as a press's late titles and summaries come.
+    const changes = edits.allChanges(text, [...answers].reverse());
+    const sign = edits.signatureChange(text);
+    return { text, changes, applied: edits.applyChanges(text, changes), signed: edits.applyChanges(text, [...changes, ...(sign ? [sign] : [])]) };
+  });
+  const again = '# Football\n\nThe 2022 World Cup was won by ??France??(Qwen3.5 4B from memory, 2026-09-28)';
+  const fill = fillsIn(again)[0];
+  const pseudo = `${again.slice(0, fill.from)}{?}${again.slice(fill.to)}`;
+  const againChanges = edits.landingChanges(again, { from: fill.from, to: fill.to, question: '', info: shape.shapeOf(blanksIn(pseudo)[0], pseudo), words: ['Argentina'], source: { kind: 'memory' }, ...meta });
+  const applied = [
+    ['abcdef', [{ from: 1, to: 2, insert: 'X' }, { from: 4, to: 4, insert: 'YY' }]],
+    ['abcdef', [{ from: 3, to: 3, insert: '1' }, { from: 3, to: 3, insert: '2' }, { from: 0, to: 0, insert: '0' }]],
+    ['abcdef', [{ from: 3, to: 6, insert: '' }, { from: 0, to: 3, insert: '' }]],
+    ['abcdef', [{ from: 4, to: 99, insert: '!' }]],
+    ['abcdef', []],
+    [again, againChanges],
+  ].map(([text, changes]) => ({ text, changes, out: edits.applyChanges(text, changes) }));
+  const signatures = [
+    ['# Trip\n\nWords {?}', undefined],
+    ['# Trip\n\nWords {?}', 'matt'],
+    ['---\nauthors: matt\n---\n# Trip', undefined],
+    ['---\nauthors: matt\n---\n# Trip', 'sam'],
+    ['---\nauthors: matt, Ghost\n---\n# Trip', undefined],
+    ['---\nauthors: ghost\n---\n# Trip', undefined],
+    ['---\ntitle: A trip\ntags: a, b\n---\n# Trip', 'matt'],
+    ['---\nauthors: matt, Claude\nlocation: 51.5,-0.1\n---\nBody', undefined],
+    ['', undefined],
+    ['', 'matt'],
+    ['---\n---\n', undefined],
+    ['Plain words with no heading.', 'Matt W'],
+  ].map(([text, owner]) => {
+    const change = edits.signatureChange(text, owner);
+    return { text, owner: owner ?? null, change, out: change ? edits.applyChanges(text, [change]) : text };
+  });
+
+  // ---- source ----
+  const words = [
+    'The Cafés, 1,200 bags and a Dog',
+    'Buses, glasses and 3 Ss',
+    '1,2,3 and 4,567,890.5',
+    'São Paulo’s über-café: naïve façade',
+    '東京 は 日本 の 首都 です',
+    'a an the of to in on at',
+    'A4 paper, B5s, x2',
+    '',
+    'İstanbul and ǅ and ß',
+    'who what when where it is they',
+    'won one ones was has',
+    '٣ apples and ١٢٣ pears',
+  ].map((text) => ({ text, words: source.contentWords(text) }));
+  const sourceNotes = [
+    'Who brings the charger? ??Sam??(Qwen3.5 4B from memory, 2026-09-28)\n\nWho brings the charger this time? {?}',
+    'Two ??one??(Qwen3.5 4B from this note, 2026-09-28. Asked: a) and ??two??(Ghost.md from Open-Meteo, 2026-09-28. 1 of 2) and ??mine??(my own note) and {?} and {?q}.',
+    'No marks at all.',
+    '',
+  ].map((text) => ({ text, out: source.noteForSource(text) }));
+  const standup = '# Standup\n\nPriya: export bug fixed, in review, lands Tuesday. Tom: blocked on staging keys. We moved the launch to the 24th.\n\nIn one line: {?summary}';
+  const from = [
+    ['Sam said she would bring the charger and the dog food. I am booking the ferry.\n\nWho brings the charger? {?}', 'Sam'],
+    ['Sam said she would bring the charger and the dog food. I am booking the ferry.\n\nWho brings the charger? {?}', 'Sam and the dog'],
+    ['Sam said she would bring the charger and the dog food. I am booking the ferry.\n\nWho brings the charger? {?}', 'Priya'],
+    ['We watched France play in Qatar.\n\nThe 2022 World Cup was won by {?}', 'France'],
+    ['The capital of Australia is {?}', 'Australia'],
+    ['We watched the World Cup final in 2022: France against Argentina.\n\nThe 2022 World Cup was won by {?}', 'France'],
+    ['Argentina won the 2022 World Cup on penalties.\n\nThe 2022 World Cup was won by {?}', 'Argentina'],
+    ['Argentina won the 2022 World Cup on penalties.\n\nThe 2022 World Cup was won by {?}', 'Argentinas'],
+    ['# Kitchen tap\n- [x] Found the leak under the sink\n- [ ] {?the next step}', 'Turn off the water and fit the new washer'],
+    ['Is it done? {?}', 'no'],
+    [standup, 'Priya fixed an export bug in review for Tuesday, Tom is blocked on staging keys, and the launch moved to the 24th.'],
+    [standup, 'Priya fixed an export bug, and Sam is on holiday.'],
+    ['Who brings the charger? ??Sam??(Qwen3.5 4B from memory, 2026-09-28)\n\nWho brings the charger this time? {?}', 'Sam'],
+    ['| Who | Brings |\n| --- | --- |\n| Sam | the charger and the cable |\n\nWho brings the charger? {?}', 'Sam'],
+    ['The ferry costs 1,200 yen. The bus is free.\n\nHow much is the ferry? {?}', '1200 yen'],
+    ['The ferry costs 1,200 yen. The bus is free.\n\nHow much is the ferry? {?}', '1,200'],
+    ['Sam brings the charger! Priya brings the food? Yes.\nWho brings the food {?who brings the food}', 'Priya'],
+    ['{?who brings the charger}\nSam brings the charger.', 'Sam'],
+    ['Sam brings the charger.\n{?who brings the charger}', 'Sam'],
+    ['# {?}\n\nBook the cabin for the second week of October. Ferry once Sam confirms dates with her brother. Deposit $200 by Friday.', 'Cabin booking'],
+    ['# {?}\n\nBook the cabin for the second week of October. Ferry once Sam confirms dates with her brother. Deposit $200 by Friday.', 'Lake holiday'],
+    ['A: {?}', 'Something'],
+    ['Sam brings it. It: {?}', 'Sam'],
+  ].map(([text, answer]) => {
+    const blank = blanksIn(text).at(-1);
+    return { text, answer, from: source.fromThisNote(answer, blank, shape.shapeOf(blank, text).shape, text, text) };
+  });
+
+  const out = {
+    web: { forecastJsons, places, forecasts, rateJsons, rates, quantities, stands, wikiJsons, wiki, best, claimJsons: claimCases.map(([json, id]) => ({ json, id })), claims, labelJsons, labels, facts, messages, urls, sets, lookups, noSource: web.NO_SOURCE },
+    lanes,
+    edits: { landings, all, applied, signatures },
+    source: { words, notes: sourceNotes, from },
+  };
+  mkdirSync(`${HERE}test/ai/fixtures`, { recursive: true });
+  writeFileSync(`${HERE}test/ai/fixtures/fills_landing_web.json`, `${JSON.stringify(out)}\n`);
+  Intl.DateTimeFormat = Real;
+}
+
 // ---- run ----------------------------------------------------------------------------------------------------------
 
-const SECTIONS = { zones, unaccent, fills, prompts };
+const SECTIONS = { zones, unaccent, fills, prompts, landing };
 const asked = process.argv.slice(2);
 for (const [name, run] of Object.entries(SECTIONS)) {
   if (asked.length && !asked.includes(name)) continue;
