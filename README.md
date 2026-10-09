@@ -47,7 +47,7 @@ Each stage ends installed on the Fold. Sizes are the web app's non-test source t
 | 5 | Structured notes: boards, tickets, queries, databases, notebooks, journals, templates | `editor/`, `book/`, `notes/` | in the app 2026-10-08 (`lib/root/note_desk.dart`, `lib/root/library_reads.dart`, `lib/root/ghost_root.dart`): boards, queries and a ticket's panel drawn in a note, the notebook's index and the journal's entries, the + sheet and New notebook, a blank note's names and template cards; **not yet on the Fold**; see "What stages 5 and 6 left open" |
 | 6 | Canvas | `canvas/` (3.5k) | in the app 2026-10-08 as a note's own view (`NoteSeams.canvas`), made from the + and from a notebook's index; a team's canvas (6G) is not ported; **not yet on the Fold** |
 | 7 | Account and sync: keys, the sync engine, organizations and team notes, live typing, notifications, shared links | `core/sync`, `core/orgs`, `core/live`, `share/` | in the app 2026-10-08, **off unless the build is given `--dart-define=GHOST_API=http://…`** (`lib/root/account_wiring.dart`); walked on the emulator against the service run on this Mac (sign up, sync read back by a second device, an organization, a team note, a shared link); links that open the app are followed since 2026-10-09 (`lib/root/ghost_root.dart`, `lib/core/phone_links.dart`: a note, the notifications, an organization, an invitation asked about first, a shared link's copy); live typing and the phone's own notifications are not ported |
-| 8 | Voice and AI: the recorder, Whisper, meetings and their service, summaries, the language model, fills, the at-work scene | `capture/` (12k), `ai/` (6.5k), `tapes/`, `scene/`, Kotlin (6.5k) | Speak in the app 2026-10-09 (`lib/root/voice_wiring.dart`, `lib/root/capture_route.dart`, `lib/root/ghost_root.dart`): the dock's microphone, a note's own and a journal's spoken entry, the capture screen with its live page, the meeting service and its screen, the + sheet's Meeting, Settings' Recording and AI pages with their real rows; the summary queue, the review's gate and the write-up's configuration (lib/ai's), a spoken note's tape played by the phone, a landing's Undo; walked on an Android emulator; the AI in a note (`NoteAi`), the fills and the scene are not wired; **not yet on the Fold**; see "What stage 8 left open" |
+| 8 | Voice and AI: the recorder, Whisper, meetings and their service, summaries, the language model, fills, the at-work scene | `capture/` (12k), `ai/` (6.5k), `tapes/`, `scene/`, Kotlin (6.5k) | Speak in the app 2026-10-09 (`lib/root/voice_wiring.dart`, `lib/root/capture_route.dart`, `lib/root/ghost_root.dart`): the dock's microphone, a note's own and a journal's spoken entry, the capture screen with its live page, the meeting service and its screen, the + sheet's Meeting, Settings' Recording and AI pages with their real rows; the summary queue, the review's gate and the write-up's configuration (lib/ai's), a spoken note's tape played by the phone, a landing's Undo; walked on an Android emulator; the AI in a note (`NoteAi`), the fills' queue, the gists and the scene since the third pass, run on the emulator with Qwen3.5 2B; **not yet on the Fold**; see "What stage 8 left open" |
 | 9 | The rest: backup, export, plugins, the Academy and the guide, diagnostics, updates | `plugins/`, `academy/`, `guide/`, `diag/` | 9A to 9C (the library's folder, backup, export) walked on the emulator 2026-10-09, and in Settings since (`lib/root/ghost_root.dart`); see "What stage 9A to 9C left open". The plugins (in Settings and in a note), the Academy, the walkthrough and the guide's notebook, link previews, Developer's benches and its resets are in the app 2026-10-09 (`lib/root/plugin_ground.dart`, `reset_wiring.dart`, `note_desk.dart`, `ghost_root.dart`); a note's place, updates and the phone's notices are not; see "What stage 9's other pieces left open" |
 | 10 | Platforms and release: the Fold's wide layouts, Mac, Windows, iPhone; signing; moving a library over from the Tauri app | | |
 
@@ -96,8 +96,6 @@ on the same phone.
     board card's plugin rows (`drawnBoards(actions:)`), the editor's parser reading `plugins.formats()` (the desk
     gives it the app's own marks), and `usePluginContext` / `claudeHandle` (docs/STAGE8_AI.md, "At launch", 1).
   - **The walkthrough's model page** (`Guide(models:)`): a phone with none to fetch, as far as it is told.
-  - **The scene the bench plays** (`showSceneBench(scene:)`): lib/scene landed after this pass and is not given
-    to the bench; the bench says the scene is not in the build.
   - **Updates and the phone's own notices** (9I): `Notices`' update card and the launch screen's `updates`.
 - **Checked where:** on the emulator (2026-10-09): Settings › Plugins ("4 of 5 on"); a link's card reading
   "Example Domain"; the walkthrough on a first launch, a page turned, Skip; the Academy's contents and its switch,
@@ -132,13 +130,28 @@ recorder's screen that is on screen.
   phone's jobs, a summary that landed is said with Open, and a `ghostmd://note/…` link lands a waiting result
   first (`landNativeResult`). **Not walked on a device:** no meeting with words in it was written up after this
   was wired, and the model on the emulator is not the one the preferences choose.
-- **The AI in a note is not on the desk** (`NoteAi`, lib/ai/note_ai.dart; docs/STAGE8_AI.md, "For each open
-  note"): its files, the fills' panel and lib/scene were committed (d33f491, 2bff511, 15ce774) only after this pass's
-  desk was finished, and it has not been put on since: the next thing to wire, by that document's list. So a spoken instruction and a review the note opened with
-  (`NoteDesk.ask`, `NoteDesk.review`, from `ScreenNote`) are carried to the desk and not run, the review therefore
-  never draws though the recorder may hand one over, the tape has no Summarize (`NoteTape.summary`,
-  `NoteAi.canSummarize`), the More sheet has no AI rows (`NoteSeams.onAi`), and the fills' queue, the gists, the
-  device facts and the availability's controller of that document's "At launch" (5, 6, 8, 9) are not started.
+- **The AI in a note is on the desk** (third pass, 2026-10-09; `lib/root/note_desk.dart`, `ghost_root.dart`,
+  `scene_play.dart`; docs/STAGE8_AI.md's list; `test/root/ai_test.dart`): one `NoteAi` to an open note, its
+  extensions in the editor (the marks given without `wispTyping`, `wispStill` and `wispPace` filled), `NoteAiLayer`
+  and `EditorTextPanels` over the page, the More sheet's AI rows, the spoken instruction and the review a note was
+  opened with, the tape's Summarize, `AtWork` over the window; and at launch `noteOwner`, `usePluginContext`, one
+  `AvailabilityController` and one `DeviceFactsController`, `startFills`, and the gists for the home page and All
+  notes (`onRefineHold(pauseGists)`, `gistVisible`, `gistsCameBack`). The recorder's page takes `wispArrivals()`
+  and `wispRipples` over the microphone's level; Developer's bench plays lib/scene from its script.
+  **Run on the emulator with the model that is there (Qwen3.5 2B, with small.en to listen again):** after a take
+  from the fixture, the review end to end (the scene's steps, "1 place where the two models heard different
+  words", thinking out loud, then the note with "North Wind" struck and "Northwind" beside Keep and Revert); the
+  tape's Summarize through the queue (`## Summary` and its list landing as tracked changes, the AI's `authors`);
+  a `{?what is the capital of France}` blank drawn with its Fill pill and filled (`??Paris??`, "Filled 1 blank with
+  Qwen3.5 2B"); Continue from the More sheet (two lines written, Revert taking them out).
+  **Not run:** a meeting written up with words and its summary landing (the meeting service hears the emulator's
+  silent microphone; the fixture is the dictation microphone's only), an instruction on a selection, a spoken
+  instruction, the scene in the bench after it was given lib/scene, the gists.
+  **Still open of it:** the strip's room is not kept clear by the page (`NoteAiLayer.onRoom`: the strip sits over
+  the top of the tape or the first line while it is up); blanks are not drawn in a table's cell (`drawCell`:
+  `GlyphTable` paints its cells and holds no widget in one; the Fill pill after the last row is there);
+  `claudeHandle` (docs/STAGE8_AI.md, launch item 1) is not set; `resumeParked()` is not called when Local only is
+  switched off; the bench's `SceneBenchPlay.played` is never told.
 - **What a recording wrote into a note is said, with its Undo** (`editor/useLanding.ts`, on the desk): an edit in
   the note's editor that takes out exactly what went in. Its writes to OTHER notes are not reversed: the store
   keeps no log of a command's change (`LibraryRecorderStore`, where the core's `apply_command` and `undo_command`
