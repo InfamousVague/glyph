@@ -49,11 +49,75 @@ Each stage ends installed on the Fold. Sizes are the web app's non-test source t
 | 7 | Account and sync: keys, the sync engine, organizations and team notes, live typing, notifications, shared links | `core/sync`, `core/orgs`, `core/live`, `share/` | in the app 2026-10-08, **off unless the build is given `--dart-define=GHOST_API=http://…`** (`lib/root/account_wiring.dart`); walked on the emulator against the service run on this Mac (sign up, sync read back by a second device, an organization, a team note, a shared link); links that open the app are followed since 2026-10-09 (`lib/root/ghost_root.dart`, `lib/core/phone_links.dart`: a note, the notifications, an organization, an invitation asked about first, a shared link's copy); live typing since 2026-10-09 (`lib/live/`, `lib/root/account_wiring.dart`, `lib/root/note_desk.dart`): the relay, a team note's room with the others' carets, presence, the nudge, a note of the account's own, proven by two Dart devices and by the web app's own client under Node through the relay on this Mac, and **walked signed in on the emulator 2026-10-09** against the service on this Mac (the walk, the bugs it found and what it did not reach are under "What stage 7 left open"); the "Live typing" switch is the device's own flag since then. The phone's own notifications are not ported |
 | 8 | Voice and AI: the recorder, Whisper, meetings and their service, summaries, the language model, fills, the at-work scene | `capture/` (12k), `ai/` (6.5k), `tapes/`, `scene/`, Kotlin (6.5k) | Speak in the app 2026-10-09 (`lib/root/voice_wiring.dart`, `lib/root/capture_route.dart`, `lib/root/ghost_root.dart`): the dock's microphone, a note's own and a journal's spoken entry, the capture screen with its live page, the meeting service and its screen, the + sheet's Meeting, Settings' Recording and AI pages with their real rows; the summary queue, the review's gate and the write-up's configuration (lib/ai's), a spoken note's tape played by the phone, a landing's Undo; walked on an Android emulator; the AI in a note (`NoteAi`), the fills' queue, the gists and the scene since the third pass, run on the emulator with Qwen3.5 2B; **not yet on the Fold**; see "What stage 8 left open" |
 | 9 | The rest: backup, export, plugins, the Academy and the guide, diagnostics, updates | `plugins/`, `academy/`, `guide/`, `diag/` | 9A to 9C (the library's folder, backup, export) walked on the emulator 2026-10-09, and in Settings since (`lib/root/ghost_root.dart`); see "What stage 9A to 9C left open". The plugins (in Settings and in a note), the Academy, the walkthrough and the guide's notebook, link previews, Developer's benches and its resets are in the app 2026-10-09 (`lib/root/plugin_ground.dart`, `reset_wiring.dart`, `note_desk.dart`, `ghost_root.dart`); the app's own updates (9I: `lib/core/updates.dart`, `lib/root/update_wiring.dart`, `tool/release.md`) and the invitation's card are in the app 2026-10-09, the updates run on the emulator against a made-up release and **on in no build** until a key and a release address are chosen; a note's place, a picture from the phone, the phone's calendar for a date and a voice memo's player are in the app 2026-10-09 (`Position.kt`, `Pictures.kt`, `DayPick.kt`), walked on the emulator; a film picked, kept and played, and a picture pasted from the clipboard, since the same day (`Films.kt`, `FilmPlayer.kt`), walked there too; the phone's own update notifier is not ported, and what it needs is written down; see "What stage 9's other pieces left open" |
-| 10 | Platforms and release: the Fold's wide layouts, Mac, Windows, iPhone; signing; moving a library over from the Tauri app | | |
+| 10 | Platforms and release: the Fold's wide layouts, Mac, Windows, iPhone; signing; moving a library over from the Tauri app | `core/useWideScreen.ts`, `core/unfold.ts`, `aside/`, app.css `.app-split`, the hinge in `MainActivity.kt` | the Fold's wide layouts in the app 2026-10-09 and compared with the page side by side on an emulator at the unfolded size (1848 x 2448 at 420 dpi, a window of 704 x 933): the aside (`lib/aside/`), the docked sidebar and the aside kept to the device, the unfold and its hinge channel (`lib/core/unfold.dart`, `Hinge.kt`), a mouse's hover on a phone, a fold that keeps the screen it had (`lib/shell/app_shell.dart`); **not yet on the Fold**; see "What stage 10's wide layouts left open". Mac, Windows, iPhone, signing and moving a library over are other hands' or not begun |
 
 The web app is about 110,000 lines of TypeScript, 21,500 of CSS, 27,000 of Rust and 6,500 of Kotlin, with 5,600
 tests. Parity is the bar for every stage; a stage is not done until its screens have been compared with the web app's
 on the same phone.
+
+## What stage 10's wide layouts left open
+
+What decides "wide" is the page's own two questions, already in the shell before this stage and unchanged: a header
+has more room from 600px (`wideScreen`), and the window is in two panes from 660px wide and 600px tall
+(`splitFits`, stamped `data-split` on the root so every rule that asks reads one answer). The Fold opened is a
+window of 704 x 933 (2448 x 1848 px at 420 dpi) either way up, so it is split upright and on its side. The page's
+containers ask their own widths (`44rem`, `52rem`), and so do the port's.
+
+Looked at side by side with the Tauri app on an emulator set to the Fold's inner display (`wm size 1848x2448`, the
+density left at 420, which is the Fold's; pictures in the session's scratchpad, `wide/NN-name-AB.png`), 2026-10-09:
+
+- **Matched as they were found** (ported by the stages that built them): the top bar and its two rows; home, with
+  three cards across; the notes' card; Settings' split view with its sections column and its own smoke; a note and
+  its More sheet (a sheet is the window's whole width on the page too: nothing becomes a centred card); the
+  journal, a row to a line; the + sheet; an empty canvas and its tools; Appearance's Sidebar card.
+- **Ported in this stage and matched:** the aside as a card at the right (a notebook's index, the open page
+  ringed) and as a docked column; the docked sidebar's column with the home page or a note in the rest; the bar's
+  mirrored icon. `test/aside/` holds the card to the page's rectangles at 704 x 933 and 2.625
+  (`fixtures/aside_704.json`, read from the app's own WebView); `test/root/wide_test.dart` holds the columns
+  (300, the rest, 240), the device's memory of both, and a fold.
+- **A press on a card's own icon closed the card and opened it again** (the notes', the bell's): the icons are
+  their cards' toggles now (`FloatingCardToggle`), as the page's `[data-sidebar-toggle]` is.
+- **Folding and unfolding:** the place is one child of one row whether the window is one pane or two, so a fold
+  keeps the note's screen itself: its scroll, its caret, what was typed. The page makes the note again when its
+  panes change (`core/useWideScreen.ts` says so of the keyboard); this is kinder than the page and is not the
+  page's. Walked on the emulator with `wm size` between the cover's 1248 x 1972 and the inner display: a canvas
+  and a recording under way each stayed; a note's scroll is held by the test.
+- **The unfold** (the note flattening with the hinge) is the page's machine case for case and the page's
+  transforms, fed by `TYPE_HINGE_ANGLE` through `ghost_md/hinge`. **Never seen move:** an emulator has no hinge, and
+  the Fold has not had this build. On One UI the hinge sensor's readings while the app is handed from the cover to
+  the inner display are what the page was tuned on; whether Flutter's surface is up in time to draw the first of
+  them is unknown.
+
+Still open:
+
+- **The aside's version history** (`AsideHistory`, a desktop's: the page leaves it out on a phone, `!isMobile`).
+  `AsidePanel` has the two tabs and takes the history as a widget; nothing gives it one, and the bar's History
+  button still opens the More sheet's page. It wants the open note's live words and its restore from the note's
+  desk, and is the Mac's to wire.
+- **The note between a docked sidebar and a docked aside** is 164px wide on the Fold (704 less 300 less 240), on
+  the page as here. The page lays its content out wider than that and the pane cuts it (a ticket's panel is 196px
+  in a 164px pane); here the pane is laid out at 164. The notebook's foot gives way there now, and a ticket's
+  panel, which drew an error box on the emulator, is laid out no narrower than 300 and cut by the pane
+  (`ticket_panel.dart`), but one of its rows still overflows by a few pixels at that width for a ticket with
+  every field: the panel wants going through at a small phone's width.
+- **The recorder and the meeting screen were not compared**: the Tauri app on the emulator has not been allowed
+  the microphone, and its prompt was left unanswered, so its recorder only said "Permission denied". The port's
+  recorder was seen at both sizes and through a fold (the count kept running); its top line stood about 19px
+  lower than the page's rule would put it (`.top`), which wants looking at beside the page recording.
+- **The bottom inset.** The emulator's WebView (Chrome 133) gives the page no `safe-area-inset-bottom` under the
+  gesture bar, so the page's dock, sheets and the guide's button sit 24px lower than the port's, which reads the
+  phone's own inset. The Fold's WebView is newer and may give the page the inset; not settled here.
+- **A notebook's index starts 37px higher than the page's** under its preface at this width. It was not asked
+  whether a phone's width has it too; it is the look-and-feel pass's.
+- **`(pointer: fine)` and `(hover: hover)` are still the platform** (`mousePointer`, `coarsePointer`): Chrome on a
+  phone answers by the touch screen whatever is plugged in, so the page's guarded rules (the bar's hover grounds,
+  the scrollbars, a fly-out submenu) stay a finger's with a mouse on the Fold, as here. Unguarded `:hover` rules
+  show under a mouse now. Not tried with a real mouse: `adb emu event mouse` was not to be used.
+- **Landscape** (2448 x 1848, a window of 933 x 704) is held by a test for the split and the fold, and was not
+  looked at beside the page.
+- **Pictures in other folders that fail at wide sizes on this Mac** (`test/sidebar` "wide", `test/note` "at 840")
+  moved by a few pixels while the Mac's own work was in the tree (the bar's left edge and the status inset are a
+  Mac's there under a test run on one); they were not redrawn here.
 
 ## What stage 9's other pieces left open
 
@@ -469,7 +533,7 @@ change (`lib/root/library_reads.dart`). `test/root/structured_test.dart` holds t
 - **`Notices`**: the voice model's line (stage 8), the update's card and the invitation's (stage 9,
   `lib/root/update_wiring.dart`) are on the home page. `RefiningNotice` and the sidebar's notices are still given
   nothing.
-- **The aside** (the open note's notebook beside it on a wide window, `aside/`) is still the shell's placeholder.
+- **The aside** (the open note's notebook beside it on a wide window, `aside/`) came with stage 10 (`lib/aside/`).
 - **A note opened with the caret at its end** (a journal's new entry) is scrolled until that line is at the top of
   the page as the keyboard comes up, its heading and the notebook's bar above it out of sight until the page is
   pulled down (seen on the emulator; the editor's own keeping of the caret clear of the keyboard, not looked into).
@@ -574,8 +638,8 @@ The editor's pieces (docs/STAGE4.md) are assembled for each open note by `lib/ro
   `menu.dart` / `popover.dart` each draw inset shadows, outer shadows and a glass backdrop.
 - **A panel over the page takes the tokens where its trigger is**, where the web kit's portal took the body's.
   `Tokens.rootTokens` is there for it; the popover, menu and palette do not use it yet.
-- **Hover styles** only show on Android once a key has been pressed (Flutter's highlight mode); a mouse on the Fold's
-  desktop mode will want that looked at in stage 10.
+- **Hover styles** showed on Android only once a key had been pressed (Flutter's highlight mode). Since stage 10 the
+  kit's pressable hears a mouse over it by a mouse region of its own, in either mode (`pressable.dart`).
 - **Checked against the web kit:** the tokens (35 values measured on the page), the palette's logic (the kit's own 48
   cases), the positioning maths and arrow outlines (string for string), and the fields and palette by pixels against
   Chromium drawing the kit's CSS. **Not yet compared side by side on the phone** with the web app: the switch, the
