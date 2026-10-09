@@ -27,6 +27,7 @@ import '../core/book.dart';
 import '../core/item_syntax.dart' show jsTrim;
 import '../core/note.dart';
 import '../core/note_text.dart' show noteTitle, sameTitle;
+import '../editor/queries/query_layout.dart' show CssItem, CssRow;
 import '../sheet/css.dart';
 import 'journal_months.dart' show sideName;
 
@@ -119,17 +120,6 @@ class BookBar extends StatelessWidget {
       );
     }
 
-    Widget words(String text, Color color, {String weight = 'regular', bool tabular = false}) => Flexible(
-          // `.endTitle, .bookTitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }`
-          child: Text(
-            text,
-            maxLines: 1,
-            softWrap: false,
-            overflow: TextOverflow.ellipsis,
-            style: pageText(t, em, weight: weight, color: color).copyWith(fontFeatures: tabular ? const <FontFeature>[FontFeature.tabularFigures()] : null),
-          ),
-        );
-
     // A side's arrow and its title, as two items of the page's flex row that both shrink: the title has
     // `min-inline-size: 0` through its `overflow: hidden`, and an svg is an item like any other, so where the two
     // do not fit each gives up room in proportion to its own width and the arrow is drawn smaller in what it is
@@ -180,18 +170,40 @@ class BookBar extends StatelessWidget {
                 key: const ValueKey('book-bar-book'),
                 label: 'Open the $kind ${place.title}',
                 onPressed: () => open(place.title),
-                children: (color) => [
-                  lucide(Lucide.bookOpen, size: 15, color: color),
-                  // `.bookTitle { color: var(--glacier-text); font-weight: medium }`
-                  words(place.title, ink, weight: 'medium'),
-                  // `.count { font-variant-numeric: tabular-nums }`
-                  Text(
-                    '${place.at + 1} of ${place.chapters.length}',
-                    maxLines: 1,
-                    softWrap: false,
-                    style: pageText(t, em, color: color).copyWith(fontFeatures: const <FontFeature>[FontFeature.tabularFigures()]),
-                  ),
-                ],
+                children: (color) {
+                  // The mark, the book's name and the count are three items of the page's flex row, and all three
+                  // give way where the bar is too narrow for them, each in proportion to its own width: the mark
+                  // is drawn smaller in what it is left (an svg is an item like any other), the name is cut, and
+                  // the count, which may wrap, goes onto lines of its own. In the Fold's narrowest pane, 164px
+                  // between a docked sidebar and a docked aside, the page had a mark of 7.9, "Exam…" in 55.6 and
+                  // "3 / of / 3" down 20.3; a Row kept the mark and the count whole and left the name "Ex…".
+                  final counted = '${place.at + 1} of ${place.chapters.length}';
+                  // The kit's own style for a line of `line-height: normal`, which `ExactLines` below makes the
+                  // page's to the device pixel.
+                  final count = t.textAt(em, color: color).copyWith(fontFeatures: const <FontFeature>[FontFeature.tabularFigures()]);
+                  final painter = TextPainter(text: TextSpan(text: counted, style: count), textDirection: Directionality.of(context))..layout();
+                  final word = painter.minIntrinsicWidth;
+                  painter.dispose();
+                  return [
+                    Flexible(
+                      child: CssRow(
+                        gap: 0.35 * em,
+                        shrinkWrap: true,
+                        children: [
+                          CssItem(least: 0, child: SizedBox(height: 15, child: FittedBox(child: lucide(Lucide.bookOpen, size: 15, color: color)))),
+                          // `.bookTitle { color: var(--glacier-text); font-weight: medium }`, cut with an ellipsis.
+                          CssItem(
+                            least: 0,
+                            child: Text(place.title, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: pageText(t, em, weight: 'medium', color: ink)),
+                          ),
+                          // `.count { font-variant-numeric: tabular-nums }`
+                          // Its lines the page's own height where it wraps (16.76px at the Fold's ratio, not 16).
+                          CssItem(least: word, child: ExactLines.of(Text(counted, style: count), normal: true, dpr: t.css.lineDpr)),
+                        ],
+                      ),
+                    ),
+                  ];
+                },
               ),
               button(
                 key: const ValueKey('book-bar-next'),

@@ -7,14 +7,18 @@ import 'package:ghost_md/book/journal_months.dart';
 import 'package:ghost_md/book/journal_view.dart';
 import 'package:ghost_md/book/new_book_sheet.dart';
 import 'package:ghost_md/core/back.dart';
+import 'package:ghost_md/core/book.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/note_text.dart' show noteTitle;
 import 'package:ghost_md/core/preferences.dart' as core;
+import 'package:ghost_md/core/sample_library.dart' show exampleNotebookBody;
 import 'package:ghost_md/notes/note_templates.dart';
 import 'package:ghost_md/notes/ticket_mark.dart';
 import 'package:ghost_md/sheet/css.dart' show CssLines;
 import 'package:ghost_md/sheet/kit.dart';
+import 'package:glacier/glacier.dart' show GlacierContext;
 
+import '../support/render.dart' show pumpApp;
 import 'support.dart';
 
 /// The notebook's pages held to the web page's own rectangles (tool/book_reference.mjs wrote them from Chromium
@@ -186,6 +190,51 @@ void main() {
   });
 
   group('the bar and the foot a page wears', () {
+    testWidgets('in the Fold’s narrowest pane the bar’s mark, name and count all give way, as the page’s do', (tester) async {
+      // The page, in the Tauri app on an emulator at the Fold's unfolded size (704 x 933 at 2.625), the sidebar
+      // and the aside docked and the note 164px between them, on the Example project's third page, 2026-10-09:
+      // `getBoundingClientRect`, less the pane's left edge and the bar's top. The sides' columns are nothing there
+      // (`minmax(0, 1fr)`) and the middle has the 107px the bar's padding and gaps leave.
+      final book = Note(id: 'book', body: exampleNotebookBody(), createdAt: 0, updatedAt: 0);
+      final place = BookPlace(book: book, title: 'Example project', chapters: chaptersOf(book.body), at: 2, journal: false);
+      final errors = <String>[];
+      final was = FlutterError.onError;
+      FlutterError.onError = (details) => errors.add(details.toString().split('\n').take(8).join('\n'));
+      await pumpApp(
+        tester,
+        size: const Size(704, 933),
+        ratio: 2.625,
+        measuredAt: 2.625,
+        home: Builder(
+          builder: (context) => ColoredBox(
+            color: context.tokens.color('glacier-bg'),
+            child: Align(alignment: Alignment.topLeft, child: SizedBox(width: 164, child: BookBar(place: place, open: (_) {}))),
+          ),
+        ),
+      );
+      await tester.pump();
+      FlutterError.onError = was;
+      expect(errors, isEmpty);
+      void near(double here, double page, String what, [double within = 0.6]) => expect(here, closeTo(page, within), reason: '$what: page $page, here ${here.toStringAsFixed(2)}');
+      final bar = tester.getRect(find.byType(BookBar));
+      near(bar.height, 70.1, 'the bar’s height', 1);
+      final middle = tester.getRect(find.byKey(const ValueKey('book-bar-book')));
+      near(middle.left, 28.5, 'the middle’s left');
+      near(middle.width, 107.0, 'the middle’s width');
+      near(middle.height, 59.8, 'the middle’s height', 1);
+      final mark = tester.getRect(find.descendant(of: find.byKey(const ValueKey('book-bar-book')), matching: find.byType(FittedBox)));
+      near(mark.left, 35.3, 'the mark’s left');
+      near(mark.width, 7.9, 'the mark, squeezed', 1);
+      final name = tester.getRect(find.text('Example project'));
+      near(name.left, 48.0, 'the name’s left', 1);
+      near(name.width, 55.6, 'the name, cut', 1.5);
+      final count = tester.getRect(find.text('3 of 3'));
+      near(count.left, 108.4, 'the count’s left', 1);
+      near(count.width, 20.3, 'the count, wrapped', 1.5);
+      near(count.height, 50.3, 'its three lines', 1);
+      debugDisableShadows = true;
+    });
+
     testWidgets('at a phone’s width', (tester) async {
       final place = bookOf(ProbeLibrary.notes, 'Trees')!;
       await pumpView(tester, Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [BookBar(place: place, open: (_) {}), BookFoot(place: place, open: (_) {})]));
