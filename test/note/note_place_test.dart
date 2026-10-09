@@ -88,6 +88,19 @@ void main() {
     await closeNote(tester);
   });
 
+  testWidgets('a note that says where it was written opens with its card, and its row is Remove location', (tester) async {
+    final world = NoteWorld();
+    final tags = tagsOver(world, _Phone());
+    await pumpNote(tester, world, await seeded(tester, world, '---\nlocation: 39.2373,-123.1500\nplace: "Mendocino County, California"\n---\nStanding in the square'), seams: seams(), tags: tags);
+    await settle(tester);
+    expect(find.text('map Mendocino County, California'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel('More for this note'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Remove location'), findsOneWidget);
+    await closeNote(tester);
+  });
+
   testWidgets('a new note’s tag waits for its first words, drawn quiet meanwhile, and lands with them', (tester) async {
     final world = NoteWorld();
     final tags = tagsOver(world, _Phone(), names: false);
