@@ -214,7 +214,7 @@ class LookEnv {
 
   /// What tells one environment from another: the stylesheet and what the root says, not the object that reads
   /// them, which is made again at every build.
-  String get key => '${identityHashCode(t.sheet)}|${t.attrs}|${t.classes}|$body|${headings.join(',')}|$gutter|$devicePixelRatio|$dark|$meHue|$attrs|$ink|$tabSize|$contentTop|$contentBottom';
+  String get key => '${identityHashCode(t.sheet)}|${t.attrs}|${t.classes}|$body|${headings.join(',')}|$gutter|$devicePixelRatio|${t.css.lineDpr}|$dark|$meHue|$attrs|$ink|$tabSize|$contentTop|$contentBottom';
 }
 
 /// Something painted behind or over a run by whoever styled it: the hook a plugin's format look (a highlight's
@@ -609,12 +609,34 @@ class Look {
   }
 
   /// What one inline box of `p` gives its line: above and below the line's baseline.
+  ///
+  /// The pixel the ascent and the descent are rounded to, and half the leading floored to, is the DEVICE's: a
+  /// phone's page is laid out at its screen's own scale, so at 2.625 a heading of 42.7px with a line of 46.1 has a
+  /// content area of 148 device pixels in a line of 121.04, and its words start `floor(-13.48)`, 14 of those
+  /// pixels, over the line's top. Read from the page in the Tauri app at the Fold's unfolded size, 2026-10-09, for
+  /// the note's words and five sizes of heading: each content area a whole number of device pixels, each starting a
+  /// whole number of them from its line (-14, 6, -9, -5, -1, 6). Rounded in logical pixels, as the page measured
+  /// in a desktop's browser at 1 has them, a heading's words stood two device pixels low on a phone and a
+  /// paragraph's one or two high. The ratio is the one the page's lines were rounded at (`CssContext.lineDpr`), and
+  /// where a descent is rounded down a phone's page gives it a device pixel from the ascent (line_height.dart).
   ({double above, double below, double ascent, double descent}) _box(Props p, TextStyle style) {
     final face = FaceMetrics.of(style);
-    final ascent = (face.ascent * p.fontSize).roundToDouble(), descent = (face.descent * p.fontSize).roundToDouble();
-    final leading = layoutUnit(p.lineHeight * p.fontSize);
-    final above = ascent + ((leading - (ascent + descent)) / 2).floorToDouble();
-    return (above: above, below: leading - above, ascent: ascent, descent: descent);
+    final ratio = env.t.css.lineDpr > 0 ? env.t.css.lineDpr : 1.0;
+    if (ratio == 1) {
+      final ascent = (face.ascent * p.fontSize).roundToDouble(), descent = (face.descent * p.fontSize).roundToDouble();
+      final leading = layoutUnit(p.lineHeight * p.fontSize);
+      final above = ascent + ((leading - (ascent + descent)) / 2).floorToDouble();
+      return (above: above, below: leading - above, ascent: ascent, descent: descent);
+    }
+    final exact = face.descent * p.fontSize * ratio;
+    var up = (face.ascent * p.fontSize * ratio).roundToDouble(), down = exact.roundToDouble();
+    if (down < exact - 1e-4) {
+      down += 1;
+      up -= 1;
+    }
+    final leading = layoutUnit(p.lineHeight * p.fontSize * ratio);
+    final above = up + ((leading - (up + down)) / 2).floorToDouble();
+    return (above: above / ratio, below: (leading - above) / ratio, ascent: up / ratio, descent: down / ratio);
   }
 
   RunLook _run(Props p, RunLook? outer, List<Color> grounds) {
