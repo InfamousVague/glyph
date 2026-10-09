@@ -3,8 +3,8 @@
 /// is (edits.dart): the view hands it back whole.
 ///
 /// What differs:
-/// - `threadsOf` answered the note's own `CardThread` (editor/CommentCard.tsx), which has no port yet; [CardThread]
-///   here is that shape as a record, for whoever ports the comment sheet.
+/// - `threadsOf` answered the note's own `CardThread` (editor/CommentCard.tsx): [CardThread] here is that shape as
+///   a record, and the card's own (lib/comments/ui/words.dart) is the same record, so these go to it as they are.
 /// - Threads are ordered by their stamps as strings, unit by unit, where the web asked `localeCompare`: the same
 ///   order for ISO stamps and for ids of lower-case letters and digits, which is what both are.
 library;

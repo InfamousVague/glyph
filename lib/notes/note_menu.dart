@@ -19,9 +19,9 @@
 ///   of its own (`useNoteMenu`, `openNoteMenu`, `closeNoteMenu`, `noteMenuNow`).
 /// - The mark the page hung the menu from (`[data-pop-point]`) and the portal to the body are not needed: the kit's
 ///   menu here takes a point and draws in the app's overlay (see lib/shell/pop_menu.dart).
-/// - **Every row the web's menu has is here.** Add a comment is the one that waits on something unported (a comment
-///   started in the note's editor, `core/comments/ask.ts`): it takes [NoteMenuHost.onComment] and is left out
-///   without it, as on the page.
+/// - **Every row the web's menu has is here.** Add a comment takes [NoteMenuHost.onComment] and is left out
+///   without it, as on the page; the root gives it (lib/comments/ask.dart: the note is opened, and its desk starts
+///   a comment on its first line once its editor is there).
 library;
 
 import 'package:flutter/gestures.dart';

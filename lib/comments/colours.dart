@@ -9,11 +9,11 @@
 /// reads it fresh. Read best effort: offline, the others are ink until it can be read.
 ///
 /// What differs: the page's hook `useCommentColours(noteId)` gathers four things itself - the note's workspace, the
-/// kept list of organizations, the session and what was read - and the organizations are not ported yet
-/// (docs/STAGE7.md, piece H). So the rule is [commentColours], a function of those four, and what was read is
-/// [MemberColours], which is given the organization's read (`fetchOrg`, reduced to each member's handle and colour)
-/// and whether anyone is signed in. Whoever draws comments asks [MemberColours.read] for the note's organization
-/// and calls [commentColours] with what it holds.
+/// kept list of organizations, the session and what was read. Here the rule is [commentColours], a function of
+/// those four, and what was read is [MemberColours], which is given the organization's read (`fetchOrg`, reduced
+/// to each member's handle and colour) and whether anyone is signed in. The gathering is ui/note_colours.dart's
+/// (`NoteColours`), over the account's services: it asks [MemberColours.read] for the note's organization and
+/// calls [commentColours] with what it holds.
 library;
 
 import 'package:flutter/foundation.dart';

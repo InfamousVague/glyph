@@ -42,6 +42,7 @@ import '../capture/ui/meeting_screen.dart';
 import '../capture/voice_model.dart';
 import '../commands/app_commands.dart';
 import '../commands/command_bar.dart';
+import '../comments/ask.dart';
 import '../core/backup.dart' show Backups;
 import '../core/book.dart';
 import '../core/canvas_body.dart';
@@ -1936,6 +1937,12 @@ class _GhostRootState extends State<GhostRoot> {
               controller: _menu,
               notes: _shown,
               onOpen: (note) => _shell.currentState?.openNote(note.id),
+              // The note itself, with a comment started on its first line once its editor is there
+              // (core/comments/ask.ts).
+              onComment: (note) {
+                commentAsks.ask(note.id);
+                _shell.currentState?.openNote(note.id);
+              },
               onPin: _actions.pin,
               onArchive: (note, archived) => _actions.archive(note, archived: archived),
               onDelete: (note) => _delete(note.id),

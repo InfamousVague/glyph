@@ -99,8 +99,11 @@ import '../art/lucide.g.dart';
 import '../book/book_nav.dart';
 import '../book/book_view.dart';
 import '../book/journal_view.dart';
+import '../canvas/canvas_comments.dart';
 import '../canvas/canvas_view.dart';
 import '../capture/landing.dart';
+import '../comments/ui/note_colours.dart';
+import '../comments/ui/note_comments.dart';
 import '../core/book.dart';
 import '../core/canvas_body.dart';
 import '../core/command_mutations.dart' show CommandUndoResult;
@@ -110,6 +113,7 @@ import '../core/geotag.dart' show GeoTag;
 import '../core/link_preview.dart' show LinkOpener, LinkPreviewer, noLinkPreviews;
 import '../core/location.dart' show LocateFailure, MapsApp, openPlace, tagOf, whyLocateFailed;
 import '../core/place_tags.dart' show PlaceTags;
+import '../editor/comments/comments.dart';
 import '../editor/commands/inserts.dart' show insertLineAt, nameLater, releaseSpot, reserveSpot, spotAt;
 import '../core/place_refs.dart' as place_refs;
 import '../core/video_refs.dart' show videoMarkdown;
@@ -473,6 +477,20 @@ class NoteDeskState extends State<NoteDesk> {
   /// Saves what is typed now, handed over by the note's screen as it is made.
   VoidCallback? _flush;
 
+  /// The note's comments (editor/useNoteComments.tsx): what the drawing opens, what Comment starts, and their
+  /// sheet; and whose colour each wears where the note is filed.
+  late final NoteColours _wears = NoteColours(
+    _world.services,
+    widget.noteId,
+    // The editor's rounds and washes drawn again in them; and a canvas's rounds, which the desk's own build hands
+    // their colours.
+    onChange: () {
+      _comments.recolour();
+      _redraw();
+    },
+  );
+  late final ScreenComments _comments = ScreenComments(noteId: widget.noteId, view: () => _view, say: widget.say, colours: () => _wears.now, account: _world.services?.account)..addListener(_redraw);
+
   /// A line for the person, as the AI asks for one.
   void _aiToast(AiToast said) {
     if (!mounted) return;
@@ -530,6 +548,9 @@ class NoteDeskState extends State<NoteDesk> {
     if (_world.tickets != null) tickets(() => _world.tickets?.call(widget.noteId)),
     // A ```query fence drawn as what it finds in the library: its lines where there is none.
     if (_world.queryNotes != null) queries(() => _queries),
+    // Each `[^c1]` a round in its author's colour, and the ```comments fence drawn as its threads (Editor.tsx
+    // `noteComments`).
+    noteComments(() => _comments.hooks),
     mediaExtensions(
       seams: MediaSeams(
         pictures: _world.pictures,
@@ -795,6 +816,9 @@ class NoteDeskState extends State<NoteDesk> {
       ai.removeListener(_redraw);
       ai.dispose();
     }
+    _comments.removeListener(_redraw);
+    _comments.dispose();
+    _wears.dispose();
     _pictures?.removeListener(_pictureSaid);
     _pictures?.dispose();
     // A memo still sounding stops with its note.
@@ -820,7 +844,12 @@ class NoteDeskState extends State<NoteDesk> {
     // (`_plusAllowed`): asked again once the frame is over, so the + stands beside the blank first line from the
     // start, as on the page.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && identical(_view, view)) _plus.recheck(view);
+      if (!mounted || !identical(_view, view)) return;
+      _plus.recheck(view);
+      // "Add a comment" from the note's menu in a list, asked before the editor was here; and the colours the
+      // rounds were first drawn without.
+      _comments.takeAsk();
+      _comments.recolour();
     });
     // Live in this editor from here on: a note in the Trash is read, not typed in with anyone.
     _live?.close();
@@ -900,6 +929,8 @@ class NoteDeskState extends State<NoteDesk> {
           controller: _band,
           say: widget.say,
           onFind: view == null ? null : (text) => _openFind(view, text),
+          // Comment, on the selection the band was opened over or on the caret's line (ContextMenu.tsx).
+          onComment: _comments.start,
           formats: bandFormats,
           fields: bandFields,
           onAddImage: _pictures?.addPhoto,
@@ -927,6 +958,8 @@ class NoteDeskState extends State<NoteDesk> {
       Positioned.fill(child: EditorTextPanels(view: view)),
       // The AI's one layer: the strip under the header and the panel a tap on a blank opens.
       if (ai != null) Positioned.fill(child: NoteAiLayer(ai: ai, top: headerEnd, onRoom: _roomFor, deviceFacts: _aiWorld?.deviceFacts, canUndo: !widget.readOnly)),
+      // The comments' sheet, while one is open: drawn over the window, taking no room here.
+      ?_comments.sheet(context),
       if (finding != null)
         Positioned(
           left: 0,
@@ -1171,6 +1204,10 @@ class NoteDeskState extends State<NoteDesk> {
               if (run != null) ai.runAi(run, instruction);
             },
       onFind: _openFind,
+      // Comment in the bar and in More, and More's "3 comments, 1 open" with their list.
+      onComment: (view) => _comments.start(),
+      commentsSummary: _comments.summary,
+      onCommentsList: _comments.openList,
       // The More sheet's "Linked to": each plugin's link and its page, and each action, run through this editor.
       plugins: (view) {
         _adopt(view);
@@ -1189,14 +1226,24 @@ class NoteDeskState extends State<NoteDesk> {
       // A change to the canvas is a change to the note: written into the body as the spec's JSON, and saved the way
       // typing is.
       canvas: (context, body, onChange) {
-        Widget view(BuildContext context, String body, ValueChanged<String>? onChange, [CanvasCamera? camera]) => canvasSeam(
-              wiki: CanvasWiki(known: _world.known, open: _world.open, body: _world.bodyOf, titles: _world.titles),
-              pictures: _world.pictures,
-              pickPicture: widget.readOnly ? null : _world.pickPicture,
-              openLink: _world.openLink,
-              readOnly: widget.readOnly || onChange == null,
-              camera: camera,
-            )(context, body, onChange ?? (_) {});
+        Widget view(BuildContext context, String body, ValueChanged<String>? onChange, [CanvasCamera? camera]) {
+          final readOnly = widget.readOnly || onChange == null;
+          Widget drawn(CanvasThreads? threads, String Function(String handle)? hue) => canvasSeam(
+                wiki: CanvasWiki(known: _world.known, open: _world.open, body: _world.bodyOf, titles: _world.titles),
+                pictures: _world.pictures,
+                pickPicture: widget.readOnly ? null : _world.pickPicture,
+                openLink: _world.openLink,
+                threads: threads,
+                threadHue: hue,
+                readOnly: readOnly,
+                camera: camera,
+              )(context, body, onChange ?? (_) {});
+          // A canvas that cannot change draws no rounds and has no Comment; one that can has its threads in the
+          // note's own sheet, each round in its author's colour (canvas/useCanvasComments.tsx).
+          if (readOnly) return drawn(null, null);
+          return CanvasComments(body: body, colours: () => _wears.now, account: _world.services?.account, builder: (context, threads, hue) => drawn(threads, hue));
+        }
+
         // A team's canvas is its structure in the team's document, drawn and edited through it, with the other
         // members' pointers over its cards (lib/live/team_canvas.dart); any other is the note's own, whole.
         final team = widget.readOnly ? null : _team;

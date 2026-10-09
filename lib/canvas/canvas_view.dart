@@ -26,8 +26,9 @@
 /// - **A canvas's threads are kept through an edit.** edits.dart's `withNode`, `withEdge`, `movedWithHeld` and the
 ///   rest answer a canvas without its `comments`, as the web's do; there, a card moved on a canvas with threads
 ///   writes the note without them. Here `_change` puts back the threads whose cards are still there.
-/// - **Comments** draw their rounds and their button and hand the rest to [CanvasView.threads]: the sheet a thread
-///   is read and written in (editor/CommentSheet.tsx) has no port yet.
+/// - **Comments** draw their rounds and their button and hand the rest to [CanvasView.threads], which
+///   canvas_comments.dart answers with the note's own sheet (`useCanvasComments.tsx`): lib/canvas knows neither an
+///   account nor an organization, which a comment's author and colour want.
 /// - **Not here:** a team's canvas and the other members' pointers (piece 6G); a note dragged in from the sidebar
 ///   or a picture file dropped from the computer (`onDrop`: there is no drag between widgets of that kind yet);
 ///   `goTo`; `videos`.

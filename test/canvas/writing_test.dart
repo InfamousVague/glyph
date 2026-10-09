@@ -11,8 +11,9 @@ import '../support/render.dart';
 import 'view_support.dart';
 
 /// Writing in a card with the note's own editor, under the canvas's transform; and a canvas's comments in the
-/// view (`src/app/canvas/CanvasView.comments.test.tsx`, as far as the view goes without the comment sheet, which
-/// has no port: the rounds, what they say, what a press on one and on Comment asks for, and a change handed back).
+/// view (`src/app/canvas/CanvasView.comments.test.tsx`, as far as the view goes by itself: the rounds, what they
+/// say, what a press on one and on Comment asks for, and a change handed back; with the sheet that answers, the
+/// same cases are canvas_comments_test.dart's).
 /// What a reader is told of something, by the words it is given.
 Finder said(String label) => find.byWidgetPredicate((w) => w is Semantics && w.properties.label == label);
 
