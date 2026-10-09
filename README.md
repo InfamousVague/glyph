@@ -43,9 +43,9 @@ Each stage ends installed on the Fold. Sizes are the web app's non-test source t
 | 1 | The kit: Switch, SegmentedControl, DensitySelector, ProgressBar, Pill, Toast, Input, SearchField, Kbd, CommandPalette, Popover, Menu, and a gallery of them on the phone | `@glacier/react` (12 of its components, ~4k lines) | done 2026-10-07, on the Fold |
 | 2 | The shell: launch, the tab bar in its four styles, home, All notes, the sidebar, notifications, the command bar, the app's sheet, a note's menu and the + sheet, Settings with its kit and a live Appearance page; the art: wisp and smoke as shaders, the ghost, the icons | `shell/`, `home/`, `launch/`, `art/`, `commands/`, `settings/` kit, most of `notes/` (~15k) | on the Fold 2026-10-07; see "What stage 2 left open" |
 | 3 | The library: the web app's Rust library included unchanged behind FFI (`native/`), a worker isolate, notes as Markdown files in the app's own folder, trash and workspaces as the web's preferences, search, starter notes | `src-tauri/src/library` (kept), `core/store.ts`, `trash.ts`, `workspaces.ts`, `noteFolders.ts` | on the Fold 2026-10-07; a chosen folder, sync and moving a Tauri library over come later |
-| 4 | The editor: live Markdown, the marks and the five effects, tables, links, pictures, the + menu | `editor/` (26k), `format/` | put together 2026-10-08 (`lib/root/note_desk.dart`) and walked on an Android emulator, phone and unfolded, dark and light; **not yet on the Fold**; see "What stage 4 left open" |
+| 4 | The editor: live Markdown, the marks and the five effects, tables, links, pictures, the + menu | `editor/` (26k), `format/` | put together 2026-10-08 (`lib/root/note_desk.dart`) and walked on an Android emulator, phone and unfolded, dark and light; the placeholder, comments (the round, the wash, the drawn fence, the thread's card in the app's sheet: `lib/editor/comments`, `lib/comments/ui`) and a canvas framed in a note since 2026-10-09, held by tests and pictures; **not yet on the Fold**; see "What stage 4 left open" |
 | 5 | Structured notes: boards, tickets, queries, databases, notebooks, journals, templates | `editor/`, `book/`, `notes/` | in the app 2026-10-08 (`lib/root/note_desk.dart`, `lib/root/library_reads.dart`, `lib/root/ghost_root.dart`): boards, queries and a ticket's panel drawn in a note, the notebook's index and the journal's entries, the + sheet and New notebook, a blank note's names and template cards; **not yet on the Fold**; see "What stages 5 and 6 left open" |
-| 6 | Canvas | `canvas/` (3.5k) | in the app 2026-10-08 as a note's own view (`NoteSeams.canvas`), made from the + and from a notebook's index; a team's canvas (6G) since 2026-10-09: its structure in the team's document (`native/src/crdt.rs`, `lib/team/doc.dart`), drawn and edited through it with the other members' pointers (`lib/live/team_canvas.dart`), held to the web's own Yjs and its own canvas adapter, and walked on the emulator 2026-10-09 with the web's client as the other member (its pointer drawn, a card's words reaching it); **not yet on the Fold** |
+| 6 | Canvas | `canvas/` (3.5k) | in the app 2026-10-08 as a note's own view (`NoteSeams.canvas`), made from the + and from a notebook's index; a team's canvas (6G) since 2026-10-09: its structure in the team's document (`native/src/crdt.rs`, `lib/team/doc.dart`), drawn and edited through it with the other members' pointers (`lib/live/team_canvas.dart`), held to the web's own Yjs and its own canvas adapter, and walked on the emulator 2026-10-09 with the web's client as the other member (its pointer drawn, a card's words reaching it); its comments in the note's own sheet, the card a member has open ringed and Jump to cursor on a canvas since the same day, held by tests; **not yet on the Fold** |
 | 7 | Account and sync: keys, the sync engine, organizations and team notes, live typing, notifications, shared links | `core/sync`, `core/orgs`, `core/live`, `share/` | in the app 2026-10-08, **off unless the build is given `--dart-define=GHOST_API=http://…`** (`lib/root/account_wiring.dart`); walked on the emulator against the service run on this Mac (sign up, sync read back by a second device, an organization, a team note, a shared link); links that open the app are followed since 2026-10-09 (`lib/root/ghost_root.dart`, `lib/core/phone_links.dart`: a note, the notifications, an organization, an invitation asked about first, a shared link's copy); live typing since 2026-10-09 (`lib/live/`, `lib/root/account_wiring.dart`, `lib/root/note_desk.dart`): the relay, a team note's room with the others' carets, presence, the nudge, a note of the account's own, proven by two Dart devices and by the web app's own client under Node through the relay on this Mac, and **walked signed in on the emulator 2026-10-09** against the service on this Mac (the walk, the bugs it found and what it did not reach are under "What stage 7 left open"); the "Live typing" switch is the device's own flag since then. The phone's own notifications are not ported |
 | 8 | Voice and AI: the recorder, Whisper, meetings and their service, summaries, the language model, fills, the at-work scene | `capture/` (12k), `ai/` (6.5k), `tapes/`, `scene/`, Kotlin (6.5k) | Speak in the app 2026-10-09 (`lib/root/voice_wiring.dart`, `lib/root/capture_route.dart`, `lib/root/ghost_root.dart`): the dock's microphone, a note's own and a journal's spoken entry, the capture screen with its live page, the meeting service and its screen, the + sheet's Meeting, Settings' Recording and AI pages with their real rows; the summary queue, the review's gate and the write-up's configuration (lib/ai's), a spoken note's tape played by the phone, a landing's Undo; walked on an Android emulator; the AI in a note (`NoteAi`), the fills' queue, the gists and the scene since the third pass, run on the emulator with Qwen3.5 2B; **not yet on the Fold**; see "What stage 8 left open" |
 | 9 | The rest: backup, export, plugins, the Academy and the guide, diagnostics, updates | `plugins/`, `academy/`, `guide/`, `diag/` | 9A to 9C (the library's folder, backup, export) walked on the emulator 2026-10-09, and in Settings since (`lib/root/ghost_root.dart`); see "What stage 9A to 9C left open". The plugins (in Settings and in a note), the Academy, the walkthrough and the guide's notebook, link previews, Developer's benches and its resets are in the app 2026-10-09 (`lib/root/plugin_ground.dart`, `reset_wiring.dart`, `note_desk.dart`, `ghost_root.dart`); the app's own updates (9I: `lib/core/updates.dart`, `lib/root/update_wiring.dart`, `tool/release.md`) and the invitation's card are in the app 2026-10-09, the updates run on the emulator against a made-up release and **on in no build** until a key and a release address are chosen; a note's place, a picture from the phone, the phone's calendar for a date and a voice memo's player are in the app 2026-10-09 (`Position.kt`, `Pictures.kt`, `DayPick.kt`), walked on the emulator; a film picked, kept and played, and a picture pasted from the clipboard, since the same day (`Films.kt`, `FilmPlayer.kt`), walked there too; the phone's own update notifier is not ported, and what it needs is written down; see "What stage 9's other pieces left open" |
@@ -350,9 +350,12 @@ the window's picture into its own container (`lib/shell/desktop/mac_tour.dart`).
     `clipboard`, the web's `readClipboard`): shrunk into `picked/` as the chooser's is and adopted
     (`ContextBand.onPasteImage`). Seen on the emulator for words only (Copy, then Paste over a selection): adb
     cannot put a picture on the clipboard, so the picture's road is held by tests.
-  - **Still open of it:** a canvas has no film card of its own to add, as on the web; a film's line in a card of
-    words, and on a note's card on the home page, is not drawn as its still (the page draws both through its
-    editor's `peek`: `lib/home/note_peek.dart` says a picture is its line, and a film is the same). A place
+  - **A film's line, and a picture's, is drawn as its still wherever a note is drawn small** since 2026-10-09: on
+    a note's card on the home page, in the sidebar's rows and in a card of words on a canvas, from the pictures
+    the app keeps (`PeekPictures` over the app in `lib/root/ghost_root.dart`, `peekExtensions` in
+    `lib/home/note_peek.dart`, `CardWords.pictures`), as the page's `peek` draws them. Held by
+    `test/home/peek_pictures_test.dart`; not looked at on a device.
+  - **Still open of it:** a canvas has no film card of its own to add, as on the web. A place
     line's name that comes later than three seconds is written only while its line is the newest change, without
     the web's count of the note's own tag landing meanwhile (`tagSteps`). The map note's header on a phone is the
     card inset, where the page's is the page's whole width with square corners.
@@ -361,7 +364,11 @@ the window's picture into its own container (`lib/shell/desktop/mac_tour.dart`).
     own `Editor.tsx` calls `drawnBoards()` with none, so a card's menu there has no plugin's rows either; the seam
     is one line in `lib/root/note_desk.dart` (the desk already has `itemSend` and `lineOffers`, which are its two
     halves) if that is wanted here.
-  - **The editor's parser reading `plugins.formats()`**: the desk gives it the app's own marks.
+  - **The editor's parser reads `plugins.formats()`** since 2026-10-09 (`noteFormats`, `lib/root/note_desk.dart`):
+    the switched-on plugins' formattings, read as a note's editor is made, with the band's Style page and the +'s
+    effects read as each is drawn. Ghost.md's own marks switched off are in none of the three in the next note
+    opened. Where nothing was ever put in the registry (a test that builds a note without the app's launch) it is
+    the app's own marks.
   - **The phone's own update notifier** (9I; the web's `updates/UpdateCheckWorker.kt`, `UpdateAlerts.kt` and
     Rust's `peek`): nothing looks for an update while the app is closed, and About has no "Update alerts" switch.
     **Not ported, and not because it is long**: the update client is on in no build (no key, no address, below),
@@ -573,10 +580,13 @@ Live typing and a team's canvas (docs/STAGE7.md, "Live typing and team notes"; `
     the focus from its field as it is pressed, as a tap on the page's button does (`FormSubmit`).
   - Reset everything left `<dataDir>/team/<account>`, every team note's document: a reset takes them now
     (`lib/root/reset_wiring.dart`, `test/root/reset_test.dart`).
-- **Found and left:** a card being written on a team's canvas when another member's change arrives keeps its
-  editor but the view is fitted to the canvas again (the body handed to the view anew, as said below). The
-  organization's New (`OrgAction`) and the rows of the + sheet are not in the tree a screen reader is given
-  (`uiautomator` lists neither). A debug build's errors did not reach logcat on this emulator (Android 16); the
+- **Found and left:** a card being written on a team's canvas when another member's change arrived kept its
+  editor but the view was fitted to the canvas again; it is not fitted again since 2026-10-09 (below). The
+  organization's New (`OrgAction`) and the rows of the + sheet were not in `uiautomator`'s list. Off the device
+  both are in the tree the app hands a screen reader, reached from its root, each a button with a tap: New as
+  "New in this organization", a row as its words and its line together (`test/root/semantics_test.dart`,
+  `test/account_ui/reference_test.dart`). Neither is a `text` there, only a content description, which may be
+  all the walk's search missed: not reproduced, and not looked at again on the emulator. A debug build's errors did not reach logcat on this emulator (Android 16); the
   walk kept them in a file through `FlutterError.onError`, in a build of its own that was never committed.
 - **Not reached by the walk:** an invitation's Decline, an invitation by link, a role changed and a member
   removed, a rename and a colour picked, Mute, the audit log, Jump to cursor, a comment, Lost the password and
@@ -591,17 +601,37 @@ Live typing and a team's canvas (docs/STAGE7.md, "Live typing and team notes"; `
   comes back, its rooms joined again; the page leaves that to the browser.
 - **Undo in a live note is the editor's own history**, with what arrives kept out of it, where the page swaps in
   `Y.UndoManager`: either takes back this person's typing and leaves the others'.
-- **A selection of another member's across lines** is washed over each line's words; the page washes the lines
-  between whole, an empty line among them too.
+- **A selection of another member's across lines** washes the lines between its first and its last whole, an empty
+  one among them too, as y-codemirror's does on the page (`cm-yLineSelection`, with that rule's own margin), since
+  2026-10-09.
 - **A note open in an editor bound to its document is the editor's** (`TeamDoc.editing`): a pass posts what was
   typed and applies what the log brings, and neither reads the saved note into the document nor writes the
   document into the note. The page's pass reconciles from the saved note, a save's delay behind its editor.
-- **Jump to cursor** opens a note at a member's caret (`NoteDeskWorld.takeJump`); a member's spot on a canvas is
-  not gone to (`CanvasView` has no `goTo`).
-- **On a team's canvas** the card a member has open is not said or drawn (`card` in the room), this device's
-  pointer is where a finger is down and nowhere once it lifts, and a change that arrives while a card is being
-  dragged is the body handed to the view anew. A canvas has no comment sheet yet, so its threads are carried and
-  merged and not shown.
+- **Jump to cursor** opens a note at a member's caret (`NoteDeskWorld.takeJump`), and a canvas centred on a
+  member's spot since 2026-10-09 (`CanvasView.goTo`: the desk keeps a jump that is a spot for its canvas). Held by
+  `test/canvas/team_view_test.dart`; the dashboard's press through to a canvas was not walked.
+- **On a team's canvas** the card a member has open is ringed in their colour with their handle on its corner, and
+  the card this device opens is said in the room (`card`; `TeamCanvasPeople`, `CanvasView.onEditing` and
+  `editedBy`), since 2026-10-09; and the view is no longer fitted again for a member's change, as the page's is
+  not (`CanvasView.team`). This device's pointer is where a finger is down and nowhere once it lifts, and a change
+  that arrives while a card is being dragged is still the body handed to the view anew. Its threads are in the
+  note's own sheet (next).
+- **Comments** (../glyph docs/SHARED.md, S8 and S9; 2026-10-09). In a note: each `[^c1]` a round in its author's
+  colour and the words round a selection washed in it, the ```comments fence drawn as the list of its threads
+  (`lib/editor/comments/comments.dart`), the thread's card and the new comment's field in the app's sheet with
+  replies, Resolve, Reopen and Delete thread (`lib/comments/ui/`), Comment on the press-and-hold band, in the bar
+  and in More with the threads' count, and Add a comment on a note's menu. On a canvas: the same sheet from a
+  card's round and its bar (`lib/canvas/canvas_comments.dart`). Each member's colour is read with the organization
+  the note is filed in (`lib/comments/ui/note_colours.dart`), and is ink anywhere else. In a team's note a comment
+  is a few edits through the bound editor, so it rides the team's document as typing does
+  (`test/live/comments_test.dart`: two members, the real CRDT, a relay in memory). The page has no notification of
+  a comment's own and neither has this: its audit-log line and the profile card's counts wait on the page too.
+  Held by the page's own cases and by pictures (`test/comments/shots`, `test/editor/comments/shots`,
+  `test/canvas/shots/comments-*.png`); **not walked on a device.** Found and left: an Undo in a live note, after
+  another member wrote at the very same place, can take out the wrong letters. What arrives is put into the
+  editor as the least change between two wordings (`spliceBetween`, `lib/team/text_log.dart`), not as the
+  document's own insertion, and the editor's history maps its undo through that; the page's `Y.UndoManager` has
+  no such step. The seam is the core handing the editor yrs's own delta.
 - **A session that meets another history after a drop ends**, as the page's does (`LiveSession` on a different
   seed): the note is live again the next time it is opened.
 - **The web's bug with an emoji, and what is done about it here.** `applyTextDiff`
@@ -641,20 +671,24 @@ change (`lib/root/library_reads.dart`). `test/root/structured_test.dart` holds t
   notes, a journal's place switch; see stage 9's other pieces). Not walked: the card, and an entry.
 - **The + sheet's Meeting** is there where a meeting can be recorded (stage 8), and **From a shared link** in a
   build with an account's service; neither from an organization's +.
-- **A canvas** has the phone's picture chooser for its picture card (not walked) and opens no link (as a note), no
-  comment sheet (`CanvasView.threads`), is not framed in a note from the + (`AddConfig.canvases`). A team's canvas
-  (6G) is its structure in the team's document (see "What stage 7 left open"). A canvas renamed from its tab is
-  written to the store and not through its open screen (`rename`).
+- **A canvas** has the phone's picture chooser for its picture card (not walked) and opens no link (as a note).
+  Since 2026-10-09 its comments are in the note's own sheet; it is framed in a note by `![[Its name]]` on a line
+  of its own, from the +'s A canvas (`lib/editor/media/canvas_frames.dart`, `AddConfig.canvases`); and renamed
+  from its tab while it is being read, it is named through its open screen (`lib/note/open_screen.dart`). A
+  team's canvas (6G) is its structure in the team's document (see "What stage 7 left open"). Held by tests and
+  pictures; none of the three walked on a device.
 - **A board's card has no plugin's rows** (`drawnBoards(actions:)`), as on the web (see stage 9's other pieces).
   A date in a ticket's panel or a query is picked from the phone's calendar (`dayPicker`); seen on a list item's
   date page, not in a panel or a query.
 - **`Notices`**: the voice model's line (stage 8), the update's card and the invitation's (stage 9,
-  `lib/root/update_wiring.dart`) are on the home page. `RefiningNotice` and the sidebar's notices are still given
-  nothing.
+  `lib/root/update_wiring.dart`) are on the home page, and the sidebar carries the update's card on a window in
+  two panes, docked or as a card (App.tsx `notices`), since 2026-10-09. `RefiningNotice` is given nothing because
+  the page gives it nothing: it is drawn nowhere there since the dashboard went.
 - **The aside** (the open note's notebook beside it on a wide window, `aside/`) came with stage 10 (`lib/aside/`).
-- **A note opened with the caret at its end** (a journal's new entry) is scrolled until that line is at the top of
-  the page as the keyboard comes up, its heading and the notebook's bar above it out of sight until the page is
-  pulled down (seen on the emulator; the editor's own keeping of the caret clear of the keyboard, not looked into).
+- **A note opened with the caret at its end** (a journal's new entry) keeps its heading and the notebook's bar in
+  sight as the keyboard comes up, since f39b16c: the editor's nearest scroll counted its margins when asking
+  whether the caret was in sight, so a caret in plain sight was moved up to them. `test/root/entry_keyboard_test.dart`
+  holds the journal's case through the app put together; not seen again on the emulator.
 - **Checked where:** on an Android emulator (Gboard, dark) by hand, 2026-10-08: the + sheet and its Note, Entry in
   Journal, Canvas and Notebook; a blank note's names and cards, and A day pressed; Launch week's board, a card moved
   by its chevron; the Example project's index, a page opened from it with the notebook's bar and its ticket's panel,
@@ -702,7 +736,8 @@ The editor's pieces (docs/STAGE4.md) are assembled for each open note by `lib/ro
   signed-out one, whose way in says the build has no service. A define naming ghostmarkdown.com or attack.fm is
   refused in a build that is not a release (`accountBase`), and by the `Api`'s assert after it.
   `test/root/second_device_test.dart` is the second device that reads back what a phone wrote.
-- **Not drawn yet on a note's page:** the placeholder ("Write something.") and comments. (The AI's rows, the place row
+- **Drawn on a note's page since 2026-10-09:** the placeholder ("Write something.", `lib/editor/placeholder.dart`)
+  and comments (see "What stage 7 left open"). (The AI's rows, the place row
   and the map card came with stages 8 and 9; the blank page's names and template cards, a notebook's bar and foot, and
   the canvas, the notebook and the journal themselves came with stages 5 and 6.)
 - **What needs the phone is added** since 2026-10-09: a picture, a film, a place and a day from the calendar (see
@@ -721,8 +756,8 @@ The editor's pieces (docs/STAGE4.md) are assembled for each open note by `lib/ro
 - **A shared link** made by a build on a local service still names the real reader page (lib/share), where nothing
   will find it: seen on the emulator, the link put on the clipboard reads `https://ghostmarkdown.com/read.html#…`
   (nothing is asked of that address by making it; it was not opened).
-- **Icons the generated set lacks** fall back: Wave's on the Style page and in the +'s list (`waves` is not in
-  `lib/art/lucide.g.dart`).
+- **Wave has its icon** since 2026-10-09: the made set answers to the other names lucide keeps for an icon (`waves`
+  is `waves-horizontal`; `tool/lucide.dart` `aliases`).
 - **Checked where:** on the emulator (Gboard, Impeller on OpenGL ES) by hand: typing, Enter in a list, a to-do's box,
   the band and its Style and field pages, the + and its list, a table, find and replace, a chip's menu, each of the
   twelve marks with the smoke and the five effects moving, a kept picture, links between notes, the bookmark, saving
@@ -739,9 +774,9 @@ The editor's pieces (docs/STAGE4.md) are assembled for each open note by `lib/ro
   and 6, from the +; Speak with stage 8).
 - **Not wired though built:** `Notices` (see "What stages 5 and 6 left open"). `NoteActions` (delete, archive and
   pin with the web's Undo toast, the Trash), `NewSheet` and `TemplateCards` are wired now.
-- **Two previews of a note:** the drawn one (`lib/home/note_peek.dart`) and the sidebar's two plain lines
-  (`lib/notes/note_peek.dart`); the sidebar should take the drawn one, and a dense card wants it clipped to 4.2 lines
-  where it is 6.2. `BookPlaceMark` and `OrgMark` exist twice the same way.
+- **One preview of a note** since 2026-10-09: the sidebar draws the home page's (`lib/home/note_peek.dart`,
+  `NotePeek.plain`), and `BookPlaceMark` and `OrgMark` are each one widget (`lib/notes/`, handed on by
+  `lib/home/marks.dart`).
 - **Kit gaps the ports worked round:** no stylesheet or inline style on `GlacierTheme` (Settings appends rules to the
   sheet; the shell lays a second root to stamp `data-topbar`), no root font size (the interface scale magnifies the
   window), `AppIcon` does not read `IconTheme`, and the engine makes every line of text a whole logical pixel tall, whatever
@@ -752,7 +787,7 @@ The editor's pieces (docs/STAGE4.md) are assembled for each open note by `lib/ro
 - **Checked where:** every screen's rectangles against the web page in tests; the whole app on an Android emulator
   (Impeller on OpenGL ES: home, scrolling under the smoke, the sidebar, Settings, a note, the command bar, the
   unfolded width). **Not yet looked at on the Fold itself**, whose Impeller is Vulkan: the smoke shaders, the glass,
-  the feel of swipes and of holding a tab. `lucide_icons_flutter` is no longer used and can leave pubspec.
+  the feel of swipes and of holding a tab. `lucide_icons_flutter` left the app's pubspec 2026-10-09; the kit keeps it for its own tests.
 
 ## What stage 1 left open
 
@@ -760,8 +795,9 @@ The editor's pieces (docs/STAGE4.md) are assembled for each open note by `lib/ro
   kit's `LocaleProvider` (the few strings are local, English first; the palette's are in eight languages).
 - **Three files do the same job** and want merging: `css_effects.dart`, `field_core.dart` and the private painters in
   `menu.dart` / `popover.dart` each draw inset shadows, outer shadows and a glass backdrop.
-- **A panel over the page takes the tokens where its trigger is**, where the web kit's portal took the body's.
-  `Tokens.rootTokens` is there for it; the popover, menu and palette do not use it yet.
+- **A panel over the page takes the page's own tokens** since 2026-10-09, as the web kit's portal takes the
+  body's: a popover's panel, a menu's and the command palette are built under `GlacierRootScope`
+  (`Tokens.rootTokens`). A toast is not.
 - **Hover styles** showed on Android only once a key had been pressed (Flutter's highlight mode). Since stage 10 the
   kit's pressable hears a mouse over it by a mouse region of its own, in either mode (`pressable.dart`).
 - **Checked against the web kit:** the tokens (35 values measured on the page), the palette's logic (the kit's own 48
