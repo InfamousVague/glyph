@@ -47,6 +47,33 @@ void main() {
     expect(leadedBaseline(small, 20.807, dpr: 2.625) * 2.625, closeTo(area.baseline * 2.625 + ((54.6184 - area.height * 2.625) / 2).floorToDouble(), 1e-6));
   });
 
+  testWidgets('a style whose line the engine made the pixel beside the exact line\'s rounding takes the exact line too', (tester) async {
+    await inter(tester);
+    // A label of 17.0089px on a phone at 2.625: the page's line is 54 device pixels, 20.571, which rounds to 21;
+    // a style that says 20 (the face's halves each rounded in logical pixels) is drawn in lines of 20.
+    const style = TextStyle(fontFamily: 'Inter Variable', fontSize: 17.0089, height: 20 / 17.0089, leadingDistribution: TextLeadingDistribution.even);
+    await pumpKit(
+      tester,
+      SizedBox(
+        width: 140,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ExactLines(lineHeight: 54 / 2.625, baseline: 43 / 2.625, child: Text('Bookmark', key: ValueKey('one'), style: style)),
+            const ExactLines(lineHeight: 54 / 2.625, child: Text('Marks the line the caret is on, to come back to', key: ValueKey('more'), style: style)),
+          ],
+        ),
+      ),
+    );
+    expect(tester.getSize(find.byKey(const ValueKey('one'))).height, 20);
+    Size box(String key) => tester.getSize(find.ancestor(of: find.byKey(ValueKey(key)), matching: find.byType(ExactLines)));
+    expect(box('one').height, closeTo(54 / 2.625, 1e-9));
+    final lines = (tester.getSize(find.byKey(const ValueKey('more'))).height / 20).round();
+    expect(lines, greaterThan(1));
+    expect(box('more').height, closeTo(lines * 54 / 2.625, 1e-9));
+  });
+
   testWidgets('text takes the exact line where the engine rounds it, one line or several', (tester) async {
     await inter(tester);
     const style = TextStyle(fontFamily: 'Inter Variable', fontSize: 16.2569, height: 19.4286 / 16.2569, leadingDistribution: TextLeadingDistribution.even);

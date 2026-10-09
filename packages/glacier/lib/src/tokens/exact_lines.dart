@@ -90,7 +90,7 @@ class RenderExactLines extends RenderProxyBox {
       return;
     }
     child.layout(constraints, parentUsesSize: true);
-    _drawn = _lineHeight.roundToDouble();
+    _drawn = _engineLine(child.size.height);
     _lines = child is RenderParagraph && _drawn > 0 ? (child.size.height / _drawn).round() : 0;
     // Only a paragraph whose lines are all the rounded line: anything else (a taller run, a widget in the text)
     // keeps the engine's own box.
@@ -111,19 +111,37 @@ class RenderExactLines extends RenderProxyBox {
     }
   }
 
+  /// The engine's own line for the child, a whole pixel: the exact line rounded, or the pixel beside it where the
+  /// style's leading was rounded another way. A style made from a face's two halves each rounded in logical pixels
+  /// (the app's `pageText`) is 20 for a label of 17px, where the page's line on a phone at 2.625 is 20.57 and its
+  /// rounding 21: the lines were each 20, none was taken for the exact line, and a sheet's rows with a hint stood
+  /// five device pixels short each on the Fold opened.
+  ///
+  /// Told from the paragraph's height, which is a whole number of its lines: the rounding first, then the pixel
+  /// under it and the one over.
+  double _engineLine(double childHeight) {
+    final rounded = _lineHeight.roundToDouble();
+    for (final line in <double>[rounded, rounded - 1, rounded + 1]) {
+      if (line <= 0) continue;
+      final lines = (childHeight / line).round();
+      if (lines > 0 && (childHeight - lines * line).abs() <= 0.01) return line;
+    }
+    return rounded;
+  }
+
   @override
   Size computeDryLayout(BoxConstraints constraints) {
     final child = this.child;
     if (child == null) return constraints.smallest;
     final dry = child.getDryLayout(constraints);
-    final drawn = _lineHeight.roundToDouble();
+    final drawn = _engineLine(dry.height);
     final lines = drawn > 0 ? (dry.height / drawn).round() : 0;
     if (lines <= 0 || (dry.height - lines * drawn).abs() > 0.01) return constraints.constrain(dry);
     return constraints.constrain(Size(dry.width, lines * _lineHeight));
   }
 
   double _scaled(double childHeight) {
-    final drawn = _lineHeight.roundToDouble();
+    final drawn = _engineLine(childHeight);
     final lines = drawn > 0 ? (childHeight / drawn).round() : 0;
     if (lines <= 0 || (childHeight - lines * drawn).abs() > 0.01) return childHeight;
     return lines * _lineHeight;
