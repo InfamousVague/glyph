@@ -302,6 +302,8 @@ class AppShellState extends State<AppShell> {
 
   @override
   void dispose() {
+    // No shell, no stamps of its own on the root: once the tree has settled.
+    Future<void>.microtask(() => shellStamps.value = const <String, String?>{});
     _tabs.dispose();
     _walk.dispose();
     _barTools.dispose();
@@ -569,6 +571,9 @@ class AppShellState extends State<AppShell> {
       // The bar's style, for its heights and grounds; Classic stamps nothing.
       'topbar': topBar == TopBarStyle.classic ? null : topBar.id,
     };
+
+    // The page's root is told too: what is drawn outside the shell reads the same attributes (root_stamps.dart).
+    publishShellStamps(stamps);
 
     return BackScope(
       stack: widget.backStack,

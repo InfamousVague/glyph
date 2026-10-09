@@ -1,5 +1,35 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
+
+/// What the shell last stamped, for the page's root itself (lib/app/ghost_app.dart): on the web the attributes are the
+/// document's, so Settings, a sheet and a toast, drawn outside the shell, read the same `--app-tabs` and
+/// `--app-safe-top` the shell does. Seen beside the page: the fade under Settings' head was 46px shorter here, the
+/// tab row's height, because Settings saw `data-tabs='on'` where the page had `rows`.
+final ValueNotifier<Map<String, String?>> shellStamps = ValueNotifier<Map<String, String?>>(const <String, String?>{});
+
+/// Tells the root what the shell stamps, after the frame (a build may not change what another widget is built from).
+void publishShellStamps(Map<String, String?> stamps) {
+  if (mapEquals(shellStamps.value, stamps)) return;
+  final next = Map<String, String?>.unmodifiable(stamps);
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!mapEquals(shellStamps.value, next)) shellStamps.value = next;
+  });
+}
+
+/// [attrs] with [stamps] laid over them: a value sets the attribute, null takes it off.
+Map<String, String> stampedOver(Map<String, String> attrs, Map<String, String?> stamps) {
+  final out = {...attrs};
+  for (final stamp in stamps.entries) {
+    final value = stamp.value;
+    if (value == null) {
+      out.remove(stamp.key);
+    } else {
+      out[stamp.key] = value;
+    }
+  }
+  return out;
+}
 
 /// `data-*` attributes on the page's root, there for the subtree while they are in [stamps] and gone when their
 /// value is null: the web app's shell/useRootStamp.ts, by which the shell tells the stylesheets about its layout

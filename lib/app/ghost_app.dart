@@ -6,6 +6,7 @@ import 'package:glacier/glacier.dart';
 import '../core/preferences.dart';
 import '../gallery/kit_gallery.dart';
 import '../settings/settings_css.dart';
+import '../shell/root_stamps.dart';
 
 /// Inter's other subsets, which the page reaches by unicode-range and Flutter by falling back (pubspec.yaml).
 const interFallbacks = [
@@ -93,10 +94,12 @@ class _GhostAppState extends State<GhostApp> with WidgetsBindingObserver {
           pageRouteBuilder: <T>(RouteSettings settings, WidgetBuilder builder) => PageRouteBuilder<T>(settings: settings, pageBuilder: (context, _, _) => builder(context)),
           builder: (context, child) => _RootFontSize(
             scale: prefs.uiScale,
-            child: Builder(
-              builder: (context) => GlacierTheme(
+            child: ValueListenableBuilder<Map<String, String?>>(
+              // The shell's stamps are the document's on the page: laid over the root's own here.
+              valueListenable: shellStamps,
+              builder: (context, stamps, _) => GlacierTheme(
                 sheet: widget.sheet,
-                attrs: {
+                attrs: stampedOver({
                   // The page's own attributes, which are not preferences: stamped by the shell on the web.
                   'platform': defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS ? 'mobile' : 'desktop',
                   // The Mac app draws under its own title bar, the window's buttons set into the page's top row
@@ -107,7 +110,7 @@ class _GhostAppState extends State<GhostApp> with WidgetsBindingObserver {
                   // The pace, which the page writes as inline durations; a device asking for less motion is left
                   // to the kit's own rule for it.
                   if (prefs.motionSpeed != Preferences.defaults.motionSpeed && !MediaQuery.disableAnimationsOf(context)) _paceAttr: prefs.motionSpeed,
-                },
+                }, stamps),
                 typography: const GlacierTypography(
                   features: [FontFeature('cv11'), FontFeature('ss01')],
                   fallbacks: {
