@@ -92,10 +92,11 @@ class Ghost extends StatelessWidget {
             width: width,
             height: width / scene.ratio,
             // The dots are the picture's alpha, and the ink is laid in through them: a mask, as the page has it.
-            // Cut a pixel inside its own edge: on Impeller's OpenGL ES the picture's outermost column and row came out
+            // Cut a device pixel inside its own edge: on Impeller's OpenGL ES the picture's outermost column and row came out
             // two steps off the ground (6 on 4), a hairline frame round every ghost, though the file is clear there.
             child: ClipRect(
-              clipper: const _InsideEdge(),
+              // Not the smallest, whose drawing reaches its last pixel (and sits on a card bright enough to hide a frame).
+              clipper: _InsideEdge(size == GhostSize.tiny ? 0 : 1 / MediaQuery.devicePixelRatioOf(context)),
               child: Image.asset(scene.asset, color: ink, colorBlendMode: BlendMode.srcIn, fit: BoxFit.contain, filterQuality: FilterQuality.medium, excludeFromSemantics: true),
             ),
           );
@@ -107,13 +108,15 @@ class Ghost extends StatelessWidget {
   }
 }
 
-/// A box less one logical pixel all round.
+/// A box less [by] all round: one device pixel, which is all the frame was (a logical pixel took ink off the
+/// smallest ghost, whose drawing comes that near its edge).
 class _InsideEdge extends CustomClipper<Rect> {
-  const _InsideEdge();
+  const _InsideEdge(this.by);
+  final double by;
 
   @override
-  Rect getClip(Size size) => (Offset.zero & size).deflate(1);
+  Rect getClip(Size size) => (Offset.zero & size).deflate(by);
 
   @override
-  bool shouldReclip(_InsideEdge oldClipper) => false;
+  bool shouldReclip(_InsideEdge oldClipper) => oldClipper.by != by;
 }
