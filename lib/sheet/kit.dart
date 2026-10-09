@@ -82,7 +82,12 @@ class SheetHeading extends StatelessWidget {
         // text-transform: uppercase; color: var(--app-ink-3)`. Said as written, drawn in capitals.
         label: text,
         child: ExcludeSemantics(
-          child: Text(text.toUpperCase(), style: pageText(t, size, weight: 'bold', color: t.color('app-ink-3'), tracking: t.len('app-tracking-caps', em: size))),
+          // In the page's own line (13.5px for these 11.16px capitals), not the engine's whole 14.
+          child: ExactLines.of(
+            Text(text.toUpperCase(), style: pageText(t, size, weight: 'bold', color: t.color('app-ink-3'), tracking: t.len('app-tracking-caps', em: size))),
+            normal: true,
+            dpr: t.css.lineDpr,
+          ),
         ),
       ),
     );
@@ -475,7 +480,15 @@ class _SheetFieldState extends State<SheetField> implements TextSelectionGesture
           child: Padding(
             // `padding: var(--glacier-space-2) 0`
             padding: EdgeInsets.only(top: t.space(2), bottom: t.space(2) + line),
-            child: Stack(
+            // The input's line is the page's (`line-height: normal`, 19.43px at 16.26), where the engine's field is a
+            // whole 20: the field was 5 device pixels taller than the page's with its label's line.
+            child: SizedBox(
+              height: normalLineBox(style, dpr: t.css.lineDpr).height,
+              child: OverflowBox(
+                alignment: AlignmentDirectional.centerStart,
+                minHeight: 0,
+                maxHeight: double.infinity,
+                child: Stack(
               alignment: AlignmentDirectional.centerStart,
               children: [
                 if (_controller.text.isEmpty && widget.placeholder != null)
@@ -483,6 +496,8 @@ class _SheetFieldState extends State<SheetField> implements TextSelectionGesture
                 // The arrows, Backspace and the rest of a hardware keyboard's editing keys.
                 DefaultTextEditingShortcuts(child: editable),
               ],
+            ),
+              ),
             ),
           ),
         ),
@@ -503,9 +518,13 @@ class _SheetFieldState extends State<SheetField> implements TextSelectionGesture
             // `.fieldLabel`: `font-size: xs; font-weight: bold; letter-spacing: var(--app-tracking-caps-close);
             // text-transform: uppercase; color: var(--glacier-text-subtle)`. The field is named by it; it is not read twice.
             ExcludeSemantics(
-              child: Text(
-                widget.label.toUpperCase(),
-                style: pageText(t, xs, weight: 'bold', color: t.color('glacier-text-subtle'), tracking: t.len('app-tracking-caps-close', em: xs)),
+              child: ExactLines.of(
+                Text(
+                  widget.label.toUpperCase(),
+                  style: pageText(t, xs, weight: 'bold', color: t.color('glacier-text-subtle'), tracking: t.len('app-tracking-caps-close', em: xs)),
+                ),
+                normal: true,
+                dpr: t.css.lineDpr,
               ),
             ),
             Semantics(label: widget.label, textField: true, child: input),
