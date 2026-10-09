@@ -27,9 +27,15 @@ class TokenCondition {
 /// A rule of a token sheet that declares custom properties: where it applies, what it declares, and where it stands
 /// in the cascade.
 class TokenRule {
-  const TokenRule({required this.conditions, required this.declarations, required this.specificity, required this.order, this.reducedMotion = false});
+  const TokenRule({required this.conditions, required this.declarations, required this.specificity, required this.order, this.reducedMotion = false, this.subject});
 
   final List<TokenCondition> conditions;
+
+  /// What the selector's last compound asks without a `:not`: the element the rule is about must have these itself.
+  /// `[data-theme='dark'][data-accent='red']` is about one element with both, so a swatch that only says its accent
+  /// inside a dark page is not it and keeps `[data-accent='red']`'s light ramp, as on the page; `[data-theme='dark']
+  /// [data-hue]` is about any element with a hue under a dark one. Null where the selector was not read in parts.
+  final List<TokenCondition>? subject;
 
   /// Custom properties by their whole name, `--glacier-space-2`.
   final Map<String, String> declarations;
@@ -44,6 +50,11 @@ class TokenRule {
   /// Whether the rule answers to something a scope brings of its own: one of its classes or attributes.
   bool asksFor(Set<String> attrKeys, Set<String> classes) =>
       conditions.any((c) => !c.negated && (c.isClass ? classes.contains(c.key) : attrKeys.contains(c.key)));
+
+  /// Whether everything the selector's last compound asks is the scope's own: its attributes and classes, not what
+  /// it inherits from the page round it.
+  bool aboutScope(Set<String> attrKeys, Set<String> classes) =>
+      subject == null || subject!.every((c) => c.isClass ? classes.contains(c.key) : attrKeys.contains(c.key));
 }
 
 /// The custom properties of one or more stylesheets, as rules in cascade order.
@@ -96,7 +107,7 @@ class TokenSheet {
       for (final selector in splitTop(prelude, ',')) {
         final parsed = _selector(selector);
         if (parsed == null) continue;
-        out.add(TokenRule(conditions: parsed.conditions, declarations: declarations, specificity: parsed.specificity, order: out.length, reducedMotion: reducedMotion));
+        out.add(TokenRule(conditions: parsed.conditions, declarations: declarations, specificity: parsed.specificity, order: out.length, reducedMotion: reducedMotion, subject: parsed.subject));
       }
     }
   }
@@ -116,8 +127,10 @@ class TokenSheet {
     r'''\s+|:root|:not\(\[data-([\w-]+)(?:=['"]?([^'"\]]*)['"]?)?\]\)|\[data-([\w-]+)(?:=['"]?([^'"\]]*)['"]?)?\]|\.([A-Za-z_][\w-]*)''',
   );
 
-  static ({List<TokenCondition> conditions, int specificity})? _selector(String selector) {
+  static ({List<TokenCondition> conditions, int specificity, List<TokenCondition> subject})? _selector(String selector) {
     final conditions = <TokenCondition>[];
+    // The last compound's own conditions: begun again at each space between compounds.
+    var subject = <TokenCondition>[];
     var specificity = 0;
     var i = 0;
     while (i < selector.length) {
@@ -125,17 +138,24 @@ class TokenSheet {
       if (m == null) return null;
       i = m.end;
       final text = m.group(0)!;
-      if (text.trim().isEmpty) continue;
+      if (text.trim().isEmpty) {
+        if (i < selector.length) subject = <TokenCondition>[];
+        continue;
+      }
       specificity++;
       if (text == ':root') continue;
       if (m.group(1) != null) {
         conditions.add(TokenCondition.attr(m.group(1)!, m.group(2), negated: true));
       } else if (m.group(3) != null) {
-        conditions.add(TokenCondition.attr(m.group(3)!, m.group(4)));
+        final condition = TokenCondition.attr(m.group(3)!, m.group(4));
+        conditions.add(condition);
+        subject.add(condition);
       } else {
-        conditions.add(TokenCondition.cls(m.group(5)!));
+        final condition = TokenCondition.cls(m.group(5)!);
+        conditions.add(condition);
+        subject.add(condition);
       }
     }
-    return (conditions: conditions, specificity: specificity);
+    return (conditions: conditions, specificity: specificity, subject: subject);
   }
 }

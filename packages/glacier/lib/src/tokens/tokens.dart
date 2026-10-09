@@ -52,6 +52,7 @@ class Tokens {
       if (rule.reducedMotion && !reducedMotion) continue;
       if (!rule.matches(attrs, classes)) continue;
       if (!root && !rule.asksFor(ownAttrs, ownClasses)) continue;
+      if (!root && !rule.aboutScope(ownAttrs, ownClasses)) continue;
       if (root && rule.conditions.any((c) => c.isClass)) continue;
       _declared.addAll(rule.declarations);
     }

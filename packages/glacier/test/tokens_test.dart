@@ -93,6 +93,22 @@ void main() {
     expect(evalNumber('clamp(1rem, 0.9671rem + 0.1645vw, 1.125rem)', const CssContext(vw: 375)), closeTo(16.09, 0.01));
   });
 
+  test('a compound selector is about one element: a swatch that says only its accent inside a dark page keeps the light ramp', () {
+    // tokens.css: `[data-accent='red'] { --glacier-accent-9: oklch(0.627 0.19 25) }` and
+    // `[data-theme='dark'][data-accent='red'] { … oklch(0.64 0.2052 25) }`. On the page the dark rule is the root's
+    // alone (it carries both attributes); Settings' accent swatches are spans with `data-accent` and nothing else,
+    // and were measured beside the page at 228,75,73 (the light ramp) where this engine gave 239,71,71.
+    final dark = root('dark');
+    expect(dark.child(attrs: const {'accent': 'red'}).raw('glacier-accent-9'), 'oklch(0.627 0.19 25)');
+    final chosen = Tokens.root(sheet, attrs: {...attrs, 'theme': 'dark', 'accent': 'red'}, css: css);
+    expect(chosen.raw('glacier-accent-9'), 'oklch(0.64 0.2052 25)');
+    // A scope that says both itself is the element the dark rule is about.
+    expect(root('light').child(attrs: const {'theme': 'dark', 'accent': 'red'}).raw('glacier-accent-9'), 'oklch(0.64 0.2052 25)');
+    // A descendant selector still reaches a scope under a dark page.
+    final hues = TokenSheet.parse("[data-hue] { --hue: 1; } [data-theme='dark'] [data-hue] { --hue: 2; }");
+    expect(Tokens.root(hues, attrs: const {'theme': 'dark'}).child(attrs: const {'hue': 'x'}).raw('hue'), '2');
+  });
+
   test('a property whose var() stands for nothing has no value, so a var() of it takes its fallback, as on the page', () {
     // settings.css on the dark side: every [data-hue] is given its --hue-dark, and a hue it does not name has none.
     final hues = TokenSheet.parse('''
