@@ -13,6 +13,7 @@
 library;
 
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart' show MouseCursor, MouseTrackerAnnotation, PointerEnterEventListener, PointerExitEventListener, SystemMouseCursors;
 import 'package:flutter/widgets.dart';
 
 import '../view/editor_view.dart';
@@ -38,8 +39,23 @@ class EditorInputSliver extends SingleChildRenderObjectWidget {
   }
 }
 
-class RenderEditorInput extends RenderProxySliver {
+class RenderEditorInput extends RenderProxySliver implements MouseTrackerAnnotation {
   RenderEditorInput({required this.view, required LayerLink caretLink, required this.onPointer, bool fill = true}) : _caretLink = caretLink, _fill = fill;
+
+  /// A mouse over the note's words is the text pointer, as over the page's (CodeMirror's `.cm-content`, whose
+  /// cursor is `text`); whatever is drawn over them with a pointer of its own (a link, a box, a button) is nearer
+  /// the mouse in the hit test and keeps it.
+  @override
+  MouseCursor get cursor => SystemMouseCursors.text;
+
+  @override
+  PointerEnterEventListener? get onEnter => null;
+
+  @override
+  PointerExitEventListener? get onExit => null;
+
+  @override
+  bool get validForMouseTracker => attached;
 
   EditorView view;
   void Function(PointerEvent event) onPointer;
