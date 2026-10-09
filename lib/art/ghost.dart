@@ -92,7 +92,12 @@ class Ghost extends StatelessWidget {
             width: width,
             height: width / scene.ratio,
             // The dots are the picture's alpha, and the ink is laid in through them: a mask, as the page has it.
-            child: Image.asset(scene.asset, color: ink, colorBlendMode: BlendMode.srcIn, fit: BoxFit.contain, filterQuality: FilterQuality.medium, excludeFromSemantics: true),
+            // Cut a pixel inside its own edge: on Impeller's OpenGL ES the picture's outermost column and row came out
+            // two steps off the ground (6 on 4), a hairline frame round every ghost, though the file is clear there.
+            child: ClipRect(
+              clipper: const _InsideEdge(),
+              child: Image.asset(scene.asset, color: ink, colorBlendMode: BlendMode.srcIn, fit: BoxFit.contain, filterQuality: FilterQuality.medium, excludeFromSemantics: true),
+            ),
           );
           if (align == GhostAlign.center && constraints.hasBoundedWidth) return Align(alignment: Alignment.topCenter, heightFactor: 1, child: picture);
           return Align(alignment: AlignmentDirectional.topStart, widthFactor: 1, heightFactor: 1, child: picture);
@@ -100,4 +105,15 @@ class Ghost extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A box less one logical pixel all round.
+class _InsideEdge extends CustomClipper<Rect> {
+  const _InsideEdge();
+
+  @override
+  Rect getClip(Size size) => (Offset.zero & size).deflate(1);
+
+  @override
+  bool shouldReclip(_InsideEdge oldClipper) => false;
 }
