@@ -136,6 +136,16 @@ void main() {
       expect(blinkBreaks(-1, 0x2f, 0x61), isFalse);
       expect(breakFix(-1, 0x2f, 0x61), BreakFix.forbid);
       expect(PaintText('a/b').text, 'a/${wordJoiner}b');
+      // Where something hidden stands the page has an image either side of an empty element, and a line may break
+      // there whatever the pair: "`code`." ends a line after code on the page, though `e.` never breaks.
+      expect(PaintText('code.').text, 'code${wordJoiner}.');
+      final marked = PaintText('for code. Say', breaks: {4, 8});
+      expect(marked.text, 'for\u00A0\u200Bcode\u200B.\u00A0\u200BSay');
+      expect(marked.toDisplay(marked.toPaint(8)), 8);
+      // And it wins over a pair the page would otherwise hold together.
+      expect(PaintText('a/b', breaks: {2}).text, 'a/\u200Bb');
+      // Nothing at either end of the line: there is no line to break.
+      expect(PaintText('code', breaks: {0, 4}).text, 'code');
       // Blink breaks before a bracket after a closing one, and after a question mark.
       expect(blinkBreaks(-1, 0x5d, 0x28), isTrue);
       expect(blinkBreaks(-1, 0x3f, 0x61), isTrue);

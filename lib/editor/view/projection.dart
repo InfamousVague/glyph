@@ -124,6 +124,12 @@ class LineProjection {
   final String display;
   final List<Segment> segments;
 
+  /// The display offsets where hidden syntax stands inside the line, for [PaintText]: places a line may break.
+  late final Set<int> hiddenBreaks = {
+    for (final segment in segments)
+      if (segment.kind == SegmentKind.hidden && segment.displayFrom > 0 && segment.displayFrom < display.length) segment.displayFrom,
+  };
+
   /// The line decorations on the line, in precedence order.
   final List<LineDecoration> lineDecorations;
 
@@ -364,9 +370,16 @@ class _Builder implements SpanIterator<Decoration> {
 class PaintText {
   PaintText._(this.text, this._toPaint, this._toDisplay);
 
-  factory PaintText(String display, {int tabSize = 4}) {
+  /// [breaks] are the display offsets where something hidden stands between two characters ([hiddenBreaks]): the
+  /// page draws hidden syntax as an empty element between two of CodeMirror's `<img class="cm-widgetBuffer">`, and
+  /// a line may break either side of an image whatever the characters round it, so "`code`." may end a line after
+  /// `code` and start the next with the full stop, which no rule for the pair `e.` allows.
+  factory PaintText(String display, {int tabSize = 4, Set<int> breaks = const <int>{}}) {
     // Most lines are words and spaces; a line with neither a space, a tab nor a pair to be told about is itself.
     var plain = true;
+    for (final at in breaks) {
+      if (at > 0 && at < display.length) plain = false;
+    }
     for (var i = 0; i < display.length && plain; i++) {
       final unit = display.codeUnitAt(i);
       if (unit == 0x20 || unit == 0x09) {
@@ -404,7 +417,11 @@ class PaintText {
         column += 1;
         // Where the page's lines may break between two ASCII characters and the paragraph's may not, or the
         // other way about (line_breaks.dart).
-        if (i + 1 < display.length && unit >= 0x21 && unit <= 0x7e) {
+        if (i + 1 < display.length && breaks.contains(i + 1)) {
+          // Something hidden stands here: a place to break, whatever the pair.
+          out.write(zeroWidthSpace);
+          back.add(i + 1);
+        } else if (i + 1 < display.length && unit >= 0x21 && unit <= 0x7e) {
           final fix = breakFix(i > 0 ? display.codeUnitAt(i - 1) : -1, unit, display.codeUnitAt(i + 1));
           if (fix != BreakFix.none) {
             out.write(fix == BreakFix.allow ? zeroWidthSpace : wordJoiner);

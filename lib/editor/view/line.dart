@@ -475,7 +475,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
     final width = _width(constraints);
     _contentLeft = look.marginStart + look.borderStart + look.paddingStart;
     _contentWidth = math.max(0, width - look.insetX);
-    final paint = _paint = PaintText(proj.display, tabSize: look.tabSize);
+    final paint = _paint = PaintText(proj.display, tabSize: look.tabSize, breaks: proj.hiddenBreaks);
 
     // The inline widgets first: the paragraph needs their sizes.
     final sizes = <PlaceholderDimensions>[];
@@ -637,7 +637,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
   @override
   double computeMaxIntrinsicWidth(double height) {
     final look = _spec.look;
-    final painter = TextPainter(text: TextSpan(children: _spans(PaintText(_spec.projection.display, tabSize: look.tabSize), 0, 1 << 30, placeholders: false)), textDirection: TextDirection.ltr)..layout();
+    final painter = TextPainter(text: TextSpan(children: _spans(PaintText(_spec.projection.display, tabSize: look.tabSize, breaks: _spec.projection.hiddenBreaks), 0, 1 << 30, placeholders: false)), textDirection: TextDirection.ltr)..layout();
     final width = painter.width + look.insetX;
     painter.dispose();
     return width;
@@ -652,7 +652,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
   double _dryHeight(double width) {
     // The words alone: an inline widget's height is not asked for outside a real layout.
     final look = _spec.look, proj = _spec.projection;
-    final paint = PaintText(proj.display, tabSize: look.tabSize);
+    final paint = PaintText(proj.display, tabSize: look.tabSize, breaks: proj.hiddenBreaks);
     final split = look.hang > 0 && _spec.hangChars > 0 ? paint.toPaint(proj.toDisplay(_spec.hangChars, -1)) : 0;
     final painter = TextPainter(text: TextSpan(children: _spans(paint, split, paint.text.length, placeholders: false)), textDirection: TextDirection.ltr)
       ..layout(maxWidth: math.max(1, width - look.insetX + 1 / 64));
