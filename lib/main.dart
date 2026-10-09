@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import 'account/crypto.dart';
+import 'app/front_frames.dart';
 import 'app/ghost_app.dart';
 import 'core/native/core.dart';
 import 'core/native/device_paths.dart';
@@ -33,7 +34,8 @@ import 'tapes/phone_player.dart';
 const appStyleSheets = ['assets/css/ink.css', 'assets/css/app.css', 'assets/css/typefaces.css'];
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  // Flutter's binding, which draws nothing while Android is taking the app from the front (app/front_frames.dart).
+  GhostBinding.ensureInitialized();
   // Edge to edge, as the web app's page is under Android's bars: the page pads itself by the safe areas.
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   final sheet = await loadTokenSheet(more: appStyleSheets);

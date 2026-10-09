@@ -68,6 +68,9 @@ class MainActivity : FlutterActivity() {
     /** The phone's picture chooser, answered when its activity result arrives (Pictures.kt). */
     private val pictures = Pictures(this)
 
+    /** Tells the page's binding when the activity is paused and resumed (lib/app/front_frames.dart). */
+    private var front: MethodChannel? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Before super: a capture launch decides the window's lock-screen behaviour before the window is shown.
         meeting = MeetingBridge(this).also { it.onCreate(intent) }
@@ -118,6 +121,8 @@ class MainActivity : FlutterActivity() {
         position.register(messenger)
         // A picture chosen for a note, shrunk and handed over as a file (Pictures.kt; lib/core/phone_pictures.dart).
         pictures.register(messenger)
+        // Told when the activity leaves the front and comes back (lib/app/front_frames.dart).
+        front = MethodChannel(messenger, "ghost_md/front")
         // Pick a date: the phone's own calendar (DayPick.kt; lib/core/phone_day.dart).
         DayPick(this).register(messenger)
     }
@@ -131,11 +136,16 @@ class MainActivity : FlutterActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Back in front: frames again (lib/app/front_frames.dart).
+        front?.invokeMethod("back", null)
         resumed = WeakReference(this)
         meeting?.onResume()
     }
 
     override fun onPause() {
+        // Leaving the front: nothing more is drawn until the app is back. A frame drawn while the window's surface
+        // is taken away brings the app down on Impeller's OpenGL ES (lib/app/front_frames.dart).
+        front?.invokeMethod("leaving", null)
         if (resumed?.get() === this) resumed = null
         meeting?.onPause()
         super.onPause()

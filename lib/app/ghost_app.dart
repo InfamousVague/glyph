@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
-import 'front_tickers.dart';
 import '../core/preferences.dart';
 import '../gallery/kit_gallery.dart';
 import '../settings/settings_css.dart';
@@ -86,8 +85,7 @@ class _GhostAppState extends State<GhostApp> with WidgetsBindingObserver {
       listenable: _choices,
       builder: (context, _) {
         final prefs = preferences.value;
-        // No clock runs while the app is behind another (front_tickers.dart).
-        return FrontTickers(child: WidgetsApp(
+        return WidgetsApp(
           title: 'Ghost Flutter',
           color: const Color(0xFF0D0D0D),
           debugShowCheckedModeBanner: false,
@@ -121,7 +119,7 @@ class _GhostAppState extends State<GhostApp> with WidgetsBindingObserver {
             ),
           ),
           home: widget.home,
-        ));
+        );
       },
     );
   }
