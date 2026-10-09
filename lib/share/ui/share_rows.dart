@@ -250,8 +250,8 @@ class _ShareRowsState extends State<ShareRows> {
   }
 }
 
-/// A sheet of a note's sharing alone: this port's own way in to [ShareRows], until the note's settings sheet (the
-/// editor's, `editor/NoteSettings.tsx`) is here to hold them among its other groups.
+/// A sheet of a note's sharing alone, from the bar's Share (NoteScreen.tsx `sharing`): the More sheet's rows in a
+/// window of their own, under "Share" and the note's title.
 class ShareSheet extends StatelessWidget {
   const ShareSheet({super.key, required this.services, required this.noteId, required this.title, this.kind = ShareKind.note, required this.onClose, this.onSend});
 
@@ -266,10 +266,11 @@ class ShareSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Sheet(
-        label: 'Share $title',
+        label: 'Share ${title.isEmpty ? 'this note' : title}',
         onClose: onClose,
         children: [
-          SheetTitle.text(title),
+          // `<SheetTitle>Share {title || 'this note'}</SheetTitle>`
+          SheetTitle.text('Share ${title.isEmpty ? 'this note' : title}'),
           ShareRows(services: services, noteId: noteId, kind: kind, onSend: onSend),
         ],
       );

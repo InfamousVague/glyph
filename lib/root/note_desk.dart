@@ -21,8 +21,9 @@
 ///   has an account.
 ///
 /// - what a recording just wrote into the note, said with an Undo for ten seconds (`editor/useLanding.ts`): the
-///   Undo is an edit in this editor, taking out exactly the pieces the recording put in, and the better words wait
-///   to write the note while it is open, the editor being its one writer.
+///   Undo is an edit in this editor, taking out exactly the pieces the recording put in, what it wrote to other
+///   notes is taken back through the library's guarded undo ([NoteDeskWorld.undoCommandMutation]), and the better
+///   words wait to write the note while it is open, the editor being its one writer.
 ///
 /// - the tape at the top of a note that has a recording (lib/tapes/note_tape.dart), played by the app's one player,
 ///   with Add (talk more into the note) and Remove with its Undo (`editor/useNoteTape.ts`), and the phrases as they
@@ -63,9 +64,6 @@
 ///   is not offered, and Today, Tomorrow and Next week are.
 /// - **A canvas has no comments**. A team's canvas is drawn from and edited through its structure in the team's
 ///   document, the other members' pointers over its cards (lib/live/team_canvas.dart). A canvas is not framed in a note from the + (`AddConfig.canvases` is not given).
-/// - **A landing's writes to other notes are not reversed by its Undo** (`undo_command`): the store here keeps no
-///   log of a command's change (lib/capture/recorder.dart `LibraryRecorderStore`), so each is counted as changed
-///   since and the toast says so.
 /// - **The strip's room is kept clear by the page** (`NoteAiLayer.onRoom`, the page's `--ai-strip-room`): the desk
 ///   keeps what the layer says ([NoteSeams.headRoom]) and the note's page starts that much lower while the strip
 ///   is up, told after the frame it was measured in.
@@ -105,6 +103,7 @@ import '../canvas/canvas_view.dart';
 import '../capture/landing.dart';
 import '../core/book.dart';
 import '../core/canvas_body.dart';
+import '../core/command_mutations.dart' show CommandUndoResult;
 import '../core/films.dart';
 import '../core/images.dart';
 import '../core/geotag.dart' show GeoTag;
@@ -238,6 +237,7 @@ class NoteDeskWorld {
     this.mapTiles,
     this.tags,
     this.forgetTag,
+    this.undoCommandMutation,
   });
 
   /// Every note's title, for the +'s A note.
@@ -351,6 +351,10 @@ class NoteDeskWorld {
 
   /// A place waiting for the note, let go: a landing's Undo took the words it waited for (`setPendingTag(id, null)`).
   final void Function(String noteId)? forgetTag;
+
+  /// Takes back a write a recording made to another note, only while that note is exactly what the write left
+  /// (`undoCommandMutation`, lib/core/library.dart). Absent, a landing's Undo leaves such a write and says so.
+  final Future<CommandUndoResult> Function(String mutationId)? undoCommandMutation;
 
   /// What the AI in a note stands on, asked as a desk is made: null where the build has no engine (a test, a
   /// picture, a launch before voice is made), and the desk then has no AI at all.
@@ -676,15 +680,17 @@ class NoteDeskState extends State<NoteDesk> {
       _toasts?.toast(
         message: Text(landingLine(landing)),
         duration: const Duration(seconds: 10),
-        action: GlacierToastAction(label: 'Undo', onPress: () => _undoLanding(landing)),
+        action: GlacierToastAction(label: 'Undo', onPress: () => unawaited(_undoLanding(landing))),
       );
     });
   }
 
   /// The Undo: exactly the pieces of text the recording put in, found where they were written and taken out as one
   /// edit, which the note's own saving writes like typing and the editor's undo can bring back. A piece edited
-  /// since is left alone, and the toast says so. The tape is never touched.
-  void _undoLanding(CaptureLanding landing) {
+  /// since is left alone, and the toast says so. Writes the recording made to other notes are reversed through the
+  /// library's `undo_command`, which checks each is still as it left it; one that is not is left alone and counted
+  /// with the pieces. The tape is never touched.
+  Future<void> _undoLanding(CaptureLanding landing) async {
     var missing = 0;
     var removed = false;
     final view = _view;
@@ -700,20 +706,20 @@ class NoteDeskState extends State<NoteDesk> {
         missing = landing.blocks.length;
       }
     }
-    // Writes the recording made to other notes cannot be reversed here (see the header): each has changed since, as
-    // far as this can tell.
-    missing += landing.others.length;
+    final undo = _world.undoCommandMutation;
+    for (final mutationId in landing.others) {
+      final undone = undo == null ? null : await undo(mutationId).then<CommandUndoResult?>((result) => result, onError: (Object _) => null);
+      if (undone?.status != 'undone' && undone?.status != 'already-undone') missing += 1;
+    }
     // Only for words taken out of this note: the better words of what stays in it still come.
     final fromMs = landing.fromMs;
     if (removed && fromMs != null) _world.dropRefine?.call(widget.noteId, fromMs.toInt());
     // And a tag that waited for those words is let go with them.
     if (removed) _world.forgetTag?.call(widget.noteId);
-    if (missing > 0) {
-      // After the pressed toast has gone, which pressing its action does just after this returns.
-      scheduleMicrotask(() {
-        if (mounted) _toasts?.toast(message: Text('${landing.title} has changed since, so it was left as it is.'), duration: const Duration(seconds: 5));
-      });
-    }
+    // After the pressed toast has gone, which pressing its action does just after this returns. Said by the app's
+    // toasts, so a note left while its other notes were asked is still told of, as on the page.
+    await Future<void>.value();
+    if (missing > 0) _toasts?.toast(message: Text('${landing.title} has changed since, so it was left as it is.'), duration: const Duration(seconds: 5));
   }
 
   @override
@@ -810,6 +816,12 @@ class NoteDeskState extends State<NoteDesk> {
   void _adopt(EditorView view) {
     if (identical(view, _view)) return;
     _view = view;
+    // A new note takes the focus as it is built, before the desk has its view, and the + asked then is refused
+    // (`_plusAllowed`): asked again once the frame is over, so the + stands beside the blank first line from the
+    // start, as on the page.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && identical(_view, view)) _plus.recheck(view);
+    });
     // Live in this editor from here on: a note in the Trash is read, not typed in with anyone.
     _live?.close();
     _live = widget.readOnly
@@ -1167,8 +1179,10 @@ class NoteDeskState extends State<NoteDesk> {
       bookmark: _bookmarkOf,
       writtenBookmark: _writtenBookmark,
       cheatSheet: (context) => const CheatSheet(),
-      // A share is kept with an account: no rows in a build that has none.
-      sharingSection: services == null ? null : (context) => ShareRows(services: services, noteId: widget.noteId),
+      // The bar's Share and the More sheet's Sharing are there signed in or out, as on the page (NoteScreen.tsx
+      // `actions`, NoteSettings): without an account, or in a build with no service, the row says to sign in first.
+      onShare: () => setState(() => _sharing = true),
+      sharingSection: (context) => ShareRows(services: services, noteId: widget.noteId, kind: _shareKind),
       // A page's notebook, its place in it and the pages either side, over and under its words.
       bookBar: (context, place) => BookBar(place: place, open: _openWithin),
       bookFoot: (context, place) => BookFoot(place: place, open: _openWithin),
@@ -1228,6 +1242,24 @@ class NoteDeskState extends State<NoteDesk> {
       over: _over,
       headRoom: _ai == null ? null : _stripRoom,
     );
-    return widget.builder(context, _buildEditor, seams);
+    final built = widget.builder(context, _buildEditor, seams);
+    // The note's share link, from the bar's Share: the More sheet's rows in a window of their own (NoteScreen.tsx
+    // `sharing`). The sheet draws in the app's overlay and takes no room here.
+    return Stack(
+      fit: StackFit.passthrough,
+      children: [
+        built,
+        if (_sharing) ShareSheet(services: services, noteId: widget.noteId, title: widget.title, kind: _shareKind, onClose: () => setState(() => _sharing = false)),
+      ],
+    );
+  }
+
+  /// The bar's Share was pressed, and its sheet is up.
+  bool _sharing = false;
+
+  /// `isJournal ? 'journal' : isBook ? 'notebook' : 'note'`.
+  ShareKind get _shareKind {
+    final doc = _view?.state.doc.toString() ?? '';
+    return isJournalBody(doc) ? ShareKind.journal : (isBookBody(doc) ? ShareKind.notebook : ShareKind.note);
   }
 }
