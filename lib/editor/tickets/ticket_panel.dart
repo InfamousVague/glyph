@@ -397,8 +397,29 @@ class _TicketPanelState extends State<TicketPanel> {
     }
   }
 
+  /// The least the panel is laid out at: a small phone's page less its gutters. On the page its grid of names and
+  /// values does not shrink past its own words, and a pane narrower than that cuts it: between a docked sidebar and
+  /// a docked aside on the Fold the note is 164px wide and the Example project's panel 196 (measured on the page,
+  /// 2026-10-09), its right edge under the aside. The page's least is its words'; this is one width for every
+  /// ticket, under which its rows are not laid out at all.
+  static const double _least = 300;
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, box) {
+          final panel = _panel(context);
+          if (!box.hasBoundedWidth || box.maxWidth >= _least) return panel;
+          return ClipRect(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const NeverScrollableScrollPhysics(),
+              child: SizedBox(width: _least, child: panel),
+            ),
+          );
+        },
+      );
+
+  Widget _panel(BuildContext context) {
     final options = widget.options;
     final editable = widget.editable;
     final statuses = options?.statuses() ?? defaultStatuses;

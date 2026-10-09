@@ -340,7 +340,9 @@ class BookFoot extends StatelessWidget {
                 spacing: 0.2 * em,
                 children: [
                   // `.stepLabel { display: inline-flex; align-items: center; gap: 0.25em }`
-                  Row(mainAxisSize: MainAxisSize.min, spacing: 0.25 * sm, children: forward ? [word, arrow] : [arrow, word]),
+                  // In a pane too narrow for the word (the note between a docked sidebar and the aside on the Fold),
+                  // the word is cut where the page's ran out of its box.
+                  Row(mainAxisSize: MainAxisSize.min, spacing: 0.25 * sm, children: forward ? [Flexible(child: word), arrow] : [arrow, Flexible(child: word)]),
                   // `.stepTitle { max-inline-size: 100%; text-overflow: ellipsis; font-weight: medium }`
                   Text(title, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, textAlign: forward ? TextAlign.end : TextAlign.start, style: pageText(t, em, weight: 'medium', color: ink)),
                 ],
