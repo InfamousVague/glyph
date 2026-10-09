@@ -135,7 +135,8 @@ class CanvasView extends StatefulWidget {
 }
 
 /// The canvas as lib/note's seam takes it (`NoteSeams.canvas`): handed the note's body and the way to write it.
-/// [readOnly] is a note that cannot change (one in the Trash): drawn, and its cards open on a tap.
+/// [readOnly] is a note that cannot change (one in the Trash): drawn, and its cards open on a tap. [camera] is a
+/// host's own, which it reads (a team's canvas draws the other members' pointers by it, lib/live/team_canvas.dart).
 Widget Function(BuildContext context, String body, ValueChanged<String> onChange) canvasSeam({
   CanvasWiki? wiki,
   PictureStore? pictures,
@@ -144,9 +145,10 @@ Widget Function(BuildContext context, String body, ValueChanged<String> onChange
   CanvasThreads? threads,
   String Function(String handle)? threadHue,
   bool readOnly = false,
+  CanvasCamera? camera,
 }) =>
     (context, body, onChange) =>
-        CanvasView(body: body, onChange: readOnly ? null : onChange, wiki: wiki, pictures: pictures, pickPicture: pickPicture, openLink: openLink, threads: threads, threadHue: threadHue);
+        CanvasView(body: body, onChange: readOnly ? null : onChange, wiki: wiki, pictures: pictures, pickPicture: pickPicture, openLink: openLink, threads: threads, threadHue: threadHue, camera: camera);
 
 class CanvasViewState extends State<CanvasView> {
   static final Canvas _empty = Canvas(nodes: const [], edges: const []);

@@ -58,8 +58,8 @@
 /// - **Pick a date is the phone's own calendar** ([NoteDeskWorld.dayPicker], lib/core/phone_day.dart), as the
 ///   page's was the WebView's: on a list item's date page, in a ticket's panel and in a query. Without one the row
 ///   is not offered, and Today, Tomorrow and Next week are.
-/// - **A canvas has no comments**; a team's canvas is
-///   piece 6G. A canvas is not framed in a note from the + (`AddConfig.canvases` is not given).
+/// - **A canvas has no comments**. A team's canvas is drawn from and edited through its structure in the team's
+///   document, the other members' pointers over its cards (lib/live/team_canvas.dart). A canvas is not framed in a note from the + (`AddConfig.canvases` is not given).
 /// - **A landing's writes to other notes are not reversed by its Undo** (`undo_command`): the store here keeps no
 ///   log of a command's change (lib/capture/recorder.dart `LibraryRecorderStore`), so each is counted as changed
 ///   since and the toast says so.
@@ -90,7 +90,9 @@ import '../ai/summaries.dart' show SummaryStarter;
 import '../capture/recorder.dart' show SpokenAsk;
 import '../format/device_facts.dart' show DeviceFacts;
 import '../live/editor_binding.dart' show liveBindingSlot;
-import '../live/open.dart' show NoteLive, OpenLive;
+import '../live/open.dart' show NoteLive, OpenLive, TeamBinding;
+import '../live/team_canvas.dart' show TeamCanvasHost;
+import '../canvas/camera.dart' show CanvasCamera;
 import '../art/lucide.g.dart';
 import '../book/book_nav.dart';
 import '../book/book_view.dart';
@@ -415,8 +417,10 @@ class NoteDeskState extends State<NoteDesk> {
   EditorView? _view;
   NoteBookmark? _bookmark;
 
-  /// The note as it is live in this editor, while it is (lib/live/open.dart).
+  /// The note as it is live in this editor, while it is (lib/live/open.dart), and a team's note's document and
+  /// room once they are made: what its canvas is drawn and edited through.
   OpenLive? _live;
+  TeamBinding? _team;
 
   /// Find and replace, while it is up: what it opened searching for, and which opening it is.
   ({String initial, int nonce})? _finding;
@@ -777,7 +781,12 @@ class NoteDeskState extends State<NoteDesk> {
     _view = view;
     // Live in this editor from here on: a note in the Trash is read, not typed in with anyone.
     _live?.close();
-    _live = widget.readOnly ? null : _world.live?.open(view, widget.noteId, jump: _world.takeJump?.call(widget.noteId));
+    _live = widget.readOnly
+        ? null
+        : _world.live?.open(view, widget.noteId, jump: _world.takeJump?.call(widget.noteId), onTeam: (team) {
+            // Told as the team's binding is made, and as it goes with the note's being taken out of the team.
+            if (mounted) setState(() => _team = team);
+          });
     _ai?.attach(view);
     _bookmark?.dispose();
     _bookmark = NoteBookmark(view: view, say: widget.say)..addListener(_redraw);
@@ -1069,13 +1078,20 @@ class NoteDeskState extends State<NoteDesk> {
       bookFoot: (context, place) => BookFoot(place: place, open: _openWithin),
       // A change to the canvas is a change to the note: written into the body as the spec's JSON, and saved the way
       // typing is.
-      canvas: canvasSeam(
-        wiki: CanvasWiki(known: _world.known, open: _world.open, body: _world.bodyOf, titles: _world.titles),
-        pictures: _world.pictures,
-        pickPicture: widget.readOnly ? null : _world.pickPicture,
-        openLink: _world.openLink,
-        readOnly: widget.readOnly,
-      ),
+      canvas: (context, body, onChange) {
+        Widget view(BuildContext context, String body, ValueChanged<String>? onChange, [CanvasCamera? camera]) => canvasSeam(
+              wiki: CanvasWiki(known: _world.known, open: _world.open, body: _world.bodyOf, titles: _world.titles),
+              pictures: _world.pictures,
+              pickPicture: widget.readOnly ? null : _world.pickPicture,
+              openLink: _world.openLink,
+              readOnly: widget.readOnly || onChange == null,
+              camera: camera,
+            )(context, body, onChange ?? (_) {});
+        // A team's canvas is its structure in the team's document, drawn and edited through it, with the other
+        // members' pointers over its cards (lib/live/team_canvas.dart); any other is the note's own, whole.
+        final team = widget.readOnly ? null : _team;
+        return team == null ? view(context, body, onChange) : TeamCanvasHost(key: ObjectKey(team.doc), team: team, body: body, onChange: onChange, draw: view);
+      },
       // What the note is linked to, at its top; pressed, the note's More sheet, where a link is changed.
       head: (context, openSettings) {
         final tape = _tapeNow();

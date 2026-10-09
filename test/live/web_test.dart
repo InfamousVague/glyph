@@ -17,11 +17,14 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/canvas/json_canvas.dart';
 import 'package:ghost_md/core/native/ghost_core.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/live/hub.dart';
+import 'package:ghost_md/live/presence.dart';
 import 'package:ghost_md/live/session.dart';
 import 'package:ghost_md/live/team.dart';
+import 'package:ghost_md/live/team_canvas.dart';
 import 'package:ghost_md/team/crdt.dart';
 
 import '../e2e/world.dart';
@@ -195,6 +198,72 @@ void main() {
     await ada.sync();
     final fresh = await web({'handle': handle, 'password': 'correct horse', 'team': {'note': 't1'}});
     expect(fresh.hello['words'], 'My mood 😁 today');
+    room.close();
+  }, skip: skip, timeout: const Timeout(Duration(minutes: 3)));
+
+  test('a team\'s canvas in the Flutter app and the web app at once: its structure made by one and found by the other, each moving a different card and both typing in one, and each one\'s pointer over the other\'s cards', () async {
+    final handle = freshHandle('board');
+    final ada = device('ada');
+    await ada.account.signUp(handle, 'correct horse');
+    final org = await ada.orgs.createOrg('Ghost');
+    await ada.orgs.setOrgColour(org.id, 'moss');
+    await ada.sync();
+    Canvas board(List<CanvasNode> nodes) => parseCanvas(serializeCanvas(Canvas(nodes: nodes, edges: const [])))!;
+    CanvasNode card(String id, double x, String text) => CanvasNode({'id': id, 'type': 'text', 'x': x, 'y': 0, 'width': 200, 'height': 80, 'text': text});
+    const front = '---\ntitle: Board\n---\n';
+    ada.write('c1', withCanvas(front, board([card('a', 0, 'first 😀'), card('b', 300, 'second')])));
+    ada.workspaces.fileNote('c1', orgWorkspaceId(org.id));
+    await ada.sync();
+
+    // Open in Flutter's view: the document, its room, and the structure seeded from the words (nobody else is
+    // there to have made one).
+    final doc = (await ada.docs.doc('c1', seedWords: ada.notes['c1']!.body))!;
+    final room = ada.live!.rooms.openTeamRoom(org.id, 'c1', doc)!;
+    await room.caughtUp();
+    expect(await doc.seedCanvas(), board([card('a', 0, 'first 😀'), card('b', 300, 'second')]));
+    doc.onWords((words) => ada.write('c1', words, at: 9));
+
+    // The web opens the same canvas: its room has had its say, so it finds Flutter's structure and seeds none.
+    final other = await web({'handle': handle, 'password': 'correct horse', 'team': {'note': 'c1', 'canvas': true}});
+    await until(() => room.others == 1, 'the web device in the canvas\'s room');
+    final held = await other.until({'card': {'id': 'b', 'x': 300}}, 'the structure Flutter made');
+    expect(((held['canvas'] as Map)['nodes'] as List).map((node) => (node as Map)['id']), ['a', 'b']);
+
+    // The web moves one card while Flutter moves the other and both write in the first: all of it kept.
+    final webMoved = other.ask({'do': 'canvas', 'set': {'b': {'x': 900}, 'a': {'text': 'the first 😀'}}});
+    final mine = doc.applyCanvas(board([card('a', 40, 'first 😀, said Flutter'), card('b', 300, 'second')]));
+    await Future.wait([webMoved, mine]);
+    final merged = board([card('a', 40, 'the first 😀, said Flutter'), card('b', 900, 'second')]);
+    await until(() => doc.canvas == merged, 'both members\' changes in Flutter\'s canvas');
+    await other.until({'card': {'id': 'a', 'x': 40, 'text': 'the first 😀, said Flutter'}}, 'both members\' changes on the web');
+    expect(doc.words, withCanvas(front, merged));
+
+    // A card added on the web and one taken off in Flutter.
+    await other.ask({'do': 'canvas', 'add': [{'id': 'c', 'type': 'text', 'x': 5, 'y': 200, 'width': 200, 'height': 80, 'text': 'from the web'}]});
+    await until(() => doc.canvas?.nodes.length == 3, 'the web\'s new card');
+    await doc.applyCanvas(Canvas(nodes: [for (final node in doc.canvas!.nodes) if (node.id != 'b') node], edges: const []));
+    List<Object?> webCards = const [];
+    for (var tries = 0; tries < 400 && '$webCards' != '[a, c]'; tries += 1) {
+      webCards = [for (final node in ((await other.ask({'do': 'words'}))['canvas'] as Map)['nodes'] as List) (node as Map)['id']];
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+    expect(webCards, ['a', 'c'], reason: 'the card Flutter took off is gone from the web, and the web\'s own is still there');
+
+    // Pointers: the web's over Flutter's cards, and Flutter's over the web's, each with who it is.
+    await other.ask({'do': 'pointer', 'at': {'x': 120, 'y': 64}});
+    await until(() => canvasOthers(room).any((each) => each.pointer?.x == 120 && each.pointer?.y == 64), 'the web\'s pointer in Flutter');
+    expect(canvasOthers(room).single.name, handle);
+    room.setField('pointer', const Spot(33, -7).toJson());
+    final seen = await other.until({'name': handle}, 'Flutter in the web\'s room');
+    Object? pointer;
+    for (var tries = 0; tries < 400 && pointer == null; tries += 1) {
+      pointer = (((await other.ask({'do': 'others'}))['others'] as List).single as Map)['pointer'];
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+    expect(pointer, {'x': 33, 'y': -7});
+    expect(((seen['others'] as List).single as Map)['user'], containsPair('hue', 'moss'));
+    await other.close();
+    webs.remove(other);
     room.close();
   }, skip: skip, timeout: const Timeout(Duration(minutes: 3)));
 
