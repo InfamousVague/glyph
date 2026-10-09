@@ -460,6 +460,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
       expect(find.text('ARCHIVE'), findsOneWidget);
       expect(find.text('Further to delete'), findsNothing, reason: 'not armed yet');
+      // `.behind { place-items: center }`: the picture and its word stand in the middle of the card's height.
+      final card = tester.getRect(key('card-standup')), word = tester.getRect(find.text('ARCHIVE'));
+      expect(word.top, greaterThan(card.center.dy), reason: 'the word is under the picture, below the middle');
+      expect(word.top - card.center.dy, lessThan(40));
       await gesture.moveBy(const Offset(-60, 0));
       await tester.pump(const Duration(milliseconds: 200));
       expect(find.text('Further to delete'), findsOneWidget);

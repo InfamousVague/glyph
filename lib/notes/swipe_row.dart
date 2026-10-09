@@ -445,7 +445,10 @@ class _ActionState extends State<_Action> with TickerProviderStateMixin {
         ),
       );
     } else {
+      // `.behind { place-items: center }`: the pair is its own height in the middle of the gap. An OverflowBox hands
+      // its child the gap's height as its least where none is said, and the column filled the gap from its top.
       laid = OverflowBox(
+        minHeight: 0,
         maxWidth: double.infinity,
         maxHeight: double.infinity,
         child: ConstrainedBox(
