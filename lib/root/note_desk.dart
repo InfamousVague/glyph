@@ -129,6 +129,7 @@ import '../editor/find_bar/find_bar.dart';
 import '../editor/find_bar/find_marks.dart';
 import '../editor/items/items.dart';
 import '../editor/marks/marks.dart';
+import '../editor/media/canvas_frames.dart';
 import '../editor/media/media.dart';
 import '../editor/plus/plus.dart';
 import '../editor/queries/queries.dart';
@@ -548,6 +549,9 @@ class NoteDeskState extends State<NoteDesk> {
     if (_world.tickets != null) tickets(() => _world.tickets?.call(widget.noteId)),
     // A ```query fence drawn as what it finds in the library: its lines where there is none.
     if (_world.queryNotes != null) queries(() => _queries),
+    // ![[A canvas]] on a line of its own draws that canvas in a frame (Editor.tsx `canvasFrames`).
+    if (_world.bodyOf != null)
+      canvasFrames(FrameOptions(body: (title) => _world.bodyOf?.call(title), known: (title) => _world.known(title), open: (title, [anchor]) => _world.open(title, anchor))),
     // Each `[^c1]` a round in its author's colour, and the ```comments fence drawn as its threads (Editor.tsx
     // `noteComments`).
     noteComments(() => _comments.hooks),
@@ -770,6 +774,8 @@ class NoteDeskState extends State<NoteDesk> {
       view.dispatch(TransactionSpec(effects: <StateEffect<Object?>>[
         if (_world.queryNotes != null) refreshQueries.of(null),
         if (_world.tickets != null) refreshTickets.of(null),
+        // A canvas framed in this note may have been drawn on: its frame is looked at again.
+        if (_world.bodyOf != null) refreshCanvasFrames.of(null),
         if (retaped) _tapeSlot.reconfigure(tapeSource.of(tape)),
       ]));
     }
@@ -916,6 +922,8 @@ class NoteDeskState extends State<NoteDesk> {
           own: widget.title,
           localOnly: _prefs.value.localOnly,
           effects: plusEffects,
+          // Every canvas among the notes, for the +'s A canvas: a frame of it drawn in the words.
+          canvases: _world.bodyOf == null ? null : () => <String>[for (final title in _world.titles()) if (isCanvasBody(_world.bodyOf!(title) ?? '')) title],
           boards: true,
           databases: _world.queryNotes != null,
           tickets: _world.tickets != null,

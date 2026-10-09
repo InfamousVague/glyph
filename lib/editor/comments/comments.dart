@@ -37,6 +37,7 @@ import '../../comments/ui/card.dart';
 import '../editor.dart';
 import '../items/inline_box.dart';
 import '../looks/look.dart';
+import '../looks/note_face.dart';
 import '../looks/sheets.dart';
 import '../marks/run_paint.dart';
 import '../view/blocks.dart';
@@ -176,25 +177,8 @@ class ListWidget extends EditorWidget implements ClassedBlockWidget, DrawnBlock 
 int Function() commentsNow = () => DateTime.now().millisecondsSinceEpoch;
 
 /// The words of the drawn list: the note's own face at the editor's leading, which the page's card inherited from
-/// the editor it stood in (`.cm-scroller { font-family: var(--app-note-font, …); line-height: 1.6 }`).
-CardType _noteType(Tokens t, Look? look) {
-  final base = look?.line(LookElement(null)).base.style;
-  if (base == null) return CardType((px, {weight = 'regular', color}) => t.textAt(px, weight: weight, color: color, height: 1.6), normal: false);
-  return CardType(
-    (px, {weight = 'regular', color}) {
-      final heavy = t.len('glacier-font-weight-$weight');
-      final sized = Tokens.resized(base, px);
-      return sized.copyWith(
-        height: 1.6,
-        color: color,
-        fontWeight: FontWeight.values[((heavy / 100).round() - 1).clamp(0, 8)],
-        fontVariations: <FontVariation>[for (final variation in sized.fontVariations ?? const <FontVariation>[]) variation.axis == 'wght' ? FontVariation('wght', heavy) : variation],
-        decoration: TextDecoration.none,
-      );
-    },
-    normal: false,
-  );
-}
+/// the editor it stood in (looks/note_face.dart).
+CardType _noteType(Tokens t, Look? look) => CardType((px, {weight = 'regular', color}) => noteFace(t, look, px, weight: weight, color: color), normal: false);
 
 /// The list in its card (`CommentCard.module.css` `.drawn`), and what a press in it does.
 class DrawnComments extends StatelessWidget {
