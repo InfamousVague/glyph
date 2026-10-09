@@ -289,7 +289,17 @@ class _GhostRootState extends State<GhostRoot> {
     final Voice? voice;
     try {
       voice = widget.voice ??
-          (making != null && _real ? await Voice.make(making, library: _library, kept: _stored, published: (id) => _services?.shares?.linkFor(id) != null) : null);
+          (making != null && _real
+              ? await Voice.make(
+                  making,
+                  library: _library,
+                  kept: _stored,
+                  published: (id) => _services?.shares?.linkFor(id) != null,
+                  isTrashed: _trash.isTrashed,
+                  syncNow: _services?.engine?.syncNow,
+                  syncSettled: _services?.engine?.syncSettled,
+                )
+              : null);
     } catch (failure) {
       debugPrint('[ghost] voice could not be made: $failure');
       return;
@@ -341,7 +351,17 @@ class _GhostRootState extends State<GhostRoot> {
       recorder.lifecycle(state);
       if (state == AppLifecycleState.resumed) unawaited(models?.refresh());
     });
-    await voice.start(notesChanged: () => unawaited(_library.refresh().catchError((Object _) {})));
+    await voice.start(
+      notesChanged: () => unawaited(_library.refresh().catchError((Object _) {})),
+      // A summary landed with the app on screen: said, with the way to the note.
+      summarized: (done) {
+        if (!mounted) return;
+        GlacierToast.of(context).toast(
+          message: const Text('Summarized'),
+          action: GlacierToastAction(label: 'Open', onPress: () => _shell.currentState?.openNote(done.id)),
+        );
+      },
+    );
     if (mounted) setState(() {});
     // The launch, once the notes are read: the side key's capture in a build with the assistant, or the meeting
     // already being recorded.
@@ -426,8 +446,7 @@ class _GhostRootState extends State<GhostRoot> {
         return NotificationsAnswer.asked;
       },
       deleteNote: _library.destroy,
-      // The write-up's summary is lib/ai's, which has none yet.
-      dropSummary: (_) {},
+      dropSummary: (id) => voice.summaries?.dropSummary(id),
       forgetMeeting: (id) => preferences.update((now) => now.copyWith(meetings: {...now.meetings}..remove(id))),
     );
   }
@@ -589,10 +608,11 @@ class _GhostRootState extends State<GhostRoot> {
     _afterFrame((shell) => shell.openNote(forked.note.id));
   }
 
-  /// `ghostmd://note/<id>` (`openNoteFromLink`): the notes read again, and the note opened where it was left. The
-  /// page first puts a summary still waiting into the note (`landNativeResult`); that is stage 8's write-up, and
-  /// nothing here has one to land yet.
+  /// `ghostmd://note/<id>` (`openNoteFromLink`), the tap on "written up": a result still waiting is put into the
+  /// note first, so the tap opens a note with its summary; then the notes are read again, and the note opened where
+  /// it was left.
   Future<void> _openNoteFromLink(String id) async {
+    await _voice?.summaries?.landNativeResult(id).then<void>((_) {}, onError: (Object _) {});
     await _library.refresh();
     final shell = _shell.currentState;
     final note = _library.noteOf(id);
@@ -937,8 +957,8 @@ class _GhostRootState extends State<GhostRoot> {
 
   void _changed() {
     _reads.changed();
-    // The notes changed: a meeting's note may have been written by the service.
-    _voice?.recorder.notesChanged();
+    // The notes changed: a meeting's note may have been written by the service, and a write-up's result may wait.
+    _voice?.notesChanged();
     if (mounted) setState(() {});
   }
 

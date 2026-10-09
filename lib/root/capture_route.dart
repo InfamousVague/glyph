@@ -26,9 +26,6 @@
 /// - **The Mac's recorder in meeting mode** is not reached: the only meeting here is the phone's service.
 /// - **No place is asked for** once a take's note is made (`tagNewNotesIfWanted`, an entry's `tag`): no note here
 ///   keeps a place yet.
-/// - **A meeting's write-up is not queued as a summary** (`enqueueSummary(id, 'meeting', {native: true})`,
-///   `dropSummary`): they are the recorder's [Recorder.enqueueSummary], which does nothing until lib/ai has
-///   summaries.
 /// - The guide's "Not yet" for a side key pressed on a page still to be read ([CaptureRouteWorld.tooSoon]) is
 ///   asked only where a guide is given.
 library;
@@ -37,6 +34,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../ai/summaries.dart' show SummaryKind;
 import '../capture/landing.dart';
 import '../capture/launch.dart';
 import '../capture/meeting.dart' show meetingTitle;
@@ -214,6 +212,7 @@ class CaptureRoute {
     _started.remove(id);
     if (_pendingMeeting?.id == id) _pendingMeeting = null;
     _prefs.update((now) => now.copyWith(meetings: {...now.meetings}..remove(id)));
+    voice.summaries?.dropSummary(id);
     try {
       await world.deleteNote(id);
     } catch (_) {
@@ -273,7 +272,8 @@ class CaptureRoute {
       world.fileNewNote(note.id);
       voice.recorder.tapes?.setTapeId(note.id, voice.recorder.newTapeId());
       _prefs.update((now) => now.copyWith(meetings: {...now.meetings, note.id: startedAt}));
-      if (_prefs.value.summaries != 'off') voice.recorder.enqueueSummary(note.id, 'meeting');
+      // Its write-up queued as the phone's own (`enqueueSummary(id, 'meeting', {native: true})`).
+      if (_prefs.value.summaries != 'off') voice.summaries?.enqueueSummary(note.id, SummaryKind.meeting, native: true);
       await _ask(note.id, title, fromAssistant);
     } finally {
       _making = false;

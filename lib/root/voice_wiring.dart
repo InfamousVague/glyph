@@ -19,14 +19,14 @@
 /// not and the models already on the phone are used as they are. **Never an empty list**: the core reads a list
 /// with no address in it as none given, and falls back to the web app's own two (native/src/models.rs `mirrors`).
 ///
+/// The summaries and the review are lib/ai's ([Summaries], `reviewAvailable`, `keepJobConfigCurrent`): the queue is
+/// made here over the same store, the phone's write-up and the better words' queue, the recorder asks it for a
+/// take's summary and whether its review can run, a meeting's write-up is given its configuration, and
+/// `MeetingLive.writeUpRunningNow` is the last look at the phone's jobs.
+///
 /// What is not here yet, each a seam:
-/// - **Summaries and the review after a recording** (`ai/summaries.ts`, `ai/review.ts`): lib/ai had neither when
-///   this was written (`lib/ai/summaries.dart`, `review.dart`, `land.dart` and `job_config.dart` have landed since
-///   and are not yet given here), so [Recorder.enqueueSummary] and [Recorder.reviewAvailable] are the recorder's
-///   own no-ops, a meeting's write-up is handed no job configuration (`keepJobConfig`), `writeUpRunningNow`
-///   answers no, and a finished write-up's result is not landed in its note.
-/// - **A tape's player** (`tapes/useTape.ts`'s `<audio>`): lib/tapes/player.dart's `TapePlayer` has no phone half,
-///   so the tape at the top of a spoken note is not drawn.
+/// - **The account's part of a summary**: `syncNow`, `syncSettled` and the feed's `record` are what [Voice.make] is
+///   given, and nothing where the build has no account.
 library;
 
 import 'dart:async';
@@ -36,7 +36,10 @@ import 'package:flutter/foundation.dart';
 import 'package:glacier/glacier.dart' show HapticKind, fireMotor;
 
 import '../ai/backend.dart' as ai;
+import '../ai/job_config.dart' show keepJobConfigCurrent, sendJobConfig;
 import '../ai/native_backend.dart';
+import '../ai/review.dart' show reviewAvailable;
+import '../ai/summaries.dart';
 import '../ai/summary_keep.dart' show keptText, summaryUnchanged;
 import '../capture/audio.dart';
 import '../capture/device_mic.dart';
@@ -52,6 +55,7 @@ import '../capture/spoken/inline.dart' show SpokenFormat;
 import '../capture/tips.dart' show Tip;
 import '../capture/system_sound.dart' show SoundSupport;
 import '../core/library.dart';
+import '../core/note.dart';
 import '../core/native/ghost_core.dart';
 import '../core/preferences.dart';
 import '../core/stored.dart';
@@ -176,7 +180,7 @@ class VoiceMaking {
 /// Voice, as the root holds it: the recorder its screens are drawn over, and what the app asks of the phone about a
 /// meeting. A test makes one over a scripted recorder and a service of its own.
 class Voice {
-  Voice({required this.recorder, this.service, this.models, this.assistant = false, this.launch = '', this.captureKey, this.canMeet = false, this.sound, this.removeAudio, this.dispose_});
+  Voice({required this.recorder, this.service, this.models, this.assistant = false, this.launch = '', this.captureKey, this.canMeet = false, this.sound, this.removeAudio, this.summaries, this.dispose_});
 
   /// Everything the recorder's screens reach (lib/capture/recorder.dart).
   final Recorder recorder;
@@ -204,6 +208,21 @@ class Voice {
   /// Whether this phone can put other apps' sound in a meeting, read by [start].
   SoundSupport? sound;
 
+  /// The summary queue (lib/ai/summaries.dart), or null where there is no engine to summarise with.
+  final Summaries? summaries;
+
+  /// The notes were said to have changed: told to whoever follows it for the queue ([Summaries.onNotesChanged]).
+  final Set<VoidCallback> _notesListeners = <VoidCallback>{};
+  void notesChanged() {
+    recorder.notesChanged();
+    for (final listener in _notesListeners.toList()) {
+      listener();
+    }
+  }
+
+  VoidCallback? _stopSummaries;
+  VoidCallback? _stopJobConfig;
+
   /// Removes the audio of these notes' tapes from this device, their words and phrases kept, and answers which
   /// went (`core/recordings.ts` `deleteRecordings`); null where nothing can.
   final Future<List<String>> Function(List<String> ids)? removeAudio;
@@ -227,8 +246,13 @@ class Voice {
   /// As the app opens: the voice model's file is looked for (and fetched where this build has a mirror), the better
   /// words' queue is wired to the notes, the models on the phone are read, and whether a meeting can be recorded
   /// here. Opens no microphone.
-  Future<void> start({VoidCallback? notesChanged}) async {
+  ///
+  /// [summarized] is told once a summary has landed in a note with the app on screen.
+  Future<void> start({VoidCallback? notesChanged, void Function(({String id, String title}) done)? summarized}) async {
     recorder.start(notesChanged: notesChanged);
+    // The summary queue, wired to the notes, and the write-up's configuration kept current for the phone's service.
+    _stopSummaries = summaries?.startSummaries(notesChanged ?? () {}, summarized ?? (_) {});
+    if (summaries != null) _stopJobConfig = keepJobConfigCurrent();
     unawaited(models?.refresh());
     final service = this.service;
     if (service == null) return;
@@ -241,6 +265,9 @@ class Voice {
   }
 
   void dispose() {
+    _stopSummaries?.call();
+    _stopJobConfig?.call();
+    _notesListeners.clear();
     recorder.dispose();
     models?.dispose();
     dispose_?.call();
@@ -248,7 +275,19 @@ class Voice {
 
   /// A [Voice] over the core and the phone ([making]), writing into [library]. [published] says whether a note has
   /// a shared link, which a recording over the lock screen never writes to.
-  static Future<Voice> make(VoiceMaking making, {required NoteLibrary library, required Stored kept, bool Function(String id)? published}) async {
+  ///
+  /// The summary queue's part of the app is given too: [isTrashed] (a note in the trash is not summarised), and the
+  /// account's [syncNow], [syncSettled] and [record] (a row in the feed), each nothing in a build with no account.
+  static Future<Voice> make(
+    VoiceMaking making, {
+    required NoteLibrary library,
+    required Stored kept,
+    bool Function(String id)? published,
+    bool Function(String id)? isTrashed,
+    Future<void> Function()? syncNow,
+    Future<void> Function()? syncSettled,
+    Future<void> Function(String kind, Map<String, Object?> details)? record,
+  }) async {
     final core = making.core;
     final host = making.host;
     final capture = NativeCaptureBackend(core, mirrors: making.mirrors);
@@ -257,7 +296,9 @@ class Voice {
 
     final store = LibraryRecorderStore(library);
     late final Voice voice;
-    final live = host.hasMeetings ? MeetingLive(host: host, writeUpRunningNow: () => false) : null;
+    // Whether a write-up was listening or summarising at the last look at the phone's jobs.
+    var writingUp = false;
+    final live = host.hasMeetings ? MeetingLive(host: host, writeUpRunningNow: () => writingUp) : null;
     final unbind = live == null ? null : host.bind(live);
 
     final refining = Refining(
@@ -271,6 +312,65 @@ class Voice {
       keptText: keptText,
       summaryUnchanged: summaryUnchanged,
       writeUpRunning: () => live?.writeUpRunning() ?? false,
+    );
+
+    final visibleListeners = <VoidCallback>{};
+    final summaries = Summaries(
+      isTauri: () => ai.aiBackend.available,
+      preferences: () => preferences.value,
+      stored: kept,
+      refineHeld: refining.refineHeld,
+      refinePending: refining.refinePending,
+      onRefineHold: refining.onRefineHold,
+      canNotifyNow: () => live?.canNotifyNow() ?? false,
+      recordingJobState: () async {
+        if (!host.hasMeetings) return const <RecordingJobState>[];
+        final states = [for (final job in await engine.recordingJobState()) RecordingJobState.fromJson(job)];
+        writingUp = states.any((job) => job.phase == RecordingJobPhase.listening || job.phase == RecordingJobPhase.summarizing);
+        return states;
+      },
+      takeRecordingResult: (id) async {
+        if (!host.hasMeetings) return null;
+        final result = await engine.recordingResultTake(id);
+        return result == null ? null : RecordingResult.fromJson(result);
+      },
+      writeUpOnHost: (noteId, now) {
+        if (!host.hasMeetings) return false;
+        unawaited(host.writeUp(noteId, now: now).then<void>((_) {}, onError: (Object _) {}));
+        return true;
+      },
+      answerHost: (name, handler) {
+        final answering = host.events.listen((event) {
+          if (event.name == name) handler(event.argument ?? '');
+        });
+        return () => unawaited(answering.cancel());
+      },
+      getNote: store.getNote,
+      // A write another writer won says so in the queue's own words.
+      updateNote: (id, body, expectedRevision) async {
+        final Note? now = await store.getNote(id);
+        if (now == null) throw StateError('The note was deleted.');
+        if (now.revision != expectedRevision) throw StateError('The note changed.');
+        try {
+          return await store.updateNote(id, body, expectedRevision);
+        } catch (_) {
+          throw StateError('The note changed.');
+        }
+      },
+      isTrashed: isTrashed ?? (_) => false,
+      syncNow: syncNow ?? () async {},
+      syncSettled: syncSettled ?? () async {},
+      record: record ?? (_, _) async {},
+      visible: () => host.visible,
+      onVisible: (listener) {
+        visibleListeners.add(listener);
+        return () => visibleListeners.remove(listener);
+      },
+      onNotesChanged: (listener) {
+        voice._notesListeners.add(listener);
+        return () => voice._notesListeners.remove(listener);
+      },
+      sendJobConfig: sendJobConfig,
     );
 
     // The scripted WAV in place of the device, in a debug build that asked for it and has the file.
@@ -341,15 +441,25 @@ class Voice {
         invoke: (command, args) async => command == 'ai_infer_command' ? (await core.startJob(command, args)).done : core.invoke(command, args),
         preferredModel: preferences.value.formatModel,
       ),
+      // The review after a recording, where this binary and the switch allow it, and a take's summary.
+      reviewAvailable: reviewAvailable,
+      enqueueSummary: (id, kind) => summaries.enqueueSummary(id, SummaryKind.of(kind)),
       canRecordMeeting: host.hasMeetings &&
           await canRecordMeeting(native: true, isIOS: Platform.isIOS, isAndroid: Platform.isAndroid, isMobile: Platform.isAndroid || Platform.isIOS, hasNativeGeneration: ai.hasNativeGeneration),
       warn: debugPrint,
     );
 
+    // Back on screen, whoever asked to hear of it for the queue is told.
+    final offVisible = recorder.onVisible(() {
+      for (final listener in visibleListeners.toList()) {
+        listener();
+      }
+    });
     voice = Voice(
       recorder: recorder,
       service: host.hasMeetings ? DeviceMeetingService(host) : null,
       models: ai.ModelsController(),
+      summaries: summaries,
       assistant: making.assistant,
       launch: making.launch,
       captureKey: keys.stream,
@@ -361,6 +471,7 @@ class Voice {
         return done.removed;
       },
       dispose_: () {
+        offVisible();
         unbind?.call();
         unawaited(heard.cancel());
         unawaited(keys.close());
