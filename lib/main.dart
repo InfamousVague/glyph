@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
@@ -12,6 +13,7 @@ import 'core/native/core.dart';
 import 'core/native/device_paths.dart';
 import 'core/native/ghost_core.dart';
 import 'core/geocode.dart';
+import 'core/keep_keyboard.dart';
 import 'core/films.dart';
 import 'core/open_link.dart';
 import 'core/phone_films.dart';
@@ -29,6 +31,9 @@ import 'core/link_preview.dart' show linkPreviewFetch;
 import 'root/ghost_root.dart';
 import 'root/plugin_ground.dart';
 import 'root/voice_wiring.dart';
+import 'shell/desktop/desktop_commands.dart';
+import 'shell/desktop/mac_tour.dart';
+import 'shell/desktop/mac_window.dart';
 import 'tapes/phone_player.dart';
 
 /// The stylesheets the token engine reads after the kit's own, in the order the web app's page loads them
@@ -38,8 +43,13 @@ const appStyleSheets = ['assets/css/ink.css', 'assets/css/app.css', 'assets/css/
 Future<void> main() async {
   // Flutter's binding, which draws nothing while Android is taking the app from the front (app/front_frames.dart).
   GhostBinding.ensureInitialized();
+  // The keyboard that was up when the app was left is up again when it is come back to (core/keep_keyboard.dart).
+  KeepKeyboard.install();
   // Edge to edge, as the web app's page is under Android's bars: the page pads itself by the safe areas.
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  // The Mac app's window (its menu bar, its three lights) and a desktop's keys: nothing on a phone.
+  MacWindow.instance.attach();
+  DesktopKeys.attach();
   final sheet = await loadTokenSheet(more: appStyleSheets);
   // What this device chose and how it left things, before anything is drawn. Storage that will not answer is not
   // waited for: the app opens on its defaults and remembers nothing this run.
@@ -111,6 +121,8 @@ Future<void> main() async {
       builder: (restart) => GhostRoot(core: core, native: whole, account: account, voiceMaking: voice, links: links, openLink: openLink, previewFetch: linkPreviewFetch(), restart: restart, tapePlayer: tapes, updates: updates, locator: locator, placeLookup: placeLookup, mapTiles: mapTiles, picturePicker: phonePicturePicker, films: films, dayPicker: defaultTargetPlatform == TargetPlatform.android ? phoneDayPicker : null),
     ),
   ));
+  // A debug build of the Mac app started with a script walks itself (lib/shell/desktop/mac_tour.dart).
+  unawaited(runMacTour());
 }
 
 /// The app, built anew each time it is started over (Developer's resets, lib/core/reset.dart): what
