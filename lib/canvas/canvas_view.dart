@@ -845,7 +845,10 @@ class CanvasViewState extends State<CanvasView> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Ghost(scene: GhostScene.emptyCanvas, align: GhostAlign.center),
+                              // `.emptyCanvasArt { inline-size: min(70vw, 28rem, 40dvh × ratio) }`: sized by the
+                              // screen, where the drawing alone filled the canvas's whole width (710 px wide on a
+                              // phone where the page's is 333).
+                              Ghost(scene: GhostScene.emptyCanvas, align: GhostAlign.center, maxWidth: 0.7 * t.css.vw < t.lenOf('28rem') ? 0.7 * t.css.vw : t.lenOf('28rem')),
                               SizedBox(height: t.space(3)),
                               Text(editable ? 'Double-tap to add a card.' : 'An empty canvas.', style: pageText(t, t.fontSize('md'), color: t.color('glacier-text-muted'))),
                             ],
