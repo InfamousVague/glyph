@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart';
 import '../logic/command_palette.dart';
 import '../motion/motion.dart';
 import '../tokens/css_value.dart';
+import '../tokens/exact_lines.dart';
 import '../tokens/theme.dart';
 import '../tokens/tokens.dart';
 import 'field_core.dart';
@@ -610,9 +611,15 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
                             padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(1)),
                             // headings are signposts, not rows: they should never be mistaken for something Enter
                             // would run
-                            child: Text(
-                              group.group!.toUpperCase(),
-                              style: kitFont(t, fontSize: t.fontSize('xs'), weight: 'medium', color: subtle, letterSpacing: 0.04 * t.fontSize('xs')),
+                            // On the page's own line (`line-height: normal`, in the phone's pixels): a whole
+                            // pixel a heading and a row put a list of seven most of a pixel a row long.
+                            child: ExactLines.of(
+                              Text(
+                                group.group!.toUpperCase(),
+                                style: kitFont(t, fontSize: t.fontSize('xs'), weight: 'medium', color: subtle, letterSpacing: 0.04 * t.fontSize('xs')),
+                              ),
+                              normal: true,
+                              dpr: t.css.lineDpr,
                             ),
                           ),
                         ),
@@ -718,26 +725,30 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text.rich(
-                        TextSpan(
-                          children: [
-                            // When the query hit a keyword rather than the label, the keyword leads and the real
-                            // label trails as context, so the row explains why it matched.
-                            ..._highlight(keyword ?? item.label, mark),
-                            if (keyword != null)
-                              TextSpan(
-                                style: TextStyle(color: subtle),
-                                children: [
-                                  const TextSpan(text: ' · '),
-                                  ..._highlight(item.label, mark),
-                                ],
-                              ),
-                          ],
+                      child: ExactLines.of(
+                        Text.rich(
+                          TextSpan(
+                            children: [
+                              // When the query hit a keyword rather than the label, the keyword leads and the real
+                              // label trails as context, so the row explains why it matched.
+                              ..._highlight(keyword ?? item.label, mark),
+                              if (keyword != null)
+                                TextSpan(
+                                  style: TextStyle(color: subtle),
+                                  children: [
+                                    const TextSpan(text: ' · '),
+                                    ..._highlight(item.label, mark),
+                                  ],
+                                ),
+                            ],
+                          ),
+                          style: base,
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        style: base,
-                        maxLines: 1,
-                        softWrap: false,
-                        overflow: TextOverflow.ellipsis,
+                        normal: true,
+                        dpr: t.css.lineDpr,
                       ),
                     ),
                     if (shortcut != null && shortcut.isNotEmpty) ...[
