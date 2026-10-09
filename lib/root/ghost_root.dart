@@ -67,6 +67,7 @@ import '../shell/top_bar.dart';
 import 'account_wiring.dart';
 import 'library_reads.dart';
 import 'note_desk.dart';
+import 'take_back.dart';
 
 /// The app, put together: what the web app's `App.tsx` does once its screens exist. The launch screen over the
 /// shell (lib/shell/app_shell.dart); in the shell the home page, the notes' sidebar as a card or docked, and the
@@ -92,7 +93,7 @@ import 'note_desk.dart';
 /// - **Speak** is not here yet (stage 8), nor a link that opens the app (no `LinkSource`: an invite is joined
 ///   from its notification or by its code held from before).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -120,6 +121,10 @@ class GhostRoot extends StatefulWidget {
 
   /// The account's objects, where a test brings its own; then nothing is made from [account].
   final AccountServices? services;
+
+  /// The records of the notes nobody has written in yet (core/untouched.dart); the app's own unless a test brings
+  /// its own.
+  final UntouchedNotes? untouched;
 
   @override
   State<GhostRoot> createState() => _GhostRootState();
@@ -171,9 +176,10 @@ class _GhostRootState extends State<GhostRoot> {
 
   /// The journal on screen, writing its own index (`journalWriter`), and New entry's half of the library.
   journal.JournalWriter? _journalWriter;
+  late final UntouchedNotes _untouched = widget.untouched ?? untouchedNotes;
   late final JournalPages _pages = JournalPages(
     _library,
-    untouched: untouchedNotes,
+    untouched: _untouched,
     write: (journalId, change) {
       final writer = _journalWriter;
       if (writer == null || writer.id != journalId || _shell.currentState?.shown != journalId) return false;
@@ -181,6 +187,25 @@ class _GhostRootState extends State<GhostRoot> {
       return true;
     },
   );
+
+  /// An entry, or a new note given a name or a template, that nobody wrote in, taken back once it is left
+  /// (lib/root/take_back.dart). It stays while it is the note on screen, while a capture is aimed at it, and while
+  /// its tab is open behind another note, a capture or a meeting (`stays`).
+  late final TakeBack _takeBack = TakeBack(
+    library: _library,
+    trash: _trash,
+    untouched: _untouched,
+    stays: (id) {
+      final shell = _shell.currentState;
+      if (shell == null) return false;
+      final now = shell.screen;
+      if (now is ScreenNote && now.note.id == id) return true;
+      if (now is ScreenCapture && now.noteId == id) return true;
+      return shell.tabs.open.contains(id) && (now is ScreenNote || now is ScreenCapture || now is ScreenMeeting);
+    },
+    writeJournal: _pages.writeJournal,
+    dropTab: (id) => _shell.currentState?.dropTab(id),
+  )..making = _pages.making;
 
   /// The + sheet, the workspace it makes into where it was an organization's +, and the New notebook sheet with its
   /// own.
@@ -211,7 +236,7 @@ class _GhostRootState extends State<GhostRoot> {
   /// new note of the person's own, whose blank page offers names and templates until they write in it.
   Note _showMade(String body, {Caret? caret, String? into, bool within = false, bool fresh = false}) {
     final note = _library.create(body);
-    if (fresh) untouchedNotes.markFresh(note.id);
+    if (fresh) _untouched.markFresh(note.id);
     _workspaces.fileNewNote(note.id);
     if (into != null) _workspaces.fileNote(note.id, into);
     _afterFrame((shell) => within ? shell.openNoteWithin(note.id, caret: caret) : shell.openNote(note.id, caret: caret));
@@ -354,8 +379,14 @@ class _GhostRootState extends State<GhostRoot> {
   Future<void> _newEntry(String journalId, [String? template]) async {
     final within = _shell.currentState?.shown == journalId;
     final note = await _pages.newEntry(journalId, template: template);
-    if (note == null || !mounted) return;
+    if (note == null) return;
+    if (!mounted) {
+      _pages.making.remove(note.id);
+      return;
+    }
     _workspaces.fileNewNote(note.id);
+    // Being made until it is on screen: the take-back leaves it alone meanwhile.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _pages.making.remove(note.id));
     _afterFrame((shell) => within ? shell.openNoteWithin(note.id, caret: const Caret.end()) : shell.openNote(note.id, caret: const Caret.end()));
   }
 
@@ -456,6 +487,7 @@ class _GhostRootState extends State<GhostRoot> {
           versions: _versions,
           trash: _trash,
           device: _stored,
+          untouched: _untouched,
           editor: editor,
           seams: seams,
           say: _say,
@@ -582,6 +614,8 @@ class _GhostRootState extends State<GhostRoot> {
   /// Reads the library, and gives a fresh one the starter notes once (core/seed.ts: `glyph-sample-note`).
   Future<void> _open() async {
     await _library.load();
+    // At launch, which opens on the home page: what the phone let go of before it was left.
+    if (mounted) unawaited(_takeBack.look());
     if (!_real || !mounted) return;
     final seeded = _stored.flag('glyph-sample-note', unreadable: true);
     if (seeded.isMarked) return;
@@ -590,6 +624,19 @@ class _GhostRootState extends State<GhostRoot> {
     for (final note in starterNotes(DateTime.now().millisecondsSinceEpoch)) {
       await _library.createNote(note.body);
     }
+  }
+
+  /// The screen or the open tabs changed: a look at what was left (`takeBack`'s effect). After the frame, when the
+  /// shell says where the person is now.
+  bool _looking = false;
+  void _left() {
+    if (_looking) return;
+    _looking = true;
+    WidgetsBinding.instance.ensureVisualUpdate();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _looking = false;
+      if (mounted) unawaited(_takeBack.look());
+    });
   }
 
   void _delete(String id) {
@@ -684,7 +731,13 @@ class _GhostRootState extends State<GhostRoot> {
               onRenameNote: _rename,
               openNotes: prefs.openNotes,
               tabGroups: prefs.tabGroups,
-              onOpenNotesChanged: (open) => preferences.update((now) => now.copyWith(openNotes: open)),
+              // The screen and the tabs are what an entry is left by.
+              onOpenNotesChanged: (open) {
+                preferences.update((now) => now.copyWith(openNotes: open));
+                _left();
+              },
+              onScreenChanged: (_) => _left(),
+              untouchedEntryOf: (id) => _untouched.recordOf(id)?.journalId,
               onTabGroupsChanged: (groups) => preferences.update((now) => now.copyWith(tabGroups: groups)),
               onSettings: () => setState(() => _settings = true),
               // The people icon with no organization joined, and the picker's last row: Settings › Organizations.

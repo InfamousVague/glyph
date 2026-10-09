@@ -71,7 +71,7 @@ typedef ShellAsideBuilder = Widget? Function(BuildContext context, AppShellState
 /// - The stamps are laid over the shell's own subtree (shell/root_stamps.dart), which needs the token [sheet].
 /// - A window in two panes is asked of the window's size and of the device ([finePointer], [mobile]), not of media
 ///   queries; a mouse joined to a phone is not seen.
-/// - `land` does not give a journal's untouched entry's tab back to the journal: journals are not ported.
+/// - `land` asks [AppShell.untouchedEntryOf] which journal an untouched entry is of, the records being the root's.
 /// - The Mac's title bar and its drag strip (`data-titlebar`, `.app-dragBar`) are not drawn.
 class AppShell extends StatefulWidget {
   const AppShell({
@@ -112,6 +112,7 @@ class AppShell extends StatefulWidget {
     this.onDeleteNote,
     this.onRenameNote,
     this.onRefresh,
+    this.untouchedEntryOf,
     this.liveTitles,
     this.backStack,
     this.leavesAtRoot = false,
@@ -198,6 +199,10 @@ class AppShell extends StatefulWidget {
 
   /// The notes read again, asked for on the way back to the home page.
   final VoidCallback? onRefresh;
+
+  /// The journal the note [id] is an entry of while nobody has written in it (`untouchedRecord(id)?.journalId`), or
+  /// null: an arrow from such an entry to its own journal gives the journal the entry's tab.
+  final String? Function(String id)? untouchedEntryOf;
 
   final LiveTitles? liveTitles;
 
@@ -370,7 +375,10 @@ class AppShellState extends State<AppShell> {
         _screen = ScreenOrganization(orgId, page: OrganizationPage.log);
       });
 
-  /// Where one of the arrows said to go: the home page, the grid, or a note.
+  /// Where one of the arrows said to go: the home page, the grid, or a note. From an entry nobody has written in to
+  /// its own journal, the journal takes the entry's tab, as its bar's way back does: New entry gave the entry the
+  /// journal's tab, and Back otherwise opened the journal in a second one and kept the entry open in its own, so it
+  /// was never left and never taken back.
   void _land(Place? spot) {
     if (spot == null) {
       // Nowhere to go, though the trail may have moved over a place that is gone.
@@ -382,6 +390,8 @@ class AppShellState extends State<AppShell> {
       show(const Screen.notes());
     } else if (id == null) {
       backToList();
+    } else if (shown != null && widget.untouchedEntryOf?.call(shown!) == id) {
+      openNoteWithin(id);
     } else {
       openNote(id);
     }

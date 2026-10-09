@@ -34,6 +34,7 @@ import 'package:glacier/glacier.dart';
 
 import '../core/back.dart';
 import '../core/book.dart' show chaptersOf, isJournalBody;
+import '../core/ids.dart' show randomId;
 import '../core/library.dart';
 import '../core/note.dart';
 import '../core/note_text.dart' show noteTitle, titleKey;
@@ -465,7 +466,7 @@ class _TemplateChoice extends StatelessWidget {
 /// its words are the template chosen, else the journal's own, filled for the minute; its line goes into the
 /// journal's index, and the note is made with its `title:` and `date:`.
 class JournalPages {
-  JournalPages(this.library, {this.untouched, this.clock, this.write});
+  JournalPages(this.library, {this.untouched, this.clock, this.write, Set<String>? making}) : making = making ?? {};
 
   final NoteLibrary library;
 
@@ -476,6 +477,11 @@ class JournalPages {
   /// The open journal's own writer, where it is the note on screen (`journalWriter`): its index is changed through
   /// its editor's saving, not behind it. Answers whether it took the change.
   final bool Function(String journalId, String Function(String body) change)? write;
+
+  /// Entries being made now (`making`): the take-back (lib/root/take_back.dart) leaves them alone until they are on
+  /// screen. An id is put in as its record is written, and taken out by whoever opens the entry, or here where it
+  /// could not be made.
+  final Set<String> making;
 
   /// A New entry being made: a second press before it is open is the same press.
   bool _entering = false;
@@ -497,11 +503,20 @@ class JournalPages {
       };
       final title = uniqueTitle(entryTitle(now), taken);
       final words = fillTemplate(template ?? templateOf(journal.body), at: now, title: title, journal: name);
-      await _writeJournal(journalId, (body) => withEntry(body, title));
-      final note = await library.createNote(entryBody(title, localStamp(now), words));
-      untouched?.remember(note.id, UntouchedRecord(journalId: journalId, title: title, words: words, at: now.millisecondsSinceEpoch));
-      await library.refresh().catchError((Object _) {});
-      return library.noteOf(note.id) ?? note;
+      // The record first, then the line, then the note, so that an app let go at any step leaves a record the
+      // take-back can finish from.
+      final id = randomId();
+      making.add(id);
+      try {
+        untouched?.remember(id, UntouchedRecord(journalId: journalId, title: title, words: words, at: now.millisecondsSinceEpoch));
+        await writeJournal(journalId, (body) => withEntry(body, title));
+        final note = await library.createNote(entryBody(title, localStamp(now), words), id: id);
+        await library.refresh().catchError((Object _) {});
+        return library.noteOf(note.id) ?? note;
+      } catch (_) {
+        making.remove(id);
+        rethrow;
+      }
     } finally {
       _entering = false;
     }
@@ -509,7 +524,7 @@ class JournalPages {
 
   /// The journal's index changed (`writeJournal`): through the open journal's own writer where it has one, else
   /// read fresh and saved.
-  Future<void> _writeJournal(String journalId, String Function(String body) change) async {
+  Future<void> writeJournal(String journalId, String Function(String body) change) async {
     if (write?.call(journalId, change) ?? false) return;
     final fresh = await library.get(journalId);
     if (fresh == null) return;
