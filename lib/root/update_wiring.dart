@@ -43,6 +43,16 @@ LaunchUpdates launchUpdatesOf(Updates? updates) {
   );
 }
 
+/// Where the account's sync stands, as the launch screen says it (`syncStatus.phase`, the page's third line:
+/// "Syncing your devices", "In sync", "Sync will try again"): off with no account, or signed out. The root did not
+/// hand the screen this at all, so a signed-in launch never said it was in sync.
+SyncPhase launchSyncOf(String? phase) => switch (phase) {
+      'syncing' => SyncPhase.syncing,
+      'error' => SyncPhase.error,
+      'idle' => SyncPhase.idle,
+      _ => SyncPhase.off,
+    };
+
 /// What the card above the notes is told (`UpdateNotice`'s `updates`).
 notices.AppUpdates updateCardOf(Updates updates) => notices.AppUpdates(
       apk: switch (updates.apk) {

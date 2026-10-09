@@ -2093,7 +2093,7 @@ class _GhostRootState extends State<GhostRoot> {
                   _shell.currentState?.show(const Screen.academy());
                 },
               ),
-            if (_launching) LaunchScreen(loading: !_read, notes: _shown.length, updates: launchUpdatesOf(widget.updates), recording: () => voice?.live?.state?.recording ?? false, onDone: () => setState(() => _launching = false)),
+            if (_launching) LaunchScreen(loading: !_read, notes: _shown.length, updates: launchUpdatesOf(widget.updates), sync: launchSyncOf(_services?.engine?.status.value.phase), recording: () => voice?.live?.state?.recording ?? false, onDone: () => setState(() => _launching = false)),
           ],
           ),
         );

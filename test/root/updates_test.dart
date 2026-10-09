@@ -97,6 +97,14 @@ void main() {
   group('one Updates, as each screen is handed it', () {
     test('a build that never looks gives the launch screen nothing to say', () {
       expect(launchUpdatesOf(null), same(LaunchUpdates.none));
+      expect(launchUpdatesOf(null).looks, isFalse);
+    });
+
+    test('the launch screen is told where the sync stands, by the engine\'s own word, and off for any other', () {
+      expect(
+        [for (final phase in <String?>['syncing', 'idle', 'error', 'off', null, 'paused']) launchSyncOf(phase)],
+        [SyncPhase.syncing, SyncPhase.idle, SyncPhase.error, SyncPhase.off, SyncPhase.off, SyncPhase.off],
+      );
     });
 
     test('the launch screen: checking, then what is out or why not', () async {

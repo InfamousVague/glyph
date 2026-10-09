@@ -21,7 +21,13 @@ enum SyncPhase { off, idle, syncing, error }
 /// [apkVersion]). A Flutter app has no page to load, so nothing gives [readyBuild] yet; the lines and the hand-over
 /// are kept as the web has them for whatever stage 9 turns out to check.
 class LaunchUpdates {
-  const LaunchUpdates({this.readyBuild, this.apkVersion, this.checking = false, this.lastError, required this.check, required this.reload});
+  const LaunchUpdates({this.readyBuild, this.apkVersion, this.checking = false, this.lastError, this.looks = true, required this.check, required this.reload});
+
+  /// Whether this build looks for updates at all. Known before the first frame, so a build that never looks has no
+  /// line from the start, as the page has none where it knows there is no check (`useState(!native)`). Without it
+  /// every launch of such a build drew "Checking for updates" for half a second and took it away again (Matt: "it
+  /// eventually just reads plainly ... notes with a check and all the other checks dissapear").
+  final bool looks;
 
   /// A newer build is downloaded and runs on [reload] (`ready.build`).
   final String? readyBuild;
@@ -34,7 +40,7 @@ class LaunchUpdates {
   final VoidCallback reload;
 
   /// Updates that never check: a build with nowhere to ask.
-  static const LaunchUpdates none = LaunchUpdates(check: _nothing, reload: _nothing);
+  static const LaunchUpdates none = LaunchUpdates(looks: false, check: _nothing, reload: _nothing);
 
   static void _nothing() {}
 }
@@ -114,6 +120,8 @@ class _LaunchScreenState extends State<LaunchScreen> {
   void initState() {
     super.initState();
     _begun = widget.updates.checking;
+    // A build with nowhere to ask has no line to show and none to take away ([LaunchUpdates.looks]).
+    _skipped = !widget.updates.looks;
     // The update check, now: this screen is the moment the answer is worth having. After the frame, as an effect
     // runs after its render: asking may tell the caller something that rebuilds this.
     WidgetsBinding.instance.addPostFrameCallback((_) {

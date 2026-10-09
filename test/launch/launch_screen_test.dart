@@ -137,6 +137,34 @@ void main() {
       await away(tester);
     });
 
+    testWidgets('has no update line at all, from its first frame, in a build with nowhere to ask', (tester) async {
+      var done = 0;
+      await show(tester, LaunchScreen(loading: false, notes: 3, updates: LaunchUpdates.none, onDone: () => done += 1));
+      // Not drawn and then taken away: never drawn.
+      expect(find.text('Checking for updates'), findsNothing);
+      expect(find.text('3 notes'), findsOneWidget);
+      await wait(tester, 1000 + still.inMilliseconds + 300);
+      expect(find.text('Checking for updates'), findsNothing);
+      expect(done, 1);
+      await away(tester);
+    });
+
+    testWidgets('says where the account\'s sync stands, and nothing of it with no account', (tester) async {
+      Future<void> at(SyncPhase sync) => again(tester, LaunchScreen(loading: false, notes: 3, updates: LaunchUpdates.none, sync: sync, onDone: () {}));
+      await at(SyncPhase.off);
+      for (final words in ['Syncing your devices', 'In sync', 'Sync will try again']) {
+        expect(find.text(words), findsNothing);
+      }
+      await at(SyncPhase.syncing);
+      expect(find.text('Syncing your devices'), findsOneWidget);
+      await at(SyncPhase.idle);
+      expect(find.text('In sync'), findsOneWidget);
+      expect(find.text('Syncing your devices'), findsNothing);
+      await at(SyncPhase.error);
+      expect(find.text('Sync will try again'), findsOneWidget);
+      await away(tester);
+    });
+
     testWidgets('says what the check found', (tester) async {
       await show(tester, LaunchScreen(loading: false, notes: 1, updates: updates(checking: true), onDone: () {}));
       expect(find.text('1 note'), findsOneWidget);
