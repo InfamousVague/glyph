@@ -34,8 +34,8 @@ import 'workspace_sheet.dart';
 /// What differs from the web:
 /// - The workspaces are the [workspaces] store it is handed, and which folders are shut, the trash and names only
 ///   are kept in [stored] (the app's own unless one is given), where the web's modules had one of each.
-/// - A row's small drawing is [peek]: the web's is the note in its own editor (`NotePeek.tsx`), which waits for the
-///   editor's stage; until then it is [NotePeek.plain], two lines of the note's words.
+/// - A row's small drawing is [peek]: [NotePeek.plain] unless another is given, which is the note in the editor's
+///   own lines as the page's is (`NotePeek.tsx`; lib/home/note_peek.dart).
 /// - [emptyArt] is the ghost asleep on its blank sheet (`Ghost scene="no-notes"`), which is lib/art's to draw;
 ///   without it the words stand alone.
 /// - Browse files is offered when [onBrowseFiles] is given, where the web asked the device itself

@@ -37,6 +37,7 @@ import '../editor/editor_widget.dart';
 import '../editor/items/items.dart' show itemExtensions;
 import '../editor/looks/look.dart';
 import '../editor/looks/peek_look.dart';
+import '../editor/media/media.dart' show MediaSeams, mediaExtensions;
 import '../editor/placeholder.dart';
 import '../editor/tables/tables.dart' show drawnTables;
 import '../editor/view/base.dart';
@@ -201,7 +202,7 @@ class CanvasCard {
     switch (node.type) {
       case NodeType.text:
         if (editing) return _own(_CardEditor(key: ValueKey('editor ${node.id}'), node: node, onWrite: onWrite));
-        return near ? CardWords(markdown: node.text) : const SizedBox.expand();
+        return near ? CardWords(markdown: node.text, pictures: pictures) : const SizedBox.expand();
       case NodeType.link:
         return _LinkWords(node: node);
       case NodeType.file:
@@ -476,10 +477,20 @@ LookEnv cardEnv(Tokens t, {double devicePixelRatio = 2}) {
 
 final List<Extension> _drawn = <Extension>[itemExtensions(peek: true), drawnTables()];
 
+/// The same with the pictures of one store: a picture under its line and a film as its still, as the page's card
+/// draws them (`<Editor … peek />`: `inlineImages`, `videoCards`).
+final Expando<List<Extension>> _drawnWith = Expando<List<Extension>>('card words');
+
+List<Extension> _drawnFrom(PictureStore? store) =>
+    store == null ? _drawn : _drawnWith[store] ??= <Extension>[itemExtensions(peek: true), drawnTables(), mediaExtensions(seams: MediaSeams(pictures: store), peek: true)];
+
 /// A card of words, to be read: the editor's own lines, taking no taps.
 class CardWords extends StatefulWidget {
-  const CardWords({super.key, required this.markdown});
+  const CardWords({super.key, required this.markdown, this.pictures});
   final String markdown;
+
+  /// Where a picture in the words, and a film's still, are drawn from; without it each is its line.
+  final PictureStore? pictures;
 
   @override
   State<CardWords> createState() => _CardWordsState();
@@ -490,13 +501,13 @@ class _CardWordsState extends State<CardWords> {
 
   EditorView _make() => EditorView(
     wholeDocument: true,
-    state: EditorState.create(doc: widget.markdown, extensions: noteExtensions(display: NoteView.formatted, readOnly: true, more: _drawn)),
+    state: EditorState.create(doc: widget.markdown, extensions: noteExtensions(display: NoteView.formatted, readOnly: true, more: _drawnFrom(widget.pictures))),
   );
 
   @override
   void didUpdateWidget(CardWords oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.markdown != widget.markdown) {
+    if (oldWidget.markdown != widget.markdown || !identical(oldWidget.pictures, widget.pictures)) {
       _view.destroy();
       _view = _make();
     }

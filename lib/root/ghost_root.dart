@@ -84,6 +84,7 @@ import '../guide/guide_state.dart';
 import '../guide/guidebook.dart';
 import '../home/home_layout.dart';
 import '../home/home_screen.dart';
+import '../home/note_peek.dart' show PeekPictures;
 import '../launch/launch_screen.dart';
 import '../note/note_builder.dart';
 import '../note/open_screen.dart';
@@ -1664,6 +1665,12 @@ class _GhostRootState extends State<GhostRoot> {
 
   @override
   Widget build(BuildContext context) {
+    // A note drawn small anywhere under here (a card on the home page, a row of the sidebar) draws its pictures and
+    // a film's still from the app's own (lib/home/note_peek.dart).
+    return PeekPictures(store: _pictures, child: _built(context));
+  }
+
+  Widget _built(BuildContext context) {
     return ListenableBuilder(
       listenable: _all,
       builder: (context, _) {

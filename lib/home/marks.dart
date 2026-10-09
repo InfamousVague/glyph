@@ -1,7 +1,8 @@
 /// The small marks a listed note wears beside its name: a ticket's key and status, the notebook a page is in, and the
-/// mark of an organization's workspace. Ports of `src/app/notes/TicketMark.tsx` (and TicketMark.module.css `.mark`),
-/// `notes/BookPlaceMark.tsx` and `notes/OrgMark.tsx`, each one widget for every place the mark is drawn, so the places
-/// cannot come to say it differently.
+/// mark of an organization's workspace. A port of `src/app/notes/TicketMark.tsx` (and TicketMark.module.css `.mark`);
+/// `notes/BookPlaceMark.tsx` and `notes/OrgMark.tsx` are lib/notes' (book_place_mark.dart, org_mark.dart), handed on
+/// from here for the home page's files: each is one widget for every place the mark is drawn, so the places cannot
+/// come to say it differently. (Each was drawn twice, here and there, until 2026-10-09.)
 ///
 /// What differs: the web's `TicketStatusButton` (a notebook's own list changes a status from it) comes with the
 /// notebook's screen. A mark's `title`, read by a pointer resting on it, is its semantics label here.
@@ -10,10 +11,11 @@ library;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
-import '../core/book.dart';
 import '../core/properties.dart';
-import 'home_icons.dart';
 import 'home_text.dart';
+
+export '../notes/book_place_mark.dart' show BookPlaceMark;
+export '../notes/org_mark.dart' show OrgMark;
 
 /// A ticket's key and status where it is listed (`TicketMark`): small and quiet, the key in the mono face, the
 /// status's dot in its category's colour, and the status's words in that colour once it is under way or done. Nothing
@@ -71,58 +73,6 @@ class TicketMark extends StatelessWidget {
             ),
           if (after != null) ...[SizedBox(width: t.space(2)), Text(after!, style: pageText(t, size, color: t.color('app-ink-3')))],
         ],
-      ),
-    );
-  }
-}
-
-/// A page of a book says which (`BookPlaceMark`): the book's mark and its name, one quiet line, the name cut short
-/// rather than wrapped.
-class BookPlaceMark extends StatelessWidget {
-  const BookPlaceMark({super.key, required this.place});
-
-  final BookPlace place;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final size = t.fontSize('xs');
-    final color = t.color('glacier-text-muted');
-    return Semantics(
-      label: place.journal ? 'An entry in ${place.title}' : 'Page ${place.at + 1} of ${place.title}',
-      excludeSemantics: true,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          HomeIcon(HomeGlyph.book, size: 12, color: color),
-          SizedBox(width: 0.3 * size),
-          Flexible(child: Text(place.title, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: pageText(t, size, color: color))),
-        ],
-      ),
-    );
-  }
-}
-
-/// The small mark an organization's workspace wears before its name (`OrgMark`): the kit's group, a touch under the
-/// text's size ([em]), in the words' own [color] at 85%, with its `margin-inline-end: 0.35em` after it.
-class OrgMark extends StatelessWidget {
-  const OrgMark({super.key, required this.em, required this.color, this.size});
-
-  /// The font size of the words it stands before.
-  final double em;
-  final Color color;
-
-  /// Its box, where a rule sets one over OrgMark's own 0.9em (`.choiceMark`, 1em).
-  final double? size;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: 'Organization',
-      image: true,
-      child: Padding(
-        padding: EdgeInsetsDirectional.only(end: 0.35 * em),
-        child: HomeIcon(HomeGlyph.organization, size: size ?? 0.9 * em, strokeWidth: 2.2, color: color.withValues(alpha: color.a * 0.85)),
       ),
     );
   }

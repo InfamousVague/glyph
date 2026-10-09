@@ -8,10 +8,11 @@ import '../sheet/css.dart';
 /// the sidebar (note_tree.dart), one quiet line, the name cut short rather than wrapped. A port of
 /// `src/app/notes/BookPlaceMark.tsx` and `BookPlaceMark.module.css`.
 ///
-/// One mark for both, so the two places a note is listed cannot come to say it differently.
+/// One mark for both, so the two places a note is listed cannot come to say it differently (lib/home/marks.dart
+/// hands this one on; the home page drew a second until 2026-10-09).
 ///
 /// What differs: the page said which page it is "to whoever points at it" (a `title`); a finger cannot point, so
-/// here it is the mark's tooltip for a screen reader ([said]) and nothing is shown on a hover.
+/// here it is what a screen reader hears of the mark ([said]) and nothing is shown on a hover.
 class BookPlaceMark extends StatelessWidget {
   const BookPlaceMark({super.key, required this.place});
   final BookPlace place;
@@ -26,13 +27,14 @@ class BookPlaceMark extends StatelessWidget {
     final size = t.fontSize('xs');
     final color = t.color('glacier-text-muted');
     return Semantics(
-      tooltip: said,
+      label: said,
+      excludeSemantics: true,
       // `display: inline-flex; align-items: center; gap: 0.3em; min-inline-size: 0`
       child: Row(
         mainAxisSize: MainAxisSize.min,
         spacing: 0.3 * size,
         children: [
-          ExcludeSemantics(child: lucide(Lucide.book, size: 12, color: color)),
+          lucide(Lucide.book, size: 12, color: color),
           // `.name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }`
           Flexible(child: Text(place.title, style: pageText(t, size, color: color), maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis)),
         ],
