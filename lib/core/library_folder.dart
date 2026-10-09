@@ -19,8 +19,8 @@
 ///   the channel, and a desktop run that is not the Mac app.
 /// - **The Mac's `library_choose_folder` is two calls**: the folder panel is Swift's
 ///   (macos/Runner/FilesChannel.swift, the same `chooseLibraryFolder` on the channel, answering `{path, name}`),
-///   and the core's `library_inspect {path}` looks into the folder and holds it. The Mac app is sandboxed, so
-///   the panel's grant is also what lets the core read the folder, now and (kept as a bookmark) at later launches.
+///   and the core's `library_inspect {path}` looks into the folder and holds it. The folder is kept by its plain
+///   path, as the Tauri app keeps it: the Mac app is not sandboxed.
 /// - `browser` is never answered: there is no build of this app whose notes are a browser's.
 library;
 

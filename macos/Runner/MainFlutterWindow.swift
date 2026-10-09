@@ -118,8 +118,13 @@ class MainFlutterWindow: NSWindow {
       result(nil)
     case "drag":
       // The page's drag strip was pressed and moved: the window follows, as under a title bar.
-      if let press = lastPress, NSEvent.pressedMouseButtons & 1 == 1 { performDrag(with: press) }
-      result(nil)
+      if let press = lastPress, NSEvent.pressedMouseButtons & 1 == 1 {
+        performDrag(with: press)
+        result(true)
+      } else {
+        // No button is down (the press was not a mouse's): nothing to follow.
+        result(false)
+      }
     case "zoom":
       // A double click on the strip: what the person chose for a title bar's double click.
       let action = UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") ?? "Maximize"
@@ -148,6 +153,27 @@ class MainFlutterWindow: NSWindow {
         setFrame(to, display: true)
       }
       result(nil)
+      #else
+      result(FlutterMethodNotImplemented)
+      #endif
+    case "panels":
+      #if DEBUG
+      // How the next panel is answered without a hand on it (FilesChannel.swift `Panels`).
+      Panels.answer = Panels.Answer(folder: args?["folder"] as? String, name: args?["name"] as? String, file: args?["file"] as? String, cancel: args?["cancel"] as? Bool ?? false)
+      result(nil)
+      #else
+      result(FlutterMethodNotImplemented)
+      #endif
+    case "link":
+      #if DEBUG
+      // A link handed to the app's own delegate, exactly as macOS hands one: nothing is opened through the
+      // system, so no other app that claims the scheme can be the one that gets it.
+      if let said = args?["url"] as? String, let url = URL(string: said), let delegate = NSApp.delegate as? AppDelegate {
+        delegate.application(NSApp, open: [url])
+        result(true)
+      } else {
+        result(false)
+      }
       #else
       result(FlutterMethodNotImplemented)
       #endif

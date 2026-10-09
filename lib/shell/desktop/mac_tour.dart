@@ -23,6 +23,11 @@
 ///   words. `where:<words>` only logs where it is.
 /// - `hit:<x>,<y>`: logs what is under a point (the widgets' render objects, top first).
 /// - `channels`: asks each of the Mac's method channels something harmless and logs what it answered.
+///   `ask:<channel>|<method>|<key>=<value>,…` asks one thing of one of them.
+/// - `link:<ghostmd://…>`: a link handed to the app's own delegate, as macOS hands one (never through the system).
+/// - `panels:folder=<path>,name=<name>,file=<path>,cancel`: how the next of the Mac's panels is answered with no
+///   hand on it (macos/Runner/FilesChannel.swift `Panels`).
+/// - `texts`: every text on screen and where it is.
 /// - `cursor:<x>,<y>`: logs the pointer shape there. `keylog`: from here on, logs every key the framework hears
 ///   and what the editor's keyboard client is told.
 ///
@@ -109,7 +114,7 @@ class _Tour {
         _say('size ${view.physicalSize / view.devicePixelRatio} at ${view.devicePixelRatio}x');
       case 'channels':
         // Each of the Mac's halves asked something that shows nothing and changes nothing a person made: where the
-        // files are, a secret written, read back and removed under a name of the tour's own, the drives, whether a
+        // files are, a secret written, read back and removed under a name of the tour's own, whether a
         // recording is here, the microphone's permission (never the request), the links kept, a reset's question. Not the clipboard, which is the person's.
         Future<void> ask(String label, Future<Object?> Function() call) async {
           try {
@@ -124,12 +129,65 @@ class _Tour {
         await ask('secure_store read', () => secrets.invokeMethod<Object?>('read', {'name': 'tour-probe'}));
         await ask('secure_store delete', () => secrets.invokeMethod<Object?>('delete', {'name': 'tour-probe'}));
         await ask('secure_store read again', () => secrets.invokeMethod<Object?>('read', {'name': 'tour-probe'}));
-        await ask('files backupDrives', () => const MethodChannel('ghost_md/files').invokeMethod<Object?>('backupDrives'));
         await ask('tape onDevice', () => const MethodChannel('ghost_md/tape').invokeMethod<Object?>('onDevice', {'noteId': 'no-such-note'}));
         await ask('mic permission', () => const MethodChannel('ghost_md/mic').invokeMethod<Object?>('permission'));
         await ask('links take', () => const MethodChannel('ghost_md/links').invokeMethod<Object?>('take'));
         await ask('reset recording', () => const MethodChannel('ghost.md/reset').invokeMethod<Object?>('recording'));
         await ask('window state', () => MacWindow.channel.invokeMethod<Object?>('state'));
+      case 'link':
+        // A link handed to the app's own delegate, as macOS hands one: never opened through the system, where
+        // another app that claims the scheme could be the one to get it.
+        _say('link $arg -> ${await MacWindow.channel.invokeMethod<Object?>('link', {'url': arg})}');
+        await _frames();
+      case 'panels':
+        // How the next of the Mac's panels is answered with no hand on it: `folder=<path>`, `name=<file name>`,
+        // `file=<path>`, `cancel`, `,` between them. The folder is one the tour made for itself.
+        final answer = <String, Object?>{};
+        for (final part in arg.split(',')) {
+          final at = part.indexOf('=');
+          if (at < 0) {
+            if (part.trim() == 'cancel') answer['cancel'] = true;
+          } else {
+            answer[part.substring(0, at).trim()] = part.substring(at + 1).trim();
+          }
+        }
+        await MacWindow.channel.invokeMethod<Object?>('panels', answer);
+        _say('panels $answer');
+      case 'ask':
+        // One call on one of the app's channels, its answer logged: `ask:<channel>|<method>|<key>=<value>,…`.
+        final parts = arg.split('|');
+        final args = <String, Object?>{
+          if (parts.length > 2)
+            for (final pair in parts[2].split(','))
+              if (pair.contains('=')) pair.substring(0, pair.indexOf('=')): pair.substring(pair.indexOf('=') + 1),
+        };
+        try {
+          _say('ask ${parts[0]} ${parts[1]} -> ${await MethodChannel(parts[0]).invokeMethod<Object?>(parts[1], args.isEmpty ? null : args)}');
+        } catch (failure) {
+          _say('ask ${parts[0]} ${parts[1]} FAILED $failure');
+        }
+        await _frames();
+      case 'attrs':
+        // The page's attributes at the root, as the theme holds them, and the window's size.
+        final view = WidgetsBinding.instance.platformDispatcher.views.first;
+        _say('window ${view.physicalSize / view.devicePixelRatio} at ${view.devicePixelRatio}x');
+      case 'texts':
+        // Every text on screen with where it is, top to bottom: what a picture shows, as words.
+        final found = <(Rect, String)>[];
+        void visit(Element element) {
+          final render = element.renderObject;
+          if (render is RenderParagraph && render.attached && render.hasSize) {
+            final box = MatrixUtils.transformRect(render.getTransformTo(null), Offset.zero & render.size);
+            final words = render.text.toPlainText().trim();
+            if (words.isNotEmpty && box.width > 0 && box.top < 2000 && box.bottom > 0) found.add((box, words));
+          }
+          element.visitChildren(visit);
+        }
+        WidgetsBinding.instance.rootElement?.visitChildren(visit);
+        found.sort((a, b) => a.$1.top != b.$1.top ? a.$1.top.compareTo(b.$1.top) : a.$1.left.compareTo(b.$1.left));
+        for (final (box, words) in found.take(int.tryParse(arg) ?? 80)) {
+          _say('text ${box.left.toStringAsFixed(1)},${box.top.toStringAsFixed(1)} ${box.width.toStringAsFixed(1)}x${box.height.toStringAsFixed(1)} "${words.length > 60 ? '${words.substring(0, 60)}…' : words}"');
+        }
       case 'keylog':
         // Every key the framework hears, and whether anything took it: where a chord went, when it went nowhere.
         HardwareKeyboard.instance.addHandler((event) {

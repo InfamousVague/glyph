@@ -29,6 +29,45 @@ void main() {
     expect(defaultLibraryName, isNot(contains('/')));
   });
 
+  test('the app’s files are never the Tauri app’s: its folder, or anything in it, is refused before the core is opened', () {
+    const home = '/Users/someone/Library';
+    // The Mac app's own two, beside the Tauri app's and not in it.
+    final own = DevicePaths.own(dataDir: '$home/Application Support/com.mattssoftware.glyph.flutter', cacheDir: '$home/Caches/com.mattssoftware.glyph.flutter');
+    expect(own.dataDir, '$home/Application Support/com.mattssoftware.glyph.flutter');
+    expect(isRealAppPath(own.dataDir), isFalse);
+    expect(isRealAppPath(own.cacheDir), isFalse);
+    expect(isRealAppPath('/data/user/0/com.mattssoftware.glyph.flutter'), isFalse);
+    // The Tauri app's folder, a place inside it, and the ways a path could be made to mean one.
+    for (final theirs in [
+      '$home/Application Support/com.mattssoftware.glyph',
+      '$home/Application Support/com.mattssoftware.glyph/',
+      '$home/Application Support/com.mattssoftware.glyph/Library',
+      '$home/Application Support/com.mattssoftware.glyph/models/x.bin',
+      '$home/Caches/com.mattssoftware.glyph',
+      '$home/Application Support/com.mattssoftware.glyph.flutter/../com.mattssoftware.glyph',
+      '$home/Application Support/./com.mattssoftware.glyph/Library',
+      '$home/Application Support/Com.MattsSoftware.Glyph',
+    ]) {
+      expect(isRealAppPath(theirs), isTrue, reason: theirs);
+      expect(() => DevicePaths.own(dataDir: theirs, cacheDir: own.cacheDir), throwsStateError, reason: theirs);
+      expect(() => DevicePaths.own(dataDir: own.dataDir, cacheDir: theirs), throwsStateError, reason: theirs);
+    }
+    // A folder that only begins with the Tauri app's name is another folder.
+    expect(isRealAppPath('$home/Application Support/com.mattssoftware.glyph.staging'), isFalse);
+    expect(realAppId, 'com.mattssoftware.glyph');
+  });
+
+  test('what the Mac app is told its directories are is asked the same before anything is opened', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    Map<String, String> said = {'dataDir': '/Users/someone/Library/Application Support/com.mattssoftware.glyph', 'cacheDir': '/Users/someone/Library/Caches/com.mattssoftware.glyph.flutter'};
+    messenger.setMockMethodCallHandler(DevicePaths.channel, (call) async => said);
+    addTearDown(() => messenger.setMockMethodCallHandler(DevicePaths.channel, null));
+    await expectLater(DevicePaths.fromActivity(), throwsStateError);
+    said = {'dataDir': '/Users/someone/Library/Application Support/com.mattssoftware.glyph.flutter', 'cacheDir': '/Users/someone/Library/Caches/com.mattssoftware.glyph.flutter'};
+    expect((await DevicePaths.fromActivity()).dataDir, endsWith('/com.mattssoftware.glyph.flutter'));
+  });
+
   test('a test on a Mac keeps to its temporary folder, memory for secrets, and no microphone', () async {
     final paths = await DevicePaths.find();
     expect(paths.dataDir, DevicePaths.fallback().dataDir);
@@ -69,54 +108,45 @@ void main() {
       expect(readFolderAnswer('{"cancelled":true}'), const FolderCancelled());
     });
 
-    test('a drive is listed by the Mac app, allowed once in its panel, then backed up to by its path and ejected', () async {
+    test('the drives are the core’s, as the Tauri app’s: listed, backed up to by path with nothing to allow, ejected', () async {
       final asked = <String>[];
       final runs = <Map<String, Object?>>[];
-      var allowed = false;
       final backups = Backups(
-        invoke: (command, [args = const {}]) {
+        invoke: (command, [args = const {}]) async {
           asked.add('$command ${args['drive'] ?? ''}'.trim());
+          if (command == 'backup_drives') {
+            return [
+              {'id': '/Volumes/KINGSTON', 'name': 'KINGSTON', 'free': 30000000000, 'total': 32000000000, 'last': {'backedUpAt': '2026-10-05T18:52:00Z', 'notes': 312}},
+            ];
+          }
           return invoke(command, args);
         },
         platform: TargetPlatform.macOS,
-        macDrives: () async => allowed
-            ? '[{"id":"/Volumes/KINGSTON","name":"KINGSTON","free":30000000000,"total":32000000000,"tree":"/Volumes/KINGSTON"}]'
-            : '[{"id":"/Volumes/KINGSTON","name":"KINGSTON","free":30000000000,"total":32000000000}]',
-        chooseDrive: (id) async {
-          allowed = true;
-          return '{"tree":"$id"}';
-        },
-        eject: (id) async => asked.add('eject $id'),
+        macApp: true,
         run: (request, onProgress) async {
           runs.add(request);
           return const Backed();
         },
       );
       expect(await backups.way(), BackupWay.mac);
-      var drive = (await backups.listDrives(BackupWay.mac)).single;
-      // Not yet allowed: nothing on it is read, and a backup says to allow it first.
-      expect((drive.tree, drive.last), (null, null));
-      expect(backups.needsAllowing(BackupWay.mac, drive), isTrue);
-      expect(await backups.listBackupFiles(BackupWay.mac, drive), isNull);
-      await expectLater(backups.runBackup(BackupWay.mac, drive, (_) {}), throwsA(isA<StateError>()));
-      expect(asked, isEmpty);
-
-      expect(await backups.allowDrive(drive.id), const DriveAllowed('/Volumes/KINGSTON'));
-      drive = (await backups.listDrives(BackupWay.mac)).single;
+      final drive = (await backups.listDrives(BackupWay.mac)).single;
       expect(drive.last, const LastBackup(backedUpAt: '2026-10-05T18:52:00Z', notes: 312));
+      // No panel and no grant on a Mac: the drive is written by its path.
       expect(backups.needsAllowing(BackupWay.mac, drive), isFalse);
+      expect(drive.tree, isNull);
       expect(await backups.listBackupFiles(BackupWay.mac, drive), const [HeldFile('Inbox/A.md', 3)]);
       await backups.runBackup(BackupWay.mac, drive, (_) {}, at: DateTime(2026, 10, 9, 12));
       expect(runs.single['drive'], '/Volumes/KINGSTON');
       expect(runs.single.containsKey('tree'), isFalse);
       await backups.ejectDrive(drive);
-      expect(asked, ['backup_last /Volumes/KINGSTON', 'backup_files /Volumes/KINGSTON', 'eject /Volumes/KINGSTON']);
+      expect(asked, ['backup_drives', 'backup_files /Volumes/KINGSTON', 'backup_eject /Volumes/KINGSTON']);
     });
 
-    test('a Mac’s drives outside the Mac app are the core’s, which asks for no allowing', () async {
-      final backups = Backups(invoke: invoke, platform: TargetPlatform.macOS, run: (request, onProgress) async => const Backed());
+    test('a Mac outside the Mac app (a test, a desktop run) offers no backup', () async {
+      final backups = Backups(invoke: invoke, platform: TargetPlatform.macOS, macApp: false, run: (request, onProgress) async => const Backed());
       expect(await backups.way(), BackupWay.none);
-      expect(backups.needsAllowing(BackupWay.mac, const BackupDrive(id: '/Volumes/SD', name: 'SD')), isFalse);
+      // And asked from a test on a Mac with nothing said, it is not the Mac app.
+      expect(await Backups(invoke: invoke, platform: TargetPlatform.macOS, run: (request, onProgress) async => const Backed()).way(), BackupWay.none);
     });
 
     test('an export is saved through the Mac’s panel by the descriptor it hands over, as Android’s is', () async {

@@ -9,10 +9,12 @@
 /// one level down, where a library moved over from the Tauri app would not be found.
 ///
 /// **In the Mac app** they are Tauri's two as well, `<Application Support>/<bundle id>` and `<Caches>/<bundle id>`,
-/// answered by macos/Runner/GhostChannels.swift over the same channel. The bundle id is this app's own
-/// (`com.mattssoftware.glyph.flutter`) and the app is sandboxed, so both are inside its own container
-/// (`~/Library/Containers/<that id>/Data/Library/…`): never the Tauri app's
-/// `~/Library/Application Support/com.mattssoftware.glyph`, which this app cannot open and never asks for.
+/// answered by macos/Runner/GhostChannels.swift over the same channel. The bundle id is this app's own, so they
+/// are `~/Library/Application Support/com.mattssoftware.glyph.flutter` and
+/// `~/Library/Caches/com.mattssoftware.glyph.flutter`: beside the Tauri app's
+/// `~/Library/Application Support/com.mattssoftware.glyph`, never it and never in it. The app is not sandboxed, so
+/// that is held here, in code: whatever is answered is refused if it is the Tauri app's folder or a place inside
+/// it ([isRealAppPath], lib/core/mac_app.dart), and the core is then never opened.
 ///
 /// **Anywhere else** (a test on the Mac, a `flutter run` outside an app bundle) it is a folder under the system's
 /// temporary directory, so the app runs and nothing of a person's is mistaken for it.
@@ -46,7 +48,16 @@ class DevicePaths {
     if (data == null || cache == null) {
       throw StateError('The device did not say where Ghost.md keeps its files.');
     }
-    return DevicePaths(dataDir: data, cacheDir: cache);
+    return DevicePaths.own(dataDir: data, cacheDir: cache);
+  }
+
+  /// The two directories, refused if either is the Tauri app's own folder or inside it: this app has a folder of
+  /// its own and opens no other app's library.
+  factory DevicePaths.own({required String dataDir, required String cacheDir}) {
+    if (isRealAppPath(dataDir) || isRealAppPath(cacheDir)) {
+      throw StateError('Ghost Flutter keeps its own files and will not open Ghost.md’s.');
+    }
+    return DevicePaths(dataDir: dataDir, cacheDir: cacheDir);
   }
 
   /// Off Android and outside the Mac app: `<temp>/ghost_md/data` and `<temp>/ghost_md/cache`, the same on every run.

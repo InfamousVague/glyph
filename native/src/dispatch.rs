@@ -488,6 +488,10 @@ pub(crate) fn call_on(core: &Arc<Core>, command: &str, args: Value) -> Result<Va
         if crate::capture::has(command) {
             return crate::capture::call(core, command, args);
         }
+        // The Mac's own sound in a meeting: the tap, mixed into what the capture is pushed.
+        if crate::kept::system_audio::has(command) {
+            return crate::kept::system_audio::call(command);
+        }
         if crate::ai::has(command) {
             return crate::ai::call(core, command, args);
         }

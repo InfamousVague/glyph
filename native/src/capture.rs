@@ -43,8 +43,10 @@
 //! - **`ghost_capture_push(samples, count)`** is the plain C door for audio (and, on Android, the JNI function
 //!   `DictationMic.push` beside it): the same push without base64 or the isolate. 0 when taken, 1 when no
 //!   capture is running, 2 for a null pointer.
-//! - **The Mac's system-audio tap** (system_audio.rs, Core Audio) is not here: the Flutter app has no Mac
-//!   target of its own yet. A phone's meeting takes other apps' sound in Kotlin (OtherApps.kt).
+//! - **The Mac's system-audio tap** (system_audio.rs, Core Audio) is kept/system_audio.rs: its commands are
+//!   there, and [`push`] adds the computer's sound into each chunk while a tap is open, as `capture_push` does
+//!   in the Tauri app. A capture's start, stop and cancel close the tap. A phone's meeting takes other apps'
+//!   sound in Kotlin (OtherApps.kt).
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
@@ -171,7 +173,16 @@ fn emit(event: Event) {
 pub fn push(samples: &[f32]) -> bool {
     match lock(&state().capture).as_ref() {
         Some(capture) => {
-            capture.push(samples);
+            // The computer's sound, when a meeting on the Mac asked for it (kept/system_audio.rs): nothing otherwise,
+            // and then the chunk is pushed as it came, without a copy.
+            let system = crate::kept::system_audio::state();
+            if system.capturing() {
+                let mut mixed = samples.to_vec();
+                system.mix_into(&mut mixed);
+                capture.push(&mixed);
+            } else {
+                capture.push(samples);
+            }
             true
         }
         None => false,
@@ -300,6 +311,9 @@ pub fn call(core: &Arc<Core>, command: &str, args: Value) -> Result<Value, Strin
             // talking gets the cores (guards.rs). The capture counts as running from here, before its model loads.
             let _starting = crate::guards::capture_starting();
             crate::guards::abort_with("capturing");
+            // A tap an earlier capture left open belongs to the capture this replaces: the meeting that wants one
+            // asks again once this has started.
+            crate::kept::system_audio::state().stop();
             let engine = engine(&models)?;
             let abort = Arc::new(AtomicBool::new(false));
             let session = Session::new(engine, Arc::clone(&abort))?;
@@ -327,6 +341,7 @@ pub fn call(core: &Arc<Core>, command: &str, args: Value) -> Result<Value, Strin
             let Stop { record_as, append } = read(command, args)?;
             // Taken here, in the command: a push or a second stop sent after this one finds no capture.
             let capture = take_capture().ok_or("No capture is running.")?;
+            crate::kept::system_audio::state().stop();
             started("capture-stop", move |_| {
                 let stopped = capture.stop()?;
                 let mut recorded_ms = None;
@@ -367,6 +382,7 @@ pub fn call(core: &Arc<Core>, command: &str, args: Value) -> Result<Value, Strin
         }
         "capture_cancel" => {
             let taken = take_capture();
+            crate::kept::system_audio::state().stop();
             started("capture-cancel", move |_| {
                 if let Some(capture) = taken {
                     capture.cancel();

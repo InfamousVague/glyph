@@ -28,10 +28,35 @@
 	<string>Ghost Flutter</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>ghostmd</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Ghost.md uses the microphone only while you are recording, to turn what you say into a note.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Ghost.md records the sound your Mac plays only during a meeting you asked it to, so both sides of the call are in the recording.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Ghost.md keeps your notes in the folder you chose for them, as Markdown files.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>Ghost.md keeps your notes in the folder you chose for them, as Markdown files.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Ghost.md keeps your notes in the folder you chose for them, as Markdown files.</string>
 	<key>NSRemovableVolumesUsageDescription</key>
-	<string>Ghost.md backs up your notes onto the drive you chose, as Markdown files.</string>
+	<string>Ghost.md keeps your notes in the folder you chose for them on this drive, as Markdown files.</string>
+	<key>NSNetworkVolumesUsageDescription</key>
+	<string>Ghost.md keeps your notes in the folder you chose for them on this server, as Markdown files.</string>
+	<key>NSFileProviderDomainUsageDescription</key>
+	<string>Ghost.md keeps your notes in the folder you chose for them in iCloud Drive or Dropbox, as Markdown files.</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>

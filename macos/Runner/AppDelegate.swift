@@ -32,9 +32,11 @@ class AppDelegate: FlutterAppDelegate {
     return true
   }
 
-  /// A link that opens the app (`ghostmd://…`). The scheme is not claimed in Info.plist while this app sits beside
-  /// the Tauri app, which owns it on a Mac that has both (README, "What the Mac app left open"); a build that
-  /// claims it is handed its links here.
+  /// A link that opens the app (`ghostmd://…`, claimed in Info.plist's CFBundleURLTypes; Matt, 2026-10-09: "claim
+  /// it"): a note, the notifications, an organization, an invitation, something shared. macOS hands them here at
+  /// launch and while the app runs; each is kept for the page, which takes them when it is ready
+  /// (`ghost_md/links`, lib/core/phone_links.dart). On a Mac that also has the Tauri app, both claim the scheme
+  /// and macOS chooses one of them.
   override func application(_ application: NSApplication, open urls: [URL]) {
     for url in urls { window?.arrived(url) }
   }

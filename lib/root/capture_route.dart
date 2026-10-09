@@ -23,7 +23,8 @@
 ///
 /// What differs:
 /// - The hook's options and refs are this object's fields; [CaptureRouteWorld] is what it asks of the app.
-/// - **The Mac's recorder in meeting mode** is not reached: the only meeting here is the phone's service.
+/// - **The Mac's recorder in meeting mode** is reached where there is no service and the recorder says a meeting
+///   can be recorded, which is the Mac app (lib/root/voice_wiring.dart); the page asked `isAndroid`.
 /// - **The place is asked for by the app** ([CaptureRouteWorld.tagNew], an entry's [EntryAim.tag]) once the
 ///   capture's screen has gone, as `tagAfter` waited for the screen to change: called straight after the next
 ///   screen is put up, never at [CaptureRoute.start], so no location prompt is raised over the recorder's own.
@@ -272,8 +273,17 @@ class CaptureRoute {
   /// A press of Meeting while one is being made is the same press.
   bool _making = false;
 
-  /// A meeting: the phone's service with the meeting screen over it (`meeting`).
+  /// A meeting: the Mac's recorder in meeting mode, or the phone's service with the meeting screen over it
+  /// (`meeting`).
   Future<void> meeting([bool fromAssistant = false]) async {
+    // The Mac: the recorder itself, with the dictation features off (lib/capture/ui/capture_screen.dart `meeting`).
+    // Its window keeps running behind other apps, so there is no service to start and no note to make first.
+    if (voice.service == null && voice.recorder.canRecordMeeting) {
+      await afterPendingDeletes(world.flushDeletes, () {
+        if (!_gone) world.setScreen(ScreenCapture.fresh(fromAssistant, meeting: true, now: _now()));
+      });
+      return;
+    }
     if (showMeeting(fromAssistant) || _making) return;
     _making = true;
     try {

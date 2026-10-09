@@ -20,6 +20,31 @@ bool inMacAppFor({required String executable, required bool macOS, required bool
 
 bool _inMacApp({required String executable, required bool macOS, required bool test}) => macOS && !test && executable.contains('.app/Contents/MacOS/');
 
+/// The Tauri app's bundle id: the name of the folder it keeps its library, settings and models in
+/// (`~/Library/Application Support/com.mattssoftware.glyph`) and its caches under.
+const String realAppId = 'com.mattssoftware.glyph';
+
+/// Whether [path] is the Tauri app's own folder or a place inside it: any path with a folder named exactly
+/// [realAppId] in it. This app's own folder is `com.mattssoftware.glyph.flutter`, a different name beside it.
+///
+/// The Mac app is not sandboxed (Matt, 2026-10-09: "un sandbox it"), so nothing but the app's own code keeps it out
+/// of the Tauri app's files. The directories the core is opened on are asked this before anything is opened
+/// (lib/core/native/device_paths.dart), as the Swift that names them is (macos/Runner/GhostChannels.swift
+/// `ownDirectory`): the Flutter app never opens, moves or writes the Tauri app's library.
+bool isRealAppPath(String path) {
+  final parts = path.replaceAll('\\', '/').split('/');
+  final walked = <String>[];
+  for (final part in parts) {
+    if (part.isEmpty || part == '.') continue;
+    if (part == '..') {
+      if (walked.isNotEmpty) walked.removeLast();
+      continue;
+    }
+    walked.add(part);
+  }
+  return walked.any((part) => part.toLowerCase() == realAppId);
+}
+
 /// Where the Rust core is in the Mac app: `<app>/Contents/Frameworks/libghost_core.dylib`, put there and signed
 /// by Xcode's "Bundle the core" phase (tool/bundle-mac-core.sh). Asked for by its whole path: a bare name is
 /// looked for along the loader's own paths, which do not include an app's Frameworks.

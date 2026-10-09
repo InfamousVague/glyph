@@ -11,10 +11,13 @@ import UniformTypeIdentifiers
 /// app, and pictures. The pickers and drives are FilesChannel.swift, a recording's player TapeChannel.swift, the
 /// microphone MicChannel.swift, the window itself MainFlutterWindow.swift.
 ///
-/// THE APP'S FILES ARE ITS OWN. The bundle id is `com.mattssoftware.glyph.flutter` and the app is sandboxed, so
-/// everything it keeps is under `~/Library/Containers/<that id>/Data`; the Tauri app's library
-/// (`~/Library/Application Support/com.mattssoftware.glyph`) is outside the sandbox and cannot be opened, moved
-/// or written from here. `dirs` refuses to answer at all should a build ever carry the Tauri app's own id.
+/// THE APP'S FILES ARE ITS OWN. The bundle id is `com.mattssoftware.glyph.flutter`, and everything the app keeps
+/// is in the folder of that name: `~/Library/Application Support/com.mattssoftware.glyph.flutter` and
+/// `~/Library/Caches/com.mattssoftware.glyph.flutter`, as Tauri names its two. The app is not sandboxed (Matt,
+/// 2026-10-09: "un sandbox it"), so nothing but this code keeps it out of the Tauri app's
+/// `~/Library/Application Support/com.mattssoftware.glyph`: [ownDirectory] names a folder only for an id that is
+/// not the Tauri app's and refuses any path that is that folder or inside it, `dirs` answers nothing for a build
+/// that fails it, and lib/core/native/device_paths.dart asks the same of the answer before the core is opened.
 final class GhostChannels: NSObject {
   /// The Tauri app's bundle id: never this app's.
   static let realApp = "com.mattssoftware.glyph"
@@ -34,14 +37,11 @@ final class GhostChannels: NSObject {
     mic = MicChannel(messenger: messenger)
     super.init()
 
-    listen("ghost_md/device_paths", messenger) { [weak self] call, result in
+    listen("ghost_md/device_paths", messenger) { call, result in
       guard call.method == "dirs" else { return result(FlutterMethodNotImplemented) }
       guard let dirs = GhostChannels.dirs() else {
         return result(FlutterError(code: "paths", message: "Ghost Flutter will not open another app's files.", details: nil))
       }
-      // A folder of the person's chosen for the library, or a drive allowed for a backup: their grants are taken
-      // up again before the core opens anything.
-      self?.files.restoreGrants()
       result(["dataDir": dirs.data.path, "cacheDir": dirs.cache.path])
     }
 
@@ -128,17 +128,27 @@ final class GhostChannels: NSObject {
   }
 
   /// `<Application Support>/<bundle id>` and `<Caches>/<bundle id>`, as Tauri names its two (`app_data_dir`,
-  /// `app_cache_dir`), inside this app's own container. Nil for a build with the Tauri app's id.
+  /// `app_cache_dir`). Nil for a build with the Tauri app's id, or should either ever come out as the Tauri app's
+  /// folder or a place inside it.
   static func dirs() -> (data: URL, cache: URL)? {
-    guard let id = Bundle.main.bundleIdentifier, id != realApp, !id.isEmpty else { return nil }
     let manager = FileManager.default
-    guard let support = manager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first, let caches = manager.urls(for: .cachesDirectory, in: .userDomainMask).first else { return nil }
-    let data = support.appendingPathComponent(id, isDirectory: true), cache = caches.appendingPathComponent(id, isDirectory: true)
-    // Belt and braces: whatever the sandbox says, never the Tauri app's folder.
-    if data.lastPathComponent == realApp || cache.lastPathComponent == realApp { return nil }
+    guard let id = Bundle.main.bundleIdentifier, let support = manager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first, let caches = manager.urls(for: .cachesDirectory, in: .userDomainMask).first,
+      let data = ownDirectory(in: support, id: id), let cache = ownDirectory(in: caches, id: id)
+    else { return nil }
     try? manager.createDirectory(at: data, withIntermediateDirectories: true)
     try? manager.createDirectory(at: cache, withIntermediateDirectories: true)
     return (data, cache)
+  }
+
+  /// This app's folder under `base`: `<base>/<id>`, for an id that is not the Tauri app's, and never the Tauri
+  /// app's folder there or anything inside it (an id with a `/` or a `..` in it could otherwise name one).
+  static func ownDirectory(in base: URL, id: String) -> URL? {
+    guard !id.isEmpty, id != realApp, !id.contains("/"), !id.contains("..") else { return nil }
+    let own = base.appendingPathComponent(id, isDirectory: true).standardizedFileURL
+    let theirs = base.appendingPathComponent(realApp, isDirectory: true).standardizedFileURL
+    let ownParts = own.pathComponents, theirParts = theirs.pathComponents
+    if ownParts.count >= theirParts.count && Array(ownParts.prefix(theirParts.count)) == theirParts { return nil }
+    return own
   }
 
   // MARK: pictures
@@ -156,14 +166,13 @@ final class GhostChannels: NSObject {
     panel.canChooseDirectories = false
     panel.allowsMultipleSelection = false
     panel.allowedContentTypes = [.image]
-    let done: (NSApplication.ModalResponse) -> Void = { response in
-      guard response == .OK, let url = panel.url else { return result(["cancelled": true]) }
+    Panels.show(panel, on: window) { url in
+      guard let url = url else { return result(["cancelled": true]) }
       guard let source = CGImageSourceCreateWithURL(url as CFURL, nil), let path = GhostChannels.keep(source) else {
         return result(FlutterError(code: "pictures", message: url.pathExtension.lowercased() == "heic" ? "This Mac can’t open that HEIC picture. Save it as a JPEG first." : "The picture could not be read.", details: nil))
       }
       result(["path": path])
     }
-    if let window = window { panel.beginSheetModal(for: window, completionHandler: done) } else { done(panel.runModal()) }
   }
 
   /// The clipboard as the phone's is read (lib/editor/band/clipboard.dart): a picture copied out of it as

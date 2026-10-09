@@ -20,21 +20,27 @@
 //!   with `job://end`. The one backup is claimed before the id is answered: a second is refused at once, in the
 //!   original's words. Its progress event is the web's, with no id in it, there being one backup.
 //! - **The state is this process's** ([`STATE`]), where Tauri managed one.
-//! - **No `backup_drives` and no `backup_eject` here.** The Mac's are Swift's (macos/Runner/FilesChannel.swift):
-//!   the app is sandboxed, where the Tauri app is not, so `diskutil` is not its to run and a drive is written only
-//!   once the person has granted it in a panel. A `drive` is taken on the Mac alone ([`mac_drive`]): a mount of
-//!   its own under `/Volumes`, as the original's `listed` asks, written as a folder. Windows' are its target's.
-//!   Android's drives are the activity's (android/…/glyph/files/BackupDrives.kt), and a backup goes by its `tree`.
+//! - **`backup_drives` and `backup_eject` are the Mac's**, as the original has them: the mounts under `/Volumes`
+//!   that `diskutil` calls neither internal nor a disk image, and `diskutil eject`. Their helpers are the
+//!   original's lines; the two commands are written here over them, since theirs wear `#[tauri::command]`. A
+//!   `drive` is taken only if it is one of the drives listed right now (`drive_root`). Windows' drive letters are
+//!   its target's, not built here. Android's drives are the activity's (android/…/glyph/files/BackupDrives.kt),
+//!   and a backup goes onto one by its `tree`.
 //! - **With the test hooks** (the Mac's library for Dart's tests, and `cargo test`) a request may name a `folder`
 //!   instead: a directory standing in for a drive's root, written as the Mac's drives are (`backup::FolderTarget`).
+
+// The Mac's drives are read only on a Mac; the phone's library compiles them and calls none.
+#![cfg_attr(not(target_os = "macos"), allow(dead_code))]
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use serde::Deserialize;
+use std::path::{Path, PathBuf};
+
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::backup::{self, Media, Progress, Target};
+use crate::backup::{self, Last, Media, Progress, Target};
 use crate::dispatch::{read, Core};
 
 // copied:begin
@@ -94,6 +100,145 @@ fn said(error: std::io::Error) -> String {
         _ => format!("The backup could not be written: {error}"),
     }
 }
+
+/// A drive a backup can go to.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Drive {
+    /// Its path on the Mac, `/Volumes/<name>`.
+    pub id: String,
+    pub name: String,
+    pub free: Option<u64>,
+    pub total: Option<u64>,
+    pub last: Option<Last>,
+}
+
+/// A path the page names as a drive: one `backup_drives` lists right now, and no other place on the computer.
+fn drive_root(path: &str) -> Result<PathBuf, String> {
+    let asked = Path::new(path);
+    listed().into_iter().map(|(root, _)| root).find(|root| root == asked).ok_or_else(|| "That drive isn’t plugged in any more.".to_string())
+}
+
+/// The removable drives plugged in now, by their roots, each with the name the page shows: the Mac's mounts under
+/// `/Volumes`, Windows' drive letters.
+#[cfg(not(windows))]
+fn listed() -> Vec<(PathBuf, String)> {
+    let Ok(entries) = std::fs::read_dir("/Volumes") else { return Vec::new() };
+    entries
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| is_removable(path))
+        .map(|path| {
+            let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            (path, name)
+        })
+        .collect()
+}
+
+// ---- the Mac's drives --------------------------------------------------------------------------
+
+/// What `diskutil` said of each mounted volume, by its path and device, so it is asked once while it stays mounted.
+#[cfg(target_os = "macos")]
+static SEEN: std::sync::Mutex<Option<std::collections::HashMap<PathBuf, (u64, bool)>>> = std::sync::Mutex::new(None);
+
+/// Whether `path` is a removable drive mounted under `/Volumes`: a mount of its own (not the boot volume's link to
+/// `/`), which `diskutil` calls neither internal nor a disk image, and writable. A USB stick, an SD card, an external
+/// disk; never a mounted .dmg, the Recovery volume or a network share.
+#[cfg(target_os = "macos")]
+fn is_removable(path: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    let Ok(link) = std::fs::symlink_metadata(path) else { return false };
+    if link.file_type().is_symlink() || !link.is_dir() {
+        return false;
+    }
+    let Ok(volumes) = std::fs::metadata("/Volumes") else { return false };
+    if link.dev() == volumes.dev() {
+        // Not a mount: a folder left in /Volumes.
+        return false;
+    }
+    let device = link.dev();
+    let mut seen = SEEN.lock().unwrap_or_else(|e| e.into_inner());
+    let known = seen.get_or_insert_with(Default::default);
+    if let Some((was, removable)) = known.get(path) {
+        if *was == device {
+            return *removable;
+        }
+    }
+    let removable = diskutil_says_removable(path);
+    known.insert(path.to_path_buf(), (device, removable));
+    removable
+}
+
+#[cfg(target_os = "macos")]
+fn diskutil_says_removable(path: &Path) -> bool {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let Ok(info) = Command::new("/usr/sbin/diskutil").arg("info").arg("-plist").arg(path).output() else { return false };
+    if !info.status.success() {
+        return false;
+    }
+    // The plist read as JSON by the Mac's own plutil: no plist crate for five keys.
+    let Ok(mut child) = Command::new("/usr/bin/plutil").args(["-convert", "json", "-o", "-", "-"]).stdin(Stdio::piped()).stdout(Stdio::piped()).spawn() else { return false };
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = stdin.write_all(&info.stdout);
+    }
+    let Ok(out) = child.wait_with_output() else { return false };
+    let Ok(said) = serde_json::from_slice::<serde_json::Value>(&out.stdout) else { return false };
+    removable_by(&said)
+}
+
+/// What `diskutil info -plist` says, read as a removable drive a backup can write: not a disk image, not internal or
+/// else removable media (a Mac's own SD card slot), and writable.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn removable_by(said: &serde_json::Value) -> bool {
+    let yes = |key: &str| said.get(key).and_then(serde_json::Value::as_bool).unwrap_or(false);
+    let bus = said.get("BusProtocol").and_then(serde_json::Value::as_str).unwrap_or("");
+    if bus == "Disk Image" {
+        return false;
+    }
+    let outside = !said.get("Internal").and_then(serde_json::Value::as_bool).unwrap_or(true) || yes("RemovableMedia") || yes("Removable") || yes("Ejectable");
+    outside && yes("WritableVolume")
+}
+
+#[cfg(all(not(target_os = "macos"), not(windows)))]
+fn is_removable(_path: &Path) -> bool {
+    false
+}
+
+
+#[cfg(unix)]
+fn statvfs(path: &Path) -> Option<libc::statvfs> {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+    let c_path = CString::new(path.as_os_str().as_bytes()).ok()?;
+    let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
+    // SAFETY: `c_path` is a valid NUL-terminated string and `stat` is a properly sized, writable statvfs to fill.
+    let rc = unsafe { libc::statvfs(c_path.as_ptr(), &mut stat) };
+    (rc == 0).then_some(stat)
+}
+
+/// The room left on the drive, for the person and for the backup's check before it writes.
+#[cfg(unix)]
+#[allow(clippy::unnecessary_cast)]
+fn free_bytes(path: &Path) -> Option<u64> {
+    statvfs(path).map(|stat| stat.f_bavail as u64 * stat.f_frsize as u64)
+}
+
+#[cfg(unix)]
+#[allow(clippy::unnecessary_cast)]
+fn total_bytes(path: &Path) -> Option<u64> {
+    statvfs(path).map(|stat| stat.f_blocks as u64 * stat.f_frsize as u64)
+}
+
+#[cfg(not(any(unix, windows)))]
+fn free_bytes(_path: &Path) -> Option<u64> {
+    None
+}
+
+#[cfg(not(any(unix, windows)))]
+fn total_bytes(_path: &Path) -> Option<u64> {
+    None
+}
 // copied:end
 
 /// The one backup's state, for the life of the process.
@@ -112,6 +257,11 @@ struct Named {
 }
 
 #[derive(Deserialize)]
+struct Eject {
+    drive: String,
+}
+
+#[derive(Deserialize)]
 struct Run {
     request: BackupRequest,
     /// As [`Named::folder`].
@@ -126,8 +276,8 @@ fn target_of(drive: Option<&str>, tree: Option<&str>, folder: Option<&str>) -> R
         return Ok((Box::new(backup::FolderTarget { root: folder.into() }), None));
     }
     let _ = folder;
-    if let Some(drive) = drive {
-        let root = mac_drive(std::path::Path::new(drive)).ok_or_else(|| "That drive isn’t plugged in any more.".to_string())?;
+    if let Some(path) = drive {
+        let root = drive_root(path)?;
         let free = free_bytes(&root);
         return Ok((Box::new(backup::FolderTarget { root }), free));
     }
@@ -137,49 +287,7 @@ fn target_of(drive: Option<&str>, tree: Option<&str>, folder: Option<&str>) -> R
     Err("Choose a drive to back up to.".into())
 }
 
-/// A path the page names as a drive, on the Mac: a folder directly under `/Volumes` that is a mount of its own
-/// (not the boot volume's link to `/`, nor a folder left there). Which mounts are removable is Swift's to say
-/// (see the header); this only refuses every other place on the computer.
-#[cfg(target_os = "macos")]
-fn mac_drive(path: &std::path::Path) -> Option<std::path::PathBuf> {
-    use std::os::unix::fs::MetadataExt;
-    if path.parent() != Some(std::path::Path::new("/Volumes")) {
-        return None;
-    }
-    let link = std::fs::symlink_metadata(path).ok()?;
-    if link.file_type().is_symlink() || !link.is_dir() {
-        return None;
-    }
-    // In the sandbox `/Volumes` itself may not be read; the boot volume is asked instead.
-    let home = std::fs::metadata("/Volumes").or_else(|_| std::fs::metadata("/")).ok()?;
-    (link.dev() != home.dev()).then(|| path.to_path_buf())
-}
-
-#[cfg(not(target_os = "macos"))]
-fn mac_drive(_path: &std::path::Path) -> Option<std::path::PathBuf> {
-    None
-}
-
-/// The room left on the drive, as the original's `free_bytes`.
-#[cfg(unix)]
-fn free_bytes(path: &std::path::Path) -> Option<u64> {
-    use std::os::unix::ffi::OsStrExt;
-    let c = std::ffi::CString::new(path.as_os_str().as_bytes()).ok()?;
-    let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
-    // SAFETY: a NUL-terminated path and a zeroed struct of the right type.
-    if unsafe { libc::statvfs(c.as_ptr(), &mut stat) } != 0 {
-        return None;
-    }
-    #[allow(clippy::unnecessary_cast)]
-    Some(stat.f_bavail as u64 * stat.f_frsize as u64)
-}
-
-#[cfg(not(unix))]
-fn free_bytes(_path: &std::path::Path) -> Option<u64> {
-    None
-}
-
-const COMMANDS: &[&str] = &["backup_last", "backup_files", "backup_run", "backup_cancel"];
+const COMMANDS: &[&str] = &["backup_drives", "backup_last", "backup_files", "backup_run", "backup_cancel", "backup_eject"];
 
 /// Whether `command` is one of this file's.
 pub fn has(command: &str) -> bool {
@@ -239,6 +347,35 @@ pub fn call(core: &Arc<Core>, command: &str, args: Value) -> Result<Value, Strin
         "backup_cancel" => {
             STATE.cancel.store(true, Ordering::SeqCst);
             Ok(Value::Null)
+        }
+        // Every removable drive the Mac has mounted, with its room and the last backup it holds.
+        "backup_drives" => {
+            let mut drives: Vec<Drive> = listed()
+                .into_iter()
+                .map(|(path, name)| {
+                    let target = backup::FolderTarget { root: path.clone() };
+                    Drive { id: path.to_string_lossy().into_owned(), name, free: free_bytes(&path), total: total_bytes(&path), last: backup::last(&target) }
+                })
+                .collect();
+            drives.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+            answer(drives)
+        }
+        // A Mac drive put away, so it can be pulled out: `diskutil eject`. Refused while a backup runs.
+        "backup_eject" => {
+            let Eject { drive } = read(command, args)?;
+            if STATE.running.load(Ordering::SeqCst) {
+                return Err("Wait for the backup to finish.".into());
+            }
+            let path = drive_root(&drive)?;
+            if !cfg!(target_os = "macos") {
+                return Err("Eject the drive from the taskbar before unplugging it.".into());
+            }
+            let out = std::process::Command::new("/usr/sbin/diskutil").arg("eject").arg(&path).output().map_err(|e| e.to_string())?;
+            if out.status.success() {
+                Ok(Value::Null)
+            } else {
+                Err("The drive could not be ejected. Close anything that has it open, then try again.".into())
+            }
         }
         _ => Err(format!("Ghost.md's core has no command named {command}.")),
     }
@@ -302,13 +439,22 @@ mod tests {
     #[test]
     fn a_drive_is_named_by_its_tree_and_only_a_phone_has_one() {
         let (core, _root) = core();
-        assert!(has("backup_run") && has("backup_last") && has("backup_files") && has("backup_cancel") && !has("backup_drives"));
+        assert!(has("backup_run") && has("backup_last") && has("backup_files") && has("backup_cancel") && has("backup_drives") && has("backup_eject"));
         assert_eq!(call(&core, "backup_last", json!({})), Err("Choose a drive to back up to.".into()));
         assert_eq!(call(&core, "backup_last", json!({"drive": "/Volumes/KINGSTON"})), Err("That drive isn’t plugged in any more.".into()));
         // No other place on the computer is a drive: not a folder, not the boot volume by its link.
         assert_eq!(call(&core, "backup_last", json!({"drive": "/tmp"})), Err("That drive isn’t plugged in any more.".into()));
         assert_eq!(call(&core, "backup_last", json!({"drive": "/Volumes/../Users"})), Err("That drive isn’t plugged in any more.".into()));
-        assert_eq!(mac_drive(std::path::Path::new("/Volumes/Macintosh HD")), None);
+        assert_eq!(call(&core, "backup_eject", json!({"drive": "/"})), Err("That drive isn’t plugged in any more.".into()));
+        // The drives are a list, each with a path under /Volumes; this Mac's own disk is never one of them.
+        let drives = call(&core, "backup_drives", json!({})).unwrap();
+        for drive in drives.as_array().unwrap() {
+            let id = drive["id"].as_str().unwrap();
+            assert!(id.starts_with("/Volumes/") && id != "/Volumes/Macintosh HD", "{id}");
+        }
+        assert!(removable_by(&json!({"Internal": false, "WritableVolume": true, "BusProtocol": "USB"})));
+        assert!(!removable_by(&json!({"Internal": false, "WritableVolume": true, "BusProtocol": "Disk Image"})));
+        assert!(!removable_by(&json!({"Internal": true, "WritableVolume": true, "BusProtocol": "Apple Fabric"})));
         #[cfg(not(target_os = "android"))]
         assert_eq!(call(&core, "backup_files", json!({"tree": "content://x/tree/y"})), Err("Only the Android app backs up through a drive's tree.".into()));
         assert!(call(&core, "backup_run", json!({})).unwrap_err().starts_with("invalid args for command `backup_run`: missing field `request`"));

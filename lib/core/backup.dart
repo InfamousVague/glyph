@@ -20,13 +20,10 @@
 ///   the page had; `backup://progress` is heard as the page heard it.
 /// - **No generation to wait for** (`BACKUP_GENERATION` 26, `BACKUP_FILES_GENERATION` 27): the Dart and the core
 ///   are one build, so `update` is only an Android run with no drives behind the channel.
-/// - **The Mac app's drives are Swift's** (macos/Runner/FilesChannel.swift), where the Tauri app's were the core's
-///   (`backup_drives`, `backup_eject`): this app is sandboxed, so which mounts are removable is asked of the Mac
-///   itself, a drive is written only after the person has allowed it once in the Mac's panel
-///   ([Backups.needsAllowing], the step Android always had), and Eject is the Mac's own. The list comes in
-///   Android's shape, a drive's `tree` being its own path once allowed; the backup itself goes by `drive`, as the
-///   page's did. Windows' drives are not ported, and outside the Mac app (a test, a desktop run) [Backups.way]
-///   answers `none`; [BackupWay.windows] and the core's own `backup_drives` are kept for the day they are.
+/// - **The Mac app's drives are the core's**, as the Tauri app's are (`backup_drives`, `backup_eject`,
+///   native/src/kept/backup_commands.rs): the removable mounts under `/Volumes`, each written by its path with
+///   nothing to allow first, and put away by Eject. Windows' drives are not ported, and outside the Mac app (a
+///   test, a desktop run) [Backups.way] answers `none`; [BackupWay.windows] is kept for the day they are.
 /// - **Dates are written in English**, in the phone's own order and clock once it has said which
 ///   (lib/core/locale_dates.dart, the page's own answers for en-US and en-GB), and until then as a browser set to
 ///   English (United States) writes them (lib/notes/when.dart says the same of its days).
@@ -81,8 +78,7 @@ class BackupDrive {
   final int? free;
   final int? total;
 
-  /// Android: the drive's tree Ghost.md may write, once the person has allowed it. In the Mac app, the drive's own
-  /// path once it has been allowed there; never in the Tauri Mac app, which asked nothing.
+  /// Android: the drive's tree Ghost.md may write, once the person has allowed it; never on the Mac.
   final String? tree;
   final LastBackup? last;
 
@@ -305,13 +301,12 @@ BackupRun coreBackupRun({required Future<CoreJob> Function(String command, [Map<
 
 /// The backup as the app reaches it: the page's imports, as one value (see the header).
 class Backups {
-  Backups({required CoreInvoke invoke, required BackupRun run, Future<String> Function()? drives, Future<String> Function()? macDrives, Future<String> Function(String id)? chooseDrive, Future<void> Function(String id)? eject, TargetPlatform? platform})
+  Backups({required CoreInvoke invoke, required BackupRun run, Future<String> Function()? drives, Future<String> Function(String id)? chooseDrive, TargetPlatform? platform, bool? macApp})
       : _invoke = invoke,
         _run = run,
         _platform = platform,
         _drives = drives,
-        _macDrives = macDrives,
-        _eject = eject,
+        _macApp = macApp ?? runsAsMacApp,
         _chooseDrive = chooseDrive;
 
   /// Over the app's own core and the phone's own drives.
@@ -320,11 +315,8 @@ class Backups {
         invoke: invoke,
         run: coreBackupRun(startJob: startJob, events: events),
         platform: platform,
-        // The activity's on Android; the Mac app's own (macos/Runner/FilesChannel.swift) on a Mac, by the same calls.
         drives: (platform ?? defaultTargetPlatform) == TargetPlatform.android ? drivesOnPhone : null,
-        macDrives: (platform ?? defaultTargetPlatform) == TargetPlatform.macOS && runsAsMacApp ? drivesOnPhone : null,
         chooseDrive: chooseDriveOnPhone,
-        eject: (platform ?? defaultTargetPlatform) == TargetPlatform.macOS && runsAsMacApp ? ejectOnMac : null,
       );
 
   final CoreInvoke _invoke;
@@ -334,15 +326,11 @@ class Backups {
   /// `GlyphHost.backupDrives`: the drives plugged in now, as the activity's JSON. Null is a shell without them.
   final Future<String> Function()? _drives;
 
-  /// The Mac app's own list (macos/Runner/FilesChannel.swift `backupDrives`), in the activity's shape. Null is not
-  /// the Mac app: a Mac's drives are then the core's to list (`backup_drives`), as the Tauri app's were.
-  final Future<String> Function()? _macDrives;
+  /// Whether this is the Mac app, whose core lists a Mac's drives (lib/core/mac_app.dart): never in a test on a Mac.
+  final bool _macApp;
 
   /// `GlyphHost.chooseBackupDrive`, answering what its `backupDrive` event said.
   final Future<String> Function(String id)? _chooseDrive;
-
-  /// The Mac app's Eject (Swift's, since a sandboxed app runs no `diskutil`); null asks the core's `backup_eject`.
-  final Future<void> Function(String id)? _eject;
 
   TargetPlatform get _device => _platform ?? defaultTargetPlatform;
 
@@ -350,25 +338,13 @@ class Backups {
   Future<BackupWay> way() async {
     if (_device == TargetPlatform.iOS) return BackupWay.none;
     if (_device == TargetPlatform.android) return _drives != null ? BackupWay.android : BackupWay.update;
-    // The Mac app lists its drives itself (see the header); no other desktop has them yet.
-    if (_device == TargetPlatform.macOS && _macDrives != null) return BackupWay.mac;
+    // The Mac app's core lists the Mac's drives (see the header); no other desktop has them yet.
+    if (_device == TargetPlatform.macOS && _macApp) return BackupWay.mac;
     return BackupWay.none;
   }
 
   /// The drives plugged in now, each with the last backup it holds where that can be read (`listDrives`).
   Future<List<BackupDrive>> listDrives(BackupWay way) async {
-    if (way == BackupWay.mac && _macDrives != null) {
-      // The Mac app: Swift's list, in Android's shape, `tree` the drive's own path once it has been allowed; the
-      // last backup is read from each drive the app may already open.
-      final drives = readAndroidDrives(await _macDrives.call());
-      return Future.wait([
-        for (final drive in drives)
-          if (drive.tree == null)
-            Future.value(drive)
-          else
-            _invoke('backup_last', {'drive': drive.id}).then<Object?>((last) => last, onError: (Object _) => null).then((last) => drive.withLast(_lastOf(last))),
-      ]);
-    }
     if (way == BackupWay.mac || way == BackupWay.windows) {
       final drives = await _invoke('backup_drives');
       return [
@@ -387,11 +363,11 @@ class Backups {
     ]);
   }
 
-  /// Whether the person has yet to let Ghost.md write [drive]: an Android drive with no tree, and in the Mac app
-  /// (sandboxed, where the Tauri app is not) a drive not yet chosen in the Mac's panel.
-  bool needsAllowing(BackupWay way, BackupDrive drive) => drive.tree == null && (way == BackupWay.android || (way == BackupWay.mac && _macDrives != null));
+  /// Whether the person has yet to let Ghost.md write [drive]: an Android drive with no tree. A Mac's drive is
+  /// written by its path, with nothing to allow.
+  bool needsAllowing(BackupWay way, BackupDrive drive) => way == BackupWay.android && drive.tree == null;
 
-  /// Android, and the Mac app: the person asked, once, to let Ghost.md write the drive (`allowDrive`).
+  /// Android: the person asked, once, to let Ghost.md write the drive (`allowDrive`).
   Future<DriveAnswer> allowDrive(String id) async {
     final choose = _chooseDrive;
     if (choose == null) return const DriveRefused('This phone has no way to choose a drive.');
@@ -425,22 +401,7 @@ class Backups {
   void cancelBackup() => unawaited(_invoke('backup_cancel').then<void>((_) {}, onError: (Object _) {}));
 
   /// The Mac: the drive put away, so it can be pulled out (`ejectDrive`).
-  Future<void> ejectDrive(BackupDrive drive) async {
-    final eject = _eject;
-    if (eject != null) return eject(drive.id);
-    await _invoke('backup_eject', {'drive': drive.id});
-  }
-}
-
-/// The Mac app's Eject, through macos/Runner/FilesChannel.swift. Throws its sentence.
-Future<void> ejectOnMac(String id) async {
-  try {
-    await filesChannel.invokeMethod<void>('ejectDrive', {'id': id});
-  } on MissingPluginException {
-    throw StateError('The drive could not be ejected.');
-  } on PlatformException catch (failure) {
-    throw StateError(failure.message ?? 'The drive could not be ejected.');
-  }
+  Future<void> ejectDrive(BackupDrive drive) async => _invoke('backup_eject', {'drive': drive.id});
 }
 
 /// `GlyphHost.backupDrives` through the activity: `[]` with no phone half.

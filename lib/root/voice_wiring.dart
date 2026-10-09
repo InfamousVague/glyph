@@ -53,7 +53,9 @@ import '../capture/recorder.dart';
 import '../capture/refine.dart';
 import '../capture/spoken/inline.dart' show SpokenFormat;
 import '../capture/tips.dart' show Tip;
-import '../capture/system_sound.dart' show SoundSupport;
+import '../capture/core_system_sound.dart';
+import '../capture/system_sound.dart' show SoundSupport, SystemSound;
+import '../core/mac_app.dart';
 import '../core/library.dart';
 import '../core/note.dart';
 import '../core/native/ghost_core.dart';
@@ -255,7 +257,15 @@ class Voice {
     if (summaries != null) _stopJobConfig = keepJobConfigCurrent();
     unawaited(models?.refresh());
     final service = this.service;
-    if (service == null) return;
+    if (service == null) {
+      // The Mac: whether it can tap its own sound, for the + sheet's switch. Asked, never opened, here.
+      try {
+        sound = await recorder.systemSound?.meetingSoundSupport();
+      } catch (_) {
+        sound = null;
+      }
+      return;
+    }
     try {
       sound = await service.meetingSound();
     } catch (_) {
@@ -445,7 +455,12 @@ class Voice {
       // The review after a recording, where this binary and the switch allow it, and a take's summary.
       reviewAvailable: reviewAvailable,
       enqueueSummary: (id, kind) => summaries.enqueueSummary(id, SummaryKind.of(kind)),
-      canRecordMeeting: host.hasMeetings &&
+      // The Mac's own sound for a meeting: a Core Audio tap in the core, opened only by a meeting with its switch on.
+      systemSound: runsAsMacApp
+          ? SystemSound(backend: CoreSystemSound(core), isAndroid: false, isMacApp: true, hasNativeGeneration: ai.hasNativeGeneration, meetingSoundOnHost: () => null)
+          : null,
+      // On the Mac the recorder itself records a meeting, with no service behind it (capture/meeting.ts).
+      canRecordMeeting: (host.hasMeetings || runsAsMacApp) &&
           await canRecordMeeting(native: true, isIOS: Platform.isIOS, isAndroid: Platform.isAndroid, isMobile: Platform.isAndroid || Platform.isIOS, hasNativeGeneration: ai.hasNativeGeneration),
       warn: debugPrint,
     );

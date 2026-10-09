@@ -72,6 +72,16 @@ tauri = { path = "shims/tauri", optional = true }
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
 
+# The Mac's own sound in a meeting (kept/system_audio.rs, and the Tauri app's system_audio/mac.rs included as it
+# is): a Core Audio process tap, whose AudioHardware calls objc2-core-audio binds. As ../glyph/src-tauri/Cargo.toml
+# has them, line for line.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSDictionary", "NSObject", "NSProcessInfo", "NSString", "NSUUID", "NSValue"] }
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFDictionary"] }
+objc2-core-audio = { version = "0.3", default-features = false, features = ["std", "AudioHardware", "objc2", "objc2-foundation", "objc2-core-audio-types"] }
+objc2-core-audio-types = { version = "0.3", default-features = false, features = ["std", "CoreAudioBaseTypes"] }
+
 [dev-dependencies]
 pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
 
