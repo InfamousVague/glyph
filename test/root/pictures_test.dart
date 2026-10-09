@@ -1,6 +1,7 @@
 // A picture added from the phone, through the app put together (lib/root/note_desk.dart over
 // lib/core/phone_pictures.dart): the +'s Picture and the band's Add image are offered only where there is a
-// chooser, and what is chosen goes in at the caret on a line of its own. The chooser and the core are this file's.
+// chooser, and what is chosen goes in at the caret on a line of its own. And Pick a date, which is the calendar the
+// app was given. The chooser, the calendar and the core are this file's.
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/note_text.dart';
@@ -10,6 +11,7 @@ import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/editor/band/band.dart' show ContextBand;
 import 'package:ghost_md/editor/editor.dart';
+import 'package:ghost_md/editor/items/field_menu.dart' show dayPicker;
 import 'package:ghost_md/editor/plus/plus.dart';
 import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/root/ghost_root.dart';
@@ -41,6 +43,7 @@ void main() {
         workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())),
         clock: () => seedNow,
         picturePicker: chooser ? (adopt) => () async => picked == null ? null : adopt(picked) : null,
+        dayPicker: chooser ? (at, current) async => '2026-10-12' : null,
       ),
     );
     await tester.pump(const Duration(milliseconds: 100));
@@ -99,11 +102,20 @@ void main() {
     await close(tester);
   });
 
+  testWidgets('Pick a date is the calendar the app was given, asked of the open note\'s editor', (tester) async {
+    final library = await open(tester);
+    final screen = await launchWeek(tester, library);
+    final picker = screen.view!.state.facet(dayPicker);
+    expect(await picker!(Offset.zero, null), '2026-10-12');
+    await close(tester);
+  });
+
   testWidgets('with no chooser neither is offered', (tester) async {
     final library = await open(tester, chooser: false);
     await launchWeek(tester, library);
     expect(tester.widget<PlusLayer>(find.byType(PlusLayer)).config.onPicture, isNull);
     expect(tester.widget<ContextBand>(find.byType(ContextBand)).onAddImage, isNull);
+    expect(screenOf(tester).view!.state.facet(dayPicker), isNull);
     await close(tester);
   });
 }

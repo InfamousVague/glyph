@@ -55,7 +55,9 @@
 ///   phone's maps. The tag itself, and Add my location, are the screen's own over [NoteDeskWorld.tags].
 /// - **A link's tap** is handed to the phone where the build has a way to ([NoteDeskWorld.openLink], lib/core/open_link.dart);
 ///   a test, and a run with no phone half, opens nothing.
-/// - **A date is not picked from a calendar** (`dayPicker` is not given): Today, Tomorrow and Next week are.
+/// - **Pick a date is the phone's own calendar** ([NoteDeskWorld.dayPicker], lib/core/phone_day.dart), as the
+///   page's was the WebView's: on a list item's date page, in a ticket's panel and in a query. Without one the row
+///   is not offered, and Today, Tomorrow and Next week are.
 /// - **A canvas has no comments**; a team's canvas is
 ///   piece 6G. A canvas is not framed in a note from the + (`AddConfig.canvases` is not given).
 /// - **A landing's writes to other notes are not reversed by its Undo** (`undo_command`): the store here keeps no
@@ -219,6 +221,7 @@ class NoteDeskWorld {
     this.onSpeak,
     this.ai,
     this.pickPicture,
+    this.dayPicker,
     this.mapTiles,
     this.tags,
     this.forgetTag,
@@ -318,6 +321,9 @@ class NoteDeskWorld {
   /// Lets the person choose a picture, keeps it and answers its name (lib/core/phone_pictures.dart); absent, no
   /// picture can be added.
   final PicturePicker? pickPicture;
+
+  /// The calendar Pick a date opens (lib/core/phone_day.dart); absent, no such row.
+  final DayPicker? dayPicker;
 
   /// What draws a map's tiles (lib/editor/media/map_tiles.dart); absent, every map is its quiet card.
   final MapTilesBuilder? mapTiles;
@@ -493,6 +499,8 @@ class NoteDeskState extends State<NoteDesk> {
       doneSyncs: true,
     ),
     drawnTables(),
+    // Pick a date, on a list item's date page, in a ticket's panel and in a query: the phone's calendar.
+    if (_world.dayPicker != null) dayPicker.of(_world.dayPicker!),
     // Boards drawn as boards, the fence still there to edit (Editor.tsx `drawnBoards()`).
     drawnBoards(),
     // A ticket's front matter as its properties, and a [[GHO-12]] with the ticket's title.

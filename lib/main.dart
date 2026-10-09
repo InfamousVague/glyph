@@ -1,5 +1,6 @@
 import 'dart:ui' show PlatformDispatcher;
 
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -11,6 +12,7 @@ import 'core/native/device_paths.dart';
 import 'core/native/ghost_core.dart';
 import 'core/geocode.dart';
 import 'core/open_link.dart';
+import 'core/phone_day.dart';
 import 'core/phone_pictures.dart';
 import 'core/phone_position.dart';
 import 'editor/media/map_tiles.dart';
@@ -96,7 +98,7 @@ Future<void> main() async {
   runApp(GhostApp(
     sheet: sheet,
     home: _Runs(
-      builder: (restart) => GhostRoot(core: core, native: whole, account: account, voiceMaking: voice, links: links, openLink: openLink, previewFetch: linkPreviewFetch(), restart: restart, tapePlayer: tapes, updates: updates, locator: locator, placeLookup: placeLookup, mapTiles: mapTiles, picturePicker: phonePicturePicker),
+      builder: (restart) => GhostRoot(core: core, native: whole, account: account, voiceMaking: voice, links: links, openLink: openLink, previewFetch: linkPreviewFetch(), restart: restart, tapePlayer: tapes, updates: updates, locator: locator, placeLookup: placeLookup, mapTiles: mapTiles, picturePicker: phonePicturePicker, dayPicker: defaultTargetPlatform == TargetPlatform.android ? phoneDayPicker : null),
     ),
   ));
 }

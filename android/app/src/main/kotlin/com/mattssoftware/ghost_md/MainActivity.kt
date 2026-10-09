@@ -118,6 +118,8 @@ class MainActivity : FlutterActivity() {
         position.register(messenger)
         // A picture chosen for a note, shrunk and handed over as a file (Pictures.kt; lib/core/phone_pictures.dart).
         pictures.register(messenger)
+        // Pick a date: the phone's own calendar (DayPick.kt; lib/core/phone_day.dart).
+        DayPick(this).register(messenger)
     }
 
     override fun onNewIntent(intent: Intent) {

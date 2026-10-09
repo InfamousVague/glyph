@@ -23,6 +23,7 @@ import '../book/template_picker.dart' show EntryPlaceDevice;
 import '../core/location.dart' show Locations, Locator, PlaceLookup;
 import '../core/phone_pictures.dart' show corePictureAdopter;
 import '../core/place_tags.dart';
+import '../editor/items/field_menu.dart' show DayPicker;
 import '../editor/media/map_card.dart' show MapTilesBuilder;
 import '../book/journal_view.dart' show JournalPages;
 import '../book/new_book_sheet.dart';
@@ -154,7 +155,7 @@ import 'voice_wiring.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.dayPicker});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -218,6 +219,10 @@ class GhostRoot extends StatefulWidget {
   /// The phone's picture chooser, given what keeps a chosen picture among the library's
   /// (lib/core/phone_pictures.dart `phonePicturePicker`). Absent, as in a test, no picture can be added.
   final PicturePicker Function(PictureAdopter adopt)? picturePicker;
+
+  /// The calendar Pick a date opens (lib/core/phone_day.dart on a phone). Absent, a date is Today, Tomorrow or
+  /// Next week.
+  final DayPicker? dayPicker;
 
   /// Reads a linked page's title, site and summary (lib/core/link_preview.dart `linkPreviewFetch`). Absent, as in a
   /// test, a link's card says its site and its path and nothing is asked of anywhere.
@@ -1204,6 +1209,7 @@ class _GhostRootState extends State<GhostRoot> {
     tapes: _voice?.recorder.tapes,
     onSpeak: (id) => unawaited(_speakInto(id)),
     pickPicture: _pickPicture,
+    dayPicker: widget.dayPicker,
     mapTiles: widget.mapTiles,
     tags: _places,
     forgetTag: (id) => _places?.setPendingTag(id, null),
