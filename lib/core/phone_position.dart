@@ -62,7 +62,9 @@ class PhoneLocator implements Locator {
   }
 
   @override
-  LocateFailure? get cannot => _attached ? null : LocateFailure.none;
+  // An iPhone has no half (ios/Runner): the page's own answer there (`locateHere`: `why: 'ios'`), whose sentence
+  // is "Ghost.md can’t find where you are on this device yet."
+  LocateFailure? get cannot => _attached ? null : (defaultTargetPlatform == TargetPlatform.iOS ? LocateFailure.ios : LocateFailure.none);
 
   @override
   bool get onPhone => _attached && defaultTargetPlatform == TargetPlatform.android;

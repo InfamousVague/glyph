@@ -50,6 +50,7 @@ import '../core/core_library.dart';
 import '../core/export_all.dart' show ExportAll;
 import '../core/front_matter.dart' show frontMatterOffset;
 import '../core/images.dart';
+import '../core/iphone_app.dart';
 import '../core/kept_trash.dart';
 import '../core/library_files.dart' show LibraryFiles;
 import '../core/library_folder.dart' show LibraryFolder;
@@ -133,6 +134,7 @@ import 'note_desk.dart';
 import 'reset_wiring.dart';
 import 'scene_play.dart';
 import 'take_back.dart';
+import 'iphone_wiring.dart';
 import 'update_wiring.dart';
 import 'voice_wiring.dart';
 
@@ -1302,7 +1304,8 @@ class _GhostRootState extends State<GhostRoot> {
     getNote: _library.get,
     setNoteRecording: (id, ms, segments) async => _voice?.recorder.store.setNoteRecording(id, ms, segments),
     tapes: _voice?.recorder.tapes,
-    onSpeak: (id) => unawaited(_speakInto(id)),
+    // Not where nothing records (an iPhone): a tape synced from another device then offers no Add.
+    onSpeak: recordsVoice ? (id) => unawaited(_speakInto(id)) : null,
     pickPicture: _pickPicture,
     dayPicker: widget.dayPicker,
     mapTiles: widget.mapTiles,
@@ -1932,7 +1935,8 @@ class _GhostRootState extends State<GhostRoot> {
               notesInWorkspace: _notesIn,
               onTrashNotes: (ids) => ids.forEach(_trash.trashNote),
               // About's Updates rows, in a build that looks for any (lib/root/update_wiring.dart).
-              updates: widget.updates == null ? null : settingsUpdatesOf(widget.updates!),
+              // An iPhone has no update client: About says whose its updates are (iphone_wiring.dart).
+              updates: widget.updates == null ? appStoreUpdates() : settingsUpdatesOf(widget.updates!),
               // A build with no service says so where a way in is pressed; one with an account takes it from the scope.
               features: _features(services),
               onOrganization: services == null ? null : (id) => setState(() => _organization = (id: id, from: OrganizationFrom.settings)),

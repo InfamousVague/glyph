@@ -110,6 +110,7 @@ import '../core/canvas_body.dart';
 import '../core/command_mutations.dart' show CommandUndoResult;
 import '../core/films.dart';
 import '../core/images.dart';
+import 'iphone_wiring.dart';
 import '../core/geotag.dart' show GeoTag;
 import '../core/link_preview.dart' show LinkOpener, LinkPreviewer, noLinkPreviews;
 import '../core/location.dart' show LocateFailure, MapsApp, openPlace, tagOf, whyLocateFailed;
@@ -949,7 +950,8 @@ class NoteDeskState extends State<NoteDesk> {
           boards: true,
           databases: _world.queryNotes != null,
           tickets: _world.tickets != null,
-          onPicture: _pictures == null ? null : () => unawaited(_pictures.addPhoto()),
+          // Not on an iPhone, where the page's + has no picture (iphone_wiring.dart); the band's Add image stays.
+          onPicture: _pictures == null || !plusOffersPicture() ? null : () => unawaited(_pictures.addPhoto()),
           onVideo: _world.films?.pick == null || widget.readOnly || view == null ? null : () => unawaited(_addVideo(view)),
           // A row that can never work is not drawn: only where the phone can say where it is at all.
           onPlace: _world.tags != null && _world.tags!.locations.cannotLocateHere == null && view != null ? () => unawaited(_addPlace(view)) : null,
@@ -1229,7 +1231,8 @@ class NoteDeskState extends State<NoteDesk> {
     final seams = NoteSeams(
       saving: (flush) => _flush = flush,
       // The More sheet's AI rows: a run of that kind on this note.
-      onAi: ai == null || widget.readOnly ? null : (view, kind, [instruction]) {
+      // On an iPhone, which has no AI, the rows are drawn all the same and a press says so (iphone_wiring.dart).
+      onAi: ai == null || widget.readOnly ? (widget.readOnly ? null : iPhoneAiRows((message) => _toasts?.toast(message: Text(message)))) : (view, kind, [instruction]) {
               final run = RunKind.of(kind);
               if (run != null) ai.runAi(run, instruction);
             },

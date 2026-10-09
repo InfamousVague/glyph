@@ -44,6 +44,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../account/api.dart' show FetchRequest, FetchResponse;
 import '../../core/bytes.dart' show toBase64Url;
+import '../../core/iphone_app.dart' show notOnIPhone;
 import '../details_cache.dart' show failureWords;
 import '../host.dart' show PluginPermissionError;
 import 'manifest.dart';
@@ -365,6 +366,9 @@ Future<_Kept?> _refreshAccount(String refreshToken) async {
 /// or PATCH, and [path] is below `https://api.notion.com/v1/`. A 401 is answered by refreshing the sign-in once and
 /// asking again; the fresh tokens are kept.
 Future<({int status, Object? body})> notionAnswer(String method, String path, [Object? body]) async {
+  // The Tauri app asks Notion from Rust, which is not built for an iPhone: its sentence there (core/iphone_app.dart).
+  final notHere = notOnIPhone('notion');
+  if (notHere != null) throw NotionFailure(notHere);
   if (!allowedPath(path)) throw NotionFailure("Glyph doesn't call Notion's $path route.");
   final verb = method.toUpperCase();
   if (verb != 'GET' && verb != 'POST' && verb != 'PATCH') throw NotionFailure("Glyph doesn't send $verb to Notion.");

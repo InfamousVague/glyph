@@ -42,6 +42,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../../account/api.dart' show FetchRequest, FetchResponse;
+import '../../core/iphone_app.dart' show notOnIPhone;
 import '../host.dart' show PluginPermissionError;
 import 'manifest.dart';
 
@@ -260,6 +261,9 @@ String? slackAnswer(int status, String body) {
 /// Posts [text], as Slack's mrkdwn, to a channel. Throws a [SlackFailure] with the sentence for why not
 /// (`postToChannel`, slack.rs `slack_post`).
 Future<void> postToChannel(Channel channel, String text) async {
+  // The Tauri app posts from Rust, which is not built for an iPhone: its sentence there (core/iphone_app.dart).
+  final notHere = notOnIPhone('slack');
+  if (notHere != null) throw SlackFailure(notHere);
   final url = await _webhookFor(channel.id);
   final body = Uint8List.fromList(utf8.encode(jsonEncode({'text': text})));
   if (body.length > _mostBytes) throw const SlackFailure('That is too long for one Slack message.');
