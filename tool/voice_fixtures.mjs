@@ -108,7 +108,11 @@ const cases = suite.tests.map((test) => {
   const wrong = problems(test, outcome);
   return { id: test.id, file: test.file, skip: test.skip ?? null, heard, outcome, problems: wrong, pass: wrong.length === 0 };
 });
-writeFileSync(`${OUT}voice_suite_web.json`, `${JSON.stringify({ formats, cases }, null, 1)}\n`);
+// The day this run was made on, as the recorder counts a spoken "tomorrow" from it (capture/markdown.ts `isoDay`):
+// the Dart suite is run as of this day, whenever it is run.
+const made = new Date();
+const today = `${made.getFullYear()}-${String(made.getMonth() + 1).padStart(2, '0')}-${String(made.getDate()).padStart(2, '0')}`;
+writeFileSync(`${OUT}voice_suite_web.json`, `${JSON.stringify({ today, formats, cases }, null, 1)}\n`);
 const failing = cases.filter((c) => !c.pass);
 console.log(`voice_suite_web.json: ${cases.length} cases, ${cases.length - failing.length} pass as the web judges them${failing.length ? ` (failing: ${failing.map((c) => c.id).join(', ')})` : ''}`);
 

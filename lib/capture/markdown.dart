@@ -26,6 +26,8 @@
 /// passes on the store's.
 library;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 import '../core/days.dart';
 import '../core/note.dart' show Segment;
 import '../core/text.dart';
@@ -214,9 +216,19 @@ BlockKind _blockKind(ListKind kind) => kind == ListKind.number ? BlockKind.numbe
 ///
 /// Pure, and cheap enough to run on every event: a note is a few hundred words and the engine emits about one event
 /// a second.
+/// The day a spoken "tomorrow" is counted from where a call names none (`isoDay(new Date())`): the device's own
+/// today. A test held to another run's answers says the day that run was made on.
+@visibleForTesting
+String Function() spokenToday = _deviceToday;
+String _deviceToday() => isoDay(DateTime.now());
+
+/// The device's own today, for a test to put back.
+@visibleForTesting
+void resetSpokenToday() => spokenToday = _deviceToday;
+
 RenderedNote renderNote(List<Segment> segments, [String partial = '', RenderOptions options = const RenderOptions()]) {
   final titled = options.titled;
-  final today = options.today ?? isoDay(DateTime.now());
+  final today = options.today ?? spokenToday();
   final paragraphs = withCodeBlocksWhole(toParagraphs(segments));
   final plain = paragraphs.join('\n\n');
 

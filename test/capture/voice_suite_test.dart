@@ -71,6 +71,10 @@ void main() {
   group('the voice suite, held against the web’s own run', () {
     final cases = (web['cases']! as List<Object?>).cast<Map<String, Object?>>();
 
+    // The web's run counted a spoken "tomorrow" from the day it was made on: so does this one, whenever it is run.
+    setUp(() => spokenToday = () => web['today']! as String);
+    tearDown(resetSpokenToday);
+
     test('says the Marks’ cues the web says', () {
       expect([
         for (final format in marksFormats()) {'word': format.word, 'delimiter': format.delimiter},
