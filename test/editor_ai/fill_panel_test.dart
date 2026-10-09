@@ -10,6 +10,7 @@ import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/ai/backend.dart' show modelLimits;
 import 'package:ghost_md/ai/fills/queue.dart';
+import 'package:ghost_md/core/locale_dates.dart';
 import 'package:ghost_md/editor/ai/blanks.dart';
 import 'package:ghost_md/editor/ai/fill_panel.dart';
 import 'package:ghost_md/editor/editor.dart';
@@ -206,6 +207,20 @@ void main() {
       final looked = panel(open(note), note.indexOf('{?'));
       expect(looked.words, ['Looked up online', 'Weather changes by the hour, and the model has no internet.', 'On Fill, the phone asks Open-Meteo, and the answer is written from what comes back. Only the question goes.']);
       expect(looked.actions, isEmpty);
+    });
+
+    group('says the day it was asked in the phone’s own words (core/locale_dates.dart)', () {
+      tearDown(() => toldLocale = null);
+
+      test('an American phone has the month first', () {
+        toldLocale = DateLocale.enUS;
+        expect(panel(open(tokyo), tokyo.indexOf('midweek')).words[1], 'Asked on September 28, 2026: what day / time?');
+      });
+
+      test('a British phone has the day first', () {
+        toldLocale = DateLocale.enGB;
+        expect(panel(open(tokyo), tokyo.indexOf('midweek')).words[1], 'Asked on 28 September 2026: what day / time?');
+      });
     });
 
     test('writes a day in the form the screen gives, where it gives one', () {

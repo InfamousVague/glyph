@@ -8,13 +8,15 @@
 /// now, and All notes' Tapes switch is the list of them (`home/dashboard.dart` `tapedNotes` still says which notes
 /// those are, and in what order). So this file is the row's two parts and the date, not a shelf. The home page's
 /// rows (`home/home_rows.dart`) draw the same two from private copies of their own, written before this file; they
-/// should take these. `tapeDate` asked the device's language for its order ("26 Sep", "Sep 26"); this project has
-/// no `intl` yet, so it is the day and then the month in English, as `notes/when.dart` writes its dates in English.
+/// should take these. `tapeDate` asked the device's language for its order ("26 Sept", "Sep 26"): it is in English
+/// in the phone's own order once the phone has said which (core/locale_dates.dart), and the day and then the month
+/// until then.
 library;
 
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../core/locale_dates.dart';
 import '../core/note.dart';
 import '../home/home_icons.dart';
 import '../home/home_layout.dart' show HomeKind, kindOf;
@@ -23,10 +25,11 @@ import 'tape.dart';
 
 const List<String> _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/// The day and the month a tape was recorded, "26 Sep" (`tapeDate.format`). [ms] is milliseconds since the epoch.
+/// The day and the month a tape was recorded, "26 Sep" (`tapeDate.format`): "Sep 26" on an American phone and "26
+/// Sept" on a British one, once it has said. [ms] is milliseconds since the epoch.
 String tapeDate(int ms) {
   final at = DateTime.fromMillisecondsSinceEpoch(ms);
-  return '${at.day} ${_months[at.month - 1]}';
+  return toldDate(at, DateForm.MMMd) ?? '${at.day} ${_months[at.month - 1]}';
 }
 
 /// A recording's mark at the start of its row: the cassette, a touch larger than a page's mark, since its shape is

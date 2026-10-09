@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/core/locale_dates.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/workspaces.dart';
@@ -31,6 +32,21 @@ void main() {
     expect(store.workspaceOf('flat')?.name, 'Home');
     expect(store.workspaceOf('weekend'), isNull);
     expect(store.inWorkspace(seedLibrary(), 'home', (n) => n.id).map((n) => n.id), ['house', 'groceries', 'flat']);
+  });
+
+  group('the example journal’s first entry is headed in the phone’s own words (core/locale_dates.dart)', () {
+    tearDown(() => toldLocale = null);
+    final at = DateTime.fromMillisecondsSinceEpoch(seedNow);
+
+    test('an American phone has the month first after a comma', () {
+      toldLocale = DateLocale.enUS;
+      expect(exampleJournal(at).entry, contains('\n# Monday, September 28\n\n**10:00** The first entry.'));
+    });
+
+    test('a British phone has the day first and no comma', () {
+      toldLocale = DateLocale.enGB;
+      expect(exampleJournal(at).entry, contains('\n# Monday 28 September\n\n**10:00** The first entry.'));
+    });
   });
 
   test('starts a fresh library with the app’s own examples, as core/seed.ts writes them', () {

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/core/locale_dates.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/notes/when.dart';
 
@@ -25,6 +26,24 @@ void main() {
     expect(when(now - 30 * hour, now), 'Yesterday');
     expect(when(now - 3 * day, now), 'Tuesday');
     expect(when(now - 30 * day, now), 'August 26');
+  });
+
+  group('in the phone’s own words (core/locale_dates.dart)', () {
+    tearDown(() => toldLocale = null);
+
+    test('an American phone has the month before the day', () {
+      toldLocale = DateLocale.enUS;
+      expect(when(now - 3 * day, now), 'Tuesday');
+      expect(when(now - 30 * day, now), 'August 26');
+      expect(when(now - 3 * hour, now), '3 hr ago');
+    });
+
+    test('a British phone has the day before the month', () {
+      toldLocale = DateLocale.enGB;
+      expect(when(now - 3 * day, now), 'Tuesday');
+      expect(when(now - 30 * day, now), '26 August');
+      expect(when(now - 3 * hour, now), '3 hr ago');
+    });
   });
 
   test('says each seeded note’s as the web page does', () {

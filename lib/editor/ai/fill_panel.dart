@@ -21,9 +21,9 @@
 ///   events of its own, so the screen that owns the scroll view calls [closeFillPanel] for that.
 /// - A press on a button is a tap: nothing here takes the keyboard's focus from the editor, so the page's
 ///   `mousedown` with its default taken away has no counterpart.
-/// - "28 September 2026" was `Intl.DateTimeFormat(undefined, …)`, the person's own form. There is no locale data
-///   here, so the day is written through the facet [fillPanelDay], whose default is that form in English (day,
-///   month, year), as the rest of the app writes its dates (core/note_names.dart).
+/// - "28 September 2026" was `Intl.DateTimeFormat(undefined, …)`, the person's own form. The day is written through
+///   the facet [fillPanelDay], whose default is that form in English in the phone's own order (core/locale_dates.dart:
+///   "September 28, 2026" on an American phone), and day, month, year until the phone has said.
 /// - A panel's content is a [PanelContent] a test can read ([fillPanelOf]), where the page's test read the `<p>`s
 ///   and the `<button>`s.
 library;
@@ -40,6 +40,7 @@ import '../../art/lucide.g.dart';
 import '../../core/blanks.dart';
 import '../../core/fill_facts.dart';
 import '../../core/fill_live.dart';
+import '../../core/locale_dates.dart';
 import '../editor.dart';
 import '../looks/look.dart';
 import '../view/editor_view.dart';
@@ -78,7 +79,7 @@ const Map<FactIcon, LucideIcon> _factIcons = <FactIcon, LucideIcon>{FactIcon.cal
 
 const List<String> _months = <String>['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-String _dayMonthYear(DateTime day) => '${day.day} ${_months[day.month - 1]} ${day.year}';
+String _dayMonthYear(DateTime day) => toldDate(day, DateForm.yMMMMd) ?? '${day.day} ${_months[day.month - 1]} ${day.year}';
 
 /// How a day is written in the panel: "28 September 2026" unless the screen says its own form.
 final Facet<String Function(DateTime day), String Function(DateTime day)> fillPanelDay =

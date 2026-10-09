@@ -24,6 +24,7 @@ import 'package:flutter/foundation.dart';
 
 import 'command_mutations.dart';
 import 'library.dart';
+import 'locale_dates.dart';
 import 'native/core.dart';
 import 'note.dart';
 import 'workspaces.dart';
@@ -583,13 +584,15 @@ List<String> exampleTicketBodies(DateTime today) {
   ];
 }
 
-/// The example journal and its first entry, written at [at], as New entry writes them (`exampleJournal`).
+/// The example journal and its first entry, written at [at], as New entry writes them (`exampleJournal`). Its
+/// heading is the template's `{{date}}`: the day in the phone's own order once it has said which
+/// (core/locale_dates.dart: "Monday 28 September" on a British phone), and as an American page fills it until then.
 ({String journal, String entry, String entryTitle}) exampleJournal(DateTime at) {
   final title = '${_isoDay(at)} ${_two(at.hour)}.${_two(at.minute)}';
   final time = '${_two(at.hour)}:${_two(at.minute)}';
   return (
     journal: '---\ntitle: "Journal"\nbook: true\njournal: true\ntemplate: "# {{date}}\\n\\n**{{time}}** "\n---\n# Journal\n\n- [[$title]]\n',
-    entry: '---\ntitle: "$title"\ndate: ${_isoDay(at)}T$time\n---\n# ${_weekdays[at.weekday - 1]}, ${_months[at.month - 1]} ${at.day}\n\n'
+    entry: '---\ntitle: "$title"\ndate: ${_isoDay(at)}T$time\n---\n# ${toldDate(at, DateForm.MMMMEEEEd) ?? '${_weekdays[at.weekday - 1]}, ${_months[at.month - 1]} ${at.day}'}\n\n'
         "**$time** The first entry. A journal keeps one for each time you write, named by the minute, and its page lists them by day. New entry starts the next from the journal's template.\n",
     entryTitle: title,
   );

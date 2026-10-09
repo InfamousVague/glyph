@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/core/locale_dates.dart';
 import 'package:ghost_md/plugins/github/github.dart';
 import 'package:ghost_md/plugins/github/plain_field.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
@@ -32,6 +33,21 @@ void main() {
   setUp(() => ground = useGround());
 
   Finder tokenField() => find.byWidgetPredicate((w) => w is PlainField && w.label == 'GitHub token');
+
+  group('the day a repo was read, in the phone’s own words (core/locale_dates.dart)', () {
+    tearDown(() => toldLocale = null);
+    final read = DateTime(2026, 9, 20, 12).millisecondsSinceEpoch;
+
+    test('an American phone has the month first', () {
+      toldLocale = DateLocale.enUS;
+      expect(packedDay(read), 'September 20');
+    });
+
+    test('a British phone has the day first', () {
+      toldLocale = DateLocale.enGB;
+      expect(packedDay(read), '20 September');
+    });
+  });
 
   group('the GitHub page', () {
     testWidgets('says there are no repos yet, and where one is linked from', (tester) async {

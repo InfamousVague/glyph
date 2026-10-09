@@ -25,8 +25,9 @@
 ///   database passes its own.
 /// - The device's own zone: the page asks `Intl` for its name. Here a clock with no [FactClock.zone], or with one
 ///   the table does not have, takes the device's offset from the `DateTime` itself and is called "here".
-/// - Dates and weekdays are written as en-GB writes them ("Monday, 28 September 2026", "25 October"), where the page
-///   writes the device's language (ai/support/stamp.dart says why).
+/// - Dates and weekdays are written in English, in the phone's own order once it has said which ("Monday, September
+///   28, 2026" and "October 25" on an American phone, "Monday 28 September 2026" and "25 October" on a British one),
+///   and the day first until then, where the page writes the device's language (ai/support/stamp.dart says why).
 /// - `Worked` is a sealed class with the page's two shapes under it, and [Worked.toJson] is the page's own object.
 library;
 

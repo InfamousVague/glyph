@@ -12,6 +12,7 @@ library;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/preferences.dart';
+import 'package:ghost_md/core/locale_dates.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/tapes/note_tape.dart';
@@ -111,6 +112,24 @@ void main() {
       expect(find.text('No words were kept with this recording.'), findsOneWidget);
       expect(find.byType(Text), findsOneWidget);
       await away(tester);
+    });
+  });
+
+  group('the day a tape was recorded (tapes/tapeDate.ts)', () {
+    tearDown(() => toldLocale = null);
+
+    test('is the day and then the month until the phone has said', () {
+      expect(tapeDate(_made), '26 Sep');
+    });
+
+    test('has the month first on an American phone', () {
+      toldLocale = DateLocale.enUS;
+      expect(tapeDate(_made), 'Sep 26');
+    });
+
+    test('has the day first on a British phone, and Sept', () {
+      toldLocale = DateLocale.enGB;
+      expect(tapeDate(_made), '26 Sept');
     });
   });
 

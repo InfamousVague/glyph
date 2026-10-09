@@ -6,7 +6,8 @@
 /// What differs:
 /// - The token is kept in the secure store (repos.dart), whose first read is not instant: the page draws again
 ///   when the plugin's storage or its secrets change, so a kept token shows as soon as it has been read.
-/// - A repo's day is said in English ("September 20"), where the page asked the browser's language.
+/// - A repo's day is said in English, in the phone's own order once it has said which (core/locale_dates.dart:
+///   "September 20", "20 September") and the month first until then, where the page asked the browser's language.
 /// - The page is a [PaneBody], where React returned a fragment into the pane.
 library;
 
@@ -16,6 +17,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../art/art.dart';
+import '../../core/locale_dates.dart';
 import '../../settings/kit/settings_kit.dart';
 import '../host.dart' show onPluginStorage;
 import 'plain_field.dart';
@@ -23,10 +25,11 @@ import 'repos.dart';
 
 const List<String> _months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-/// `toLocaleDateString(undefined, { month: 'long', day: 'numeric' })`, in English: "September 20".
+/// `toLocaleDateString(undefined, { month: 'long', day: 'numeric' })`, in English: "September 20", and "20
+/// September" once a British phone has said it is one.
 String packedDay(int ms) {
   final day = DateTime.fromMillisecondsSinceEpoch(ms);
-  return '${_months[day.month - 1]} ${day.day}';
+  return toldDate(day, DateForm.MMMMd) ?? '${_months[day.month - 1]} ${day.day}';
 }
 
 /// The line under a repo's name: what wrote its briefing, and when.

@@ -2,9 +2,12 @@
 /// `src/app/notes/when.ts`.
 ///
 /// What differs: the web asks the device's language for a weekday and a date
-/// (`toLocaleDateString(undefined, { weekday: 'long' })`); this project has no `intl` yet, so they are written in
-/// English, month before day, as an American page writes them.
+/// (`toLocaleDateString(undefined, { weekday: 'long' })`); here they are written in English, the date in the phone's
+/// own order once it has said which (core/locale_dates.dart: "4 March" on a British phone), and month before day, as
+/// an American page writes them, until then.
 library;
+
+import '../core/locale_dates.dart';
 
 const List<String> _weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const List<String> _months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -21,5 +24,5 @@ String when(int ms, [int? now]) {
   if (delta < 2 * day) return 'Yesterday';
   final at = DateTime.fromMillisecondsSinceEpoch(ms);
   if (delta < 7 * day) return _weekdays[at.weekday - 1];
-  return '${_months[at.month - 1]} ${at.day}';
+  return toldDate(at, DateForm.MMMMd) ?? '${_months[at.month - 1]} ${at.day}';
 }
