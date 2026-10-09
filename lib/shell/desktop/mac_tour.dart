@@ -22,6 +22,7 @@
 /// - `taptext:<words>` / `rtaptext:` / `hovertext:`: the same at the middle of the first text drawn that holds the
 ///   words. `where:<words>` only logs where it is.
 /// - `hit:<x>,<y>`: logs what is under a point (the widgets' render objects, top first).
+/// - `channels`: asks each of the Mac's method channels something harmless and logs what it answered.
 /// - `cursor:<x>,<y>`: logs the pointer shape there. `keylog`: from here on, logs every key the framework hears
 ///   and what the editor's keyboard client is told.
 ///
@@ -106,6 +107,29 @@ class _Tour {
         await Future<void>.delayed(const Duration(milliseconds: 400));
         final view = WidgetsBinding.instance.platformDispatcher.views.first;
         _say('size ${view.physicalSize / view.devicePixelRatio} at ${view.devicePixelRatio}x');
+      case 'channels':
+        // Each of the Mac's halves asked something that shows nothing and changes nothing a person made: where the
+        // files are, a secret written, read back and removed under a name of the tour's own, the drives, whether a
+        // recording is here, the microphone's permission (never the request), the links kept, a reset's question. Not the clipboard, which is the person's.
+        Future<void> ask(String label, Future<Object?> Function() call) async {
+          try {
+            _say('channel $label -> ${await call()}');
+          } catch (failure) {
+            _say('channel $label FAILED $failure');
+          }
+        }
+        const secrets = MethodChannel('ghost_md/secure_store');
+        await ask('device_paths dirs', () => const MethodChannel('ghost_md/device_paths').invokeMethod<Object?>('dirs'));
+        await ask('secure_store write', () => secrets.invokeMethod<Object?>('write', {'name': 'tour-probe', 'value': 'kept'}));
+        await ask('secure_store read', () => secrets.invokeMethod<Object?>('read', {'name': 'tour-probe'}));
+        await ask('secure_store delete', () => secrets.invokeMethod<Object?>('delete', {'name': 'tour-probe'}));
+        await ask('secure_store read again', () => secrets.invokeMethod<Object?>('read', {'name': 'tour-probe'}));
+        await ask('files backupDrives', () => const MethodChannel('ghost_md/files').invokeMethod<Object?>('backupDrives'));
+        await ask('tape onDevice', () => const MethodChannel('ghost_md/tape').invokeMethod<Object?>('onDevice', {'noteId': 'no-such-note'}));
+        await ask('mic permission', () => const MethodChannel('ghost_md/mic').invokeMethod<Object?>('permission'));
+        await ask('links take', () => const MethodChannel('ghost_md/links').invokeMethod<Object?>('take'));
+        await ask('reset recording', () => const MethodChannel('ghost.md/reset').invokeMethod<Object?>('recording'));
+        await ask('window state', () => MacWindow.channel.invokeMethod<Object?>('state'));
       case 'keylog':
         // Every key the framework hears, and whether anything took it: where a chord went, when it went nowhere.
         HardwareKeyboard.instance.addHandler((event) {
