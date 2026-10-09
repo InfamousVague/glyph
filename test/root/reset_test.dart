@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/device_keys.dart' show MemorySecureStore;
 import 'package:ghost_md/core/preferences.dart';
@@ -69,5 +71,31 @@ void main() {
     await expectLater(resetLocalData(ground, models: false), throwsA(isA<StateError>().having((e) => e.message, 'message', stopTheMeeting)));
     expect(kept.keys(), contains('glyph-entry-drafts'));
     expect(restarts, 0);
+  });
+
+  test('the phone\'s reset takes the team notes\' documents with it, every account\'s, after the core\'s own', () async {
+    // The phone's half asks its channel, which answers nobody here: only the core's reset and the documents.
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final data = await Directory.systemTemp.createTemp('ghost-reset');
+    addTearDown(() => data.delete(recursive: true));
+    final doc = File('${data.path}/team/2/622ebd38-ca04-4595-be38-107f0d775420.json');
+    await doc.create(recursive: true);
+    await File('${data.path}/team/7/config.json').create(recursive: true);
+    await File('${data.path}/Library/Kept.md').create(recursive: true);
+    final asked = <String>[];
+    Future<Object?> core(String command, [Map<String, Object?> args = const <String, Object?>{}]) async {
+      // Still there while the core's own reset runs: the documents go after it.
+      asked.add('$command ${doc.existsSync()}');
+      return null;
+    }
+
+    var restarts = 0;
+    await resetLocalData(resetGroundFor(invoke: core, kept: () => kept, restart: () => restarts += 1, teamDocsIn: data.path), models: true);
+    expect(asked, ['reset_local_data true']);
+    expect(Directory('${data.path}/team').existsSync(), isFalse);
+    expect(File('${data.path}/Library/Kept.md').existsSync(), isTrue, reason: 'only the documents: the library is the core\'s to reset');
+    expect(restarts, 1);
+    // None to forget is no failure.
+    await resetLocalData(resetGroundFor(invoke: core, kept: () => kept, restart: () {}, teamDocsIn: data.path), models: false);
   });
 }

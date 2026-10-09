@@ -789,6 +789,7 @@ class _GhostRootState extends State<GhostRoot> {
                 recordingNow: () => _voice?.live?.state?.recording ?? false,
                 kept: () => _stored,
                 restart: restart,
+                teamDocsIn: widget.account?.dataDir,
               ),
               models: models,
             );

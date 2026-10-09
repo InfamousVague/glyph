@@ -99,6 +99,14 @@ class FileDocs implements TeamDocStore {
 
   final Directory folder;
 
+  /// Every account's documents on this device, gone (`<dataDir>/team`): a reset's, with the notes they are the
+  /// documents of. The page kept them in the WebView's own database, which its reset left; here they are files
+  /// beside the library, and a reset that left them left every team note's words on the phone.
+  static Future<void> forgetAll(String dataDir) async {
+    final all = Directory('$dataDir${Platform.pathSeparator}team');
+    if (await all.exists()) await all.delete(recursive: true);
+  }
+
   /// A note id is the service's own shape, which is a safe file name; anything else is no document.
   File? _file(String noteId) => _plainId.hasMatch(noteId) ? File('${folder.path}${Platform.pathSeparator}$noteId.json') : null;
 
