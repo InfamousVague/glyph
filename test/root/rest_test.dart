@@ -11,7 +11,9 @@ import 'package:ghost_md/core/note_text.dart';
 import 'package:ghost_md/guide/guide.dart';
 import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/guide/guide_state.dart';
+import 'package:ghost_md/art/lucide.g.dart';
 import 'package:ghost_md/plugins/link_marks.dart';
+import 'package:ghost_md/plugins/marks.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/stored.dart';
@@ -310,6 +312,27 @@ void main() {
       expect(identical(pluginGround, ground), isTrue);
       expect(identical(plugins, registry), isTrue);
       expect(registry.all().map((plugin) => plugin.manifest.id), ['notion', 'github', 'marks', 'claude', 'slack']);
+    });
+
+    test('give a note\'s editor, its band and its + their formattings: the switched-on plugins\', read as each is made', () {
+      // With nothing ever put in the registry (a note built without the app's launch), the app's own marks.
+      expect(identical(noteFormats(), marks), isTrue);
+      expect(bandFormats().map((format) => format.name), marks.map((mark) => mark.name));
+
+      final registry = installPlugins(ground: PluginGround(), prefs: PreferencesStore());
+      expect(noteFormats().map((format) => format.name), marks.map((mark) => mark.name));
+      // Each under its own icon, and Wave under the waves the set now answers to.
+      final wave = bandFormats().firstWhere((format) => format.name == 'Wave');
+      expect(identical(wave.icon, Lucide.all['waves']), isTrue);
+      expect(plusEffects().map((effect) => effect.name), [for (final mark in marks) if (mark.look is EffectLook) mark.name]);
+
+      // Ghost.md's own marks switched off: the next note's editor parses none, and neither list offers one.
+      registry.setEnabled('marks', false);
+      expect(noteFormats(), isEmpty);
+      expect(bandFormats(), isEmpty);
+      expect(plusEffects(), isEmpty);
+      registry.setEnabled('marks', true);
+      expect(noteFormats(), hasLength(marks.length));
     });
 
     test('never ask the real service from a build that is not a release', () async {

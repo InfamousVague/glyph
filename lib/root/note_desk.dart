@@ -159,16 +159,26 @@ import '../tapes/transcript_words.dart';
 /// How long a place's name is waited for before its line is written with the coordinates (`NAME_WAIT_MS`).
 const Duration placeNameWait = Duration(milliseconds: 3000);
 
-/// The marks as the band's Style page lists them: each under its own icon (`format.icon ?? plugin.icon ?? Type`).
-final List<band.BandFormat> bandFormats = <band.BandFormat>[
-  for (final mark in marks) band.BandFormat.of(mark, Lucide.all[mark.icon] ?? Lucide.type),
-];
+/// The switched-on plugins' inline formattings (`plugins.formats()`, Editor.tsx): what the editor's parser reads and
+/// its marks draw. Where nothing was ever put in the registry (a test that builds a note without the app's launch,
+/// which is what puts the five that ship there: lib/root/plugin_ground.dart), the app's own marks, which is what
+/// the page's registry always holds.
+List<GlyphFormat> noteFormats() => plugins.all().isEmpty ? marks : plugins.formats();
 
-/// The effects as the +'s list offers them, at More's end.
-final List<PlusEffect> plusEffects = <PlusEffect>[
-  for (final mark in marks)
-    if (mark.look is EffectLook) PlusEffect(name: mark.name, delimiter: mark.delimiter, cue: mark.cue, icon: Lucide.all[mark.icon]),
-];
+/// The marks as the band's Style page lists them, read as the band is drawn (`StyleItems.tsx`): each switched-on
+/// plugin's formattings, under its own icon (`format.icon ?? plugin.icon ?? Type`).
+List<band.BandFormat> bandFormats() => plugins.all().isEmpty
+    ? <band.BandFormat>[for (final mark in marks) band.BandFormat.of(mark, Lucide.all[mark.icon] ?? Lucide.type)]
+    : <band.BandFormat>[
+        for (final plugin in plugins.enabled())
+          for (final format in plugin.formats) band.BandFormat.of(format, Lucide.all[format.icon ?? plugin.icon] ?? Lucide.type),
+      ];
+
+/// The effects as the +'s list offers them, at More's end, read as the list is (`addRows.ts` `readGates`).
+List<PlusEffect> plusEffects() => <PlusEffect>[
+      for (final mark in noteFormats())
+        if (mark.look is EffectLook) PlusEffect(name: mark.name, delimiter: mark.delimiter, cue: mark.cue, icon: Lucide.all[mark.icon]),
+    ];
 
 /// A list item's fields as the band's pages: lib/editor/items' rows (`fieldItems`), drawn as the band's own.
 final band.BandFields bandFields = band.BandFields(
@@ -525,13 +535,17 @@ class NoteDeskState extends State<NoteDesk> {
   late final bool _still = context.tokens.reducedMotion;
   late final double _pace = _prefs.value.motionScale;
 
+  /// The inline formattings this note's editor parses and draws: the switched-on plugins', read as the editor is
+  /// made, as the page's is (a plugin switched on or off is in the next note opened).
+  late final List<GlyphFormat> _formats = noteFormats();
+
   /// Every piece's extensions, once: another list would be another editor (lib/note/note_editor.dart).
   late final List<Extension> _extensions = <Extension>[
     editorInput(),
     // Empty until the note is live: then the binding to its document, and the others' carets.
     liveBindingSlot(),
     // The AI's arrivals bring the departures themselves: given twice, every ghost is drawn twice.
-    markExtensions(marks, wispTyping: _ai == null),
+    markExtensions(_formats, wispTyping: _ai == null),
     wispStill.of(_still),
     wispPace.of(_pace),
     if (_ai != null) ...noteAiExtensions(_ai, still: _still),
@@ -899,7 +913,7 @@ class NoteDeskState extends State<NoteDesk> {
 
   Widget _buildEditor(BuildContext context, NoteEditorSpec spec) => NoteEditorHost(
         spec: spec,
-        formats: marks,
+        formats: _formats,
         extensions: _extensions,
         draw: (context, view, env) => Editor(
           view: view,
@@ -929,7 +943,7 @@ class NoteDeskState extends State<NoteDesk> {
           titles: _world.titles,
           own: widget.title,
           localOnly: _prefs.value.localOnly,
-          effects: plusEffects,
+          effects: plusEffects(),
           // Every canvas among the notes, for the +'s A canvas: a frame of it drawn in the words.
           canvases: _world.bodyOf == null ? null : () => <String>[for (final title in _world.titles()) if (isCanvasBody(_world.bodyOf!(title) ?? '')) title],
           boards: true,
@@ -947,7 +961,7 @@ class NoteDeskState extends State<NoteDesk> {
           onFind: view == null ? null : (text) => _openFind(view, text),
           // Comment, on the selection the band was opened over or on the caret's line (ContextMenu.tsx).
           onComment: _comments.start,
-          formats: bandFormats,
+          formats: bandFormats(),
           fields: bandFields,
           onAddImage: _pictures?.addPhoto,
           // The phone's own reader, which copies a picture out of the clipboard for the note to adopt.
