@@ -93,8 +93,9 @@ import '../capture/recorder.dart' show SpokenAsk;
 import '../format/device_facts.dart' show DeviceFacts;
 import '../live/editor_binding.dart' show liveBindingSlot;
 import '../live/open.dart' show NoteLive, OpenLive, TeamBinding;
-import '../live/team_canvas.dart' show TeamCanvasHost;
+import '../live/team_canvas.dart' show TeamCanvasHost, TeamCanvasPeople;
 import '../canvas/camera.dart' show CanvasCamera;
+import '../canvas/geometry.dart' show Point;
 import '../art/lucide.g.dart';
 import '../book/book_nav.dart';
 import '../book/book_view.dart';
@@ -442,6 +443,9 @@ class NoteDeskState extends State<NoteDesk> {
   /// room once they are made: what its canvas is drawn and edited through.
   OpenLive? _live;
   TeamBinding? _team;
+
+  /// A member's spot on this canvas to centre on, where the note was opened at one (`goTo`).
+  Point? _goTo;
 
   /// Find and replace, while it is up: what it opened searching for, and which opening it is.
   ({String initial, int nonce})? _finding;
@@ -857,11 +861,15 @@ class NoteDeskState extends State<NoteDesk> {
       _comments.takeAsk();
       _comments.recolour();
     });
+    // Where the note was opened at (the dashboard's Jump to cursor): a member's caret, which the live note puts the
+    // selection at, or their spot on a canvas, which the canvas is centred on.
+    final jump = widget.readOnly ? null : _world.takeJump?.call(widget.noteId);
+    if (jump != null && jump['x'] is num && jump['y'] is num) _goTo = (x: (jump['x']! as num).toDouble(), y: (jump['y']! as num).toDouble());
     // Live in this editor from here on: a note in the Trash is read, not typed in with anyone.
     _live?.close();
     _live = widget.readOnly
         ? null
-        : _world.live?.open(view, widget.noteId, jump: _world.takeJump?.call(widget.noteId), onTeam: (team) {
+        : _world.live?.open(view, widget.noteId, jump: jump, onTeam: (team) {
             // Told as the team's binding is made, and as it goes with the note's being taken out of the team; and
             // as the desk itself goes, when there is nothing left to draw.
             if (mounted && !_leaving) setState(() => _team = team);
@@ -1234,7 +1242,7 @@ class NoteDeskState extends State<NoteDesk> {
       // A change to the canvas is a change to the note: written into the body as the spec's JSON, and saved the way
       // typing is.
       canvas: (context, body, onChange) {
-        Widget view(BuildContext context, String body, ValueChanged<String>? onChange, [CanvasCamera? camera]) {
+        Widget view(BuildContext context, String body, ValueChanged<String>? onChange, [CanvasCamera? camera, TeamCanvasPeople? people]) {
           final readOnly = widget.readOnly || onChange == null;
           Widget drawn(CanvasThreads? threads, String Function(String handle)? hue) => canvasSeam(
                 wiki: CanvasWiki(known: _world.known, open: _world.open, body: _world.bodyOf, titles: _world.titles),
@@ -1245,6 +1253,11 @@ class NoteDeskState extends State<NoteDesk> {
                 threadHue: hue,
                 readOnly: readOnly,
                 camera: camera,
+                // Jump to cursor from an organization's dashboard: a member's spot on the canvas.
+                goTo: _goTo,
+                onEditing: people?.onEditing,
+                editedBy: people?.editedBy,
+                team: people != null,
               )(context, body, onChange ?? (_) {});
           // A canvas that cannot change draws no rounds and has no Comment; one that can has its threads in the
           // note's own sheet, each round in its author's colour (canvas/useCanvasComments.tsx).

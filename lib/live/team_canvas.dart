@@ -16,7 +16,9 @@
 /// - **While it is open the document is the view's** ([TeamDoc.editing], as a note's is its editor's): what
 ///   arrives is saved to the note from here, and a pass does not read the note's saved words back into the types.
 /// - A phone has no pointer at rest: this device's is where a finger is down, and nowhere once it lifts.
-/// - The card a member has open (`card` in the room) is not said or drawn.
+/// - The card a member has open (`card` in the room) is said by the view through this host as it opens and closes,
+///   and drawn by the view from what this host reads of the others ([TeamCanvasPeople]), where the page's view
+///   read the room itself.
 library;
 
 import 'dart:async';
@@ -27,6 +29,7 @@ import 'package:flutter/widgets.dart' hide Canvas;
 import 'package:glacier/glacier.dart';
 
 import '../canvas/camera.dart';
+import '../canvas/canvas_view.dart' show CardEditor;
 import '../canvas/json_canvas.dart';
 import 'editor_binding.dart' show memberColour;
 import 'open.dart';
@@ -39,18 +42,29 @@ const Duration pointerEvery = Duration(milliseconds: 80);
 /// Another member on this canvas, as the note's room has them (`Other`).
 @immutable
 class CanvasOther {
-  const CanvasOther({required this.client, required this.name, required this.hue, required this.pointer});
+  const CanvasOther({required this.client, required this.name, required this.hue, required this.pointer, this.card});
   final int client;
   final String name;
   final String? hue;
   final Spot? pointer;
+
+  /// The card they have open to write in, by its id; null for none.
+  final String? card;
+}
+
+/// What a team's canvas adds to its view: the card this device has open, said for the others, and who has which
+/// card open (`useSaying`'s `card`, and `editedBy`).
+class TeamCanvasPeople {
+  const TeamCanvasPeople({required this.onEditing, required this.editedBy});
+  final ValueChanged<String?> onEditing;
+  final CardEditor? Function(String nodeId) editedBy;
 }
 
 /// The other members on a canvas, read from its room (`useOthers`).
 List<CanvasOther> canvasOthers(TeamRoom? room) => [
       if (room != null)
         for (final MapEntry(key: client, value: said) in room.states.entries)
-          if (client != room.clientId && Me.of(said['user']) != null) CanvasOther(client: client, name: Me.of(said['user'])!.name, hue: Me.of(said['user'])!.hue, pointer: Spot.of(said['pointer'])),
+          if (client != room.clientId && Me.of(said['user']) != null) CanvasOther(client: client, name: Me.of(said['user'])!.name, hue: Me.of(said['user'])!.hue, pointer: Spot.of(said['pointer']), card: said['card'] is String ? said['card'] as String : null),
     ];
 
 /// A team's canvas round the view [draw] builds: handed the body to draw and the way to write it.
@@ -63,8 +77,8 @@ class TeamCanvasHost extends StatefulWidget {
   final String body;
   final ValueChanged<String>? onChange;
 
-  /// The canvas's view, over a camera this host reads for the pointers.
-  final Widget Function(BuildContext context, String body, ValueChanged<String>? onChange, CanvasCamera camera) draw;
+  /// The canvas's view, over a camera this host reads for the pointers, with what the room adds to it.
+  final Widget Function(BuildContext context, String body, ValueChanged<String>? onChange, CanvasCamera camera, TeamCanvasPeople people) draw;
 
   @override
   State<TeamCanvasHost> createState() => _TeamCanvasHostState();
@@ -159,12 +173,28 @@ class _TeamCanvasHostState extends State<TeamCanvasHost> {
     });
   }
 
+  /// The card this device has open, said in the room as it opens and closes (`useSaying`).
+  void _sayCard(String? id) {
+    if (_gone) return;
+    widget.team.room?.setField('card', id);
+  }
+
   @override
   Widget build(BuildContext context) {
     final shown = _shown;
     final body = shown == null ? widget.body : withCanvas(widget.body, shown);
     final view = _camera.view;
     final t = context.tokens;
+    final others = canvasOthers(widget.team.room);
+    final people = TeamCanvasPeople(
+      onEditing: _sayCard,
+      editedBy: (id) {
+        for (final other in others) {
+          if (other.card == id) return (name: other.name, colour: memberColour(t, other.hue));
+        }
+        return null;
+      },
+    );
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (event) => _say(event.localPosition),
@@ -174,9 +204,9 @@ class _TeamCanvasHostState extends State<TeamCanvasHost> {
       child: Stack(
         fit: StackFit.expand,
         children: <Widget>[
-          widget.draw(context, body, widget.onChange == null ? null : _changed, _camera),
+          widget.draw(context, body, widget.onChange == null ? null : _changed, _camera, people),
           // Over the cards, and taking no taps.
-          for (final other in canvasOthers(widget.team.room))
+          for (final other in others)
             if (other.pointer case final at?)
               Positioned(
                 left: at.x * view.scale + view.x,

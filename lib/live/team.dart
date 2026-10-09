@@ -162,7 +162,7 @@ class TeamRoom implements RoomListener {
   }
 
   /// Everyone in the room as last heard, this device included, by awareness client: `user` ([Me]), `cursor`
-  /// (`{anchor, head}`), `at` (presence.dart), `pointer` on a canvas.
+  /// (`{anchor, head}`), `at` (presence.dart), `pointer` and `card` on a canvas.
   Map<int, Map<String, Object?>> get states => Map.unmodifiable(_states);
 
   /// What this device says of itself now.
@@ -189,7 +189,7 @@ class TeamRoom implements RoomListener {
     setField('user', me.toJson());
   }
 
-  /// One field of what this device says of itself (`setLocalStateField`): `cursor`, `at`, `pointer`. Said to the
+  /// One field of what this device says of itself (`setLocalStateField`): `cursor`, `at`, `pointer`, `card`. Said to the
   /// room as it is set.
   void setField(String field, Object? value) {
     if (_closed) return;

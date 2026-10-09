@@ -29,12 +29,16 @@
 /// - **Comments** draw their rounds and their button and hand the rest to [CanvasView.threads], which
 ///   canvas_comments.dart answers with the note's own sheet (`useCanvasComments.tsx`): lib/canvas knows neither an
 ///   account nor an organization, which a comment's author and colour want.
-/// - **Not here:** a team's canvas and the other members' pointers (piece 6G); a note dragged in from the sidebar
-///   or a picture file dropped from the computer (`onDrop`: there is no drag between widgets of that kind yet);
-///   `goTo`; `videos`.
+/// - **A team's canvas** is a host round this view (lib/live/team_canvas.dart, piece 6G): it draws the other
+///   members' pointers over it, and is told the card being written in ([CanvasView.onEditing]) and asked who has
+///   which card open ([CanvasView.editedBy]), where the page's view read the note's room itself.
+/// - **Not here:** a note dragged in from the sidebar or a picture file dropped from the computer (`onDrop`: there
+///   is no drag between widgets of that kind yet); `videos`.
 /// - The keys are the canvas's while it has the keyboard's focus, which a press on it gives it; the web listened on
 ///   the window and looked at what was focused.
 library;
+
+import 'dart:ui' as ui show Canvas;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -80,6 +84,9 @@ const double barRoom = 64;
 /// How far off the screen a card's words are made, in screen pixels (`NEAR_PX`, Near.tsx).
 const double nearPx = 300;
 
+/// Another member with a card open: their handle and the colour they wear.
+typedef CardEditor = ({String name, Color colour});
+
 /// A canvas's threads, asked for: [start] a new one on a card (Comment, on its bar), or a card's threads opened
 /// (its round). Handed the canvas as it is and the way to change it.
 typedef CanvasThreads = void Function(BuildContext context, {required Canvas canvas, required String node, required bool start, required void Function(Canvas next) change});
@@ -98,6 +105,10 @@ class CanvasView extends StatefulWidget {
     this.preferences,
     this.camera,
     this.felt,
+    this.goTo,
+    this.onEditing,
+    this.editedBy,
+    this.team = false,
   });
 
   /// The note's body: front matter that names it, then the canvas's JSON.
@@ -128,6 +139,21 @@ class CanvasView extends StatefulWidget {
   /// The tick a card makes landing on a new dot; the app's own motor when null (`fireFelt('selection')`).
   final VoidCallback? felt;
 
+  /// A spot to centre on, from an organization's dashboard's Jump to cursor: a member's pointer (`goTo`).
+  final Point? goTo;
+
+  /// The card being written in, as it opens and closes: what a team's canvas says of this device in the note's
+  /// room (`useSaying`'s `card`). Told once the frame that changed it is drawn.
+  final ValueChanged<String?>? onEditing;
+
+  /// Another member writing in a card (docs/SHARED.md, S9): who, and their colour, for the ring and the handle on
+  /// its corner; null for a card nobody else has open.
+  final CardEditor? Function(String nodeId)? editedBy;
+
+  /// A team's canvas: its structure changes with every member's edit, and a view is not refitted for a card moved
+  /// (CanvasView.tsx `if (!team) setOpened(canvas)`). It is fitted as it opens, and by its own Fit.
+  final bool team;
+
   /// The camera, for a host that wants to move the view or a test that reads it; the view's own when null.
   final CanvasCamera? camera;
 
@@ -147,9 +173,26 @@ Widget Function(BuildContext context, String body, ValueChanged<String> onChange
   String Function(String handle)? threadHue,
   bool readOnly = false,
   CanvasCamera? camera,
+  Point? goTo,
+  ValueChanged<String?>? onEditing,
+  CardEditor? Function(String nodeId)? editedBy,
+  bool team = false,
 }) =>
-    (context, body, onChange) =>
-        CanvasView(body: body, onChange: readOnly ? null : onChange, wiki: wiki, pictures: pictures, pickPicture: pickPicture, openLink: openLink, threads: threads, threadHue: threadHue, camera: camera);
+    (context, body, onChange) => CanvasView(
+          body: body,
+          onChange: readOnly ? null : onChange,
+          wiki: wiki,
+          pictures: pictures,
+          pickPicture: pickPicture,
+          openLink: openLink,
+          threads: threads,
+          threadHue: threadHue,
+          camera: camera,
+          goTo: goTo,
+          onEditing: onEditing,
+          editedBy: editedBy,
+          team: team,
+        );
 
 class CanvasViewState extends State<CanvasView> {
   static final Canvas _empty = Canvas(nodes: const [], edges: const []);
@@ -263,7 +306,21 @@ class CanvasViewState extends State<CanvasView> {
     _camera.open(_canvas);
     _camera.addListener(_moved);
     _prefs.addListener(_redraw);
+    _centreOnSpot();
   }
+
+  /// Jump to cursor from the dashboard: the screen centred on the member's pointer, at the scale it is at. Once
+  /// the frame is drawn, since the screen's size is the camera's only then.
+  void _centreOnSpot() {
+    if (widget.goTo == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final spot = widget.goTo;
+      if (mounted && spot != null) _camera.centreOn(spot);
+    });
+  }
+
+  /// The card being written in, last told to whoever asked ([CanvasView.onEditing]).
+  String? _toldEditing;
 
   @override
   void didUpdateWidget(CanvasView oldWidget) {
@@ -276,12 +333,13 @@ class CanvasViewState extends State<CanvasView> {
       _camera.removeListener(_moved);
       _camera = widget.camera!..addListener(_moved);
     }
-    // The note reloaded: its canvas is the canvas, and the view is fitted to it again. What this wrote, handed
-    // back, is not that.
+    if (widget.goTo != oldWidget.goTo) _centreOnSpot();
+    // The note reloaded: its canvas is the canvas, and the view is fitted to it again (not a team's, whose every
+    // member's edit comes this way). What this wrote, handed back, is not that.
     if (widget.body != oldWidget.body && widget.body != _wrote) {
       _canvas = canvasOf(widget.body) ?? _empty;
       _live = _canvas;
-      _camera.open(_canvas);
+      if (!widget.team) _camera.open(_canvas);
     }
   }
 
@@ -813,6 +871,13 @@ class CanvasViewState extends State<CanvasView> {
         _takeNear();
         _below = _barBelow();
         final threads = widget.threads;
+        final editedBy = widget.editedBy;
+        if (_editing != _toldEditing) {
+          final now = _toldEditing = _editing;
+          // After the frame: whoever hears it may draw again for it.
+          final tell = widget.onEditing;
+          if (tell != null) WidgetsBinding.instance.addPostFrameCallback((_) => tell(now));
+        }
         return Focus(
           focusNode: _focus,
           autofocus: true,
@@ -874,6 +939,17 @@ class CanvasViewState extends State<CanvasView> {
                             onName: editable ? _nameGroup : null,
                             own: _own,
                           ).build(context),
+                        // Another member writing in a card: a ring in their colour and their handle on its corner,
+                        // scaled with the world as the card is (`.card[data-edited-by]`).
+                        if (editedBy != null)
+                          for (final node in live.nodes)
+                            if (editedBy(node.id) case final by?)
+                              Placed(
+                                key: ValueKey('edited ${node.id}'),
+                                at: Offset(node.x, node.y),
+                                size: Size(node.width, node.height),
+                                child: IgnorePointer(child: EditedBy(by: by, radius: t.radius('lg') + (node.isGroup ? 4 : 0), paper: t.color('app-paper'), corner: t.radius('md'), label: t.textAt(11, weight: 'medium', height: 1.3))),
+                              ),
                         Placed(
                           key: const ValueKey('lines'),
                           at: Offset.zero,
@@ -982,6 +1058,59 @@ class CanvasViewState extends State<CanvasView> {
       },
     );
   }
+}
+
+/// `.card[data-edited-by]` and its `::after`: `box-shadow: 0 0 0 2px var(--editor)` round the card, and the member's
+/// handle at its top corner (`padding: 1px 7px 2px; border-end-start-radius: var(--glacier-radius-md);
+/// background: var(--editor); color: var(--app-paper); font-size: 11px; font-weight: medium; line-height: 1.3`),
+/// inside the card's own corner as its `overflow: hidden` keeps it.
+class EditedBy extends StatelessWidget {
+  const EditedBy({super.key, required this.by, required this.radius, required this.paper, required this.corner, required this.label});
+
+  final CardEditor by;
+
+  /// The card's own corner.
+  final double radius;
+  final Color paper;
+
+  /// `--glacier-radius-md`.
+  final double corner;
+  final TextStyle label;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        label: '${by.name} is writing in this card',
+        child: CustomPaint(
+          foregroundPainter: _RingPainter(colour: by.colour, radius: radius),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(radius),
+            child: Align(
+              alignment: AlignmentDirectional.topEnd,
+              child: DecoratedBox(
+                decoration: BoxDecoration(color: by.colour, borderRadius: BorderRadiusDirectional.only(bottomStart: Radius.circular(corner))),
+                child: Padding(padding: const EdgeInsets.fromLTRB(7, 1, 7, 2), child: ExcludeSemantics(child: Text(by.name, maxLines: 1, style: label.copyWith(color: paper)))),
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
+/// A shadow with no blur and two pixels of spread: a band two wide outside the card's edge, its corners the card's
+/// own and two more.
+class _RingPainter extends CustomPainter {
+  const _RingPainter({required this.colour, required this.radius});
+  final Color colour;
+  final double radius;
+
+  @override
+  void paint(ui.Canvas canvas, Size size) {
+    final card = RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius));
+    canvas.drawDRRect(card.inflate(2), card, Paint()..color = colour);
+  }
+
+  @override
+  bool shouldRepaint(_RingPainter old) => old.colour != colour || old.radius != radius;
 }
 
 /// `.commentRound`: how many of a card's threads are open, in the colour of who started the first open one; hollow
