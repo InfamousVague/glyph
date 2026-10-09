@@ -17,9 +17,12 @@
 ///   `adoptTeamDoc`, `dropTeamDoc`, `heldTeamDocs` and `forgetTeamDocs` are its methods. Two of them in one test are
 ///   two devices.
 /// - [TeamDocs.forget] also lets the documents go from the core, which a page reload did for the web.
-/// - **A canvas is not here.** The web keeps a team canvas as types beside the text (core/team/canvas.ts); the core
-///   holds text alone, and the channel passes a canvas over (sync.dart says how) rather than merge its JSON as
-///   words.
+/// - **A canvas** (docs/SHARED.md, S9; the web's core/team/canvas.ts), once its structure is seeded, is its types,
+///   which the core keeps beside the text (native/src/crdt.rs): [TeamDoc.words] reads the JSON from them under the
+///   text's front matter, [TeamDoc.reconcile] reads words into them, and the text's own JSON is left as it was,
+///   since JSON written as text by two members at once merges into no JSON at all. The web's adapter
+///   (`teamCanvas`: `canvas`, `apply`, `onChange`) is the document's own [TeamDoc.canvas], [TeamDoc.seedCanvas],
+///   [TeamDoc.applyCanvas] and [TeamDoc.onCanvas].
 /// - **An editor's own change says what it was made against** ([TeamDoc.edit]'s `base`, lib/team/text_log.dart):
 ///   the document is a call away, so a key can be pressed after an update was handed to the core and before its
 ///   words came back. Everything that changes the document goes one at a time, in the order it was asked.
@@ -28,7 +31,11 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
+
+import '../canvas/json_canvas.dart';
+import '../core/front_matter.dart';
 
 import '../live/live_text.dart' show LiveText;
 import 'crdt.dart';
@@ -42,7 +49,9 @@ const Duration keepAfter = Duration(milliseconds: 400);
 
 /// One note's document (`TeamDoc`).
 class TeamDoc implements LiveText {
-  TeamDoc._(this.noteId, this.crdt, this._store, this._words, {required this.seq, required this.snapshotSeq, required Duration rest}) : _rest = rest;
+  TeamDoc._(this.noteId, this.crdt, this._store, this._words, {required this.seq, required this.snapshotSeq, required Duration rest})
+      : _rest = rest,
+        _text = _words;
 
   final String noteId;
 
@@ -56,6 +65,12 @@ class TeamDoc implements LiveText {
   int snapshotSeq;
 
   String _words;
+
+  /// The document's text: the note's words, or for a canvas its front matter and the JSON as it was when the
+  /// structure was seeded.
+  String _text;
+  Canvas? _canvas;
+  final Set<void Function(Canvas canvas)> _canvases = {};
   bool _closed = false;
   final Set<void Function(String words)> _listeners = {};
   final Set<void Function(Uint8List update)> _updates = {};
@@ -84,6 +99,38 @@ class TeamDoc implements LiveText {
   /// The document's words now.
   @override
   String get words => _words;
+
+  /// The text is [text] now: the words with it, read from the canvas's types where the document holds a canvas.
+  /// Answers the words.
+  Future<String> _read(String text) async {
+    _text = text;
+    // Seeded once is seeded for good; before that, only words that are a canvas can have had a structure made.
+    if (_canvas == null && !(_looksCanvas(text) && await crdt.canvasSeeded())) return text;
+    final was = _canvas;
+    final now = parseCanvas(jsonEncode(await crdt.canvasRead())) ?? Canvas(nodes: const [], edges: const []);
+    _canvas = now;
+    if (was != now) {
+      for (final listener in _canvases.toList()) {
+        listener(now);
+      }
+    }
+    return withCanvas(text, now);
+  }
+
+  static bool _looksCanvas(String text) {
+    final lines = text.split('\n');
+    final end = frontMatterEnd(lines);
+    return end < lines.length && lines.sublist(end).join('\n').trimLeft().startsWith('{');
+  }
+
+  /// A body's front matter block with its closing line, or nothing where it has none.
+  static String _frontMatterOf(String body) {
+    final lines = body.split('\n');
+    final end = frontMatterEnd(lines);
+    return end > 0 ? '${lines.sublist(0, end).join('\n')}\n' : '';
+  }
+
+  static Map<String, Object?> _raw(Canvas canvas) => {...(jsonDecode(serializeCanvas(canvas)) as Map).cast<String, Object?>(), if (canvas.comments?.isEmpty ?? true) 'comments': const <Object?>[]};
 
   /// The words are [after] now, by a change that was not the editor's.
   void _tell(String after) {
@@ -120,13 +167,26 @@ class TeamDoc implements LiveText {
   Future<bool> reconcile(String words) {
     return _next(() async {
       if (_words == words) return false;
+      if (_canvas != null) {
+        // The canvas into its types, and only the front matter (the name, the tags) into the text.
+        final given = canvasOf(words);
+        final wrote = given == null || given == _canvas ? null : await crdt.canvasWrite(_raw(given));
+        final front = _frontMatterOf(words), had = _frontMatterOf(_text);
+        final named = front == had ? null : await crdt.reconcile(front + _text.substring(had.length));
+        if (!(wrote?.changed ?? false) && !(named?.changed ?? false)) return false;
+        _soon();
+        _tell(await _read(named?.text ?? _text));
+        _made(wrote?.update);
+        _made(named?.update);
+        return true;
+      }
       final change = await crdt.reconcile(words);
       if (!change.changed) {
-        _words = change.text;
+        _words = _text = change.text;
         return false;
       }
       _soon();
-      _tell(change.text);
+      _tell(await _read(change.text));
       _made(change.update);
       return true;
     });
@@ -140,7 +200,7 @@ class TeamDoc implements LiveText {
   Future<CrdtChange> edit(List<CrdtEdit> edits, {int? base}) {
     return _next(() async {
       final change = await crdt.edit(base == null ? edits : _log.carry(edits, base));
-      _words = change.text;
+      _words = _text = change.text;
       if (change.changed) _soon();
       _made(change.update);
       return change;
@@ -151,13 +211,58 @@ class TeamDoc implements LiveText {
   /// refusal for an update it cannot hold, the document left as it was.
   Future<String?> applyRemote(List<Uint8List> updates, [int? seq]) {
     return _next(() async {
-      final after = updates.isEmpty ? null : await crdt.applyRemote(updates);
+      final text = updates.isEmpty ? null : await crdt.applyRemote(updates);
       if (seq != null && seq > this.seq) this.seq = seq;
       _soon();
-      if (after == null) return null;
+      // A canvas's types change under words that do not: read again whenever anything arrived.
+      final after = updates.isEmpty ? _words : await _read(text ?? _text);
+      if (after == _words) return null;
       _tell(after);
       return after;
     });
+  }
+
+  /// The canvas the document's types hold, once they hold one (`teamCanvas(doc).canvas()`); null for a note that
+  /// is words, and for a canvas whose structure nobody has seeded yet ([seedCanvas]).
+  Canvas? get canvas => _canvas;
+
+  /// The structure made from the words where no member has made it yet (`teamCanvas`'s `make`): the canvas, or
+  /// null for a note that is not one. The types are the document's own named roots, so two devices seeding at once
+  /// from the same JSON write the same keys into the same maps.
+  Future<Canvas?> seedCanvas() {
+    return _next(() async {
+      if (_canvas == null && !await crdt.canvasSeeded()) {
+        final words = canvasOf(_text);
+        if (words == null) return null;
+        final wrote = await crdt.canvasWrite(_raw(words), seed: true);
+        _soon();
+        _made(wrote.update);
+      }
+      final after = await _read(_text);
+      if (after != _words) _tell(after);
+      return _canvas;
+    });
+  }
+
+  /// The view's next canvas written into the types, as one change (`apply`): only what differs, so a member moving
+  /// another card, or typing in this one, keeps what they did.
+  Future<void> applyCanvas(Canvas next) {
+    return _next(() async {
+      if (_canvas == null) return;
+      final wrote = await crdt.canvasWrite(_raw(next));
+      if (!wrote.changed) return;
+      _soon();
+      final after = await _read(_text);
+      if (after != _words) _tell(after);
+      _made(wrote.update);
+    });
+  }
+
+  /// Told the canvas after every change to the types, this device's or another's (`onChange`). Answers the way to
+  /// stop hearing.
+  void Function() onCanvas(void Function(Canvas canvas) listener) {
+    _canvases.add(listener);
+    return () => _canvases.remove(listener);
   }
 
   /// The updates made here that the service has not been given yet, in order.
@@ -226,6 +331,7 @@ class TeamDoc implements LiveText {
     _listeners.clear();
     _updates.clear();
     _splices.clear();
+    _canvases.clear();
     try {
       await crdt.close();
     } catch (_) {
@@ -253,6 +359,8 @@ class TeamDocs {
     // A document seeded here from the note's words is itself a change the service has not seen: the whole of it.
     final crdt = record != null ? await _crdt.open(state: record.state, pending: record.pending) : await _crdt.open(words: seedWords);
     final doc = TeamDoc._(noteId, crdt, store, await crdt.words(), seq: record?.seq ?? 0, snapshotSeq: record?.snapshotSeq ?? 0, rest: _rest);
+    // A canvas whose structure is there already reads its words from it.
+    doc._words = await doc._read(doc._text);
     // Seeded here: kept soon, so an app closed before the first pass still has the words pending for the team.
     if (record == null && (seedWords ?? '').isNotEmpty) doc._soon();
     return doc;

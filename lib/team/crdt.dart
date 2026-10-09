@@ -175,6 +175,21 @@ class CrdtDoc {
     return (anchor: anchor, head: head ?? anchor);
   }
 
+  /// Whether the document's types hold a canvas yet: seeded here, or arrived from another device (canvas.ts
+  /// `hasTeamCanvas`).
+  Future<bool> canvasSeeded() async => await _invoke('crdt_canvas_has', {'doc': _handle}) as bool;
+
+  /// The canvas the types hold, as the JSON it would be written as (`{nodes, edges, comments}`), before it is
+  /// parsed (canvas.ts `read`).
+  Future<Map<String, Object?>> canvasRead() async => (await _invoke('crdt_canvas_read', {'doc': _handle}) as Map).cast<String, Object?>();
+
+  /// [canvas] (`{nodes, edges, comments?}`) written into the types as one change, only what differs from what they
+  /// hold (canvas.ts `write`); with [seed], the structure is marked as there. Pending for the service like any
+  /// change made here.
+  Future<CrdtChange> canvasWrite(Map<String, Object?> canvas, {bool seed = false}) async {
+    return _change(await _invoke('crdt_canvas_write', {'doc': _handle, 'canvas': canvas, if (seed) 'seed': true}));
+  }
+
   /// Lets the document go from the core (`doc.destroy()`). Keep [snapshot] and [pending] first.
   Future<void> close() async {
     await _invoke('crdt_close', {'doc': _handle});

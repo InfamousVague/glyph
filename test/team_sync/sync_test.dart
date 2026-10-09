@@ -15,6 +15,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/api.dart';
+import 'package:ghost_md/canvas/json_canvas.dart';
 import 'package:ghost_md/account/crypto_api.dart';
 import 'package:ghost_md/core/bytes.dart';
 import 'package:ghost_md/core/native/ghost_core.dart';
@@ -353,21 +354,50 @@ void main() {
       await expectLater(opened(orgKey, 'n1'), throwsA(anything));
     }, skip: skip);
 
-    test('a canvas is passed over both ways: not published from here, not taken, and never taken for gone', () async {
-      const canvas = '{"nodes":[{"id":"a","type":"text","x":0,"y":0,"width":200,"height":80,"text":"card"}],"edges":[]}';
+    test('a canvas is a team\'s note like any other: published, taken, and once its structure is seeded two members\' changes to it merge field by field', () async {
+      const front = '---\ntitle: Board\n---\n';
+      // As a canvas is once it has been read: each card's fields in the order the reader keeps them.
+      Canvas board(List<CanvasNode> nodes) => parseCanvas(serializeCanvas(Canvas(nodes: nodes, edges: const [])))!;
+      CanvasNode card(String id, double x, String text) => CanvasNode({'id': id, 'type': 'text', 'x': x, 'y': 0, 'width': 200, 'height': 80, 'text': text});
+      final first = board([card('a', 0, 'card'), card('b', 300, 'other')]);
       final phone = device();
-      phone.put('c1', canvas);
-      phone.put('n1', 'words');
+      phone.put('c1', withCanvas(front, first));
       expect(saidOutcome(await phone.sync()), 'changed 0, sent 1, unsent 0, reason null');
-      expect(service.teamNotes(orgId).keys, ['n1']);
-      // A canvas the web published: its row is in the feed, and this device leaves it be.
-      final web = device();
-      final row = await service.crypto.seal(orgKey, {'v': 1, 'note': noteToJson(Note(id: 'c2', body: canvas, createdAt: 1, updatedAt: 1, path: 'Board.canvas')), 'state': toBase64Url(Uint8List.fromList([0, 0])), 'seq': 0}, 'org:$orgId:note:c2');
-      await apiOf(service).call('PUT', 'orgs/$orgId/notes/c2', token: service.signedIn(), body: {'base': 0, 'blob': row});
-      expect(saidOutcome(await phone.sync()), 'changed 0, sent 0, unsent 0, reason null');
-      expect(phone.notes.keys.toList()..sort(), ['c1', 'n1']);
-      expect(service.teamNotes(orgId)['c2']!.deleted, isFalse);
-      expect(web.notes, isEmpty);
+      expect(service.teamNotes(orgId).keys, ['c1']);
+      final mac = device();
+      await mac.sync();
+      expect(mac.notes['c1']?.body, withCanvas(front, first));
+
+      // Nobody has opened it yet: no structure, and the words are the text's own.
+      final mine = (await phone.docs.doc('c1'))!, theirs = (await mac.docs.doc('c1'))!;
+      expect((mine.canvas, theirs.canvas), (null, null));
+      // The phone's view opens it and seeds the structure; a pass carries it, and the Mac's copy has it.
+      expect(await mine.seedCanvas(), first);
+      await phone.sync();
+      await mac.sync();
+      expect(theirs.canvas, first);
+
+      // Each moves a different card, and both type in one card's words, apart.
+      await mine.applyCanvas(board([card('a', 40, 'card, said the phone'), card('b', 300, 'other')]));
+      await theirs.applyCanvas(board([card('a', 0, 'the card'), card('b', 900, 'other'), card('c', 5, 'new')]));
+      phone.write('c1', mine.words);
+      mac.write('c1', theirs.words);
+      await phone.sync();
+      await mac.sync();
+      await phone.sync();
+      final merged = board([card('a', 40, 'the card, said the phone'), card('b', 900, 'other'), card('c', 5, 'new')]);
+      expect(mine.canvas, merged);
+      expect(theirs.canvas, merged);
+      expect(phone.notes['c1']?.body, withCanvas(front, merged));
+      expect(mac.notes['c1']?.body, withCanvas(front, merged));
+
+      // Words that reach the canvas without its view (a hand edit of the JSON, a rename) are read into the types.
+      final renamed = withCanvas('---\ntitle: Board 2\n---\n', board([card('a', 40, 'the card, said the phone'), card('c', 5, 'new')]));
+      mac.write('c1', renamed);
+      await mac.sync();
+      await phone.sync();
+      expect(phone.notes['c1']?.body, renamed);
+      expect(mine.canvas?.nodes.map((node) => node.id), ['a', 'c']);
     }, skip: skip);
 
     test('a row is put with the note whole, and a row that says no phrases leaves the ones this device has', () async {

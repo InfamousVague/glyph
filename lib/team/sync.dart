@@ -31,10 +31,9 @@
 ///   version (docs/STAGE3.md), and a row written from it would take them from every other device. For the same
 ///   reason a row that says neither, taken over a note here that has them and whose recording has not changed,
 ///   leaves them.
-/// - **A canvas is passed over, both ways.** The web keeps a team canvas as types beside the text
-///   (core/team/canvas.ts) and reads its JSON from them; the core here holds text alone, and a canvas merged as
-///   words is no canvas at all. So a canvas filed in an organization's workspace is not published from here, and a
-///   team's canvas is not taken: it waits for the types (docs/STAGE7.md, piece J's remainder).
+/// - A canvas is a team's note like any other here, as on the page: its document holds its types beside the text
+///   (lib/team/doc.dart), its words are read from them once they are seeded, and words that reach it without its
+///   view are read into them.
 /// - **A note open in an editor bound to its document is the editor's** ([TeamDoc.editing]): a pass still posts
 ///   what was typed and applies what the log brings (which the binding puts on the page), but does not read the
 ///   library's words into the document or write the document's into the library. The page's pass does both from
@@ -50,7 +49,6 @@ import 'dart:typed_data';
 import '../account/api.dart';
 import '../account/crypto_api.dart';
 import '../core/bytes.dart';
-import '../core/canvas_body.dart';
 import '../core/note.dart';
 import '../core/note_json.dart';
 import '../sync/engine.dart' show TeamNotesPass, TeamOutcome, TeamPass;
@@ -278,9 +276,6 @@ int _numOf(Object? answer, String field) {
   return value is num ? value.toInt() : 0;
 }
 
-/// Whether a note is a canvas, which this channel passes over (see the header).
-bool _canvas(Note note) => (note.path ?? '').toLowerCase().endsWith('.canvas') || isCanvasBody(note.body);
-
 /// [note] with other words, everything else as it is.
 Note _withWords(Note note, String words, {int? updatedAt}) => note.body == words && updatedAt == null ? note : note.copyWith(body: words, updatedAt: updatedAt);
 
@@ -362,8 +357,6 @@ Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally)
     return;
   }
   final (value: payload, :older) = await _opened(ctx, (key) async => _Payload.fromJson(await ctx.crypto.open(key, blob, _noteContext(ctx.orgId, item.id)), item.id));
-  // A canvas waits for its types (see the header): not taken, and asked about again when its row next changes.
-  if (_canvas(payload.note) || (local != null && _canvas(local))) return;
   final held = await ctx.docs.doc(item.id);
   // Words typed here since the document was last written are a change of this device's, reconciled before the row's
   // state comes in, so the merge is the CRDT's and nothing typed is written over.
@@ -579,8 +572,6 @@ Future<void> _push(TeamSyncContext ctx, _Tally tally) async {
   final present = <String>{};
   for (final note in here) {
     present.add(note.id);
-    // A canvas waits for its types (see the header): neither published nor, being here, taken for gone.
-    if (_canvas(note)) continue;
     await _counted(tally, () => _pushOne(ctx, note, tally));
   }
   // Gone from here, or taken out of the organization's workspace: gone from the team.
@@ -662,7 +653,7 @@ Future<TeamOutcome> syncTeamNotes(TeamSyncContext ctx) async {
   }
   final team = [
     for (final note in await ctx.notes.list())
-      if (ctx.isTeamNote(note.id) && !_canvas(note)) note,
+      if (ctx.isTeamNote(note.id)) note,
   ];
   final moved = team.isNotEmpty ? await _heads(ctx) : null;
   for (final note in team) {
