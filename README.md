@@ -48,7 +48,7 @@ Each stage ends installed on the Fold. Sizes are the web app's non-test source t
 | 6 | Canvas | `canvas/` (3.5k) | in the app 2026-10-08 as a note's own view (`NoteSeams.canvas`), made from the + and from a notebook's index; a team's canvas (6G) is not ported; **not yet on the Fold** |
 | 7 | Account and sync: keys, the sync engine, organizations and team notes, live typing, notifications, shared links | `core/sync`, `core/orgs`, `core/live`, `share/` | in the app 2026-10-08, **off unless the build is given `--dart-define=GHOST_API=http://…`** (`lib/root/account_wiring.dart`); walked on the emulator against the service run on this Mac (sign up, sync read back by a second device, an organization, a team note, a shared link); links that open the app are followed since 2026-10-09 (`lib/root/ghost_root.dart`, `lib/core/phone_links.dart`: a note, the notifications, an organization, an invitation asked about first, a shared link's copy); live typing and the phone's own notifications are not ported |
 | 8 | Voice and AI: the recorder, Whisper, meetings and their service, summaries, the language model, fills, the at-work scene | `capture/` (12k), `ai/` (6.5k), `tapes/`, `scene/`, Kotlin (6.5k) | Speak in the app 2026-10-09 (`lib/root/voice_wiring.dart`, `lib/root/capture_route.dart`, `lib/root/ghost_root.dart`): the dock's microphone, a note's own and a journal's spoken entry, the capture screen with its live page, the meeting service and its screen, the + sheet's Meeting, Settings' Recording and AI pages with their real rows; the summary queue, the review's gate and the write-up's configuration (lib/ai's), a spoken note's tape played by the phone, a landing's Undo; walked on an Android emulator; the AI in a note (`NoteAi`), the fills' queue, the gists and the scene since the third pass, run on the emulator with Qwen3.5 2B; **not yet on the Fold**; see "What stage 8 left open" |
-| 9 | The rest: backup, export, plugins, the Academy and the guide, diagnostics, updates | `plugins/`, `academy/`, `guide/`, `diag/` | 9A to 9C (the library's folder, backup, export) walked on the emulator 2026-10-09, and in Settings since (`lib/root/ghost_root.dart`); see "What stage 9A to 9C left open". The plugins (in Settings and in a note), the Academy, the walkthrough and the guide's notebook, link previews, Developer's benches and its resets are in the app 2026-10-09 (`lib/root/plugin_ground.dart`, `reset_wiring.dart`, `note_desk.dart`, `ghost_root.dart`); a note's place, updates and the phone's notices are not; see "What stage 9's other pieces left open" |
+| 9 | The rest: backup, export, plugins, the Academy and the guide, diagnostics, updates | `plugins/`, `academy/`, `guide/`, `diag/` | 9A to 9C (the library's folder, backup, export) walked on the emulator 2026-10-09, and in Settings since (`lib/root/ghost_root.dart`); see "What stage 9A to 9C left open". The plugins (in Settings and in a note), the Academy, the walkthrough and the guide's notebook, link previews, Developer's benches and its resets are in the app 2026-10-09 (`lib/root/plugin_ground.dart`, `reset_wiring.dart`, `note_desk.dart`, `ghost_root.dart`); the app's own updates (9I: `lib/core/updates.dart`, `lib/root/update_wiring.dart`, `tool/release.md`) and the invitation's card are in the app 2026-10-09, the updates run on the emulator against a made-up release and **on in no build** until a key and a release address are chosen; a note's place and the phone's own update notifier are not; see "What stage 9's other pieces left open" |
 | 10 | Platforms and release: the Fold's wide layouts, Mac, Windows, iPhone; signing; moving a library over from the Tauri app | | |
 
 The web app is about 110,000 lines of TypeScript, 21,500 of CSS, 27,000 of Rust and 6,500 of Kotlin, with 5,600
@@ -84,6 +84,25 @@ on the same phone.
     `resetGroundFor`): the account forgotten first, the phone's half (`PhoneReset`), every plugin's secret by name
     with Slack's webhooks one to a channel (`slackSecretNames`), the device's memory cleared but what is spared,
     and the app built anew (`lib/main.dart` `_Runs`, the page's `window.location.reload()`).
+  - **The app's own updates** (9I; `lib/core/updates.dart`, checked by the core's `update_read` and
+    `update_verify`, `native/src/kept/updates.rs`, the Tauri app's lines; `UpdateInstaller.kt`): a signed `apk.json`
+    from this app's OWN release address, said at build time (`--dart-define=GHOST_UPDATES=https://…`); the download
+    into `<cacheDir>/updates` with its progress; the file handed to Android's installer only at the size and
+    SHA-256 the signed description gives, with the "allow installs from this app" page the first time; looked for
+    four seconds after launch, on a return after a minute, and every two minutes in front; never with "Nothing
+    leaves the phone" on, and not installed while a meeting records. One `Updates` (made in `lib/main.dart`) feeds
+    the launch screen's line, Settings › About's Updates row with Install and Check for updates, and the card above
+    the notes (`lib/root/update_wiring.dart`). **It is on in no build as things stand:** never in a debug build,
+    never without `GHOST_UPDATES`, never at the Tauri app's addresses, and never while
+    `lib/core/update_keys.dart` lists no key, which it does not. `tool/release.md` is what a release must build,
+    sign and upload, and the decisions still open (the release build is signed with the debug key, and an APK
+    cannot update one signed with another; which key signs `apk.json`; where releases live).
+    What differs from the web: no web bundle, so nothing is ever "ready" to reload; the signature's context is
+    this app's own (`ghost-flutter-apk\0`), so a description signed for Ghost.md never passes here; a signed file
+    cannot move the app to another address; a failed look says so in About.
+  - **The invitation's card** above the notes (`InviteWaiting`, `lib/root/update_wiring.dart`): the newest
+    invitation still pending whose organization the account is still invited to, with `InviteActions`' Accept and
+    Decline; accepted, the organization opens. Only in a build with an account.
 - **Not wired, each with its seam:**
   - **A note keeping its place** (the web's geotag switch, on by default for notes the person makes): nothing
     here can say where the phone is. It wants a Kotlin half for the device's position and its permission (there
@@ -96,7 +115,14 @@ on the same phone.
     board card's plugin rows (`drawnBoards(actions:)`), the editor's parser reading `plugins.formats()` (the desk
     gives it the app's own marks), and `usePluginContext` / `claudeHandle` (docs/STAGE8_AI.md, "At launch", 1).
   - **The walkthrough's model page** (`Guide(models:)`): a phone with none to fetch, as far as it is told.
-  - **Updates and the phone's own notices** (9I): `Notices`' update card and the launch screen's `updates`.
+  - **The phone's own update notifier** (9I; the web's `UpdateCheckWorker.kt`, `UpdateAlerts.kt` and Rust's `peek`):
+    nothing looks for an update while the app is closed, and About has no "Update alerts" switch. Not small: a
+    WorkManager job in a process where Dart never started needs the check without Dart (the two requests in
+    Kotlin, the signature through a JNI door into `kept/updates.rs` as `recording_jobs.rs` has one), the alerts'
+    preference and channel, and the trusted keys where Kotlin can read them (they are a Dart list now). Its seam:
+    `SettingsUpdates.alerts` (`lib/root/update_wiring.dart` gives none).
+  - **What's new** (About's list of releases, the web's `releases.json`): `SettingsUpdates.releases` is given
+    none, so the page says "No updates to show yet." A release publishes no such file (`tool/release.md`).
 - **Checked where:** on the emulator (2026-10-09): Settings › Plugins ("4 of 5 on"); a link's card reading
   "Example Domain"; the walkthrough on a first launch, a page turned, Skip; the Academy's contents and its switch,
   scrolled and left; the smoke bench with its frame times; the scene bench saying the scene is not in the build;
@@ -104,6 +130,21 @@ on the same phone.
   models kept, the starter notes written, the app back on the welcome walkthrough with its microphone. **Not
   walked:** a plugin connected to its service, a swipe or a suggestion from one, Reset everything, a reset signed
   in.
+- **The updates, on the emulator** (2026-10-09; a debug build with the test run's two defines, a made-up release
+  served from the Mac over http, signed by a throwaway key): the launch screen's "Checking for updates"; the card
+  "Ghost.md 0.2.0 is out." with Install; "Downloading Ghost.md 0.2.0, 11 of 104 MB." with its bar; the file
+  verified and Android's "Do you want to update this app?" (cancelled, not installed); with installs not yet
+  allowed, Android's "Install unknown apps", "Allow from this source", for Ghost Flutter; and with one bit flipped
+  in the served APK, "Ghost.md 0.2.0 didn't install. the APK did not match its published checksum" with Try again,
+  the updates directory left empty. **Not seen:** the card's "Let Ghost.md install apps, then come back.",
+  "waiting on Android" after a cancel, About's Updates rows on a phone, a finished install, anything on the Fold.
+- **Found there, and open:** with the update's card on the home page, the app leaving the front (Home, or
+  Android's settings page opening over it) ended the process three times out of three, SIGSEGV on the raster
+  thread inside libflutter.so (Impeller on OpenGL ES); the same build's card did not survive it with the system's
+  animations off either, and a build with no card went Home and came back. Not narrowed further: `_UpdateCard`
+  (`lib/notes/notices.dart`: its `_Holo` painter, its shadow over a clip) is the first place to look, on the Fold
+  (Vulkan) before anywhere. Until it is, the "allow installs" step kills the app on the emulator; the verified file
+  is still in the cache, so Install after reopening carries on.
 
 ## What stage 8 left open
 
@@ -210,8 +251,9 @@ change (`lib/root/library_reads.dart`). `test/root/structured_test.dart` holds t
   its tab is written to the store and not through its open screen (`rename`).
 - **A board's card has no plugin's rows** (`drawnBoards(actions:)`), and a date in a ticket's panel or a query is
   not picked from a calendar (`dayPicker`).
-- **`Notices`** has the voice model's line (stage 8); the update card waits for stage 9's updates and the
-  invitation for its buttons (`InviteActions`).
+- **`Notices`**: the voice model's line (stage 8), the update's card and the invitation's (stage 9,
+  `lib/root/update_wiring.dart`) are on the home page. `RefiningNotice` and the sidebar's notices are still given
+  nothing.
 - **The aside** (the open note's notebook beside it on a wide window, `aside/`) is still the shell's placeholder.
 - **A note opened with the caret at its end** (a journal's new entry) is scrolled until that line is at the top of
   the page as the keyboard comes up, its heading and the notebook's bar above it out of sight until the page is
