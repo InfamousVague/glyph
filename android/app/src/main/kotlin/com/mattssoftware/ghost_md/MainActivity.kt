@@ -77,6 +77,9 @@ class MainActivity : FlutterActivity() {
     /** Tells the page's binding when the activity is paused and resumed (lib/app/front_frames.dart). */
     private var front: MethodChannel? = null
 
+    /** The hinge's angle while the app is up, for a note's unfold (Hinge.kt; lib/core/unfold.dart). */
+    private val hinge by lazy { Hinge(applicationContext) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Before super: a capture launch decides the window's lock-screen behaviour before the window is shown.
         meeting = MeetingBridge(this).also { it.onCreate(intent) }
@@ -135,6 +138,8 @@ class MainActivity : FlutterActivity() {
         front = MethodChannel(messenger, "ghost_md/front")
         // Pick a date: the phone's own calendar (DayPick.kt; lib/core/phone_day.dart).
         DayPick(this).register(messenger)
+        // A folding phone's hinge, as it opens (Hinge.kt; lib/core/unfold.dart).
+        hinge.register(messenger)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -150,6 +155,7 @@ class MainActivity : FlutterActivity() {
         front?.invokeMethod("back", null)
         resumed = WeakReference(this)
         meeting?.onResume()
+        hinge.onResume()
     }
 
     override fun onPause() {
@@ -158,6 +164,7 @@ class MainActivity : FlutterActivity() {
         front?.invokeMethod("leaving", null)
         if (resumed?.get() === this) resumed = null
         film?.pauseAll()
+        hinge.onPause()
         meeting?.onPause()
         super.onPause()
     }

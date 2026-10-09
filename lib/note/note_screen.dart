@@ -23,8 +23,8 @@
 /// - **What other pieces and stages own comes in through [NoteSeams]**, each nullable, each named for the web file
 ///   it ports: find, the bookmark, comments, sharing, the AI, plugins' links, the place and its map card, the
 ///   book's bar and foot, and the canvas, book and journal views, each drawn only where it is given (lib/root gives
-///   all three). The tape and its transcript, the AI's strip, the models' scene, live and team notes, pull to
-///   refresh and the unfold's crease are not drawn at all yet.
+///   all three). The tape and its transcript, the AI's strip, the models' scene, live and team notes and pull to
+///   refresh are not drawn at all yet.
 /// - **The blank page's names and template cards are a sliver under the editor**, where the page drew them in a
 ///   block after line 1 inside it (editor/nameChips.ts): a note with no words is its one empty line, so under the
 ///   editor is under that line, and the page scrolls them with it. They wait for what the page's waited for: the
@@ -72,6 +72,7 @@ import '../core/note_names.dart';
 import '../core/place_tags.dart';
 import '../core/preferences.dart';
 import '../core/stored.dart';
+import '../core/unfold.dart';
 import '../core/untouched.dart';
 import '../core/versions_file.dart';
 import '../core/versions_record.dart';
@@ -237,6 +238,7 @@ class NoteScreen extends StatefulWidget {
     this.liveTitles,
     this.onSpeak,
     this.onHistory,
+    this.hinge,
     this.at,
     this.caret,
     this.book,
@@ -281,6 +283,9 @@ class NoteScreen extends StatefulWidget {
 
   /// The history in a side panel, from the bar's History button; left out, the More sheet's page opens.
   final VoidCallback? onHistory;
+
+  /// The hinge's angles, for the unfold; the phone's own unless given (core/unfold.dart `hingeAngles`).
+  final Stream<double>? hinge;
 
   /// The item to land on when the note was opened by a link pointing inside it: `^anchor`, or `line:12`.
   final String? at;
@@ -334,14 +339,19 @@ class NoteScreen extends StatefulWidget {
 /// What the note says when its save was refused for good.
 const String saveStoppedWords = 'This note changed somewhere else. What you write here now is not being saved.';
 
-class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMixin {
+class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
   late final NoteSaving _saving;
   VersionKeeping? _versioning;
   late final NoteZoom _zoom = NoteZoom(device: widget.device);
   final PinchTracker _pinch = PinchTracker();
   final ScrollController _scroll = ScrollController();
   final GlobalKey _page = GlobalKey();
+  final GlobalKey _unfolding = GlobalKey();
   late final AnimationController _rise = AnimationController(vsync: this, duration: const Duration(milliseconds: 320));
+
+  /// On a folding phone, the note flattens with the hinge as the phone opens (core/unfold.dart). Made once the
+  /// tokens say whether motion is turned down.
+  UnfoldDriver? _unfold;
 
   EditorView? _view;
   NotePlaceKeeper? _keeper;
@@ -529,6 +539,7 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
     _toolsModel.dispose();
     _scroll.dispose();
     _rise.dispose();
+    _unfold?.dispose();
     super.dispose();
   }
 
@@ -1369,6 +1380,7 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
     );
 
     final scroller = seams.around?.call(context, _words ? view : null, words) ?? words;
+    final unfold = _unfold ??= UnfoldDriver(vsync: this, still: t.reducedMotion, angles: widget.hinge);
 
     // `noteRise`: 320ms ease-out, rising 8px as it fades in.
     final curve = CurvedAnimation(parent: _rise, curve: Curves.easeOut);
@@ -1400,9 +1412,30 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
               // keyboard): the line being typed can always be scrolled clear of it, and the foot's smoke rests on it.
               child: Padding(
                 padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-                child: WispEdge(under: under, foot: !_isCanvas, child: page),
+                child: WispEdge(
+                  under: under,
+                  foot: !_isCanvas,
+                  // `.screen[data-unfolding] .body`: paper folded down its middle, foreshortened, flattening as the
+                  // hinge does. Only the note moves; the header and the app's own bar are the phone's.
+                  child: ValueListenableBuilder<double?>(
+                    valueListenable: unfold.progress,
+                    child: page,
+                    builder: (context, at, child) => at == null
+                        ? KeyedSubtree(key: _unfolding, child: child!)
+                        : Transform(
+                            alignment: Alignment.center,
+                            transform: Matrix4.diagonal3Values(0.72 + 0.28 * at, 0.965 + 0.035 * at, 1),
+                            child: KeyedSubtree(key: _unfolding, child: child!),
+                          ),
+                  ),
+                ),
               ),
             ),
+          ),
+          // The crease's shadow while the note unfolds; nothing the rest of the time (`.crease`).
+          ValueListenableBuilder<double?>(
+            valueListenable: unfold.progress,
+            builder: (context, at, _) => at == null ? const SizedBox.shrink() : IgnorePointer(child: UnfoldCrease(at: at, ink: t.color('app-ink'))),
           ),
           // A note with no words yet: the ghost with its pen, a little under the first line, gone at the first word.
           if (_saving.blank && !_typed && offered == null) _BlankGhost(scroll: _scroll, top: padTop + (authors.isEmpty ? 0 : t.space(2) + 1.5 * 0.85 * t.fontSize('sm')) + t.lenOf('9rem')),
