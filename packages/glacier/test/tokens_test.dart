@@ -92,4 +92,19 @@ void main() {
     expect(evalColor('#ff0000').toColor().r, closeTo(1, 0.002));
     expect(evalNumber('clamp(1rem, 0.9671rem + 0.1645vw, 1.125rem)', const CssContext(vw: 375)), closeTo(16.09, 0.01));
   });
+
+  test('a property whose var() stands for nothing has no value, so a var() of it takes its fallback, as on the page', () {
+    // settings.css on the dark side: every [data-hue] is given its --hue-dark, and a hue it does not name has none.
+    final hues = TokenSheet.parse('''
+:root { --ink: #111111; }
+[data-hue='blue'] { --hue: #0a6fe0; --hue-dark: #4ea1ff; }
+:root[data-theme='dark'] [data-hue] { --hue: var(--hue-dark); }
+''');
+    final dark = Tokens.root(hues, attrs: const {'theme': 'dark'});
+    expect(dark.child(attrs: const {'hue': 'blue'}).resolve('var(--hue, var(--ink))'), '#4ea1ff');
+    final amber = dark.child(attrs: const {'hue': 'amber'});
+    expect(amber.raw('hue'), isNull);
+    expect(amber.resolve('var(--hue, var(--ink))'), '#111111');
+    expect(amber.colorOf('color-mix(in srgb, var(--hue, var(--ink)) 16%, transparent)').a, closeTo(0.16, 0.005));
+  });
 }

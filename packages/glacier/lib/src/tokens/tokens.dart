@@ -112,12 +112,19 @@ class Tokens {
   String? _rawOf(String name, Set<String> seen) {
     if (_computed.containsKey(name)) return _computed[name];
     final declared = _declared[name];
-    final value = declared != null ? resolve(declared, seen: {...seen, name}) : parent?._rawOf(name, const {});
+    final value = declared != null ? _resolved(declared, {...seen, name}, whole: true) : parent?._rawOf(name, const {});
     return _computed[name] = value;
   }
 
   /// [value] with each `var(--x, fallback)` and `env(x, fallback)` replaced by what it stands for here.
-  String resolve(String value, {Set<String> seen = const {}}) {
+  String resolve(String value, {Set<String> seen = const {}}) => _resolved(value, seen, whole: false)!;
+
+  /// [resolve]; and for a property's own declaration ([whole]) null where a `var()` in it stands for nothing and
+  /// brings no fallback. Such a property is invalid at computed-value time and has no value at all, so a
+  /// `var(--it, fallback)` elsewhere takes its fallback, as on the page: settings.css gives every `[data-hue]`
+  /// `--hue: var(--hue-dark)` on the dark side, and a hue it does not name (an organization's Report asks for
+  /// `amber`) must leave `var(--hue, var(--app-ink))` the ink, not an empty word.
+  String? _resolved(String value, Set<String> seen, {required bool whole}) {
     if (!value.contains('var(') && !value.contains('env(')) return value;
     final out = StringBuffer();
     var i = 0;
@@ -146,7 +153,8 @@ class Tokens {
         // A property that names itself, straight or round a ring, has no value: its fallback stands.
         found = _rawOf(name, seen);
       }
-      found ??= fallback == null ? null : resolve(fallback, seen: seen);
+      found ??= fallback == null ? null : _resolved(fallback, seen, whole: whole);
+      if (found == null && whole) return null;
       out.write(found ?? '');
       i = end;
     }
