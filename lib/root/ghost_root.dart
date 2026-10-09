@@ -308,9 +308,16 @@ class _GhostRootState extends State<GhostRoot> {
           OrgPresence(client: '${seen.client}', handle: seen.handle, hue: seen.hue, editingNote: seen.at?.note, editingTitle: seen.at?.title),
       ];
 
-  /// Someone came, went, or opened another note: the home page's cards and the organization's rows say so.
+  /// Someone came, went, or opened another note: the home page's cards and the organization's rows say so. A
+  /// team's note says it has been left as its desk is let go, which is while the tree is being built or taken
+  /// down: drawn after that frame, where asking at once threw inside the desk's `dispose` and left its listeners
+  /// behind (seen on the emulator, on leaving a team's note).
   void _presenceChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    if (SchedulerBinding.instance.schedulerPhase != SchedulerPhase.persistentCallbacks) return setState(() {});
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   /// A note opened where a member is editing it: at their caret, where the room has one.

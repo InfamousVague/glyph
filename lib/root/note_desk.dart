@@ -763,8 +763,12 @@ class NoteDeskState extends State<NoteDesk> {
     return !isCanvasBody(doc) && !isBookBody(doc);
   }
 
+  /// The desk is being let go: what its pieces say as they close is not drawn.
+  bool _leaving = false;
+
   @override
   void dispose() {
+    _leaving = true;
     _world.holdNote?.call(widget.noteId, false);
     _live?.close();
     if (_ai case final ai?) {
@@ -799,8 +803,9 @@ class NoteDeskState extends State<NoteDesk> {
     _live = widget.readOnly
         ? null
         : _world.live?.open(view, widget.noteId, jump: _world.takeJump?.call(widget.noteId), onTeam: (team) {
-            // Told as the team's binding is made, and as it goes with the note's being taken out of the team.
-            if (mounted) setState(() => _team = team);
+            // Told as the team's binding is made, and as it goes with the note's being taken out of the team; and
+            // as the desk itself goes, when there is nothing left to draw.
+            if (mounted && !_leaving) setState(() => _team = team);
           });
     _ai?.attach(view);
     _bookmark?.dispose();
