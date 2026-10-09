@@ -33,6 +33,10 @@
 ///   changes), its layer over the page (the strip under the header, the fills' panel), a run from the More sheet,
 ///   a spoken instruction and a review the note was opened with, and the tape's Summarize;
 ///
+/// - live typing (lib/live/open.dart): a team's note bound to its document for as long as it is open here, its room
+///   held, the others' carets and selections drawn in their colours, and the organization told this device is
+///   editing it; a note of the account's own live with the account's other devices where the switch is on;
+///
 /// What differs from the page:
 /// - **No picture can be added yet**: this build has no picker, so the band's Add image and the +'s Picture are
 ///   not offered. Pictures a note already names are drawn from the kept files.
@@ -77,6 +81,8 @@ import '../ai/review.dart' show ReviewHandoff;
 import '../ai/summaries.dart' show SummaryStarter;
 import '../capture/recorder.dart' show SpokenAsk;
 import '../format/device_facts.dart' show DeviceFacts;
+import '../live/editor_binding.dart' show liveBindingSlot;
+import '../live/open.dart' show NoteLive, OpenLive;
 import '../art/lucide.g.dart';
 import '../book/book_nav.dart';
 import '../book/book_view.dart';
@@ -176,6 +182,8 @@ class NoteDeskWorld {
     required this.titles,
     required this.known,
     required this.open,
+    this.live,
+    this.takeJump,
     this.bodyOf,
     this.pictures,
     this.services,
@@ -224,6 +232,13 @@ class NoteDeskWorld {
 
   /// The account, where the build has one: a note's sharing is drawn with it.
   final AccountServices? services;
+
+  /// What makes an open note live (lib/live/open.dart), where the build has an account: a team's note bound to its
+  /// document, its room held and the others' carets drawn; a note of the account's own, with the switch on.
+  final NoteLive? live;
+
+  /// A member's caret a note was opened at (the organization's Jump to cursor), handed over once.
+  final Map<String, Object?>? Function(String noteId)? takeJump;
 
   /// Says when the library changed: every query and every ticket's panel in the open note is drawn again.
   final Listenable? changes;
@@ -380,6 +395,9 @@ class NoteDeskState extends State<NoteDesk> {
   EditorView? _view;
   NoteBookmark? _bookmark;
 
+  /// The note as it is live in this editor, while it is (lib/live/open.dart).
+  OpenLive? _live;
+
   /// Find and replace, while it is up: what it opened searching for, and which opening it is.
   ({String initial, int nonce})? _finding;
   int _finds = 0;
@@ -447,6 +465,8 @@ class NoteDeskState extends State<NoteDesk> {
   /// Every piece's extensions, once: another list would be another editor (lib/note/note_editor.dart).
   late final List<Extension> _extensions = <Extension>[
     editorInput(),
+    // Empty until the note is live: then the binding to its document, and the others' carets.
+    liveBindingSlot(),
     // The AI's arrivals bring the departures themselves: given twice, every ghost is drawn twice.
     markExtensions(marks, wispTyping: _ai == null),
     wispStill.of(_still),
@@ -667,6 +687,7 @@ class NoteDeskState extends State<NoteDesk> {
   @override
   void dispose() {
     _world.holdNote?.call(widget.noteId, false);
+    _live?.close();
     if (_ai case final ai?) {
       _aiWorld?.opened?.call(widget.noteId, null);
       ai.attach(null);
@@ -688,6 +709,9 @@ class NoteDeskState extends State<NoteDesk> {
   void _adopt(EditorView view) {
     if (identical(view, _view)) return;
     _view = view;
+    // Live in this editor from here on: a note in the Trash is read, not typed in with anyone.
+    _live?.close();
+    _live = widget.readOnly ? null : _world.live?.open(view, widget.noteId, jump: _world.takeJump?.call(widget.noteId));
     _ai?.attach(view);
     _bookmark?.dispose();
     _bookmark = NoteBookmark(view: view, say: widget.say)..addListener(_redraw);
