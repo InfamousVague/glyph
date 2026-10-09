@@ -104,7 +104,11 @@ class GhostCore {
   /// Starts the worker isolate and has it load the library: `libghost_core.so` from the APK by default, or the
   /// file at [libraryPath] (a test's `native/target/debug/libghost_core.dylib`). Throws [CoreError] when the
   /// library cannot be loaded, with the loader's reason.
-  static Future<GhostCore> open({String? libraryPath}) async {
+  ///
+  /// [hears] is whether the core's events come to this one ([events], and so every [startJob]). The app's own
+  /// core hears; a second one opened beside it for long calls must be opened with `hears: false`, since the core
+  /// has one listener and the last worker to ask for it takes it from the first (ghost_worker.dart's header).
+  static Future<GhostCore> open({String? libraryPath, bool hears = true}) async {
     final answers = ReceivePort('ghost core answers');
     final first = Completer<Object?>();
     GhostCore? core;
@@ -119,7 +123,7 @@ class GhostCore {
     try {
       isolate = await Isolate.spawn<GhostWorkerStart>(
         ghostWorkerMain,
-        (answers.sendPort, libraryPath),
+        (answers.sendPort, libraryPath, hears),
         debugName: 'ghost core',
         // `null` when the worker ends for any reason, its own close included.
         onExit: answers.sendPort,

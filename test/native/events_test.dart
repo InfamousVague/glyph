@@ -6,6 +6,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/account/crypto.dart';
 import 'package:ghost_md/core/native/core.dart';
 import 'package:ghost_md/core/native/ghost_core.dart';
 
@@ -56,6 +57,19 @@ void main() {
     final bare = core.events.where((e) => e.event == 'test://bare').first.timeout(const Duration(seconds: 5));
     await core.invoke('test_emit', {'event': 'test://bare'});
     expect((await bare).payload, isNull);
+  }, skip: skip);
+
+  test('the account\'s lane, opened after the core, does not take the core\'s events', () async {
+    // The app's order (lib/main.dart): the core first, then the crypto's lane on the same library. The core has
+    // one listener; when the lane took it, a build with an account never heard a job end.
+    final crypto = await CoreCrypto.withLane(core, libraryPath: path);
+    addTearDown(crypto.close);
+    final heard = core.events.where((e) => e.event == 'test://after-lane').first.timeout(const Duration(seconds: 5));
+    await core.invoke('test_emit', {'event': 'test://after-lane', 'payload': {'n': 1}});
+    expect((await heard).map['n'], 1);
+    // And a job started on the core still ends there.
+    final job = await core.startJob('test_long_job', {'ms': 200, 'ticks': 2});
+    await job.done.timeout(const Duration(seconds: 10));
   }, skip: skip);
 
   test('a long job answers its id at once, reports in order and ends once', () async {

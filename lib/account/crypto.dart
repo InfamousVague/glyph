@@ -112,8 +112,11 @@ class CoreCrypto implements AccountCrypto {
 
   /// The app's: [core] for everything quick, and a second worker isolate on the same library for the long calls.
   /// [libraryPath] is a test's (`native/target/debug/libghost_core.dylib`). [close] ends the second worker.
+  ///
+  /// The lane is opened deaf (`hears: false`): the core has one listener for its events, and a lane that took it
+  /// left [core] hearing nothing, so no job the app started ever ended in a build with an account.
   static Future<CoreCrypto> withLane(GhostCore core, {String? libraryPath}) async {
-    return CoreCrypto._lane(core.invoke, await GhostCore.open(libraryPath: libraryPath));
+    return CoreCrypto._lane(core.invoke, await GhostCore.open(libraryPath: libraryPath, hears: false));
   }
 
   final CoreInvoke _quick;

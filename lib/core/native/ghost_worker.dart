@@ -20,8 +20,13 @@
 /// **Events** (native/src/events.rs) reach this isolate through a `NativeCallable.listener`, which any Rust
 /// thread may call: the call is posted here and read on this isolate's next turn, so an event waits for the
 /// command in hand, and that is why a long job answers its id at once (native/src/work.rs). Rust allocated the
-/// event's bytes; they are decoded and given back to `ghost_free` here. The last worker to open is the one that
-/// hears: a process has one core and the core one listener.
+/// event's bytes; they are decoded and given back to `ghost_free` here. A process has one core and the core one
+/// listener, so the last worker to ask for it is the one that hears, and **a second worker opened beside the
+/// app's own must not ask** (`hears: false`): the account's crypto runs its long calls on a lane of its own
+/// (lib/account/crypto.dart `withLane`), opened after the app's worker, and when that lane took the listener
+/// every event went to a stream nobody read. A build with an account then never heard a job end: an export was
+/// written whole and its page still said "Choose where the export goes." (seen on the Fold, 2026-10-09), and
+/// the recorder's words, a model's progress and a write-up's end would have gone the same way.
 ///
 /// The arguments are written as JSON here and the answer is read from JSON here, so the drawing isolate neither
 /// encodes nor parses: it receives the decoded value.
@@ -34,9 +39,10 @@ import 'dart:isolate';
 
 import '../mac_app.dart';
 
-/// What [ghostWorkerMain] is started with: where to send answers, and the library to open (`null` for the
-/// platform's own name, [defaultLibraryName]).
-typedef GhostWorkerStart = (SendPort answers, String? libraryPath);
+/// What [ghostWorkerMain] is started with: where to send answers, the library to open (`null` for the
+/// platform's own name, [defaultLibraryName]), and whether this worker is the one the core's events go to (the
+/// app's own; never a lane opened beside it).
+typedef GhostWorkerStart = (SendPort answers, String? libraryPath, bool hears);
 
 /// The library as the app carries it: `libghost_core.so` in the APK's `jniLibs` (tool/build-native.sh puts it
 /// there), found by name; in the Mac app, the copy in its own Frameworks, by its whole path (lib/core/mac_app.dart).
@@ -133,7 +139,7 @@ class _Native {
 /// The worker isolate's entry (`Isolate.spawn(ghostWorkerMain, (port, path))`): opens the library, says it is
 /// ready, and answers requests until it is sent `null`.
 void ghostWorkerMain(GhostWorkerStart start) {
-  final (answers, libraryPath) = start;
+  final (answers, libraryPath, hears) = start;
   final _Native native;
   try {
     native = _Native(DynamicLibrary.open(libraryPath ?? defaultLibraryName));
@@ -142,20 +148,25 @@ void ghostWorkerMain(GhostWorkerStart start) {
     return;
   }
   final requests = ReceivePort('ghost core requests');
-  // Rust calls this from its own threads; the body runs here, on this isolate, a turn later.
-  final listener = NativeCallable<_ListenerC>.listener((Pointer<Uint8> json, int length) {
-    final event = native.takeEvent(json, length);
-    if (event != null) answers.send(event);
-  });
-  native.setListener(listener.nativeFunction);
+  // Rust calls this from its own threads; the body runs here, on this isolate, a turn later. Only the worker
+  // that hears keeps one: a lane that asked too would take the core's one listener from the app (the header).
+  final listener = hears
+      ? NativeCallable<_ListenerC>.listener((Pointer<Uint8> json, int length) {
+          final event = native.takeEvent(json, length);
+          if (event != null) answers.send(event);
+        })
+      : null;
+  if (listener != null) native.setListener(listener.nativeFunction);
   answers.send(requests.sendPort);
   requests.listen((message) {
     if (message == null) {
       // The library stays loaded and its notes stay open: a process has one core (dispatch.rs `CORE`), which
       // another worker opened after this one finds as it was left. Rust forgets this listener before it is
       // closed (and only this one: a newer worker's stays), after which it is never called again.
-      native.forgetListener(listener.nativeFunction);
-      listener.close();
+      if (listener != null) {
+        native.forgetListener(listener.nativeFunction);
+        listener.close();
+      }
       requests.close();
       return;
     }
