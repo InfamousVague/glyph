@@ -29,6 +29,8 @@ import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/workspaces.dart';
+import 'package:ghost_md/live/live.dart';
+import 'package:ghost_md/live/nudge.dart';
 import 'package:ghost_md/orgs/org_keys.dart';
 import 'package:ghost_md/orgs/orgs.dart';
 import 'package:ghost_md/share/share.dart';
@@ -153,7 +155,9 @@ class Disk {
 
 /// One whole device. See the header.
 class Device {
-  Device(this.world, this.core, {String label = 'a device', Disk? disk})
+  /// [live]: with live sync too (lib/live/live.dart), over a real socket to the relay beside the service; only in
+  /// a [LocalWorld], which has one.
+  Device(this.world, this.core, {String label = 'a device', Disk? disk, bool live = false})
       : disk = disk ?? Disk(),
         api = world.api() {
     crypto = CoreCrypto(core.invoke);
@@ -166,6 +170,8 @@ class Device {
     orgKeys = OrgKeys(crypto: crypto, api: api);
     record = SelfNotifications(feed: feed, api: api);
     docs = TeamDocs(crdt: Crdt(core.invoke), store: this.disk.docs);
+    final world = this.world;
+    this.live = live && world is LocalWorld ? LiveServices(base: world.base, account: account, crypto: crypto, crdt: Crdt(core.invoke), orgs: orgs, orgKeys: orgKeys, prefs: prefs, kept: kept) : null;
     shares = Shares(account: account, api: api, crypto: crypto, prefs: prefs, pictures: MapPictures(this.disk.files.pictures), listNotes: this.disk.notes.list);
     engine = SyncEngine(
       account: AccountDoor(account),
@@ -183,7 +189,10 @@ class Device {
       onNotesChanged: () => told += 1,
       teamNotes: teamNotesPass(docs),
       forgetTeams: docs.forget,
+      sharedLive: this.live?.shared.isShared,
+      tellChanged: this.live?.nudges.tellChanged,
     );
+    this.live?.start(NudgeHooks(keys: engine.syncNotificationsNow, notes: engine.syncTeamsNow));
   }
 
   final World world;
@@ -202,6 +211,9 @@ class Device {
   late final TeamDocs docs;
   late final Shares shares;
   late final SyncEngine engine;
+
+  /// Live sync, for a device made with it.
+  late final LiveServices? live;
 
   /// How many times the list was told to read again.
   int told = 0;
@@ -240,6 +252,7 @@ class Device {
   Future<void> close() async {
     if (_closed) return;
     _closed = true;
+    live?.dispose();
     engine.dispose();
     await docs.forget();
   }

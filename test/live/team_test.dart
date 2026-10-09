@@ -1,8 +1,6 @@
 // A team's rooms (lib/live/team.dart), the store of who is where (lib/live/presence.dart) and the word that there
 // is something to fetch (lib/live/nudge.dart), with the real crypto, the real CRDT and its awareness over a relay
 // in memory: the cases of the web's core/live/team.test.ts, presence.test.ts and nudge.test.ts.
-import 'dart:typed_data';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/crypto.dart';
@@ -213,18 +211,18 @@ void main() {
       final relay = Relay();
       final key = await crypto.newOrgKey();
       final changes = ChangeNotifier();
-      var signedIn = true, localOnly = false;
+      var localOnly = false;
       final keys = <String>{};
       String? colour = 'rose';
 
       final hubA = hubOn(relay);
-      final rooms = TeamRooms(hub: hubA, crypto: crypto, crdt: crdt, orgKeyOf: (id) => keys.contains(id) ? key : null, handle: () => signedIn ? 'matt' : null, colourIn: (_) => colour, tick: null);
+      final rooms = TeamRooms(hub: hubA, crypto: crypto, crdt: crdt, orgKeyOf: (id) => keys.contains(id) ? key : null, handle: () => 'matt', colourIn: (_) => colour, tick: null);
       final presence = Presence(rooms);
       var told = 0;
       presence.addListener(() => told += 1);
       // Said before the room came.
       presence.announce('o1', const Whereabouts(note: 'n1', title: 'Roadmap'));
-      final stop = presence.watch(PresenceWatch(signedIn: () => signedIn, localOnly: () => localOnly, joined: () => ['o1', 'o2'], hasKey: keys.contains, changes: [changes]));
+      final stop = presence.watch(PresenceWatch(signedIn: () => true, localOnly: () => localOnly, joined: () => ['o1', 'o2'], hasKey: keys.contains, changes: [changes]));
       // No key yet: no room.
       expect(presence.heldPresence(), isEmpty);
       keys.add('o1');
