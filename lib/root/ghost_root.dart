@@ -86,6 +86,7 @@ import '../home/home_layout.dart';
 import '../home/home_screen.dart';
 import '../launch/launch_screen.dart';
 import '../note/note_builder.dart';
+import '../note/open_screen.dart';
 import '../note/note_screen.dart' show withFrontMatterTitle;
 import '../notes/all_notes_screen.dart';
 import '../notes/new_sheet.dart';
@@ -1483,8 +1484,14 @@ class _GhostRootState extends State<GhostRoot> {
         _settingsPage = SettingsTarget('account', nonce: DateTime.now().microsecondsSinceEpoch);
       });
 
-  /// A canvas or a notebook renamed from its tab: its `title:` written, as the More sheet's name does.
+  /// A canvas or a notebook renamed from its tab: its `title:` written, as the More sheet's name does. The note
+  /// being read is its screen's, whose live words are what its next save writes, so it is asked and writes the name
+  /// itself; any other tab has no screen holding it, and is a plain write (App.tsx `renameNote`).
   void _rename(String id, String title) {
+    if (_shell.currentState?.shown == id) {
+      final screen = openNoteScreen(_shell.currentContext, id);
+      if (screen != null) return screen.renameHere(title);
+    }
     final note = _library.noteOf(id);
     if (note == null) return;
     final named = withFrontMatterTitle(note.body, title);
