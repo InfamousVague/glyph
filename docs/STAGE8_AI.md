@@ -28,7 +28,8 @@ The confirm card (`ai/ConfirmCard.tsx`) was already `lib/capture/ui/capture_card
    before the first screen is built. It makes the five the app's `plugins` and hands them every pass of the feed's
    rows. Then `usePluginContext(PluginContext(contextFor: plugins.contextFor, contextVersion: plugins.contextVersion))`
    (`lib/format/pipeline.dart`), so a run's system message and a note's hash carry a linked repo's briefing. And
-   `claudeHandle = () => session?.handle` (`lib/plugins/claude/claude.dart`) once there is an account.
+   `claudeHandle = () => session?.handle` (`lib/plugins/claude/claude.dart`) once there is an account (set in the
+   root's `initState`, 2026-10-09).
 2. **Who signs a note beside the AI.** `noteOwner = () => session?.handle` (`lib/ai/start.dart`).
 3. **The summary queue.** One `Summaries(...)` (`lib/ai/summaries.dart`), given what its header lists: `isTauri`
    (`() => aiBackend.available`), `preferences`, `stored`, the better-words queue's `refineHeld`, `refinePending`
@@ -85,8 +86,9 @@ final ai = NoteAi(noteId: …, flush: …, body: …, wisp: …, toast: …, onG
   `ai.reviewStage` tells.
 - **The More sheet:** its AI rows call `ai.runAi(kind)` and mark `ai.runningKind`; the tape's Summarize word is
   there while `ai.canSummarize`.
-- **A table's cells:** `lib/editor/tables/table_box.dart` draws no blanks in a cell and no Fill pill after the last
-  row; `lib/editor/ai/blanks.dart`'s header says what it would call (`drawCell`, `tablePill`).
+- **A table's cells:** `lib/editor/tables/table_box.dart` asks `drawCell` for each cell and holds what it answers
+  in the cell in place of its words (`HeldCell`, laid out by `TableLayout` through a `CellHost`), puts `tablePill`
+  after the last row, and is drawn again when `blankStamp` moves (2026-10-09).
 
 ## The recorder's page
 
