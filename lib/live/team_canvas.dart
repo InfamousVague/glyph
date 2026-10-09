@@ -22,6 +22,7 @@ library;
 import 'dart:async';
 import 'dart:ui' as ui;
 
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart' hide Canvas;
 import 'package:glacier/glacier.dart';
 
@@ -109,8 +110,17 @@ class _TeamCanvasHostState extends State<TeamCanvasHost> {
     super.dispose();
   }
 
+  /// The camera moved, or the room's people did: the pointers are drawn where they are now. The view opens the
+  /// camera on a body handed to it anew (another member's change), which is while this host is itself being
+  /// built: a redraw asked for then waits for the frame to end, where asking at once left the host dirty inside
+  /// its own build and the canvas an error (seen on the emulator, the first time a second member joined a canvas
+  /// with a card being written).
   void _redraw() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    if (SchedulerBinding.instance.schedulerPhase != SchedulerPhase.persistentCallbacks) return setState(() {});
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   /// The types changed, here or by another member: drawn, and written to the note where its words differ.
