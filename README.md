@@ -96,7 +96,8 @@ on the same phone.
     board card's plugin rows (`drawnBoards(actions:)`), the editor's parser reading `plugins.formats()` (the desk
     gives it the app's own marks), and `usePluginContext` / `claudeHandle` (docs/STAGE8_AI.md, "At launch", 1).
   - **The walkthrough's model page** (`Guide(models:)`): a phone with none to fetch, as far as it is told.
-  - **The scene the bench plays** (`showSceneBench(scene:)`): lib/scene is not committed yet; the bench says so.
+  - **The scene the bench plays** (`showSceneBench(scene:)`): lib/scene landed after this pass and is not given
+    to the bench; the bench says the scene is not in the build.
   - **Updates and the phone's own notices** (9I): `Notices`' update card and the launch screen's `updates`.
 - **Checked where:** on the emulator (2026-10-09): Settings › Plugins ("4 of 5 on"); a link's card reading
   "Example Domain"; the walkthrough on a first launch, a page turned, Skip; the Academy's contents and its switch,
@@ -132,8 +133,8 @@ recorder's screen that is on screen.
   first (`landNativeResult`). **Not walked on a device:** no meeting with words in it was written up after this
   was wired, and the model on the emulator is not the one the preferences choose.
 - **The AI in a note is not on the desk** (`NoteAi`, lib/ai/note_ai.dart; docs/STAGE8_AI.md, "For each open
-  note"): its files, the fills' panel and lib/scene were still uncommitted when this was wired, and a commit that
-  imports them would not build from the repository. So a spoken instruction and a review the note opened with
+  note"): its files, the fills' panel and lib/scene were committed (d33f491, 2bff511, 15ce774) only after this pass's
+  desk was finished, and it has not been put on since: the next thing to wire, by that document's list. So a spoken instruction and a review the note opened with
   (`NoteDesk.ask`, `NoteDesk.review`, from `ScreenNote`) are carried to the desk and not run, the review therefore
   never draws though the recorder may hand one over, the tape has no Summarize (`NoteTape.summary`,
   `NoteAi.canSummarize`), the More sheet has no AI rows (`NoteSeams.onAi`), and the fills' queue, the gists, the
