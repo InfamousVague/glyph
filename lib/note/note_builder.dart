@@ -9,6 +9,8 @@
 /// `bodyOfTitle`), tickets and queries come in with those pieces, through [NoteSeams] (lib/root/note_desk.dart).
 library;
 
+import '../ai/review.dart' show ReviewHandoff;
+import '../core/place_tags.dart';
 import 'package:flutter/widgets.dart';
 
 import '../core/book.dart';
@@ -33,7 +35,7 @@ import 'note_screen.dart';
 /// them with; [say] is a toast of the screen's own (a version put back, a board made). [bookOf] is the note's place in
 /// its notebook as the app reads it (App.tsx `placeInBook`: a journal's entries in the order they were written);
 /// left out, it is the first book whose index names the note. [templates] and [onTemplates] are the blank page's
-/// cards; [onJournal] is told of the journal on screen.
+/// cards; [onJournal] is told of the journal on screen; [tags] is the places notes keep (lib/core/place_tags.dart).
 ShellNoteBuilder noteScreenBuilder({
   required NoteLibrary library,
   required WorkspaceStore workspaces,
@@ -50,6 +52,7 @@ ShellNoteBuilder noteScreenBuilder({
   List<NoteTemplate>? Function()? templates,
   VoidCallback? onTemplates,
   ValueChanged<JournalWriter?>? onJournal,
+  PlaceTags? tags,
 }) {
   return (context, shell, screen) {
     final note = screen.note;
@@ -86,6 +89,9 @@ ShellNoteBuilder noteScreenBuilder({
       templates: templates?.call(),
       onTemplates: onTemplates,
       onJournal: onJournal,
+      tags: tags,
+      // The review a recording handed this note, while it has a job to hand back: its tag waits for it.
+      reviewing: switch (screen.review?.value) { final ReviewHandoff handoff => handoff.job != null, _ => false },
       readOnly: trash?.isTrashed(note.id) ?? false,
       editorBuilder: editor,
       seams: seams,

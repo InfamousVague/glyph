@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import '../../core/backup.dart' show Backups;
 import '../../core/export_all.dart' show ExportAll;
 import '../../core/library_folder.dart' show LibraryFolder;
+import '../../core/place_tags.dart' show PlaceTags;
 import '../../core/preferences.dart';
 import '../../core/workspaces.dart';
 import '../settings_screen.dart' show SettingsTarget;
@@ -160,6 +161,7 @@ class SettingsFeatures {
     this.onReset,
     this.onLocate,
     this.cannotLocate,
+    this.places,
     this.testReport,
     this.testBuildSource,
     this.testNow,
@@ -225,6 +227,10 @@ class SettingsFeatures {
 
   /// Why this device cannot tag a note, as the row says it; null when it can.
   final String? cannotLocate;
+
+  /// The places notes keep (lib/core/place_tags.dart): given, the Location card asks for its one fix itself, says
+  /// why this device cannot tag, and says a refusal under the card with the way to the phone's settings.
+  final PlaceTags? places;
 
   /// The tests' report built into the app (diag/testReport.ts `REPORT`), as its JSON; null is a build without one.
   final Map<String, Object?>? testReport;

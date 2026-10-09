@@ -24,8 +24,9 @@
 /// What differs:
 /// - The hook's options and refs are this object's fields; [CaptureRouteWorld] is what it asks of the app.
 /// - **The Mac's recorder in meeting mode** is not reached: the only meeting here is the phone's service.
-/// - **No place is asked for** once a take's note is made (`tagNewNotesIfWanted`, an entry's `tag`): no note here
-///   keeps a place yet.
+/// - **The place is asked for by the app** ([CaptureRouteWorld.tagNew], an entry's [EntryAim.tag]) once the
+///   capture's screen has gone, as `tagAfter` waited for the screen to change: called straight after the next
+///   screen is put up, never at [CaptureRoute.start], so no location prompt is raised over the recorder's own.
 /// - The guide's "Not yet" for a side key pressed on a page still to be read ([CaptureRouteWorld.tooSoon]) is
 ///   asked only where a guide is given.
 library;
@@ -55,7 +56,7 @@ const String meetingFailed = 'The meeting could not start.';
 /// A capture aimed at a journal's entry (`EntryAim`): where in the entry the words go, and where to land when
 /// nothing was kept for it.
 class EntryAim {
-  const EntryAim({required this.id, required this.placing, required this.nothing});
+  const EntryAim({required this.id, required this.placing, required this.nothing, this.tag});
 
   /// The entry's id: the capture is aimed at it.
   final String id;
@@ -65,6 +66,10 @@ class EntryAim {
 
   /// Where to land when nothing was kept for the entry: the journal, or the entry as it was made.
   final Future<Screen> Function() nothing;
+
+  /// Where the entry was written, asked once the recorder has gone, where its journal keeps that: told whether a
+  /// review is live for it, and whether the phone is locked (`tag`).
+  final void Function({required bool reviewing, required bool locked})? tag;
 }
 
 /// What the route asks of the app (`CaptureRouteOptions`, and the modules the hook imports).
@@ -85,7 +90,13 @@ class CaptureRouteWorld {
     this.tooSoon,
     this.sayTooSoon,
     this.now,
+    this.tagNew,
   });
+
+  /// Where a take's own new note was made (core/location.ts `tagNewNotesIfWanted`), asked once the capture's
+  /// screen has gone: quiet over a locked phone, and waiting while a review is live for the note. Absent, no note
+  /// keeps a place.
+  final void Function(String id, {required bool reviewing, required bool quiet})? tagNew;
 
   /// The screen that is up, and the way to put another up.
   final Screen Function() screen;
@@ -327,6 +338,16 @@ class CaptureRoute {
   /// A capture over: filed, and the app on whatever comes next - the note with its run or review, the note the
   /// words went into ([landing]), the note spoken into, or home (`finished`).
   Future<void> finished(Note? note, bool locked, {ReviewHandoff? review, SpokenAsk? ask, CaptureLanding? landing}) async {
+    await _finished(note, locked, review: review, ask: ask, landing: landing);
+    // Where the take's new note was made, now that the screen has changed (`tagAfter`).
+    final tag = _tagAfter;
+    _tagAfter = null;
+    tag?.call();
+  }
+
+  void Function()? _tagAfter;
+
+  Future<void> _finished(Note? note, bool locked, {ReviewHandoff? review, SpokenAsk? ask, CaptureLanding? landing}) async {
     // A spoken note lands in the workspace the list is showing, unless it is filed already; so do the notes it
     // made. A note that was there already and only had words put into it stays where it was filed, or unfiled: one
     // a command wrote into (`landing.blocks`), or the note whose own mic this was. Read before the first await,
@@ -350,6 +371,13 @@ class CaptureRoute {
       world.fileNewNote(made);
     }
     await world.refresh();
+    final entryTag = kept ? aim.tag : null;
+    if (entryTag != null) _tagAfter = () => entryTag(reviewing: review?.job != null, locked: locked);
+    // The take's own new note starts with where the phone was, once the capture screen has gone. Not a note it
+    // only wrote into, and not the notes its spoken commands made (`landing.made`), which are the app's doing.
+    final own = note != null && !existed && !(landing?.made.contains(note.id) ?? false) ? note.id : null;
+    final tagNew = world.tagNew;
+    if (own != null && tagNew != null) _tagAfter = () => tagNew(own, reviewing: review?.job != null, quiet: locked);
     Future<Note?> fresh(String id) => world.getNote(id).then<Note?>((found) => found, onError: (Object _) => null);
     // Words a recording put into a note that was already there, or a card after Done confirmed: that note opens,
     // read fresh, with an Undo for what went in. Not over a locked phone.

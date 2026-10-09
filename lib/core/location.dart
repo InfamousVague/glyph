@@ -16,12 +16,9 @@
 ///   object. What it cannot do itself is given to it: the device's position ([Locator]: the page's
 ///   `navigator.geolocation` and Android bridge), the reverse lookup ([PlaceLookup]: `geocode_place` in Rust, or a
 ///   fetch), the two switches, the clock and the wait. This stage has no location plugin and no network.
-/// - NOT PORTED, because each is the note store's, the recorder's or the shell's, none of which this piece owns:
-///   the tag that waits for a recording's better words (`pendingTag`, `setPendingTag`, `settleTag`,
-///   `settleWaitingTags`, `landTag`), tagging new notes (`tagNewNotes`, `tagNewNotesIfWanted`, `tagEntryIfWanted`,
-///   `askFromPress`, `willLocate`), a new note's held box (`holdFor`, `heldFor`), the watchers (`watchTag`,
-///   `wantPlace`) and the kept refusal (`autoTagRefusal`, `refusedFor`, `rememberRefusal`, `forgetRefusal`,
-///   `refusalStanding`). They come with the note screen's geotag (lib/note), on top of [Locations].
+/// - What is the note store's, the recorder's and the shell's is lib/core/place_tags.dart ([PlaceTags], on top of
+///   [Locations]): the tag that waits for a recording's better words, tagging new notes, a new note's held box, the
+///   watchers and the kept refusal. The phone's half of a [Locator] is lib/core/phone_position.dart.
 /// - `placeUrl` asked the platform itself; here it is told ([MapsApp]).
 library;
 
@@ -169,6 +166,10 @@ Future<void> openPlace(GeoTag tag, LinkOpener open, [MapsApp app = MapsApp.openS
 
 // ---- the device, the lookup and the gates --------------------------------------------------------------------------
 
+/// What the phone says of its permission (`Access`): a precise fix allowed, a rough one, never answered (or may be
+/// asked again), or refused for good.
+enum LocationAccess { granted, approximate, ask, blocked }
+
 /// The device's own position: what the page asked of `navigator.geolocation` and the Android bridge.
 abstract class Locator {
   /// Whether this device and this build can find where they are at all, whatever the switches say: null when they
@@ -177,6 +178,16 @@ abstract class Locator {
 
   /// Where the device is now. `quiet` never raises a prompt. Throws a [LocateError].
   Future<Fix> fix({bool quiet = false});
+
+  /// The permission as it stands (`readAccess`); null where the device cannot say.
+  Future<LocationAccess?> access();
+
+  /// Whether this is the phone's app, which asks again after a first refusal and has a settings page of its own to
+  /// open (`hasLocationBridge`).
+  bool get onPhone;
+
+  /// The app's page in the phone's settings, where a blocked location is allowed again; false if nothing took it.
+  Future<bool> openSettings();
 }
 
 /// The reverse lookup: Nominatim asked for the coordinates at a zoom, in a language (`askNominatim`).
@@ -217,9 +228,18 @@ class Locations {
   /// Where the device is now (`locate`).
   Future<Fix> locate({bool quiet = false}) {
     final why = cannotLocate;
-    if (why != null) throw LocateError(why);
+    if (why != null) return Future<Fix>.error(LocateError(why));
     return _locator!.fix(quiet: quiet);
   }
+
+  /// The permission as the device says it stands; null where it cannot say, or there is nothing to ask.
+  Future<LocationAccess?> access() => _locator?.access() ?? Future<LocationAccess?>.value();
+
+  /// Whether this is the phone's app (`hasLocationBridge`).
+  bool get onPhone => _locator?.onPhone ?? false;
+
+  /// The app's page in the phone's settings.
+  Future<bool> openSettings() => _locator?.openSettings() ?? Future<bool>.value(false);
 
   /// Whether a tagged note draws OpenStreetMap's tiles: the switch, and never under Local only.
   bool get canShowTiles => !_localOnly() && _mapTiles();

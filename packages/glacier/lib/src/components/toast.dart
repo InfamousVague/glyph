@@ -428,7 +428,9 @@ class _GlacierToastProviderState extends State<GlacierToastProvider> {
               key: ValueKey(entry.id),
               left: t.space(4),
               right: t.space(4),
-              bottom: t.space(6),
+              // Over the keyboard, as the page's fixed viewport is in a window the keyboard shortens: here nothing
+              // shortens the window, so the pill is lifted by what the keyboard covers.
+              bottom: t.space(6) + (MediaQuery.maybeViewInsetsOf(context)?.bottom ?? 0),
               child: Align(
                 alignment: Alignment.bottomCenter,
                 heightFactor: 1,

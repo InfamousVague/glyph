@@ -6,6 +6,8 @@ import 'package:glacier/glacier.dart';
 
 import '../../account/ui_state.dart';
 import '../../art/art.dart';
+import '../../core/location.dart' show LocateFailure, whyLocateFailed;
+import '../../core/place_tags.dart';
 import '../../core/preferences.dart';
 import '../../sync/engine.dart' show syncSummary, syncedWhen, unsentLine;
 import '../../sync/notes.dart' show stayedHere;
@@ -327,7 +329,7 @@ class _AccountPaneState extends State<AccountPane> {
         valueListenable: store,
         builder: (context, prefs, _) {
           final privacy = PrivacyCard(store: store, onOpenLink: widget.onOpenLink);
-          final location = LocationCard(store: store, onLocate: features.onLocate, cannot: features.cannotLocate);
+          final location = LocationCard(store: store, onLocate: features.onLocate, cannot: features.cannotLocate, places: features.places);
           if (services == null && features.signedIn) {
             return PaneBody(children: [SettingsNotPortedCard(spec: settingsSections.firstWhere((spec) => spec.id == 'account')), privacy, ...location.parts(prefs)]);
           }
@@ -739,6 +741,33 @@ class RecoveryCodes extends StatelessWidget {
   }
 }
 
+/// What the Location card says under itself once an ask was refused, here or by a new note's own
+/// (lib/core/place_tags.dart `autoTagRefusal`): why new notes are not tagged, where to allow it, and the way there.
+class _LocationRefused extends StatelessWidget {
+  const _LocationRefused({required this.places});
+  final PlaceTags places;
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<int>(
+        valueListenable: places.refusals,
+        builder: (context, _, _) {
+          final refused = places.autoTagRefusal();
+          if (refused == null) return const SizedBox.shrink();
+          final blocked = refused == LocateFailure.blocked;
+          return SettingsFootnote(
+            child: Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: context.tokens.space(1),
+              children: [
+                Text('${blocked ? 'Location is off for Ghost.md, so new notes are not tagged. ' : 'Ghost.md wasn’t allowed to know where you are, so new notes are not tagged. '}${places.allowLocationWhere()} and they will be.'),
+                if (blocked && places.locations.onPhone) RowAction(onPress: () => unawaited(places.locations.openSettings()), child: const Text('Open settings')),
+              ],
+            ),
+          );
+        },
+      );
+}
+
 /// Port of `LocationCard` (src/app/settings/LocationCard.tsx): where a note was written, and the three network things
 /// it can mean. The map at the top of a tagged note, the place's name, and every new note starting with where the
 /// device was: each is its own switch (`mapTiles`, `placeNames`, `tagNewNotes`), and Local only turns all of them
@@ -747,21 +776,46 @@ class RecoveryCodes extends StatelessWidget {
 /// It is more than one child of the page (the card, and a footnote while Local only is on), so a page lays out its
 /// [parts]; on its own it is the card.
 ///
-/// What differs from the web original: there is nothing that finds where the device is yet (core/location.ts).
-/// Switching tagging on writes the preference and asks [onLocate] for the one fix the page asks for; what a refusal
-/// then says under the card (and "Open settings") comes with that. [cannot] is why this device cannot tag, said under
-/// the row as the page says "Update Ghost.md to tag notes."; it is null, and nothing is said, until something knows.
+/// Turning tagging on asks for a fix once, here, so the permission prompt happens in Settings and never over the
+/// recorder. A refusal leaves the switch on: notes are simply not tagged until location is allowed, and the footnote
+/// and each note's More sheet say so.
+///
+/// What differs from the web original: what finds where the device is comes in as [places]
+/// (lib/core/place_tags.dart). Without it, as in a build with no phone half, switching tagging on writes the
+/// preference and asks [onLocate], and [cannot] is why this device cannot tag, said under the row; a refusal is said
+/// by a footnote that listens to [places] where the page kept it in the card's own state.
 class LocationCard extends StatelessWidget {
-  const LocationCard({super.key, this.store, this.onLocate, this.cannot});
+  const LocationCard({super.key, this.store, this.onLocate, this.cannot, this.places});
   final PreferencesStore? store;
   final VoidCallback? onLocate;
   final String? cannot;
+  final PlaceTags? places;
 
   /// The card and what follows it, as children of a page.
   List<Widget> parts(Preferences prefs) => [
         this,
         if (prefs.localOnly) const SettingsFootnote(child: Text('A tagged note shows where it was written and a pin while Local only is on, and no new location is taken.')),
+        if (places != null && prefs.tagNewNotes && !prefs.localOnly) _LocationRefused(places: places!),
       ];
+
+  /// Why tagging cannot happen here, under its switch (`CANNOT`).
+  static const Map<LocateFailure, String> _cannot = <LocateFailure, String>{
+    LocateFailure.localOnly: 'Local only is on.',
+    LocateFailure.mac: 'This Mac can’t say where it is yet.',
+    LocateFailure.ios: 'Ghost.md can’t find where you are on this device yet.',
+    LocateFailure.none: 'This browser can’t say where you are.',
+    LocateFailure.unavailable: 'Update Ghost.md to tag notes.',
+  };
+
+  /// The ask, once, here: a fix now means the next new note's comes without a dialog (`flipTagging`).
+  void _locate() {
+    final places = this.places;
+    if (places == null) return onLocate?.call();
+    places.locations.locate().then<void>((_) => places.forgetRefusal(), onError: (Object failure) {
+      // Asked once: refused, the switch stays on and new notes are simply not tagged, nor asked for again.
+      places.rememberRefusal(whyLocateFailed(failure));
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -794,11 +848,10 @@ class LocationCard extends StatelessWidget {
                 checked: prefs.tagNewNotes,
                 onCheckedChange: (on) {
                   store.update((now) => now.copyWith(tagNewNotes: on));
-                  // The ask, once, here: a fix now means the next new note's comes without a dialog.
-                  if (on) onLocate?.call();
+                  if (on) _locate();
                 },
               ),
-              disabledReason: localOnly ?? cannot,
+              disabledReason: localOnly ?? cannot ?? _cannot[places?.locations.cannotLocate],
             ),
           ],
         );

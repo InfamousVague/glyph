@@ -415,7 +415,7 @@ void main() {
   });
 
   group('where the note was written', () {
-    NoteSeams withMap(List<String> asked) => NoteSeams(mapCard: (context, tag, {required header}) => Text('map ${tagLabel(tag)}${header ? ' header' : ''}', textDirection: TextDirection.ltr));
+    NoteSeams withMap(List<String> asked) => NoteSeams(mapCard: (context, tag, {required header, required quiet, required arrive, required leave, onLeft}) => Text('map ${tagLabel(tag)}${header ? ' header' : ''}', textDirection: TextDirection.ltr));
 
     testWidgets('draws the map card at the top of a tagged note, follows a location typed by hand, and not over a canvas', (tester) async {
       final world = NoteWorld();

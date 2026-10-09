@@ -19,6 +19,9 @@ import '../art/art.dart';
 import '../book/book_spot.dart' show whereLeft;
 import '../book/entry_starts.dart' show pageBody;
 import '../book/journal.dart' as journal;
+import '../core/location.dart' show Locations, Locator, PlaceLookup;
+import '../core/place_tags.dart';
+import '../editor/media/map_card.dart' show MapTilesBuilder;
 import '../book/journal_view.dart' show JournalPages;
 import '../book/new_book_sheet.dart';
 import '../book/tickets.dart';
@@ -146,7 +149,7 @@ import 'voice_wiring.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.updates});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.updates, this.locator, this.placeLookup, this.mapTiles});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -199,6 +202,13 @@ class GhostRoot extends StatefulWidget {
   /// The app's one player of a note's recording (lib/tapes/phone_player.dart on a phone). Absent, a spoken note
   /// draws no tape.
   final TapePlayer? tapePlayer;
+
+  /// Where the phone is (lib/core/phone_position.dart on a phone), what names a place (lib/core/geocode.dart) and
+  /// what draws a map's tiles (lib/editor/media/map_tiles.dart). With no [locator], as in a test, no note keeps a
+  /// place: nothing is asked of anywhere, and a note draws only the tag its words carry.
+  final Locator? locator;
+  final PlaceLookup? placeLookup;
+  final MapTilesBuilder? mapTiles;
 
   /// Reads a linked page's title, site and summary (lib/core/link_preview.dart `linkPreviewFetch`). Absent, as in a
   /// test, a link's card says its site and its path and nothing is asked of anywhere.
@@ -299,7 +309,49 @@ class _GhostRootState extends State<GhostRoot> {
     },
     writeJournal: _pages.writeJournal,
     dropTab: (id) => _shell.currentState?.dropTab(id),
+    forgetTag: (id) => _places?.setPendingTag(id, null),
   )..making = _pages.making;
+
+  /// The places notes keep (lib/core/place_tags.dart), where the build can say where the phone is: the fix, the
+  /// name asked of OpenStreetMap once, the tag that waits for a note's first words or a recording's better ones.
+  late final PlaceTags? _places = widget.locator == null
+      ? null
+      : PlaceTags(
+          locations: Locations(
+            locator: widget.locator,
+            lookup: widget.placeLookup,
+            localOnly: () => preferences.value.localOnly,
+            mapTiles: () => preferences.value.mapTiles,
+            placeNames: () => preferences.value.placeNames,
+          ),
+          getNote: _library.get,
+          updateNote: _library.update,
+          refinePending: (id) => _voice?.recorder.refining?.refinePending(id) ?? false,
+          untouched: _untouched,
+          kept: _stored,
+        );
+
+  /// The first time a new note would be tagged on a phone that has never answered the location prompt, the app
+  /// says what it is for, in its own words, and the prompt comes from the press (`introduceLocation`).
+  void _introduceLocation(void Function() allow) => _introduce('New notes can keep where they were written.', allow);
+
+  /// The first ask for where a journal's entries were written, from its own press (`introduceEntries`).
+  Introduce _introduceEntries(String journal) => (allow) => _introduce('$journal keeps where each entry was written.', allow);
+
+  void _introduce(String message, void Function() allow) {
+    if (!mounted) return;
+    GlacierToast.of(context).toast(message: Text(message), duration: const Duration(seconds: 10), action: GlacierToastAction(label: 'Allow location', onPress: allow));
+  }
+
+  /// Every tag still waiting for a note that is closed, written where it may now land; the notes are read again
+  /// when one did (shell/useHousekeeping.ts).
+  void _settleTags() {
+    final places = _places;
+    if (places == null) return;
+    unawaited(places.settleWaitingTags().then<void>((landed) async {
+      if (landed > 0) await _library.refresh();
+    }, onError: (Object _) {}));
+  }
 
   /// Voice, once it is made (lib/root/voice_wiring.dart), and where a capture begins and ends
   /// (lib/root/capture_route.dart). Null until then, and for good in a build with none: Speak is offered nowhere.
@@ -361,6 +413,12 @@ class _GhostRootState extends State<GhostRoot> {
         untouched: _untouched,
         tooSoon: () => _guide?.onReadingPage() ?? false,
         sayTooSoon: () => _guide?.sayTooSoon(),
+        // Once the note's screen is up and watches its tag, so the tag goes through its editor and not under it.
+        tagNew: _places == null
+            ? null
+            : (id, {required reviewing, required quiet}) => WidgetsBinding.instance.addPostFrameCallback((_) {
+                  unawaited(_places.tagNewNotesIfWanted([id], (reviewing: reviewing), quiet: quiet, introduce: _introduceLocation));
+                }),
       ),
     );
     setState(() {
@@ -383,7 +441,11 @@ class _GhostRootState extends State<GhostRoot> {
     });
     await _aiUp(voice);
     await voice.start(
-      notesChanged: () => unawaited(_library.refresh().catchError((Object _) {})),
+      // A better-words pass landed: a tag that waited for it may land too.
+      notesChanged: () {
+        unawaited(_library.refresh().catchError((Object _) {}));
+        _settleTags();
+      },
       // A summary landed with the app on screen: said, with the way to the note.
       summarized: (done) {
         if (!mounted) return;
@@ -648,7 +710,7 @@ class _GhostRootState extends State<GhostRoot> {
               ),
               models: models,
             );
-    if (voice == null) return SettingsFeatures(onWayIn: wayIn, onSmokeBench: smoke, onPlayScene: scene, onReset: reset, libraryFolder: _libraryFolder, backup: _backups, export: _export);
+    if (voice == null) return SettingsFeatures(onWayIn: wayIn, onSmokeBench: smoke, onPlayScene: scene, onReset: reset, libraryFolder: _libraryFolder, backup: _backups, export: _export, places: _places);
     final models = voice.models;
     final present = models == null ? const <String>{} : presentIds(models.models).toSet();
     final download = models?.download;
@@ -672,6 +734,7 @@ class _GhostRootState extends State<GhostRoot> {
       libraryFolder: _libraryFolder,
       backup: _backups,
       export: _export,
+      places: _places,
       models: models == null
           ? null
           : SettingsModelsState(
@@ -961,6 +1024,11 @@ class _GhostRootState extends State<GhostRoot> {
     // Being made until it is on screen: the take-back leaves it alone meanwhile.
     WidgetsBinding.instance.addPostFrameCallback((_) => _pages.making.remove(note.id));
     _afterFrame((shell) => within ? shell.openNoteWithin(note.id, caret: const Caret.end()) : shell.openNote(note.id, caret: const Caret.end()));
+    // Where it was written, when the journal keeps that: the tag waits for the entry's first own words.
+    final book = _library.noteOf(journalId);
+    if (book != null && journal.entryPlaceOf(book.body)) {
+      unawaited(_places?.tagEntryIfWanted([note.id], (reviewing: false), introduce: _introduceEntries(noteTitle(book.body))));
+    }
   }
 
   /// A journal's entry said aloud (`makeEntry` with `speak`): made with its template's last line taken off, and the
@@ -976,6 +1044,7 @@ class _GhostRootState extends State<GhostRoot> {
     final made = await _pages.newSpokenEntry(journalId);
     if (made == null) return;
     final id = made.note.id;
+    final book = _library.noteOf(journalId);
     try {
       if (!mounted) return;
       _workspaces.fileNewNote(id);
@@ -985,6 +1054,12 @@ class _GhostRootState extends State<GhostRoot> {
         entry: EntryAim(
           id: id,
           placing: made.placing,
+          // Asked once the recorder has gone, never at the tap. Quiet over a locked phone.
+          tag: _places == null || book == null || !journal.entryPlaceOf(book.body)
+              ? null
+              : ({required reviewing, required locked}) => WidgetsBinding.instance.addPostFrameCallback((_) {
+                    unawaited(_places.tagEntryIfWanted([id], (reviewing: reviewing), quiet: locked, introduce: _introduceEntries(noteTitle(book.body))));
+                  }),
           nothing: () async {
             final back = await _library.get(journalId).catchError((Object _) => null);
             return back == null ? const Screen.list() : ScreenNote(back);
@@ -1085,6 +1160,9 @@ class _GhostRootState extends State<GhostRoot> {
     setNoteRecording: (id, ms, segments) async => _voice?.recorder.store.setNoteRecording(id, ms, segments),
     tapes: _voice?.recorder.tapes,
     onSpeak: (id) => unawaited(_speakInto(id)),
+    mapTiles: widget.mapTiles,
+    places: _places != null,
+    forgetTag: (id) => _places?.setPendingTag(id, null),
     holdNote: (id, on) => _voice?.recorder.refining?.holdNote(id, on),
     dropRefine: (id, fromMs) => _voice?.recorder.refining?.dropRefine(id, fromMs),
   );
@@ -1118,12 +1196,21 @@ class _GhostRootState extends State<GhostRoot> {
           // Taken back by the next journal's own: one screen is gone only after the next has come.
           onJournal: (writer) => _journalWriter = writer ?? _journalWriter,
           onSpeak: _capture == null ? null : (id) => unawaited(_speakInto(id)),
+          tags: _places,
         )(context, shell, screen),
       );
   NoteActions? _made;
 
   /// Pin, archive, delete and their Undo (notes/note_actions.dart); made once there is a toast to say them with.
-  NoteActions get _actions => _made ??= NoteActions(library: _library, workspaces: _workspaces, trash: _trash, say: NoteActions.toaster(context))..addListener(_changed);
+  /// A tag waiting for a note goes with it to the trash, and with it for good (`forgetKept`).
+  NoteActions get _actions => _made ??= NoteActions(
+        library: _library,
+        workspaces: _workspaces,
+        trash: _trash,
+        say: NoteActions.toaster(context),
+        onForget: (id) => _places?.setPendingTag(id, null),
+        onTrashed: (note) => _places?.setPendingTag(note.id, null),
+      )..addListener(_changed);
 
   void _changed() {
     _reads.changed();
@@ -1273,6 +1360,8 @@ class _GhostRootState extends State<GhostRoot> {
     if (!_notesRead.isCompleted) _notesRead.complete();
     // At launch, which opens on the home page: what the phone let go of before it was left.
     if (mounted) unawaited(_takeBack.look());
+    // And the tags that waited for a pass or a note's first words while the app was away.
+    if (mounted) _settleTags();
     // The links that opened the app wait for the notes to be read, so a copy lands in a library that is there and
     // a note opened is one the list has.
     final links = widget.links;
@@ -1320,7 +1409,26 @@ class _GhostRootState extends State<GhostRoot> {
 
   /// A new note (`newNote`): opened ready to type, the caret in line 1 and the editor focused, and fresh, so its
   /// blank page offers names and templates until the person writes in it.
-  void _new([String? into]) => _showMade('', caret: const Caret.at(0), fresh: true, into: into);
+  /// And it starts with where the person is, when Settings says so: the tag waits for the note's first words, so a
+  /// note opened and left still leaves nothing behind. Only a note the person makes here: a canvas, a notebook, the
+  /// guide, a shared link's copy and a note made for a title are the app's, and are not tagged. Where a fix is
+  /// expected its map's box is held first (`willLocate`), so the card arriving never moves line 1.
+  void _new([String? into]) {
+    final places = _places;
+    if (places == null) {
+      _showMade('', caret: const Caret.at(0), fresh: true, into: into);
+      return;
+    }
+    unawaited(() async {
+      // Asked first, and not waited on for long: the phone answers in a turn, and the box is there from the first
+      // frame.
+      final expected = await places.willLocate().timeout(const Duration(milliseconds: 300), onTimeout: () => false).then<bool>((will) => will, onError: (Object _) => false);
+      if (!mounted) return;
+      final note = _showMade('', caret: const Caret.at(0), fresh: true, into: into);
+      if (expected) places.holdFor([note.id]);
+      await places.tagNewNotesIfWanted([note.id], (reviewing: false), introduce: _introduceLocation);
+    }());
+  }
 
   /// A canvas from the + (`newCanvas`).
   void _newCanvas([String? into]) => _showMade(canvasNoteBody('Untitled canvas', _emptyCanvas), into: into);

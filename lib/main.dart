@@ -1,3 +1,5 @@
+import 'dart:ui' show PlatformDispatcher;
+
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -7,7 +9,10 @@ import 'app/ghost_app.dart';
 import 'core/native/core.dart';
 import 'core/native/device_paths.dart';
 import 'core/native/ghost_core.dart';
+import 'core/geocode.dart';
 import 'core/open_link.dart';
+import 'core/phone_position.dart';
+import 'editor/media/map_tiles.dart';
 import 'core/phone_links.dart';
 import 'core/preferences.dart';
 import 'core/stored.dart';
@@ -82,10 +87,15 @@ Future<void> main() async {
   final links = PhoneLinks();
   // And one player of a note's recording, the phone's own.
   final tapes = PhoneTapePlayer();
+  // Where the phone is, for a note keeping its place: asked only from a press, or for a new note with tagging on.
+  // The place's name is OpenStreetMap's, asked once as the app itself; so are a tagged note's tiles.
+  final locator = await PhoneLocator().attach();
+  final placeLookup = geocodePlace(geocodeFetcher(), lang: () => PlatformDispatcher.instance.locale.toLanguageTag());
+  final mapTiles = MapTiles().builder;
   runApp(GhostApp(
     sheet: sheet,
     home: _Runs(
-      builder: (restart) => GhostRoot(core: core, native: whole, account: account, voiceMaking: voice, links: links, openLink: openLink, previewFetch: linkPreviewFetch(), restart: restart, tapePlayer: tapes, updates: updates),
+      builder: (restart) => GhostRoot(core: core, native: whole, account: account, voiceMaking: voice, links: links, openLink: openLink, previewFetch: linkPreviewFetch(), restart: restart, tapePlayer: tapes, updates: updates, locator: locator, placeLookup: placeLookup, mapTiles: mapTiles),
     ),
   ));
 }

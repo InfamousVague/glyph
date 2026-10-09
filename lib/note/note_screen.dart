@@ -29,8 +29,12 @@
 ///   block after line 1 inside it (editor/nameChips.ts): a note with no words is its one empty line, so under the
 ///   editor is under that line, and the page scrolls them with it. They wait for what the page's waited for: the
 ///   editor focused, and the page ready for words (a device with no keyboard on the screen, the keyboard up, or a
-///   press of the person's own ended on the page). A map at the top's card is not offered: nothing here says where
-///   the phone is.
+///   press of the person's own ended on the page). A map at the top's card is offered where the note keeps a place
+///   ([NoteScreen.tags]).
+/// - **A note keeping its place** is this screen's, as it is the page's, over what the app hands it
+///   ([NoteScreen.tags], lib/core/place_tags.dart): the tag its words carry or the one waiting to be written, the
+///   box held for a fix on its way, Add my location and Remove location, a name arriving. The card itself is a seam
+///   ([NoteSeams.mapCard]), since the tiles and the way to the phone's maps are the app's.
 /// - **The tools are handed to the bar**, not put there by a portal (shell/top_bar_tools.dart), so they listen to a
 ///   model this screen changes.
 /// - **The page is a scroll view of slivers**: the page's padding, the byline and the editor are slivers of one
@@ -65,6 +69,7 @@ import '../core/live_titles.dart';
 import '../core/look.dart';
 import '../core/note.dart';
 import '../core/note_names.dart';
+import '../core/place_tags.dart';
 import '../core/preferences.dart';
 import '../core/stored.dart';
 import '../core/untouched.dart';
@@ -73,7 +78,10 @@ import '../core/versions_record.dart';
 import '../core/workspaces.dart';
 import '../book/book_spot.dart' show ChapterSpot, writeBookSpot;
 import '../book/journal.dart' show JournalWriter;
+import '../ai/note_review.dart' show onReviewHandedBack;
+import '../core/location.dart' show whyLocateFailed;
 import '../editor/editor.dart';
+import '../editor/media/map_card.dart' show MapPicture, MapSize;
 import '../editor/view/editor_view.dart';
 import '../editor/view/view_mode.dart';
 import '../notes/note_templates.dart' show NoteTemplate, fillNoteTemplate;
@@ -169,14 +177,17 @@ class NoteSeams {
   /// The formatting cheat sheet's page (guide/CheatSheet.tsx).
   final WidgetBuilder? cheatSheet;
 
-  /// Where the note was written, for its row: the fix and its name are core/location.ts's.
+  /// Where the note was written, for its row, where something other than the screen's own answers it (a test);
+  /// with [NoteScreen.tags] the screen makes the row itself, as the page does.
   final NoteLocation Function(GeoTag? tag)? location;
 
   /// Shares a note's versions file (core/versions/share.ts).
   final Future<String?> Function(String noteId, String title)? shareVersionsFile;
 
-  /// The map at the top of a tagged note (editor/MapCard.tsx): `header` for a map note, else the card.
-  final Widget Function(BuildContext context, GeoTag tag, {required bool header})? mapCard;
+  /// The map at the top of a tagged note (editor/MapCard.tsx): `header` for a map note, else the card. `quiet` for
+  /// a tag still waiting for a draft's first words, which fetches no tiles; `arrive` for a card that just appeared
+  /// on the open note and `leave` for one whose tag was just taken off, which calls `onLeft` once it has gone.
+  final Widget Function(BuildContext context, GeoTag tag, {required bool header, required bool quiet, required bool arrive, required bool leave, VoidCallback? onLeft})? mapCard;
 
   /// A chapter's book, its place in it and the chapters either side, over and under the words (book/BookNav.tsx).
   final Widget Function(BuildContext context, BookPlace place)? bookBar;
@@ -224,6 +235,8 @@ class NoteScreen extends StatefulWidget {
     this.templates,
     this.onTemplates,
     this.onJournal,
+    this.tags,
+    this.reviewing = false,
     this.readOnly = false,
     this.editorBuilder = readOnlyNoteEditor,
     this.seams = const NoteSeams(),
@@ -282,6 +295,15 @@ class NoteScreen extends StatefulWidget {
   /// (`onJournal`).
   final ValueChanged<JournalWriter?>? onJournal;
 
+  /// The places notes keep (lib/core/place_tags.dart): given, the note draws its tag or the one waiting for it,
+  /// holds its map's box for a fix on its way, and its More sheet adds and removes its location. Absent, a note
+  /// draws only what its words say.
+  final PlaceTags? tags;
+
+  /// Whether the review after a recording is live for this note as it opens: its tag waits until the review has
+  /// handed back (`reviewing`).
+  final bool reviewing;
+
   /// A note in the Trash: read, not written.
   final bool readOnly;
 
@@ -319,6 +341,25 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
 
   GeoTag? _tag;
   Look? _look;
+
+  /// The map's box held for a new note while its fix is on its way, or once it is known none is coming (`hold`).
+  Held? _hold;
+
+  /// The card just appeared on this open note: it arrives on the beat rather than at full height.
+  bool _arriving = false;
+
+  /// The tag just taken off, drawn a moment longer while its card leaves on the same beat; null otherwise.
+  GeoTag? _leaving;
+  late bool _reviewing = widget.reviewing;
+  VoidCallback? _unwatchTag;
+  VoidCallback? _unhearReview;
+  late bool _wasBlank;
+
+  /// Whether a refusal the device keeps still stands, read as the note opens: the blank page's map card says so.
+  bool _refusalStands = false;
+
+  /// The places, for a note that can be written.
+  PlaceTags? get _tags => widget.readOnly ? null : widget.tags;
   late bool _pinned = widget.note.starred;
   late bool _drafted;
   late bool _untouched;
@@ -400,8 +441,24 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
     super.initState();
     final note = widget.note;
     _saving = NoteSaving(widget.library, note, onExternalChange: _external, debounce: widget.debounce, lifecycle: widget.lifecycle && !widget.readOnly)..addListener(_saved);
-    _tag = geoTagOf(note.body);
+    _tag = geoTagOf(note.body) ?? _tags?.pendingTag(note.id);
     _look = lookOf(note.body);
+    _wasBlank = _saving.blank;
+    final tags = _tags;
+    if (tags != null) {
+      _hold = tags.heldFor(note.id);
+      _unwatchTag = tags.watchTag(note.id, _tagEvent);
+      if (_records.isFresh(note.id)) {
+        unawaited(tags.refusalStanding().then((standing) {
+          if (mounted && standing != _refusalStands) setState(() => _refusalStands = standing);
+        }));
+      }
+      _unhearReview = onReviewHandedBack((noteId) {
+        if (noteId != _id) return;
+        _reviewing = false;
+        _settleTag();
+      });
+    }
     _drafted = _records.recordOf(_id) != null;
     _untouched = _drafted && _records.isUntouched(_id, note.body, recordingMs: note.recordingMs, starred: note.starred, archivedAt: note.archivedAt);
     widget.seams.saving?.call(flush);
@@ -432,6 +489,11 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
 
   @override
   void dispose() {
+    // A new note left without a word leaves nothing behind, its waiting tag included.
+    if (_saving.blank && geoTagOf(_saving.body) == null) _tags?.setPendingTag(_id, null);
+    _unwatchTag?.call();
+    _unhearReview?.call();
+    _slowFix?.cancel();
     FocusManager.instance.removeListener(_focusMoved);
     _minute?.cancel();
     if (_toldJournal) {
@@ -533,6 +595,12 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
     flush();
     editor.focus();
     HapticsProvider.of(context)(HapticKind.selection);
+    // A map at the top: the card's press is the choice to keep a place, and its box is held from now.
+    final tags = _tags;
+    if (tags != null && template.look == Look.map && geoTagOf(_saving.body) == null && tags.pendingTag(_id) == null && tags.heldFor(_id) != Held.waiting) {
+      tags.holdFor([_id]);
+      unawaited(tags.tagEntryIfWanted([_id], (reviewing: false)));
+    }
   }
 
   // ---- a notebook's index written from outside ----------------------------------------------------------------------
@@ -603,8 +671,10 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
     _saving.onChange(next);
     _watch();
     _versioning?.changed();
-    final tag = geoTagOf(next);
+    final tag = geoTagOf(next) ?? _tags?.pendingTag(_id);
     final look = lookOf(next);
+    final wasBlank = _wasBlank, wasUntouched = _untouched;
+    _wasBlank = _saving.blank;
     var fresh = _fresh, untouched = _untouched;
     if (_fresh) {
       _records.keepFresh(_id, next);
@@ -626,6 +696,146 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
         _untouched = untouched;
       });
     }
+    // A new note's first words, or an entry's first of its own: the tag waiting for them lands. After this change
+    // has been taken, since landing it is a change of its own.
+    if (_tags != null && !_saving.blank && !untouched && (wasBlank || wasUntouched)) scheduleMicrotask(_settleTag);
+  }
+
+  // ---- the note's place (core/location.ts, NoteScreen.tsx) ------------------------------------------------------------
+
+  void _tagEvent(TagEvent event) {
+    if (!mounted) return;
+    switch (event) {
+      case TagPlace(:final place, :final lat, :final lon):
+        _namePlace(place, lat, lon);
+      case TagHeld():
+        _redraw(() => _hold = _tags?.heldFor(_id));
+      case TagPending():
+        _settleTag();
+    }
+  }
+
+  /// A tag waiting for this note lands once it may (`settle`): the better words in, the note with words. Until
+  /// then the card is drawn from it. A note that says where it was written already keeps what it says.
+  void _settleTag() {
+    final tags = _tags;
+    if (tags == null || !mounted) return;
+    final waiting = tags.pendingTag(_id);
+    if (waiting == null) return;
+    if (geoTagOf(_saving.body) != null) {
+      tags.setPendingTag(_id, null);
+      return;
+    }
+    if (tags.settleTag(_id, _saving.body, reviewing: _reviewing) != null && writeTag(waiting)) {
+      // In the note now, so its name may be asked (this device made it; lib/core/place_tags.dart decides whether).
+      tags.wantPlace(_id, waiting);
+      return;
+    }
+    if (_tag != waiting) _redraw(() => _tag = waiting);
+  }
+
+  /// A name that came for the note's tag: written into the note, or onto the tag still waiting (`namePlace`).
+  void _namePlace(String place, double lat, double lon) {
+    final tags = _tags;
+    if (tags == null) return;
+    final inBody = geoTagOf(_saving.body);
+    if (inBody != null && inBody.place == null && inBody.lat == lat && inBody.lon == lon) {
+      writeTag(inBody.named(place));
+      return;
+    }
+    final waiting = tags.pendingTag(_id);
+    if (waiting != null && waiting.lat == lat && waiting.lon == lon) {
+      final named = waiting.named(place);
+      if (waiting.place != place) tags.setPendingTag(_id, named);
+      if (_tag != named) _redraw(() => _tag = named);
+    }
+  }
+
+  Timer? _slowFix;
+
+  GlacierToastController? _toaster() {
+    try {
+      return GlacierToast.of(context);
+    } catch (_) {
+      // A picture of the screen alone has nowhere to say it.
+      return null;
+    }
+  }
+
+  /// Add my location, from the More sheet: the fix, the tag into the note (or waiting), and its name asked for
+  /// (`addLocation`).
+  void addLocation() {
+    final tags = _tags;
+    if (tags == null) return;
+    flush();
+    setState(() => _settingsOpen = false);
+    final toasts = _toaster();
+    final haptics = HapticsProvider.of(context);
+    var said = false;
+    // The card arriving is the feedback; a slow fix says so after a moment.
+    _slowFix?.cancel();
+    final slow = _slowFix = Timer(const Duration(milliseconds: 600), () {
+      said = true;
+      toasts?.toast(message: const Text('Finding where you are.'), duration: const Duration(days: 1));
+    });
+    tags.locations.locate().then<void>((fix) {
+      slow.cancel();
+      if (said) toasts?.dismiss();
+      tags.forgetRefusal();
+      final next = tagOfFix(fix);
+      // Left while the fix was coming: the tag is kept for the note and written into it where it may land.
+      if (!mounted) return tags.landTag(_id, next);
+      tags.setPendingTag(_id, next);
+      setState(() {
+        _tag = next;
+        _arriving = true;
+        _leaving = null;
+      });
+      // Into the note now (and its name asked), or waiting for the better words with the card drawn from it.
+      _settleTag();
+    }, onError: (Object failure) {
+      slow.cancel();
+      if (said) toasts?.dismiss();
+      if (!mounted) return;
+      final why = whyLocateFailed(failure);
+      // Refused here is refused: new notes are not asked for again until location is allowed.
+      tags.rememberRefusal(why);
+      haptics(HapticKind.warning);
+      toasts?.toast(
+        message: Text(noFix[why]!),
+        action: why == LocateFailure.blocked && tags.locations.onPhone ? GlacierToastAction(label: 'Open settings', onPress: () => unawaited(tags.locations.openSettings())) : null,
+      );
+    });
+  }
+
+  /// Where the note was written, for the More sheet's row (`location`).
+  NoteLocation? _location(Preferences prefs) {
+    final tags = _tags;
+    if (tags == null) return null;
+    final tag = _tag;
+    return NoteLocation(
+      tag: tag,
+      cannot: tags.locations.cannotLocate,
+      asksName: prefs.placeNames && !prefs.localOnly,
+      refused: tag != null ? null : tags.refusedFor(widget.note.createdAt),
+      onPhone: tags.locations.onPhone,
+      onAdd: addLocation,
+      onRemove: removeLocation,
+    );
+  }
+
+  /// Remove location: the card leaves on its beat, and both keys go as one undo step (`removeLocation`).
+  void removeLocation() {
+    flush();
+    final was = _tag;
+    setState(() {
+      _settingsOpen = false;
+      _arriving = false;
+      _leaving = was;
+    });
+    writeTag(null);
+    _tags?.setPendingTag(_id, null);
+    if (_tag != null) setState(() => _tag = null);
   }
 
   void _back() {
@@ -648,6 +858,18 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
     // Words the store had newer than the copy this screen was opened with can be taken before the editor is here
     // to be handed them (the page's store answers later than its editor mounts): they are put in now.
     if (first && !(_typed && _source) && view.state.doc.toString() != _saving.body) _external(_saving.body);
+    // On opening, once the editor is here: a tag waiting lands if it may, and a name that came while the note was
+    // closed is written. After the frame, since the editor is told of its view while it builds.
+    final tags = _tags;
+    if (first && tags != null) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _settleTag();
+        final now = geoTagOf(_saving.body);
+        final known = now == null || now.place != null ? null : tags.placeFor(now);
+        if (now != null && known != null) _namePlace(known, now.lat, now.lon);
+      });
+    }
     if (!_scroll.hasClients) return;
     final page = _scroll.position;
     _keeper?.dispose();
@@ -731,6 +953,7 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
       return false;
     }
     setState(() => _tag = next);
+    _tags?.setPendingTag(_id, null);
     return true;
   }
 
@@ -1075,7 +1298,34 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
         // Where it was written: the map at the top of the note, where the page scrolls with the words.
         if (_words && seams.head != null)
           for (final row in seams.head!(context, _openSettings)) SliverToBoxAdapter(child: row),
-        if (tag != null && _words && seams.mapCard != null) SliverToBoxAdapter(child: seams.mapCard!(context, tag, header: look == Look.map)),
+        if ((tag ?? _leaving) != null && _words && seams.mapCard != null)
+          SliverToBoxAdapter(
+            child: _MapPlace(
+              header: look == Look.map,
+              columnStart: columnStart,
+              child: seams.mapCard!(
+                context,
+                (tag ?? _leaving)!,
+                header: look == Look.map,
+                // A new note's tag still waiting for its first words is drawn quiet: a draft that may never be kept
+                // fetches no tiles. So is an untouched entry's, which is taken back if it is left as it is.
+                quiet: (_saving.blank || _untouched) && geoTagOf(_saving.body) == null,
+                arrive: tag != null && _arriving,
+                leave: tag == null,
+                onLeft: () => setState(() => _leaving = null),
+              ),
+            ),
+          )
+        else if ((_hold != null || look == Look.map) && _words && seams.mapCard != null)
+          // The box held for a new note's fix: the same box, empty, until the tag arrives in it or the note is left.
+          // A map note's header is its shape, so it is drawn with no place too, saying why.
+          SliverToBoxAdapter(
+            child: _MapPlace(
+              header: look == Look.map,
+              columnStart: columnStart,
+              child: MapPicture(size: look == Look.map ? MapSize.header : MapSize.card, why: _hold == Held.waiting ? null : (prefs.localOnly ? 'Local only is on.' : 'No place yet.')),
+            ),
+          ),
         if (_drawing) SliverFillRemaining(hasScrollBody: true, child: _view0(context)) else if (!_words) SliverToBoxAdapter(child: _view0(context)),
         // The editor stays mounted behind a canvas or an index, hidden, so its caret keeps its place.
         SliverOffstage(offstage: !_words, sliver: widget.editorBuilder(context, spec)),
@@ -1088,7 +1338,7 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
                 key: _offers,
                 names: offered,
                 onName: nameIt,
-                cards: cards ? TemplateCards(at: widget.clock?.call() ?? DateTime.now(), taken: widget.takenTitles, onChoose: startFrom, templates: widget.templates, onYours: widget.onTemplates, localOnly: prefs.localOnly) : null,
+                cards: cards ? TemplateCards(at: widget.clock?.call() ?? DateTime.now(), taken: widget.takenTitles, onChoose: startFrom, templates: widget.templates, onYours: widget.onTemplates, localOnly: prefs.localOnly, canLocate: _tags != null && _tags!.locations.cannotLocateHere == null, refused: _refusalStands ? _tags?.allowLocationWhere() : null, mapHeader: _tags == null ? null : (context) => const MapPicture(size: MapSize.header, pin: true)) : null,
               ),
             ),
           // `.cm-content { padding-block-end: var(--glacier-space-24) }`, taken from the editor while the offers are
@@ -1223,13 +1473,47 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
       sharing: seams.sharing?.call(context),
       sharingSection: seams.sharingSection?.call(context),
       linked: seams.linked?.call(context),
-      location: seams.location?.call(_tag),
+      location: seams.location?.call(_tag) ?? _location(_prefs.value),
       history: versions != null && !_isCanvas && !widget.readOnly
           ? NoteHistory(record: versions, keeps: _versioning?.keeps ?? versions.keepsVersions(_id), current: () => _view?.state.doc.toString() ?? _saving.body, onRestore: restoreVersion, onShareFile: seams.shareVersionsFile)
           : null,
       startAt: _settingsAt,
       cheatSheet: seams.cheatSheet,
       say: widget.say,
+    );
+  }
+}
+
+/// What a failed fix says (`NO_FIX`).
+const Map<LocateFailure, String> noFix = <LocateFailure, String>{
+  LocateFailure.refused: 'Ghost.md wasn’t allowed to know where you are.',
+  LocateFailure.blocked: 'Location is off for Ghost.md.',
+  LocateFailure.unavailable: 'Couldn’t find where you are. Try again with location on, or outside.',
+  LocateFailure.timeout: 'Couldn’t find where you are. Try again with location on, or outside.',
+  LocateFailure.none: 'This browser can’t say where you are.',
+  LocateFailure.mac: 'This Mac can’t say where it is yet.',
+  LocateFailure.ios: 'Ghost.md can’t find where you are on this device yet.',
+  LocateFailure.localOnly: 'Local only is on.',
+};
+
+/// `.mapCard`: the card's place on the page, a little under what is above it and in from the page's edges; a map
+/// note's header is the page's whole width on a phone, and a reading page's card starts at its column.
+class _MapPlace extends StatelessWidget {
+  const _MapPlace({required this.header, required this.columnStart, required this.child});
+
+  final bool header;
+  final double? columnStart;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final gutter = t.len('app-gutter');
+    final wide = MediaQuery.sizeOf(context).width >= 600;
+    final inset = header && !wide ? 0.0 : gutter;
+    return Padding(
+      padding: EdgeInsetsDirectional.only(top: t.space(2), start: columnStart ?? inset, end: inset),
+      child: Align(alignment: AlignmentDirectional.centerStart, child: child),
     );
   }
 }

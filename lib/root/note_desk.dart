@@ -36,7 +36,10 @@
 /// What differs from the page:
 /// - **No picture can be added yet**: this build has no picker, so the band's Add image and the +'s Picture are
 ///   not offered. Pictures a note already names are drawn from the kept files.
-/// - **No place, film or voice memo is added** from the + (no location, no player): their rows are not offered.
+/// - **No film or voice memo is added** from the + (no player): their rows are not offered.
+/// - **The map at the top of a tagged note** is drawn here for the note's screen ([NoteSeams.mapCard]): the tiles
+///   where the map switch is on and Local only is off, quiet otherwise and for a draft's waiting tag, its tap the
+///   phone's maps. The tag itself, and Add my location, are the screen's own over [NoteDeskWorld.tags].
 /// - **A link's tap** is handed to the phone where the build has a way to ([NoteDeskWorld.openLink], lib/core/open_link.dart);
 ///   a test, and a run with no phone half, opens nothing.
 /// - **A date is not picked from a calendar** (`dayPicker` is not given): Today, Tomorrow and Next week are.
@@ -44,7 +47,7 @@
 ///   piece 6G. A canvas is not framed in a note from the + (`AddConfig.canvases` is not given).
 /// - **A landing's writes to other notes are not reversed by its Undo** (`undo_command`): the store here keeps no
 ///   log of a command's change (lib/capture/recorder.dart `LibraryRecorderStore`), so each is counted as changed
-///   since and the toast says so. A tag waiting for the words is not let go (no note keeps a place yet).
+///   since and the toast says so.
 /// - **The strip's room is not kept clear by the page** (`NoteAiLayer.onRoom`, the page's `--ai-strip-room`): the
 ///   strip floats over the note's first lines while it is up.
 /// - **A board's card has no plugin's rows** (`drawnBoards(actions:)`).
@@ -79,7 +82,10 @@ import '../capture/landing.dart';
 import '../core/book.dart';
 import '../core/canvas_body.dart';
 import '../core/images.dart';
+import '../core/geotag.dart' show GeoTag;
 import '../core/link_preview.dart' show LinkOpener, LinkPreviewer, noLinkPreviews;
+import '../core/location.dart' show MapsApp, openPlace;
+import '../core/place_refs.dart' as place_refs;
 import '../core/note.dart';
 import '../core/note_text.dart';
 import '../core/preferences.dart';
@@ -189,6 +195,9 @@ class NoteDeskWorld {
     this.tapes,
     this.onSpeak,
     this.ai,
+    this.mapTiles,
+    this.places,
+    this.forgetTag,
   });
 
   /// Every note's title, for the +'s A note.
@@ -274,6 +283,15 @@ class NoteDeskWorld {
 
   /// Talk more into this note (the tape's Add); absent where nothing records.
   final void Function(String noteId)? onSpeak;
+
+  /// What draws a map's tiles (lib/editor/media/map_tiles.dart); absent, every map is its quiet card.
+  final MapTilesBuilder? mapTiles;
+
+  /// Whether a note keeps a place here at all (the app has a [PlaceTags]): the map card is drawn only then.
+  final bool? places;
+
+  /// A place waiting for the note, let go: a landing's Undo took the words it waited for (`setPendingTag(id, null)`).
+  final void Function(String noteId)? forgetTag;
 
   /// What the AI in a note stands on, asked as a desk is made: null where the build has no engine (a test, a
   /// picture, a launch before voice is made), and the desk then has no AI at all.
@@ -448,6 +466,9 @@ class NoteDeskState extends State<NoteDesk> {
         previewer: _world.previewer ?? noLinkPreviews,
         linkPreviews: () => _prefs.value.linkPreviews,
         switches: _prefs,
+        placeSwitches: () => (localOnly: _prefs.value.localOnly, mapTiles: _prefs.value.mapTiles),
+        onOpenPlace: _openPlace,
+        mapTiles: _world.mapTiles,
       ),
     ),
     _plus.extension,
@@ -585,6 +606,8 @@ class NoteDeskState extends State<NoteDesk> {
     // Only for words taken out of this note: the better words of what stays in it still come.
     final fromMs = landing.fromMs;
     if (removed && fromMs != null) _world.dropRefine?.call(widget.noteId, fromMs.toInt());
+    // And a tag that waited for those words is let go with them.
+    if (removed) _world.forgetTag?.call(widget.noteId);
     if (missing > 0) {
       // After the pressed toast has gone, which pressing its action does just after this returns.
       scheduleMicrotask(() {
@@ -757,6 +780,29 @@ class NoteDeskState extends State<NoteDesk> {
     return Place(view.state.doc.line(line).from, 0);
   }
 
+  /// A map's tap: the place in the phone's maps, by its name or its coordinates and never the note's title.
+  void _openPlace(place_refs.GeoTag tag) {
+    final open = _world.openLink;
+    if (open != null) unawaited(openPlace(tag, open, MapsApp.androidGeo));
+  }
+
+  /// The map at the top of a tagged note (editor/MapCard.tsx as NoteScreen.tsx draws it).
+  Widget _mapCard(BuildContext context, GeoTag tag, {required bool header, required bool quiet, required bool arrive, required bool leave, VoidCallback? onLeft}) {
+    final prefs = _prefs.value;
+    final tiles = !prefs.localOnly && prefs.mapTiles;
+    return MapCard(
+      tag: place_refs.GeoTag(lat: tag.lat, lon: tag.lon, place: tag.place, rough: tag.rough),
+      size: header ? MapSize.header : MapSize.card,
+      mode: tiles && !quiet ? MapCardMode.map : MapCardMode.quiet,
+      quietWhy: prefs.localOnly ? QuietWhy.localOnly : (!prefs.mapTiles ? QuietWhy.off : null),
+      arrive: arrive,
+      leave: leave,
+      onLeft: onLeft,
+      onOpen: _openPlace,
+      tiles: _world.mapTiles,
+    );
+  }
+
   void _openWithin(String title) => (_world.openWithin ?? _world.open)(title);
 
   /// A page's ticket status picked in its notebook's index, written into that page through the queries' writer
@@ -859,6 +905,7 @@ class NoteDeskState extends State<NoteDesk> {
         final tape = _tape;
         return <Widget>[if (tape != null && tape.length > 0) TranscriptWords(tape: tape)];
       },
+      mapCard: _world.places ?? false ? _mapCard : null,
       book: _book,
       journal: _journal,
       around: _around,

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/core/place_tags.dart';
 import 'package:ghost_md/art/art.dart';
 import 'package:ghost_md/core/core_library.dart';
 import 'package:ghost_md/core/note.dart';
@@ -90,6 +91,7 @@ Future<NoteScreenState> pumpNote(
   Caret? caret,
   NoteSeams? seams,
   bool readOnly = false,
+  PlaceTags? tags,
   bool speak = false,
   bool bar = true,
   Set<String> taken = const {},
@@ -113,6 +115,7 @@ Future<NoteScreenState> pumpNote(
         at: at,
         caret: caret,
         readOnly: readOnly,
+        tags: tags,
         takenTitles: taken,
         clock: clock,
         seams: seams ?? const NoteSeams(),

@@ -20,6 +20,8 @@
 /// - It is built only while it is open, by the screen, where the page's returned null while shut.
 library;
 
+export '../core/location.dart' show LocateFailure;
+
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -27,6 +29,7 @@ import 'package:glacier/glacier.dart';
 import '../art/app_icon.dart';
 import '../art/icons.dart';
 import '../core/geotag.dart';
+import '../core/location.dart' show LocateFailure;
 import '../core/look.dart';
 import '../core/versions_file.dart';
 import '../core/versions_record.dart';
@@ -37,8 +40,6 @@ import '../sheet/sheet.dart';
 import 'version_history.dart';
 import 'workspace_picker.dart';
 
-/// Why a fix cannot be had (`LocateFailure`, core/location.ts).
-enum LocateFailure { refused, blocked, unavailable, timeout, none, mac, ios, localOnly }
 
 /// Why a fix cannot be asked for here, as the row says it under "Add my location" (`CANNOT`).
 const Map<LocateFailure, String> cannotLocate = {
