@@ -1162,7 +1162,7 @@ class _GhostRootState extends State<GhostRoot> {
     tapes: _voice?.recorder.tapes,
     onSpeak: (id) => unawaited(_speakInto(id)),
     mapTiles: widget.mapTiles,
-    places: _places != null,
+    tags: _places,
     forgetTag: (id) => _places?.setPendingTag(id, null),
     holdNote: (id, on) => _voice?.recorder.refining?.holdNote(id, on),
     dropRefine: (id, fromMs) => _voice?.recorder.refining?.dropRefine(id, fromMs),

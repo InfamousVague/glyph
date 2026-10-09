@@ -11,7 +11,9 @@ import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/editor/editor.dart';
+import 'package:ghost_md/core/note_text.dart';
 import 'package:ghost_md/editor/media/map_card.dart';
+import 'package:ghost_md/editor/plus/plus.dart';
 import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/notes/new_sheet.dart';
 import 'package:ghost_md/root/ghost_root.dart';
@@ -121,6 +123,24 @@ void main() {
     await settle(tester);
     expect(phone.asked, 1);
     expect(find.byType(MapCard), findsOneWidget);
+    await close(tester);
+  });
+
+  testWidgets('A place from the + writes a line of its own with its name, as one change, and its card is drawn under it', (tester) async {
+    final phone = _Phone();
+    final library = await open(tester, phone, tagNewNotes: false);
+    shellOf(tester).openNote(library.value.firstWhere((note) => noteTitle(note.body) == 'Launch week').id);
+    await settle(tester);
+    final screen = screenOf(tester);
+    final before = screen.view!.state.doc.toString();
+    screen.view!.dispatch(TransactionSpec(selection: EditorSelection.single(before.length)));
+    tester.widget<PlusLayer>(find.byType(PlusLayer)).config.onPlace!();
+    await settle(tester);
+    final after = screen.view!.state.doc.toString();
+    expect(after, contains('[Trafalgar Square, London](geo:51.5074,-0.1278)'));
+    expect(geoTagOf(after), isNull, reason: 'a place in the words is not the note\'s own tag');
+    undo(StateCommandTarget(screen.view!.state, (tr) => screen.view!.dispatch(tr)));
+    expect(screen.view!.state.doc.toString(), before, reason: 'one undo step');
     await close(tester);
   });
 

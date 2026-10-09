@@ -37,6 +37,10 @@
 /// - **No picture can be added yet**: this build has no picker, so the band's Add image and the +'s Picture are
 ///   not offered. Pictures a note already names are drawn from the kept files.
 /// - **No film or voice memo is added** from the + (no player): their rows are not offered.
+/// - **A place from the +** (`addPlace`): a line of its own where the caret was, kept from the tap, written once the
+///   fix has come and its name with it where one comes within three seconds, later only while the line is still
+///   the newest change. `afterComposition` is not waited for, and a note's own tag landing meanwhile is not counted
+///   out of the history's depth (`tagSteps`), so a name that comes late then is left as its coordinates.
 /// - **The map at the top of a tagged note** is drawn here for the note's screen ([NoteSeams.mapCard]): the tiles
 ///   where the map switch is on and Local only is off, quiet otherwise and for a draft's waiting tag, its tap the
 ///   phone's maps. The tag itself, and Add my location, are the screen's own over [NoteDeskWorld.tags].
@@ -84,7 +88,9 @@ import '../core/canvas_body.dart';
 import '../core/images.dart';
 import '../core/geotag.dart' show GeoTag;
 import '../core/link_preview.dart' show LinkOpener, LinkPreviewer, noLinkPreviews;
-import '../core/location.dart' show MapsApp, openPlace;
+import '../core/location.dart' show LocateFailure, MapsApp, openPlace, tagOf, whyLocateFailed;
+import '../core/place_tags.dart' show PlaceTags;
+import '../editor/commands/inserts.dart' show insertLineAt, nameLater, releaseSpot, reserveSpot, spotAt;
 import '../core/place_refs.dart' as place_refs;
 import '../core/note.dart';
 import '../core/note_text.dart';
@@ -118,6 +124,9 @@ import '../share/ui/share_rows.dart';
 import '../tapes/note_tape.dart';
 import '../tapes/player.dart' as tape_player show Tape, TapePlayer;
 import '../tapes/transcript_words.dart';
+
+/// How long a place's name is waited for before its line is written with the coordinates (`NAME_WAIT_MS`).
+const Duration placeNameWait = Duration(milliseconds: 3000);
 
 /// The marks as the band's Style page lists them: each under its own icon (`format.icon ?? plugin.icon ?? Type`).
 final List<band.BandFormat> bandFormats = <band.BandFormat>[
@@ -196,7 +205,7 @@ class NoteDeskWorld {
     this.onSpeak,
     this.ai,
     this.mapTiles,
-    this.places,
+    this.tags,
     this.forgetTag,
   });
 
@@ -287,8 +296,9 @@ class NoteDeskWorld {
   /// What draws a map's tiles (lib/editor/media/map_tiles.dart); absent, every map is its quiet card.
   final MapTilesBuilder? mapTiles;
 
-  /// Whether a note keeps a place here at all (the app has a [PlaceTags]): the map card is drawn only then.
-  final bool? places;
+  /// The places notes keep (lib/core/place_tags.dart), where the app can say where the phone is: the map card is
+  /// drawn only then, and the + offers A place.
+  final PlaceTags? tags;
 
   /// A place waiting for the note, let go: a landing's Undo took the words it waited for (`setPendingTag(id, null)`).
   final void Function(String noteId)? forgetTag;
@@ -470,6 +480,8 @@ class NoteDeskState extends State<NoteDesk> {
         onOpenPlace: _openPlace,
         mapTiles: _world.mapTiles,
       ),
+      // A place in the words draws its map under its line, as the note's own tag does at its top.
+      places: PlaceMode.live,
     ),
     _plus.extension,
     findBarExtensions,
@@ -727,7 +739,17 @@ class NoteDeskState extends State<NoteDesk> {
       child: PlusLayer(
         view: view,
         controller: _plus,
-        config: AddConfig(titles: _world.titles, own: widget.title, localOnly: _prefs.value.localOnly, effects: plusEffects, boards: true, databases: _world.queryNotes != null, tickets: _world.tickets != null),
+        config: AddConfig(
+          titles: _world.titles,
+          own: widget.title,
+          localOnly: _prefs.value.localOnly,
+          effects: plusEffects,
+          boards: true,
+          databases: _world.queryNotes != null,
+          tickets: _world.tickets != null,
+          // A row that can never work is not drawn: only where the phone can say where it is at all.
+          onPlace: _world.tags != null && _world.tags!.locations.cannotLocateHere == null && view != null ? () => unawaited(_addPlace(view)) : null,
+        ),
         child: band.ContextBand(
           view: view,
           controller: _band,
@@ -784,6 +806,90 @@ class NoteDeskState extends State<NoteDesk> {
   void _openPlace(place_refs.GeoTag tag) {
     final open = _world.openLink;
     if (open != null) unawaited(openPlace(tag, open, MapsApp.androidGeo));
+  }
+
+  /// A place from the + beside the line (`addPlace`): a line of its own where the caret was, a link to a `geo:`
+  /// address that draws its map card, apart from the note's own tag above. The place is kept from the tap, the fix
+  /// is found (said after a moment), and the name is asked while it is and waited for a few seconds, so the place
+  /// and its name land as one write and one Undo. A note left before the fix, or a place let go, writes nothing.
+  Future<void> _addPlace(EditorView editor) async {
+    final tags = _world.tags;
+    if (tags == null) return;
+    final toasts = _toasts;
+    final haptics = HapticsProvider.of(context);
+    final kept = reserveSpot(editor.state);
+    editor.dispatch(kept.tr);
+    var spot = kept.spot;
+    var said = false;
+    final slow = Timer(const Duration(milliseconds: 600), () {
+      said = true;
+      toasts?.toast(message: const Text('Finding where you are.'), duration: const Duration(days: 1));
+    });
+    void quiet() {
+      slow.cancel();
+      if (said) toasts?.dismiss();
+    }
+
+    bool here() => mounted && identical(_view, editor);
+    void letGo() {
+      if (here()) editor.dispatch(releaseSpot(editor.state, spot));
+    }
+
+    final place_refs.GeoTag tag;
+    try {
+      tag = tagOf(await tags.locations.locate());
+    } catch (failure) {
+      quiet();
+      letGo();
+      if (!mounted) return;
+      final why = whyLocateFailed(failure);
+      tags.rememberRefusal(why);
+      haptics(HapticKind.warning);
+      toasts?.toast(
+        message: Text(noFix[why]!),
+        action: why == LocateFailure.blocked && tags.locations.onPhone ? GlacierToastAction(label: 'Open settings', onPress: () => unawaited(tags.locations.openSettings())) : null,
+      );
+      return;
+    }
+    tags.forgetRefusal();
+    // Left while the fix was coming, or the place was let go: nothing is asked for and nothing is written.
+    if (!here() || spotAt(editor.state, spot) == null) {
+      quiet();
+      letGo();
+      return;
+    }
+    String? name;
+    Future<String?>? late;
+    if (tags.locations.canAskPlace) {
+      final asked = tags.locations.placeName(tag);
+      final waited = await Future.any<Object?>(<Future<Object?>>[asked, Future<Object?>.delayed(placeNameWait, () => #waited)]);
+      if (waited == #waited) {
+        late = asked;
+      } else {
+        name = waited as String?;
+      }
+    }
+    if (!here()) {
+      quiet();
+      return;
+    }
+    final line = place_refs.placeMarkdown(tag, name);
+    final landed = insertLineAt(editor.state, spot, line, userEvent: 'input.plus.drawn', apart: true);
+    editor.dispatch(landed.tr);
+    letGo();
+    final next = reserveSpot(editor.state, landed.lineStart);
+    editor.dispatch(next.tr);
+    spot = next.spot;
+    final depth = undoDepth(editor.state);
+    quiet();
+    haptics(HapticKind.light);
+    if (late == null) return letGo();
+    final named = await late;
+    if (named != null && here()) {
+      final write = nameLater(editor.state, spot, depth, line, place_refs.placeMarkdown(tag, named));
+      if (write != null) editor.dispatch(write);
+    }
+    letGo();
   }
 
   /// The map at the top of a tagged note (editor/MapCard.tsx as NoteScreen.tsx draws it).
@@ -905,7 +1011,7 @@ class NoteDeskState extends State<NoteDesk> {
         final tape = _tape;
         return <Widget>[if (tape != null && tape.length > 0) TranscriptWords(tape: tape)];
       },
-      mapCard: _world.places ?? false ? _mapCard : null,
+      mapCard: _world.tags != null ? _mapCard : null,
       book: _book,
       journal: _journal,
       around: _around,
