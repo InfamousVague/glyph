@@ -388,8 +388,12 @@ recorder's screen that is on screen.
   screen-share consent was not walked.
 - **A take's own new note and a spoken entry are tagged** once the recorder has gone, quietly over a locked
   phone (see stage 9's other pieces); held by tests, not walked.
-- **Settings › Recording's Tapes** sums the lengths of the notes whose audio was not removed here; the web also
-  asks each file whether it is on this device (`headStatus`; `TapePlayer.onDevice` could answer it now).
+- **Settings › Recording's Tapes** counts what the web counts (2026-10-09): the lengths of the tapes whose audio
+  is on this device, which is not one the row removed here nor one whose file says it is elsewhere (a synced note
+  whose audio stayed where it was made). Each tape's file is asked through the player as the card is put up
+  (`lib/settings/tapes_here.dart` over `TapePlayer.onDevice`, the web's `headStatus`;
+  `SettingsFeatures.onCountTapes`), and the sums are `lib/settings/tapes.dart` (`settings/tapes.ts`). Held by
+  tests; **not walked on a device.**
 - **Checked where:** on an Android emulator (2026-10-09, debug, dark): the dock's microphone, the system's
   microphone prompt answered, a take of silence with the card of things to say and the ghost listening, Discard;
   a take from the fixture, its words arriving on the live page with the rings and the smoke, Done, the note on the

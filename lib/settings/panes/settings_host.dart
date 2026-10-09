@@ -155,6 +155,7 @@ class SettingsFeatures {
     this.meetingSoundWhy,
     this.tapes,
     this.oldTapes = 0,
+    this.onCountTapes,
     this.onRemoveOldAudio,
     this.onSmokeBench,
     this.onPlayScene,
@@ -207,12 +208,17 @@ class SettingsFeatures {
   final bool meetingSound;
   final String? meetingSoundWhy;
 
-  /// How many bytes the tapes take on this device (settings/tapes.ts `tapeBytes`); null, with no tape store, reads
-  /// as none.
+  /// How many bytes the tapes whose audio is on this device take (settings/tapes.ts `tapeBytes` of `tapesHere`);
+  /// null, with no tape store, reads as none.
   final int? tapes;
 
-  /// How many tapes are older than a month.
+  /// How many of them are older than a month (`oldTapes`).
   final int oldTapes;
+
+  /// Asks each tape's file whether it is on this device, as the Tapes card is put up (tapes/useTape.ts
+  /// `headStatus`): one that says it is not, a synced note whose audio stayed where it was made, has left [tapes]
+  /// and [oldTapes] once the files have answered.
+  final VoidCallback? onCountTapes;
 
   /// Removes the audio of the old ones, and answers how many went.
   final Future<int> Function()? onRemoveOldAudio;

@@ -114,12 +114,14 @@ import '../settings/organization_sheet.dart';
 import '../settings/settings_screen.dart';
 import '../scene/at_work.dart';
 import '../settings/settings_sheet.dart';
+import '../settings/tapes.dart' show oldTapes, tapeBytes;
+import '../settings/tapes_here.dart';
 import '../share/app_links.dart';
 import '../shell/account_gate.dart';
 import '../shell/app_shell.dart';
 import '../shell/screen.dart';
 import '../shell/top_bar.dart';
-import '../tapes/player.dart' show TapePlayer, audioRemoved;
+import '../tapes/player.dart' show TapePlayer;
 import 'account_wiring.dart';
 import 'capture_route.dart';
 import 'desktop_wiring.dart';
@@ -781,9 +783,14 @@ class _GhostRootState extends State<GhostRoot> {
         if (mounted) setState(() {});
       });
 
+  /// Which tapes' audio is on this device (lib/settings/tapes_here.dart): each tape's file is asked through the
+  /// player as Settings' Tapes card is put up, as the page's card asked the `rec` scheme (`headStatus`).
+  late final TapesHere _tapes = TapesHere(widget.tapePlayer?.onDevice);
+
   /// What Settings' Recording and AI pages ask of voice (settings/RecordingPane.tsx, AiPane.tsx): the models on
   /// this phone with Get and Remove, the Meetings card where the phone has the service, and the room the tapes
-  /// take, said from their lengths (settings/tapes.ts: 16 kHz, 16-bit, mono is 32 bytes a millisecond).
+  /// on this device take, said from their lengths (settings/tapes.ts: 16 kHz, 16-bit, mono is 32 bytes a
+  /// millisecond).
   SettingsFeatures _features(AccountServices? services) {
     final voice = _voice;
     final wayIn = services == null ? noServiceWayIn : null;
@@ -809,15 +816,9 @@ class _GhostRootState extends State<GhostRoot> {
     final models = voice.models;
     final present = models == null ? const <String>{} : presentIds(models.models).toSet();
     final download = models?.download;
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final taped = [
-      for (final note in _library.value)
-        if ((note.recordingMs ?? 0) > 0 && !audioRemoved(note.id)) note,
-    ];
-    final old = [
-      for (final note in taped)
-        if ((note.archivedAt ?? 0) == 0 && now - note.createdAt > 30 * 24 * 60 * 60 * 1000) note.id,
-    ];
+    // Only the tapes whose audio is here: not one the row removed, nor one whose file says it is elsewhere.
+    final taped = _tapes.here(_library.value);
+    final old = [for (final note in oldTapes(taped, DateTime.now().millisecondsSinceEpoch)) note.id];
     final remove = voice.removeAudio;
     final service = voice.service;
     final live = voice.live;
@@ -859,8 +860,11 @@ class _GhostRootState extends State<GhostRoot> {
             },
       meetingSound: voice.sound?.supported ?? false,
       meetingSoundWhy: voice.sound?.reason,
-      tapes: taped.fold<int>(0, (sum, note) => sum + (note.recordingMs ?? 0) * 32),
+      tapes: tapeBytes(taped),
       oldTapes: old.length,
+      onCountTapes: () => unawaited(_tapes.ask(_library.value).then<void>((_) {
+        if (mounted) setState(() {});
+      })),
       onRemoveOldAudio: remove == null
           ? null
           : () async {

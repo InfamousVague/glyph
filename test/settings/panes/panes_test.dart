@@ -428,7 +428,21 @@ void main() {
       await tapOn(tester, find.text('Remove'));
       await tester.pump(const Duration(seconds: 6));
       expect(find.text('Tap again'), findsNothing);
-      expect((tapeSize(410000000), tapeSize(200), tapeSize(1500000000)), ('410 MB', '1 MB', '1.5 GB'));
+      await endSettings(tester);
+    });
+
+    testWidgets('has each tape’s file asked whether it is on this device as the page is put up, and says what is left', (tester) async {
+      // The page's card asked the `rec` scheme itself; here whoever counts is asked to (lib/settings/tapes_here.dart).
+      var asked = 0;
+      await openPane(tester, 'recording', size: const Size(390, 1400), features: SettingsFeatures(tapes: 117120000, oldTapes: 1, onCountTapes: () => asked += 1, onRemoveOldAudio: () async => 1));
+      expect(asked, 1);
+      expect(find.text('Your tapes take about 117 MB on this device.'), findsOneWidget);
+      await endSettings(tester);
+      // Not what was removed, nor a synced tape whose audio stayed elsewhere: none here, and nothing to remove.
+      await openPane(tester, 'recording', size: const Size(390, 1400), features: SettingsFeatures(tapes: 0, onCountTapes: () => asked += 1, onRemoveOldAudio: () async => 0));
+      expect(asked, 2);
+      expect(find.text('No tapes on this device.'), findsOneWidget);
+      expect(tester.widget<ArmedAction>(inRow('Remove audio older than a month', find.byType(ArmedAction))).disabled, isTrue);
       await endSettings(tester);
     });
 

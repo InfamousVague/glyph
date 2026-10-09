@@ -5,6 +5,7 @@ import 'package:glacier/glacier.dart';
 import '../../core/preferences.dart';
 import '../kit/settings_kit.dart';
 import '../settings_search.dart';
+import '../tapes.dart';
 import 'pane_parts.dart';
 import 'settings_host.dart';
 
@@ -30,10 +31,6 @@ List<SettingsFindable> recordingFindable({required bool android}) => [
 /// Recording's row in the list: what a take becomes, better words or the words as heard.
 String recordingSummary(Preferences prefs) => prefs.refine ? 'Better words' : 'Words as heard';
 
-/// "2.3 GB" or "410 MB": how much room the tapes take, never less than a megabyte once there is one
-/// (settings/tapes.ts `tapeSize`).
-String tapeSize(int bytes) => bytes >= 1e9 ? '${(bytes / 1e9).toStringAsFixed(1)} GB' : '${(bytes / 1e6).round().clamp(1, 1 << 31)} MB';
-
 /// Port of `RecordingPane` (src/app/settings/RecordingPane.tsx): the microphone and what happens to a take. While
 /// recording, After recording, the Summaries as three picks with a hint each, the Meetings, and the Tapes. The page's
 /// words say where the work is done: "the phone" on Android, "this Mac" elsewhere.
@@ -47,10 +44,13 @@ String tapeSize(int bytes) => bytes >= 1e9 ? '${(bytes / 1e9).toStringAsFixed(1)
 ///   the web's native generation 20). Its "Tell me when a meeting is written up" shows On or the word Allow, which
 ///   cannot be pressed until [SettingsFeatures.onAllowMeetingNotices] is given. The row for a meeting's own sound has
 ///   its switch only where the device can ([SettingsFeatures.meetingSound]), and otherwise says why when it is told.
-/// - **Tapes**: the room they take is [SettingsFeatures.tapes], which with no tape store reads "No tapes on this
-///   device." (the page's "being counted" has nothing to count here), and Remove is there once
-///   [SettingsFeatures.onRemoveOldAudio] is, asking twice as the page's does. The page's "Update Ghost.md to remove
-///   audio here." is not said: there is no newer build that could.
+/// - **Tapes**: the page's card read the notes and asked each tape's file itself (`listNotes`, `headStatus`); here
+///   whoever holds the notes counts (the app's root, over lib/settings/tapes.dart and tapes_here.dart), and the
+///   card asks for the files to be asked as it is put up ([SettingsFeatures.onCountTapes]). The room is
+///   [SettingsFeatures.tapes], which with no tape store reads "No tapes on this device." (the page's "being
+///   counted" has nothing to count here), and Remove is there once [SettingsFeatures.onRemoveOldAudio] is, asking
+///   twice as the page's does. The page's "Update Ghost.md to remove audio here." is not said: there is no newer
+///   build that could.
 /// - The two rows the recorder reads, and the summaries, change nothing more than the preference until then.
 class RecordingPane extends StatefulWidget {
   const RecordingPane({super.key, this.store, this.features = const SettingsFeatures(), this.android});
@@ -74,6 +74,13 @@ class _RecordingPaneState extends State<RecordingPane> {
 
   /// Allow was pressed and the phone refused outright.
   bool _blocked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Each tape's file is asked whether it is on this device, as the page's Tapes card asked when it was put up.
+    widget.features.onCountTapes?.call();
+  }
 
   @override
   Widget build(BuildContext context) {

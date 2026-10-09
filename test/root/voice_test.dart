@@ -27,8 +27,10 @@ import 'package:ghost_md/root/voice_wiring.dart';
 import 'package:ghost_md/settings/settings_sheet.dart';
 import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/shell/screen.dart';
+import 'package:ghost_md/tapes/player.dart' show TapePlayer, markAudioRemoved;
 
 import '../support/render.dart';
+import '../tapes/fake_player.dart';
 
 /// The phone's service, as a test answers for it.
 class _Service implements MeetingService, MeetingHost {
@@ -85,6 +87,19 @@ class _Service implements MeetingService, MeetingHost {
 
   @override
   bool visible = true;
+}
+
+/// A player whose files say which of them are not on this device, and which were asked.
+class _Files extends FakeTapePlayer {
+  _Files(this.elsewhere);
+  final Set<String> elsewhere;
+  final List<String> asked = [];
+
+  @override
+  Future<bool?> onDevice(String noteId) async {
+    asked.add(noteId);
+    return !elsewhere.contains(noteId);
+  }
 }
 
 /// Speak in the app put together (lib/root): the dock's microphone, a note's own, the capture and meeting screens
@@ -154,7 +169,7 @@ void main() {
     }
   }
 
-  Future<void> open(WidgetTester tester, {bool voice = true, bool assistant = false, String launch = '', bool canMeet = true}) async {
+  Future<void> open(WidgetTester tester, {bool voice = true, bool assistant = false, String launch = '', bool canMeet = true, TapePlayer? tapePlayer}) async {
     library = SampleLibrary.seeded();
     await pumpApp(
       tester,
@@ -167,6 +182,7 @@ void main() {
         stored: MemoryStored(),
         untouched: UntouchedNotes(kept: MemoryStored()),
         voice: voice ? voiceFor(library, assistant: assistant, launch: launch, canMeet: canMeet) : null,
+        tapePlayer: tapePlayer,
       ),
     );
     await settle(tester, 3);
@@ -460,6 +476,37 @@ void main() {
       expect(features.meetings, isTrue);
       expect(features.onRemoveOldAudio, isNull, reason: 'nothing here can remove audio');
       expect(features.models, isNull, reason: 'no engine in a test');
+      await close(tester);
+    });
+
+    testWidgets('counts only the tapes whose audio is on this device, once the Tapes card has had each file asked', (tester) async {
+      useStored(MemoryStored());
+      final files = _Files({'synced'});
+      await open(tester, tapePlayer: files);
+      // An hour and a minute made here two months ago, and a minute that came by sync and left its audio behind.
+      final then = DateTime.now().millisecondsSinceEpoch - 60 * 24 * 60 * 60 * 1000;
+      Note tape(String id, int ms) => Note(id: id, body: '# $id', createdAt: then, updatedAt: then, source: NoteSource.capture, recordingMs: ms);
+      await tester.runAsync(() async {
+        for (final note in [tape('hour', 3600000), tape('minute', 60000), tape('synced', 60000)]) {
+          await library.apply(note);
+        }
+      });
+      await settle(tester, 2);
+      SettingsFeatures features() => tester.widget<SettingsSheet>(find.byType(SettingsSheet)).features;
+      // Until a file has answered it counts, as on the page until its HEAD does; and nothing is asked before the card.
+      expect(files.asked, isEmpty);
+      expect((features().tapes, features().oldTapes), ((3600000 + 60000 + 60000) * 32, 3));
+      features().onCountTapes!();
+      await settle(tester, 2);
+      expect(files.asked.toSet(), {'hour', 'minute', 'synced'});
+      expect((features().tapes, features().oldTapes), ((3600000 + 60000) * 32, 2));
+      // What the row removed here is not counted either, and its file is not asked after again.
+      markAudioRemoved(['hour']);
+      files.asked.clear();
+      features().onCountTapes!();
+      await settle(tester, 2);
+      expect(files.asked.toSet(), {'minute', 'synced'});
+      expect((features().tapes, features().oldTapes), (60000 * 32, 1));
       await close(tester);
     });
   });
