@@ -427,8 +427,17 @@ void main() {
     });
 
     summaryTest('publishes what the shelf and the strip read: pending while queued and running, failed after three tries, cleared on finish and drop', (tester) async {
+      // Not on the page: the one note's share of it, as the at-work scene listens to it (`pendingFor`).
+      final due = summaries.pendingFor('n1');
+      final told = <bool>[];
+      void heard() => told.add(due.value);
+      due.addListener(heard);
+      addTearDown(() => due.removeListener(heard));
+      expect(due.value, isFalse);
       summaries.enqueueSummary('n1', SummaryKind.recording);
       expect(summaries.summariesNow().pending.contains('n1'), isTrue);
+      expect(due.value, isTrue);
+      expect(told, [true]);
       await tester.advance(0);
       expect(summaries.summariesNow().pending.contains('n1'), isTrue);
       for (var n = 1; n <= 3; n += 1) {

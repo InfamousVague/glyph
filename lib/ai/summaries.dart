@@ -103,6 +103,7 @@ import 'summary_keep.dart' show KeptSummary, keepSummary, readSummary;
 import 'summary_text.dart' show carryTicked, shapeSummary, summaryHeading, summarySection, transcriptPieces, withSummary;
 import 'support/failure.dart' show failureText;
 import 'support/runnable.dart' show cannotRun, isTemplateFailure, markCannotRun;
+import 'support/watched.dart';
 
 export 'summary_ask.dart';
 
@@ -517,6 +518,11 @@ class Summaries {
 
   /// The state as it is now, for callers outside a widget and for tests.
   SummariesState summariesNow() => _summaries.get();
+
+  /// Whether a page summary is queued or running for the note [id], as something to listen to: the page's
+  /// `useSummaries().pending.has(id)`, which the at-work scene waits on (lib/scene/at_work.dart `summaryDue`). Not
+  /// on the page as a function of its own.
+  ValueListenable<bool> pendingFor(String id) => Watched<bool>(() => _summaries.get().pending.contains(id), _summaries.subscribe);
 
   // ---- running -----------------------------------------------------------------------------------------------------
 
