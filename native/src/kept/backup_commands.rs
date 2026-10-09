@@ -20,9 +20,11 @@
 //!   with `job://end`. The one backup is claimed before the id is answered: a second is refused at once, in the
 //!   original's words. Its progress event is the web's, with no id in it, there being one backup.
 //! - **The state is this process's** ([`STATE`]), where Tauri managed one.
-//! - **No `backup_drives` and no `backup_eject`, and a `drive` is never plugged in**: those are the Mac's (its
-//!   mounts under `/Volumes`, `diskutil`) and Windows', stage 10's with their targets. Android's drives are the
-//!   activity's (android/…/glyph/files/BackupDrives.kt), and a backup goes onto one by its `tree`.
+//! - **No `backup_drives` and no `backup_eject` here.** The Mac's are Swift's (macos/Runner/FilesChannel.swift):
+//!   the app is sandboxed, where the Tauri app is not, so `diskutil` is not its to run and a drive is written only
+//!   once the person has granted it in a panel. A `drive` is taken on the Mac alone ([`mac_drive`]): a mount of
+//!   its own under `/Volumes`, as the original's `listed` asks, written as a folder. Windows' are its target's.
+//!   Android's drives are the activity's (android/…/glyph/files/BackupDrives.kt), and a backup goes by its `tree`.
 //! - **With the test hooks** (the Mac's library for Dart's tests, and `cargo test`) a request may name a `folder`
 //!   instead: a directory standing in for a drive's root, written as the Mac's drives are (`backup::FolderTarget`).
 
@@ -124,14 +126,57 @@ fn target_of(drive: Option<&str>, tree: Option<&str>, folder: Option<&str>) -> R
         return Ok((Box::new(backup::FolderTarget { root: folder.into() }), None));
     }
     let _ = folder;
-    if drive.is_some() {
-        // No drive is listed by path here (see the header): whatever path it is, it is not one plugged in.
-        return Err("That drive isn’t plugged in any more.".into());
+    if let Some(drive) = drive {
+        let root = mac_drive(std::path::Path::new(drive)).ok_or_else(|| "That drive isn’t plugged in any more.".to_string())?;
+        let free = free_bytes(&root);
+        return Ok((Box::new(backup::FolderTarget { root }), free));
     }
     if let Some(tree) = tree {
         return android_tree(tree);
     }
     Err("Choose a drive to back up to.".into())
+}
+
+/// A path the page names as a drive, on the Mac: a folder directly under `/Volumes` that is a mount of its own
+/// (not the boot volume's link to `/`, nor a folder left there). Which mounts are removable is Swift's to say
+/// (see the header); this only refuses every other place on the computer.
+#[cfg(target_os = "macos")]
+fn mac_drive(path: &std::path::Path) -> Option<std::path::PathBuf> {
+    use std::os::unix::fs::MetadataExt;
+    if path.parent() != Some(std::path::Path::new("/Volumes")) {
+        return None;
+    }
+    let link = std::fs::symlink_metadata(path).ok()?;
+    if link.file_type().is_symlink() || !link.is_dir() {
+        return None;
+    }
+    // In the sandbox `/Volumes` itself may not be read; the boot volume is asked instead.
+    let home = std::fs::metadata("/Volumes").or_else(|_| std::fs::metadata("/")).ok()?;
+    (link.dev() != home.dev()).then(|| path.to_path_buf())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn mac_drive(_path: &std::path::Path) -> Option<std::path::PathBuf> {
+    None
+}
+
+/// The room left on the drive, as the original's `free_bytes`.
+#[cfg(unix)]
+fn free_bytes(path: &std::path::Path) -> Option<u64> {
+    use std::os::unix::ffi::OsStrExt;
+    let c = std::ffi::CString::new(path.as_os_str().as_bytes()).ok()?;
+    let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
+    // SAFETY: a NUL-terminated path and a zeroed struct of the right type.
+    if unsafe { libc::statvfs(c.as_ptr(), &mut stat) } != 0 {
+        return None;
+    }
+    #[allow(clippy::unnecessary_cast)]
+    Some(stat.f_bavail as u64 * stat.f_frsize as u64)
+}
+
+#[cfg(not(unix))]
+fn free_bytes(_path: &std::path::Path) -> Option<u64> {
+    None
 }
 
 const COMMANDS: &[&str] = &["backup_last", "backup_files", "backup_run", "backup_cancel"];
@@ -260,6 +305,10 @@ mod tests {
         assert!(has("backup_run") && has("backup_last") && has("backup_files") && has("backup_cancel") && !has("backup_drives"));
         assert_eq!(call(&core, "backup_last", json!({})), Err("Choose a drive to back up to.".into()));
         assert_eq!(call(&core, "backup_last", json!({"drive": "/Volumes/KINGSTON"})), Err("That drive isn’t plugged in any more.".into()));
+        // No other place on the computer is a drive: not a folder, not the boot volume by its link.
+        assert_eq!(call(&core, "backup_last", json!({"drive": "/tmp"})), Err("That drive isn’t plugged in any more.".into()));
+        assert_eq!(call(&core, "backup_last", json!({"drive": "/Volumes/../Users"})), Err("That drive isn’t plugged in any more.".into()));
+        assert_eq!(mac_drive(std::path::Path::new("/Volumes/Macintosh HD")), None);
         #[cfg(not(target_os = "android"))]
         assert_eq!(call(&core, "backup_files", json!({"tree": "content://x/tree/y"})), Err("Only the Android app backs up through a drive's tree.".into()));
         assert!(call(&core, "backup_run", json!({})).unwrap_err().starts_with("invalid args for command `backup_run`: missing field `request`"));

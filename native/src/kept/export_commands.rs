@@ -20,7 +20,8 @@
 //!   is the job's `err`, and is left open, never closed, as the original leaves it.
 //! - **The folders are named from the core's directories**, where the Tauri command asked its `AppHandle`.
 //! - **The manifest's `binary`** is this crate's version, the core's, where it was the Tauri app's.
-//! - **No `export_save`**: the Mac's save panel is the Mac target's, stage 10.
+//! - **No `export_save`**: the Mac's save panel is Swift's (macos/Runner/FilesChannel.swift), which makes the file
+//!   and hands over a descriptor it opened on it, so the Mac exports through `export_fd` exactly as Android does.
 //! - **With the test hooks** `export_fd` takes a `path` in place of `fd`: a file made there and written as the
 //!   Mac's panel's would be, half an archive removed.
 
@@ -169,12 +170,12 @@ fn target(core: &Core, fd: Option<i32>, path: Option<&str>) -> Result<(std::fs::
     }
     let _ = path;
     let fd = fd.ok_or_else(|| "invalid args for command `export_fd`: missing field `fd`".to_string())?;
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "macos")))]
     {
         let _ = (core, fd);
         Err("Only the Android app exports through its picker.".into())
     }
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "macos"))]
     {
         let own = [core.data_dir().to_path_buf(), core.cache_dir().to_path_buf()];
         Ok((export::adopt_descriptor(fd, &own)?, None))
@@ -334,8 +335,18 @@ mod tests {
         // With neither a descriptor nor (off the phone) a picker, it says so.
         let none = asked(json!({"request": request}));
         assert_eq!(none["err"], "invalid args for command `export_fd`: missing field `fd`");
-        #[cfg(not(target_os = "android"))]
+        #[cfg(not(any(target_os = "android", target_os = "macos")))]
         assert_eq!(asked(json!({"request": request, "fd": 3}))["err"], "Only the Android app exports through its picker.");
+        // The Mac's panel hands over a descriptor as the phone's does: a new, empty file is written through it.
+        #[cfg(target_os = "macos")]
+        {
+            use std::os::fd::IntoRawFd;
+            let through = root.join("through.zip");
+            let fd = std::fs::File::create(&through).unwrap().into_raw_fd();
+            let ended = asked(json!({"request": request, "fd": fd}));
+            assert_eq!(ended["ok"]["written"].as_u64(), Some(std::fs::metadata(&through).unwrap().len()), "{ended}");
+            assert!(asked(json!({"request": request, "fd": 2}))["err"].is_string());
+        }
         assert_eq!(call(&core, "export_cancel", json!({})), Ok(Value::Null));
     }
 }

@@ -8,6 +8,8 @@
 //! - `library_inspect {uri}` (Android) -> `{kind: "tree", path: null, name, markdown, obsidian, notes}`: the folder
 //!   the phone's picker granted (android/…/glyph/files/LibraryTree.kt, reached through saf.rs) looked into, with
 //!   nothing written there, and held.
+//! - `library_inspect {path}` (the Mac) -> `{kind: "folder", path, name, markdown, obsidian, notes}`: the folder
+//!   the Mac's panel answered, the same.
 //! - `library_move` -> `{notes, adopted, renamed, same, removed, status}`: the folder held becomes the library.
 //! - `library_use_app_folder {copy}` -> the same: back to the app's own folder, with a copy of every note or none.
 //!
@@ -16,13 +18,15 @@
 //! What differs:
 //!
 //! - **The folder held** is the open core's ([`LibraryPick`] in dispatch.rs's `Core`), where Tauri managed it.
-//! - **No `library_choose_folder`**: the Mac's folder panel is the Mac target's, stage 10. [`look_into_folder`],
-//!   which that command stood on, is here with its test for the day it is, and is called by nothing else yet.
+//! - **No `library_choose_folder`**: the Mac's folder panel is Swift's (macos/Runner/FilesChannel.swift), which
+//!   answers the folder's path, and `library_inspect {path}` is the rest of that command: the folder looked into
+//!   ([`look_into_folder`]) and held. The app is sandboxed, so the panel's grant is what lets these lines read
+//!   the folder at all, and a bookmark Swift keeps is what lets the next launch.
 //! - **A move is not a long job** (work.rs): it holds the notes' lock from its first read to its last write, so
 //!   no other command could be answered meanwhile whichever thread it ran on.
 
-// Until the Mac has a panel only `look_into_folder`'s test calls it. (It carries the Tauri app's
-// `cfg_attr(mobile, …)`: Cargo.toml tells the compiler that name is expected, and it is never set here.)
+// On Android nothing calls `look_into_folder`. (It carries the Tauri app's `cfg_attr(mobile, …)`: Cargo.toml tells
+// the compiler that name is expected, and it is never set here.)
 #![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
@@ -141,7 +145,12 @@ pub fn bookkeeping(data: &Path) -> [PathBuf; 2] {
 
 #[derive(Deserialize)]
 struct Inspect {
-    uri: String,
+    /// Android: the tree the picker granted.
+    #[serde(default)]
+    uri: Option<String>,
+    /// The Mac: the folder the panel answered.
+    #[serde(default)]
+    path: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -165,14 +174,26 @@ pub fn call(data: &Path, store: &NotesStore, pick: &LibraryPick, command: &str, 
     match command {
         // Android: the folder the activity's picker granted, looked into and held.
         "library_inspect" => {
-            let Inspect { uri } = read(command, args)?;
+            let Inspect { uri, path } = read(command, args)?;
             #[cfg(not(target_os = "android"))]
             {
-                let _ = (store, pick, uri);
-                Err("Only the Android app chooses a folder through its picker.".into())
+                // The Mac: `library_choose_folder` after its panel, which is Swift's here.
+                let Some(path) = path else {
+                    let _ = uri;
+                    return Err("Only the Android app chooses a folder through its picker.".into());
+                };
+                let path = PathBuf::from(path);
+                if !path.is_absolute() {
+                    return Err("That is not a folder the Mac's panel gave.".into());
+                }
+                let candidate = look_into_folder(data, store, &path)?;
+                *crate::lock::lock(&pick.0) = Some(Root::Folder { path });
+                answer(candidate)
             }
             #[cfg(target_os = "android")]
             {
+                let _ = path;
+                let uri = uri.unwrap_or_default();
                 if !uri.starts_with("content://") {
                     return Err("That is not a folder the phone's picker gave.".into());
                 }
@@ -284,9 +305,20 @@ mod tests {
         assert_eq!(asked(&data, &store, &pick, "library_move", json!({"path": vault})), Err("Choose a folder first.".into()));
         // Off Android no picker grants a tree, and a tree that is not the picker's is refused before it is looked at.
         assert_eq!(asked(&data, &store, &pick, "library_inspect", json!({"uri": "content://x/tree/y"})), Err("Only the Android app chooses a folder through its picker.".into()));
-        assert!(asked(&data, &store, &pick, "library_inspect", json!({})).unwrap_err().starts_with("invalid args for command `library_inspect`: missing field `uri`"));
+        assert_eq!(asked(&data, &store, &pick, "library_inspect", json!({})), Err("Only the Android app chooses a folder through its picker.".into()));
 
-        *crate::lock::lock(&pick.0) = Some(Root::Folder { path: vault.clone() });
+        // The Mac: the folder its panel answered is looked into and held, as `library_choose_folder` did.
+        assert_eq!(asked(&data, &store, &pick, "library_inspect", json!({"path": "Vault"})), Err("That is not a folder the Mac's panel gave.".into()));
+        std::fs::create_dir_all(data.join("recordings")).unwrap();
+        assert!(asked(&data, &store, &pick, "library_inspect", json!({"path": data.join("recordings")})).unwrap_err().contains("Ghost.md's own storage"));
+        assert!(asked(&data, &store, &pick, "library_inspect", json!({"path": data.join("Library")})).unwrap_err().contains("already where your notes are"));
+        assert_eq!(asked(&data, &store, &pick, "library_move", json!({})), Err("Choose a folder first.".into()), "a folder refused is not held");
+        #[cfg(not(target_os = "android"))]
+        assert_eq!(asked(&data, &store, &pick, "library_inspect", json!({"path": vault})), Ok(json!({"kind": "folder", "path": vault.display().to_string(), "name": "Vault", "markdown": 1, "obsidian": false, "notes": 1})));
+        #[cfg(target_os = "android")]
+        {
+            *crate::lock::lock(&pick.0) = Some(Root::Folder { path: vault.clone() });
+        }
         let moved = asked(&data, &store, &pick, "library_move", json!({})).unwrap();
         assert_eq!(moved, json!({"notes": 1, "adopted": 1, "renamed": 0, "same": 0, "removed": 1, "status": {"kind": "folder", "path": vault.display().to_string(), "name": "Vault", "reachable": true, "notes": 2, "own": data.join("Library").display().to_string()}}));
         assert!(vault.join("Inbox/Kept.md").exists() && !data.join("Library/Inbox/Kept.md").exists());
