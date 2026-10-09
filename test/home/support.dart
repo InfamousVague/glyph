@@ -40,8 +40,11 @@ class Home extends StatefulWidget {
     this.ghost,
     this.headerEdge,
     this.dockHalo,
+    this.notices = const [],
   });
 
+  /// The notices above the notes, as the root hands them.
+  final List<Widget> notices;
   final SampleLibrary library;
   final WorkspaceStore workspaces;
   final Asked asked;
@@ -95,6 +98,7 @@ class _HomeState extends State<Home> {
                 }
               }
             : null,
+        notices: widget.notices,
         onRefresh: widget.refresh
             ? () async {
                 asked.add('refresh');

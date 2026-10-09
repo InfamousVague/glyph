@@ -67,6 +67,27 @@ void main() {
     expect(rect.height, closeTo(height, within), reason: '${reason ?? ''} height');
   }
 
+  group('the notices above the notes', () {
+    testWidgets('take no room, and no gap, while none has anything to say', (tester) async {
+      // On the page a notice with nothing to say is not in the tree. Here the invitation's card is always handed
+      // over and draws nothing until there is one: measured on the Fold, its gap put the first section 14px low.
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
+      await settle(tester);
+      final bare = tester.getTopLeft(find.text('Pinned')).dy;
+      await away(tester);
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, notices: const [SizedBox.shrink(), SizedBox.shrink()]));
+      await settle(tester);
+      expect(tester.getTopLeft(find.text('Pinned')).dy, bare);
+      await away(tester);
+      // One that speaks takes its own height and one gap.
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, notices: const [SizedBox.shrink(), SizedBox(height: 30)]));
+      await settle(tester);
+      expect(tester.getTopLeft(find.text('Pinned')).dy, greaterThan(bare + 30));
+      await away(tester);
+    });
+  });
+
   group('what the page lists, in each layout', () {
     testWidgets('Spotlight: the pinned notes as lines, the four touched last as cards, then the rest by when', (tester) async {
       final it = seeded();

@@ -33,6 +33,7 @@ library;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -620,19 +621,118 @@ class _HomeWidth extends InheritedWidget {
 }
 
 /// `display: grid; gap: <gap>`: its children one under another.
-class _Gapped extends StatelessWidget {
-  const _Gapped({required this.gap, required this.children});
+/// Blocks one under another with [gap] between them, as the page's `display: grid; gap` lays its sections out, with
+/// one thing the grid does by itself and a Column of boxes does not: **a block with nothing in it takes no room, and
+/// no gap either.** On the page a notice with nothing to say is not in the tree at all (`Notices.tsx` renders null),
+/// so nothing stands between the search row and the first section. Here a notice decides inside its own build (the
+/// invitation's card listens to the account), so it is in the list while it draws nothing, and its gap put the first
+/// section 14px low on a signed-in phone (measured on the Fold beside the page).
+class _Gapped extends MultiChildRenderObjectWidget {
+  const _Gapped({required this.gap, required super.children});
   final double gap;
-  final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final (at, child) in children.indexed) ...[if (at > 0) SizedBox(height: gap), child],
-        ],
-      );
+  RenderObject createRenderObject(BuildContext context) => _RenderGapped(gap);
+
+  @override
+  void updateRenderObject(BuildContext context, covariant _RenderGapped renderObject) => renderObject.gap = gap;
+}
+
+class _GappedParentData extends ContainerBoxParentData<RenderBox> {}
+
+class _RenderGapped extends RenderBox with ContainerRenderObjectMixin<RenderBox, _GappedParentData>, RenderBoxContainerDefaultsMixin<RenderBox, _GappedParentData> {
+  _RenderGapped(this._gap);
+
+  double _gap;
+  set gap(double value) {
+    if (value == _gap) return;
+    _gap = value;
+    markNeedsLayout();
+  }
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _GappedParentData) child.parentData = _GappedParentData();
+  }
+
+  double _run(BoxConstraints constraints, {required bool place}) {
+    final inner = BoxConstraints(minWidth: constraints.maxWidth.isFinite ? constraints.maxWidth : constraints.minWidth, maxWidth: constraints.maxWidth);
+    var y = 0.0, any = false;
+    for (var child = firstChild; child != null; child = childAfter(child)) {
+      final Size size;
+      if (place) {
+        child.layout(inner, parentUsesSize: true);
+        size = child.size;
+      } else {
+        size = child.getDryLayout(inner);
+      }
+      if (size.height <= 0) {
+        if (place) (child.parentData! as _GappedParentData).offset = Offset(0, y);
+        continue;
+      }
+      if (any) y += _gap;
+      if (place) (child.parentData! as _GappedParentData).offset = Offset(0, y);
+      y += size.height;
+      any = true;
+    }
+    return y;
+  }
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) => constraints.constrain(Size(constraints.maxWidth.isFinite ? constraints.maxWidth : constraints.minWidth, _run(constraints, place: false)));
+
+  @override
+  void performLayout() {
+    final height = _run(constraints, place: true);
+    size = constraints.constrain(Size(constraints.maxWidth.isFinite ? constraints.maxWidth : constraints.minWidth, height));
+  }
+
+  double _tall(double width, double Function(RenderBox child) of) {
+    var y = 0.0, any = false;
+    for (var child = firstChild; child != null; child = childAfter(child)) {
+      final h = of(child);
+      if (h <= 0) continue;
+      if (any) y += _gap;
+      y += h;
+      any = true;
+    }
+    return y;
+  }
+
+  @override
+  double computeMinIntrinsicHeight(double width) => _tall(width, (child) => child.getMinIntrinsicHeight(width));
+
+  @override
+  double computeMaxIntrinsicHeight(double width) => _tall(width, (child) => child.getMaxIntrinsicHeight(width));
+
+  @override
+  double computeMinIntrinsicWidth(double height) {
+    var most = 0.0;
+    for (var child = firstChild; child != null; child = childAfter(child)) {
+      final w = child.getMinIntrinsicWidth(double.infinity);
+      if (w > most) most = w;
+    }
+    return most;
+  }
+
+  @override
+  double computeMaxIntrinsicWidth(double height) {
+    var most = 0.0;
+    for (var child = firstChild; child != null; child = childAfter(child)) {
+      final w = child.getMaxIntrinsicWidth(double.infinity);
+      if (w > most) most = w;
+    }
+    return most;
+  }
+
+  @override
+  double? computeDistanceToActualBaseline(TextBaseline baseline) => defaultComputeDistanceToFirstActualBaseline(baseline);
+
+  @override
+  void paint(PaintingContext context, Offset offset) => defaultPaint(context, offset);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) => defaultHitTestChildren(result, position: position);
 }
 
 /// The platform's overscroll glow and stretch left off, and no scrollbar of its own.
