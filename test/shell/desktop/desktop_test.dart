@@ -1,4 +1,3 @@
-import 'package:fake_async/fake_async.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -126,46 +125,44 @@ void main() {
       expect(commands.run(DesktopCommand.newNote), isFalse);
     });
 
-    test('Command-R refreshes once and says Synced, Still syncing past five seconds, or why not', () {
+    testWidgets('Command-R refreshes once and says Synced, Still syncing past five seconds, or why not', (tester) async {
       expect(syncToast((phase: 'idle', message: null)), 'Synced');
       expect(syncToast((phase: 'off', message: null)), 'Synced');
       expect(syncToast((phase: 'syncing', message: null)), 'Still syncing');
       expect(syncToast((phase: 'error', message: 'The service did not answer.')), 'The service did not answer.');
       expect(syncToast((phase: 'error', message: null)), 'Could not sync.');
-      fakeAsync((async) {
-        final commands = DesktopCommands();
-        final said = <String>[];
-        var refreshes = 0;
-        var phase = 'syncing';
-        var wait = const Duration(seconds: 1);
-        wireDesktopCommands(
-          commands: commands,
-          onPlace: () => true,
-          covered: () => false,
-          newNote: () {},
-          refresh: () {
-            refreshes += 1;
-            return Future<void>.delayed(wait, () => phase = 'idle');
-          },
-          status: () => (phase: phase, message: null),
-          say: said.add,
-          palette: () {},
-          settings: () {},
-        );
-        expect(commands.run(DesktopCommand.sync), isTrue);
-        // Pressed again while it runs: the one refresh.
-        expect(commands.run(DesktopCommand.sync), isTrue);
-        async.elapse(const Duration(seconds: 2));
-        expect(refreshes, 1);
-        expect(said, ['Synced']);
-        // A sync that outlasts the wait.
-        phase = 'syncing';
-        wait = const Duration(seconds: 30);
-        commands.run(DesktopCommand.sync);
-        async.elapse(const Duration(seconds: 6));
-        expect(said, ['Synced', 'Still syncing']);
-        async.elapse(const Duration(seconds: 30));
-      });
+      final commands = DesktopCommands();
+      final said = <String>[];
+      var refreshes = 0;
+      var phase = 'syncing';
+      var wait = const Duration(seconds: 1);
+      wireDesktopCommands(
+        commands: commands,
+        onPlace: () => true,
+        covered: () => false,
+        newNote: () {},
+        refresh: () {
+          refreshes += 1;
+          return Future<void>.delayed(wait, () => phase = 'idle');
+        },
+        status: () => (phase: phase, message: null),
+        say: said.add,
+        palette: () {},
+        settings: () {},
+      );
+      expect(commands.run(DesktopCommand.sync), isTrue);
+      // Pressed again while it runs: the one refresh.
+      expect(commands.run(DesktopCommand.sync), isTrue);
+      await tester.pump(const Duration(seconds: 2));
+      expect(refreshes, 1);
+      expect(said, ['Synced']);
+      // A sync that outlasts the wait.
+      phase = 'syncing';
+      wait = const Duration(seconds: 30);
+      commands.run(DesktopCommand.sync);
+      await tester.pump(const Duration(seconds: 6));
+      expect(said, ['Synced', 'Still syncing']);
+      await tester.pump(const Duration(seconds: 30));
     });
   });
 
