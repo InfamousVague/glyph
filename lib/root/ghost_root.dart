@@ -94,6 +94,9 @@ import '../orgs/ui/fed_notifications.dart';
 import '../orgs/ui/join_sheet.dart';
 import '../orgs/ui/new_organization_sheet.dart';
 import '../orgs/ui/org_news.dart';
+import '../home/home_organizations.dart' show OrgPresence;
+import '../live/presence.dart' show Seen;
+import '../orgs/types.dart' show OrgRow;
 import '../orgs/ui/organization_log.dart';
 import '../orgs/ui/organization_screen.dart';
 import '../plugins/registry.dart' show plugins;
@@ -261,6 +264,11 @@ class _GhostRootState extends State<GhostRoot> {
           shownNotes: () => _shown,
           kept: _stored,
           onPicture: (name) => _pictures?.arrived(name),
+          // A note of the account's own that met another device's while this one had changes unsent: this
+          // device's words, kept beside the room's (lib/live/open.dart).
+          keepCopy: (words) async {
+            await _library.createNote(words);
+          },
         )
       : null;
   late final AccountServices? _services = widget.services ?? _wired?.services;
@@ -268,6 +276,30 @@ class _GhostRootState extends State<GhostRoot> {
   /// Whether the way into an account is up (shell/account_gate.dart): made once what this device kept is read.
   AccountGateState? _gate;
   AppLifecycleListener? _life;
+
+  /// A member's caret a note is about to be opened at (an organization's Jump to cursor), by note; its desk takes it.
+  final Map<String, Map<String, Object?>> _jumps = {};
+
+  /// Who is in an organization's notes now, as the live rooms have them (lib/live/presence.dart): none in a build
+  /// with no account, and while signed out.
+  List<OrgPresence> _seenIn(String orgId) => [
+        for (final seen in _wired?.live.presence.presenceIn(orgId) ?? const <Seen>[])
+          OrgPresence(client: '${seen.client}', handle: seen.handle, hue: seen.hue, editingNote: seen.at?.note, editingTitle: seen.at?.title),
+      ];
+
+  /// Someone came, went, or opened another note: the home page's cards and the organization's rows say so.
+  void _presenceChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// A note opened where a member is editing it: at their caret, where the room has one.
+  void _jumpTo(AppShellState shell, String orgId, String noteId) {
+    for (final seen in _wired?.live.presence.presenceIn(orgId) ?? const <Seen>[]) {
+      final cursor = seen.at?.note == noteId ? seen.at?.cursor : null;
+      if (cursor != null) _jumps[noteId] = cursor;
+    }
+    shell.openNote(noteId);
+  }
 
   /// An organization's settings, and the sheet a new one is named in.
   ({String id, OrganizationFrom from})? _organization;
@@ -1133,6 +1165,8 @@ class _GhostRootState extends State<GhostRoot> {
     ],
     known: (title) => _reads.titled(title) != null,
     open: _openTitle,
+    live: _wired?.noteLive,
+    takeJump: (id) => _jumps.remove(id),
     bodyOf: (title) => _reads.titled(title)?.body,
     pictures: _pictures,
     services: _services,
@@ -1278,6 +1312,7 @@ class _GhostRootState extends State<GhostRoot> {
     _libraryChanges.removeListener(_reads.changed);
     _life?.dispose();
     _gate?.dispose();
+    _wired?.live.presence.removeListener(_presenceChanged);
     _wired?.dispose();
     _pictures?.dispose();
     _made?.dispose();
@@ -1311,7 +1346,9 @@ class _GhostRootState extends State<GhostRoot> {
     final wired = _wired;
     if (wired != null) {
       await wired.start();
-      _life = AppLifecycleListener(onResume: wired.resumed);
+      // The relay's socket goes while the app is behind another, and is back with it.
+      _life = AppLifecycleListener(onResume: wired.resumed, onPause: wired.paused);
+      wired.live.presence.addListener(_presenceChanged);
     }
     if (!mounted) return;
     setState(() => _gate = AccountGateState(services: services, kept: _stored)..addListener(_changed));
@@ -1349,6 +1386,8 @@ class _GhostRootState extends State<GhostRoot> {
       },
       onSettings: () => setState(() => _organization = (id: id, from: OrganizationFrom.dashboard)),
       onOpenOrganization: shell.openOrganization,
+      seen: _seenIn(id),
+      onJumpTo: (noteId) => _jumpTo(shell, id, noteId),
       onLog: () => shell.openOrganizationLog(id),
       onAccount: _toAccount,
       wisp: wisp,
@@ -1595,7 +1634,7 @@ class _GhostRootState extends State<GhostRoot> {
                 onRefresh: _library.refresh,
                 onNoteMenu: (id) => _menu.open(id, MediaQuery.sizeOf(context).center(Offset.zero)),
                 onManageWorkspace: (workspace) => setState(() => _workspace = (editing: workspace)),
-                organizations: homeOrganizations(services),
+                organizations: homeOrganizations(services, here: {for (final row in services?.joined ?? const <OrgRow>[]) row.id: _seenIn(row.id)}),
                 orgNews: homeOrgNews(services, chosenOrg),
                 onOrganization: services == null ? null : shell.openOrganization,
                 onOrganizationSettings: services == null ? null : (id) => setState(() => _organization = (id: id, from: OrganizationFrom.settings)),
