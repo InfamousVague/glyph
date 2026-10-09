@@ -21,6 +21,7 @@ import '../book/entry_starts.dart' show pageBody;
 import '../book/journal.dart' as journal;
 import '../book/template_picker.dart' show EntryPlaceDevice;
 import '../core/location.dart' show Locations, Locator, PlaceLookup;
+import '../core/phone_pictures.dart' show corePictureAdopter;
 import '../core/place_tags.dart';
 import '../editor/media/map_card.dart' show MapTilesBuilder;
 import '../book/journal_view.dart' show JournalPages;
@@ -153,7 +154,7 @@ import 'voice_wiring.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.updates, this.locator, this.placeLookup, this.mapTiles});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -214,6 +215,10 @@ class GhostRoot extends StatefulWidget {
   final PlaceLookup? placeLookup;
   final MapTilesBuilder? mapTiles;
 
+  /// The phone's picture chooser, given what keeps a chosen picture among the library's
+  /// (lib/core/phone_pictures.dart `phonePicturePicker`). Absent, as in a test, no picture can be added.
+  final PicturePicker Function(PictureAdopter adopt)? picturePicker;
+
   /// Reads a linked page's title, site and summary (lib/core/link_preview.dart `linkPreviewFetch`). Absent, as in a
   /// test, a link's card says its site and its path and nothing is asked of anywhere.
   final LinkPreviewFetch? previewFetch;
@@ -250,7 +255,10 @@ class _GhostRootState extends State<GhostRoot> {
   late final VersionsRecord _versions = VersionsRecord(store: _versionsStore, preferences: preferences, workspaces: _workspaces);
 
   /// The kept pictures, where there is a core to keep them.
-  late final CorePictureStore? _pictures = widget.core == null ? null : CorePictureStore(CoreFiles(widget.core!));
+  late final CorePictureStore? _pictures = widget.core == null ? null : CorePictureStore(CoreFiles(widget.core!), adopter: corePictureAdopter(CoreFiles(widget.core!)));
+
+  /// A picture chosen on the phone and kept, where there is a chooser and a core to keep it in.
+  late final PicturePicker? _pickPicture = widget.core == null ? null : widget.picturePicker?.call(corePictureAdopter(CoreFiles(widget.core!)));
 
   /// The account made for this build, where it was told its service and has a library of its own to sync.
   late final WiredAccount? _wired = widget.services == null && widget.account != null && _real
@@ -1195,6 +1203,7 @@ class _GhostRootState extends State<GhostRoot> {
     setNoteRecording: (id, ms, segments) async => _voice?.recorder.store.setNoteRecording(id, ms, segments),
     tapes: _voice?.recorder.tapes,
     onSpeak: (id) => unawaited(_speakInto(id)),
+    pickPicture: _pickPicture,
     mapTiles: widget.mapTiles,
     tags: _places,
     forgetTag: (id) => _places?.setPendingTag(id, null),

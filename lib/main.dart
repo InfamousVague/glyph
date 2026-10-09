@@ -11,6 +11,7 @@ import 'core/native/device_paths.dart';
 import 'core/native/ghost_core.dart';
 import 'core/geocode.dart';
 import 'core/open_link.dart';
+import 'core/phone_pictures.dart';
 import 'core/phone_position.dart';
 import 'editor/media/map_tiles.dart';
 import 'core/phone_links.dart';
@@ -95,7 +96,7 @@ Future<void> main() async {
   runApp(GhostApp(
     sheet: sheet,
     home: _Runs(
-      builder: (restart) => GhostRoot(core: core, native: whole, account: account, voiceMaking: voice, links: links, openLink: openLink, previewFetch: linkPreviewFetch(), restart: restart, tapePlayer: tapes, updates: updates, locator: locator, placeLookup: placeLookup, mapTiles: mapTiles),
+      builder: (restart) => GhostRoot(core: core, native: whole, account: account, voiceMaking: voice, links: links, openLink: openLink, previewFetch: linkPreviewFetch(), restart: restart, tapePlayer: tapes, updates: updates, locator: locator, placeLookup: placeLookup, mapTiles: mapTiles, picturePicker: phonePicturePicker),
     ),
   ));
 }

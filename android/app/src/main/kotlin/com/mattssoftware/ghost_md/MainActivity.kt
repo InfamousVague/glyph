@@ -65,6 +65,9 @@ class MainActivity : FlutterActivity() {
     /** Where the phone is, and the prompt that allows it (Position.kt). */
     private val position = Position(this)
 
+    /** The phone's picture chooser, answered when its activity result arrives (Pictures.kt). */
+    private val pictures = Pictures(this)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Before super: a capture launch decides the window's lock-screen behaviour before the window is shown.
         meeting = MeetingBridge(this).also { it.onCreate(intent) }
@@ -113,6 +116,8 @@ class MainActivity : FlutterActivity() {
         UpdateInstaller(this).register(messenger)
         // Where a note was written: the permission, its prompt and the fix (Position.kt; lib/core/phone_position.dart).
         position.register(messenger)
+        // A picture chosen for a note, shrunk and handed over as a file (Pictures.kt; lib/core/phone_pictures.dart).
+        pictures.register(messenger)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -158,6 +163,7 @@ class MainActivity : FlutterActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (files.onActivityResult(requestCode, resultCode, data)) return
+        if (pictures.onActivityResult(requestCode, resultCode, data)) return
         meeting?.onActivityResult(requestCode, resultCode, data)
     }
 }

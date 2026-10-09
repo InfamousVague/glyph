@@ -38,8 +38,10 @@
 ///   editing it; a note of the account's own live with the account's other devices where the switch is on;
 ///
 /// What differs from the page:
-/// - **No picture can be added yet**: this build has no picker, so the band's Add image and the +'s Picture are
-///   not offered. Pictures a note already names are drawn from the kept files.
+/// - **A picture is added from the phone's chooser** ([NoteDeskWorld.pickPicture], lib/core/phone_pictures.dart):
+///   the band's Add image, the +'s Picture and a canvas's picture card, each offered only where there is a
+///   chooser. What goes wrong is said as a toast, where the page says it on the note's own line. A picture copied
+///   to the clipboard is not pasted in (`onPasteImage`: nothing here reads the clipboard's picture).
 /// - **No film or voice memo is added** from the + (no player): their rows are not offered.
 /// - **A place from the +** (`addPlace`): a line of its own where the caret was, kept from the tap, written once the
 ///   fix has come and its name with it where one comes within three seconds, later only while the line is still
@@ -51,7 +53,7 @@
 /// - **A link's tap** is handed to the phone where the build has a way to ([NoteDeskWorld.openLink], lib/core/open_link.dart);
 ///   a test, and a run with no phone half, opens nothing.
 /// - **A date is not picked from a calendar** (`dayPicker` is not given): Today, Tomorrow and Next week are.
-/// - **A canvas has no picture picker and no comments**, for the same reasons; a team's canvas is
+/// - **A canvas has no comments**; a team's canvas is
 ///   piece 6G. A canvas is not framed in a note from the + (`AddConfig.canvases` is not given).
 /// - **A landing's writes to other notes are not reversed by its Undo** (`undo_command`): the store here keeps no
 ///   log of a command's change (lib/capture/recorder.dart `LibraryRecorderStore`), so each is counted as changed
@@ -212,6 +214,7 @@ class NoteDeskWorld {
     this.tapes,
     this.onSpeak,
     this.ai,
+    this.pickPicture,
     this.mapTiles,
     this.tags,
     this.forgetTag,
@@ -307,6 +310,10 @@ class NoteDeskWorld {
 
   /// Talk more into this note (the tape's Add); absent where nothing records.
   final void Function(String noteId)? onSpeak;
+
+  /// Lets the person choose a picture, keeps it and answers its name (lib/core/phone_pictures.dart); absent, no
+  /// picture can be added.
+  final PicturePicker? pickPicture;
 
   /// What draws a map's tiles (lib/editor/media/map_tiles.dart); absent, every map is its quiet card.
   final MapTilesBuilder? mapTiles;
@@ -592,6 +599,7 @@ class NoteDeskState extends State<NoteDesk> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _toasts = GlacierToast.of(context);
+    _haptic = HapticsProvider.of(context);
   }
 
   /// A note opened by the recording that just wrote into it: "Added to House TODOs", with an Undo, for ten seconds
@@ -676,6 +684,18 @@ class NoteDeskState extends State<NoteDesk> {
     }
   }
 
+  /// Pictures put into the open note from the phone's chooser, where there is one (`useNotePictures`).
+  late final NotePictures? _pictures = _world.pickPicture == null || widget.readOnly
+      ? null
+      : (NotePictures(view: () => _view, pick: _world.pickPicture, store: _world.pictures, onPlaced: () => _haptic?.call(HapticKind.light))..addListener(_pictureSaid));
+  HapticFn? _haptic;
+
+  /// A picture that did not come in says why.
+  void _pictureSaid() {
+    final problem = _pictures?.problem;
+    if (problem != null && mounted) widget.say(problem);
+  }
+
   /// A + may show: a note of words that can be written, with find put away.
   bool _plusAllowed() {
     final view = _view;
@@ -694,6 +714,8 @@ class NoteDeskState extends State<NoteDesk> {
       ai.removeListener(_redraw);
       ai.dispose();
     }
+    _pictures?.removeListener(_pictureSaid);
+    _pictures?.dispose();
     _tape?.removeListener(_redraw);
     _tape?.dispose();
     // Leaving the note takes its toast with it: an Undo for words no longer on screen would undo them unseen.
@@ -771,6 +793,7 @@ class NoteDeskState extends State<NoteDesk> {
           boards: true,
           databases: _world.queryNotes != null,
           tickets: _world.tickets != null,
+          onPicture: _pictures == null ? null : () => unawaited(_pictures.addPhoto()),
           // A row that can never work is not drawn: only where the phone can say where it is at all.
           onPlace: _world.tags != null && _world.tags!.locations.cannotLocateHere == null && view != null ? () => unawaited(_addPlace(view)) : null,
         ),
@@ -781,6 +804,7 @@ class NoteDeskState extends State<NoteDesk> {
           onFind: view == null ? null : (text) => _openFind(view, text),
           formats: bandFormats,
           fields: bandFields,
+          onAddImage: _pictures?.addPhoto,
           boards: true,
           child: page,
         ),
@@ -999,6 +1023,7 @@ class NoteDeskState extends State<NoteDesk> {
       canvas: canvasSeam(
         wiki: CanvasWiki(known: _world.known, open: _world.open, body: _world.bodyOf, titles: _world.titles),
         pictures: _world.pictures,
+        pickPicture: widget.readOnly ? null : _world.pickPicture,
         openLink: _world.openLink,
         readOnly: widget.readOnly,
       ),
