@@ -48,7 +48,7 @@ Each stage ends installed on the Fold. Sizes are the web app's non-test source t
 | 6 | Canvas | `canvas/` (3.5k) | in the app 2026-10-08 as a note's own view (`NoteSeams.canvas`), made from the + and from a notebook's index; a team's canvas (6G) is not ported; **not yet on the Fold** |
 | 7 | Account and sync: keys, the sync engine, organizations and team notes, live typing, notifications, shared links | `core/sync`, `core/orgs`, `core/live`, `share/` | in the app 2026-10-08, **off unless the build is given `--dart-define=GHOST_API=http://…`** (`lib/root/account_wiring.dart`); walked on the emulator against the service run on this Mac (sign up, sync read back by a second device, an organization, a team note, a shared link); live typing, links that open the app and the phone's own notifications are not ported |
 | 8 | Voice and AI: the recorder, Whisper, meetings and their service, summaries, the language model, fills, the at-work scene | `capture/` (12k), `ai/` (6.5k), `tapes/`, `scene/`, Kotlin (6.5k) | |
-| 9 | The rest: backup, export, plugins, the Academy and the guide, diagnostics, updates | `plugins/`, `academy/`, `guide/`, `diag/` | |
+| 9 | The rest: backup, export, plugins, the Academy and the guide, diagnostics, updates | `plugins/`, `academy/`, `guide/`, `diag/` | 9A to 9C (the library's folder, backup, export) walked on the emulator 2026-10-09, not wired into the root; see "What stage 9A to 9C left open" |
 | 10 | Platforms and release: the Fold's wide layouts, Mac, Windows, iPhone; signing; moving a library over from the Tauri app | | |
 
 The web app is about 110,000 lines of TypeScript, 21,500 of CSS, 27,000 of Rust and 6,500 of Kotlin, with 5,600
@@ -92,6 +92,27 @@ change (`lib/root/library_reads.dart`). `test/root/structured_test.dart` holds t
   between lanes (adb sends one finger and no hold-and-drag worth trusting; both are held by the pieces' own tests).
   **Still to see on the Fold:** those two under a real finger, the canvas's cards' words on Vulkan, the keyboard's
   own toolbar over a canvas card being written in.
+
+## What stage 9A to 9C left open
+
+The library's folder, the backup and the export (docs/STAGES_5_6_8_9.md), with three small channels: an address
+handed to the phone (`ghost_md/open`), a reset's phone half (`ghost.md/reset`) and links that open the app
+(`ghost_md/links`). `lib/main_files.dart` is all of it alone on a phone, and says how each was walked.
+
+- **To wire in `lib/root`:** `SettingsFeatures(libraryFolder: LibraryFolder(invoke: core.invoke, onNotesChanged: …),
+  backup: Backups.overCore(invoke: core.invoke, startJob: core.startJob, events: core.events), export:
+  ExportAll.overCore(…the same three…))`; `followAppLinks((link) => openAppLink(link, door), PhoneLinks())` once the
+  notes are read (lib/core/phone_links.dart); and `PhoneReset` for the reset's `ResetNativeOf`
+  (lib/core/reset_native.dart). Until then Settings' Library folder says it needs an update, Backup that backups need
+  the app, and Export's row cannot be pressed.
+- **Android only.** The Mac's folder panel, its drives and Eject, and its save panel (`library_choose_folder`,
+  `backup_drives`, `backup_eject`, `export_save`) are stage 10's.
+- **A backup wants a USB drive.** Android 11 and later grant no app the top of an SD card ("Can't use this
+  folder"), which is where a backup goes, and the same is true of the Tauri app. On the emulator, whose one drive is
+  an SD card, the backup was written into a folder picked on it (`lib/main_files.dart`, "Back up into a folder");
+  the page's own road, allow then back up, has not been walked to its end on any device.
+- **`ghostmd://` is the real app's scheme too:** on a phone with both, Android asks which opens a link.
+- **Not ported:** the notes' folder in the phone's Files app (`LibraryDocuments.kt`, `library_reveal`).
 
 ## What stage 4 left open
 
