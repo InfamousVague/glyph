@@ -29,6 +29,7 @@ import '../../account/ui_state.dart';
 import '../../art/art.dart';
 import '../../core/note.dart';
 import '../../sheet/css.dart';
+import '../../sheet/flow.dart';
 import '../../sheet/kit.dart';
 import '../../sheet/sheet.dart';
 import '../share.dart';
@@ -229,9 +230,10 @@ class _ShareRowsState extends State<ShareRows> {
       ];
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
+    // Blocks of the sheet's own flow, as the page's fragment is: the heading's margin collapses with the title's or
+    // the group's before it, where a Column added the two and the section stood 8.9px low.
+    return CssFlow(
+      collapse: true,
       children: [
         const SheetHeading('Sharing'),
         SheetGroup(
