@@ -195,9 +195,13 @@ class MainFlutterWindow: NSWindow {
   private func press(key: String, command: Bool, shift: Bool) -> Bool {
     let codes: [String: UInt16] = ["a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7, "c": 8, "v": 9, "b": 11, "q": 12, "w": 13, "e": 14, "r": 15, "y": 16, "t": 17, "1": 18, "2": 19, "3": 20, "4": 21, "6": 22, "5": 23, "9": 25, "7": 26, "8": 28, "0": 29, "o": 31, "u": 32, "i": 34, "p": 35, "l": 37, "j": 38, "k": 40, ",": 43, "/": 44, "n": 45, "m": 46, ".": 47, " ": 49, "#": 20, "*": 28, "-": 27, "escape": 53, "return": 36, "tab": 48, "left": 123, "right": 124, "down": 125, "up": 126, "delete": 51, "space": 49]
     guard let code = codes[key] else { return false }
+    // With the bits that say which side's key it is (the left ones), as a keyboard's events carry them: Flutter
+    // reads which modifiers are held from those.
+    let leftCommand = NSEvent.ModifierFlags(rawValue: NSEvent.ModifierFlags.command.rawValue | 0x08)
+    let leftShift = NSEvent.ModifierFlags(rawValue: NSEvent.ModifierFlags.shift.rawValue | 0x02)
     var flags: NSEvent.ModifierFlags = []
-    if command { flags.insert(.command) }
-    if shift { flags.insert(.shift) }
+    if command { flags.insert(leftCommand) }
+    if shift { flags.insert(leftShift) }
     let chars: String
     switch key {
     case "escape": chars = "\u{1B}"
@@ -211,10 +215,34 @@ class MainFlutterWindow: NSWindow {
     case "space": chars = " "
     default: chars = key
     }
+    // The modifiers go down first and come up after, as a keyboard's do: Flutter keeps its own count of which
+    // are held from these, not from a key's flags.
+    func modifier(_ code: UInt16, _ held: NSEvent.ModifierFlags) {
+      if let event = NSEvent.keyEvent(with: .flagsChanged, location: .zero, modifierFlags: held, timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: windowNumber, context: nil, characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: code) {
+        NSApp.sendEvent(event)
+      }
+    }
+    var held: NSEvent.ModifierFlags = []
+    if command {
+      held.insert(leftCommand)
+      modifier(55, held)
+    }
+    if shift {
+      held.insert(leftShift)
+      modifier(56, held)
+    }
     for type in [NSEvent.EventType.keyDown, .keyUp] {
       guard let event = NSEvent.keyEvent(with: type, location: .zero, modifierFlags: flags, timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: windowNumber, context: nil, characters: shift && key != "#" && key != "*" ? chars.uppercased() : chars, charactersIgnoringModifiers: chars, isARepeat: false, keyCode: code) else { return false }
       // Through the app, as a key from the keyboard goes: the window's views first (Flutter's), then the menu.
       NSApp.sendEvent(event)
+    }
+    if shift {
+      held.remove(leftShift)
+      modifier(56, held)
+    }
+    if command {
+      held.remove(leftCommand)
+      modifier(55, held)
     }
     return true
   }

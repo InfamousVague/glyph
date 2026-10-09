@@ -22,7 +22,8 @@
 /// - `taptext:<words>` / `rtaptext:` / `hovertext:`: the same at the middle of the first text drawn that holds the
 ///   words. `where:<words>` only logs where it is.
 /// - `hit:<x>,<y>`: logs what is under a point (the widgets' render objects, top first).
-/// - `cursor:<x>,<y>`: logs the pointer shape there.
+/// - `cursor:<x>,<y>`: logs the pointer shape there. `keylog`: from here on, logs every key the framework hears
+///   and what the editor's keyboard client is told.
 ///
 /// In a release build none of this is compiled in: [runMacTour] returns at once, and the Swift half answers
 /// "not implemented".
@@ -34,9 +35,11 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../core/mac_app.dart';
+import '../../editor/input/ime.dart';
 import 'mac_window.dart';
 
 /// Runs the script in `GHOST_TOUR`, if this is a debug build of the Mac app started with one.
@@ -103,6 +106,13 @@ class _Tour {
         await Future<void>.delayed(const Duration(milliseconds: 400));
         final view = WidgetsBinding.instance.platformDispatcher.views.first;
         _say('size ${view.physicalSize / view.devicePixelRatio} at ${view.devicePixelRatio}x');
+      case 'keylog':
+        // Every key the framework hears, and whether anything took it: where a chord went, when it went nowhere.
+        HardwareKeyboard.instance.addHandler((event) {
+          _say('heard ${event.runtimeType} ${event.logicalKey.keyLabel} meta ${HardwareKeyboard.instance.isMetaPressed}');
+          return false;
+        });
+        EditorIme.log = (line) => _say('ime $line');
       case 'quit':
         _say('quit');
         await MacWindow.instance.quit();
