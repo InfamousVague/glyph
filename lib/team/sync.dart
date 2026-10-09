@@ -35,8 +35,9 @@
 ///   (core/team/canvas.ts) and reads its JSON from them; the core here holds text alone, and a canvas merged as
 ///   words is no canvas at all. So a canvas filed in an organization's workspace is not published from here, and a
 ///   team's canvas is not taken: it waits for the types (docs/STAGE7.md, piece J's remainder).
-/// - An update the core refuses (one from the web that splits a character, crdt.dart) fails that note's step, said
-///   as its reason; the others of its batch are applied, and the log is asked again from the same seq next pass.
+/// - An update the core refuses fails that note's step, said as its reason; the others of its batch are applied,
+///   and the log is asked again from the same seq next pass. (One from the web that splits a character was such
+///   an update, and is not any more: crdt.dart reads it as the web's own Yjs does.)
 library;
 
 import 'dart:convert';

@@ -410,6 +410,16 @@ function check() {
     hold('canvas: a nested text is still a text', () => card?.get('text') instanceof Y.Text);
   }
 
+  // The character the web's diff cut through: Rust's copy after it, and what Rust typed there, read by Yjs.
+  {
+    hold('split: the document Rust holds after the cut', () => differs(fresh(rust.split.state).text.toString(), rust.split.text));
+    const heard = fresh(web.splitCharacter.base, web.splitCharacter.update);
+    hold('split: a web member that heard the cut reads what Rust typed after it', () => {
+      Y.applyUpdate(heard.doc, unb64(rust.split.update), 'remote');
+      return differs(heard.text.toString(), rust.split.text);
+    });
+  }
+
   for (const failure of failures) console.error(`  FAILED ${failure}`);
   console.log(`yjs_vectors: yjs ${version('yjs')} read ${passed} of ${passed + failures.length} things yrs wrote`);
   process.exit(failures.length ? 1 : 0);

@@ -14,8 +14,9 @@
 //!   into "😁" keeps the first unit and swaps the second, and Yjs then writes U+FFFD over both halves. Here the
 //!   kept head and foot are drawn back to whole characters first, so the emoji is replaced whole. The update is
 //!   another, as valid, and every copy still arrives at the same words.
-//! - **Where yrs 0.26 is not Yjs**, this file makes up for it or refuses, and says so at `apply_remote`: a
-//!   deletion that arrives before what it deletes, and a change from the web that does split a character.
+//! - **Where yrs 0.26 is not Yjs**, this file makes up for it, and says so at `apply_remote`: a deletion that
+//!   arrives before what it deletes, and a change from the web that does split a character, which is read as
+//!   Yjs reads it (U+FFFD twice where the character was; crdt_wire.rs).
 //! - **No lock of the notes'**, and no `init`: dispatch.rs answers these before it looks for the library.
 //!
 //! | command | takes | answers |
@@ -161,14 +162,19 @@ impl Held {
     /// - **A deletion that arrives before what it deletes.** yrs keeps it, and then loses the part of it that
     ///   becomes possible in the same call that brings the missing words (`settle`).
     /// - **A change that splits a character in two** (the web's `applyTextDiff` makes one when an emoji is
-    ///   swapped for a near one). Yjs writes U+FFFD over both halves; yrs keeps the whole character in a block
-    ///   it now counts one unit short, and what it would send on after that is no longer a document Yjs can
-    ///   read. So such a change is refused, and the document put back as it was (`whole`): this copy stops
-    ///   following that member rather than hand the team a damaged note.
+    ///   swapped for a near one). Yjs, cutting a block of words there, writes U+FFFD over both halves; yrs keeps
+    ///   the whole character in a block it now counts one unit short, and what it would send on after that is
+    ///   no longer a document Yjs can read. So where an update cuts is read from it first (crdt_wire.rs), and
+    ///   a character it cuts through is written as U+FFFD twice in this copy and in the update before anything
+    ///   is applied (`mended`): the words Yjs holds, and every member reads the same. Should a cut ever get
+    ///   past that, the change is refused and the document put back as it was (`whole`).
     fn apply_remote(&mut self, updates: &[Vec<u8>]) -> Result<(), String> {
+        updates.iter().try_for_each(|bytes| decode_update(bytes).map(|_| ()))?;
+        // Only words with a character of two units in them can be split, here or as they arrive.
+        let pairs = self.words().chars().any(|c| c.len_utf16() == 2);
+        let updates = if pairs || updates.iter().any(|bytes| bytes.iter().any(|byte| *byte >= 0xf0)) { self.mended(updates)? } else { updates.to_vec() };
         let decoded = updates.iter().map(|bytes| decode_update(bytes)).collect::<Result<Vec<_>, _>>()?;
-        // Only words with a character of two units in them can be split, before or after.
-        let before = self.words().chars().any(|c| c.len_utf16() == 2).then(|| (self.state(None), self.early.clone()));
+        let before = (pairs || self.words().chars().any(|c| c.len_utf16() == 2)).then(|| (self.state(None), self.early.clone()));
         // Whether anything waited at any moment, one update on another of the same call included.
         let mut waited = false;
         {
@@ -190,6 +196,25 @@ impl Held {
             }
         }
         Ok(())
+    }
+
+    /// `updates` as they are to be applied, once every character of two units that one of them cuts through
+    /// (or that an early one still waiting does) reads U+FFFD twice: in this copy, which is made again from its
+    /// own state so written, in the early ones, and in `updates` themselves, which are answered.
+    fn mended(&mut self, updates: &[Vec<u8>]) -> Result<Vec<Vec<u8>>, String> {
+        let mut cuts = std::collections::HashSet::new();
+        for bytes in updates.iter().chain(self.early.iter()) {
+            crate::crdt_wire::cuts(bytes, &mut cuts)?;
+        }
+        if let Some(state) = crate::crdt_wire::mend(&self.state(None), &cuts)? {
+            self.put_back(&state)?;
+        }
+        for bytes in self.early.iter_mut() {
+            if let Some(mended) = crate::crdt_wire::mend(bytes, &cuts)? {
+                *bytes = mended;
+            }
+        }
+        updates.iter().map(|bytes| Ok(crate::crdt_wire::mend(bytes, &cuts)?.unwrap_or_else(|| bytes.clone()))).collect()
     }
 
     /// The early updates applied again, once every block they were waiting for is here: a second time changes

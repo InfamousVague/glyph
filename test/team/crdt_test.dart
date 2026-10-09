@@ -215,14 +215,15 @@ void main() {
       await room.close();
     }, skip: skip);
 
-    test('a change from the web that splits a character is refused, and the document is as it was', () async {
+    test('a change from the web that splits a character is read as the web reads it: U+FFFD twice where the emoji was', () async {
       final s = part('splitCharacter');
       final doc = await crdt.open(state: fromBase64Url(s['base'] as String));
-      await expectLater(
-        doc.applyRemote([fromBase64Url(s['update'] as String)]),
-        throwsA(isA<CoreError>().having((e) => e.message, 'message', startsWith('That change splits a character in two'))),
-      );
       expect(await doc.words(), 'a😀b');
+      expect(await doc.applyRemote([fromBase64Url(s['update'] as String)]), s['heard']);
+      expect((await doc.words()).codeUnits, s['heardUnits']);
+      expect((await doc.words()).codeUnits, [97, 0xFFFD, 0xFFFD, 98]);
+      // And it is typed in after, a whole character between the two.
+      expect((await doc.edit(const [CrdtEdit(2, insert: '😁')])).text, 'a\uFFFD😁\uFFFDb');
       await doc.close();
     }, skip: skip);
   });

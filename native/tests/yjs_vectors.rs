@@ -106,20 +106,26 @@ fn an_update_that_arrives_before_what_it_builds_on_waits_for_it() {
     assert_eq!(text(&doc), o["text"]);
 }
 
-/// The one thing of the web's this side cannot follow. Yjs writes U+FFFD over both halves of a character an
-/// update splits; yrs 0.26 cannot (crdt.rs `apply_remote`), so the update is refused and nothing is changed.
+/// A change from the web that cuts a character in two (its `applyTextDiff`, an emoji swapped for a near one).
+/// Yjs writes U+FFFD over both halves; yrs 0.26 cannot, so the cut is read from the update first and the
+/// character written as U+FFFD twice here too (crdt.rs `mended`, crdt_wire.rs): this side arrives at the words
+/// the rest of the team reads, and at the same document.
 #[test]
-fn a_change_from_the_web_that_splits_a_character_is_refused_and_leaves_the_document_as_it_was() {
+fn a_change_from_the_web_that_splits_a_character_is_read_as_yjs_reads_it() {
     let web = fixture();
     let s = &web["splitCharacter"];
     let doc = open(8050, &[&s["base"]]);
     assert_eq!(text(&doc), "a😀b");
-    let before = state(&doc);
-    let refused = ghost_core::dispatch::invoke("crdt_apply", json!({"doc": doc, "updates": [s["update"]]})).unwrap_err();
-    assert_eq!(refused, "That change splits a character in two, which this copy cannot hold as the others do. It was not applied.");
-    assert_eq!((text(&doc), state(&doc)), (json!("a😀b"), before));
-    // What the rest of the team reads there, for the day this side can: U+FFFD twice.
+    let taken = take(&doc, &[&s["update"]]);
+    assert_eq!(taken["changed"], true);
+    assert_eq!(text(&doc), s["heard"]);
     assert_eq!(s["heardUnits"], json!([97, 0xFFFD, 0xFFFD, 98]));
+    // The same in one call with the document itself, and a second time changes nothing.
+    assert_eq!(text(&open(8052, &[&s["base"], &s["update"]])), s["heard"]);
+    assert_eq!(take(&doc, &[&s["update"]])["changed"], false);
+    // A caret after the first half is where Yjs has it: between the two.
+    let caret = ask("crdt_relative", json!({"doc": doc, "index": 2}));
+    assert_eq!(ask("crdt_absolute", json!({"doc": doc, "position": caret})), 2);
     // The document still takes this device's own changes, as the same client, and other members' updates.
     assert_eq!(ask("crdt_apply_diff", json!({"doc": doc, "to": "a😁b!"}))["text"], "a😁b!");
     assert_eq!(text(&open(8051, &[&state(&doc)])), "a😁b!");
@@ -310,8 +316,15 @@ fn what_yrs_writes_is_written_down_for_yjs_to_read() {
     let changed = ask("crdt_apply_diff", json!({"doc": canvas, "to": "---\ntitle: Board 2\n---\n"}));
     let canvas = json!({"state": state(&canvas), "text": changed["text"]});
 
+    // The web's cut through a character, read here as Yjs reads it and then typed after: this side's document,
+    // and what it sends on, for Yjs to read.
+    let split = open(6007, &[&web["splitCharacter"]["base"], &web["splitCharacter"]["update"]]);
+    let typed = ask("crdt_edit", json!({"doc": split, "edits": [{"index": 2, "insert": "😀"}, {"index": 6, "insert": "!"}]}));
+    let split = json!({"state": state(&split), "text": typed["text"], "update": typed["update"]});
+
     let out = json!({
         "fixture": web["made"],
+        "split": split,
         "seeded": seeded_out,
         "steps": steps,
         "stepsState": steps_state,

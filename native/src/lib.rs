@@ -128,6 +128,7 @@ pub mod ai;
 #[cfg(feature = "voice")]
 pub mod capture;
 pub mod crdt;
+pub mod crdt_wire;
 pub mod crypto;
 pub mod dispatch;
 pub mod events;

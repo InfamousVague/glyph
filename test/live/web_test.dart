@@ -154,6 +154,50 @@ void main() {
     room.close();
   }, skip: skip, timeout: const Timeout(Duration(minutes: 3)));
 
+  test('an emoji swapped for a near one by a web member (the web\'s applyTextDiff cuts it in two): the Flutter app takes the update, reads what every other member reads, and goes on typing with the team', () async {
+    final handle = freshHandle('emoji');
+    final ada = device('ada');
+    await ada.account.signUp(handle, 'correct horse');
+    final org = await ada.orgs.createOrg('Ghost');
+    await ada.sync();
+    ada.write('t1', 'mood 😀 today');
+    ada.workspaces.fileNote('t1', orgWorkspaceId(org.id));
+    await ada.sync();
+    final doc = (await ada.docs.doc('t1', seedWords: ada.notes['t1']!.body))!;
+    final room = ada.live!.rooms.openTeamRoom(org.id, 't1', doc)!;
+    final writer = await web({'handle': handle, 'password': 'correct horse', 'team': {'note': 't1'}});
+    final hearer = await web({'handle': handle, 'password': 'correct horse', 'team': {'note': 't1'}});
+    await until(() => room.others == 2, 'both web devices in the room');
+
+    // Words reach the note on the web without its editor (a capture, the connector, a sync of the library): 😀
+    // made 😁, which share their first half. core/team/textDiff.ts keeps that half and swaps the second.
+    final made = await writer.ask({'do': 'reconcile', 'words': 'mood 😁 today'});
+    // The web device that made it holds half a character: U+FFFD, then a lone low surrogate.
+    expect((made['text'] as String).codeUnits.sublist(5, 7), [0xFFFD, 0xDE01]);
+    // Every other member reads U+FFFD twice: the other web device, by its own Yjs...
+    const heard = 'mood \uFFFD\uFFFD today';
+    await hearer.until({'words': heard}, 'the cut emoji as Yjs reads it');
+    // ...and the Flutter app, which used to refuse the update and stop following the note.
+    await until(() => doc.words == heard, 'the cut emoji in the Flutter app');
+
+    // The note is still one note: Flutter types into it, a whole emoji where the broken one is, and both web
+    // devices follow; the web types, and Flutter follows.
+    await doc.edit([const CrdtEdit(5, remove: 2, insert: '😁')], base: doc.rev);
+    await hearer.until({'words': 'mood 😁 today'}, 'Flutter\'s mending on the web device that heard');
+    await hearer.ask({'do': 'type', 'at': 0, 'insert': 'My '});
+    await until(() => doc.words == 'My mood 😁 today', 'the web\'s typing after the cut');
+    // What Flutter holds is a document the web reads whole: a web device signing in afresh, by the service.
+    doc.onUpdate((_) {});
+    ada.write('t1', doc.words, at: 9);
+    await hearer.ask({'do': 'sync'});
+    await writer.ask({'do': 'sync'});
+    await ada.sync();
+    await ada.sync();
+    final fresh = await web({'handle': handle, 'password': 'correct horse', 'team': {'note': 't1'}});
+    expect(fresh.hello['words'], 'My mood 😁 today');
+    room.close();
+  }, skip: skip, timeout: const Timeout(Duration(minutes: 3)));
+
   test('a note of the account\'s own, live in the Flutter app and the web app: made by one and adopted by the other, both ways, and typed in by both', () async {
     final handle = freshHandle('own');
     final phone = device('phone');

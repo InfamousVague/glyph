@@ -14,9 +14,10 @@
 ///
 /// **Updates are bytes** ([Uint8List]): Yjs's v1 encoding, to be sealed and sent as they are.
 ///
-/// **Two things are not as the web has them**, both said at length in crdt.rs: a change made here never splits a
-/// character in two (the web's `applyTextDiff` can, and Yjs then writes U+FFFD over the halves), and an update FROM
-/// the web that does split one is refused by [CrdtDoc.applyRemote] with a [CoreError], the document left as it was.
+/// **One thing is not as the web has it**, said at length in crdt.rs: a change made here never splits a character
+/// in two. The web's `applyTextDiff` can (an emoji swapped for a near one), and Yjs then writes U+FFFD over the
+/// halves; an update FROM the web that does is read here as Yjs reads it, [CrdtDoc.applyRemote] answering the
+/// words with U+FFFD twice where the character was, which is what every other member holds.
 ///
 /// Every call is quick (a note's worth of text), so all of it goes through the app's one worker isolate.
 library;
