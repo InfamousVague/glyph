@@ -108,6 +108,7 @@ class NoteSeams {
     this.onAi,
     this.linked,
     this.head,
+    this.tail,
     this.cheatSheet,
     this.location,
     this.shareVersionsFile,
@@ -155,6 +156,10 @@ class NoteSeams {
   /// recording's tape (tapes/NoteTape.tsx) and what the note is linked to (plugins/LinkMarks.tsx), whose press is
   /// [openSettings], the note's More sheet.
   final List<Widget> Function(BuildContext context, VoidCallback openSettings)? head;
+
+  /// What follows a note's words on its page: the phrases of its recording as they were spoken
+  /// (tapes/NoteTape.tsx `TranscriptWords`).
+  final List<Widget> Function(BuildContext context)? tail;
 
   /// The formatting cheat sheet's page (guide/CheatSheet.tsx).
   final WidgetBuilder? cheatSheet;
@@ -1083,6 +1088,8 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
           // `.cm-content { padding-block-end: var(--glacier-space-24) }`, taken from the editor while the offers are
           // drawn, and `.body { padding-block-end: var(--app-safe-bottom) }`.
           SliverToBoxAdapter(child: SizedBox(height: (offered != null ? t.space(24) : 0) + t.len('app-safe-bottom'))),
+          if (_words && seams.tail != null)
+            for (final row in seams.tail!(context)) SliverToBoxAdapter(child: row),
           if (book != null && seams.bookFoot != null) SliverToBoxAdapter(child: seams.bookFoot!(context, book)),
           // `.page[data-scrolls] > .body { flex: 1 0 auto }`: the editor is the rest of the page, and a tap there is a tap in it.
           SliverFillRemaining(

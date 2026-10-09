@@ -24,6 +24,10 @@
 ///   Undo is an edit in this editor, taking out exactly the pieces the recording put in, and the better words wait
 ///   to write the note while it is open, the editor being its one writer.
 ///
+/// - the tape at the top of a note that has a recording (lib/tapes/note_tape.dart), played by the app's one player,
+///   with Add (talk more into the note) and Remove with its Undo (`editor/useNoteTape.ts`), and the phrases as they
+///   were spoken under the words (lib/tapes/transcript_words.dart);
+///
 /// What differs from the page:
 /// - **No picture can be added yet**: this build has no picker, so the band's Add image and the +'s Picture are
 ///   not offered. Pictures a note already names are drawn from the kept files.
@@ -38,6 +42,8 @@
 ///   since and the toast says so. A tag waiting for the words is not let go (no note keeps a place yet).
 /// - **A spoken instruction and a review the note opened with** ([NoteDesk.ask], [NoteDesk.review]) are carried
 ///   and not run: they are `NoteAi`'s (lib/ai/note_ai.dart), which is not on the desk yet.
+/// - **The tape has no Summarize** (`NoteTape.summary`): it is offered while the AI can run on the note
+///   (`NoteAi.canSummarize`), and the AI is not on the desk yet.
 /// - **A board's card has no plugin's rows** (`drawnBoards(actions:)`).
 /// - **The plugins reach the note through the editor** (lib/editor/items/note_plugins.dart): a swipe on a list item
 ///   and the quiet words after a line are asked of the app's registry as they are used, a linked to-do's box and
@@ -89,6 +95,9 @@ import '../notes/note_templates.dart' show NoteTemplate;
 import '../settings/panes/cheat_sheet.dart';
 import '../shell/screen.dart' show Keyed;
 import '../share/ui/share_rows.dart';
+import '../tapes/note_tape.dart';
+import '../tapes/player.dart' as tape_player show Tape, TapePlayer;
+import '../tapes/transcript_words.dart';
 
 /// The marks as the band's Style page lists them: each under its own icon (`format.icon ?? plugin.icon ?? Type`).
 final List<band.BandFormat> bandFormats = <band.BandFormat>[
@@ -159,6 +168,12 @@ class NoteDeskWorld {
     this.previewer,
     this.holdNote,
     this.dropRefine,
+    this.tapePlayer,
+    this.noteById,
+    this.getNote,
+    this.setNoteRecording,
+    this.tapes,
+    this.onSpeak,
   });
 
   /// Every note's title, for the +'s A note.
@@ -230,6 +245,20 @@ class NoteDeskWorld {
   /// words an Undo took out (lib/capture/refine.dart `holdNote`, `dropRefine`). Absent, there is no queue.
   final void Function(String noteId, bool on)? holdNote;
   final void Function(String noteId, int fromMs)? dropRefine;
+
+  /// The app's one player of a recording (lib/tapes/phone_player.dart); absent, a spoken note draws no tape.
+  final tape_player.TapePlayer? tapePlayer;
+
+  /// The note by its id as the library has it now, and read whole from the store (its phrases with it).
+  final Note? Function(String id)? noteById;
+  final Future<Note?> Function(String id)? getNote;
+
+  /// A tape's length and its phrases written beside its note (`setNoteRecording`), and the tape each note holds.
+  final Future<Note?> Function(String id, int? recordingMs, List<Segment> segments)? setNoteRecording;
+  final TapeIds? tapes;
+
+  /// Talk more into this note (the tape's Add); absent where nothing records.
+  final void Function(String noteId)? onSpeak;
 }
 
 /// Builds a note's screen with the editor and the seams the desk made for it.
@@ -350,6 +379,57 @@ class NoteDeskState extends State<NoteDesk> {
     _land();
   }
 
+  /// The note's tape, once it has a recording and there is a player to play it.
+  tape_player.Tape? _tape;
+
+  tape_player.Tape? _tapeNow() {
+    final player = _world.tapePlayer;
+    final note = _world.noteById?.call(widget.noteId);
+    if (player == null || note == null) return _tape;
+    final tape = _tape;
+    if (tape == null) {
+      if ((note.recordingMs ?? 0) <= 0) return null;
+      return _tape = tape_player.Tape(note, player: player, getNote: _world.getNote)..addListener(_redraw);
+    }
+    if (!identical(tape.note, note)) tape.note = note;
+    return tape;
+  }
+
+  /// The recording taken off the note, with an Undo that puts it back (`removeRecording`). The words stay: only
+  /// the length and the phrases go, and the tape the note's voice memos play from is unnamed until the Undo.
+  Future<void> _removeRecording() async {
+    final tape = _tape;
+    final write = _world.setNoteRecording;
+    if (tape == null || write == null) return;
+    final id = widget.noteId;
+    final memos = hasClips(_view?.state.doc.toString() ?? '');
+    await tape.player.pause().then<void>((_) {}, onError: (Object _) {});
+    final full = await _world.getNote?.call(id).then<Note?>((note) => note, onError: (Object _) => null);
+    final ms = tape.length;
+    final segments = full?.segments ?? tape.segments ?? const <Segment>[];
+    final held = _world.tapes?.tapeId(id);
+    _world.tapes?.setTapeId(id, null);
+    try {
+      await write(id, null, const <Segment>[]);
+    } catch (failure) {
+      _world.tapes?.setTapeId(id, held);
+      widget.say('The recording couldn’t be removed: $failure');
+      return;
+    }
+    if (!mounted) return;
+    _toasts?.toast(
+      message: Text(memos ? 'Recording removed. Its voice memos are quiet until you undo.' : 'Recording removed.'),
+      duration: const Duration(seconds: 5),
+      action: GlacierToastAction(
+        label: 'Undo',
+        onPress: () {
+          _world.tapes?.setTapeId(id, held);
+          unawaited(write(id, ms, segments).then<void>((_) {}, onError: (Object _) {}));
+        },
+      ),
+    );
+  }
+
   GlacierToastController? _toasts;
   int? _landed;
   bool _saidLanding = false;
@@ -426,6 +506,8 @@ class NoteDeskState extends State<NoteDesk> {
   void _libraryChanged() {
     void tell() {
       final view = _view;
+      // The tape follows its note: a take added, the recording removed or put back.
+      if (mounted && _world.tapePlayer != null) setState(() {});
       if (!mounted || view == null) return;
       view.dispatch(TransactionSpec(effects: <StateEffect<Object?>>[if (_world.queryNotes != null) refreshQueries.of(null), if (_world.tickets != null) refreshTickets.of(null)]));
     }
@@ -448,6 +530,8 @@ class NoteDeskState extends State<NoteDesk> {
   @override
   void dispose() {
     _world.holdNote?.call(widget.noteId, false);
+    _tape?.removeListener(_redraw);
+    _tape?.dispose();
     // Leaving the note takes its toast with it: an Undo for words no longer on screen would undo them unseen.
     if (_saidLanding) _toasts?.dismiss();
     _world.changes?.removeListener(_libraryChanged);
@@ -617,7 +701,27 @@ class NoteDeskState extends State<NoteDesk> {
         readOnly: widget.readOnly,
       ),
       // What the note is linked to, at its top; pressed, the note's More sheet, where a link is changed.
-      head: (context, openSettings) => <Widget>[LinkMarks(noteId: widget.noteId, onPress: openSettings)],
+      head: (context, openSettings) {
+        final tape = _tapeNow();
+        final speak = _world.onSpeak;
+        return <Widget>[
+          // Only a spoken note has a tape.
+          if (tape != null && tape.length > 0)
+            NoteTape(
+              note: tape.note,
+              title: widget.title.isEmpty ? 'Untitled' : widget.title,
+              tape: tape,
+              onSpeak: speak == null || widget.readOnly ? null : () => speak(widget.noteId),
+              onRemove: () => unawaited(_removeRecording()),
+              hasMemos: hasClips(_view?.state.doc.toString() ?? ''),
+            ),
+          LinkMarks(noteId: widget.noteId, onPress: openSettings),
+        ];
+      },
+      tail: (context) {
+        final tape = _tape;
+        return <Widget>[if (tape != null && tape.length > 0) TranscriptWords(tape: tape)];
+      },
       book: _book,
       journal: _journal,
       around: _around,

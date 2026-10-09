@@ -17,6 +17,7 @@ import 'core/link_preview.dart' show linkPreviewFetch;
 import 'root/ghost_root.dart';
 import 'root/plugin_ground.dart';
 import 'root/voice_wiring.dart';
+import 'tapes/phone_player.dart';
 
 /// The stylesheets the token engine reads after the kit's own, in the order the web app's page loads them
 /// (tool/sync-design.sh copies them from ../glyph).
@@ -73,10 +74,12 @@ Future<void> main() async {
   }
   // One PhoneLinks for the life of the app: it holds the channel the activity says `arrived` on.
   final links = PhoneLinks();
+  // And one player of a note's recording, the phone's own.
+  final tapes = PhoneTapePlayer();
   runApp(GhostApp(
     sheet: sheet,
     home: _Runs(
-      builder: (restart) => GhostRoot(core: core, native: whole, account: account, voiceMaking: voice, links: links, openLink: openLink, previewFetch: linkPreviewFetch(), restart: restart),
+      builder: (restart) => GhostRoot(core: core, native: whole, account: account, voiceMaking: voice, links: links, openLink: openLink, previewFetch: linkPreviewFetch(), restart: restart, tapePlayer: tapes),
     ),
   ));
 }

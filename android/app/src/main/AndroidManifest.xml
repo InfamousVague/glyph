@@ -82,6 +82,12 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="ghostmd" />
             </intent-filter>
+            <!--
+              A link that opens the app is the app's own to follow (AppLinks.kt), never a route for Flutter to push:
+              left on, the embedding hands each address to the framework, which put a second copy of the app over
+              the first (lib/app/ghost_app.dart drops them too, for an entry point that forgets this).
+            -->
+            <meta-data android:name="flutter_deeplinking_enabled" android:value="false" />
             <!-- "Record note" on a long press of the icon: shown only with the assistant on (ghost_shortcuts.xml). -->
             <meta-data
                 android:name="android.app.shortcuts"

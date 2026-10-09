@@ -56,6 +56,9 @@ class MainActivity : FlutterActivity() {
     /** Links that open the app, kept until Dart asks (AppLinks.kt). */
     private val links = AppLinks()
 
+    /** The player of a note's recording, let go with the activity (TapePlayer.kt). */
+    private var tape: TapePlayer? = null
+
     /** The system's pickers, each answered when its activity result arrives (FilesBridge.kt). */
     private val files = FilesBridge(this)
 
@@ -98,6 +101,8 @@ class MainActivity : FlutterActivity() {
         ResetChannel(this, secrets).register(messenger)
         // Links that open the app, handed over when asked for (AppLinks.kt; lib/core/phone_links.dart).
         links.register(messenger)
+        // A note's recording, played (TapePlayer.kt; lib/tapes/phone_player.dart).
+        tape = TapePlayer(applicationContext).also { it.register(messenger) }
         // The phone's pickers: a folder for the library, a drive to back up to, where an export goes
         // (FilesBridge.kt; lib/core/library_folder.dart, lib/core/backup.dart, lib/core/export_all.dart).
         files.register(messenger)
@@ -130,6 +135,7 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        tape?.release()
         meeting?.onDestroy()
         super.onDestroy()
     }

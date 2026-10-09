@@ -90,7 +90,7 @@ import '../shell/account_gate.dart';
 import '../shell/app_shell.dart';
 import '../shell/screen.dart';
 import '../shell/top_bar.dart';
-import '../tapes/player.dart' show audioRemoved;
+import '../tapes/player.dart' show TapePlayer, audioRemoved;
 import 'account_wiring.dart';
 import 'capture_route.dart';
 import 'library_reads.dart';
@@ -132,7 +132,7 @@ import 'voice_wiring.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -181,6 +181,10 @@ class GhostRoot extends StatefulWidget {
   /// The welcome walkthrough's place in the app (lib/guide/guide_state.dart). The app over a core makes its own,
   /// which opens by itself on a first launch; a test brings one, or has none and is never walked through.
   final GuideController? guide;
+
+  /// The app's one player of a note's recording (lib/tapes/phone_player.dart on a phone). Absent, a spoken note
+  /// draws no tape.
+  final TapePlayer? tapePlayer;
 
   /// Reads a linked page's title, site and summary (lib/core/link_preview.dart `linkPreviewFetch`). Absent, as in a
   /// test, a link's card says its site and its path and nothing is asked of anywhere.
@@ -940,6 +944,12 @@ class _GhostRootState extends State<GhostRoot> {
     newEntry: (id, template) => unawaited(_newEntry(id, template)),
     openLink: widget.openLink,
     previewer: _previews,
+    tapePlayer: widget.tapePlayer,
+    noteById: _library.noteOf,
+    getNote: _library.get,
+    setNoteRecording: (id, ms, segments) async => _voice?.recorder.store.setNoteRecording(id, ms, segments),
+    tapes: _voice?.recorder.tapes,
+    onSpeak: (id) => unawaited(_speakInto(id)),
     holdNote: (id, on) => _voice?.recorder.refining?.holdNote(id, on),
     dropRefine: (id, fromMs) => _voice?.recorder.refining?.dropRefine(id, fromMs),
   );

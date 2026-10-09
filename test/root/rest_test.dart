@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/academy/academy_screen.dart';
 import 'package:ghost_md/account/api.dart' show FetchRequest;
 import 'package:ghost_md/core/book.dart' show isGuideBook;
+import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/link_preview.dart';
 import 'package:ghost_md/core/note_text.dart';
 import 'package:ghost_md/guide/guide.dart';
@@ -22,8 +23,12 @@ import 'package:ghost_md/root/plugin_ground.dart';
 import 'package:ghost_md/settings/settings_sheet.dart';
 import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/shell/screen.dart';
+import 'package:ghost_md/tapes/note_tape.dart';
+import 'package:ghost_md/tapes/player.dart' show TapePlayer;
+import 'package:ghost_md/tapes/transcript_words.dart';
 
 import '../support/render.dart';
+import '../tapes/fake_player.dart';
 
 /// Stage 9's pieces in the app put together (lib/root): the Academy through the shell, the titles of linked pages,
 /// Developer's benches, and the plugins put on the phone.
@@ -35,7 +40,7 @@ void main() {
 
   late List<String> asked;
 
-  Future<SampleLibrary> open(WidgetTester tester, {bool previews = false, GuideController? guide}) async {
+  Future<SampleLibrary> open(WidgetTester tester, {bool previews = false, GuideController? guide, TapePlayer? tapePlayer}) async {
     final library = SampleLibrary.seeded();
     asked = [];
     await pumpApp(
@@ -48,6 +53,7 @@ void main() {
         clock: () => seedNow,
         stored: MemoryStored(),
         guide: guide,
+        tapePlayer: tapePlayer,
         previewFetch: previews
             ? (url) async {
                 asked.add(url);
@@ -174,6 +180,51 @@ void main() {
       expect(tester.widget<NoteScreen>(find.byType(NoteScreen)).seams.head, isNotNull);
       expect(find.byType(LinkMarks, skipOffstage: false), findsOneWidget);
       expect(tester.widget<LinkMarks>(find.byType(LinkMarks, skipOffstage: false)).onPress, isNotNull);
+      await close(tester);
+    });
+  });
+
+  group('a spoken note', () {
+    /// Packing, given a recording of four seconds and its two phrases.
+    Future<Note> tapedIn(WidgetTester tester, SampleLibrary library) async {
+      final note = library.value.firstWhere((note) => noteTitle(note.body) == 'Packing');
+      final taped = Note(
+        id: note.id,
+        body: note.body,
+        createdAt: note.createdAt,
+        updatedAt: note.updatedAt,
+        source: NoteSource.capture,
+        recordingMs: 4000,
+        segments: const [Segment(text: 'Bring the long lens', startMs: 0, endMs: 2000), Segment(text: 'and the tripod', startMs: 2000, endMs: 4000)],
+        revision: note.revision,
+      );
+      await tester.runAsync(() => library.apply(taped));
+      await settle(tester, 2);
+      return library.noteOf(note.id)!;
+    }
+
+    testWidgets('wears its tape at its top where there is a player to play it, and its phrases under its words', (tester) async {
+      final player = FakeTapePlayer(lengths: const {});
+      final library = await open(tester, tapePlayer: player);
+      final taped = await tapedIn(tester, library);
+      shellOf(tester).openNote(taped.id);
+      await settle(tester);
+      expect(find.byType(NoteTape, skipOffstage: false), findsOneWidget);
+      expect(find.byType(TranscriptWords, skipOffstage: false), findsOneWidget);
+      expect(player.calls, isEmpty, reason: 'a tape nobody plays asks the phone for nothing');
+      // A note that was not spoken has none.
+      shellOf(tester).openNote(library.value.firstWhere((note) => noteTitle(note.body) == 'Launch week').id);
+      await settle(tester);
+      expect(find.byType(NoteTape, skipOffstage: false), findsNothing);
+      await close(tester);
+    });
+
+    testWidgets('draws no tape in an app with no player', (tester) async {
+      final library = await open(tester);
+      final taped = await tapedIn(tester, library);
+      shellOf(tester).openNote(taped.id);
+      await settle(tester);
+      expect(find.byType(NoteTape, skipOffstage: false), findsNothing);
       await close(tester);
     });
   });
