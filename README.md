@@ -386,9 +386,11 @@ uploaded, or asked of App Store Connect). The real app's own road is `../glyph/d
    sign from a Mac whose Xcode is signed in. Run the export with `/usr/bin` first in `PATH` (Homebrew's rsync
    broke the real app's). **Entitlements: none**, as the real app's file is empty; the Keychain needs none.
 3. **The library for a phone**: `tool/build-native.sh ios` builds `aarch64-apple-ios` too. A release link drops
-   what nothing reaches and strips symbols: the keep table and `STRIP_STYLE = non-global` are there for it, and
-   **a release build has not been made or run**, so the first thing to check on one is
-   `nm -gU Runner.app/Runner | grep ghost_invoke`, then that it opens its notes on a phone.
+   what nothing reaches and strips symbols: the keep table and `STRIP_STYLE = non-global` are there for it. An
+   unsigned release was built to see (`flutter build ios --release --no-codesign`, 40 MB): the core's five
+   functions are global in its `Runner` (`nm -gU Runner.app/Runner | grep ghost_`), it is an iPhone's alone, and
+   the tour is not in it. **It was not run**: there is no phone here, so whether it opens its notes on one is the
+   first thing to check.
 4. **A privacy manifest** (`PrivacyInfo.xcprivacy` in the Runner; there is none yet). The real app's
    (`src-tauri/gen/apple/glyph_iOS/PrivacyInfo.xcprivacy`) is the model: no tracking; with an account, User ID, User
    Content and Photos linked to the user for app function (no Audio while nothing records); required-reason APIs
@@ -413,8 +415,9 @@ uploaded, or asked of App Store Connect). The real app's own road is `../glyph/d
 
 **Left open:**
 
-- **Not on a phone.** Everything above is the simulator's. The phone's slice of the core is built and linked into
-  nothing yet; Impeller on a phone's GPU, the Taptic Engine and a real keyboard are unseen.
+- **Not on a phone.** Everything above is the simulator's. The phone's slice of the core is built and links into
+  an unsigned release that nothing has run; Impeller on a phone's GPU, the Taptic Engine and a real keyboard are
+  unseen.
 - **The system's own screens were shown and not pressed.** Nothing here sends a touch to UIKit: the picture menu
   was seen and its three choosers were not opened, so `PHPicker`'s file, a HEIC, a photo just taken and the Files
   picker have not been through `PictureKeep` on an iPhone (it is the Mac's ImageIO code). The date sheet was not
