@@ -101,9 +101,8 @@ handed to the phone (`ghost_md/open`), a reset's phone half (`ghost.md/reset`) a
 
 - **To wire in `lib/root`:** `SettingsFeatures(libraryFolder: LibraryFolder(invoke: core.invoke, onNotesChanged: …),
   backup: Backups.overCore(invoke: core.invoke, startJob: core.startJob, events: core.events), export:
-  ExportAll.overCore(…the same three…))`; `followAppLinks((link) => openAppLink(link, door), PhoneLinks())` once the
-  notes are read (lib/core/phone_links.dart); and `PhoneReset` for the reset's `ResetNativeOf`
-  (lib/core/reset_native.dart). Until then Settings' Library folder says it needs an update, Backup that backups need
+  ExportAll.overCore(…the same three…))`; and `PhoneReset` for the reset's `ResetNativeOf`
+  (lib/core/reset_native.dart). The links and the opener are wired (lib/main.dart). Until then Settings' Library folder says it needs an update, Backup that backups need
   the app, and Export's row cannot be pressed.
 - **Android only.** The Mac's folder panel, its drives and Eject, and its save panel (`library_choose_folder`,
   `backup_drives`, `backup_eject`, `export_save`) are stage 10's.
