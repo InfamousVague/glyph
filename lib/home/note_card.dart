@@ -175,7 +175,7 @@ class NoteCard extends StatelessWidget {
             children.add(_Gist(gist!, lines: dense ? 1 : 2));
           }
           if (NotePeek.has(note.body)) {
-            final peek = NotePeek(body: note.body, fill: fill);
+            final peek = NotePeek(body: note.body, fill: fill, dense: dense);
             children.add(fill ? Flexible(child: peek) : peek);
           }
         }
