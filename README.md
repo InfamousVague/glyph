@@ -49,7 +49,7 @@ Each stage ends installed on the Fold. Sizes are the web app's non-test source t
 | 7 | Account and sync: keys, the sync engine, organizations and team notes, live typing, notifications, shared links | `core/sync`, `core/orgs`, `core/live`, `share/` | in the app 2026-10-08, **off unless the build is given `--dart-define=GHOST_API=http://…`** (`lib/root/account_wiring.dart`); walked on the emulator against the service run on this Mac (sign up, sync read back by a second device, an organization, a team note, a shared link); links that open the app are followed since 2026-10-09 (`lib/root/ghost_root.dart`, `lib/core/phone_links.dart`: a note, the notifications, an organization, an invitation asked about first, a shared link's copy); live typing since 2026-10-09 (`lib/live/`, `lib/root/account_wiring.dart`, `lib/root/note_desk.dart`): the relay, a team note's room with the others' carets, presence, the nudge, a note of the account's own, proven by two Dart devices and by the web app's own client under Node through the relay on this Mac, and **walked signed in on the emulator 2026-10-09** against the service on this Mac (the walk, the bugs it found and what it did not reach are under "What stage 7 left open"); the "Live typing" switch is the device's own flag since then. The phone's own notifications are not ported |
 | 8 | Voice and AI: the recorder, Whisper, meetings and their service, summaries, the language model, fills, the at-work scene | `capture/` (12k), `ai/` (6.5k), `tapes/`, `scene/`, Kotlin (6.5k) | Speak in the app 2026-10-09 (`lib/root/voice_wiring.dart`, `lib/root/capture_route.dart`, `lib/root/ghost_root.dart`): the dock's microphone, a note's own and a journal's spoken entry, the capture screen with its live page, the meeting service and its screen, the + sheet's Meeting, Settings' Recording and AI pages with their real rows; the summary queue, the review's gate and the write-up's configuration (lib/ai's), a spoken note's tape played by the phone, a landing's Undo; walked on an Android emulator; the AI in a note (`NoteAi`), the fills' queue, the gists and the scene since the third pass, run on the emulator with Qwen3.5 2B; **not yet on the Fold**; see "What stage 8 left open" |
 | 9 | The rest: backup, export, plugins, the Academy and the guide, diagnostics, updates | `plugins/`, `academy/`, `guide/`, `diag/` | 9A to 9C (the library's folder, backup, export) walked on the emulator 2026-10-09, and in Settings since (`lib/root/ghost_root.dart`); see "What stage 9A to 9C left open". The plugins (in Settings and in a note), the Academy, the walkthrough and the guide's notebook, link previews, Developer's benches and its resets are in the app 2026-10-09 (`lib/root/plugin_ground.dart`, `reset_wiring.dart`, `note_desk.dart`, `ghost_root.dart`); the app's own updates (9I: `lib/core/updates.dart`, `lib/root/update_wiring.dart`, `tool/release.md`) and the invitation's card are in the app 2026-10-09, the updates run on the emulator against a made-up release and **on in no build** until a key and a release address are chosen; a note's place, a picture from the phone, the phone's calendar for a date and a voice memo's player are in the app 2026-10-09 (`Position.kt`, `Pictures.kt`, `DayPick.kt`), walked on the emulator; a film picked, kept and played, and a picture pasted from the clipboard, since the same day (`Films.kt`, `FilmPlayer.kt`), walked there too; the phone's own update notifier is not ported, and what it needs is written down; see "What stage 9's other pieces left open" |
-| 10 | Platforms and release: the Fold's wide layouts, Mac, Windows, iPhone; signing; moving a library over from the Tauri app | `core/useWideScreen.ts`, `core/unfold.ts`, `aside/`, app.css `.app-split`, the hinge in `MainActivity.kt` | the Fold's wide layouts in the app 2026-10-09 and compared with the page side by side on an emulator at the unfolded size (1848 x 2448 at 420 dpi, a window of 704 x 933): the aside (`lib/aside/`), the docked sidebar and the aside kept to the device, the unfold and its hinge channel (`lib/core/unfold.dart`, `Hinge.kt`), a mouse's hover on a phone, a fold that keeps the screen it had (`lib/shell/app_shell.dart`); **not yet on the Fold**; see "What stage 10's wide layouts left open". Mac, Windows, iPhone, signing and moving a library over are other hands' or not begun |
+| 10 | Platforms and release: the Fold's wide layouts, Mac, Windows, iPhone; signing; moving a library over from the Tauri app | `core/useWideScreen.ts`, `core/unfold.ts`, `aside/`, app.css `.app-split`, the hinge in `MainActivity.kt` | the Fold's wide layouts in the app 2026-10-09 and compared with the page side by side on an emulator at the unfolded size (1848 x 2448 at 420 dpi, a window of 704 x 933): the aside (`lib/aside/`), the docked sidebar and the aside kept to the device, the unfold and its hinge channel (`lib/core/unfold.dart`, `Hinge.kt`), a mouse's hover on a phone, a fold that keeps the screen it had (`lib/shell/app_shell.dart`); **not yet on the Fold**; see "What stage 10's wide layouts left open". Mac, Windows, iPhone, signing and moving a library over are other hands' or not begun. The Mac app builds and runs 2026-10-09 (`macos/`, `tool/build-native.sh mac`): sandboxed under its own id, the core bundled universal, the window under its title bar with the lights in the page's row, a menu bar and a desktop's keys, the Mac's half of the channels in Swift, and a take recorded and transcribed on the fixture; not signed, not notarised, no meetings; see "What the Mac app left open" |
 
 The web app is about 110,000 lines of TypeScript, 21,500 of CSS, 27,000 of Rust and 6,500 of Kotlin, with 5,600
 tests. Parity is the bar for every stage; a stage is not done until its screens have been compared with the web app's
@@ -119,6 +119,119 @@ Still open:
 - **Pictures in other folders that fail at wide sizes on this Mac** (`test/sidebar` "wide", `test/note` "at 840")
   moved by a few pixels while the Mac's own work was in the tree (the bar's left edge and the status inset are a
   Mac's there under a test run on one); they were not redrawn here.
+
+## What the Mac app left open
+
+**What is there (2026-10-09).** `tool/build-native.sh mac` then `flutter build macos --debug` (or `--release`) makes
+`Ghost Flutter.app`: bundle id `com.mattssoftware.glyph.flutter`, the Tauri Mac app's icon, macOS 13.1 and later,
+Apple silicon and Intel in one file, as the Tauri app is. It installs beside the Tauri app and shares nothing with
+it: it is **sandboxed** (the Tauri app is not), so its library, settings and models are under
+`~/Library/Containers/com.mattssoftware.glyph.flutter/Data`, and the Tauri app's
+`~/Library/Application Support/com.mattssoftware.glyph` cannot be opened from it at all
+(`macos/Runner/GhostChannels.swift` also refuses to name a data directory for a build carrying that id). Its secrets
+are Keychain items under the service `com.mattssoftware.glyph.flutter.secure`. A debug build has no service, no
+mirror and no updates, as on the phone.
+
+- **The core** is the same Rust (`native/`), built per architecture and joined (`macos/Core/libghost_core.dylib`,
+  not in git), copied into the app's `Contents/Frameworks` and signed by Xcode's "Bundle the core" phase
+  (`tool/bundle-mac-core.sh`), and opened from there by its whole path (`lib/core/mac_app.dart`). A build with no
+  library, or one missing an architecture the app is built for, stops and says so. Cargo's own `strip` is off for
+  this build: with a deployment target set, Xcode 27's `strip` leaves proc-macro libraries macOS 27 will not load
+  ("mis-aligned LINKEDIT string pool"), and every crate with a derive then fails as "can't find crate".
+- **The window** is the Tauri app's (`tauri.conf.json`): 1280 x 820, never under 360 x 560, under a transparent
+  title bar with no title. The three lights are set into the page's own top row, which keeps their room
+  (`--app-traffic-lights`) and says where its centre is (`lib/shell/desktop/mac_lights.dart`), so they follow the
+  row in every bar style where the Tauri app held a number in Rust. The row's empty ground drags the window and
+  zooms it on a double click (`mac_drag_strip.dart`, `.app-dragBar`); Settings starts under the lights' row.
+- **The menu bar and the keys** (`macos/Runner/AppDelegate.swift`, `lib/shell/desktop/desktop_commands.dart`,
+  `lib/root/desktop_wiring.dart`): New Note (Command-N), Sync Now (Command-R, with its toast), Find (Command-F: the
+  open note's find bar, Settings' field while it is open), the palette (Command-K), Settings (Command-comma), and
+  the Mac's own Edit, View and Window items. The editor's keys were walked with a keyboard's events: typing, the
+  arrows, Command-Z and Command-Shift-Z, Command-A, Command-Left; a click, a drag, a double and a triple click
+  select as the page's do; the right button opens the note's own band; the pointer is the text one over a note's
+  words and the hand over a button.
+- **Voice**: the Mac's microphone is `macos/Runner/MicChannel.swift` (`AVAudioEngine`, resampled to the 16 kHz
+  mono chunks the phone's gives). A take was walked start to end in the running app on the fixture
+  (`--dart-define=GHOST_MIC_FIXTURE=true`, `<dataDir>/fixture.wav`): heard through the Swift half, transcribed live
+  by whisper from the bundled core, landed as a note with its tape.
+
+**Each channel** (`MethodChannel(` in `lib/`), and its Mac half:
+
+| Channel | On the Mac |
+| ------- | ---------- |
+| `ghost_md/device_paths` | Swift: the app's own two directories, in its container |
+| `ghost_md/open` | Swift: `NSWorkspace`, the same schemes; `geo:` opens Maps |
+| `ghost_md/secure_store` | Swift: the Keychain, one generic password a name, under this app's own service |
+| `ghost.md/reset` | Swift: forgets the Keychain's service; no meeting to be recording, no work queue to cancel |
+| `ghost_md/files` | Swift: the folder panel for Library folder (kept as a security-scoped bookmark and taken up before the core opens), the save panel for Export (the file made and a descriptor handed over, written by `export_fd` as Android's is), the removable drives for Backup, the panel that allows one, and Eject |
+| `ghost_md/pictures` | Swift: an open panel for a picture, shrunk to 1600 px and turned as the phone's is; a picture or words off the clipboard |
+| `ghost_md/tape` and its events | Swift: `AVAudioPlayer` on `<dataDir>/recordings/<id>.wav` |
+| `ghost_md/mic` and its events | Swift: the microphone, its permission, System Settings, the debug fixture |
+| `ghost_md/links` | Swift keeps a `ghostmd://` link the system hands over; **the scheme is not claimed** (below) |
+| `ghost_md/window` | Mac only: the lights, the drag, the menu's choices, and a debug build's tour |
+| `ghost_md/meeting` and its events | none: it is the phone's meeting service, assistant and side key. The + sheet's Meeting and the assistant's rows are not offered |
+| `ghost_md/updates` | none: it installs an APK. No build looks for updates on a Mac |
+| `ghost_md/day` | none: it is Android's calendar; a date is typed or taken from the menu's own days |
+| `ghost_md/location` | none, as in the Tauri Mac app (`core/location.ts`, `why: 'mac'`) |
+| `ghost_md/films`, `ghost_md/film` | none, as on the page, where films are Android's alone |
+| `ghost_md/front` | none: it holds frames while Android takes the app from the front |
+
+**What a signed release needs** (none of it done here: nothing was signed, notarised or published). The shared
+set-up is the Tauri app's (`../glyph/scripts/deploy-ota.mjs --desktop`): team `F6ZAL7ANAD`, the Developer ID
+Application certificate in the keychain, and the App Store Connect key every MattsSoftware app notarises with
+(`~/.config/mattssoftware/signing/asc-api.env`).
+
+1. `tool/build-native.sh mac` (both architectures), then the release build with the identity and the hardened
+   runtime given as build settings, since the project signs "to run locally" and leaves the runtime off (an ad hoc
+   build with it cannot load its own frameworks): `FLUTTER_XCODE_CODE_SIGN_STYLE=Manual
+   FLUTTER_XCODE_DEVELOPMENT_TEAM=F6ZAL7ANAD FLUTTER_XCODE_CODE_SIGN_IDENTITY="Developer ID Application: …"
+   FLUTTER_XCODE_ENABLE_HARDENED_RUNTIME=YES FLUTTER_XCODE_OTHER_CODE_SIGN_FLAGS=--timestamp
+   FLUTTER_XCODE_CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO flutter build macos --release`. Untried. The last of those
+   keeps `get-task-allow` out, which the ad hoc release carries and notarisation refuses. The core is signed with
+   the same identity, the runtime and a timestamp by `tool/bundle-mac-core.sh`.
+2. The checks `deploy-ota.mjs` makes of the Tauri app, made of this one before anything goes out: `codesign
+   --verify --deep --strict`; the team; `runtime` among the flags; `com.apple.security.device.audio-input` among the
+   entitlements (without it a hardened build records silence, with no prompt and no error) and
+   `NSMicrophoneUsageDescription` in the Info.plist; both architectures in the executable **and** in
+   `Contents/Frameworks/libghost_core.dylib`.
+3. A disk image made, then the image sent to Apple and stapled as well as the app (`xcrun notarytool submit … --wait`,
+   `xcrun stapler staple`): the Tauri app once shipped a notarised app in an image with no ticket.
+4. Decisions: whether it stays sandboxed (it need not be for a Developer ID release; the sandbox is why a drive is
+   allowed in a panel first); which id it ships under; whether it claims `ghostmd://`; where its updates come from.
+
+**Left open:**
+
+- **Meetings and the Mac's own sound.** The Tauri Mac app records a meeting in its page, with the microphone and a
+  Core Audio tap of what the Mac plays (`src-tauri/src/system_audio/mac.rs`). Neither is ported: `MeetingHost` is
+  the phone's service, the tap is not in `native/`, and the Mac app offers no meeting.
+- **The real microphone was not listened through.** `AVAudioEngine`'s path is built and its permission answers,
+  but the take that was walked played the fixture: opening the device would have recorded the room of the person
+  using this Mac. `noiseSuppression` and `autoGainControl` are heard and not acted on.
+- **No panel was pressed.** The folder, save, drive and picture panels are the Mac's own windows, and nothing here
+  sends a click to them: the Swift is built and answers (the drives' list, the Keychain, the paths, a recording's
+  presence and the microphone's permission were asked in the running app), the core's halves are tested in Rust
+  (`library_inspect {path}`, a `drive`, a descriptor from a save panel), and the Dart with stand-ins
+  (`test/core/mac_app_test.dart`). Eject, and telling a disk image from a drive, were not tried with a drive in.
+- **`ghostmd://` is not claimed** in the Info.plist. On a Mac with both apps the system would hand the Tauri app's
+  links (a shared note, an invitation, "written up") to whichever it chose. The handling is there for a build that
+  claims it.
+- **Two screens draw under the lights**: a recording's own header and the guide's first page, which pad by
+  `--app-inset-top` (nothing under an overlay title bar) on the page too. Not compared with the Tauri app's window,
+  which was not running. In full screen the top row keeps the lights' room, empty.
+- **Words that say "phone"** where the Mac app speaks (seen: "No language model on this phone…" after a take).
+- **A drag of the window was not made**: the strip is held by a widget test and the hit test in the running app
+  finds it under the bar's empty ground, but a real drag needs a real mouse. Hover styles and scrollbars were not
+  looked at one by one.
+- **The Keychain after a rebuild**: an ad hoc build is a different signature each time, so macOS may ask before a
+  later build reads a secret an earlier one kept. A signed build does not ask.
+- **The Intel half was built and not run** (no Intel Mac here).
+- **Moving a library over from the Tauri Mac app** was not attempted and cannot be done by reading it: the
+  sandbox is between them. Choosing the Tauri app's chosen folder in Library folder, or an export and an import,
+  are the ways left.
+- `lib/shell/app_shell.dart`'s header still says the title bar and the drag strip are not drawn.
+
+To look at it without touching the screen: a debug build walks itself from a script in its environment and writes
+the window's picture into its own container (`lib/shell/desktop/mac_tour.dart`).
 
 ## What stage 9's other pieces left open
 
@@ -668,6 +781,8 @@ tool/build-native.sh                        # the Rust core: cargo test, the Mac
 flutter analyze && flutter test             # the app
 flutter build apk --debug --target-platform android-arm64   # -t lib/main_kit.dart, lib/art/main.dart or lib/main_launch.dart for one gallery alone
 adb install -r build/app/outputs/flutter-apk/app-debug.apk
+tool/build-native.sh mac                    # the Mac app's core, both architectures: macos/Core/libghost_core.dylib
+flutter build macos --debug                 # build/macos/Build/Products/Debug/Ghost Flutter.app
 ```
 
 `tool/sync-design.sh` refreshes the stylesheets from `../glyph`; run the kit's tests after it.
