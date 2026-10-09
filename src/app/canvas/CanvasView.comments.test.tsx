@@ -3,6 +3,7 @@ import { act } from 'react';
 import { show, typeInto, unmount, waitUntil } from '../../test/render.tsx';
 import { setPreferences } from '../core/preferences.ts';
 import { CanvasView } from './CanvasView.tsx';
+import { HOLD_MS } from './gestures.ts';
 import { parseCanvas, type Canvas } from './jsonCanvas.ts';
 
 vi.mock('mermaid', () => ({ default: { initialize: () => undefined, render: async (id: string) => ({ svg: `<svg id="${id}"></svg>` }) } }));
@@ -96,6 +97,25 @@ describe('a canvas’s comments', () => {
     expect(added.comments![0]).toEqual(expect.objectContaining({ node: 'site', by: 'matt', text: 'Is this the right link?', replies: [] }));
     expect(added.comments![0]!.id).toMatch(/^c[0-9a-z]{4,}$/);
     await waitUntil(() => expect(sheet()).toBeNull());
+  });
+
+  it('keeps a card’s threads when the card is moved', () => {
+    vi.useFakeTimers();
+    try {
+      const onChange = vi.fn();
+      const shown = show(<CanvasView canvas={canvas} dark={false} onChange={onChange} />);
+      const card = shown.querySelector('[data-card="book"]') as HTMLElement;
+      const pointer = (type: string, x: number, y: number) => act(() => card.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0 })));
+      pointer('pointerdown', 50, 40);
+      act(() => vi.advanceTimersByTime(HOLD_MS + 30));
+      pointer('pointermove', 90, 70);
+      pointer('pointerup', 90, 70);
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(last(onChange).nodes.find((n) => n.id === 'book')).toMatchObject({ x: 40, y: 30 });
+      expect(last(onChange).comments).toEqual(canvas.comments);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('draws no rounds, and no Comment, on a canvas that cannot change', () => {

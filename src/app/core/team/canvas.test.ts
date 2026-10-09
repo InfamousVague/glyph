@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
+import { movedWithHeld, newEdge, newTextNode, withEdge, withGroup, withNode, withoutEdge, newGroupNode } from '../../canvas/edits.ts';
 import { reopenedThread, resolvedThread, withReply, withThread, withoutThread } from '../../canvas/comments.ts';
 import { canvasOf, parseCanvas, type Canvas } from '../../canvas/jsonCanvas.ts';
 import { REMOTE } from '../live/session.ts';
@@ -175,6 +176,25 @@ describe('a team canvas', () => {
     teamA.apply(withoutThread(teamA.canvas(), 'c2')!);
     sync(b, a);
     expect(teamB.canvas().comments!.map((thread) => [thread.id, Boolean(thread.resolved)])).toEqual([['c1', false]]);
+  });
+
+  it('keeps a thread through the view’s edits - a card moved, added, a line drawn and taken off, a group made - for every member', () => {
+    const a = device(SAMPLE);
+    const teamA = teamCanvas(a)!;
+    const b = device(Y.encodeStateAsUpdate(a.doc));
+    const teamB = teamCanvas(b)!;
+    teamA.apply(withThread(teamA.canvas(), 'book', { by: 'matt', at: '2026-10-05T14:00:00Z' }, 'Which Friday?', 'c1')!);
+    sync(b, a);
+    const book = () => teamB.canvas().nodes.find((n) => n.id === 'book')!;
+    teamB.apply(movedWithHeld(teamB.canvas(), book(), 48, 24));
+    teamB.apply(withNode(teamB.canvas(), newTextNode(400, 0, 'more')));
+    teamB.apply(withEdge(teamB.canvas(), newEdge('book', 'more', 'e2')));
+    teamB.apply(withoutEdge(teamB.canvas(), 'e2'));
+    teamB.apply(withGroup(teamB.canvas(), newGroupNode(book(), 0, 0, 'about')));
+    expect(teamB.canvas().comments?.map((thread) => thread.id)).toEqual(['c1']);
+    sync(a, b);
+    expect(teamA.canvas().comments?.map((thread) => thread.id)).toEqual(['c1']);
+    expect(canvasOf(canvasWords(a.doc, a.text.toString()))!.comments).toHaveLength(1);
   });
 
   it('reads words that reached the note without the view into the types, as the team document reconciles them', async () => {

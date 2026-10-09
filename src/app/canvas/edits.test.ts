@@ -179,3 +179,34 @@ describe('the grid', () => {
     expect(box(resizedBy(off, 'e', 10, 0))).toEqual([100, 100, 210, 100]);
   });
 });
+
+describe('a canvas with comment threads, changed', () => {
+  // Ghost.md's own field beside the spec's two (jsonCanvas.ts `Canvas.comments`; docs/SHARED.md, S9).
+  const plain = parseCanvas(SPEC_SAMPLE) as Canvas;
+  const thread = { id: 'c1', node: 't1', by: 'sam', at: '2026-10-05T14:00:00Z', text: 'Which Friday?', replies: [] };
+  const canvas: Canvas = { ...plain, comments: [thread] };
+  const t1 = canvas.nodes.find((n) => n.id === 't1')!;
+  const g1 = canvas.nodes.find((n) => n.id === 'g1')!;
+  const edge = canvas.edges[0]!;
+
+  it('keeps its threads through every edit that does not take their card off', () => {
+    expect(withNode(canvas, newTextNode(0, 0, 'new')).comments).toEqual([thread]);
+    expect(withNode(canvas, movedNode(t1, 5, 5)).comments).toEqual([thread]);
+    expect(movedWithHeld(canvas, t1, 40, 40).comments).toEqual([thread]);
+    expect(movedWithHeld(canvas, g1, g1.x + 10, g1.y + 10).comments).toEqual([thread]);
+    expect(withEdge(canvas, newEdge('t1', 'l1', 'line')).comments).toEqual([thread]);
+    expect(withEdge(canvas, labelledEdge(edge, 'then')).comments).toEqual([thread]);
+    expect(withoutEdge(canvas, edge.id).comments).toEqual([thread]);
+    expect(withGroup(canvas, newGroupNode(t1, 0, 0, 'grp')).comments).toEqual([thread]);
+    // And they are written: the JSON the note keeps still has them after a move.
+    expect(parseCanvas(serializeCanvas(movedWithHeld(canvas, t1, 40, 40)))?.comments).toEqual([thread]);
+  });
+
+  it('writes a canvas that has none exactly as before: no comments field, the spec’s two alone', () => {
+    const edits = [withNode(plain, newTextNode(0, 0, 'new')), movedWithHeld(plain, t1, 40, 40), withEdge(plain, newEdge('t1', 'l1', 'line')), withoutEdge(plain, edge.id), withGroup(plain, newGroupNode(t1, 0, 0, 'grp'))];
+    for (const edited of edits) {
+      expect(Object.keys(edited)).toEqual(['nodes', 'edges']);
+      expect(serializeCanvas(edited)).toBe(`${JSON.stringify({ nodes: edited.nodes, edges: edited.edges }, null, 2)}\n`);
+    }
+  });
+});

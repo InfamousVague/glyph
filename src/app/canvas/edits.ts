@@ -10,6 +10,11 @@ import type { Canvas, CanvasEdge, CanvasNode } from './jsonCanvas.ts';
  * The node array is the z-order (jsonCanvas.ts `Canvas`): a new card goes last, so it is drawn on top, and an edit
  * keeps every other node where it was in the array, since sorting them would change both the drawing and the file
  * Obsidian reads.
+ *
+ * An edit changes the nodes or the edges and carries the rest of the canvas as it was: its comment threads
+ * (jsonCanvas.ts `Canvas.comments`; docs/SHARED.md, S9) stay through a move, a resize, a new card or a line, and go
+ * only with the card they are on (`withoutNode`). Built by hand from the two arrays, an edit dropped them, and the
+ * note was written without its threads - and a team's canvas took them off for every member (core/team/canvas.ts).
  */
 
 /** An id for a new node or edge: sixteen hex characters, the shape Obsidian gives its own. */
@@ -68,7 +73,7 @@ export function newLinkNode(url: string, x: number, y: number, id = newCanvasId(
 export function withNode(canvas: Canvas, node: CanvasNode): Canvas {
   const at = canvas.nodes.findIndex((n) => n.id === node.id);
   const nodes = at < 0 ? [...canvas.nodes, node] : canvas.nodes.map((n) => (n.id === node.id ? node : n));
-  return { nodes, edges: canvas.edges };
+  return { ...canvas, nodes };
 }
 
 /** The canvas without this node, and without any edge that joined it. */
@@ -87,12 +92,12 @@ export function newEdge(fromNode: string, toNode: string, id = newCanvasId()): C
 export function withEdge(canvas: Canvas, edge: CanvasEdge): Canvas {
   const at = canvas.edges.findIndex((e) => e.id === edge.id);
   const edges = at < 0 ? [...canvas.edges, edge] : canvas.edges.map((e) => (e.id === edge.id ? edge : e));
-  return { nodes: canvas.nodes, edges };
+  return { ...canvas, edges };
 }
 
 /** The canvas without this line; the cards it joined stay. */
 export function withoutEdge(canvas: Canvas, id: string): Canvas {
-  return { nodes: canvas.nodes, edges: canvas.edges.filter((e) => e.id !== id) };
+  return { ...canvas, edges: canvas.edges.filter((e) => e.id !== id) };
 }
 
 /** The line with these words on it, or with none: the spec has no empty label, so blank takes the label off. */
@@ -130,7 +135,7 @@ export function movedWithHeld(canvas: Canvas, node: CanvasNode, x: number, y: nu
   const dx = Math.round(x) - node.x;
   const dy = Math.round(y) - node.y;
   const moving = new Set(node.type === 'group' ? [node.id, ...heldBy(canvas, node).map((n) => n.id)] : [node.id]);
-  return { nodes: canvas.nodes.map((n) => (moving.has(n.id) ? movedNode(n, n.x + dx, n.y + dy) : n)), edges: canvas.edges };
+  return { ...canvas, nodes: canvas.nodes.map((n) => (moving.has(n.id) ? movedNode(n, n.x + dx, n.y + dy) : n)) };
 }
 
 /** The group with these words as its name, or with none. */
@@ -222,5 +227,5 @@ export function newGroupNode(about: CanvasNode | null, x: number, y: number, id 
 
 /** The canvas with a new group in it, under every card: first among the nodes, which are drawn in order. */
 export function withGroup(canvas: Canvas, group: CanvasNode): Canvas {
-  return { nodes: [group, ...canvas.nodes], edges: canvas.edges };
+  return { ...canvas, nodes: [group, ...canvas.nodes] };
 }
