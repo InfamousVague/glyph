@@ -130,6 +130,33 @@ class BookBar extends StatelessWidget {
           ),
         );
 
+    // A side's arrow and its title, as two items of the page's flex row that both shrink: the title has
+    // `min-inline-size: 0` through its `overflow: hidden`, and an svg is an item like any other, so where the two
+    // do not fit each gives up room in proportion to its own width and the arrow is drawn smaller in what it is
+    // left (measured on a phone: 16px arrows 11.4 and 9.5px wide beside "Plan the first release" and "Write the
+    // welcome page"). Held at 16px, the arrow took three letters from each title.
+    Widget side(String text, Color color, Widget arrow, {required bool arrowFirst}) => Flexible(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const mark = 16.0;
+              final gap = 0.35 * em;
+              final style = pageText(t, em, color: color);
+              final painter = TextPainter(text: TextSpan(text: text, style: style), textDirection: Directionality.of(context), maxLines: 1)..layout();
+              final natural = painter.width;
+              painter.dispose();
+              final room = constraints.maxWidth - gap;
+              final by = constraints.maxWidth.isFinite && mark + natural > room ? math.max(0.0, room) / (mark + natural) : 1.0;
+              final drawn = SizedBox(width: mark * by, height: mark, child: FittedBox(child: arrow));
+              final title = SizedBox(
+                width: by < 1 ? natural * by : null,
+                // `.endTitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }`
+                child: Text(text, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: style),
+              );
+              return Row(mainAxisSize: MainAxisSize.min, spacing: gap, children: arrowFirst ? [drawn, title] : [title, drawn]);
+            },
+          ),
+        );
+
     return Semantics(
       container: true,
       label: place.journal ? 'Journal' : 'Notebook',
@@ -147,7 +174,7 @@ class BookBar extends StatelessWidget {
                 key: const ValueKey('book-bar-prev'),
                 label: prev != null ? 'Previous $part: $prev' : 'First $part',
                 onPressed: prev == null ? null : () => open(prev),
-                children: (color) => [lucide(Lucide.chevronLeft, size: 16, color: color), words(said(prev), color)],
+                children: (color) => [side(said(prev), color, lucide(Lucide.chevronLeft, size: 16, color: color), arrowFirst: true)],
               ),
               button(
                 key: const ValueKey('book-bar-book'),
@@ -171,7 +198,7 @@ class BookBar extends StatelessWidget {
                 label: next != null ? 'Next $part: $next' : 'Last $part',
                 onPressed: next == null ? null : () => open(next),
                 end: true,
-                children: (color) => [words(said(next), color), lucide(Lucide.chevronRight, size: 16, color: color)],
+                children: (color) => [side(said(next), color, lucide(Lucide.chevronRight, size: 16, color: color), arrowFirst: false)],
               ),
             ],
           ),
