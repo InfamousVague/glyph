@@ -113,8 +113,9 @@ Still open:
   phone answers by the touch screen whatever is plugged in, so the page's guarded rules (the bar's hover grounds,
   the scrollbars, a fly-out submenu) stay a finger's with a mouse on the Fold, as here. Unguarded `:hover` rules
   show under a mouse now. Not tried with a real mouse: `adb emu event mouse` was not to be used.
-- **Landscape** (2448 x 1848, a window of 933 x 704) is held by a test for the split and the fold, and was not
-  looked at beside the page.
+- **Landscape** (2448 x 1848, a window of 933 x 704) is held by a test for the split and the fold; only the home
+  page was looked at beside the page there (four cards across in both). Straight after the turn the port's fourth
+  card was not yet drawn in one picture; it was there in the next.
 - **Pictures in other folders that fail at wide sizes on this Mac** (`test/sidebar` "wide", `test/note` "at 840")
   moved by a few pixels while the Mac's own work was in the tree (the bar's left edge and the status inset are a
   Mac's there under a test run on one); they were not redrawn here.
