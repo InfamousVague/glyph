@@ -20,9 +20,11 @@
 /// with no address in it as none given, and falls back to the web app's own two (native/src/models.rs `mirrors`).
 ///
 /// What is not here yet, each a seam:
-/// - **Summaries and the review after a recording** (`ai/summaries.ts`, `ai/review.ts`): lib/ai has neither yet, so
-///   [Recorder.enqueueSummary] and [Recorder.reviewAvailable] are the recorder's own no-ops, a meeting's write-up is
-///   handed no job configuration (`keepJobConfig`), and a finished write-up's result is not landed in its note.
+/// - **Summaries and the review after a recording** (`ai/summaries.ts`, `ai/review.ts`): lib/ai had neither when
+///   this was written (`lib/ai/summaries.dart`, `review.dart`, `land.dart` and `job_config.dart` have landed since
+///   and are not yet given here), so [Recorder.enqueueSummary] and [Recorder.reviewAvailable] are the recorder's
+///   own no-ops, a meeting's write-up is handed no job configuration (`keepJobConfig`), `writeUpRunningNow`
+///   answers no, and a finished write-up's result is not landed in its note.
 /// - **A tape's player** (`tapes/useTape.ts`'s `<audio>`): lib/tapes/player.dart's `TapePlayer` has no phone half,
 ///   so the tape at the top of a spoken note is not drawn.
 /// - **The plugins' spoken formattings and tips** ([Recorder.spokenFormats], [Recorder.pluginTips]).

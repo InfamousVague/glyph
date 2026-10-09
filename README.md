@@ -105,8 +105,9 @@ holds the wiring. There is no always-on microphone: one is opened by a recorder'
 - **`--dart-define=GHOST_MIC_FIXTURE=true`**, a debug build's only, plays `<dataDir>/fixture.wav` in place of the
   microphone (an emulator's hears silence): `adb push ../glyph/models/fixture.wav /data/local/tmp/` and
   `run-as com.mattssoftware.glyph.flutter cp /data/local/tmp/fixture.wav fixture.wav`.
-- **Summaries and the review after a recording are not wired** (`ai/summaries.ts`, `ai/review.ts`): lib/ai has
-  neither yet. So `Recorder.enqueueSummary` and `reviewAvailable` are the recorder's own no-ops, a meeting's
+- **Summaries and the review after a recording are not wired** (`ai/summaries.ts`, `ai/review.ts`): lib/ai had
+  neither when Speak was put together; `lib/ai/summaries.dart`, `review.dart`, `land.dart`, `job_config.dart` and
+  `start.dart` landed the same day and are still to be given to the seams below. So `Recorder.enqueueSummary` and `reviewAvailable` are the recorder's own no-ops, a meeting's
   write-up is handed no job configuration (`keepJobConfig`: the service writes the transcript under
   `## Transcript` and no summary), a finished write-up's result is not landed in its note (`landNativeResult`, also
   where a `ghostmd://note/…` link would put it first), `MeetingLive.writeUpRunningNow` answers no, and the meeting
