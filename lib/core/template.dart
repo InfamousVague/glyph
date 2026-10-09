@@ -30,9 +30,11 @@
 /// Pure.
 ///
 /// What differs:
-/// - **The names of days and months are English, in the order en-GB writes them** ("Monday 28 September", "Sept",
-///   "1st"), where the page asks the device's language through `Intl`. The app has no `intl` yet; the web's own
-///   tests pin en-GB, and those are the cases ported (test/book_core/template_test.dart).
+/// - **The names of days and months are English, in the phone's own order** ("Monday 28 September" and "Sept" on a
+///   British phone, "Monday, September 28" and "Sep" on an American one: core/locale_dates.dart, the page's own
+///   answers for the two), where the page asks the device's language through `Intl`; "1st" either way. Until the
+///   phone has said, they are as en-GB orders them: the web's own tests pin en-GB, and those are the cases ported
+///   (test/book_core/template_test.dart).
 /// - The web's `FillFor` object is [fillTemplate]'s named parameters; `said` is a record of the three words.
 /// - [Placing] is `capture/place.ts`'s type, written here since the recorder is a later stage of the port (8G); its
 ///   own file should hand this one on when it lands. What a take does with a placing (`placeTake`) is the recorder's.
@@ -41,7 +43,7 @@ library;
 
 import 'front_matter.dart' show frontMatterEnd;
 import 'item_syntax.dart' show jsTrim, lineWords, listLead;
-import 'day_order.dart';
+import 'locale_dates.dart';
 
 // ---- core/stamp.ts ------------------------------------------------------------------------------------------------
 
@@ -53,8 +55,9 @@ const List<String> _shortMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Ju
 
 String _two(int n) => n.toString().padLeft(2, '0');
 
-/// "Monday 28 September": the weekday, the day and the month, no year (`longDay`).
-String longDay(DateTime at) => longDayWords(_weekdays[at.weekday - 1], at.day, _months[at.month - 1]);
+/// "Monday 28 September", or "Monday, September 28" on an American phone: the weekday, the day and the month, no
+/// year (`longDay`).
+String longDay(DateTime at) => toldDate(at, DateForm.MMMMEEEEd) ?? '${_weekdays[at.weekday - 1]} ${at.day} ${_months[at.month - 1]}';
 
 /// "14:05": the time on a 24-hour clock (`clockTime`).
 String clockTime(DateTime at) => '${_two(at.hour)}:${_two(at.minute)}';
@@ -68,8 +71,9 @@ String shortWeekday(DateTime at) => _weekdays[at.weekday - 1].substring(0, 3);
 /// "September": the month, whole.
 String longMonth(DateTime at) => _months[at.month - 1];
 
-/// "Sept": the month, short, as en-GB writes it.
-String shortMonth(DateTime at) => _shortMonths[at.month - 1];
+/// "Sept": the month, short, as en-GB writes it and as it is until the phone has said; "Sep" on an American phone
+/// (`{ month: 'short' }`).
+String shortMonth(DateTime at) => toldShortMonth(at) ?? _shortMonths[at.month - 1];
 
 // ---- core/template.ts ---------------------------------------------------------------------------------------------
 
@@ -143,7 +147,7 @@ String _token(String token, DateTime at) => switch (token) {
       'YYYY' => at.year.toString().padLeft(4, '0'),
       'YY' => _two(at.year % 100),
       'MMMM' => _months[at.month - 1],
-      'MMM' => _shortMonths[at.month - 1],
+      'MMM' => shortMonth(at),
       'MM' => _two(at.month),
       'M' => '${at.month}',
       'Do' => _ordinal(at.day),

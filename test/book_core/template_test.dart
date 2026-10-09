@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/book/journal.dart' show entryPresets;
+import 'package:ghost_md/core/locale_dates.dart';
 import 'package:ghost_md/core/template.dart';
 
 /// A journal's template filled for an entry: Obsidian's placeholders, Moment's tokens, and where a spoken entry's
@@ -150,6 +151,32 @@ void main() {
       expect(openEnd(words), (base: words, placing: const PlacingEnd()));
       expect(openEnd('Words.'), (base: 'Words.', placing: const PlacingEnd()));
       expect(const PlacingEnd().toJson(), {'kind': 'end'});
+    });
+  });
+
+  group('in the phone’s own words (core/locale_dates.dart)', () {
+    tearDown(() => toldLocale = null);
+    const all = '{{date}} | {{time}} | {{weekday}}';
+    // The month short is the one token the two tables write differently; a weekday, a month in full and Moment's
+    // own A and a are the same in both.
+    const tokens = 'D MMM YYYY, dddd ddd MMMM h:mm A a';
+
+    test('an American phone has the month first after a comma, and Sep', () {
+      toldLocale = DateLocale.enUS;
+      expect(fill(all), 'Monday, September 28 | 14:05 | Monday');
+      expect(longDay(at()), 'Monday, September 28');
+      expect(shortMonth(at()), 'Sep');
+      expect(fill(entryPresets[0].text), '# Monday, September 28\n\n**14:05** ');
+      expect(formatStamp(at(), tokens), '28 Sep 2026, Monday Mon September 2:05 PM pm');
+    });
+
+    test('a British phone has the day first and no comma, and Sept', () {
+      toldLocale = DateLocale.enGB;
+      expect(fill(all), 'Monday 28 September | 14:05 | Monday');
+      expect(longDay(at()), 'Monday 28 September');
+      expect(shortMonth(at()), 'Sept');
+      expect(fill(entryPresets[0].text), '# Monday 28 September\n\n**14:05** ');
+      expect(formatStamp(at(), tokens), '28 Sept 2026, Monday Mon September 2:05 PM pm');
     });
   });
 }

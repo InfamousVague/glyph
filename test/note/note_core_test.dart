@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/geotag.dart';
+import 'package:ghost_md/core/locale_dates.dart';
 import 'package:ghost_md/core/look.dart';
 import 'package:ghost_md/core/note_names.dart';
 import 'package:ghost_md/core/stored.dart';
@@ -129,6 +130,27 @@ void main() {
     test('the day in words keys the day in English', () {
       expect(keysTheDay(at), isTrue);
       expect(keysTheDay(DateTime(2026, 1, 31)), isTrue);
+    });
+
+    group('in the phone’s own words (core/locale_dates.dart)', () {
+      tearDown(() => toldLocale = null);
+
+      test('an American phone names the day with the month first', () {
+        toldLocale = DateLocale.enUS;
+        expect(longDate(at), 'Monday, September 28, 2026');
+        expect(nameOffers(at, const {}).first.name, 'Monday, September 28, 2026');
+        expect(keysTheDay(at), isTrue);
+        // A note already named for the day in these words takes the offer away.
+        expect([for (final offer in nameOffers(at, {'monday september 28 2026'})) offer.kind], [NameKind.day, NameKind.minute, NameKind.week]);
+      });
+
+      test('a British phone names it with the day first and no comma', () {
+        toldLocale = DateLocale.enGB;
+        expect(longDate(at), 'Monday 28 September 2026');
+        expect(nameOffers(at, const {}).first.name, 'Monday 28 September 2026');
+        expect(keysTheDay(at), isTrue);
+        expect([for (final offer in nameOffers(at, {'monday 28 september 2026'})) offer.kind], [NameKind.day, NameKind.minute, NameKind.week]);
+      });
     });
   });
 

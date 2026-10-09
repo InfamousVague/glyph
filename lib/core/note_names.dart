@@ -9,13 +9,15 @@
 ///
 /// What differs: the page asks `Intl.DateTimeFormat` for the day in words in the device's language, and so has
 /// `keysTheDay` for the languages whose words lose the month once reduced to a key. This app's strings are English
-/// first (README, "What stage 1 left open"), so the day is written the way en-GB writes it, which always keys the
-/// day, and [keysTheDay] is true for every date; it is kept so the rule has a name when other languages arrive.
+/// first (README, "What stage 1 left open"), so the day is in English words, in the phone's own order and commas
+/// (core/locale_dates.dart: "Friday, October 9, 2026" on an American phone, "Friday 9 October 2026" on a British
+/// one, and "Friday, 9 October 2026" until the phone has said). Each always keys the day, and [keysTheDay] is true
+/// for every date; it is kept so the rule has a name when other languages arrive.
 library;
 
 import '../notes/note_templates.dart' show formatStamp;
 import 'title_key.dart';
-import 'day_order.dart';
+import 'locale_dates.dart';
 
 /// Which of the four a name is (`NameKind`).
 enum NameKind { words, day, minute, week }
@@ -35,8 +37,9 @@ class NameOffer {
 const List<String> _weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const List<String> _months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-/// "Monday, 28 September 2026" (`longDate`, core/stamp.ts, as en-GB answers it).
-String longDate(DateTime at) => longDateWords(_weekdays[at.weekday - 1], at.day, _months[at.month - 1], at.year);
+/// The weekday, the day, the month and the year as the phone writes them (`longDate`, core/stamp.ts): "Monday,
+/// September 28, 2026" or "Monday 28 September 2026"; "Monday, 28 September 2026" until the phone has said.
+String longDate(DateTime at) => toldDate(at, DateForm.yMMMMEEEEd) ?? '${_weekdays[at.weekday - 1]}, ${at.day} ${_months[at.month - 1]} ${at.year}';
 
 /// "2026-09-28 14.05": the minute as a name, as a journal names an entry (`minuteName`).
 String minuteName(DateTime at) => formatStamp(at, 'YYYY-MM-DD HH.mm');

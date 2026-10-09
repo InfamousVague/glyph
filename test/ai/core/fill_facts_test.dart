@@ -1,8 +1,9 @@
 // The facts the phone works out itself. A port of src/app/core/fillFacts.test.ts, case for case, and after it the
 // web's own answers for a corpus of notes and for every zone's offsets (tool/ai_fixtures.mjs).
 //
-// The page's tests run "in British English" (`inLocale('en-GB', …)`); this app's dates are en-GB's always
-// (lib/ai/support/stamp.dart), so `inLocale` is nothing here.
+// The page's tests run "in British English" (`inLocale('en-GB', …)`); this app's dates are the day first until the
+// phone has said how it writes them (lib/ai/support/stamp.dart), so `inLocale` is nothing here. The last group tells
+// a phone's locale and holds the words to the page's own (lib/core/locale_dates.dart).
 
 import 'dart:convert';
 import 'dart:io';
@@ -14,6 +15,7 @@ import 'package:ghost_md/ai/support/time_zones.dart';
 import 'package:ghost_md/ai/support/unaccent.dart';
 import 'package:ghost_md/core/blanks.dart';
 import 'package:ghost_md/core/fill_facts.dart';
+import 'package:ghost_md/core/locale_dates.dart';
 
 /// Monday 28 September 2026, 14:05 in London: 13:05 UTC.
 final DateTime now = DateTime.utc(2026, 9, 28, 13, 5);
@@ -290,6 +292,39 @@ void main() {
       expect(clockTime(DateTime(2026, 9, 28, 0, 5)), '00:05');
       expect(longDay(at), 'Monday 28 September');
       expect(longDate(at), 'Monday, 28 September 2026');
+      expect(dayMonth(at), '28 September');
+    });
+  });
+
+  group('in the phone’s own words (core/locale_dates.dart)', () {
+    tearDown(() => toldLocale = null);
+    final at = DateTime(2026, 9, 28, 14, 5);
+
+    test('an American phone has the month first, and a 24-hour clock all the same', () {
+      toldLocale = DateLocale.enUS;
+      expect(stamp(at), 'Sep 28 2026, 14:05');
+      expect(clockTime(at), '14:05');
+      expect(longDay(at), 'Monday, September 28');
+      expect(longDate(at), 'Monday, September 28, 2026');
+      expect(dayMonth(at), 'September 28');
+      // And so what a blank is answered with, and its working.
+      expect(answer('3 weeks from today: {?}'), 'Monday, October 19, 2026');
+      expect((worked('Days until Christmas: {?}')! as WorkedAnswer).working, 'From today, Monday, September 28, 2026, to Friday, December 25, 2026. It changes each day.');
+      expect(answer('Tokyo is {?how many hours} ahead of London in October.'), '8 hours, 9 from October 25');
+      expect(answer('What time is it in Tokyo now? {?}'), '22:05 Monday');
+    });
+
+    test('a British phone has the day first and no comma after the weekday', () {
+      toldLocale = DateLocale.enGB;
+      expect(stamp(at), '28 Sept 2026, 14:05');
+      expect(clockTime(at), '14:05');
+      expect(longDay(at), 'Monday 28 September');
+      expect(longDate(at), 'Monday 28 September 2026');
+      expect(dayMonth(at), '28 September');
+      expect(answer('3 weeks from today: {?}'), 'Monday 19 October 2026');
+      expect((worked('Days until Christmas: {?}')! as WorkedAnswer).working, 'From today, Monday 28 September 2026, to Friday 25 December 2026. It changes each day.');
+      expect(answer('Tokyo is {?how many hours} ahead of London in October.'), '8 hours, 9 from 25 October');
+      expect(answer('What time is it in Tokyo now? {?}'), '22:05 Monday');
     });
   });
 }
