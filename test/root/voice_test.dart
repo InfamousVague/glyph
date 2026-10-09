@@ -438,7 +438,8 @@ void main() {
       await settle(tester, 3);
       expect(shellOf(tester).screen, isA<ScreenList>());
       expect(handlers, isNull);
-      expect(homeOf(tester).sideKey, isFalse);
+      // The empty page's hint is the page's own on any Android phone (`isAndroid`), whether or not the key answers.
+      expect(homeOf(tester).sideKey, isTrue);
       await close(tester);
     });
 

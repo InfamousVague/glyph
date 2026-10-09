@@ -188,14 +188,16 @@ void main() {
       await close(tester);
     });
 
-    testWidgets('has the cheat sheet, the bookmark and find, and no sharing without an account', (tester) async {
+    testWidgets('has the cheat sheet, the bookmark and find, and its sharing without an account too, where the row says to sign in first', (tester) async {
       final library = await open(tester);
       await openNote(tester, library.value.first.id);
       final seams = tester.widget<NoteScreen>(find.byType(NoteScreen)).seams;
       expect(seams.cheatSheet, isNotNull);
       expect(seams.bookmark, isNotNull);
       expect(seams.onFind, isNotNull);
-      expect(seams.sharingSection, isNull);
+      // NoteScreen.tsx `actions` and NoteSettings: Share and Sharing are there signed in or out.
+      expect(seams.sharingSection, isNotNull);
+      expect(seams.onShare, isNotNull);
       await close(tester);
     });
   });

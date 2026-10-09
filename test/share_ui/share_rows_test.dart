@@ -242,14 +242,15 @@ void main() {
   });
 
   group('the share sheet', () {
-    testWidgets('is the note’s title over its sharing rows', (tester) async {
+    testWidgets('is Share and the note’s title over its sharing rows', (tester) async {
       final device = await Device.make();
       device.keep('a', '# Trip');
       var closed = 0;
       await device.pump(tester, Stack(children: [ShareSheet(services: device.services, noteId: 'a', title: 'Trip', onClose: () => closed += 1)]), scroll: false);
       await settle(tester, 12);
       expect(find.byType(Sheet), findsOneWidget);
-      expect(find.text('Trip'), findsOneWidget);
+      // `<SheetTitle>Share {title || 'this note'}</SheetTitle>`
+      expect(find.text('Share Trip'), findsOneWidget);
       expect(find.text('SHARING'), findsOneWidget);
       expect(row(tester, 'Share a read-only link'), isNotNull);
       await endSettings(tester);
