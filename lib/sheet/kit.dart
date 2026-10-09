@@ -192,7 +192,9 @@ class SheetRow extends StatelessWidget implements SheetRuled {
   final bool? chosen;
   final bool danger;
 
-  static Widget _words(Object said) => said is Widget ? said : Text(said as String);
+  /// A row's words in [style]: a string in the page's exact line, a widget of the caller's own under the style.
+  static Widget _line(Object said, TextStyle style, Tokens t) =>
+      said is Widget ? DefaultTextStyle(style: style, child: said) : ExactLines.of(Text(said as String, style: style), normal: true, dpr: t.css.lineDpr);
 
   @override
   Widget build(BuildContext context) {
@@ -216,10 +218,13 @@ class SheetRow extends StatelessWidget implements SheetRuled {
         // `.label { display: grid; gap: 2px; min-inline-size: 0; font-weight: medium }`
         spacing: 2,
         children: [
-          DefaultTextStyle(style: pageText(t, md, weight: 'medium', color: color), child: _words(_label)),
+          // Each in the page's own line (`line-height: normal`: 19.43px for the label's 16.26, 16.38 for the hint's
+          // 13.47), where the engine's whole pixels made a row with a two-line hint a pixel short and a sheet of
+          // rows drift 1 to 2 device pixels a row beside the page's.
+          _line(_label, pageText(t, md, weight: 'medium', color: color), t),
           if (_hint != null)
             // `.hint { font-size: sm; font-weight: regular; color: var(--glacier-text-subtle); overflow-wrap: anywhere }`
-            DefaultTextStyle(style: pageText(t, sm, color: t.color('glacier-text-subtle')), child: _words(_hint)),
+            _line(_hint, pageText(t, sm, color: t.color('glacier-text-subtle')), t),
         ],
       );
       return ConstrainedBox(
