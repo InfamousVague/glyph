@@ -19,10 +19,9 @@
 /// - **This is not held to the page by measurement.** The cards are drawn on a new note's blank page, which is the
 ///   editor's (stage 4); the rules below are the stylesheet's, read and translated, and no rectangle of them was
 ///   measured on the running page.
-/// - **The note's top is drawn by lib/home/note_peek.dart**, by hand, where the page draws it in the note's own
-///   editor (`NotePeek` with `whole`, `look`, `openHeading`, `eager`). So a heading left open says `A name` in the
-///   heading's own ink, not the hint's faint one, a page to read is not set in its reading look, and the words are in
-///   the peek's own sizes.
+/// - **The note's top is `MarkdownView` with `whole`** (the page's `NotePeek` with `whole`, `look`, `openHeading`,
+///   `eager`): the note's own ink and heading proportions at the card's scale. A heading left open says `A name` in
+///   the heading's own ink, not the hint's faint one.
 /// - **A map at the top's header** (`editor/MapCard.tsx` `MapPicture`) is not ported: [TemplateCards.mapHeader]
 ///   builds it, and without one the card draws its words alone. Whether the device can say where it is, Local only,
 ///   and a refusal that stands are handed in ([TemplateCards.canLocate], [TemplateCards.localOnly],
@@ -39,7 +38,7 @@ import 'package:glacier/glacier.dart';
 
 import '../home/home_parts.dart';
 import '../home/home_text.dart';
-import '../home/note_peek.dart';
+import '../editor/markdown_view.dart';
 import 'note_templates.dart';
 import 'own_templates.dart';
 
@@ -215,22 +214,25 @@ class _Card extends StatelessWidget {
           child: SizedBox(
             height: t.lenOf('7rem'),
             child: ClipRect(
-              child: OverflowBox(
-                alignment: AlignmentDirectional.topStart,
-                maxHeight: double.infinity,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisSize: MainAxisSize.min,
-                  // `display: flex; flex-direction: column; gap: var(--glacier-space-2)`
-                  spacing: t.space(2),
-                  children: [
-                    if (header != null) header(context),
-                    // The peek draws a note after its title; a line stands in for one, so the template's own heading
-                    // is drawn as the top of the note it makes (the page's `whole`). A heading left open says what
-                    // goes in it, as the editor does (`openHeading`, editor/openHeading.ts: "A name").
-                    NotePeek(body: '.\n${filled.words.replaceFirstMapped(_openHeading, (found) => '${found[1]}A name')}'),
-                  ],
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                // `display: flex; flex-direction: column; gap: var(--glacier-space-2)`
+                spacing: t.space(2),
+                children: [
+                  if (header != null) header(context),
+                  // `<NotePeek … whole look openHeading />` under `.card .drawn > .words { flex: 1 1 0 }`: the top of
+                  // the note it makes in the note's own ink and heading proportions, taking what the header leaves and
+                  // fading at the picture's foot. A heading left open says what goes in it (editor/openHeading.ts:
+                  // "A name").
+                  Expanded(
+                    child: MarkdownView(
+                      markdown: filled.words.replaceFirstMapped(_openHeading, (found) => '${found[1]}A name'),
+                      whole: true,
+                      look: template.look?.name,
+                      fill: true,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
