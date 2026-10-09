@@ -202,6 +202,10 @@ final LookSheet _theme = LookSheet('live/editor_binding.dart', <LookRule>[
 
 final Extension _themed = baseTheme(_theme);
 
+/// The others' carets in an editor: the field that holds them ([setRemoteCarets]) and what draws them. What a
+/// bound team note's editor is given; here for a picture of them too.
+final Extension remoteCarets = Extension.list(<Extension>[_carets, _themed]);
+
 /// How long a caret rests before it is said to the room, and before the others' are placed again.
 const Duration _caretRest = Duration(milliseconds: 40);
 
@@ -250,7 +254,7 @@ class LiveBinding {
     final found = spliceBetween(view.state.doc.toString(), text.words);
     view.dispatch(TransactionSpec(
       changes: found == null ? null : Change(from: found.at, to: found.at + found.removed, insert: found.inserted),
-      effects: liveSlot.reconfigure(Extension.list(<Extension>[EditorViewLike.updateListener.of(_heard), if (room != null) _carets, if (room != null) _themed])),
+      effects: liveSlot.reconfigure(Extension.list(<Extension>[EditorViewLike.updateListener.of(_heard), if (room != null) remoteCarets])),
       annotations: _fromElsewhere,
     ));
     _stopSplices = text.onSplice(_arrived);
