@@ -29,7 +29,12 @@
 /// - **A date is not picked from a calendar** (`dayPicker` is not given): Today, Tomorrow and Next week are.
 /// - **A canvas has no picture picker and no comments**, for the same reasons; a team's canvas is
 ///   piece 6G. A canvas is not framed in a note from the + (`AddConfig.canvases` is not given).
-/// - **A board's card has no plugin's rows** (`drawnBoards(actions:)`): the plugins are stage 9.
+/// - **A board's card has no plugin's rows** (`drawnBoards(actions:)`).
+/// - **The plugins reach the note through the editor** (lib/editor/items/note_plugins.dart): a swipe on a list item
+///   and the quiet words after a line are asked of the app's registry as they are used, a linked to-do's box and
+///   its task are kept in step, a linked row opens its menu, and what the note is linked to is drawn at its top
+///   (lib/plugins/link_marks.dart), its press the note's More sheet. The More sheet's own "Linked to" rows
+///   (`NoteSeams.linked`, each plugin's page) are not given.
 library;
 
 import 'package:flutter/widgets.dart' hide Decoration;
@@ -67,6 +72,8 @@ import '../editor/view/editor_view.dart';
 import '../note/note_editor.dart';
 import '../note/note_place.dart';
 import '../note/note_screen.dart';
+import '../plugins/link_marks.dart';
+import '../plugins/types.dart' show NoteEditing;
 import '../notes/note_templates.dart' show NoteTemplate;
 import '../settings/panes/cheat_sheet.dart';
 import '../share/ui/share_rows.dart';
@@ -265,6 +272,11 @@ class NoteDeskState extends State<NoteDesk> {
     itemExtensions(
       wiki: WikiOptions(known: (title) => _world.known(title), open: (title, [anchor]) => _world.open(title, anchor), body: (title) => _world.bodyOf?.call(title)),
       openHeading: true,
+      // A swipe on an item, and the words offered after a line: the plugins', asked as they are used, so one
+      // switched on or off is followed without another editor.
+      swipe: () => itemSend(widget.noteId, _editing),
+      suggest: (body) => lineOffers(widget.noteId, _editing, body),
+      doneSyncs: true,
     ),
     drawnTables(),
     // Boards drawn as boards, the fence still there to edit (Editor.tsx `drawnBoards()`).
@@ -277,6 +289,7 @@ class NoteDeskState extends State<NoteDesk> {
       seams: MediaSeams(
         pictures: _world.pictures,
         openLink: _world.openLink,
+        linkMenus: LinkMenus(say: (message) => widget.say(message)),
         previewer: _world.previewer ?? noLinkPreviews,
         linkPreviews: () => _prefs.value.linkPreviews,
         switches: _prefs,
@@ -285,6 +298,9 @@ class NoteDeskState extends State<NoteDesk> {
     _plus.extension,
     findBarExtensions,
   ];
+
+  /// The note as a plugin changes it: through the editor, so each change is one undo and saves like typing.
+  NoteEditing get _editing => noteEditing(widget.noteId, _view, () => _view?.state.doc.toString() ?? '', (message) => widget.say(message));
 
   /// What the open note's queries read and do (shell/useQueries.ts): the library, a row opened, another note's
   /// to-do ticked or its field set, and a ticket typed at a lane's +.
@@ -504,6 +520,8 @@ class NoteDeskState extends State<NoteDesk> {
         openLink: _world.openLink,
         readOnly: widget.readOnly,
       ),
+      // What the note is linked to, at its top; pressed, the note's More sheet, where a link is changed.
+      head: (context, openSettings) => <Widget>[LinkMarks(noteId: widget.noteId, onPress: openSettings)],
       book: _book,
       journal: _journal,
       around: _around,

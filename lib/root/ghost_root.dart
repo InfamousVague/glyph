@@ -54,6 +54,9 @@ import '../core/workspaces.dart';
 import '../diag/scene_bench.dart' show showSceneBench;
 import '../diag/wisp_bench.dart' show showWispBench;
 import '../editor/queries/queries.dart' show NoteChange;
+import '../guide/guide.dart';
+import '../guide/guide_state.dart';
+import '../guide/guidebook.dart';
 import '../home/home_layout.dart';
 import '../home/home_screen.dart';
 import '../launch/launch_screen.dart';
@@ -76,6 +79,7 @@ import '../orgs/ui/new_organization_sheet.dart';
 import '../orgs/ui/org_news.dart';
 import '../orgs/ui/organization_log.dart';
 import '../orgs/ui/organization_screen.dart';
+import '../plugins/registry.dart' show plugins;
 import '../settings/organization_sheet.dart';
 import '../settings/settings_screen.dart';
 import '../settings/settings_sheet.dart';
@@ -126,7 +130,7 @@ import 'voice_wiring.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -171,6 +175,10 @@ class GhostRoot extends StatefulWidget {
   /// Builds the whole app anew, after a reset (`window.location.reload()`): whoever holds this root gives it. Absent,
   /// Developer's two resets cannot be pressed.
   final VoidCallback? restart;
+
+  /// The welcome walkthrough's place in the app (lib/guide/guide_state.dart). The app over a core makes its own,
+  /// which opens by itself on a first launch; a test brings one, or has none and is never walked through.
+  final GuideController? guide;
 
   /// Reads a linked page's title, site and summary (lib/core/link_preview.dart `linkPreviewFetch`). Absent, as in a
   /// test, a link's card says its site and its path and nothing is asked of anywhere.
@@ -299,6 +307,7 @@ class _GhostRootState extends State<GhostRoot> {
         flushDeletes: () => _made?.flushDeletes() ?? Future<void>.value(),
         clearStage: () {
           FocusManager.instance.primaryFocus?.unfocus();
+          _guide?.hide();
           if (mounted) {
             setState(() {
               _settings = false;
@@ -315,6 +324,8 @@ class _GhostRootState extends State<GhostRoot> {
         deleteNote: _library.destroy,
         fileNewNote: _workspaces.fileNewNote,
         untouched: _untouched,
+        tooSoon: () => _guide?.onReadingPage() ?? false,
+        sayTooSoon: () => _guide?.sayTooSoon(),
       ),
     );
     setState(() {
@@ -338,8 +349,8 @@ class _GhostRootState extends State<GhostRoot> {
     if (mounted) capture.boot();
   }
 
-  /// The meeting's state, whether the phone may notify, or the models changed: drawn again, after the frame where
-  /// one is being built.
+  /// The meeting's state, whether the phone may notify, the models or the screen changed: drawn again, after the
+  /// frame where one is being built.
   void _voiceChanged() {
     if (!mounted) return;
     if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
@@ -524,6 +535,26 @@ class _GhostRootState extends State<GhostRoot> {
               return removed.length;
             },
     );
+  }
+
+  /// The walkthrough (shell/useGuide.ts): open by itself on the first launch that is not the side key's capture,
+  /// and from Settings and the palette after. Made as the root is, the device's memory having been read by then.
+  late final GuideController? _guide = widget.guide ??
+      (_real ? GuideController(launchedByKey: (widget.voiceMaking?.assistant ?? false) && widget.voiceMaking?.launch == 'capture') : null);
+
+  /// The Ghost.md guide as a notebook (`onGuideBook`, `openSample`): read against the library as it is now, less
+  /// the trash, so a second press opens the first; then opened in a tab of its own.
+  Future<void> _openGuideBook() async {
+    setState(() => _settings = false);
+    try {
+      await _library.refresh();
+      final note = await addGuideBook(_library, outOfTrash(_library.value, _trash.value));
+      await _library.refresh();
+      if (mounted) _afterFrame((shell) => shell.openNote(note.id));
+    } catch (_) {
+      await _library.refresh().catchError((Object _) {});
+      if (mounted) _say(context, '$guideTitle did not load. Try again.');
+    }
   }
 
   /// The titles of linked pages, kept on this device (`core/linkPreview.ts`): asked only with Link previews on and
@@ -943,6 +974,9 @@ class _GhostRootState extends State<GhostRoot> {
   @override
   void dispose() {
     preferences.removeListener(_smoke);
+    preferences.removeListener(plugins.preferencesChanged);
+    _guide?.removeListener(_changed);
+    if (widget.guide == null) _guide?.dispose();
     _stopLinks?.call();
     _previews.dispose();
     _unwatchMeeting?.call();
@@ -966,6 +1000,9 @@ class _GhostRootState extends State<GhostRoot> {
     super.initState();
     _smoke();
     preferences.addListener(_smoke);
+    // Local only turning on or off changes which plugins are on without a switch moving.
+    preferences.addListener(plugins.preferencesChanged);
+    _guide?.addListener(_changed);
     _libraryChanges.addListener(_reads.changed);
     _open();
     unawaited(_account());
@@ -1140,6 +1177,8 @@ class _GhostRootState extends State<GhostRoot> {
         final gate = _gate;
         final voice = _voice;
         final capture = _capture;
+        final guide = _guide;
+        final recordingScreen = _shell.currentState?.screen.isRecording ?? false;
         // As last known: asking the service afresh tells its listeners, and this is a build.
         final meetingNow = voice?.live?.state;
         final recordingNow = (meetingNow?.recording ?? false) ? meetingNow?.noteId : null;
@@ -1171,7 +1210,11 @@ class _GhostRootState extends State<GhostRoot> {
                 preferences.update((now) => now.copyWith(openNotes: open));
                 _left();
               },
-              onScreenChanged: (_) => _left(),
+              // And the walkthrough steps aside for a recorder, so the root is drawn again with the screen.
+              onScreenChanged: (_) {
+                _left();
+                _voiceChanged();
+              },
               untouchedEntryOf: (id) => _untouched.recordOf(id)?.journalId,
               onTabGroupsChanged: (groups) => preferences.update((now) => now.copyWith(tabGroups: groups)),
               onSettings: () => setState(() => _settings = true),
@@ -1343,6 +1386,13 @@ class _GhostRootState extends State<GhostRoot> {
                 setState(() => _settings = false);
                 _shell.currentState?.show(const Screen.academy());
               },
+              onGuide: guide == null
+                  ? null
+                  : () {
+                      setState(() => _settings = false);
+                      guide.show(0);
+                    },
+              onGuideBook: () => unawaited(_openGuideBook()),
             ),
             CommandBar.over(
               key: _commands,
@@ -1356,6 +1406,7 @@ class _GhostRootState extends State<GhostRoot> {
                 newJournal: () => _newBook(NewBookKind.journal),
                 newEntry: (id) => unawaited(_newEntry(id)),
                 academy: () => _shell.currentState?.show(const Screen.academy()),
+                guide: guide == null ? null : () => guide.show(0),
                 speak: _capture == null ? null : _speak,
                 speakInto: _capture == null ? null : (id) => unawaited(_speakInto(id)),
                 openNoteWhereLeft: (id) {
@@ -1468,6 +1519,24 @@ class _GhostRootState extends State<GhostRoot> {
               onOpen: (id) => _shell.currentState?.openOrganization(id),
               onAccount: _toAccount,
             ),
+            // The walkthrough, over everything but the way into an account, and never over a recorder: it is taken
+            // away while a capture is on screen and comes back, at its page, when the capture ends.
+            if (guide != null && guide.open && !(gate?.open ?? false) && !recordingScreen)
+              Guide(
+                index: guide.page,
+                tooSoon: guide.tooSoon,
+                onIndex: guide.turn,
+                recordsVoice: capture != null,
+                onClose: () {
+                  guide.close();
+                  // The list underneath loaded while the guide was up; ask again now it shows.
+                  unawaited(_library.refresh().catchError((Object _) {}));
+                },
+                onAcademy: () {
+                  guide.close();
+                  _shell.currentState?.show(const Screen.academy());
+                },
+              ),
             if (_launching) LaunchScreen(loading: !_read, notes: _shown.length, onDone: () => setState(() => _launching = false)),
           ],
           ),

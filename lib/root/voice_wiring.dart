@@ -27,7 +27,6 @@
 ///   answers no, and a finished write-up's result is not landed in its note.
 /// - **A tape's player** (`tapes/useTape.ts`'s `<audio>`): lib/tapes/player.dart's `TapePlayer` has no phone half,
 ///   so the tape at the top of a spoken note is not drawn.
-/// - **The plugins' spoken formattings and tips** ([Recorder.spokenFormats], [Recorder.pluginTips]).
 library;
 
 import 'dart:async';
@@ -49,12 +48,15 @@ import '../capture/meeting_live.dart';
 import '../capture/native_backend.dart';
 import '../capture/recorder.dart';
 import '../capture/refine.dart';
+import '../capture/spoken/inline.dart' show SpokenFormat;
+import '../capture/tips.dart' show Tip;
 import '../capture/system_sound.dart' show SoundSupport;
 import '../core/library.dart';
 import '../core/native/ghost_core.dart';
 import '../core/preferences.dart';
 import '../core/stored.dart';
 import '../editor/media/clip_refs.dart' show TapeIds;
+import '../plugins/registry.dart' show plugins;
 import '../tapes/player.dart' show markAudioRemoved;
 
 /// `--dart-define=GHOST_MODELS=http://…`: where this build fetches a voice or language model from. Empty in every
@@ -327,6 +329,12 @@ class Voice {
               )
           : null,
       published: published ?? ((_) => false),
+      // The switched-on plugins' formattings that can be said like bold, and their tips for a pause.
+      spokenFormats: () => [
+        for (final format in plugins.formats())
+          if (format.cue case final String cue when cue.isNotEmpty) SpokenFormat(word: cue, delimiter: format.delimiter),
+      ],
+      pluginTips: (recent) => [for (final tip in plugins.tips(recent)) Tip(say: tip.say, does: tip.does)],
       // A command the rules could not place, read by the model on this phone; a long job in the core.
       startInference: (words) => inferInstruction(
         words,

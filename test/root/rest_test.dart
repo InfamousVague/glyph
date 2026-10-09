@@ -2,7 +2,13 @@ import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/academy/academy_screen.dart';
 import 'package:ghost_md/account/api.dart' show FetchRequest;
+import 'package:ghost_md/core/book.dart' show isGuideBook;
 import 'package:ghost_md/core/link_preview.dart';
+import 'package:ghost_md/core/note_text.dart';
+import 'package:ghost_md/guide/guide.dart';
+import 'package:ghost_md/note/note_screen.dart';
+import 'package:ghost_md/guide/guide_state.dart';
+import 'package:ghost_md/plugins/link_marks.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/stored.dart';
@@ -29,7 +35,7 @@ void main() {
 
   late List<String> asked;
 
-  Future<SampleLibrary> open(WidgetTester tester, {bool previews = false}) async {
+  Future<SampleLibrary> open(WidgetTester tester, {bool previews = false, GuideController? guide}) async {
     final library = SampleLibrary.seeded();
     asked = [];
     await pumpApp(
@@ -41,6 +47,7 @@ void main() {
         workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())),
         clock: () => seedNow,
         stored: MemoryStored(),
+        guide: guide,
         previewFetch: previews
             ? (url) async {
                 asked.add(url);
@@ -97,6 +104,76 @@ void main() {
       expect(shellOf(tester).screen, isA<ScreenList>());
       tester.widget<SettingsSheet>(find.byType(SettingsSheet)).onClose();
       await settle(tester, 3);
+      await close(tester);
+    });
+  });
+
+  group('the walkthrough', () {
+    testWidgets('is up on a first launch, closes for good, and comes back from Settings', (tester) async {
+      useStored(MemoryStored());
+      addTearDown(() => useStored(MemoryStored()));
+      final guide = GuideController();
+      expect(guide.open, isTrue);
+      await open(tester, guide: guide);
+      expect(find.byType(Guide), findsOneWidget);
+      tester.widget<Guide>(find.byType(Guide)).onClose();
+      await settle(tester, 3);
+      expect(find.byType(Guide), findsNothing);
+      expect(GuideController().open, isFalse, reason: 'seen: it does not open by itself again');
+      tester.widget<SettingsSheet>(find.byType(SettingsSheet)).onGuide!();
+      await settle(tester, 3);
+      expect(find.byType(Guide), findsOneWidget);
+      // Its last page's other way out is the Academy.
+      tester.widget<Guide>(find.byType(Guide)).onAcademy();
+      await settle(tester);
+      expect(find.byType(Guide), findsNothing);
+      expect(shellOf(tester).screen, isA<ScreenAcademy>());
+      await close(tester);
+    });
+
+    testWidgets('is not there in an app that was given none', (tester) async {
+      await open(tester);
+      expect(find.byType(Guide), findsNothing);
+      expect(tester.widget<SettingsSheet>(find.byType(SettingsSheet)).onGuide, isNull);
+      await close(tester);
+    });
+  });
+
+  group('the guide as a notebook', () {
+    testWidgets('is added once from Settings and opened, and a second press opens the first', (tester) async {
+      final library = await open(tester);
+      final before = library.value.length;
+      await tester.runAsync(() async {
+        tester.widget<SettingsSheet>(find.byType(SettingsSheet)).onGuideBook!();
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      });
+      await settle(tester);
+      final book = library.noteOf(shellOf(tester).shown!)!;
+      expect(isGuideBook(book), isTrue);
+      final after = library.value.length;
+      expect(after, greaterThan(before + 1), reason: 'its chapters and its index');
+      shellOf(tester).backToList();
+      await settle(tester, 2);
+      await tester.runAsync(() async {
+        tester.widget<SettingsSheet>(find.byType(SettingsSheet)).onGuideBook!();
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      });
+      await settle(tester);
+      expect(library.value.length, after);
+      expect(shellOf(tester).shown, book.id);
+      await close(tester);
+    });
+  });
+
+  group('the plugins in a note', () {
+    testWidgets('have their place at its top, and the note\'s More sheet behind its press', (tester) async {
+      final library = await open(tester);
+      shellOf(tester).openNote(library.value.firstWhere((note) => noteTitle(note.body) == 'Packing').id);
+      await settle(tester);
+      expect(find.byType(NoteScreen), findsOneWidget);
+      expect(tester.widget<NoteScreen>(find.byType(NoteScreen)).seams.head, isNotNull);
+      expect(find.byType(LinkMarks, skipOffstage: false), findsOneWidget);
+      expect(tester.widget<LinkMarks>(find.byType(LinkMarks, skipOffstage: false)).onPress, isNotNull);
       await close(tester);
     });
   });

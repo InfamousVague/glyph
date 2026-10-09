@@ -107,6 +107,7 @@ class NoteSeams {
     this.writtenBookmark,
     this.onAi,
     this.linked,
+    this.head,
     this.cheatSheet,
     this.location,
     this.shareVersionsFile,
@@ -149,6 +150,11 @@ class NoteSeams {
 
   /// What the note is linked to: plugins' rows (plugins/registry.ts).
   final List<Widget> Function(BuildContext context)? linked;
+
+  /// What sits at the top of a note of words, under its notebook's bar and its byline and over its words: the
+  /// recording's tape (tapes/NoteTape.tsx) and what the note is linked to (plugins/LinkMarks.tsx), whose press is
+  /// [openSettings], the note's More sheet.
+  final List<Widget> Function(BuildContext context, VoidCallback openSettings)? head;
 
   /// The formatting cheat sheet's page (guide/CheatSheet.tsx).
   final WidgetBuilder? cheatSheet;
@@ -1056,6 +1062,8 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
         // Who wrote it, when it names anyone: a book says so for all its pages, in its index.
         if (!_paging && authors.isNotEmpty) SliverToBoxAdapter(child: NoteByline(authors: authors, start: columnStart)),
         // Where it was written: the map at the top of the note, where the page scrolls with the words.
+        if (_words && seams.head != null)
+          for (final row in seams.head!(context, _openSettings)) SliverToBoxAdapter(child: row),
         if (tag != null && _words && seams.mapCard != null) SliverToBoxAdapter(child: seams.mapCard!(context, tag, header: look == Look.map)),
         if (_drawing) SliverFillRemaining(hasScrollBody: true, child: _view0(context)) else if (!_words) SliverToBoxAdapter(child: _view0(context)),
         // The editor stays mounted behind a canvas or an index, hidden, so its caret keeps its place.
