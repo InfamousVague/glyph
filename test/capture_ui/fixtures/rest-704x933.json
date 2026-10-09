@@ -1,0 +1,135 @@
+{
+ "from": "The Tauri app's own page in its WebView (Chrome 133) on an emulator set to the Fold's inner display: wm size 1848x2448 at 420 dpi, a window of 704 x 933.33 at a device pixel ratio of 2.625, signed out, dark, the recorder opened from the dock's microphone four seconds before, recording silence; read through the WebView's devtools socket with getBoundingClientRect, unrounded, 2026-10-09.",
+ "viewport": {
+  "width": 704,
+  "height": 933.33,
+  "devicePixelRatio": 2.625
+ },
+ "vars": {
+  "--app-safe-top": "61px",
+  "--app-safe-bottom": "0px"
+ },
+ "notes": "The status bar is 159 device pixels there, which the WebView gives the page as 61px (rounded up to a whole CSS pixel). The page had no bottom inset under the gesture bar. The lines name the library's own note (How to format a note); the hint was the side key's.",
+ "rects": {
+  "top": {
+   "x": 0,
+   "y": 0,
+   "width": 704,
+   "height": 141.69642639160156
+  },
+  "mic": {
+   "x": 23.73214340209961,
+   "y": 96.7202377319336,
+   "width": 14,
+   "height": 14
+  },
+  "where": {
+   "x": 56.720237731933594,
+   "y": 75.23809814453125,
+   "width": 62.136905670166016,
+   "height": 56.96428680419922
+  },
+  "counter": {
+   "x": 650.0059814453125,
+   "y": 95.33928680419922,
+   "width": 30.261905670166016,
+   "height": 16.761905670166016
+  },
+  "livePage": {
+   "x": 0,
+   "y": 0,
+   "width": 704,
+   "height": 334.13690185546875
+  },
+  "line0": {
+   "x": 0,
+   "y": 165.73214721679688,
+   "width": 704,
+   "height": 29.1488094329834
+  },
+  "ghost": {
+   "x": 260.3988037109375,
+   "y": 348.375,
+   "width": 183.20237731933594,
+   "height": 186.6607208251953
+  },
+  "pageHint": {
+   "x": 23.73214340209961,
+   "y": 544.52978515625,
+   "width": 656.5357055664062,
+   "height": 16.761905670166016
+  },
+  "sayCard": {
+   "x": 23.73214340209961,
+   "y": 575.52978515625,
+   "width": 656.5357055664062,
+   "height": 258.1190490722656
+  },
+  "sayTitle": {
+   "x": 43.48214340209961,
+   "y": 590.52978515625,
+   "width": 617.0357055664062,
+   "height": 13.714285850524902
+  },
+  "sayHeading0": {
+   "x": 43.48214340209961,
+   "y": 618.482177734375,
+   "width": 617.0357055664062,
+   "height": 13.714285850524902
+  },
+  "sayHeading1": {
+   "x": 43.48214340209961,
+   "y": 690.0833740234375,
+   "width": 617.0357055664062,
+   "height": 13.714285850524902
+  },
+  "sayLine0": {
+   "x": 43.48214340209961,
+   "y": 636.9404907226562,
+   "width": 617.0357055664062,
+   "height": 18.452381134033203
+  },
+  "sayLine1": {
+   "x": 43.48214340209961,
+   "y": 657.3928833007812,
+   "width": 617.0357055664062,
+   "height": 18.452381134033203
+  },
+  "sayLine2": {
+   "x": 43.48214340209961,
+   "y": 708.5416870117188,
+   "width": 617.0357055664062,
+   "height": 18.452381134033203
+  },
+  "sayLine3": {
+   "x": 43.48214340209961,
+   "y": 728.9940795898438,
+   "width": 617.0357055664062,
+   "height": 18.452381134033203
+  },
+  "sayFoot": {
+   "x": 43.48214340209961,
+   "y": 761.6845092773438,
+   "width": 104.86904907226562,
+   "height": 56.96428680419922
+  },
+  "footer": {
+   "x": 23.73214340209961,
+   "y": 847.8869018554688,
+   "width": 656.5357055664062,
+   "height": 85.44642639160156
+  },
+  "discard": {
+   "x": 23.73214340209961,
+   "y": 857.3809814453125,
+   "width": 57.958335876464844,
+   "height": 56.96428680419922
+  },
+  "done": {
+   "x": 556.357177734375,
+   "y": 857.3809814453125,
+   "width": 123.91071319580078,
+   "height": 56.96428680419922
+  }
+ }
+}

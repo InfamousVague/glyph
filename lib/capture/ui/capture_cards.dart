@@ -515,7 +515,12 @@ class CardEyebrow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final size = t.fontSize('xs');
-    return Text(text.toUpperCase(), style: t.textAt(size, weight: 'bold', color: t.color('app-ink-3'), tracking: t.len('app-tracking-caps', em: size)));
+    // The line is the page's to the device pixel (13.33px on a phone 476 wide, where the engine's whole pixel is 13).
+    return ExactLines.of(
+      Text(text.toUpperCase(), style: t.textAt(size, weight: 'bold', color: t.color('app-ink-3'), tracking: t.len('app-tracking-caps', em: size))),
+      normal: true,
+      dpr: t.css.lineDpr,
+    );
   }
 }
 

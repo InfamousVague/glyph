@@ -226,6 +226,11 @@ class Capture {
   /// sets none.
   EdgeInsets insets = const EdgeInsets.only(top: 36, bottom: 20);
 
+  /// The window's device pixels to the logical one, and the ratio of the page the case's rectangles were read from
+  /// (`pumpScreen`): a desktop Chromium's unless a case was measured on a phone.
+  double ratio = 2;
+  double measuredAt = 1;
+
   /// Set, the recorder's clock stands still there: the scripted voice says no more and the microphone hands nothing
   /// on, as the measuring script stops the page's clock at the moment it reads.
   double? frozen;
@@ -334,7 +339,7 @@ class Capture {
       onMeeting: offersMeeting ? () => meetings += 1 : null,
       onFinish: (note, locked, {review, ask, landing}) => finished.add((note: note, locked: locked, review: review, ask: ask, landing: landing)),
     );
-    await pumpScreen(tester, screen, size: size, prefs: prefs.copyWith(theme: theme), insets: insets);
+    await pumpScreen(tester, screen, size: size, prefs: prefs.copyWith(theme: theme), insets: insets, ratio: ratio, measuredAt: measuredAt);
     if (wait && script == null) await until(() => handlers != null);
     await settle();
   }

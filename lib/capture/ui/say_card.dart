@@ -67,7 +67,7 @@ class SayCard extends StatelessWidget {
             children: [
               AppIcon(group.icon, size: 13, strokeWidth: 2.2, color: ink3),
               SizedBox(width: 0.4 * xs),
-              Flexible(child: Text(group.heading, style: t.textAt(xs, weight: 'semibold', color: ink3))),
+              Flexible(child: ExactLines.of(Text(group.heading, style: t.textAt(xs, weight: 'semibold', color: ink3)), normal: true, dpr: t.css.lineDpr)),
             ],
           ),
           SizedBox(height: t.space(1)),
@@ -81,14 +81,18 @@ class SayCard extends StatelessWidget {
             //   overflow-wrap: anywhere;
             // }
             // .say { color: var(--app-ink); font-weight: var(--glacier-font-weight-semibold); }
-            Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(text: '“${tips[i].say}”', style: t.textAt(sm, weight: 'semibold', color: t.color('app-ink'), height: 1.35)),
-                  TextSpan(text: ' ${tips[i].does}'),
-                ],
+            // The line as tall as the page's (18.45px at this size, where the engine's is 18): four of them stood the
+            // card's foot five device pixels short.
+            ExactLines.of(
+              Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(text: '“${tips[i].say}”', style: t.textAt(sm, weight: 'semibold', color: t.color('app-ink'), height: 1.35)),
+                    TextSpan(text: ' ${tips[i].does}'),
+                  ],
+                ),
+                style: t.textAt(sm, color: ink3, height: 1.35),
               ),
-              style: t.textAt(sm, color: ink3, height: 1.35),
             ),
           ],
         ],

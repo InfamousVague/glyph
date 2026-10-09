@@ -311,4 +311,62 @@ void main() {
       });
     });
   }
+
+  // The Fold opened: a window of 704 x 933 at 2.625, where the page was read in the Tauri app itself, beside this
+  // port on the same emulator (`fixtures/rest-704x933.json` says how). A line of `line-height: normal` is rounded
+  // there in the phone's own pixels, a line of 1.35 is 18.45px, and the status bar is the whole 61px a WebView
+  // makes of 159 device pixels: the top line's words stood two device pixels high and the card's foot five short
+  // before each was the page's.
+  group('the recorder on the Fold opened (704 x 933 at 2.625)', () {
+    testWidgets('at rest stands where the page has it in the Tauri app on the same window', (tester) async {
+      const size = Size(704, 933.33);
+      final web = jsonDecode(File('test/capture_ui/fixtures/rest-704x933.json').readAsStringSync()) as Map<String, Object?>;
+      final capture = Capture(tester, script: const {'simulate': 'say', 'say': 'Hello there.'})
+        ..insets = const EdgeInsets.only(top: 61)
+        ..ratio = 2.625
+        ..measuredAt = 2.625;
+      capture.prefs = capture.prefs.copyWith(wisp: false, ripples: false);
+      for (final (id, body) in notes) {
+        capture.notes.create(id, body);
+      }
+      await capture.open(size: size, offersMeeting: true, theme: 'dark');
+      await run(capture, () => capture.hasSayCard && capture.textOf(capture.sayCard).contains('Shopping list'));
+      await rest(tester);
+
+      Rect? of(Finder finder) => finder.evaluate().isEmpty ? null : tester.getRect(finder.first);
+      final say = of(find.byType(SayCard))!;
+      final space = tester.element(find.byType(SayCard)).tokens.space(3);
+      held(web, {
+        'top': of(find.byType(HeaderPane)),
+        'where': of(find.byKey(CaptureScreen.whereKey)),
+        'counter': of(find.byKey(CaptureScreen.counterKey)),
+        'discard': of(find.byKey(CaptureScreen.discardKey)),
+        'done': of(find.byKey(CaptureScreen.doneKey)),
+        'livePage': of(find.byType(LivePage)),
+        'line0': tester.state<LivePageState>(find.byType(LivePage)).lineRects.firstOrNull,
+        'ghost': of(find.byType(Ghost)),
+        'pageHint': of(find.text('Tap Done to stop.')),
+        'sayCard': Rect.fromLTRB(say.left, say.top, say.right, say.bottom - space),
+        'sayTitle': of(find.text('THINGS TO SAY')),
+        'sayLine0': of(find.textContaining('Bullet point', findRichText: true)),
+        'sayLine1': of(find.textContaining('The next item is', findRichText: true)),
+        'sayLine2': of(find.textContaining('to Shopping list”', findRichText: true)),
+        'sayLine3': of(find.textContaining('Move this to Shopping list', findRichText: true)),
+        'sayFoot': of(find.widgetWithText(AppWord, 'Meeting instead')),
+      }, placeOnly: const {
+        // The page's are blocks the width of their column and these are their words; the hint's words are the
+        // side key's on the page and Done's here, a test's recorder having no phone under it.
+        'ghost',
+        'pageHint',
+        'where',
+        'counter',
+        'sayTitle',
+        'sayLine0',
+        'sayLine1',
+        'sayLine2',
+        'sayLine3',
+      });
+      await capture.close();
+    });
+  });
 }

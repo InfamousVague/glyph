@@ -1472,6 +1472,9 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
     final gutters = EdgeInsets.only(left: t.len('app-gutter-start'), right: t.len('app-gutter-end'));
     final small = t.textAt(t.fontSize('sm'), color: t.color('app-ink-3'));
     final shortWindow = MediaQuery.sizeOf(context).height <= 560;
+    // A line of `line-height: normal` as tall as the page's and its words on the page's baseline, which the engine
+    // would round to a whole pixel (the kit's `ExactLines`): the top line's words stood two device pixels high.
+    Widget line(Text text) => ExactLines.of(text, normal: true, dpr: t.css.lineDpr);
     _measureTop();
 
     // ---- the line at the top ----
@@ -1512,19 +1515,21 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
                 child: Row(
                   children: [
                     if (status != null)
-                      Flexible(child: Text(status, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: small))
+                      Flexible(child: line(Text(status, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: small)))
                     else
                       // Tapping the line shows what the pipeline has done, for diagnosing a silent capture.
                       Flexible(
                         child: AppWord(
                           key: CaptureScreen.whereKey,
                           onPressed: () => setState(() => _showDiagnostics = !_showDiagnostics),
-                          child: Text(
-                            whereLine(target?.body, locked, routed: _routed, named: _pendingTitle, meeting: meeting),
-                            maxLines: 1,
-                            softWrap: false,
-                            overflow: TextOverflow.ellipsis,
-                            style: t.textAt(t.fontSize('sm'), weight: 'medium', color: t.color('app-ink-3')),
+                          child: line(
+                            Text(
+                              whereLine(target?.body, locked, routed: _routed, named: _pendingTitle, meeting: meeting),
+                              maxLines: 1,
+                              softWrap: false,
+                              overflow: TextOverflow.ellipsis,
+                              style: t.textAt(t.fontSize('sm'), weight: 'medium', color: t.color('app-ink-3')),
+                            ),
                           ),
                         ),
                       ),
@@ -1536,7 +1541,7 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
               Semantics(
                 label: 'Recorded ${counter(_recorded)}',
                 excludeSemantics: true,
-                child: Text(counter(_recorded), key: CaptureScreen.counterKey, style: small.copyWith(color: t.color('app-ink-2'), fontFeatures: const [FontFeature.tabularFigures()])),
+                child: line(Text(counter(_recorded), key: CaptureScreen.counterKey, style: small.copyWith(color: t.color('app-ink-2'), fontFeatures: const [FontFeature.tabularFigures()]))),
               ),
             ],
           ),
@@ -1628,7 +1633,7 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
         ? Padding(
             // `.pageHint { margin: 0 0 var(--glacier-space-3); font-size: sm; color: var(--app-ink-3) }`
             padding: gutters.copyWith(bottom: t.space(3)),
-            child: Align(alignment: Alignment.centerLeft, child: Text(stopHint(widget.fromAssistant, _pressStops, _quiet != null), style: small)),
+            child: Align(alignment: Alignment.centerLeft, child: line(Text(stopHint(widget.fromAssistant, _pressStops, _quiet != null), style: small))),
           )
         : null;
 
@@ -1673,7 +1678,7 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
           Padding(
             // `.diagnostics { margin: 0 0 var(--glacier-space-2); font-size: xs; color: ink-3; text-align: center }`
             padding: gutters.copyWith(bottom: t.space(2)),
-            child: Text(diagnosticsLine(_session.engine, _diagnostics), textAlign: TextAlign.center, style: t.textAt(t.fontSize('xs'), color: t.color('app-ink-3'))),
+            child: line(Text(diagnosticsLine(_session.engine, _diagnostics), textAlign: TextAlign.center, style: t.textAt(t.fontSize('xs'), color: t.color('app-ink-3')))),
           ),
         Padding(
           // `.footer { padding-block: var(--glacier-space-2) calc(var(--app-safe-bottom) + var(--glacier-space-4)) }`
@@ -1742,7 +1747,11 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
 
   /// `.app-word.newNote`: the word after the line, in ink, semibold, at the line's size.
   Widget _topWord(Tokens t, TextStyle small, String word, VoidCallback onPressed) =>
-      AppWord(key: CaptureScreen.actionKey, onPressed: onPressed, child: Text(word, maxLines: 1, softWrap: false, style: t.textAt(t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink'))));
+      AppWord(
+        key: CaptureScreen.actionKey,
+        onPressed: onPressed,
+        child: ExactLines.of(Text(word, maxLines: 1, softWrap: false, style: t.textAt(t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink'))), normal: true, dpr: t.css.lineDpr),
+      );
 }
 
 /// A caught thing as words (`core/failure.ts` `failureText`): an error's message, or the thing itself as text.
