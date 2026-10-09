@@ -1375,6 +1375,16 @@ class _GhostRootState extends State<GhostRoot> {
           if (!(_made?.hidden.contains(note.id) ?? false)) note,
       ];
   List<Note> get _trashed => inTrash(_library.value, _trash.value);
+
+  /// The notes made in this run that have no file yet (`CoreLibrary.isDraft`): the core leaves them out of its list.
+  Set<String> get _drafts {
+    final library = _library;
+    if (library is! CoreLibrary) return const {};
+    return {
+      for (final note in library.value)
+        if (library.isDraft(note.id)) note.id,
+    };
+  }
   late final Stored _stored = widget.stored ?? stored;
   late final Listenable _all = Listenable.merge([_library, _workspaces, _trash, preferences, _services?.changes]);
 
@@ -1711,6 +1721,8 @@ class _GhostRootState extends State<GhostRoot> {
               key: _shell,
               sheet: widget.sheet ?? context.tokens.sheet,
               notes: _shown,
+              // A note with no words yet is its own screen's alone, as on the page, whose list never holds it.
+              drafts: _drafts,
               topBar: TopBarStyle.parse(prefs.topBar),
               sidebarStyle: prefs.sidebarStyle == 'docked' ? SidebarStyle.docked : SidebarStyle.popover,
               workspaces: _workspaces.value,

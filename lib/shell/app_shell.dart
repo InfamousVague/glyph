@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -86,6 +87,7 @@ class AppShell extends StatefulWidget {
     required this.notes,
     this.hidden = const {},
     this.trash = const {},
+    this.drafts = const {},
     this.topBar = TopBarStyle.classic,
     this.sidebarStyle = SidebarStyle.popover,
     this.workspaces = const Workspaces(),
@@ -137,6 +139,13 @@ class AppShell extends StatefulWidget {
   /// by any screen, drawn as a tab, or landed on by an arrow (shell/visible_notes.dart).
   final Set<String> hidden;
   final Map<String, int> trash;
+
+  /// The ids of notes made here that have no words and no file yet (lib/core/core_library.dart `isDraft`). The
+  /// page's list never holds one, so it is in no list, has no tab and is no place an arrow lands on until its first
+  /// words are kept: only its own screen, which it is handed straight to, shows it. With no other tab open a new
+  /// note's page therefore starts a row of tabs higher (seen beside the Tauri app, whose "Write something." stood
+  /// 46px over the port's, which drew an "Untitled" tab for it).
+  final Set<String> drafts;
 
   /// How the top bar is laid out (Settings › Appearance).
   final TopBarStyle topBar;
@@ -246,7 +255,10 @@ class AppShellState extends State<AppShell> {
       OpenTabsController(open: widget.openNotes, groups: widget.tabGroups, onOpenChanged: (open) => widget.onOpenNotesChanged?.call(open), onGroupsChanged: (groups) => widget.onTabGroupsChanged?.call(groups));
   final TrailController _walk = TrailController();
   final TopBarTools _barTools = TopBarTools();
-  late VisibleNotes _seen = visibleNotes(widget.notes, hidden: widget.hidden, trash: widget.trash);
+  late VisibleNotes _seen = _see();
+
+  /// The notes every screen is handed: none held back by a pending delete, none in the trash, and no draft.
+  VisibleNotes _see() => visibleNotes(widget.notes, hidden: widget.drafts.isEmpty ? widget.hidden : {...widget.hidden, ...widget.drafts}, trash: widget.trash);
 
   bool _drawer = false;
   bool _notificationsOpen = false;
@@ -291,8 +303,8 @@ class AppShellState extends State<AppShell> {
   void didUpdateWidget(AppShell oldWidget) {
     super.didUpdateWidget(oldWidget);
     final old = oldWidget;
-    if (!identical(old.notes, widget.notes) || !identical(old.hidden, widget.hidden) || !identical(old.trash, widget.trash)) {
-      _seen = visibleNotes(widget.notes, hidden: widget.hidden, trash: widget.trash);
+    if (!identical(old.notes, widget.notes) || !identical(old.hidden, widget.hidden) || !identical(old.trash, widget.trash) || !setEquals(old.drafts, widget.drafts)) {
+      _seen = _see();
     }
     // Another device's row, or its groups, read again from the preferences.
     if (!identical(old.tabGroups, widget.tabGroups)) _tabs.groupsFromElsewhere(widget.tabGroups);
