@@ -23,8 +23,8 @@ class LucideIcon {
 /// the svg's width and height; the stroke is in the icon's own 24 units and grows with the size, as lucide's does.
 /// The colour is the `IconTheme`'s, else the text's (`currentColor`), unless [color] is given.
 ///
-/// What differs from the page: nothing drawn; `lucide_icons_flutter`'s font, which the app also carries, has one
-/// fixed stroke and no wash, which is why these are drawn from the paths.
+/// What differs from the page: nothing drawn; an icon font (`lucide_icons_flutter`, which the app carried until
+/// nothing drew from it) has one fixed stroke and no wash, which is why these are drawn from the paths.
 class AppIcon extends StatelessWidget {
   const AppIcon(this.icon, {super.key, this.size = 24, this.strokeWidth = 2, this.color, this.wash = true, this.semanticLabel});
 

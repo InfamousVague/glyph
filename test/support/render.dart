@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -10,8 +9,9 @@ import 'package:ghost_md/main.dart';
 import 'package:glacier/glacier.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// A test draws text as boxes unless the faces are loaded by hand. This loads the app's own (pubspec.yaml) and each
-/// package's icon font, so a picture taken in a test is the picture the phone draws.
+/// A test draws text as boxes unless the faces are loaded by hand. This loads the app's own (pubspec.yaml), so a
+/// picture taken in a test is the picture the phone draws. (The icons are drawn from their paths, lib/art, and
+/// need no face.)
 Future<void> loadAppFonts() async {
   // Storage that answers, and holds nothing: without it the preferences' first read asks the real device, which
   // never answers under a test's clock, and every test that draws the app hangs. A test that wants something kept
@@ -40,13 +40,6 @@ Future<void> loadAppFonts() async {
   }
 
   await pubspec('pubspec.yaml');
-  final config = jsonDecode(File('.dart_tool/package_config.json').readAsStringSync()) as Map<String, dynamic>;
-  for (final package in (config['packages'] as List).cast<Map<String, dynamic>>()) {
-    if (package['name'] != 'lucide_icons_flutter') continue;
-    final at = Uri.parse(package['rootUri'] as String).toFilePath();
-    final root = at.endsWith('/') ? at : '$at/';
-    await pubspec('${root}pubspec.yaml', prefix: 'packages/lucide_icons_flutter/', root: root);
-  }
 }
 
 /// The app on a phone's screen (or [size]), ready for a picture: real fonts, real shadows, the token sheets the app
