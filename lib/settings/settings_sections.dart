@@ -6,6 +6,8 @@ import '../plugins/registry.dart' show plugins;
 import 'appearance_pane.dart';
 import 'kit/settings_icons.dart';
 import 'kit/settings_kit.dart';
+import 'panes/backup_pane.dart';
+import 'panes/library_folder_pane.dart';
 import 'panes/about_pane.dart';
 import 'panes/account_pane.dart';
 import 'panes/ai_pane.dart';
@@ -144,8 +146,9 @@ String _static(String line, SettingsFacts _) => line;
 /// What differs from the web original:
 /// - The account is the [AccountServices] the sheet finds over it ([SettingsFacts.services]). With none, Account
 ///   reads "Not signed in", Organizations "Signed out", and each lists what a signed-out page draws.
-/// - Two pages wait, each on a feature with no Flutter port, and open the card that says so: Library folder (the
-///   library's status and a folder picker, stage 3) and Backup (drives, stage 9).
+/// - Library folder and Backup are their pages, each over what Settings was handed for it
+///   (`SettingsFeatures.libraryFolder`, `.backup`); until the root hands one, each says what the web's page says
+///   where it cannot (an app to update, a device backups are not on).
 /// - AI's reading is the chosen model and what it takes to get, from the catalogue; About's is the version alone
 ///   until the app has an updater; Test results' is "No report yet" until a report is built in.
 /// - Plugins reads the app's registry (lib/plugins/registry.dart `plugins`), which is empty until the built-in
@@ -248,10 +251,8 @@ final List<SettingsSectionSpec> _sections = [
     webFile: 'settings/LibraryFolderPane.tsx',
     where: (facts) => !facts.ios,
     summary: (facts) => _static('Where your notes are kept', facts),
-    settings: (facts) => const [
-      SettingsFindable('Where your notes are', 'library folder choose move obsidian vault icloud dropbox syncthing backup drive'),
-      SettingsFindable('Good to know', 'sync google drive index pictures recordings'),
-    ],
+    settings: (facts) => libraryFolderFindable,
+    pane: LibraryFolderPane.hosted,
   ),
   // Every note onto a removable drive, as plain files.
   SettingsSectionSpec(
@@ -263,6 +264,8 @@ final List<SettingsSectionSpec> _sections = [
     webFile: 'settings/BackupPane.tsx',
     where: (facts) => !facts.ios,
     summary: (facts) => _static('To a USB drive or SD card', facts),
+    settings: (facts) => backupFindable,
+    pane: BackupPane.hosted,
   ),
   // Everything as one zip to carry away.
   SettingsSectionSpec(

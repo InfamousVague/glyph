@@ -27,6 +27,9 @@
 //! - **`reset_local_data {models}`** is reset.rs's, its lines held in kept/reset.rs.
 //! - **The library's folder** (`library_inspect`, `library_move`, `library_use_app_folder`; stage 9A) is
 //!   library_commands.rs's, its lines held in kept/library_commands.rs, which lists them.
+//! - **The backup** (`backup_last`, `backup_files`, `backup_run`, `backup_cancel`; stage 9B) is
+//!   backup_commands.rs's, over backup.rs included whole: kept/backup_commands.rs lists them. Handed on from
+//!   `call_on`, since the backup is a job and keeps the core.
 //!
 //! Not here yet, each waiting for the stage that needs it: `set_note_formatted`, `library_reveal`, and the Mac's
 //! folder panel (`library_choose_folder`).
@@ -450,6 +453,10 @@ pub(crate) fn call_on(core: &Arc<Core>, command: &str, args: Value) -> Result<Va
     // What starts a job takes the `Arc`: its thread keeps the core, and answers with an id at once.
     if crate::work::has_with_core(command) {
         return crate::work::call_with_core(core, command, args);
+    }
+    // Stage 9B: a backup onto a removable drive, a job that keeps the core.
+    if crate::kept::backup_commands::has(command) {
+        return crate::kept::backup_commands::call(core, command, args);
     }
     // Stage 8C: dictation, the language model, a meeting's write-up and tapes, each on the core's directories.
     #[cfg(feature = "voice")]

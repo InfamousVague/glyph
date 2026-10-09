@@ -82,8 +82,10 @@ String driveHint(BackupDrive drive, {DateTime? now}) => [if (drive.free != null)
 ///   (`SettingsFeatures.backup`). With none, backups need the app.
 /// - There is no app from before the tree to say "Update Ghost.md to see the files a drive holds here": the Dart and
 ///   the core are one build.
-/// - **The seam.** `settingsSections` (lib/settings/settings_sections.dart) still opens the card that says this page
-///   is not ported: its `backup` row takes `pane: BackupPane.hosted`, and the root hands Settings
+/// - A folder of the tree stays as it was left, open or closed, while the page is up, whatever is drawn over it
+///   (the page kept that in each row; here the page keeps it for its rows, [BackupTree.toggled]).
+/// - **The seam.** Settings' `backup` row opens this page (`BackupPane.hosted`); what is left is for the root to
+///   hand Settings
 ///   `SettingsFeatures(backup: Backups.overCore(invoke: core.invoke, startJob: core.startJob, events: core.events))`.
 class BackupPane extends StatefulWidget {
   const BackupPane({super.key, this.backups, this.now});
@@ -108,6 +110,9 @@ class _BackupPaneState extends State<BackupPane> {
   /// The files each drive's Ghost.md folder holds, by [_heldKey]: asked once for a drive and the backup on it.
   final Map<String, List<HeldFile>?> _held = {};
   final Set<String> _asked = {};
+
+  /// The folders of each drive's tree that were tapped, by the drive's id.
+  final Map<String, Set<String>> _toggled = {};
 
   /// Read by the look for drives, which must not change the page under a backup that is running.
   bool get _busy => _state is _Running || _state is _Allowing;
@@ -276,7 +281,7 @@ class _BackupPaneState extends State<BackupPane> {
             PaneSection(
               key: ValueKey('tree ${_heldKey(drive)}'),
               title: 'On ${drive.name}',
-              children: [BackupTree(tree: backupTree(_held[_heldKey(drive)]!))],
+              children: [BackupTree(tree: backupTree(_held[_heldKey(drive)]!), toggled: _toggled.putIfAbsent(drive.id, () => {}))],
             ),
         const SettingsFootnote(
           child: Text(

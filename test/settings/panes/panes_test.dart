@@ -694,6 +694,9 @@ void main() {
         // The way in the form already is has no row: "I have an account" is drawn once another way is chosen.
         'account': {'I have an account'},
         'recording': {'Include sound from other apps', 'Tell me when a meeting is written up', 'Write up straight away'},
+        // Library folder draws its cards once it is handed the folder's calls (library_folder_pane_test.dart holds
+        // both names to the page there); with none, as here, it is the page of a build that cannot choose.
+        'library': {'Where your notes are', 'Good to know'},
       };
       for (final spec in settingsSections) {
         if (spec.pane == null || spec.id == 'cheatsheet' || spec.id == 'theme') continue;

@@ -17,9 +17,13 @@ String _filesSaid(int count) => count == 1 ? 'one file' : '$count files';
 /// a screen reader, where the page had a plain button; whether it is open is said as a toggle's state, where the
 /// page said `aria-expanded`.
 class BackupTree extends StatelessWidget {
-  const BackupTree({super.key, required this.tree});
+  const BackupTree({super.key, required this.tree, this.toggled});
 
   final TreeFolder tree;
+
+  /// The paths of the folders that were tapped, kept by whoever draws the tree so a folder stays as it was left
+  /// when the tree is drawn again; the tree's own, for as long as it stands, when null.
+  final Set<String>? toggled;
 
   @override
   Widget build(BuildContext context) {
@@ -27,23 +31,30 @@ class BackupTree extends StatelessWidget {
     // `.tree`: `padding: space-2 space-3 space-3`.
     return Padding(
       padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(3)),
-      child: Semantics(label: 'Files in ${tree.name}', container: true, child: _FolderRows(folder: tree, open: true)),
+      child: Semantics(label: 'Files in ${tree.name}', container: true, child: _FolderRows(folder: tree, open: true, toggled: toggled ?? {})),
     );
   }
 }
 
 class _FolderRows extends StatefulWidget {
-  const _FolderRows({super.key, required this.folder, required this.open});
+  const _FolderRows({super.key, required this.folder, required this.open, required this.toggled});
 
   final TreeFolder folder;
+
+  /// Whether it starts open: the folder on the drive does, the folders in it do not.
   final bool open;
+  final Set<String> toggled;
 
   @override
   State<_FolderRows> createState() => _FolderRowsState();
 }
 
 class _FolderRowsState extends State<_FolderRows> {
-  late bool _open = widget.open;
+  bool get _open => widget.open != widget.toggled.contains(widget.folder.path);
+
+  void _toggle() => setState(() {
+        if (!widget.toggled.remove(widget.folder.path)) widget.toggled.add(widget.folder.path);
+      });
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +66,7 @@ class _FolderRowsState extends State<_FolderRows> {
       mainAxisSize: MainAxisSize.min,
       children: [
         GlacierPressable(
-          onPressed: () => setState(() => _open = !_open),
+          onPressed: _toggle,
           toggled: _open,
           semanticLabel: '${folder.name}, ${_filesSaid(folder.files)}, ${sizeSaid(folder.size)}',
           builder: (context, state) => _Row(
@@ -75,7 +86,7 @@ class _FolderRowsState extends State<_FolderRows> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
-                for (final each in folder.folders) _FolderRows(key: ValueKey('folder ${each.path}'), folder: each, open: false),
+                for (final each in folder.folders) _FolderRows(key: ValueKey('folder ${each.path}'), folder: each, open: false, toggled: widget.toggled),
                 for (final leaf in folder.leaves) _Row(key: ValueKey('file ${leaf.path}'), marks: [AppIcon(Lucide.file, size: 14, color: mark)], name: leaf.name, said: sizeSaid(leaf.size)),
               ],
             ),

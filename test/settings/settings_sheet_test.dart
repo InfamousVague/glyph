@@ -98,9 +98,8 @@ void main() {
       ]);
       // The sub-pages are off the list, each behind About.
       expect([for (final spec in settingsSections) if (!spec.listed) (spec.id, spec.parent)], [('cheatsheet', 'about'), ('spec', 'about'), ('examples', 'about')]);
-      // Two wait on a feature that is not ported (the library's folder, drives) and name where they come from; the
-      // rest are pages (lib/settings/panes/, and Appearance).
-      expect([for (final spec in settingsSections) if (spec.pane == null) spec.id], ['library', 'backup']);
+      // Every one is a page (lib/settings/panes/, and Appearance): none waits on a feature that is not ported.
+      expect([for (final spec in settingsSections) if (spec.pane == null) spec.id], isEmpty);
       final web = Directory('../glyph/src/app');
       for (final spec in settingsSections) {
         expect(spec.webFile, matches(RegExp(r'^(settings|plugins|guide)/\w+\.tsx$')), reason: spec.id);
@@ -162,15 +161,18 @@ void main() {
       await endSettings(tester);
     });
 
-    testWidgets('open a page that is not ported yet on a card that says so, and where it comes from', (tester) async {
+    testWidgets('open Backup and Library folder on their pages, each saying what it cannot do until it is handed its feature', (tester) async {
       await _open(tester);
       await _tap(tester, _rowFor('Backup'));
       expect(_display(tester), 'Backup');
-      expect(find.text('Not ported yet'), findsOneWidget);
-      expect(find.textContaining('src/app/settings/BackupPane.tsx'), findsOneWidget);
-      // In the section's colour, as its page will be.
+      expect(find.text('Not ported yet'), findsNothing);
+      expect(find.text('Backups need the app'), findsOneWidget);
+      // In the section's colour.
       final tile = find.descendant(of: find.byType(SettingsEmpty), matching: find.byType(Container)).at(1);
       expect((tester.widget<Container>(tile).decoration! as BoxDecoration).color, sameColor(cssColor(tester, '#7c7c82').withValues(alpha: 0.16)));
+      await _tap(tester, find.byKey(const ValueKey('settings-head-word')));
+      await _tap(tester, _rowFor('Library folder'));
+      expect(find.text('Needs the app’s next update'), findsOneWidget);
       // Back to the list, and Appearance is the page itself.
       await _tap(tester, find.byKey(const ValueKey('settings-head-word')));
       await _tap(tester, _rowFor('Appearance'));

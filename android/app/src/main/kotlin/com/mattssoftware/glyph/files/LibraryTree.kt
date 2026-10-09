@@ -3,7 +3,7 @@ package com.mattssoftware.glyph.files
 // PORTED from ../glyph/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/files/LibraryTree.kt, line for line, for the
 // Flutter app (docs/STAGES_5_6_8_9.md, stage 9A). What differs: the library loaded is `ghost_core`; the picker's answer goes to
 // whoever `tell` is (the Flutter activity's `ghost_md/files` channel, FilesBridge.kt, where the Tauri one called
-// `window.__glyph.libraryFolder`); and the backup's drives are not kept at the tidy until stage 9B brings them. The package stays
+// `window.__glyph.libraryFolder`). The package stays
 // `com.mattssoftware.glyph.files`: saf.rs exports `Java_com_mattssoftware_glyph_files_LibraryTree_attach` by that name.
 
 import android.app.Activity
@@ -82,9 +82,11 @@ object LibraryTree {
 
   private fun releaseUnused(context: Context) {
     val keep = LibraryRoot.chosenTree(context)
+    // A drive the backup was let write to (BackupDrives.kt) is kept too, or every launch would ask for it again.
+    val drives = BackupDrives.trees(context)
     try {
       for (grant in context.contentResolver.persistedUriPermissions) {
-        if (grant.uri == keep || !DocumentsContract.isTreeUri(grant.uri)) continue
+        if (grant.uri == keep || grant.uri in drives || !DocumentsContract.isTreeUri(grant.uri)) continue
         context.contentResolver.releasePersistableUriPermission(grant.uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
       }
     } catch (error: Exception) {

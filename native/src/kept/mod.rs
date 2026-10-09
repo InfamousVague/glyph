@@ -1,11 +1,13 @@
 //! What a deleted note takes with it besides its file, from three files of `../glyph/src-tauri/src` that name
 //! `tauri::` types and so cannot be included whole: `images.rs`, `videos.rs` and `recordings.rs`. And, the same
-//! way, what a reset removes (`reset.rs`) and how the library's folder is moved (`library_commands.rs`).
+//! way, what a reset removes (`reset.rs`), how the library's folder is moved (`library_commands.rs`) and what a
+//! backup is asked (`backup_commands.rs`).
 //!
 //! Each file here is the lines its command needs, copied unchanged between two marks. The test reads the
 //! originals and looks for every copied item in them, so a rule changed there (which names are a picture's, how
 //! a body names one) fails here until it is copied again.
 
+pub mod backup_commands;
 pub mod images;
 pub mod library_commands;
 pub mod recordings;
@@ -33,6 +35,7 @@ mod tests {
         held(include_str!("recordings.rs"), "recordings.rs");
         held(include_str!("reset.rs"), "reset.rs");
         held(include_str!("library_commands.rs"), "library_commands.rs");
+        held(include_str!("backup_commands.rs"), "backup_commands.rs");
     }
 
     #[test]

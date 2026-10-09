@@ -2,6 +2,8 @@ package com.mattssoftware.ghost_md
 
 import android.app.Activity
 import android.content.Intent
+import android.util.Log
+import com.mattssoftware.glyph.files.BackupDrives
 import com.mattssoftware.glyph.files.LibraryTree
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
@@ -9,10 +11,15 @@ import org.json.JSONObject
 
 /**
  * The system's own pickers, for Dart (`ghost_md/files`): what the Tauri activity's `GlyphHost` and its
- * `window.__glyph` answers were for a folder of the person's (files/LibraryTree.kt; lib/core/library_folder.dart).
+ * `window.__glyph` answers were for a folder of the person's (files/LibraryTree.kt; lib/core/library_folder.dart)
+ * and for a removable drive to back up to (files/BackupDrives.kt; lib/core/backup.dart).
  *
  * - `chooseLibraryFolder` -> the picker's answer as JSON, when it answers: `{uri, name}` for a folder granted (the
  *   grant kept across restarts), `{cancelled: true}` for a picker closed, `{error}` in the app's words.
+ * - `backupDrives` -> the removable drives plugged in now, as JSON: `[{id, name, tree?, free?, total?}]`, `tree`
+ *   where the app may already write the drive. Asked every two seconds while Settings › Backup is open.
+ * - `chooseBackupDrive {id}` -> the picker opened on that drive's root, for the person to allow it once:
+ *   `{id, tree}`, `{cancelled: true}`, or `{error}` (a drive pulled out, or a folder on it chosen in its place).
  *
  * ONE CALL, ANSWERED LATER, where the Tauri activity answered "started" at once and said the rest as an event on
  * its page: a method channel's result can wait, so the call that opens a picker is the call its answer comes back
@@ -30,6 +37,15 @@ class FilesBridge(private val activity: Activity) {
     MethodChannel(messenger, CHANNEL).setMethodCallHandler { call, result ->
       when (call.method) {
         "chooseLibraryFolder" -> asked(FOLDER, result) { LibraryTree.start(activity, tell(FOLDER)) }
+        "backupDrives" -> result.success(
+          try {
+            BackupDrives.drives(activity)
+          } catch (error: Exception) {
+            Log.w(TAG, "backupDrives failed", error)
+            "[]"
+          },
+        )
+        "chooseBackupDrive" -> asked(DRIVE, result) { BackupDrives.ask(activity, call.argument<String>("id") ?: "", tell(DRIVE)) }
         else -> result.notImplemented()
       }
     }
@@ -38,6 +54,7 @@ class FilesBridge(private val activity: Activity) {
   /** A picker's answer, from the activity. Answers whether the result was one of this bridge's. */
   fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
     if (LibraryTree.answered(activity, requestCode, resultCode, data, tell(FOLDER))) return true
+    if (BackupDrives.answered(activity, requestCode, resultCode, data, tell(DRIVE))) return true
     return false
   }
 
@@ -56,7 +73,9 @@ class FilesBridge(private val activity: Activity) {
 
   companion object {
     const val CHANNEL = "ghost_md/files"
+    private const val TAG = "GhostFiles"
     private const val FOLDER = "libraryFolder"
+    private const val DRIVE = "backupDrive"
     private val CANCELLED = JSONObject().put("cancelled", true).toString()
   }
 }

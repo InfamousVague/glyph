@@ -63,10 +63,8 @@ class _Moving extends _Step {
 /// - The folder's calls are the [LibraryFolder] it is handed (lib/core/library_folder.dart), or the one Settings was
 ///   given (`SettingsFeatures.libraryFolder`). With none, it is the page on a build that cannot choose: "Needs the
 ///   app's next update".
-/// - **The seam.** `settingsSections` (lib/settings/settings_sections.dart) still opens the card that says this page
-///   is not ported: its `library-folder` row takes `pane: LibraryFolderPane.hosted` and
-///   `settings: (facts) => libraryFolderFindable`, and the root hands Settings
-///   `SettingsFeatures(libraryFolder: LibraryFolder(invoke: core.invoke, onNotesChanged: …))`.
+/// - **The seam.** Settings' `library` row opens this page (`LibraryFolderPane.hosted`); what is left is for the
+///   root to hand Settings `SettingsFeatures(libraryFolder: LibraryFolder(invoke: core.invoke, onNotesChanged: …))`.
 class LibraryFolderPane extends StatefulWidget {
   const LibraryFolderPane({super.key, this.folder});
 
