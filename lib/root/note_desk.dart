@@ -922,7 +922,7 @@ class NoteDeskState extends State<NoteDesk> {
           env: env,
           meHue: spec.meHue,
           footClear: spec.footClear,
-          headerInset: spec.headClear,
+          headerInset: spec.pageHead ?? spec.headClear,
           // The paper under a short note is the screen's own last sliver (lib/note/note_screen.dart), which puts the
           // caret at the end; were the editor to fill the page too, the page's foot would make a short note scroll.
           fill: false,

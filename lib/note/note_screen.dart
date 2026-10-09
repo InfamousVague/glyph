@@ -1308,6 +1308,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       zoom: _zoom.value,
       pageWidth: pageWidth,
       headClear: headerHeight,
+      pageHead: padTop + (seams.headRoom?.value ?? 0),
       // The line being typed stays above the page's foot smoke, where there is smoke to keep clear of.
       footClear: !_isCanvas && smokes ? wispEdgeFootClear : 0,
       // The names and cards are under line 1 and over the room the words keep under their last line.

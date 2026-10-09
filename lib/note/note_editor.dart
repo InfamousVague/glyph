@@ -15,7 +15,7 @@
 ///   line where the app is wired:
 ///
 ///       editor: (context, spec) => NoteEditorHost(spec: spec, formats: marks, extensions: pieces, draw: (context, view, env) =>
-///           Editor(view: view, env: env, meHue: spec.meHue, footClear: spec.footClear, headerInset: spec.headClear)),
+///           Editor(view: view, env: env, meHue: spec.meHue, footClear: spec.footClear, headerInset: spec.pageHead ?? spec.headClear)),
 ///
 ///   with the input's own extensions, and every other piece's, in [NoteEditorHost.extensions]: lib/root/note_desk.dart.
 library;
@@ -49,6 +49,7 @@ class NoteEditorSpec {
     this.zoom = 1,
     this.pageWidth,
     this.headClear = 0,
+    this.pageHead,
     this.footClear = 0,
     this.contentBottom,
     this.placeholder = 'Write something.',
@@ -84,6 +85,12 @@ class NoteEditorSpec {
   /// typed is kept clear of both.
   final double headClear;
   final double footClear;
+
+  /// The page's own padding over the note (`.page`'s `padding-block-start`: the header, and under a bar that holds
+  /// the tools a little more, and the AI's strip while it is up). Editor.tsx `footClearAt` takes its third of the
+  /// page less this, not less the header: with the header's 142px where the page has 155.6 the line being typed
+  /// stood 12 device pixels higher over the keyboard than the page's. The header's height where null.
+  final double? pageHead;
 
   /// The room under the last line (`.cm-content { padding-block-end }`); the look's own where null. The screen
   /// takes it for itself while a blank page's names and cards are drawn under line 1, which on the page are inside
