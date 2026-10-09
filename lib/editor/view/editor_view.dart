@@ -775,7 +775,17 @@ class EditorView extends EditorViewLike implements EditorLineHost {
       var margins = EdgeInsets.zero;
       for (final source in _state.facet(EditorViewLike.scrollMargins)) {
         final more = source(this);
-        if (more != null) margins += more;
+        // CodeMirror's `getScrollMargins`: the most any source asks on each side, not their sum. The note's editor
+        // asks the foot's smoke clear and so does the keyboard's layer over what the keyboard covers; added, a line
+        // typed at the foot stood a second clearance (52px) higher over the keyboard than the page's.
+        if (more != null) {
+          margins = EdgeInsets.fromLTRB(
+            math.max(margins.left, more.left),
+            math.max(margins.top, more.top),
+            math.max(margins.right, more.right),
+            math.max(margins.bottom, more.bottom),
+          );
+        }
       }
       final again = scroller.reveal(target.clip(_state), margins);
       // A target in a part of the note never measured is found by estimate first, then again once it is laid out.
