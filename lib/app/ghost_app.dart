@@ -26,6 +26,13 @@ const interFallbacks = [
 /// nobody has loaded them, it holds the first frame back and loads them itself. A test that pumps this itself says
 /// `preferences.startWithoutStorage()` first, as test/support/render.dart does, since a storage plugin never
 /// answers on a test's clock.
+///
+/// **A link that opens the app is not a route.** Android hands Flutter every `VIEW` intent's address as a route to
+/// push (the embedding's deep linking, on unless the manifest says otherwise), and a `WidgetsApp` with a `home`
+/// answers `ghostmd://notifications`, whose path is empty, by pushing a second copy of the whole app over the
+/// first. The app follows its links itself (lib/core/phone_links.dart, lib/share/app_links.dart), so every pushed
+/// route is taken here, before the navigator hears of it, and dropped; and the first route is always the home's,
+/// whatever address the launch carried.
 class GhostApp extends StatefulWidget {
   const GhostApp({super.key, required this.sheet, this.home = const KitGallery()});
 
@@ -38,12 +45,24 @@ class GhostApp extends StatefulWidget {
   State<GhostApp> createState() => _GhostAppState();
 }
 
-class _GhostAppState extends State<GhostApp> {
+class _GhostAppState extends State<GhostApp> with WidgetsBindingObserver {
   static final Listenable _choices = Listenable.merge([preferences, hapticsPref]);
+
+  /// Taken, and nothing pushed (see the class's comment). This observer is added before the `WidgetsApp`'s own, so
+  /// it is asked first.
+  @override
+  Future<bool> didPushRouteInformation(RouteInformation routeInformation) async => true;
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _dress(widget.sheet);
     // What was chosen is read before anything is shown: the launch screen stays up until it has been.
     if (!preferences.loaded) {
@@ -70,6 +89,7 @@ class _GhostAppState extends State<GhostApp> {
           title: 'Ghost Flutter',
           color: const Color(0xFF0D0D0D),
           debugShowCheckedModeBanner: false,
+          initialRoute: Navigator.defaultRouteName,
           pageRouteBuilder: <T>(RouteSettings settings, WidgetBuilder builder) => PageRouteBuilder<T>(settings: settings, pageBuilder: (context, _, _) => builder(context)),
           builder: (context, child) => _RootFontSize(
             scale: prefs.uiScale,

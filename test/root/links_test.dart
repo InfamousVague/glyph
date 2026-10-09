@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/ui_state.dart';
@@ -171,6 +172,20 @@ void main() {
       expect(sheet.code, 'AbCdEfGh12345678');
       expect(heldJoin(kept: device.kept), 'AbCdEfGh12345678');
       expect(device.services.joined, isEmpty, reason: 'nothing is joined until the person says so');
+      await close(tester);
+    });
+
+    testWidgets('is not pushed as a route: the phone hands Flutter the address too, and there is still one app', (tester) async {
+      await open(tester);
+      await settle(tester, 2);
+      for (final address in ['ghostmd://notifications', 'ghostmd://note/abc', 'ghostmd://fork#id.key']) {
+        final call = const JSONMethodCodec().encodeMethodCall(MethodCall('pushRouteInformation', {'location': address}));
+        await tester.runAsync(() => tester.binding.defaultBinaryMessenger.handlePlatformMessage('flutter/navigation', call, (_) {}));
+        await settle(tester, 2);
+      }
+      expect(tester.takeException(), isNull);
+      expect(find.byType(GhostRoot), findsOneWidget);
+      expect(find.byType(AppShell), findsOneWidget);
       await close(tester);
     });
 

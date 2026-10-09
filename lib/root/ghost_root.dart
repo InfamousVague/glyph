@@ -970,7 +970,11 @@ class _GhostRootState extends State<GhostRoot> {
     // a note opened is one the list has.
     final links = widget.links;
     if (mounted && links != null) {
-      _stopLinks = followAppLinks((link) => openAppLink(link, _door, onError: (failure) => debugPrint('[glyph] could not follow the link that opened the app: $failure')), links);
+      _stopLinks = followAppLinks((link) {
+        // The kind and never the link: a share's link carries its key.
+        debugPrint('[glyph] a link opened the app: ${readAppLink(link)?.runtimeType ?? 'none of the app\'s'}');
+        openAppLink(link, _door, onError: (failure) => debugPrint('[glyph] could not follow the link that opened the app: $failure'));
+      }, links);
     }
     if (!_real || !mounted) return;
     final seeded = _stored.flag('glyph-sample-note', unreadable: true);
