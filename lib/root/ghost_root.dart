@@ -20,6 +20,7 @@ import '../capture/meeting_live.dart' show MeetingLive;
 import '../capture/place.dart' show Placing;
 import '../capture/ui/capture_screen.dart';
 import '../capture/ui/meeting_screen.dart';
+import '../capture/voice_model.dart';
 import '../commands/app_commands.dart';
 import '../commands/command_bar.dart';
 import '../core/backup.dart' show Backups;
@@ -70,6 +71,7 @@ import '../notes/note_templates.dart';
 import '../notes/own_templates.dart' hide templateOf;
 import '../notes/note_tree.dart';
 import '../notes/notes_drawer.dart';
+import '../notes/notices.dart' as notices;
 import '../notes/notifications_drawer.dart';
 import '../notes/workspace_sheet.dart';
 import '../orgs/join_links.dart' show readJoinLink;
@@ -347,6 +349,8 @@ class _GhostRootState extends State<GhostRoot> {
     voice.live?.canNotify.addListener(_voiceChanged);
     voice.live?.canNotifyNow();
     models?.addListener(_voiceChanged);
+    // The voice model's fetch, for the line above the notes.
+    recorder.voiceModel.addListener(_voiceChanged);
     _voiceLife = AppLifecycleListener(onStateChange: (state) {
       recorder.lifecycle(state);
       if (state == AppLifecycleState.resumed) unawaited(models?.refresh());
@@ -380,6 +384,21 @@ class _GhostRootState extends State<GhostRoot> {
     } else {
       setState(() {});
     }
+  }
+
+  /// What is waiting on the person, above the notes (notes/Notices.tsx): the voice model while it is not ready. The
+  /// update's card waits for the updates' feed (`core/ota.ts`, stage 9I) and the invitation for its buttons
+  /// (`settings/InviteActions.tsx`); neither is given yet.
+  List<Widget> _notices() {
+    final model = _voice?.recorder.voiceModel;
+    if (model == null) return const [];
+    final state = switch (model.state) {
+      VoiceModelStateDownloading(:final received, :final total) => notices.VoiceModelDownloading(received: received, total: total),
+      VoiceModelStateFailed(:final message) => notices.VoiceModelFailed(message),
+      _ => const notices.VoiceModelQuiet(),
+    };
+    if (state is notices.VoiceModelQuiet) return const [];
+    return [notices.VoiceModelStatus(state: state, onRetry: model.retry)];
   }
 
   /// A Speak button (`speak`): a capture into a new note, or the note its first command names.
@@ -1002,6 +1021,7 @@ class _GhostRootState extends State<GhostRoot> {
     _unwatchMeeting?.call();
     _voice?.live?.canNotify.removeListener(_voiceChanged);
     _voice?.models?.removeListener(_voiceChanged);
+    _voice?.recorder.voiceModel.removeListener(_voiceChanged);
     _voiceLife?.dispose();
     _capture?.dispose();
     // A voice a test brought is the test's to let go.
@@ -1291,6 +1311,7 @@ class _GhostRootState extends State<GhostRoot> {
                 onCapture: capture == null ? null : _speak,
                 recording: recordingNow,
                 sideKey: voice?.assistant ?? false,
+                notices: _notices(),
                 clock: widget.clock,
                 onAllNotes: shell.showAllNotes,
                 onSearch: _search,
@@ -1557,7 +1578,7 @@ class _GhostRootState extends State<GhostRoot> {
                   _shell.currentState?.show(const Screen.academy());
                 },
               ),
-            if (_launching) LaunchScreen(loading: !_read, notes: _shown.length, onDone: () => setState(() => _launching = false)),
+            if (_launching) LaunchScreen(loading: !_read, notes: _shown.length, recording: () => voice?.live?.state?.recording ?? false, onDone: () => setState(() => _launching = false)),
           ],
           ),
         );
