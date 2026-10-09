@@ -20,8 +20,9 @@
 ///   lean on is `table_layout.dart`.
 /// - `TableWidget.editable` is [TableWidget.growable]: `EditorWidget.editable` already means something else (a
 ///   widget with a field of its own to type in).
-/// - `TableWidget.stamp`, bumped as blanks change under the table, and `blanksRedraw` in the field's update wait
-///   for the blanks' piece (editor/blanks.ts): cells are drawn from `plainCell` alone.
+/// - `TableWidget.stamp` is the blanks' own count of the redraws asked of them (lib/editor/ai/blanks.dart
+///   `blankStamp`), 0 in an editor that draws no blanks: a table is drawn again when it moves, since a cell may
+///   hold a blank whose state changed (`blanksRedraw` in the field's update).
 /// - `ensureSyntaxTree(state, state.doc.length, 40)` is `syntaxTree(state)`: the state's parse is whole.
 /// - + Column and + Row dispatch through `applyPlan` (commands/inserts.dart) with the web's `input.table` user
 ///   event, which also isolates the step in the history: one undo each whatever was typed just before.
@@ -30,18 +31,23 @@ library;
 
 import 'package:flutter/widgets.dart' hide Decoration;
 
+import '../ai/blanks.dart' show blankStamp;
 import '../editor.dart';
 import '../view/blocks.dart';
 import '../view/drawn_block.dart';
 import '../view/syntax_tree.dart';
 import 'table_box.dart';
 
-export 'table_box.dart' show DrawnTable, GlyphTable, RenderGlyphTable, RenderTableWords, TableGrowButton, TableWords, growTable, tableUserEvent;
-export 'table_layout.dart' show DrawnCell, TableLayout, TableLook, WordsFace;
+export 'table_box.dart' show DrawnTable, GlyphTable, RenderGlyphTable, RenderTableWords, HeldCell, HeldCellParentData, TableGrowButton, TableWords, growTable, tableUserEvent;
+export 'table_layout.dart' show CellHost, DrawnCell, TableLayout, TableLook, WordsFace;
 
 /// A table drawn in place of its lines.
 class TableWidget extends EditorWidget implements ClassedBlockWidget {
-  const TableWidget(this.text, this.from, this.growable);
+  const TableWidget(this.text, this.from, this.growable, [this.stamp = 0]);
+
+  /// The blanks' redraws so far, as the table was drawn: a table with the same words is drawn again when its
+  /// blanks changed under it.
+  final int stamp;
 
   /// The table's markdown, first line to last.
   final String text;
@@ -57,7 +63,7 @@ class TableWidget extends EditorWidget implements ClassedBlockWidget {
   String get className => 'cm-glyphTableWrap';
 
   @override
-  bool eq(TableWidget other) => other.text == text && other.from == from && other.growable == growable;
+  bool eq(TableWidget other) => other.text == text && other.from == from && other.stamp == stamp && other.growable == growable;
 
   /// A guess before it is laid out: a line of 1.35 and its padding for each row, and the buttons.
   @override
@@ -90,7 +96,7 @@ DecorationSet _build(EditorState state) {
       final to = state.doc.lineAt(node.to).to;
       final inside = editable && caretIn(state, from, to);
       if (!inside) {
-        ranges.add(Decoration.replace(widget: TableWidget(state.doc.sliceString(from, to), from, editable), block: true).range(from, to));
+        ranges.add(Decoration.replace(widget: TableWidget(state.doc.sliceString(from, to), from, editable, state.fieldOrNull(blankStamp) ?? 0), block: true).range(from, to));
       }
       return false;
     },
@@ -102,7 +108,8 @@ final StateField<DecorationSet> _tableField = StateField.define<DecorationSet>(
   create: _build,
   update: (decorations, tr) {
     final treeMoved = !identical(syntaxTree(tr.state), syntaxTree(tr.startState));
-    if (tr.docChanged || tr.selection != null || treeMoved || focusMoved(tr) || tr.reconfigured) return _build(tr.state);
+    final blanksMoved = tr.state.fieldOrNull(blankStamp) != tr.startState.fieldOrNull(blankStamp);
+    if (tr.docChanged || tr.selection != null || treeMoved || focusMoved(tr) || tr.reconfigured || blanksMoved) return _build(tr.state);
     return decorations;
   },
   provide: (field) => EditorViewLike.decorations.from<DecorationSet>(field),

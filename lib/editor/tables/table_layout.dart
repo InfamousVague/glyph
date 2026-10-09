@@ -22,7 +22,14 @@
 /// line is then drawn where Blink puts it: lines the face's line height apart (the paragraph's own are a whole
 /// number of pixels), the box's top on a whole pixel and the baseline the font's ascent, rounded, under it.
 ///
+/// A cell may hold a box of its own in place of its words ([CellHost]): a blank's square or a filled answer, which
+/// are widgets (lib/editor/ai/blanks.dart `drawCell`). The table then takes that box's width as the cell's words'
+/// and its height as the cell's lines', and says where it goes; the box is laid out and drawn by whoever holds it.
+///
 /// What differs:
+/// - A cell holding a box of its own asks for its whole width, up to `18em`, where the page would let its words
+///   wrap between a least and a most: a box's least is not a thing a render object can be asked for when it holds
+///   squares set on the words' baseline.
 /// - Widths are doubles here and sixty-fourths of a pixel there; the columns' shares are within a twentieth of a
 ///   pixel of the page's (the worst of any rectangle measured is an eighth).
 /// - In Maple Mono the words' pixels are on the page's rows exactly. In Inter the boxes are the page's but the
@@ -254,9 +261,25 @@ class TableLook {
       devicePixelRatio == other.devicePixelRatio;
 }
 
+/// A cell's own box in place of its words: how wide it is on one line, and a way to lay it out in a width that
+/// answers how tall it then is (`drawCell` of editor/blanks.ts, which filled the cell's element).
+class CellHost {
+  const CellHost({required this.width, required this.layout});
+
+  /// Its width with nothing wrapped.
+  final double width;
+
+  /// Lays the box out no wider than `width`, and answers its size.
+  final Size Function(double width) layout;
+}
+
 /// One cell, laid out.
 class DrawnCell {
   DrawnCell(this.row, this.column, this.text, this.align);
+
+  /// Its own box, where it holds one in place of its words, and that box's size once it is laid out.
+  CellHost? host;
+  Size hosted = Size.zero;
 
   final int row;
   final int column;
@@ -289,7 +312,7 @@ TextAlign _textAlign(TableAlign? align) => switch (align) {
 /// A table laid out in `room`, the width its wrap has for it. `rows` are the header's cells and then each body
 /// row's, every row as wide as the header.
 class TableLayout {
-  TableLayout(List<List<String>> rows, List<TableAlign?> align, this.look, this.room) {
+  TableLayout(List<List<String>> rows, List<TableAlign?> align, this.look, this.room, {CellHost? Function(int row, int column)? hosts}) {
     final count = rows.isEmpty ? 0 : rows.first.length;
     // What a cell's box is beside its words.
     final extra = 2 * look.padX + look.rule;
@@ -300,6 +323,14 @@ class TableLayout {
       for (var c = 0; c < count; c += 1) {
         final cell = DrawnCell(r, c, c < rows[r].length ? rows[r][c] : '', c < align.length ? align[c] : null);
         row.add(cell);
+        final host = cell.host = hosts?.call(r, c);
+        if (host != null) {
+          // A box of its own: as wide as it is, up to the most a cell may be.
+          final wide = math.min(layoutUnitCeil(host.width) + extra, look.most);
+          least[c] = math.max(least[c], wide);
+          most[c] = math.max(most[c], wide);
+          continue;
+        }
         if (cell.text.isEmpty) continue;
         final face = cell.head ? look.head : look.body;
         // A cell's words' width is taken down to the sixty-fourth, as the page's columns have it.
@@ -340,7 +371,14 @@ class TableLayout {
     rowEdges = <double>[look.rule / 2];
     for (final row in cells) {
       var lines = 0;
+      var tall = 0.0;
       for (final cell in row) {
+        final host = cell.host;
+        if (host != null) {
+          cell.hosted = host.layout(math.max(0, columnEdges[cell.column + 1] - columnEdges[cell.column] - extra));
+          if (cell.hosted.height > tall) tall = cell.hosted.height;
+          continue;
+        }
         if (cell.text.isEmpty) continue;
         final width = columnEdges[cell.column + 1] - columnEdges[cell.column] - extra;
         final face = cell.head ? look.head : look.body;
@@ -348,13 +386,20 @@ class TableLayout {
         final words = cell.words = cell.head ? SetWords(cell.text, face) : SetWords(cell.text, face, width: math.max(0, width) + 0.05, align: _textAlign(cell.align));
         if (words.lines > lines) lines = words.lines;
       }
-      final height = lines * look.body.lineHeight + 2 * look.padY + look.rule;
+      final height = math.max(lines * look.body.lineHeight, layoutUnitCeil(tall)) + 2 * look.padY + look.rule;
       rowEdges.add(rowEdges.last + height);
     }
     for (final row in cells) {
       for (final cell in row) {
         cell.rect = Rect.fromLTRB(columnEdges[cell.column], rowEdges[cell.row], columnEdges[cell.column + 1], rowEdges[cell.row + 1]);
         final words = cell.words;
+        if (cell.host != null) {
+          // Its own box, at the start of the cell or where the column's alignment puts it.
+          final free = cell.rect.width - extra - cell.hosted.width;
+          final shift = free <= 0 ? 0.0 : (cell.align == TableAlign.center ? free / 2 : (cell.align == TableAlign.right ? free : 0.0));
+          cell.at = Offset(cell.rect.left + look.rule / 2 + look.padX + shift, cell.rect.top + look.rule / 2 + look.padY);
+          continue;
+        }
         if (words == null) continue;
         var across = cell.rect.left + look.rule / 2 + look.padX;
         if (cell.head) {

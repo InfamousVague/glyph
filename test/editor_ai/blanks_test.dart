@@ -19,6 +19,7 @@ import 'package:ghost_md/editor/ai/blanks.dart';
 import 'package:ghost_md/editor/ai/blanks_paint.dart';
 import 'package:ghost_md/editor/editor.dart';
 import 'package:ghost_md/editor/media/inline_box.dart';
+import 'package:ghost_md/editor/tables/tables.dart';
 import 'package:ghost_md/editor/view/view_mode.dart';
 import 'package:glacier/glacier.dart';
 
@@ -290,6 +291,57 @@ void main() {
     });
   });
 
+  group('in a drawn table', () {
+    const doc = 'Costs\n\n| Item | Cost |\n| --- | --- |\n| Cabin {?how much} | ??\$200??(Qwen3.5 4B from memory, 2026-09-28) each |\n| Ferry | \$45 |\n';
+
+    testWidgets('a cell with a blank or a filled answer holds its own box in the table, and the rest are the table’s words', (tester) async {
+      await pumpBlanks(tester, doc, more: <Extension>[drawnTables()]);
+      final table = tester.widget<GlyphTable>(find.byType(GlyphTable));
+      expect([for (final cell in table.cells) (cell.row, cell.column)], [(1, 0), (1, 1)]);
+      expect(find.descendant(of: find.byType(GlyphTable), matching: find.byType(BlankCell)), findsNWidgets(2));
+      expect(find.descendant(of: find.byType(GlyphTable), matching: find.byKey(const ValueKey<String>('cm-blank'))), findsOneWidget);
+      expect(find.descendant(of: find.byType(GlyphTable), matching: find.text('\$200')), findsOneWidget);
+      // Each box sits inside its own cell, and its column is as wide as the box needs.
+      final render = tester.renderObject<RenderGlyphTable>(find.byType(GlyphTable));
+      final origin = tester.getTopLeft(find.byType(GlyphTable));
+      final boxes = tester.widgetList<BlankCell>(find.byType(BlankCell)).toList();
+      for (final (at, held) in table.cells.indexed) {
+        final cell = render.table.cells[held.row][held.column].rect.shift(origin);
+        final box = tester.getRect(find.byWidget(boxes[at]));
+        expect(cell.contains(box.topLeft) && cell.contains(box.bottomRight - const Offset(0.01, 0.01)), isTrue, reason: 'cell ${held.row},${held.column}: $box in $cell');
+      }
+      // The Fill pill follows the table's last row, as before.
+      expect(find.byType(FillPill), findsOneWidget);
+      await closeBlanks(tester);
+    });
+
+    testWidgets('a tap on a filled answer in a cell opens its panel, and the table does not open for it', (tester) async {
+      final view = await pumpBlanks(tester, doc, more: <Extension>[drawnTables()]);
+      await tester.tap(find.descendant(of: find.byType(GlyphTable), matching: find.byKey(const ValueKey<String>('cm-fillWords'))));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(GlyphTable), findsOneWidget, reason: 'the caret is not in the table: it is still drawn');
+      expect(view.state.selection.main.head, 0);
+      await closeBlanks(tester);
+    });
+
+    testWidgets('the table is drawn again when its blank’s state changes under it', (tester) async {
+      final view = await pumpBlanks(tester, doc, more: <Extension>[drawnTables()]);
+      final before = tester.widget<DrawnTable>(find.byType(DrawnTable));
+      view.dispatch(TransactionSpec(effects: blanksRedraw.of(null)));
+      await tester.pump();
+      expect(identical(tester.widget<DrawnTable>(find.byType(DrawnTable)), before), isFalse);
+      await closeBlanks(tester);
+    });
+
+    testWidgets('a table with no blank holds nothing, and is laid out as it always was', (tester) async {
+      await pumpBlanks(tester, 'Costs\n\n| Item | Cost |\n| --- | --- |\n| Ferry | \$45 |\n', more: <Extension>[drawnTables()]);
+      expect(tester.widget<GlyphTable>(find.byType(GlyphTable)).cells, isEmpty);
+      expect(find.byType(BlankCell), findsNothing);
+      await closeBlanks(tester);
+    });
+  });
+
   group('how each is drawn', () {
     testWidgets('the square: a hairline of the words’ ink round the question, a quarter of an em inside each end', (tester) async {
       final view = await pumpBlanks(tester, 'Cheapest on {?which day} or so');
@@ -450,6 +502,17 @@ void main() {
         'A plan: {?a friendlier way to say: fix the boiler now, and the date it must be done by}\n\n'
         '- [ ] Pack {?what for rain} and {?what for sun}\n';
     for (final theme in ['light', 'dark']) {
+      testWidgets('a drawn table with a blank and a filled answer in its cells, and its Fill pill, $theme', (tester) async {
+        await pumpBlanks(
+          tester,
+          'Costs\n\n| Item | Cost | When |\n| --- | --: | --- |\n| Cabin {?how much a night} | ??\$200??(Qwen3.5 4B from memory, 2026-09-28) each | {?} |\n| Ferry | \$45 | Friday |\n',
+          theme: theme,
+          more: <Extension>[drawnTables()],
+        );
+        await shot(tester, 'blanks-table-$theme');
+        await closeBlanks(tester);
+      });
+
       testWidgets('a note with its blanks, in the Markdown view, $theme', (tester) async {
         await pumpBlanks(tester, note, theme: theme);
         await shot(tester, 'blanks-note-$theme');

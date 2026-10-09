@@ -20,16 +20,17 @@
 /// - A table that does not parse (`wrap.textContent = this.text`) is its text in the note's face; the syntax tree
 ///   does not name such a thing a Table, so it is not expected.
 /// - The Fill pill after the last row is `tablePill` (lib/editor/ai/blanks.dart), drawn where the table holds
-///   blanks for the model. **The blanks are not drawn in a cell** (`drawCell`): [GlyphTable] paints its cells'
-///   words itself and holds no widget in one, so a cell with a blank reads as it is written until the table's
-///   render object can host one.
+///   blanks for the model. **A blank or a filled answer in a cell** is `drawCell`'s widget, held by the table in
+///   place of that cell's words ([GlyphTable.cells], [HeldCell]): the table paints every other cell's words itself
+///   and lays these boxes out where its geometry puts them (table_layout.dart [CellHost]). On the page `drawCell`
+///   filled the cell's own element.
 library;
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
-import '../ai/blanks.dart' show tablePill;
+import '../ai/blanks.dart' show drawCell, tablePill;
 import '../commands/inserts.dart' show Plan, applyPlan;
 import '../commands/tables.dart';
 import '../looks/look.dart';
@@ -126,8 +127,26 @@ class DrawnTable extends StatelessWidget {
         <String>[for (final cell in parsed.header) plainCell(cell)],
         for (final row in parsed.rows) <String>[for (final cell in row) plainCell(cell)],
       ];
+      // Each cell's raw words and where they start, for a blank or a filled answer drawn in it: the header is the
+      // text's first line, the divider its second, and the rows follow (`draw(td, value, r + 2, i)`).
+      final held = <HeldCell>[];
+      if (view != null) {
+        final spans = cellSpans(text);
+        for (var r = 0; r < rows.length; r += 1) {
+          final line = r == 0 ? 0 : r + 1;
+          for (var c = 0; c < rows[r].length; c += 1) {
+            final span = line < spans.length && c < spans[line].length ? spans[line][c] : null;
+            final drawn = span == null ? null : drawCell(view, span.raw, from + span.at, plainCell);
+            if (drawn == null) continue;
+            final face = r == 0 ? tableLook.head : tableLook.body;
+            // The cell's own face on the table's line, as its words would be set.
+            final style = face.style.copyWith(height: face.lineHeight / face.size, leadingDistribution: TextLeadingDistribution.even);
+            held.add(HeldCell(row: r, column: c, child: DefaultTextStyle(style: style, child: drawn)));
+          }
+        }
+      }
       // The table's room is the wrap's, however wide the table itself comes out.
-      inside = (room) => GlyphTable(rows: rows, align: parsed.align, look: tableLook, room: room < 0 ? 0 : room);
+      inside = (room) => GlyphTable(rows: rows, align: parsed.align, look: tableLook, room: room < 0 ? 0 : room, cells: held);
     }
     Widget? tools;
     if (growable && parsed != null && view != null) {
@@ -200,9 +219,37 @@ class DrawnTable extends StatelessWidget {
   }
 }
 
+/// A cell that holds a box of its own in place of its words: a child of a [GlyphTable], told which cell it is.
+class HeldCell extends ParentDataWidget<HeldCellParentData> {
+  const HeldCell({super.key, required this.row, required this.column, required super.child});
+
+  /// The cell, row 0 the header.
+  final int row;
+  final int column;
+
+  @override
+  void applyParentData(RenderObject renderObject) {
+    final data = renderObject.parentData! as HeldCellParentData;
+    if (data.row == row && data.column == column) return;
+    data
+      ..row = row
+      ..column = column;
+    renderObject.parent?.markNeedsLayout();
+  }
+
+  @override
+  Type get debugTypicalAncestorWidgetClass => GlyphTable;
+}
+
+/// Which cell a table's child is, and where the table put it.
+class HeldCellParentData extends ContainerBoxParentData<RenderBox> {
+  int row = 0;
+  int column = 0;
+}
+
 /// `table.cm-glyphTable`: the header, the rows and the grid.
-class GlyphTable extends LeafRenderObjectWidget {
-  const GlyphTable({super.key, required this.rows, required this.align, required this.look, required this.room});
+class GlyphTable extends MultiChildRenderObjectWidget {
+  const GlyphTable({super.key, required this.rows, required this.align, required this.look, required this.room, List<HeldCell> cells = const <HeldCell>[]}) : super(children: cells);
 
   /// The header's cells, then each row's: the words as they are drawn.
   final List<List<String>> rows;
@@ -213,6 +260,9 @@ class GlyphTable extends LeafRenderObjectWidget {
   /// and the table may come out wider than its room.
   final double room;
 
+  /// The cells that hold a box of their own in place of their words (a blank, a filled answer).
+  List<HeldCell> get cells => children.cast<HeldCell>();
+
   @override
   RenderGlyphTable createRenderObject(BuildContext context) => RenderGlyphTable(rows, align, look, room);
 
@@ -221,7 +271,7 @@ class GlyphTable extends LeafRenderObjectWidget {
 }
 
 /// The table's box: as wide and as tall as the page's `<table>`, which may be wider than the room it was given.
-class RenderGlyphTable extends RenderBox {
+class RenderGlyphTable extends RenderBox with ContainerRenderObjectMixin<RenderBox, HeldCellParentData>, RenderBoxContainerDefaultsMixin<RenderBox, HeldCellParentData> {
   RenderGlyphTable(this._rows, this._align, this._look, this._room);
 
   List<List<String>> _rows;
@@ -246,13 +296,55 @@ class RenderGlyphTable extends RenderBox {
     _layout = null;
   }
 
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! HeldCellParentData) child.parentData = HeldCellParentData();
+  }
+
   /// The table as it was last laid out: its cells' boxes and their words', in this box's coordinates.
   TableLayout get table => _layout!;
 
   @override
   void performLayout() {
-    final layout = _layout ??= TableLayout(_rows, _align, _look, _room);
-    // Its own width, whatever the room: a table too wide for the room runs out of it, and its wrap scrolls.
+    if (firstChild == null) {
+      final layout = _layout ??= TableLayout(_rows, _align, _look, _room);
+      // Its own width, whatever the room: a table too wide for the room runs out of it, and its wrap scrolls.
+      size = constraints.constrain(layout.size);
+      return;
+    }
+    // With boxes of its own in some cells the geometry is worked out again each time: a box's size is its own to
+    // change (a blank filling, its words arriving).
+    _drop();
+    final held = <(int, int), RenderBox>{};
+    for (var child = firstChild; child != null; child = childAfter(child)) {
+      final data = child.parentData! as HeldCellParentData;
+      held[(data.row, data.column)] = child;
+    }
+    final layout = _layout = TableLayout(
+      _rows,
+      _align,
+      _look,
+      _room,
+      hosts: (row, column) {
+        final child = held[(row, column)];
+        if (child == null) return null;
+        // On one line first, for the width it asks of its column; then in the width the column has.
+        child.layout(const BoxConstraints(), parentUsesSize: true);
+        return CellHost(
+          width: child.size.width,
+          layout: (width) {
+            child.layout(BoxConstraints(maxWidth: width), parentUsesSize: true);
+            return child.size;
+          },
+        );
+      },
+    );
+    for (final row in layout.cells) {
+      for (final cell in row) {
+        final child = held[(cell.row, cell.column)];
+        if (child != null) (child.parentData! as HeldCellParentData).offset = cell.at;
+      }
+    }
     size = constraints.constrain(layout.size);
   }
 
@@ -260,7 +352,13 @@ class RenderGlyphTable extends RenderBox {
   bool hitTestSelf(Offset position) => true;
 
   @override
-  void paint(PaintingContext context, Offset offset) => _layout?.paint(context.canvas, offset, screen: localToGlobal(Offset.zero) - offset);
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) => defaultHitTestChildren(result, position: position);
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    _layout?.paint(context.canvas, offset, screen: localToGlobal(Offset.zero) - offset);
+    defaultPaint(context, offset);
+  }
 
   @override
   void describeSemanticsConfiguration(SemanticsConfiguration config) {

@@ -31,8 +31,8 @@
 /// editor (fill_panel.dart), calling `closeFillPanel(view)` when the note scrolls. `hooks` is null where a note is
 /// only read; `still: true` is a card's small note.
 ///
-/// **In a drawn table** (lib/editor/tables/table_box.dart, which leaves these out): for each cell, with the cell's
-/// text as written `raw` and where it starts in the note `at`, the table calls
+/// **In a drawn table** (lib/editor/tables/table_box.dart, which holds what this answers in the cell, its
+/// `HeldCell`): for each cell, with the cell's text as written `raw` and where it starts in the note `at`, the table calls
 /// `drawCell(view, raw, at, plainCell)` and, where the answer is not null, puts that widget in the cell in place of
 /// the cell's words; after the last row it puts `tablePill(view, from, to)` where that is not null (`from` and `to`
 /// the table's own span); and it draws its cells again when `state.field(blankStamp)` has changed, which counts
