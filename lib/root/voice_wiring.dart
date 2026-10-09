@@ -394,12 +394,13 @@ class Voice {
       store: store,
       host: RecorderHost(
         isLocked: () => voice.locked,
-        // The screen is kept on while a take runs, and its going off stops it; "Press the side key to stop" is
-        // said only where this build has the side key.
+        // The screen is kept on while a take runs, and its going off stops it, with or without the assistant: so
+        // "Press the side key to stop" is said wherever the phone can tell, as the page says it wherever its host
+        // has `setCapturing` (core/host.ts). It said "Tap Done to stop." beside the page's line on the same phone.
         setCapturing: (on) {
           if (!host.hasMeetings) return false;
           unawaited(host.setCapturing(on).then<void>((_) {}, onError: (Object _) {}));
-          return making.assistant;
+          return true;
         },
         endCapture: (locked) {
           if (host.hasMeetings) unawaited(host.endCapture(leave: locked).then<void>((_) {}, onError: (Object _) {}));
