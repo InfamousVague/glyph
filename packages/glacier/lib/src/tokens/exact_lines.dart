@@ -9,8 +9,8 @@ import 'line_height.dart';
 /// phone at 2.625 (19.43px), and `1.45` on a 19.62px paragraph is 28.45px. Flutter's paragraph rounds every line to a
 /// whole logical pixel (19 and 28), so a row of two lines stands a pixel short of the page's and a list of twelve
 /// rows a dozen. This lays [child] out as it is, takes the page's height for its box (the lines counted, times the
-/// style's own `height × fontSize`), and paints each line where the page has it: the first half the difference
-/// down, each one after by the whole difference more.
+/// style's own `height × fontSize`), and paints each line where the page has it: the first where the engine drew
+/// it, each one after by the whole difference more.
 ///
 /// [child] is one `Text` or `RichText` in one size (its lines all one height); anything else is passed through as
 /// it is. [lineHeight] is the exact line, in logical pixels: `style.height! * style.fontSize!` ([ExactLines.of]).
@@ -96,8 +96,10 @@ class RenderExactLines extends RenderProxyBox {
       return;
     }
     size = constraints.constrain(Size(child.size.width, _lines * _lineHeight));
-    // Centred in the taller or shorter line, as the engine centred it in its own; or on the page's own baseline.
-    _first = _slip / 2;
+    // The engine sets the first baseline where the exact line would have it and takes the rounding off the foot of
+    // the line (a label drawn half the difference down stood 1.6 device pixels under the page's; drawn from the
+    // top, on it), so the first line stays and each one after moves by the difference; or the page's own baseline.
+    _first = 0;
     final wanted = _baseline;
     if (wanted != null) {
       final drawn = child.getDistanceToBaseline(TextBaseline.alphabetic, onlyReal: true);

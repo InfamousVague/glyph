@@ -7,6 +7,7 @@ import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/guide/guide.dart';
 import 'package:ghost_md/guide/pages/parts.dart';
 import 'package:ghost_md/home/home_parts.dart' show CssLines;
+import 'package:glacier/glacier.dart' show ExactLines;
 
 import 'support.dart';
 
@@ -34,7 +35,8 @@ void main() {
   Finder word(String text) => find.widgetWithText(GuideWord, text);
   Finder pill(String text) => find.widgetWithText(AppPill, text);
   /// A block of text as the stylesheet's `line-height` sizes it.
-  Finder lines(Finder inner) => find.ancestor(of: inner, matching: find.byType(CssLines)).first;
+  // A paragraph's box is the kit's ExactLines, a smoke headline's the home page's CssLines (guideLines).
+  Finder lines(Finder inner) => find.ancestor(of: inner, matching: find.byWidgetPredicate((widget) => widget is CssLines || widget is ExactLines)).first;
   Finder boxOf(Finder inner) => find.ancestor(of: inner, matching: find.byType(Container)).first;
 
   void frame(WidgetTester tester, Map<String, List<Map<String, dynamic>>> want, {required String skip, required String next}) {

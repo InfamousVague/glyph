@@ -23,7 +23,14 @@ TextStyle guideLeadStyle(Tokens t) => t.textAt(t.fontSize('lg'), height: 1.45, c
 
 /// [child], a block of text in [style], with each line as tall as the stylesheet's `line-height` makes it, where
 /// Flutter rounds a line to a whole pixel (lib/home/home_parts.dart [CssLines]).
-Widget guideLines(TextStyle style, Widget child) => CssLines(lineHeight: style.fontSize! * style.height!, child: child);
+///
+/// A paragraph of plain text also has each line where the page has it (the kit's [ExactLines]: the lead's six lines
+/// ended 2.7 device pixels above the page's); a headline that comes out of smoke is its own drawing, and keeps the
+/// box alone.
+Widget guideLines(TextStyle style, Widget child) {
+  final line = style.fontSize! * style.height!;
+  return child is Text ? ExactLines(lineHeight: line, child: child) : CssLines(lineHeight: line, child: child);
+}
 
 /// `max-inline-size: <n>ch`: [count] times the width of a nought in [style].
 double chWidth(TextStyle style, double count) {
