@@ -1,0 +1,62 @@
+/// The row of the page's top bar that the Mac's three window buttons are set into (app.css `data-titlebar`,
+/// NoteTabs.module.css `.top`; in the Tauri app, src/platform.rs `place_traffic_lights`).
+///
+/// The row keeps a gutter at its start for them (`--app-traffic-lights`, which lib/notes/note_tabs.dart pads by),
+/// and this says where the row's centre is, so the window puts the buttons on it
+/// (lib/shell/desktop/mac_window.dart): whichever of the bar's four styles is worn, whatever its height, the lights
+/// are in line with the row's own buttons. The Tauri app held the number in Rust (`INSET`) and changed it by hand
+/// each time the bar's padding moved.
+library;
+
+import 'package:flutter/rendering.dart';
+import 'package:flutter/widgets.dart';
+import 'package:glacier/glacier.dart';
+
+import 'mac_window.dart';
+
+/// Whether the page is drawn under the Mac's title bar (`:root[data-titlebar='overlay']`).
+bool titlebarOverlay(Tokens t) => t.attrs['titlebar'] == 'overlay';
+
+/// The room the three lights take at the row's start (`--app-traffic-lights`), nothing off the Mac.
+double trafficLightsRoom(Tokens t) => titlebarOverlay(t) ? t.len('app-traffic-lights') : 0;
+
+/// Where the first light begins, from the window's edge: src/platform.rs `INSET.0`.
+const double trafficLightsStart = 16;
+
+class MacLightsRow extends SingleChildRenderObjectWidget {
+  const MacLightsRow({super.key, super.child, this.onPlaced});
+
+  /// The window's, unless a test hands its own: the row's centre from the window's top.
+  final void Function(double centre)? onPlaced;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderLightsRow(onPlaced);
+
+  @override
+  void updateRenderObject(BuildContext context, covariant RenderObject renderObject) => (renderObject as _RenderLightsRow).onPlaced = onPlaced;
+}
+
+class _RenderLightsRow extends RenderProxyBox {
+  _RenderLightsRow(this.onPlaced);
+
+  void Function(double centre)? onPlaced;
+  double? _said;
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    super.paint(context, offset);
+    // Where it was painted is where it is: asked after the frame, when every transform above it is settled.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!attached || !hasSize) return;
+      final centre = localToGlobal(size.center(Offset.zero)).dy;
+      if (_said == centre) return;
+      _said = centre;
+      final placed = onPlaced;
+      if (placed != null) {
+        placed(centre);
+      } else {
+        MacWindow.instance.lights(x: trafficLightsStart, centre: centre);
+      }
+    });
+  }
+}

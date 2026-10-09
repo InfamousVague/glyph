@@ -99,6 +99,9 @@ class _GhostAppState extends State<GhostApp> with WidgetsBindingObserver {
                 attrs: {
                   // The page's own attributes, which are not preferences: stamped by the shell on the web.
                   'platform': defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS ? 'mobile' : 'desktop',
+                  // The Mac app draws under its own title bar, the window's buttons set into the page's top row
+                  // (`core/platform.ts`: `data-titlebar='overlay'` where `isMacApp`).
+                  if (defaultTargetPlatform == TargetPlatform.macOS) 'titlebar': 'overlay',
                   'tabs': 'on',
                   ...prefs.attrs,
                   // The pace, which the page writes as inline durations; a device asking for less motion is left

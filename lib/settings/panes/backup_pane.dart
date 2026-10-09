@@ -166,7 +166,7 @@ class _BackupPaneState extends State<BackupPane> {
     final way = _way, backups = widget.backups;
     if (way == null || backups == null) return;
     var drive = given;
-    if (way == BackupWay.android && drive.tree == null) {
+    if (backups.needsAllowing(way, drive)) {
       setState(() => _state = _Allowing(drive));
       final answer = await backups.allowDrive(drive.id);
       if (!mounted) return;

@@ -8,14 +8,21 @@
 /// same two over a method channel. Not `path_provider`'s `getApplicationSupportDirectory`, which is `filesDir`:
 /// one level down, where a library moved over from the Tauri app would not be found.
 ///
-/// **Anywhere else** (the Mac, while the app has no Mac target of its own) it is a folder under the system's
-/// temporary directory, so the app runs and nothing of a person's is mistaken for it. Stage 10 gives the Mac its
-/// real one (`~/Library/Application Support/<id>`, Tauri's).
+/// **In the Mac app** they are Tauri's two as well, `<Application Support>/<bundle id>` and `<Caches>/<bundle id>`,
+/// answered by macos/Runner/GhostChannels.swift over the same channel. The bundle id is this app's own
+/// (`com.mattssoftware.glyph.flutter`) and the app is sandboxed, so both are inside its own container
+/// (`~/Library/Containers/<that id>/Data/Library/…`): never the Tauri app's
+/// `~/Library/Application Support/com.mattssoftware.glyph`, which this app cannot open and never asks for.
+///
+/// **Anywhere else** (a test on the Mac, a `flutter run` outside an app bundle) it is a folder under the system's
+/// temporary directory, so the app runs and nothing of a person's is mistaken for it.
 library;
 
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+
+import '../mac_app.dart';
 
 class DevicePaths {
   const DevicePaths({required this.dataDir, required this.cacheDir});
@@ -26,23 +33,23 @@ class DevicePaths {
   /// `<app_cache_dir>`: what may be lost (`picked/`).
   final String cacheDir;
 
-  /// The channel MainActivity.kt answers: `dirs` gives `{dataDir, cacheDir}`.
+  /// The channel MainActivity.kt answers, and the Mac's GhostChannels.swift: `dirs` gives `{dataDir, cacheDir}`.
   static const MethodChannel channel = MethodChannel('ghost_md/device_paths');
 
   /// The app's directories on this device.
-  static Future<DevicePaths> find() => Platform.isAndroid ? fromActivity() : Future.value(fallback());
+  static Future<DevicePaths> find() => Platform.isAndroid || runsAsMacApp ? fromActivity() : Future.value(fallback());
 
-  /// What the Android activity says they are.
+  /// What the Android activity, or the Mac app, says they are.
   static Future<DevicePaths> fromActivity() async {
     final dirs = await channel.invokeMapMethod<String, String>('dirs');
     final data = dirs?['dataDir'], cache = dirs?['cacheDir'];
     if (data == null || cache == null) {
-      throw StateError('The phone did not say where Ghost.md keeps its files.');
+      throw StateError('The device did not say where Ghost.md keeps its files.');
     }
     return DevicePaths(dataDir: data, cacheDir: cache);
   }
 
-  /// Off Android: `<temp>/ghost_md/data` and `<temp>/ghost_md/cache`, the same on every run.
+  /// Off Android and outside the Mac app: `<temp>/ghost_md/data` and `<temp>/ghost_md/cache`, the same on every run.
   static DevicePaths fallback() {
     final root = '${Directory.systemTemp.path}${Platform.pathSeparator}ghost_md';
     return DevicePaths(

@@ -24,6 +24,14 @@
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>$(PRODUCT_COPYRIGHT)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Ghost Flutter</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Ghost.md uses the microphone only while you are recording, to turn what you say into a note.</string>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>Ghost.md backs up your notes onto the drive you chose, as Markdown files.</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>

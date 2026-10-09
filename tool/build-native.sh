@@ -6,6 +6,9 @@
 #   tool/build-native.sh test       cargo test on the Mac
 #   tool/build-native.sh host       native/target/debug/libghost_core.dylib, for `flutter test test/native`
 #   tool/build-native.sh android    android/app/src/main/jniLibs/arm64-v8a/libghost_core.so (release)
+#   tool/build-native.sh mac        macos/Core/libghost_core.dylib (release, Apple silicon and Intel in one file),
+#                                   which Xcode's "Bundle the core" phase copies into the app's Frameworks and
+#                                   signs; not part of `all`. GHOST_MAC_ARCHS="arm64" builds the one alone.
 #
 #   GHOST_VOICE=0 tool/build-native.sh ...    the notes-only core, without the engines: seconds, not minutes
 #
@@ -163,12 +166,61 @@ build_android() {
   echo "build-native: $out/libghost_core.so ($(wc -c < "$out/libghost_core.so" | tr -d ' ') bytes)"
 }
 
+# The Mac app's library: release, without the test hooks, one slice per architecture joined by lipo, as the Tauri
+# Mac app is universal (../glyph scripts/deploy-ota.mjs MAC_TARGET). Its install name is @rpath's, so the copy in
+# the app's Frameworks is what it says it is. Left unsigned: Xcode's phase signs the copy with the app's identity.
+# The Intel slice compiles the engines for x86_64 from here (no -march=native: cmake is told the processor).
+build_mac() {
+  wait_for_deploys
+  archs="${GHOST_MAC_ARCHS:-arm64 x86_64}"
+  # The lowest macOS the app opens on (macos/Runner.xcodeproj MACOSX_DEPLOYMENT_TARGET, the Tauri app's 13.1): a
+  # library built for the build machine's own macOS would be refused by an older one.
+  export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.1}"
+  slices=""
+  for arch in $archs; do
+    case "$arch" in
+      arm64) target=aarch64-apple-darwin ;;
+      x86_64) target=x86_64-apple-darwin ;;
+      *) echo "build-native: no Mac architecture named $arch" >&2; exit 2 ;;
+    esac
+    if ! rustup target list --installed | grep -qx "$target"; then
+      echo "build-native: rustup target add $target" >&2
+      exit 1
+    fi
+    # Not stripped by cargo here (the release profile's `strip = true`): with a deployment target set, the proc
+    # macros it builds for this Mac are stripped too, and macOS 27's loader refuses what Xcode 27's strip leaves
+    # of them ("mis-aligned LINKEDIT string pool"), so every crate with a derive fails as "can't find crate".
+    # The joined library is stripped below instead, and only if it still opens.
+    (cd "$crate" && cargo build -j "$jobs" --release --target "$target" --config 'profile.release.strip=false' ${voice:+--features voice})
+    slices="$slices $CARGO_TARGET_DIR/$target/release/libghost_core.dylib"
+  done
+  out="$root/macos/Core"
+  mkdir -p "$out"
+  # shellcheck disable=SC2086
+  lipo -create $slices -output "$out/libghost_core.dylib.part"
+  install_name_tool -id "@rpath/libghost_core.dylib" "$out/libghost_core.dylib.part" 2>/dev/null
+  # Its local symbols taken off, kept only if the loader still takes the result.
+  cp "$out/libghost_core.dylib.part" "$out/libghost_core.dylib.stripped"
+  if strip -x "$out/libghost_core.dylib.stripped" 2>/dev/null && python3 -c 'import ctypes, sys; ctypes.CDLL(sys.argv[1]).ghost_invoke' "$out/libghost_core.dylib.stripped" 2>/dev/null; then
+    mv -f "$out/libghost_core.dylib.stripped" "$out/libghost_core.dylib.part"
+  else
+    rm -f "$out/libghost_core.dylib.stripped"
+    echo "build-native: left unstripped (the stripped library would not open)"
+  fi
+  for symbol in ghost_alloc ghost_invoke ghost_free ghost_set_listener ghost_forget_listener ${voice:+ghost_capture_push}; do
+    nm -gU "$out/libghost_core.dylib.part" 2>/dev/null | grep -qw "_$symbol" || { echo "build-native: $symbol is not exported." >&2; exit 1; }
+  done
+  mv -f "$out/libghost_core.dylib.part" "$out/libghost_core.dylib"
+  echo "build-native: $out/libghost_core.dylib ($(lipo -archs "$out/libghost_core.dylib"), $(wc -c < "$out/libghost_core.dylib" | tr -d ' ') bytes${voice:+, with the engines})"
+}
+
 case "$what" in
   test) run_tests ;;
+  mac) build_mac ;;
   host) build_host ;;
   android) build_android ;;
   all) run_tests; build_host; build_android ;;
-  *) echo "usage: tool/build-native.sh [test|host|android|all]" >&2; exit 2 ;;
+  *) echo "usage: tool/build-native.sh [test|host|android|mac|all]" >&2; exit 2 ;;
 esac
 
 cat <<'SAID'
@@ -176,4 +228,5 @@ cat <<'SAID'
 To run it:
   flutter test --no-pub test/native test/capture_native test/ai_native   # Dart over the Mac's library (needs: host)
   flutter build apk --debug --target-platform android-arm64     # packs jniLibs/arm64-v8a/libghost_core.so (needs: android)
+  flutter build macos --debug                                   # bundles macos/Core/libghost_core.dylib (needs: mac)
 SAID

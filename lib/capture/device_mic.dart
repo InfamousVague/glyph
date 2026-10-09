@@ -33,6 +33,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 
+import '../core/mac_app.dart';
 import 'audio.dart';
 
 /// The microphone was not allowed, or would not open. [message] is for the recorder to show.
@@ -57,8 +58,9 @@ class DeviceMic implements MicrophoneInput {
   static const MethodChannel channel = MethodChannel('ghost_md/mic');
   static const EventChannel eventChannel = EventChannel('ghost_md/mic/events');
 
-  /// Whether this platform has the Kotlin microphone at all.
-  static bool get supported => Platform.isAndroid;
+  /// Whether this platform has a microphone behind the channel: Kotlin's on Android, Swift's in the Mac app
+  /// (macos/Runner/MicChannel.swift, the same contract over `AVAudioEngine`).
+  static bool get supported => Platform.isAndroid || runsAsMacApp;
 
   /// "granted", "ask" (the system's dialog can still be shown) or "blocked" (it cannot).
   static Future<String> permission() async => await channel.invokeMethod<String>('permission') ?? 'blocked';

@@ -27,6 +27,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
+import '../core/mac_app.dart';
 import 'crypto.dart';
 import 'crypto_api.dart';
 import 'keystore.dart';
@@ -78,8 +79,9 @@ class ChannelSecureStore implements SecureStore {
   }
 }
 
-/// This device's secure storage: the phone's on Android, memory anywhere else.
-SecureStore deviceSecureStore() => Platform.isAndroid ? const ChannelSecureStore() : MemorySecureStore();
+/// This device's secure storage: the phone's Keystore on Android, the Keychain in the Mac app
+/// (macos/Runner/GhostChannels.swift `Keychain`, under a service of this app's own), memory anywhere else.
+SecureStore deviceSecureStore() => Platform.isAndroid || runsAsMacApp ? const ChannelSecureStore() : MemorySecureStore();
 
 /// One of the three keys, as it is held and kept.
 class _Slot<K extends KeyHandle> {

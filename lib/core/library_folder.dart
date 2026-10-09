@@ -15,8 +15,12 @@
 ///   `chooseLibraryFolder` on `ghost_md/files` (android/…/ghost_md/FilesBridge.kt) answers the picker's JSON when the
 ///   picker does, so [pickTreeOnPhone] is a function that answers what `readFolderAnswer` reads.
 /// - **No generation to wait for** (`FOLDER_GENERATION`, 25): the Dart and the core are one build. `update` is what
-///   [LibraryFolder.way] answers where this build has no way to choose yet: an Android run with no picker behind
-///   the channel, and the Mac, whose folder panel (`library_choose_folder`) is stage 10's.
+///   [LibraryFolder.way] answers where this build has no way to choose: an Android run with no picker behind
+///   the channel, and a desktop run that is not the Mac app.
+/// - **The Mac's `library_choose_folder` is two calls**: the folder panel is Swift's
+///   (macos/Runner/FilesChannel.swift, the same `chooseLibraryFolder` on the channel, answering `{path, name}`),
+///   and the core's `library_inspect {path}` looks into the folder and holds it. The Mac app is sandboxed, so
+///   the panel's grant is also what lets the core read the folder, now and (kept as a bookmark) at later launches.
 /// - `browser` is never answered: there is no build of this app whose notes are a browser's.
 library;
 
@@ -25,6 +29,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'mac_app.dart';
 import 'native/core.dart';
 
 /// The channel FilesBridge.kt answers on: the system's pickers, each call answered with the picker's own JSON.
@@ -183,6 +188,9 @@ FolderAnswer readFolderAnswer(String json) {
   final error = said['error'], uri = said['uri'], name = said['name'];
   if (error is String) return FolderRefused(error);
   if (uri is String && uri.startsWith('content://')) return FolderGranted(uri, name is String ? name : '');
+  // The Mac's panel: a folder by its whole path.
+  final path = said['path'];
+  if (path is String && path.startsWith('/') && path.length > 1) return FolderGranted(path, name is String ? name : '');
   return unread;
 }
 
@@ -200,28 +208,34 @@ Future<String> pickTreeOnPhone() async {
 
 /// The library's folder as the app reaches it: the page's imports, as one value (see the header).
 class LibraryFolder {
-  LibraryFolder({required CoreInvoke invoke, Future<String> Function()? pickTree, this.onNotesChanged, TargetPlatform? platform})
+  LibraryFolder({required CoreInvoke invoke, Future<String> Function()? pickTree, this.onNotesChanged, TargetPlatform? platform, bool? macApp})
       : _invoke = invoke,
         _platform = platform,
+        _macApp = macApp ?? runsAsMacApp,
         _pickTree = pickTree;
 
   final CoreInvoke _invoke;
   final TargetPlatform? _platform;
   final Future<String> Function()? _pickTree;
 
+  /// Whether the Mac's own panel is behind the channel (lib/core/mac_app.dart): never in a test on a Mac.
+  final bool _macApp;
+
   /// Told once a move has changed which notes there are (`announceNotesChanged`): the list is read again.
   final void Function()? onNotesChanged;
 
   TargetPlatform get _device => _platform ?? defaultTargetPlatform;
 
-  /// The phone's picker: the one handed in, else the activity's on Android, else none.
-  Future<String> Function()? get _picker => _pickTree ?? (_device == TargetPlatform.android ? pickTreeOnPhone : null);
+  /// The picker: the one handed in, else the activity's on Android and the Mac app's panel on a Mac (the same
+  /// call on the channel), else none.
+  Future<String> Function()? get _picker => _pickTree ?? (_device == TargetPlatform.android || (_device == TargetPlatform.macOS && _macApp) ? pickTreeOnPhone : null);
 
   /// Where a folder can be chosen from here (`folderWay`).
   Future<FolderWay> way() async {
     if (_device == TargetPlatform.iOS) return FolderWay.none;
     if (_device == TargetPlatform.android) return _picker == null ? FolderWay.update : FolderWay.android;
-    // The Mac's folder panel is not ported (stage 10): until it is, this build keeps the notes in its own folder.
+    if (_device == TargetPlatform.macOS) return _picker == null ? FolderWay.update : FolderWay.mac;
+    // No other desktop has a panel yet: this build keeps the notes in its own folder.
     return FolderWay.update;
   }
 
@@ -239,7 +253,8 @@ class LibraryFolder {
       case FolderRefused(:final error):
         throw StateError(error);
       case FolderGranted(:final uri):
-        return Candidate.fromJson(_map(await _invoke('library_inspect', {'uri': uri})));
+        // Android's tree by its uri; the Mac's folder by its path (kept/library_commands.rs).
+        return Candidate.fromJson(_map(await _invoke('library_inspect', uri.startsWith('/') ? {'path': uri} : {'uri': uri})));
     }
   }
 

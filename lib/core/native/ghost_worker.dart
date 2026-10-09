@@ -32,15 +32,19 @@ import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
 
+import '../mac_app.dart';
+
 /// What [ghostWorkerMain] is started with: where to send answers, and the library to open (`null` for the
 /// platform's own name, [defaultLibraryName]).
 typedef GhostWorkerStart = (SendPort answers, String? libraryPath);
 
 /// The library as the app carries it: `libghost_core.so` in the APK's `jniLibs` (tool/build-native.sh puts it
-/// there), found by name. Elsewhere the name the linker would look for; the Mac's tests give a path instead.
+/// there), found by name; in the Mac app, the copy in its own Frameworks, by its whole path (lib/core/mac_app.dart).
+/// Elsewhere the name the linker would look for; the Mac's tests give a path instead.
 String get defaultLibraryName {
   if (Platform.isAndroid || Platform.isLinux) return 'libghost_core.so';
   if (Platform.isWindows) return 'ghost_core.dll';
+  if (runsAsMacApp) return bundledCoreIn(Platform.resolvedExecutable);
   return 'libghost_core.dylib';
 }
 

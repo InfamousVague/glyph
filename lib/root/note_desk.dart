@@ -142,6 +142,7 @@ import '../plugins/registry.dart' show plugins;
 import '../plugins/types.dart' show NoteEditing;
 import '../notes/note_templates.dart' show NoteTemplate;
 import '../settings/panes/cheat_sheet.dart';
+import '../shell/desktop/desktop_commands.dart';
 import '../shell/screen.dart' show Keyed;
 import '../shell/top_bar_tools.dart' show TopBarTools;
 import '../share/ui/share_rows.dart';
@@ -587,7 +588,17 @@ class NoteDeskState extends State<NoteDesk> {
     _land();
     _aiWorld?.opened?.call(widget.noteId, _ai);
     _handed();
+    // A desktop's Command-F, and the Mac's Edit › Find: this note's find bar, with what is selected in it.
+    _stopFind = desktopCommands.on(DesktopCommand.find, () {
+      final view = _view;
+      if (view == null || !mounted || _leaving) return false;
+      final picked = view.state.selection.main;
+      _openFind(view, picked.empty ? '' : view.state.sliceDoc(picked.from, picked.to));
+      return true;
+    });
   }
+
+  VoidCallback? _stopFind;
 
   /// The note's tape, once it has a recording and there is a player to play it.
   tape_player.Tape? _tape;
@@ -769,6 +780,7 @@ class NoteDeskState extends State<NoteDesk> {
   @override
   void dispose() {
     _leaving = true;
+    _stopFind?.call();
     _world.holdNote?.call(widget.noteId, false);
     _live?.close();
     if (_ai case final ai?) {

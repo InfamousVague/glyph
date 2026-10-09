@@ -53,3 +53,4 @@ app.*.map.json
 # The Rust core (native/, tool/build-native.sh): cargo's output, and the phone's library it copies for Gradle.
 /native/target/
 /android/app/src/main/jniLibs/
+/macos/Core/

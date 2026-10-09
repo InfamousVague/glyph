@@ -17,9 +17,12 @@
 ///   core says the rest as events.
 /// - **No generation to wait for** (`EXPORT_GENERATION`, 22): `update` is only an Android run with no picker
 ///   behind the channel.
-/// - **No browser's export, and the Mac's is not ported**: there is no build of this app whose notes are a
-///   browser's (`browserFiles`, `noteFileName` and the browser's save stay on the page), and the Mac's save panel
-///   (`export_save`) is stage 10's. Off Android and the iPhone [ExportAll.way] answers `update`.
+/// - **No browser's export**: there is no build of this app whose notes are a browser's (`browserFiles`,
+///   `noteFileName` and the browser's save stay on the page).
+/// - **The Mac exports as Android does.** The Tauri app's `export_save` opened the save panel in Rust; here the
+///   panel is Swift's (macos/Runner/FilesChannel.swift), which makes the file and answers a descriptor it opened
+///   on it, so the Mac app goes through `chooseExport` and `export_fd` exactly as the phone does. Outside the Mac
+///   app (a test, another desktop) [ExportAll.way] answers `update`.
 /// - **The manifest's `page`** is what this build calls itself ([ExportAll.page]), where the page said the bundle
 ///   it was loaded from.
 /// - **The README's date is written in English**, as lib/core/backup.dart's is.
@@ -33,6 +36,7 @@ import 'package:flutter/services.dart';
 
 import 'backup.dart' show isoInstant, sizeSaid;
 import 'library_folder.dart' show filesChannel;
+import 'mac_app.dart';
 import 'native/core.dart';
 import 'native/events.dart';
 import 'stored.dart';
@@ -263,7 +267,14 @@ class ExportAll {
 
   /// Over the app's own core and the phone's own picker.
   factory ExportAll.overCore({required CoreInvoke invoke, required Future<CoreJob> Function(String command, [Map<String, Object?> args]) startJob, required Stream<CoreEvent> events, String page = 'flutter', TargetPlatform? platform}) =>
-      ExportAll(invoke: invoke, run: coreExportRun(startJob: startJob, events: events), picker: (platform ?? defaultTargetPlatform) == TargetPlatform.android ? ExportPicker.phone : null, page: page, platform: platform);
+      ExportAll(
+        invoke: invoke,
+        run: coreExportRun(startJob: startJob, events: events),
+        // The activity's on Android; the Mac app's save panel (macos/Runner/FilesChannel.swift) by the same calls.
+        picker: (platform ?? defaultTargetPlatform) == TargetPlatform.android || ((platform ?? defaultTargetPlatform) == TargetPlatform.macOS && runsAsMacApp) ? ExportPicker.phone : null,
+        page: page,
+        platform: platform,
+      );
 
   final CoreInvoke _invoke;
   final ExportRun _run;
@@ -280,7 +291,8 @@ class ExportAll {
   Future<ExportWay> way() async {
     if (_device == TargetPlatform.iOS) return ExportWay.none;
     if (_device == TargetPlatform.android) return _picker != null ? ExportWay.android : ExportWay.update;
-    // The Mac's save panel is not ported (see the header).
+    // The Mac app's save panel makes the file and hands over a descriptor, as Android's picker does.
+    if (_device == TargetPlatform.macOS && _picker != null) return ExportWay.mac;
     return ExportWay.update;
   }
 
@@ -307,7 +319,7 @@ class ExportAll {
     final name = exportName(now);
     final way = await this.way();
     if (way == ExportWay.none) throw StateError('Exporting isn’t on iPhone yet.');
-    if (way != ExportWay.android) throw StateError('Update Ghost.md to export everything.');
+    if (way != ExportWay.android && way != ExportWay.mac) throw StateError('Update Ghost.md to export everything.');
     final picker = _picker!;
     switch (readTargetAnswer(await picker.choose(name))) {
       case TargetCancelled():

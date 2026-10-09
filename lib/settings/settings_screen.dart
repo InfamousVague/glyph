@@ -9,6 +9,8 @@ import 'package:glacier/glacier.dart';
 
 import '../art/wisp_edge.dart';
 import '../core/back.dart';
+import '../shell/desktop/mac_drag_strip.dart';
+import '../shell/desktop/mac_lights.dart' show titlebarOverlay;
 import '../shell/wide_screen.dart' show mousePointer, splitFits;
 import 'kit/settings_icons.dart';
 import 'kit/settings_kit.dart';
@@ -146,7 +148,8 @@ enum _SwipeMark { none, through }
 /// - The search field is an `EditableText` with the kit's handles and menu; the web's was an `<input type=search>`.
 /// - A row shows the kit's focus ring inside its edge, where the page left the browser's own.
 /// - [split] lets the shell say the shape itself; left out, it is the sidebar's line asked of this window.
-/// - The Mac's title bar rule (`data-titlebar='overlay'`) waits for the desktop stage.
+/// - The Mac's title bar rule (`data-titlebar='overlay'`) is [SettingsScreenState._head]'s: the head starts under
+///   the window's buttons, and their row drags the window (lib/shell/desktop/mac_drag_strip.dart).
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
     super.key,
@@ -460,16 +463,22 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
 
   /// `.settingsScreen__head`: one row, the word at its start.
   Widget _head(Tokens t, Widget word) {
-    return Padding(
+    // On the Mac its first row met the window's three buttons, which sit where the tab bar's controls begin: there
+    // it starts below their row (`:root[data-titlebar='overlay'] .settingsScreen__head`), and that row drags the
+    // window, as the tab bar does.
+    final overlay = titlebarOverlay(t);
+    final head = Padding(
       padding: EdgeInsets.only(
         left: t.len('app-gutter-start'),
         right: t.len('app-gutter-end'),
         // Settings is drawn over everything, the app's tab bar included, so it clears the notch alone.
-        top: t.lenOf('calc(var(--app-inset-top) + var(--glacier-space-1))'),
+        top: overlay ? t.lenOf('calc(2.25rem + var(--glacier-space-1))') : t.lenOf('calc(var(--app-inset-top) + var(--glacier-space-1))'),
         bottom: t.space(1),
       ),
       child: Align(alignment: AlignmentDirectional.centerStart, child: word),
     );
+    if (!overlay) return head;
+    return Stack(children: [Positioned(left: 0, right: 0, top: 0, height: t.lenOf('2.25rem'), child: const MacDragStrip()), head]);
   }
 
   String get _searchWord => widget.title == 'Settings' ? 'Search settings' : 'Search ${widget.title}';

@@ -1,8 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  What the Mac app may do. It is sandboxed, where the Tauri Mac app is not (../glyph/src-tauri/Entitlements.plist):
+  everything it keeps is in its own container, and it reaches nothing else but what is named here.
+
+  network.client: sync, the model mirrors, link previews and the plugins' services (never asked of in a debug
+    build, which is given no service: lib/root/account_wiring.dart).
+  device.audio-input: the microphone, only while a take is recorded (macos/Runner/MicChannel.swift). Under the
+    hardened runtime a release without it records silence with no prompt and no error.
+  files.user-selected.read-write: the folder chosen for the library, the drive allowed for a backup, the file an
+    export is saved as, the picture added to a note - each chosen in a panel of the Mac's own.
+  files.bookmarks.app-scope: that folder and that drive kept past a launch (macos/Runner/FilesChannel.swift).
+-->
 <plist version="1.0">
 <dict>
 	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<key>com.apple.security.files.bookmarks.app-scope</key>
 	<true/>
 </dict>
 </plist>

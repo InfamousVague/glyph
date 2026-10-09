@@ -1,14 +1,16 @@
 // Application-level settings for the Runner target.
 //
-// This may be replaced with something auto-generated from metadata (e.g., pubspec.yaml) in the
-// future. If not, the values below would default to using the project name when this becomes a
-// 'flutter create' template.
+// The Mac app installs beside the Tauri Mac app, never over it: a name and a bundle id of its own, as the Android
+// app has (android/app/build.gradle.kts `applicationId`). The id is also where its files are: a sandboxed app
+// keeps everything under ~/Library/Containers/<this id>, which is not where the Tauri app (com.mattssoftware.glyph)
+// keeps anything. Never set this to the Tauri app's id: macos/Runner/GhostChannels.swift refuses to open a library
+// for a build that carries it.
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = ghost_md
+PRODUCT_NAME = Ghost Flutter
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.mattssoftware.ghostMd
+PRODUCT_BUNDLE_IDENTIFIER = com.mattssoftware.glyph.flutter
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.mattssoftware. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 MattsSoftware. All rights reserved.
