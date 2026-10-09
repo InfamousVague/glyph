@@ -20,21 +20,28 @@
 /// - **A canvas is not here.** The web keeps a team canvas as types beside the text (core/team/canvas.ts); the core
 ///   holds text alone, and the channel passes a canvas over (sync.dart says how) rather than merge its JSON as
 ///   words.
-/// - A change from the web that splits a character in two is refused by the core (crdt.dart): [TeamDoc.applyRemote]
-///   throws its [CoreError], the document as it was.
+/// - **An editor's own change says what it was made against** ([TeamDoc.edit]'s `base`, lib/team/text_log.dart):
+///   the document is a call away, so a key can be pressed after an update was handed to the core and before its
+///   words came back. Everything that changes the document goes one at a time, in the order it was asked.
+/// - What the web hears from `doc.on('update')` is [TeamDoc.onUpdate] (a change made here, for the note's room to
+///   send as it is made) and [TeamDoc.onSplice] (a change from elsewhere, for the editor bound to it).
 library;
 
 import 'dart:async';
 import 'dart:typed_data';
 
+import '../live/live_text.dart' show LiveText;
 import 'crdt.dart';
 import 'docs.dart';
+import 'text_log.dart';
+
+export 'text_log.dart' show TextSplice;
 
 /// How long a change rests before the document is kept to the store (`KEEP_AFTER_MS`).
 const Duration keepAfter = Duration(milliseconds: 400);
 
 /// One note's document (`TeamDoc`).
-class TeamDoc {
+class TeamDoc implements LiveText {
   TeamDoc._(this.noteId, this.crdt, this._store, this._words, {required this.seq, required this.snapshotSeq, required Duration rest}) : _rest = rest;
 
   final String noteId;
@@ -51,48 +58,96 @@ class TeamDoc {
   String _words;
   bool _closed = false;
   final Set<void Function(String words)> _listeners = {};
+  final Set<void Function(Uint8List update)> _updates = {};
+  final Set<void Function(TextSplice splice)> _splices = {};
+  final TextLog _log = TextLog();
+
+  /// Everything that changes the document, one after another in the order it was asked.
+  Future<void> _ops = Future<void>.value();
+
+  Future<T> _next<T>(Future<T> Function() op) {
+    final done = _ops.then((_) => op());
+    _ops = done.then<void>((_) {}, onError: (Object _) {});
+    return done;
+  }
+
+  /// How many changes from elsewhere the words have taken: what an editor's change is made against ([edit]).
+  @override
+  int get rev => _log.rev;
+
+  /// Settles once everything asked of the document so far is done.
+  @override
+  Future<void> settled() => _ops;
   Timer? _keep;
   Future<void> _keeping = Future<void>.value();
 
   /// The document's words now.
+  @override
   String get words => _words;
 
-  void _tell() {
+  /// The words are [after] now, by a change that was not the editor's.
+  void _tell(String after) {
+    final splice = _log.record(_words, after);
+    _words = after;
+    if (splice != null) {
+      for (final listener in _splices.toList()) {
+        listener(splice);
+      }
+    }
     for (final listener in _listeners.toList()) {
       listener(_words);
     }
   }
 
+  void _made(Uint8List? update) {
+    if (update == null) return;
+    for (final listener in _updates.toList()) {
+      listener(update);
+    }
+  }
+
   /// [words] brought into the document as one change, where they differ from it. True when something changed.
-  Future<bool> reconcile(String words) async {
-    if (_words == words) return false;
-    final change = await crdt.reconcile(words);
-    _words = change.text;
-    if (!change.changed) return false;
-    _soon();
-    _tell();
-    return true;
+  Future<bool> reconcile(String words) {
+    return _next(() async {
+      if (_words == words) return false;
+      final change = await crdt.reconcile(words);
+      if (!change.changed) {
+        _words = change.text;
+        return false;
+      }
+      _soon();
+      _tell(change.text);
+      _made(change.update);
+      return true;
+    });
   }
 
   /// An editor's own changes, in order, as one (crdt.dart `edit`): pending for the service like any change made
-  /// here. Listeners are not told: the editor knows what it typed.
-  Future<CrdtChange> edit(List<CrdtEdit> edits) async {
-    final change = await crdt.edit(edits);
-    _words = change.text;
-    if (change.changed) _soon();
-    return change;
+  /// here. [base] is the [rev] the editor's words were at when it made them; left out, they are taken as made
+  /// against the words as they are when their turn comes. Listeners to the words are not told: the editor knows
+  /// what it typed.
+  @override
+  Future<CrdtChange> edit(List<CrdtEdit> edits, {int? base}) {
+    return _next(() async {
+      final change = await crdt.edit(base == null ? edits : _log.carry(edits, base));
+      _words = change.text;
+      if (change.changed) _soon();
+      _made(change.update);
+      return change;
+    });
   }
 
   /// Updates from the log or the organization's row, applied; the words after, when they changed. Throws the core's
   /// refusal for an update it cannot hold, the document left as it was.
-  Future<String?> applyRemote(List<Uint8List> updates, [int? seq]) async {
-    final after = updates.isEmpty ? null : await crdt.applyRemote(updates);
-    if (seq != null && seq > this.seq) this.seq = seq;
-    _soon();
-    if (after == null) return null;
-    _words = after;
-    _tell();
-    return after;
+  Future<String?> applyRemote(List<Uint8List> updates, [int? seq]) {
+    return _next(() async {
+      final after = updates.isEmpty ? null : await crdt.applyRemote(updates);
+      if (seq != null && seq > this.seq) this.seq = seq;
+      _soon();
+      if (after == null) return null;
+      _tell(after);
+      return after;
+    });
   }
 
   /// The updates made here that the service has not been given yet, in order.
@@ -123,6 +178,21 @@ class TeamDoc {
     return () => _listeners.remove(listener);
   }
 
+  /// Told each change made here, as the update it is: an editor's, or a reconcile's. What the note's room sends as
+  /// it is made (lib/live/team.dart). Answers the way to stop hearing.
+  void Function() onUpdate(void Function(Uint8List update) listener) {
+    _updates.add(listener);
+    return () => _updates.remove(listener);
+  }
+
+  /// Told each change of the words from elsewhere as the stretch it was, numbered ([rev]): what a bound editor
+  /// puts into its own words. Answers the way to stop hearing.
+  @override
+  void Function() onSplice(void Function(TextSplice splice) listener) {
+    _splices.add(listener);
+    return () => _splices.remove(listener);
+  }
+
   void _soon() {
     if (_closed) return;
     _keep?.cancel();
@@ -144,6 +214,8 @@ class TeamDoc {
     }
     _closed = true;
     _listeners.clear();
+    _updates.clear();
+    _splices.clear();
     try {
       await crdt.close();
     } catch (_) {
