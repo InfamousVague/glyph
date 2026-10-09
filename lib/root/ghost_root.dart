@@ -1733,7 +1733,9 @@ class _GhostRootState extends State<GhostRoot> {
                 // The dock's microphone, and the note of the meeting being recorded now.
                 onCapture: capture == null ? null : _speak,
                 recording: recordingNow,
-                sideKey: voice?.assistant ?? false,
+                // `isAndroid ? 'Write it, or hold the side key and say it.'`: the page says the side key on any Android
+                // phone, whether or not this build answers it, and the empty page's words are held to the page's.
+                sideKey: defaultTargetPlatform == TargetPlatform.android,
                 notices: _notices(),
                 gists: _gists?.value ?? const {},
                 clock: widget.clock,
@@ -1765,6 +1767,8 @@ class _GhostRootState extends State<GhostRoot> {
                 ),
               ),
               allNotesBuilder: (context, shell, screen) => AllNotesScreen(
+                // The empty page's hint, as home's: the side key on any Android phone (AllNotesScreen.tsx `isAndroid`).
+                sideKey: defaultTargetPlatform == TargetPlatform.android,
                 notes: shell.notes,
                 loading: !_read,
                 workspaces: _workspaces,
