@@ -6,6 +6,7 @@
 //
 // The pictures (`flutter test --update-goldens` writes test/account_ui/shots/) are for the eye, beside
 // test/account_ui/fixtures/web/<page>-<width>-<theme>.png.
+import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/ghost_app.dart';
@@ -104,4 +105,29 @@ void main() {
       await endSettings(tester);
     });
   }
+
+  testWidgets('the organization’s New and Invite are in the tree a screen reader is given: buttons, each by its name', (tester) async {
+    // A walk on the emulator did not find New in `uiautomator`'s list (README, "What stage 7 left open"). What the
+    // app hands the phone has it, reached from the root: called "New in this organization", its word "New" being
+    // the picture of the name and not a second thing to read.
+    final handle = tester.ensureSemantics();
+    final seeded = await seededDevice(Reference('dashboard-390').now);
+    await seeded.device.pump(tester, dashboard(seeded.device, seeded.ghost), size: phone, scroll: false);
+    await settle(tester, 16);
+    final buttons = <String>[];
+    void walk(SemanticsNode node) {
+      final data = node.getSemanticsData();
+      if (data.flagsCollection.isButton && data.hasAction(SemanticsAction.tap)) buttons.add(data.label);
+      node.visitChildren((child) {
+        walk(child);
+        return true;
+      });
+    }
+
+    walk(tester.binding.renderViews.first.owner!.semanticsOwner!.rootSemanticsNode!);
+    expect(buttons, containsAllInOrder(['New in this organization', 'Invite']));
+    expect(tester.getSemantics(key('org-new')).label, 'New in this organization');
+    handle.dispose();
+    await endSettings(tester);
+  });
 }
