@@ -9,6 +9,9 @@
 #   tool/build-native.sh mac        macos/Core/libghost_core.dylib (release, Apple silicon and Intel in one file),
 #                                   which Xcode's "Bundle the core" phase copies into the app's Frameworks and
 #                                   signs; not part of `all`. GHOST_MAC_ARCHS="arm64" builds the one alone.
+#   tool/build-native.sh ios        ios/Core/GhostCore.xcframework (release, static: the simulator's library on
+#                                   Apple silicon and the iPhone's), which Xcode links into the Runner; not part
+#                                   of `all`. GHOST_IOS_TARGETS="aarch64-apple-ios-sim" builds the one alone.
 #
 #   GHOST_VOICE=0 tool/build-native.sh ...    the notes-only core, without the engines: seconds, not minutes
 #
@@ -42,6 +45,8 @@ case "$voice" in 0|no|false|off) voice="" ;; *) voice="voice" ;; esac
 cores="$(sysctl -n hw.ncpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 jobs=$((cores / 2))
 [ "$jobs" -ge 1 ] || jobs=1
+# GHOST_JOBS=4 says it outright, for a Mac that is busier still.
+jobs="${GHOST_JOBS:-$jobs}"
 export CMAKE_BUILD_PARALLEL_LEVEL="$jobs"
 
 # The included tests that cannot run from here, by name. Each reads a file of the Tauri app's by a path built
@@ -214,13 +219,71 @@ build_mac() {
   echo "build-native: $out/libghost_core.dylib ($(lipo -archs "$out/libghost_core.dylib"), $(wc -c < "$out/libghost_core.dylib" | tr -d ' ') bytes${voice:+, with the engines})"
 }
 
+# The iPhone app's library: a STATIC one, linked into the Runner itself, since iOS loads no loose dylib out of an
+# app the way the Mac's bundle does (a dynamic library there must be a signed, embedded framework); Dart then
+# finds the core's five functions in its own process (lib/core/native/ghost_worker.dart, `DynamicLibrary.process`).
+# One library per target, the simulator's on Apple silicon and the phone's, kept apart in an xcframework so Xcode
+# takes the one the build is for (both are arm64, which one fat file cannot hold twice).
+#
+# WITHOUT THE ENGINES, whatever GHOST_VOICE says. The Tauri app builds neither whisper.cpp nor llama.cpp for iOS
+# (../glyph/src-tauri/Cargo.toml's `cfg(not(target_os = "ios"))` table, src/unsupported.rs) and its iPhone app
+# records nothing and runs no model (core/platform.ts `recordsVoice`); this app's iPhone is held to that, so its
+# core is the notes-only one. GHOST_IOS_VOICE=1 tries the engines anyway, for whoever takes that up: untried.
+#
+# Not stripped by cargo, for the Mac's reason (build_mac): the proc macros are this Mac's, and Xcode 27's strip
+# leaves them unloadable once a deployment target is set. A static library is not stripped in any case; the app's
+# own link drops what nothing reaches.
+build_ios() {
+  wait_for_deploys
+  targets="${GHOST_IOS_TARGETS:-aarch64-apple-ios-sim aarch64-apple-ios}"
+  # The lowest iOS the app opens on (ios/Runner.xcodeproj IPHONEOS_DEPLOYMENT_TARGET, the Tauri app's 15.0).
+  export IPHONEOS_DEPLOYMENT_TARGET="${IPHONEOS_DEPLOYMENT_TARGET:-15.0}"
+  engines=""
+  case "${GHOST_IOS_VOICE:-0}" in 1|yes|true|on) engines="voice" ;; esac
+  out="$root/ios/Core"
+  # Made beside (xcodebuild takes no other ending for the name) and moved into place whole.
+  part="$out/.part/GhostCore.xcframework"
+  rm -rf "$out/.part"
+  mkdir -p "$out/.part"
+  libraries=""
+  for target in $targets; do
+    case "$target" in
+      aarch64-apple-ios-sim|aarch64-apple-ios) ;;
+      *) echo "build-native: no iOS target named $target" >&2; exit 2 ;;
+    esac
+    if ! rustup target list --installed | grep -qx "$target"; then
+      echo "build-native: rustup target add $target" >&2
+      exit 1
+    fi
+    # `cargo rustc --crate-type staticlib`: the crate says cdylib and rlib for every other platform, and a static
+    # library is asked for here alone rather than built (and its C compiled twice) everywhere.
+    (cd "$crate" && cargo rustc -j "$jobs" --lib --release --target "$target" --crate-type staticlib --config 'profile.release.strip=false' ${engines:+--features voice})
+    built="$CARGO_TARGET_DIR/$target/release/libghost_core.a"
+    for symbol in ghost_alloc ghost_invoke ghost_free ghost_set_listener ghost_forget_listener; do
+      nm -gU "$built" 2>/dev/null | grep -qw "_$symbol" || { echo "build-native: $symbol is not in $built." >&2; exit 1; }
+    done
+    libraries="$libraries -library $built"
+  done
+  # shellcheck disable=SC2086
+  xcodebuild -create-xcframework $libraries -output "$part" >/dev/null
+  # A build of the app meanwhile links the old library or the new one, never half of one.
+  rm -rf "$out/.old"
+  [ ! -d "$out/GhostCore.xcframework" ] || mv "$out/GhostCore.xcframework" "$out/.old"
+  mv "$part" "$out/GhostCore.xcframework"
+  rm -rf "$out/.old" "$out/.part"
+  for slice in "$out"/GhostCore.xcframework/*/libghost_core.a; do
+    echo "build-native: $slice ($(wc -c < "$slice" | tr -d ' ') bytes${engines:+, with the engines})"
+  done
+}
+
 case "$what" in
   test) run_tests ;;
   mac) build_mac ;;
+  ios) build_ios ;;
   host) build_host ;;
   android) build_android ;;
   all) run_tests; build_host; build_android ;;
-  *) echo "usage: tool/build-native.sh [test|host|android|mac|all]" >&2; exit 2 ;;
+  *) echo "usage: tool/build-native.sh [test|host|android|mac|ios|all]" >&2; exit 2 ;;
 esac
 
 cat <<'SAID'
@@ -229,4 +292,5 @@ To run it:
   flutter test --no-pub test/native test/capture_native test/ai_native   # Dart over the Mac's library (needs: host)
   flutter build apk --debug --target-platform android-arm64     # packs jniLibs/arm64-v8a/libghost_core.so (needs: android)
   flutter build macos --debug                                   # bundles macos/Core/libghost_core.dylib (needs: mac)
+  flutter build ios --simulator --debug                         # links ios/Core/GhostCore.xcframework (needs: ios)
 SAID

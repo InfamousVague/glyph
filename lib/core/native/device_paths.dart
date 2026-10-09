@@ -16,6 +16,11 @@
 /// that is held here, in code: whatever is answered is refused if it is the Tauri app's folder or a place inside
 /// it ([isRealAppPath], lib/core/mac_app.dart), and the core is then never opened.
 ///
+/// **In the iPhone app** they are the same two names inside the app's container
+/// (`<container>/Library/Application Support/com.mattssoftware.glyph.flutter` and `…/Library/Caches/…`), answered
+/// by ios/Runner/GhostChannels.swift: where Tauri's `app_data_dir` and `app_cache_dir` are on an iPhone. No other
+/// app's files can be reached from there, the real Ghost.md's included.
+///
 /// **Anywhere else** (a test on the Mac, a `flutter run` outside an app bundle) it is a folder under the system's
 /// temporary directory, so the app runs and nothing of a person's is mistaken for it.
 library;
@@ -24,6 +29,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
+import '../iphone_app.dart';
 import '../mac_app.dart';
 
 class DevicePaths {
@@ -39,7 +45,7 @@ class DevicePaths {
   static const MethodChannel channel = MethodChannel('ghost_md/device_paths');
 
   /// The app's directories on this device.
-  static Future<DevicePaths> find() => Platform.isAndroid || runsAsMacApp ? fromActivity() : Future.value(fallback());
+  static Future<DevicePaths> find() => Platform.isAndroid || runsAsMacApp || runsAsIPhoneApp ? fromActivity() : Future.value(fallback());
 
   /// What the Android activity, or the Mac app, says they are.
   static Future<DevicePaths> fromActivity() async {

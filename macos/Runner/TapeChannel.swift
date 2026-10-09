@@ -1,19 +1,35 @@
 import AVFoundation
+#if os(iOS)
+import Flutter
+import UIKit
+#else
 import Cocoa
 import FlutterMacOS
+#endif
 
-/// `ghost_md/tape` on the Mac: the player of a note's recording (lib/tapes/phone_player.dart), as
+/// `ghost_md/tape` on the Mac and on the iPhone: the player of a note's recording (lib/tapes/phone_player.dart), as
 /// android/…/ghost_md/TapePlayer.kt is on the phone and the page's `<audio>` element over the `rec` scheme was in
 /// the Tauri app. One player for the whole app.
+///
+/// ONE FILE FOR BOTH: the iPhone's Runner compiles this very file (ios/Runner.xcodeproj names it by its path here),
+/// `AVAudioPlayer` being the same on each; what differs is the two imports above, the word for the device, and the
+/// iPhone's audio session, which is told this is playback so a recording is heard with the ring switch off, as the
+/// page's element was. Each app's `GhostChannels.dirs()` says where its recordings are.
 ///
 /// Only ever a file under the app's own `recordings` folder, named by a note's id: an id is letters, digits, `-`
 /// and `_`, and anything else is refused before a path is made of it.
 ///
-/// - `load {noteId}` -> the recording's length in ms; an error where it is not on this Mac or will not open.
+/// - `load {noteId}` -> the recording's length in ms; an error where it is not on this device or will not open.
 /// - `play`, `pause`, `seek {ms}`, `release` -> null. `onDevice {noteId}` -> whether the file is here.
 /// - Events on `ghost_md/tape/events`: `{event: "position", ms}` a few times a second while it plays,
 ///   `{event: "playing", on}`, `{event: "ended"}`, `{event: "failed"}`.
 final class TapeChannel: NSObject, FlutterStreamHandler, AVAudioPlayerDelegate {
+  #if os(iOS)
+  private static let device = "iPhone"
+  #else
+  private static let device = "Mac"
+  #endif
+
   private var methods: FlutterMethodChannel?
   private var events: FlutterEventChannel?
   private var sink: FlutterEventSink?
@@ -51,9 +67,12 @@ final class TapeChannel: NSObject, FlutterStreamHandler, AVAudioPlayerDelegate {
     case "load":
       release()
       guard let file = TapeChannel.file(of: args?["noteId"] as? String), FileManager.default.fileExists(atPath: file.path) else {
-        return result(FlutterError(code: "tape", message: "The recording is not on this Mac.", details: nil))
+        return result(FlutterError(code: "tape", message: "The recording is not on this \(TapeChannel.device).", details: nil))
       }
       do {
+        #if os(iOS)
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
+        #endif
         let made = try AVAudioPlayer(contentsOf: file)
         made.delegate = self
         made.prepareToPlay()

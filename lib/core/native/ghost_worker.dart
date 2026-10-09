@@ -46,12 +46,22 @@ typedef GhostWorkerStart = (SendPort answers, String? libraryPath, bool hears);
 
 /// The library as the app carries it: `libghost_core.so` in the APK's `jniLibs` (tool/build-native.sh puts it
 /// there), found by name; in the Mac app, the copy in its own Frameworks, by its whole path (lib/core/mac_app.dart).
-/// Elsewhere the name the linker would look for; the Mac's tests give a path instead.
+/// Elsewhere the name the linker would look for; the Mac's tests give a path instead. An iPhone has no file to
+/// name ([openCore]).
 String get defaultLibraryName {
   if (Platform.isAndroid || Platform.isLinux) return 'libghost_core.so';
   if (Platform.isWindows) return 'ghost_core.dll';
   if (runsAsMacApp) return bundledCoreIn(Platform.resolvedExecutable);
   return 'libghost_core.dylib';
+}
+
+/// Opens the core: the file at [libraryPath], or the platform's own ([defaultLibraryName]). **On an iPhone there
+/// is no file**: iOS loads no loose library out of an app, so the core is a static library linked into the app's
+/// own executable (tool/build-native.sh ios, ios/Core/GhostCore.xcframework, kept through the link by
+/// ios/Runner/GhostCoreKeep.c), and its functions are looked up in the process itself.
+DynamicLibrary openCore(String? libraryPath, {bool? iPhone}) {
+  if (libraryPath == null && (iPhone ?? Platform.isIOS)) return DynamicLibrary.process();
+  return DynamicLibrary.open(libraryPath ?? defaultLibraryName);
 }
 
 typedef _AllocC = Pointer<Uint8> Function(Size len);
@@ -142,7 +152,7 @@ void ghostWorkerMain(GhostWorkerStart start) {
   final (answers, libraryPath, hears) = start;
   final _Native native;
   try {
-    native = _Native(DynamicLibrary.open(libraryPath ?? defaultLibraryName));
+    native = _Native(openCore(libraryPath));
   } on Object catch (e) {
     answers.send('Ghost.md\'s core could not be loaded: $e');
     return;

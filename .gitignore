@@ -54,3 +54,4 @@ app.*.map.json
 /native/target/
 /android/app/src/main/jniLibs/
 /macos/Core/
+/ios/Core/

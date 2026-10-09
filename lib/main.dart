@@ -14,6 +14,7 @@ import 'core/native/device_paths.dart';
 import 'core/native/ghost_core.dart';
 import 'core/locale_dates.dart';
 import 'core/geocode.dart';
+import 'core/iphone_app.dart';
 import 'core/keep_keyboard.dart';
 import 'core/films.dart';
 import 'core/open_link.dart';
@@ -30,11 +31,13 @@ import 'core/updates.dart';
 import 'root/account_wiring.dart';
 import 'core/link_preview.dart' show linkPreviewFetch;
 import 'root/ghost_root.dart';
+import 'root/iphone_wiring.dart';
 import 'root/plugin_ground.dart';
 import 'root/voice_wiring.dart';
 import 'shell/desktop/desktop_commands.dart';
 import 'shell/desktop/mac_tour.dart';
 import 'shell/desktop/mac_window.dart';
+import 'shell/phone_tour.dart';
 import 'tapes/phone_player.dart';
 
 /// The stylesheets the token engine reads after the kit's own, in the order the web app's page loads them
@@ -89,11 +92,14 @@ Future<void> main() async {
     // Voice: the phone's meeting service attached and what this launch was for read, before the first frame. A
     // model is only ever fetched from where this build was told (`--dart-define=GHOST_MODELS=http://…`), and never
     // from the real mirrors by a build that is not a release. No microphone is opened here, or by anything but a
-    // recorder's screen.
-    try {
-      voice = await VoiceMaking.attach(native, dataDir: dirs.dataDir, mirrors: voiceMirrors(ghostModelsDefine)).timeout(const Duration(seconds: 3));
-    } catch (failure) {
-      debugPrint('[ghost] voice is off for this run: $failure');
+    // recorder's screen. Not on an iPhone, which records nothing and runs no model, as the real iPhone app does
+    // not (lib/core/iphone_app.dart `recordsVoice`): its core is built without the engines, and nothing is made.
+    if (recordsVoice) {
+      try {
+        voice = await VoiceMaking.attach(native, dataDir: dirs.dataDir, mirrors: voiceMirrors(ghostModelsDefine)).timeout(const Duration(seconds: 3));
+      } catch (failure) {
+        debugPrint('[ghost] voice is off for this run: $failure');
+      }
     }
   } catch (failure) {
     debugPrint('[ghost] the library would not open: $failure');
@@ -121,11 +127,13 @@ Future<void> main() async {
   runApp(GhostApp(
     sheet: sheet,
     home: _Runs(
-      builder: (restart) => GhostRoot(core: core, native: whole, account: account, voiceMaking: voice, links: links, openLink: openLink, previewFetch: linkPreviewFetch(), restart: restart, tapePlayer: tapes, updates: updates, locator: locator, placeLookup: placeLookup, mapTiles: mapTiles, picturePicker: phonePicturePicker, films: films, dayPicker: defaultTargetPlatform == TargetPlatform.android ? phoneDayPicker : null),
+      builder: (restart) => GhostRoot(core: core, native: whole, account: account, voiceMaking: voice, links: links, openLink: openLink, previewFetch: iPhoneLinkPreviews() ? linkPreviewFetch() : null, restart: restart, tapePlayer: tapes, updates: updates, locator: locator, placeLookup: placeLookup, mapTiles: mapTiles, picturePicker: phonePicturePicker, films: films, dayPicker: defaultTargetPlatform == TargetPlatform.android || runsAsIPhoneApp ? phoneDayPicker : null),
     ),
   ));
   // A debug build of the Mac app started with a script walks itself (lib/shell/desktop/mac_tour.dart).
   unawaited(runMacTour());
+  // And of the iPhone app, in its simulator (lib/shell/phone_tour.dart).
+  unawaited(runPhoneTour());
 }
 
 /// The app, built anew each time it is started over (Developer's resets, lib/core/reset.dart): what
