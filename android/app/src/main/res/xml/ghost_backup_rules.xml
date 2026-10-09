@@ -6,10 +6,13 @@
   only a cache: the Rust core rebuilds it from the files the first time it opens (../glyph
   src-tauri/src/library/index.rs). `root` is the data directory, which lib/core/native/device_paths.dart opens
   the core on. index/ is where a chosen folder's index is kept (library/root.rs `INDEXES`).
+  The films in notes do not go either: video/ under the data directory (native/src/kept/videos.rs), which stays on
+  the phone it was added on, as ../glyph's own rules have it.
 -->
 <full-backup-content>
     <exclude domain="root" path="Library/.glyph/index.sqlite" />
     <exclude domain="root" path="Library/.glyph/index.sqlite-wal" />
     <exclude domain="root" path="Library/.glyph/index.sqlite-shm" />
     <exclude domain="root" path="index/" />
+    <exclude domain="root" path="video/" />
 </full-backup-content>
