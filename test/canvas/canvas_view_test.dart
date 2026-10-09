@@ -229,6 +229,9 @@ void main() {
     });
 
     testWidgets('picks a group on a tap, names it from its bar, and the bar takes only the group off', (tester) async {
+      // A desktop's screen, whose pointer is a mouse: the eight handles and the bar's desktop places.
+      debugCanvasCoarse = false;
+      addTearDown(() => debugCanvasCoarse = null);
       final shown = Shown(tester);
       await shown.show();
       await shown.tap(shown.at(250, 60), kind: PointerDeviceKind.mouse);
@@ -250,6 +253,9 @@ void main() {
     });
 
     testWidgets('resizes a picked card by a handle, in the canvas’s pixels, no smaller than the least, the far sides staying put', (tester) async {
+      // A desktop's screen, whose pointer is a mouse: the eight handles and the bar's desktop places.
+      debugCanvasCoarse = false;
+      addTearDown(() => debugCanvasCoarse = null);
       final shown = Shown(tester);
       await shown.show();
       await shown.tap(const Offset(50, 40), kind: PointerDeviceKind.mouse);
@@ -425,6 +431,9 @@ void main() {
     });
 
     testWidgets('picks a picture on a tap, to resize or take off, and never opens one', (tester) async {
+      // A desktop's screen, whose pointer is a mouse: the eight handles and the bar's desktop places.
+      debugCanvasCoarse = false;
+      addTearDown(() => debugCanvasCoarse = null);
       final shown = Shown(tester);
       await shown.show(canvas: pictures, pictures: MemoryPictureStore()..lend({'abc.jpg': pixel}));
       await shown.tapCard('mine', kind: PointerDeviceKind.mouse);

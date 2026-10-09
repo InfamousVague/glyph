@@ -18,7 +18,8 @@
 /// - **A press on it never reaches the editor** because it is above the editor, not because its events are
 ///   stopped; a long press is taken so press and hold does not start under it.
 /// - `:focus-visible` is the ring Flutter shows for a focus that came from the keyboard.
-/// - `@media (hover: hover) and (pointer: fine) { .cm-plus:hover }` is a mouse over it.
+/// - `@media (hover: hover) and (pointer: fine) { .cm-plus:hover }` is a mouse over it on a desktop
+///   (shell/wide_screen.dart `mousePointer`): on a phone the page's guard is not met, with a mouse or without.
 /// - The controller is new: on the page the three pieces of state were the screen's own hooks.
 library;
 
@@ -33,6 +34,7 @@ import '../editor.dart';
 import '../view/editor_view.dart';
 import 'add_list.dart';
 import 'insert_plus.dart';
+import '../../shell/wide_screen.dart' show mousePointer;
 
 /// The + and its list, as a note's screen holds them: whether the screen allows a + now, the opening the + asked
 /// for, and the door the editor's keys reach the list by.
@@ -456,7 +458,7 @@ class _PlusButtonState extends State<PlusButton> with SingleTickerProviderStateM
     final size = t.lenOf(lead ? 'clamp(8px, calc(var(--app-gutter, 1rem) - 12px), 0.625rem)' : 'clamp(8px, calc(var(--app-gutter, 1rem) - 6px), 0.75rem)');
     final ink = _pressed || plus.expanded
         ? t.color('app-ink')
-        : _hovered
+        : _hovered && mousePointer
         ? t.color('app-ink-2')
         : t.color('app-ink-3');
     final turn = t.transition('app-turn');

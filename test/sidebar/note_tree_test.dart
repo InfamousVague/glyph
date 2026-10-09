@@ -1,5 +1,6 @@
 import 'dart:ui' show Tristate;
 
+import 'package:flutter/foundation.dart' show TargetPlatform, debugDefaultTargetPlatformOverride;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -434,7 +435,9 @@ void main() {
       await away(tester);
     });
 
-    testWidgets('hides a folder’s More until its row is pointed at, once there is a mouse to point with', (tester) async {
+    testWidgets('hides a folder’s More until its row is pointed at on a desktop, and never on a phone, with a mouse or without', (tester) async {
+      // `@media (hover: hover)`, which is about the screen's own pointer: a phone's page answers by its touch
+      // screen with a mouse joined to it too (shell/wide_screen.dart `mousePointer`).
       spaces.addWorkspace('Kitchen');
       await show(tester, tree(notes: [makeNote('a')]));
       double shown() => tester.widget<Opacity>(find.ancestor(of: byLucide(Lucide.ellipsis), matching: find.byType(Opacity)).first).opacity;
@@ -445,11 +448,18 @@ void main() {
       await tester.pump();
       await mouse.moveTo(tester.getCenter(find.text('a')));
       await tester.pump();
+      expect(shown(), 1, reason: 'a mouse on a phone: the page’s question is still the touch screen’s');
+      // A desktop: there once its row is pointed at.
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      await show(tester, tree(notes: [makeNote('a'), makeNote('b')]));
+      await mouse.moveTo(tester.getCenter(find.text('a')));
+      await tester.pump();
       expect(shown(), 0);
       await mouse.moveTo(tester.getCenter(find.text('Kitchen')));
       await tester.pump();
       expect(shown(), 1);
       await mouse.removePointer();
+      debugDefaultTargetPlatformOverride = null;
       await away(tester);
     });
   });

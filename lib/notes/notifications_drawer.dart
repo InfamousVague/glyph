@@ -9,6 +9,7 @@ import '../core/preferences.dart' show NotificationPrefs;
 import '../sheet/css.dart';
 import 'floating_card.dart';
 import 'when.dart';
+import '../shell/wide_screen.dart' show hoverPointer;
 
 /// The notifications, in a drawer hung from the bell (docs/TEAMS.md; Matt: "implement a full notification system and
 /// put the invites in there with an inline accept and deny"). A port of `src/app/notes/NotificationsDrawer.tsx` and
@@ -39,7 +40,8 @@ import 'when.dart';
 /// - [emptyArt] is the small ghost with everything ticked (`Ghost scene="all-ticked" size="small"`), lib/art's to
 ///   draw; without it the words stand alone.
 /// - The icon that opens it is wrapped in a [FloatingCardToggle] named [notificationsToggle].
-/// - The cross that clears a row waits to be pointed at only when a mouse is connected (`@media (hover: hover)`).
+/// - The cross that clears a row waits to be pointed at on a desktop and never on a phone, which is how `@media
+///   (hover: hover)` is answered on each (shell/wide_screen.dart `hoverPointer`).
 class NotificationsDrawer extends StatefulWidget {
   const NotificationsDrawer({
     super.key,
@@ -110,18 +112,6 @@ class _NotificationsDrawerState extends State<NotificationsDrawer> {
     super.initState();
     // Opened: the feed taken again now, so what arrived while the app was away is here before the drawer is read.
     if (!_held) WidgetsBinding.instance.addPostFrameCallback((_) => widget.onOpened?.call());
-    // A mouse plugged in, or taken away, changes what waits to be pointed at (`@media (hover: hover)`).
-    RendererBinding.instance.mouseTracker.addListener(_onMouse);
-  }
-
-  void _onMouse() {
-    if (mounted) setState(() {});
-  }
-
-  @override
-  void dispose() {
-    RendererBinding.instance.mouseTracker.removeListener(_onMouse);
-    super.dispose();
   }
 
   @override
@@ -639,7 +629,7 @@ class _RowState extends State<_Row> with SingleTickerProviderStateMixin {
                               builder: (context) {
                                 // `@media (hover: hover) { .clear { opacity: 0; transition: opacity 120ms ease }
                                 // .row:hover .clear, .row:focus-within .clear { opacity: 1 } }`
-                                final shown = !RendererBinding.instance.mouseTracker.mouseIsConnected || _hovered || Focus.of(context).hasFocus;
+                                final shown = !hoverPointer || _hovered || Focus.of(context).hasFocus;
                                 return AnimatedOpacity(
                                   opacity: shown ? 1 : 0,
                                   duration: const Duration(milliseconds: 120),

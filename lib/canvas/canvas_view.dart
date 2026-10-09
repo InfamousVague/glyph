@@ -91,6 +91,11 @@ typedef CardEditor = ({String name, Color colour});
 /// (its round). Handed the canvas as it is and the way to change it.
 typedef CanvasThreads = void Function(BuildContext context, {required Canvas canvas, required String node, required bool start, required void Function(Canvas next) change});
 
+/// A test's word on the screen's own pointer, where that is not the platform's a test runs as: the page's desktop
+/// rectangles were read with a mouse for its pointer (`@media (pointer: coarse)` not met), and a test is a phone.
+@visibleForTesting
+bool? debugCanvasCoarse;
+
 class CanvasView extends StatefulWidget {
   const CanvasView({
     super.key,
@@ -224,8 +229,11 @@ class CanvasViewState extends State<CanvasView> {
   final Set<String> _made = <String>{};
   bool _below = false;
 
-  /// A finger rather than a pointer was last on the canvas (`pointer: coarse`).
-  bool _coarse = defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS;
+  /// The screen's own pointer is a finger (`@media (pointer: coarse)`, Selection.module.css: a finger has the four
+  /// corners, a little larger). The screen's, not the last press's: a phone's page answers by its touch screen with
+  /// a mouse joined to it too (shell/wide_screen.dart `mousePointer` says how that was asked), so a mouse on a phone
+  /// keeps the four corners, where the last press's kind gave it eight.
+  final bool _coarse = debugCanvasCoarse ?? (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
 
   /// The last tap on open canvas, for telling a double-tap.
   ({Duration at, double x, double y})? _lastTap;
@@ -734,8 +742,6 @@ class CanvasViewState extends State<CanvasView> {
 
   void _down(PointerDownEvent event) {
     if (_owned.contains(event.pointer)) return;
-    final coarse = event.kind == PointerDeviceKind.touch;
-    if (coarse != _coarse && (coarse || event.kind == PointerDeviceKind.mouse)) setState(() => _coarse = coarse);
     final at = event.localPosition;
     // A group whose name is being written: a press on it is the name's.
     final editing = _live.nodeOf(_editing);

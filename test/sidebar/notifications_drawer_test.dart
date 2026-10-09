@@ -328,18 +328,26 @@ void main() {
       await away(tester);
     });
 
-    testWidgets('hides a row’s cross until the row is pointed at, once there is a mouse to point with', (tester) async {
+    testWidgets('hides a row’s cross until the row is pointed at on a desktop, and never on a phone, with a mouse or without', (tester) async {
+      // `@media (hover: hover)`, which is about the screen's own pointer: a phone's page answers by its touch
+      // screen with a mouse joined to it too (shell/wide_screen.dart `mousePointer`).
       await show(tester);
       double shown() => tester.widget<AnimatedOpacity>(find.descendant(of: rowOf('n2'), matching: find.byType(AnimatedOpacity))).opacity;
       expect(shown(), 1);
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await mouse.addPointer(location: const Offset(100, 800));
       await tester.pump();
+      expect(shown(), 1, reason: 'a mouse on a phone: the page’s question is still the touch screen’s');
+      await away(tester);
+      // A desktop: hidden until its row is pointed at.
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      await show(tester);
       expect(shown(), 0);
       await mouse.moveTo(tester.getCenter(find.text('ana joined Ghost')));
       await tester.pump();
       expect(shown(), 1);
       await mouse.removePointer();
+      debugDefaultTargetPlatformOverride = null;
       await away(tester);
     });
   });

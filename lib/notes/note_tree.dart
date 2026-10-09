@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/gestures.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -18,6 +17,7 @@ import 'note_peek.dart';
 import 'org_mark.dart';
 import 'tree.dart';
 import 'workspace_sheet.dart';
+import '../shell/wide_screen.dart' show hoverPointer;
 
 /// The sidebar: one tree of notes, the same whether it sits beside the note on a desktop or opens over it on a phone
 /// (Matt: "Make the sidebar on desktop the same sidebar that shows up in the pop-up sidebar. Make it more similar to
@@ -45,8 +45,8 @@ import 'workspace_sheet.dart';
 ///   is not ported.
 /// - What a workspace's sheet does to notes is asked of the caller ([notesInWorkspace], [onTrashNotes]; see
 ///   workspace_sheet.dart).
-/// - A folder's More and a note in the trash's two buttons are hidden until pointed at when a mouse is connected,
-///   and always shown otherwise, where the page asked `@media (hover: hover)`.
+/// - A folder's More and a note in the trash's two buttons are hidden until pointed at on a desktop, and always
+///   shown on a phone, which is how `@media (hover: hover)` is answered on each (`hoverPointer`).
 /// - [notices] is a list, spaced as the page's wrapper spaces its children; an empty one takes no room.
 class NoteTree extends StatefulWidget {
   const NoteTree({
@@ -137,19 +137,7 @@ class _NoteTreeState extends State<NoteTree> {
   Timer? _askingFor;
 
   @override
-  void initState() {
-    super.initState();
-    // A mouse plugged in, or taken away, changes what waits to be pointed at (`@media (hover: hover)`).
-    RendererBinding.instance.mouseTracker.addListener(_onMouse);
-  }
-
-  void _onMouse() {
-    if (mounted) setState(() {});
-  }
-
-  @override
   void dispose() {
-    RendererBinding.instance.mouseTracker.removeListener(_onMouse);
     _askingFor?.cancel();
     super.dispose();
   }
@@ -565,8 +553,11 @@ class _Look {
       pageText(t, t.fontSize('sm') * scale * 1.06, weight: weight, height: 1.3, color: untitled ? t.color('glacier-text-subtle') : color ?? t.color('app-ink'));
 }
 
-/// Whether a mouse is connected, which is when a control may wait to be pointed at (`@media (hover: hover)`).
-bool _hovers() => RendererBinding.instance.mouseTracker.mouseIsConnected;
+/// Whether a control may wait to be pointed at (`@media (hover: hover)`): on a desktop, and never on a phone,
+/// with a mouse joined to it or not, as the page's question is answered there (shell/wide_screen.dart
+/// `hoverPointer`). It asked whether a mouse was connected, which hid a folder's More on a phone with a mouse where
+/// the page keeps it shown.
+bool _hovers() => hoverPointer;
 
 /// Rebuilds with whether the pointer is over it.
 class _Hover extends StatefulWidget {

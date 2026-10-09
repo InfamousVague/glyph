@@ -57,6 +57,9 @@ void main() {
     for (final theme in ['light', 'dark']) {
       testWidgets('the example canvas at ${width.toInt()} x ${height.toInt()}, $theme, is the page’s', (tester) async {
         final ref = reference(width.toInt(), theme);
+        // The wide page was read in a desktop's browser, whose own pointer is a mouse.
+        debugCanvasCoarse = phone;
+        addTearDown(() => debugCanvasCoarse = null);
         var body = sampleCanvasBody();
         final key = GlobalKey<CanvasViewState>();
         await pumpApp(
