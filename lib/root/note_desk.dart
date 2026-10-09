@@ -45,7 +45,7 @@ import '../canvas/canvas_view.dart';
 import '../core/book.dart';
 import '../core/canvas_body.dart';
 import '../core/images.dart';
-import '../core/link_preview.dart' show LinkOpener;
+import '../core/link_preview.dart' show LinkOpener, LinkPreviewer, noLinkPreviews;
 import '../core/note.dart';
 import '../core/note_text.dart';
 import '../core/preferences.dart';
@@ -137,6 +137,7 @@ class NoteDeskWorld {
     this.noteOf,
     this.newEntry,
     this.openLink,
+    this.previewer,
   });
 
   /// Every note's title, for the +'s A note.
@@ -199,6 +200,10 @@ class NoteDeskWorld {
   /// Hands a web address to the phone (`openLink`): a link card's tap, and a canvas's link card. Absent, a tap
   /// opens nothing.
   final LinkOpener? openLink;
+
+  /// What knows the titles of linked pages (lib/core/link_preview.dart `KeptLinkPreviews`); absent, a link's card
+  /// says its site and its path.
+  final LinkPreviewer? previewer;
 }
 
 /// Builds a note's screen with the editor and the seams the desk made for it.
@@ -272,6 +277,7 @@ class NoteDeskState extends State<NoteDesk> {
       seams: MediaSeams(
         pictures: _world.pictures,
         openLink: _world.openLink,
+        previewer: _world.previewer ?? noLinkPreviews,
         linkPreviews: () => _prefs.value.linkPreviews,
         switches: _prefs,
       ),

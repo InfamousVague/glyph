@@ -13,7 +13,9 @@ import 'core/preferences.dart';
 import 'core/stored.dart';
 import 'core/stored_device.dart';
 import 'root/account_wiring.dart';
+import 'core/link_preview.dart' show linkPreviewFetch;
 import 'root/ghost_root.dart';
+import 'root/plugin_ground.dart';
 import 'root/voice_wiring.dart';
 
 /// The stylesheets the token engine reads after the kit's own, in the order the web app's page loads them
@@ -33,6 +35,9 @@ Future<void> main() async {
   } catch (_) {
     // Refused (core/stored.dart): a device that cannot remember, not an error.
   }
+  // The plugins that ship, on the phone's own memory, secure store and network (lib/root/plugin_ground.dart):
+  // before the first screen, since Settings' rows, the editor's parser and the Academy's lessons read them.
+  installPlugins();
   // The notes library: the web app's own Rust, asked across FFI (lib/core/native). A phone where it will not load
   // still opens, on the invented library, rather than on nothing.
   CoreInvoke? core;
@@ -65,5 +70,5 @@ Future<void> main() async {
     debugPrint('[ghost] the library would not open: $failure');
   }
   // One PhoneLinks for the life of the app: it holds the channel the activity says `arrived` on.
-  runApp(GhostApp(sheet: sheet, home: GhostRoot(core: core, account: account, voiceMaking: voice, links: PhoneLinks(), openLink: openLink)));
+  runApp(GhostApp(sheet: sheet, home: GhostRoot(core: core, account: account, voiceMaking: voice, links: PhoneLinks(), openLink: openLink, previewFetch: linkPreviewFetch())));
 }

@@ -14,6 +14,7 @@ import '../book/journal.dart' as journal;
 import '../book/journal_view.dart' show JournalPages;
 import '../book/new_book_sheet.dart';
 import '../book/tickets.dart';
+import '../academy/academy_screen.dart';
 import '../canvas/json_canvas.dart' show Canvas, canvasNoteBody;
 import '../capture/meeting_live.dart' show MeetingLive;
 import '../capture/place.dart' show Placing;
@@ -27,7 +28,7 @@ import '../core/core_library.dart';
 import '../core/front_matter.dart' show frontMatterOffset;
 import '../core/images.dart';
 import '../core/kept_trash.dart';
-import '../core/link_preview.dart' show LinkOpener;
+import '../core/link_preview.dart' show KeptLinkPreviews, LinkOpener, LinkPreviewFetch;
 import '../core/kept_workspaces.dart';
 import '../core/native/core.dart';
 import '../core/native/files.dart';
@@ -45,6 +46,8 @@ import '../core/untouched.dart';
 import '../core/versions_record.dart';
 import '../core/versions_store.dart';
 import '../core/workspaces.dart';
+import '../diag/scene_bench.dart' show showSceneBench;
+import '../diag/wisp_bench.dart' show showWispBench;
 import '../editor/queries/queries.dart' show NoteChange;
 import '../home/home_layout.dart';
 import '../home/home_screen.dart';
@@ -117,7 +120,7 @@ import 'voice_wiring.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -153,6 +156,10 @@ class GhostRoot extends StatefulWidget {
   /// Hands an address to the phone (lib/core/open_link.dart): a link's tap in a note, Settings' pages. Absent, a tap
   /// opens nothing.
   final LinkOpener? openLink;
+
+  /// Reads a linked page's title, site and summary (lib/core/link_preview.dart `linkPreviewFetch`). Absent, as in a
+  /// test, a link's card says its site and its path and nothing is asked of anywhere.
+  final LinkPreviewFetch? previewFetch;
 
   /// Voice, where a test brings its own; then nothing is made from [voiceMaking].
   final Voice? voice;
@@ -413,7 +420,10 @@ class _GhostRootState extends State<GhostRoot> {
   SettingsFeatures _features(AccountServices? services) {
     final voice = _voice;
     final wayIn = services == null ? noServiceWayIn : null;
-    if (voice == null) return SettingsFeatures(onWayIn: wayIn);
+    // Developer's two benches, over everything (diag/WispBench.tsx, diag/SceneBench.tsx).
+    void smoke() => unawaited(showWispBench(context));
+    void scene(String readings) => unawaited(showSceneBench(context, readings));
+    if (voice == null) return SettingsFeatures(onWayIn: wayIn, onSmokeBench: smoke, onPlayScene: scene);
     final models = voice.models;
     final present = models == null ? const <String>{} : presentIds(models.models).toSet();
     final download = models?.download;
@@ -431,6 +441,8 @@ class _GhostRootState extends State<GhostRoot> {
     final live = voice.live;
     return SettingsFeatures(
       onWayIn: wayIn,
+      onSmokeBench: smoke,
+      onPlayScene: scene,
       models: models == null
           ? null
           : SettingsModelsState(
@@ -471,6 +483,14 @@ class _GhostRootState extends State<GhostRoot> {
             },
     );
   }
+
+  /// The titles of linked pages, kept on this device (`core/linkPreview.ts`): asked only with Link previews on and
+  /// "Nothing leaves the phone" off.
+  late final KeptLinkPreviews _previews = KeptLinkPreviews(
+    _stored,
+    fetch: widget.previewFetch,
+    canAsk: () => preferences.value.linkPreviews && !preferences.value.localOnly,
+  );
 
   /// Following the links that opened the app, from the notes' first read until the app is gone.
   void Function()? _stopLinks;
@@ -807,6 +827,7 @@ class _GhostRootState extends State<GhostRoot> {
     noteOf: (title) => _reads.titled(title),
     newEntry: (id, template) => unawaited(_newEntry(id, template)),
     openLink: widget.openLink,
+    previewer: _previews,
   );
 
   /// A note's screen with its editor: one desk to an open note (lib/root/note_desk.dart).
@@ -881,6 +902,7 @@ class _GhostRootState extends State<GhostRoot> {
   void dispose() {
     preferences.removeListener(_smoke);
     _stopLinks?.call();
+    _previews.dispose();
     _unwatchMeeting?.call();
     _voice?.live?.canNotify.removeListener(_voiceChanged);
     _voice?.models?.removeListener(_voiceChanged);
@@ -1133,6 +1155,17 @@ class _GhostRootState extends State<GhostRoot> {
                         onMeeting: voice.canMeet ? () => unawaited(capture.meeting(false)) : null,
                         onFinish: (note, locked, {review, ask, landing}) => unawaited(capture.finished(note, locked, review: review, ask: ask, landing: landing)),
                       ),
+              // Ghost.md Academy, the whole window: out by its arrow, and its contents' way to the cheat sheet.
+              academyBuilder: (context, shell) => AcademyScreen(
+                onDone: shell.backToList,
+                onCheatSheet: () {
+                  shell.backToList();
+                  setState(() {
+                    _settings = true;
+                    _settingsPage = SettingsTarget('cheatsheet', nonce: DateTime.now().microsecondsSinceEpoch);
+                  });
+                },
+              ),
               meetingBuilder: voice == null || capture == null || voice.live == null
                   ? null
                   : (context, shell, screen) => MeetingScreen(
@@ -1264,6 +1297,10 @@ class _GhostRootState extends State<GhostRoot> {
               features: _features(services),
               onOrganization: services == null ? null : (id) => setState(() => _organization = (id: id, from: OrganizationFrom.settings)),
               onOpenLink: widget.openLink == null ? null : (url) => unawaited(widget.openLink!(url)),
+              onAcademy: () {
+                setState(() => _settings = false);
+                _shell.currentState?.show(const Screen.academy());
+              },
             ),
             CommandBar.over(
               key: _commands,
@@ -1276,6 +1313,7 @@ class _GhostRootState extends State<GhostRoot> {
                 newNotebook: () => _newBook(NewBookKind.notebook),
                 newJournal: () => _newBook(NewBookKind.journal),
                 newEntry: (id) => unawaited(_newEntry(id)),
+                academy: () => _shell.currentState?.show(const Screen.academy()),
                 speak: _capture == null ? null : _speak,
                 speakInto: _capture == null ? null : (id) => unawaited(_speakInto(id)),
                 openNoteWhereLeft: (id) {
