@@ -10,6 +10,7 @@ import 'package:ghost_md/editor/editor.dart';
 import 'package:ghost_md/editor/view/base.dart';
 import 'package:ghost_md/editor/view/column.dart';
 import 'package:ghost_md/editor/view/editor_view.dart';
+import 'package:ghost_md/editor/view/line.dart';
 import 'package:ghost_md/live/editor_binding.dart';
 
 import '../support/render.dart';
@@ -36,6 +37,20 @@ void main() {
       ])));
       await tester.pump();
       expect(remoteCaretsOf(view.state), hasLength(4));
+      // Ada's selection is over three lines: the first from where it starts, the last to where it ends, and the
+      // line between washed whole, as a line's own ground (y-codemirror's `cm-yLineSelection`).
+      final washed = <String>[];
+      for (final set in view.decorations) {
+        set.between(0, view.state.doc.length, (from, to, value) {
+          final name = value.spec.className ?? '';
+          if (name.contains('cm-yHue-sea')) washed.add('${name.split(' ').first} ${view.state.sliceDoc(from, to)}');
+          return null;
+        });
+      }
+      expect(washed, ['cm-ySelection carets in their colours', 'cm-yLineSelection ', 'cm-ySelection - [x] the wire']);
+      final between = tester.renderObjectList<RenderEditorLine>(find.byType(EditorLine)).firstWhere((line) => view.state.doc.lineAt(line.from).text == '- [ ] presence on the dashboard');
+      expect(between.spec.look.background, isNotNull);
+      expect((between.spec.look.marginStart, between.spec.look.marginEnd), (4, 2));
       expect(find.bySemanticsLabel('matt is here'), findsOneWidget);
       await shot(tester, 'live_carets_$theme');
     });

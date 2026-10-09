@@ -16,8 +16,9 @@
 /// - **Undo stays the editor's own** (lib/editor/state/undo_slot.dart `localUndo`), where the page swaps it for
 ///   `Y.UndoManager`: what arrives is kept out of the history (`addToHistory` false) and the history maps over
 ///   it, so an undo takes back this person's typing and leaves the others' alone, which is what the page's does.
-/// - **A selection across lines** is washed line by line over its words; y-codemirror washes the lines between
-///   the first and the last whole, to the page's edge, and an empty line among them is washed there and not here.
+/// - **A selection across lines** is washed as y-codemirror washes it: the first line from where it starts, the
+///   last to where it ends, and the lines between whole (an empty one among them too), each of those a line's own
+///   ground under the member's hue.
 /// - **A caret is placed a moment after it is heard** (its relative position is the core's to place), and rides
 ///   the editor's own changes meanwhile.
 /// - The caret's colour is the member's hue at the lightness this paper needs (the kit's `[data-hue]`), read from
@@ -88,12 +89,19 @@ class _Carets {
       final anchor = caret.anchor.clamp(0, doc.length), head = caret.head.clamp(0, doc.length);
       final start = anchor < head ? anchor : head, end = anchor < head ? head : anchor;
       if (end > start) {
+        // y-codemirror's `yRemoteSelections`: on one line, its words; over several, the first line from where it
+        // starts and the last to where it ends, and every line between washed whole, an empty one among them too.
         final wash = Decoration.mark(className: 'cm-ySelection ${_hueClass(caret.hue)}');
-        final first = doc.lineAt(start).number, last = doc.lineAt(end).number;
-        for (var n = first; n <= last; n += 1) {
-          final line = doc.line(n);
-          final from = n == first ? start : line.from, to = n == last ? end : line.to;
-          if (to > from) ranges.add(wash.range(from, to));
+        final first = doc.lineAt(start), last = doc.lineAt(end);
+        if (first.number == last.number) {
+          ranges.add(wash.range(start, end));
+        } else {
+          if (first.to > start) ranges.add(wash.range(start, first.to));
+          if (end > last.from) ranges.add(wash.range(last.from, end));
+          final whole = Decoration.line(className: 'cm-yLineSelection ${_hueClass(caret.hue)}');
+          for (var n = first.number + 1; n < last.number; n += 1) {
+            ranges.add(whole.range(doc.line(n).from));
+          }
         }
       }
       ranges.add(Decoration.widget(widget: RemoteCaretWidget(caret.name, caret.hue), side: head - anchor > 0 ? -1 : 1).range(head));
@@ -190,7 +198,10 @@ class _CaretPainter extends CustomPainter {
   bool shouldRepaint(_CaretPainter old) => old.colour != colour || old.paper != paper || old.name != name || old.em != em || old.label != label;
 }
 
-/// `ySelection`'s wash, a quarter of the member's colour (a fifth of the ink): one rule a hue.
+/// `ySelection`'s wash, a quarter of the member's colour (a fifth of the ink): one rule a hue, on a run of words
+/// and on a whole line alike. And y-codemirror's own rule for a line washed whole, as much of it as reaches the
+/// page: `.cm-yLineSelection { padding: 0; margin: 0px 2px 0px 4px }`, whose margin stands (the line is that much
+/// narrower, and its words that much in) and whose padding the note's own rule for a line's gutter is written over.
 final LookSheet _theme = LookSheet('live/editor_binding.dart', <LookRule>[
   for (final hue in <String?>[null, ...hueAngles.keys])
     LookRule(_hueClass(hue), (p, e) {
@@ -198,6 +209,11 @@ final LookSheet _theme = LookSheet('live/editor_binding.dart', <LookRule>[
       final wash = colour.withValues(alpha: colour.a * (hue == null ? 0.20 : 0.24));
       p.background = (_) => wash;
     }),
+  LookRule('cm-yLineSelection', classes: 2, (p, e) {
+    p
+      ..marginStart = 4
+      ..marginEnd = 2;
+  }),
 ]);
 
 final Extension _themed = baseTheme(_theme);
