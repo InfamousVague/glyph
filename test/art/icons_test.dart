@@ -87,6 +87,13 @@ void main() {
       expect(Lucide.all.length, greaterThan(200));
     });
 
+    test('answer to the other names lucide keeps for them, so a mark that names its icon by a word has it', () {
+      // `waves` is one line handing on `waves-horizontal`: Wave's icon on the Style page and in the +'s list.
+      expect(identical(Lucide.all['waves'], Lucide.all['waves-horizontal']), isTrue);
+      expect(Lucide.all['waves']!.name, 'waves-horizontal');
+      expect(identical(Lucide.all['history'], Lucide.history), isTrue);
+    });
+
     test('are paths the app can draw, every shape of every one, inside the 24 grid', () {
       for (final icon in Lucide.all.values) {
         for (final d in icon.shapes) {

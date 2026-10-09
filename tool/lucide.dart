@@ -116,6 +116,24 @@ String pathOf(IconShape shape) {
   }
 }
 
+/// The other names lucide keeps for an icon, by the icon's file: `waves` for `waves-horizontal`, whose file is one
+/// line handing on the other's (`export { default } from './waves-horizontal.mjs';`). A mark names its icon by a
+/// word (`icon: 'waves'`, plugins/marks), and the page's kit answers to either.
+Map<String, List<String>> aliases() {
+  final out = <String, List<String>>{};
+  final handed = RegExp(r'''^export \{ default \} from '\./([a-z0-9-]+)\.mjs';''', multiLine: true);
+  for (final entry in Directory('$lucide/icons').listSync()) {
+    if (entry is! File || !entry.path.endsWith('.mjs')) continue;
+    final text = entry.readAsStringSync();
+    if (text.length > 600) continue;
+    final match = handed.firstMatch(text);
+    if (match == null) continue;
+    final name = entry.uri.pathSegments.last.replaceAll('.mjs', '');
+    out.putIfAbsent(match.group(1)!, () => []).add(name);
+  }
+  return out;
+}
+
 /// `SquarePen` as a Dart name: `squarePen`.
 String field(String export) => export[0].toLowerCase() + export.substring(1);
 
@@ -185,10 +203,21 @@ void main() {
   }
   out
     ..writeln()
-    ..writeln("  /// Every icon by lucide's own name, for a screen that draws them all.")
+    ..writeln("  /// Every icon by lucide's own name, and by each other name lucide keeps for it (`waves` is")
+    ..writeln("  /// `waves-horizontal`), for a screen that draws them all and for a mark that names its icon by a word.")
     ..writeln('  static const Map<String, LucideIcon> all = {');
-  for (final name in data.keys.toList()..sort()) {
-    out.writeln("    '$name': ${private(name)},");
+  final known = aliases();
+  final keyed = <String, String>{
+    for (final name in data.keys) name: private(name),
+  };
+  for (final file in byFile.keys) {
+    final icon = read(file).name;
+    for (final other in known[file] ?? const <String>[]) {
+      keyed.putIfAbsent(other, () => private(icon));
+    }
+  }
+  for (final name in keyed.keys.toList()..sort()) {
+    out.writeln("    '$name': ${keyed[name]},");
   }
   out
     ..writeln('  };')

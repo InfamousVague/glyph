@@ -19,6 +19,8 @@ void main() {
       expect(marksPlugin.manifest.permissions, isEmpty);
       for (final format in marks) {
         expect(format.icon, isNotEmpty, reason: format.name);
+        // And it is one the app can draw: none falls back to the plain letter.
+        expect(Lucide.all[format.icon], isNotNull, reason: '${format.name}: ${format.icon}');
       }
       expect([for (final format in marks) format.name], contains('Spoiler'));
       expect(Lucide.all[marksPlugin.icon], isNotNull);
