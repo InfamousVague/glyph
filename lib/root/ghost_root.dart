@@ -1,9 +1,12 @@
 import 'dart:async';
 
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../account/ui_state.dart';
+import '../ai/available.dart' show modelFor, presentIds;
+import '../ai/support/runnable.dart' show cannotRun;
 import '../art/art.dart';
 import '../book/book_spot.dart' show whereLeft;
 import '../book/entry_starts.dart' show pageBody;
@@ -12,11 +15,16 @@ import '../book/journal_view.dart' show JournalPages;
 import '../book/new_book_sheet.dart';
 import '../book/tickets.dart';
 import '../canvas/json_canvas.dart' show Canvas, canvasNoteBody;
+import '../capture/meeting_live.dart' show MeetingLive;
+import '../capture/place.dart' show Placing;
+import '../capture/ui/capture_screen.dart';
+import '../capture/ui/meeting_screen.dart';
 import '../commands/app_commands.dart';
 import '../commands/command_bar.dart';
 import '../core/book.dart';
 import '../core/canvas_body.dart';
 import '../core/core_library.dart';
+import '../core/front_matter.dart' show frontMatterOffset;
 import '../core/images.dart';
 import '../core/kept_trash.dart';
 import '../core/link_preview.dart' show LinkOpener;
@@ -31,6 +39,7 @@ import '../core/properties.dart';
 import '../core/query/query.dart' show TicketDraft;
 import '../core/sample_library.dart';
 import '../core/stored.dart';
+import '../core/template.dart' show openEnd;
 import '../core/trash.dart';
 import '../core/untouched.dart';
 import '../core/versions_record.dart';
@@ -67,10 +76,13 @@ import '../shell/account_gate.dart';
 import '../shell/app_shell.dart';
 import '../shell/screen.dart';
 import '../shell/top_bar.dart';
+import '../tapes/player.dart' show audioRemoved;
 import 'account_wiring.dart';
+import 'capture_route.dart';
 import 'library_reads.dart';
 import 'note_desk.dart';
 import 'take_back.dart';
+import 'voice_wiring.dart';
 
 /// The app, put together: what the web app's `App.tsx` does once its screens exist. The launch screen over the
 /// shell (lib/shell/app_shell.dart); in the shell the home page, the notes' sidebar as a card or docked, and the
@@ -97,9 +109,15 @@ import 'take_back.dart';
 ///   read, as `shell/useAppLinks.ts` does: a note opened where it was left, the notifications, an organization's
 ///   dashboard, an invitation asked about before anything is joined, and a shared link's copy saved and opened. And
 ///   an address tapped in a note is handed to the phone ([GhostRoot.openLink]).
-/// - **Speak** is not here yet (stage 8).
+/// - **Speak** ([GhostRoot.voiceMaking], lib/root/voice_wiring.dart) is the recorder over the core's Whisper and the
+///   phone's microphone, and the phone's meeting service: the dock's microphone, the sidebar's, the palette's and a
+///   note's own open the capture screen, the + sheet's Meeting and the card's "Meeting instead" start the service
+///   with the meeting screen over it, and where each begins and ends is lib/root/capture_route.dart
+///   (`shell/useCaptureRoute.ts`). Settings' Recording and AI pages have their real rows. No always-on microphone:
+///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
+///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -135,6 +153,13 @@ class GhostRoot extends StatefulWidget {
   /// Hands an address to the phone (lib/core/open_link.dart): a link's tap in a note, Settings' pages. Absent, a tap
   /// opens nothing.
   final LinkOpener? openLink;
+
+  /// Voice, where a test brings its own; then nothing is made from [voiceMaking].
+  final Voice? voice;
+
+  /// The core and the phone's halves a [Voice] is made from (lib/root/voice_wiring.dart). Absent, as without a
+  /// core, nothing records and Speak is offered nowhere. It needs the [core].
+  final VoiceMaking? voiceMaking;
 
   /// The records of the notes nobody has written in yet (core/untouched.dart); the app's own unless a test brings
   /// its own.
@@ -220,6 +245,232 @@ class _GhostRootState extends State<GhostRoot> {
     writeJournal: _pages.writeJournal,
     dropTab: (id) => _shell.currentState?.dropTab(id),
   )..making = _pages.making;
+
+  /// Voice, once it is made (lib/root/voice_wiring.dart), and where a capture begins and ends
+  /// (lib/root/capture_route.dart). Null until then, and for good in a build with none: Speak is offered nowhere.
+  Voice? _voice;
+  CaptureRoute? _capture;
+  VoidCallback? _unwatchMeeting;
+  AppLifecycleListener? _voiceLife;
+  final Completer<void> _notesRead = Completer<void>();
+
+  Future<void> _speakUp() async {
+    final making = widget.voiceMaking;
+    final Voice? voice;
+    try {
+      voice = widget.voice ??
+          (making != null && _real ? await Voice.make(making, library: _library, kept: _stored, published: (id) => _services?.shares?.linkFor(id) != null) : null);
+    } catch (failure) {
+      debugPrint('[ghost] voice could not be made: $failure');
+      return;
+    }
+    if (voice == null) return;
+    if (!mounted) return voice.dispose();
+    final models = voice.models;
+    final recorder = voice.recorder;
+    final capture = CaptureRoute(
+      voice: voice,
+      world: CaptureRouteWorld(
+        screen: () => _shell.currentState?.screen ?? const Screen.list(),
+        setScreen: (next) => _shell.currentState?.show(next),
+        refresh: _library.refresh,
+        flushDeletes: () => _made?.flushDeletes() ?? Future<void>.value(),
+        clearStage: () {
+          FocusManager.instance.primaryFocus?.unfocus();
+          if (mounted) {
+            setState(() {
+              _settings = false;
+              _newSheet = false;
+              _bookSheet = null;
+            });
+          }
+        },
+        say: (message) {
+          if (mounted) _say(context, message);
+        },
+        getNote: _library.get,
+        createNote: (body, {required source}) => _library.createNote(body, source: source),
+        deleteNote: _library.destroy,
+        fileNewNote: _workspaces.fileNewNote,
+        untouched: _untouched,
+      ),
+    );
+    setState(() {
+      _voice = voice;
+      _capture = capture;
+    });
+    // The meeting's state, for the row that says "Recording now", and the models, for Settings' AI page.
+    _unwatchMeeting = voice.live?.subscribe(_voiceChanged);
+    voice.live?.canNotify.addListener(_voiceChanged);
+    voice.live?.canNotifyNow();
+    models?.addListener(_voiceChanged);
+    _voiceLife = AppLifecycleListener(onStateChange: (state) {
+      recorder.lifecycle(state);
+      if (state == AppLifecycleState.resumed) unawaited(models?.refresh());
+    });
+    await voice.start(notesChanged: () => unawaited(_library.refresh().catchError((Object _) {})));
+    if (mounted) setState(() {});
+    // The launch, once the notes are read: the side key's capture in a build with the assistant, or the meeting
+    // already being recorded.
+    await _notesRead.future;
+    if (mounted) capture.boot();
+  }
+
+  /// The meeting's state, whether the phone may notify, or the models changed: drawn again, after the frame where
+  /// one is being built.
+  void _voiceChanged() {
+    if (!mounted) return;
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+    } else {
+      setState(() {});
+    }
+  }
+
+  /// A Speak button (`speak`): a capture into a new note, or the note its first command names.
+  void _speak() => unawaited(_capture?.start(false));
+
+  /// A note's own Speak (`speakInto`). A journal's is a new entry said aloud. An entry nobody has written in is
+  /// spoken into where its template was left open: the line it was left open with is taken off and put back before
+  /// the words, so it still starts with its time; said nothing, the entry is put back as it was made. Any other
+  /// note is spoken into as any note is.
+  Future<void> _speakInto(String id) async {
+    final capture = _capture;
+    if (capture == null) return;
+    final note = _library.noteOf(id) ?? await _library.get(id).catchError((Object _) => null);
+    if (note != null && isJournalBody(note.body)) return _newEntry(id, null, true);
+    final fresh = _untouched.recordOf(id)?.journalId != null ? await _library.get(id).catchError((Object _) => null) : null;
+    // A meeting holds the microphone: the capture opens the meeting instead, and the entry is left as it was made.
+    if (fresh == null ||
+        !_untouched.isUntouched(id, fresh.body, recordingMs: fresh.recordingMs, starred: fresh.starred, archivedAt: fresh.archivedAt) ||
+        (_voice?.live?.meetingStateNow()?.recording ?? false)) {
+      return capture.start(false, noteId: id);
+    }
+    final head = fresh.body.substring(0, frontMatterOffset(fresh.body));
+    final filled = fresh.body.substring(head.length);
+    final (:base, :placing) = openEnd(filled);
+    if (base != filled) {
+      await _library.update(id, '$head$base', fresh.revision).then<void>((_) {}, onError: (Object _) {});
+      _untouched.setWords(id, base);
+    }
+    await capture.start(
+      false,
+      noteId: id,
+      entry: EntryAim(
+        id: id,
+        placing: placing,
+        nothing: () async {
+          final now = await _library.get(id).catchError((Object _) => null);
+          if (now == null) return const Screen.list();
+          if (base == filled) return ScreenNote(now);
+          final back = await _library.update(id, '$head$filled', now.revision).catchError((Object _) => now);
+          _untouched.setWords(id, filled);
+          return ScreenNote(back);
+        },
+      ),
+    );
+  }
+
+  /// What the meeting's screen asks of the phone and the app (lib/capture/ui/meeting_screen.dart).
+  MeetingScreenHost _meetingHost(Voice voice, MeetingLive live) {
+    final service = voice.service;
+    void quietly(Future<void>? asked) => unawaited(asked?.then<void>((_) {}, onError: (Object _) {}));
+    return MeetingScreenHost(
+      isLocked: () => voice.locked,
+      endCapture: (leave) => quietly(service?.endCapture(leave: leave)),
+      stopMeeting: () => quietly(service?.stopMeeting()),
+      discardMeeting: () => quietly(service?.discardMeeting()),
+      // The phone answers a moment later than the screen asks: allowed where it already may, else asked, and the
+      // phone's own answer is told to the screen as the prompt's is (`MeetingLive.notified`).
+      requestNotifications: () {
+        if (live.canNotifyNow()) return NotificationsAnswer.allowed;
+        if (service == null) return NotificationsAnswer.blocked;
+        unawaited(service.requestNotifications().then<void>((answer) {
+          if (answer != 'asked') live.notified();
+        }, onError: (Object _) => live.notified()));
+        return NotificationsAnswer.asked;
+      },
+      deleteNote: _library.destroy,
+      // The write-up's summary is lib/ai's, which has none yet.
+      dropSummary: (_) {},
+      forgetMeeting: (id) => preferences.update((now) => now.copyWith(meetings: {...now.meetings}..remove(id))),
+    );
+  }
+
+  /// A note opened from the home page (`onOpen`): the tape being recorded opens the meeting screen, not the note,
+  /// which has nothing in it yet but its title.
+  void _openFromHome(AppShellState shell, String id) {
+    final live = _voice?.live?.meetingStateNow();
+    if (live != null && live.recording && live.noteId == id && (_capture?.showMeeting(false) ?? false)) return;
+    shell.openNote(id);
+  }
+
+  /// What Settings' Recording and AI pages ask of voice (settings/RecordingPane.tsx, AiPane.tsx): the models on
+  /// this phone with Get and Remove, the Meetings card where the phone has the service, and the room the tapes
+  /// take, said from their lengths (settings/tapes.ts: 16 kHz, 16-bit, mono is 32 bytes a millisecond).
+  SettingsFeatures _features(AccountServices? services) {
+    final voice = _voice;
+    final wayIn = services == null ? noServiceWayIn : null;
+    if (voice == null) return SettingsFeatures(onWayIn: wayIn);
+    final models = voice.models;
+    final present = models == null ? const <String>{} : presentIds(models.models).toSet();
+    final download = models?.download;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final taped = [
+      for (final note in _library.value)
+        if ((note.recordingMs ?? 0) > 0 && !audioRemoved(note.id)) note,
+    ];
+    final old = [
+      for (final note in taped)
+        if ((note.archivedAt ?? 0) == 0 && now - note.createdAt > 30 * 24 * 60 * 60 * 1000) note.id,
+    ];
+    final remove = voice.removeAudio;
+    final service = voice.service;
+    final live = voice.live;
+    return SettingsFeatures(
+      onWayIn: wayIn,
+      models: models == null
+          ? null
+          : SettingsModelsState(
+              present: present,
+              running: modelFor(present, preferences.value.formatModel),
+              downloading: download?.id,
+              received: download?.received ?? 0,
+              total: download?.total ?? 0,
+              problem: models.problem,
+              cannotRun: {
+                for (final id in present)
+                  if (cannotRun(id)) id,
+              },
+            ),
+      onGetModel: models == null ? null : (id) => unawaited(models.fetch(id)),
+      onRemoveModel: models == null ? null : (id) => unawaited(models.remove(id)),
+      meetings: service != null && voice.canMeet,
+      canNotifyMeetings: live?.canNotify.value ?? false,
+      onAllowMeetingNotices: service == null || live == null
+          ? null
+          : () {
+              unawaited(service.requestNotifications().then<void>((_) {
+                live.notified();
+                live.canNotifyNow();
+              }, onError: (Object _) {}));
+              return true;
+            },
+      meetingSound: voice.sound?.supported ?? false,
+      meetingSoundWhy: voice.sound?.reason,
+      tapes: taped.fold<int>(0, (sum, note) => sum + (note.recordingMs ?? 0) * 32),
+      oldTapes: old.length,
+      onRemoveOldAudio: remove == null
+          ? null
+          : () async {
+              final removed = await remove(old);
+              _changed();
+              return removed.length;
+            },
+    );
+  }
 
   /// Following the links that opened the app, from the notes' first read until the app is gone.
   void Function()? _stopLinks;
@@ -427,7 +678,8 @@ class _GhostRootState extends State<GhostRoot> {
   /// A journal's New entry (`newEntry`): a note named by the minute, started from the template chosen or the
   /// journal's own, its line put last in the journal's index, opened with the caret at its end: in the journal's
   /// tab from inside the journal, a tab of its own from anywhere else.
-  Future<void> _newEntry(String journalId, [String? template]) async {
+  Future<void> _newEntry(String journalId, [String? template, bool spoken = false]) async {
+    if (spoken) return _spokenEntry(journalId);
     final within = _shell.currentState?.shown == journalId;
     final note = await _pages.newEntry(journalId, template: template);
     if (note == null) return;
@@ -439,6 +691,39 @@ class _GhostRootState extends State<GhostRoot> {
     // Being made until it is on screen: the take-back leaves it alone meanwhile.
     WidgetsBinding.instance.addPostFrameCallback((_) => _pages.making.remove(note.id));
     _afterFrame((shell) => within ? shell.openNoteWithin(note.id, caret: const Caret.end()) : shell.openNote(note.id, caret: const Caret.end()));
+  }
+
+  /// A journal's entry said aloud (`makeEntry` with `speak`): made with its template's last line taken off, and the
+  /// capture aimed at it. Nothing said: the journal, from where the entry is taken back.
+  Future<void> _spokenEntry(String journalId) async {
+    final capture = _capture;
+    if (capture == null) return;
+    // A meeting holds the microphone: the way to it, and nothing made that its capture would leave behind.
+    if (_voice?.live?.meetingStateNow()?.recording ?? false) {
+      capture.showMeeting(false);
+      return;
+    }
+    final made = await _pages.newSpokenEntry(journalId);
+    if (made == null) return;
+    final id = made.note.id;
+    try {
+      if (!mounted) return;
+      _workspaces.fileNewNote(id);
+      await capture.start(
+        false,
+        noteId: id,
+        entry: EntryAim(
+          id: id,
+          placing: made.placing,
+          nothing: () async {
+            final back = await _library.get(journalId).catchError((Object _) => null);
+            return back == null ? const Screen.list() : ScreenNote(back);
+          },
+        ),
+      );
+    } finally {
+      _pages.making.remove(id);
+    }
   }
 
   /// The + sheet's row for a new entry (`entryRow`): in the journal on screen, or the journal of the entry on
@@ -548,6 +833,7 @@ class _GhostRootState extends State<GhostRoot> {
           onTemplates: () => unawaited(_openTemplates()),
           // Taken back by the next journal's own: one screen is gone only after the next has come.
           onJournal: (writer) => _journalWriter = writer ?? _journalWriter,
+          onSpeak: _capture == null ? null : (id) => unawaited(_speakInto(id)),
         )(context, shell, screen),
       );
   NoteActions? _made;
@@ -557,6 +843,8 @@ class _GhostRootState extends State<GhostRoot> {
 
   void _changed() {
     _reads.changed();
+    // The notes changed: a meeting's note may have been written by the service.
+    _voice?.recorder.notesChanged();
     if (mounted) setState(() {});
   }
 
@@ -593,6 +881,13 @@ class _GhostRootState extends State<GhostRoot> {
   void dispose() {
     preferences.removeListener(_smoke);
     _stopLinks?.call();
+    _unwatchMeeting?.call();
+    _voice?.live?.canNotify.removeListener(_voiceChanged);
+    _voice?.models?.removeListener(_voiceChanged);
+    _voiceLife?.dispose();
+    _capture?.dispose();
+    // A voice a test brought is the test's to let go.
+    if (widget.voice == null) _voice?.dispose();
     _libraryChanges.removeListener(_reads.changed);
     _life?.dispose();
     _gate?.dispose();
@@ -610,6 +905,7 @@ class _GhostRootState extends State<GhostRoot> {
     _libraryChanges.addListener(_reads.changed);
     _open();
     unawaited(_account());
+    unawaited(_speakUp());
   }
 
   /// What this device kept of an account, then the sync for as long as the app is open, and the way in where it is
@@ -667,6 +963,7 @@ class _GhostRootState extends State<GhostRoot> {
   /// Reads the library, and gives a fresh one the starter notes once (core/seed.ts: `glyph-sample-note`).
   Future<void> _open() async {
     await _library.load();
+    if (!_notesRead.isCompleted) _notesRead.complete();
     // At launch, which opens on the home page: what the phone let go of before it was left.
     if (mounted) unawaited(_takeBack.look());
     // The links that opened the app wait for the notes to be read, so a copy lands in a library that is there and
@@ -744,6 +1041,12 @@ class _GhostRootState extends State<GhostRoot> {
       },
       onClose: onClose,
       onCommands: _search,
+      onSpeak: _capture == null
+          ? null
+          : () {
+              onClose?.call();
+              _speak();
+            },
       onSettings: () {
         onClose?.call();
         setState(() => _settings = true);
@@ -767,6 +1070,11 @@ class _GhostRootState extends State<GhostRoot> {
         final services = _services;
         final signedIn = services?.signedIn ?? false;
         final gate = _gate;
+        final voice = _voice;
+        final capture = _capture;
+        // As last known: asking the service afresh tells its listeners, and this is a build.
+        final meetingNow = voice?.live?.state;
+        final recordingNow = (meetingNow?.recording ?? false) ? meetingNow?.noteId : null;
         // The organization the home page is filtered to, for its news.
         final chosen = _workspaces.value.current?.id;
         String? chosenOrg;
@@ -808,13 +1116,39 @@ class _GhostRootState extends State<GhostRoot> {
               onDeleteNote: _delete,
               onRefresh: () => _library.refresh(),
               noteBuilder: _note,
+              // The recorder, the whole window: a fresh mount for each capture, keyed by the shell.
+              captureBuilder: voice == null || capture == null
+                  ? null
+                  : (context, shell, screen) => CaptureScreen(
+                        recorder: voice.recorder,
+                        fromAssistant: screen.fromAssistant,
+                        stopRequests: screen.stop,
+                        noteId: screen.noteId,
+                        placing: screen.placing is Placing ? screen.placing as Placing : null,
+                        meeting: screen.meeting,
+                        onMeeting: voice.canMeet ? () => unawaited(capture.meeting(false)) : null,
+                        onFinish: (note, locked, {review, ask, landing}) => unawaited(capture.finished(note, locked, review: review, ask: ask, landing: landing)),
+                      ),
+              meetingBuilder: voice == null || capture == null || voice.live == null
+                  ? null
+                  : (context, shell, screen) => MeetingScreen(
+                        noteId: screen.noteId,
+                        fromAssistant: screen.fromAssistant,
+                        onLeave: capture.leftMeeting,
+                        live: voice.live!,
+                        host: _meetingHost(voice, voice.live!),
+                      ),
               homeBuilder: (context, shell) => HomeScreen(
                 notes: shell.notes,
                 loading: !_read,
                 workspaces: _workspaces,
                 layout: homeLayoutOf(prefs.homeLayout),
-                onOpen: shell.openNote,
+                onOpen: (id) => _openFromHome(shell, id),
                 onNew: _plus,
+                // The dock's microphone, and the note of the meeting being recorded now.
+                onCapture: capture == null ? null : _speak,
+                recording: recordingNow,
+                sideKey: voice?.assistant ?? false,
                 clock: widget.clock,
                 onAllNotes: shell.showAllNotes,
                 onSearch: _search,
@@ -870,6 +1204,12 @@ class _GhostRootState extends State<GhostRoot> {
                 },
                 onClose: close,
                 onCommands: _search,
+                onSpeak: capture == null
+                    ? null
+                    : () {
+                        close();
+                        _speak();
+                      },
                 onSettings: () {
                   close();
                   setState(() => _settings = true);
@@ -917,7 +1257,7 @@ class _GhostRootState extends State<GhostRoot> {
               notesInWorkspace: _notesIn,
               onTrashNotes: (ids) => ids.forEach(_trash.trashNote),
               // A build with no service says so where a way in is pressed; one with an account takes it from the scope.
-              features: SettingsFeatures(onWayIn: services == null ? noServiceWayIn : null),
+              features: _features(services),
               onOrganization: services == null ? null : (id) => setState(() => _organization = (id: id, from: OrganizationFrom.settings)),
               onOpenLink: widget.openLink == null ? null : (url) => unawaited(widget.openLink!(url)),
             ),
@@ -932,6 +1272,8 @@ class _GhostRootState extends State<GhostRoot> {
                 newNotebook: () => _newBook(NewBookKind.notebook),
                 newJournal: () => _newBook(NewBookKind.journal),
                 newEntry: (id) => unawaited(_newEntry(id)),
+                speak: _capture == null ? null : _speak,
+                speakInto: _capture == null ? null : (id) => unawaited(_speakInto(id)),
                 openNoteWhereLeft: (id) {
                   final note = _library.noteOf(id);
                   final shell = _shell.currentState;
@@ -975,7 +1317,17 @@ class _GhostRootState extends State<GhostRoot> {
                 // A journal's entry is the account's own, and is not offered from an organization's +.
                 entry: into != null || !_newSheet ? null : _entryRow(),
                 // A shared link's copy is read from the account's service: not offered in a build with none.
-                onFromLink: services?.shares == null ? null : _forkFromLink,
+                onFromLink: into != null || services?.shares == null ? null : _forkFromLink,
+                // A meeting is the account's own too, and is offered only where one can be recorded.
+                onMeeting: into == null && capture != null && (voice?.canMeet ?? false) ? () => unawaited(capture.meeting(false)) : null,
+                sound: into == null && capture != null && (voice?.canMeet ?? false) && (voice?.sound?.supported ?? false)
+                    ? NewSheetSound(
+                        label: 'Include sound from other apps',
+                        hint: 'Android lets Ghost.md hear media and games, never calls. It asks to share your screen each time; only the sound is kept.',
+                        on: prefs.meetingSound,
+                        onToggle: () => preferences.update((now) => now.copyWith(meetingSound: !now.meetingSound)),
+                      )
+                    : null,
               );
             }),
             NewBookSheet(

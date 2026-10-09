@@ -14,6 +14,7 @@ import 'core/stored.dart';
 import 'core/stored_device.dart';
 import 'root/account_wiring.dart';
 import 'root/ghost_root.dart';
+import 'root/voice_wiring.dart';
 
 /// The stylesheets the token engine reads after the kit's own, in the order the web app's page loads them
 /// (tool/sync-design.sh copies them from ../glyph).
@@ -36,6 +37,7 @@ Future<void> main() async {
   // still opens, on the invented library, rather than on nothing.
   CoreInvoke? core;
   AccountMaking? account;
+  VoiceMaking? voice;
   try {
     final native = await GhostCore.open();
     final dirs = await DevicePaths.find();
@@ -50,9 +52,18 @@ Future<void> main() async {
     } else if (ghostApiDefine.isNotEmpty) {
       debugPrint('[ghost] GHOST_API was refused: a development build never talks to the real service, and a base must be an http address.');
     }
+    // Voice: the phone's meeting service attached and what this launch was for read, before the first frame. A
+    // model is only ever fetched from where this build was told (`--dart-define=GHOST_MODELS=http://…`), and never
+    // from the real mirrors by a build that is not a release. No microphone is opened here, or by anything but a
+    // recorder's screen.
+    try {
+      voice = await VoiceMaking.attach(native, dataDir: dirs.dataDir, mirrors: voiceMirrors(ghostModelsDefine)).timeout(const Duration(seconds: 3));
+    } catch (failure) {
+      debugPrint('[ghost] voice is off for this run: $failure');
+    }
   } catch (failure) {
     debugPrint('[ghost] the library would not open: $failure');
   }
   // One PhoneLinks for the life of the app: it holds the channel the activity says `arrived` on.
-  runApp(GhostApp(sheet: sheet, home: GhostRoot(core: core, account: account, links: PhoneLinks(), openLink: openLink)));
+  runApp(GhostApp(sheet: sheet, home: GhostRoot(core: core, account: account, voiceMaking: voice, links: PhoneLinks(), openLink: openLink)));
 }

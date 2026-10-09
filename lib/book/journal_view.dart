@@ -38,7 +38,7 @@ import '../core/ids.dart' show randomId;
 import '../core/library.dart';
 import '../core/note.dart';
 import '../core/note_text.dart' show noteTitle, titleKey;
-import '../core/template.dart' show fillTemplate;
+import '../core/template.dart' show Placing, fillTemplate, openEnd;
 import '../core/untouched.dart';
 import '../sheet/css.dart';
 import '../sheet/flow.dart';
@@ -488,7 +488,16 @@ class JournalPages {
 
   /// Makes an entry in the journal [journalId], from [template] or the journal's own, and answers its note; null
   /// where the journal is gone, is not one, or an entry is already being made (`newEntry`).
-  Future<Note?> newEntry(String journalId, {String? template}) async {
+  Future<Note?> newEntry(String journalId, {String? template}) async => (await _make(journalId, template: template, spoken: false))?.note;
+
+  /// An entry to be said aloud (`makeEntry` with `speak`): made as [newEntry] makes one, its template's last line
+  /// taken off until the words come, with where they go on from (core/template.dart `openEnd`).
+  Future<({Note note, Placing placing})?> newSpokenEntry(String journalId) async {
+    final made = await _make(journalId, spoken: true);
+    return made == null ? null : (note: made.note, placing: made.placing!);
+  }
+
+  Future<({Note note, Placing? placing})?> _make(String journalId, {String? template, required bool spoken}) async {
     if (_entering) return null;
     _entering = true;
     try {
@@ -502,7 +511,10 @@ class JournalPages {
         for (final chapter in chaptersOf(journal.body)) titleKey(chapter.title),
       };
       final title = uniqueTitle(entryTitle(now), taken);
-      final words = fillTemplate(template ?? templateOf(journal.body), at: now, title: title, journal: name);
+      final filled = fillTemplate(template ?? templateOf(journal.body), at: now, title: title, journal: name);
+      // Spoken, the words go on from the template's last line, which is taken off until they come.
+      final open = spoken ? openEnd(filled) : null;
+      final words = open?.base ?? filled;
       // The record first, then the line, then the note, so that an app let go at any step leaves a record the
       // take-back can finish from.
       final id = randomId();
@@ -512,7 +524,7 @@ class JournalPages {
         await writeJournal(journalId, (body) => withEntry(body, title));
         final note = await library.createNote(entryBody(title, localStamp(now), words), id: id);
         await library.refresh().catchError((Object _) {});
-        return library.noteOf(note.id) ?? note;
+        return (note: library.noteOf(note.id) ?? note, placing: open?.placing);
       } catch (_) {
         making.remove(id);
         rethrow;
