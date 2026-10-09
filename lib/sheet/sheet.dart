@@ -30,6 +30,7 @@ import 'sheet_drag.dart';
 /// - [children] are laid out as the page lays out the sheet's own blocks, their margins collapsing (flow.dart).
 /// - The keyboard: the page's window is shortened by it, and the sheet with the window; here the scrim is padded by
 ///   the keyboard's height and the sheet's `85dvh` is of what is left.
+/// - What held the focus as the sheet opens gives it up (the page's press on a button blurs the editor).
 /// - `className` (the panel's own look, on top of the sheet's) is not taken; nothing built so far asks for it.
 /// - `--sheet-ground` and `--sheet-inset-top`, which a pinned strip inside a sheet reads, are not published.
 /// - A screen reader is given a way to dismiss it (`onDismiss`), where the page's scrim was a bare `div`.
@@ -76,6 +77,11 @@ class _SheetState extends State<Sheet> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    // On the page the press that opens a sheet takes the focus from the note being written (a button's press blurs
+    // the editor), so the keyboard goes down and the sheet has the screen; a Flutter press takes no focus, and the
+    // sheet stood squeezed over the keyboard. What held the focus gives it up here; a field of the sheet's own that
+    // asks for it as it is built still gets it.
+    FocusManager.instance.primaryFocus?.unfocus();
     _spring.addListener(() => _pulled.value = _from * (1 - SheetDrag.springCurve.transform(_spring.value)));
   }
 

@@ -569,7 +569,13 @@ class _PanelBodyState extends State<_PanelBody> {
           padding: EdgeInsetsDirectional.fromSTEB(t.space(2), first ? t.space(1) : t.space(2), t.space(2), t.space(1)),
           child: Semantics(
             header: true,
-            child: Text(words.toUpperCase(), style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'), tracking: 0.04 * t.fontSize('xs'))),
+            // The page's line (`line-height: normal`, 13.5px for these 11.16px words), not a whole pixel more: the
+            // panel's two headings put its foot 2.6 device pixels low beside the page's.
+            child: ExactLines.of(
+              Text(words.toUpperCase(), style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('app-ink-3'), tracking: 0.04 * t.fontSize('xs'))),
+              normal: true,
+              dpr: t.css.lineDpr,
+            ),
           ),
         );
 
