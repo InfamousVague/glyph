@@ -115,6 +115,7 @@ class NoteSeams {
     this.writtenBookmark,
     this.onAi,
     this.linked,
+    this.plugins,
     this.head,
     this.tail,
     this.saving,
@@ -158,8 +159,10 @@ class NoteSeams {
   /// A run of the AI on this note (editor/useNoteAi.ts).
   final void Function(EditorView view, String kind, [String? instruction])? onAi;
 
-  /// What the note is linked to: plugins' rows (plugins/registry.ts).
+  /// What the note is linked to: plugins' rows (plugins/registry.ts), made elsewhere; and the plugins' own links
+  /// and actions for the sheet to draw, each with its page ([NotePlugins]), given the note as an action changes it.
   final List<Widget> Function(BuildContext context)? linked;
+  final NotePlugins? Function(EditorView view)? plugins;
 
   /// What sits at the top of a note of words, under its notebook's bar and its byline and over its words: the
   /// recording's tape (tapes/NoteTape.tsx) and what the note is linked to (plugins/LinkMarks.tsx), whose press is
@@ -1473,6 +1476,7 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
       sharing: seams.sharing?.call(context),
       sharingSection: seams.sharingSection?.call(context),
       linked: seams.linked?.call(context),
+      plugins: view == null || widget.readOnly ? null : seams.plugins?.call(view),
       location: seams.location?.call(_tag) ?? _location(_prefs.value),
       history: versions != null && !_isCanvas && !widget.readOnly
           ? NoteHistory(record: versions, keeps: _versioning?.keeps ?? versions.keepsVersions(_id), current: () => _view?.state.doc.toString() ?? _saving.body, onRestore: restoreVersion, onShareFile: seams.shareVersionsFile)

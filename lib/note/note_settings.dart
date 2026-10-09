@@ -9,8 +9,10 @@
 ///
 /// What differs, each a row whose feature is another stage's, taken as something nullable so the sheet is whole the
 /// day it arrives:
-/// - Plugins' rows ("Linked to", stage 9) are [NoteSettings.linked], the rows themselves; their own pages and an
-///   action's choices come with the registry.
+/// - Plugins' rows ("Linked to", plugins/registry.ts) are [NoteSettings.plugins]: each plugin's link with its page
+///   inside the sheet, and each action, with a page of its own where it has several places to go. The registry is
+///   handed in ([NotePlugins]) where the page imported it. [NoteSettings.linked] is still taken, rows made
+///   elsewhere, for a picture of the sheet.
 /// - Sharing (share/ShareRows.tsx, stage 7) is [NoteSettings.sharing], its rows.
 /// - The AI's rows (stage 8) are drawn from [aiKinds] when [NoteSettings.onAi] is given; the dot a run in progress
 ///   wears, and Fill the blanks, come with the runs.
@@ -21,6 +23,8 @@
 library;
 
 export '../core/location.dart' show LocateFailure;
+
+import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -34,6 +38,7 @@ import '../core/look.dart';
 import '../core/versions_file.dart';
 import '../core/versions_record.dart';
 import '../core/workspaces.dart';
+import '../plugins/types.dart' show ActionChoice, NoteAction, NoteEditing, NoteLink;
 import '../sheet/css.dart';
 import '../sheet/kit.dart';
 import '../sheet/sheet.dart';
@@ -52,6 +57,25 @@ const Map<LocateFailure, String> cannotLocate = {
   LocateFailure.blocked: 'Location is off for Ghost.md.',
   LocateFailure.timeout: 'Couldn’t find where you are.',
 };
+
+/// What the plugins give a note's sheet (`plugins.noteLinks()`, `plugins.noteActions()`, and the `editing` the page
+/// was handed): each link's row and page, each action's row, and the open note as an action changes it.
+@immutable
+class NotePlugins {
+  const NotePlugins({required this.links, required this.actions, required this.editing});
+
+  final List<NoteLink> links;
+  final List<NoteAction> actions;
+
+  /// The note on screen: an action's edits go through its editor, so each is an undo step.
+  final NoteEditing editing;
+
+  /// The actions whose row shows for this note at all, by the note as it was when the sheet opened.
+  List<NoteAction> actionsFor(String noteId, String body) => [
+        for (final action in actions)
+          if (action.visible(noteId, body)) action,
+      ];
+}
 
 /// Where the note was written, for its row (`location`).
 @immutable
@@ -164,6 +188,7 @@ class NoteSettings extends StatefulWidget {
     this.sharing,
     this.sharingSection,
     this.linked,
+    this.plugins,
     this.location,
     this.history,
     this.startAt,
@@ -212,6 +237,9 @@ class NoteSettings extends StatefulWidget {
 
   /// What the note is linked to, a plugin's row each.
   final List<Widget>? linked;
+
+  /// The plugins' links and actions for this note, with the note as an action changes it.
+  final NotePlugins? plugins;
   final NoteLocation? location;
   final NoteHistory? history;
 
@@ -229,11 +257,38 @@ class NoteSettings extends StatefulWidget {
 class _NoteSettingsState extends State<NoteSettings> {
   NoteSettingsPage? _page;
 
+  /// A plugin's link whose page is up, and an action whose places are being chosen from (`page`, `choosing`).
+  NoteLink? _link;
+  NoteAction? _choosing;
+
+  /// Why each link cannot be used on this build, asked as the sheet opens (`unavailable`).
+  final Map<String, String?> _unavailable = <String, String?>{};
+
+  /// The note's words as they were when the sheet opened: what an action's row is drawn from.
+  late final String _body = widget.plugins?.editing.body() ?? '';
+
   @override
   void initState() {
     super.initState();
     widget.workspaces.addListener(_changed);
     if (widget.startAt == NoteSettingsPage.history && widget.history != null) _page = NoteSettingsPage.history;
+    for (final link in widget.plugins?.links ?? const <NoteLink>[]) {
+      final asked = link.unavailable?.call();
+      if (asked == null) continue;
+      unawaited(asked.then<void>((why) {
+        if (mounted) setState(() => _unavailable[link.id] = why);
+      }, onError: (Object _) {}));
+    }
+  }
+
+  /// An action run on the note, the sheet closed first; with several places to go, their page opens instead
+  /// (`runAction`).
+  void _runAction(NoteAction action) {
+    final editing = widget.plugins!.editing;
+    final choices = action.choices?.call(widget.noteId) ?? const <ActionChoice>[];
+    if (choices.length > 1) return setState(() => _choosing = action);
+    widget.onClose();
+    unawaited((choices.length == 1 ? action.run(editing, choices.first.id) : action.run(editing)).then<void>((_) {}, onError: (Object _) {}));
   }
 
   @override
@@ -246,7 +301,11 @@ class _NoteSettingsState extends State<NoteSettings> {
     if (mounted) setState(() {});
   }
 
-  void _back() => _page != null ? setState(() => _page = null) : widget.onClose();
+  void _back() {
+    if (_choosing != null) return setState(() => _choosing = null);
+    if (_link != null) return setState(() => _link = null);
+    _page != null ? setState(() => _page = null) : widget.onClose();
+  }
 
   String get _here => widget.title.isEmpty ? 'This note' : widget.title;
 
@@ -257,6 +316,45 @@ class _NoteSettingsState extends State<NoteSettings> {
   Widget build(BuildContext context) {
     final history = widget.history;
     final page = _page;
+    final choosing = _choosing, link = _link, plugins = widget.plugins;
+    if (choosing != null && plugins != null) {
+      return Sheet(
+        label: choosing.label,
+        onClose: widget.onClose,
+        onBack: _back,
+        children: [
+          SheetBack(label: _here, onPressed: () => setState(() => _choosing = null)),
+          SheetTitle(child: Text(choosing.label)),
+          SheetNote(choosing.hint(widget.noteId, _body)),
+          SheetGroup(
+            children: [
+              for (final choice in choosing.choices?.call(widget.noteId) ?? const <ActionChoice>[])
+                SheetRow(
+                  key: ValueKey('choice:${choice.id}'),
+                  icon: Builder(builder: (context) => choosing.icon(context, 18)),
+                  label: choice.label,
+                  hint: choice.hint,
+                  onPress: () {
+                    widget.onClose();
+                    unawaited(choosing.run(plugins.editing, choice.id).then<void>((_) {}, onError: (Object _) {}));
+                  },
+                ),
+            ],
+          ),
+        ],
+      );
+    }
+    if (link != null) {
+      return Sheet(
+        label: link.label,
+        onClose: widget.onClose,
+        onBack: _back,
+        children: [
+          SheetBack(label: _here, onPressed: () => setState(() => _link = null)),
+          Builder(builder: (context) => link.picker(context, widget.noteId, () => setState(() => _link = null))),
+        ],
+      );
+    }
     if (page == NoteSettingsPage.history && history != null) {
       return Sheet(
         label: 'Version history',
@@ -432,6 +530,31 @@ class _NoteSettingsState extends State<NoteSettings> {
           ],
         ),
         if (widget.linked != null && widget.linked!.isNotEmpty) ...[const SheetHeading('Linked to'), SheetGroup(children: widget.linked!)],
+        if (plugins != null && (plugins.links.isNotEmpty || plugins.actionsFor(widget.noteId, _body).isNotEmpty)) ...[
+          const SheetHeading('Linked to'),
+          SheetGroup(
+            children: [
+              for (final each in plugins.links)
+                SheetRow(
+                  key: ValueKey('link:${each.id}'),
+                  icon: Builder(builder: (context) => each.icon(context, 18)),
+                  label: each.label,
+                  hint: _unavailable[each.id] ?? each.hint(widget.noteId),
+                  onPress: () => setState(() => _link = each),
+                  disabled: _unavailable[each.id] != null,
+                ),
+              for (final action in plugins.actionsFor(widget.noteId, _body))
+                SheetRow(
+                  key: ValueKey('action:${action.id}'),
+                  icon: Builder(builder: (context) => action.icon(context, 18)),
+                  label: action.label,
+                  hint: action.hint(widget.noteId, _body),
+                  onPress: () => _runAction(action),
+                  disabled: !action.enabled(widget.noteId, _body),
+                ),
+            ],
+          ),
+        ],
         if (widget.cheatSheet != null) ...[
           const SheetHeading('Help'),
           SheetGroup(

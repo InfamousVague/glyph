@@ -69,8 +69,9 @@
 /// - **The plugins reach the note through the editor** (lib/editor/items/note_plugins.dart): a swipe on a list item
 ///   and the quiet words after a line are asked of the app's registry as they are used, a linked to-do's box and
 ///   its task are kept in step, a linked row opens its menu, and what the note is linked to is drawn at its top
-///   (lib/plugins/link_marks.dart), its press the note's More sheet. The More sheet's own "Linked to" rows
-///   (`NoteSeams.linked`, each plugin's page) are not given.
+///   (lib/plugins/link_marks.dart), its press the note's More sheet, whose "Linked to" rows are the registry's
+///   links and actions ([NoteSeams.plugins]): each link's page inside the sheet, each action run on the note
+///   through its editor.
 library;
 
 import 'package:flutter/widgets.dart' hide Decoration;
@@ -128,6 +129,8 @@ import '../note/note_editor.dart';
 import '../note/note_place.dart';
 import '../note/note_screen.dart';
 import '../plugins/link_marks.dart';
+import '../note/note_settings.dart' show NotePlugins;
+import '../plugins/registry.dart' show plugins;
 import '../plugins/types.dart' show NoteEditing;
 import '../notes/note_templates.dart' show NoteTemplate;
 import '../settings/panes/cheat_sheet.dart';
@@ -1051,6 +1054,11 @@ class NoteDeskState extends State<NoteDesk> {
               if (run != null) ai.runAi(run, instruction);
             },
       onFind: _openFind,
+      // The More sheet's "Linked to": each plugin's link and its page, and each action, run through this editor.
+      plugins: (view) {
+        _adopt(view);
+        return NotePlugins(links: plugins.noteLinks(), actions: plugins.noteActions(), editing: _editing);
+      },
       bookmark: _bookmarkOf,
       writtenBookmark: _writtenBookmark,
       cheatSheet: (context) => const CheatSheet(),
