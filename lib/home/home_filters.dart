@@ -330,7 +330,9 @@ class _SearchFieldState extends State<_SearchField> implements TextSelectionGest
       keyboardType: TextInputType.text,
       textInputAction: TextInputAction.search,
       autocorrect: false,
-      enableSuggestions: false,
+      // The page's `<input type="search">` gets the keyboard's row of suggestions on the phone, whatever its
+      // `autocorrect="off"` says; without them Gboard swaps that row for one of digits.
+      enableSuggestions: true,
       spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
       textCapitalization: TextCapitalization.none,
       onChanged: widget.onQuery,

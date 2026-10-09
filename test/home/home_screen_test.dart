@@ -237,6 +237,20 @@ void main() {
   });
 
   group('the search', () {
+    testWidgets('ends at the keyboard, whose height the dock rides up by, as the page’s frame is padded by it', (tester) async {
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
+      await settle(tester);
+      final before = tester.getRect(key('dock-add'));
+      tester.view.viewInsets = FakeViewPadding(bottom: 300 * tester.view.devicePixelRatio);
+      addTearDown(tester.view.resetViewInsets);
+      await settle(tester);
+      final after = tester.getRect(key('dock-add'));
+      expect(before.top - after.top, closeTo(300, 0.01));
+      expect(after.left, before.left);
+      await away(tester);
+    });
+
     testWidgets('narrows the page as it is typed, every word anywhere in a note, and says when nothing has it', (tester) async {
       final it = seeded();
       await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));

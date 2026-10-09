@@ -320,7 +320,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final ring = t.len('app-ring');
     final top = under + t.space(1) + t.space(2) + t.space(6);
     // Room at the foot for the dock's column to stand clear of the last lines.
-    final foot = t.len('app-safe-bottom') + t.space(4) + ring * 4 + t.space(2) * 5 + t.space(6);
+    // The home bar is under the keyboard while it is up: nothing to stand clear of then.
+    final safeBottom = MediaQuery.viewInsetsOf(context).bottom > 0 ? 0.0 : t.len('app-safe-bottom');
+    final foot = safeBottom + t.space(4) + ring * 4 + t.space(2) * 5 + t.space(6);
 
     // The cards' arrival is staggered down the page, whichever section each is in.
     var order = 0;
@@ -565,9 +567,24 @@ class _HomeScreenState extends State<HomeScreen> {
       behind: behind,
       dock: _Dock(onNew: widget.onNew, onCapture: widget.onCapture, onSearch: widget.onSearch),
       alignment: AlignmentDirectional.bottomEnd,
-      padding: EdgeInsetsDirectional.only(end: t.len('app-safe-right') + t.space(4), bottom: t.len('app-safe-bottom') + t.space(4)),
+      padding: EdgeInsetsDirectional.only(end: t.len('app-safe-right') + t.space(4), bottom: safeBottom + t.space(4)),
     );
     final halo = widget.dockHalo;
+    // The page's window ends at the keyboard: on the phone the web's frame is padded by it (MainActivity's insets
+    // listener), so the dock and the smoke at the foot ride above the keys and `dvh` is of what is left. Always
+    // wrapped, so a keyboard coming up moves the page and does not rebuild it.
+    final media = MediaQuery.of(context);
+    final keyboard = media.viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: keyboard),
+      child: MediaQuery(
+        data: media.copyWith(size: Size(media.size.width, media.size.height - keyboard), viewInsets: media.viewInsets.copyWith(bottom: 0)),
+        child: _screen(t, halo, dock),
+      ),
+    );
+  }
+
+  Widget _screen(Tokens t, HomeDockHaloBuilder? halo, HomeDock dock) {
     return ColoredBox(
       color: t.color('glacier-bg'),
       // Nothing drawn here widens the window: the halo is cut only where it was past the window anyway.
