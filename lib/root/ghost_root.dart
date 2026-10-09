@@ -122,6 +122,7 @@ import '../shell/account_gate.dart';
 import '../shell/app_shell.dart';
 import '../shell/screen.dart';
 import '../shell/top_bar.dart';
+import '../shell/wide_screen.dart' show mousePointer, splitFits;
 import '../tapes/player.dart' show TapePlayer;
 import 'account_wiring.dart';
 import 'capture_route.dart';
@@ -561,6 +562,14 @@ class _GhostRootState extends State<GhostRoot> {
       if (services != null) InviteWaiting(services: services, onOpen: (id) => _shell.currentState?.openOrganization(id)),
       if (model != null && state is! notices.VoiceModelQuiet) notices.VoiceModelStatus(state: state, onRetry: model.retry),
     ];
+  }
+
+  /// An update waiting: the sidebar's to carry on a wide window, where there is no home list to show it (App.tsx
+  /// `notices`, notes/NoteTree.tsx): docked, and floating where the window is in two panes. Nothing while there is
+  /// nothing newer, and the tree gives it no room then.
+  List<Widget> _sidebarNotices() {
+    final updates = widget.updates;
+    return [if (updates != null && updates.apk is! ApkPhaseNone) notices.UpdateNotice(updates: updateCardOf(updates))];
   }
 
   /// The AI, once voice has made its engine the app's (docs/STAGE8_AI.md, "At launch"): whether it can run here,
@@ -1632,6 +1641,7 @@ class _GhostRootState extends State<GhostRoot> {
       onClose: onClose,
       onCommands: _search,
       onBrowseFiles: _browseFiles,
+      notices: _sidebarNotices(),
       onSpeak: _capture == null
           ? null
           : () {
@@ -1824,6 +1834,8 @@ class _GhostRootState extends State<GhostRoot> {
                 onClose: close,
                 onCommands: _search,
                 onBrowseFiles: _browseFiles,
+                // `notices={split ? notices : undefined}`: a phone has its home page for them.
+                notices: splitFits(MediaQuery.sizeOf(context), mouse: mousePointer) ? _sidebarNotices() : const [],
                 onSpeak: capture == null
                     ? null
                     : () {

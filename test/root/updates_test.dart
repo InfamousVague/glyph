@@ -15,6 +15,9 @@ import 'package:ghost_md/core/updates.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
 import 'package:ghost_md/launch/launch_screen.dart';
+import 'package:ghost_md/aside/aside.dart' show writeSidebarShown;
+import 'package:ghost_md/notes/note_tree.dart';
+import 'package:ghost_md/notes/notes_drawer.dart';
 import 'package:ghost_md/notes/notices.dart' as notices;
 import 'package:ghost_md/orgs/types.dart';
 import 'package:ghost_md/root/ghost_root.dart';
@@ -220,6 +223,50 @@ void main() {
       // The root goes, as at a reset; the updates are the process's and outlive it.
       await close(tester);
       expect(updates.apk, isA<ApkPhaseInstalling>());
+      updates.dispose();
+    });
+
+    testWidgets('the sidebar carries the card on a window in two panes, docked or as a card, and a phone\'s card leaves it to the home page', (tester) async {
+      Future<Updates> shown(Size size, String style, {bool docked = false}) async {
+        final updates = make();
+        final local = MemoryStored();
+        if (docked) writeSidebarShown(true, local);
+        await pumpApp(
+          tester,
+          size: size,
+          prefs: Preferences(theme: 'light', sidebarStyle: style),
+          home: GhostRoot(launch: false, library: SampleLibrary.seeded(), workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), clock: () => seedNow, stored: local, updates: updates),
+        );
+        await tester.pump(const Duration(seconds: 4));
+        await tester.pump(const Duration(milliseconds: 500));
+        if (!docked) {
+          // The notes' icon in the bar opens them as a card.
+          await tester.tap(find.bySemanticsLabel('All your notes'));
+          for (var i = 0; i < 6; i++) {
+            await tester.pump(const Duration(milliseconds: 100));
+          }
+        }
+        return updates;
+      }
+
+      // The Fold opened, the sidebar docked: the tree has it under its notes.
+      var updates = await shown(const Size(704, 933), 'docked', docked: true);
+      expect(tester.widget<NoteTree>(find.byType(NoteTree)).notices.single, isA<notices.UpdateNotice>());
+      expect(find.descendant(of: find.byKey(const ValueKey('tree-notices')), matching: find.text('Ghost.md 0.2.0 is out.')), findsOneWidget);
+      await close(tester);
+      updates.dispose();
+
+      // The same window with the sidebar as a card over the note: the card has it too.
+      updates = await shown(const Size(704, 933), 'popover');
+      expect(tester.widget<NotesDrawer>(find.byType(NotesDrawer)).notices.single, isA<notices.UpdateNotice>());
+      await close(tester);
+      updates.dispose();
+
+      // A phone: its home page says it, and its card of notes does not say it again.
+      updates = await shown(const Size(390, 844), 'popover');
+      expect(tester.widget<NotesDrawer>(find.byType(NotesDrawer)).notices, isEmpty);
+      expect(find.text('Ghost.md 0.2.0 is out.'), findsOneWidget);
+      await close(tester);
       updates.dispose();
     });
 
