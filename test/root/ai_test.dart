@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/ai/ai_strip.dart' show AiStrip;
+import 'package:ghost_md/plugins/claude/claude.dart' show claudeHandle;
 import 'package:ghost_md/ai/backend.dart';
 import 'package:ghost_md/ai/note_ai.dart';
 import 'package:ghost_md/capture/engine.dart';
@@ -114,7 +116,16 @@ void main() {
     await settle(tester, 8);
     expect(backend.requests, isNotEmpty);
     expect(backend.requests.first['model'], 'qwen3.5-2b');
+    // The strip is up for the run: the page keeps its room clear under the header, by what the layer measured.
+    final layer = tester.widget<NoteAiLayer>(find.byType(NoteAiLayer));
+    expect(layer.onRoom, isNotNull);
+    final room = tester.widget<NoteScreen>(find.byType(NoteScreen)).seams.headRoom!;
+    final strip = tester.getSize(find.byType(AiStrip));
+    if (strip.height > 0) expect(room.value, strip.height + 8);
     await tester.pump(const Duration(seconds: 2));
+    // Claude's page reads who is signed in from the app: nobody, in a build with no account.
+    expect(claudeHandle, isNotNull);
+    expect(claudeHandle!(), isNull);
     await close(tester);
   });
 

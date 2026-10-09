@@ -203,7 +203,12 @@ class AtWork extends StatefulWidget {
     this.refining,
     this.haptic,
     this.now,
+    this.onGone,
   });
+
+  /// Told once the scene has left after having been up. The page's bench drew "Played." under the scene, where it
+  /// showed as the scene went; here the bench is told (lib/diag/scene_bench.dart `SceneBenchPlay.played`).
+  final VoidCallback? onGone;
 
   final String noteId;
 
@@ -249,6 +254,9 @@ class AtWork extends StatefulWidget {
 class AtWorkState extends State<AtWork> with WidgetsBindingObserver {
   late _Seen _seen;
   ValueListenable<RunState?>? _run;
+
+  /// Whether the scene was drawn at the last build: its going is told once ([AtWork.onGone]).
+  bool _wasUp = false;
 
   // Hidden: the clock and the haze stop, and the feed and the picture hold their last values.
   bool _hidden = false;
@@ -560,7 +568,18 @@ class AtWorkState extends State<AtWork> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final seen = _seen;
-    if (!seen.shown) return const SizedBox.shrink();
+    if (!seen.shown) {
+      final gone = widget.onGone;
+      if (_wasUp && gone != null) {
+        // After the frame: whoever is told may be building.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) gone();
+        });
+      }
+      _wasUp = false;
+      return const SizedBox.shrink();
+    }
+    _wasUp = true;
 
     final t = context.tokens;
     final media = MediaQuery.of(context);

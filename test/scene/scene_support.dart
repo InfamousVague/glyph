@@ -90,7 +90,7 @@ const Hardware busy = Hardware(rssBytes: 3000000000, freeBytes: 4000000000, tota
 
 /// The scene as the web's tests make it (`atWork(over)`): note `n`, opening 1, with a job and no stage, on the
 /// test's clock.
-Widget atWork(WidgetTester tester, {int? opening = 1, String heard = heard, String body = body, bool hasJob = true, ReviewStage? stage, bool inline = false}) => AtWork(
+Widget atWork(WidgetTester tester, {int? opening = 1, String heard = heard, String body = body, bool hasJob = true, ReviewStage? stage, bool inline = false, VoidCallback? onGone}) => AtWork(
       noteId: 'n',
       opening: opening,
       heard: heard,
@@ -102,6 +102,7 @@ Widget atWork(WidgetTester tester, {int? opening = 1, String heard = heard, Stri
       summaryDue: summaryDue,
       haptic: haptics.add,
       now: () => tester.binding.clock.now().millisecondsSinceEpoch,
+      onGone: onGone,
     );
 
 /// What is on the screen: [show] puts it there and [rerender] changes it, the app round it left as it was.

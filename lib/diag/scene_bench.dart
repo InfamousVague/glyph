@@ -7,11 +7,10 @@
 /// (`simulateRuns`), on the bench's own note, `scene-bench`, whose run is cancelled and put away on close.
 ///
 /// What differs:
-/// - **The scene is not ported** (stage 8: `src/app/scene/`, none of it is in `lib/` yet). The bar, Play again,
-///   close, the back gesture and "Played. Play again to watch it once more." are here as the page has them. Where
-///   the scene would stand, the body says that it is not here yet and lists what it will draw ([sceneSteps], from
-///   the page's script), with the frame clock running beside the list so the day the scene arrives its frames can
-///   be read at once ([SceneBenchPlay.ring]).
+/// - **The scene is given** (lib/scene, through lib/root/scene_play.dart). The bar, Play again, close, the back
+///   gesture and "Played. Play again to watch it once more." are here as the page has them. In a run given no
+///   scene, the body says that it is not here and lists what it would draw ([sceneSteps], from the page's script),
+///   with the frame clock running beside the list ([SceneBenchPlay.ring]).
 /// - **The seam.** [SceneBench.scene] builds the scene when there is one: it is given a [SceneBenchPlay] (the
 ///   script, the opening's number, which goes up on Play again, the bench's note id, and `played`, to call when the
 ///   scene has left). Whoever ports the scene mounts `AtWork(inline: true, noteId: play.noteId, opening:

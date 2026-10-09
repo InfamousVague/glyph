@@ -63,8 +63,9 @@
 /// - **A landing's writes to other notes are not reversed by its Undo** (`undo_command`): the store here keeps no
 ///   log of a command's change (lib/capture/recorder.dart `LibraryRecorderStore`), so each is counted as changed
 ///   since and the toast says so.
-/// - **The strip's room is not kept clear by the page** (`NoteAiLayer.onRoom`, the page's `--ai-strip-room`): the
-///   strip floats over the note's first lines while it is up.
+/// - **The strip's room is kept clear by the page** (`NoteAiLayer.onRoom`, the page's `--ai-strip-room`): the desk
+///   keeps what the layer says ([NoteSeams.headRoom]) and the note's page starts that much lower while the strip
+///   is up, told after the frame it was measured in.
 /// - **A board's card has no plugin's rows** (`drawnBoards(actions:)`).
 /// - **The plugins reach the note through the editor** (lib/editor/items/note_plugins.dart): a swipe on a list item
 ///   and the quiet words after a line are asked of the app's registry as they are used, a linked to-do's box and
@@ -78,7 +79,7 @@ import 'package:flutter/widgets.dart' hide Decoration;
 import 'dart:async';
 
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
 import 'package:glacier/glacier.dart';
 import '../account/ui_state.dart';
 import '../ai/available.dart' show AvailabilityController;
@@ -770,6 +771,7 @@ class NoteDeskState extends State<NoteDesk> {
     if (_saidLanding) _toasts?.dismiss();
     _world.changes?.removeListener(_libraryChanged);
     _bookmark?.dispose();
+    _stripRoom.dispose();
     _band.dispose();
     _plus.dispose();
     super.dispose();
@@ -878,7 +880,7 @@ class NoteDeskState extends State<NoteDesk> {
       // The panels a view shows beside its words (lib/editor/view/text_panel.dart): a result under its line.
       Positioned.fill(child: EditorTextPanels(view: view)),
       // The AI's one layer: the strip under the header and the panel a tap on a blank opens.
-      if (ai != null) Positioned.fill(child: NoteAiLayer(ai: ai, top: headerEnd, deviceFacts: _aiWorld?.deviceFacts, canUndo: !widget.readOnly)),
+      if (ai != null) Positioned.fill(child: NoteAiLayer(ai: ai, top: headerEnd, onRoom: _roomFor, deviceFacts: _aiWorld?.deviceFacts, canUndo: !widget.readOnly)),
       if (finding != null)
         Positioned(
           left: 0,
@@ -888,6 +890,18 @@ class NoteDeskState extends State<NoteDesk> {
           child: FindBar(key: ValueKey<int>(finding.nonce), view: view, initial: finding.initial, onClose: _closeFind),
         ),
     ];
+  }
+
+  /// The room the AI's strip takes under the header, as its layer measures it: the page pads itself by it.
+  final ValueNotifier<double> _stripRoom = ValueNotifier<double>(0);
+
+  /// Told while the strip is being laid out, so kept after the frame: the page is one of its listeners.
+  void _roomFor(double room) {
+    if (room == _stripRoom.value) return;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _stripRoom.value = room;
+    });
+    SchedulerBinding.instance.ensureVisualUpdate();
   }
 
   ({bool marked, VoidCallback onPress}) _bookmarkOf(EditorView view, ScrollPosition page) {
@@ -1130,6 +1144,7 @@ class NoteDeskState extends State<NoteDesk> {
       journal: _journal,
       around: _around,
       over: _over,
+      headRoom: _ai == null ? null : _stripRoom,
     );
     return widget.builder(context, _buildEditor, seams);
   }

@@ -4,7 +4,8 @@
 ///
 /// The stages first; when they clear, the run, with the pretend model installed only round its start and taken out
 /// the moment it returns, as the browser's own `?review` does, and again as the play goes, so no later real run is
-/// ever played by the script. The run's note is the bench's own id, which no note has.
+/// ever played by the script. The run's note is the bench's own id, which no note has. When the scene has left the
+/// bench is told ([SceneBenchPlay.played]), and its body says it was played.
 library;
 
 import 'dart:async';
@@ -58,5 +59,5 @@ class _ScenePlayState extends State<_ScenePlay> {
 
   @override
   Widget build(BuildContext context) =>
-      AtWork(inline: true, noteId: widget.play.noteId, opening: widget.play.opening, heard: scriptHeard, body: scriptBody, hasJob: true, stage: _stage);
+      AtWork(inline: true, noteId: widget.play.noteId, opening: widget.play.opening, heard: scriptHeard, body: scriptBody, hasJob: true, stage: _stage, onGone: widget.play.played);
 }

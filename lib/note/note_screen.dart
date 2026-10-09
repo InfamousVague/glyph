@@ -52,7 +52,7 @@ library;
 
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show defaultTargetPlatform;
+import 'package:flutter/foundation.dart' show ValueListenable, defaultTargetPlatform;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart' hide Decoration;
@@ -130,6 +130,7 @@ class NoteSeams {
     this.journal,
     this.over,
     this.around,
+    this.headRoom,
   });
 
   /// Find and replace opened in the note with its first words (editor/FindBar.tsx, piece K).
@@ -205,6 +206,11 @@ class NoteSeams {
 
   /// What floats over the page while the note's words are up: the press-and-hold band, the + list, the find bar.
   final List<Widget> Function(BuildContext context, EditorView view)? over;
+
+  /// The room the page keeps clear under its header for what floats there, in pixels (`--ai-strip-room`,
+  /// editor/useStripRoom.ts): the AI's strip's height and 8 more while it is up, 0 once it is gone. The page starts
+  /// that much lower, so the strip never sits over the tape or the note's first line.
+  final ValueListenable<double>? headRoom;
 
   /// What stands round the page that scrolls, and so hears its scrolling: the + and its list (editor/plus
   /// `PlusLayer`), a chip's menu, the band. Given the page, it answers the page inside them. The view is null until
@@ -469,6 +475,7 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
     final versions = widget.versions;
     if (versions != null && !widget.readOnly) _versioning = VersionKeeping(versions, _id, () => _saving.body, lifecycle: widget.lifecycle)..addListener(_redraw);
     _prefs.addListener(_redraw);
+    widget.seams.headRoom?.addListener(_redraw);
     widget.workspaces.addListener(_redraw);
     _zoom.addListener(_redraw);
     _caretPlaced = widget.caret == null;
@@ -511,6 +518,7 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
       ?..removeListener(_redraw)
       ..dispose();
     _prefs.removeListener(_redraw);
+    widget.seams.headRoom?.removeListener(_redraw);
     widget.workspaces.removeListener(_redraw);
     _zoom
       ..removeListener(_redraw)
@@ -1293,7 +1301,8 @@ class NoteScreenState extends State<NoteScreen> with SingleTickerProviderStateMi
       // A canvas is not a column of words: it takes the whole page and moves under the fingers rather than scrolling.
       physics: _drawing ? const NeverScrollableScrollPhysics() : null,
       slivers: [
-        SliverToBoxAdapter(child: SizedBox(height: padTop)),
+        // `padding-block-start: calc(var(--wisp-under) + … + var(--ai-strip-room, 0px))`
+        SliverToBoxAdapter(child: SizedBox(height: padTop + (seams.headRoom?.value ?? 0))),
         // A chapter's book, its place in it and the chapters either side (docs/BOOKS.md).
         if (book != null && seams.bookBar != null) SliverToBoxAdapter(child: seams.bookBar!(context, book)),
         // Who wrote it, when it names anyone: a book says so for all its pages, in its index.

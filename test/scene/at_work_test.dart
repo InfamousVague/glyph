@@ -307,13 +307,19 @@ void main() {
       await end(tester);
     });
 
-    testWidgets('leaves quietly when it has seen nothing at all', (tester) async {
-      await show(tester, atWork(tester));
+    testWidgets('leaves quietly when it has seen nothing at all, and says it has gone once, to whoever asked', (tester) async {
+      var gone = 0;
+      await show(tester, atWork(tester, onGone: () => gone += 1));
       await later(tester, openGraceMs - 1);
       expect(there(), isTrue);
       expect(title(tester), 'Checking what was heard.');
+      expect(gone, 0);
       await later(tester, 1 + leaveMs);
       expect(there(), isFalse);
+      await tester.pump();
+      expect(gone, 1, reason: 'the bench says it was played (lib/diag/scene_bench.dart)');
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(gone, 1);
       expect(state(tester).debugTimers, 0);
       await end(tester);
     });

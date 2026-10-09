@@ -8,7 +8,7 @@ import 'package:glacier/glacier.dart';
 import '../account/ui_state.dart';
 import '../ai/available.dart' show AvailabilityController, modelFor, presentIds;
 import '../ai/backend.dart' as engine show aiBackend, readDevice;
-import '../ai/fills/queue.dart' show startFills;
+import '../ai/fills/queue.dart' show resumeParked, startFills;
 import '../ai/note_ai.dart' show NoteAi;
 import '../ai/note_review.dart' show ReviewHost;
 import '../ai/start.dart' as ai_start;
@@ -103,6 +103,7 @@ import '../live/presence.dart' show Seen;
 import '../orgs/types.dart' show OrgRow;
 import '../orgs/ui/organization_log.dart';
 import '../orgs/ui/organization_screen.dart';
+import '../plugins/claude/claude.dart' show claudeHandle;
 import '../plugins/registry.dart' show plugins;
 import '../settings/organization_sheet.dart';
 import '../settings/settings_screen.dart';
@@ -547,6 +548,17 @@ class _GhostRootState extends State<GhostRoot> {
   AvailabilityController? _availability;
   DeviceFactsController? _deviceFacts;
   VoidCallback? _stopFills;
+
+  /// Local only as it stood at the last look: switched off, the fills parked while nothing could leave the phone
+  /// are pressed again, where the queue was started.
+  late bool _wasLocalOnly = preferences.value.localOnly;
+
+  void _localOnlyMoved() {
+    final now = preferences.value.localOnly;
+    if (now == _wasLocalOnly) return;
+    _wasLocalOnly = now;
+    if (!now && _stopFills != null) resumeParked();
+  }
 
   /// The phone's models as the walkthrough's model page reads them (lib/guide/guide_models.dart): where there is an
   /// engine to run one. Null before voice is made and in a build with none, and the page then says nothing of
@@ -1315,6 +1327,7 @@ class _GhostRootState extends State<GhostRoot> {
   void dispose() {
     preferences.removeListener(_smoke);
     preferences.removeListener(plugins.preferencesChanged);
+    preferences.removeListener(_localOnlyMoved);
     _guide?.removeListener(_changed);
     // The updates are the process's, as the core is: let go of, never disposed.
     widget.updates?.removeListener(_voiceChanged);
@@ -1354,6 +1367,10 @@ class _GhostRootState extends State<GhostRoot> {
     preferences.addListener(_smoke);
     // Local only turning on or off changes which plugins are on without a switch moving.
     preferences.addListener(plugins.preferencesChanged);
+    // And lets the fills that were parked under it go on (ai/fills/queue.ts `resumeParked`).
+    preferences.addListener(_localOnlyMoved);
+    // Who Claude's page in Settings reads as signed in (plugins/claude): this build's account, where it has one.
+    claudeHandle = () => _services?.session?.handle;
     _guide?.addListener(_changed);
     _libraryChanges.addListener(_reads.changed);
     // The updates: drawn again as they change, not while a meeting records, and looked for from now (`useUpdates`).
