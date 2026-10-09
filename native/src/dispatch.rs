@@ -33,6 +33,9 @@
 //! - **The export** (`export_fd`, `export_cancel`; stage 9C) is export_commands.rs's, over export.rs included
 //!   whole: kept/export_commands.rs lists them.
 //!
+//! - **An update of the app** (`update_read`, `update_verify`; stage 9I) is checked by kept/updates.rs, from the
+//!   Tauri app's `ota/`: answered before the library is looked for, as the keys are.
+//!
 //! Not here yet, each waiting for the stage that needs it: `set_note_formatted`, `library_reveal`, and the Mac's
 //! panels (`library_choose_folder`, `export_save`).
 
@@ -431,6 +434,8 @@ pub fn invoke(command: &str, args: Value) -> Result<Value, String> {
         // Keys, sealing and documents hold tables of their own: no library, and none of its lock.
         command if crate::crypto::has(command) => crate::crypto::call(command, args),
         command if crate::crdt::has(command) => crate::crdt::call(command, args),
+        // An update's signature and its file's hash (kept/updates.rs): no library either.
+        command if crate::kept::updates::has(command) => crate::kept::updates::call(command, args),
         // Long jobs are cancelled and listed with no library either (work.rs).
         command if crate::work::has(command) => crate::work::call(command, args),
         // Stage 8A's proof that each engine runs: a model file and a job, no library (smoke.rs).

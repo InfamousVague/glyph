@@ -1,7 +1,8 @@
 //! What a deleted note takes with it besides its file, from three files of `../glyph/src-tauri/src` that name
 //! `tauri::` types and so cannot be included whole: `images.rs`, `videos.rs` and `recordings.rs`. And, the same
 //! way, what a reset removes (`reset.rs`), how the library's folder is moved (`library_commands.rs`) what a
-//! backup is asked (`backup_commands.rs`) and what an export is (`export_commands.rs`).
+//! backup is asked (`backup_commands.rs`) and what an export is (`export_commands.rs`). And what an update of the
+//! app must pass before it is installed (`updates.rs`, from `ota/manifest.rs`, `ota/fetch.rs` and `ota/apk.rs`).
 //!
 //! Each file here is the lines its command needs, copied unchanged between two marks. The test reads the
 //! originals and looks for every copied item in them, so a rule changed there (which names are a picture's, how
@@ -13,6 +14,7 @@ pub mod images;
 pub mod library_commands;
 pub mod recordings;
 pub mod reset;
+pub mod updates;
 pub mod videos;
 
 #[cfg(test)]
@@ -38,6 +40,7 @@ mod tests {
         held(include_str!("library_commands.rs"), "library_commands.rs");
         held(include_str!("backup_commands.rs"), "backup_commands.rs");
         held(include_str!("export_commands.rs"), "export_commands.rs");
+        held(include_str!("updates.rs"), "ota/manifest.rs");
     }
 
     #[test]
