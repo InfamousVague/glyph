@@ -421,15 +421,14 @@ void main() {
     });
   });
 
-  group('a known difference: a dense card’s preview', () {
-    testWidgets('is the home card’s six lines here, where the page’s grid clips it to 4.2', (tester) async {
-      // NoteCard.module.css `.item[data-dense] .peek { max-block-size: calc(1.6em * 4.2) }`. lib/home/note_card.dart
-      // hands lib/home/note_peek.dart no word of `dense`, so a card whose note runs past four lines is up to two
-      // lines taller than the page's. Measured on the page, at 390: the sign-in ticket's card is 194.8 tall and the
-      // standup's 157.89. Held here so the day note_peek.dart learns of dense this test says to put the numbers in.
+  group('a dense card’s preview', () {
+    testWidgets('is clipped to 4.2 lines, as the page’s grid clips it', (tester) async {
+      // NoteCard.module.css `.item[data-dense] .peek { max-block-size: calc(1.6em * 4.2) }`: lib/home/note_card.dart
+      // hands lib/home/note_peek.dart its `dense`. Measured on the page, at 390: the sign-in ticket's card is 194.8
+      // tall and the standup's 157.89 (they were up to two lines taller here while the card kept the word to itself).
       await show(tester, allNotesLibrary(), spaces: true);
-      expect(tester.getRect(key('card-prd11')).height, greaterThan(194.8 + 20));
-      expect(tester.getRect(key('card-standup')).height, greaterThan(157.89 + 20));
+      expect(tester.getRect(key('card-prd11')).height, closeTo(194.8, 2));
+      expect(tester.getRect(key('card-standup')).height, closeTo(157.89, 2));
       await away(tester);
       // A note of four lines or fewer is the page's height already: Flat, 154.38.
       await show(tester, [for (final note in allNotesLibrary()) if (note.id == 'flat') note]);
