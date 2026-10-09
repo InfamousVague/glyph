@@ -47,8 +47,8 @@ Each stage ends installed on the Fold. Sizes are the web app's non-test source t
 | 5 | Structured notes: boards, tickets, queries, databases, notebooks, journals, templates | `editor/`, `book/`, `notes/` | in the app 2026-10-08 (`lib/root/note_desk.dart`, `lib/root/library_reads.dart`, `lib/root/ghost_root.dart`): boards, queries and a ticket's panel drawn in a note, the notebook's index and the journal's entries, the + sheet and New notebook, a blank note's names and template cards; **not yet on the Fold**; see "What stages 5 and 6 left open" |
 | 6 | Canvas | `canvas/` (3.5k) | in the app 2026-10-08 as a note's own view (`NoteSeams.canvas`), made from the + and from a notebook's index; a team's canvas (6G) is not ported; **not yet on the Fold** |
 | 7 | Account and sync: keys, the sync engine, organizations and team notes, live typing, notifications, shared links | `core/sync`, `core/orgs`, `core/live`, `share/` | in the app 2026-10-08, **off unless the build is given `--dart-define=GHOST_API=http://…`** (`lib/root/account_wiring.dart`); walked on the emulator against the service run on this Mac (sign up, sync read back by a second device, an organization, a team note, a shared link); links that open the app are followed since 2026-10-09 (`lib/root/ghost_root.dart`, `lib/core/phone_links.dart`: a note, the notifications, an organization, an invitation asked about first, a shared link's copy); live typing and the phone's own notifications are not ported |
-| 8 | Voice and AI: the recorder, Whisper, meetings and their service, summaries, the language model, fills, the at-work scene | `capture/` (12k), `ai/` (6.5k), `tapes/`, `scene/`, Kotlin (6.5k) | Speak in the app 2026-10-09 (`lib/root/voice_wiring.dart`, `lib/root/capture_route.dart`, `lib/root/ghost_root.dart`): the dock's microphone, a note's own and a journal's spoken entry, the capture screen with its live page, the meeting service and its screen, the + sheet's Meeting, Settings' Recording and AI pages with their real rows; walked on an Android emulator; summaries, the review, a tape's player, the AI in a note, fills and the scene are not wired; **not yet on the Fold**; see "What stage 8 left open" |
-| 9 | The rest: backup, export, plugins, the Academy and the guide, diagnostics, updates | `plugins/`, `academy/`, `guide/`, `diag/` | 9A to 9C (the library's folder, backup, export) walked on the emulator 2026-10-09, not wired into the root; see "What stage 9A to 9C left open". The plugins, the Academy, link previews and Developer's benches are in the app 2026-10-09 (`lib/root/plugin_ground.dart`, `lib/root/ghost_root.dart`); see "What stage 9's other pieces left open" |
+| 8 | Voice and AI: the recorder, Whisper, meetings and their service, summaries, the language model, fills, the at-work scene | `capture/` (12k), `ai/` (6.5k), `tapes/`, `scene/`, Kotlin (6.5k) | Speak in the app 2026-10-09 (`lib/root/voice_wiring.dart`, `lib/root/capture_route.dart`, `lib/root/ghost_root.dart`): the dock's microphone, a note's own and a journal's spoken entry, the capture screen with its live page, the meeting service and its screen, the + sheet's Meeting, Settings' Recording and AI pages with their real rows; the summary queue, the review's gate and the write-up's configuration (lib/ai's), a spoken note's tape played by the phone, a landing's Undo; walked on an Android emulator; the AI in a note (`NoteAi`), the fills and the scene are not wired; **not yet on the Fold**; see "What stage 8 left open" |
+| 9 | The rest: backup, export, plugins, the Academy and the guide, diagnostics, updates | `plugins/`, `academy/`, `guide/`, `diag/` | 9A to 9C (the library's folder, backup, export) walked on the emulator 2026-10-09, and in Settings since (`lib/root/ghost_root.dart`); see "What stage 9A to 9C left open". The plugins (in Settings and in a note), the Academy, the walkthrough and the guide's notebook, link previews, Developer's benches and its resets are in the app 2026-10-09 (`lib/root/plugin_ground.dart`, `reset_wiring.dart`, `note_desk.dart`, `ghost_root.dart`); a note's place, updates and the phone's notices are not; see "What stage 9's other pieces left open" |
 | 10 | Platforms and release: the Fold's wide layouts, Mac, Windows, iPhone; signing; moving a library over from the Tauri app | | |
 
 The web app is about 110,000 lines of TypeScript, 21,500 of CSS, 27,000 of Rust and 6,500 of Kotlin, with 5,600
@@ -57,44 +57,63 @@ on the same phone.
 
 ## What stage 9's other pieces left open
 
-`lib/main.dart` calls `installPlugins()` (`lib/root/plugin_ground.dart`) before the first screen, and
-`lib/root/ghost_root.dart` gives the shell its Academy and a note's desk its link previews.
-`test/root/rest_test.dart` holds the wiring.
+`lib/main.dart` calls `installPlugins()` (`lib/root/plugin_ground.dart`) before the first screen; the rest is
+`lib/root/ghost_root.dart`, `note_desk.dart` and `reset_wiring.dart`. `test/root/rest_test.dart` and
+`reset_test.dart` hold the wiring.
 
-- **In the app:** the five plugins that ship, with Settings › Plugins drawing their cards (seen on the emulator:
-  "4 of 5 on"); their hosts on the Keystore's secure store, `openLink`, and `pluginFetcher`, which follows no
-  redirect and, in a build that is not a release, refuses ghostmarkdown.com and attack.fm outright (Notion's
-  manifest names ghostmarkdown.com); each plugin's secrets warmed at launch; `AcademyScreen` through
-  `academyBuilder`, from Settings (`onAcademy`) and the palette, its cheat sheet opening Settings at that page;
-  `KeptLinkPreviews(fetch: linkPreviewFetch())` as a note's `MediaSeams.previewer`, asked only with Link previews
-  on and "Nothing leaves the phone" off (seen on the emulator: example.com's card reading "Example Domain");
-  `showWispBench` and `showSceneBench` behind Developer's two rows.
+- **In the app:**
+  - **The plugins:** the five that ship, Settings › Plugins drawing their cards; their hosts on the Keystore's
+    secure store, `openLink`, and `pluginFetcher`, which follows no redirect and, in a build that is not a release,
+    refuses ghostmarkdown.com and attack.fm outright (Notion's manifest names ghostmarkdown.com); each plugin's
+    secrets warmed at launch; Local only followed (`plugins.preferencesChanged`). In a note: a swipe on a list
+    item and the words offered after a line (`itemSend`, `lineOffers`), a linked to-do kept in step with its task
+    (`doneSyncs`), a linked row's menu (`MediaSeams.linkMenus`), and `LinkMarks` at the note's top
+    (`NoteSeams.head`), its press the More sheet. In the recorder: their spoken formattings and tips.
+  - **The secure store takes a colon in a name** (`SecureStore.kt`): Slack keeps each channel's webhook under
+    `glyph-slack-webhook:<id>`, which the store's rule (letters, digits, `-`, `_`) refused, so a webhook could not
+    have been kept on a phone. The Tauri app had neither side of this (its webhooks were a file of Rust's); the
+    names are this port's, and the store's rule was the one to change.
+  - **The walkthrough** (`GuideController`, `Guide`): up on a first launch that is not the side key's capture, from
+    Settings › About and the palette after, stepping aside for a recorder; the capture route's "Not yet" asks it.
+    **The guide as a notebook** (`addGuideBook`) from Settings › About, added once and opened.
+  - **The Academy** through `academyBuilder`, from Settings › About and the palette, its cheat sheet opening
+    Settings at that page.
+  - **Link previews:** `KeptLinkPreviews(fetch: linkPreviewFetch())` as a note's `MediaSeams.previewer`, asked only
+    with Link previews on and "Nothing leaves the phone" off.
+  - **Developer:** `showWispBench`, `showSceneBench`, and the two resets (`lib/core/reset.dart` over
+    `resetGroundFor`): the account forgotten first, the phone's half (`PhoneReset`), every plugin's secret by name
+    with Slack's webhooks one to a channel (`slackSecretNames`), the device's memory cleared but what is spared,
+    and the app built anew (`lib/main.dart` `_Runs`, the page's `window.location.reload()`).
 - **Not wired, each with its seam:**
-  - **The plugins in a note:** `LinkMarks` under a note's tape (`lib/plugins/link_marks.dart`; `NoteSeams.linked`),
-    a linked row's menu (`MediaSeams.linkMenus`), a swipe on a list item, the suggestions and the done-sync
-    (`lib/editor/items/swipe_items.dart`, `suggestions.dart`, `done_sync.dart`, `note_plugins.dart`), a board
-    card's plugin rows (`drawnBoards(actions:)`), the recorder's spoken formattings and tips, and the editor's
-    parser reading `plugins.formats()`.
-  - **The guide:** `GuideController`, `Guide` and `addGuideBook` (`lib/guide`), with the capture route's "Not yet"
-    (`CaptureRouteWorld.tooSoon`), Settings' `onGuide` and `onGuideBook`, and the palette's `guide`.
-  - **Starting over:** `SettingsFeatures.onReset` (`lib/core/reset.dart`, `reset_native.dart`), which wants
-    `plugins.secretNames()` and Slack's `slackSecretNames()` to clear its webhooks by name, the meeting service's
-    `cancelWriteUps`, and "Stop the meeting first".
-  - **A note's place:** `lib/core/geocode.dart` (`geocodeFetcher()`), with the location nothing here reads yet.
-  - **The Academy's card on the home page** (`academy/banner.ts`, `HomeScreen`'s notices), the scene the bench
-    plays (`showSceneBench(scene:)`), updates and the phone's own notices.
-- **Checked where:** tests, and on the emulator Settings › Plugins and a link's card. **Not walked:** the Academy's
-  screen on a device (the previous owner's note: `lib/art/wisp_edge.dart` asserts if a `WispEdge` is disposed
-  within 160 ms of a scroll), the two benches (Developer is behind seven presses on the version), a plugin
-  connected to its service.
+  - **A note keeping its place** (the web's geotag switch, on by default for notes the person makes): nothing
+    here can say where the phone is. It wants a Kotlin half for the device's position and its permission (there
+    is none under `android/`, and the manifest asks for no location), then what `lib/core/location.dart`'s header
+    lists as not ported (`pendingTag`, `tagNewNotesIfWanted`, `tagEntryIfWanted`, the held box, the watchers, the
+    kept refusal) over `Locations`, with `geocodeFetcher()` (`lib/core/geocode.dart`) for the name. Its seams in
+    what is wired: `NoteSeams.location` and `mapCard`, `TemplateCards.canLocate`, `TakeBack.forgetTag`, the
+    capture route's `tagAfter`, a journal's place switch.
+  - **The More sheet's "Linked to" rows** (`NoteSeams.linked`: each plugin's link, its page and its actions), a
+    board card's plugin rows (`drawnBoards(actions:)`), the editor's parser reading `plugins.formats()` (the desk
+    gives it the app's own marks), and `usePluginContext` / `claudeHandle` (docs/STAGE8_AI.md, "At launch", 1).
+  - **The walkthrough's model page** (`Guide(models:)`): a phone with none to fetch, as far as it is told.
+  - **The scene the bench plays** (`showSceneBench(scene:)`): lib/scene is not committed yet; the bench says so.
+  - **Updates and the phone's own notices** (9I): `Notices`' update card and the launch screen's `updates`.
+- **Checked where:** on the emulator (2026-10-09): Settings › Plugins ("4 of 5 on"); a link's card reading
+  "Example Domain"; the walkthrough on a first launch, a page turned, Skip; the Academy's contents and its switch,
+  scrolled and left; the smoke bench with its frame times; the scene bench saying the scene is not in the build;
+  and **Reset local data**, pressed twice: the notes, the recordings and the secure store's files gone, the three
+  models kept, the starter notes written, the app back on the welcome walkthrough with its microphone. **Not
+  walked:** a plugin connected to its service, a swipe or a suggestion from one, Reset everything, a reset signed
+  in.
 
 ## What stage 8 left open
 
 Speak is put together by `lib/root/voice_wiring.dart` (a `Voice`: the recorder over the core's Whisper and the
-phone's microphone, the meeting service's store, the models on the phone) and `lib/root/capture_route.dart` (where a
-capture begins and ends, `shell/useCaptureRoute.ts`); `lib/main.dart` attaches the phone's halves before the first
-frame and `lib/root/ghost_root.dart` gives the shell its capture and meeting screens. `test/root/voice_test.dart`
-holds the wiring. There is no always-on microphone: one is opened by a recorder's screen that is on screen.
+phone's microphone, the meeting service's store, the models on the phone, the summary queue) and
+`lib/root/capture_route.dart` (where a capture begins and ends, `shell/useCaptureRoute.ts`); `lib/main.dart` attaches
+the phone's halves before the first frame and `lib/root/ghost_root.dart` gives the shell its capture and meeting
+screens. `test/root/voice_test.dart` holds the wiring. There is no always-on microphone: one is opened by a
+recorder's screen that is on screen.
 
 - **A debug build fetches a model from nowhere.** `--dart-define=GHOST_MODELS=http://10.0.2.2:8765` names a server
   on this Mac (the files of `../glyph/models`); with none, the one mirror is `http://127.0.0.1:9`, where nothing
@@ -105,46 +124,51 @@ holds the wiring. There is no always-on microphone: one is opened by a recorder'
 - **`--dart-define=GHOST_MIC_FIXTURE=true`**, a debug build's only, plays `<dataDir>/fixture.wav` in place of the
   microphone (an emulator's hears silence): `adb push ../glyph/models/fixture.wav /data/local/tmp/` and
   `run-as com.mattssoftware.glyph.flutter cp /data/local/tmp/fixture.wav fixture.wav`.
-- **Summaries and the review after a recording are not wired** (`ai/summaries.ts`, `ai/review.ts`): lib/ai had
-  neither when Speak was put together; `lib/ai/summaries.dart`, `review.dart`, `land.dart`, `job_config.dart` and
-  `start.dart` landed the same day and are still to be given to the seams below. So `Recorder.enqueueSummary` and `reviewAvailable` are the recorder's own no-ops, a meeting's
-  write-up is handed no job configuration (`keepJobConfig`: the service writes the transcript under
-  `## Transcript` and no summary), a finished write-up's result is not landed in its note (`landNativeResult`, also
-  where a `ghostmd://note/…` link would put it first), `MeetingLive.writeUpRunningNow` answers no, and the meeting
-  screen's `dropSummary` does nothing. The seams are named in `lib/root/voice_wiring.dart`'s header.
-- **What a take hands the note it lands in is carried and not read**: `ScreenNote.landing` (the Undo for what a
-  recording wrote), `ask` (a spoken instruction to run on the note) and `review` are set by the route and nothing
-  in `lib/note` draws them yet (stage 8K, the editor's AI surface).
-- **A spoken note has no tape at its top** (`tapes/NoteTape.tsx`, `TranscriptWords`): `lib/tapes/note_tape.dart`
-  and `player.dart` are built, and `TapePlayer` has no phone half to play a WAV, nor a seam in `lib/note` to be
-  drawn in. A voice memo's clip in a note (`MediaSeams.clipPlayer`, `tape`) waits for the same player.
+- **Summaries and the review's gate are lib/ai's, wired** (`Voice.summaries`, a `Summaries` over the phone's
+  write-up, the better words' queue and the notes): a take's summary and whether its review can run are asked of
+  it by the recorder, a meeting's write-up is queued as the phone's own and dropped with the meeting, its
+  configuration is kept current (`keepJobConfigCurrent`), `MeetingLive.writeUpRunningNow` is the last look at the
+  phone's jobs, a summary that landed is said with Open, and a `ghostmd://note/…` link lands a waiting result
+  first (`landNativeResult`). **Not walked on a device:** no meeting with words in it was written up after this
+  was wired, and the model on the emulator is not the one the preferences choose.
+- **The AI in a note is not on the desk** (`NoteAi`, lib/ai/note_ai.dart; docs/STAGE8_AI.md, "For each open
+  note"): its files, the fills' panel and lib/scene were still uncommitted when this was wired, and a commit that
+  imports them would not build from the repository. So a spoken instruction and a review the note opened with
+  (`NoteDesk.ask`, `NoteDesk.review`, from `ScreenNote`) are carried to the desk and not run, the review therefore
+  never draws though the recorder may hand one over, the tape has no Summarize (`NoteTape.summary`,
+  `NoteAi.canSummarize`), the More sheet has no AI rows (`NoteSeams.onAi`), and the fills' queue, the gists, the
+  device facts and the availability's controller of that document's "At launch" (5, 6, 8, 9) are not started.
+- **What a recording wrote into a note is said, with its Undo** (`editor/useLanding.ts`, on the desk): an edit in
+  the note's editor that takes out exactly what went in. Its writes to OTHER notes are not reversed: the store
+  keeps no log of a command's change (`LibraryRecorderStore`, where the core's `apply_command` and `undo_command`
+  are not bound), so each is counted as changed since and the toast says so.
+- **A spoken note's tape** is at its top (`NoteSeams.head`) with Play, Add and Remove with its Undo, and its
+  phrases under its words (`NoteSeams.tail`), played by `PhoneTapePlayer` over `TapePlayer.kt` (a `MediaPlayer` on
+  `recordings/<id>.wav`). A voice memo's clip in a note (`MediaSeams.clipPlayer`, `tape`) is not given the player
+  yet, and there is no shelf to give it to: the web's went with its dashboard (lib/tapes/shelf.dart's header), and
+  a recording is a note's row and All notes' Tapes switch.
+- **The voice model's line** is above the notes while it is being fetched or has failed (`Notices`'
+  `VoiceModelStatus`); the update's card and the invitation's are not given (`core/ota.ts`,
+  `settings/InviteActions.tsx`).
 - **The side key and the launcher shortcut** are behind the build's own switch as on the web (`GHOST_ASSISTANT=1`,
   `DeviceMeetingHost.assistantEnabled`): without it a launch is never a recording and the key's events are
   dropped (`Voice.assistant`). With it the route starts a capture at launch and from the key, and a second press
   stops it; that path is held by tests and was **not walked on a device** (no build with the assistant was made).
-  The guide's "Not yet" for a key pressed on a reading page (`CaptureRouteWorld.tooSoon`) has no guide to ask.
 - **Other apps' sound in a meeting** is asked for where the switch is on and the phone can (`Voice.sound`); the
   screen-share consent was not walked.
-- **No place is asked for** after a take's new note or a spoken entry (`tagNewNotesIfWanted`, an entry's `tag`).
-- **The plugins' spoken formattings and tips** (`Recorder.spokenFormats`, `pluginTips`) are the recorder's empty
-  defaults.
+- **No place is asked for** after a take's new note or a spoken entry (see stage 9's other pieces).
 - **Settings › Recording's Tapes** sums the lengths of the notes whose audio was not removed here; the web also
-  asks each file whether it is on this device (`headStatus`), which nothing here can. **Settings › AI** has no
-  line for how well a model fits the phone (`readDevice`), which the page that was ported did not draw either.
-- **The launch screen and `Notices` do not say the voice model is being fetched** (`Recorder.voiceModel`).
-- **One test of the recorder's own fails by the calendar, not by this wiring:**
-  `test/capture/voice_suite_test.dart` run 120 expects "tomorrow" to be 2026-10-09, the day after its fixture was
-  recorded.
+  asks each file whether it is on this device (`headStatus`; `TapePlayer.onDevice` could answer it now).
 - **Checked where:** on an Android emulator (2026-10-09, debug, dark): the dock's microphone, the system's
-  microphone prompt answered, a take of silence from the emulator's microphone with the card of things to say and
-  the ghost listening, Discard; then a take from the fixture, its words arriving on the live page with the rings
-  and the smoke, Done, the note on the home page with its length, the better words' pass changing a word a moment
-  later; the + sheet's Meeting, the cassette screen and the service's notification, the dock's microphone opening
-  the meeting instead while it records, Done, the note written up with `## Transcript`; Settings › Recording
-  (Meetings, "Tell me when a meeting is written up: On", the tapes' megabyte) and Settings › AI (Qwen3.5 2B here
-  and in use, Get refused by the mirror that is not there). **Not exercised there:** a note's own Speak and a
-  journal's spoken entry (held by tests), a real voice (the emulator's microphone is silent), a meeting with
-  anything said, the lock screen, the side key. **Still to see on the Fold:** all of it under a real voice.
+  microphone prompt answered, a take of silence with the card of things to say and the ghost listening, Discard;
+  a take from the fixture, its words arriving on the live page with the rings and the smoke, Done, the note on the
+  home page with its length, the better words' pass changing a word a moment later; the + sheet's Meeting, the
+  cassette screen and the service's notification, the dock's microphone opening the meeting instead while it
+  records, Done, the note written up with `## Transcript`; Settings › Recording and Settings › AI (Qwen3.5 2B here
+  and in use, Get refused by the mirror that is not there); and, after the second pass, the spoken note's tape
+  playing with its phrases lit in turn. **Not exercised there:** a note's own Speak, a journal's spoken entry and
+  a landing's Undo (held by tests), a real voice, a meeting with anything said, the lock screen, the side key.
+  **Still to see on the Fold:** all of it under a real voice.
 
 ## What stages 5 and 6 left open
 
@@ -172,8 +196,8 @@ change (`lib/root/library_reads.dart`). `test/root/structured_test.dart` holds t
   its tab is written to the store and not through its open screen (`rename`).
 - **A board's card has no plugin's rows** (`drawnBoards(actions:)`), and a date in a ticket's panel or a query is
   not picked from a calendar (`dayPicker`).
-- **`Notices` is still not wired**: the update card waits for stage 9's updates, the invitation for its buttons
-  (`InviteActions`), the voice model's line for stage 8.
+- **`Notices`** has the voice model's line (stage 8); the update card waits for stage 9's updates and the
+  invitation for its buttons (`InviteActions`).
 - **The aside** (the open note's notebook beside it on a wide window, `aside/`) is still the shell's placeholder.
 - **A note opened with the caret at its end** (a journal's new entry) is scrolled until that line is at the top of
   the page as the keyboard comes up, its heading and the notebook's bar above it out of sight until the page is
@@ -194,11 +218,11 @@ The library's folder, the backup and the export (docs/STAGES_5_6_8_9.md), with t
 handed to the phone (`ghost_md/open`), a reset's phone half (`ghost.md/reset`) and links that open the app
 (`ghost_md/links`). `lib/main_files.dart` is all of it alone on a phone, and says how each was walked.
 
-- **To wire in `lib/root`:** `SettingsFeatures(libraryFolder: LibraryFolder(invoke: core.invoke, onNotesChanged: …),
-  backup: Backups.overCore(invoke: core.invoke, startJob: core.startJob, events: core.events), export:
-  ExportAll.overCore(…the same three…))`; and `PhoneReset` for the reset's `ResetNativeOf`
-  (lib/core/reset_native.dart). The links and the opener are wired (lib/main.dart). Until then Settings' Library folder says it needs an update, Backup that backups need
-  the app, and Export's row cannot be pressed.
+- **Wired in `lib/root`** (2026-10-09): `GhostRoot(native:)` is the whole core, and Settings is handed
+  `LibraryFolder`, `Backups.overCore` and `ExportAll.overCore` over it; `PhoneReset` is the phone's half of
+  Developer's resets (`lib/root/reset_wiring.dart`). Seen on the emulator: Library folder saying where the notes
+  are and how many, its picker opened and left; Export everything saved through Android's own dialog ("Exported 9
+  notes and 11 other files, 33 MB"). Backup's page was not walked again (it wants a USB drive, below).
 - **Android only.** The Mac's folder panel, its drives and Eject, and its save panel (`library_choose_folder`,
   `backup_drives`, `backup_eject`, `export_save`) are stage 10's.
 - **A backup wants a USB drive.** Android 11 and later grant no app the top of an SD card ("Can't use this
@@ -234,8 +258,8 @@ The editor's pieces (docs/STAGE4.md) are assembled for each open note by `lib/ro
   `ghostmd://join/<code>` asked about before anything is joined, and a shared link's copy. The first two were seen
   on the emulator; the other three need an account's service and are held by tests. Android also hands Flutter
   each address as a route to push, which put a second copy of the app over the first: `lib/app/ghost_app.dart`
-  takes every pushed route and drops it (the manifest's `flutter_deeplinking_enabled` would say the same, and is
-  not set). A note link does not first land a waiting summary (`landNativeResult`, stage 8's write-up).
+  takes every pushed route and drops it, and the manifest's `flutter_deeplinking_enabled` is `false` now too. A
+  note link lands a waiting summary first (`landNativeResult`).
 - **A shared link** made by a build on a local service still names the real reader page (lib/share), where nothing
   will find it.
 - **Icons the generated set lacks** fall back: Wave's on the Style page and in the +'s list (`waves` is not in
