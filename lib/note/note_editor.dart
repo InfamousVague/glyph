@@ -27,6 +27,7 @@ import 'package:glacier/glacier.dart';
 
 import '../editor/editor.dart';
 import '../editor/looks/look.dart';
+import '../editor/placeholder.dart';
 import '../editor/syntax/language.dart' show InlineFormatSyntax;
 import '../editor/view/base.dart';
 import '../editor/view/editor_view.dart';
@@ -169,6 +170,8 @@ class _NoteEditorHostState extends State<NoteEditorHost> {
             readOnly: widget.spec.readOnly,
             more: <Extension>[
               history(),
+              // NoteScreen.tsx: `placeholder="Write something."`.
+              placeholder('Write something.'),
               _display.of(noteView(widget.spec.display)),
               _look.of(lookExtensions(widget.spec.look)),
               EditorViewLike.updateListener.of((update) {

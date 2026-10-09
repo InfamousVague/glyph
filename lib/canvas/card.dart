@@ -19,8 +19,8 @@
 /// - A card of words is `MarkdownView`'s lines (lib/editor/markdown_view.dart) set as CanvasView.module.css
 ///   `.words.words` sets the peek: no cap on the height, and the card's ink, not the peek's grey. `MarkdownView`
 ///   has no way to be asked for either, so [CardWords] is its few lines again with those two changed.
-/// - A chart is its Mermaid fence as a code card until diagrams are drawn (docs/STAGE4.md); an open card has no
-///   "Write something." placeholder; a film card's `videos` mode is not taken.
+/// - A chart is its Mermaid fence as a code card until diagrams are drawn (docs/STAGE4.md); a film card's `videos`
+///   mode is not taken.
 /// - `editedBy`, another member's ring and handle on a card they have open, is the team canvas's (piece 6G).
 library;
 
@@ -37,6 +37,7 @@ import '../editor/editor_widget.dart';
 import '../editor/items/items.dart' show itemExtensions;
 import '../editor/looks/look.dart';
 import '../editor/looks/peek_look.dart';
+import '../editor/placeholder.dart';
 import '../editor/tables/tables.dart' show drawnTables;
 import '../editor/view/base.dart';
 import '../editor/view/column.dart';
@@ -544,6 +545,8 @@ class _CardEditorState extends State<_CardEditor> {
         display: NoteView.mixed,
         more: <Extension>[
           history(),
+          // Card.tsx: `<Editor … placeholder="Write something." />`.
+          placeholder('Write something.'),
           ..._drawnLive,
           EditorViewLike.updateListener.of((update) {
             if (update.docChanged) widget.onWrite?.call(widget.node.id, update.state.doc.toString());
