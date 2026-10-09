@@ -85,7 +85,9 @@ class EditorSelectionPainter {
   /// Paints a caret. `caret` is the rectangle `coordsAtPos` answers, with no width.
   void paintCaret(Canvas canvas, Rect caret, Color color, double opacity) {
     if (opacity <= 0) return;
-    canvas.drawRect(Rect.fromLTWH(caret.left - 0.5, caret.top, 2, caret.height), Paint()..color = color.withValues(alpha: color.a * opacity));
+    // A browser's own caret is one CSS pixel wide (2 to 3 device pixels on the phone, measured beside the page, where
+    // two logical pixels here were 5).
+    canvas.drawRect(Rect.fromLTWH(caret.left - 0.5, caret.top, 1, caret.height), Paint()..color = color.withValues(alpha: color.a * opacity));
   }
 }
 

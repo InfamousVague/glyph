@@ -81,7 +81,7 @@ class _AddSheetState extends State<AddSheet> {
               SheetRow(icon: _icon(Lucide.squarePen), label: 'Words', hint: 'A card to write on.', onPress: widget.onWords),
               SheetRow(icon: _icon(Lucide.fileText), label: 'A note', hint: 'One of your notes, drawn small; tap it to open.', onPress: () => widget.onStep(AddStep.note)),
               SheetRow(icon: _icon(Lucide.link2), label: 'A link', hint: 'A web address, opened with a tap.', onPress: () => widget.onStep(AddStep.link)),
-              SheetRow(icon: _icon(Lucide.image), label: 'A picture', hint: 'From your phone or computer, kept with your notes’ pictures.', onPress: widget.onPicture),
+              SheetRow(icon: _icon(Lucide.image), label: 'A picture', hint: "From your phone or computer, kept with your notes' pictures.", onPress: widget.onPicture),
               SheetRow(icon: _icon(Lucide.chartNoAxesCombined), label: 'A chart', hint: 'A diagram, written as Mermaid and drawn on the card.', onPress: widget.onChart),
               SheetRow(icon: _icon(Lucide.table), label: 'A table', hint: 'Rows and columns to fill in.', onPress: widget.onTable),
               SheetRow(
