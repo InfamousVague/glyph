@@ -166,13 +166,15 @@ class _TicketPanelState extends State<TicketPanel> {
         constraints: BoxConstraints(minHeight: layoutUnitFloor(1.9 * look.em)),
         padding: EdgeInsets.only(left: look.space(2), right: tight ? 0 : look.space(2)),
         // The mark keeps its size (`flex: none`) and the words are cut; in no room at all the chip is drawn in what
-        // there is, where a Row said its mark did not fit.
+        // there is, where a Row said its mark did not fit. Cut, with no ellipsis: the chip is a flex row, whose
+        // words are an item of their own that the chip's `text-overflow` does not reach (the page's "Fri, O" where
+        // this drew "Fri…").
         child: CssRow(
           gap: look.space(2),
           shrinkWrap: true,
           children: <Widget>[
             if (mark != null) CssItem(shrink: 0, child: mark),
-            CssItem(least: 0, child: Part('chipWords', child: PageWords(text, look.sans(look.em, color: color), line: look.line, softWrap: false, maxLines: 1, overflow: TextOverflow.ellipsis))),
+            CssItem(least: 0, child: Part('chipWords', child: ClipRect(child: PageWords(text, look.sans(look.em, color: color), line: look.line, softWrap: false, maxLines: 1, overflow: TextOverflow.clip)))),
           ],
         ),
       ),
