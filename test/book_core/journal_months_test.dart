@@ -3,6 +3,7 @@ import 'package:ghost_md/book/journal.dart';
 import 'package:ghost_md/book/journal_months.dart';
 import 'package:ghost_md/core/book.dart' show BookPlace, bookIndex, placeOf;
 import 'package:ghost_md/core/geotag.dart' show GeoTag, withGeoTag;
+import 'package:ghost_md/core/locale_dates.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/note_text.dart' show noteTitle, titleKey;
 import 'package:ghost_md/core/template.dart' show fillTemplate;
@@ -230,6 +231,39 @@ void main() {
       expect(sideName('2026-09-27 21.40', '2026-09-28 14.05'), '27 Sept');
       expect(sideName('Packing list', '2026-09-28 14.05'), 'Packing list');
       expect(sideName('2026-09-28 08.10', 'Packing list'), '28 Sept');
+    });
+
+    group('in the phone’s own words (core/locale_dates.dart)', () {
+      tearDown(() => toldLocale = null);
+      final row = entry('2026-09-28 14.05', '2026-09-28T14:05', 'Afternoon.');
+
+      test('an American phone has the month first: a card’s newest, a neighbour’s day, a row read aloud', () {
+        toldLocale = DateLocale.enUS;
+        expect(journalCards(notes)['diary']!.newest, [
+          (title: '2026-09-28 14.05', when: 'Mon, Sep 28, 14:05'),
+          (title: '2026-09-27 21.40', when: 'Sun, Sep 27, 21:40'),
+        ]);
+        expect(sideName('2026-09-27 21.40', '2026-09-28 14.05'), 'Sep 27');
+        expect(sideName('2026-09-28 08.10', '2026-09-28 14.05'), '08:10');
+        final month = monthsOf(pages([row]), '# {{date}}\n\n**{{time}}** ', 'Diary').months.single;
+        expect(month.label, 'September 2026');
+        expect(month.entries.single.label, 'Monday, September 28, 14:05. Afternoon.');
+        expect((month.entries.single.day, month.entries.single.weekday, month.entries.single.time), ('28', 'Mon', '14:05'));
+      });
+
+      test('a British phone has the day first, and Sept', () {
+        toldLocale = DateLocale.enGB;
+        expect(journalCards(notes)['diary']!.newest, [
+          (title: '2026-09-28 14.05', when: 'Mon, 28 Sept, 14:05'),
+          (title: '2026-09-27 21.40', when: 'Sun, 27 Sept, 21:40'),
+        ]);
+        expect(sideName('2026-09-27 21.40', '2026-09-28 14.05'), '27 Sept');
+        expect(sideName('2026-09-28 08.10', '2026-09-28 14.05'), '08:10');
+        final month = monthsOf(pages([row]), '# {{date}}\n\n**{{time}}** ', 'Diary').months.single;
+        expect(month.label, 'September 2026');
+        expect(month.entries.single.label, 'Monday 28 September, 14:05. Afternoon.');
+        expect((month.entries.single.day, month.entries.single.weekday, month.entries.single.time), ('28', 'Mon', '14:05'));
+      });
     });
 
     test('gives the aside the month of the entry open, or the newest', () {

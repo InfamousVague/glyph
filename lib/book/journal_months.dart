@@ -12,11 +12,13 @@
 /// planned before the notebook was kept as a journal, still to be written, listed apart.
 ///
 /// What differs:
-/// - **Days and months are written in English, as en-GB orders them** ("Monday 28 September", "September 2026",
-///   "27 Sept"), where the page asks the device's language (lib/core/template.dart says why). The web's own tests
-///   pin en-GB, and those are the cases ported.
-/// - **A journal's card says its newest as the page said it on Matt's phone, "Mon, Sep 28, 13:05"**, which is en-US:
-///   [journalCards] was ported first, for the home page, and held to the page itself there
+/// - **Days and months are written in English, in the phone's own order** (lib/core/locale_dates.dart, the page's
+///   own answers for en-US and en-GB: "Monday, September 28" and "Sep 27", or "Monday 28 September" and "27 Sept";
+///   "September 2026" either way), where the page asks the device's language. Until the phone has said, they are
+///   as en-GB orders them: the web's own tests pin en-GB, and those are the cases ported.
+/// - **A journal's card says its newest in the phone's order too**, "Mon, Sep 28, 13:05" or "Mon, 28 Sept, 13:05"
+///   (`formats.when` and `formats.time`), and until the phone has said, as the page said it on Matt's phone, which
+///   is en-US: [journalCards] was ported first, for the home page, and held to the page itself there
 ///   (test/core/note_text_test.dart, test/home). It was in lib/core/book.dart, which hands it on.
 /// - `noteOf` answers null where the page's answers `undefined`.
 library;
@@ -25,6 +27,7 @@ import '../core/book.dart' show BookPlace, Chapter, chaptersOf, isJournalBody;
 import '../core/front_matter.dart' show frontMatterEnd;
 import '../core/geotag.dart' show geoTagOf, tagLabel;
 import '../core/item_syntax.dart' show jsTrim, lineWords;
+import '../core/locale_dates.dart';
 import '../core/note.dart';
 import '../core/note_text.dart' show noteTitle;
 import '../core/place_refs.dart' show placeOfLine;
@@ -312,7 +315,7 @@ Map<String, JournalCard> journalCards(List<Note> notes, [int newest = 4]) {
             title: row.title,
             when: () {
               final at = _clock(row.wall);
-              return '${shortWeekday(at)}, ${_usMonths[at.month - 1]} ${at.day}, ${clockTime(at)}';
+              return '${toldDate(at, DateForm.MMMEd) ?? '${shortWeekday(at)}, ${_usMonths[at.month - 1]} ${at.day}'}, ${clockTime(at)}';
             }(),
           ),
       ],
@@ -334,14 +337,15 @@ int? _wallOfName(String title) {
 const int _dayMs = 24 * 60 * 60000;
 
 /// What an entry's bar calls the entry either side of [open]: its time when it was written the day the open one was,
-/// else its day, "27 Sept". At a phone's width a side has room for about nine letters, and a name cut there,
-/// "2026-09-2…", kept only what every entry shares. A name that is not an entry's is said as it is.
+/// else its day, "27 Sept" ("Sep 27" on an American phone). At a phone's width a side has room for about nine
+/// letters, and a name cut there, "2026-09-2…", kept only what every entry shares. A name that is not an entry's is
+/// said as it is.
 String sideName(String title, String open) {
   final wall = _wallOfName(title);
   if (wall == null) return title;
   final here = _wallOfName(open);
   final at = _clock(wall);
-  return here != null && (here / _dayMs).floor() == (wall / _dayMs).floor() ? clockTime(at) : '${at.day} ${shortMonth(at)}';
+  return here != null && (here / _dayMs).floor() == (wall / _dayMs).floor() ? clockTime(at) : toldDate(at, DateForm.MMMd) ?? '${at.day} ${shortMonth(at)}';
 }
 
 /// The one month the aside lists for a journal or one of its entries: the entry's own month, newest first, or the

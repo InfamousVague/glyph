@@ -5,6 +5,7 @@
 // is `readGates`.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/art/lucide.g.dart';
+import 'package:ghost_md/core/locale_dates.dart';
 import 'package:ghost_md/editor/plus/add_rows.dart';
 import 'package:ghost_md/editor/state/history.dart';
 
@@ -45,6 +46,26 @@ void main() {
       expect(time.words, '28 Sept 2026, 14:05');
       expect(time.label, matches(RegExp(r'^The date and time, .*2026, 14:05$')));
       expect(time.label, contains('September'));
+    });
+
+    group('in the phone’s own words (core/locale_dates.dart)', () {
+      tearDown(() => toldLocale = null);
+
+      test('an American phone says the time month first, written and read aloud', () {
+        toldLocale = DateLocale.enUS;
+        final time = topRows(gates(), now).firstWhere((row) => row.id == 'time');
+        expect(time.words, 'Sep 28 2026, 14:05');
+        expect(time.label, 'The date and time, September 28 2026, 14:05');
+        expect(written('time'), 'Lunch\nSep 28 2026, 14:05|');
+      });
+
+      test('a British phone says it day first, with Sept', () {
+        toldLocale = DateLocale.enGB;
+        final time = topRows(gates(), now).firstWhere((row) => row.id == 'time');
+        expect(time.words, '28 Sept 2026, 14:05');
+        expect(time.label, 'The date and time, 28 September 2026, 14:05');
+        expect(written('time'), 'Lunch\n28 Sept 2026, 14:05|');
+      });
     });
 
     test('write the minute’s name on the line that names the note, not the stamp, and say so', () {

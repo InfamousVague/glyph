@@ -28,9 +28,10 @@
 /// - **A row's id is a string** (`'picture'`, `'query:week'`, `'effect:Heat'`), as it is on the page.
 /// - [planFor] and [writeRow] take the state or a dispatch target rather than a view; [planFor] answers a
 ///   [RowWrite].
-/// - **The moment in words is English, day first** ([stamp], [timeLabel]): the web asks `Intl` for the device's
-///   own order and month names, which this app has no tables for yet (lib/notes/note_templates.dart's `longDay` is
-///   the same).
+/// - **The moment in words is English, in the phone's own order** ([stamp], [timeLabel]): the web asks `Intl` for
+///   the device's own order and month names, and lib/core/locale_dates.dart has the page's answers for en-US and
+///   en-GB ("Sep 28 2026, 14:05", "28 Sept 2026, 14:05"). Until the phone has said, the day is first
+///   (lib/notes/note_templates.dart's `longDay` is the same).
 /// - `CHART_CARD` (canvas/edits.ts), `QUERY_TEMPLATES` and `queryFence` (core/query) and `onNamingLine`
 ///   (editor/openHeading.ts) are written here until their own pieces land (query_templates.dart, [onNamingLine]).
 /// - `withProperty` is `withFrontMatterValue` (lib/notes/note_templates.dart): `ticket` and `To do` are words YAML
@@ -44,6 +45,7 @@ import '../../core/boards/make.dart';
 import '../../core/days.dart';
 import '../../core/front_matter.dart';
 import '../../core/item_syntax.dart';
+import '../../core/locale_dates.dart';
 import '../../core/properties.dart';
 import '../../core/task_fields.dart';
 import '../../notes/note_templates.dart' show clockTime, formatStamp;
@@ -172,14 +174,16 @@ AddGates readGates({
 const List<String> _shortMonths = <String>['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
 const List<String> _months = <String>['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-/// "28 Sept 2026, 14:05": the day and the short month, the year, and the time on a 24-hour clock (`stamp`).
-String stamp(DateTime at) => '${at.day} ${_shortMonths[at.month - 1]} ${at.year}, ${clockTime(at)}';
+/// "28 Sept 2026, 14:05": the day and the short month in the phone's order ("Sep 28 2026, 14:05" on an American
+/// one), the year, and the time on a 24-hour clock (`stamp`).
+String stamp(DateTime at) => '${toldDayMonth(at, DateForm.MMMd) ?? '${at.day} ${_shortMonths[at.month - 1]}'} ${at.year}, ${clockTime(at)}';
 
 /// "2026-09-28 14.05": the minute as a name, as a journal names an entry (`minuteName`, core/noteNames.ts).
 String minuteName(DateTime at) => formatStamp(at, 'YYYY-MM-DD HH.mm');
 
-/// "The date and time, 28 September 2026, 14:05": the time row read aloud, with the month in full.
-String timeLabel(DateTime at) => 'The date and time, ${at.day} ${_months[at.month - 1]} ${at.year}, ${clockTime(at)}';
+/// "The date and time, 28 September 2026, 14:05": the time row read aloud, with the month in full ("September 28
+/// 2026" on an American phone).
+String timeLabel(DateTime at) => 'The date and time, ${toldDayMonth(at, DateForm.MMMMd) ?? '${at.day} ${_months[at.month - 1]}'} ${at.year}, ${clockTime(at)}';
 
 /// What the time row writes: the stamp, "28 Sept 2026, 14:05", or on the line that names the note, the minute's
 /// name, "2026-09-28 14.05" (docs/DESIGN.md §144). There the words are the note's name and its file's, and the
