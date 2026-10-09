@@ -1689,7 +1689,11 @@ class _GhostRootState extends State<GhostRoot> {
                 clock: widget.clock,
                 onAllNotes: shell.showAllNotes,
                 onSearch: _search,
-                onSwipe: _actions.swipe,
+                // `tabs.drop(note.id)` before an archive or a delete (App.tsx `onSwipe`): the swiped note's tab goes too.
+                onSwipe: (note, action) {
+                  if (action.name != 'pin') _shell.currentState?.dropTab(note.id);
+                  _actions.swipe(note, action);
+                },
                 onRefresh: _library.refresh,
                 onNoteMenu: (id) => _menu.open(id, MediaQuery.sizeOf(context).center(Offset.zero)),
                 onManageWorkspace: (workspace) => setState(() => _workspace = (editing: workspace)),

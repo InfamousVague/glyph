@@ -250,8 +250,10 @@ class _Behind extends StatelessWidget {
               ? const SizedBox.expand()
               : LayoutBuilder(
                   builder: (context, box) {
-                    // `@container swipe-gap (height < 5.25rem)`: the gap's own box, padding and all.
-                    final height = box.maxHeight + t.space(2) * 2, width = box.maxWidth + t.space(3) * 2;
+                    // `@container swipe-gap (height < 5.25rem)`: a container's query measures its content box, the
+                    // gap inside its padding, so a pinned line's Unpin has no word until the gap is 7rem and the
+                    // padding wide.
+                    final height = box.maxHeight, width = box.maxWidth;
                     final short = height < t.lenOf('5.25rem');
                     return _Action(
                       key: ValueKey(current.id),
@@ -436,8 +438,11 @@ class _ActionState extends State<_Action> with TickerProviderStateMixin {
         crossAxisAlignment: widget.start ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [fade(widget.showLabel, label), if (further != null) fade(widget.showMore, further)],
       );
+      // The pair is its own width at the row's edge of the gap: without a least of its own the row filled the gap
+      // and stood at its far edge.
       laid = OverflowBox(
         alignment: widget.start ? AlignmentDirectional.centerEnd : AlignmentDirectional.centerStart,
+        minWidth: 0,
         maxWidth: double.infinity,
         child: Row(
           mainAxisSize: MainAxisSize.min,
