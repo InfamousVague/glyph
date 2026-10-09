@@ -48,12 +48,45 @@ Each stage ends installed on the Fold. Sizes are the web app's non-test source t
 | 6 | Canvas | `canvas/` (3.5k) | in the app 2026-10-08 as a note's own view (`NoteSeams.canvas`), made from the + and from a notebook's index; a team's canvas (6G) is not ported; **not yet on the Fold** |
 | 7 | Account and sync: keys, the sync engine, organizations and team notes, live typing, notifications, shared links | `core/sync`, `core/orgs`, `core/live`, `share/` | in the app 2026-10-08, **off unless the build is given `--dart-define=GHOST_API=http://…`** (`lib/root/account_wiring.dart`); walked on the emulator against the service run on this Mac (sign up, sync read back by a second device, an organization, a team note, a shared link); links that open the app are followed since 2026-10-09 (`lib/root/ghost_root.dart`, `lib/core/phone_links.dart`: a note, the notifications, an organization, an invitation asked about first, a shared link's copy); live typing and the phone's own notifications are not ported |
 | 8 | Voice and AI: the recorder, Whisper, meetings and their service, summaries, the language model, fills, the at-work scene | `capture/` (12k), `ai/` (6.5k), `tapes/`, `scene/`, Kotlin (6.5k) | Speak in the app 2026-10-09 (`lib/root/voice_wiring.dart`, `lib/root/capture_route.dart`, `lib/root/ghost_root.dart`): the dock's microphone, a note's own and a journal's spoken entry, the capture screen with its live page, the meeting service and its screen, the + sheet's Meeting, Settings' Recording and AI pages with their real rows; walked on an Android emulator; summaries, the review, a tape's player, the AI in a note, fills and the scene are not wired; **not yet on the Fold**; see "What stage 8 left open" |
-| 9 | The rest: backup, export, plugins, the Academy and the guide, diagnostics, updates | `plugins/`, `academy/`, `guide/`, `diag/` | 9A to 9C (the library's folder, backup, export) walked on the emulator 2026-10-09, not wired into the root; see "What stage 9A to 9C left open" |
+| 9 | The rest: backup, export, plugins, the Academy and the guide, diagnostics, updates | `plugins/`, `academy/`, `guide/`, `diag/` | 9A to 9C (the library's folder, backup, export) walked on the emulator 2026-10-09, not wired into the root; see "What stage 9A to 9C left open". The plugins, the Academy, link previews and Developer's benches are in the app 2026-10-09 (`lib/root/plugin_ground.dart`, `lib/root/ghost_root.dart`); see "What stage 9's other pieces left open" |
 | 10 | Platforms and release: the Fold's wide layouts, Mac, Windows, iPhone; signing; moving a library over from the Tauri app | | |
 
 The web app is about 110,000 lines of TypeScript, 21,500 of CSS, 27,000 of Rust and 6,500 of Kotlin, with 5,600
 tests. Parity is the bar for every stage; a stage is not done until its screens have been compared with the web app's
 on the same phone.
+
+## What stage 9's other pieces left open
+
+`lib/main.dart` calls `installPlugins()` (`lib/root/plugin_ground.dart`) before the first screen, and
+`lib/root/ghost_root.dart` gives the shell its Academy and a note's desk its link previews.
+`test/root/rest_test.dart` holds the wiring.
+
+- **In the app:** the five plugins that ship, with Settings › Plugins drawing their cards (seen on the emulator:
+  "4 of 5 on"); their hosts on the Keystore's secure store, `openLink`, and `pluginFetcher`, which follows no
+  redirect and, in a build that is not a release, refuses ghostmarkdown.com and attack.fm outright (Notion's
+  manifest names ghostmarkdown.com); each plugin's secrets warmed at launch; `AcademyScreen` through
+  `academyBuilder`, from Settings (`onAcademy`) and the palette, its cheat sheet opening Settings at that page;
+  `KeptLinkPreviews(fetch: linkPreviewFetch())` as a note's `MediaSeams.previewer`, asked only with Link previews
+  on and "Nothing leaves the phone" off (seen on the emulator: example.com's card reading "Example Domain");
+  `showWispBench` and `showSceneBench` behind Developer's two rows.
+- **Not wired, each with its seam:**
+  - **The plugins in a note:** `LinkMarks` under a note's tape (`lib/plugins/link_marks.dart`; `NoteSeams.linked`),
+    a linked row's menu (`MediaSeams.linkMenus`), a swipe on a list item, the suggestions and the done-sync
+    (`lib/editor/items/swipe_items.dart`, `suggestions.dart`, `done_sync.dart`, `note_plugins.dart`), a board
+    card's plugin rows (`drawnBoards(actions:)`), the recorder's spoken formattings and tips, and the editor's
+    parser reading `plugins.formats()`.
+  - **The guide:** `GuideController`, `Guide` and `addGuideBook` (`lib/guide`), with the capture route's "Not yet"
+    (`CaptureRouteWorld.tooSoon`), Settings' `onGuide` and `onGuideBook`, and the palette's `guide`.
+  - **Starting over:** `SettingsFeatures.onReset` (`lib/core/reset.dart`, `reset_native.dart`), which wants
+    `plugins.secretNames()` and Slack's `slackSecretNames()` to clear its webhooks by name, the meeting service's
+    `cancelWriteUps`, and "Stop the meeting first".
+  - **A note's place:** `lib/core/geocode.dart` (`geocodeFetcher()`), with the location nothing here reads yet.
+  - **The Academy's card on the home page** (`academy/banner.ts`, `HomeScreen`'s notices), the scene the bench
+    plays (`showSceneBench(scene:)`), updates and the phone's own notices.
+- **Checked where:** tests, and on the emulator Settings › Plugins and a link's card. **Not walked:** the Academy's
+  screen on a device (the previous owner's note: `lib/art/wisp_edge.dart` asserts if a `WispEdge` is disposed
+  within 160 ms of a scroll), the two benches (Developer is behind seven presses on the version), a plugin
+  connected to its service.
 
 ## What stage 8 left open
 
