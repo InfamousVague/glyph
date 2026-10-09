@@ -298,9 +298,13 @@ recorder's screen that is on screen.
   words under it. **Not run:** a fill in a cell to its end (the emulator's model writes three tokens a second),
   a tap on a cell's filled answer opening its panel (held by a test), the bench.
 - **What a recording wrote into a note is said, with its Undo** (`editor/useLanding.ts`, on the desk): an edit in
-  the note's editor that takes out exactly what went in. Its writes to OTHER notes are not reversed: the store
-  keeps no log of a command's change (`LibraryRecorderStore`, where the core's `apply_command` and `undo_command`
-  are not bound), so each is counted as changed since and the toast says so.
+  the note's editor that takes out exactly what went in. Its writes to OTHER notes are reversed with it since
+  2026-10-09: a command's write is the core's `apply_command` (`NoteLibrary.applyCommandMutation`, which
+  `LibraryRecorderStore` asks) and the Undo takes each back through `undo_command`
+  (`NoteLibrary.undoCommandMutation`); a note changed since is left as it is and the toast says so. Held by tests
+  (`test/root/landing_undo_test.dart`, and across the real core in `test/native/command_mutations_test.dart`),
+  **not walked on a device**. The page's `latestCommandMutation`, the undo offered again after the app was
+  stopped (`shell/useHousekeeping.ts`), is not ported.
 - **A spoken note's tape** is at its top (`NoteSeams.head`) with Play, Add and Remove with its Undo, and its
   phrases under its words (`NoteSeams.tail`), played by `PhoneTapePlayer` over `TapePlayer.kt` (a `MediaPlayer` on
   `recordings/<id>.wav`). A voice memo's clip in a note is played on the same player

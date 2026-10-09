@@ -1278,6 +1278,8 @@ class _GhostRootState extends State<GhostRoot> {
     forgetTag: (id) => _places?.setPendingTag(id, null),
     holdNote: (id, on) => _voice?.recorder.refining?.holdNote(id, on),
     dropRefine: (id, fromMs) => _voice?.recorder.refining?.dropRefine(id, fromMs),
+    // A landing's Undo takes back what the recording wrote to other notes (`undoCommandMutation`).
+    undoCommandMutation: _library.undoCommandMutation,
   );
 
   /// A note's screen with its editor: one desk to an open note (lib/root/note_desk.dart).
