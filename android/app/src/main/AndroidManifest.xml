@@ -44,6 +44,13 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
+    <!--
+      A new version of the app, handed to Android's installer (UpdateInstaller.kt; lib/core/updates.dart). The
+      person still allows it once, on Android's own page for this app, and confirms every install on its screen.
+      Only a build told where its releases are ever asks (GHOST_UPDATES; tool/release.md).
+    -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <!-- A phone with no microphone still lists the app: notes can be typed. -->
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <!-- Nor does a note need a position to be written: a phone with no location hardware still lists the app. -->
@@ -199,6 +206,17 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Writing up a meeting recording on the device" />
         </service>
+        <!-- The verified APK of an update, read by Android's installer for the one intent that carries it
+             (UpdateInstaller.kt): <cacheDir>/updates and nothing else (res/xml/ghost_update_paths.xml). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/ghost_update_paths" />
+        </provider>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

@@ -109,6 +109,8 @@ class MainActivity : FlutterActivity() {
         // The phone's pickers: a folder for the library, a drive to back up to, where an export goes
         // (FilesBridge.kt; lib/core/library_folder.dart, lib/core/backup.dart, lib/core/export_all.dart).
         files.register(messenger)
+        // A new version of the app, handed to Android's installer (UpdateInstaller.kt; lib/core/updates.dart).
+        UpdateInstaller(this).register(messenger)
         // Where a note was written: the permission, its prompt and the fix (Position.kt; lib/core/phone_position.dart).
         position.register(messenger)
     }

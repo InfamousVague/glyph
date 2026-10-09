@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What the updates' FileProvider may hand out (UpdateInstaller.kt): the one directory a downloaded, verified APK is
+  kept in, <cacheDir>/updates, and nothing else of the app's.
+-->
+<paths>
+    <cache-path name="updates" path="updates/" />
+</paths>

@@ -57,6 +57,7 @@ import '../core/stored.dart';
 import '../core/template.dart' show openEnd;
 import '../core/trash.dart';
 import '../core/untouched.dart';
+import '../core/updates.dart';
 import '../core/versions_record.dart';
 import '../core/versions_store.dart';
 import '../core/workspaces.dart';
@@ -109,6 +110,7 @@ import 'note_desk.dart';
 import 'reset_wiring.dart';
 import 'scene_play.dart';
 import 'take_back.dart';
+import 'update_wiring.dart';
 import 'voice_wiring.dart';
 
 /// The app, put together: what the web app's `App.tsx` does once its screens exist. The launch screen over the
@@ -144,7 +146,7 @@ import 'voice_wiring.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.updates});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -204,6 +206,11 @@ class GhostRoot extends StatefulWidget {
 
   /// Voice, where a test brings its own; then nothing is made from [voiceMaking].
   final Voice? voice;
+
+  /// The app's updates (lib/core/updates.dart), the process's own as the core is: made by whoever holds this root,
+  /// and only in a build told where its releases are. Absent, as in every debug build and every test that brings
+  /// none, no screen says anything of an update and nothing is asked of anywhere.
+  final Updates? updates;
 
   /// The core and the phone's halves a [Voice] is made from (lib/root/voice_wiring.dart). Absent, as without a
   /// core, nothing records and Speak is offered nowhere. It needs the [core].
@@ -406,19 +413,23 @@ class _GhostRootState extends State<GhostRoot> {
     }
   }
 
-  /// What is waiting on the person, above the notes (notes/Notices.tsx): the voice model while it is not ready. The
-  /// update's card waits for the updates' feed (`core/ota.ts`, stage 9I) and the invitation for its buttons
-  /// (`settings/InviteActions.tsx`); neither is given yet.
+  /// What is waiting on the person, above the notes (notes/Notices.tsx), in the page's order: a new version of the
+  /// app (lib/root/update_wiring.dart, from [GhostRoot.updates]), an invitation to an organization where the build
+  /// has an account, and the voice model while it is not ready.
   List<Widget> _notices() {
+    final updates = widget.updates;
+    final services = _services;
     final model = _voice?.recorder.voiceModel;
-    if (model == null) return const [];
-    final state = switch (model.state) {
+    final state = switch (model?.state) {
       VoiceModelStateDownloading(:final received, :final total) => notices.VoiceModelDownloading(received: received, total: total),
       VoiceModelStateFailed(:final message) => notices.VoiceModelFailed(message),
       _ => const notices.VoiceModelQuiet(),
     };
-    if (state is notices.VoiceModelQuiet) return const [];
-    return [notices.VoiceModelStatus(state: state, onRetry: model.retry)];
+    return [
+      if (updates != null && updates.apk is! ApkPhaseNone) notices.UpdateNotice(updates: updateCardOf(updates)),
+      if (services != null) InviteWaiting(services: services, onOpen: (id) => _shell.currentState?.openOrganization(id)),
+      if (model != null && state is! notices.VoiceModelQuiet) notices.VoiceModelStatus(state: state, onRetry: model.retry),
+    ];
   }
 
   /// The AI, once voice has made its engine the app's (docs/STAGE8_AI.md, "At launch"): whether it can run here,
@@ -1156,6 +1167,8 @@ class _GhostRootState extends State<GhostRoot> {
     preferences.removeListener(_smoke);
     preferences.removeListener(plugins.preferencesChanged);
     _guide?.removeListener(_changed);
+    // The updates are the process's, as the core is: let go of, never disposed.
+    widget.updates?.removeListener(_voiceChanged);
     if (widget.guide == null) _guide?.dispose();
     _stopLinks?.call();
     _previews.dispose();
@@ -1192,6 +1205,11 @@ class _GhostRootState extends State<GhostRoot> {
     preferences.addListener(plugins.preferencesChanged);
     _guide?.addListener(_changed);
     _libraryChanges.addListener(_reads.changed);
+    // The updates: drawn again as they change, not while a meeting records, and looked for from now (`useUpdates`).
+    widget.updates
+      ?..addListener(_voiceChanged)
+      ..recording = (() => _voice?.live?.state?.recording ?? false)
+      ..start();
     _open();
     unawaited(_account());
     unawaited(_speakUp());
@@ -1581,6 +1599,8 @@ class _GhostRootState extends State<GhostRoot> {
               workspaces: _workspaces,
               notesInWorkspace: _notesIn,
               onTrashNotes: (ids) => ids.forEach(_trash.trashNote),
+              // About's Updates rows, in a build that looks for any (lib/root/update_wiring.dart).
+              updates: widget.updates == null ? null : settingsUpdatesOf(widget.updates!),
               // A build with no service says so where a way in is pressed; one with an account takes it from the scope.
               features: _features(services),
               onOrganization: services == null ? null : (id) => setState(() => _organization = (id: id, from: OrganizationFrom.settings)),
@@ -1740,7 +1760,7 @@ class _GhostRootState extends State<GhostRoot> {
                   _shell.currentState?.show(const Screen.academy());
                 },
               ),
-            if (_launching) LaunchScreen(loading: !_read, notes: _shown.length, recording: () => voice?.live?.state?.recording ?? false, onDone: () => setState(() => _launching = false)),
+            if (_launching) LaunchScreen(loading: !_read, notes: _shown.length, updates: launchUpdatesOf(widget.updates), recording: () => voice?.live?.state?.recording ?? false, onDone: () => setState(() => _launching = false)),
           ],
           ),
         );

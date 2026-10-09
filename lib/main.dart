@@ -12,6 +12,7 @@ import 'core/phone_links.dart';
 import 'core/preferences.dart';
 import 'core/stored.dart';
 import 'core/stored_device.dart';
+import 'core/updates.dart';
 import 'root/account_wiring.dart';
 import 'core/link_preview.dart' show linkPreviewFetch;
 import 'root/ghost_root.dart';
@@ -72,6 +73,11 @@ Future<void> main() async {
   } catch (failure) {
     debugPrint('[ghost] the library would not open: $failure');
   }
+  // The app's updates, only in a build told where its own releases are (`--dart-define=GHOST_UPDATES=https://…`)
+  // and never in a debug build (lib/core/updates.dart): with none, nothing is asked of anywhere. One for the
+  // process, as the core is; it begins to look once the root is up.
+  final updates = core == null ? null : Updates.forBuild(invoke: core, localOnly: () => preferences.value.localOnly);
+  if (updates != null) debugPrint('[ghost] this build looks for updates at ${updates.config.source}');
   // One PhoneLinks for the life of the app: it holds the channel the activity says `arrived` on.
   final links = PhoneLinks();
   // And one player of a note's recording, the phone's own.
@@ -79,7 +85,7 @@ Future<void> main() async {
   runApp(GhostApp(
     sheet: sheet,
     home: _Runs(
-      builder: (restart) => GhostRoot(core: core, native: whole, account: account, voiceMaking: voice, links: links, openLink: openLink, previewFetch: linkPreviewFetch(), restart: restart, tapePlayer: tapes),
+      builder: (restart) => GhostRoot(core: core, native: whole, account: account, voiceMaking: voice, links: links, openLink: openLink, previewFetch: linkPreviewFetch(), restart: restart, tapePlayer: tapes, updates: updates),
     ),
   ));
 }
