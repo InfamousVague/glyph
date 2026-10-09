@@ -1,6 +1,10 @@
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/account/crypto.dart';
+import 'package:ghost_md/account/device_keys.dart';
 import 'package:ghost_md/account/ui_state.dart';
+import 'package:ghost_md/core/stored.dart';
+import 'package:ghost_md/core/versions_store.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/workspaces.dart';
@@ -77,6 +81,48 @@ void main() {
     test('what is not an http address is no account', () {
       expect(accountBase('ghostmarkdown'), isNull);
       expect(accountBase('ftp://10.0.2.2/api'), isNull);
+    });
+
+    test('Live typing’s switch is this device’s own flag, so a note of the account’s own can be live', () {
+      final kept = MemoryStored();
+      Future<Object?> core(String command, [Map<String, Object?> args = const <String, Object?>{}]) async => null;
+      final wired = WiredAccount.make(
+        making: AccountMaking(base: 'http://127.0.0.1:9/api', crypto: CoreCrypto(core), dataDir: '/nowhere', fetcher: (_) async => throw StateError('nothing is asked'), secure: MemorySecureStore()),
+        core: core,
+        workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())),
+        versions: VersionsStore(core, kept: kept),
+        touched: null,
+        refresh: () {},
+        shownNotes: () => const [],
+        prefs: PreferencesStore()..startWithoutStorage(),
+        kept: kept,
+      );
+      addTearDown(wired.dispose);
+      // Off until set, as the page's.
+      expect((wired.services.liveTyping.value, wired.live.enabled.value, kept.readText('glyph-live')), (false, false, null));
+      // The switch on Settings › Account › Sync.
+      wired.services.liveTyping.value = true;
+      expect((wired.live.enabled.value, kept.readText('glyph-live')), (true, '1'));
+      wired.services.liveTyping.value = false;
+      expect((wired.live.enabled.value, kept.readText('glyph-live')), (false, null));
+      // Turned on from elsewhere, the switch is drawn on.
+      wired.live.enabled.set(true);
+      expect(wired.services.liveTyping.value, isTrue);
+
+      // A device that had it on opens with the switch on.
+      final again = WiredAccount.make(
+        making: AccountMaking(base: 'http://127.0.0.1:9/api', crypto: CoreCrypto(core), dataDir: '/nowhere', fetcher: (_) async => throw StateError('nothing is asked'), secure: MemorySecureStore()),
+        core: core,
+        workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())),
+        versions: VersionsStore(core, kept: kept),
+        touched: null,
+        refresh: () {},
+        shownNotes: () => const [],
+        prefs: PreferencesStore()..startWithoutStorage(),
+        kept: kept,
+      );
+      addTearDown(again.dispose);
+      expect(again.services.liveTyping.value, isTrue);
     });
 
     test('a way in with no service says so', () async {

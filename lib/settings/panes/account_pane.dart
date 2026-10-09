@@ -97,7 +97,8 @@ String accountSummary(Preferences prefs, [AccountServices? services]) =>
 ///   signed out, with the button running [SettingsFeatures.onWayIn] (or unpressable without it), and
 ///   [SettingsFeatures.signedIn] drawing the card that says the signed-in page waits.
 /// - How many recordings stayed on this phone is counted from [AccountServices.listNotes], and is none without it.
-/// - Live typing's switch writes [AccountServices.liveTyping]; nothing reads it until live typing is ported.
+/// - Live typing's switch writes [AccountServices.liveTyping], which the app's account keeps as this device's own
+///   flag (the page's `glyph-live`; lib/root/account_wiring.dart): a note opened after it is on is live.
 /// - The form's fields are the kit's `GlacierInput`; a password manager is not told which is which
 ///   (`autocomplete`) beyond what the kit passes on.
 /// - There is no list of this account's devices: the web's page has none either.

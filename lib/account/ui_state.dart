@@ -60,8 +60,8 @@ class AccountServices {
   /// [account] is this device's; the rest are what was made for it, and any may be left out. [prefs] and
   /// [workspaces] are the app's own unless given (a test's). [listNotes] reads this device's notes, not the trash
   /// (`listNotes`), for the count of recordings that stayed and a shared link's title. [liveTyping] is the trial
-  /// switch on Account (`core/live/enabled.ts`); one is made here when none is given, and nothing reads it until
-  /// live typing is ported. [kept] is this device's memory, for the gate's "seen".
+  /// switch on Account (`core/live/enabled.ts`): the app's is this device's own flag (lib/root/account_wiring.dart
+  /// over lib/live/enabled.dart); one that nothing reads is made here when none is given. [kept] is this device's memory, for the gate's "seen".
   AccountServices({
     required this.account,
     this.engine,
