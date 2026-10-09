@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/editor/media/clip_refs.dart' show Clip;
+import 'package:ghost_md/editor/media/clips.dart' show clipPlayer, tapeSource;
 import 'package:ghost_md/academy/academy_screen.dart';
 import 'package:ghost_md/account/api.dart' show FetchRequest;
 import 'package:ghost_md/core/book.dart' show isGuideBook;
@@ -216,6 +218,26 @@ void main() {
       shellOf(tester).openNote(library.value.firstWhere((note) => noteTitle(note.body) == 'Launch week').id);
       await settle(tester);
       expect(find.byType(NoteTape, skipOffstage: false), findsNothing);
+      await close(tester);
+    });
+
+    testWidgets('plays a voice memo left in its words on the app\'s one player, a stretch of its own recording', (tester) async {
+      final player = FakeTapePlayer(lengths: const {});
+      final library = await open(tester, tapePlayer: player);
+      final taped = await tapedIn(tester, library);
+      shellOf(tester).openNote(taped.id);
+      await settle(tester);
+      final view = tester.state<NoteScreenState>(find.byType(NoteScreen)).view!;
+      expect(view.state.facet(tapeSource).src, taped.id, reason: 'the editor is told whose recording its memos are stretches of');
+      final clips = view.state.facet(clipPlayer)!;
+      // The fake has no such recording to load: the press fails, having asked for this note's.
+      await tester.runAsync(() => clips.play(taped.id, const Clip(startMs: 1000, endMs: 3000)).then<void>((_) {}, onError: (Object _) {}));
+      expect(player.calls, ['load ${taped.id}']);
+      expect(clips.playing, isNull);
+      // A note that was not spoken has no tape for a memo to be a stretch of.
+      shellOf(tester).openNote(library.value.firstWhere((note) => noteTitle(note.body) == 'Launch week').id);
+      await settle(tester);
+      expect(tester.state<NoteScreenState>(find.byType(NoteScreen)).view!.state.facet(tapeSource).src, isNull);
       await close(tester);
     });
 

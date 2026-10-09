@@ -42,7 +42,10 @@
 ///   the band's Add image, the +'s Picture and a canvas's picture card, each offered only where there is a
 ///   chooser. What goes wrong is said as a toast, where the page says it on the note's own line. A picture copied
 ///   to the clipboard is not pasted in (`onPasteImage`: nothing here reads the clipboard's picture).
-/// - **No film or voice memo is added** from the + (no player): their rows are not offered.
+/// - **No film is added** from the + (`AddConfig.onVideo`): nothing here picks, keeps or plays one.
+/// - **A voice memo left in a spoken note is played where it sits** (lib/editor/media/clips.dart): the editor is
+///   told the note's tape ([tapeSource], in a compartment so a take added or the recording removed is followed) and
+///   given the app's one player as its [MediaSeams.clipPlayer] (lib/tapes/clip_player.dart).
 /// - **A place from the +** (`addPlace`): a line of its own where the caret was, kept from the tap, written once the
 ///   fix has come and its name with it where one comes within three seconds, later only while the line is still
 ///   the newest change. `afterComposition` is not waited for, and a note's own tag landing meanwhile is not counted
@@ -129,6 +132,7 @@ import '../settings/panes/cheat_sheet.dart';
 import '../shell/screen.dart' show Keyed;
 import '../shell/top_bar_tools.dart' show TopBarTools;
 import '../share/ui/share_rows.dart';
+import '../tapes/clip_player.dart';
 import '../tapes/note_tape.dart';
 import '../tapes/player.dart' as tape_player show Tape, TapePlayer;
 import '../tapes/transcript_words.dart';
@@ -506,13 +510,29 @@ class NoteDeskState extends State<NoteDesk> {
         placeSwitches: () => (localOnly: _prefs.value.localOnly, mapTiles: _prefs.value.mapTiles),
         onOpenPlace: _openPlace,
         mapTiles: _world.mapTiles,
+        clipPlayer: _clips,
       ),
       // A place in the words draws its map under its line, as the note's own tag does at its top.
       places: PlaceMode.live,
     ),
+    // The note's recording, for the voice memos in it: changed when a take is added or the recording removed.
+    _tapeSlot.of(tapeSource.of(_tapeFor = _memoTape())),
     _plus.extension,
     findBarExtensions,
   ];
+
+  /// What plays a voice memo: the app's one player of a recording, where there is one.
+  late final TapeClipPlayer? _clips = _world.tapePlayer == null ? null : TapeClipPlayer(_world.tapePlayer!);
+  final Compartment _tapeSlot = Compartment();
+  Tape _tapeFor = Tape.none;
+
+  /// The tape the note's memos are stretches of (Editor.tsx's `tape` and `tapeId`): the note's own recording, by
+  /// its id, where it has one and there is a player; none otherwise, and its memos are then quiet marks.
+  Tape _memoTape() {
+    final note = _world.noteById?.call(widget.noteId);
+    if (_world.tapePlayer == null || note == null || (note.recordingMs ?? 0) <= 0) return Tape.none;
+    return Tape(src: widget.noteId, id: _world.tapes?.tapeId(widget.noteId));
+  }
 
   /// The note as a plugin changes it: through the editor, so each change is one undo and saves like typing.
   NoteEditing get _editing => noteEditing(widget.noteId, _view, () => _view?.state.doc.toString() ?? '', (message) => widget.say(message));
@@ -674,7 +694,17 @@ class NoteDeskState extends State<NoteDesk> {
       // The tape follows its note: a take added, the recording removed or put back.
       if (mounted && _world.tapePlayer != null) setState(() {});
       if (!mounted || view == null) return;
-      view.dispatch(TransactionSpec(effects: <StateEffect<Object?>>[if (_world.queryNotes != null) refreshQueries.of(null), if (_world.tickets != null) refreshTickets.of(null)]));
+      final tape = _memoTape();
+      final retaped = tape != _tapeFor;
+      if (retaped) {
+        _tapeFor = tape;
+        _clips?.stop();
+      }
+      view.dispatch(TransactionSpec(effects: <StateEffect<Object?>>[
+        if (_world.queryNotes != null) refreshQueries.of(null),
+        if (_world.tickets != null) refreshTickets.of(null),
+        if (retaped) _tapeSlot.reconfigure(tapeSource.of(tape)),
+      ]));
     }
 
     if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.idle) {
@@ -716,6 +746,9 @@ class NoteDeskState extends State<NoteDesk> {
     }
     _pictures?.removeListener(_pictureSaid);
     _pictures?.dispose();
+    // A memo still sounding stops with its note.
+    _clips?.stop();
+    _clips?.dispose();
     _tape?.removeListener(_redraw);
     _tape?.dispose();
     // Leaving the note takes its toast with it: an Undo for words no longer on screen would undo them unseen.
