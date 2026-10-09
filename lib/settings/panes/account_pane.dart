@@ -755,7 +755,10 @@ class _LocationRefused extends StatelessWidget {
           final refused = places.autoTagRefusal();
           if (refused == null) return const SizedBox.shrink();
           final blocked = refused == LocateFailure.blocked;
-          return SettingsFootnote(
+          return Padding(
+            // The gap a page puts between its parts (`PaneBody`).
+            padding: EdgeInsets.only(top: context.tokens.space(4)),
+            child: SettingsFootnote(
             child: Wrap(
               crossAxisAlignment: WrapCrossAlignment.center,
               spacing: context.tokens.space(1),
@@ -763,6 +766,7 @@ class _LocationRefused extends StatelessWidget {
                 Text('${blocked ? 'Location is off for Ghost.md, so new notes are not tagged. ' : 'Ghost.md wasn’t allowed to know where you are, so new notes are not tagged. '}${places.allowLocationWhere()} and they will be.'),
                 if (blocked && places.locations.onPhone) RowAction(onPress: () => unawaited(places.locations.openSettings()), child: const Text('Open settings')),
               ],
+            ),
             ),
           );
         },
@@ -794,9 +798,14 @@ class LocationCard extends StatelessWidget {
 
   /// The card and what follows it, as children of a page.
   List<Widget> parts(Preferences prefs) => [
-        this,
+        // The refusal's line brings its own gap and stands in the card's own place in the page: as a child of the
+        // page with nothing to say it was an empty box with the page's gap over it, and the page ended 18px lower
+        // than the web's (seen beside it on a phone).
+        if (places != null && prefs.tagNewNotes && !prefs.localOnly)
+          Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [this, _LocationRefused(places: places!)])
+        else
+          this,
         if (prefs.localOnly) const SettingsFootnote(child: Text('A tagged note shows where it was written and a pin while Local only is on, and no new location is taken.')),
-        if (places != null && prefs.tagNewNotes && !prefs.localOnly) _LocationRefused(places: places!),
       ];
 
   /// Why tagging cannot happen here, under its switch (`CANNOT`).
