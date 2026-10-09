@@ -276,6 +276,34 @@ void main() {
       expect(agoText(now - 3 * 60000, now: now), '3 min ago');
       expect(agoText(now - 5 * 3600000, now: now), '5 hr ago');
       expect(agoText(now - 30 * 3600000, now: now), 'yesterday');
+      expect(versionWhen(DateTime(2026, 9, 28, 9, 7).millisecondsSinceEpoch), '28 Sep 2026, 09:07');
+    });
+
+    group('in the phone’s own words (core/locale_dates.dart)', () {
+      tearDown(() => toldLocale = null);
+      final lastYear = DateTime(2025, 12, 31, 9).millisecondsSinceEpoch;
+      final morning = DateTime(2026, 9, 28, 9, 7).millisecondsSinceEpoch;
+      final afternoon = DateTime(2026, 10, 9, 16, 5).millisecondsSinceEpoch;
+
+      test('an American phone has the month first and a 12-hour clock', () {
+        toldLocale = DateLocale.enUS;
+        expect(versionDay(DateTime(2026, 10, 7, 9).millisecondsSinceEpoch, now: now), 'Today');
+        expect(versionDay(DateTime(2026, 10, 6, 23).millisecondsSinceEpoch, now: now), 'Yesterday');
+        expect(versionDay(morning, now: now), 'Mon, Sep 28');
+        expect(versionDay(lastYear, now: now), 'Wed, Dec 31, 2025');
+        expect((versionClock(morning), versionClock(afternoon)), ('9:07 AM', '4:05 PM'));
+        expect((versionWhen(morning), versionWhen(afternoon)), ('Sep 28, 2026, 9:07 AM', 'Oct 9, 2026, 4:05 PM'));
+      });
+
+      test('a British phone has the day first and a 24-hour clock', () {
+        toldLocale = DateLocale.enGB;
+        expect(versionDay(DateTime(2026, 10, 7, 9).millisecondsSinceEpoch, now: now), 'Today');
+        expect(versionDay(DateTime(2026, 10, 6, 23).millisecondsSinceEpoch, now: now), 'Yesterday');
+        expect(versionDay(morning, now: now), 'Mon, 28 Sept');
+        expect(versionDay(lastYear, now: now), 'Wed, 31 Dec 2025');
+        expect((versionClock(morning), versionClock(afternoon)), ('9:07', '16:05'));
+        expect((versionWhen(morning), versionWhen(afternoon)), ('28 Sept 2026, 09:07', '9 Oct 2026, 16:05'));
+      });
     });
 
     test('a change shows the lines that go and come with two lines round them, the rest folded', () {

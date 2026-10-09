@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/preferences.dart';
 import 'package:ghost_md/art/app_icon.dart';
+import 'package:ghost_md/core/locale_dates.dart';
 import 'package:ghost_md/core/task_fields.dart';
 import 'package:ghost_md/editor/items/field_chips.dart';
 import 'package:glacier/glacier.dart';
@@ -26,6 +27,35 @@ void main() {
   setUpAll(loadAppFonts);
 
   group('a day, named from today', () {
+    group('in the phone’s own words, where no locale is named (core/locale_dates.dart)', () {
+      tearDown(() => toldLocale = null);
+
+      test('an American phone has the month first, with its commas', () {
+        toldLocale = DateLocale.enUS;
+        expect(dayLabel('2026-10-02', today), 'Tomorrow');
+        expect(dayLabel('2026-10-03', today), 'Sat, Oct 3');
+        expect(dayLabel('2026-09-29', today), 'Tue, Sep 29');
+        expect(dayLabel('2027-01-15', today), 'Fri, Jan 15, 2027');
+        expect(daySaid('2026-10-03', today), 'Saturday, October 3');
+        expect(daySaid('2025-12-24', today), 'Wednesday, December 24, 2025');
+        expect(chipLook(fieldsIn('- [ ] Pay 📅 2026-10-03').first, today: today, done: false)?.text, 'Sat, Oct 3');
+        // A locale named is still that locale's, as the web's own tests pin it.
+        expect(dayLabel('2026-10-03', today, 'en-GB'), 'Sat 3 Oct');
+      });
+
+      test('a British phone has the day first, a comma after a short weekday and none after a long one', () {
+        toldLocale = DateLocale.enGB;
+        expect(dayLabel('2026-10-02', today), 'Tomorrow');
+        expect(dayLabel('2026-10-03', today), 'Sat, 3 Oct');
+        expect(dayLabel('2026-09-29', today), 'Tue, 29 Sept');
+        expect(dayLabel('2027-01-15', today), 'Fri, 15 Jan 2027');
+        expect(daySaid('2026-10-03', today), 'Saturday 3 October');
+        expect(daySaid('2025-12-24', today), 'Wednesday 24 December 2025');
+        expect(chipLook(fieldsIn('- [ ] Pay 📅 2026-10-03').first, today: today, done: false)?.text, 'Sat, 3 Oct');
+        expect(dayLabel('2026-10-03', today, 'en-US'), 'Sat, Oct 3');
+      });
+    });
+
     test('says today, tomorrow and yesterday, and the weekday and date otherwise', () {
       expect(dayLabel('2026-10-01', today), 'Today');
       expect(dayLabel('2026-10-02', today), 'Tomorrow');

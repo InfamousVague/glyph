@@ -3,6 +3,7 @@
 // `src/app/editor/ticketRows.test.ts`, case for case.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/book/tickets.dart' show TicketChoice;
+import 'package:ghost_md/core/locale_dates.dart';
 import 'package:ghost_md/core/properties.dart';
 import 'package:ghost_md/editor/tickets/ticket_rows.dart';
 
@@ -25,6 +26,21 @@ void main() {
 
   group('a day', () {
     String say(String iso) => dayLabel(iso, '2026-10-01', 'en-GB');
+
+    group('in the phone’s own words, where no locale is named (core/locale_dates.dart)', () {
+      tearDown(() => toldLocale = null);
+      String own(String iso) => dayLabel(iso, '2026-10-01');
+
+      test('an American phone has the month first', () {
+        toldLocale = DateLocale.enUS;
+        expect((own('2026-10-01'), own('2026-10-03'), own('2027-01-04'), own('soon')), ('Today', 'Sat, Oct 3', 'Mon, Jan 4, 2027', 'soon'));
+      });
+
+      test('a British phone has the day first', () {
+        toldLocale = DateLocale.enGB;
+        expect((own('2026-10-01'), own('2026-10-03'), own('2027-01-04'), own('soon')), ('Today', 'Sat, 3 Oct', 'Mon, 4 Jan 2027', 'soon'));
+      });
+    });
 
     test('is said as today, tomorrow or yesterday, else its weekday and date, with the year only when it is another', () {
       expect(say('2026-10-01'), 'Today');

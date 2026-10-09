@@ -19,8 +19,9 @@
 ///   [VersionsRecord] it is handed (lib/core/versions_record.dart), and without one the log is the team's news
 ///   alone.
 /// - **The version history's own screen is not ported**, so its author's ring and its diff live here until it is.
-/// - Days, clocks and dates are written in English as an American page writes them ("Tue, Oct 7", "6:05 PM"),
-///   where the page asked the device's language.
+/// - Days, clocks and dates are written in English in the phone's own order and clock once it has said which
+///   (core/locale_dates.dart: "Tue, 7 Oct" and "18:05" on a British phone), and as an American page writes them
+///   ("Tue, Oct 7", "6:05 PM") until then, where the page asked the device's language.
 /// - The filter is a plain field in All notes' pill; it has no selection handles or toolbar of its own.
 /// - A change opened is left by its own word or by the bar's arrow; the phone's back gesture is the shell's, which
 ///   goes to the dashboard.
@@ -35,6 +36,7 @@ import 'package:glacier/glacier.dart';
 
 import '../../account/ui_state.dart';
 import '../../art/art.dart';
+import '../../core/locale_dates.dart';
 import '../../core/note.dart';
 import '../../core/note_text.dart';
 import '../../core/notifications.dart';
@@ -67,12 +69,15 @@ String logDayOf(int at, {int? now}) {
   final days = (today.difference(then).inHours / 24).round();
   if (days == 0) return 'Today';
   if (days == 1) return 'Yesterday';
-  return '${_weekdays[then.weekday - 1]}, ${_months[then.month - 1]} ${then.day}${then.year != today.year ? ', ${then.year}' : ''}';
+  return toldDate(then, then.year != today.year ? DateForm.yMMMEd : DateForm.MMMEd) ??
+      '${_weekdays[then.weekday - 1]}, ${_months[then.month - 1]} ${then.day}${then.year != today.year ? ', ${then.year}' : ''}';
 }
 
 /// The time of day a version was kept, beside it on the timeline (`clock`).
 String logClock(int at) {
   final d = DateTime.fromMillisecondsSinceEpoch(at);
+  final told = toldDate(d, DateForm.hm);
+  if (told != null) return told;
   final hour = d.hour % 12 == 0 ? 12 : d.hour % 12;
   return '$hour:${d.minute.toString().padLeft(2, '0')} ${d.hour < 12 ? 'AM' : 'PM'}';
 }
@@ -80,7 +85,7 @@ String logClock(int at) {
 /// A date and a time, as a change opened says when (`toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })`).
 String logDateTime(int at) {
   final d = DateTime.fromMillisecondsSinceEpoch(at);
-  return '${_months[d.month - 1]} ${d.day}, ${d.year}, ${logClock(at)}';
+  return toldDate(d, DateForm.medShort) ?? '${_months[d.month - 1]} ${d.day}, ${d.year}, ${logClock(at)}';
 }
 
 /// A version's author in words: "You" for one kept here without an account (`authorName`).

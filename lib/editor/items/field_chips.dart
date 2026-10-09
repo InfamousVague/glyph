@@ -16,8 +16,11 @@
 ///   the rule's, cited beside it, and the chip's place on the line (an inline block with a line-height of 1.35) is
 ///   worked out as Blink works it out, from the face's ascent and descent to whole pixels.
 /// - A day is named with `Intl.DateTimeFormat` on the page, in the device's own language. Here it is named in
-///   English, the American way ("Sat, Oct 3") where the device's region is the United States and the British way
-///   ("Sat 3 Oct") elsewhere; other languages wait for the app's own.
+///   English, as the phone writes a date once it has said which way (core/locale_dates.dart, the page's own
+///   answers: "Sat, Oct 3" on an American phone, "Sat, 3 Oct" on a British one). A locale named, which only a test
+///   does, and a phone that has not said are written as they were before there was a table: the American way where
+///   the region is the United States and the British way as the web's own tests pin it ("Sat 3 Oct", from Node's
+///   newer CLDR, which dropped that comma) elsewhere. Other languages wait for the app's own.
 library;
 
 import 'dart:ui' as ui;
@@ -28,6 +31,7 @@ import 'package:glacier/glacier.dart';
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../core/days.dart';
+import '../../core/locale_dates.dart';
 import '../../core/task_fields.dart';
 import '../looks/look.dart' show FaceMetrics, layoutUnit;
 import '../view/line.dart' show EditorRunScope;
@@ -89,6 +93,11 @@ bool _american(String? locale) {
 }
 
 String _named(DateTime at, {required bool long, required bool year, String? locale}) {
+  // The phone's own words where no locale is named and the phone has said its own.
+  if (locale == null) {
+    final told = toldDate(at, long ? (year ? DateForm.yMMMMEEEEd : DateForm.MMMMEEEEd) : (year ? DateForm.yMMMEd : DateForm.MMMEd));
+    if (told != null) return told;
+  }
   final weekday = _weekdays[at.weekday - 1], month = _months[at.month - 1];
   final w = long ? weekday : weekday.substring(0, 3);
   // September is "Sept" in British short dates, as the browser writes it.

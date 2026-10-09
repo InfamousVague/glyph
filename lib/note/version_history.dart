@@ -8,8 +8,10 @@
 /// by hand with a name; under it the versions file is shared and the history switched off.
 ///
 /// What differs:
-/// - Days and clocks are written as en-GB writes them ("Wed, 7 Oct", "14:05", "7 Oct 2026, 14:05"), where the page
-///   asks the device's language; the app's strings are English first.
+/// - Days and clocks are written in English in the phone's own order and clock once it has said which
+///   (core/locale_dates.dart: "Wed, Oct 7", "2:05 PM" and "Oct 7, 2026, 2:05 PM" on an American phone, "Wed, 7 Oct",
+///   "14:05" and "7 Oct 2026, 14:05" on a British one), where the page asks the device's language; the day first on
+///   a 24-hour clock until then.
 /// - Sharing the file (`core/versions/share.ts`) is asked of [VersionHistory.onShareFile], and the row is off
 ///   without it.
 /// - A toast is [VersionHistory.say].
@@ -23,6 +25,7 @@ import 'package:glacier/glacier.dart';
 
 import '../art/app_icon.dart';
 import '../art/icons.dart';
+import '../core/locale_dates.dart';
 import '../core/versions_diff.dart';
 import '../core/versions_file.dart';
 import '../core/versions_record.dart';
@@ -44,13 +47,21 @@ String versionDay(int at, {int? now}) {
   final days = DateTime(today.year, today.month, today.day).difference(DateTime(then.year, then.month, then.day)).inHours / 24;
   if (days.round() == 0) return 'Today';
   if (days.round() == 1) return 'Yesterday';
-  return '${_weekdays[then.weekday - 1]}, ${then.day} ${_months[then.month - 1]}${then.year != today.year ? ' ${then.year}' : ''}';
+  return toldDate(then, then.year != today.year ? DateForm.yMMMEd : DateForm.MMMEd) ??
+      '${_weekdays[then.weekday - 1]}, ${then.day} ${_months[then.month - 1]}${then.year != today.year ? ' ${then.year}' : ''}';
 }
 
-/// The clock beside a version (`clock`).
+/// The clock beside a version (`clock`): the phone's own, "2:05 PM" or "14:05", once it has said.
 String versionClock(int at) {
   final then = DateTime.fromMillisecondsSinceEpoch(at);
-  return '${_two(then.hour)}:${_two(then.minute)}';
+  return toldDate(then, DateForm.hm) ?? '${_two(then.hour)}:${_two(then.minute)}';
+}
+
+/// The day and the time a version opened says it was kept
+/// (`toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })`).
+String versionWhen(int at) {
+  final then = DateTime.fromMillisecondsSinceEpoch(at);
+  return toldDate(then, DateForm.medShort) ?? '${then.day} ${_months[then.month - 1]} ${then.year}, ${versionClock(at)}';
 }
 
 /// Who kept a version, as the timeline says it (`authorName`).
@@ -291,11 +302,6 @@ class _VersionHistoryState extends State<VersionHistory> {
     widget.say?.call(kept ? 'Version saved.' : 'Nothing has changed since the last version.');
   }
 
-  String _when(int at) {
-    final then = DateTime.fromMillisecondsSinceEpoch(at);
-    return '${then.day} ${_months[then.month - 1]} ${then.year}, ${versionClock(at)}';
-  }
-
   List<Widget> _openedPage(BuildContext context, Version opened) {
     final t = context.tokens;
     final now = widget.current();
@@ -314,7 +320,7 @@ class _VersionHistoryState extends State<VersionHistory> {
                 TextSpan(
                   children: [
                     TextSpan(text: authorName(opened.by), style: pageText(t, t.fontSize('sm'), weight: 'medium', color: t.color('app-ink-2'))),
-                    TextSpan(text: ' · ${_when(opened.at)}'),
+                    TextSpan(text: ' · ${versionWhen(opened.at)}'),
                   ],
                 ),
                 style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2')),

@@ -4,6 +4,7 @@
 // feed and the organizations are the device's own.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/core/locale_dates.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/notifications.dart';
 import 'package:ghost_md/core/preferences.dart';
@@ -227,6 +228,34 @@ void main() {
       expect(authorName('me'), 'You');
       expect(authorName('sam'), 'sam');
       expect(listWords(['Roadmap', 'Standup', 'Groceries']), 'Roadmap, Standup and Groceries');
+      expect(logDateTime(DateTime(2026, 9, 28, 9, 7).millisecondsSinceEpoch), 'Sep 28, 2026, 9:07 AM');
+    });
+
+    group('in the phone’s own words (core/locale_dates.dart)', () {
+      tearDown(() => toldLocale = null);
+      final lastYear = DateTime(2025, 12, 31, 9).millisecondsSinceEpoch;
+      final morning = DateTime(2026, 9, 28, 9, 7).millisecondsSinceEpoch;
+      final afternoon = DateTime(2026, 10, 9, 16, 5).millisecondsSinceEpoch;
+
+      test('an American phone has the month first and a 12-hour clock', () {
+        toldLocale = DateLocale.enUS;
+        expect(logDayOf(noon, now: noon), 'Today');
+        expect(logDayOf(noon - 2 * day, now: noon), 'Mon, Oct 5');
+        expect(logDayOf(morning, now: noon), 'Mon, Sep 28');
+        expect(logDayOf(lastYear, now: noon), 'Wed, Dec 31, 2025');
+        expect((logClock(morning), logClock(afternoon)), ('9:07 AM', '4:05 PM'));
+        expect((logDateTime(morning), logDateTime(afternoon)), ('Sep 28, 2026, 9:07 AM', 'Oct 9, 2026, 4:05 PM'));
+      });
+
+      test('a British phone has the day first and a 24-hour clock', () {
+        toldLocale = DateLocale.enGB;
+        expect(logDayOf(noon, now: noon), 'Today');
+        expect(logDayOf(noon - 2 * day, now: noon), 'Mon, 5 Oct');
+        expect(logDayOf(morning, now: noon), 'Mon, 28 Sept');
+        expect(logDayOf(lastYear, now: noon), 'Wed, 31 Dec 2025');
+        expect((logClock(morning), logClock(afternoon)), ('9:07', '16:05'));
+        expect((logDateTime(morning), logDateTime(afternoon)), ('28 Sept 2026, 09:07', '9 Oct 2026, 16:05'));
+      });
     });
   });
 }

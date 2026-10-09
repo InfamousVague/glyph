@@ -7,7 +7,8 @@
 /// - `PanelKey`, a union of nine strings, stays a `String`: the keys are the note's own words, and a row is found by
 ///   its key wherever it is used.
 /// - [dayLabel] is the chips' (items/field_chips.dart), which says a day the same way to the letter, in the two ways
-///   of writing a date this app has a table for; the page asked `Intl` for the device's.
+///   of writing a date this app has a table for (core/locale_dates.dart), the phone's own once it has said which;
+///   the page asked `Intl` for the device's.
 /// - [linksValue] answers a `String`, a `List<String>` or null, as `withProperty` takes them.
 library;
 
