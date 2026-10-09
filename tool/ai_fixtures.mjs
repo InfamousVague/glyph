@@ -1063,9 +1063,45 @@ async function landing() {
   Intl.DateTimeFormat = Real;
 }
 
+// ---- kinds: the newer prompts and budgets, byte for byte --------------------------------------------------------------
+//
+// test/ai/fixtures/kind_prompts_web.json: every export of ai/prompts.ts that is a string, by its name; the prompt
+// `promptForKind` picks for each kind; and `budgetForKind` for each kind at a spread of note sizes. lib/ai/prompts.dart
+// writes the four prompts out whole (the page builds them from two shared pieces), so a change to the page's words
+// arrives by running this and copying the strings.
+async function kinds() {
+  const all = await import(`${GLYPH_APP}ai/prompts.ts`);
+  const strings = Object.fromEntries(Object.entries(all).filter(([, value]) => typeof value === 'string'));
+  const ids = ['format', 'summarize', 'enhance', 'fix', 'shape', 'continue', 'ask', 'review', 'fill'];
+  const sizes = [0, 1, 10, 100, 399, 400, 1000, 4000, 12000, 16000, 40000, 100000];
+  const budgets = Object.fromEntries(ids.map((kind) => [kind, sizes.map((chars) => [chars, all.budgetForKind(kind, chars)])]));
+  const forKind = Object.fromEntries(ids.map((kind) => [kind, all.promptForKind(kind)]));
+  mkdirSync(`${HERE}test/ai/fixtures`, { recursive: true });
+  writeFileSync(`${HERE}test/ai/fixtures/kind_prompts_web.json`, `${JSON.stringify({ strings, budgets, forKind }, null, 1)}\n`);
+}
+
+// ---- jobConfig: what the phone's own write-up is sent ---------------------------------------------------------------
+//
+// test/ai/fixtures/job_config_web.json: for four phones (the models each has, the three preferences), the config as
+// `JSON.stringify(jobConfigFor(...))` writes it and `jobConfigKey(...)`, which lib/ai/job_config.dart's are held to
+// byte for byte (the order of the keys is what Rust reads and what "the same as was sent last" compares).
+async function jobConfig() {
+  const { jobConfigFor, jobConfigKey } = await import(`${GLYPH_APP}ai/jobConfig.ts`);
+  const model = (id, present) => ({ id, file: `${id}.gguf`, bytes: 0, present, path: '' });
+  const cases = [
+    { models: [], prefs: { formatModel: 'qwen3.5-4b', writeUp: 'charging', summaries: 'meetings' } },
+    { models: [model('qwen3.5-2b', true), model('qwen3.5-4b', false)], prefs: { formatModel: 'qwen3.5-4b', writeUp: 'now', summaries: 'meetings' } },
+    { models: [model('qwen3.5-9b', true), model('gemma-4-e4b', true)], prefs: { formatModel: 'gemma-4-e4b', writeUp: 'charging', summaries: 'off' } },
+    { models: [model('qwen3.5-2b', true)], prefs: { formatModel: 'qwen3.5-9b', writeUp: 'now', summaries: 'long' } },
+  ];
+  const out = cases.map((c) => ({ ...c, sent: JSON.stringify(jobConfigFor(c.models, c.prefs)), key: jobConfigKey(c.prefs) }));
+  mkdirSync(`${HERE}test/ai/fixtures`, { recursive: true });
+  writeFileSync(`${HERE}test/ai/fixtures/job_config_web.json`, `${JSON.stringify(out, null, 1)}\n`);
+}
+
 // ---- run ----------------------------------------------------------------------------------------------------------
 
-const SECTIONS = { zones, unaccent, fills, prompts, landing };
+const SECTIONS = { zones, unaccent, fills, prompts, landing, kinds, jobConfig };
 const asked = process.argv.slice(2);
 for (const [name, run] of Object.entries(SECTIONS)) {
   if (asked.length && !asked.includes(name)) continue;
