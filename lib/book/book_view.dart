@@ -736,11 +736,13 @@ class _BookWordsState extends State<BookWords> {
       t: t,
       body: t.len('app-body'),
       headings: <double>[for (var level = 1; level <= 6; level++) t.len('app-h$level')],
-      // `.preface { --app-gutter: 0px; color: var(--glacier-text-muted) }`, and `.cm-content { padding-block: 0 }`.
+      // `.preface { --app-gutter: 0px }`, and `.cm-content { padding-block: 0 }`. The rule's `color:
+      // var(--glacier-text-muted)` never reaches the words: the editor inside sets its own colour, the note's ink,
+      // and on the page a notebook's own words are as bright as a note's (243 of 255 on a phone in the dark, where
+      // the muted ink drew them at 190).
       gutter: 0,
       devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
       dark: t.isDark,
-      ink: t.color('glacier-text-muted'),
       tabSize: _view.state.tabSize,
       contentTop: 0,
       contentBottom: 0,
