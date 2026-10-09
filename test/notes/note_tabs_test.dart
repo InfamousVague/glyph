@@ -542,6 +542,9 @@ void main() {
         await tester.pump(const Duration(milliseconds: 300));
         await tester.pump();
         expect(find.bySemanticsLabel('Canvas name'), findsOneWidget);
+        // `autoFocus`: the caret is in it and the keyboard asked for, though the menu that made it had the focus.
+        expect(tester.widget<EditableText>(find.byType(EditableText)).focusNode.hasFocus, isTrue);
+        expect(tester.testTextInput.isVisible, isTrue);
       }
 
       await rename();

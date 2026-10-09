@@ -1,5 +1,4 @@
-import 'dart:ui' show SemanticsRole;
-
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -18,9 +17,12 @@ import 'tab_row.dart';
 /// words selected; Enter keeps them, leaving the field keeps them too (a phone has no Escape, and losing the words to
 /// a stray tap would be worse than a name kept by accident), and Escape leaves the name it had.
 class _NameField extends StatefulWidget {
-  const _NameField({required this.initial, required this.label, required this.style, required this.onDone});
+  const _NameField({required this.initial, required this.label, required this.style, this.around = EdgeInsets.zero, required this.onDone});
 
   final String initial;
+
+  /// The padding its box has on the page, drawn by whoever holds it: brought into view with the field.
+  final EdgeInsets around;
 
   /// `aria-label`.
   final String label;
@@ -63,6 +65,24 @@ class _NameFieldState extends State<_NameField> {
     super.initState();
     _focus.addListener(() {
       if (!_focus.hasFocus) _end(true);
+    });
+    // `autoFocus`: the field takes the focus when it is made, whoever had it. An `autofocus` alone is given the
+    // focus only where nothing in its scope has it, and a tab's menu closing had, so Rename put up a field with no
+    // caret and no keyboard until it was tapped (seen beside the Tauri app, whose keyboard comes with the field).
+    // And the row brings it into view, as a page does a field that takes the focus: the far end first, where the
+    // last tab's field runs off the window, then the near one.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _done) return;
+      _focus.requestFocus();
+      final position = Scrollable.maybeOf(context)?.position;
+      final box = context.findRenderObject();
+      if (position == null || box is! RenderBox || !box.hasSize) return;
+      // The field's box on the page is its padding too ([around]), where the ring is drawn.
+      final rect = widget.around.inflateRect(Offset.zero & box.size);
+      final viewport = RenderAbstractViewport.of(box);
+      final atEnd = viewport.getOffsetToReveal(box, 1, rect: rect).offset, atStart = viewport.getOffsetToReveal(box, 0, rect: rect).offset;
+      final to = position.pixels < atEnd ? atEnd : (position.pixels > atStart ? atStart : position.pixels);
+      position.jumpTo(to.clamp(position.minScrollExtent, position.maxScrollExtent));
     });
   }
 
@@ -354,7 +374,7 @@ class _NoteTabState extends State<NoteTab> {
           constraints: BoxConstraints(maxWidth: t.lenOf('16rem')),
           width: 11.206 * size + padding.horizontal,
           padding: padding,
-          child: _NameField(initial: widget.title, label: 'Canvas name', style: style, onDone: (words, keep) => widget.onNamed?.call(words, keep)),
+          child: _NameField(initial: widget.title, label: 'Canvas name', style: style, around: padding, onDone: (words, keep) => widget.onNamed?.call(words, keep)),
         ),
       );
     } else {
