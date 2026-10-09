@@ -87,6 +87,12 @@ class _GlacierPressableState extends State<GlacierPressable> {
     if (mounted) setState(change);
   }
 
+  void _hover(bool on) {
+    if (on == _hovered) return;
+    _set(() => _hovered = on);
+    if (!_disabled || !on) widget.onHover?.call(on);
+  }
+
   // On a phone's page a finger held on a button is the browser's long press: it asks for a context menu, and no
   // click follows when the finger lifts (a 0.9 s hold on a note's More button opens nothing, and a held row in the
   // sidebar opens no note). The button looks pressed all the while. A mouse's button held is still a click, and a
@@ -168,12 +174,18 @@ class _GlacierPressableState extends State<GlacierPressable> {
       actions: {
         ActivateIntent: CallbackAction<ActivateIntent>(onInvoke: (_) => _activate()),
       },
-      onShowHoverHighlight: (on) {
-        _set(() => _hovered = on);
-        widget.onHover?.call(on);
-      },
       onShowFocusHighlight: (on) => _set(() => _focusVisible = on),
       onFocusChange: widget.onFocusChange,
+      child: child,
+    );
+    // `:hover` is a pointer over the element, whatever was last pressed. The detector above only says so in the
+    // keyboard-and-mouse highlight mode, which a phone is not in until a key has been pressed: a mouse on a folding
+    // phone's desktop mode, or a trackpad on a tablet, lit nothing. A mouse region hears every pointer that hovers
+    // (a finger never does), in either mode.
+    child = MouseRegion(
+      hitTestBehavior: HitTestBehavior.deferToChild,
+      onEnter: (_) => _hover(true),
+      onExit: (_) => _hover(false),
       child: child,
     );
     if (widget.excludeSemantics) return child;

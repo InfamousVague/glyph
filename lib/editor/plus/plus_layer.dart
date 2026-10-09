@@ -485,7 +485,11 @@ class _PlusButtonState extends State<PlusButton> with SingleTickerProviderStateM
       expanded: plus.expanded,
       onTap: () => _press(PlusBy.keyboard),
       excludeSemantics: true,
-      child: FocusableActionDetector(
+      // `:hover` is a pointer over the button in whichever highlight mode the phone is in (the kit's pressable says why).
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: FocusableActionDetector(
         focusNode: _focus,
         mouseCursor: SystemMouseCursors.click,
         shortcuts: const <ShortcutActivator, Intent>{
@@ -500,7 +504,6 @@ class _PlusButtonState extends State<PlusButton> with SingleTickerProviderStateM
             },
           ),
         },
-        onShowHoverHighlight: (on) => setState(() => _hovered = on),
         onShowFocusHighlight: (on) => setState(() => _focusVisible = on),
         onFocusChange: (on) {
           if (!plus.gone) plus.buttonFocus(on);
@@ -520,6 +523,7 @@ class _PlusButtonState extends State<PlusButton> with SingleTickerProviderStateM
             onSecondaryTap: () {},
             child: button,
           ),
+        ),
         ),
       ),
     );
