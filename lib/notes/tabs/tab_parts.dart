@@ -344,11 +344,18 @@ class _NoteTabState extends State<NoteTab> {
     Widget name;
     if (widget.naming) {
       // The browser's own width for a field of twenty characters in this face, which no rule here changes.
-      name = Container(
-        constraints: BoxConstraints(maxWidth: t.lenOf('16rem')),
-        width: 11.206 * size + padding.horizontal,
-        padding: padding,
-        child: _NameField(initial: widget.title, label: 'Canvas name', style: style, onDone: (words, keep) => widget.onNamed?.call(words, keep)),
+      // `.name:focus-visible { outline: 2px solid var(--glacier-focus-ring); outline-offset: -2px }`: a field with
+      // the caret in it always wears the ring on the page.
+      name = GlacierFocusRing(
+        visible: true,
+        radius: t.radius('sm'),
+        offset: -2,
+        child: Container(
+          constraints: BoxConstraints(maxWidth: t.lenOf('16rem')),
+          width: 11.206 * size + padding.horizontal,
+          padding: padding,
+          child: _NameField(initial: widget.title, label: 'Canvas name', style: style, onDone: (words, keep) => widget.onNamed?.call(words, keep)),
+        ),
       );
     } else {
       name = Semantics(
