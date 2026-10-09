@@ -1,3 +1,7 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart' show kLongPressTimeout;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -83,6 +87,38 @@ class _GlacierPressableState extends State<GlacierPressable> {
     if (mounted) setState(change);
   }
 
+  // On a phone's page a finger held on a button is the browser's long press: it asks for a context menu, and no
+  // click follows when the finger lifts (a 0.9 s hold on a note's More button opens nothing, and a held row in the
+  // sidebar opens no note). The button looks pressed all the while. A mouse's button held is still a click, and a
+  // button with a long press of its own has its own recogniser for it.
+  static bool get _touch => defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS;
+  Timer? _hold;
+  bool _held = false;
+
+  void _watchHold() {
+    _endHold();
+    if (!_touch || widget.onLongPress != null) return;
+    _hold = Timer(kLongPressTimeout, () => _held = true);
+  }
+
+  void _endHold() {
+    _hold?.cancel();
+    _hold = null;
+    _held = false;
+  }
+
+  @override
+  void dispose() {
+    _hold?.cancel();
+    super.dispose();
+  }
+
+  void _tapped() {
+    final held = _held;
+    _endHold();
+    if (!held) _activate();
+  }
+
   @override
   Widget build(BuildContext context) {
     final tokens = GlacierTheme.of(context);
@@ -102,10 +138,20 @@ class _GlacierPressableState extends State<GlacierPressable> {
       // The Semantics below carries the tap, and a second one from here would be a second node; a caller that
       // writes its own semantics (a radio in its group) takes the tap from here instead.
       excludeFromSemantics: !widget.excludeSemantics,
-      onTapDown: _disabled ? null : (_) => _set(() => _pressed = true),
+      onTapDown: _disabled
+          ? null
+          : (_) {
+              _watchHold();
+              _set(() => _pressed = true);
+            },
       onTapUp: _disabled ? null : (_) => _set(() => _pressed = false),
-      onTapCancel: _disabled ? null : () => _set(() => _pressed = false),
-      onTap: _disabled ? null : _activate,
+      onTapCancel: _disabled
+          ? null
+          : () {
+              _endHold();
+              _set(() => _pressed = false);
+            },
+      onTap: _disabled ? null : _tapped,
       onLongPress: _disabled ? null : widget.onLongPress,
       child: child,
     );
