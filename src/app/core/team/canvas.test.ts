@@ -84,6 +84,32 @@ describe('a team canvas', () => {
     expect(cardWords.toString()).toBe('# Book the cabin!');
   });
 
+  it('changes one emoji in a card to another without cutting it in half: the other member reads the same card', () => {
+    const a = device(SAMPLE);
+    const teamA = teamCanvas(a)!;
+    const b = device(Y.encodeStateAsUpdate(a.doc));
+    const teamB = teamCanvas(b)!;
+    // 😀 U+1F600 to 😁 U+1F601, which share the high surrogate, at the start, the middle and the end of the card.
+    const grin = '😀';
+    const beam = '😁';
+    const cases: [string, string][] = [
+      [`${grin} Book the cabin`, `${beam} Book the cabin`],
+      [`Book ${grin} the cabin`, `Book ${beam} the cabin`],
+      [`Book the cabin ${grin}`, `Book the cabin ${beam}`],
+    ];
+    for (const [from, to] of cases) {
+      teamA.apply(written(teamA.canvas(), 'book', from));
+      both(a, b);
+      teamA.apply(written(teamA.canvas(), 'book', to));
+      both(a, b);
+      for (const team of [teamA, teamB]) {
+        const text = (nodeOf(team.canvas(), 'book') as { text: string }).text;
+        expect(text).toBe(to);
+        expect(text).not.toContain('�');
+      }
+    }
+  });
+
   it('merges two members’ edits field by field: a card each moved, and the same card typed in, both kept', () => {
     const a = device(SAMPLE);
     const teamA = teamCanvas(a)!;
