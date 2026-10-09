@@ -552,7 +552,11 @@ The editor's pieces (docs/STAGE4.md) are assembled for each open note by `lib/ro
   where it is 6.2. `BookPlaceMark` and `OrgMark` exist twice the same way.
 - **Kit gaps the ports worked round:** no stylesheet or inline style on `GlacierTheme` (Settings appends rules to the
   sheet; the shell lays a second root to stamp `data-topbar`), no root font size (the interface scale magnifies the
-  window), `AppIcon` does not read `IconTheme`, a line height given as a multiple rounds to a whole pixel.
+  window), `AppIcon` does not read `IconTheme`, and the engine makes every line of text a whole logical pixel tall, whatever
+  its style says: wrap a `Text` in the kit's `ExactLines` (`ExactLines.of(text)`, or `normal: true` for a line of
+  `line-height: normal`, which is rounded in device pixels as Chromium rounds it) where a column of them must end
+  where the page's does. Settings' rows, captions and choice cards and the walkthrough's paragraphs wear it; the
+  rest of the app's text does not yet.
 - **Checked where:** every screen's rectangles against the web page in tests; the whole app on an Android emulator
   (Impeller on OpenGL ES: home, scrolling under the smoke, the sidebar, Settings, a note, the command bar, the
   unfolded width). **Not yet looked at on the Fold itself**, whose Impeller is Vulkan: the smoke shaders, the glass,
