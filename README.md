@@ -45,8 +45,8 @@ Each stage ends installed on the Fold. Sizes are the web app's non-test source t
 | 3 | The library: the web app's Rust library included unchanged behind FFI (`native/`), a worker isolate, notes as Markdown files in the app's own folder, trash and workspaces as the web's preferences, search, starter notes | `src-tauri/src/library` (kept), `core/store.ts`, `trash.ts`, `workspaces.ts`, `noteFolders.ts` | on the Fold 2026-10-07; a chosen folder, sync and moving a Tauri library over come later |
 | 4 | The editor: live Markdown, the marks and the five effects, tables, links, pictures, the + menu | `editor/` (26k), `format/` | put together 2026-10-08 (`lib/root/note_desk.dart`) and walked on an Android emulator, phone and unfolded, dark and light; **not yet on the Fold**; see "What stage 4 left open" |
 | 5 | Structured notes: boards, tickets, queries, databases, notebooks, journals, templates | `editor/`, `book/`, `notes/` | in the app 2026-10-08 (`lib/root/note_desk.dart`, `lib/root/library_reads.dart`, `lib/root/ghost_root.dart`): boards, queries and a ticket's panel drawn in a note, the notebook's index and the journal's entries, the + sheet and New notebook, a blank note's names and template cards; **not yet on the Fold**; see "What stages 5 and 6 left open" |
-| 6 | Canvas | `canvas/` (3.5k) | in the app 2026-10-08 as a note's own view (`NoteSeams.canvas`), made from the + and from a notebook's index; a team's canvas (6G) is not ported; **not yet on the Fold** |
-| 7 | Account and sync: keys, the sync engine, organizations and team notes, live typing, notifications, shared links | `core/sync`, `core/orgs`, `core/live`, `share/` | in the app 2026-10-08, **off unless the build is given `--dart-define=GHOST_API=http://…`** (`lib/root/account_wiring.dart`); walked on the emulator against the service run on this Mac (sign up, sync read back by a second device, an organization, a team note, a shared link); links that open the app are followed since 2026-10-09 (`lib/root/ghost_root.dart`, `lib/core/phone_links.dart`: a note, the notifications, an organization, an invitation asked about first, a shared link's copy); live typing and the phone's own notifications are not ported |
+| 6 | Canvas | `canvas/` (3.5k) | in the app 2026-10-08 as a note's own view (`NoteSeams.canvas`), made from the + and from a notebook's index; a team's canvas (6G) since 2026-10-09: its structure in the team's document (`native/src/crdt.rs`, `lib/team/doc.dart`), drawn and edited through it with the other members' pointers (`lib/live/team_canvas.dart`), held to the web's own Yjs and its own canvas adapter, not walked on a device; **not yet on the Fold** |
+| 7 | Account and sync: keys, the sync engine, organizations and team notes, live typing, notifications, shared links | `core/sync`, `core/orgs`, `core/live`, `share/` | in the app 2026-10-08, **off unless the build is given `--dart-define=GHOST_API=http://…`** (`lib/root/account_wiring.dart`); walked on the emulator against the service run on this Mac (sign up, sync read back by a second device, an organization, a team note, a shared link); links that open the app are followed since 2026-10-09 (`lib/root/ghost_root.dart`, `lib/core/phone_links.dart`: a note, the notifications, an organization, an invitation asked about first, a shared link's copy); live typing since 2026-10-09 (`lib/live/`, `lib/root/account_wiring.dart`, `lib/root/note_desk.dart`): the relay, a team note's room with the others' carets, presence, the nudge, a note of the account's own, proven by two Dart devices and by the web app's own client under Node through the relay on this Mac, **not walked on a device**; see "What stage 7 left open". The phone's own notifications are not ported |
 | 8 | Voice and AI: the recorder, Whisper, meetings and their service, summaries, the language model, fills, the at-work scene | `capture/` (12k), `ai/` (6.5k), `tapes/`, `scene/`, Kotlin (6.5k) | Speak in the app 2026-10-09 (`lib/root/voice_wiring.dart`, `lib/root/capture_route.dart`, `lib/root/ghost_root.dart`): the dock's microphone, a note's own and a journal's spoken entry, the capture screen with its live page, the meeting service and its screen, the + sheet's Meeting, Settings' Recording and AI pages with their real rows; the summary queue, the review's gate and the write-up's configuration (lib/ai's), a spoken note's tape played by the phone, a landing's Undo; walked on an Android emulator; the AI in a note (`NoteAi`), the fills' queue, the gists and the scene since the third pass, run on the emulator with Qwen3.5 2B; **not yet on the Fold**; see "What stage 8 left open" |
 | 9 | The rest: backup, export, plugins, the Academy and the guide, diagnostics, updates | `plugins/`, `academy/`, `guide/`, `diag/` | 9A to 9C (the library's folder, backup, export) walked on the emulator 2026-10-09, and in Settings since (`lib/root/ghost_root.dart`); see "What stage 9A to 9C left open". The plugins (in Settings and in a note), the Academy, the walkthrough and the guide's notebook, link previews, Developer's benches and its resets are in the app 2026-10-09 (`lib/root/plugin_ground.dart`, `reset_wiring.dart`, `note_desk.dart`, `ghost_root.dart`); the app's own updates (9I: `lib/core/updates.dart`, `lib/root/update_wiring.dart`, `tool/release.md`) and the invitation's card are in the app 2026-10-09, the updates run on the emulator against a made-up release and **on in no build** until a key and a release address are chosen; a note's place and the phone's own update notifier are not; see "What stage 9's other pieces left open" |
 | 10 | Platforms and release: the Fold's wide layouts, Mac, Windows, iPhone; signing; moving a library over from the Tauri app | | |
@@ -225,6 +225,61 @@ recorder's screen that is on screen.
   a landing's Undo (held by tests), a real voice, a meeting with anything said, the lock screen, the side key.
   **Still to see on the Fold:** all of it under a real voice.
 
+## What stage 7 left open
+
+Live typing and a team's canvas (docs/STAGE7.md, "Live typing and team notes"; `lib/live/`, a port of
+`../glyph/src/app/core/live` with its own cases in `test/live/`). The CRDT and its awareness are the Rust core's
+(`native/src/crdt.rs`, yrs), so everything that touches a document is a call away: `lib/team/text_log.dart` and
+`lib/live/editor_binding.dart` say what that asks of an editor bound to one.
+
+- **How it was proven, and not on a device.** No emulator was free. `tool/local-server.sh start`, then
+  `GHOST_E2E_API=http://127.0.0.1:<port>/api flutter test --no-pub test/live` runs, through the real relay
+  (`../glyph/server` `live.rs`) with the real crypto: two Dart devices in a note of one account's and in a team's
+  note with carets, presence and the nudge (`test/live/local_server_test.dart`); and the Flutter side with the WEB
+  app's own live code under Node (`tool/web_live.mjs`: its transport, hub, session, team rooms, its Yjs, its
+  y-protocols, its canvas adapter) in the same note at once, both ways (`test/live/web_test.dart`): a team's note,
+  a note of the account's own made by either and adopted by the other, a team's canvas, and the emoji below.
+  Without the variable those are skipped and the rest runs over a relay in memory. The others' carets as they are
+  drawn are in `test/live/shots/`. **Nothing of it has been walked on an emulator or the Fold**: a team note open
+  in the app with a member typing into it is the first thing to look at.
+- **The "Live typing" switch is not drawn** (the page's Settings › Account › Sync). `LiveEnabled`
+  (`lib/live/enabled.dart`, kept under the page's own key `glyph-live`) is made with the account
+  (`WiredAccount.live.enabled`) and off until set, so a note of the account's own is never live in the app yet. A
+  team's notes do not ask: they are live by being the team's.
+- **The relay's socket** is held only while a room is: an organization's own and its `sync` room once signed in and
+  in one, a note's while it is open. It is let go while the app is behind another (`onPause`) and tried again as it
+  comes back, its rooms joined again; the page leaves that to the browser.
+- **Undo in a live note is the editor's own history**, with what arrives kept out of it, where the page swaps in
+  `Y.UndoManager`: either takes back this person's typing and leaves the others'.
+- **A selection of another member's across lines** is washed over each line's words; the page washes the lines
+  between whole, an empty line among them too.
+- **A note open in an editor bound to its document is the editor's** (`TeamDoc.editing`): a pass posts what was
+  typed and applies what the log brings, and neither reads the saved note into the document nor writes the
+  document into the note. The page's pass reconciles from the saved note, a save's delay behind its editor.
+- **Jump to cursor** opens a note at a member's caret (`NoteDeskWorld.takeJump`); a member's spot on a canvas is
+  not gone to (`CanvasView` has no `goTo`).
+- **On a team's canvas** the card a member has open is not said or drawn (`card` in the room), this device's
+  pointer is where a finger is down and nowhere once it lifts, and a change that arrives while a card is being
+  dragged is the body handed to the view anew. A canvas has no comment sheet yet, so its threads are carried and
+  merged and not shown.
+- **A session that meets another history after a drop ends**, as the page's does (`LiveSession` on a different
+  seed): the note is live again the next time it is opened.
+- **The web's bug with an emoji, and what is done about it here.** `applyTextDiff`
+  (`../glyph/src/app/core/team/textDiff.ts`) finds the common head and foot of two wordings by UTF-16 code unit,
+  so when they differ inside a character of two units (😀 made 😁: the same first half) it deletes and inserts
+  half a character. Yjs, cutting a block of text between the halves, writes U+FFFD over both; the half it was
+  given to insert is a lone surrogate in the writer's memory and U+FFFD on the wire. Every other member reads
+  U+FFFD twice where the emoji was, and the writer's own copy differs from theirs until it is loaded again. It is
+  reached by `reconcile` (words that reach a team note without its editor: a capture, the connector, a sync of
+  the library) and by a card's words on a canvas. The fix there is to draw the head and the foot back to whole
+  characters, as `native/src/crdt.rs` `stretch` does. Here the core used to refuse such an update, and this copy
+  stopped following the note; now where an update cuts is read from its bytes first (`native/src/crdt_wire.rs`)
+  and the character written as U+FFFD twice in this copy too, which is what the web holds: the same words, and a
+  document the web still reads (`native/tests/yjs_vectors.rs`, `tool/yjs_vectors.mjs check`,
+  `test/live/web_test.dart`).
+- **`test/e2e/local_server_test.dart`'s password-free sign-in** failed once when run beside `test/live` (the
+  service gave the same token twice within a second) and passes alone.
+
 ## What stages 5 and 6 left open
 
 The pieces (docs/STAGES_5_6_8_9.md) are in the app: each open note's desk (`lib/root/note_desk.dart`) lists
@@ -247,7 +302,8 @@ change (`lib/root/library_reads.dart`). `test/root/structured_test.dart` holds t
 - **The + sheet's Meeting** is there where a meeting can be recorded (stage 8), and **From a shared link** in a
   build with an account's service; neither from an organization's +.
 - **A canvas** has no picture picker and opens no link (as a note), no comment sheet (`CanvasView.threads`), is not
-  framed in a note from the + (`AddConfig.canvases`), and a team's canvas (6G) is not ported. A canvas renamed from
+  framed in a note from the + (`AddConfig.canvases`). A team's canvas (6G) is its structure in the team's document
+  (see "What stage 7 left open"). A canvas renamed from
   its tab is written to the store and not through its open screen (`rename`).
 - **A board's card has no plugin's rows** (`drawnBoards(actions:)`), and a date in a ticket's panel or a query is
   not picked from a calendar (`dayPicker`).
