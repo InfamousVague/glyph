@@ -63,11 +63,15 @@ class _GlacierThemeState extends State<GlacierTheme> {
     final theme = widget.attrs['theme'] ?? (media.platformBrightness == Brightness.dark ? 'dark' : 'light');
     final attrs = {...widget.attrs, 'theme': theme};
     final pad = media.viewPadding;
+    // A page is given its insets in whole CSS pixels, each rounded UP (Chromium's `adjustInsetForScale`, on Android
+    // `ceil(pixels / density)`): a status bar of 159 device pixels at 2.625 is `61px` to the page, where the
+    // phone's own 60.57 stood everything under the bar a device pixel higher than the page's.
+    String whole(double inset) => '${inset <= 0 ? 0 : (inset - 1e-6).ceil()}px';
     final env = {
-      'safe-area-inset-top': '${pad.top}px',
-      'safe-area-inset-bottom': '${pad.bottom}px',
-      'safe-area-inset-left': '${pad.left}px',
-      'safe-area-inset-right': '${pad.right}px',
+      'safe-area-inset-top': whole(pad.top),
+      'safe-area-inset-bottom': whole(pad.bottom),
+      'safe-area-inset-left': whole(pad.left),
+      'safe-area-inset-right': whole(pad.right),
     };
     final css = CssContext(vw: media.size.width, vh: media.size.height, dpr: media.devicePixelRatio, lineDpr: debugFixturePixelRatio ?? media.devicePixelRatio);
     final key = Object.hash(widget.sheet, Object.hashAll(attrs.entries.map((e) => Object.hash(e.key, e.value))), Object.hashAll(env.values), css, media.disableAnimations, widget.typography);
