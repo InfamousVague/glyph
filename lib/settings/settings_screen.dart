@@ -444,18 +444,25 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
         onPressed: onPressed,
         color: t.color('glacier-text'),
         semanticLabel: says,
-        child: Text.rich(
-          TextSpan(children: [
-            WidgetSpan(
-              alignment: PlaceholderAlignment.baseline,
-              baseline: TextBaseline.alphabetic,
-              // `inline-size: 1em; block-size: 1em; vertical-align: -0.12em`
-              child: _SitsBelowBaseline(by: size * 0.12, child: ExcludeSemantics(child: SettingsIcon(SettingsGlyph.arrowLeft, size: size, strokeWidth: 2.4))),
-            ),
-            TextSpan(text: ' $word'),
-          ]),
-          maxLines: 1,
-          softWrap: false,
+        // The word's line the page's own (`line-height: normal`: 81 device pixels for its 25.6px on the Fold, the
+        // baseline 64 under its top), where the engine's whole pixel stood the word two device pixels low.
+        child: ExactLines.of(
+          Text.rich(
+            TextSpan(children: [
+              WidgetSpan(
+                alignment: PlaceholderAlignment.baseline,
+                baseline: TextBaseline.alphabetic,
+                // `inline-size: 1em; block-size: 1em; vertical-align: -0.12em`
+                child: _SitsBelowBaseline(by: size * 0.12, child: ExcludeSemantics(child: SettingsIcon(SettingsGlyph.arrowLeft, size: size, strokeWidth: 2.4))),
+              ),
+              TextSpan(text: ' $word'),
+            ]),
+            maxLines: 1,
+            softWrap: false,
+            style: pageText(t, size, weight: 'medium', color: t.color('glacier-text')),
+          ),
+          normal: true,
+          dpr: t.css.lineDpr,
         ),
       ),
     );
