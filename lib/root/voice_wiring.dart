@@ -15,7 +15,9 @@
 /// **Where a model comes from.** A model's download is the one thing here that crosses a network, and a build that
 /// is not a release never asks the real mirrors for one ([voiceMirrors]): it is given its own with
 /// `--dart-define=GHOST_MODELS=http://10.0.2.2:8765` (a server on this Mac, as lib/main_voice.dart's), and with
-/// none it has no mirror at all, so Get says it could not and the models already on the phone are used as they are.
+/// none its one mirror is [noMirror], an address on the phone itself where nothing listens, so Get says it could
+/// not and the models already on the phone are used as they are. **Never an empty list**: the core reads a list
+/// with no address in it as none given, and falls back to the web app's own two (native/src/models.rs `mirrors`).
 ///
 /// What is not here yet, each a seam:
 /// - **Summaries and the review after a recording** (`ai/summaries.ts`, `ai/review.ts`): lib/ai has neither yet, so
@@ -57,22 +59,28 @@ import '../tapes/player.dart' show markAudioRemoved;
 /// build that was not given one.
 const String ghostModelsDefine = String.fromEnvironment('GHOST_MODELS');
 
-/// `--dart-define=GHOST_MIC_FIXTURE=1`, a debug build's only: a take plays `<dataDir>/fixture.wav` in place of the
+/// `--dart-define=GHOST_MIC_FIXTURE=true`, a debug build's only: a take plays `<dataDir>/fixture.wav` in place of the
 /// device's microphone where that file is there, for an emulator started without audio (lib/capture/device_mic.dart
 /// `testWav`).
 const bool ghostMicFixtureDefine = bool.fromEnvironment('GHOST_MIC_FIXTURE');
 
+/// The mirror of a build that may fetch from nowhere: the discard port on the phone itself, where nothing listens,
+/// so a fetch fails at once and nothing leaves the device. The core's own tests use the same address for "nothing
+/// there".
+const String noMirror = 'http://127.0.0.1:9';
+
 /// The mirrors a model is fetched from in this build (see the library's header): null is the web app's own two, for
-/// a release; a list is the whole list. A mirror that names the real hosts is refused in a build that is not a
-/// release, as the account's service is (lib/root/account_wiring.dart `accountBase`).
+/// a release; a list is the whole list, and is never empty. A mirror that names the real hosts is refused in a
+/// build that is not a release, as the account's service is (lib/root/account_wiring.dart `accountBase`).
 List<String>? voiceMirrors(String define, {bool debug = !kReleaseMode}) {
+  const none = <String>[noMirror];
   final given = define.trim().replaceFirst(RegExp(r'/+$'), '');
-  if (given.isEmpty) return debug ? const <String>[] : null;
+  if (given.isEmpty) return debug ? none : null;
   final uri = Uri.tryParse(given);
-  if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https') || uri.host.isEmpty) return debug ? const <String>[] : null;
+  if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https') || uri.host.isEmpty) return debug ? none : null;
   final host = uri.host.toLowerCase();
   final real = host == 'attack.fm' || host.endsWith('.attack.fm') || host == 'ghostmarkdown.com' || host.endsWith('.ghostmarkdown.com') || host == 'huggingface.co' || host.endsWith('.huggingface.co');
-  if (debug && real) return const <String>[];
+  if (debug && real) return none;
   return [given];
 }
 

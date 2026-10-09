@@ -436,10 +436,12 @@ void main() {
 
   group('where a model comes from', () {
     test('a build that is not a release has no mirror unless it is given its own, and never the real ones', () {
-      expect(voiceMirrors('', debug: true), isEmpty);
+      // Never an empty list, which the core reads as none given and answers with the web app's own two.
+      expect(voiceMirrors('', debug: true), [noMirror]);
+      expect(Uri.parse(noMirror).host, '127.0.0.1');
       expect(voiceMirrors('http://10.0.2.2:8765/', debug: true), ['http://10.0.2.2:8765']);
       for (final real in ['https://attack.fm/glyph/models', 'https://ghostmarkdown.com/models', 'https://www.ghostmarkdown.com/m', 'https://huggingface.co/x', 'ftp://10.0.2.2', 'nonsense']) {
-        expect(voiceMirrors(real, debug: true), isEmpty, reason: real);
+        expect(voiceMirrors(real, debug: true), [noMirror], reason: real);
       }
     });
 
