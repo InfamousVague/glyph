@@ -286,7 +286,8 @@ class _GlacierAnchoredLayerState extends State<GlacierAnchoredLayer> with Widget
     return OverlayPortal(
       controller: _portal,
       overlayLocation: OverlayChildLocation.rootOverlay,
-      overlayChildBuilder: _buildOverlay,
+      // `createPortal(…, document.body)`: the panel is the page's own child, whatever scope its trigger is in.
+      overlayChildBuilder: (context) => GlacierRootScope(child: Builder(builder: _buildOverlay)),
       child: KeyedSubtree(key: _selfKey, child: widget.child),
     );
   }

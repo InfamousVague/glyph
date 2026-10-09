@@ -456,7 +456,7 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
         if (!didPop && widget.open) _close();
       },
       // `if (!open) return null`: closed, there is nothing of it anywhere.
-      child: widget.open ? OverlayPortal(controller: _portal, overlayLocation: OverlayChildLocation.rootOverlay, overlayChildBuilder: _layer, child: const SizedBox.shrink()) : const SizedBox.shrink(),
+      child: widget.open ? OverlayPortal(controller: _portal, overlayLocation: OverlayChildLocation.rootOverlay, overlayChildBuilder: (context) => GlacierRootScope(child: Builder(builder: _layer)), child: const SizedBox.shrink()) : const SizedBox.shrink(),
     );
   }
 

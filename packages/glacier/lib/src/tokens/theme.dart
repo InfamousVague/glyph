@@ -113,6 +113,19 @@ class _GlacierScopeState extends State<GlacierScope> {
   }
 }
 
+/// The page's own tokens for what is drawn over the page: a popover's panel, a menu's, the command palette. The web
+/// kit portals each to `document.body`, so whatever scope its trigger stands in (`.app-inverse`, a `data-hue`) the
+/// panel is the body's child and wears the body's tokens ([Tokens.rootTokens]). An overlay here keeps the inherited
+/// widgets of where it was declared, so it is told.
+class GlacierRootScope extends StatelessWidget {
+  const GlacierRootScope({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => _TokensScope(tokens: GlacierTheme.of(context).rootTokens, child: child);
+}
+
 class _TokensScope extends InheritedWidget {
   const _TokensScope({required this.tokens, required super.child});
   final Tokens tokens;
