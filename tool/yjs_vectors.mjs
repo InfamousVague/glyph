@@ -410,6 +410,25 @@ function check() {
     hold('canvas: a nested text is still a text', () => card?.get('text') instanceof Y.Text);
   }
 
+  // A canvas written by Rust into the types core/team/canvas.ts keeps: read by Yjs as that file reads them (the
+  // nodes in their order, a card's words a text, the replies an array), from the whole state and from the update.
+  {
+    const read = (doc) => {
+      const nodes = doc.getMap('canvas-nodes');
+      const plain = (fields) => Object.fromEntries([...fields.entries()].map(([key, value]) => [key, value instanceof Y.Text ? value.toString() : value instanceof Y.Array ? value.toArray() : value]));
+      const sorted = (map) => [...map.keys()].sort().map((id) => ({ id, ...plain(map.get(id)) }));
+      return { nodes: doc.getArray('canvas-order').toArray().map((id) => ({ id, ...plain(nodes.get(id)) })), edges: sorted(doc.getMap('canvas-edges')), comments: sorted(doc.getMap('canvas-comments')) };
+    };
+    const canon = (canvas) => JSON.parse(JSON.stringify(canvas, (_key, value) => (value && typeof value === 'object' && !Array.isArray(value) ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, value[key]])) : value)));
+    const whole = fresh(rust.canvasTypes.state);
+    hold('canvas types: the canvas Rust wrote, whole', () => (same(canon(read(whole.doc)), canon(rust.canvasTypes.canvas)) ? true : `Yjs reads ${JSON.stringify(read(whole.doc))}`));
+    const followed = fresh(web.canvas.state, rust.canvasTypes.update);
+    hold('canvas types: a web member follows from the update alone', () => (same(canon(read(followed.doc)), canon(rust.canvasTypes.canvas)) ? true : `Yjs reads ${JSON.stringify(read(followed.doc))}`));
+    hold('canvas types: a card Rust made has its words as a text', () => whole.doc.getMap('canvas-nodes').get('card-2')?.get('text') instanceof Y.Text);
+    hold('canvas types: the replies are still the array the web made, added to', () => whole.doc.getMap('canvas-comments').get('t1')?.get('replies') instanceof Y.Array && whole.doc.getMap('canvas-comments').get('t1').get('replies').length === 2);
+    hold('canvas types: still seeded', () => Boolean(whole.doc.getMap('canvas-meta').get('seeded')));
+  }
+
   // The character the web's diff cut through: Rust's copy after it, and what Rust typed there, read by Yjs.
   {
     hold('split: the document Rust holds after the cut', () => differs(fresh(rust.split.state).text.toString(), rust.split.text));

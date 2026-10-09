@@ -17,6 +17,12 @@
 //! - **Where yrs 0.26 is not Yjs**, this file makes up for it, and says so at `apply_remote`: a deletion that
 //!   arrives before what it deletes, and a change from the web that does split a character, which is read as
 //!   Yjs reads it (U+FFFD twice where the character was; crdt_wire.rs).
+//! - **A team's canvas is types beside the words** (docs/SHARED.md, S9; the web's `core/team/canvas.ts`):
+//!   `canvas-nodes` a map of node id to a map of the node's fields (a card's words a text of its own),
+//!   `canvas-edges` the same for the lines, `canvas-order` the node ids in their z-order, `canvas-comments` the
+//!   threads (their replies an array only ever added to), and `canvas-meta`'s `seeded`. Two members moving
+//!   different cards, or typing in the same one, both keep what they did. The whole canvas is handed in and only
+//!   what differs is written, as the web's view hands its own back.
 //! - **No lock of the notes'**, and no `init`: dispatch.rs answers these before it looks for the library.
 //!
 //! | command | takes | answers |
@@ -34,6 +40,9 @@
 //! | `crdt_lacks` | `{mine, theirs}` | whether `theirs` holds anything `mine` lacks (live/team.ts `lacks`) |
 //! | `crdt_relative` | `{doc, index, assoc?}` | a relative position, as `Y.relativePositionToJSON` writes one |
 //! | `crdt_absolute` | `{doc, position}` | its index now, or `null` |
+//! | `crdt_canvas_has` | `{doc}` | whether the document's types hold a canvas yet (canvas.ts `hasTeamCanvas`) |
+//! | `crdt_canvas_read` | `{doc}` | `{nodes, edges, comments}`: the canvas the types hold (canvas.ts `read`, before it is parsed) |
+//! | `crdt_canvas_write` | `{doc, canvas: {nodes, edges, comments?}, seed?}` | `{changed, update, text}`: canvas.ts `write`, only what differs, as one change |
 //! | `awareness_open` | `{clientId}` | `{awareness, update}` |
 //! | `awareness_close` | `{awareness}` | whether there was one |
 //! | `awareness_set` | `{awareness, state}` or `{awareness, field, value}` | `{update, added, updated, touched, removed}` |
@@ -54,7 +63,8 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use yrs::updates::decoder::Decode as _;
 use yrs::updates::encoder::Encode as _;
-use yrs::{Assoc, ClientID, Doc, GetString as _, IndexScope, OffsetKind, Options, ReadTxn as _, StateVector, StickyIndex, Text as _, TextRef, Transact as _, Update, ID};
+use yrs::types::ToJson as _;
+use yrs::{Any, Array as _, ArrayPrelim, ArrayRef, Assoc, ClientID, Doc, GetString as _, IndexScope, Map as _, MapPrelim, MapRef, OffsetKind, Options, Out, ReadTxn, StateVector, StickyIndex, Text as _, TextPrelim, TextRef, Transact as _, TransactionMut, Update, ID};
 
 use crate::crypto::{from_base64url, to_base64url};
 
@@ -68,7 +78,7 @@ const OUTDATED_MS: u64 = 30_000;
 /// The largest client id JavaScript can hold exactly, and so the largest Yjs can carry.
 const MAX_CLIENT: u64 = (1 << 53) - 1;
 
-const COMMANDS: [&str; 21] = [
+const COMMANDS: [&str; 24] = [
     "crdt_open",
     "crdt_close",
     "crdt_text",
@@ -82,6 +92,9 @@ const COMMANDS: [&str; 21] = [
     "crdt_lacks",
     "crdt_relative",
     "crdt_absolute",
+    "crdt_canvas_has",
+    "crdt_canvas_read",
+    "crdt_canvas_write",
     "awareness_open",
     "awareness_close",
     "awareness_set",
@@ -298,30 +311,10 @@ impl Held {
     /// The words made `to`, as one change: textDiff.ts `applyTextDiff`, from the words as they are. The common
     /// head and foot are kept and what lies between goes and comes; see the header for the one difference.
     fn reconcile(&mut self, to: &str) -> Result<Option<Vec<u8>>, String> {
-        let from: Vec<u16> = self.words().encode_utf16().collect();
-        let to: Vec<u16> = to.encode_utf16().collect();
-        if from == to {
-            return Ok(None);
+        match stretch(&self.words(), to)? {
+            Some((head, gone, came)) => self.change(&[(head, gone, came)]),
+            None => Ok(None),
         }
-        let most = from.len().min(to.len());
-        let mut head = 0;
-        while head < most && from[head] == to[head] {
-            head += 1;
-        }
-        // Not between the two halves of a character.
-        if head > 0 && (0xD800..0xDC00).contains(&from[head - 1]) {
-            head -= 1;
-        }
-        let mut foot = 0;
-        while foot < most - head && from[from.len() - 1 - foot] == to[to.len() - 1 - foot] {
-            foot += 1;
-        }
-        if foot > 0 && (0xDC00..0xE000).contains(&from[from.len() - foot]) {
-            foot -= 1;
-        }
-        let gone = (from.len() - head - foot) as u32;
-        let came = String::from_utf16(&to[head..to.len() - foot]).map_err(|_| "Those words are not text.".to_string())?;
-        self.change(&[(head as u32, gone, came)])
     }
 
     /// `index` as a position that stays with its character: `Y.createRelativePositionFromTypeIndex` and
@@ -375,6 +368,350 @@ impl Held {
         }
         Ok(Some(offset.index))
     }
+}
+
+/// The one stretch that makes `from` into `to`, in UTF-16 units: how far the common head runs, how many units
+/// go, and what comes. `None` when they are the same words. Never between the two halves of a character.
+fn stretch(from: &str, to: &str) -> Result<Option<(u32, u32, String)>, String> {
+    let from: Vec<u16> = from.encode_utf16().collect();
+    let to: Vec<u16> = to.encode_utf16().collect();
+    if from == to {
+        return Ok(None);
+    }
+    let most = from.len().min(to.len());
+    let mut head = 0;
+    while head < most && from[head] == to[head] {
+        head += 1;
+    }
+    // Not between the two halves of a character.
+    if head > 0 && (0xD800..0xDC00).contains(&from[head - 1]) {
+        head -= 1;
+    }
+    let mut foot = 0;
+    while foot < most - head && from[from.len() - 1 - foot] == to[to.len() - 1 - foot] {
+        foot += 1;
+    }
+    if foot > 0 && (0xDC00..0xE000).contains(&from[from.len() - foot]) {
+        foot -= 1;
+    }
+    let gone = (from.len() - head - foot) as u32;
+    let came = String::from_utf16(&to[head..to.len() - foot]).map_err(|_| "Those words are not text.".to_string())?;
+    Ok(Some((head as u32, gone, came)))
+}
+
+// --- a team's canvas ----------------------------------------------------------------
+
+const CANVAS_NODES: &str = "canvas-nodes";
+const CANVAS_EDGES: &str = "canvas-edges";
+const CANVAS_ORDER: &str = "canvas-order";
+const CANVAS_COMMENTS: &str = "canvas-comments";
+const CANVAS_META: &str = "canvas-meta";
+
+/// The fields of a node or an edge that are words, kept as a text of their own so typing in one card by two
+/// members merges (canvas.ts `WORDS`).
+const CANVAS_WORDS: [&str; 1] = ["text"];
+
+/// The document's own named roots that hold the structure: shared by name, never made twice.
+struct Roots {
+    nodes: MapRef,
+    edges: MapRef,
+    order: ArrayRef,
+    comments: MapRef,
+    meta: MapRef,
+}
+
+/// A value as JSON holds it, for a field of a card.
+fn any_of(value: &Value) -> Any {
+    match value {
+        Value::Null => Any::Null,
+        Value::Bool(flag) => Any::Bool(*flag),
+        Value::Number(number) => Any::Number(number.as_f64().unwrap_or(0.0)),
+        Value::String(text) => Any::String(text.as_str().into()),
+        Value::Array(list) => Any::Array(list.iter().map(any_of).collect()),
+        Value::Object(fields) => Any::Map(Arc::new(fields.iter().map(|(key, value)| (key.clone(), any_of(value))).collect())),
+    }
+}
+
+/// And back: a whole number as a whole number, as JavaScript writes one. `None` for what JSON leaves out.
+fn json_of(any: &Any) -> Option<Value> {
+    Some(match any {
+        Any::Undefined => return None,
+        Any::Null => Value::Null,
+        Any::Bool(flag) => json!(flag),
+        Any::Number(number) if number.fract() == 0.0 && number.abs() < 9.0e15 => json!(*number as i64),
+        Any::Number(number) => json!(number),
+        Any::BigInt(number) => json!(number),
+        Any::String(text) => json!(text.as_ref()),
+        Any::Buffer(_) => Value::Null,
+        Any::Array(list) => Value::Array(list.iter().map(|one| json_of(one).unwrap_or(Value::Null)).collect()),
+        Any::Map(fields) => Value::Object(fields.iter().filter_map(|(key, value)| json_of(value).map(|value| (key.clone(), value))).collect()),
+    })
+}
+
+/// What a map or an array holds at one place, as the JSON the page reads of it: a text its words, a value itself.
+fn plain_of<T: ReadTxn>(txn: &T, out: &Out) -> Option<Value> {
+    match out {
+        Out::Any(any) => json_of(any),
+        Out::YText(text) => Some(json!(text.get_string(txn))),
+        Out::YArray(list) => json_of(&list.to_json(txn)),
+        Out::YMap(fields) => json_of(&fields.to_json(txn)),
+        _ => None,
+    }
+}
+
+fn plain<T: ReadTxn>(txn: &T, fields: &MapRef) -> serde_json::Map<String, Value> {
+    fields.iter(txn).filter_map(|(key, value)| plain_of(txn, &value).map(|value| (key.to_string(), value))).collect()
+}
+
+fn sorted_keys<T: ReadTxn>(txn: &T, map: &MapRef) -> Vec<String> {
+    let mut keys: Vec<String> = map.keys(txn).map(str::to_string).collect();
+    keys.sort();
+    keys
+}
+
+fn ids_of<T: ReadTxn>(txn: &T, order: &ArrayRef) -> Vec<String> {
+    order.iter(txn).map(|one| match one {
+        Out::Any(Any::String(id)) => id.to_string(),
+        _ => String::new(),
+    }).collect()
+}
+
+impl Held {
+    /// The roots, made where this copy has not met them: outside any transaction.
+    fn roots(&self) -> Roots {
+        Roots {
+            nodes: self.doc.get_or_insert_map(CANVAS_NODES),
+            edges: self.doc.get_or_insert_map(CANVAS_EDGES),
+            order: self.doc.get_or_insert_array(CANVAS_ORDER),
+            comments: self.doc.get_or_insert_map(CANVAS_COMMENTS),
+            meta: self.doc.get_or_insert_map(CANVAS_META),
+        }
+    }
+
+    /// Whether the types hold a canvas yet: seeded here, or arrived from another device (`hasTeamCanvas`).
+    fn canvas_seeded(&self) -> bool {
+        let meta = self.roots().meta;
+        let txn = self.doc.transact();
+        match meta.get(&txn, "seeded") {
+            Some(Out::Any(Any::Bool(flag))) => flag,
+            Some(Out::Any(Any::Number(number))) => number != 0.0,
+            Some(Out::Any(Any::String(text))) => !text.is_empty(),
+            Some(Out::Any(Any::Null | Any::Undefined)) | None => false,
+            Some(_) => true,
+        }
+    }
+
+    /// The types as the canvas they hold, before it is parsed: the nodes in their order, the edges and the
+    /// threads by id (canvas.ts `read`).
+    fn canvas_read(&self) -> Value {
+        let roots = self.roots();
+        let txn = self.doc.transact();
+        let mut ids: Vec<String> = Vec::new();
+        for id in ids_of(&txn, &roots.order) {
+            if !ids.contains(&id) && roots.nodes.contains_key(&txn, &id) {
+                ids.push(id);
+            }
+        }
+        for id in sorted_keys(&txn, &roots.nodes) {
+            if !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
+        let item = |map: &MapRef, id: &str| -> Value {
+            let mut out = serde_json::Map::new();
+            out.insert("id".to_string(), json!(id));
+            if let Some(Out::YMap(fields)) = map.get(&txn, id) {
+                out.extend(plain(&txn, &fields));
+            }
+            Value::Object(out)
+        };
+        let thread = |id: &str| -> Value {
+            let mut out = serde_json::Map::new();
+            out.insert("id".to_string(), json!(id));
+            let mut replies = json!([]);
+            if let Some(Out::YMap(fields)) = roots.comments.get(&txn, id) {
+                out.extend(plain(&txn, &fields));
+                if let Some(Out::YArray(list)) = fields.get(&txn, "replies") {
+                    replies = json_of(&list.to_json(&txn)).unwrap_or(json!([]));
+                }
+            }
+            out.insert("replies".to_string(), replies);
+            Value::Object(out)
+        };
+        json!({
+            "nodes": ids.iter().map(|id| item(&roots.nodes, id)).collect::<Vec<_>>(),
+            "edges": sorted_keys(&txn, &roots.edges).iter().map(|id| item(&roots.edges, id)).collect::<Vec<_>>(),
+            "comments": sorted_keys(&txn, &roots.comments).iter().map(|id| thread(id)).collect::<Vec<_>>(),
+        })
+    }
+
+    /// `next` written into the types as one change, only what differs from what they hold (canvas.ts `write`);
+    /// with `seed`, the structure is marked as there. The update it makes is queued and answered; `None` when
+    /// nothing changed.
+    fn canvas_write(&mut self, next: &Value, seed: bool) -> Result<Option<Vec<u8>>, String> {
+        let list = |field: &str| -> Result<Vec<&serde_json::Map<String, Value>>, String> {
+            match next.get(field) {
+                None | Some(Value::Null) => Ok(Vec::new()),
+                Some(Value::Array(items)) => items.iter().map(|item| item.as_object().filter(|item| item.get("id").is_some_and(Value::is_string)).ok_or_else(|| format!("A canvas's {field} each have an id."))).collect(),
+                Some(_) => Err(format!("A canvas's {field} are a list.")),
+            }
+        };
+        let (nodes, edges, comments) = (list("nodes")?, list("edges")?, list("comments")?);
+        let id_of = |item: &serde_json::Map<String, Value>| item["id"].as_str().unwrap_or_default().to_string();
+        // A card's words may not be cut through a character, here as in the note's own.
+        let roots = self.roots();
+        let before = self.doc.transact().state_vector();
+        let update = {
+            let mut txn = self.doc.transact_mut();
+            write_all(&mut txn, &roots.nodes, &nodes)?;
+            write_all(&mut txn, &roots.edges, &edges)?;
+            write_threads(&mut txn, &roots.comments, &comments)?;
+            let wanted: Vec<String> = nodes.iter().map(|node| id_of(node)).collect();
+            // Gone, or doubled by two devices putting the same id in at once: taken out, from the end so the
+            // indexes hold.
+            let had = ids_of(&txn, &roots.order);
+            let mut seen_here: Vec<&String> = Vec::new();
+            for at in (0..had.len()).rev() {
+                let id = &had[at];
+                if !wanted.contains(id) || seen_here.contains(&id) {
+                    roots.order.remove(&mut txn, at as u32);
+                }
+                seen_here.push(id);
+            }
+            let now = ids_of(&txn, &roots.order);
+            if now != wanted {
+                // New ids put in where they belong; an order that still differs is rewritten whole (a card sent
+                // to the back).
+                for (at, id) in wanted.iter().enumerate() {
+                    if !now.contains(id) {
+                        let at = (at as u32).min(roots.order.len(&txn));
+                        roots.order.insert(&mut txn, at, id.as_str());
+                    }
+                }
+                if ids_of(&txn, &roots.order) != wanted {
+                    let length = roots.order.len(&txn);
+                    roots.order.remove_range(&mut txn, 0, length);
+                    roots.order.insert_range(&mut txn, 0, wanted.iter().map(String::as_str).collect::<Vec<_>>());
+                }
+            }
+            if seed {
+                roots.meta.insert(&mut txn, "seeded", 1.0);
+            }
+            txn.encode_update_v1()
+        };
+        // Nothing written is nothing made: the clocks stand where they stood, and nothing was deleted.
+        if self.doc.transact().state_vector() == before && update.len() <= 2 {
+            return Ok(None);
+        }
+        self.pending.push(update.clone());
+        Ok(Some(update))
+    }
+}
+
+fn write_all(txn: &mut TransactionMut, into: &MapRef, items: &[&serde_json::Map<String, Value>]) -> Result<(), String> {
+    let wanted: Vec<&str> = items.iter().filter_map(|item| item["id"].as_str()).collect();
+    for id in sorted_keys(txn, into) {
+        if !wanted.contains(&id.as_str()) {
+            into.remove(txn, &id);
+        }
+    }
+    for item in items {
+        let id = item["id"].as_str().unwrap_or_default();
+        let fields = match into.get(txn, id) {
+            Some(Out::YMap(fields)) => fields,
+            _ => into.insert(txn, id, MapPrelim::default()),
+        };
+        write_fields(txn, &fields, item, &[])?;
+    }
+    Ok(())
+}
+
+/// One node's, edge's or thread's fields: those gone taken out, those that differ set, its words changed where
+/// they changed (canvas.ts `writeFields`). `kept` are fields written elsewhere and left alone here.
+fn write_fields(txn: &mut TransactionMut, fields: &MapRef, item: &serde_json::Map<String, Value>, kept: &[&str]) -> Result<(), String> {
+    for key in sorted_keys(txn, fields) {
+        if key != "id" && key != "replies" && key != "resolved" && !item.contains_key(&key) {
+            fields.remove(txn, &key);
+        }
+    }
+    for (key, value) in item {
+        if key == "id" || kept.contains(&key.as_str()) {
+            continue;
+        }
+        let held = fields.get(txn, key);
+        if CANVAS_WORDS.contains(&key.as_str()) {
+            if let Value::String(words) = value {
+                match held {
+                    Some(Out::YText(text)) => {
+                        if let Some((head, gone, came)) = stretch(&text.get_string(txn), words)? {
+                            if gone > 0 {
+                                text.remove_range(txn, head, gone);
+                            }
+                            if !came.is_empty() {
+                                text.insert(txn, head, &came);
+                            }
+                        }
+                    }
+                    _ => {
+                        fields.insert(txn, key.as_str(), TextPrelim::new(words.as_str()));
+                    }
+                }
+                continue;
+            }
+        }
+        if held.as_ref().and_then(|held| plain_of(txn, held)).as_ref() != Some(value) || matches!(held, Some(Out::YText(_))) {
+            fields.insert(txn, key.as_str(), any_of(value));
+        }
+    }
+    Ok(())
+}
+
+/// The threads: each a map of its fields, with `replies` an array only ever added to, so two members replying at
+/// once both land; `resolved` set and taken off as the thread closes and reopens (canvas.ts `writeThreads`).
+fn write_threads(txn: &mut TransactionMut, into: &MapRef, threads: &[&serde_json::Map<String, Value>]) -> Result<(), String> {
+    let wanted: Vec<&str> = threads.iter().filter_map(|thread| thread["id"].as_str()).collect();
+    for id in sorted_keys(txn, into) {
+        if !wanted.contains(&id.as_str()) {
+            into.remove(txn, &id);
+        }
+    }
+    for thread in threads {
+        let id = thread["id"].as_str().unwrap_or_default();
+        let fields = match into.get(txn, id) {
+            Some(Out::YMap(fields)) => fields,
+            _ => into.insert(txn, id, MapPrelim::default()),
+        };
+        let mut rest = (*thread).clone();
+        let replies = rest.remove("replies");
+        let resolved = rest.remove("resolved").filter(|resolved| !resolved.is_null());
+        write_fields(txn, &fields, &rest, &[])?;
+        let held = match fields.get(txn, "replies") {
+            Some(Out::YArray(held)) => held,
+            _ => fields.insert(txn, "replies", ArrayPrelim::default()),
+        };
+        let replies = replies.as_ref().and_then(Value::as_array).cloned().unwrap_or_default();
+        let have = held.len(txn) as usize;
+        if replies.len() > have {
+            for reply in &replies[have..] {
+                held.push_back(txn, any_of(reply));
+            }
+        }
+        match resolved {
+            Some(resolved) => {
+                let was = fields.get(txn, "resolved").and_then(|was| plain_of(txn, &was));
+                let same = was.as_ref().is_some_and(|was| was.get("by") == resolved.get("by") && was.get("at") == resolved.get("at"));
+                if !same {
+                    fields.insert(txn, "resolved", any_of(&resolved));
+                }
+            }
+            None => {
+                if fields.contains_key(txn, "resolved") {
+                    fields.remove(txn, "resolved");
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 // --- awareness ----------------------------------------------------------------------
@@ -674,6 +1011,14 @@ struct Absolute {
 }
 
 #[derive(Deserialize)]
+struct CanvasWrite {
+    doc: u64,
+    canvas: Value,
+    #[serde(default)]
+    seed: bool,
+}
+
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct OpenRoom {
     client_id: u64,
@@ -844,6 +1189,21 @@ pub fn call(command: &str, args: Value) -> Result<Value, String> {
         "crdt_absolute" => {
             let Absolute { doc, position } = read(command, args)?;
             with_doc(doc, |held| Ok(json!(held.absolute(&position)?)))
+        }
+        "crdt_canvas_has" => {
+            let ByDoc { doc } = read(command, args)?;
+            with_doc(doc, |held| Ok(json!(held.canvas_seeded())))
+        }
+        "crdt_canvas_read" => {
+            let ByDoc { doc } = read(command, args)?;
+            with_doc(doc, |held| Ok(held.canvas_read()))
+        }
+        "crdt_canvas_write" => {
+            let CanvasWrite { doc, canvas, seed } = read(command, args)?;
+            with_doc(doc, |held| {
+                let update = held.canvas_write(&canvas, seed)?;
+                Ok(changed(update, held.words()))
+            })
         }
         "awareness_open" => {
             let OpenRoom { client_id } = read(command, args)?;

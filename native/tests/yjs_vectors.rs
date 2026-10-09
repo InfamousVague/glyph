@@ -210,11 +210,76 @@ fn awareness_from_y_protocols_is_heard_as_y_protocols_hears_it() {
     }
 }
 
+/// A team's canvas the web's Yjs made (core/team/canvas.ts's types: maps, an array, a text inside a map), read
+/// here as the canvas it is, and written: only what differs, a card's words changed as words, a reply added to
+/// the replies it has.
 #[test]
-fn a_canvas_s_maps_and_arrays_are_held_though_the_phone_does_not_draw_them() {
+fn a_canvas_the_web_made_is_read_from_its_types_and_written_into_them() {
     let web = fixture();
     let doc = open(8080, &[&web["canvas"]["state"]]);
     assert_eq!(text(&doc), web["canvas"]["text"]);
+    assert_eq!(ask("crdt_canvas_has", json!({"doc": doc})), true);
+    let read = ask("crdt_canvas_read", json!({"doc": doc}));
+    let card = json!({"id": "card-1", "type": "text", "x": 120.5, "y": -40, "width": 260, "text": "A card día ✓ 😀"});
+    assert_eq!(read, json!({"nodes": [card], "edges": [], "comments": [{"id": "t1", "replies": [{"by": "sam", "text": "yes", "at": 1759000000000u64}]}]}));
+    // The same canvas written back is no change at all.
+    let same = ask("crdt_canvas_write", json!({"doc": doc, "canvas": read}));
+    assert_eq!((same["changed"].clone(), same["update"].clone()), (json!(false), Value::Null));
+    // A document with no structure has none, and reads as an empty canvas.
+    let plain = open(8081, &[&web["seed"]["update"]]);
+    assert_eq!(ask("crdt_canvas_has", json!({"doc": plain})), false);
+    assert_eq!(ask("crdt_canvas_read", json!({"doc": plain})), json!({"nodes": [], "edges": [], "comments": []}));
+    // What is not a canvas is refused, and nothing is written.
+    assert!(ghost_core::dispatch::invoke("crdt_canvas_write", json!({"doc": doc, "canvas": {"nodes": [{"x": 1}]}})).is_err());
+    assert_eq!(ask("crdt_canvas_read", json!({"doc": doc})), read);
+}
+
+/// The canvas this side writes, for the test above's last half and for Yjs to read (`check`).
+fn canvas_written(web: &Value, client: u64) -> (Value, Value, Value) {
+    let doc = open(client, &[&web["canvas"]["state"]]);
+    let next = json!({
+        "nodes": [
+            {"id": "card-2", "type": "text", "x": 0, "y": 0, "width": 200, "height": 80, "text": "New 😀 card"},
+            {"id": "card-1", "type": "text", "x": 300, "y": -40, "width": 260, "text": "A card día ✓ 😁, moved", "color": "4"},
+        ],
+        "edges": [{"id": "e1", "fromNode": "card-1", "toNode": "card-2", "label": "to"}],
+        "comments": [{"id": "t1", "replies": [{"by": "sam", "text": "yes", "at": 1759000000000u64}, {"by": "matt", "text": "and here", "at": 1759000001000u64}], "resolved": {"by": "matt", "at": "2026-10-09"}}],
+    });
+    let wrote = ask("crdt_canvas_write", json!({"doc": doc, "canvas": next}));
+    assert_eq!(wrote["changed"], true);
+    assert_eq!(ask("crdt_canvas_read", json!({"doc": doc})), next);
+    (doc, next, wrote["update"].clone())
+}
+
+#[test]
+fn a_canvas_written_here_holds_what_was_handed_in_and_a_second_copy_follows_from_the_update_alone() {
+    let web = fixture();
+    let (doc, next, update) = canvas_written(&web, 8082);
+    let other = open(8083, &[&web["canvas"]["state"], &update]);
+    assert_eq!(ask("crdt_canvas_read", json!({"doc": other})), next);
+    // Two copies change different cards, and one card's words, apart: both keep what they did.
+    let mut mine = next.clone();
+    mine["nodes"][0]["x"] = json!(50);
+    mine["nodes"][1]["text"] = json!("A card día ✓ 😁, moved by me");
+    let mut theirs = next.clone();
+    theirs["nodes"][1]["y"] = json!(99.5);
+    theirs["nodes"][1]["text"] = json!("Their card día ✓ 😁, moved");
+    theirs["nodes"].as_array_mut().unwrap().push(json!({"id": "card-3", "type": "group", "x": 1, "y": 2, "width": 3, "height": 4}));
+    let a = ask("crdt_canvas_write", json!({"doc": doc, "canvas": mine}))["update"].clone();
+    let b = ask("crdt_canvas_write", json!({"doc": other, "canvas": theirs}))["update"].clone();
+    take(&doc, &[&b]);
+    take(&other, &[&a]);
+    let merged = ask("crdt_canvas_read", json!({"doc": doc}));
+    assert_eq!(merged, ask("crdt_canvas_read", json!({"doc": other})));
+    assert_eq!(merged["nodes"][0]["x"], 50);
+    assert_eq!(merged["nodes"][1]["y"], 99.5);
+    assert_eq!(merged["nodes"][1]["text"], "Their card día ✓ 😁, moved by me");
+    assert_eq!(merged["nodes"][2]["id"], "card-3");
+    // A structure seeded from words: marked as there.
+    let fresh = ask("crdt_open", json!({"clientId": 8084, "words": "---\ntitle: Board\n---\n{}"}))["doc"].clone();
+    assert_eq!(ask("crdt_canvas_has", json!({"doc": fresh})), false);
+    ask("crdt_canvas_write", json!({"doc": fresh, "canvas": {"nodes": [], "edges": []}, "seed": true}));
+    assert_eq!(ask("crdt_canvas_has", json!({"doc": fresh})), true);
 }
 
 /// What `node tool/yjs_vectors.mjs check` reads with Yjs.
@@ -311,6 +376,10 @@ fn what_yrs_writes_is_written_down_for_yjs_to_read() {
     said("two devices in one update, one with a long id", &ask("awareness_encode", json!({"awareness": mine["awareness"]})));
     said("leaving", &ask("awareness_set", json!({"awareness": mine["awareness"], "state": null}))["update"]);
 
+    // A canvas written through this side's own types: what Yjs must read of it, and the update alone.
+    let (written, wrote, wrote_update) = canvas_written(&web, 6008);
+    let canvas_types = json!({"state": state(&written), "canvas": wrote, "update": wrote_update});
+
     // A canvas's document through this side: its words changed here, everything else carried.
     let canvas = open(6006, &[&web["canvas"]["state"]]);
     let changed = ask("crdt_apply_diff", json!({"doc": canvas, "to": "---\ntitle: Board 2\n---\n"}));
@@ -333,6 +402,7 @@ fn what_yrs_writes_is_written_down_for_yjs_to_read() {
         "random": random,
         "awareness": awareness,
         "canvas": canvas,
+        "canvasTypes": canvas_types,
     });
     let target = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("target/vectors");
     std::fs::create_dir_all(&target).unwrap();
