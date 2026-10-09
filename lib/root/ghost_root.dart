@@ -19,6 +19,7 @@ import '../art/art.dart';
 import '../book/book_spot.dart' show whereLeft;
 import '../book/entry_starts.dart' show pageBody;
 import '../book/journal.dart' as journal;
+import '../book/template_picker.dart' show EntryPlaceDevice;
 import '../core/location.dart' show Locations, Locator, PlaceLookup;
 import '../core/place_tags.dart';
 import '../editor/media/map_card.dart' show MapTilesBuilder;
@@ -1804,6 +1805,10 @@ class _GhostRootState extends State<GhostRoot> {
               isCanvas: (title) => isCanvasBody(_reads.titled(title)?.body ?? ''),
               onCreate: (title, pages) => _showMade(bookNoteBody(title, pages), into: _bookInto),
               onCreateJournal: (title, template, place) => _showMade(journal.journalNoteBody(title, template, place)),
+              // A journal's "With where you are": the prompt from the press that turned it on, and why it cannot.
+              device: _places == null
+                  ? const EntryPlaceDevice()
+                  : EntryPlaceDevice(cannot: () => _places.locations.cannotLocate, refused: _places.autoTagRefusal, allowWhere: _places.allowLocationWhere(), ask: _places.askFromPress),
             ),
             if (_workspace case final sheet?)
               WorkspaceManageSheet(
