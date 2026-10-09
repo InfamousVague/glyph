@@ -73,6 +73,11 @@ Widget lucide(LucideIcon icon, {required double size, required Color color, doub
 /// [child] is a [Text] in one style whose `height` times its size is [line]; this takes the room the page gives it,
 /// [line] for each line the text came to, and sets the text in the middle of that. A line is still drawn where the
 /// engine put it, a fraction of a pixel from the page's.
+///
+/// On a phone the first line stands on the page's own baseline ([pageBaseline]) where the middle is not it: the
+/// engine sets words in a line by the face's exact ascent and half the leading to the fraction, a phone's page by
+/// whole device pixels with the leading floored, and a notebook's page title stood three device pixels under the
+/// page's beside the Tauri app (17.66px on a line of 26.49: 52.3 device pixels under the line's top against 50).
 class CssLines extends SingleChildRenderObjectWidget {
   const CssLines({super.key, required this.line, required Widget super.child});
 
@@ -80,19 +85,41 @@ class CssLines extends SingleChildRenderObjectWidget {
   final double line;
 
   @override
-  RenderObject createRenderObject(BuildContext context) => _RenderCssLines(line);
+  RenderObject createRenderObject(BuildContext context) => _RenderCssLines(line, pageBaseline(context, child, line));
 
   @override
-  void updateRenderObject(BuildContext context, covariant RenderObject renderObject) => (renderObject as _RenderCssLines).line = line;
+  void updateRenderObject(BuildContext context, covariant RenderObject renderObject) => (renderObject as _RenderCssLines)
+    ..line = line
+    ..baseline = pageBaseline(context, child, line);
+}
+
+/// Where a phone's page has the first baseline of [text] under the top of its line, [line] tall
+/// ([leadedBaseline]: the face's ascent and descent in whole device pixels, half the leading floored). Nothing at a
+/// ratio of 1, a desktop's and the one the tests' rectangles were measured at, where the engine's own place is
+/// within a tenth of a pixel of the page's; and nothing where [text] is not one [Text] in a style of its own.
+double? pageBaseline(BuildContext context, Widget? text, double line) {
+  if (text is! Text || text.textSpan != null) return null;
+  final style = text.style;
+  if (style == null || style.fontSize == null || line <= 0) return null;
+  final dpr = context.tokens.css.lineDpr;
+  return dpr == 1 ? null : leadedBaseline(style, line, dpr: dpr);
 }
 
 class _RenderCssLines extends RenderShiftedBox {
-  _RenderCssLines(this._line) : super(null);
+  _RenderCssLines(this._line, this._baseline) : super(null);
 
   double _line;
   set line(double value) {
     if (value == _line) return;
     _line = value;
+    markNeedsLayout();
+  }
+
+  /// Where the first line's baseline goes under the box's top, or null for the middle.
+  double? _baseline;
+  set baseline(double? value) {
+    if (value == _baseline) return;
+    _baseline = value;
     markNeedsLayout();
   }
 
@@ -124,7 +151,13 @@ class _RenderCssLines extends RenderShiftedBox {
     inner.layout(constraints.copyWith(minHeight: 0, maxHeight: double.infinity), parentUsesSize: true);
     final height = _page(inner.size.height);
     size = constraints.constrain(Size(inner.size.width, height));
-    (inner.parentData! as BoxParentData).offset = Offset(0, (size.height - inner.size.height) / 2);
+    var dy = (size.height - inner.size.height) / 2;
+    final wanted = _baseline;
+    if (wanted != null) {
+      final drawn = inner.getDistanceToBaseline(TextBaseline.alphabetic, onlyReal: true);
+      if (drawn != null) dy = wanted - drawn;
+    }
+    (inner.parentData! as BoxParentData).offset = Offset(0, dy);
   }
 }
 

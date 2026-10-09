@@ -18,6 +18,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../sheet/css.dart' show pageBaseline;
+
 /// `animation: arrive <duration> var(--glacier-ease-out) both; animation-delay: <delay>` from
 /// `{ opacity: 0; transform: translateY(<rise>px) }`. Under reduced motion it does not move, as the page's
 /// `@media (prefers-reduced-motion: reduce) { animation: none }` has it.
@@ -287,14 +289,18 @@ class CssLines extends SingleChildRenderObjectWidget {
   final double lineHeight;
   final double? above;
 
+  /// [above], or on a phone the page's own baseline for a line of one [Text] (lib/sheet/css.dart `pageBaseline`:
+  /// whole device pixels, the leading floored), where the engine's is up to three device pixels under it.
+  double? _above(BuildContext context) => above ?? pageBaseline(context, child, lineHeight);
+
   @override
-  RenderObject createRenderObject(BuildContext context) => _RenderCssLines(lineHeight, above);
+  RenderObject createRenderObject(BuildContext context) => _RenderCssLines(lineHeight, _above(context));
 
   @override
   void updateRenderObject(BuildContext context, covariant RenderObject renderObject) {
     (renderObject as _RenderCssLines)
       ..lineHeight = lineHeight
-      ..above = above;
+      ..above = _above(context);
   }
 }
 
