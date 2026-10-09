@@ -226,10 +226,13 @@ void main() {
       expect(v.top('page')!.smoke.fade.at(0), 1);
     });
 
-    testWidgets('with no header, sits under the status bar and fades into it', (tester) async {
+    testWidgets('with no header, sits at the view\'s own top and fades over the status bar\'s height', (tester) async {
       final v = await view(tester, safeTop: 36);
       await v.scroll(v.page, 120);
-      expect(v.top('page')!.smoke.lipA, 36 + wispEdgeDrop + wispEdgeBand);
+      // The page's `safeTop()` reads a `calc()` as no number, so its lip is at the top edge with no drop (Settings
+      // on Android: the filter's strip ends 7px down), and the fade is the stylesheet's, safe top and 8px.
+      expect(v.top('page')!.smoke.lipA, wispEdgeBand);
+      expect(v.top('page')!.rect.bottom, greaterThanOrEqualTo(44));
       expect(v.top('page')!.smoke.fade.at(0), 0);
       expect(v.top('page')!.smoke.fade.at(22), closeTo(0.5, 1e-9));
       expect(v.top('page')!.smoke.fade.at(44), 1);

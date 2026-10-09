@@ -317,8 +317,8 @@ class _Lane extends ChangeNotifier {
 /// the hook's:
 ///
 /// - [under] is the height of a header the scroller runs beneath (the hook's `under` ref, measured); the band's lip
-///   sits a drop below it. With none, the status bar plays the part ([safeTop], `--app-safe-top` by default), and
-///   the view fades into it.
+///   sits a drop below it. With none, the lip is at the view's top edge and the view fades over the status bar's
+///   height and 8px more ([safeTop], `--app-safe-top` by default).
 /// - [foot] smokes the foot while there is more below; [footOver] is the height of what stands over the foot (a
 ///   dock), so the smoke happens at its top edge and the view is gone below it.
 /// - [draw] asks for a drawing by name ([WispDraw]); left out, the platform decides ([wispModeFor]): the filter on a
@@ -557,7 +557,12 @@ class _WispEdgeState extends State<WispEdge> with SingleTickerProviderStateMixin
     if (!_wanted || (!_worn && !_footWorn && !_blurHead)) return const [];
     final mode = _mode;
     final width = size.width, height = size.height;
-    final beneath = widget.under > 0 ? widget.under : _safeTop;
+    // With no header the page means the status bar to play the part (`beneath = height || safeTop()`), but its
+    // `safeTop()` is `parseFloat` of `--app-safe-top`, which the app writes as a `calc()`: not a number, so 0. On a
+    // phone the lip therefore sits at the view's own top edge with no drop, hidden in the first of the fade, and what
+    // is seen is the fade alone, `--app-safe-top + 8px` long (measured in Settings on Android: the strip ends 7px
+    // down, the mask is whole at 150px). The port stands where the page stands, not where its comment says.
+    final beneath = widget.under > 0 ? widget.under : 0.0;
     final drop = beneath > 0 ? wispEdgeDrop : 0.0;
     // Under a header the header hides the top; with none the view dissolves into the status bar's own ground.
     final topFade = !_worn || widget.under > 0 ? 0.0 : _safeTop + 8;
@@ -610,7 +615,8 @@ class _WispEdgeState extends State<WispEdge> with SingleTickerProviderStateMixin
       if (smokes) {
         final at = WispDrift.instance.at(widget.band);
         strips.add(WispSmokeStrip(
-          rect: Rect.fromLTRB(0, 0, width, math.min(height, beneath + drop + wispEdgeReach)),
+          // Down to the end of the fade where that is longer than the band: the strip is what the mask is drawn in.
+          rect: Rect.fromLTRB(0, 0, width, math.min(height, math.max(beneath + drop + wispEdgeReach, topFade))),
           smoke: wispTopSmoke(under: beneath, lift: _lift, at: at, fade: fade),
           within: wispTopWithin(beneath),
         ));

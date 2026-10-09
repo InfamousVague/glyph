@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../art/wisp_edge.dart';
 import '../core/back.dart';
 import '../shell/wide_screen.dart' show mousePointer, splitFits;
 import 'kit/settings_icons.dart';
@@ -140,8 +141,6 @@ enum _SwipeMark { none, through }
 /// Escape; nothing else. With none above, the handler still goes on the app's own stack and waits for one.
 ///
 /// What differs from the web original:
-/// - The smoke at the page's edges (art/wispEdge.ts) is not drawn: a list or a page passes under the head, and the
-///   split view's sections under the search field's glass, with a plain edge.
 /// - The icons are Lucide's outlines without the web's wash (kit/settings_icons.dart).
 /// - A section's `content` is a builder, and its page is laid out by [PaneBody] where React returned a fragment.
 /// - The search field is an `EditableText` with the kit's handles and menu; the web's was an `<input type=search>`.
@@ -642,7 +641,8 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
         child: SettingsPaneScope(
           finder: _finder,
           child: Builder(
-            builder: (context) => SingleChildScrollView(
+            // `useWispEdge(scroller, …)`, as the list: no header over the page, so it fades at its own top.
+            builder: (context) => WispEdge(child: SingleChildScrollView(
               key: ValueKey('scroll ${shown.id}'),
               controller: _paneScroll,
               physics: const ClampingScrollPhysics(),
@@ -665,7 +665,7 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
                   shown.content(context),
                 ],
               ),
-            ),
+            )),
           ),
         ),
       ),
@@ -728,13 +728,17 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
                       child: Semantics(
                         container: true,
                         label: looking ? '$title found' : '$title sections',
-                        child: _scroller(
+                        // `useWispEdge(column, …, findBar, { band: 'column' })`: the sections smoke under the field.
+                        child: WispEdge(
+                          under: columnTop,
+                          band: WispBand.column,
+                          child: _scroller(
                           t,
                           key: const ValueKey('settings-list'),
                           controller: _listScroll,
                           padding: columnPad.copyWith(top: columnTop, bottom: bottom),
                           children: looking ? _found(t, hits, current) : _list(t, current),
-                        ),
+                        )),
                       ),
                     ),
                     if (searchable)
@@ -775,12 +779,15 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
       final list = Semantics(
         container: true,
         label: looking ? '$title found' : '$title sections',
-        child: _scroller(
-          t,
-          key: const ValueKey('settings-list'),
-          controller: _listScroll,
-          padding: gutter.copyWith(bottom: bottom),
-          children: looking ? _found(t, hits, null) : _list(t, null),
+        // `useWispEdge(scroller, …)` with no header: the list fades over its first `--app-safe-top + 8px` once scrolled.
+        child: WispEdge(
+          child: _scroller(
+            t,
+            key: const ValueKey('settings-list'),
+            controller: _listScroll,
+            padding: gutter.copyWith(bottom: bottom),
+            children: looking ? _found(t, hits, null) : _list(t, null),
+          ),
         ),
       );
       body = [
