@@ -51,8 +51,15 @@ Future<void> loadAppFonts() async {
 
 /// The app on a phone's screen (or [size]), ready for a picture: real fonts, real shadows, the token sheets the app
 /// loads, and [prefs] as the person's choices. [home] puts one screen under the app's theme in place of the app's own.
-Future<void> pumpApp(WidgetTester tester, {Size size = const Size(390, 844), AppPreferences prefs = const AppPreferences(theme: 'light'), double ratio = 2, Widget? home}) async {
+///
+/// [ratio] is the density the picture is drawn at. [measuredAt] is the device pixel ratio of the page the test's
+/// rectangles were read from: the fixtures in this repo were measured in a desktop Chromium at 1, and a page rounds
+/// a line of `line-height: normal` in device pixels, so the lines are rounded at that ratio and not at the
+/// picture's. A test held to the phone's own page says the phone's (the emulator's is 2.625).
+Future<void> pumpApp(WidgetTester tester, {Size size = const Size(390, 844), AppPreferences prefs = const AppPreferences(theme: 'light'), double ratio = 2, double measuredAt = 1, Widget? home}) async {
   debugDisableShadows = false;
+  debugFixturePixelRatio = measuredAt;
+  addTearDown(() => debugFixturePixelRatio = null);
   tester.view.physicalSize = size * ratio;
   tester.view.devicePixelRatio = ratio;
   tester.view.padding = FakeViewPadding(top: 36 * ratio, bottom: 20 * ratio);

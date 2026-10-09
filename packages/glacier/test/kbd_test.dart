@@ -93,6 +93,13 @@ void main() {
       expect(normalLineHeight(heading), 14);
       expect(normalLineHeight(row), 16);
       expect(normalLineHeight(body), 20);
+      // On the phone the pixel that is rounded to is the device's: Chromium at the emulator's 2.625 laid a 16.26px
+      // title out 51 device pixels tall (19.43px), and a Settings row's 13.01px detail 42 (16px), where rounding in
+      // logical pixels gives 20 and 16.
+      final title = kitFont(t, fontSize: 16.26, color: t.color('glacier-text'));
+      expect(normalLineHeight(title), 20);
+      expect(normalLineHeight(title, dpr: 2.625) * 2.625, closeTo(51, 1e-9));
+      expect(normalLineHeight(body, dpr: 2) * 2, closeTo(39, 1e-9));
 
       double laidOut(TextStyle style) {
         final painter = TextPainter(text: TextSpan(text: 'File', style: style), textDirection: TextDirection.ltr)..layout();

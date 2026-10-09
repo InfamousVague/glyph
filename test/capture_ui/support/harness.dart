@@ -21,7 +21,7 @@ import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/app/ghost_app.dart';
 import 'package:ghost_md/core/preferences.dart' show Preferences, preferences;
 import 'package:ghost_md/main.dart' show appStyleSheets;
-import 'package:glacier/glacier.dart' show loadTokenSheet;
+import 'package:glacier/glacier.dart' show debugFixturePixelRatio, loadTokenSheet;
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/editor/marks/wisp_motion.dart' show wispNow;
 import 'package:ghost_md/editor/media/clip_refs.dart' show TapeIds;
@@ -445,9 +445,12 @@ class Capture {
 }
 
 /// `pumpApp` (test/support/render.dart) with the phone's own insets given: the app's theme and token sheets round
-/// one screen, on a window of [size].
-Future<void> pumpScreen(WidgetTester tester, Widget home, {Size size = const Size(390, 844), required Preferences prefs, EdgeInsets insets = const EdgeInsets.only(top: 36, bottom: 20), double ratio = 2}) async {
+/// one screen, on a window of [size]. [measuredAt] is the device pixel ratio of the page the recorder's rectangles
+/// were read from (a desktop Chromium, 1), which is what a line of `line-height: normal` is rounded at.
+Future<void> pumpScreen(WidgetTester tester, Widget home, {Size size = const Size(390, 844), required Preferences prefs, EdgeInsets insets = const EdgeInsets.only(top: 36, bottom: 20), double ratio = 2, double measuredAt = 1}) async {
   debugDisableShadows = false;
+  debugFixturePixelRatio = measuredAt;
+  addTearDown(() => debugFixturePixelRatio = null);
   tester.view.physicalSize = size * ratio;
   tester.view.devicePixelRatio = ratio;
   tester.view.padding = FakeViewPadding(top: insets.top * ratio, bottom: insets.bottom * ratio);

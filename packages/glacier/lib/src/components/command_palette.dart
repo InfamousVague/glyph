@@ -467,7 +467,7 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
     final media = MediaQuery.of(context);
     // The page's viewport is what the soft keyboard leaves of the window, and `vh` is a hundredth of that.
     final keyboard = media.viewInsets.bottom;
-    final css = CssContext(rem: t.css.rem, em: t.css.em, vw: t.css.vw, vh: media.size.height - keyboard, dpr: t.css.dpr);
+    final css = CssContext(rem: t.css.rem, em: t.css.em, vw: t.css.vw, vh: media.size.height - keyboard, dpr: t.css.dpr, lineDpr: t.css.lineDpr);
     double len(String expression) => evalNumber(t.resolve(expression), css);
 
     final pad = t.space(6);

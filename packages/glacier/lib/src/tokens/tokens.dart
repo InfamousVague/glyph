@@ -272,7 +272,7 @@ class Tokens {
       decoration: TextDecoration.none,
     );
     // `line-height: normal` as a browser works it out (line_height.dart), which is not the face's own sum.
-    return height != null || px <= 0 ? face : face.copyWith(height: normalLineHeight(face) / px);
+    return height != null || px <= 0 ? face : face.copyWith(height: normalLineHeight(face, dpr: css.lineDpr) / px);
   }
 
   /// [style] at another size, with the optical size that goes with it: `copyWith(fontSize:)` alone would keep the cut

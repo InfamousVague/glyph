@@ -18,6 +18,13 @@ Future<TokenSheet> loadTokenSheet({List<String> more = const [], AssetBundle? bu
   return TokenSheet.parseAll(sheets);
 }
 
+/// The device pixel ratio a test's lines of text are rounded at, in place of its window's. A page's engine rounds a
+/// line of `line-height: normal` in device pixels (line_height.dart), so a rectangle measured on a desktop's page
+/// (ratio 1) is only met by lines rounded at 1, whatever density the test draws its picture at. A test says the ratio
+/// its fixture was measured at here (the app's `pumpApp(measuredAt:)`) and puts null back after; the app never sets
+/// it. A border keeps the window's ratio ([CssContext.border]): at 1 and at 2 a 1px rule is the same.
+double? debugFixturePixelRatio;
+
 /// Puts the design tokens over a subtree, as `<html data-theme=... data-density=...>` does on the page.
 ///
 /// [attrs] are the page's `data-` attributes without the prefix. `theme` may be left out to follow the system's
@@ -62,7 +69,7 @@ class _GlacierThemeState extends State<GlacierTheme> {
       'safe-area-inset-left': '${pad.left}px',
       'safe-area-inset-right': '${pad.right}px',
     };
-    final css = CssContext(vw: media.size.width, vh: media.size.height, dpr: media.devicePixelRatio);
+    final css = CssContext(vw: media.size.width, vh: media.size.height, dpr: media.devicePixelRatio, lineDpr: debugFixturePixelRatio ?? media.devicePixelRatio);
     final key = Object.hash(widget.sheet, Object.hashAll(attrs.entries.map((e) => Object.hash(e.key, e.value))), Object.hashAll(env.values), css, media.disableAnimations, widget.typography);
     if (_tokens == null || key != _key) {
       _key = key;

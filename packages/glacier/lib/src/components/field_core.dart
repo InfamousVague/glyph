@@ -33,7 +33,7 @@ TextStyle kitFont(Tokens t, {required double fontSize, required Color color, Str
     color: color,
     decoration: TextDecoration.none,
   );
-  return face.copyWith(height: normalLineHeight(face) / fontSize);
+  return face.copyWith(height: normalLineHeight(face, dpr: t.css.lineDpr) / fontSize);
 }
 
 /// The font size text inherits where a stylesheet says `1em` and sets no size of its own: the surrounding text's, or
