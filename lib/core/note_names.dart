@@ -15,6 +15,7 @@ library;
 
 import '../notes/note_templates.dart' show formatStamp;
 import 'title_key.dart';
+import 'day_order.dart';
 
 /// Which of the four a name is (`NameKind`).
 enum NameKind { words, day, minute, week }
@@ -35,7 +36,7 @@ const List<String> _weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'F
 const List<String> _months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 /// "Monday, 28 September 2026" (`longDate`, core/stamp.ts, as en-GB answers it).
-String longDate(DateTime at) => '${_weekdays[at.weekday - 1]}, ${at.day} ${_months[at.month - 1]} ${at.year}';
+String longDate(DateTime at) => longDateWords(_weekdays[at.weekday - 1], at.day, _months[at.month - 1], at.year);
 
 /// "2026-09-28 14.05": the minute as a name, as a journal names an entry (`minuteName`).
 String minuteName(DateTime at) => formatStamp(at, 'YYYY-MM-DD HH.mm');

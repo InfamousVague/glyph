@@ -13,6 +13,8 @@
 /// lib/editor/plus/add_rows.dart `stamp`); they agree with these, word for word.
 library;
 
+import '../../core/day_order.dart';
+
 const List<String> _weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const List<String> _months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const List<String> _shortMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec'];
@@ -33,12 +35,12 @@ String stamp(DateTime date) => '${date.day} ${_shortMonths[date.month - 1]} ${da
 String clockTime(DateTime date) => '${_two(date.hour)}:${_two(date.minute)}';
 
 /// "Monday 28 September": the weekday, the day and the month, no year, as the home page greets the day.
-String longDay(DateTime date) => '${weekdayName(date)} ${date.day} ${monthName(date.month)}';
+String longDay(DateTime date) => longDayWords(weekdayName(date), date.day, monthName(date.month));
 
 /// "Monday, 28 September 2026": the weekday, the day, the month and the year, as a new note's name for the day and as
 /// a worked-out date is drawn after a blank. The model is never shown it: its message has fixed English
 /// (ai/fills/message.dart `modelDay`).
-String longDate(DateTime date) => '${weekdayName(date)}, ${date.day} ${monthName(date.month)} ${date.year}';
+String longDate(DateTime date) => longDateWords(weekdayName(date), date.day, monthName(date.month), date.year);
 
 /// "28 September": the day and the month, as the day the clocks change is said.
 String dayMonth(DateTime date) => '${date.day} ${monthName(date.month)}';

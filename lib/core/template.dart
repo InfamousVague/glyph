@@ -41,6 +41,7 @@ library;
 
 import 'front_matter.dart' show frontMatterEnd;
 import 'item_syntax.dart' show jsTrim, lineWords, listLead;
+import 'day_order.dart';
 
 // ---- core/stamp.ts ------------------------------------------------------------------------------------------------
 
@@ -53,7 +54,7 @@ const List<String> _shortMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Ju
 String _two(int n) => n.toString().padLeft(2, '0');
 
 /// "Monday 28 September": the weekday, the day and the month, no year (`longDay`).
-String longDay(DateTime at) => '${_weekdays[at.weekday - 1]} ${at.day} ${_months[at.month - 1]}';
+String longDay(DateTime at) => longDayWords(_weekdays[at.weekday - 1], at.day, _months[at.month - 1]);
 
 /// "14:05": the time on a 24-hour clock (`clockTime`).
 String clockTime(DateTime at) => '${_two(at.hour)}:${_two(at.minute)}';
