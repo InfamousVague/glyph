@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../core/preferences.dart';
+import 'iphone_page.dart';
 import '../gallery/kit_gallery.dart';
 import '../settings/settings_css.dart';
 import '../shell/root_stamps.dart';
@@ -120,7 +121,8 @@ class _GhostAppState extends State<GhostApp> with WidgetsBindingObserver {
                     'IBM Plex Sans': ['IBM Plex Sans LatinExt'],
                   },
                 ),
-                child: HapticsProvider(enabled: hapticsPref.value, child: _InkOverrides(child: _Page(child: GlacierToastProvider(child: child!)))),
+                // An iPhone's page (iphone_page.dart): what WebKit gives the real app's page and Flutter does not.
+                child: HapticsProvider(enabled: hapticsPref.value, child: _InkOverrides(child: _Page(child: IPhonePage(child: GlacierToastProvider(child: child!))))),
               ),
             ),
           ),
@@ -216,6 +218,8 @@ class _Page extends StatelessWidget {
         statusBarColor: const Color(0x00000000),
         systemNavigationBarColor: const Color(0x00000000),
         statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+        // An iPhone is told the shade of what is under its bar, and chooses its own ink for it.
+        statusBarBrightness: dark ? Brightness.dark : Brightness.light,
         systemNavigationBarIconBrightness: dark ? Brightness.light : Brightness.dark,
         systemNavigationBarContrastEnforced: false,
       ),

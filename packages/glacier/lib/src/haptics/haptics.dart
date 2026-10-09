@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -52,14 +53,18 @@ void fireMotor([HapticKind kind = HapticKind.light]) {
       HapticFeedback.mediumImpact();
     case HapticKind.heavy:
       HapticFeedback.heavyImpact();
+    // An iPhone has the three as notifications of its own, which is what the page asks it for there
+    // (`notificationFeedback(kind)`): one of them, not a rhythm of impacts laid over it.
     case HapticKind.success:
-      _pattern([HapticFeedback.lightImpact, HapticFeedback.mediumImpact], 52);
+      _notifies ? HapticFeedback.successNotification() : _pattern([HapticFeedback.lightImpact, HapticFeedback.mediumImpact], 52);
     case HapticKind.warning:
-      _pattern([HapticFeedback.mediumImpact, HapticFeedback.mediumImpact], 76);
+      _notifies ? HapticFeedback.warningNotification() : _pattern([HapticFeedback.mediumImpact, HapticFeedback.mediumImpact], 76);
     case HapticKind.error:
-      _pattern([HapticFeedback.heavyImpact, HapticFeedback.heavyImpact, HapticFeedback.heavyImpact], 62);
+      _notifies ? HapticFeedback.errorNotification() : _pattern([HapticFeedback.heavyImpact, HapticFeedback.heavyImpact, HapticFeedback.heavyImpact], 62);
   }
 }
+
+bool get _notifies => defaultTargetPlatform == TargetPlatform.iOS;
 
 void _pattern(List<Future<void> Function()> taps, int everyMs) {
   for (var i = 0; i < taps.length; i++) {

@@ -12,6 +12,7 @@ library;
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -96,6 +97,12 @@ class EditorHandles {
     final sel = _view.state.selection.main;
     final collapsed = sel.empty;
     if (collapsed && _view.state.doc.length == 0 || collapsed && !_view.state.facet(EditorViewLike.editable)) {
+      _drop();
+      return;
+    }
+    // An iPhone draws nothing under a caret (the kit's handles there are the phone's own), and a handle that is
+    // not drawn must not be left to take the touches round the caret either.
+    if (collapsed && !dragging && defaultTargetPlatform == TargetPlatform.iOS) {
       _drop();
       return;
     }
