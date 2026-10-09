@@ -2,6 +2,7 @@ package com.mattssoftware.ghost_md
 
 import android.app.Activity
 import android.content.ActivityNotFoundException
+import android.content.ClipboardManager
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -23,6 +24,11 @@ import java.util.UUID
  * - `pick` -> `{path}`, the picture shrunk and turned the right way up in `cacheDir/picked/`, for the core to adopt
  *   (`sync_put_file_path`, which moves it among the pictures); `{cancelled: true}` when none was chosen; or an error
  *   whose message is the sentence for the note.
+ * - `clipboard` -> what is on the clipboard, for the note's own Paste (its press-and-hold menu; ../glyph's
+ *   `readClipboard`): `{text}` for words, `{path}` for a picture (shrunk and turned the right way up into
+ *   `cacheDir/picked/`, the way the chooser's is, for the core to adopt), `{error}` when a picture could not be
+ *   read, `{}` when there is nothing. Since Android 10 the clipboard only answers an app that holds focus, and a
+ *   refusal reads as nothing at all.
  *
  * Android's own chooser ("Choose a picture"), which asks for no permission: the picture is read through the
  * address the chooser hands back, once, and the cache copy is the only thing this ever writes. Decoded at a sample
@@ -38,6 +44,7 @@ class Pictures(private val activity: Activity) {
     MethodChannel(messenger, CHANNEL).setMethodCallHandler { call, result ->
       when (call.method) {
         "pick" -> pick(result)
+        "clipboard" -> clipboard(result)
         else -> result.notImplemented()
       }
     }
@@ -54,6 +61,37 @@ class Pictures(private val activity: Activity) {
       asking = null
       result.error("none", "This phone has no picture picker.", null)
     }
+  }
+
+  /**
+   * The first thing on the clipboard. The call arrives on the UI thread, where the clipboard belongs; a picture is
+   * shrunk off it.
+   */
+  private fun clipboard(result: MethodChannel.Result) {
+    val clipboard = activity.getSystemService(Activity.CLIPBOARD_SERVICE) as? ClipboardManager
+    val item = clipboard?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)
+    if (item == null) {
+      result.success(emptyMap<String, Any>())
+      return
+    }
+    val uri = item.uri
+    if (uri != null && (activity.contentResolver.getType(uri) ?: "").startsWith("image/")) {
+      Thread {
+        val path = try {
+          shrink(uri).absolutePath
+        } catch (error: Exception) {
+          Log.w(TAG, "clipboard picture unreadable", error)
+          null
+        }
+        activity.runOnUiThread {
+          result.success(if (path != null) mapOf("path" to path) else mapOf("error" to "That picture couldn't be read from the clipboard."))
+        }
+      }.start()
+      return
+    }
+    val text = item.coerceToText(activity)?.toString().orEmpty()
+    if (text.isEmpty()) Log.i(TAG, "clipboard read came back empty (uri=${uri != null})")
+    result.success(if (text.isEmpty()) emptyMap<String, Any>() else mapOf("text" to text))
   }
 
   /** The chooser's answer; whether the request was this one. The shrink is off the main thread. */

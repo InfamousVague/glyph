@@ -119,6 +119,9 @@ pub use kept::recordings;
 // The reset's own lines ask `crate::library_commands` which folders are a chosen library's bookkeeping.
 pub use kept::library_commands;
 
+// kept/videos.rs names the pictures as the Tauri app's videos.rs does (`crate::images::adopt`, for a film's poster).
+pub use kept::images;
+
 #[cfg(test)]
 #[path = "../../../glyph/src-tauri/src/test_support/temp.rs"]
 pub mod test_support;

@@ -22,19 +22,23 @@
 /// fenced code is the code's words, with no card and no fold.
 ///
 /// What differs:
-/// - THE PLAYER IS A SEAM, for a later stage. The page plays the film in a `<video>` over the poster, with a line
-///   of ink along the foot as it plays, and full screen as a layer of the page (`openFullScreen`). Here the card
-///   is drawn (poster, length, disc, Full screen chip, words) and its two presses are handed to [FilmSeams]:
-///   `onPlay` and `onFullScreen`. Nothing plays in place yet, so there is no progress line, no `data-playing`
-///   (the disc never fades) and no "can’t be played on this phone" found by trying; `unplayable` and `missing`
-///   are still states a caller can put a card in through [FilmSeams.failed], which is what the page's `gone` did.
+/// - THE FILM IS THE PHONE'S PLAYER'S. The page plays the film in a `<video>` over the poster; there is no
+///   WebView here, so the card asks [FilmSeams.films] to open it ([FilmPlaying], lib/core/films.dart: on a phone
+///   a texture the phone's own player draws into) and lays its frames over the poster, the same shape, with the
+///   line of ink along the foot as it plays, the disc gone while it does (`data-playing`) and the press reading
+///   "Pause". A film that would not open, or fails as it plays, is asked about again and its card says which:
+///   gone, or not playable here (`gone`).
+/// - FULL SCREEN IS THE SAME FILM, where the page made a second element at the first one's time and handed the
+///   time back: the layer ([_FilmLayer], in the app's topmost overlay, black in both themes with its close in
+///   white) draws the card's own film, plays it, and pauses it as it closes, so the card is where the layer left
+///   it with nothing to hand back. The back gesture closes it (lib/core/back.dart).
 /// - Where the film stands (core/videos.ts `filmHere`, `filmsPlay`: a HEAD to the app's own scheme, the native
-///   generation) is the device's, and is asked through [FilmSeams.filmHere] and [FilmSeams.filmsPlay]. Without
-///   them a card says nothing and draws no disc: the poster and its length.
+///   generation) is the device's, and is asked through [FilmSeams.filmHere] and [FilmSeams.filmsPlay], or through
+///   [FilmSeams.films] where those are left out. Without any a card says nothing and draws no disc: the poster
+///   and its length. No binary is older than the films here, so `update` is said only by a caller's own seam.
 /// - `justAdded`'s scroll (keeping the caret under a card just added in sight as its poster arrives) is kept:
 ///   [filmAdded] and the poster's `onSize`.
-/// - The stylesheet's rules are cited where each is drawn. `.film`, `.progress`, `.layer` and `.close` are the
-///   player's and the full screen layer's, with their stage.
+/// - The stylesheet's rules are cited where each is drawn.
 library;
 
 import 'dart:async';
@@ -46,6 +50,8 @@ import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart';
 
 import '../../art/svg_path.dart';
+import '../../core/back.dart';
+import '../../core/films.dart';
 import '../../core/video_refs.dart';
 import '../editor.dart';
 import '../view/blocks.dart' show ClassedBlockWidget;
@@ -98,21 +104,34 @@ void filmAdded(String poster, double width, double height) {
   _justAdded.add(poster);
 }
 
-/// What the cards are told by whoever makes the editor: the device, and the player to come.
+/// What the cards are told by whoever makes the editor: the device and its player.
 class FilmSeams {
-  const FilmSeams({this.filmHere, this.filmsPlay, this.onPlay, this.onFullScreen, this.failed});
+  const FilmSeams({this.films, this.filmHere, this.filmsPlay, this.failed});
 
-  /// Where the film named stands on this device (`filmHere`).
+  /// This device's films (lib/core/films.dart): where each stands, and what plays one. Absent, nothing plays.
+  final Films? films;
+
+  /// Where the film named stands on this device (`filmHere`); [films]' own answer where it is left out.
   final Future<FilmHere> Function(String video)? filmHere;
 
-  /// Where films play at all (`filmsPlay`).
+  /// Where films play at all (`filmsPlay`); [films]' own answer where it is left out.
   final Future<FilmsPlay> Function()? filmsPlay;
 
-  /// The disc pressed: play the film, or pause it.
-  final void Function(VideoLine film)? onPlay;
+  /// `filmHere`, by the seam given or by the device.
+  Future<FilmHere> Function(String video)? get whereIs {
+    if (filmHere != null) return filmHere;
+    final films = this.films;
+    if (films == null) return null;
+    return (video) async => !films.device.plays ? FilmHere.elsewhere : (await films.isHere(video) ? FilmHere.here : FilmHere.missing);
+  }
 
-  /// Full screen pressed.
-  final void Function(VideoLine film)? onFullScreen;
+  /// `filmsPlay`, by the seam given or by the device.
+  Future<FilmsPlay> Function()? get wherePlay {
+    if (filmsPlay != null) return filmsPlay;
+    final films = this.films;
+    if (films == null) return null;
+    return () async => films.device.plays ? FilmsPlay.phone : FilmsPlay.elsewhere;
+  }
 
   /// Films that would not play after all, by name, and what their cards now say (`missing` or `unplayable`): the
   /// player says so here, and the cards listen.
@@ -121,9 +140,104 @@ class FilmSeams {
 
 final Facet<FilmSeams, FilmSeams> _seams = Facet.define<FilmSeams, FilmSeams>(combine: (values) => values.isEmpty ? const FilmSeams() : values.first);
 
-/// Lucide's marks, in the app's strokes: play and maximise.
+/// Lucide's marks, in the app's strokes: play, maximise and close.
 const List<String> _playMark = <String>['M6 3 20 12 6 21z'];
 const List<String> _fullMark = <String>['M15 3h6v6', 'M9 21H3v-6', 'M21 3l-7 7', 'M3 21l7-7'];
+const List<String> _closeMark = <String>['M18 6 6 18', 'm6 6 12 12'];
+
+/// How far a film has played, as the line along the foot (`follow`): `.progress`, scaled from the left.
+class _Progress extends StatelessWidget {
+  const _Progress({required this.film, required this.ink});
+
+  final FilmPlaying film;
+  final Color ink;
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+        child: ValueListenableBuilder<int>(
+          valueListenable: film.position,
+          builder: (context, ms, _) {
+            final done = film.durationMs > 0 ? (ms / film.durationMs).clamp(0.0, 1.0) : 0.0;
+            // '.progress': { block-size: 2px; background: var(--app-ink); transform-origin: left; transform: scaleX(…) }
+            return SizedBox(height: 2, child: FractionallySizedBox(alignment: Alignment.centerLeft, widthFactor: done, child: ColoredBox(color: ink)));
+          },
+        ),
+      );
+}
+
+/// The film full screen (`openFullScreen`): a layer over the whole app, black, the film contained in it, a tap to
+/// pause or play, and a white close. '.layer': { --film-ground: oklch(0 0 0); --film-mark: oklch(1 0 0);
+/// position: fixed; inset: 0; display: grid; place-items: center; background: var(--film-ground);
+/// animation: layerIn var(--glacier-duration-fast) var(--glacier-ease-out) }
+class _FilmLayer extends StatelessWidget {
+  const _FilmLayer({required this.film, required this.label, required this.onClose});
+
+  final FilmPlaying film;
+  final String label;
+  final VoidCallback onClose;
+
+  static const Color _ground = Color(0xFF000000);
+  static const Color _mark = Color(0xFFFFFFFF);
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final space3 = t.space(3);
+    final layer = Semantics(
+      scopesRoute: true,
+      namesRoute: true,
+      explicitChildNodes: true,
+      label: label,
+      child: ColoredBox(
+        color: _ground,
+        child: Stack(
+          children: <Widget>[
+            // '.layer .film': { position: static; max-inline-size: 100%; max-block-size: 100% }
+            Positioned.fill(
+              child: GestureDetector(
+                key: const ValueKey<String>('layer-film'),
+                behavior: HitTestBehavior.opaque,
+                onTap: () => film.playing.value ? film.pause() : film.play(),
+                child: Center(child: film.surface()),
+              ),
+            ),
+            // '.close': { position: absolute; inset-block-start: calc(var(--app-inset-top, 0px) +
+            //   var(--glacier-space-3)); inset-inline-end: calc(var(--app-safe-right, 0px) + var(--glacier-space-3));
+            //   inline-size: 2.75rem; block-size: 2.75rem; color: var(--film-mark) }
+            PositionedDirectional(
+              top: t.lenOf('var(--app-inset-top, 0px)') + space3,
+              end: t.lenOf('var(--app-safe-right, 0px)') + space3,
+              child: Semantics(
+                button: true,
+                label: 'Close',
+                child: GestureDetector(
+                  key: const ValueKey<String>('layer-close'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onClose,
+                  child: SizedBox.square(
+                    dimension: t.lenOf('2.75rem'),
+                    child: Center(child: CustomPaint(size: Size.square(t.lenOf('1.5rem')), painter: const _MarkPainter(_closeMark, _mark, filled: false))),
+                  ),
+                ),
+              ),
+            ),
+            // '.layer .progress': { display: block; inset-block-end: var(--app-safe-bottom, 0px);
+            //   background: var(--film-mark) }
+            Positioned(left: 0, right: 0, bottom: t.lenOf('var(--app-safe-bottom, 0px)'), child: _Progress(film: film, ink: _mark)),
+          ],
+        ),
+      ),
+    );
+    if (t.reducedMotion) return layer;
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: t.duration('glacier-duration-fast'),
+      curve: t.curve('glacier-ease-out'),
+      builder: (context, shown, child) => Opacity(opacity: shown, child: child),
+      child: layer,
+    );
+  }
+}
 
 class _MarkPainter extends CustomPainter {
   const _MarkPainter(this.paths, this.ink, {required this.filled});
@@ -219,13 +333,134 @@ class _VideoCardState extends State<_VideoCard> {
     _seamsNow.failed?.addListener(_onFailed);
     _plays = false;
     _asked += 1;
+    _shut?.call();
+    _letGo();
+    _started = false;
     _ask();
   }
 
   @override
   void dispose() {
     _seamsNow.failed?.removeListener(_onFailed);
+    _leaving = true;
+    _shut?.call();
+    _letGo();
     super.dispose();
+  }
+
+  // ---- the film, played ----------------------------------------------------------------------------------------
+
+  /// The card's film, once it has been asked for (`filmNow`), and the one being opened.
+  FilmPlaying? _film;
+  Future<FilmPlaying?>? _opening;
+
+  /// It has played at all: its frames are over the poster and its line is along the foot (`data-started`).
+  bool _started = false;
+
+  /// Closes the full screen layer while it is up.
+  VoidCallback? _shut;
+
+  /// The card is going: what its film says from here on is nobody's.
+  bool _leaving = false;
+
+  void _filmSaid() {
+    final film = _film;
+    if (film == null || !mounted || _leaving) return;
+    if (film.failed.value) return _gone();
+    setState(() {
+      if (film.playing.value) _started = true;
+    });
+  }
+
+  /// The card's film let go: paused, and the phone's player with it (`letGo`).
+  void _letGo() {
+    final film = _film;
+    _film = null;
+    _opening = null;
+    if (film == null) return;
+    film.playing.removeListener(_filmSaid);
+    film.failed.removeListener(_filmSaid);
+    film.close();
+  }
+
+  /// The film would not play: asked again whether it is on the phone at all, and the card says which, gone or not
+  /// playable here, and plays nothing (`gone`).
+  void _gone() {
+    final video = widget.film.video;
+    final asking = _asked;
+    _shut?.call();
+    _letGo();
+    if (mounted) setState(() => _started = false);
+    final films = _seamsNow.films;
+    unawaited(
+      (films?.stillHere(video) ?? Future<bool>.value(true)).then((here) {
+        if (asking == _asked) _say(here ? CardState.unplayable : CardState.missing);
+      }),
+    );
+  }
+
+  /// The card's film, opened the first time it is wanted (`filmNow`); null where it would not open.
+  Future<FilmPlaying?> _filmNow() {
+    final had = _film;
+    if (had != null) return Future<FilmPlaying?>.value(had);
+    return _opening ??= () async {
+      final films = _seamsNow.films;
+      if (films == null) return null;
+      final asking = _asked;
+      final FilmPlaying made;
+      try {
+        made = await films.device.open(widget.film.video);
+      } catch (_) {
+        if (mounted && asking == _asked) _gone();
+        return null;
+      }
+      // Another film in this card's place meanwhile, or the card gone: this one is nobody's.
+      if (!mounted || asking != _asked) {
+        made.close();
+        return null;
+      }
+      made.playing.addListener(_filmSaid);
+      made.failed.addListener(_filmSaid);
+      _opening = null;
+      setState(() => _film = made);
+      return made;
+    }();
+  }
+
+  /// The frame pressed: the film played, or paused.
+  Future<void> _toggle() async {
+    final film = await _filmNow();
+    if (film == null || !mounted) return;
+    film.playing.value ? film.pause() : film.play();
+  }
+
+  /// Full screen pressed: the card's own film in a layer over the app, played, until it is closed.
+  Future<void> _fullScreen() async {
+    if (_shut != null) return;
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    final film = await _filmNow();
+    if (film == null || !mounted || overlay == null || _shut != null) return;
+    final length = widget.film.ms == null ? '' : lengthText(widget.film.ms!);
+    late final OverlayEntry entry;
+    VoidCallback? off;
+    void shut() {
+      if (_shut == null) return;
+      _shut = null;
+      off?.call();
+      film.pause();
+      entry.remove();
+      entry.dispose();
+    }
+
+    entry = OverlayEntry(builder: (context) => _FilmLayer(film: film, label: length.isNotEmpty ? 'The video, $length, full screen' : 'The video, full screen', onClose: shut));
+    _shut = shut;
+    off = BackScope.of(context).onBack(() {
+      shut();
+      return true;
+    });
+    overlay.insert(entry);
+    setState(() => _started = true);
+    film.play();
   }
 
   /// Which asking an answer belongs to: one that comes back for a film the card no longer draws is dropped.
@@ -244,10 +479,10 @@ class _VideoCardState extends State<_VideoCard> {
     if (widget.mode != VideoMode.play) {
       // Nothing is asked of a still or a shared page but which device this is.
       _state = widget.mode == VideoMode.shared ? CardState.shared : CardState.quiet;
-      if (widget.mode == VideoMode.still && seams.filmsPlay != null) {
+      if (widget.mode == VideoMode.still && seams.wherePlay != null) {
         final asking = _asked;
         unawaited(
-          seams.filmsPlay!().then((where) {
+          seams.wherePlay!().then((where) {
             if (asking == _asked && where != FilmsPlay.phone) _say(where == FilmsPlay.update ? CardState.update : CardState.elsewhere);
           }),
         );
@@ -255,10 +490,10 @@ class _VideoCardState extends State<_VideoCard> {
       return;
     }
     _state = CardState.quiet;
-    if (seams.filmHere == null) return;
+    if (seams.whereIs == null) return;
     final asking = _asked;
     unawaited(
-      seams.filmHere!(widget.film.video).then((where) {
+      seams.whereIs!(widget.film.video).then((where) {
         if (asking != _asked) return;
         switch (where) {
           case FilmHere.here:
@@ -277,7 +512,11 @@ class _VideoCardState extends State<_VideoCard> {
   /// The film would not play: the card says which, gone or not playable here, and plays nothing.
   void _onFailed() {
     final said = _seamsNow.failed?.value[widget.film.video];
-    if (said != null && said != _state) _say(said);
+    if (said == null || said == _state) return;
+    _shut?.call();
+    _letGo();
+    _started = false;
+    _say(said);
   }
 
   /// The poster arrives a moment after the card is laid out, and the card grows to its size then. A film just
@@ -311,8 +550,9 @@ class _VideoCardState extends State<_VideoCard> {
     final words = videoWords(widget.mode, _state, film.ms);
     final xs = t.fontSize('xs');
     final base = t.textAt(xs, color: t.color('app-ink-2'));
-    final label = length.isNotEmpty ? 'Play the video, $length' : 'Play the video';
-    final seams = _seamsNow;
+    final film$ = _film;
+    final playing = film$?.playing.value ?? false;
+    final label = playing ? 'Pause' : (length.isNotEmpty ? 'Play the video, $length' : 'Play the video');
 
     // '.frame': { position: relative; isolation: isolate; display: inline-block; max-inline-size: 100%;
     //   vertical-align: top; border-radius: var(--glacier-radius-md); overflow: hidden;
@@ -337,10 +577,15 @@ class _VideoCardState extends State<_VideoCard> {
               waiting: SizedBox(width: t.lenOf('6rem'), height: t.lenOf('3rem')),
               onSize: _learn,
             ),
+            // '.film': { position: absolute; z-index: 0; inset: 0; inline-size: 100%; block-size: 100%;
+            //   object-fit: contain }
+            if (film$ != null && _started) Positioned.fill(key: const ValueKey<String>('film'), child: film$.surface()),
             // '.toggle': { position: absolute; inset: 0; display: grid; place-items: center; color: var(--app-ink) }
             // '.disc': { display: grid; place-items: center; inline-size: 3.25rem; block-size: 3.25rem;
             //   border-radius: var(--glacier-radius-full); background: color-mix(in srgb, var(--app-paper) 85%,
-            //   transparent); color: var(--app-ink) }   '.disc svg': { margin-inline-start: 3px }
+            //   transparent); color: var(--app-ink); transition: opacity var(--glacier-duration-fast)
+            //   var(--glacier-ease-out) }   '.disc svg': { margin-inline-start: 3px }
+            //   '.card[data-playing] .disc': { opacity: 0 }
             if (_plays)
               Positioned.fill(
                 child: Semantics(
@@ -348,9 +593,13 @@ class _VideoCardState extends State<_VideoCard> {
                   label: label,
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () => seams.onPlay?.call(film),
+                    onTap: () => unawaited(_toggle()),
                     child: Center(
-                      child: DecoratedBox(
+                      child: AnimatedOpacity(
+                        opacity: playing ? 0 : 1,
+                        duration: t.reducedMotion ? Duration.zero : t.duration('glacier-duration-fast'),
+                        curve: t.curve('glacier-ease-out'),
+                        child: DecoratedBox(
                         key: const ValueKey<String>('disc'),
                         decoration: ShapeDecoration(color: paper85, shape: const CircleBorder()),
                         child: SizedBox.square(
@@ -362,6 +611,7 @@ class _VideoCardState extends State<_VideoCard> {
                             ),
                           ),
                         ),
+                      ),
                       ),
                     ),
                   ),
@@ -402,7 +652,7 @@ class _VideoCardState extends State<_VideoCard> {
                   label: 'Full screen',
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () => seams.onFullScreen?.call(film),
+                    onTap: () => unawaited(_fullScreen()),
                     child: DecoratedBox(
                       key: const ValueKey<String>('full'),
                       decoration: ShapeDecoration(color: paper85, shape: const CircleBorder()),
@@ -416,6 +666,9 @@ class _VideoCardState extends State<_VideoCard> {
                   ),
                 ),
               ),
+            // '.progress': { position: absolute; inset-inline: 0; inset-block-end: 0 }
+            //   '.card:not([data-started]) .progress': { display: none }
+            if (film$ != null && _started) Positioned(key: const ValueKey<String>('progress'), left: 0, right: 0, bottom: 0, child: _Progress(film: film$, ink: ink)),
           ],
         ),
       ),

@@ -68,6 +68,12 @@ class MainActivity : FlutterActivity() {
     /** The phone's picture chooser, answered when its activity result arrives (Pictures.kt). */
     private val pictures = Pictures(this)
 
+    /** The phone's video picker, answered when its activity result arrives (Films.kt). */
+    private val films = Films(this)
+
+    /** The players of a note's films, let go with the activity (FilmPlayer.kt). */
+    private var film: FilmPlayer? = null
+
     /** Tells the page's binding when the activity is paused and resumed (lib/app/front_frames.dart). */
     private var front: MethodChannel? = null
 
@@ -121,6 +127,10 @@ class MainActivity : FlutterActivity() {
         position.register(messenger)
         // A picture chosen for a note, shrunk and handed over as a file (Pictures.kt; lib/core/phone_pictures.dart).
         pictures.register(messenger)
+        // A film chosen for a note, copied with its poster and handed over as files (Films.kt;
+        // lib/core/phone_films.dart), and played into a texture (FilmPlayer.kt).
+        films.register(messenger)
+        film = FilmPlayer(applicationContext, flutterEngine.renderer).also { it.register(messenger) }
         // Told when the activity leaves the front and comes back (lib/app/front_frames.dart).
         front = MethodChannel(messenger, "ghost_md/front")
         // Pick a date: the phone's own calendar (DayPick.kt; lib/core/phone_day.dart).
@@ -147,6 +157,7 @@ class MainActivity : FlutterActivity() {
         // is taken away brings the app down on Impeller's OpenGL ES (lib/app/front_frames.dart).
         front?.invokeMethod("leaving", null)
         if (resumed?.get() === this) resumed = null
+        film?.pauseAll()
         meeting?.onPause()
         super.onPause()
     }
@@ -160,6 +171,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onDestroy() {
         tape?.release()
+        film?.release()
         meeting?.onDestroy()
         super.onDestroy()
     }
@@ -176,6 +188,7 @@ class MainActivity : FlutterActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (files.onActivityResult(requestCode, resultCode, data)) return
         if (pictures.onActivityResult(requestCode, resultCode, data)) return
+        if (films.onActivityResult(requestCode, resultCode, data)) return
         meeting?.onActivityResult(requestCode, resultCode, data)
     }
 }

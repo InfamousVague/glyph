@@ -12,7 +12,9 @@ import 'core/native/core.dart';
 import 'core/native/device_paths.dart';
 import 'core/native/ghost_core.dart';
 import 'core/geocode.dart';
+import 'core/films.dart';
 import 'core/open_link.dart';
+import 'core/phone_films.dart';
 import 'core/phone_day.dart';
 import 'core/phone_pictures.dart';
 import 'core/phone_position.dart';
@@ -92,6 +94,12 @@ Future<void> main() async {
   final links = PhoneLinks();
   // And one player of a note's recording, the phone's own.
   final tapes = PhoneTapePlayer();
+  // A film in a note: the phone's picker, the core that keeps it and the phone's player (Android only, as the
+  // page's was).
+  Films? films;
+  if (core != null && defaultTargetPlatform == TargetPlatform.android) {
+    films = Films(device: PhoneFilmDevice(core), pick: phoneFilmPicker(core, kept: (video) => films?.kept(video)));
+  }
   // Where the phone is, for a note keeping its place: asked only from a press, or for a new note with tagging on.
   // The place's name is OpenStreetMap's, asked once as the app itself; so are a tagged note's tiles.
   final locator = await PhoneLocator().attach();
@@ -100,7 +108,7 @@ Future<void> main() async {
   runApp(GhostApp(
     sheet: sheet,
     home: _Runs(
-      builder: (restart) => GhostRoot(core: core, native: whole, account: account, voiceMaking: voice, links: links, openLink: openLink, previewFetch: linkPreviewFetch(), restart: restart, tapePlayer: tapes, updates: updates, locator: locator, placeLookup: placeLookup, mapTiles: mapTiles, picturePicker: phonePicturePicker, dayPicker: defaultTargetPlatform == TargetPlatform.android ? phoneDayPicker : null),
+      builder: (restart) => GhostRoot(core: core, native: whole, account: account, voiceMaking: voice, links: links, openLink: openLink, previewFetch: linkPreviewFetch(), restart: restart, tapePlayer: tapes, updates: updates, locator: locator, placeLookup: placeLookup, mapTiles: mapTiles, picturePicker: phonePicturePicker, films: films, dayPicker: defaultTargetPlatform == TargetPlatform.android ? phoneDayPicker : null),
     ),
   ));
 }

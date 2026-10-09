@@ -289,7 +289,7 @@ impl Core {
         Ok(Core { data: data.to_path_buf(), cache: cache.to_path_buf(), notes: NotesStore(Mutex::new(library)), pick: Default::default() })
     }
 
-    /// The directory `init` named for the cache. Nothing in stage 3 writes there; `picked/` will.
+    /// The directory `init` named for the cache: `picked/` is under it (a picture or a film the phone chose).
     pub fn cache_dir(&self) -> &Path {
         &self.cache
     }
@@ -395,8 +395,8 @@ impl Core {
             }
             // A folder of the person's for the library: looked into, moved into, gone back from.
             command if crate::kept::library_commands::has(command) => crate::kept::library_commands::call(&self.data, store, &self.pick, command, args),
-            // The files sync carries: a recording, a picture, a versions file (files.rs).
-            command if crate::files::has(command) => crate::files::call(&self.data, store, command, args),
+            // The files sync carries: a recording, a picture, a versions file; and a film kept (files.rs).
+            command if crate::files::has(command) => crate::files::call(&self.data, &self.cache, store, command, args),
             // A panic with the library's lock held, for the tests of what the boundary does with one.
             #[cfg(any(test, feature = "test-hooks"))]
             "test_panic" => {
@@ -421,8 +421,21 @@ fn init(args: Value) -> Result<Value, String> {
         }
         return Err(format!("Ghost.md's core is already open on {}, and cannot also open {}.", open.data.display(), data_dir.display()));
     }
-    *core = Some(Arc::new(Core::open(&data_dir, &cache_dir)?));
+    let opened = Arc::new(Core::open(&data_dir, &cache_dir)?);
+    sweep_films(&opened);
+    *core = Some(opened);
     Ok(Value::Null)
+}
+
+/// At launch, off the caller's thread: the sweep of `picked/`, and of `video/` against the library (videos.rs
+/// `install`). A film no note has named for a week goes, and a copy nobody adopted within the hour.
+fn sweep_films(core: &Arc<Core>) {
+    let core = Arc::clone(core);
+    let _ = std::thread::Builder::new().name("ghost-video-sweep".into()).spawn(move || {
+        let now = std::time::SystemTime::now();
+        crate::kept::videos::sweep_picked(&core.cache.join(crate::paths::PICKED), now);
+        crate::kept::videos::sweep(&core.data.join(crate::paths::VIDEO), now, |name| core.notes.lock().video_in_use(name).unwrap_or(true));
+    });
 }
 
 /// One command from the app, by name, with its arguments as JSON (`null` for none).

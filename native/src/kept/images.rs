@@ -1,5 +1,6 @@
-//! The pictures a deleted note takes with it, and a picture that arrives by sync: the items of
-//! `../glyph/src-tauri/src/images.rs` that `delete_note` and `sync_put_file` need, word for word.
+//! The pictures a deleted note takes with it, a picture that arrives by sync, and a film's poster adopted from
+//! the cache's `picked/`: the items of `../glyph/src-tauri/src/images.rs` that `delete_note`, `sync_put_file` and
+//! `save_video` need, word for word.
 //!
 //! images.rs cannot come in by `#[path]` as the library does: it also holds the `img` scheme and two Tauri
 //! commands, so it names `tauri::` types. What is between the marks below is copied from it unchanged, and
@@ -105,5 +106,39 @@ pub fn remove_unreferenced(images: &Path, library: &crate::library::Library, bod
         }
         let _ = std::fs::remove_file(images.join(&name));
     }
+}
+
+/// Moves a picked picture from `picked` into `images` under a fresh name, and
+/// answers the name. Refuses any path that is not a file directly inside
+/// `picked` once both are canonicalised - so a symlink or a `..` cannot
+/// adopt a file from elsewhere - and anything that is not an image by
+/// extension, or is empty or too large.
+pub fn adopt(picked: &Path, images: &Path, path: &Path) -> Result<String, String> {
+    let refuse = || "That picture could not be added.".to_string();
+    let picked = picked.canonicalize().map_err(|_| refuse())?;
+    let file = path.canonicalize().map_err(|_| refuse())?;
+    if file.parent() != Some(picked.as_path()) {
+        return Err(refuse());
+    }
+    let extension = file
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_ascii_lowercase)
+        .filter(|e| EXTENSIONS.contains(&e.as_str()))
+        .ok_or_else(refuse)?;
+    let size = std::fs::metadata(&file).map_err(|_| refuse())?.len();
+    if size == 0 || size > MAX_BYTES {
+        return Err(refuse());
+    }
+    std::fs::create_dir_all(images).map_err(|e| format!("There is no room to keep pictures: {e}"))?;
+    let name = format!("{}.{}", uuid::Uuid::new_v4(), if extension == "jpeg" { "jpg" } else { &extension });
+    let target = images.join(&name);
+    // A rename where it can be; the cache and the data directory can be on
+    // different mounts, and then it is a copy and a delete.
+    if std::fs::rename(&file, &target).is_err() {
+        std::fs::copy(&file, &target).map_err(|e| format!("The picture could not be saved: {e}"))?;
+        let _ = std::fs::remove_file(&file);
+    }
+    Ok(name)
 }
 // copied:end

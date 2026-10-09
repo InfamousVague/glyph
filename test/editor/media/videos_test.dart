@@ -1,15 +1,17 @@
-// editor/videos.test.ts, case for case where a case is about the card. The page's `<video>` and its full screen layer
-// are the player's, a later stage, and a seam here (`FilmSeams.onPlay`, `onFullScreen`, `failed`): the page's cases
-// about the element itself (the time handed back from full screen, the focus given back to Full screen, one film
-// pausing another) are that stage's. What the card does is held: when the disc is drawn, what the words say for each
-// reader, what a press is handed to, and what a film that would not play is told to say.
+// editor/videos.test.ts, case for case where a case is about the card. The page's `<video>` is the phone's player
+// here (`FilmSeams.films`, lib/core/films.dart), and a player made for the test stands for it: what the card does
+// is held: when the disc is drawn, what the words say for each reader, a press playing and pausing with the film
+// over the poster and its line along the foot, full screen as a layer that plays the card's own film and pauses it
+// as it closes, a film that would not open or failed as it played asked about again, and one let go with its card.
+// One film pausing another is the device's (test/core/phone_films_test.dart).
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/foundation.dart';
+import 'package:ghost_md/core/back.dart';
+import 'package:ghost_md/core/films.dart';
 import 'package:ghost_md/core/images.dart';
-import 'package:ghost_md/core/video_refs.dart';
 import 'package:ghost_md/editor/editor.dart';
 import 'package:ghost_md/editor/media/images.dart';
 import 'package:ghost_md/editor/media/inline_box.dart';
@@ -20,6 +22,60 @@ import 'support.dart';
 
 const String film = '[![video 0:12](image/poster.png)](video/0a1b2c3d.mp4)';
 const Key card = ValueKey<String>('cm-videoCard'), disc = ValueKey<String>('disc'), full = ValueKey<String>('full'), words = ValueKey<String>('words');
+
+/// A film open on a player that plays nothing: what it was told, in order.
+class FakeFilm implements FilmPlaying {
+  final ValueNotifier<bool> on = ValueNotifier<bool>(false), broke = ValueNotifier<bool>(false);
+  final ValueNotifier<int> at = ValueNotifier<int>(0);
+  final List<String> told = <String>[];
+
+  @override
+  Widget surface() => const SizedBox(key: ValueKey<String>('frames'));
+  @override
+  ValueListenable<bool> get playing => on;
+  @override
+  ValueListenable<int> get position => at;
+  @override
+  int get durationMs => 12000;
+  @override
+  ValueListenable<bool> get failed => broke;
+  @override
+  void play() {
+    told.add('play');
+    on.value = true;
+  }
+
+  @override
+  void pause() {
+    told.add('pause');
+    on.value = false;
+  }
+
+  @override
+  void seek(int ms) => at.value = ms;
+  @override
+  void close() => told.add('close');
+}
+
+/// A phone with the film on it, unless told otherwise.
+class FakeDevice implements FilmDevice {
+  FakeDevice({this.present = true, this.opens = true});
+
+  bool present, opens;
+  final List<FakeFilm> opened = <FakeFilm>[];
+
+  @override
+  bool get plays => true;
+  @override
+  Future<bool> here(String video) async => present;
+  @override
+  Future<FilmPlaying> open(String video) async {
+    if (!opens) throw StateError('no');
+    final film = FakeFilm();
+    opened.add(film);
+    return film;
+  }
+}
 
 String? said(WidgetTester tester) => tester.widgetList<InlineWords>(find.byKey(words)).map((w) => w.text).firstOrNull;
 
@@ -128,15 +184,103 @@ void main() {
   });
 
   group('playing', () {
-    testWidgets('hands a tap on the frame to the player, and Full screen to the layer', (tester) async {
-      final played = <VideoLine>[], fulls = <VideoLine>[];
-      await pumpNote(tester, film, more: <Extension>[videoCards(VideoMode.play, seams: FilmSeams(filmHere: (_) async => FilmHere.here, onPlay: played.add, onFullScreen: fulls.add))]);
+    const Key frames = ValueKey<String>('film'), progress = ValueKey<String>('progress');
+
+    testWidgets('plays and pauses on a press of the frame, the film over its poster and its line along the foot', (tester) async {
+      final device = FakeDevice();
+      await pumpNote(tester, film, more: <Extension>[videoCards(VideoMode.play, seams: FilmSeams(films: Films(device: device)))]);
+      await settle(tester);
+      // Asked of the device: here, so the disc; nothing opened until it is wanted.
+      expect(find.byKey(disc), findsOneWidget);
+      expect(device.opened, isEmpty);
+      expect(find.byKey(frames), findsNothing);
+      expect(find.byKey(progress), findsNothing);
+      expect(find.bySemanticsLabel('Play the video, 0:12'), findsOneWidget);
+
+      await tester.tap(find.byKey(disc));
+      await settle(tester);
+      final playing = device.opened.single;
+      expect(playing.told, <String>['play']);
+      expect(find.byKey(frames), findsOneWidget);
+      expect(find.byKey(progress), findsOneWidget);
+      expect(find.bySemanticsLabel('Pause'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.widget<AnimatedOpacity>(find.ancestor(of: find.byKey(disc), matching: find.byType(AnimatedOpacity))).opacity, 0);
+
+      // Half way: the line is half the frame.
+      playing.at.value = 6000;
+      await tester.pump();
+      final line = find.descendant(of: find.byKey(progress), matching: find.byType(FractionallySizedBox));
+      expect(tester.widget<FractionallySizedBox>(line).widthFactor, 0.5);
+
+      await tester.tap(find.byKey(disc), warnIfMissed: false);
+      await settle(tester);
+      expect(playing.told, <String>['play', 'pause']);
+      expect(device.opened, hasLength(1), reason: 'the same film, not another');
+      expect(find.byKey(frames), findsOneWidget, reason: 'paused where it stopped, not back to the poster');
+      expect(find.bySemanticsLabel('Play the video, 0:12'), findsOneWidget);
+
+      // Its card gone, the film is let go.
+      await tester.pumpWidget(const SizedBox());
+      expect(playing.told.last, 'close');
+    });
+
+    testWidgets('goes full screen as a layer that plays the card’s own film, and pauses it as it closes or on back', (tester) async {
+      final device = FakeDevice();
+      await pumpNote(tester, film, more: <Extension>[videoCards(VideoMode.play, seams: FilmSeams(films: Films(device: device)))]);
+      await settle(tester);
+      await tester.tap(find.byKey(full));
+      await settle(tester);
+      await tester.pump(const Duration(milliseconds: 300));
+      final playing = device.opened.single;
+      expect(playing.told, <String>['play']);
+      expect(find.bySemanticsLabel('The video, 0:12, full screen'), findsOneWidget);
+      // A tap on the film pauses and plays it.
+      await tester.tap(find.byKey(const ValueKey<String>('layer-film')));
+      expect(playing.told, <String>['play', 'pause']);
+      await tester.tap(find.byKey(const ValueKey<String>('layer-film')));
+      expect(playing.told, <String>['play', 'pause', 'play']);
+      await tester.tap(find.byKey(const ValueKey<String>('layer-close')));
+      await settle(tester);
+      expect(playing.told.last, 'pause');
+      expect(find.byKey(const ValueKey<String>('layer-film')), findsNothing);
+      expect(find.byKey(frames), findsOneWidget, reason: 'the card is where the layer left it');
+      expect(device.opened, hasLength(1));
+
+      // Again, and the back gesture closes it.
+      await tester.tap(find.byKey(full));
+      await settle(tester);
+      expect(find.byKey(const ValueKey<String>('layer-film')), findsOneWidget);
+      expect(backStack.goBack(), isTrue);
+      await settle(tester);
+      expect(find.byKey(const ValueKey<String>('layer-film')), findsNothing);
+      expect(playing.told.last, 'pause');
+    });
+
+    testWidgets('asks again about a film that would not open, or failed as it played, and says which', (tester) async {
+      final device = FakeDevice(opens: false);
+      await pumpNote(tester, film, more: <Extension>[videoCards(VideoMode.play, seams: FilmSeams(films: Films(device: device)))]);
       await settle(tester);
       await tester.tap(find.byKey(disc));
-      expect(played.single.video, '0a1b2c3d.mp4');
-      await tester.tap(find.byKey(full));
-      expect(fulls.single.poster, 'poster.png');
-      expect(played, hasLength(1));
+      await settle(tester);
+      await tester.pump();
+      expect(said(tester), 'This video can’t be played on this phone.');
+      expect(find.byKey(disc), findsNothing);
+
+      final other = FakeDevice();
+      await pumpNote(tester, film, more: <Extension>[videoCards(VideoMode.play, seams: FilmSeams(films: Films(device: other)))]);
+      await settle(tester);
+      await tester.tap(find.byKey(disc));
+      await settle(tester);
+      // Gone from the phone as it played.
+      other.present = false;
+      other.opened.single.broke.value = true;
+      await settle(tester);
+      await tester.pump();
+      expect(said(tester), 'This video isn’t on this phone.');
+      expect(find.byKey(disc), findsNothing);
+      expect(find.byKey(frames), findsNothing);
+      expect(other.opened.single.told.last, 'close');
     });
 
     testWidgets('says the film is gone, or cannot be played here, when the player says it would not play after all', (tester) async {

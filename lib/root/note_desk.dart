@@ -41,8 +41,11 @@
 /// - **A picture is added from the phone's chooser** ([NoteDeskWorld.pickPicture], lib/core/phone_pictures.dart):
 ///   the band's Add image, the +'s Picture and a canvas's picture card, each offered only where there is a
 ///   chooser. What goes wrong is said as a toast, where the page says it on the note's own line. A picture copied
-///   to the clipboard is not pasted in (`onPasteImage`: nothing here reads the clipboard's picture).
-/// - **No film is added** from the + (`AddConfig.onVideo`): nothing here picks, keeps or plays one.
+///   to the clipboard is pasted in by the band's Paste, read by the phone's own reader ([PhoneClipboard]).
+/// - **A film is added from the phone's picker** ([NoteDeskWorld.films], lib/core/phone_films.dart): the +'s A
+///   video, offered only where there is a picker, its place kept from the tap, "Adding the video." said a moment
+///   after its copy starts, and a film copied for a note that was left thrown away (`addVideo`). Its card plays
+///   it where it is on this phone (`VideoMode.play`), by the phone's own player.
 /// - **A voice memo left in a spoken note is played where it sits** (lib/editor/media/clips.dart): the editor is
 ///   told the note's tape ([tapeSource], in a compartment so a take added or the recording removed is followed) and
 ///   given the app's one player as its [MediaSeams.clipPlayer] (lib/tapes/clip_player.dart).
@@ -102,6 +105,7 @@ import '../canvas/canvas_view.dart';
 import '../capture/landing.dart';
 import '../core/book.dart';
 import '../core/canvas_body.dart';
+import '../core/films.dart';
 import '../core/images.dart';
 import '../core/geotag.dart' show GeoTag;
 import '../core/link_preview.dart' show LinkOpener, LinkPreviewer, noLinkPreviews;
@@ -109,6 +113,7 @@ import '../core/location.dart' show LocateFailure, MapsApp, openPlace, tagOf, wh
 import '../core/place_tags.dart' show PlaceTags;
 import '../editor/commands/inserts.dart' show insertLineAt, nameLater, releaseSpot, reserveSpot, spotAt;
 import '../core/place_refs.dart' as place_refs;
+import '../core/video_refs.dart' show videoMarkdown;
 import '../core/note.dart';
 import '../core/note_text.dart';
 import '../core/preferences.dart';
@@ -227,6 +232,7 @@ class NoteDeskWorld {
     this.onSpeak,
     this.ai,
     this.pickPicture,
+    this.films,
     this.dayPicker,
     this.mapTiles,
     this.tags,
@@ -327,6 +333,10 @@ class NoteDeskWorld {
   /// Lets the person choose a picture, keeps it and answers its name (lib/core/phone_pictures.dart); absent, no
   /// picture can be added.
   final PicturePicker? pickPicture;
+
+  /// This phone's films (lib/core/films.dart): the picker where there is one, where each film stands and what
+  /// plays it. Absent, a film's line is its poster and its length, and none is added.
+  final Films? films;
 
   /// The calendar Pick a date opens (lib/core/phone_day.dart); absent, no such row.
   final DayPicker? dayPicker;
@@ -527,9 +537,12 @@ class NoteDeskState extends State<NoteDesk> {
         onOpenPlace: _openPlace,
         mapTiles: _world.mapTiles,
         clipPlayer: _clips,
+        films: FilmSeams(films: _world.films),
       ),
       // A place in the words draws its map under its line, as the note's own tag does at its top.
       places: PlaceMode.live,
+      // A film plays in its note's own screen, where it is on this phone.
+      videos: _world.films == null ? VideoMode.still : VideoMode.play,
     ),
     // The note's recording, for the voice memos in it: changed when a take is added or the recording removed.
     _tapeSlot.of(tapeSource.of(_tapeFor = _memoTape())),
@@ -849,6 +862,7 @@ class NoteDeskState extends State<NoteDesk> {
           databases: _world.queryNotes != null,
           tickets: _world.tickets != null,
           onPicture: _pictures == null ? null : () => unawaited(_pictures.addPhoto()),
+          onVideo: _world.films?.pick == null || widget.readOnly || view == null ? null : () => unawaited(_addVideo(view)),
           // A row that can never work is not drawn: only where the phone can say where it is at all.
           onPlace: _world.tags != null && _world.tags!.locations.cannotLocateHere == null && view != null ? () => unawaited(_addPlace(view)) : null,
         ),
@@ -860,6 +874,9 @@ class NoteDeskState extends State<NoteDesk> {
           formats: bandFormats,
           fields: bandFields,
           onAddImage: _pictures?.addPhoto,
+          // The phone's own reader, which copies a picture out of the clipboard for the note to adopt.
+          clipboard: const band.PhoneClipboard(),
+          onPasteImage: _pictures?.pasteImage,
           boards: true,
           child: page,
         ),
@@ -1005,6 +1022,54 @@ class NoteDeskState extends State<NoteDesk> {
       if (write != null) editor.dispatch(write);
     }
     letGo();
+  }
+
+  /// A film from the + beside the line (NoteScreen.tsx `addVideo`): picked with the phone's picker, copied with its
+  /// poster and kept, then written as a line of its own where the caret was, its poster linked to it, which draws
+  /// its card. The place is kept from the tap, since the picker leaves the app and a long film takes a while to
+  /// copy; "Adding the video." says so a moment after the copy starts, and not while the picker is still up. A
+  /// film copied for a note that was left, or whose place went, is thrown away rather than kept for nothing.
+  Future<void> _addVideo(EditorView editor) async {
+    final films = _world.films;
+    final pick = films?.pick;
+    if (pick == null) return;
+    final toasts = _toasts;
+    final haptics = HapticsProvider.of(context);
+    final kept = reserveSpot(editor.state);
+    editor.dispatch(kept.tr);
+    final spot = kept.spot;
+    var said = false;
+    Timer? slow;
+    void copying() {
+      slow?.cancel();
+      slow = Timer(const Duration(milliseconds: 600), () {
+        said = true;
+        toasts?.toast(message: const Text('Adding the video.'), duration: const Duration(days: 1));
+      });
+    }
+
+    void quiet() {
+      slow?.cancel();
+      if (said) toasts?.dismiss();
+    }
+
+    bool wanted() => mounted && identical(_view, editor) && spotAt(editor.state, spot) != null;
+    try {
+      final film = await pick(keep: wanted, copying: copying);
+      quiet();
+      if (film == null || !wanted()) return;
+      filmAdded(film.poster, film.width, film.height);
+      final landed = insertLineAt(editor.state, spot, videoMarkdown(film.poster, film.video, film.ms), userEvent: 'input.plus.drawn', apart: true);
+      editor.dispatch(landed.tr);
+      haptics(HapticKind.light);
+    } catch (failure) {
+      quiet();
+      if (!mounted) return;
+      haptics(HapticKind.warning);
+      widget.say(failureWords(failure));
+    } finally {
+      if (mounted && identical(_view, editor)) editor.dispatch(releaseSpot(editor.state, spot));
+    }
   }
 
   /// The map at the top of a tagged note (editor/MapCard.tsx as NoteScreen.tsx draws it).

@@ -22,6 +22,7 @@ import '../book/entry_starts.dart' show pageBody;
 import '../book/journal.dart' as journal;
 import '../book/template_picker.dart' show EntryPlaceDevice;
 import '../core/location.dart' show Locations, Locator, PlaceLookup;
+import '../core/films.dart' show Films;
 import '../core/phone_pictures.dart' show corePictureAdopter;
 import '../core/place_tags.dart';
 import '../editor/items/field_menu.dart' show DayPicker;
@@ -158,7 +159,7 @@ import 'voice_wiring.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.dayPicker});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -222,6 +223,10 @@ class GhostRoot extends StatefulWidget {
   /// The phone's picture chooser, given what keeps a chosen picture among the library's
   /// (lib/core/phone_pictures.dart `phonePicturePicker`). Absent, as in a test, no picture can be added.
   final PicturePicker Function(PictureAdopter adopt)? picturePicker;
+
+  /// This phone's films: its picker, where each film stands and its player (lib/core/phone_films.dart). Absent, as
+  /// in a test, a film in a note is its poster and none can be added.
+  final Films? films;
 
   /// The calendar Pick a date opens (lib/core/phone_day.dart on a phone). Absent, a date is Today, Tomorrow or
   /// Next week.
@@ -1206,6 +1211,7 @@ class _GhostRootState extends State<GhostRoot> {
     takeJump: (id) => _jumps.remove(id),
     bodyOf: (title) => _reads.titled(title)?.body,
     pictures: _pictures,
+    films: widget.films,
     services: _services,
     changes: _libraryChanges,
     queryNotes: () => _reads.queryNotes,

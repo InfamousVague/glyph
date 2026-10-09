@@ -14,11 +14,20 @@
 //! | `file_path` | `{kind, name}` | `{path, bytes}`, or `null` |
 //! | `file_digest` | `{kind, name}` | the first sixteen bytes of its SHA-256 as hex, or `null` |
 //! | `file_exists` | `{kind, name}` | whether this device has it |
+//! | `save_video` | `{path, poster}` | `{video, poster}`. The Tauri command of that name: a film and its poster adopted from the cache's `picked/` |
+//! | `discard_picked` | `{path}` | `null`. The Tauri command of that name: a picked file nobody will name, thrown away |
 //!
 //! `kind` is `recording` (by note id), `image` (by its own name) or, for the three that read, `versions` (by note
 //! id): a versions file lies beside its note wherever the library is, a folder chosen through Android's picker
 //! included, so it has no path to give and is read through the library, under its lock. Pictures and recordings
 //! take no lock: they are the app's own files, written whole or not at all.
+//!
+//! A film is `video` (by its own name), and only where it lies and whether it is here are answered
+//! (`file_path`, `file_exists`): it stays on the phone it was added on (kept/videos.rs), so sync never reads,
+//! writes or fingerprints one, and those commands refuse the kind. The page asked whether a film was here with a
+//! HEAD to its `vid` scheme and played it from there; the Flutter app asks `file_exists` and hands the phone's
+//! player the file's name. `save_video` adopts from `<cache>/picked/` and nowhere else, all or nothing, and both
+//! film commands sweep what has waited there for over an hour, as the Tauri commands do.
 //!
 //! A name is checked before it becomes a path, by the Tauri app's own rules (kept/images.rs `valid_name`,
 //! kept/recordings.rs `recording_file`): one that is not a plain name answers `null` to a read and an `Err` to a
@@ -33,7 +42,7 @@ use serde_json::{json, Value};
 use crate::dispatch::NotesStore;
 use crate::kept::recordings::recording_file;
 
-const COMMANDS: [&str; 6] = ["sync_put_file", "sync_put_file_path", "read_file", "file_path", "file_digest", "file_exists"];
+const COMMANDS: [&str; 8] = ["sync_put_file", "sync_put_file_path", "read_file", "file_path", "file_digest", "file_exists", "save_video", "discard_picked"];
 
 /// Whether `command` is one of this module's.
 pub fn has(command: &str) -> bool {
@@ -55,6 +64,17 @@ struct PutPath {
 }
 
 #[derive(Deserialize)]
+struct SaveVideo {
+    path: PathBuf,
+    poster: PathBuf,
+}
+
+#[derive(Deserialize)]
+struct Discard {
+    path: PathBuf,
+}
+
+#[derive(Deserialize)]
 struct Named {
     kind: String,
     name: String,
@@ -71,6 +91,11 @@ fn kept_path(data: &Path, kind: &str, name: &str) -> Result<Option<PathBuf>, Str
         "recording" => Ok(recording_file(&data.join(crate::paths::RECORDINGS), name)),
         _ => Err(format!("Nothing is kept as {kind}.")),
     }
+}
+
+/// Where a film lies, whether or not it is there; `None` for a name that may not name one.
+fn film_path(data: &Path, name: &str) -> Option<PathBuf> {
+    crate::kept::videos::valid_name(name).then(|| data.join(crate::paths::VIDEO).join(name))
 }
 
 /// The file that is there, with its length.
@@ -138,9 +163,19 @@ fn versions(notes: &NotesStore, id: &str) -> Result<Option<String>, String> {
     notes.lock().read_versions(id).map_err(|e| e.to_string())
 }
 
-/// One of this module's commands, given the app's data directory and its library.
-pub fn call(data: &Path, notes: &NotesStore, command: &str, args: Value) -> Result<Value, String> {
+/// One of this module's commands, given the app's data and cache directories and its library.
+pub fn call(data: &Path, cache: &Path, notes: &NotesStore, command: &str, args: Value) -> Result<Value, String> {
     match command {
+        "save_video" => {
+            let SaveVideo { path, poster } = read(command, args)?;
+            let picked = cache.join(crate::paths::PICKED);
+            let saved = crate::kept::videos::save_video(&picked, &data.join(crate::paths::VIDEO), &data.join(crate::paths::IMAGES), &path, &poster)?;
+            serde_json::to_value(saved).map_err(|e| e.to_string())
+        }
+        "discard_picked" => {
+            let Discard { path } = read(command, args)?;
+            crate::kept::videos::discard_picked(&cache.join(crate::paths::PICKED), &path).map(|()| Value::Null)
+        }
         "sync_put_file" => {
             let Put { kind, name, base64 } = read(command, args)?;
             put(data, &kind, &name, &base64).map(|()| Value::Null)
@@ -163,6 +198,9 @@ pub fn call(data: &Path, notes: &NotesStore, command: &str, args: Value) -> Resu
             if kind == "versions" {
                 return Err("A versions file is read, never sealed where it lies: it may be in a folder that has no path.".to_string());
             }
+            if kind == "video" {
+                return Ok(json!(present(film_path(data, &name)).map(|(path, bytes)| json!({ "path": path.display().to_string(), "bytes": bytes }))));
+            }
             Ok(json!(present(kept_path(data, &kind, &name)?).map(|(path, bytes)| json!({ "path": path.display().to_string(), "bytes": bytes }))))
         }
         "file_digest" => {
@@ -176,6 +214,9 @@ pub fn call(data: &Path, notes: &NotesStore, command: &str, args: Value) -> Resu
             let Named { kind, name } = read(command, args)?;
             if kind == "versions" {
                 return Ok(json!(versions(notes, &name)?.is_some()));
+            }
+            if kind == "video" {
+                return Ok(json!(present(film_path(data, &name)).is_some()));
             }
             Ok(json!(present(kept_path(data, &kind, &name)?).is_some()))
         }
@@ -207,7 +248,7 @@ mod tests {
         }
 
         fn ask(&self, command: &str, args: Value) -> Result<Value, String> {
-            call(&self.root, &self.notes, command, args)
+            call(&self.root, &self.root.join("cache"), &self.notes, command, args)
         }
     }
 
@@ -295,5 +336,48 @@ mod tests {
         assert_eq!(phone.ask("read_file", json!({"kind": "versions", "name": "nobody"})), Ok(Value::Null));
         assert!(phone.ask("file_path", json!({"kind": "versions", "name": "n1"})).unwrap_err().starts_with("A versions file is read"));
         assert!(has("sync_put_file") && has("file_digest") && !has("seal_file"));
+    }
+
+    const MP4: &[u8] = b"\0\0\0\x18ftypmp42\0\0\0\0 and the rest of a film";
+
+    #[test]
+    fn a_picked_film_and_its_poster_are_kept_and_only_from_the_picked_folder() {
+        let phone = Phone::new();
+        let picked = phone.root.join("cache/picked");
+        std::fs::create_dir_all(&picked).unwrap();
+        std::fs::write(picked.join("p.mp4"), MP4).unwrap();
+        std::fs::write(picked.join("p.jpg"), JPEG).unwrap();
+        let saved = phone.ask("save_video", json!({"path": picked.join("p.mp4"), "poster": picked.join("p.jpg")})).unwrap();
+        let (video, poster) = (saved["video"].as_str().unwrap(), saved["poster"].as_str().unwrap());
+        assert!(crate::kept::videos::valid_name(video) && video.ends_with(".mp4"), "{saved}");
+        assert!(crate::kept::images::valid_name(poster) && poster.ends_with(".jpg"), "{saved}");
+        assert_eq!(std::fs::read(phone.root.join("video").join(video)).unwrap(), MP4);
+        assert_eq!(std::fs::read(phone.root.join("images").join(poster)).unwrap(), JPEG);
+        assert!(!picked.join("p.mp4").exists() && !picked.join("p.jpg").exists(), "moved, not copied");
+
+        // Where it lies and whether it is here, and nothing sync would ask of it.
+        assert_eq!(phone.ask("file_exists", json!({"kind": "video", "name": video})), Ok(json!(true)));
+        let at = phone.ask("file_path", json!({"kind": "video", "name": video})).unwrap();
+        assert_eq!((at["path"].as_str(), at["bytes"].as_u64()), (Some(phone.root.join("video").join(video).to_str().unwrap()), Some(MP4.len() as u64)));
+        assert_eq!(phone.ask("file_exists", json!({"kind": "video", "name": "nobody.mp4"})), Ok(json!(false)));
+        assert_eq!(phone.ask("file_exists", json!({"kind": "video", "name": "../video/x.mp4"})), Ok(json!(false)));
+        for command in ["read_file", "file_digest"] {
+            assert_eq!(phone.ask(command, json!({"kind": "video", "name": video})), Err("Nothing is kept as video.".into()), "{command}");
+        }
+        assert_eq!(phone.ask("sync_put_file", json!({"kind": "video", "name": video, "base64": ""})), Err("Nothing is kept as video.".into()));
+
+        // A film that is not one takes its poster with it; a file elsewhere is neither adopted nor thrown away.
+        std::fs::write(picked.join("q.mp4"), b"not a film").unwrap();
+        std::fs::write(picked.join("q.jpg"), JPEG).unwrap();
+        assert_eq!(phone.ask("save_video", json!({"path": picked.join("q.mp4"), "poster": picked.join("q.jpg")})), Err("The video couldn’t be kept.".into()));
+        assert!(!picked.join("q.mp4").exists() && !picked.join("q.jpg").exists());
+        assert_eq!(std::fs::read_dir(phone.root.join("images")).unwrap().count(), 1);
+        std::fs::write(phone.root.join("elsewhere.mp4"), MP4).unwrap();
+        assert_eq!(phone.ask("discard_picked", json!({"path": phone.root.join("elsewhere.mp4")})), Err("That is not a picked file.".into()));
+        assert!(phone.root.join("elsewhere.mp4").exists());
+        std::fs::write(picked.join("r.mp4"), MP4).unwrap();
+        assert_eq!(phone.ask("discard_picked", json!({"path": picked.join("r.mp4")})), Ok(Value::Null));
+        assert!(!picked.join("r.mp4").exists());
+        assert_eq!(phone.ask("discard_picked", json!({"path": picked.join("gone.mp4")})), Ok(Value::Null));
     }
 }

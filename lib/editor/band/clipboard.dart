@@ -11,6 +11,9 @@
 ///   Android activity's did) hands the band that instead, and a test hands it a clipboard it made;
 /// - [SystemClipboard] is Flutter's, which reads words alone: it never answers a `path`. A read that answers with
 ///   nothing is an empty clipboard (`read` true); a read that throws is the caller's to answer, as the browser's;
+/// - [PhoneClipboard] is the activity's reader again (android/…/ghost_md/Pictures.kt `clipboard`, the page's
+///   `GlyphHost.readClipboard`): words, or a picture copied out by path for the note to adopt. Where there is no
+///   phone half it reads as [SystemClipboard] does;
 /// - `writeClipboard`'s fall back to `document.execCommand('copy')` has nothing to stand for here.
 library;
 
@@ -59,4 +62,24 @@ class SystemClipboard extends BandClipboard {
 
   @override
   Future<void> write(String words) => Clipboard.setData(ClipboardData(text: words));
+}
+
+/// The phone's clipboard read by the activity, which can copy a picture out of it: `{text}`, `{path}`, `{error}`
+/// or nothing, as the page's bridge answered. Words are written through Flutter's own.
+class PhoneClipboard extends SystemClipboard {
+  const PhoneClipboard({this.channel = const MethodChannel('ghost_md/pictures')});
+
+  final MethodChannel channel;
+
+  @override
+  Future<ClipRead> read() async {
+    final Map<String, Object?>? said;
+    try {
+      said = await channel.invokeMapMethod<String, Object?>('clipboard');
+    } on MissingPluginException {
+      return super.read();
+    }
+    String? text(String key) => said?[key] is String && (said![key] as String).isNotEmpty ? said[key] as String : null;
+    return (clip: Clip(text: text('text'), path: text('path'), error: text('error')), read: true);
+  }
 }
