@@ -602,7 +602,7 @@ class AppShellState extends State<AppShell> {
                       // One window or two panes, the place is the same child of the same row: a phone folded open or
                       // shut keeps the screen it had - its scroll, its caret, what was typed - where the page made
                       // the note again in another part of the tree.
-                      _panes(context, dockShown: split && dockShown, aside: split && asideDocked ? aside : null),
+                      _panes(context, split: split, dockShown: split && dockShown, aside: split && asideDocked ? aside : null),
                     if (tabBar) _bar(context, docked: docked, sidebarShown: sidebarShown, quietBar: quietBar, asideHolds: asideHolds),
                     // The notifications, a card at the right under the bell.
                     if (_notificationsOpen)
@@ -655,33 +655,39 @@ class AppShellState extends State<AppShell> {
   /// `.app-split`: the notes in a phone-width column on the left, the open note in the rest, the aside in a third
   /// column. Each pane is its screen as it is on a phone, sized to its column. With neither column it is the place alone,
   /// the whole window, as a phone has it.
-  Widget _panes(BuildContext context, {required bool dockShown, required Widget? aside}) {
+  ///
+  /// The panes wear the page's class while the window is split, for the rules that ask for it: an editor's room
+  /// under its last line is `.app-split`'s (editor/looks/look.dart `LookEnv.splitRoom`).
+  Widget _panes(BuildContext context, {required bool split, required bool dockShown, required Widget? aside}) {
     final t = context.tokens;
     final window = MediaQuery.sizeOf(context).width;
     final rule = BorderSide(color: t.color('glacier-border-subtle'));
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (dockShown)
-          Semantics(
-            container: true,
-            explicitChildNodes: true,
-            label: 'All notes',
-            child: Container(
-              width: sidebarColumn(window),
-              decoration: BoxDecoration(border: Border(right: rule)),
-              child: ClipRect(child: widget.dockedSidebarBuilder?.call(context, this) ?? PanePlaceholder(what: 'the notes, docked', notes: notes, onOpen: openNote)),
+    return GlacierScope(
+      classes: split ? const {'app-split'} : const {},
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (dockShown)
+            Semantics(
+              container: true,
+              explicitChildNodes: true,
+              label: 'All notes',
+              child: Container(
+                width: sidebarColumn(window),
+                decoration: BoxDecoration(border: Border(right: rule)),
+                child: ClipRect(child: widget.dockedSidebarBuilder?.call(context, this) ?? PanePlaceholder(what: 'the notes, docked', notes: notes, onOpen: openNote)),
+              ),
             ),
-          ),
-        Expanded(key: const ValueKey('pane:place'), child: ClipRect(child: _place(context))),
-        if (aside != null)
-          Semantics(
-            container: true,
-            explicitChildNodes: true,
-            label: 'Side panel',
-            child: Container(width: asideColumn(window), decoration: BoxDecoration(border: Border(left: rule)), child: ClipRect(child: aside)),
-          ),
-      ],
+          Expanded(key: const ValueKey('pane:place'), child: ClipRect(child: _place(context))),
+          if (aside != null)
+            Semantics(
+              container: true,
+              explicitChildNodes: true,
+              label: 'Side panel',
+              child: Container(width: asideColumn(window), decoration: BoxDecoration(border: Border(left: rule)), child: ClipRect(child: aside)),
+            ),
+        ],
+      ),
     );
   }
 

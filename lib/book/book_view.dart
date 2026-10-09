@@ -745,7 +745,9 @@ class _BookWordsState extends State<BookWords> {
       dark: t.isDark,
       tabSize: _view.state.tabSize,
       contentTop: 0,
-      contentBottom: 0,
+      // None on a phone. On the split layout the page's rule for the room under a note's last line beats the
+      // preface's own, and the index starts that much lower (38px on the Fold opened, measured on the page).
+      contentBottom: LookEnv.splitRoom(t) ?? 0,
     );
     return CssFlow.block(
       // `margin-block: var(--glacier-space-2) var(--glacier-space-4)`

@@ -82,6 +82,7 @@ import '../book/journal.dart' show JournalWriter;
 import '../ai/note_review.dart' show onReviewHandedBack;
 import '../core/location.dart' show whyLocateFailed;
 import '../editor/editor.dart';
+import '../editor/looks/look.dart' show LookEnv;
 import '../editor/media/map_card.dart' show MapPicture, MapSize;
 import '../editor/view/editor_view.dart';
 import '../editor/view/view_mode.dart';
@@ -1364,9 +1365,9 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
                 cards: cards ? TemplateCards(at: widget.clock?.call() ?? DateTime.now(), taken: widget.takenTitles, onChoose: startFrom, templates: widget.templates, onYours: widget.onTemplates, localOnly: prefs.localOnly, canLocate: _tags != null && _tags!.locations.cannotLocateHere == null, refused: _refusalStands ? _tags?.allowLocationWhere() : null, mapHeader: _tags == null ? null : (context) => const MapPicture(size: MapSize.header, pin: true)) : null,
               ),
             ),
-          // `.cm-content { padding-block-end: var(--glacier-space-24) }`, taken from the editor while the offers are
-          // drawn, and `.body { padding-block-end: var(--app-safe-bottom) }`.
-          SliverToBoxAdapter(child: SizedBox(height: (offered != null ? t.space(24) : 0) + t.len('app-safe-bottom'))),
+          // `.cm-content { padding-block-end: var(--glacier-space-24) }` (the split layout's `space-8`), taken from
+          // the editor while the offers are drawn, and `.body { padding-block-end: var(--app-safe-bottom) }`.
+          SliverToBoxAdapter(child: SizedBox(height: (offered != null ? LookEnv.roomUnder(t) : 0) + t.len('app-safe-bottom'))),
           if (_words && seams.tail != null)
             for (final row in seams.tail!(context)) SliverToBoxAdapter(child: row),
           if (book != null && seams.bookFoot != null) SliverToBoxAdapter(child: seams.bookFoot!(context, book)),

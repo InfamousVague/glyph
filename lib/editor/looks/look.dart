@@ -107,7 +107,7 @@ class LookEnv {
     double? contentTop,
     double? contentBottom,
   }) : contentTop = layoutUnitFloor(contentTop ?? t.space(5)),
-       contentBottom = layoutUnitFloor(contentBottom ?? t.space(24)),
+       contentBottom = layoutUnitFloor(contentBottom ?? roomUnder(t)),
        code = CodeTheme.of(t),
        noteFamilies = _families(t, 'app-note-font', attrs),
        monoFamilies = _families(t, 'glacier-font-mono', const <String, String>{}),
@@ -160,6 +160,20 @@ class LookEnv {
   /// first line and under the last. A card's preview has none; the split layout a paragraph's worth below.
   final double contentTop;
   final double contentBottom;
+
+  /// The room under the last line on the split layout, and nothing said anywhere else (markdown.module.css):
+  ///
+  ///     :global(.app-split) .editor :global(.cm-editor) :global(.cm-content) { padding-block-end: var(--glacier-space-8) }
+  ///
+  /// Four classes, written to beat the theme's two, and so it beats every rule of three that says an editor in a
+  /// smaller place has no room at all: a notebook's words over its index (`.preface .cm-editor .cm-content`), a
+  /// card's preview (`.peek .cm-editor .cm-content`). On the page each keeps this paragraph's worth under its last
+  /// line while the window is in panes, and so does whoever asks here. The panes are the shell's
+  /// (`GlacierScope(classes: {'app-split'})`, shell/app_shell.dart).
+  static double? splitRoom(Tokens t) => t.classes.contains('app-split') ? t.space(8) : null;
+
+  /// The room under a note's last line: the split layout's, or the phone's tall one.
+  static double roomUnder(Tokens t) => splitRoom(t) ?? t.space(24);
 
   /// The code theme for the page's side (codeThemes.css).
   final CodeTheme code;

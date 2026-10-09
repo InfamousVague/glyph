@@ -1,7 +1,9 @@
 import 'package:flutter/widgets.dart' hide Decoration;
+import 'package:glacier/glacier.dart' show GlacierContext;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/aside/aside.dart';
 import 'package:ghost_md/aside/aside_panel.dart';
+import 'package:ghost_md/book/book_view.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/note_text.dart';
 import 'package:ghost_md/core/preferences.dart';
@@ -9,6 +11,7 @@ import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
+import 'package:ghost_md/editor/view/column.dart';
 import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/notes/note_tree.dart';
 import 'package:ghost_md/root/ghost_root.dart';
@@ -147,6 +150,30 @@ void main() {
     await resize(tester, unfolded.flipped);
     expect(tester.takeException(), isNull);
     expect(tester.state<NoteScreenState>(find.byType(NoteScreen)), same(before));
+    await close(tester);
+  });
+
+  testWidgets('a notebook’s words keep the split layout’s room under them, and the index starts that much lower', (tester) async {
+    // On the page `.app-split .editor .cm-editor .cm-content { padding-block-end: var(--glacier-space-8) }` beats
+    // `.preface .cm-editor .cm-content { padding-block: 0 }`: the Example project's three lines of preface were
+    // 87.45px of lines in a box of 125.42 on the Fold opened (37.98 more), and 113.02 of lines in a box of 113.02
+    // on the cover. Portugal's preface here is one line.
+    final library = await open(tester);
+    shellOf(tester).openNote(titled(library, 'Portugal').id);
+    await settle(tester);
+    final words = find.descendant(of: find.byType(BookWords), matching: find.byType(EditorColumn));
+    final t = tester.element(find.byType(BookWords)).tokens;
+    expect(t.space(8), closeTo(37.98, 0.02), reason: 'the page’s own at 704 wide');
+    // One line of the note's type there, 29.15px (18.22 at 1.6), and the room.
+    expect(tester.getSize(words).height, closeTo(29.15 + 37.98, 0.05));
+    // `.preface { margin-block-end: space-4 }` over `.index { margin-block-start: space-3 }`, collapsed: 18.99.
+    final row = tester.getRect(find.byKey(const ValueKey('book-row-0')));
+    expect(row.top - tester.getRect(words).bottom, closeTo(18.99, 0.6));
+    // Shut, the window is one pane and the words have no room under them, as on any phone.
+    await resize(tester, cover);
+    // Lines of 28.26px (17.66 at 1.6) and nothing else.
+    final lines = tester.getSize(words).height / 28.258;
+    expect(lines, closeTo(lines.roundToDouble(), 0.01));
     await close(tester);
   });
 

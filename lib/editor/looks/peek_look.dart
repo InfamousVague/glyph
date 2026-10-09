@@ -35,7 +35,8 @@ LookEnv peekEnv(Tokens t, {bool whole = false, String? look, double devicePixelR
     ink: whole ? t.color('glacier-text') : t.color('app-ink-3'),
     attrs: look == null ? const <String, String>{} : <String, String>{'data-look': look},
     contentTop: 0,
-    contentBottom: 0,
+    // None, but on the split layout the page's rule for a note's last line reaches a card's words too.
+    contentBottom: LookEnv.splitRoom(t) ?? 0,
   );
 }
 
