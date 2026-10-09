@@ -1247,7 +1247,13 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     }
 
     if (_drawing) {
-      return seams.canvas?.call(context, _typedBody, write) ?? const SizedBox.shrink();
+      // `<div class="body canvasBody">`: the canvas is in a body too, and `.body { padding-block-end:
+      // var(--app-safe-bottom) }` ends it above the phone's own bar, so its tools and its map stand clear of it as
+      // the dock does. Without it the tool pill sat 84px lower than the dock's lift on a phone with a bar.
+      return Padding(
+        padding: EdgeInsets.only(bottom: context.tokens.len('app-safe-bottom')),
+        child: seams.canvas?.call(context, _typedBody, write) ?? const SizedBox.shrink(),
+      );
     }
     if (_isJournal) {
       return seams.journal?.call(context, _typedBody, write) ?? const SizedBox.shrink();
