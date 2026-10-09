@@ -39,7 +39,7 @@ import 'workspace_sheet.dart';
 /// - [emptyArt] is the ghost asleep on its blank sheet (`Ghost scene="no-notes"`), which is lib/art's to draw;
 ///   without it the words stand alone.
 /// - Browse files is offered when [onBrowseFiles] is given, where the web asked the device itself
-///   (`canBrowseFiles()`); showing the folder is the library's stage.
+///   (`canBrowseFiles()`); the app's root asks for it (lib/core/library_files.dart `LibraryFiles.offered`).
 /// - A row cannot be dragged onto a canvas (`draggable`, `application/x-glyph-note`): that comes with the canvas.
 /// - A mouse's right-click on a row tells [onNoteMenu] which note and where; the menu itself (`notes/NoteMenu.tsx`)
 ///   is not ported.

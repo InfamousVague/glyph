@@ -566,7 +566,13 @@ handed to the phone (`ghost_md/open`), a reset's phone half (`ghost.md/reset`) a
   an SD card, the backup was written into a folder picked on it (`lib/main_files.dart`, "Back up into a folder");
   the page's own road, allow then back up, has not been walked to its end on any device.
 - **`ghostmd://` is the real app's scheme too:** on a phone with both, Android asks which opens a link.
-- **Not ported:** the notes' folder in the phone's Files app (`LibraryDocuments.kt`, `library_reveal`).
+- **The notes' folder in the phone's Files app** (2026-10-09): the app lists its library there as a place of its
+  own, read-only (`glyph/files/LibraryDocuments.kt`, the Tauri app's line for line; the authority is this app's
+  id's, `com.mattssoftware.glyph.flutter.library`, and the place wears the app's own name, "Ghost Flutter"), and
+  the sidebar's Browse files opens it (`lib/core/library_files.dart`; `browseFiles` on `ghost_md/files`,
+  `ghost_md/LibraryFiles.kt`). The web offers it in the sidebar and nowhere in Settings, so there is no row there.
+  Held by tests and by the Kotlin compiling; **not walked on a device.** **Not on a Mac:** the web's
+  `library_reveal` (Finder) is not in this core, and `LibraryFiles(reveal:)` is where a Mac's way goes.
 
 ## What stage 4 left open
 

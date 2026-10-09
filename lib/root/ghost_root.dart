@@ -51,6 +51,7 @@ import '../core/export_all.dart' show ExportAll;
 import '../core/front_matter.dart' show frontMatterOffset;
 import '../core/images.dart';
 import '../core/kept_trash.dart';
+import '../core/library_files.dart' show LibraryFiles;
 import '../core/library_folder.dart' show LibraryFolder;
 import '../core/link_preview.dart' show KeptLinkPreviews, LinkOpener, LinkPreviewFetch;
 import '../core/kept_workspaces.dart';
@@ -772,6 +773,13 @@ class _GhostRootState extends State<GhostRoot> {
       : LibraryFolder(invoke: _native.invoke, onNotesChanged: () => unawaited(_library.refresh().catchError((Object _) {})));
   late final Backups? _backups = _native == null ? null : Backups.overCore(invoke: _native.invoke, startJob: _native.startJob, events: _native.events);
   late final ExportAll? _export = _native == null ? null : ExportAll.overCore(invoke: _native.invoke, startJob: _native.startJob, events: _native.events);
+
+  /// The notes' folder in the phone's Files app, for the sidebar's Browse files (lib/core/library_files.dart): the
+  /// phone is asked the first time a sidebar is built, and the tool is there once it has said it can.
+  late final LibraryFiles _files = LibraryFiles();
+  VoidCallback? get _browseFiles => _files.offered(() {
+        if (mounted) setState(() {});
+      });
 
   /// What Settings' Recording and AI pages ask of voice (settings/RecordingPane.tsx, AiPane.tsx): the models on
   /// this phone with Get and Remove, the Meetings card where the phone has the service, and the room the tapes
@@ -1612,6 +1620,7 @@ class _GhostRootState extends State<GhostRoot> {
       },
       onClose: onClose,
       onCommands: _search,
+      onBrowseFiles: _browseFiles,
       onSpeak: _capture == null
           ? null
           : () {
@@ -1803,6 +1812,7 @@ class _GhostRootState extends State<GhostRoot> {
                 },
                 onClose: close,
                 onCommands: _search,
+                onBrowseFiles: _browseFiles,
                 onSpeak: capture == null
                     ? null
                     : () {
