@@ -368,5 +368,54 @@ void main() {
       });
       await capture.close();
     });
+
+    testWidgets('on its side, too short for the page, the ghost and the hint: the page keeps the top line’s room and the hint runs over the body’s foot', (tester) async {
+      // 933 x 704 (`fixtures/rest-933x704.json`): the card of things to say, the diagnostics line and the buttons
+      // leave the body 311px, and the page pads itself 130 under the top line, the ghost is its fifth of the
+      // height, the hint a line. The page gives none of them up: the hint ends 1.2px under the body's foot.
+      const size = Size(933.33, 704);
+      final web = jsonDecode(File('test/capture_ui/fixtures/rest-933x704.json').readAsStringSync()) as Map<String, Object?>;
+      final capture = Capture(tester, script: const {'simulate': 'say', 'say': 'Hello there.'})
+        ..insets = const EdgeInsets.only(top: 46)
+        ..ratio = 2.625
+        ..measuredAt = 2.625;
+      capture.prefs = capture.prefs.copyWith(wisp: false, ripples: false);
+      for (final (id, body) in notes) {
+        capture.notes.create(id, body);
+      }
+      await capture.open(size: size, offersMeeting: true, theme: 'dark');
+      await run(capture, () => capture.hasSayCard && capture.textOf(capture.sayCard).contains('Shopping list'));
+      // The line that says what the pipeline has done, as the page had it up: a tap on the top line shows it.
+      await tester.tap(find.byKey(CaptureScreen.whereKey));
+      await rest(tester);
+
+      Rect? of(Finder finder) => finder.evaluate().isEmpty ? null : tester.getRect(finder.first);
+      final say = of(find.byType(SayCard))!;
+      final space = tester.element(find.byType(SayCard)).tokens.space(3);
+      held(web, {
+        'top': of(find.byType(HeaderPane)),
+        'where': of(find.byKey(CaptureScreen.whereKey)),
+        'counter': of(find.byKey(CaptureScreen.counterKey)),
+        'discard': of(find.byKey(CaptureScreen.discardKey)),
+        'done': of(find.byKey(CaptureScreen.doneKey)),
+        'livePage': of(find.byType(LivePage)),
+        'ghost': of(find.byType(Ghost)),
+        'pageHint': of(find.text('Tap Done to stop.')),
+        'sayCard': Rect.fromLTRB(say.left, say.top, say.right, say.bottom - space),
+        'sayTitle': of(find.text('THINGS TO SAY')),
+        'sayLine0': of(find.textContaining('Bullet point', findRichText: true)),
+        'sayLine3': of(find.textContaining('Move this to Shopping list', findRichText: true)),
+        'sayFoot': of(find.widgetWithText(AppWord, 'Meeting instead')),
+      }, placeOnly: const {
+        'ghost',
+        'pageHint',
+        'where',
+        'counter',
+        'sayTitle',
+        'sayLine0',
+        'sayLine3',
+      });
+      await capture.close();
+    });
   });
 }

@@ -1,0 +1,118 @@
+{
+ "from": "The Tauri app's own page in its WebView (Chrome 133) on an emulator set to the Fold's inner display on its side: wm size 2448x1848 at 420 dpi, a window of 933.33 x 704 at a device pixel ratio of 2.625, signed out, dark, the recorder opened from the dock's microphone twelve seconds before, recording silence, its diagnostics line showing; read through the WebView's devtools socket with getBoundingClientRect, unrounded, 2026-10-09.",
+ "viewport": {
+  "width": 933.33,
+  "height": 704,
+  "devicePixelRatio": 2.625
+ },
+ "vars": {
+  "--app-safe-top": "46px",
+  "--app-safe-bottom": "0px",
+  "--recorder-top": "130px"
+ },
+ "notes": "The window is too short for the page, the ghost and the hint over the card: the page keeps the top line's 130px, the ghost its fifth of the height, and the hint runs 1.2px over the body's foot, its margin with it, and is cut there.",
+ "rects": {
+  "top": {
+   "x": 0,
+   "y": 0,
+   "width": 933.3333740234375,
+   "height": 130.22024536132812
+  },
+  "where": {
+   "x": 58.58928680419922,
+   "y": 60.86309814453125,
+   "width": 63.05952453613281,
+   "height": 59.4523811340332
+  },
+  "counter": {
+   "x": 877.8511962890625,
+   "y": 82.20833587646484,
+   "width": 30.70833396911621,
+   "height": 16.761905670166016
+  },
+  "livePage": {
+   "x": 0,
+   "y": 0,
+   "width": 933.3333740234375,
+   "height": 130
+  },
+  "ghost": {
+   "x": 397.5714416503906,
+   "y": 144.86309814453125,
+   "width": 138.1845245361328,
+   "height": 140.7916717529297
+  },
+  "pageHint": {
+   "x": 24.7738094329834,
+   "y": 295.5595397949219,
+   "width": 883.7857055664062,
+   "height": 16.761905670166016
+  },
+  "sayCard": {
+   "x": 24.7738094329834,
+   "y": 311.125,
+   "width": 883.7857055664062,
+   "height": 265.2202453613281
+  },
+  "sayTitle": {
+   "x": 45.351192474365234,
+   "y": 326.75,
+   "width": 842.6309814453125,
+   "height": 13.714285850524902
+  },
+  "sayLine0": {
+   "x": 45.351192474365234,
+   "y": 373.9940490722656,
+   "width": 842.6309814453125,
+   "height": 18.720237731933594
+  },
+  "sayLine1": {
+   "x": 45.351192474365234,
+   "y": 394.71429443359375,
+   "width": 842.6309814453125,
+   "height": 18.720237731933594
+  },
+  "sayLine2": {
+   "x": 45.351192474365234,
+   "y": 446.96429443359375,
+   "width": 842.6309814453125,
+   "height": 18.720237731933594
+  },
+  "sayLine3": {
+   "x": 45.351192474365234,
+   "y": 467.6845397949219,
+   "width": 842.6309814453125,
+   "height": 18.720237731933594
+  },
+  "sayFoot": {
+   "x": 45.351192474365234,
+   "y": 501.2678527832031,
+   "width": 106.42262268066406,
+   "height": 59.4523811340332
+  },
+  "diagnostics": {
+   "x": 24.7738094329834,
+   "y": 591.2083740234375,
+   "width": 883.7857055664062,
+   "height": 13.714285850524902
+  },
+  "footer": {
+   "x": 24.7738094329834,
+   "y": 614.827392578125,
+   "width": 883.7857055664062,
+   "height": 89.17262268066406
+  },
+  "discard": {
+   "x": 24.7738094329834,
+   "y": 624.732177734375,
+   "width": 57.958335876464844,
+   "height": 59.4523811340332
+  },
+  "done": {
+   "x": 780.8630981445312,
+   "y": 624.732177734375,
+   "width": 127.6964340209961,
+   "height": 59.4523811340332
+  }
+ }
+}

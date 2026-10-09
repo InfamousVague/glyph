@@ -53,6 +53,7 @@
 library;
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart' hide Placement;
@@ -1425,7 +1426,9 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final box = _top.currentContext?.findRenderObject();
       if (!mounted || box is! RenderBox || !box.hasSize) return;
-      if ((box.size.height - _topHeight).abs() > 0.01) setState(() => _topHeight = box.size.height);
+      // `top.offsetHeight`, a whole number: the page pads by 142px under a line of 141.70, and 130 under 130.22.
+      final height = box.size.height.roundToDouble();
+      if ((height - _topHeight).abs() > 0.01) setState(() => _topHeight = height);
     });
   }
 
@@ -1601,7 +1604,7 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
       body = [
         // The note's own page, its older text above and the words written onto its end. Over the lock screen the
         // note being continued shows none of its text.
-        Expanded(
+        KeyedSubtree(
           child: LivePage(
             ripples: _ripples,
             // The page is remade when the note it shows changes, and when the recorder is up: "Start talking." after
@@ -1673,7 +1676,21 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
           child: ClipRect(
             child: Padding(
               padding: EdgeInsets.only(top: livePage ? 0 : _topHeight + t.space(4)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [...body, ?hint]),
+              // With the page in it, the page is never shorter than the top line's pane it pads itself under
+              // (`.livePage { flex: 1; min-block-size: 0; padding-block-start: var(--wisp-under) }`), and what
+              // stands under it, the ghost and the hint, keeps its size: in a window too short for all three the
+              // body runs over its own foot and is cut there (`.body { overflow: hidden }`), the ghost still whole
+              // under the top line. Flexed like any column, the page gave up all its room and the ghost stood
+              // under the top line's glass (the Fold on its side, with the card of things to say).
+              child: livePage
+                  ? CustomMultiChildLayout(
+                      delegate: _PageOverTail(least: _topHeight),
+                      children: [
+                        LayoutId(id: _BodySlot.page, child: body.first),
+                        LayoutId(id: _BodySlot.tail, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [...body.skip(1), ?hint])),
+                      ],
+                    )
+                  : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [...body, ?hint]),
             ),
           ),
         ),
@@ -1759,6 +1776,29 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
         onPressed: onPressed,
         child: ExactLines.of(Text(word, maxLines: 1, softWrap: false, style: t.textAt(t.fontSize('sm'), weight: 'semibold', color: t.color('app-ink'))), normal: true, dpr: t.css.lineDpr),
       );
+}
+
+enum _BodySlot { page, tail }
+
+/// The body with the note's page in it: the page takes what the ghost and the hint under it leave, and never less
+/// than [least], the top line's pane it pads itself under; in less room than that the two under it run over the
+/// body's foot, which cuts them (CaptureScreen.module.css `.body:has(> .livePage)`, `.livePage`).
+class _PageOverTail extends MultiChildLayoutDelegate {
+  _PageOverTail({required this.least});
+
+  final double least;
+
+  @override
+  void performLayout(Size size) {
+    final tail = layoutChild(_BodySlot.tail, BoxConstraints.tightFor(width: size.width));
+    final page = math.max(least, size.height - tail.height);
+    layoutChild(_BodySlot.page, BoxConstraints.tight(Size(size.width, page)));
+    positionChild(_BodySlot.page, Offset.zero);
+    positionChild(_BodySlot.tail, Offset(0, page));
+  }
+
+  @override
+  bool shouldRelayout(_PageOverTail old) => old.least != least;
 }
 
 /// A caught thing as words (`core/failure.ts` `failureText`): an error's message, or the thing itself as text.
