@@ -1250,8 +1250,10 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       // `<div class="body canvasBody">`: the canvas is in a body too, and `.body { padding-block-end:
       // var(--app-safe-bottom) }` ends it above the phone's own bar, so its tools and its map stand clear of it as
       // the dock does. Without it the tool pill sat 84px lower than the dock's lift on a phone with a bar.
+      // With the keyboard up there is no bar under the page to keep clear of (the keys are over it), as home has it:
+      // kept, the card being written stood 84px too high and its bar went under the card, over the tools.
       return Padding(
-        padding: EdgeInsets.only(bottom: context.tokens.len('app-safe-bottom')),
+        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom > 0 ? 0 : context.tokens.len('app-safe-bottom')),
         child: seams.canvas?.call(context, _typedBody, write) ?? const SizedBox.shrink(),
       );
     }
