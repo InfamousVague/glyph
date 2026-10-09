@@ -23,6 +23,8 @@
 /// - `:hover` grounds and `title=` tooltips are a pointer's and are left out.
 library;
 
+import 'dart:math' as math;
+
 import 'package:flutter/services.dart' show TextInputAction, TextInputType;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart' show HapticKind, fireMotor;
@@ -32,6 +34,7 @@ import '../../art/lucide.g.dart';
 import '../../book/tickets.dart' show TicketChoice, waitingOn;
 import '../../core/properties.dart';
 import '../../core/task_fields.dart' show priorityOf;
+import '../../sheet/css.dart' show snapBorder;
 import '../../sheet/kit.dart';
 import '../../sheet/sheet.dart';
 import '../fields/field_picker.dart';
@@ -162,11 +165,14 @@ class _TicketPanelState extends State<TicketPanel> {
       child: Container(
         constraints: BoxConstraints(minHeight: layoutUnitFloor(1.9 * look.em)),
         padding: EdgeInsets.only(left: look.space(2), right: tight ? 0 : look.space(2)),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+        // The mark keeps its size (`flex: none`) and the words are cut; in no room at all the chip is drawn in what
+        // there is, where a Row said its mark did not fit.
+        child: CssRow(
+          gap: look.space(2),
+          shrinkWrap: true,
           children: <Widget>[
-            if (mark != null) ...<Widget>[mark, SizedBox(width: look.space(2))],
-            Flexible(child: Part('chipWords', child: PageWords(text, look.sans(look.em, color: color), line: look.line, softWrap: false, maxLines: 1, overflow: TextOverflow.ellipsis))),
+            if (mark != null) CssItem(shrink: 0, child: mark),
+            CssItem(least: 0, child: Part('chipWords', child: PageWords(text, look.sans(look.em, color: color), line: look.line, softWrap: false, maxLines: 1, overflow: TextOverflow.ellipsis))),
           ],
         ),
       ),
@@ -175,15 +181,28 @@ class _TicketPanelState extends State<TicketPanel> {
   }
 
   /// A value's row of pieces, its first stepped out by its own padding (`margin-inline-start` of `-space-2`).
-  Widget _stepped(List<Widget> pieces, {double gap = 0}) => Transform.translate(
-    offset: Offset(-look.space(2), 0),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
+  ///
+  /// One piece is the page's chip in its value: no wider than the column (`max-inline-size: 100%`), stepped out.
+  /// Several are a `.day`, a flex row as wide as the column: its chip gives way and is cut (`overflow: hidden`, so
+  /// its least is nothing) while the cross after it keeps its size, and the chip's negative margin is room it has
+  /// besides (on the Fold's narrowest pane a day of 84px is 50.5 beside its cross in a column of 67). A Row gave
+  /// the chip all the room and the cross 6.5px of it, which it overflowed by 5.5.
+  Widget _stepped(List<Widget> pieces, {double gap = 0}) {
+    if (pieces.length == 1) {
+      return Transform.translate(
+        offset: Offset(-look.space(2), 0),
+        child: Row(mainAxisSize: MainAxisSize.min, children: <Widget>[Flexible(child: pieces.single)]),
+      );
+    }
+    return CssRow(
+      gap: gap,
+      shrinkWrap: true,
       children: <Widget>[
-        for (final (index, piece) in pieces.indexed) ...<Widget>[if (index > 0) SizedBox(width: gap), index == pieces.length - 1 ? Flexible(child: piece) : piece],
+        CssItem(least: 0, before: -look.space(2), child: pieces.first),
+        for (final piece in pieces.skip(1)) CssItem(shrink: 0, child: piece),
       ],
-    ),
-  );
+    );
+  }
 
   /// Small round buttons with an icon: `.asText, .clear, .edit`.
   // .asText, .clear, .edit { display: inline-flex; align-items: center; justify-content: center;
@@ -196,11 +215,12 @@ class _TicketPanelState extends State<TicketPanel> {
       name,
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: look.space(wide ? 2 : 1), vertical: look.space(1)),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
+        child: CssRow(
+          gap: look.space(1),
+          shrinkWrap: true,
           children: <Widget>[
-            AppIcon(icon, size: size, color: look.ink3),
-            if (words != null) ...<Widget>[SizedBox(width: look.space(1)), PageWords(words, look.sans(look.em, color: look.ink3), line: look.line, softWrap: false)],
+            CssItem(shrink: 0, child: AppIcon(icon, size: size, color: look.ink3)),
+            if (words != null) CssItem(shrink: 0, child: PageWords(words, look.sans(look.em, color: look.ink3), line: look.line, softWrap: false)),
           ],
         ),
       ),
@@ -397,34 +417,81 @@ class _TicketPanelState extends State<TicketPanel> {
     }
   }
 
-  /// The least the panel is laid out at: a small phone's page less its gutters. On the page its grid of names and
-  /// values does not shrink past its own words, and a pane narrower than that cuts it: between a docked sidebar and
-  /// a docked aside on the Fold the note is 164px wide and the Example project's panel 196 (measured on the page,
-  /// 2026-10-09), its right edge under the aside. The page's least is its words'; this is one width for every
-  /// ticket, under which its rows are not laid out at all.
-  static const double _least = 300;
+  /// The widest single letter of [text]: what words that break anywhere come to at their narrowest.
+  static double _widestGlyph(String text, TextStyle style) {
+    var widest = 0.0;
+    for (final rune in text.runes.toSet()) {
+      final painter = TextPainter(text: TextSpan(text: String.fromCharCode(rune), style: style), textDirection: TextDirection.ltr, textScaler: TextScaler.noScaling)..layout();
+      if (painter.width > widest) widest = painter.width;
+      painter.dispose();
+    }
+    return widest;
+  }
+
+  static double _wide(String text, TextStyle style) {
+    final painter = TextPainter(text: TextSpan(text: text, style: style), textDirection: TextDirection.ltr, textScaler: TextScaler.noScaling, maxLines: 1)..layout();
+    final width = painter.width;
+    painter.dispose();
+    return width;
+  }
+
+  /// The least the panel is laid out at, its gutters with it: the page's own, which is its narrowest content's. A
+  /// pane narrower than that cuts it, as the page's does: between a docked sidebar and a docked aside on the Fold
+  /// the note is 164px wide and the Example project's third ticket is a panel of 196.15 (measured on the page,
+  /// 2026-10-09), its right edge under the aside.
+  ///
+  /// What the page's narrowest comes to, part by part (TicketPanel.module.css, with the editor's `overflow-wrap:
+  /// anywhere`, under which words that may wrap are one letter at their narrowest):
+  /// - the rows: the names' column and the gap, the values' `minmax(0, 1fr)` being nothing when the grid is asked
+  ///   how narrow it can be (the third ticket's rows: 75.18 and 14.24);
+  /// - what it waits on: a ticket's key at one letter, the gap, and its title whole, which is `white-space:
+  ///   nowrap` (EX-2's 8.9, 4.75 and 124, in a box padded by 9.49 each side: the 156.65 that made the panel 196);
+  /// - the head: the mark, the key at one letter, the button to its lines, and the offer of a key;
+  /// - the foot: the keys a ticket does not have, whole (`nowrap`), or the plus and a letter.
+  double _least(List<String> rows, double names, List<({String target, TicketChoice found})> waits, {required double line, required String? id, required String? offered, required List<String> hidden, required List<String> others}) {
+    final editable = widget.editable;
+    var least = names + look.space(3);
+    for (final wait in waits) {
+      final key = wait.found.key, title = wait.found.title;
+      final first = _widestGlyph(key ?? title, look.sans(look.em, weight: 'semibold'));
+      final on = key != null && title.isNotEmpty ? first + look.space(1) + _wide(title, look.sans(look.em)) : first;
+      least = math.max(least, on + 2 * look.space(2));
+    }
+    var head = 14 + look.space(2) + _widestGlyph(id != null && id.isNotEmpty ? id : 'Ticket', look.mono(look.em, weight: 'semibold', tracking: 0.02 * look.em));
+    if (offered != null) head += look.space(2) + 2 * look.space(2) + 2 + _widestGlyph('Give it $offered', look.sans(look.xs));
+    if (editable) head += look.space(2) + 14 + 2 * look.space(1);
+    least = math.max(least, head);
+    if (others.isNotEmpty && editable) least = math.max(least, _wide(others.join(' · '), look.mono(look.xs)));
+    if (hidden.isNotEmpty) least = math.max(least, 13 + look.space(1) + _widestGlyph(hidden.map(labelOf).join(', '), look.sans(look.xs)));
+    // `.panel { padding-inline: var(--glacier-space-4); border: 1px }` and `.cm-ticketPanel { padding-inline:
+    // var(--app-gutter) }`.
+    return least + 2 * look.space(4) + 2 * line + 2 * look.bleed;
+  }
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-        builder: (context, box) {
-          final panel = _panel(context);
-          if (!box.hasBoundedWidth || box.maxWidth >= _least) return panel;
-          return ClipRect(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const NeverScrollableScrollPhysics(),
-              child: SizedBox(width: _least, child: panel),
-            ),
-          );
-        },
-      );
-
-  Widget _panel(BuildContext context) {
+  Widget build(BuildContext context) {
     final options = widget.options;
-    final editable = widget.editable;
     final statuses = options?.statuses() ?? defaultStatuses;
     final ticket = ticketOf(widget.front, statuses);
     if (ticket == null) return const SizedBox.shrink();
+    return LayoutBuilder(
+      builder: (context, box) {
+        final (:panel, :least) = _panel(context, ticket, statuses);
+        if (!box.hasBoundedWidth || box.maxWidth >= least) return panel;
+        return ClipRect(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const NeverScrollableScrollPhysics(),
+            child: SizedBox(width: least, child: panel),
+          ),
+        );
+      },
+    );
+  }
+
+  ({Widget panel, double least}) _panel(BuildContext context, Ticket ticket, List<String> statuses) {
+    final options = widget.options;
+    final editable = widget.editable;
     final rows = panelRows(widget.front, _more);
     final hidden = editable && !_more ? hiddenRows(widget.front) : const <String>[];
     final others = otherKeys(widget.front);
@@ -447,7 +514,10 @@ class _TicketPanelState extends State<TicketPanel> {
       painter.dispose();
     }
 
-    return Padding(
+    // `border: 1px`, which a phone's browser draws in whole device pixels (two of them at 2.625, 0.76px).
+    final line = snapBorder(context, 1);
+    final least = _least(rows, names, waits, line: line, id: id, offered: offered, hidden: hidden, others: others);
+    final panel = Padding(
       // '.cm-ticketPanel': { paddingInline: 'var(--app-gutter, 0)', paddingBlock: '0.2em 0.6em' }
       // .panel { margin-block: var(--glacier-space-1) var(--glacier-space-3) }
       padding: EdgeInsets.fromLTRB(look.bleed, layoutUnitFloor(0.2 * look.note) + look.space(1), look.bleed, layoutUnitFloor(0.6 * look.note) + look.space(3)),
@@ -461,7 +531,7 @@ class _TicketPanelState extends State<TicketPanel> {
           //   background: var(--app-paper-2) }
           child: Container(
             padding: EdgeInsets.fromLTRB(look.space(4), look.space(3), look.space(4), look.space(2)),
-            decoration: BoxDecoration(color: look.paper2, border: Border.all(color: look.rule), borderRadius: BorderRadius.circular(look.cardRadius)),
+            decoration: BoxDecoration(color: look.paper2, border: Border.all(color: look.rule, width: line), borderRadius: BorderRadius.circular(look.cardRadius)),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -541,7 +611,13 @@ class _TicketPanelState extends State<TicketPanel> {
                                     gap: look.space(1),
                                     shrinkWrap: true,
                                     children: <Widget>[
-                                      CssItem(shrink: 0, child: PageWords(wait.found.key ?? wait.found.title, look.sans(look.em, weight: 'semibold', color: amber), line: look.line, softWrap: false)),
+                                      // The key gives way with its title, each in proportion to its width, and
+                                      // breaks where it must, as the note's words do (`overflow-wrap: anywhere`,
+                                      // the editor's): "EX-" over "2" in a box too narrow for both.
+                                      CssItem(
+                                        least: _widestGlyph(wait.found.key ?? wait.found.title, look.sans(look.em, weight: 'semibold')),
+                                        child: PageWords(wait.found.key ?? wait.found.title, look.sans(look.em, weight: 'semibold', color: amber), line: look.line),
+                                      ),
                                       if (wait.found.key != null && wait.found.title.isNotEmpty)
                                         CssItem(least: 0, child: Part('waitTitle', child: PageWords(wait.found.title, look.sans(look.em, color: amber), line: look.line, softWrap: false, maxLines: 1, overflow: TextOverflow.ellipsis))),
                                     ],
@@ -642,6 +718,7 @@ class _TicketPanelState extends State<TicketPanel> {
         ),
       ),
     );
+    return (panel: panel, least: least);
   }
 }
 
