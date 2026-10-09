@@ -20,6 +20,10 @@
 /// - the bookmark (lib/editor/items `NoteBookmark`), the cheat sheet's page, and a note's sharing where the build
 ///   has an account.
 ///
+/// - what a recording just wrote into the note, said with an Undo for ten seconds (`editor/useLanding.ts`): the
+///   Undo is an edit in this editor, taking out exactly the pieces the recording put in, and the better words wait
+///   to write the note while it is open, the editor being its one writer.
+///
 /// What differs from the page:
 /// - **No picture can be added yet**: this build has no picker, so the band's Add image and the +'s Picture are
 ///   not offered. Pictures a note already names are drawn from the kept files.
@@ -29,6 +33,11 @@
 /// - **A date is not picked from a calendar** (`dayPicker` is not given): Today, Tomorrow and Next week are.
 /// - **A canvas has no picture picker and no comments**, for the same reasons; a team's canvas is
 ///   piece 6G. A canvas is not framed in a note from the + (`AddConfig.canvases` is not given).
+/// - **A landing's writes to other notes are not reversed by its Undo** (`undo_command`): the store here keeps no
+///   log of a command's change (lib/capture/recorder.dart `LibraryRecorderStore`), so each is counted as changed
+///   since and the toast says so. A tag waiting for the words is not let go (no note keeps a place yet).
+/// - **A spoken instruction and a review the note opened with** ([NoteDesk.ask], [NoteDesk.review]) are carried
+///   and not run: they are `NoteAi`'s (lib/ai/note_ai.dart), which is not on the desk yet.
 /// - **A board's card has no plugin's rows** (`drawnBoards(actions:)`).
 /// - **The plugins reach the note through the editor** (lib/editor/items/note_plugins.dart): a swipe on a list item
 ///   and the quiet words after a line are asked of the app's registry as they are used, a linked to-do's box and
@@ -41,12 +50,14 @@ import 'package:flutter/widgets.dart' hide Decoration;
 import 'dart:async';
 
 import 'package:flutter/scheduler.dart';
+import 'package:glacier/glacier.dart' show GlacierToast, GlacierToastAction, GlacierToastController;
 import '../account/ui_state.dart';
 import '../art/lucide.g.dart';
 import '../book/book_nav.dart';
 import '../book/book_view.dart';
 import '../book/journal_view.dart';
 import '../canvas/canvas_view.dart';
+import '../capture/landing.dart';
 import '../core/book.dart';
 import '../core/canvas_body.dart';
 import '../core/images.dart';
@@ -76,6 +87,7 @@ import '../plugins/link_marks.dart';
 import '../plugins/types.dart' show NoteEditing;
 import '../notes/note_templates.dart' show NoteTemplate;
 import '../settings/panes/cheat_sheet.dart';
+import '../shell/screen.dart' show Keyed;
 import '../share/ui/share_rows.dart';
 
 /// The marks as the band's Style page lists them: each under its own icon (`format.icon ?? plugin.icon ?? Type`).
@@ -145,6 +157,8 @@ class NoteDeskWorld {
     this.newEntry,
     this.openLink,
     this.previewer,
+    this.holdNote,
+    this.dropRefine,
   });
 
   /// Every note's title, for the +'s A note.
@@ -211,6 +225,11 @@ class NoteDeskWorld {
   /// What knows the titles of linked pages (lib/core/link_preview.dart `KeptLinkPreviews`); absent, a link's card
   /// says its site and its path.
   final LinkPreviewer? previewer;
+
+  /// The better words' queue told a note is open, so it waits to write it, and told to drop what it has queued for
+  /// words an Undo took out (lib/capture/refine.dart `holdNote`, `dropRefine`). Absent, there is no queue.
+  final void Function(String noteId, bool on)? holdNote;
+  final void Function(String noteId, int fromMs)? dropRefine;
 }
 
 /// Builds a note's screen with the editor and the seams the desk made for it.
@@ -219,7 +238,7 @@ typedef NoteDeskBuilder = Widget Function(BuildContext context, NoteEditorBuilde
 /// The editor and everything round it for one open note. Keyed by the note by whoever builds it, so each note
 /// has its own.
 class NoteDesk extends StatefulWidget {
-  const NoteDesk({super.key, required this.noteId, required this.title, required this.world, required this.say, required this.builder, this.prefs, this.readOnly = false});
+  const NoteDesk({super.key, required this.noteId, required this.title, required this.world, required this.say, required this.builder, this.prefs, this.readOnly = false, this.landing, this.ask, this.review});
 
   final String noteId;
 
@@ -236,6 +255,14 @@ class NoteDesk extends StatefulWidget {
 
   /// A note in the Trash: its canvas and its index are read, not changed.
   final bool readOnly;
+
+  /// What a recording just wrote into this note (a [CaptureLanding]), with the number that tells one landing from
+  /// the next: said with its Undo as the note opens.
+  final Keyed? landing;
+
+  /// A spoken instruction about this note and the review a recording handed it, as the note was opened with them.
+  final Keyed? ask;
+  final Keyed? review;
 
   @override
   State<NoteDesk> createState() => NoteDeskState();
@@ -318,11 +345,77 @@ class NoteDeskState extends State<NoteDesk> {
   void initState() {
     super.initState();
     _world.changes?.addListener(_libraryChanged);
+    // While the note is open the better words wait to write it: the editor is its one writer.
+    _world.holdNote?.call(widget.noteId, true);
+    _land();
+  }
+
+  GlacierToastController? _toasts;
+  int? _landed;
+  bool _saidLanding = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _toasts = GlacierToast.of(context);
+  }
+
+  /// A note opened by the recording that just wrote into it: "Added to House TODOs", with an Undo, for ten seconds
+  /// (`useLanding`). One toast for each landing, told apart by its key; said once the first frame is drawn.
+  void _land() {
+    final keyed = widget.landing;
+    final landing = keyed?.value;
+    if (keyed == null || landing is! CaptureLanding || keyed.key == _landed) return;
+    _landed = keyed.key;
+    if (landing.noteId != widget.noteId || (landing.blocks.isEmpty && landing.others.isEmpty)) return;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _saidLanding = true;
+      _toasts?.toast(
+        message: Text(landingLine(landing)),
+        duration: const Duration(seconds: 10),
+        action: GlacierToastAction(label: 'Undo', onPress: () => _undoLanding(landing)),
+      );
+    });
+  }
+
+  /// The Undo: exactly the pieces of text the recording put in, found where they were written and taken out as one
+  /// edit, which the note's own saving writes like typing and the editor's undo can bring back. A piece edited
+  /// since is left alone, and the toast says so. The tape is never touched.
+  void _undoLanding(CaptureLanding landing) {
+    var missing = 0;
+    var removed = false;
+    final view = _view;
+    if (landing.blocks.isNotEmpty) {
+      if (view != null) {
+        final out = takeOut(view.state.doc.toString(), landing.blocks);
+        missing = out.missing;
+        if (out.changes.isNotEmpty) {
+          view.dispatch(TransactionSpec(changes: ChangeSet.of([for (final change in out.changes) ChangeSpec(from: change.from, to: change.to, insert: '')], view.state.doc.length), userEvent: 'delete'));
+          removed = true;
+        }
+      } else {
+        missing = landing.blocks.length;
+      }
+    }
+    // Writes the recording made to other notes cannot be reversed here (see the header): each has changed since, as
+    // far as this can tell.
+    missing += landing.others.length;
+    // Only for words taken out of this note: the better words of what stays in it still come.
+    final fromMs = landing.fromMs;
+    if (removed && fromMs != null) _world.dropRefine?.call(widget.noteId, fromMs.toInt());
+    if (missing > 0) {
+      // After the pressed toast has gone, which pressing its action does just after this returns.
+      scheduleMicrotask(() {
+        if (mounted) _toasts?.toast(message: Text('${landing.title} has changed since, so it was left as it is.'), duration: const Duration(seconds: 5));
+      });
+    }
   }
 
   @override
   void didUpdateWidget(NoteDesk oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _land();
     if (identical(oldWidget.world.changes, _world.changes)) return;
     oldWidget.world.changes?.removeListener(_libraryChanged);
     _world.changes?.addListener(_libraryChanged);
@@ -354,6 +447,9 @@ class NoteDeskState extends State<NoteDesk> {
 
   @override
   void dispose() {
+    _world.holdNote?.call(widget.noteId, false);
+    // Leaving the note takes its toast with it: an Undo for words no longer on screen would undo them unseen.
+    if (_saidLanding) _toasts?.dismiss();
     _world.changes?.removeListener(_libraryChanged);
     _bookmark?.dispose();
     _band.dispose();

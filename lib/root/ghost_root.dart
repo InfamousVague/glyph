@@ -940,6 +940,8 @@ class _GhostRootState extends State<GhostRoot> {
     newEntry: (id, template) => unawaited(_newEntry(id, template)),
     openLink: widget.openLink,
     previewer: _previews,
+    holdNote: (id, on) => _voice?.recorder.refining?.holdNote(id, on),
+    dropRefine: (id, fromMs) => _voice?.recorder.refining?.dropRefine(id, fromMs),
   );
 
   /// A note's screen with its editor: one desk to an open note (lib/root/note_desk.dart).
@@ -949,6 +951,10 @@ class _GhostRootState extends State<GhostRoot> {
         title: noteTitle(screen.note.body),
         world: _desk,
         readOnly: _trash.isTrashed(screen.note.id),
+        // What the recorder handed the note it opened (lib/root/capture_route.dart `finished`).
+        landing: screen.landing,
+        ask: screen.ask,
+        review: screen.review,
         say: (message) => _say(context, message),
         builder: (context, editor, seams) => noteScreenBuilder(
           library: _library,

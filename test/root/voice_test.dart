@@ -270,6 +270,36 @@ void main() {
     });
   });
 
+  group('words a recording put into a note that was already there', () {
+    testWidgets('open that note, say so, and are taken out again by Undo, as an edit in its editor', (tester) async {
+      await open(tester);
+      final note = library.value.firstWhere((note) => noteTitle(note.body) == 'Packing');
+      homeOf(tester).onCapture!();
+      await until(tester, () => handlers != null, 'the capture did not start');
+      handlers!.onSegment(const Segment(text: 'Add to the note labeled Packing bring the long lens', startMs: 0, endMs: 900));
+      await settle(tester, 2);
+      stopSays = 'Add to the note labeled Packing bring the long lens';
+      await tester.tap(find.byKey(CaptureScreen.doneKey), warnIfMissed: false);
+      // The card after Done asks first, where the live reader did not place it; confirmed, the note opens.
+      await until(tester, () => shellOf(tester).screen is ScreenNote || find.text('Add').evaluate().isNotEmpty, 'neither a card nor the note');
+      if (shellOf(tester).screen is! ScreenNote) {
+        await tester.tap(find.text('Add').first, warnIfMissed: false);
+        await until(tester, () => shellOf(tester).screen is ScreenNote, 'the capture did not finish');
+      }
+      expect(shellOf(tester).shown, note.id);
+      await settle(tester, 4);
+      expect(find.text('Added to Packing'), findsOneWidget);
+      final view = tester.state<NoteScreenState>(find.byType(NoteScreen)).view!;
+      expect(view.state.doc.toString(), contains('long lens'));
+      await tester.tap(find.text('Undo'));
+      await settle(tester, 3);
+      expect(view.state.doc.toString(), isNot(contains('long lens')));
+      await tester.pump(const Duration(seconds: 2));
+      expect(library.noteOf(note.id)!.body, isNot(contains('long lens')));
+      await close(tester);
+    });
+  });
+
   group('a meeting', () {
     testWidgets('from the + is the note first, then the service asked, then its screen; Done stops it', (tester) async {
       await open(tester);
