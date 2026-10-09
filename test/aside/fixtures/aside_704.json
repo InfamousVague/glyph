@@ -1,0 +1,14 @@
+{
+  "what": "The aside's card over the Example project notebook, in Ghost.md's own page (the Tauri app on an Android emulator, its WebView's devtools), the window 704 x 933 CSS px at a device pixel ratio of 2.625 (the Fold's inner display, 1848 x 2448 at 420 dpi), dark, 2026-10-09. getBoundingClientRect: left, top, width, height.",
+  "window": [704, 933],
+  "ratio": 2.625,
+  "card": [369.76, 166.85, 320, 185.17],
+  "aside": [370.52, 167.61, 318.48, 183.65],
+  "head": [384.76, 181.85, 290, 42.26],
+  "headButton": [384.04, 185.37, 137.63, 24.95],
+  "headTitle": [409.97, 189.46, 106.24, 16.76],
+  "close": [638.02, 181.85, 32, 32],
+  "rows": [[384.76, 233.6, 290, 29.06], [384.76, 263.65, 290, 29.06], [384.76, 293.71, 290, 29.06]],
+  "numbers": [[392.96, 239.74, 21.87, 16.76], [392.96, 269.8, 21.87, 16.76], [392.96, 299.86, 21.87, 16.76]],
+  "titles": [[421.66, 239.74, 132.19, 16.76], [421.66, 269.8, 123.61, 16.76], [421.66, 299.86, 156.63, 16.76]]
+}

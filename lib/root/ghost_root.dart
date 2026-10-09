@@ -6,6 +6,8 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../account/ui_state.dart';
+import '../aside/aside.dart';
+import '../aside/aside_panel.dart';
 import '../ai/available.dart' show AvailabilityController, modelFor, presentIds;
 import '../ai/backend.dart' as engine show aiBackend, readDevice;
 import '../ai/fills/queue.dart' show resumeParked, startFills;
@@ -935,6 +937,28 @@ class _GhostRootState extends State<GhostRoot> {
 
   static final Canvas _emptyCanvas = Canvas(nodes: const [], edges: const []);
 
+  /// What the aside holds for the screen that is up (App.tsx `asideBody`): asked once for a library and a note.
+  AsideContent? _asideOf(AppShellState shell) {
+    final id = shell.shown;
+    final notes = shell.notes;
+    if (!identical(notes, _asideNotes) || id != _asideFor) {
+      _asideNotes = notes;
+      _asideFor = id;
+      Note? open;
+      if (id != null) {
+        for (final note in notes) {
+          if (note.id == id) open = note;
+        }
+      }
+      _aside = asideContent(notes, open);
+    }
+    return _aside;
+  }
+
+  List<Note>? _asideNotes;
+  String? _asideFor;
+  AsideContent? _aside;
+
   /// The note on screen, as the library has it.
   Note? get _onScreen {
     final id = _shell.currentState?.shown;
@@ -1791,6 +1815,20 @@ class _GhostRootState extends State<GhostRoot> {
                 emptyArt: const Ghost(scene: GhostScene.noNotes),
               ),
               dockedSidebarBuilder: (context, shell) => _tree(shell),
+              // The docked sidebar and the aside, shown or hidden as this device left them (core/useWideScreen.ts
+              // `readSidebarShown`, aside/aside.ts `readAsideShown`).
+              sidebarShown: readSidebarShown(_stored),
+              onSidebarShownChanged: (shown) => writeSidebarShown(shown, _stored),
+              asideShown: readAsideShown(_stored),
+              onAsideShownChanged: (shown) => writeAsideShown(shown, _stored),
+              // The open note's book or run of chapters, beside it (aside/aside_panel.dart). The version history's
+              // tab is a desktop's (`asideHistory`), and waits for one.
+              asideBuilder: (context, shell) {
+                final content = _asideOf(shell);
+                return content == null ? null : AsidePanel(content: content, stored: _stored, onOpen: shell.openNoteWithin, onOpenTitle: _openTitleWithin);
+              },
+              asideCardBuilder: (context, shell, close) =>
+                  AsideCard(content: _asideOf(shell), stored: _stored, onOpen: shell.openNoteWithin, onOpenTitle: _openTitleWithin, onClose: close),
               notificationsBuilder: (context, shell, close) {
                 void openNote(String id, String? at) {
                   close();

@@ -16,6 +16,9 @@ const String sidebarToggle = '[data-sidebar-toggle]';
 /// The bell's, for the notifications' card (`[data-notifications-toggle]`).
 const String notificationsToggle = '[data-notifications-toggle]';
 
+/// The mirrored sidebar icon's, for the aside's card (`[data-aside-toggle]`).
+const String asideToggle = '[data-aside-toggle]';
+
 /// Which edge of the window a [FloatingCard] hangs at: the start for the drawer, the end for the aside and the bell.
 enum FloatingCardSide { start, end }
 

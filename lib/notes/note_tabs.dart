@@ -14,6 +14,7 @@ import '../shell/desktop/mac_lights.dart';
 import '../shell/pop_menu.dart';
 import '../shell/top_bar.dart';
 import '../shell/wide_screen.dart';
+import 'floating_card.dart';
 import 'tabs/bar_icon.dart';
 import 'tabs/bar_parts.dart';
 import 'tabs/tab_parts.dart';
@@ -257,10 +258,19 @@ class _NoteTabsState extends State<NoteTabs> {
 
   Widget? _sidebarRing() => widget.onSidebar == null
       ? null
-      : BarRing(glyph: BarGlyph.panelLeft, iconSize: 20, label: 'All your notes', onPressed: widget.onSidebar, on: widget.sidebarOpen, expanded: widget.sidebarOpen);
+      // `data-sidebar-toggle`: a press on it is the icon's own to answer, not a press outside its card.
+      : FloatingCardToggle(
+          toggle: sidebarToggle,
+          child: BarRing(glyph: BarGlyph.panelLeft, iconSize: 20, label: 'All your notes', onPressed: widget.onSidebar, on: widget.sidebarOpen, expanded: widget.sidebarOpen),
+        );
 
   Widget? _sidebarWord() =>
-      widget.onSidebar == null ? null : BarWord(word: 'Notes', label: 'All your notes', onPressed: widget.onSidebar, on: widget.sidebarOpen, expanded: widget.sidebarOpen);
+      widget.onSidebar == null
+          ? null
+          : FloatingCardToggle(
+              toggle: sidebarToggle,
+              child: BarWord(word: 'Notes', label: 'All your notes', onPressed: widget.onSidebar, on: widget.sidebarOpen, expanded: widget.sidebarOpen),
+            );
 
   /// Where he has been: the same two arrows a browser has, in the same place, beside the sidebar's button.
   List<Widget> _arrows() => widget.onGoBack == null || widget.onGoOn == null
@@ -317,14 +327,18 @@ class _NoteTabsState extends State<NoteTabs> {
   /// The bell, on while something unread waits: a dot, no number.
   Widget? _bell() => widget.onNotifications == null
       ? null
-      : BarRing(
-          glyph: BarGlyph.bell,
-          iconSize: 19,
-          label: widget.unread ? 'Notifications, something new' : 'Notifications',
-          onPressed: widget.onNotifications,
-          on: widget.unread || widget.atNotifications,
-          expanded: widget.atNotifications,
-          dot: widget.unread,
+      // `data-notifications-toggle`
+      : FloatingCardToggle(
+          toggle: notificationsToggle,
+          child: BarRing(
+            glyph: BarGlyph.bell,
+            iconSize: 19,
+            label: widget.unread ? 'Notifications, something new' : 'Notifications',
+            onPressed: widget.onNotifications,
+            on: widget.unread || widget.atNotifications,
+            expanded: widget.atNotifications,
+            dot: widget.unread,
+          ),
         );
 
   Widget? _cog() => widget.onSettings == null ? null : BarRing(glyph: BarGlyph.settings, iconSize: 19, label: 'Settings', onPressed: widget.onSettings);
@@ -332,7 +346,11 @@ class _NoteTabsState extends State<NoteTabs> {
   /// The aside's toggle, last of all: the sidebar's icon reversed.
   Widget? _asideRing() => widget.onAside == null
       ? null
-      : BarRing(glyph: BarGlyph.panelLeft, iconSize: 20, label: 'Side panel', onPressed: widget.onAside, on: widget.asideOpen, expanded: widget.asideOpen, mirrored: true);
+      // `data-aside-toggle`
+      : FloatingCardToggle(
+          toggle: asideToggle,
+          child: BarRing(glyph: BarGlyph.panelLeft, iconSize: 20, label: 'Side panel', onPressed: widget.onAside, on: widget.asideOpen, expanded: widget.asideOpen, mirrored: true),
+        );
 
   /// `.top`: the way to the notes and back at one end, whatever the screen puts in the slot pushed to the other.
   Widget _toolRow(double gap, double endInset, List<Widget?> before, List<Widget?> after) {

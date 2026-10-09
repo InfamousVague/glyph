@@ -43,6 +43,10 @@ typedef ShellOverlayBuilder = Widget Function(BuildContext context, AppShellStat
 /// run of chapters, no note's history - in which case there is no aside and no toggle for it.
 typedef ShellAsideBuilder = Widget? Function(BuildContext context, AppShellState shell);
 
+/// The same aside as a card at the right, hung from the bar's mirrored icon (aside/aside_panel.dart `AsideCard`);
+/// `close` is the icon's own toggle. Only asked while [ShellAsideBuilder] answers something.
+typedef ShellAsideCardBuilder = Widget Function(BuildContext context, AppShellState shell, VoidCallback close);
+
 /// The whole app's frame: which screen is up, and everything drawn over it. Ports the frame of the web app's
 /// App.tsx with app.css (`.app-tabBar`, `.app-split`, `.app-sidebar`, `.app-notePane`, `.app-aside`,
 /// `.app-statusScrim`) and the stamps of shell/useRootStamp.ts.
@@ -105,6 +109,7 @@ class AppShell extends StatefulWidget {
     this.sidebarBuilder,
     this.dockedSidebarBuilder,
     this.asideBuilder,
+    this.asideCardBuilder,
     this.notificationsBuilder,
     this.onSettings,
     this.onOrganizations,
@@ -177,6 +182,7 @@ class AppShell extends StatefulWidget {
   /// The same list as a column beside the note (notes/NoteTree.tsx, docked).
   final ShellBuilder? dockedSidebarBuilder;
   final ShellAsideBuilder? asideBuilder;
+  final ShellAsideCardBuilder? asideCardBuilder;
 
   /// The notifications, a card at the right under the bell (notes/NotificationsDrawer.tsx).
   final ShellOverlayBuilder? notificationsBuilder;
@@ -587,10 +593,11 @@ class AppShellState extends State<AppShell> {
                   children: [
                     if (!tabBar)
                       _whole(context)
-                    else if (split)
-                      _panes(context, dockShown: dockShown, aside: asideDocked ? aside : null)
                     else
-                      _place(context),
+                      // One window or two panes, the place is the same child of the same row: a phone folded open or
+                      // shut keeps the screen it had - its scroll, its caret, what was typed - where the page made
+                      // the note again in another part of the tree.
+                      _panes(context, dockShown: split && dockShown, aside: split && asideDocked ? aside : null),
                     if (tabBar) _bar(context, docked: docked, sidebarShown: sidebarShown, quietBar: quietBar, asideHolds: asideHolds),
                     // The notifications, a card at the right under the bell.
                     if (_notificationsOpen)
@@ -602,7 +609,11 @@ class AppShellState extends State<AppShell> {
                       ),
                     // With the sidebar a floating card, the aside is the same card at the right.
                     if (_asideShown && !asideDocked && asideHolds)
-                      OnBack(key: const ValueKey('back:aside'), onBack: _toggleAside, child: _AsideCard(onClose: _toggleAside, child: aside)),
+                      OnBack(
+                        key: const ValueKey('back:aside'),
+                        onBack: _toggleAside,
+                        child: widget.asideCardBuilder?.call(context, this, _toggleAside) ?? _AsideCard(onClose: _toggleAside, child: aside),
+                      ),
                     // Every note, in a card over the one being read; the tab row's icon opens it.
                     if (_drawer)
                       OnBack(
@@ -637,7 +648,8 @@ class AppShellState extends State<AppShell> {
   }
 
   /// `.app-split`: the notes in a phone-width column on the left, the open note in the rest, the aside in a third
-  /// column. Each pane is its screen as it is on a phone, sized to its column.
+  /// column. Each pane is its screen as it is on a phone, sized to its column. With neither column it is the place alone,
+  /// the whole window, as a phone has it.
   Widget _panes(BuildContext context, {required bool dockShown, required Widget? aside}) {
     final t = context.tokens;
     final window = MediaQuery.sizeOf(context).width;
@@ -656,7 +668,7 @@ class AppShellState extends State<AppShell> {
               child: ClipRect(child: widget.dockedSidebarBuilder?.call(context, this) ?? PanePlaceholder(what: 'the notes, docked', notes: notes, onOpen: openNote)),
             ),
           ),
-        Expanded(child: ClipRect(child: _place(context))),
+        Expanded(key: const ValueKey('pane:place'), child: ClipRect(child: _place(context))),
         if (aside != null)
           Semantics(
             container: true,
