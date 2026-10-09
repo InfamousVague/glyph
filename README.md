@@ -156,8 +156,12 @@ macOS 13.1 and later, Apple silicon and Intel in one file, as the Tauri app is. 
   title bar with no title, the three lights set into whichever row is the page's top one
   (`lib/shell/desktop/mac_lights.dart`): the tab bar's, the recorder's own line, the guide's bar. The row's empty
   ground drags the window and zooms it on a double click; Settings starts under the lights' row.
-- **The menu bar and the keys**: New Note (Command-N), Sync Now (Command-R, with its toast), Find (Command-F),
-  the palette (Command-K), Settings (Command-comma), and the Mac's own Edit, View and Window items.
+- **The menu bar and the keys** (`macos/Runner/AppDelegate.swift`, `lib/shell/desktop/desktop_commands.dart`,
+  `lib/root/desktop_wiring.dart`): New Note (Command-N), Sync Now (Command-R, with its toast), Find (Command-F:
+  the open note's find bar, which the page reaches only from a note's menu), the palette (Command-K), Settings
+  (Command-comma), and the Mac's own Edit, View and Window items. The editor's keys were walked with a keyboard's
+  events (typing, the arrows, Command-Z and Command-Shift-Z, Command-A, Command-Left), a click, a drag, a double
+  and a triple click select as the page's do, and the right button opens the note's own menu.
 - **Voice and meetings.** The Mac's microphone is `macos/Runner/MicChannel.swift`. A meeting is the recorder
   itself in meeting mode, offered from the + as in the Tauri Mac app (`lib/root/capture_route.dart`), and the Mac's
   own sound goes into it through the Tauri app's Core Audio tap, included as it is and mixed into every chunk the
