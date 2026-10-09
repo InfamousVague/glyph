@@ -49,7 +49,7 @@ Each stage ends installed on the Fold. Sizes are the web app's non-test source t
 | 7 | Account and sync: keys, the sync engine, organizations and team notes, live typing, notifications, shared links | `core/sync`, `core/orgs`, `core/live`, `share/` | in the app 2026-10-08, **off unless the build is given `--dart-define=GHOST_API=http://…`** (`lib/root/account_wiring.dart`); walked on the emulator against the service run on this Mac (sign up, sync read back by a second device, an organization, a team note, a shared link); links that open the app are followed since 2026-10-09 (`lib/root/ghost_root.dart`, `lib/core/phone_links.dart`: a note, the notifications, an organization, an invitation asked about first, a shared link's copy); live typing since 2026-10-09 (`lib/live/`, `lib/root/account_wiring.dart`, `lib/root/note_desk.dart`): the relay, a team note's room with the others' carets, presence, the nudge, a note of the account's own, proven by two Dart devices and by the web app's own client under Node through the relay on this Mac, and **walked signed in on the emulator 2026-10-09** against the service on this Mac (the walk, the bugs it found and what it did not reach are under "What stage 7 left open"); the "Live typing" switch is the device's own flag since then. The phone's own notifications are not ported |
 | 8 | Voice and AI: the recorder, Whisper, meetings and their service, summaries, the language model, fills, the at-work scene | `capture/` (12k), `ai/` (6.5k), `tapes/`, `scene/`, Kotlin (6.5k) | Speak in the app 2026-10-09 (`lib/root/voice_wiring.dart`, `lib/root/capture_route.dart`, `lib/root/ghost_root.dart`): the dock's microphone, a note's own and a journal's spoken entry, the capture screen with its live page, the meeting service and its screen, the + sheet's Meeting, Settings' Recording and AI pages with their real rows; the summary queue, the review's gate and the write-up's configuration (lib/ai's), a spoken note's tape played by the phone, a landing's Undo; walked on an Android emulator; the AI in a note (`NoteAi`), the fills' queue, the gists and the scene since the third pass, run on the emulator with Qwen3.5 2B; **not yet on the Fold**; see "What stage 8 left open" |
 | 9 | The rest: backup, export, plugins, the Academy and the guide, diagnostics, updates | `plugins/`, `academy/`, `guide/`, `diag/` | 9A to 9C (the library's folder, backup, export) walked on the emulator 2026-10-09, and in Settings since (`lib/root/ghost_root.dart`); see "What stage 9A to 9C left open". The plugins (in Settings and in a note), the Academy, the walkthrough and the guide's notebook, link previews, Developer's benches and its resets are in the app 2026-10-09 (`lib/root/plugin_ground.dart`, `reset_wiring.dart`, `note_desk.dart`, `ghost_root.dart`); the app's own updates (9I: `lib/core/updates.dart`, `lib/root/update_wiring.dart`, `tool/release.md`) and the invitation's card are in the app 2026-10-09, the updates run on the emulator against a made-up release and **on in no build** until a key and a release address are chosen; a note's place, a picture from the phone, the phone's calendar for a date and a voice memo's player are in the app 2026-10-09 (`Position.kt`, `Pictures.kt`, `DayPick.kt`), walked on the emulator; a film picked, kept and played, and a picture pasted from the clipboard, since the same day (`Films.kt`, `FilmPlayer.kt`), walked there too; the phone's own update notifier is not ported, and what it needs is written down; see "What stage 9's other pieces left open" |
-| 10 | Platforms and release: the Fold's wide layouts, Mac, Windows, iPhone; signing; moving a library over from the Tauri app | `core/useWideScreen.ts`, `core/unfold.ts`, `aside/`, app.css `.app-split`, the hinge in `MainActivity.kt` | the Fold's wide layouts in the app 2026-10-09 and compared with the page side by side on an emulator at the unfolded size (1848 x 2448 at 420 dpi, a window of 704 x 933): the aside (`lib/aside/`), the docked sidebar and the aside kept to the device, the unfold and its hinge channel (`lib/core/unfold.dart`, `Hinge.kt`), a mouse's hover on a phone, a fold that keeps the screen it had (`lib/shell/app_shell.dart`); **not yet on the Fold**; see "What stage 10's wide layouts left open". Mac, Windows, iPhone, signing and moving a library over are other hands' or not begun. The Mac app builds and runs 2026-10-09 (`macos/`, `tool/build-native.sh mac`): not sandboxed, its files in a folder of its own that is never the Tauri app's, `ghostmd://` claimed, the core bundled universal, the window under its title bar with the lights in the page's row, a menu bar and a desktop's keys, the Mac's half of the channels in Swift, drives and Eject as the Tauri app's, a take and a meeting recorded and transcribed on the fixture, and twenty pictures of it beside the page drawn in WebKit; not signed, not notarised; see "What the Mac app left open" |
+| 10 | Platforms and release: the Fold's wide layouts, Mac, Windows, iPhone; signing; moving a library over from the Tauri app | `core/useWideScreen.ts`, `core/unfold.ts`, `aside/`, app.css `.app-split`, the hinge in `MainActivity.kt` | the Fold's wide layouts in the app 2026-10-09 and compared with the page side by side on an emulator at the unfolded size (1848 x 2448 at 420 dpi, a window of 704 x 933): the aside (`lib/aside/`), the docked sidebar and the aside kept to the device, the unfold and its hinge channel (`lib/core/unfold.dart`, `Hinge.kt`), a mouse's hover on a phone, a fold that keeps the screen it had (`lib/shell/app_shell.dart`); **not yet on the Fold**; see "What stage 10's wide layouts left open". Windows, signing and moving a library over are other hands' or not begun. The Mac app builds and runs 2026-10-09 (`macos/`, `tool/build-native.sh mac`): not sandboxed, its files in a folder of its own that is never the Tauri app's, `ghostmd://` claimed, the core bundled universal, the window under its title bar with the lights in the page's row, a menu bar and a desktop's keys, the Mac's half of the channels in Swift, drives and Eject as the Tauri app's, a take and a meeting recorded and transcribed on the fixture, and twenty pictures of it beside the page drawn in WebKit; not signed, not notarised; see "What the Mac app left open". The iPhone app builds and runs in the simulator 2026-10-09 (`ios/`, `tool/build-native.sh ios`): under its own id with its files in its own container, the core static and linked into the app without the engines, no recorder and no AI as the real iPhone app has none, the iPhone's half of the channels in Swift, a bar with Done on the keyboard, and walked from the guide to Settings in dark and light; not on a phone, not signed, nothing uploaded; see "What the iPhone app left open" |
 
 The web app is about 110,000 lines of TypeScript, 21,500 of CSS, 27,000 of Rust and 6,500 of Kotlin, with 5,600
 tests. Parity is the bar for every stage; a stage is not done until its screens have been compared with the web app's
@@ -284,6 +284,168 @@ Application certificate in the keychain, and the App Store Connect key every Mat
 
 To look at it without touching the screen: a debug build walks itself from a script in its environment and writes
 the window's picture into its temporary folder (`lib/shell/desktop/mac_tour.dart`).
+
+## What the iPhone app left open
+
+**What is there (2026-10-09).** `tool/build-native.sh ios` then `flutter build ios --simulator --debug --no-pub` makes
+`build/ios/iphonesimulator/Runner.app`: bundle id `com.mattssoftware.glyph.flutter`, named "Ghost Flutter", the real
+iPhone app's icon, iOS 15 and later, an iPhone's alone (`TARGETED_DEVICE_FAMILY` 1, as the real app's first version
+is). It installs beside the real app and shares nothing with it: an iPhone app sees only its own container, its
+library is `<container>/Library/Application Support/com.mattssoftware.glyph.flutter/Library`, and
+`ios/Runner/GhostChannels.swift` refuses to name a data directory at all for a build carrying the real app's id. Its
+secrets are Keychain items under the service `com.mattssoftware.glyph.flutter.secure`, kept for this device alone
+(`apple/Keychain.swift`). A debug build has no service, no mirror and no updates, as on every platform.
+
+- **The core** is the same Rust (`native/`) as a STATIC library, since iOS loads no loose dylib out of an app:
+  `cargo rustc --crate-type staticlib` for `aarch64-apple-ios-sim` and `aarch64-apple-ios`, kept apart in
+  `ios/Core/GhostCore.xcframework` (not in git) and linked into the Runner. Nothing compiled there calls it, so
+  `ios/Runner/GhostCoreKeep.c` names its five functions in a table the linker must keep, the Runner strips only what
+  is not global (`STRIP_STYLE`), and Dart finds them in the app's own process (`lib/core/native/ghost_worker.dart`
+  `openCore`, `DynamicLibrary.process()`). A build with no library for what is being built stops and says so
+  (`tool/find-ios-core.sh`). The simulator is Apple silicon's alone (`EXCLUDED_ARCHS` leaves x86_64 out: there is no
+  Intel slice of the core). Cargo's `strip` is off, for the Mac's reason.
+- **Without the engines, as the real iPhone app is.** The Tauri app builds neither whisper.cpp nor llama.cpp for
+  iOS (`src-tauri/Cargo.toml`, `src/unsupported.rs`), and its page leaves out every way into a recording there
+  (`core/platform.ts` `recordsVoice`: "Notes-only first version"). So the iPhone's core is the notes-only one
+  whatever `GHOST_VOICE` says, nothing of voice is made (`lib/core/iphone_app.dart` `recordsVoice`,
+  `lib/main.dart`), and there is no microphone in the dock, in a note, on a tape, in the palette or in the + sheet,
+  no Recording, AI, Library folder or Backup in Settings, and the guide says "Notes you type."
+  `GHOST_IOS_VOICE=1 tool/build-native.sh ios` asks for the engines all the same and is **untried**: it would also
+  want a microphone in Swift (the Mac's `MicChannel.swift` is `AVAudioEngine` and close, less an `AVAudioSession`),
+  `NSMicrophoneUsageDescription`, and a decision, since the real app ships without.
+- **What the real iPhone app's page answers, answered here** (`lib/root/iphone_wiring.dart`, each with its rule):
+  About says "Ghost.md updates through the App Store." and lists no releases; Export says "Exporting isn’t on iPhone
+  yet."; the Location card and a note's Add my location say "Ghost.md can’t find where you are on this device yet."
+  and the +'s A place is not drawn; the + beside a line has no A picture or A video, while the note's own menu and a
+  canvas add a picture (the page's file input there; here the phone's own menu of Photo Library, Take Photo and
+  Choose File); the More sheet keeps its AI rows and a press says "The AI is not on iOS yet."; a tape synced from
+  another device offers no Add; Notion and Slack are listed and their requests are refused in Rust's words
+  ("Notion is not available on iOS yet."), GitHub works, and no link's preview is fetched.
+- **An iPhone's page** (`lib/app/iphone_page.dart`): the phone's text size and Bold Text are left alone, as a web
+  view leaves the page's px and rem; the keyboard has a bar with Done on it, in the page's paper, where WebKit lays
+  its own accessory bar, and every screen is laid out above both (they all read `MediaQuery.viewInsets`); the
+  status bar's ink follows the page's shade; a selection has the phone's own handles, a bar and a knob, and a caret
+  has none (`GlacierTextSelectionControls`); success, warning and error are the phone's notification haptics.
+- **`ghostmd://` is claimed** in the Info.plist, as the real iPhone app claims it (`src-tauri/Info.ios.plist`), and
+  a link is handed to the page through the scene (`GhostChannels` as a `FlutterSceneLifeCycleDelegate`). `glyph://`,
+  which the real app keeps for a shortcut nothing answers, is not. An iPhone with both apps hands a link to
+  whichever it chooses.
+
+**Each channel, and its iPhone half** (`MethodChannel(` and `EventChannel(` in `lib/`):
+
+| Channel | On the iPhone |
+| ------- | ------------- |
+| `ghost_md/device_paths` | Swift: `<Application Support>/<bundle id>` and `<Caches>/<bundle id>` in the app's container |
+| `ghost_md/open` | Swift: `UIApplication.open`, the same five schemes; `geo:` opens Maps |
+| `ghost_md/secure_store` | Swift: the Keychain (`apple/Keychain.swift`), this device only, after first unlock |
+| `ghost.md/reset` | Swift: forgets the Keychain's service; no meeting to be recording, no work queue |
+| `ghost_md/links` | Swift: `ghostmd://` links from the scene, kept until the page takes them |
+| `ghost_md/pictures` | Swift: a menu of `PHPickerViewController`, the camera and the Files picker, the picture shrunk to 1600 px and turned (`apple/PictureKeep.swift`); a picture or words off `UIPasteboard` |
+| `ghost_md/tape` and its events | Swift: the Mac's own file (`macos/Runner/TapeChannel.swift`, compiled into both), with the audio session set to playback |
+| `ghost_md/day` | Swift: `UIDatePicker` in a sheet (`DayChannel.swift`), where the page's date input opened the phone's calendar |
+| `ghost_md/mic` and its events | none: the real iPhone app records nothing. No recorder is made |
+| `ghost_md/meeting` and its events | none: Android's service, assistant and side key. No Meeting in the + sheet |
+| `ghost_md/files` | none: no library folder, no export, no backup on an iPhone, as on the page; Export says so and the other two are not listed |
+| `ghost_md/location` | none: the page's `locateHere` answers `ios` there, and the Dart says its sentence |
+| `ghost_md/films`, `ghost_md/film` and its events | none: films are Android's alone |
+| `ghost_md/updates` | none: it installs an APK. About says the App Store updates the app |
+| `ghost_md/hinge`, `ghost_md/front` | none: the Fold's hinge, and Android taking the app from the front |
+| `ghost_md/window` | none: the Mac's window |
+
+**Walked in the simulator** (my own iPhone 18 Pro on iOS 27.0, 402 x 874 at 3, safe areas 62 and 34; the newest
+runtime here, 27.1, has only the folding iPhone Duo, which was not walked), by a debug build's tour of itself
+(`lib/shell/phone_tour.dart`, `tool/ios-tour.sh`: a finger's events given to Flutter's own gestures, words typed
+through the keyboard's own client, pictures by `xcrun simctl io`; nothing is ever sent to the Mac's screen). Seen,
+in dark and then light: the walkthrough's four pages ("Notes you type.", the theme, the models with no line about
+getting one, the hand-over) and its "Not yet" on a relaunch; home with no microphone in its dock, beside the real
+app's App Store picture of it; the sidebar's card, the bell, the palette with the keyboard and its bar; a note,
+typed into, Done, held for its band, More with its AI rows and the toast; the + sheet (no Meeting), a blank note's
+names and templates, the + list and its More; a board, a notebook's ticket beside the real app's; a canvas, a card
+written, and the phone's picture menu; Settings' eight sections, Account with its ghosts and the Location card,
+Appearance to its end, About, Export, and a swipe across Settings going back; each channel asked something harmless
+(paths, a secret written, read and removed, a tape, the links, a reset, a refused scheme, and the absent ones
+saying they are absent). The wisp's smoke at a page's top and foot and the dotwork ghosts draw on Impeller over
+Metal; the faces are the app's own.
+
+**What a TestFlight or App Store build needs** (none of it done: nothing was signed with a distribution identity,
+uploaded, or asked of App Store Connect). The real app's own road is `../glyph/docs/store/APP_STORE.md` and
+`~/Development/Apps/ghost-md-app-store-pack`; what carries over and what does not:
+
+1. **Which app it is.** The store's record is Ghost Markdown (6818598896), `com.mattssoftware.glyph`, whose build
+   1.10.0 is uploaded; this project is `com.mattssoftware.glyph.flutter`. Either a record of its own under that id
+   (a TestFlight beside the real app, sharing nothing), or the real id, which makes it the real app's update: then
+   its number must be above 1.10.0, the name under the icon is Ghost.md, `GhostChannels.dirs()` must stop refusing
+   that id, and the Tauri app's library (`<Application Support>/com.mattssoftware.glyph`, the same layout) is there
+   to be opened, which wants proving before anyone's notes ride on it. The version is `pubspec.yaml`'s (0.1.0+1) and
+   `ghostVersion`'s, said twice.
+2. **Signing**, as the real app's: team `F6ZAL7ANAD` (already the project's), automatic signing with the team's
+   App Store Connect key (`ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_PATH` in
+   `~/.config/mattssoftware/signing/asc-api.env`) handed to `xcodebuild` as `-allowProvisioningUpdates` with the
+   key, Xcode making the store profile itself, and the export's method `app-store-connect`. `flutter build ipa`
+   does not pass a key: build with `flutter build ios --release --no-codesign` and archive with `xcodebuild`, or
+   sign from a Mac whose Xcode is signed in. Run the export with `/usr/bin` first in `PATH` (Homebrew's rsync
+   broke the real app's). **Entitlements: none**, as the real app's file is empty; the Keychain needs none.
+3. **The library for a phone**: `tool/build-native.sh ios` builds `aarch64-apple-ios` too. A release link drops
+   what nothing reaches and strips symbols: the keep table and `STRIP_STYLE = non-global` are there for it, and
+   **a release build has not been made or run**, so the first thing to check on one is
+   `nm -gU Runner.app/Runner | grep ghost_invoke`, then that it opens its notes on a phone.
+4. **A privacy manifest** (`PrivacyInfo.xcprivacy` in the Runner; there is none yet). The real app's
+   (`src-tauri/gen/apple/glyph_iOS/PrivacyInfo.xcprivacy`) is the model: no tracking; with an account, User ID, User
+   Content and Photos linked to the user for app function (no Audio while nothing records); required-reason APIs
+   FileTimestamp C617.1 (the library, SQLite), SystemBootTime 35F9.1 (`Instant`), UserDefaults CA92.1
+   (`shared_preferences`), and DiskSpace E174.1 only if something still asks (the engine's did). The App Privacy
+   answers must match it.
+5. **Export compliance is not the real app's answer.** Its `ITSAppUsesNonExemptEncryption` is `false` because all
+   its encryption on iOS is Apple's WebCrypto. This app's is its own, in the Rust core (`native/src/crypto.rs`:
+   AES-GCM, PBKDF2, P-256, Ed25519), so the question has to be answered again for standard algorithms the app
+   carries itself. The key is not in this Info.plist.
+6. **The Info.plist as it stands**: the scene manifest (iOS 26 and later stop an app without one), `ghostmd://`,
+   the camera's sentence (the real app's words), the Productivity category, arm64 and Metal, portrait and the two
+   landscapes. No microphone or location sentence, and no photo library one (`PHPicker` needs none).
+7. **The service**: a release names it at build time (`--dart-define=GHOST_API=…`, docs/STAGE7.md); without one
+   the app has no account, and the store's review notes and demo account (`APP_STORE.md`) are about one.
+8. **Words that name another platform** (guideline 2.3.10), each the page's own and so the real app's too: "press
+   the side key" on the How Ghost.md works canvas, "on Android" in the Academy's video lesson, the guidebook's
+   chapters, and the new sheet's "typed or said".
+9. Then the checks `APP_STORE.md` lists (version and build, `UIDeviceFamily` [1], the distribution signature, both
+   the scheme and the scene delegate in the built plist, the icon without alpha, which it is), `altool
+   --validate-app`, and the upload: Matt's to do.
+
+**Left open:**
+
+- **Not on a phone.** Everything above is the simulator's. The phone's slice of the core is built and linked into
+  nothing yet; Impeller on a phone's GPU, the Taptic Engine and a real keyboard are unseen.
+- **The system's own screens were shown and not pressed.** Nothing here sends a touch to UIKit: the picture menu
+  was seen and its three choosers were not opened, so `PHPicker`'s file, a HEIC, a photo just taken and the Files
+  picker have not been through `PictureKeep` on an iPhone (it is the Mac's ImageIO code). The date sheet was not
+  reached in the walk. A `ghostmd://` link was not opened (the simulator asks before it hands one over), nor a
+  picture pasted (an iPhone asks before a paste is read).
+- **The keyboard is not WebKit's.** The real app's page is not resized for the keyboard on an iPhone: WebKit pans
+  it so the caret shows, and its dock and find bar stay where they were. Here the page is laid out above the
+  keyboard, which is the page's own rule and its Android half's. The bar is the app's drawing, without WebKit's two
+  arrows. Not compared with the real app, which was not run here. A hardware keyboard raises no bar.
+- **Scrolling.** A note rubber-bands at its ends, as Flutter gives an iPhone. Home, All notes, an organization's
+  page, Settings, the guide and the + list are pinned to stopping dead (`ClampingScrollPhysics`, written for
+  `overscroll-behavior: contain` as Android's WebView reads it), where WebKit rubber-bands a contained scroller;
+  each is one line, and home's meets the pull to refresh, which wants trying on a phone before it is changed.
+- **The status bar follows the page's theme**, so it can be read under Dark on a light phone. The real app's
+  follows the phone, the page never having told the window its theme.
+- **The handles are Flutter's copy of the phone's**, in the system's blue as a web view's are; the loupe over a
+  dragged handle is still the editor's own, not an iPhone's. The note's menu is the page's own band, as on the
+  page, never the system's callout.
+- **A canvas's card being written is not brought above the keyboard** (seen: the card half under the tools).
+- **`{?…}` blanks**: with no AI made, the editor has no blanks extension, so a blank is its own text; the page
+  draws the blank and only withholds its Fill. Not looked at.
+- **Browse files** is not drawn. The page draws it on an iPhone and its press fails silently.
+- **Seen in the walk and not an iPhone's alone, left for whose they are:** the palette shows `⌘N` and its keys'
+  footer on a phone; Settings › About › Examples' rows did nothing visible when pressed; a relaunch came up on
+  Home twice and on the open note once.
+- **The haptics cannot be felt in a simulator.** The typing tick is the phone's selection click, where the page
+  asks for a soft impact, which Flutter does not have.
+- **Landscape, the iPhone Duo and an iPad** were not looked at; the app is an iPhone's alone.
+- **The Keychain's lines are written twice** until the Mac's target takes `apple/Keychain.swift` and
+  `apple/PictureKeep.swift` in place of the copies inside its `GhostChannels.swift`.
+- **Moving a library over from the real iPhone app** is item 1 above, or sync.
 
 ## What stage 9's other pieces left open
 
@@ -871,6 +1033,10 @@ flutter build apk --debug --target-platform android-arm64   # -t lib/main_kit.da
 adb install -r build/app/outputs/flutter-apk/app-debug.apk
 tool/build-native.sh mac                    # the Mac app's core, both architectures: macos/Core/libghost_core.dylib
 flutter build macos --debug                 # build/macos/Build/Products/Debug/Ghost Flutter.app
+tool/build-native.sh ios                    # the iPhone app's core, static, the simulator's and the phone's: ios/Core/GhostCore.xcframework
+flutter build ios --simulator --debug       # build/ios/iphonesimulator/Runner.app
+xcrun simctl install <udid> build/ios/iphonesimulator/Runner.app && xcrun simctl launch <udid> com.mattssoftware.glyph.flutter
+tool/ios-tour.sh <udid> /tmp/shots 'wait:7000;shot:home'    # a debug build walks itself; the pictures are the simulator's
 ```
 
 `tool/sync-design.sh` refreshes the stylesheets from `../glyph`; run the kit's tests after it.
