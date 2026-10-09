@@ -142,7 +142,8 @@ void main() {
       final features = tester.widget<SettingsSheet>(find.byType(SettingsSheet)).features;
       expect(features.onSmokeBench, isNotNull);
       expect(features.onPlayScene, isNotNull);
-      expect(features.onReset, isNull, reason: 'starting over is not wired');
+      // Without the whole core, the three pages over it say what a build without them says.
+      expect((features.libraryFolder, features.backup, features.export), (null, null, null));
       await close(tester);
     });
   });

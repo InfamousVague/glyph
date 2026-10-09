@@ -22,16 +22,20 @@ import '../capture/ui/capture_screen.dart';
 import '../capture/ui/meeting_screen.dart';
 import '../commands/app_commands.dart';
 import '../commands/command_bar.dart';
+import '../core/backup.dart' show Backups;
 import '../core/book.dart';
 import '../core/canvas_body.dart';
 import '../core/core_library.dart';
+import '../core/export_all.dart' show ExportAll;
 import '../core/front_matter.dart' show frontMatterOffset;
 import '../core/images.dart';
 import '../core/kept_trash.dart';
+import '../core/library_folder.dart' show LibraryFolder;
 import '../core/link_preview.dart' show KeptLinkPreviews, LinkOpener, LinkPreviewFetch;
 import '../core/kept_workspaces.dart';
 import '../core/native/core.dart';
 import '../core/native/files.dart';
+import '../core/native/ghost_core.dart' show GhostCore;
 import '../core/note.dart';
 import '../core/note_folders.dart';
 import '../core/note_text.dart';
@@ -120,7 +124,7 @@ import 'voice_wiring.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -156,6 +160,11 @@ class GhostRoot extends StatefulWidget {
   /// Hands an address to the phone (lib/core/open_link.dart): a link's tap in a note, Settings' pages. Absent, a tap
   /// opens nothing.
   final LinkOpener? openLink;
+
+  /// The whole core, for what is a job there and says the rest as events: Settings' Library folder, Backup and
+  /// Export (lib/core/library_folder.dart, backup.dart, export_all.dart). Absent, as in a test, those pages say
+  /// what a build without them says.
+  final GhostCore? native;
 
   /// Reads a linked page's title, site and summary (lib/core/link_preview.dart `linkPreviewFetch`). Absent, as in a
   /// test, a link's card says its site and its path and nothing is asked of anywhere.
@@ -414,6 +423,15 @@ class _GhostRootState extends State<GhostRoot> {
     shell.openNote(id);
   }
 
+  /// Settings' three pages over the core and the phone's pickers: where the library is and the calls that move it,
+  /// the drives a backup goes to, and everything as one zip. Made once, where the build has the whole core.
+  late final GhostCore? _native = _real ? widget.native : null;
+  late final LibraryFolder? _libraryFolder = _native == null
+      ? null
+      : LibraryFolder(invoke: _native.invoke, onNotesChanged: () => unawaited(_library.refresh().catchError((Object _) {})));
+  late final Backups? _backups = _native == null ? null : Backups.overCore(invoke: _native.invoke, startJob: _native.startJob, events: _native.events);
+  late final ExportAll? _export = _native == null ? null : ExportAll.overCore(invoke: _native.invoke, startJob: _native.startJob, events: _native.events);
+
   /// What Settings' Recording and AI pages ask of voice (settings/RecordingPane.tsx, AiPane.tsx): the models on
   /// this phone with Get and Remove, the Meetings card where the phone has the service, and the room the tapes
   /// take, said from their lengths (settings/tapes.ts: 16 kHz, 16-bit, mono is 32 bytes a millisecond).
@@ -423,7 +441,7 @@ class _GhostRootState extends State<GhostRoot> {
     // Developer's two benches, over everything (diag/WispBench.tsx, diag/SceneBench.tsx).
     void smoke() => unawaited(showWispBench(context));
     void scene(String readings) => unawaited(showSceneBench(context, readings));
-    if (voice == null) return SettingsFeatures(onWayIn: wayIn, onSmokeBench: smoke, onPlayScene: scene);
+    if (voice == null) return SettingsFeatures(onWayIn: wayIn, onSmokeBench: smoke, onPlayScene: scene, libraryFolder: _libraryFolder, backup: _backups, export: _export);
     final models = voice.models;
     final present = models == null ? const <String>{} : presentIds(models.models).toSet();
     final download = models?.download;
@@ -443,6 +461,9 @@ class _GhostRootState extends State<GhostRoot> {
       onWayIn: wayIn,
       onSmokeBench: smoke,
       onPlayScene: scene,
+      libraryFolder: _libraryFolder,
+      backup: _backups,
+      export: _export,
       models: models == null
           ? null
           : SettingsModelsState(

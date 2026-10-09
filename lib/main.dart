@@ -41,6 +41,7 @@ Future<void> main() async {
   // The notes library: the web app's own Rust, asked across FFI (lib/core/native). A phone where it will not load
   // still opens, on the invented library, rather than on nothing.
   CoreInvoke? core;
+  GhostCore? whole;
   AccountMaking? account;
   VoiceMaking? voice;
   try {
@@ -48,6 +49,7 @@ Future<void> main() async {
     final dirs = await DevicePaths.find();
     await native.init(dataDir: dirs.dataDir, cacheDir: dirs.cacheDir);
     core = native.invoke;
+    whole = native;
     // The account, only in a build told where its service is (`--dart-define=GHOST_API=http://…`), and never the
     // real service from a debug build (docs/STAGE7.md). With none, nothing of the account is made at all.
     final base = accountBase(ghostApiDefine);
@@ -70,5 +72,5 @@ Future<void> main() async {
     debugPrint('[ghost] the library would not open: $failure');
   }
   // One PhoneLinks for the life of the app: it holds the channel the activity says `arrived` on.
-  runApp(GhostApp(sheet: sheet, home: GhostRoot(core: core, account: account, voiceMaking: voice, links: PhoneLinks(), openLink: openLink, previewFetch: linkPreviewFetch())));
+  runApp(GhostApp(sheet: sheet, home: GhostRoot(core: core, native: whole, account: account, voiceMaking: voice, links: PhoneLinks(), openLink: openLink, previewFetch: linkPreviewFetch())));
 }
