@@ -73,6 +73,15 @@ void main() {
     expect(still.duration('glacier-duration-normal').inMilliseconds, 0);
   });
 
+  test('a rule is a whole number of device pixels, rounded down and never none, as a browser snaps a border', () {
+    expect(const CssContext(dpr: 2.625).border(1), closeTo(2 / 2.625, 1e-9));
+    expect(const CssContext(dpr: 2.625).border(1.5), closeTo(3 / 2.625, 1e-9));
+    expect(const CssContext(dpr: 3).border(1), 1);
+    expect(const CssContext(dpr: 1).border(1.5), 1);
+    expect(const CssContext(dpr: 4).border(0.1), 0.25);
+    expect(const CssContext().border(0), 0);
+  });
+
   test('mixes colours where CSS mixes them', () {
     final half = evalColor('color-mix(in oklch, oklch(0.6 0.2 30) 50%, oklch(0.8 0.1 90))');
     expect(half.l, closeTo(0.7, 1e-9));

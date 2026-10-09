@@ -8,7 +8,7 @@ import 'oklch.dart';
 /// What a CSS length is measured against: the root font size, the font size of the element asking, and the window.
 /// Flutter's logical pixels are CSS pixels, so a `rem` is 16 of them here as it is on the page.
 class CssContext {
-  const CssContext({this.rem = 16, this.em = 16, this.vw = 390, this.vh = 844});
+  const CssContext({this.rem = 16, this.em = 16, this.vw = 390, this.vh = 844, this.dpr = 1});
 
   final double rem;
   final double em;
@@ -17,13 +17,25 @@ class CssContext {
   final double vw;
   final double vh;
 
-  CssContext withEm(double em) => CssContext(rem: rem, em: em, vw: vw, vh: vh);
+  /// Device pixels to a logical one, for [border].
+  final double dpr;
+
+  /// A border's width as a browser uses it: a whole number of device pixels, rounded down, and never less than one
+  /// (Chromium snaps the computed width, so on a phone at 2.625 a `1px` rule is two device pixels, 0.762px, and a
+  /// column of forty rows is that much shorter than forty unsnapped rules would make it).
+  double border(double px) {
+    if (px <= 0 || dpr <= 0) return px;
+    final device = px * dpr;
+    return device < 1 ? 1 / dpr : (device + 1e-6).floorToDouble() / dpr;
+  }
+
+  CssContext withEm(double em) => CssContext(rem: rem, em: em, vw: vw, vh: vh, dpr: dpr);
 
   @override
-  bool operator ==(Object other) => other is CssContext && other.rem == rem && other.em == em && other.vw == vw && other.vh == vh;
+  bool operator ==(Object other) => other is CssContext && other.rem == rem && other.em == em && other.vw == vw && other.vh == vh && other.dpr == dpr;
 
   @override
-  int get hashCode => Object.hash(rem, em, vw, vh);
+  int get hashCode => Object.hash(rem, em, vw, vh, dpr);
 }
 
 class CssFormatException implements Exception {

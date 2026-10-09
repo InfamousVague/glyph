@@ -62,7 +62,7 @@ class _GlacierThemeState extends State<GlacierTheme> {
       'safe-area-inset-left': '${pad.left}px',
       'safe-area-inset-right': '${pad.right}px',
     };
-    final css = CssContext(vw: media.size.width, vh: media.size.height);
+    final css = CssContext(vw: media.size.width, vh: media.size.height, dpr: media.devicePixelRatio);
     final key = Object.hash(widget.sheet, Object.hashAll(attrs.entries.map((e) => Object.hash(e.key, e.value))), Object.hashAll(env.values), css, media.disableAnimations, widget.typography);
     if (_tokens == null || key != _key) {
       _key = key;

@@ -175,8 +175,14 @@ class Tokens {
 
   /// A length in logical pixels, a time in milliseconds, or a plain number. [em] is the font size an `em` in it
   /// measures, where the property is one.
-  double len(String name, {double? em}) =>
-      em == null ? _cached('len', name, () => evalNumber(_need(name), css)) : evalNumber(_need(name), css.withEm(em));
+  double len(String name, {double? em}) {
+    final value = em == null ? _cached('len', name, () => evalNumber(_need(name), css)) : evalNumber(_need(name), css.withEm(em));
+    return _rules.contains(name) ? css.border(value) : value;
+  }
+
+  /// The tokens that are the width of a rule or a border wherever they are used, and so are whole device pixels on
+  /// the page ([CssContext.border]).
+  static const _rules = {'glacier-hairline', 'app-line'};
 
   double number(String name) => len(name);
 
