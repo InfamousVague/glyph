@@ -10,6 +10,7 @@ import '../core/note.dart';
 import '../core/note_text.dart';
 import '../core/tabs.dart';
 import '../core/workspaces.dart';
+import '../shell/desktop/mac_lights.dart';
 import '../shell/pop_menu.dart';
 import '../shell/top_bar.dart';
 import '../shell/wide_screen.dart';
@@ -470,7 +471,8 @@ class _NoteTabsState extends State<NoteTabs> {
       // A finger held on a tab and let go where it was, or a mouse's right-click: that tab's menu.
       onHeld: (id) => setState(() => _menu = (group: false, id: id)),
       gap: switch (shape) { TabShape.tab => 2, TabShape.indexLine => t.space(4), TabShape.capsule => t.space(1) },
-      paddingStart: capsule ? t.space(2) : t.len('app-bar-start'),
+      // The Ledger's tabs are the bar's top row, so on the Mac they are the row that clears the window's buttons.
+      paddingStart: capsule ? t.space(2) : t.len('app-bar-start') + (widget.style == TopBarStyle.ledger ? trafficLightsRoom(t) : 0),
       paddingEnd: capsule ? t.space(2) : t.len('app-bar-end'),
       minHeight: capsule ? t.len('app-tab-h') - 4 : t.len('app-tab-h'),
       lineColor: switch (shape) {
@@ -537,11 +539,13 @@ class _NoteTabsState extends State<NoteTabs> {
         child: _toolRow(gap, 0, [_sidebarRing(), ..._arrows()], [_orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]),
       );
     } else {
+      // The Mac's three window buttons sit at this row's start: the first control begins after their room.
+      final lights = trafficLightsRoom(t);
       topH = ring;
       final controls = style == TopBarStyle.masthead
           ? _toolRow(gap, end, [_homeWord(), _sidebarWord(), ..._arrowWords()], [_orgs(asWord: true), _bell(), _cog(), widget.tail, _asideRing()])
           : _toolRow(gap, end, [_homeRing(), _sidebarRing(), ..._arrows()], [_orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]);
-      top = Padding(padding: EdgeInsets.only(left: start), child: controls);
+      top = Padding(padding: EdgeInsets.only(left: start + lights), child: lights > 0 ? MacLightsRow(child: controls) : controls);
     }
 
     // The column: `justify-content: center`, with the tabs pushed to the bar's foot wherever they are the second row
@@ -577,7 +581,7 @@ class _NoteTabsState extends State<NoteTabs> {
         clipBehavior: Clip.none,
         children: [
           Positioned(left: 0, right: 0, top: topY, height: topH, child: top),
-          if (tabRow != null) Positioned(left: 0, right: 0, top: rowY, height: rowH, child: tabRow.row),
+          if (tabRow != null) Positioned(left: 0, right: 0, top: rowY, height: rowH, child: ledger && titlebarOverlay(t) ? MacLightsRow(child: tabRow.row) : tabRow.row),
         ],
       ),
     );
@@ -594,7 +598,8 @@ class _NoteTabsState extends State<NoteTabs> {
     // A capsule's height with its padding and hairline round it, so a folded group's chip does not move.
     final rowH = t.len('app-tab-h') - 4 + 6 + 2 * hairline;
 
-    final way = BarCapsule(children: [?_homeRing(), ?_sidebarRing(), ..._arrows()]);
+    final Widget capsule = BarCapsule(children: [?_homeRing(), ?_sidebarRing(), ..._arrows()]);
+    final way = titlebarOverlay(t) ? MacLightsRow(child: capsule) : capsule;
     final own = <Widget>[?_orgs(asWord: false), ?_bell(), ?_cog(), ?widget.tail, ?_asideRing()];
     final tools = widget.tools;
     // The slot is a place in the capsule's row whether or not the screen has put anything in it.
@@ -636,7 +641,8 @@ class _NoteTabsState extends State<NoteTabs> {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          Positioned(left: start, right: end, top: (height - total) / 2, height: total, child: body),
+          // The Mac's window buttons are at the start of the capsules' row, which begins after their room.
+          Positioned(left: start + trafficLightsRoom(t), right: end, top: (height - total) / 2, height: total, child: body),
         ],
       ),
     );

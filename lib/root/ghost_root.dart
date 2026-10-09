@@ -118,6 +118,7 @@ import '../shell/top_bar.dart';
 import '../tapes/player.dart' show TapePlayer, audioRemoved;
 import 'account_wiring.dart';
 import 'capture_route.dart';
+import 'desktop_wiring.dart';
 import 'library_reads.dart';
 import 'note_desk.dart';
 import 'reset_wiring.dart';
@@ -1331,6 +1332,9 @@ class _GhostRootState extends State<GhostRoot> {
   bool get _read => !_library.loading;
   bool _settings = false;
 
+  /// Stops answering the desktop's keys and menu (lib/root/desktop_wiring.dart).
+  VoidCallback? _stopDesktop;
+
   /// The workspace sheet: shut, a new one, or one to change.
   ({Workspace? editing})? _workspace;
 
@@ -1339,6 +1343,7 @@ class _GhostRootState extends State<GhostRoot> {
 
   @override
   void dispose() {
+    _stopDesktop?.call();
     preferences.removeListener(_smoke);
     preferences.removeListener(plugins.preferencesChanged);
     preferences.removeListener(_localOnlyMoved);
@@ -1395,6 +1400,27 @@ class _GhostRootState extends State<GhostRoot> {
     _open();
     unawaited(_account());
     unawaited(_speakUp());
+    // A desktop's keys and the Mac's menu bar (lib/root/desktop_wiring.dart): Command-N, Command-R, the palette, Settings.
+    _stopDesktop = wireDesktopCommands(
+      onPlace: () => _shell.currentState?.screen.isPlace ?? false,
+      covered: () => _settings || _newSheet || (_commands.currentState?.isOpen ?? false),
+      newNote: _new,
+      refresh: () async {
+        await _library.refresh();
+        await _services?.engine?.syncNow();
+      },
+      status: () {
+        final now = _services?.engine?.status.value;
+        return (phase: now?.phase ?? 'idle', message: now?.message);
+      },
+      say: (message) {
+        if (mounted) _say(context, message);
+      },
+      palette: () => _commands.currentState?.show(),
+      settings: () {
+        if (mounted) setState(() => _settings = true);
+      },
+    );
   }
 
   /// What this device kept of an account, then the sync for as long as the app is open, and the way in where it is

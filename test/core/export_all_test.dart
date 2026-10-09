@@ -93,7 +93,10 @@ void main() {
     test('is Android’s picker, an update where this build has none, and nowhere on an iPhone', () async {
       expect(await export(answer: '{}').way(), ExportWay.android);
       expect(await export().way(), ExportWay.update);
-      expect(await export(answer: '{}', platform: TargetPlatform.macOS).way(), ExportWay.update);
+      // The Mac app's save panel answers as Android's picker does; a Mac run without it (a test, a desktop run
+      // outside the app) has no way yet.
+      expect(await export(answer: '{}', platform: TargetPlatform.macOS).way(), ExportWay.mac);
+      expect(await export(platform: TargetPlatform.macOS).way(), ExportWay.update);
       expect(await export(answer: '{}', platform: TargetPlatform.iOS).way(), ExportWay.none);
       expect(exportGeneration, 22);
       await expectLater(export().exportEverything((_) {}, at: at), throwsA(isA<StateError>().having((e) => e.message, 'message', 'Update Ghost.md to export everything.')));

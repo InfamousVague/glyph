@@ -301,11 +301,12 @@ BackupRun coreBackupRun({required Future<CoreJob> Function(String command, [Map<
 
 /// The backup as the app reaches it: the page's imports, as one value (see the header).
 class Backups {
-  Backups({required CoreInvoke invoke, required BackupRun run, Future<String> Function()? drives, Future<String> Function(String id)? chooseDrive, Future<void> Function(String id)? eject, TargetPlatform? platform})
+  Backups({required CoreInvoke invoke, required BackupRun run, Future<String> Function()? drives, Future<String> Function()? macDrives, Future<String> Function(String id)? chooseDrive, Future<void> Function(String id)? eject, TargetPlatform? platform})
       : _invoke = invoke,
         _run = run,
         _platform = platform,
         _drives = drives,
+        _macDrives = macDrives,
         _eject = eject,
         _chooseDrive = chooseDrive;
 
@@ -316,7 +317,8 @@ class Backups {
         run: coreBackupRun(startJob: startJob, events: events),
         platform: platform,
         // The activity's on Android; the Mac app's own (macos/Runner/FilesChannel.swift) on a Mac, by the same calls.
-        drives: (platform ?? defaultTargetPlatform) == TargetPlatform.android || ((platform ?? defaultTargetPlatform) == TargetPlatform.macOS && runsAsMacApp) ? drivesOnPhone : null,
+        drives: (platform ?? defaultTargetPlatform) == TargetPlatform.android ? drivesOnPhone : null,
+        macDrives: (platform ?? defaultTargetPlatform) == TargetPlatform.macOS && runsAsMacApp ? drivesOnPhone : null,
         chooseDrive: chooseDriveOnPhone,
         eject: (platform ?? defaultTargetPlatform) == TargetPlatform.macOS && runsAsMacApp ? ejectOnMac : null,
       );
@@ -327,6 +329,10 @@ class Backups {
 
   /// `GlyphHost.backupDrives`: the drives plugged in now, as the activity's JSON. Null is a shell without them.
   final Future<String> Function()? _drives;
+
+  /// The Mac app's own list (macos/Runner/FilesChannel.swift `backupDrives`), in the activity's shape. Null is not
+  /// the Mac app: a Mac's drives are then the core's to list (`backup_drives`), as the Tauri app's were.
+  final Future<String> Function()? _macDrives;
 
   /// `GlyphHost.chooseBackupDrive`, answering what its `backupDrive` event said.
   final Future<String> Function(String id)? _chooseDrive;
@@ -341,16 +347,16 @@ class Backups {
     if (_device == TargetPlatform.iOS) return BackupWay.none;
     if (_device == TargetPlatform.android) return _drives != null ? BackupWay.android : BackupWay.update;
     // The Mac app lists its drives itself (see the header); no other desktop has them yet.
-    if (_device == TargetPlatform.macOS && _drives != null) return BackupWay.mac;
+    if (_device == TargetPlatform.macOS && _macDrives != null) return BackupWay.mac;
     return BackupWay.none;
   }
 
   /// The drives plugged in now, each with the last backup it holds where that can be read (`listDrives`).
   Future<List<BackupDrive>> listDrives(BackupWay way) async {
-    if (way == BackupWay.mac && _drives != null) {
+    if (way == BackupWay.mac && _macDrives != null) {
       // The Mac app: Swift's list, in Android's shape, `tree` the drive's own path once it has been allowed; the
       // last backup is read from each drive the app may already open.
-      final drives = readAndroidDrives(await _drives.call());
+      final drives = readAndroidDrives(await _macDrives.call());
       return Future.wait([
         for (final drive in drives)
           if (drive.tree == null)
@@ -379,7 +385,7 @@ class Backups {
 
   /// Whether the person has yet to let Ghost.md write [drive]: an Android drive with no tree, and in the Mac app
   /// (sandboxed, where the Tauri app is not) a drive not yet chosen in the Mac's panel.
-  bool needsAllowing(BackupWay way, BackupDrive drive) => drive.tree == null && (way == BackupWay.android || (way == BackupWay.mac && _drives != null));
+  bool needsAllowing(BackupWay way, BackupDrive drive) => drive.tree == null && (way == BackupWay.android || (way == BackupWay.mac && _macDrives != null));
 
   /// Android, and the Mac app: the person asked, once, to let Ghost.md write the drive (`allowDrive`).
   Future<DriveAnswer> allowDrive(String id) async {
