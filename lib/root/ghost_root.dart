@@ -42,6 +42,7 @@ import '../core/note_text.dart';
 import '../core/preferences.dart';
 import '../core/properties.dart';
 import '../core/query/query.dart' show TicketDraft;
+import '../core/reset.dart' show resetLocalData;
 import '../core/sample_library.dart';
 import '../core/stored.dart';
 import '../core/template.dart' show openEnd;
@@ -88,6 +89,7 @@ import 'account_wiring.dart';
 import 'capture_route.dart';
 import 'library_reads.dart';
 import 'note_desk.dart';
+import 'reset_wiring.dart';
 import 'take_back.dart';
 import 'voice_wiring.dart';
 
@@ -124,7 +126,7 @@ import 'voice_wiring.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -165,6 +167,10 @@ class GhostRoot extends StatefulWidget {
   /// Export (lib/core/library_folder.dart, backup.dart, export_all.dart). Absent, as in a test, those pages say
   /// what a build without them says.
   final GhostCore? native;
+
+  /// Builds the whole app anew, after a reset (`window.location.reload()`): whoever holds this root gives it. Absent,
+  /// Developer's two resets cannot be pressed.
+  final VoidCallback? restart;
 
   /// Reads a linked page's title, site and summary (lib/core/link_preview.dart `linkPreviewFetch`). Absent, as in a
   /// test, a link's card says its site and its path and nothing is asked of anywhere.
@@ -441,7 +447,21 @@ class _GhostRootState extends State<GhostRoot> {
     // Developer's two benches, over everything (diag/WispBench.tsx, diag/SceneBench.tsx).
     void smoke() => unawaited(showWispBench(context));
     void scene(String readings) => unawaited(showSceneBench(context, readings));
-    if (voice == null) return SettingsFeatures(onWayIn: wayIn, onSmokeBench: smoke, onPlayScene: scene, libraryFolder: _libraryFolder, backup: _backups, export: _export);
+    // Starting over (lib/core/reset.dart over lib/root/reset_wiring.dart): only where the app can be built anew.
+    final restart = widget.restart;
+    final reset = restart == null
+        ? null
+        : ({required bool models}) => resetLocalData(
+              resetGroundFor(
+                invoke: _real ? widget.core : null,
+                services: _services,
+                recordingNow: () => _voice?.live?.state?.recording ?? false,
+                kept: () => _stored,
+                restart: restart,
+              ),
+              models: models,
+            );
+    if (voice == null) return SettingsFeatures(onWayIn: wayIn, onSmokeBench: smoke, onPlayScene: scene, onReset: reset, libraryFolder: _libraryFolder, backup: _backups, export: _export);
     final models = voice.models;
     final present = models == null ? const <String>{} : presentIds(models.models).toSet();
     final download = models?.download;
@@ -461,6 +481,7 @@ class _GhostRootState extends State<GhostRoot> {
       onWayIn: wayIn,
       onSmokeBench: smoke,
       onPlayScene: scene,
+      onReset: reset,
       libraryFolder: _libraryFolder,
       backup: _backups,
       export: _export,

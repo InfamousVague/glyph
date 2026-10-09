@@ -150,7 +150,11 @@ class SecureStore(context: Context) {
         private const val IV = 12
         private const val TAG_BITS = 128
 
-        /** A name is a file's: letters, digits, `-` and `_`, nothing that could leave the folder. */
-        private val NAME = Regex("^[A-Za-z0-9_-]{1,64}$")
+        /**
+         * A name is a file's: letters, digits, `-` and `_`, nothing that could leave the folder; and `:`, which a
+         * plugin's secrets are named with where one name is the prefix of several (`glyph-slack-webhook:<id>`,
+         * lib/plugins/slack/manifest.dart), and which is an ordinary character in a file's name here.
+         */
+        private val NAME = Regex("^[A-Za-z0-9_:-]{1,64}$")
     }
 }

@@ -72,5 +72,29 @@ Future<void> main() async {
     debugPrint('[ghost] the library would not open: $failure');
   }
   // One PhoneLinks for the life of the app: it holds the channel the activity says `arrived` on.
-  runApp(GhostApp(sheet: sheet, home: GhostRoot(core: core, native: whole, account: account, voiceMaking: voice, links: PhoneLinks(), openLink: openLink, previewFetch: linkPreviewFetch())));
+  final links = PhoneLinks();
+  runApp(GhostApp(
+    sheet: sheet,
+    home: _Runs(
+      builder: (restart) => GhostRoot(core: core, native: whole, account: account, voiceMaking: voice, links: links, openLink: openLink, previewFetch: linkPreviewFetch(), restart: restart),
+    ),
+  ));
+}
+
+/// The app, built anew each time it is started over (Developer's resets, lib/core/reset.dart): what
+/// `window.location.reload()` was to the page. The core, the phone's halves and the links' channel are the
+/// process's and stay; everything the root made from them is made again, on a library that is empty.
+class _Runs extends StatefulWidget {
+  const _Runs({required this.builder});
+  final Widget Function(VoidCallback restart) builder;
+
+  @override
+  State<_Runs> createState() => _RunsState();
+}
+
+class _RunsState extends State<_Runs> {
+  int _run = 0;
+
+  @override
+  Widget build(BuildContext context) => KeyedSubtree(key: ValueKey<int>(_run), child: widget.builder(() => setState(() => _run += 1)));
 }
