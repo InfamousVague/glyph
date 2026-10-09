@@ -4,6 +4,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/root/desktop_wiring.dart';
 import 'package:ghost_md/shell/desktop/desktop_commands.dart';
+import 'package:ghost_md/shell/desktop/desktop_scrollbar.dart';
+import 'package:glacier/glacier.dart';
 import 'package:ghost_md/shell/desktop/mac_drag_strip.dart';
 import 'package:ghost_md/shell/desktop/mac_lights.dart';
 
@@ -239,5 +241,66 @@ void main() {
     await tester.pump();
     expect(placed, [27.0, 38.0]);
     expect(trafficLightsStart, 16);
+  });
+
+  group('a desktop’s scrollbar under a header', () {
+    Widget view({required double under, required double content, bool mouse = true}) => Directionality(
+          textDirection: TextDirection.ltr,
+          child: GlacierTheme(
+            sheet: TokenSheet.parse(':root { --app-ink: #ffffff; }'),
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 400,
+                height: 300,
+                child: DesktopScrollbar(
+                  under: under,
+                  mouse: mouse,
+                  child: SingleChildScrollView(child: SizedBox(key: const ValueKey('content'), height: content, child: const SizedBox.expand())),
+                ),
+              ),
+            ),
+          ),
+        );
+
+    test('the thumb is as much of the track as the view is of its content, and never under 24 px', () {
+      expect(desktopThumb(track: 200, viewport: 300, max: 300, pixels: 0), (top: 0.0, height: 100.0));
+      expect(desktopThumb(track: 200, viewport: 300, max: 300, pixels: 300), (top: 100.0, height: 100.0));
+      expect(desktopThumb(track: 200, viewport: 300, max: 300, pixels: 150).top, 50.0);
+      expect(desktopThumb(track: 200, viewport: 300, max: 30000, pixels: 0).height, desktopScrollbarLeast);
+      expect(desktopThumb(track: 200, viewport: 300, max: 0, pixels: 0), (top: 0.0, height: 0.0));
+    });
+
+    testWidgets('takes its 12 px from a view that has more than it shows, and nothing from one that does not', (tester) async {
+      await tester.pumpWidget(view(under: 60, content: 900));
+      await tester.pump();
+      await tester.pump();
+      expect(tester.getSize(find.byKey(const ValueKey('content'))).width, 400 - desktopScrollbarWidth);
+      // Scrolled by the thumb's drag: the whole track is the whole of what there is to scroll.
+      final thumbTop = 60.0 + 2;
+      final press = await tester.startGesture(Offset(400 - 6, thumbTop + 10), kind: PointerDeviceKind.mouse);
+      await press.moveBy(const Offset(0, 80));
+      await press.up();
+      await tester.pump();
+      final scrolled = tester.state<ScrollableState>(find.byType(Scrollable)).position.pixels;
+      // A track of 240 with a thumb of 80 leaves 160 to travel for 600 of scroll: 80 px of drag is 300.
+      expect(scrolled, closeTo(300, 1));
+
+      await tester.pumpWidget(view(under: 60, content: 200));
+      await tester.pump();
+      await tester.pump();
+      expect(tester.getSize(find.byKey(const ValueKey('content'))).width, 400);
+    });
+
+    testWidgets('is nothing with no header, and nothing under a finger', (tester) async {
+      await tester.pumpWidget(view(under: 0, content: 900));
+      await tester.pump();
+      await tester.pump();
+      expect(tester.getSize(find.byKey(const ValueKey('content'))).width, 400);
+      await tester.pumpWidget(view(under: 60, content: 900, mouse: false));
+      await tester.pump();
+      await tester.pump();
+      expect(tester.getSize(find.byKey(const ValueKey('content'))).width, 400);
+    });
   });
 }

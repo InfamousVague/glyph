@@ -82,7 +82,9 @@ class WispFadeStrip extends WispStrip {
   void paint(Canvas canvas, Rect at, ui.Image view, Rect viewRect, double ratio) {
     canvas.saveLayer(at, Paint());
     _drawView(canvas, view, viewRect);
-    canvas.drawRect(at, Paint()..blendMode = BlendMode.dstIn..shader = fadeShader(fade, axis)..isAntiAlias = false);
+    for (final ramp in fadeRamps(fade, axis)) {
+      canvas.drawRect(at, Paint()..blendMode = BlendMode.dstIn..shader = ramp..isAntiAlias = false);
+    }
     canvas.restore();
   }
 
@@ -93,19 +95,27 @@ class WispFadeStrip extends WispStrip {
   int get hashCode => Object.hash(rect, fade, axis);
 }
 
-/// A [WispFade] as the gradient the stylesheet writes, along [axis] of the view.
-ui.Gradient fadeShader(WispFade fade, Axis axis) {
-  // The four stops, on a line long enough to hold them however far apart they are.
-  final from = math.min(fade.clearUntil, -1e5), to = math.max(fade.clearFrom, 1e5);
-  double at(double value) => ((value - from) / (to - from)).clamp(0.0, 1.0);
+/// A [WispFade] as the gradient the stylesheet writes, along [axis] of the view: the ramp in at its start and the
+/// ramp out at its end, each a gradient of its own, laid one after the other (their alphas multiply, which is the
+/// one mask: whole between the two, clear outside them).
+///
+/// Each ramp's line is only as long as the ramp. One gradient for the whole mask had four stops a few pixels
+/// apart on a line long enough for any view, and an engine that draws a gradient from a table of colours (Impeller
+/// on the Mac) put the whole 28 px ramp inside one entry of it: the foot of every page on a desktop was cut off 28 px
+/// above the window's edge, where the page's fades to it.
+List<ui.Gradient> fadeRamps(WispFade fade, Axis axis) {
   const clear = Color(0x00000000), whole = Color(0xFF000000);
-  final a = at(fade.clearUntil), b = math.max(a, at(fade.wholeFrom)), c = math.max(b, at(fade.wholeUntil)), d = math.max(c, at(fade.clearFrom));
-  return ui.Gradient.linear(
-    axis == Axis.vertical ? Offset(0, from) : Offset(from, 0),
-    axis == Axis.vertical ? Offset(0, to) : Offset(to, 0),
-    [clear, clear, whole, whole, clear, clear],
-    [0, a, b, c, d, 1],
-  );
+  Offset on(double value) => axis == Axis.vertical ? Offset(0, value) : Offset(value, 0);
+  // A ramp with no length is an edge: a line one hundredth of a pixel long draws it as one.
+  ui.Gradient ramp(double from, double to, Color first, Color last) => ui.Gradient.linear(on(from), on(math.max(to, from + 0.01)), [first, last]);
+  // An end with no fade is said as a place no view reaches (wisp_kit.dart `WispFade`): no ramp is drawn for it.
+  const nowhere = 1e8;
+  return [
+    // Clear before `clearUntil`, whole from `wholeFrom` on, however far.
+    if (fade.wholeFrom > -nowhere) ramp(fade.clearUntil, fade.wholeFrom, clear, whole),
+    // Whole until `wholeUntil`, clear from `clearFrom` on.
+    if (fade.wholeUntil < nowhere) ramp(fade.wholeUntil, fade.clearFrom, whole, clear),
+  ];
 }
 
 void _drawView(Canvas canvas, ui.Image view, Rect viewRect, [Paint? paint]) {

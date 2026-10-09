@@ -5,6 +5,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../shell/desktop/desktop_scrollbar.dart';
 import 'wisp_kit.dart';
 import 'wisp_mask.dart';
 import 'wisp_settings.dart';
@@ -332,9 +333,10 @@ class _Lane extends ChangeNotifier {
 /// past the budget keeps its plain edge ([wispRegionFits]).
 ///
 /// What differs from the page: the header is a number here, not an element the hook measures, and the view does not
-/// set its own top padding from it (`--wisp-under`), nor its scrollbar's (`data-under-header`); whoever lays out the
-/// header knows its height and pads the scroller. The strips of the view that smoke are drawn through pictures of
-/// themselves and the rest of the view is left as it paints (wisp_strips.dart), where the page filters the whole
+/// set its own top padding from it (`--wisp-under`); whoever lays out the header knows its height and pads the
+/// scroller. Its scrollbar under a header (`data-under-header`) is lib/shell/desktop/desktop_scrollbar.dart's. The
+/// strips of the view that smoke are drawn through pictures of themselves and the rest of the view is left as it
+/// paints (wisp_strips.dart), where the page filters the whole
 /// element.
 class WispEdge extends StatefulWidget {
   const WispEdge({
@@ -347,6 +349,7 @@ class WispEdge extends StatefulWidget {
     this.band = WispBand.page,
     this.safeTop,
     this.onChanged,
+    this.scrollbar = true,
   });
 
   final Widget child;
@@ -360,6 +363,11 @@ class WispEdge extends StatefulWidget {
   /// left out.
   final double? safeTop;
   final ValueChanged<bool>? onChanged;
+
+  /// Whether the view wears a desktop's scrollbar under its header (lib/shell/desktop/desktop_scrollbar.dart). A
+  /// note's page does not: measured in the page's own engine, its scroller keeps a scrollbar of no width whatever
+  /// it holds, where the home page's is 12 px.
+  final bool scrollbar;
 
   @override
   State<WispEdge> createState() => _WispEdgeState();
@@ -655,7 +663,9 @@ class _WispEdgeState extends State<WispEdge> with SingleTickerProviderStateMixin
             return ListenableBuilder(
               listenable: Listenable.merge([WispDrift.instance.of(widget.band), WispDrift.instance.of(WispBand.page), _blur, _ready]),
               builder: (context, child) => WispStrips(strips: _strips(size), repaint: _ready, child: child),
-              child: widget.child,
+              // Where there is a mouse, a view under a header wears the page's own scrollbar, from the header's
+              // foot down (app.css `[data-under-header]`); nothing on a phone.
+              child: widget.scrollbar ? DesktopScrollbar(under: widget.under, child: widget.child) : widget.child,
             );
           },
         ),

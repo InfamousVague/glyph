@@ -2021,8 +2021,11 @@ class _GhostRootState extends State<GhostRoot> {
                 onMeeting: into == null && capture != null && (voice?.canMeet ?? false) ? () => unawaited(capture.meeting(false)) : null,
                 sound: into == null && capture != null && (voice?.canMeet ?? false) && (voice?.sound?.supported ?? false)
                     ? NewSheetSound(
-                        label: 'Include sound from other apps',
-                        hint: 'Android lets Ghost.md hear media and games, never calls. It asks to share your screen each time; only the sound is kept.',
+                        // The page's words for it on this platform (`meetingSoundWords`): other apps' sound on
+                        // Android, the computer's own on a Mac.
+                        label: voice?.recorder.systemSound?.meetingSoundWords().label ?? 'Include sound from other apps',
+                        hint: voice?.recorder.systemSound?.meetingSoundWords().hint ??
+                            'Android lets Ghost.md hear media and games, never calls. It asks to share your screen each time; only the sound is kept.',
                         on: prefs.meetingSound,
                         onToggle: () => preferences.update((now) => now.copyWith(meetingSound: !now.meetingSound)),
                       )

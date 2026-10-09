@@ -76,7 +76,9 @@ typedef ShellAsideCardBuilder = Widget Function(BuildContext context, AppShellSt
 /// - A window in two panes is asked of the window's size and of the device ([finePointer], [mobile]), not of media
 ///   queries; a mouse joined to a phone is not seen.
 /// - `land` asks [AppShell.untouchedEntryOf] which journal an untouched entry is of, the records being the root's.
-/// - The Mac's title bar and its drag strip (`data-titlebar`, `.app-dragBar`) are not drawn.
+/// - The Mac's title bar (`data-titlebar`) is the tab bar's to wear: its top row keeps the window buttons' room and
+///   says where they sit (notes/note_tabs.dart, shell/desktop/mac_lights.dart), and its empty ground is the drag
+///   strip (`.app-dragBar`, shell/app_tab_bar.dart, shell/desktop/mac_drag_strip.dart).
 class AppShell extends StatefulWidget {
   const AppShell({
     super.key,

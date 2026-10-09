@@ -295,7 +295,8 @@ class NoteReview extends ChangeNotifier implements ValueListenable<ReviewStage?>
         final text = last.text;
         if (last.phase == RunPhase.done && text != null) findings = readFindings(text, self, others);
       } else {
-        say('No language model on this phone to think it through, so only the words the slower model heard differently are marked.');
+        // "this phone" on the page wherever it runs; a Mac says what it is, as the model's own pages do.
+        say('No language model on ${defaultTargetPlatform == TargetPlatform.macOS ? 'this Mac' : 'this phone'} to think it through, so only the words the slower model heard differently are marked.');
       }
 
       // 4. Landing: this note's findings into its editor, another note's through the guarded write.

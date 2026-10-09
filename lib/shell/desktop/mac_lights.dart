@@ -42,6 +42,33 @@ class _RenderLightsRow extends RenderProxyBox {
   void Function(double centre)? onPlaced;
   double? _said;
 
+  /// Every row in the tree now. More than one can be (the guide's bar over the app's): the last painted is the
+  /// one the buttons sit on, and when it goes the others say where they are again.
+  static final Set<_RenderLightsRow> _rows = <_RenderLightsRow>{};
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _rows.add(this);
+  }
+
+  @override
+  void detach() {
+    _rows.remove(this);
+    final left = _rows.toList();
+    if (left.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        for (final row in left) {
+          if (!row.attached) continue;
+          row._said = null;
+          row.markNeedsPaint();
+        }
+      });
+      WidgetsBinding.instance.scheduleFrame();
+    }
+    super.detach();
+  }
+
   @override
   void paint(PaintingContext context, Offset offset) {
     super.paint(context, offset);

@@ -19,6 +19,7 @@
 ///   shortcuts are walked too: `cmd+n`, `cmd+shift+z`, `escape`, `return`, `left`… `keys:<letters>` types them.
 /// - `tap:<x>,<y>`, `dtap:` (double), `ttap:` (triple), `rtap:` (the right button), `hover:`,
 ///   `drag:<x1>,<y1>,<x2>,<y2>`, `scroll:<x>,<y>,<dy>`: a mouse's, given to Flutter's own gesture binding.
+/// - `taplabel:<name>`: the same for a control with no words on it, by the name it gives a screen reader.
 /// - `taptext:<words>` / `rtaptext:` / `hovertext:`: the same at the middle of the first text drawn that holds the
 ///   words. `where:<words>` only logs where it is.
 /// - `hit:<x>,<y>`: logs what is under a point (the widgets' render objects, top first).
@@ -27,7 +28,8 @@
 /// - `link:<ghostmd://…>`: a link handed to the app's own delegate, as macOS hands one (never through the system).
 /// - `panels:folder=<path>,name=<name>,file=<path>,cancel`: how the next of the Mac's panels is answered with no
 ///   hand on it (macos/Runner/FilesChannel.swift `Panels`).
-/// - `texts`: every text on screen and where it is.
+/// - `texts`: every text on screen and where it is. `forget`: clears this app's own remembered settings and flags.
+///   `pref:<key>=<value>`: sets one of its preferences for the next launch.
 /// - `cursor:<x>,<y>`: logs the pointer shape there. `keylog`: from here on, logs every key the framework hears
 ///   and what the editor's keyboard client is told.
 ///
@@ -36,6 +38,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -43,6 +46,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/mac_app.dart';
 import '../../editor/input/ime.dart';
@@ -188,6 +192,22 @@ class _Tour {
         for (final (box, words) in found.take(int.tryParse(arg) ?? 80)) {
           _say('text ${box.left.toStringAsFixed(1)},${box.top.toStringAsFixed(1)} ${box.width.toStringAsFixed(1)}x${box.height.toStringAsFixed(1)} "${words.length > 60 ? '${words.substring(0, 60)}…' : words}"');
         }
+      case 'forget':
+        // Everything this app's own memory holds (its shared preferences), gone: for a walk that must start as a
+        // first launch does. The library's files are not touched from here.
+        final kept = await SharedPreferences.getInstance();
+        _say('forget ${kept.getKeys().length} keys -> ${await kept.clear()}');
+      case 'pref':
+        // One of the app's own preferences set for the next launch (`pref:<key>=<value>`): the theme, the sidebar's
+        // style. Written where the app keeps them; the running app is not told.
+        final at = arg.indexOf('=');
+        final kept = await SharedPreferences.getInstance();
+        final now = jsonDecode(kept.getString('glyph-preferences') ?? '{}');
+        if (now is Map && at > 0) {
+          final value = arg.substring(at + 1);
+          now[arg.substring(0, at)] = value == 'true' ? true : value == 'false' ? false : (num.tryParse(value) ?? value);
+          _say('pref $arg -> ${await kept.setString('glyph-preferences', jsonEncode(now))}');
+        }
       case 'keylog':
         // Every key the framework hears, and whether anything took it: where a chord went, when it went nowhere.
         HardwareKeyboard.instance.addHandler((event) {
@@ -230,6 +250,29 @@ class _Tour {
         if (name == 'taptext') await _click(at.center);
         if (name == 'rtaptext') await _click(at.center, right: true);
         if (name == 'hovertext') await _hover(at.center);
+      case 'taplabel' || 'wherelabel':
+        // A control with no words on it, by the name it gives a screen reader.
+        Rect? found;
+        void visit(Element element) {
+          if (found != null) return;
+          final widget = element.widget;
+          if (widget is Semantics && widget.properties.label == arg) {
+            final render = element.renderObject;
+            if (render is RenderBox && render.attached && render.hasSize) {
+              final box = MatrixUtils.transformRect(render.getTransformTo(null), Offset.zero & render.size);
+              final view = WidgetsBinding.instance.platformDispatcher.views.first;
+              if ((Offset.zero & (view.physicalSize / view.devicePixelRatio)).overlaps(box)) {
+                found = box;
+                return;
+              }
+            }
+          }
+          element.visitChildren(visit);
+        }
+        WidgetsBinding.instance.rootElement?.visitChildren(visit);
+        final box = found;
+        _say('$name "$arg" -> ${box == null ? 'NOT FOUND' : '${box.center.dx.toStringAsFixed(1)},${box.center.dy.toStringAsFixed(1)} $box'}');
+        if (box != null && name == 'taplabel') await _click(box.center);
       case 'hit':
         final n = _numbers(arg);
         final result = HitTestResult();

@@ -35,6 +35,7 @@ import '../core/preferences.dart';
 import '../notes/tabs/bar_parts.dart' show BarGlass;
 import 'bottom_nudge.dart';
 import 'guide_models.dart';
+import '../shell/desktop/mac_lights.dart';
 import 'pages.dart';
 import 'pages/model.dart';
 import 'pages/parts.dart';
@@ -185,16 +186,19 @@ class _GuideState extends State<Guide> {
     final under = barHeight.roundToDouble();
     final barPx = t.len('app-action') * 0.88;
 
+    // On the Mac the window's three buttons are where the bar's dots begin: the bar starts after their room and
+    // says where its centre is, so they sit on it (the tab bar's rule; the page has none for the guide).
+    final lights = trafficLightsRoom(t);
     final header = Padding(
-      padding: EdgeInsets.fromLTRB(start, barTop, end - bleed, t.space(2)),
-      child: Row(
+      padding: EdgeInsets.fromLTRB(start + lights, barTop, end - bleed, t.space(2)),
+      child: _onLights(lights > 0, Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           _Progress(at: widget.index, count: walkthroughPages.length),
           // Nearly the size of Back and Next below: the page's corners read as one set of controls.
           GuideWord(_last ? 'Close' : 'Skip', onPressed: widget.onClose, style: t.textAt(barPx, weight: 'semibold')),
         ],
-      ),
+      )),
     );
 
     final page = SingleChildScrollView(
@@ -479,3 +483,6 @@ class _BobState extends State<_Bob> with SingleTickerProviderStateMixin {
     builder: (context, child) => Transform.translate(offset: Offset(0, 3 * Curves.easeInOut.transform(_bob.value)), child: child),
   );
 }
+
+/// The guide's bar as the row the Mac's window buttons are set on, where there are any.
+Widget _onLights(bool mac, Widget row) => mac ? MacLightsRow(child: row) : row;

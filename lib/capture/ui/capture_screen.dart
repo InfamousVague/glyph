@@ -71,6 +71,7 @@ import '../../core/note_text.dart' show noteTitle;
 import '../../core/preferences.dart' show longNoteMs;
 import '../../core/text.dart' show capitalise;
 import '../../core/title_key.dart' show sameTitle;
+import '../../shell/desktop/mac_lights.dart';
 import '../../shell/header_pane.dart';
 import '../candidates.dart';
 import '../capture_session.dart';
@@ -1503,8 +1504,11 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
         child: Padding(
           // `.top { padding-block: calc(var(--app-safe-top) + var(--glacier-space-3)) var(--glacier-space-2) }`; the
           // pane pads by the safe top itself.
-          padding: gutters.copyWith(top: t.space(3), bottom: t.space(2)),
-          child: Row(
+          // On the Mac the window's three buttons sit at the window's top left, where this line begins: the line
+          // starts after their room, and says where its centre is so they are set on it (the tab bar's rule,
+          // `--app-traffic-lights`; the page has none for the recorder, and its first words are under the buttons).
+          padding: gutters.copyWith(left: gutters.left + trafficLightsRoom(t), top: t.space(3), bottom: t.space(2)),
+          child: _lightsRow(t, Row(
             children: [
               // `.mic { align-self: center; color: var(--app-ink-2) }`
               KeyedSubtree(key: _mic, child: ExcludeSemantics(child: AppIcon(Lucide.mic, size: 14, strokeWidth: 2.4, color: t.color('app-ink-2')))),
@@ -1544,7 +1548,7 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
                 child: line(Text(counter(_recorded), key: CaptureScreen.counterKey, style: small.copyWith(color: t.color('app-ink-2'), fontFeatures: const [FontFeature.tabularFigures()]))),
               ),
             ],
-          ),
+          )),
         ),
       ),
     );
@@ -1746,6 +1750,9 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
   }
 
   /// `.app-word.newNote`: the word after the line, in ink, semibold, at the line's size.
+  /// The top line as the row the Mac's window buttons are set on, where the page is under the Mac's title bar.
+  Widget _lightsRow(Tokens t, Widget row) => titlebarOverlay(t) ? MacLightsRow(child: row) : row;
+
   Widget _topWord(Tokens t, TextStyle small, String word, VoidCallback onPressed) =>
       AppWord(
         key: CaptureScreen.actionKey,

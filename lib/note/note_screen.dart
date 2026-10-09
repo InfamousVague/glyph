@@ -1424,6 +1424,8 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
                 child: WispEdge(
                   under: under,
                   foot: !_isCanvas,
+                  // No scrollbar of a desktop's own on a note: the page's note has none (art/wisp_edge.dart).
+                  scrollbar: false,
                   // `.screen[data-unfolding] .body`: paper folded down its middle, foreshortened, flattening as the
                   // hinge does. Only the note moves; the header and the app's own bar are the phone's.
                   child: ValueListenableBuilder<double?>(
