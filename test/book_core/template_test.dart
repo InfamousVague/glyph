@@ -8,7 +8,8 @@ import 'package:ghost_md/core/template.dart';
 /// `core/template.test.ts`, less what the port has not got:
 ///
 /// - **the en-US and de-DE halves of a case**: the page asks the device's language, and lib/core/template.dart
-///   writes English as en-GB orders it (see there), so only the en-GB expectations are held;
+///   writes English as en-GB orders it until the phone has said how it writes a date (see there), so only the en-GB
+///   expectations are held; the last group tells a phone's locale and holds the words to the page's own WebView;
 /// - **what a take does with a placing** (`capture/place.ts` `placeTake`), which is the recorder's (stage 8): the
 ///   placing itself is held.
 DateTime at() => DateTime(2026, 9, 28, 14, 5);

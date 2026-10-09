@@ -12,8 +12,8 @@
 /// settle the name, and only then measure. Pure.
 ///
 /// What differs:
-/// - **The names of days and months are English, in the order en-GB writes them** (lib/core/template.dart, which
-///   says why).
+/// - **The names of days and months are English, in the phone's own order once it has said which, and in the order
+///   en-GB writes them until then** (lib/core/template.dart, which says why).
 /// - The parts of the web's core this stood on were written here first, and have since gone to their own files,
 ///   which this one hands on so its callers read as they did: `core/template.ts` and `core/stamp.ts` are
 ///   lib/core/template.dart ([fillTemplate], [formatStamp], [firstOpenAt], [longDay], [clockTime]),

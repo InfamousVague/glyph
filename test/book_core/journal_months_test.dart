@@ -12,9 +12,10 @@ import '../core/make_note.dart';
 
 /// A journal's entries in months, newest first by when each was written, whatever order its index is in; what a row
 /// says; and the lines with no note, dropped or listed apart. Case for case with the web's
-/// `book/journalMonths.test.ts`, whose cases are pinned to en-GB, which is what lib/book/journal_months.dart writes.
-/// Two things differ and are said where they do: a journal's card (en-US, as the home page was measured), and the
-/// case that sets the process's zone, which a Dart test cannot.
+/// `book/journalMonths.test.ts`, whose cases are pinned to en-GB, which is what lib/book/journal_months.dart writes
+/// until the phone has said how it writes a date. Two things differ and are said where they do: a journal's card
+/// (en-US, as the home page was measured), and the case that sets the process's zone, which a Dart test cannot. One
+/// group tells a phone's locale and holds the words to the page's own WebView (lib/core/locale_dates.dart).
 Note entry(String title, String? date, String words, [int createdAt = 0]) =>
     makeNote(title, body: date != null ? entryBody(title, date, words) : '---\ntitle: "$title"\n---\n$words', createdAt: createdAt);
 
