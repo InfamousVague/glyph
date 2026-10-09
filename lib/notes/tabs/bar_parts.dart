@@ -13,17 +13,38 @@ import 'bar_icon.dart';
 /// Inter's ascent and descent as parts of its size (hhea: 1984 and 494 of 2048), which is its `line-height: normal`.
 const double _ascent = 1984 / 2048, _descent = 494 / 2048;
 
+/// The sans face's ascent and descent at [fontSize] as a page rounds them, in pixels of the screen at [dpr]: each to
+/// a whole one, and on a phone a descent that was rounded down takes one from the ascent (Chromium on Android; the
+/// kit's `normalLineBox` has the measurements). At 1, a desktop's and the tests' rectangles', they are CSS pixels.
+(double, double) _area(double fontSize, double dpr) {
+  var up = (_ascent * fontSize * dpr).roundToDouble(), down = (_descent * fontSize * dpr).roundToDouble();
+  if (dpr != 1 && down < _descent * fontSize * dpr - 1e-4) {
+    down += 1;
+    up -= 1;
+  }
+  return (up, down);
+}
+
 /// How tall a browser draws a line of the sans face at `line-height: normal`: the ascent and the descent each
-/// rounded to a whole pixel, which is what every box around a line of the bar's text is sized by.
-double normalLine(double fontSize) => (_ascent * fontSize).roundToDouble() + (_descent * fontSize).roundToDouble();
+/// rounded to a whole pixel, which is what every box around a line of the bar's text is sized by. The pixel is the
+/// screen's ([dpr], the tokens' `css.lineDpr`): a tab's 16.26px name is 51 device pixels on a phone at 2.625, 19.43px,
+/// where rounding in CSS pixels made it 20 and stood the name two device pixels low beside the page.
+double normalLine(double fontSize, {double dpr = 1}) {
+  final ratio = dpr > 0 ? dpr : 1.0;
+  final (up, down) = _area(fontSize, ratio);
+  return (up + down) / ratio;
+}
 
 /// Where a browser puts the baseline of a line of the sans face in a line box [lineHeight] tall (its own
 /// `line-height: normal` unless one is given): the rounded ascent under half of whatever the line has over the face,
-/// that half taken down to a whole pixel as the browser's layout takes it.
-double baselineIn(double fontSize, [double? lineHeight]) {
-  final rise = (_ascent * fontSize).roundToDouble();
-  final own = rise + (_descent * fontSize).roundToDouble();
-  return rise + (((lineHeight ?? own) - own) / 2).floorToDouble();
+/// that half taken down to a whole pixel as the browser's layout takes it. In the screen's pixels, as [normalLine].
+double baselineIn(double fontSize, [double? lineHeight, double dpr = 1]) {
+  final ratio = dpr > 0 ? dpr : 1.0;
+  final (up, down) = _area(fontSize, ratio);
+  final own = up + down;
+  // A length is a sixty-fourth of a pixel on the page.
+  final line = lineHeight == null ? own : (lineHeight * ratio * 64).roundToDouble() / 64;
+  return (up + ((line - own) / 2).floorToDouble()) / ratio;
 }
 
 /// One line of the bar's text in a box as tall as a browser makes it ([normalLine]), cut short with an ellipsis where
@@ -37,9 +58,10 @@ class BarLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dpr = context.tokens.css.lineDpr;
     return LineBox(
-      height: normalLine(style.fontSize ?? 16),
-      baseline: baselineIn(style.fontSize ?? 16),
+      height: normalLine(style.fontSize ?? 16, dpr: dpr),
+      baseline: baselineIn(style.fontSize ?? 16, null, dpr),
       child: Text(text, style: style, maxLines: 1, softWrap: false, overflow: ellipsis ? TextOverflow.ellipsis : TextOverflow.visible),
     );
   }

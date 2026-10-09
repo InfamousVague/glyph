@@ -81,8 +81,8 @@ class _NameFieldState extends State<_NameField> {
       label: widget.label,
       textField: true,
       child: LineBox(
-        height: normalLine(size),
-        baseline: baselineIn(size),
+        height: normalLine(size, dpr: t.css.lineDpr),
+        baseline: baselineIn(size, null, t.css.lineDpr),
         child: SizedBox(
           width: double.infinity,
           child: EditableText(
@@ -214,7 +214,7 @@ class SpacePill extends StatelessWidget {
                 borderRadius: BorderRadius.circular(t.radius('full')),
               ),
               // `line-height: 1`: the line is the size of its words, so the ring is even above and below them.
-              child: LineBox(height: size, baseline: baselineIn(size, size), child: Text(space.name, style: style, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis)),
+              child: LineBox(height: size, baseline: baselineIn(size, size, t.css.lineDpr), child: Text(space.name, style: style, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis)),
             ),
           );
         },
