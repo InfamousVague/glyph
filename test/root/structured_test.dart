@@ -19,6 +19,7 @@ import 'package:ghost_md/editor/items/wiki_links.dart' show wikiOptions;
 import 'package:ghost_md/editor/queries/queries.dart' show QueryView, queriesWatchMidnight;
 import 'package:ghost_md/editor/tickets/tickets.dart' show TicketPanel;
 import 'package:ghost_md/note/note_screen.dart';
+import 'package:ghost_md/notes/all_notes_screen.dart';
 import 'package:ghost_md/notes/new_sheet.dart';
 import 'package:ghost_md/notes/template_cards.dart';
 import 'package:ghost_md/root/ghost_root.dart';
@@ -129,6 +130,27 @@ void main() {
       expect(shellOf(tester).shown, titled(library, 'Packing').id);
       expect(find.byType(BookBar), findsOneWidget);
       expect(shellOf(tester).tabs.open.contains(book.id), isFalse, reason: 'the page took the notebook\'s tab');
+      await close(tester);
+    });
+
+    testWidgets('a notebook opened from All notes goes back to the page it was left in, and its tab shows the index', (tester) async {
+      final library = await open(tester);
+      final book = titled(library, 'Portugal');
+      await openNote(tester, book.id);
+      tester.widget<BookView>(find.byType(BookView)).open('Packing');
+      await settle(tester);
+      final page = titled(library, 'Packing').id;
+      expect(shellOf(tester).shown, page);
+      // Left for All notes (App.tsx gives it `openNoteWhereLeft`): the notebook's card opens the page again.
+      shellOf(tester).showAllNotes();
+      await settle(tester);
+      tester.widget<AllNotesScreen>(find.byType(AllNotesScreen)).onOpen(book.id);
+      await settle(tester);
+      expect(shellOf(tester).shown, page, reason: 'the notebook was left in Packing');
+      // From the page itself the notebook is its index, or there would be no way back to it.
+      shellOf(tester).openNote(book.id);
+      await settle(tester);
+      expect(shellOf(tester).shown, book.id);
       await close(tester);
     });
 

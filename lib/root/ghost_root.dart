@@ -775,7 +775,15 @@ class _GhostRootState extends State<GhostRoot> {
   void _openFromHome(AppShellState shell, String id) {
     final live = _voice?.live?.meetingStateNow();
     if (live != null && live.recording && live.noteId == id && (_capture?.showMeeting(false) ?? false)) return;
-    shell.openNote(id);
+    _openWhereLeft(shell, id);
+  }
+
+  /// A note opened from outside it (`openNoteWhereLeft`: the home page, All notes, the sidebar, a note's menu, a
+  /// notification, an organization's page): a notebook goes back to the chapter it was left in
+  /// (lib/book/book_spot.dart). A tab, Back and Forward show the note itself.
+  void _openWhereLeft(AppShellState shell, String id) {
+    final note = _library.noteOf(id);
+    shell.openNote(note == null ? id : whereLeft(note, _shown, shell.shown, on: _stored).id);
   }
 
   /// Settings' three pages over the core and the phone's pickers: where the library is and the calls that move it,
@@ -1512,14 +1520,14 @@ class _GhostRootState extends State<GhostRoot> {
     final id = screen.orgId;
     final wisp = preferences.value.wispEdge;
     if (screen.page == OrganizationPage.log) {
-      return OrganizationLog(services: _services, orgId: id, notes: shell.notes, onBack: () => shell.openOrganization(id), onOpenNote: shell.openNote, record: _versions, wisp: wisp);
+      return OrganizationLog(services: _services, orgId: id, notes: shell.notes, onBack: () => shell.openOrganization(id), onOpenNote: (note) => _openWhereLeft(shell, note), record: _versions, wisp: wisp);
     }
     return OrganizationScreen(
       services: _services,
       orgId: id,
       notes: shell.notes,
       onBack: shell.backToList,
-      onOpenNote: shell.openNote,
+      onOpenNote: (note) => _openWhereLeft(shell, note),
       onNew: () => _plus(orgWorkspaceId(id)),
       onAllNotes: () {
         _workspaces.chooseWorkspace(orgWorkspaceId(id));
@@ -1633,7 +1641,7 @@ class _GhostRootState extends State<GhostRoot> {
       stored: _stored,
       onOpen: (id) {
         onClose?.call();
-        shell.openNote(id);
+        _openWhereLeft(shell, id);
       },
       onNew: () {
         onClose?.call();
@@ -1816,7 +1824,7 @@ class _GhostRootState extends State<GhostRoot> {
                 tapes: screen.tapes,
                 gists: _gists?.value ?? const {},
                 clock: widget.clock,
-                onOpen: shell.openNote,
+                onOpen: (id) => _openWhereLeft(shell, id),
                 onBack: shell.backToList,
                 onRefresh: _library.refresh,
                 onNoteMenu: (note, at) => _menu.open(note.id, at),
@@ -1832,7 +1840,7 @@ class _GhostRootState extends State<GhostRoot> {
                 stored: _stored,
                 onOpen: (id) {
                   close();
-                  shell.openNote(id);
+                  _openWhereLeft(shell, id);
                 },
                 onNew: () {
                   close();
@@ -1879,6 +1887,8 @@ class _GhostRootState extends State<GhostRoot> {
               notificationsBuilder: (context, shell, close) {
                 void openNote(String id, String? at) {
                   close();
+                  // A note Claude edited opens at its first changed line; any other where it was left.
+                  if (at == null) return _openWhereLeft(shell, id);
                   shell.openNote(id, at: at);
                 }
 
@@ -1976,7 +1986,10 @@ class _GhostRootState extends State<GhostRoot> {
             NoteMenuHost(
               controller: _menu,
               notes: _shown,
-              onOpen: (note) => _shell.currentState?.openNote(note.id),
+              onOpen: (note) {
+                final shell = _shell.currentState;
+                if (shell != null) _openWhereLeft(shell, note.id);
+              },
               // The note itself, with a comment started on its first line once its editor is there
               // (core/comments/ask.ts).
               onComment: (note) {
