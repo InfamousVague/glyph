@@ -24,6 +24,10 @@ class ExactLines extends SingleChildRenderObjectWidget {
   /// [normal] says the style's line is `line-height: normal` (what `Tokens.textAt` gives with no height asked for),
   /// whose baseline the page puts on a device pixel of its own; [dpr] is the ratio it is rounded at
   /// (`context.tokens.css.lineDpr`).
+  ///
+  /// A line with a height of its own ([normal] false) given a [dpr] other than 1 has its words where a phone's
+  /// page has them too: the face's content area starts a whole number of device pixels from the line's top, half
+  /// the leading floored ([leadedBaseline]). Left at 1, the words stay where the engine centred them.
   static Widget of(Text text, {bool normal = false, double dpr = 1}) {
     final style = text.style;
     final size = style?.fontSize, height = style?.height;
@@ -34,7 +38,7 @@ class ExactLines extends SingleChildRenderObjectWidget {
       // where the engine centres them (within a tenth of a pixel of the page's baseline).
       return ExactLines(lineHeight: line.height, baseline: dpr == 1 ? null : line.baseline, child: text);
     }
-    return ExactLines(lineHeight: height * size, child: text);
+    return ExactLines(lineHeight: height * size, baseline: dpr == 1 ? null : leadedBaseline(style, height * size, dpr: dpr), child: text);
   }
 
   final double lineHeight;

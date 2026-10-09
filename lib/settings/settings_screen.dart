@@ -664,10 +664,15 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
                     padding: EdgeInsets.only(bottom: t.space(3) + t.space(4)),
                     child: Semantics(
                       header: true,
-                      child: Text(
-                        shown.label,
-                        key: const ValueKey('settings-display'),
-                        style: pageText(t, titleSize, weight: 'bold', height: 1.15, tracking: t.len('app-tracking-title', em: titleSize)),
+                      // Its words where the page has them on its line of 1.15: on a phone, a whole number of device
+                      // pixels over the line's top (they stood two device pixels low on the Fold).
+                      child: ExactLines.of(
+                        Text(
+                          shown.label,
+                          key: const ValueKey('settings-display'),
+                          style: pageText(t, titleSize, weight: 'bold', height: 1.15, tracking: t.len('app-tracking-title', em: titleSize)),
+                        ),
+                        dpr: t.css.lineDpr,
                       ),
                     ),
                   ),

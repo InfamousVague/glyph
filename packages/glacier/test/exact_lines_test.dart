@@ -30,6 +30,23 @@ void main() {
     expect(normalLineBox(kitFont(t, fontSize: 16, color: const Color(0xFF000000))), (height: 20.0, baseline: 16.0));
   });
 
+  testWidgets('a line with a height of its own has its words where a phone\'s page has them: half the leading floored to a device pixel', (tester) async {
+    await inter(tester);
+    await pumpKit(tester, const SizedBox.shrink());
+    final t = testTokens();
+    // Measured in Ghost.md's page on Android at 2.625: Settings' title, bold at 28.2918px on a line of 32.5356px
+    // (85.39 device pixels), has a content area of 90 device pixels that starts 3.00 over the line's top, so its
+    // baseline is 72 - 3 = 69 under it.
+    final title = kitFont(t, fontSize: 28.2918, color: const Color(0xFF000000)).copyWith(fontWeight: FontWeight.w700);
+    expect(normalLineBox(title, dpr: 2.625).height * 2.625, closeTo(90, 1e-6));
+    expect(leadedBaseline(title, 32.5356, dpr: 2.625) * 2.625, closeTo(69, 1e-6));
+    // A line roomier than its face: 13.8713px on 20.807 (54.62 device pixels) round a content area of 44, the
+    // five pixels of half its leading floored from 5.31.
+    final small = kitFont(t, fontSize: 13.8713, color: const Color(0xFF000000));
+    final area = normalLineBox(small, dpr: 2.625);
+    expect(leadedBaseline(small, 20.807, dpr: 2.625) * 2.625, closeTo(area.baseline * 2.625 + ((54.6184 - area.height * 2.625) / 2).floorToDouble(), 1e-6));
+  });
+
   testWidgets('text takes the exact line where the engine rounds it, one line or several', (tester) async {
     await inter(tester);
     const style = TextStyle(fontFamily: 'Inter Variable', fontSize: 16.2569, height: 19.4286 / 16.2569, leadingDistribution: TextLeadingDistribution.even);

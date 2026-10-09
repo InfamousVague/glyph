@@ -48,3 +48,20 @@ double normalLineHeight(TextStyle face, {double dpr = 1}) => normalLineBox(face,
   }
   return (height: (up + down) / ratio, baseline: up / ratio);
 }
+
+/// Where the first baseline of a line [lineHeight] tall is under its top, in logical pixels, as a phone's page has
+/// it: the face's content area ([normalLineBox]: its ascent and descent in whole device pixels) set in the line with
+/// half the leading FLOORED to a device pixel (Blink's `FontHeight::AddLeading`), so the words of a line tighter
+/// than its face start a whole number of device pixels over its top.
+///
+/// Read from the page in the Tauri app at 2.625, 2026-10-09: Settings' title, Inter bold at 28.29px on a line of
+/// 32.54 (85.39 device pixels), has a content area of 90 that starts 3.00 over the line's top, `floor(-2.3)`; the
+/// editor's own lines are held to the same rule for five sizes (test/editor/view/device_lines_test.dart).
+double leadedBaseline(TextStyle face, double lineHeight, {double dpr = 1}) {
+  final ratio = dpr > 0 ? dpr : 1.0;
+  final box = normalLineBox(face, dpr: ratio);
+  final up = box.baseline * ratio, area = box.height * ratio;
+  // A length is a sixty-fourth of a device pixel on the page.
+  final line = (lineHeight * ratio * 64).roundToDouble() / 64;
+  return (up + ((line - area) / 2).floorToDouble()) / ratio;
+}
