@@ -35,6 +35,7 @@ import '../editor/looks/look.dart';
 import '../editor/looks/sheets.dart';
 import '../editor/view/line.dart' show EditorRunScope;
 import '../team/crdt.dart';
+import '../team/doc.dart';
 import '../team/text_log.dart';
 import 'live_text.dart';
 import 'team.dart';
@@ -244,6 +245,8 @@ class LiveBinding {
     if (_bound) return;
     _bound = true;
     _base = text.rev;
+    final document = text;
+    if (document is TeamDoc) document.editing = true;
     final found = spliceBetween(view.state.doc.toString(), text.words);
     view.dispatch(TransactionSpec(
       changes: found == null ? null : Change(from: found.at, to: found.at + found.removed, insert: found.inserted),
@@ -260,6 +263,8 @@ class LiveBinding {
   void unbind() {
     if (!_bound) return;
     _bound = false;
+    final document = text;
+    if (document is TeamDoc) document.editing = false;
     _stopSplices?.call();
     _stopRoom?.call();
     _sayCaret?.cancel();
@@ -278,8 +283,17 @@ class LiveBinding {
     for (final tr in update.transactions) {
       if (!tr.docChanged || tr.annotation(Transaction.remote) == true) continue;
       final edits = <CrdtEdit>[];
-      tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) => edits.add(CrdtEdit(fromB, remove: toA - fromA, insert: inserted.toString())));
-      final flight = _Flight(tr.changes);
+      final made = <Change>[];
+      tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) {
+        // Only what differs: a change that writes the whole note again (words put in from outside the editor, a
+        // paste over a selection of the same words) is the stretch that changed, as `applyTextDiff` makes it.
+        final found = spliceBetween(tr.startState.doc.sliceString(fromA, toA), inserted.toString());
+        if (found == null) return;
+        edits.add(CrdtEdit(fromB + found.at, remove: found.removed, insert: found.inserted));
+        made.add(Change(from: fromA + found.at, to: fromA + found.at + found.removed, insert: found.inserted));
+      });
+      if (edits.isEmpty) continue;
+      final flight = _Flight(ChangeSet.of(made, tr.startState.doc.length));
       _inflight.add(flight);
       unawaited(text.edit(edits, base: _base).then<void>((_) {}, onError: (Object _) {}).whenComplete(() {
         _inflight.remove(flight);

@@ -11,7 +11,11 @@
 /// long calls ([CoreCrypto.withLane], made by `main`), the keys under the phone's Keystore ([DeviceKeyStore]), the
 /// [Account], the notifications' feed, the organizations and their keys, the team notes' documents as files beside
 /// the library (one folder to an account), the shares, and the [SyncEngine] over this device's own library and
-/// files, with team notes as its fifth step.
+/// files, with team notes as its fifth step; and live sync beside them (lib/live/live.dart [LiveServices]): the one
+/// connection to the relay beside the service, held only while a room is (an organization's own, once signed in and
+/// in one; a note's, while it is open), let go while the app is behind another, and what a note's desk opens a note
+/// through ([WiredAccount.noteLive]). The engine is told which notes are live with another device and tells an
+/// organization's other devices when it wrote.
 library;
 
 import 'dart:async';
@@ -31,6 +35,9 @@ import '../core/preferences.dart';
 import '../core/stored.dart';
 import '../core/versions_store.dart';
 import '../core/workspaces.dart';
+import '../live/live.dart';
+import '../live/nudge.dart';
+import '../live/open.dart';
 import '../orgs/org_keys.dart';
 import '../orgs/orgs.dart';
 import '../share/share.dart';
@@ -114,12 +121,13 @@ class _AccountDocs implements TeamDocStore {
 
 /// The account's objects for this device, and their bundle for the screens.
 class WiredAccount {
-  WiredAccount._(this.services, this.engine, this._docs);
+  WiredAccount._(this.services, this.engine, this._docs, this.live, this.noteLive);
 
   /// Makes everything over this device's own stores. [core] is the library's core; [touched] is told after this
   /// device changes a note and [refresh] reads the list again after a pass changed notes (`CoreLibrary`'s two);
   /// [versions] is the versions' own store, shared with the note's history; [onPicture] is told a picture's name
-  /// once sync has kept it.
+  /// once sync has kept it; [keepCopy] keeps words as a note of their own (a note of the account's own that met
+  /// another device's while this one had changes unsent).
   factory WiredAccount.make({
     required AccountMaking making,
     required CoreInvoke core,
@@ -131,6 +139,7 @@ class WiredAccount {
     PreferencesStore? prefs,
     Stored? kept,
     void Function(String name)? onPicture,
+    Future<void> Function(String words)? keepCopy,
   }) {
     final settings = prefs ?? preferences;
     final device = kept ?? stored;
@@ -144,6 +153,7 @@ class WiredAccount {
     final files = CoreFiles(core);
     final notes = LibraryNotes(core);
     final docs = TeamDocs(crdt: Crdt(core), store: _AccountDocs(making.dataDir, account));
+    final live = LiveServices(base: making.base, account: account, crypto: crypto, crdt: Crdt(core), orgs: orgs, orgKeys: orgKeys, prefs: settings, kept: device);
     final shares = Shares(account: account, api: api, crypto: crypto, prefs: settings, pictures: CorePictures(files, onPicture: onPicture), listNotes: notes.list);
     final engine = SyncEngine(
       account: AccountDoor(account),
@@ -162,6 +172,19 @@ class WiredAccount {
       onNotesChanged: refresh,
       teamNotes: teamNotesPass(docs),
       forgetTeams: docs.forget,
+      sharedLive: live.shared.isShared,
+      tellChanged: live.nudges.tellChanged,
+    );
+    final noteLive = NoteLive(
+      live: live,
+      docs: docs,
+      workspaces: workspaces,
+      // The saved note, not the editor's words: the saved one is what the pass sync compares.
+      hasUnsynced: (id) async {
+        final note = await notes.get(id);
+        return note != null && engine.hasUnsyncedChanges(note);
+      },
+      keepCopy: keepCopy ?? (_) async {},
     );
     final services = AccountServices(
       account: account,
@@ -175,12 +198,16 @@ class WiredAccount {
       workspaces: workspaces,
       kept: device,
     );
-    return WiredAccount._(services, engine, docs);
+    return WiredAccount._(services, engine, docs, live, noteLive);
   }
 
   final AccountServices services;
   final SyncEngine engine;
   final TeamDocs _docs;
+
+  /// Live sync, and the door a note's desk opens a note through.
+  final LiveServices live;
+  final NoteLive noteLive;
   bool _started = false;
 
   /// What this device kept of an account, read without asking the service anything; then the sync for the life of
@@ -194,12 +221,21 @@ class WiredAccount {
       debugPrint('[ghost] the account kept on this device would not read: $failure');
     }
     engine.start();
+    // The organizations' rooms, held from here on for as long as the account is in them.
+    live.start(NudgeHooks(keys: engine.syncNotificationsNow, notes: engine.syncTeamsNow));
   }
 
   /// The app came back to the front.
-  void resumed() => engine.resumed();
+  void resumed() {
+    live.resumed();
+    engine.resumed();
+  }
+
+  /// The app left the front: the relay's socket is let go until it is back.
+  void paused() => live.paused();
 
   void dispose() {
+    live.dispose();
     engine.dispose();
     unawaited(Future<void>.sync(_docs.forget).catchError((Object _) {}));
   }

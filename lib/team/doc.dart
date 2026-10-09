@@ -106,6 +106,16 @@ class TeamDoc implements LiveText {
     }
   }
 
+  /// Whether an editor is bound to the document (lib/live/editor_binding.dart): it is then the one writer of the
+  /// note's words, each key a change here as it is pressed, and the note in the library is the editor's to save a
+  /// moment after. A pass leaves both alone meanwhile ([reconcileKept]).
+  bool editing = false;
+
+  /// The note's words as the library keeps them, brought into the document by a pass: nothing while an editor is
+  /// bound, whose words the library's are only a moment behind. Reconciled then, they would take back whatever was
+  /// typed, here or by another member, since the note was last saved.
+  Future<bool> reconcileKept(String words) => editing ? Future<bool>.value(false) : reconcile(words);
+
   /// [words] brought into the document as one change, where they differ from it. True when something changed.
   Future<bool> reconcile(String words) {
     return _next(() async {

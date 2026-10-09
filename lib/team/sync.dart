@@ -35,6 +35,10 @@
 ///   (core/team/canvas.ts) and reads its JSON from them; the core here holds text alone, and a canvas merged as
 ///   words is no canvas at all. So a canvas filed in an organization's workspace is not published from here, and a
 ///   team's canvas is not taken: it waits for the types (docs/STAGE7.md, piece J's remainder).
+/// - **A note open in an editor bound to its document is the editor's** ([TeamDoc.editing]): a pass still posts
+///   what was typed and applies what the log brings (which the binding puts on the page), but does not read the
+///   library's words into the document or write the document's into the library. The page's pass does both from
+///   the saved note, which is a save's delay behind its editor.
 /// - An update the core refuses fails that note's step, said as its reason; the others of its batch are applied,
 ///   and the log is asked again from the same seq next pass. (One from the web that splits a character was such
 ///   an update, and is not any more: crdt.dart reads it as the web's own Yjs does.)
@@ -334,7 +338,10 @@ Future<({T value, bool older})> _opened<T>(TeamSyncContext ctx, Future<T> Functi
 }
 
 /// The note's words from the document, written to the note here when they differ (`writeWords`).
-Future<void> _writeWords(TeamSyncContext ctx, String id, String words, _Tally tally) async {
+Future<void> _writeWords(TeamSyncContext ctx, TeamDoc doc, _Tally tally) async {
+  // Open in an editor bound to it: the words are on the page already, and the editor saves them.
+  if (doc.editing) return;
+  final id = doc.noteId, words = doc.words;
   final local = await ctx.notes.get(id);
   if (local == null || local.body == words) return;
   await ctx.notes.apply(local.copyWith(body: words, updatedAt: ctx._now()));
@@ -360,7 +367,7 @@ Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally)
   final held = await ctx.docs.doc(item.id);
   // Words typed here since the document was last written are a change of this device's, reconciled before the row's
   // state comes in, so the merge is the CRDT's and nothing typed is written over.
-  if (held != null && local != null) await held.reconcile(local.body);
+  if (held != null && local != null) await held.reconcileKept(local.body);
   final doc = await ctx.docs.adopt(item.id, payload.state, payload.seq);
   // This device's own words, from before the team had the note: a change for the team, not words to lose.
   if (held == null && local != null && local.body != doc.words) await doc.reconcile(local.body);
@@ -376,7 +383,8 @@ Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally)
       await fetchFile(ctx._files, FileKind.image, name);
     }
   });
-  var theirs = _withWords(payload.note, doc.words);
+  // The words are the document's; or, open in an editor bound to it, the ones the editor last saved.
+  var theirs = _withWords(payload.note, doc.editing && local != null ? local.body : doc.words);
   if (local == null || local.body != theirs.body || particulars(local) != particulars(theirs)) {
     theirs = _over(theirs, local == null ? null : await ctx.notes.get(item.id));
     await ctx.notes.apply(theirs);
@@ -450,10 +458,10 @@ Future<void> _takeUpdates(TeamSyncContext ctx, TeamDoc doc, _Tally tally) async 
             refused ??= failure;
           }
         }
-        if (doc.words != before) await _writeWords(ctx, doc.noteId, doc.words, tally);
+        if (doc.words != before) await _writeWords(ctx, doc, tally);
         if (refused != null) throw refused;
       }
-      if (doc.words != before) await _writeWords(ctx, doc.noteId, doc.words, tally);
+      if (doc.words != before) await _writeWords(ctx, doc, tally);
     } else {
       final seq = _numOf(page, 'seq');
       if (seq > doc.seq) doc.seq = seq;
@@ -540,7 +548,7 @@ Future<void> _putRow(TeamSyncContext ctx, Note note, TeamDoc doc, _Tally tally, 
 
 Future<void> _pushOne(TeamSyncContext ctx, Note note, _Tally tally) async {
   final doc = (await ctx.docs.doc(note.id, seedWords: note.body))!;
-  await doc.reconcile(note.body);
+  await doc.reconcileKept(note.body);
   final known = ctx.state.notes[note.id];
   if (known != null) await _postPending(ctx, note, doc, tally);
   final due = known == null || known.mark != particulars(note) || doc.seq - doc.snapshotSeq >= snapshotEvery || ctx.files.owed().contains(note.id);
@@ -662,7 +670,7 @@ Future<TeamOutcome> syncTeamNotes(TeamSyncContext ctx) async {
     if (doc == null || !ctx.state.notes.containsKey(note.id)) continue;
     // Words that reached the note without the editor go into the document first, so what the log brings merges with
     // them.
-    await doc.reconcile(note.body);
+    await doc.reconcileKept(note.body);
     // A log that has not moved past what this device applied is not read: one request for the organization, not one
     // a note.
     if (moved != null && (moved[note.id] ?? 0) <= doc.seq) continue;
