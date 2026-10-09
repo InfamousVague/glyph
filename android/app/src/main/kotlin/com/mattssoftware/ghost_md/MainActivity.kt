@@ -98,8 +98,8 @@ class MainActivity : FlutterActivity() {
         ResetChannel(this, secrets).register(messenger)
         // Links that open the app, handed over when asked for (AppLinks.kt; lib/core/phone_links.dart).
         links.register(messenger)
-        // The phone's pickers: a folder for the library, a drive to back up to (FilesBridge.kt;
-        // lib/core/library_folder.dart, lib/core/backup.dart).
+        // The phone's pickers: a folder for the library, a drive to back up to, where an export goes
+        // (FilesBridge.kt; lib/core/library_folder.dart, lib/core/backup.dart, lib/core/export_all.dart).
         files.register(messenger)
     }
 

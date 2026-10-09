@@ -10,8 +10,8 @@
 /// - **Recording?**, **Reset (keep models)**: the phone's half of starting over (`ghost.md/reset`,
 ///   ResetChannel.kt) with the core's `reset_local_data`; **Seed** writes a note and a secret first, and **Count**
 ///   says what is there.
-/// - **Pages**: Settings' own pages for the library's folder (9A) and the backup (9B), as Settings will draw them
-///   once its table of sections lists them, over the real core and the phone's pickers and drives. The head's way
+/// - **Pages**: Settings' own pages for the library's folder (9A), the backup (9B) and the export (9C), as
+///   Settings draws them, over the real core and the phone's pickers and drives. The head's way
 ///   out comes back to the log. An emulator has no drive until it is given one: `adb shell sm set-virtual-disk true`,
 ///   then `adb shell sm partition <the disk `sm list-disks` names> public`.
 /// - **Back up into a folder**: the same backup, written through the same tree calls, into a folder picked in the
@@ -33,6 +33,7 @@ import 'account/device_keys.dart';
 import 'app/ghost_app.dart';
 import 'core/back.dart';
 import 'core/backup.dart';
+import 'core/export_all.dart' hide sizeSaid;
 import 'core/library_folder.dart';
 import 'core/native/device_paths.dart';
 import 'core/native/ghost_core.dart';
@@ -43,6 +44,7 @@ import 'core/reset_native.dart';
 import 'main.dart' show appStyleSheets;
 import 'settings/kit/settings_icons.dart';
 import 'settings/panes/backup_pane.dart';
+import 'settings/panes/export_pane.dart';
 import 'settings/panes/library_folder_pane.dart';
 import 'settings/settings_screen.dart';
 import 'share/app_links.dart';
@@ -177,6 +179,7 @@ class _FilesState extends State<_FilesApp> {
   Widget _settings() {
     final folder = LibraryFolder(invoke: _core.invoke, onNotesChanged: () => _say('the notes changed: the list would be read again'));
     final backups = Backups.overCore(invoke: _core.invoke, startJob: _core.startJob, events: _core.events);
+    final export = ExportAll.overCore(invoke: _core.invoke, startJob: _core.startJob, events: _core.events);
     return BackScope(
       stack: _back,
       child: SettingsScreen(
@@ -199,6 +202,14 @@ class _FilesState extends State<_FilesApp> {
             icon: const SettingsIcon(SettingsGlyph.hardDriveUpload, size: 16),
             content: (context) => BackupPane(backups: backups),
             summary: 'To a USB drive or SD card',
+            group: 1,
+          ),
+          SettingsSection(
+            id: 'export',
+            label: 'Export',
+            icon: const SettingsIcon(SettingsGlyph.hardDriveDownload, size: 16),
+            content: (context) => ExportPane(export: export),
+            summary: 'Everything as one zip',
             group: 1,
           ),
         ],

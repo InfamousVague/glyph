@@ -69,6 +69,10 @@ pub mod saf;
 #[path = "../../../glyph/src-tauri/src/backup.rs"]
 pub mod backup;
 
+// Everything the app keeps, as one zip to carry away (stage 9C): the archive, written as a stream.
+#[path = "../../../glyph/src-tauri/src/export.rs"]
+pub mod export;
+
 // A meeting's write-up files, for the two a deleted note takes with it.
 #[path = "../../../glyph/src-tauri/src/jobs.rs"]
 pub mod jobs;

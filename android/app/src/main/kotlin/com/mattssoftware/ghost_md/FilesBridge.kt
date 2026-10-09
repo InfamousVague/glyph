@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.util.Log
 import com.mattssoftware.glyph.files.BackupDrives
+import com.mattssoftware.glyph.files.ExportTarget
 import com.mattssoftware.glyph.files.LibraryTree
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
@@ -12,7 +13,8 @@ import org.json.JSONObject
 /**
  * The system's own pickers, for Dart (`ghost_md/files`): what the Tauri activity's `GlyphHost` and its
  * `window.__glyph` answers were for a folder of the person's (files/LibraryTree.kt; lib/core/library_folder.dart)
- * and for a removable drive to back up to (files/BackupDrives.kt; lib/core/backup.dart).
+ * for a removable drive to back up to (files/BackupDrives.kt; lib/core/backup.dart), and for where an export of
+ * everything goes (files/ExportTarget.kt; lib/core/export_all.dart).
  *
  * - `chooseLibraryFolder` -> the picker's answer as JSON, when it answers: `{uri, name}` for a folder granted (the
  *   grant kept across restarts), `{cancelled: true}` for a picker closed, `{error}` in the app's words.
@@ -20,6 +22,11 @@ import org.json.JSONObject
  *   where the app may already write the drive. Asked every two seconds while Settings › Backup is open.
  * - `chooseBackupDrive {id}` -> the picker opened on that drive's root, for the person to allow it once:
  *   `{id, tree}`, `{cancelled: true}`, or `{error}` (a drive pulled out, or a folder on it chosen in its place).
+ * - `chooseExport {name}` -> the system's picker making a zip of that name, a USB drive among its places: `{fd, name}`
+ *   for the file made, opened for writing and its descriptor detached (the core's `export_fd` writes the archive
+ *   into it and closes it), `{cancelled: true}`, or `{error}`.
+ * - `exportDone` -> null: the export is whole, and the file stays. `discardExport` -> null: it failed or was
+ *   stopped, and the half-written file goes, so the drive holds only an archive that opens.
  *
  * ONE CALL, ANSWERED LATER, where the Tauri activity answered "started" at once and said the rest as an event on
  * its page: a method channel's result can wait, so the call that opens a picker is the call its answer comes back
@@ -45,6 +52,15 @@ class FilesBridge(private val activity: Activity) {
             "[]"
           },
         )
+        "chooseExport" -> asked(EXPORT, result) { ExportTarget.start(activity, call.argument<String>("name") ?: "", tell(EXPORT)) }
+        "exportDone" -> {
+          ExportTarget.done()
+          result.success(null)
+        }
+        "discardExport" -> {
+          ExportTarget.discard(activity)
+          result.success(null)
+        }
         "chooseBackupDrive" -> asked(DRIVE, result) { BackupDrives.ask(activity, call.argument<String>("id") ?: "", tell(DRIVE)) }
         else -> result.notImplemented()
       }
@@ -55,6 +71,7 @@ class FilesBridge(private val activity: Activity) {
   fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
     if (LibraryTree.answered(activity, requestCode, resultCode, data, tell(FOLDER))) return true
     if (BackupDrives.answered(activity, requestCode, resultCode, data, tell(DRIVE))) return true
+    if (ExportTarget.answered(activity, requestCode, resultCode, data, tell(EXPORT))) return true
     return false
   }
 
@@ -76,6 +93,7 @@ class FilesBridge(private val activity: Activity) {
     private const val TAG = "GhostFiles"
     private const val FOLDER = "libraryFolder"
     private const val DRIVE = "backupDrive"
+    private const val EXPORT = "exportTarget"
     private val CANCELLED = JSONObject().put("cancelled", true).toString()
   }
 }

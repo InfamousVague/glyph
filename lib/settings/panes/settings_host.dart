@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../../core/backup.dart' show Backups;
+import '../../core/export_all.dart' show ExportAll;
 import '../../core/library_folder.dart' show LibraryFolder;
 import '../../core/preferences.dart';
 import '../../core/workspaces.dart';
@@ -142,7 +143,7 @@ class SettingsFeatures {
     this.orgs = const [],
     this.libraryFolder,
     this.backup,
-    this.onExport,
+    this.export,
     this.models,
     this.onGetModel,
     this.onRemoveModel,
@@ -182,8 +183,9 @@ class SettingsFeatures {
   /// backups are not on.
   final Backups? backup;
 
-  /// Export everything as one zip (core/exportAll.ts).
-  final VoidCallback? onExport;
+  /// Everything as one zip, wherever the device's own save asks (core/exportAll.ts): Settings › Export. Null is a
+  /// build that does not know how an export leaves: the row is drawn and cannot be pressed.
+  final ExportAll? export;
 
   /// What models are on this device; null until the model store is here, which reads as none.
   final SettingsModelsState? models;

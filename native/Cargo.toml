@@ -45,6 +45,13 @@ base64 = "0.22"
 # tests/yjs_vectors.rs before it is taken.
 yrs = "=0.26.0"
 
+# Stage 9C, everything as one zip (export.rs), as ../glyph/src-tauri/Cargo.toml has it: deflate for the words,
+# stored for the media, zip64 past 4 GB, written as a stream so a descriptor Android's picker hands over will do;
+# flate2 named for its pure-Rust backend. libc is for that descriptor (and the engines').
+zip = { version = "8.6", default-features = false, features = ["deflate-flate2"] }
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
+libc = "0.2"
+
 # Stage 8A, the engines (the `voice` feature below): whisper.cpp and llama.cpp as ../glyph/src-tauri/Cargo.toml
 # has them, which says why each line is as it is. In short: ONE ggml (the patched whisper-rs-sys at the foot of
 # this file builds whisper.cpp against llama-cpp-sys-2's), so llama-cpp-2 is pinned exactly; no default features
@@ -55,7 +62,6 @@ whisper-rs-sys = { version = "0.15", optional = true }
 llama-cpp-2 = { version = "=0.1.156", default-features = false, features = ["android-static-stdcxx"], optional = true }
 encoding_rs = { version = "0.8", optional = true }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"], optional = true }
-libc = { version = "0.2", optional = true }
 minijinja = { version = "2.24", features = ["loop_controls", "json"], optional = true }
 minijinja-contrib = { version = "2.24", default-features = false, features = ["pycompat"], optional = true }
 # Not Tauri: the two functions of `tauri::async_runtime` model_files.rs calls (shims/tauri).
@@ -77,7 +83,7 @@ test-hooks = []
 # and (Android) `recording_jobs.rs` of the Tauri app, included as they are. Off by default so the notes-only core
 # still builds in seconds; tool/build-native.sh turns it on (GHOST_VOICE=0 for without). The first build compiles
 # llama.cpp and whisper.cpp: minutes.
-voice = ["dep:whisper-rs", "dep:whisper-rs-sys", "dep:llama-cpp-2", "dep:encoding_rs", "dep:reqwest", "dep:libc", "dep:minijinja", "dep:minijinja-contrib", "dep:tauri"]
+voice = ["dep:whisper-rs", "dep:whisper-rs-sys", "dep:llama-cpp-2", "dep:encoding_rs", "dep:reqwest", "dep:minijinja", "dep:minijinja-contrib", "dep:tauri"]
 
 # kept/library_commands.rs holds lines of the Tauri app's that are gated on `mobile`, a cfg Tauri's build script
 # sets and nothing here does: named so the compiler does not take it for a misspelling.

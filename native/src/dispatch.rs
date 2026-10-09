@@ -30,9 +30,11 @@
 //! - **The backup** (`backup_last`, `backup_files`, `backup_run`, `backup_cancel`; stage 9B) is
 //!   backup_commands.rs's, over backup.rs included whole: kept/backup_commands.rs lists them. Handed on from
 //!   `call_on`, since the backup is a job and keeps the core.
+//! - **The export** (`export_fd`, `export_cancel`; stage 9C) is export_commands.rs's, over export.rs included
+//!   whole: kept/export_commands.rs lists them.
 //!
 //! Not here yet, each waiting for the stage that needs it: `set_note_formatted`, `library_reveal`, and the Mac's
-//! folder panel (`library_choose_folder`).
+//! panels (`library_choose_folder`, `export_save`).
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -457,6 +459,10 @@ pub(crate) fn call_on(core: &Arc<Core>, command: &str, args: Value) -> Result<Va
     // Stage 9B: a backup onto a removable drive, a job that keeps the core.
     if crate::kept::backup_commands::has(command) {
         return crate::kept::backup_commands::call(core, command, args);
+    }
+    // Stage 9C: everything as one zip, a job that keeps the core.
+    if crate::kept::export_commands::has(command) {
+        return crate::kept::export_commands::call(core, command, args);
     }
     // Stage 8C: dictation, the language model, a meeting's write-up and tapes, each on the core's directories.
     #[cfg(feature = "voice")]
