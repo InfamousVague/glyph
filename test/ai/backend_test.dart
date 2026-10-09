@@ -8,6 +8,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/guide/guide_models.dart' show PhoneGuideModels;
 import 'package:ghost_md/ai/backend.dart';
 import 'package:ghost_md/ai/support/failure.dart';
 import 'package:ghost_md/ai/support/runnable.dart';
@@ -104,6 +105,30 @@ void main() {
       expect(fetches, hasLength(1));
       expect(fetches.single.args, {'id': 'qwen3.5-4b'});
       expect(engine.unlistened, 1);
+    });
+
+    test('is what the walkthrough\'s model page reads, through its own few words (lib/guide/guide_models.dart)', () async {
+      final finish = Completer<void>();
+      engine.answers['ai_fetch_model'] = (Object? args) => finish.future;
+      final page = PhoneGuideModels(models);
+      var told = 0;
+      page.addListener(() => told += 1);
+      unawaited(models.refresh());
+      await flush();
+      expect(page.offered, isTrue);
+      expect(page.present(here.id), isTrue);
+      expect(page.present(away.id), isFalse);
+      expect(told, greaterThan(0));
+      page.fetch(away.id);
+      await flush();
+      expect(page.download?.id, away.id);
+      engine.answers['ai_models'] = [here, away.copyWith(present: true)];
+      finish.complete();
+      await flush();
+      expect(page.download, isNull);
+      expect(page.present(away.id), isTrue);
+      expect(page.problem, isNull);
+      page.dispose();
     });
 
     test('says why a download or a removal failed, and downloads nothing with Nothing leaves the phone on', () async {

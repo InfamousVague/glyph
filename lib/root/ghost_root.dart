@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -24,6 +25,7 @@ import '../core/location.dart' show Locations, Locator, PlaceLookup;
 import '../core/phone_pictures.dart' show corePictureAdopter;
 import '../core/place_tags.dart';
 import '../editor/items/field_menu.dart' show DayPicker;
+import '../guide/guide_models.dart' show GuideModels, PhoneGuideModels;
 import '../editor/media/map_card.dart' show MapTilesBuilder;
 import '../book/journal_view.dart' show JournalPages;
 import '../book/new_book_sheet.dart';
@@ -545,6 +547,16 @@ class _GhostRootState extends State<GhostRoot> {
   AvailabilityController? _availability;
   DeviceFactsController? _deviceFacts;
   VoidCallback? _stopFills;
+
+  /// The phone's models as the walkthrough's model page reads them (lib/guide/guide_models.dart): where there is an
+  /// engine to run one. Null before voice is made and in a build with none, and the page then says nothing of
+  /// downloads.
+  PhoneGuideModels? _guideModels;
+  GuideModels? get _modelsForGuide {
+    final models = _voice?.models;
+    if (models == null || !engine.aiBackend.available) return null;
+    return _guideModels ??= PhoneGuideModels(models, offered: defaultTargetPlatform != TargetPlatform.iOS);
+  }
 
   /// A line for each note that wants one, written by the smallest model while nothing else has the cores
   /// (lib/format/gist.dart): the home page's cards read them.
@@ -1311,6 +1323,7 @@ class _GhostRootState extends State<GhostRoot> {
     _previews.dispose();
     _unwatchMeeting?.call();
     _stopFills?.call();
+    _guideModels?.dispose();
     _stopGistHold?.call();
     _gists?.removeListener(_voiceChanged);
     _gists?.dispose();
@@ -1917,6 +1930,7 @@ class _GhostRootState extends State<GhostRoot> {
                 tooSoon: guide.tooSoon,
                 onIndex: guide.turn,
                 recordsVoice: capture != null,
+                models: _modelsForGuide,
                 onClose: () {
                   guide.close();
                   // The list underneath loaded while the guide was up; ask again now it shows.

@@ -6,11 +6,16 @@
 /// ([GuideModels.present] is `models.any((m) => m.id == id && m.present)`, [GuideModels.download] its `download`,
 /// [GuideModels.problem] its `problem`, [GuideModels.fetch] its `fetch`), with [GuideModels.offered] true where
 /// `aiBackend.available` and the phone is not an iPhone. Whoever makes the controller calls its `refresh`, as the
-/// hook did when it mounted. Until then the page is given [NoGuideModels], which is the web page in a browser: the
-/// rows set the preference, and nothing is said of downloads.
+/// hook did when it mounted. That adapter is [PhoneGuideModels]; without a controller the page is given
+/// [NoGuideModels], which is the web page in a browser: the rows set the preference, and nothing is said of
+/// downloads.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+
+import '../ai/backend.dart' show ModelsController;
 
 /// A download in flight (`Download`).
 @immutable
@@ -56,4 +61,38 @@ class NoGuideModels extends ChangeNotifier implements GuideModels {
 
   @override
   void fetch(String id) {}
+}
+
+/// The phone's models as lib/ai keeps them (`useModels()`), for the model page: [offered] is the caller's to say
+/// (the app with its engine, and not an iPhone).
+class PhoneGuideModels extends ChangeNotifier implements GuideModels {
+  PhoneGuideModels(this._models, {this.offered = true}) {
+    _models.addListener(notifyListeners);
+  }
+
+  final ModelsController _models;
+
+  @override
+  final bool offered;
+
+  @override
+  bool present(String id) => _models.models.any((model) => model.id == id && model.present);
+
+  @override
+  GuideDownload? get download {
+    final coming = _models.download;
+    return coming == null ? null : GuideDownload(id: coming.id, received: coming.received, total: coming.total);
+  }
+
+  @override
+  String? get problem => _models.problem;
+
+  @override
+  void fetch(String id) => unawaited(_models.fetch(id));
+
+  @override
+  void dispose() {
+    _models.removeListener(notifyListeners);
+    super.dispose();
+  }
 }
