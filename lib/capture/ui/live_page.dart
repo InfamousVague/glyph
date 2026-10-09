@@ -41,6 +41,8 @@ import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart';
 
 import '../../art/wisp_edge.dart';
+import '../../editor/ai/wisp_arrivals.dart' show wispArrivals;
+import '../../editor/ai/wisp_ripples.dart' show RippleSource, wispRipples;
 import '../../art/wisp_kit.dart';
 import '../../art/wisp_text.dart' show paintWispLetter, wispLetterBend, wispLetterFrequency, wispLetterSoft, wispSlotSeed;
 import '../../editor/editor.dart';
@@ -146,6 +148,9 @@ DecorationSet _arriving(EditorState state) {
   return marks.isEmpty ? Decoration.none : Decoration.set(marks);
 }
 
+/// **Not what the recorder's page uses any more**: [LivePage] takes lib/editor/ai's `wispArrivals()` and
+/// `wispRipples`, as a note's editor does; this is the arriving half as it was drawn before those were ported.
+///
 /// What the recorder writes arrives out of smoke and what it takes back leaves into it: the field that decides
 /// (`wispState`), the ghosts of what left (`wispDepartures`), and the words arriving, drawn. [still] is reduced
 /// motion, under which nothing is set in motion.
@@ -170,6 +175,7 @@ class LivePage extends StatefulWidget {
     this.from,
     this.arrivals = true,
     this.formats = const <InlineFormatSyntax>[],
+    this.ripples,
   });
 
   /// The continued note's text before this capture, or '' for a new note.
@@ -197,6 +203,10 @@ class LivePage extends StatefulWidget {
 
   /// The switched-on plugins' inline formattings, drawn as the note draws them.
   final Iterable<InlineFormatSyntax> formats;
+
+  /// The voice's level as it comes, which the arriving words ripple with (lib/editor/ai/wisp_ripples.dart); null
+  /// and they arrive without.
+  final RippleSource? ripples;
 
   @override
   State<LivePage> createState() => LivePageState();
@@ -249,7 +259,13 @@ class LivePageState extends State<LivePage> {
       wholeDocument: true,
       state: EditorState.create(
         doc: widget.from ?? _next,
-        extensions: noteExtensions(formats: widget.formats, display: NoteView.formatted, readOnly: true, more: <Extension>[liveArrivals(still: still)]),
+        extensions: noteExtensions(formats: widget.formats, display: NoteView.formatted, readOnly: true, more: <Extension>[
+          // What the recorder writes arrives as what the AI writes does (lib/editor/ai/wisp_arrivals.dart), and the
+          // voice sends its ripples through the words while they do.
+          wispArrivals(),
+          wispStill.of(still),
+          if (widget.ripples case final ripples?) wispRipples(ripples),
+        ]),
       ),
     );
     _hint = _hintFor(widget.placeholder);

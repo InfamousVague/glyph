@@ -58,6 +58,8 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart' hide Placement;
 
 import '../../app/widgets.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
+
 import '../../art/app_icon.dart';
 import '../../art/ghost.dart';
 import '../../art/lucide.g.dart';
@@ -103,6 +105,7 @@ import '../tips.dart';
 import '../voice_level.dart';
 import 'capture_cards.dart';
 import 'computer_sound.dart';
+import '../../editor/ai/wisp_ripples.dart' show RippleSource;
 import 'live_page.dart';
 import 'opening.dart';
 import 'read_instruction.dart';
@@ -245,6 +248,9 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
   final GlobalKey _top = GlobalKey();
   double _topHeight = 0;
   final ValueNotifier<double> _level = ValueNotifier<double>(0);
+
+  /// The voice's level, as the page's arriving words follow it.
+  late final RippleSource _ripples = _LevelRipples(_level);
 
   /// The notes a spoken "add to …" can name, most recent first; loaded as the capture opens.
   List<NamedNote> _candidates = [];
@@ -1588,6 +1594,7 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
         // note being continued shows none of its text.
         Expanded(
           child: LivePage(
+            ripples: _ripples,
             // The page is remade when the note it shows changes, and when the recorder is up: "Start talking." after
             // "Starting…".
             key: ValueKey('page-${target?.id ?? _pendingTitle ?? 'new'}-$_moves-${meeting ? 'meeting' : 'take'}-${phase == Phase.starting ? 'starting' : 'up'}'),
@@ -1746,4 +1753,17 @@ String _failureText(Object failure) {
     if (text.startsWith(lead)) return text.substring(lead.length);
   }
   return text;
+}
+
+/// The microphone's level as a [RippleSource]: each change of the level told to whoever follows it.
+class _LevelRipples implements RippleSource {
+  const _LevelRipples(this.level);
+  final ValueListenable<double> level;
+
+  @override
+  void Function() subscribe(void Function(double level) listener) {
+    void told() => listener(level.value.clamp(0.0, 1.0));
+    level.addListener(told);
+    return () => level.removeListener(told);
+  }
 }
