@@ -19,7 +19,7 @@ const Map<String, String> typefaceFamilies = {
 /// The families whose files the app ships (pubspec.yaml). A card for any other face is drawn in the page's own sans,
 /// the first of the stylesheet's fallbacks (`ui-sans-serif, system-ui, sans-serif`), rather than in whatever the
 /// device would put in its place. Add a family here when its file is added.
-const Set<String> shippedFamilies = {'Maple Mono', 'Inter Variable'};
+const Set<String> shippedFamilies = {'Maple Mono', 'Fira Code Variable', 'Inter Variable', 'Noto Sans Variable', 'IBM Plex Sans'};
 
 /// Whether a card previews Markdown, for the note's face, or the app's own words, for the interface's (`kind`).
 enum TypefaceKind { note, interface }
@@ -30,9 +30,7 @@ enum TypefaceKind { note, interface }
 /// marks dimmed as the editor dims them. An interface face's card sets a scrap of the app's own words instead: a
 /// title and a row of tabs.
 ///
-/// What differs from the web original: a card can only be the face itself where the app ships the face. It ships
-/// Inter and Maple Mono so far (pubspec.yaml); Fira Code, Noto Sans and IBM Plex Sans draw in the fallback until
-/// their files are added.
+/// The app ships all five (pubspec.yaml, tool/fonts.py), so each card is its own face.
 class TypefaceCards extends StatelessWidget {
   const TypefaceCards({super.key, required this.faces, required this.value, required this.onValueChange, required this.label, required this.kind});
 
@@ -105,7 +103,7 @@ class _Sample extends StatelessWidget {
     final sans = [for (final f in t.families('glacier-font-sans')) if (shippedFamilies.contains(f)) f, 'Inter Variable'];
     final shipped = shippedFamilies.contains(typefaceFamilies[face]);
     final family = shipped ? typefaceFamilies[face]! : sans.first;
-    final rest = [...sans.where((f) => f != family), ...?t.typography.fallbacks['Inter Variable']];
+    final rest = [...?t.typography.fallbacks[family], ...sans.where((f) => f != family), ...?t.typography.fallbacks['Inter Variable']];
     double rem(double n) => t.lenOf('${n}rem');
 
     /// Text of the sample at [size] rem: the card's face, and for a coding face its own features and no spacing, so

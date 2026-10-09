@@ -472,10 +472,15 @@ void main() {
       expect(heading.style!.fontWeight, FontWeight.w700);
       // A coding face as the app sets it: its own features, so `->` joins.
       expect(heading.style!.fontFeatures, const [FontFeature('calt'), FontFeature('liga')]);
-      // A face the app does not ship yet is set in the page's own sans.
+      // Every face is the app's own file (pubspec.yaml), so each card is set in its face: Fira Code as a coding
+      // face with its features, Plex as a sans with the page's.
+      expect(shippedFamilies, containsAll(typefaceFamilies.values));
       final fira = find.ancestor(of: _within('Note font', find.text('Fira Code')), matching: find.byType(AnimatedContainer)).first;
-      expect(shippedFamilies.contains(typefaceFamilies['fira']), isFalse);
-      expect(tester.widget<Text>(find.descendant(of: fira, matching: find.byType(Text)).first).style!.fontFamily, 'Inter Variable');
+      final firaHeading = tester.widget<Text>(find.descendant(of: fira, matching: find.byType(Text)).first).style!;
+      expect(firaHeading.fontFamily, 'Fira Code Variable');
+      expect(firaHeading.fontFeatures, const [FontFeature('calt'), FontFeature('liga')]);
+      final plex = find.ancestor(of: _within('Note font', find.text('Plex')), matching: find.byType(AnimatedContainer)).first;
+      expect(tester.widget<Text>(find.descendant(of: plex, matching: find.byType(Text)).first).style!.fontFamily, 'IBM Plex Sans');
       // An interface face's card: a title and a row of tabs, the open one on a patch of the ink.
       final today = tester.getRect(_within('Interface font', find.text('Today')).first);
       expect(today.height, closeTo(14.976, 0.6));

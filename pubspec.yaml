@@ -90,3 +90,30 @@ flutter:
         - asset: assets/fonts/MapleMono-700-Italic.ttf
           weight: 700
           style: italic
+    # The other faces Settings › Appearance › Type offers, as the page loads them (typefaces.css, the kit's fonts):
+    # Fira Code and Noto Sans are variable in weight, IBM Plex Sans is the one weight the page registers.
+    - family: Fira Code Variable
+      fonts:
+        - asset: assets/fonts/FiraCodeVariable-latin.ttf
+    - family: Fira Code Variable LatinExt
+      fonts:
+        - asset: assets/fonts/FiraCodeVariable-latin-ext.ttf
+    - family: Fira Code Variable Symbols
+      fonts:
+        - asset: assets/fonts/FiraCodeVariable-symbols2.ttf
+    - family: Noto Sans Variable
+      fonts:
+        - asset: assets/fonts/NotoSansVariable-latin.ttf
+        - asset: assets/fonts/NotoSansVariable-latin-Italic.ttf
+          style: italic
+    - family: Noto Sans Variable LatinExt
+      fonts:
+        - asset: assets/fonts/NotoSansVariable-latin-ext.ttf
+        - asset: assets/fonts/NotoSansVariable-latin-ext-Italic.ttf
+          style: italic
+    - family: IBM Plex Sans
+      fonts:
+        - asset: assets/fonts/IBMPlexSans-latin-400.ttf
+    - family: IBM Plex Sans LatinExt
+      fonts:
+        - asset: assets/fonts/IBMPlexSans-latin-ext-400.ttf

@@ -109,7 +109,12 @@ class _GhostAppState extends State<GhostApp> with WidgetsBindingObserver {
                 },
                 typography: const GlacierTypography(
                   features: [FontFeature('cv11'), FontFeature('ss01')],
-                  fallbacks: {'Inter Variable': interFallbacks},
+                  fallbacks: {
+                    'Inter Variable': interFallbacks,
+                    'Fira Code Variable': ['Fira Code Variable LatinExt', 'Fira Code Variable Symbols'],
+                    'Noto Sans Variable': ['Noto Sans Variable LatinExt'],
+                    'IBM Plex Sans': ['IBM Plex Sans LatinExt'],
+                  },
                 ),
                 child: HapticsProvider(enabled: hapticsPref.value, child: _InkOverrides(child: _Page(child: GlacierToastProvider(child: child!)))),
               ),
