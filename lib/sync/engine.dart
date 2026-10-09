@@ -46,6 +46,7 @@ import '../account/api.dart';
 import '../account/crypto_api.dart';
 import '../account/enc_key.dart';
 import '../account/keystore.dart';
+import '../core/locale_dates.dart';
 import '../core/note.dart';
 import '../core/preferences.dart';
 import '../core/stored.dart';
@@ -99,12 +100,14 @@ class SyncStatus {
 const List<String> _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /// How long ago a sync finished, as the Account page says it (`syncedWhen`). [now] is the clock's unless given.
+/// Past the hour it is the day and the time in the phone's own order and clock once it has said (core/locale_dates.dart:
+/// "Oct 9, 4:05 PM", "9 Oct, 16:05"), and the day first on a 24-hour clock until then.
 String syncedWhen(int ms, {int? now}) {
   final minutes = (((now ?? DateTime.now().millisecondsSinceEpoch) - ms) / 60000 + 0.5).floor();
   if (minutes < 1) return 'just now';
   if (minutes < 60) return '$minutes min ago';
   final at = DateTime.fromMillisecondsSinceEpoch(ms);
-  return '${at.day} ${_months[at.month - 1]}, ${at.hour}:${at.minute.toString().padLeft(2, '0')}';
+  return toldDate(at, DateForm.MMMdhm) ?? '${at.day} ${_months[at.month - 1]}, ${at.hour}:${at.minute.toString().padLeft(2, '0')}';
 }
 
 /// "3 notes not synced": what the last pass could not send (`unsentLine`).

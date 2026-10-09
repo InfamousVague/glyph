@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/backup.dart';
 import 'package:ghost_md/core/library_folder.dart' show filesChannel;
+import 'package:ghost_md/core/locale_dates.dart';
 import 'package:ghost_md/core/native/core.dart';
 import 'package:ghost_md/core/native/events.dart';
 
@@ -195,6 +196,28 @@ void main() {
       expect(lastSaid(LastBackup(backedUpAt: isoInstant(DateTime(2025, 12, 31, 0, 0)), notes: 2), now: now), 'Last backed up Dec 31, 2025, 12:00 AM · 2 notes');
       expect(lastSaid(const LastBackup(backedUpAt: 'when?', notes: 2)), 'Backed up before');
       expect((sizeSaid(999), sizeSaid(1000), sizeSaid(820000), sizeSaid(1400000000), sizeSaid(30000000000)), ('999 bytes', '1 KB', '820 KB', '1.4 GB', '30 GB'));
+    });
+
+    group('says when in the phone’s own words (core/locale_dates.dart)', () {
+      tearDown(() => toldLocale = null);
+      final now = DateTime(2026, 10, 5, 21);
+      String last(DateTime at, int notes) => lastSaid(LastBackup(backedUpAt: isoInstant(at), notes: notes), now: now);
+
+      test('an American phone has the month first and a 12-hour clock', () {
+        toldLocale = DateLocale.enUS;
+        expect(last(DateTime(2026, 10, 5, 18, 52), 312), 'Last backed up today, 06:52 PM · 312 notes');
+        expect(last(DateTime(2026, 10, 4, 9, 5), 1), 'Last backed up Oct 4, 09:05 AM · one note');
+        expect(last(DateTime(2025, 12, 31, 0, 0), 2), 'Last backed up Dec 31, 2025, 12:00 AM · 2 notes');
+        expect(backupReadme(DateTime(2026, 10, 5, 20)).split('\n').first, 'Ghost.md, backed up 10/5/2026, 8:00:00 PM');
+      });
+
+      test('a British phone has the day first and a 24-hour clock', () {
+        toldLocale = DateLocale.enGB;
+        expect(last(DateTime(2026, 10, 5, 18, 52), 312), 'Last backed up today, 18:52 · 312 notes');
+        expect(last(DateTime(2026, 10, 4, 9, 5), 1), 'Last backed up 4 Oct, 09:05 · one note');
+        expect(last(DateTime(2025, 12, 31, 0, 0), 2), 'Last backed up 31 Dec 2025, 00:00 · 2 notes');
+        expect(backupReadme(DateTime(2026, 10, 5, 20)).split('\n').first, 'Ghost.md, backed up 05/10/2026, 20:00:00');
+      });
     });
 
     test('leaves a README that says what each folder is', () {

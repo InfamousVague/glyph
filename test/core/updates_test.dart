@@ -13,6 +13,7 @@ import 'dart:ui' show AppLifecycleState;
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/core/locale_dates.dart';
 import 'package:ghost_md/core/native/core.dart';
 import 'package:ghost_md/core/native/ghost_core.dart';
 import 'package:ghost_md/core/update_keys.dart';
@@ -141,6 +142,24 @@ void main() {
       expect(describeBuild('20260912221530'), isNot('unknown build'));
       expect(describeBuild('nope'), 'unknown build');
       expect(describeBuild(null), 'unknown build');
+    });
+
+    group('describes a build id in the phone’s own words (core/locale_dates.dart)', () {
+      tearDown(() => toldLocale = null);
+
+      test('an American phone has the month first and a 12-hour clock', () {
+        toldLocale = DateLocale.enUS;
+        expect(describeBuild('20260912221530', toLocal: (utc) => utc), 'Sep 12, 10:15 PM');
+        expect(describeBuild('20260101000500', toLocal: (utc) => utc), 'Jan 1, 12:05 AM');
+        expect(describeBuild('nope'), 'unknown build');
+      });
+
+      test('a British phone has the day first and a 24-hour clock', () {
+        toldLocale = DateLocale.enGB;
+        expect(describeBuild('20260912221530', toLocal: (utc) => utc), '12 Sept, 22:15');
+        expect(describeBuild('20260101000500', toLocal: (utc) => utc), '1 Jan, 00:05');
+        expect(describeBuild('nope'), 'unknown build');
+      });
     });
   });
 

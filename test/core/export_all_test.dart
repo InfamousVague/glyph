@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/export_all.dart';
 import 'package:ghost_md/core/library_folder.dart' show filesChannel;
+import 'package:ghost_md/core/locale_dates.dart';
 import 'package:ghost_md/core/native/core.dart';
 import 'package:ghost_md/core/native/events.dart';
 
@@ -86,6 +87,20 @@ void main() {
       }
       expect(text, contains('ghostmarkdown_2026-10-01_21-42-05/'));
       expect(text.split('\n').first, 'Ghost.md, exported 10/1/2026, 9:42:05 PM');
+    });
+
+    group('says when in the phone’s own words (core/locale_dates.dart)', () {
+      tearDown(() => toldLocale = null);
+
+      test('an American phone has the month first and a 12-hour clock', () {
+        toldLocale = DateLocale.enUS;
+        expect(readme(exportName(at), at).split('\n').first, 'Ghost.md, exported 10/1/2026, 9:42:05 PM');
+      });
+
+      test('a British phone has the day first, two figures each, and a 24-hour clock', () {
+        toldLocale = DateLocale.enGB;
+        expect(readme(exportName(at), at).split('\n').first, 'Ghost.md, exported 01/10/2026, 21:42:05');
+      });
     });
   });
 

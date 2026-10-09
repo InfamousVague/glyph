@@ -38,6 +38,7 @@ import 'package:flutter/widgets.dart';
 
 import '../ai/support/failure.dart';
 import '../capture/meeting.dart' show stopTheMeeting;
+import 'locale_dates.dart';
 import 'native/core.dart';
 import 'update_keys.dart';
 
@@ -123,13 +124,16 @@ String? sourceHost(String? source) {
 const List<String> _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /// "Sep 12, 10:15 PM": a build id as a person scans it, in their own time zone (`describeBuild`); "unknown build"
-/// for anything that is not fourteen digits. The page asked the browser's locale for the words; here they are
-/// English, as the rest of the app's are.
+/// for anything that is not fourteen digits. The page asked the browser's locale for the words (`shortWhen`); here
+/// they are English in the phone's own order and clock once it has said (core/locale_dates.dart: "12 Sept, 22:15"
+/// on a British phone), and as an American one writes them until then.
 String describeBuild(String? build, {DateTime Function(DateTime utc)? toLocal}) {
   if (build == null || !RegExp(r'^\d{14}$').hasMatch(build)) return 'unknown build';
   int n(int from, int to) => int.parse(build.substring(from, to));
   final utc = DateTime.utc(n(0, 4), n(4, 6), n(6, 8), n(8, 10), n(10, 12), n(12, 14));
   final at = toLocal?.call(utc) ?? utc.toLocal();
+  final told = toldDate(at, DateForm.MMMdhm2);
+  if (told != null) return told;
   final hour = at.hour % 12 == 0 ? 12 : at.hour % 12;
   return '${_months[at.month - 1]} ${at.day}, ${hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')} ${at.hour < 12 ? 'AM' : 'PM'}';
 }

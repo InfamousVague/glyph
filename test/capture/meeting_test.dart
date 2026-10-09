@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/capture/markdown.dart' show Segment;
 import 'package:ghost_md/capture/meeting.dart';
+import 'package:ghost_md/core/locale_dates.dart';
 import 'package:ghost_md/core/summary_text.dart' show dateTitled;
 
 /// A meeting's gate and its title (lib/capture/meeting.dart): where one can be recorded, by platform and by the
@@ -66,6 +67,29 @@ void main() {
       expect(meetingTitle(smallHours, 'en-GB'), 'Meeting, 26 Sept 00:05');
       expect(meetingTitle(smallHours, 'en-US'), 'Meeting, Sep 26 00:05');
       expect(meetingTitle(smallHours, 'de-DE'), 'Meeting, 26 Sept. 00:05');
+    });
+
+    group('in the phone’s own words, where no locale is named (core/locale_dates.dart)', () {
+      tearDown(() => toldLocale = null);
+
+      test('an American phone has the month first, and Sep', () {
+        toldLocale = DateLocale.enUS;
+        expect(meetingTitle(afternoon), 'Meeting, Sep 26 14:05');
+        expect(meetingTitle(smallHours), 'Meeting, Sep 26 00:05');
+        expect(dateTitled('# ${meetingTitle(afternoon)}\n\nWords.'), true);
+        // A locale named is still that locale's.
+        expect(meetingTitle(afternoon, 'en-GB'), 'Meeting, 26 Sept 14:05');
+        expect(meetingTitle(afternoon, 'de-DE'), 'Meeting, 26 Sept. 14:05');
+      });
+
+      test('a British phone has the day first, and Sept, as a phone that has not said has', () {
+        expect(meetingTitle(afternoon), 'Meeting, 26 Sept 14:05');
+        toldLocale = DateLocale.enGB;
+        expect(meetingTitle(afternoon), 'Meeting, 26 Sept 14:05');
+        expect(meetingTitle(smallHours), 'Meeting, 26 Sept 00:05');
+        expect(dateTitled('# ${meetingTitle(afternoon)}\n\nWords.'), true);
+        expect(meetingTitle(afternoon, 'en-US'), 'Meeting, Sep 26 14:05');
+      });
     });
 
     test('is still a date title to the summary, in every locale and at every hour, so the model’s heading can take its place', () {

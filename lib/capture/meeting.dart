@@ -16,13 +16,15 @@
 /// What differs:
 /// - `canRecordMeeting` reads its platform from modules on the web (`core/tauri.ts`, `core/platform.ts`,
 ///   `core/nativeGeneration.ts`); here they are its named parameters.
-/// - `meetingTitle` asks `Intl.DateTimeFormat` on the web, which knows every locale. This app has no such table
-///   (and takes no package for one), so the title is written for the three locales the web's own tests pin - en-GB,
-///   en-US and de-DE, each month as that locale shortens it - and for any other, or none, as en-GB writes it: the
-///   day, then the month in English, which is how the rest of this app writes a date (lib/core/note_names.dart).
-///   The time is the device's own clock, 24-hour, as on the web.
+/// - `meetingTitle` asks `Intl.DateTimeFormat` on the web, which knows every locale. This app has the page's own
+///   answers for en-US and en-GB (lib/core/locale_dates.dart) and takes no package for more, so a title with no
+///   locale named is in the phone's own order once the phone has said which of the two it reads ("Sep 26", "26
+///   Sept"), and as en-GB writes it until then. A locale named is one of the three the web's own tests pin, en-GB,
+///   en-US and de-DE, each month as that locale shortens it, and any other is en-GB's. The time is the device's own
+///   clock, 24-hour, as on the web.
 library;
 
+import '../core/locale_dates.dart';
 import 'markdown.dart' show Segment, renderTranscript;
 
 /// The binary generation with the meeting service, its host bridge and the write-up commands (`MEETING_GENERATION`).
@@ -48,12 +50,9 @@ Future<bool> canRecordMeeting({
   return !isMobile;
 }
 
-/// A locale's short months, and whether it says the month before the day.
-const Map<String, ({bool monthFirst, List<String> months})> _locales = {
-  'en-GB': (monthFirst: false, months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec']),
-  'en-US': (monthFirst: true, months: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']),
-  'de-DE': (monthFirst: false, months: ['Jan.', 'Feb.', 'März', 'Apr.', 'Mai', 'Juni', 'Juli', 'Aug.', 'Sept.', 'Okt.', 'Nov.', 'Dez.']),
-};
+/// de-DE's short months, the day before them: the one locale the web's tests pin that the app's own tables
+/// (lib/core/locale_dates.dart) have not got.
+const List<String> _germanMonths = ['Jan.', 'Feb.', 'März', 'Apr.', 'Mai', 'Juni', 'Juli', 'Aug.', 'Sept.', 'Okt.', 'Nov.', 'Dez.'];
 
 String _two(int n) => n.toString().padLeft(2, '0');
 
@@ -62,9 +61,13 @@ String _two(int n) => n.toString().padLeft(2, '0');
 /// the day, a space, the month, whichever comes first; a locale's own month abbreviation is kept as it is ("Sept.").
 String meetingTitle(int ms, [String? locale]) {
   final date = DateTime.fromMillisecondsSinceEpoch(ms);
-  final words = _locales[locale] ?? _locales['en-GB']!;
-  final month = words.months[date.month - 1];
-  final day = words.monthFirst ? '$month ${date.day}' : '${date.day} $month';
+  final day = switch (locale) {
+    // The phone's own order, and en-GB's until the phone has said.
+    null => localeDayMonth(date, DateForm.MMMd),
+    'en-US' => localeDayMonth(date, DateForm.MMMd, DateLocale.enUS),
+    'de-DE' => '${date.day} ${_germanMonths[date.month - 1]}',
+    _ => localeDayMonth(date, DateForm.MMMd, DateLocale.enGB),
+  };
   final time = '${_two(date.hour)}:${_two(date.minute)}';
   return 'Meeting, $day $time';
 }

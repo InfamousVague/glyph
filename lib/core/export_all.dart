@@ -25,7 +25,7 @@
 ///   app (a test, another desktop) [ExportAll.way] answers `update`.
 /// - **The manifest's `page`** is what this build calls itself ([ExportAll.page]), where the page said the bundle
 ///   it was loaded from.
-/// - **The README's date is written in English**, as lib/core/backup.dart's is.
+/// - **The README's date is written in English**, in the phone's own order and clock, as lib/core/backup.dart's is.
 library;
 
 import 'dart:async';
@@ -36,6 +36,7 @@ import 'package:flutter/services.dart';
 
 import 'backup.dart' show isoInstant, sizeSaid;
 import 'library_folder.dart' show filesChannel;
+import 'locale_dates.dart';
 import 'mac_app.dart';
 import 'native/core.dart';
 import 'native/events.dart';
@@ -87,8 +88,9 @@ String settingsFile([String? Function(String key)? read]) {
 String readme(String name, DateTime at) {
   final root = name.replaceFirst(RegExp(r'\.zip$'), '');
   final hour = at.hour % 12 == 0 ? 12 : at.hour % 12;
-  // `toLocaleString()`, in English: "10/1/2026, 9:42:05 PM".
-  final when = '${at.month}/${at.day}/${at.year}, $hour:${_two(at.minute)}:${_two(at.second)} ${at.hour < 12 ? 'AM' : 'PM'}';
+  // `toLocaleString()`, in English: "10/1/2026, 9:42:05 PM", and "01/10/2026, 21:42:05" once a British phone has
+  // said it is one (core/locale_dates.dart).
+  final when = toldDate(at, DateForm.whole) ?? '${at.month}/${at.day}/${at.year}, $hour:${_two(at.minute)}:${_two(at.second)} ${at.hour < 12 ? 'AM' : 'PM'}';
   return [
     'Ghost.md, exported $when',
     '',

@@ -16,6 +16,7 @@ import 'package:ghost_md/account/crypto_api.dart';
 import 'package:ghost_md/account/keystore.dart';
 import 'package:ghost_md/account/session.dart';
 import 'package:ghost_md/core/kept_workspaces.dart';
+import 'package:ghost_md/core/locale_dates.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/workspaces.dart';
@@ -599,6 +600,27 @@ void main() {
       expect(syncedWhen(now - 20000, now: now), 'just now');
       expect(syncedWhen(now - 5 * 60000, now: now), '5 min ago');
       expect(syncedWhen(now - 3 * 60 * 60000, now: now), isNot(matches(RegExp('ago|just now'))));
+    });
+
+    group('says a sync past the hour in the phone’s own words (core/locale_dates.dart)', () {
+      tearDown(() => toldLocale = null);
+      final morning = DateTime(2026, 9, 28, 9, 7).millisecondsSinceEpoch;
+      final afternoon = DateTime(2026, 10, 9, 16, 5).millisecondsSinceEpoch;
+      const later = 3 * 60 * 60000;
+
+      test('an American phone has the month first and a 12-hour clock', () {
+        toldLocale = DateLocale.enUS;
+        expect(syncedWhen(morning, now: morning + later), 'Sep 28, 9:07 AM');
+        expect(syncedWhen(afternoon, now: afternoon + later), 'Oct 9, 4:05 PM');
+        expect(syncedWhen(afternoon, now: afternoon + 5 * 60000), '5 min ago');
+      });
+
+      test('a British phone has the day first and a 24-hour clock', () {
+        toldLocale = DateLocale.enGB;
+        expect(syncedWhen(morning, now: morning + later), '28 Sept, 9:07');
+        expect(syncedWhen(afternoon, now: afternoon + later), '9 Oct, 16:05');
+        expect(syncedWhen(afternoon, now: afternoon + 5 * 60000), '5 min ago');
+      });
     });
 
     test('gives the Account row the handle and where sync stands', () {

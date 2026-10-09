@@ -27,8 +27,9 @@
 ///   Android's shape, a drive's `tree` being its own path once allowed; the backup itself goes by `drive`, as the
 ///   page's did. Windows' drives are not ported, and outside the Mac app (a test, a desktop run) [Backups.way]
 ///   answers `none`; [BackupWay.windows] and the core's own `backup_drives` are kept for the day they are.
-/// - **Dates are written in English**, as a browser set to English (United States) writes them: there is no `Intl`
-///   here (lib/notes/when.dart says the same of its days).
+/// - **Dates are written in English**, in the phone's own order and clock once it has said which
+///   (lib/core/locale_dates.dart, the page's own answers for en-US and en-GB), and until then as a browser set to
+///   English (United States) writes them (lib/notes/when.dart says the same of its days).
 library;
 
 import 'dart:async';
@@ -38,6 +39,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'library_folder.dart' show filesChannel;
+import 'locale_dates.dart';
 import 'mac_app.dart';
 import 'native/core.dart';
 import 'native/events.dart';
@@ -229,8 +231,10 @@ String _two(int n) => n.toString().padLeft(2, '0');
 int _hour12(DateTime at) => at.hour % 12 == 0 ? 12 : at.hour % 12;
 const List<String> _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/// A moment as the page's `toLocaleString()` says it in English: "10/5/2026, 8:00:00 PM".
-String _localeString(DateTime at) => '${at.month}/${at.day}/${at.year}, ${_hour12(at)}:${_two(at.minute)}:${_two(at.second)} ${at.hour < 12 ? 'AM' : 'PM'}';
+/// A moment as the page's `toLocaleString()` says it in English: "10/5/2026, 8:00:00 PM", and "05/10/2026,
+/// 20:00:00" once a British phone has said it is one.
+String _localeString(DateTime at) =>
+    toldDate(at, DateForm.whole) ?? '${at.month}/${at.day}/${at.year}, ${_hour12(at)}:${_two(at.minute)}:${_two(at.second)} ${at.hour < 12 ? 'AM' : 'PM'}';
 
 /// What the README on the drive says (`backupReadme`).
 String backupReadme(DateTime at) => [
@@ -554,7 +558,8 @@ String sizeSaid(int bytes) {
   return '${value >= 10 || unit == 0 ? value.round() : value.toStringAsFixed(1)} ${units[unit]}';
 }
 
-/// When a drive was last backed up to, as its row says: "Last backed up Oct 5, 06:52 PM · 312 notes" (`lastSaid`).
+/// When a drive was last backed up to, as its row says: "Last backed up Oct 5, 06:52 PM · 312 notes" (`lastSaid`),
+/// and "5 Oct, 18:52" once a British phone has said it is one.
 String lastSaid(LastBackup? last, {DateTime? now}) {
   if (last == null) return 'No backup on it yet';
   final at = DateTime.tryParse(last.backedUpAt)?.toLocal();
@@ -562,9 +567,11 @@ String lastSaid(LastBackup? last, {DateTime? now}) {
   final today = now ?? DateTime.now();
   final sameDay = at.year == today.year && at.month == today.month && at.day == today.day;
   // `toLocaleDateString(undefined, { day: 'numeric', month: 'short' })`, with the year when it is not this one.
-  final day = sameDay ? 'today' : '${_months[at.month - 1]} ${at.day}${at.year == today.year ? '' : ', ${at.year}'}';
+  final day = sameDay
+      ? 'today'
+      : toldDate(at, at.year == today.year ? DateForm.MMMd : DateForm.yMMMd) ?? '${_months[at.month - 1]} ${at.day}${at.year == today.year ? '' : ', ${at.year}'}';
   // `toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })`.
-  final time = '${_two(_hour12(at))}:${_two(at.minute)} ${at.hour < 12 ? 'AM' : 'PM'}';
+  final time = toldDate(at, DateForm.hm2) ?? '${_two(_hour12(at))}:${_two(at.minute)} ${at.hour < 12 ? 'AM' : 'PM'}';
   final notes = last.notes == 1 ? 'one note' : '${last.notes} notes';
   return 'Last backed up $day, $time · $notes';
 }
