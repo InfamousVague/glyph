@@ -119,7 +119,7 @@ void main() {
   String? stopSays;
 
   /// A voice over a session the test speaks into by hand, and a service that answers as the test says.
-  Voice voiceFor(SampleLibrary notes, {bool assistant = false, String launch = '', bool canMeet = true}) {
+  Voice voiceFor(SampleLibrary notes, {bool assistant = false, String launch = '', bool canMeet = true, bool mac = false}) {
     service = _Service();
     live = MeetingLive(host: service, writeUpRunningNow: () => false);
     keys = StreamController<void>.broadcast(sync: true);
@@ -131,7 +131,7 @@ void main() {
       recorder: Recorder(
         engine: CaptureEngine(backend: null, hasNativeGeneration: (_) async => true, preferences: () => prefs),
         store: LibraryRecorderStore(notes),
-        host: const RecorderHost(isAndroid: true),
+        host: RecorderHost(isAndroid: !mac),
         meetingLive: live,
         preferences: () => prefs,
         setPreferences: (change) => prefs = change(prefs),
@@ -154,7 +154,8 @@ void main() {
         setRecorderLive: (_) {},
         canRecordMeeting: canMeet,
       ),
-      service: service,
+      // A Mac has no meeting service: its recorder records a meeting itself.
+      service: mac ? null : service,
       assistant: assistant,
       launch: launch,
       captureKey: keys.stream,
@@ -169,7 +170,7 @@ void main() {
     }
   }
 
-  Future<void> open(WidgetTester tester, {bool voice = true, bool assistant = false, String launch = '', bool canMeet = true, TapePlayer? tapePlayer}) async {
+  Future<void> open(WidgetTester tester, {bool voice = true, bool assistant = false, String launch = '', bool canMeet = true, bool mac = false, TapePlayer? tapePlayer}) async {
     library = SampleLibrary.seeded();
     await pumpApp(
       tester,
@@ -181,7 +182,7 @@ void main() {
         clock: () => seedNow,
         stored: MemoryStored(),
         untouched: UntouchedNotes(kept: MemoryStored()),
-        voice: voice ? voiceFor(library, assistant: assistant, launch: launch, canMeet: canMeet) : null,
+        voice: voice ? voiceFor(library, assistant: assistant, launch: launch, canMeet: canMeet, mac: mac) : null,
         tapePlayer: tapePlayer,
       ),
     );
@@ -317,6 +318,21 @@ void main() {
   });
 
   group('a meeting', () {
+    testWidgets('on a Mac is the recorder itself in meeting mode: no service asked, and no note made before a word', (tester) async {
+      await open(tester, mac: true);
+      final before = library.value.length;
+      expect(sheetOf(tester).onMeeting, isNotNull);
+      await tester.runAsync(() async => sheetOf(tester).onMeeting!());
+      await until(tester, () => shellOf(tester).screen is ScreenCapture, 'the recorder did not open');
+      expect((shellOf(tester).screen as ScreenCapture).meeting, isTrue);
+      expect(tester.widget<CaptureScreen>(find.byType(CaptureScreen)).meeting, isTrue);
+      expect(find.byType(MeetingScreen), findsNothing);
+      expect(service.starts, isEmpty);
+      expect(library.value.length, before);
+      expect(preferences.value.meetings, isEmpty);
+      await close(tester);
+    });
+
     testWidgets('from the + is the note first, then the service asked, then its screen; Done stops it', (tester) async {
       await open(tester);
       final before = library.value.length;
