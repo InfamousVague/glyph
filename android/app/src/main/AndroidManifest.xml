@@ -36,8 +36,18 @@
     -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
+    <!--
+      Where a note was written (Settings › Location, and a note's Add my location; Position.kt). Nothing asks for
+      the position until the person taps one of those, or makes a new note with tagging on. Both, so Android 12+
+      can offer Approximate.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
     <!-- A phone with no microphone still lists the app: notes can be typed. -->
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <!-- Nor does a note need a position to be written: a phone with no location hardware still lists the app. -->
+    <uses-feature android:name="android.hardware.location" android:required="false" />
 
     <application
         android:label="Ghost Flutter"

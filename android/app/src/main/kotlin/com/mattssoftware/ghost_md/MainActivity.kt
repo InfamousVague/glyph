@@ -62,6 +62,9 @@ class MainActivity : FlutterActivity() {
     /** The system's pickers, each answered when its activity result arrives (FilesBridge.kt). */
     private val files = FilesBridge(this)
 
+    /** Where the phone is, and the prompt that allows it (Position.kt). */
+    private val position = Position(this)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Before super: a capture launch decides the window's lock-screen behaviour before the window is shown.
         meeting = MeetingBridge(this).also { it.onCreate(intent) }
@@ -106,6 +109,8 @@ class MainActivity : FlutterActivity() {
         // The phone's pickers: a folder for the library, a drive to back up to, where an export goes
         // (FilesBridge.kt; lib/core/library_folder.dart, lib/core/backup.dart, lib/core/export_all.dart).
         files.register(messenger)
+        // Where a note was written: the permission, its prompt and the fix (Position.kt; lib/core/phone_position.dart).
+        position.register(messenger)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -143,6 +148,7 @@ class MainActivity : FlutterActivity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (DictationMic.answered(this, requestCode, grantResults)) return
+        if (position.answered(requestCode, grantResults)) return
         meeting?.onRequestPermissionsResult(requestCode, grantResults)
     }
 
