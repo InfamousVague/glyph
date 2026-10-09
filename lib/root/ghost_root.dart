@@ -19,6 +19,7 @@ import '../core/canvas_body.dart';
 import '../core/core_library.dart';
 import '../core/images.dart';
 import '../core/kept_trash.dart';
+import '../core/link_preview.dart' show LinkOpener;
 import '../core/kept_workspaces.dart';
 import '../core/native/core.dart';
 import '../core/native/files.dart';
@@ -51,6 +52,7 @@ import '../notes/note_tree.dart';
 import '../notes/notes_drawer.dart';
 import '../notes/notifications_drawer.dart';
 import '../notes/workspace_sheet.dart';
+import '../orgs/join_links.dart' show readJoinLink;
 import '../orgs/ui/fed_notifications.dart';
 import '../orgs/ui/join_sheet.dart';
 import '../orgs/ui/new_organization_sheet.dart';
@@ -60,6 +62,7 @@ import '../orgs/ui/organization_screen.dart';
 import '../settings/organization_sheet.dart';
 import '../settings/settings_screen.dart';
 import '../settings/settings_sheet.dart';
+import '../share/app_links.dart';
 import '../shell/account_gate.dart';
 import '../shell/app_shell.dart';
 import '../shell/screen.dart';
@@ -90,10 +93,13 @@ import 'take_back.dart';
 ///   then the shell, Settings and a note's sharing are under one [AccountScope], the organizations have their
 ///   pages, the notifications are the feed's, and the way in is the first thing on screen once. With none there
 ///   is no account object anywhere, and every screen is the signed-out one.
-/// - **Speak** is not here yet (stage 8), nor a link that opens the app (no `LinkSource`: an invite is joined
-///   from its notification or by its code held from before).
+/// - **A link that opened the app** ([GhostRoot.links], lib/share/app_links.dart) is followed once the notes are
+///   read, as `shell/useAppLinks.ts` does: a note opened where it was left, the notifications, an organization's
+///   dashboard, an invitation asked about before anything is joined, and a shared link's copy saved and opened. And
+///   an address tapped in a note is handed to the phone ([GhostRoot.openLink]).
+/// - **Speak** is not here yet (stage 8).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -121,6 +127,14 @@ class GhostRoot extends StatefulWidget {
 
   /// The account's objects, where a test brings its own; then nothing is made from [account].
   final AccountServices? services;
+
+  /// Where the links that opened the app come from: the phone's (lib/core/phone_links.dart) in the app. Absent, no
+  /// link is followed.
+  final LinkSource? links;
+
+  /// Hands an address to the phone (lib/core/open_link.dart): a link's tap in a note, Settings' pages. Absent, a tap
+  /// opens nothing.
+  final LinkOpener? openLink;
 
   /// The records of the notes nobody has written in yet (core/untouched.dart); the app's own unless a test brings
   /// its own.
@@ -206,6 +220,43 @@ class _GhostRootState extends State<GhostRoot> {
     writeJournal: _pages.writeJournal,
     dropTab: (id) => _shell.currentState?.dropTab(id),
   )..making = _pages.making;
+
+  /// Following the links that opened the app, from the notes' first read until the app is gone.
+  void Function()? _stopLinks;
+
+  /// An invite link that arrived, each arrival asked about again (`joinRequest`).
+  JoinRequest? _joinRequest;
+  void _joinFromLink(String code) {
+    if (mounted) setState(() => _joinRequest = JoinRequest(code, DateTime.now().microsecondsSinceEpoch));
+  }
+
+  /// A copy of something shared with this person, from its link: saved into the library, then opened in a tab of
+  /// its own. An invite link pasted where a share was asked for is held and asked about (`forkFromLink`). Throws
+  /// what went wrong, for the + sheet to say; a build with no account has nothing to read a share with.
+  Future<void> _forkFromLink(String link) async {
+    final invite = readJoinLink(link);
+    if (invite != null) return _joinFromLink(invite);
+    final shares = _services?.shares;
+    if (shares == null) throw StateError('This build has no service to read a shared link from.');
+    final forked = await forkFromLink(link, shares: shares, notes: () async => _library.value, save: _library.createNote);
+    if (forked is! ForkedCopy) return;
+    await _library.refresh();
+    if (!mounted) return;
+    _afterFrame((shell) => shell.openNote(forked.note.id));
+  }
+
+  /// `ghostmd://note/<id>` (`openNoteFromLink`): the notes read again, and the note opened where it was left. The
+  /// page first puts a summary still waiting into the note (`landNativeResult`); that is stage 8's write-up, and
+  /// nothing here has one to land yet.
+  Future<void> _openNoteFromLink(String id) async {
+    await _library.refresh();
+    final shell = _shell.currentState;
+    final note = _library.noteOf(id);
+    if (!mounted || shell == null || note == null || _trash.isTrashed(id)) return;
+    shell.openNote(whereLeft(note, _shown, shell.shown, on: _stored).id);
+  }
+
+  late final AppLinkDoor _door = _RootDoor(this);
 
   /// The + sheet, the workspace it makes into where it was an organization's +, and the New notebook sheet with its
   /// own.
@@ -470,6 +521,7 @@ class _GhostRootState extends State<GhostRoot> {
     pageTitles: _pageTitles,
     noteOf: (title) => _reads.titled(title),
     newEntry: (id, template) => unawaited(_newEntry(id, template)),
+    openLink: widget.openLink,
   );
 
   /// A note's screen with its editor: one desk to an open note (lib/root/note_desk.dart).
@@ -540,6 +592,7 @@ class _GhostRootState extends State<GhostRoot> {
   @override
   void dispose() {
     preferences.removeListener(_smoke);
+    _stopLinks?.call();
     _libraryChanges.removeListener(_reads.changed);
     _life?.dispose();
     _gate?.dispose();
@@ -616,6 +669,12 @@ class _GhostRootState extends State<GhostRoot> {
     await _library.load();
     // At launch, which opens on the home page: what the phone let go of before it was left.
     if (mounted) unawaited(_takeBack.look());
+    // The links that opened the app wait for the notes to be read, so a copy lands in a library that is there and
+    // a note opened is one the list has.
+    final links = widget.links;
+    if (mounted && links != null) {
+      _stopLinks = followAppLinks((link) => openAppLink(link, _door, onError: (failure) => debugPrint('[glyph] could not follow the link that opened the app: $failure')), links);
+    }
     if (!_real || !mounted) return;
     final seeded = _stored.flag('glyph-sample-note', unreadable: true);
     if (seeded.isMarked) return;
@@ -860,6 +919,7 @@ class _GhostRootState extends State<GhostRoot> {
               // A build with no service says so where a way in is pressed; one with an account takes it from the scope.
               features: SettingsFeatures(onWayIn: services == null ? noServiceWayIn : null),
               onOrganization: services == null ? null : (id) => setState(() => _organization = (id: id, from: OrganizationFrom.settings)),
+              onOpenLink: widget.openLink == null ? null : (url) => unawaited(widget.openLink!(url)),
             ),
             CommandBar.over(
               key: _commands,
@@ -914,6 +974,8 @@ class _GhostRootState extends State<GhostRoot> {
                 onBook: () => _newBook(NewBookKind.notebook, into),
                 // A journal's entry is the account's own, and is not offered from an organization's +.
                 entry: into != null || !_newSheet ? null : _entryRow(),
+                // A shared link's copy is read from the account's service: not offered in a build with none.
+                onFromLink: services?.shares == null ? null : _forkFromLink,
               );
             }),
             NewBookSheet(
@@ -957,12 +1019,19 @@ class _GhostRootState extends State<GhostRoot> {
                   _shell.currentState?.openOrganization(id);
                 },
               ),
-              // An invite's code held on this device is asked about once someone is signed in; a link cannot open the
-              // app yet, so nothing new arrives here.
-              JoinInvites(services: services, request: null, hold: gate?.open ?? true, onOpen: (id) => _shell.currentState?.openOrganization(id), onAccount: _toAccount),
               // The way in, the first thing on screen once, on an open that is signed out.
               if (gate != null && gate.open) AccountGate(services: services, onDone: gate.close),
             ],
+            // An invite link that opened the app, and a code held on this device from before, asked about once
+            // someone is signed in: nothing is joined until the person says so. Held back while the way into an
+            // account is up at launch.
+            JoinInvites(
+              services: services,
+              request: _joinRequest,
+              hold: services != null && (gate?.open ?? true),
+              onOpen: (id) => _shell.currentState?.openOrganization(id),
+              onAccount: _toAccount,
+            ),
             if (_launching) LaunchScreen(loading: !_read, notes: _shown.length, onDone: () => setState(() => _launching = false)),
           ],
           ),
@@ -970,4 +1039,32 @@ class _GhostRootState extends State<GhostRoot> {
       },
     );
   }
+}
+
+/// What the app does with each kind of link that opened it (`useAppLinks`' `fork`, `openNote`, `openPlace`, `join`).
+class _RootDoor implements AppLinkDoor {
+  const _RootDoor(this.root);
+  final _GhostRootState root;
+
+  @override
+  Future<void> fork(String link) => root._forkFromLink(link);
+
+  @override
+  Future<void> openNote(String id) => root._openNoteFromLink(id);
+
+  /// The notifications drawer, or an organization's dashboard, which only a build with an account has.
+  @override
+  void openPlace(LinkedPlace place) {
+    final shell = root._shell.currentState;
+    if (shell == null) return;
+    switch (place) {
+      case NotificationsPlace():
+        shell.showNotifications();
+      case OrganizationPlace(:final orgId):
+        if (root._services != null) shell.openOrganization(orgId);
+    }
+  }
+
+  @override
+  void join(String code) => root._joinFromLink(code);
 }

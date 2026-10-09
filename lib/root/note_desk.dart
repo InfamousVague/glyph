@@ -24,9 +24,10 @@
 /// - **No picture can be added yet**: this build has no picker, so the band's Add image and the +'s Picture are
 ///   not offered. Pictures a note already names are drawn from the kept files.
 /// - **No place, film or voice memo is added** from the + (no location, no player): their rows are not offered.
-/// - **A link's tap opens nothing**: nothing here hands an address to the phone.
+/// - **A link's tap** is handed to the phone where the build has a way to ([NoteDeskWorld.openLink], lib/core/open_link.dart);
+///   a test, and a run with no phone half, opens nothing.
 /// - **A date is not picked from a calendar** (`dayPicker` is not given): Today, Tomorrow and Next week are.
-/// - **A canvas has no picture picker, no comments and opens no link**, for the same reasons; a team's canvas is
+/// - **A canvas has no picture picker and no comments**, for the same reasons; a team's canvas is
 ///   piece 6G. A canvas is not framed in a note from the + (`AddConfig.canvases` is not given).
 /// - **A board's card has no plugin's rows** (`drawnBoards(actions:)`): the plugins are stage 9.
 library;
@@ -44,6 +45,7 @@ import '../canvas/canvas_view.dart';
 import '../core/book.dart';
 import '../core/canvas_body.dart';
 import '../core/images.dart';
+import '../core/link_preview.dart' show LinkOpener;
 import '../core/note.dart';
 import '../core/note_text.dart';
 import '../core/preferences.dart';
@@ -134,6 +136,7 @@ class NoteDeskWorld {
     this.pageTitles,
     this.noteOf,
     this.newEntry,
+    this.openLink,
   });
 
   /// Every note's title, for the +'s A note.
@@ -192,6 +195,10 @@ class NoteDeskWorld {
 
   /// A journal's New entry, from the template chosen for it.
   final void Function(String journalId, String template)? newEntry;
+
+  /// Hands a web address to the phone (`openLink`): a link card's tap, and a canvas's link card. Absent, a tap
+  /// opens nothing.
+  final LinkOpener? openLink;
 }
 
 /// Builds a note's screen with the editor and the seams the desk made for it.
@@ -264,6 +271,7 @@ class NoteDeskState extends State<NoteDesk> {
     mediaExtensions(
       seams: MediaSeams(
         pictures: _world.pictures,
+        openLink: _world.openLink,
         linkPreviews: () => _prefs.value.linkPreviews,
         switches: _prefs,
       ),
@@ -487,6 +495,7 @@ class NoteDeskState extends State<NoteDesk> {
       canvas: canvasSeam(
         wiki: CanvasWiki(known: _world.known, open: _world.open, body: _world.bodyOf, titles: _world.titles),
         pictures: _world.pictures,
+        openLink: _world.openLink,
         readOnly: widget.readOnly,
       ),
       book: _book,

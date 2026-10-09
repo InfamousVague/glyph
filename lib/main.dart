@@ -7,6 +7,8 @@ import 'app/ghost_app.dart';
 import 'core/native/core.dart';
 import 'core/native/device_paths.dart';
 import 'core/native/ghost_core.dart';
+import 'core/open_link.dart';
+import 'core/phone_links.dart';
 import 'core/preferences.dart';
 import 'core/stored.dart';
 import 'core/stored_device.dart';
@@ -51,5 +53,6 @@ Future<void> main() async {
   } catch (failure) {
     debugPrint('[ghost] the library would not open: $failure');
   }
-  runApp(GhostApp(sheet: sheet, home: GhostRoot(core: core, account: account)));
+  // One PhoneLinks for the life of the app: it holds the channel the activity says `arrived` on.
+  runApp(GhostApp(sheet: sheet, home: GhostRoot(core: core, account: account, links: PhoneLinks(), openLink: openLink)));
 }
