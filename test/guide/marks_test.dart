@@ -4,19 +4,19 @@ import 'package:ghost_md/capture/markdown.dart';
 import 'package:ghost_md/capture/spoken/extras.dart';
 import 'package:ghost_md/capture/spoken/inline.dart';
 import 'package:ghost_md/guide/marks.dart';
-import 'package:ghost_md/plugins/marks_plugin.dart';
+import 'package:ghost_md/plugins/built_in.dart';
 import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/settings/panes/marks.g.dart' as sheet;
 
 /// `guide/marks.test.ts`, case for case, and one case of this port's own: the table agrees with the snapshot of it
 /// the cheat sheet draws (lib/settings/panes/marks.g.dart).
 ///
-/// The page's `BUILT_IN` is every plugin that ships; the only one with formats is the Marks plugin, which is the
-/// registry these cases are run over (the four integrations are another piece's, and add no mark).
+/// The registry these cases are run over is the page's: every plugin that ships (lib/plugins/built_in.dart
+/// `builtIn`), of which the only one with formats is the Marks plugin.
 void main() {
-  final formats = [for (final plugin in const [marksPlugin]) ...plugin.formats];
+  final formats = [for (final plugin in builtIn) ...plugin.formats];
   late Registry registry;
-  setUp(() => usePlugins(registry = createRegistry(const [marksPlugin], store: MemorySwitches())));
+  setUp(() => usePlugins(registry = createRegistry(builtIn, store: MemorySwitches())));
   tearDown(() => usePlugins(createRegistry(const [])));
 
   List<MarkRow> rows() => [for (final group in markGroups()) ...group.rows];

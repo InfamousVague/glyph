@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/art/art.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/plugins/reach.dart';
+import 'package:ghost_md/plugins/built_in.dart';
 import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/plugins/types.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
@@ -22,9 +23,10 @@ import 'support.dart';
 /// then the page inside the real sheet (its row, its sub-pages, the search), then the page held to the rects the web
 /// page measured.
 ///
-/// The plugins drawn are stand-ins made from the web's five manifests (support.dart `webBuiltIn`), since the four
-/// integrations and lib/plugins/built_in.dart are other hands' work: the cards are the web's word for word, and the
-/// pages behind them are a line of text each.
+/// The page's own cases are run over stand-ins made from the web's five manifests (support.dart `webBuiltIn`), whose
+/// pages are a line of text each, so a case can say which page it opened. The measurements and the pictures are of
+/// the five that ship (lib/plugins/built_in.dart `builtIn`, [shippedRegistry]) on a fresh install, as the page was
+/// measured: their cards are their own manifests' words.
 ///
 /// The measurements are `test/plugins/fixtures/plugins-pane-390.json`: the web app on its dev server in Chromium at
 /// 390 x 844, two device pixels to one, light, 2026-10-08, in three states (as it comes up; Claude's reasons open;
@@ -34,6 +36,9 @@ import 'support.dart';
 /// gathering ([_slack]), and to three quarters of a pixel from the top of its own card.
 
 Registry webRegistry([Map<String, bool>? switches]) => createRegistry(webBuiltIn(), store: MemorySwitches(switches), localOnly: () => preferences.value.localOnly);
+
+/// The five that ship, with nothing switched by hand: what the web page was measured over.
+Registry shippedRegistry() => createRegistry(builtIn, store: MemorySwitches(), localOnly: () => preferences.value.localOnly);
 
 /// Makes [registry] the app's for this test.
 Registry install(WidgetTester tester, Registry registry) {
@@ -396,7 +401,7 @@ void main() {
     const cards = ['Plugins', 'Notion', 'GitHub', 'Marks', 'Claude', 'Slack'];
 
     testWidgets('as it comes up: six cards, their switches, their rows and what each may reach, rect for rect', (tester) async {
-      install(tester, webRegistry());
+      install(tester, shippedRegistry());
       await openPane(tester, 'plugins');
       expect(display(tester), 'Plugins');
       expect(web['listRow'], 'Plugins4 of 5 on');
@@ -408,7 +413,7 @@ void main() {
     });
 
     testWidgets('with Claude’s reasons open: a row a permission under what it may reach', (tester) async {
-      install(tester, webRegistry());
+      install(tester, shippedRegistry());
       await openPane(tester, 'plugins');
       await tapOn(tester, actionIn('Claude', 'Why'));
       hold(tester, 'why', cards: cards);
@@ -416,7 +421,7 @@ void main() {
     });
 
     testWidgets('under Local only: the callout, and “Off while Local only is on” on the four that use the internet', (tester) async {
-      install(tester, webRegistry());
+      install(tester, shippedRegistry());
       await openPane(tester, 'plugins', prefs: const Preferences(theme: 'light', localOnly: true));
       hold(tester, 'localOnly', cards: cards);
       expect([for (final name in cards.skip(1)) switchOf(tester, name).disabled], [true, true, false, true, true]);
@@ -429,20 +434,20 @@ void main() {
   group('pictures', () {
     for (final theme in ['light', 'dark']) {
       testWidgets('Plugins on a phone, $theme', (tester) async {
-        install(tester, webRegistry());
+        install(tester, shippedRegistry());
         await openPane(tester, 'plugins', prefs: Preferences(theme: theme));
         await shot(tester, 'plugins-$theme');
       });
 
       testWidgets('the whole page on a window tall enough to hold it, $theme', (tester) async {
-        install(tester, webRegistry());
+        install(tester, shippedRegistry());
         await openPane(tester, 'plugins', prefs: Preferences(theme: theme), size: const Size(390, 2700));
         await shot(tester, 'plugins-tall-$theme');
       });
     }
 
     testWidgets('Plugins under Local only, light', (tester) async {
-      install(tester, webRegistry());
+      install(tester, shippedRegistry());
       await openPane(tester, 'plugins', prefs: const Preferences(theme: 'light', localOnly: true));
       await shot(tester, 'plugins-local-only-light');
     });

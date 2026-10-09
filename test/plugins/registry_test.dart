@@ -1,9 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/notifications.dart' show FeedNotification;
+import 'package:ghost_md/plugins/built_in.dart';
 import 'package:ghost_md/plugins/host.dart';
 import 'package:ghost_md/plugins/reach.dart';
 import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/plugins/types.dart';
+import 'package:ghost_md/settings/settings_search.dart' show SettingsFindable;
 
 import 'support.dart';
 
@@ -13,9 +15,8 @@ import 'support.dart';
 /// What differs from the web's cases:
 /// - Local only is the `localOnly` the registry is made with and [Registry.preferencesChanged], where the page's
 ///   registry listened to the preferences itself.
-/// - "ships Notion, GitHub, Marks and Claude as standard…" is held over the stand-ins made from the web's manifests
-///   (support.dart `webBuiltIn`): lib/plugins/built_in.dart is the lead's and is not written yet, and its own test
-///   has to hold the real list to the same table.
+/// - "ships Notion, GitHub, Marks and Claude as standard…" is held over the list that ships
+///   (lib/plugins/built_in.dart `builtIn`), and that list to the web's own manifests (support.dart `webBuiltIn`).
 /// - The secrets a reset forgets and the feed's rows have no case on the page; theirs are at the end.
 
 final Matcher throwsPermission = throwsA(isA<PluginPermissionError>());
@@ -85,7 +86,6 @@ void main() {
     });
 
     test('ships Notion, GitHub, Marks and Claude as standard, and Slack off until switched on, each within its manifest', () {
-      final builtIn = webBuiltIn();
       expect([for (final p in builtIn) (p.manifest.id, p.manifest.standard)], [('notion', true), ('github', true), ('marks', true), ('claude', true), ('slack', false)]);
       for (final plugin in builtIn) {
         if (plugin.manifest.native != null) expect(plugin.manifest.declares(Permission.native), isTrue, reason: plugin.manifest.id);
@@ -93,6 +93,33 @@ void main() {
       }
       // And they load: nothing among them reaches past its manifest.
       expect(ids(createRegistry(builtIn, store: MemorySwitches()).enabled()), ['notion', 'github', 'marks', 'claude']);
+    });
+
+    test('ships each with the manifest, the icon and the findable words the page gives it', () {
+      final web = webBuiltIn();
+      expect(ids(builtIn), ids(web));
+      for (final (index, plugin) in builtIn.indexed) {
+        final (ours, theirs) = (plugin.manifest, web[index].manifest);
+        final id = ours.id;
+        expect((ours.name, ours.description, ours.version, ours.author, ours.standard), (theirs.name, theirs.description, theirs.version, theirs.author, theirs.standard), reason: id);
+        expect([for (final p in ours.permissions) (p.kind, p.why)], [for (final p in theirs.permissions) (p.kind, p.why)], reason: id);
+        expect(ours.hosts, theirs.hosts, reason: id);
+        expect(ours.storage, theirs.storage, reason: id);
+        expect((ours.native?.generation, ours.native?.commands), (theirs.native?.generation, theirs.native?.commands), reason: id);
+        expect(plugin.icon, web[index].icon, reason: id);
+        expect(plugin.settings?.hue, web[index].settings?.hue, reason: id);
+        expect([for (final s in plugin.settings?.settings ?? const <SettingsFindable>[]) (s.name, s.words)], [for (final s in web[index].settings?.settings ?? const <SettingsFindable>[]) (s.name, s.words)], reason: id);
+      }
+    });
+
+    test('are put in place by one call, which hands them the feed’s rows', () {
+      final before = plugins;
+      addTearDown(() => usePlugins(before));
+      final registry = installBuiltInPlugins(store: MemorySwitches(), localOnly: () => true);
+      expect(identical(plugins, registry), isTrue);
+      expect(ids(registry.all()), ['notion', 'github', 'marks', 'claude', 'slack']);
+      // Local only holds off every one that uses the internet.
+      expect(ids(registry.enabled()), ['marks']);
     });
   });
 
