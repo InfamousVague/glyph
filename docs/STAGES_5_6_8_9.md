@@ -40,6 +40,9 @@ Pieces: 8A engines build · 8B events and async jobs · 8C native commands · 8D
 8I AI runs and format · 8J fills · 8K editor AI surface · 8L tapes, scene, settings.
 Order: A and B first; G1–G3, I, J at once (pure); C after A+B; D, E, F after C; H after G3+C; K after I+C; L last.
 
+8I, 8J, 8K and 8L's scene, with 9E's list of the plugins that ship, are in lib/ and not yet called from lib/root:
+docs/STAGE8_AI.md is what is where and every seam the root has to call (2026-10-09).
+
 ## Stage 9, the rest
 Web-bundle OTA has nothing to carry over; what remains is the signed `apk.json`, fetch, verify, install. `backup.rs`
 and `export.rs` are Tauri-free; SAF (`LibraryTree.kt`, the real `saf.rs`) is the keystone for a chosen folder, backup
