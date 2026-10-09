@@ -400,6 +400,46 @@ void main() {
       expect(mine.canvas?.nodes.map((node) => node.id), ['a', 'c']);
     }, skip: skip);
 
+    test('a state kept by a build that passed canvases over is read from the start once, and the canvas it never took arrives', () async {
+      const front = '---\ntitle: Board\n---\n';
+      final board = parseCanvas(serializeCanvas(Canvas(nodes: [CanvasNode({'id': 'a', 'type': 'text', 'x': 0, 'y': 0, 'width': 200, 'height': 80, 'text': 'card'})], edges: const [])))!;
+      final phone = device();
+      phone.put('n1', 'words');
+      phone.put('c1', withCanvas(front, board));
+      await phone.sync();
+      final mac = device();
+      await mac.sync();
+      expect(mac.notes.keys.toSet(), {'n1', 'c1'});
+
+      // As the earlier build left this device: past the canvas's row in the feed, the canvas not taken, no mark for it.
+      Future<void> asLeftBy(Map<String, Object?> Function(Map<String, Object?> kept) said) async {
+        final kept = mac.state.toJson();
+        (kept['notes']! as Map).remove('c1');
+        mac.notes.remove('c1');
+        mac.filed.remove('c1');
+        await mac.docs.drop('c1');
+        mac.state = TeamSyncState.fromJson(said(kept));
+      }
+
+      // A state this build kept is trusted: the cursor stands and the row is not asked for again (so this test can fail).
+      await asLeftBy((kept) => kept);
+      final stands = mac.state.cursor;
+      expect(stands, greaterThan(0));
+      await mac.sync();
+      expect(mac.notes.containsKey('c1'), isFalse);
+
+      // The earlier build's said nothing of what it read: from the start, once.
+      await asLeftBy((kept) => kept..remove('reads'));
+      expect(mac.state.cursor, 0);
+      expect(mac.state.notes['n1']?.rev, isNotNull);
+      final taken = await mac.sync();
+      expect(taken.changed, 1, reason: 'the canvas alone: the note already here is passed over by its revision');
+      expect(mac.notes['c1']?.body, withCanvas(front, board));
+      expect(mac.state.cursor, stands);
+      // And what is kept now says what it read, so the next launch does not ask again.
+      expect(TeamSyncState.fromJson(mac.state.toJson()).cursor, stands);
+    }, skip: skip);
+
     test('a row is put with the note whole, and a row that says no phrases leaves the ones this device has', () async {
       final phone = device();
       const phrases = [Segment(text: 'hello', startMs: 0, endMs: 400)];

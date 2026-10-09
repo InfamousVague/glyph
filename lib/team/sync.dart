@@ -89,6 +89,11 @@ class TeamMark {
   String toString() => 'TeamMark($rev, $mark)';
 }
 
+/// What this build takes of a team's rows, kept with a channel's state ([TeamSyncState.toJson]'s `reads`). 1, or
+/// nothing said: words alone, every canvas passed over with no mark kept for it (the builds before 2026-10-09). 2:
+/// canvases too.
+const int teamReadsNow = 2;
+
 /// What a device remembers of one organization's channel (`TeamSyncState`).
 class TeamSyncState {
   TeamSyncState({this.cursor = 0, Map<String, TeamMark>? notes, Map<String, FileMark>? files})
@@ -96,10 +101,18 @@ class TeamSyncState {
         files = files ?? {};
 
   /// A state as kept, forgivingly: what is not there, or not the shape, is empty.
+  ///
+  /// **A state kept by a build that took less is read from the start once.** The cursor is how far the feed was
+  /// read, not what was taken from it: the builds that passed a canvas over went on past its row and kept no mark
+  /// for it, so the build that reads canvases never asked for them again and a team's canvases stayed off the
+  /// device for good (seen on the Fold, 2026-10-09: nine of a hundred and eight team notes, every one a canvas).
+  /// Such a state's cursor is 0 here; the rows already taken are known by their revision and passed over in a
+  /// pull, and the ones with no mark are taken.
   factory TeamSyncState.fromJson(Object? raw) {
     final map = raw is Map ? raw : const <Object?, Object?>{};
-    final cursor = map['cursor'], notes = map['notes'], files = map['files'];
-    final state = TeamSyncState(cursor: cursor is num ? cursor.toInt() : 0);
+    final cursor = map['cursor'], notes = map['notes'], files = map['files'], reads = map['reads'];
+    final current = reads is num && reads >= teamReadsNow;
+    final state = TeamSyncState(cursor: current && cursor is num ? cursor.toInt() : 0);
     if (notes is Map) {
       for (final entry in notes.entries) {
         final mark = TeamMark.fromJson(entry.value);
@@ -125,6 +138,7 @@ class TeamSyncState {
   final Map<String, FileMark> files;
 
   Map<String, Object?> toJson() => {
+        'reads': teamReadsNow,
         'cursor': cursor,
         'notes': {for (final entry in notes.entries) entry.key: entry.value.toJson()},
         'files': {for (final entry in files.entries) entry.key: entry.value.toJson()},
