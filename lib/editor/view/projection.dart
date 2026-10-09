@@ -124,11 +124,26 @@ class LineProjection {
   final String display;
   final List<Segment> segments;
 
-  /// The display offsets where hidden syntax stands inside the line, for [PaintText]: places a line may break.
-  late final Set<int> hiddenBreaks = {
-    for (final segment in segments)
-      if (segment.kind == SegmentKind.hidden && segment.displayFrom > 0 && segment.displayFrom < display.length) segment.displayFrom,
-  };
+  /// The display offsets where hidden syntax stands inside the line between two runs of words, for [PaintText]:
+  /// places a line may break. Not beside a widget: a widget is a place to break already, and the piece drawn there
+  /// (a blank's square, a chip) measures what stands next to it.
+  late final Set<int> hiddenBreaks = () {
+    final out = <int>{};
+    for (var i = 0; i < segments.length; i++) {
+      final segment = segments[i];
+      if (segment.kind != SegmentKind.hidden || segment.displayFrom <= 0 || segment.displayFrom >= display.length) continue;
+      var before = i - 1, after = i + 1;
+      while (before >= 0 && segments[before].kind == SegmentKind.hidden) {
+        before--;
+      }
+      while (after < segments.length && segments[after].kind == SegmentKind.hidden) {
+        after++;
+      }
+      if (before < 0 || after >= segments.length) continue;
+      if (segments[before].kind == SegmentKind.text && segments[after].kind == SegmentKind.text) out.add(segment.displayFrom);
+    }
+    return out;
+  }();
 
   /// The line decorations on the line, in precedence order.
   final List<LineDecoration> lineDecorations;
