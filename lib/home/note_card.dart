@@ -152,7 +152,11 @@ class NoteCard extends StatelessWidget {
                           ),
                           SizedBox(width: 0.5 * sm),
                         ],
-                        Expanded(child: Text(listed[n].title, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: pageText(t, sm, color: muted))),
+                        // Cut at the card's edge with no ellipsis: the page's line is a flex row (`.bookPages li {
+                        // display: flex; overflow: hidden }`), whose words are an item of their own that its
+                        // `text-overflow` does not reach. A name half a pixel too long is whole on the page, where
+                        // an ellipsis here took its last letters ("Write the welcome pa…" on the Fold).
+                        Expanded(child: ClipRect(child: Text(listed[n].title, maxLines: 1, softWrap: false, overflow: TextOverflow.clip, style: pageText(t, sm, color: muted)))),
                       ],
                     ),
                   ),
