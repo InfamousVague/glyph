@@ -4,7 +4,8 @@
 ///
 /// Every command is the web's own by name and arguments (docs/STAGE3.md): `list_notes`, `get_note {id}`,
 /// `create_note {id, body, source}`, `update_note {id, body, expectedRevision}`, `delete_note {id}`,
-/// `set_note_starred {id, starred}`, `set_note_archived {id, archived}`, `store_apply {note}`.
+/// `set_note_starred {id, starred}`, `set_note_archived {id, archived}`, `store_apply {note}`,
+/// `apply_command_mutation {request}`, `undo_command_mutation {mutationId}`.
 ///
 /// What differs:
 /// - **A write reads the list again by itself**, and a write's future completes once it has, where on the page each
@@ -28,6 +29,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import 'command_mutations.dart';
 import 'library.dart';
 import 'native/core.dart';
 import 'note.dart';
@@ -284,6 +286,32 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
     _put(stored);
     await _quietly();
     return stored;
+  }
+
+  /// `applyCommandMutation`: the core's `apply_command`, which holds the note against what was previewed under the
+  /// library's own lock and keeps the change in its index for [undoCommandMutation]. [touched] whatever it answers,
+  /// as the page's is.
+  @override
+  Future<CommandMutationResult> applyCommandMutation(CommandMutationRequest request) async {
+    final result = commandMutationResultFromJson(await _invoke('apply_command_mutation', {'request': commandMutationRequestToJson(request)}));
+    _touch();
+    if (result is! CommandMutationResultApplied) return result;
+    _put(result.note);
+    await _quietly();
+    return result;
+  }
+
+  /// `undoCommandMutation`: the core's `undo_command`. A note that got its words back is put in the list at once;
+  /// one the command had made is out of the list once it is read again, which this waits for.
+  @override
+  Future<CommandUndoResult> undoCommandMutation(String mutationId) async {
+    final result = commandUndoResultFromJson(await _invoke('undo_command_mutation', {'mutationId': mutationId}));
+    _touch();
+    if (result is! CommandUndoResultUndone) return result;
+    final restored = result.note;
+    if (restored != null) _put(restored);
+    await _quietly();
+    return result;
   }
 
   @override

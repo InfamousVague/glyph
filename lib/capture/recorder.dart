@@ -18,9 +18,9 @@
 /// What is not here yet, and what stands in:
 /// - the native capture and the Kotlin microphone (pieces 8C and 8D): [Recorder.engine]'s backend and
 ///   [Recorder.openMicrophone] are whatever `lib/root` passes; with neither, the screen says it could not start;
-/// - command mutations and a note's tape in the library (`lib/core/library.dart` says they wait for the recorder):
-///   [RecorderStore] is the seam, and [LibraryRecorderStore] answers it over a `NoteLibrary` with a compare-and-swap
-///   in Dart and the library's `apply`, until the core's `apply_command` and `set_note_recording` are bound;
+/// - a note's tape in the library (`lib/core/library.dart` says it is the recorder's still): [RecorderStore] is the
+///   seam, and [LibraryRecorderStore] answers it over a `NoteLibrary` with the library's `apply`, until the core's
+///   `set_note_recording` is asked from Dart;
 /// - the review after a recording and the summaries (`lib/ai`): [Recorder.reviewAvailable] answers no and
 ///   [Recorder.enqueueSummary] does nothing unless given.
 library;
@@ -60,11 +60,13 @@ abstract class RecorderStore implements TakeStore {
 
 /// [RecorderStore] over the app's library (`lib/core/library.dart`).
 ///
-/// What differs from the web's store: the library has no `apply_command` yet, so a command's change is the same
-/// compare-and-swap done here - the note read, its revision and body held against what was previewed, then a
-/// revision-checked `update` - and its undo log is not kept (the note's Undo after Done is an edit in the editor,
-/// landing.dart). A tape's length and phrases are written with the library's `apply` (the web's `applyNote`) onto
-/// the note read whole, where the web has `set_note_recording`, a write of its own that touches nothing else.
+/// A command's change is the library's own `applyCommandMutation` (the core's `apply_command`), which keeps it for
+/// the Undo a landing offers in the note that opens after Done (`lib/root/note_desk.dart`, through the library's
+/// `undoCommandMutation`).
+///
+/// What differs from the web's store: a tape's length and phrases are written with the library's `apply` (the web's
+/// `applyNote`) onto the note read whole, where the web has `set_note_recording`, a write of its own that touches
+/// nothing else.
 class LibraryRecorderStore implements RecorderStore {
   LibraryRecorderStore(this.library, {String Function()? newId}) : _newId = newId;
 
@@ -94,23 +96,7 @@ class LibraryRecorderStore implements RecorderStore {
   Future<Note> updateNote(String id, String body, int expectedRevision) => library.update(id, body, expectedRevision);
 
   @override
-  Future<CommandMutationResult> applyCommandMutation(CommandMutationRequest request) async {
-    final current = await library.get(request.noteId);
-    if (request.beforeRevision == null) {
-      if (current != null || request.beforeBody != null) return CommandMutationResultConflict(current: current);
-      final made = await library.createNote(request.afterBody, source: request.source, id: request.noteId);
-      return CommandMutationResultApplied(mutationId: request.mutationId, note: made);
-    }
-    if (current == null || current.revision != request.beforeRevision || current.body != request.beforeBody) {
-      return CommandMutationResultConflict(current: current);
-    }
-    try {
-      final saved = await library.update(current.id, request.afterBody, current.revision);
-      return CommandMutationResultApplied(mutationId: request.mutationId, note: saved);
-    } catch (_) {
-      return CommandMutationResultConflict(current: await library.get(request.noteId));
-    }
-  }
+  Future<CommandMutationResult> applyCommandMutation(CommandMutationRequest request) => library.applyCommandMutation(request);
 
   @override
   Future<Note?> setNoteRecording(String id, int? recordingMs, List<Segment> segments) async {

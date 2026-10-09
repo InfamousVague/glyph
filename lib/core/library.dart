@@ -1,8 +1,9 @@
 /// The notes, and the one door the app uses to reach them. A port of the public half of `src/app/core/store.ts`
-/// (`listNotes`, `getNote`, `createNote`, `updateNote`, `setNoteStarred`, `setNoteArchived`, `deleteNote`,
-/// `applyNote`, `listOrder`, `archiveOrder`, `newNoteId`, and the `useNotes` hook's `notes`, `loading` and
-/// `refresh`), with the saving of an open note from `src/app/editor/useNoteSaving.ts` ([NoteSaving]) and the three
-/// readings of a transcript it leans on from `src/app/capture/markdown.ts`.
+/// (`listNotes`, `getNote`, `createNote`, `updateNote`, `applyCommandMutation`, `undoCommandMutation`,
+/// `setNoteStarred`, `setNoteArchived`, `deleteNote`, `applyNote`, `listOrder`, `archiveOrder`, `newNoteId`, and the
+/// `useNotes` hook's `notes`, `loading` and `refresh`), with the saving of an open note from
+/// `src/app/editor/useNoteSaving.ts` ([NoteSaving]) and the three readings of a transcript it leans on from
+/// `src/app/capture/markdown.ts`.
 ///
 /// The library is the Rust core's (docs/STAGE3.md): Markdown files are the truth, and this is a typed remote
 /// control. [NoteLibrary] is the interface a screen is given; lib/core/core_library.dart is the real one over the
@@ -19,8 +20,10 @@
 /// - Deleting is two things with two names: the trash is a preference (lib/core/kept_trash.dart) and touches no
 ///   note; [NoteLibrary.destroy] is the page's `deleteNote`, for good. [NoteLibrary.delete] and
 ///   [NoteLibrary.restore] are what the shell did before there was a trash, kept so it still builds.
-/// - The page's command mutations (`applyCommandMutation` and its undo) wait for the recorder (stage 8), and
-///   `setNoteRecording` with them.
+/// - A command's write and its undo ([NoteLibrary.applyCommandMutation], [NoteLibrary.undoCommandMutation]) are
+///   asked and answered in the shapes of lib/core/command_mutations.dart. The page's `latestCommandMutation`, the
+///   undo it offers again after the app was stopped (`shell/useHousekeeping.ts`), is not ported, and
+///   `setNoteRecording` is the recorder's still (lib/capture/recorder.dart).
 library;
 
 import 'dart:async';
@@ -29,6 +32,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import 'command_mutations.dart';
 import 'native/core.dart';
 import 'note.dart';
 import 'note_text.dart';
@@ -70,6 +74,17 @@ abstract class NoteLibrary implements ValueListenable<List<Note>> {
   /// Writes [body] over exactly the revision the caller read (`updateNote`). A note that is gone, or has moved on, is
   /// an error and never a new note: a stale save must not bring a deleted note back.
   Future<Note> update(String id, String body, int expectedRevision);
+
+  /// Applies exactly the words a command previewed, if the note is still the revision and the words the preview was
+  /// made from (`applyCommandMutation`); a note that has moved on, or one that is there where a new one was to be
+  /// made, is a conflict answered with the note as it now stands, and nothing is written. The change is kept for
+  /// [undoCommandMutation].
+  Future<CommandMutationResult> applyCommandMutation(CommandMutationRequest request);
+
+  /// Takes a command's change back, only while the note is exactly what the command left (`undoCommandMutation`):
+  /// a note it added to gets the words it had, and a note it made goes. A note changed since is a conflict and is
+  /// left as it is; a change taken back already, or one nothing knows of, is said as that.
+  Future<CommandUndoResult> undoCommandMutation(String mutationId);
 
   /// Writes [body] over the note as the list holds it. Where the phone's write-up appended its transcript meanwhile,
   /// the save is made again over it (editor/useNoteSaving.ts), and the note answered carries the transcript; any

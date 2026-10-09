@@ -13,7 +13,7 @@ import 'support.dart';
 /// `useNotes` hook's first read and read again, which the web has no test of.
 ///
 /// Not here: the list's labels (`noteTitle`, test/core/note_text_test.dart), and a command's write and its undo,
-/// which wait for the recorder.
+/// which are test/library/command_mutations_test.dart's.
 Matcher refuses(String sentence) => throwsA(isA<CoreError>().having((e) => e.message, 'message', sentence));
 
 void main() {

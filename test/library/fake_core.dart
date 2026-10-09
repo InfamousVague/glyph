@@ -25,10 +25,15 @@ import 'package:ghost_md/core/note_text.dart' show noteTitle;
 /// - **`delete_note`** answers whether there was one; a draft counts.
 /// - **`versions_read` / `versions_write`** keep `<path less .md>.versions`, moved and deleted with the note; a
 ///   write for an id nothing answers to is `false`.
+/// - **`apply_command_mutation` / `undo_command_mutation`** (`library/mutations.rs`) are checked whole first
+///   (`ApplyCommandRequest::into_mutation`: plain ids, a source of `editor` or `capture`, `append` with what it
+///   read or `create` with nothing), apply only while the note's revision and body are what was previewed, keep
+///   the change, and undo it only while the note is what the command left; anything else is a `conflict` with the
+///   note as it now is.
 ///
 /// What it does not do: read a title as `names.rs` `title_of` does in every case (it uses the app's own
 /// `noteTitle`, which the two are held to by `core/titles.fixture.json` on the web), front matter in the file, a
-/// folder the person chose, command mutations.
+/// folder the person chose, `latest_command_mutation`.
 ///
 /// Answers go through JSON and back, so what a caller is handed is what crossing FFI would hand it.
 class FakeCore {
@@ -43,6 +48,9 @@ class FakeCore {
   final Map<String, _Row> _drafts = {};
   final Set<String> _drafted = {};
   final Map<String, String> _versions = {};
+
+  /// The index's `command_mutations`: each applied command by its id.
+  final Map<String, _Command> _commands = {};
 
   /// Every command asked, in order.
   final List<({String command, Map<String, Object?> args})> sent = [];
@@ -126,12 +134,7 @@ class FakeCore {
         saved.revision = expected + 1;
         return saved.json(full: true);
       case 'delete_note':
-        final id = text('id');
-        _drafted.remove(id);
-        final row = _rows.remove(id);
-        if (row == null) return _drafts.remove(id) != null;
-        _versions.remove(_versionsPath(row.path!));
-        return true;
+        return _delete(text('id'));
       case 'set_note_starred':
         return _front(text('id'), (row) => row.starred = args['starred'] == true);
       case 'set_note_archived':
@@ -146,6 +149,10 @@ class FakeCore {
         return row.json(full: true);
       case 'store_apply':
         return _apply(args['note']).json(full: true);
+      case 'apply_command_mutation':
+        return _applyCommand(args['request']);
+      case 'undo_command_mutation':
+        return _undoCommand(text('mutationId'));
       case 'versions_read':
         final row = _rows[text('id')];
         return row == null ? null : _versions[_versionsPath(row.path!)];
@@ -159,7 +166,70 @@ class FakeCore {
     }
   }
 
+  // ---- library/mutations.rs -----------------------------------------------------------------------------------------
+
+  /// `fsx::plain_id`: 1 to 128 ASCII letters, digits, `-` and `_`.
+  static bool _plainId(String id) => RegExp(r'^[A-Za-z0-9_-]{1,128}$').hasMatch(id);
+
+  /// `ApplyCommandRequest::into_mutation`, then `apply_command`.
+  Object? _applyCommand(Object? raw) {
+    const fields = {'mutationId', 'noteId', 'kind', 'beforeRevision', 'beforeBody', 'afterBody', 'source'};
+    if (raw is! Map) throw const CoreError('invalid args `request` for command `apply_command_mutation`');
+    for (final key in raw.keys) {
+      if (!fields.contains(key)) throw CoreError('invalid args `request` for command `apply_command_mutation`: unknown field `$key`');
+    }
+    final mutationId = raw['mutationId'], noteId = raw['noteId'], kind = raw['kind'], source = raw['source'], after = raw['afterBody'];
+    final beforeRevision = raw['beforeRevision'], beforeBody = raw['beforeBody'];
+    if (mutationId is! String || noteId is! String || kind is! String || source is! String || after is! String || beforeRevision is! int? || beforeBody is! String?) {
+      throw const CoreError('invalid args `request` for command `apply_command_mutation`');
+    }
+    if (!_plainId(mutationId) || !_plainId(noteId)) throw const CoreError('a command mutation needs plain bounded ids');
+    if (source != 'editor' && source != 'capture') throw const CoreError('a command mutation has an unsupported source');
+    if (kind != 'append' && kind != 'create') throw const CoreError('only append and create command mutations are supported');
+    if (kind == 'create' && (beforeRevision != null || beforeBody != null)) throw const CoreError('a create command cannot replace an existing note');
+    if (kind == 'append' && (beforeRevision == null || beforeBody == null)) throw const CoreError('an append command needs the previewed note revision');
+
+    final current = _rows[noteId] ?? _drafts[noteId];
+    final matches = current == null ? beforeRevision == null : beforeRevision != null && current.revision == beforeRevision && current.body == beforeBody;
+    if (!matches) return {'status': 'conflict', 'current': current?.json(full: true)};
+    final saved = _save(noteId, after, current?.source ?? source);
+    if (beforeRevision != null) saved.revision = beforeRevision + 1;
+    _commands[mutationId] = _Command(noteId: noteId, beforeBody: beforeBody, afterBody: after, beforeRevision: beforeRevision, afterRevision: saved.revision);
+    return {'status': 'applied', 'mutationId': mutationId, 'note': saved.json(full: true)};
+  }
+
+  /// `undo_command`: only while the command's exact result is still current.
+  Object? _undoCommand(String mutationId) {
+    final record = _commands[mutationId];
+    if (record == null) return {'status': 'not-found'};
+    if (record.undone) return {'status': 'already-undone'};
+    final current = _rows[record.noteId] ?? _drafts[record.noteId];
+    if (current == null || current.revision != record.afterRevision || current.body != record.afterBody) {
+      return {'status': 'conflict', 'current': current?.json(full: true)};
+    }
+    Object? note;
+    final before = record.beforeBody;
+    if (before != null && record.beforeRevision != null) {
+      final saved = _save(record.noteId, before, current.source);
+      saved.revision = record.afterRevision + 1;
+      note = saved.json(full: true);
+    } else {
+      _delete(record.noteId);
+    }
+    record.undone = true;
+    return {'status': 'undone', 'mutationId': mutationId, 'note': note};
+  }
+
   // ---- library/mod.rs ---------------------------------------------------------------------------------------------
+
+  /// `delete_note`: whether there was one; a draft counts.
+  bool _delete(String id) {
+    _drafted.remove(id);
+    final row = _rows.remove(id);
+    if (row == null) return _drafts.remove(id) != null;
+    _versions.remove(_versionsPath(row.path!));
+    return true;
+  }
 
   /// `save_note`: writes [body] as the note's text. A new id is a new file in `Inbox/`.
   _Row _save(String id, String body, String source) {
@@ -312,6 +382,18 @@ class FakeCore {
     stem = stem.replaceAll(RegExp(r'[. ]+$'), '').replaceAll(RegExp(r'^\.+'), '').trim();
     return stem.isEmpty ? 'Untitled' : stem;
   }
+}
+
+/// A row of `command_mutations`: what a command changed, and whether it was taken back.
+class _Command {
+  _Command({required this.noteId, required this.beforeBody, required this.afterBody, required this.beforeRevision, required this.afterRevision});
+
+  final String noteId;
+  final String? beforeBody;
+  final String afterBody;
+  final int? beforeRevision;
+  final int afterRevision;
+  bool undone = false;
 }
 
 class _Row {

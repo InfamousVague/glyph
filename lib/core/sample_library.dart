@@ -22,6 +22,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import 'command_mutations.dart';
 import 'library.dart';
 import 'native/core.dart';
 import 'note.dart';
@@ -33,8 +34,9 @@ export 'library.dart' show NoteLibrary;
 
 /// [NoteLibrary] over a list held in memory: the store screenshots' library, and what a test draws a screen over.
 /// It keeps the store's rules where a screen can meet them (a save over the revision it read, an id made once, a
-/// pin that is not an edit), as the browser half of `core/store.ts` does, and nothing of the library's files: a note
-/// here has no path, and a blank one is a note like any other.
+/// pin that is not an edit, a command's write and its undo each held against the note as it was left), as the
+/// browser half of `core/store.ts` does, and nothing of the library's files: a note here has no path, and a blank
+/// one is a note like any other.
 class SampleLibrary extends ValueNotifier<List<Note>> implements NoteLibrary {
   SampleLibrary(List<Note> notes, {int Function()? clock, Random? random})
       : _clock = clock ?? (() => DateTime.now().millisecondsSinceEpoch),
@@ -137,6 +139,52 @@ class SampleLibrary extends ValueNotifier<List<Note>> implements NoteLibrary {
     final note = existing.copyWith(body: body, updatedAt: _clock(), revision: expectedRevision + 1);
     _replace(id, (_) => note);
     return Future<Note>.value(note);
+  }
+
+  /// The commands applied here, by their ids, each with the revision it left its note at and whether it was taken
+  /// back: the page's `glyph-command-mutations` (`webCommands`), held in memory as the notes are.
+  final Map<String, ({CommandMutationRequest request, int afterRevision, bool undone})> _commands = {};
+
+  /// `applyCommandMutation`, the browser half: exactly the words previewed, if the previewed revision still exists.
+  @override
+  Future<CommandMutationResult> applyCommandMutation(CommandMutationRequest request) {
+    final current = noteOf(request.noteId);
+    final matches = request.beforeRevision == null
+        ? current == null && request.beforeBody == null
+        : current != null && current.revision == request.beforeRevision && current.body == request.beforeBody;
+    if (!matches) return Future<CommandMutationResult>.value(CommandMutationResultConflict(current: current));
+    final Note note;
+    if (current == null) {
+      note = _make(request.noteId, request.afterBody, request.source);
+    } else {
+      note = current.copyWith(body: request.afterBody, updatedAt: _clock(), revision: current.revision + 1);
+      _replace(note.id, (_) => note);
+    }
+    _commands[request.mutationId] = (request: request, afterRevision: note.revision, undone: false);
+    return Future<CommandMutationResult>.value(CommandMutationResultApplied(mutationId: request.mutationId, note: note));
+  }
+
+  /// `undoCommandMutation`, the browser half: only while the command's exact result is still the note.
+  @override
+  Future<CommandUndoResult> undoCommandMutation(String mutationId) {
+    final record = _commands[mutationId];
+    if (record == null) return Future<CommandUndoResult>.value(const CommandUndoResultNotFound());
+    if (record.undone) return Future<CommandUndoResult>.value(const CommandUndoResultAlreadyUndone());
+    final request = record.request;
+    final current = noteOf(request.noteId);
+    if (current == null || current.revision != record.afterRevision || current.body != request.afterBody) {
+      return Future<CommandUndoResult>.value(CommandUndoResultConflict(current: current));
+    }
+    Note? restored;
+    final before = request.beforeBody;
+    if (request.beforeRevision != null && before != null) {
+      final back = restored = current.copyWith(body: before, updatedAt: _clock(), revision: record.afterRevision + 1);
+      _replace(back.id, (_) => back);
+    } else {
+      value = List.unmodifiable(value.where((each) => each.id != current.id));
+    }
+    _commands[mutationId] = (request: request, afterRevision: record.afterRevision, undone: true);
+    return Future<CommandUndoResult>.value(CommandUndoResultUndone(mutationId: mutationId, note: restored));
   }
 
   @override

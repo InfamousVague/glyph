@@ -33,8 +33,9 @@
 ///
 /// What differs:
 /// - The web imports the note store (`core/store.ts`); here it is given, as a [TakeStore] with the six functions
-///   the web imports under the web's names. `lib/core/library.dart` has no command mutations yet, so their request
-///   and result ([CommandMutationRequest], [CommandMutationResult]) are declared here, in the web's shape.
+///   the web imports under the web's names. A command's request and its answer ([CommandMutationRequest],
+///   [CommandMutationResult]) are the library's (lib/core/command_mutations.dart), handed on from here for the
+///   files that found them here.
 /// - [NamedNote] is a class that extends `Candidate` with the note, where the web intersects two types; its `note`
 ///   can be written, since every write here replaces the command list's copy.
 /// - [TakeWriterHost] is a class of four functions, as the web's host is an object of four.
@@ -43,59 +44,12 @@ library;
 
 import 'dart:async';
 
+import '../core/command_mutations.dart';
 import '../core/note.dart';
 import 'place.dart';
 import 'route.dart' show Candidate;
 
-/// A change a command asks the store to make to one note, if the note is still as it was read (`apply_command`).
-class CommandMutationRequest {
-  const CommandMutationRequest({
-    required this.mutationId,
-    required this.noteId,
-    required this.kind,
-    required this.beforeRevision,
-    required this.beforeBody,
-    required this.afterBody,
-    required this.source,
-  });
-
-  final String mutationId;
-  final String noteId;
-
-  /// `append` or `create`.
-  final String kind;
-  final int? beforeRevision;
-  final String? beforeBody;
-  final String afterBody;
-  final NoteSource source;
-}
-
-/// What the store answers: the change made, or the note as it now stands.
-sealed class CommandMutationResult {
-  const CommandMutationResult();
-
-  /// The web's `status`.
-  String get status;
-}
-
-final class CommandMutationResultApplied extends CommandMutationResult {
-  const CommandMutationResultApplied({required this.mutationId, required this.note});
-
-  final String mutationId;
-  final Note note;
-
-  @override
-  String get status => 'applied';
-}
-
-final class CommandMutationResultConflict extends CommandMutationResult {
-  const CommandMutationResultConflict({required this.current});
-
-  final Note? current;
-
-  @override
-  String get status => 'conflict';
-}
+export '../core/command_mutations.dart' show CommandMutationRequest, CommandMutationResult, CommandMutationResultApplied, CommandMutationResultConflict;
 
 /// The note store, as the writer asks it (`core/store.ts`).
 abstract class TakeStore {
