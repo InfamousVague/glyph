@@ -1,0 +1,33 @@
+<!doctype html>
+<!--
+  The page a diagram is drawn on (lib/editor/diagrams/): Mermaid itself, in the phone's own web view, kept off the
+  screen and never shown. The app asks (page.js `ghostDiagram.draw`), the page draws the diagram where a note would
+  have it, and the web view's owner takes a picture of that part of the page.
+
+  It is the web app's page as far as a diagram can tell: the same Mermaid, asked the same way (page.js), measured
+  under a body in the interface's face and shown inside the editor's own nest of boxes with the rules that reach a
+  diagram there, each written below as it is in ../glyph and named.
+
+  Nothing here is fetched: the policy below lets in this folder's own files and nothing else, so a diagram that names
+  a picture somewhere on the internet draws without it.
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' file:; style-src 'self' file: 'unsafe-inline'; font-src 'self' file:; img-src data:"
+    />
+    <link rel="stylesheet" href="fonts.css" />
+    <link rel="stylesheet" href="page.css" />
+  </head>
+  <body>
+    <div id="mark"></div>
+    <div id="stage" class="cm-editor">
+      <div class="cm-scroller"><div id="content" class="cm-content cm-lineWrapping"></div></div>
+    </div>
+    <script src="mermaid.min.js"></script>
+    <script src="page.js"></script>
+  </body>
+</html>

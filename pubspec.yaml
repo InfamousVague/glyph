@@ -33,6 +33,9 @@ flutter:
     # Ghost.md: The Guide (lib/guide/guidebook.dart): the web app's own index and chapters, src/app/guidebook.
     - assets/guidebook/
     - assets/guidebook/chapters/
+    # A ```mermaid fence drawn as its diagram (lib/editor/diagrams): Mermaid itself, the release ../glyph pins, with
+    # its licence, and the page it draws on in a web view nobody sees. Brought here by tool/diagram_page.mjs.
+    - assets/diagrams/
   # The wisp (lib/art/): feTurbulence and feDisplacementMap as fragment shaders.
   shaders:
     - shaders/wisp_bend.frag
