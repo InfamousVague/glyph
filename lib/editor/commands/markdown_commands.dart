@@ -370,6 +370,43 @@ bool deleteMarkupBackward(StateCommandTarget target) {
   return true;
 }
 
+final RegExp _pastedAddress = RegExp(r'^(https?://|mailto:|xmpp:|www\.)');
+final RegExp _bareWww = RegExp(r'^www\.');
+final RegExp _nonPlainText = RegExp(r'code|horizontalrule|html|link|comment|processing|escape|entity|image|mark|url', caseSensitive: false);
+
+/// `pasteURLAsLink` of @codemirror/lang-markdown 6.5.2 (dist/index.js, on by default and left on by
+/// src/app/editor/language.ts): a paste whose words look like an address, over a selection of regular text, makes
+/// the selection a link with the address as its target. Answers the change, or null where the paste is left to the
+/// editor: nothing selected, words that are no address, a selection in another language, or one that starts or
+/// ends a node part way or sits inside something that is not plain text (code, a link, a picture, a mark).
+TransactionSpec? pasteUrlAsLink(EditorState state, String text) {
+  final main = state.selection.main;
+  if (main.empty) return null;
+  var link = text;
+  if (link.isEmpty || !_pastedAddress.hasMatch(link)) return null;
+  if (_bareWww.hasMatch(link)) link = 'https://$link';
+  if (!markdownActiveAt(state, main.from, 1)) return null;
+  var crossesNode = false;
+  // Verify that no nodes are started or ended between the selection's points, and that it is in no construct that
+  // is not plain text.
+  syntaxTree(state).iterate(
+    from: main.from,
+    to: main.to,
+    enter: (node) {
+      if (node.from > main.from || _nonPlainText.hasMatch(node.name)) crossesNode = true;
+    },
+    leave: (node) {
+      if (node.to < main.to) crossesNode = true;
+    },
+  );
+  if (crossesNode) return null;
+  return TransactionSpec(
+    changes: ChangeSet.of(<ChangeSpec>[ChangeSpec(from: main.from, insert: '['), ChangeSpec(from: main.to, insert: ']($link)')], state.doc.length),
+    userEvent: 'input.paste',
+    scrollIntoView: true,
+  );
+}
+
 /// lang-markdown's `markdownKeymap`: Enter and Backspace, tried before the default keymap's (`Prec.high` on the
 /// web), which take over where these answer false.
 final List<({String key, StateCommand run})> markdownKeymap = <({String key, StateCommand run})>[

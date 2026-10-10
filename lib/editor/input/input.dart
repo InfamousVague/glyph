@@ -14,6 +14,7 @@ library;
 import 'package:flutter/widgets.dart' show EdgeInsets;
 
 import '../commands/commands.dart';
+import '../commands/markdown_commands.dart' show pasteUrlAsLink;
 import '../state/state.dart';
 import '../state/undo_slot.dart';
 import '../view/editor_view.dart';
@@ -77,6 +78,15 @@ Extension editorInput({bool assist = true, bool undo = true}) {
     if (undo) undoSlot.of(Extension.list(<Extension>[localUndo(), editorKeymap.of(historyKeymap)])),
     // lang-markdown binds its two keys above everything of ordinary precedence.
     Prec.high(editorKeymap.of(markdownBindings)),
+    // And its paste: an address pasted over selected words makes them a link to it (`pasteURLAsLink`).
+    EditorViewLike.eventHandlers(EditorEventHandlers(
+      paste: (text, view) {
+        final link = pasteUrlAsLink(view.state, text);
+        if (link == null) return false;
+        view.dispatch(link);
+        return true;
+      },
+    )),
     editorKeymap.of(defaultKeymap),
     assistSlot.of(_attrs(assist)),
     verticalMotion.of((state, range, forward) {

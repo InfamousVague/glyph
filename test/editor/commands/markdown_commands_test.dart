@@ -42,6 +42,48 @@ String docAfter(String doc, Object? result) =>
     result is List ? ChangeSet.fromJson(result[0]).apply(EditorState.create(doc: doc).doc).toString() : doc;
 
 void main() {
+
+  // Missing 9 (docs/PARITY.md): @codemirror/lang-markdown's `pasteURLAsLink`, which the app leaves on
+  // (src/app/editor/language.ts `pasteURLAsLink: true`). Read from dist/index.js, since the library's own takes a
+  // paste event and a DOM.
+  group('an address pasted over a selection', () {
+    String? pasted(String doc, int from, int to, String text) {
+      final state = EditorState.create(doc: doc, selection: EditorSelection.single(from, to));
+      final spec = pasteUrlAsLink(state, text);
+      if (spec == null) return null;
+      final tr = state.update(spec);
+      expect((tr.scrollIntoView, tr.annotation(Transaction.userEvent)), (true, 'input.paste'));
+      return tr.state.doc.toString();
+    }
+
+    test('makes the selected words a link to it', () {
+      expect(pasted('Read the guide first.', 9, 14, 'https://example.com/guide'), 'Read the [guide](https://example.com/guide) first.');
+      expect(pasted('Write to Sam.', 9, 12, 'mailto:sam@example.com'), 'Write to [Sam](mailto:sam@example.com).');
+      expect(pasted('Chat with Sam.', 10, 13, 'xmpp:sam@example.com'), 'Chat with [Sam](xmpp:sam@example.com).');
+      // A bare www is given its scheme.
+      expect(pasted('See the site.', 8, 12, 'www.example.com'), 'See the [site](https://www.example.com).');
+      // In a list item the words are regular text too.
+      expect(pasted('- buy bread\n', 6, 11, 'http://bakery.example'), '- buy [bread](http://bakery.example)\n');
+    });
+
+    test('is left to the editor with nothing selected, or words that are no address', () {
+      expect(pasted('Read the guide first.', 9, 9, 'https://example.com'), isNull);
+      expect(pasted('Read the guide first.', 9, 14, 'example.com'), isNull);
+      expect(pasted('Read the guide first.', 9, 14, 'see https://example.com'), isNull);
+      expect(pasted('Read the guide first.', 9, 14, ''), isNull);
+    });
+
+    test('is left to the editor where the selection is not regular text, or starts or ends something part way', () {
+      // Inside code, and inside a link's own words.
+      expect(pasted('Run `make guide` now.', 10, 15, 'https://example.com'), isNull);
+      expect(pasted('Read [the guide](https://a.example) first.', 10, 15, 'https://example.com'), isNull);
+      // From before an emphasis into it, and out of one.
+      expect(pasted('Read *the guide* first.', 2, 9, 'https://example.com'), isNull);
+      expect(pasted('Read *the guide* first.', 10, 20, 'https://example.com'), isNull);
+      // Across two paragraphs.
+      expect(pasted('One.\n\nTwo.', 0, 10, 'https://example.com'), isNull);
+    });
+  });
   final docs = (fixture['docs'] as List<dynamic>).cast<Map<String, dynamic>>();
 
   test('Markdown is the active language where lang-markdown says it is', () {

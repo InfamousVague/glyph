@@ -325,6 +325,27 @@ void main() {
       await close(tester);
     });
 
+    // Missing 9 (docs/PARITY.md): an address pasted over selected words makes them a link to it, in the note's own
+    // editor (lang-markdown's `pasteURLAsLink`, which the port's paste did not have).
+    testWidgets('makes selected words a link to an address pasted over them, and pastes anything else as it is', (tester) async {
+      final library = await open(tester);
+      final made = library.create('# Trip\n\nRead the guide first.\n');
+      await tester.pump();
+      await openNote(tester, made.id);
+      final view = tester.state<NoteScreenState>(find.byType(NoteScreen)).view!;
+      final desk = tester.state<NoteDeskState>(find.byType(NoteDesk));
+      final at = view.state.doc.toString().indexOf('guide');
+      view.dispatch(TransactionSpec(selection: EditorSelection.single(at, at + 5)));
+      expect(await desk.editor.paste('https://example.com/guide'), isTrue);
+      expect(view.state.doc.toString(), '# Trip\n\nRead the [guide](https://example.com/guide) first.\n');
+      // Words that are no address take the selection's place, as a paste does.
+      final first = view.state.doc.toString().indexOf('first');
+      view.dispatch(TransactionSpec(selection: EditorSelection.single(first, first + 5)));
+      expect(await desk.editor.paste('twice'), isTrue);
+      expect(view.state.doc.toString(), '# Trip\n\nRead the [guide](https://example.com/guide) twice.\n');
+      await close(tester);
+    });
+
     testWidgets('keeps its scroll position when the editor\'s view arrives and when a chip\'s menu opens', (tester) async {
       final library = await open(tester);
       await openNote(tester, library.value.first.id);
