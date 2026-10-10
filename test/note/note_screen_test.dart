@@ -307,6 +307,61 @@ void main() {
       await closeNote(tester);
     });
 
+    // Missing 8 (docs/PARITY.md): pull down in a note to refresh (NoteScreen.tsx `pullNote` under
+    // notes/PullToRefresh.tsx): what is typed saved first, a sync, and the note as the store then has it taken.
+    testWidgets('pulled down from its top saves what is typed, syncs, and takes the note as the library then has it', (tester) async {
+      final world = NoteWorld();
+      final note = await seeded(tester, world, '# Trip\n\nWords.\n');
+      final screen = await pumpNote(
+        tester,
+        world,
+        note,
+        seams: NoteSeams(
+          sync: () async {
+            world.asked.add('sync after ${saves(world).length} saves');
+            // Another device's words arrive with the sync.
+            world.core.writeBehind(note.id, '# Trip\n\nWords.\nTyped here.\n\nAnd a line from the Mac.\n');
+          },
+        ),
+      );
+      final position = tester.state<ScrollableState>(find.descendant(of: find.byType(NoteScreen), matching: find.byType(Scrollable)).first).position;
+      type(screen, 'Typed here.\n');
+      expect(saves(world), isEmpty, reason: 'still inside the debounce');
+
+      // Short of the detent: the page goes back up, and nothing is asked.
+      var gesture = await tester.startGesture(const Offset(200, 400));
+      await gesture.moveBy(const Offset(0, 14));
+      await tester.pump(const Duration(milliseconds: 16));
+      await gesture.moveBy(const Offset(0, 50));
+      await tester.pump(const Duration(milliseconds: 16));
+      await gesture.up();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(world.asked.where((said) => said.startsWith('sync')), isEmpty);
+
+      gesture = await tester.startGesture(const Offset(200, 400));
+      await gesture.moveBy(const Offset(0, 14));
+      await tester.pump(const Duration(milliseconds: 16));
+      await gesture.moveBy(const Offset(0, 150));
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(find.bySemanticsLabel('Let go to refresh'), findsOneWidget);
+      await gesture.up();
+      await tester.pump();
+      expect(find.bySemanticsLabel('Refreshing'), findsOneWidget);
+      for (var i = 0; i < 6; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 5)));
+        await tester.pump(const Duration(milliseconds: 150));
+      }
+      // Saved before the sync was asked for, and the note taken as the library has it after.
+      expect(world.asked.where((said) => said.startsWith('sync')), ['sync after 1 saves']);
+      expect(saves(world).first, contains('Typed here.'));
+      expect(doc(screen), '# Trip\n\nWords.\nTyped here.\n\nAnd a line from the Mac.\n');
+      await tester.pump(const Duration(seconds: 1));
+      // The page is the one it was: the same position, back at its top.
+      expect(tester.state<ScrollableState>(find.descendant(of: find.byType(NoteScreen), matching: find.byType(Scrollable)).first).position, same(position));
+      expect(position.pixels, 0);
+      await closeNote(tester);
+    });
+
     // Missing 6 (docs/PARITY.md): More › Ticket key (NoteSettings.tsx `TicketKeyField`, NoteScreen.tsx `ticketKey`).
     // Until it was here a notebook made in the port got a key only by typing `key:`, and New ticket stayed out of
     // reach.

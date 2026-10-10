@@ -89,7 +89,9 @@ import '../editor/looks/look.dart' show LookEnv;
 import '../editor/media/map_card.dart' show MapPicture, MapSize;
 import '../editor/view/editor_view.dart';
 import '../editor/view/view_mode.dart';
+import '../core/page_scroll.dart' show pullRestPhysics;
 import '../notes/note_templates.dart' show NoteTemplate, fillNoteTemplate;
+import '../notes/pull_to_refresh.dart';
 import '../notes/template_cards.dart';
 import '../shell/header_pane.dart';
 import '../shell/screen.dart' show Caret;
@@ -125,6 +127,7 @@ class NoteSeams {
     this.head,
     this.tail,
     this.saving,
+    this.sync,
     this.recordingChanged,
     this.cheatSheet,
     this.location,
@@ -188,6 +191,11 @@ class NoteSeams {
   /// Handed the way to save what is typed now ([NoteScreenState.flush]) as the screen is made: the AI flushes
   /// before a run, so the run's Undo has the note as it was.
   final void Function(VoidCallback flush)? saving;
+
+  /// A sync, waited for a few seconds at most (core/sync/engine.ts `syncWithin`): what a pull down from the top of
+  /// the note asks for between saving what is typed and reading the note again. Absent, as in a build with no
+  /// account, the pull saves and reads all the same.
+  final Future<void> Function()? sync;
 
   /// Hears that the phone's write-up changed this note (ai/summaries.ts `onRecordingChanged`, for this note alone),
   /// and answers the way to stop: the screen then reads the note and takes it, when nothing typed here is waiting
@@ -524,6 +532,22 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     }
     _rise.forward();
   }
+
+  /// A pull down from the top of the note (notes/PullToRefresh.tsx, docs/DESIGN.md §152; `pullNote`): what is typed
+  /// saved first, a sync waited for a few seconds at most, and the note as the library has it then taken, when
+  /// nothing here is unsaved.
+  Future<void> _pullNote() async {
+    await _saving.settled();
+    await widget.seams.sync?.call().then<void>((_) {}, onError: (Object _) {});
+    final stored = await widget.library.get(_id).then<Note?>((note) => note, onError: (Object _) => null);
+    if (stored != null && mounted) _saving.adopt(stored);
+  }
+
+  /// Whether a pull has the page: it does not scroll under one (the page's `preventDefault`). Read by the page's
+  /// physics as a drag is applied, so the scroller keeps the one position it was made with: other physics would be
+  /// another position, and the place keeper and a landing hold the first.
+  bool _pulled = false;
+  late final ScrollPhysics _pagePhysics = _HeldUnderPull(() => _pulled, parent: pullRestPhysics());
 
   /// The phone's write-up changed this note: its transcript is read and shown, when nothing typed here is waiting to
   /// be saved; else the next save picks it up (NoteScreen.tsx's `onRecordingChanged` effect).
@@ -1368,7 +1392,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       key: _page,
       controller: _scroll,
       // A canvas is not a column of words: it takes the whole page and moves under the fingers rather than scrolling.
-      physics: _drawing ? const NeverScrollableScrollPhysics() : null,
+      physics: _drawing ? const NeverScrollableScrollPhysics() : _pagePhysics,
       slivers: [
         // `padding-block-start: calc(var(--wisp-under) + … + var(--ai-strip-room, 0px))`
         SliverToBoxAdapter(child: SizedBox(height: padTop + (seams.headRoom?.value ?? 0))),
@@ -1439,7 +1463,19 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       ],
     );
 
-    final scroller = seams.around?.call(context, _words ? view : null, words) ?? words;
+    final around = seams.around?.call(context, _words ? view : null, words) ?? words;
+    // A pull down from the page's top refreshes the note; not a canvas, which moves under the fingers. The page
+    // itself is handed over as it is, so a pull draws the ring and moves the page and builds nothing of the note.
+    final scroller = PullToRefresh(
+      controller: _scroll,
+      onRefresh: _pullNote,
+      enabled: !_drawing,
+      top: padTop + (seams.headRoom?.value ?? 0),
+      builder: (context, pull) {
+        _pulled = pull.physics is NeverScrollableScrollPhysics;
+        return PullLowered(pull: pull, child: around);
+      },
+    );
     final unfold = _unfold ??= UnfoldDriver(vsync: this, still: t.reducedMotion, angles: widget.hinge);
 
     // `noteRise`: 320ms ease-out, rising 8px as it fades in.
@@ -1611,6 +1647,20 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       say: widget.say,
     );
   }
+}
+
+/// The page's own physics, with the page held still while a pull to refresh has it: the same physics object for the
+/// life of the screen, which asks whether it is held as each drag arrives.
+class _HeldUnderPull extends ScrollPhysics {
+  const _HeldUnderPull(this.held, {super.parent});
+
+  final bool Function() held;
+
+  @override
+  _HeldUnderPull applyTo(ScrollPhysics? ancestor) => _HeldUnderPull(held, parent: buildParent(ancestor));
+
+  @override
+  double applyPhysicsToUserOffset(ScrollMetrics position, double offset) => held() ? 0 : super.applyPhysicsToUserOffset(position, offset);
 }
 
 /// What a failed fix says (`NO_FIX`).

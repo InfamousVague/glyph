@@ -764,6 +764,8 @@ class _GhostRootState extends State<GhostRoot> {
       _recordingHeard.add(listener);
       return () => _recordingHeard.remove(listener);
     },
+    // A note pulled down from its top syncs before it is read again.
+    syncWithin: () => _services?.engine?.syncWithin() ?? Future<void>.value(),
     // Version history's Share the versions file: copied as text on the phone, which is what its page does there.
     shareVersionsFile: (id, title) => shareVersionsFile(_versionsStore, id, title, files: _files),
   );

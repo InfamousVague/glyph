@@ -272,6 +272,7 @@ class NoteDeskWorld {
     this.refining,
     this.onRecordingChanged,
     this.shareVersionsFile,
+    this.syncWithin,
   });
 
   /// Every note's title, for the +'s A note.
@@ -402,6 +403,10 @@ class NoteDeskWorld {
   /// Hands a note's versions file to the person and answers what to say (lib/core/versions_share.dart); absent, the
   /// history's row is off.
   final Future<String?> Function(String noteId, String title)? shareVersionsFile;
+
+  /// A sync, waited for a few seconds at most (lib/sync/engine.dart `syncWithin`), for a note's pull to refresh;
+  /// absent in a build with no account.
+  final Future<void> Function()? syncWithin;
 
   /// What the AI in a note stands on, asked as a desk is made: null where the build has no engine (a test, a
   /// picture, a launch before voice is made), and the desk then has no AI at all.
@@ -1455,6 +1460,7 @@ class NoteDeskState extends State<NoteDesk> {
     final ai = _ai;
     final seams = NoteSeams(
       saving: (flush) => _flush = flush,
+      sync: _world.syncWithin,
       // The phone's write-up changed this note: its screen reads it again.
       recordingChanged: _world.onRecordingChanged == null
           ? null
