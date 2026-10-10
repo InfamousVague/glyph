@@ -173,7 +173,8 @@ void main() {
     for (final (name, note) in <(String, ({Counted letter, Counted caret, Counted enter, int length, int lines}))>[('short', short), ('long', long)]) {
       // A LETTER. One string of the note (the parser's, which every other reader shares) and a few asked for by
       // name: the parser, the save, the +'s question whether this is a note of words, and the plugins' offers.
-      expect(note.letter.strings, lessThanOrEqualTo(3), reason: '$name: the note is made a string once for a letter (and the letter itself, twice)');
+      // (The count has the letter's own string in it, a letter long, once for each reader of the change.)
+      expect(note.letter.strings, lessThanOrEqualTo(6), reason: '$name: the note is made a string once for a letter, and the letter itself a few times');
       expect(note.letter.chars, lessThanOrEqualTo(note.length + 64), reason: '$name: one string of the note, not several');
       expect(note.letter.asked, lessThanOrEqualTo(8), reason: '$name: who asks for the whole note as a string on a letter is a short list; a new asker is a reader of the whole note');
       // The kept facts read the leaf the letter made: thirty-two lines at most for each.

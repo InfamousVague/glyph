@@ -131,6 +131,17 @@ abstract class Doc {
 
   String? _whole;
 
+  /// This document's string, handed over by whoever has already made it another way (the parse, which makes the
+  /// string after a change from the string before it and the change, a copy of the note's letters where walking
+  /// the tree for them is several): kept as [toString]'s answer. It must be the document's own words; a debug
+  /// build checks.
+  void adoptString(String whole) {
+    assert(whole.length == length && whole == sliceString(0), 'a string handed to a document is not its words');
+    if (_whole != null) return;
+    assert(DocWork._string(length));
+    _whole = whole;
+  }
+
   /// What the [LineFact]s have read of this piece, each in its own place.
   List<Object?>? _facts;
 

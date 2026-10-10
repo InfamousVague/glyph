@@ -3,8 +3,9 @@
 ///
 /// What differs from CodeMirror's `Language`/`LanguageState`: the parse is whole and done when the state is made,
 /// where CodeMirror parses the viewport first and the rest in idle slices. The parser reads a string, so a change
-/// costs the document's text once (`doc.toString()`, about a quarter of a millisecond for 380 kB) and a reparse of
-/// the blocks the change touched (`MarkdownParser.reparse` reuses every other block of the old tree). There is no
+/// costs the document's text once, made from the text before it and the change ([_textAfter]: one copy of the
+/// note's letters), and a reparse of the blocks the change touched (`MarkdownParser.reparse` reuses every other
+/// block of the old tree). There is no
 /// language data, no indentation service and no folding: nothing in ../glyph asks for them.
 ///
 /// It lives beside the view because the view's base extensions are the first to need it; it reads nothing of the
@@ -12,6 +13,7 @@
 library;
 
 import '../state/state.dart';
+import '../state/text.dart';
 import '../syntax/markdown.dart' show MarkdownParser, parser;
 import '../syntax/tree.dart' as lezer;
 
@@ -46,10 +48,45 @@ final StateField<SyntaxState?> _syntaxField = StateField.define<SyntaxState?>(
     if (!tr.docChanged) return value;
     final changes = <lezer.ChangedRange>[];
     tr.changes.iterChangedRanges((fromA, toA, fromB, toB) => changes.add(lezer.ChangedRange(fromA, toA, fromB, toB)));
-    final text = tr.newDoc.toString();
+    final text = _textAfter(value.text, tr);
     return SyntaxState(parser, text, parser.reparse(value.tree, text, changes));
   },
 );
+
+/// The document after `tr` as one string, made from the string before it and the changes: one copy of the note's
+/// letters, where walking the new document's tree for them wrote each line and each break apart (a quarter of a
+/// millisecond for 380 kB on a Mac, for every letter typed). The document keeps it as its own, so whoever asks
+/// the document for its string next (the save, the +) is handed this one.
+String _textAfter(String before, Transaction tr) {
+  final doc = tr.newDoc;
+  if (before.length != tr.changes.length) return doc.toString();
+  String text;
+  var count = 0;
+  var from = 0, to = 0;
+  Doc? put;
+  tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) {
+    count += 1;
+    from = fromA;
+    to = toA;
+    put = inserted;
+  });
+  if (count == 1) {
+    // A letter typed, a word deleted: the one change, set into the string it was made against.
+    text = before.replaceRange(from, to, put!.toString());
+  } else {
+    final parts = <String>[];
+    var at = 0;
+    tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) {
+      if (fromA > at) parts.add(before.substring(at, fromA));
+      if (inserted.length > 0) parts.add(inserted.toString());
+      at = toA;
+    });
+    if (at < before.length) parts.add(before.substring(at));
+    text = parts.join();
+  }
+  doc.adoptString(text);
+  return text;
+}
 
 final lezer.Tree _noTree = parser.parse('');
 
