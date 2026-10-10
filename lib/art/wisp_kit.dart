@@ -464,8 +464,11 @@ class WispSmoke {
     if (fade.wholeFrom > -nowhere) firstEnd = math.max(firstEnd, fade.wholeFrom);
     if (lipB != null) secondStart = math.min(secondStart, lipB! - reach);
     if (fade.wholeUntil < nowhere) secondStart = math.min(secondStart, fade.wholeUntil);
-    firstEnd = firstEnd.ceilToDouble().clamp(from, to);
-    secondStart = secondStart.floorToDouble().clamp(from, to);
+    // Out to whole pixels, where there is a part at all: an end nothing reaches stays the strip's own edge, which
+    // need not lie on a whole pixel (a sliver between the edge and the next whole one would be a strip, with every
+    // picture a strip is drawn through, for a line of nothing).
+    if (firstEnd > from) firstEnd = math.min(firstEnd.ceilToDouble(), to);
+    if (secondStart < to) secondStart = math.max(secondStart.floorToDouble(), from);
     if (firstEnd >= secondStart) return [strip];
     return [
       if (firstEnd > from) part(from, firstEnd),

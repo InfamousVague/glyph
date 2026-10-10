@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import '../perf/frame_log.dart' show Perf, ghostPerf;
@@ -294,7 +295,42 @@ class RenderWispStrips extends RenderProxyBox {
   @override
   void detach() {
     _repaint?.removeListener(markNeedsPaint);
+    _placed.remove(this);
     super.detach();
+  }
+
+  /// The views whose strips were laid on the screen's pixels at their last paint, and where each then stood.
+  static final Map<RenderWispStrips, Offset> _placed = {};
+  static bool _watching = false;
+
+  /// Remembers where this view's strips were laid, and from then on looks after every frame whether any such view
+  /// has since been moved to another place between the screen's pixels without being painted: under a repaint
+  /// boundary (lib/art/wisp_box.dart) a view is moved by whatever holds it and keeps its picture, and its strips'
+  /// pictures were taken on the pixels it stood on. One that has moved is painted again, a frame late.
+  void _place(Offset phase) {
+    _placed[this] = phase;
+    if (_watching) return;
+    _watching = true;
+    SchedulerBinding.instance.addPersistentFrameCallback((_) {
+      var moved = false;
+      for (final entry in _placed.entries.toList()) {
+        final view = entry.key;
+        if (!view.attached || !view.hasSize) continue;
+        if ((view._phase() - entry.value).distanceSquared > 1e-6) {
+          view.markNeedsPaint();
+          moved = true;
+        }
+      }
+      // Asked for outright: a view marked while a frame is being drawn is taken to be that frame's to paint, and
+      // this one has painted already.
+      if (moved) SchedulerBinding.instance.scheduleFrame();
+    });
+  }
+
+  /// How far this view's corner stands from a corner of the screen's pixels.
+  Offset _phase() {
+    final corner = localToGlobal(Offset.zero);
+    return Offset(_fraction(corner.dx * _ratio) / _ratio, _fraction(corner.dy * _ratio) / _ratio);
   }
 
   @override
@@ -315,12 +351,13 @@ class RenderWispStrips extends RenderProxyBox {
     _painted = drawn;
     if (child == null || drawn.isEmpty) {
       layer = null;
+      _placed.remove(this);
       super.paint(context, offset);
       return;
     }
     // Where the view's corner falls on the screen, to lay each strip's picture on the screen's own pixels.
-    final corner = localToGlobal(Offset.zero);
-    final phase = Offset(_fraction(corner.dx * _ratio) / _ratio, _fraction(corner.dy * _ratio) / _ratio);
+    final phase = _phase();
+    if (wispQuick) _place(phase);
     final stripLayer = (layer as _WispStripLayer?) ?? _WispStripLayer();
     stripLayer
       ..offset = offset

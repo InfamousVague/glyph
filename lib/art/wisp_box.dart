@@ -70,7 +70,12 @@ class _WispBoxedState extends State<WispBoxed> {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (!constraints.hasBoundedWidth || !constraints.hasBoundedHeight) return widget.child;
-        return WispStrips(strips: widget.build(constraints.biggest, media.devicePixelRatio, media.disableAnimations), repaint: _ready, child: widget.child);
+        final strips = WispStrips(strips: widget.build(constraints.biggest, media.devicePixelRatio, media.disableAnimations), repaint: _ready, child: widget.child);
+        // Drawn the quick way, a box keeps its own picture: a row of tabs is painted again when a tab changes,
+        // not on every frame the page under it scrolls, and a strip that was not painted again makes no pictures.
+        // (The page and everything in the window were one picture, so a scroll drew the tabs' smoke anew sixty
+        // times a second for tabs that had not moved.) Its strips know where they were laid: wisp_strips.dart.
+        return wispQuick ? RepaintBoundary(child: strips) : strips;
       },
     );
   }
