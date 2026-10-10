@@ -34,7 +34,9 @@ import '../book/journal_view.dart' show JournalPages;
 import '../book/new_book_sheet.dart';
 import '../book/tickets.dart';
 import '../academy/academy_screen.dart';
+import '../canvas/how_canvas.dart' show howCanvasBody;
 import '../canvas/json_canvas.dart' show Canvas, canvasNoteBody;
+import '../canvas/sample_canvas.dart' show sampleCanvasBody;
 import '../capture/meeting_live.dart' show MeetingLive;
 import '../capture/place.dart' show Placing;
 import '../capture/ui/capture_screen.dart';
@@ -915,6 +917,21 @@ class _GhostRootState extends State<GhostRoot> {
       if (mounted) _say(context, '$guideTitle did not load. Try again.');
     }
   }
+
+  /// One of Settings › About › Examples' notes made now and opened (App.tsx `openSample` over core/seed.ts's
+  /// `addSampleNote`, `addBoardNote`, `addCanvasNote` and `addHowCanvas`): Settings goes, the note is written, and
+  /// the app is on it. One that could not be written says so.
+  VoidCallback _openExample(String Function() body) => () => unawaited(() async {
+        setState(() => _settings = false);
+        try {
+          final note = await _library.createNote(body());
+          await _library.refresh();
+          if (mounted) _afterFrame((shell) => shell.openNote(note.id));
+        } catch (_) {
+          await _library.refresh().catchError((Object _) {});
+          if (mounted) _say(context, 'That note could not be added. Try again.');
+        }
+      }());
 
   /// The titles of linked pages, kept on this device (`core/linkPreview.ts`): asked only with Link previews on and
   /// "Nothing leaves the phone" off.
@@ -1964,6 +1981,11 @@ class _GhostRootState extends State<GhostRoot> {
                       guide.show(0);
                     },
               onGuideBook: () => unawaited(_openGuideBook()),
+              // Examples' four rows, which were drawn and could not be pressed: nothing had given them a press.
+              onSample: _openExample(() => sampleNoteBody),
+              onBoard: _openExample(() => boardNoteBody),
+              onCanvas: _openExample(sampleCanvasBody),
+              onHowCanvas: _openExample(howCanvasBody),
             ),
             CommandBar.over(
               key: _commands,
