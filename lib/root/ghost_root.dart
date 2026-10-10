@@ -1260,8 +1260,8 @@ class _GhostRootState extends State<GhostRoot> {
 
   /// A part of what is on screen: built when [select] answers another value than it drew, and at no other time
   /// (lib/root/selected.dart).
-  Widget _part<T>(String name, T Function() select, WidgetBuilder builder, {bool asleep = false}) =>
-      Selected<T>(listenable: _tick, name: name, asleep: asleep, select: select, builder: (context, _) => builder(context));
+  Widget _part<T>(String name, T Function() select, WidgetBuilder builder) =>
+      Selected<T>(listenable: _tick, name: name, select: select, builder: (context, _) => builder(context));
 
   static const Widget _nothing = SizedBox.shrink();
 
@@ -1561,14 +1561,12 @@ class _GhostRootState extends State<GhostRoot> {
   /// folder to browse and a recorder to speak to, and the update a wide window's sidebar carries.
   Object _sidebarReads(AppShellState shell) => (shell.notes, shell.shown, _workspaces.value, _trashed, _canBrowse, _capture != null, _updatesAt);
 
-  /// The home page. Kept under a note, the grid or an organization's page (lib/shell/app_shell.dart), where it is
-  /// asked nothing and builds nothing: it is built once as it is come back to, whatever changed, since what it says
-  /// of time ("20 min ago") is read as it is built. On screen it is built again for the notes it shows, its
-  /// layout, the workspace looked at, a recording, its notices, the gists, and the organizations with who is in
-  /// them.
+  /// The home page, while it is the screen (the shell takes it down under a note, the grid and an organization's
+  /// page, and makes it anew on the way back, as the page's is: lib/shell/app_shell.dart). It is built again for
+  /// the notes it shows, its layout, the workspace looked at, a recording, its notices, the gists, and the
+  /// organizations with who is in them.
   Widget _home(BuildContext context, AppShellState shell) => _part(
         'home',
-        asleep: shell.screen is! ScreenList,
         () => (
           shell.notes,
           !_read,

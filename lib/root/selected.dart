@@ -1,8 +1,8 @@
 /// A part of the app that is built again only when what it shows changed.
 ///
 /// The root was one builder over everything it listens to (the notes, the workspaces, the trash, the preferences,
-/// the account, voice, presence): a change to any of them built the whole app again, the home page under a note,
-/// the note under Settings, every sheet that was shut. Measured on a library of 354 notes (tool/perf.sh, 2026-10-10)
+/// the account, voice, presence): a change to any of them built the whole app again, the home page or the open
+/// note under Settings, every sheet that was shut. Measured on a library of 354 notes (tool/perf.sh, 2026-10-10)
 /// that was a frame of 60 ms on the home page and 230 to 310 ms with Settings open, more than once a second, for a
 /// runner that had nothing to say.
 ///
@@ -42,17 +42,12 @@ class RootTick extends ChangeNotifier {
 /// [select] is asked often and must cost nearly nothing: a record of fields, each a number, a word, or an object
 /// compared by which object it is (a list the library keeps while nothing in it changed, a note). Two records are
 /// the same when every field is.
-///
-/// While [asleep] nothing is asked and nothing is built: the part is covered, and what it last drew stands until it
-/// is looked at again, when it is built once whatever it selects: a page that was away says some things by when it
-/// is built (how long ago a note was written), and nothing it selects says that time has passed.
 class Selected<T> extends StatefulWidget {
-  const Selected({super.key, required this.listenable, required this.select, required this.builder, this.asleep = false, this.name});
+  const Selected({super.key, required this.listenable, required this.select, required this.builder, this.name});
 
   final Listenable listenable;
   final T Function() select;
   final Widget Function(BuildContext context, T value) builder;
-  final bool asleep;
 
   /// What a measured build counts this part's builds as (`built.<name>`, lib/perf/frame_log.dart).
   final String? name;
@@ -65,8 +60,7 @@ class _SelectedState<T> extends State<Selected<T>> {
   late T _drew;
   Widget? _child;
 
-  /// Something inherited changed since the child was built, or the part has been asleep since: it is built again
-  /// whatever is selected.
+  /// Something inherited changed since the child was built: it is built again whatever is selected.
   bool _stale = false;
   bool _waiting = false;
 
@@ -100,7 +94,7 @@ class _SelectedState<T> extends State<Selected<T>> {
 
   void _heard() {
     // Not yet built, or about to be built again whatever is asked: nothing to mark.
-    if (!mounted || widget.asleep || _child == null || _stale) return;
+    if (!mounted || _child == null || _stale) return;
     if (widget.select() == _drew) return;
     // Told while a frame is being laid out or painted (a desk let go as the tree is taken down says its note was
     // left): drawn after that frame, as the root's own listeners waited.
@@ -109,17 +103,13 @@ class _SelectedState<T> extends State<Selected<T>> {
     _waiting = true;
     SchedulerBinding.instance.addPostFrameCallback((_) {
       _waiting = false;
-      if (mounted && !widget.asleep && _child != null && !_stale && widget.select() != _drew) setState(() {});
+      if (mounted && _child != null && !_stale && widget.select() != _drew) setState(() {});
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final had = _child;
-    if (had != null && widget.asleep) {
-      _stale = true;
-      return had;
-    }
     final now = widget.select();
     if (had != null && !_stale && now == _drew) return had;
     _stale = false;

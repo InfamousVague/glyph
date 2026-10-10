@@ -1,16 +1,18 @@
 // The root builds what changed, and not everything (lib/root/selected.dart, lib/root/ghost_root.dart): each part of
-// what is on screen is built again when what it reads is another value, and the home page is kept under a note
-// (lib/shell/app_shell.dart) and built again once, as it is come back to.
+// what is on screen is built again when what it reads is another value.
 //
 // Before this the root was one builder over the notes, the workspaces, the trash, the preferences and the account,
 // and every change to any of them, and every turn of a runner, built the home page, the open note and Settings
-// again; and the home page was taken down for a note and built from nothing on the way back.
+// again. The home page is still taken down under a note and made anew on the way back, as the web app's is
+// (lib/shell/app_shell.dart): that is held here too, since for an afternoon it was kept alive there and came back
+// scrolled, searched and with nothing arriving, which the page never does.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
+import 'package:ghost_md/home/home_parts.dart' show Arrive;
 import 'package:ghost_md/home/home_screen.dart';
 import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/root/ghost_root.dart';
@@ -85,48 +87,6 @@ void main() {
       a = 2;
       await tester.pumpWidget(held());
       expect(built, 2);
-      tick.dispose();
-    });
-
-    testWidgets('asleep is asked nothing and builds nothing, and is built once as it wakes, whatever it selects', (tester) async {
-      final tick = RootTick();
-      var a = 1, asked = 0, built = 0;
-      Widget held({required bool asleep}) => Directionality(
-            textDirection: TextDirection.ltr,
-            child: Selected<int>(
-              listenable: tick,
-              asleep: asleep,
-              select: () {
-                asked += 1;
-                return a;
-              },
-              builder: (context, value) {
-                built += 1;
-                return Text('a $value');
-              },
-            ),
-          );
-      await tester.pumpWidget(held(asleep: false));
-      await tester.pumpWidget(held(asleep: true));
-      final before = asked;
-      a = 2;
-      tick.tell();
-      a = 3;
-      tick.tell();
-      await tester.pump();
-      await tester.pumpWidget(held(asleep: true));
-      expect((asked, built), (before, 1));
-      expect(find.text('a 1'), findsOneWidget);
-      await tester.pumpWidget(held(asleep: false));
-      expect((asked, built), (before + 1, 2));
-      expect(find.text('a 3'), findsOneWidget);
-      // Away with nothing changed, it is still built as it comes back: what it says of time is read as it is built.
-      await tester.pumpWidget(held(asleep: true));
-      await tester.pumpWidget(held(asleep: false));
-      expect(built, 3);
-      // And awake, held by something built again, it is not.
-      await tester.pumpWidget(held(asleep: false));
-      expect(built, 3);
       tick.dispose();
     });
 
@@ -210,44 +170,46 @@ void main() {
       await close(tester);
     });
 
-    testWidgets('keeps the home page under a note, builds nothing of it there, and builds it once on the way back', (tester) async {
+    testWidgets('takes the home page down under a note and makes it anew on the way back, as the page does: at its top, its search empty, its rows arriving', (tester) async {
       final library = await open(tester);
       final shell = tester.state<AppShellState>(find.byType(AppShell));
       final state = tester.state(find.byType(HomeScreen));
-      final page = home(tester);
+      // The page is searched and scrolled before it is left.
+      await tester.enterText(find.byType(EditableText).first, 'pack');
+      await settle(tester, 2);
+      final scroller = find.descendant(of: find.byType(HomeScreen), matching: find.byType(Scrollable)).first;
+      tester.state<ScrollableState>(scroller).position.jumpTo(40);
+      await tester.pump();
       final note = library.value.firstWhere((each) => each.body.trim().isNotEmpty);
       shell.openNote(note.id);
       await settle(tester);
       expect(find.byType(NoteScreen), findsOneWidget);
-      // Not on screen, and still the page it was: the same state, the widget it was last given.
-      expect(find.byType(HomeScreen), findsNothing);
-      expect(find.byType(HomeScreen, skipOffstage: false), findsOneWidget);
-      expect(tester.state(find.byType(HomeScreen, skipOffstage: false)), same(state));
-      // The notes change under it, as a save from the note does: nothing of the home page is built.
-      await library.update(note.id, '${note.body}\n\nMore words.', note.revision);
+      // Under the note there is no home page at all, on screen or off it (App.tsx: `noteScreen ?? … home`).
+      expect(find.byType(HomeScreen, skipOffstage: false), findsNothing);
       library.create('# Made while away\n\nwords');
-      preferences.update((now) => now.copyWith(homeLayout: 'cards', homeLayoutChosen: true));
       await settle(tester, 2);
-      expect(identical(home(tester), page), isTrue, reason: 'covered, the home page is handed nothing new');
-      // Come back to, it is shown again, the same state, with the notes and the layout as they now are.
       shell.backToList();
-      await settle(tester);
+      await tester.pump();
+      // A page made anew: another state, nothing typed in its search, at its top, with the note made meanwhile.
       expect(find.byType(HomeScreen), findsOneWidget);
-      expect(tester.state(find.byType(HomeScreen)), same(state));
-      expect(identical(home(tester), page), isFalse);
-      expect(home(tester).layout.name, 'cards');
+      expect(tester.state(find.byType(HomeScreen)), isNot(same(state)));
+      expect(tester.widget<EditableText>(find.byType(EditableText).first).controller.text, isEmpty);
+      final back = find.descendant(of: find.byType(HomeScreen), matching: find.byType(Scrollable)).first;
+      expect(tester.state<ScrollableState>(back).position.pixels, 0);
       expect(home(tester).notes.any((each) => each.body.startsWith('# Made while away')), isTrue);
-      // Away and back with nothing changed, it is built once all the same, for the times it says; and the seams the
-      // root hands it are the functions they were.
-      final back = home(tester);
+      // And its cards and rows are arriving: the entrance of each is its own first frames (lib/home/home_parts.dart).
+      expect(tester.widgetList<Opacity>(find.descendant(of: find.byType(Arrive), matching: find.byType(Opacity))).any((it) => it.opacity < 1), isTrue);
+      await settle(tester, 12);
+      expect(tester.widgetList<Opacity>(find.descendant(of: find.byType(Arrive), matching: find.byType(Opacity))).every((it) => it.opacity == 1), isTrue);
+      // The seams the root hands the page are the functions they were.
+      final first = home(tester);
       shell.openNote(note.id);
       await settle(tester);
       shell.backToList();
       await settle(tester);
-      expect(identical(home(tester), back), isFalse);
-      expect(identical(home(tester).headerEdge, back.headerEdge), isTrue);
-      expect(identical(home(tester).dockHalo, back.dockHalo), isTrue);
-      expect(identical(home(tester).ghost, back.ghost), isTrue);
+      expect(identical(home(tester).headerEdge, first.headerEdge), isTrue);
+      expect(identical(home(tester).dockHalo, first.dockHalo), isTrue);
+      expect(identical(home(tester).ghost, first.ghost), isTrue);
       await close(tester);
     });
   });

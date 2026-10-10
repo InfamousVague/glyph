@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart' show setEquals;
-import 'package:flutter/rendering.dart' show RenderOffstage;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -507,31 +506,31 @@ class AppShellState extends State<AppShell> {
   /// The place that is up, with what leaving it means: a note, the grid and an organization's dashboard go home; an
   /// organization's log goes back to its dashboard; the home page is the root, and has nothing to leave.
   ///
-  /// The home page stays where it is under the other three: built, laid out and not drawn, its animations stopped
-  /// and nothing in it able to hold the keyboard, so coming back to it is showing it again and not building every
-  /// card of it from nothing (measured on 354 notes: the one frame that came back to it was 500 to 1,700 ms). Whoever
-  /// builds it is told by [screen] that it is covered, and is to do no work meanwhile. [aside] is how wide the column
-  /// beside the place is, which only a note has: the home page under it is laid out without it.
-  Widget _place(BuildContext context, {double aside = 0}) {
+  /// The home page is taken down under the other three and made anew on the way back, as the page's is (App.tsx
+  /// `noteScreen ?? (… ?? home)`: a `<HomeScreen>` unmounted and mounted again). So it comes back as the page's does:
+  /// at its top, its search empty and its filter on All (both are that component's own state), and its cards and
+  /// rows arriving again, each after the one before. Kept alive under a note it came back where it had been
+  /// scrolled to, with the search it had and nothing arriving, which the page never does; and an entrance is its
+  /// card's own first frames, so a page kept and only shown again cannot play one.
+  Widget _place(BuildContext context) {
     final screen = _screen;
-    final Widget? over;
     switch (screen) {
       case ScreenNote():
-        over = OnBack(
+        return OnBack(
           key: const ValueKey('back:note'),
           onBack: backToList,
           // A note's screen is made anew for each note.
           child: KeyedSubtree(key: ValueKey('note:${screen.note.id}'), child: widget.noteBuilder?.call(context, this, screen) ?? NotePlaceholder(note: screen.note)),
         );
       case ScreenNotes():
-        over = OnBack(
+        return OnBack(
           key: const ValueKey('back:notes'),
           onBack: backToList,
           child: widget.allNotesBuilder?.call(context, this, screen) ?? AllNotesPlaceholder(notes: notes, tapes: screen.tapes, onOpen: openNote),
         );
       case ScreenOrganization():
         final log = screen.page == OrganizationPage.log;
-        over = OnBack(
+        return OnBack(
           key: const ValueKey('back:organization'),
           onBack: log ? () => openOrganization(screen.orgId) : backToList,
           child: KeyedSubtree(
@@ -541,27 +540,8 @@ class AppShellState extends State<AppShell> {
           ),
         );
       default:
-        over = null;
+        return widget.homeBuilder?.call(context, this) ?? HomePlaceholder(notes: notes, onOpen: openNote, onAllNotes: showAllNotes);
     }
-    final covered = over != null;
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        _Kept(
-          key: const ValueKey('place:home'),
-          covered: covered,
-          wider: aside,
-          child: TickerMode(
-            enabled: !covered,
-            child: ExcludeFocus(
-              excluding: covered,
-              child: widget.homeBuilder?.call(context, this) ?? HomePlaceholder(notes: notes, onOpen: openNote, onAllNotes: showAllNotes),
-            ),
-          ),
-        ),
-        ?over,
-      ],
-    );
   }
 
   /// A screen that takes the whole window, and its own way out.
@@ -721,7 +701,7 @@ class AppShellState extends State<AppShell> {
                 child: ClipRect(child: widget.dockedSidebarBuilder?.call(context, this) ?? PanePlaceholder(what: 'the notes, docked', notes: notes, onOpen: openNote)),
               ),
             ),
-          Expanded(key: const ValueKey('pane:place'), child: ClipRect(child: _place(context, aside: aside == null ? 0 : asideColumn(window)))),
+          Expanded(key: const ValueKey('pane:place'), child: ClipRect(child: _place(context))),
           if (aside != null)
             Semantics(
               container: true,
@@ -790,53 +770,6 @@ class AppShellState extends State<AppShell> {
         ),
       ),
     );
-  }
-}
-
-/// A place kept under another: built and laid out, and neither drawn nor pressed, as [Offstage] keeps its child.
-/// What differs is the room it is laid out in. A note with its aside docked beside it stands in a narrower pane
-/// than the home page ever does, and the page laid out in that (a row of an organization's card eleven pixels too
-/// wide for it) is a layout nobody will see and an error in a debug build; so while it is covered it is laid out
-/// [wider] by the column it does not share, which is the room it has when it is come back to.
-class _Kept extends Offstage {
-  const _Kept({super.key, required bool covered, this.wider = 0, super.child}) : super(offstage: covered);
-
-  final double wider;
-
-  @override
-  RenderOffstage createRenderObject(BuildContext context) => _RenderKept(offstage: offstage, wider: wider);
-
-  @override
-  void updateRenderObject(BuildContext context, covariant _RenderKept renderObject) {
-    super.updateRenderObject(context, renderObject);
-    renderObject.wider = wider;
-  }
-}
-
-class _RenderKept extends RenderOffstage {
-  _RenderKept({required super.offstage, required double wider}) : _wider = wider;
-
-  double _wider;
-  set wider(double value) {
-    if (value == _wider) return;
-    _wider = value;
-    if (offstage) markNeedsLayout();
-  }
-
-  @override
-  void performLayout() {
-    if (!offstage || _wider == 0 || !constraints.hasBoundedWidth) return super.performLayout();
-    child?.layout(BoxConstraints(minWidth: constraints.minWidth + _wider, maxWidth: constraints.maxWidth + _wider, minHeight: constraints.minHeight, maxHeight: constraints.maxHeight));
-  }
-
-  /// What is not drawn is nowhere. Asked where something in it is, a covered place answers with no place at all,
-  /// so whatever finds a thing by where it stands in the window does not find one under the note: the walk that
-  /// measures the app looks for a word or a label through every element there is (lib/shell/phone_tour.dart), and
-  /// with the home page kept it pressed the page's own "Home" under the note in place of the bar's.
-  @override
-  void applyPaintTransform(RenderBox child, Matrix4 transform) {
-    if (offstage) return transform.setZero();
-    super.applyPaintTransform(child, transform);
   }
 }
 
