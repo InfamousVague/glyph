@@ -197,9 +197,11 @@ class NoteTabs extends StatefulWidget {
     if (shape == TabShape.capsule) return tabH - 4;
     final small = t.fontSize('sm');
     final line = normalLine(t.fontSize('md'), dpr: t.css.lineDpr);
-    final pill = small + 2 * 0.52 * small + 2;
+    // A border is as wide as a phone draws it: whole device pixels, the kit's hairline.
+    final hair = t.len('glacier-hairline');
+    final pill = small + 2 * 0.52 * small + 2 * hair;
     final inside = 2 * t.space(1) * 1.3 + (pills ? math.max(pill, line) : line);
-    return math.max(tabH, inside + (shape == TabShape.tab ? 1 : 0));
+    return math.max(tabH, inside + (shape == TabShape.tab ? hair : 0));
   }
 
   @override

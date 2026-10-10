@@ -224,13 +224,16 @@ class SpacePill extends StatelessWidget {
           // `max-inline-size: calc(8ch + 1.6em + 2px)`: eight characters of the name, and the ring around them. A
           // `ch` is the width of the face's zero.
           final zero = (TextPainter(text: TextSpan(text: '0', style: style), textDirection: TextDirection.ltr)..layout()).width;
+          // `border: 1px solid`, as wide as a phone draws it: whole device pixels (two at 2.625, 0.76px), which is
+          // what the page's pill is as tall by (measured: 76.11 device pixels where a border of 1 made it 77.4).
+          final hair = t.len('glacier-hairline');
           return ExcludeSemantics(
             child: Container(
-              constraints: BoxConstraints(maxWidth: 8 * zero + 1.6 * size + 2),
+              constraints: BoxConstraints(maxWidth: 8 * zero + 1.6 * size + 2 * hair),
               // The ring is the box's own border, which a container counts into its padding.
               padding: EdgeInsets.symmetric(vertical: 0.52 * size, horizontal: 0.8 * size),
               decoration: BoxDecoration(
-                border: Border.all(color: t.colorOf('color-mix(in oklch, var(--app-space, var(--app-ink-3)) 55%, transparent)')),
+                border: Border.all(color: t.colorOf('color-mix(in oklch, var(--app-space, var(--app-ink-3)) 55%, transparent)'), width: hair),
                 borderRadius: BorderRadius.circular(t.radius('full')),
               ),
               // `line-height: 1`: the line is the size of its words, so the ring is even above and below them.
@@ -336,6 +339,7 @@ class _NoteTabState extends State<NoteTab> {
     final active = widget.active;
     final capsule = shape == TabShape.capsule;
     final tabH = t.len('app-tab-h');
+    final hair = t.len('glacier-hairline');
     final md = Radius.circular(t.radius('md'));
     final ink = t.color('app-ink');
     final lit = _hovered && !active;
@@ -447,15 +451,16 @@ class _NoteTabState extends State<NoteTab> {
       onExit: (_) => setState(() => _hovered = false),
       child: Container(
         constraints: BoxConstraints(minHeight: capsule ? tabH - 4 : tabH, maxWidth: t.lenOf('17rem')),
-        // `border: 1px solid transparent; border-block-end: 0`, which a capsule and an index word do not wear.
-        padding: shape == TabShape.tab ? const EdgeInsets.fromLTRB(1, 1, 1, 0) : EdgeInsets.zero,
+        // `border: 1px solid transparent; border-block-end: 0`, which a capsule and an index word do not wear. As
+        // wide as a phone draws it (the hairline, whole device pixels).
+        padding: shape == TabShape.tab ? EdgeInsets.fromLTRB(hair, hair, hair, 0) : EdgeInsets.zero,
         decoration: BoxDecoration(color: ground, borderRadius: radius),
         child: Stack(
           clipBehavior: Clip.none,
           children: [
             // `display: inline-flex; align-items: center`, in what the tab's least height leaves it.
             ConstrainedBox(
-              constraints: BoxConstraints(minHeight: (capsule ? tabH - 4 : tabH) - (shape == TabShape.tab ? 1 : 0)),
+              constraints: BoxConstraints(minHeight: (capsule ? tabH - 4 : tabH) - (shape == TabShape.tab ? hair : 0)),
               child: Row(mainAxisSize: MainAxisSize.min, children: [Flexible(child: name), ?close]),
             ),
             if (shape == TabShape.indexLine && active)
