@@ -60,9 +60,12 @@ class LookElement {
   double? styleLength(String property) {
     final style = attrs['style'];
     if (style == null) return null;
-    final found = RegExp('${RegExp.escape(property)}\\s*:\\s*(-?[\\d.]+)px').firstMatch(style);
+    final found = (_lengths[property] ??= RegExp('${RegExp.escape(property)}\\s*:\\s*(-?[\\d.]+)px')).firstMatch(style);
     return found == null ? null : double.parse(found.group(1)!);
   }
+
+  /// The pattern for each property asked for, made once: a list item's hang is asked of every list line resolved.
+  static final Map<String, RegExp> _lengths = <String, RegExp>{};
 
   String get key => attrs.isEmpty ? classes.join(' ') : '${classes.join(' ')}|${attrs.entries.map((e) => '${e.key}=${e.value}').join(';')}';
 }

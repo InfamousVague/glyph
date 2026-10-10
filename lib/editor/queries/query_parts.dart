@@ -34,6 +34,9 @@ import '../looks/look.dart' show layoutUnitFloor;
 import 'query_layout.dart';
 import 'query_look.dart';
 
+/// " priority" at the end of a chip's label, which a chip in a query's row leaves unsaid.
+final RegExp _priorityWord = RegExp(r' priority$');
+
 /// What a row and a cell need from the query's drawing to act and to name days (`Acts`).
 class QueryActs {
   const QueryActs({required this.today, required this.locale, required this.editable, required this.onOpen, required this.onTick, required this.onMove, required this.pickable, required this.pick, this.onAdd, this.onControl});
@@ -539,7 +542,7 @@ Widget? cellView(QueryLook look, Cell cell, {required String field, required Que
                 children: <Widget>[
                   mark,
                   SizedBox(width: look.space(1)),
-                  PageWords(chip.label.replaceFirst(RegExp(r' priority$'), ''), look.sans(parent, color: quiet ? look.ink3 : null), line: line, softWrap: false),
+                  PageWords(chip.label.replaceFirst(_priorityWord, ''), look.sans(parent, color: quiet ? look.ink3 : null), line: line, softWrap: false),
                 ],
               ),
       );

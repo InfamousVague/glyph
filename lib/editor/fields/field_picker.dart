@@ -41,6 +41,9 @@ import '../items/field_chips.dart' show dayLabel, priorityIcon;
 import '../items/field_menu.dart' show DayPicker, dayChoices;
 import 'field_picks.dart';
 
+/// The at signs a name may be typed with.
+final RegExp _atSigns = RegExp('^@+');
+
 // ---- the marks ----------------------------------------------------------------------------------------------------
 
 /// `1em` where a mark is drawn: the size an icon theme set round it gives its icons, else the text's.
@@ -110,7 +113,7 @@ class Avatar extends StatelessWidget {
 
   /// What is written in it: the name's first letter in capitals, at signs aside, or a question mark for no name.
   String get initial {
-    final said = name.replaceFirst(RegExp('^@+'), '');
+    final said = name.replaceFirst(_atSigns, '');
     return said.isEmpty ? '?' : String.fromCharCode(said.runes.first).toUpperCase();
   }
 
@@ -239,7 +242,7 @@ class _FieldPickerState extends State<FieldPicker> {
         ]);
 
       case PersonPick():
-        final name = _typed.trim().replaceFirst(RegExp('^@+'), '');
+        final name = _typed.trim().replaceFirst(_atSigns, '');
         final people = [for (final person in pick.people) if (name.isEmpty || person.toLowerCase().contains(name.toLowerCase())) person];
         final known = people.any((person) => samePerson(person, name));
         final value = pick.value;

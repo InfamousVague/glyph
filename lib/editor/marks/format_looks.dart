@@ -64,6 +64,9 @@ class StyleLookSpec {
   final String? Function(String name)? tint;
 }
 
+/// A weight said as a token, `var(--glacier-font-weight-semibold)`.
+final RegExp _weightToken = RegExp(r'^var\(--([\w-]+)');
+
 /// `(green)` straight after a mark: the name a tint is asked about.
 final RegExp _tint = RegExp(r'^\(([^)\n]+)\)');
 
@@ -235,7 +238,7 @@ void _dressText(Props p, LookEnv e, StyleCss css) {
   if (color != null) p.color = e.t.colorOf(color, current: p.color);
   final weight = css['font-weight'];
   if (weight != null) {
-    final named = RegExp(r'^var\(--([\w-]+)').firstMatch(weight);
+    final named = _weightToken.firstMatch(weight);
     p.weight = named != null ? e.t.len(named.group(1)!) : (double.tryParse(weight) ?? (weight == 'bold' ? 700 : p.weight));
   }
   final spacing = css.letterSpacingEm;

@@ -136,13 +136,15 @@ List<Map<String, Object?>> _markdownData(EditorState state, int pos, int side) =
 // @codemirror/language: indentation
 // ---------------------------------------------------------------------------------------------------------------
 
+final RegExp _notSpace = RegExp(r'\S');
+
 /// CodeMirror's `indentUnit`: what one level of indentation is, a string of one whitespace character repeated. Two
 /// spaces when nothing says.
 final Facet<String, String> indentUnit = Facet.define<String, String>(
   combine: (values) {
     if (values.isEmpty) return '  ';
     final unit = values[0];
-    if (unit.isEmpty || RegExp(r'\S').hasMatch(unit) || unit.split('').any((e) => e != unit[0])) {
+    if (unit.isEmpty || _notSpace.hasMatch(unit) || unit.split('').any((e) => e != unit[0])) {
       throw ArgumentError('Invalid indent unit: "${values[0]}"');
     }
     return unit;

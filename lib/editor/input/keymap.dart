@@ -64,24 +64,33 @@ enum KeyPlatform {
   };
 }
 
+// A key's name in its parts, and each modifier's spellings: made once, not for every name read.
+final RegExp _keyParts = RegExp(r'-(?!$)');
+final RegExp _isMeta = RegExp(r'^(cmd|meta|m)$', caseSensitive: false);
+final RegExp _isAlt = RegExp(r'^a(lt)?$', caseSensitive: false);
+final RegExp _isCtrl = RegExp(r'^(c|ctrl|control)$', caseSensitive: false);
+final RegExp _isShift = RegExp(r'^s(hift)?$', caseSensitive: false);
+final RegExp _isMod = RegExp(r'^mod$', caseSensitive: false);
+final RegExp _functionKey = RegExp(r'^F(\d\d?)$');
+
 /// CodeMirror's `normalizeKeyName`: `Mod-Shift-z` as `Ctrl-Shift-z` (or `Meta-Shift-z`), modifiers in the order
 /// Alt, Ctrl, Meta, Shift. A capital letter is its key with Shift (`Alt-A` is `Alt-Shift-a`).
 String normalizeKeyName(String name, KeyPlatform platform) {
-  final parts = name.split(RegExp(r'-(?!$)'));
+  final parts = name.split(_keyParts);
   var result = parts.last;
   if (result == 'Space') result = ' ';
   var alt = false, ctrl = false, shift = false, meta = false;
   for (var i = 0; i < parts.length - 1; i++) {
     final mod = parts[i];
-    if (RegExp(r'^(cmd|meta|m)$', caseSensitive: false).hasMatch(mod)) {
+    if (_isMeta.hasMatch(mod)) {
       meta = true;
-    } else if (RegExp(r'^a(lt)?$', caseSensitive: false).hasMatch(mod)) {
+    } else if (_isAlt.hasMatch(mod)) {
       alt = true;
-    } else if (RegExp(r'^(c|ctrl|control)$', caseSensitive: false).hasMatch(mod)) {
+    } else if (_isCtrl.hasMatch(mod)) {
       ctrl = true;
-    } else if (RegExp(r'^s(hift)?$', caseSensitive: false).hasMatch(mod)) {
+    } else if (_isShift.hasMatch(mod)) {
       shift = true;
-    } else if (RegExp(r'^mod$', caseSensitive: false).hasMatch(mod)) {
+    } else if (_isMod.hasMatch(mod)) {
       if (platform == KeyPlatform.mac) {
         meta = true;
       } else {
@@ -124,7 +133,7 @@ LogicalKeyboardKey? keyNamed(String name) {
   final named = _named[name];
   if (named != null) return named;
   if (name.length == 1) return LogicalKeyboardKey.findKeyByKeyId(name.codeUnitAt(0)) ?? LogicalKeyboardKey(name.codeUnitAt(0));
-  final f = RegExp(r'^F(\d\d?)$').firstMatch(name);
+  final f = _functionKey.firstMatch(name);
   if (f != null) return LogicalKeyboardKey.findKeyByKeyId(LogicalKeyboardKey.f1.keyId + int.parse(f.group(1)!) - 1);
   return null;
 }
@@ -180,7 +189,7 @@ class Keymap {
   late final Map<ShortcutActivator, Intent> shortcuts = () {
     final shortcuts = <ShortcutActivator, Intent>{};
     for (final name in byKey.keys) {
-      final parts = name.split(RegExp(r'-(?!$)'));
+      final parts = name.split(_keyParts);
       final key = keyNamed(parts.last);
       if (key == null) continue;
       final mods = parts.sublist(0, parts.length - 1).toSet();

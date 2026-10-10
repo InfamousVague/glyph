@@ -88,8 +88,10 @@ const double _creaseGap = 16;
 /// The opened Fold: a finger on a window this wide (`(pointer: coarse) and (min-width: 600px)`).
 const double _openedFold = 600;
 
+final RegExp _notIdLetter = RegExp('[^a-z0-9-]', caseSensitive: false);
+
 /// A row's id in the list, as the editor is told it.
-String addRowId(String id) => 'add-${id.replaceAll(RegExp('[^a-z0-9-]', caseSensitive: false), '-')}';
+String addRowId(String id) => 'add-${id.replaceAll(_notIdLetter, '-')}';
 
 /// Where the editor's keys reach the list while the editor keeps the focus (the web's `keys` ref): the list sets
 /// [current] while it is up, and the +'s `onKey` hook calls it.
