@@ -196,8 +196,8 @@ async function openWithPassword(session: Session, password: string, deps: Deps):
 
 /**
  * On launch: the session renewed, and, if it had lapsed, renewed again with this device's own key - the way a
- * signed-in phone stays signed in without anyone typing anything. A session that cannot be renewed either way is
- * signed out, keys and all.
+ * signed-in phone stays signed in without anyone typing anything. A session the service refuses both ways is signed
+ * out, keys and all; one it could not be asked about stays as it was.
  */
 export async function resume(deps: Deps = live): Promise<void> {
   const session = readSession();
@@ -213,17 +213,28 @@ export async function resume(deps: Deps = live): Promise<void> {
   if (device) {
     try {
       const { nonce } = await call<{ nonce: string }>('POST', 'login/challenge', { fetcher: deps.fetcher, body: { handle: session.handle } });
-      const answer = await call<SignedIn>('POST', 'login/device', {
-        fetcher: deps.fetcher,
-        body: { handle: session.handle, nonce, signature: await signNonce(device, nonce) },
+      // A key that cannot sign is no key: refused here as the service would refuse it, and signed out below.
+      const signature = await signNonce(device, nonce).catch(() => {
+        throw new ApiError(401, 'This device could not be verified.');
       });
+      const answer = await call<SignedIn>('POST', 'login/device', { fetcher: deps.fetcher, body: { handle: session.handle, nonce, signature } });
       return await settleState(deps, sessionOf(answer));
-    } catch {
-      // Falls through to signing out.
+    } catch (failure) {
+      // Only the service's own no signs this device out. The network going between the refresh that said the session
+      // had lapsed and the asking again says nothing about the key, and neither does a service that is down or busy:
+      // still signed in, as it was, keys and all, until it can be asked. The sync engine asks again at its next 401.
+      if (!refused(failure)) return settleState(deps, session);
     }
   }
   await signOut(deps);
 }
+
+/**
+ * Whether a failure is the service saying no to who is asking: its 401 (what `login/device` answers a key the account
+ * does not have, and a nonce that took too long) or a 403. Anything else is not its word on the key: no answer at all,
+ * the service down (5xx) or busy (429), or a proxy's page in its place (an HTML 404).
+ */
+const refused = (failure: unknown) => failure instanceof ApiError && (failure.status === 401 || failure.status === 403);
 
 /**
  * The account deleted from the service, and everything it kept there: the notes, settings, recordings and pictures

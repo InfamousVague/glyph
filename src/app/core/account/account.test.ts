@@ -4,7 +4,7 @@ import { makeNote } from '../../../test/notes.ts';
 import { newDeviceKey, open } from '../sync/crypto.ts';
 import { accountState, changePassword, deleteAccount, newRecoveryCodes, recover, resume, signIn, signOut, signUp, type Deps } from './account.ts';
 import { ApiError } from './api.ts';
-import { memoryKeys } from './keystore.ts';
+import { memoryKeys, readSession } from './keystore.ts';
 
 /**
  * The account on this device, against the service in memory (src/test/fakeService.ts): making one, the three ways
@@ -189,6 +189,50 @@ describe('resuming on launch', () => {
     service.expireAllTokens();
     await resume(phone);
     expect(service.calls).toEqual(['POST refresh', 'POST login/challenge', 'POST login/device']);
+    expect(accountState()).toEqual({ session: null, unlocked: false });
+    expect(await phone.keys.accountKey()).toBeNull();
+    expect(await phone.keys.deviceKey()).toBeNull();
+  });
+
+  it('keeps the session and its keys when the network goes between the lapse and the asking again', async () => {
+    const { service, phone, before } = await launched();
+    service.expireAllTokens();
+    // The refresh is answered (the session has lapsed); nothing after it gets through.
+    const flaky: typeof fetch = (input, init) => (String(input).endsWith('/refresh') ? service.fetcher(input, init) : Promise.reject(new TypeError('Failed to fetch')));
+    await resume({ ...phone, fetcher: flaky });
+    expect(accountState()).toEqual({ session: before, unlocked: true });
+    expect(await phone.keys.accountKey()).not.toBeNull();
+    expect(await phone.keys.deviceKey()).not.toBeNull();
+    expect(readSession()).toEqual(before);
+    // With the network back, the device's own key signs it in again.
+    service.calls.length = 0;
+    await resume(phone);
+    expect(service.calls).toEqual(['POST refresh', 'POST login/challenge', 'POST login/device']);
+    expect(accountState().session?.token).not.toBe(before.token);
+  });
+
+  it('keeps the session when what answers the asking again is not the service’s own no', async () => {
+    // The service down, the service busy, and a proxy's page where the service should be.
+    for (const status of [500, 503, 429, 404]) {
+      const { service, phone, before } = await launched();
+      service.expireAllTokens();
+      const other: typeof fetch = async (input, init) =>
+        String(input).endsWith('/refresh') ? service.fetcher(input, init) : new Response(`<html>${status}</html>`, { status, headers: { 'Content-Type': 'text/html' } });
+      await resume({ ...phone, fetcher: other });
+      expect(accountState(), String(status)).toEqual({ session: before, unlocked: true });
+      expect(await phone.keys.accountKey(), String(status)).not.toBeNull();
+      expect(await phone.keys.deviceKey(), String(status)).not.toBeNull();
+    }
+  });
+
+  it('signs out when this device’s key cannot sign what the service asks of it', async () => {
+    const { service, phone } = await launched();
+    // A pair with no private half to sign with: a key that is no key, which no later asking would mend.
+    const { publicKey } = await newDeviceKey();
+    await phone.keys.setDeviceKey({ publicKey, privateKey: publicKey });
+    service.expireAllTokens();
+    await resume(phone);
+    expect(service.calls).toEqual(['POST refresh', 'POST login/challenge']);
     expect(accountState()).toEqual({ session: null, unlocked: false });
     expect(await phone.keys.accountKey()).toBeNull();
     expect(await phone.keys.deviceKey()).toBeNull();
