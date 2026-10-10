@@ -202,6 +202,10 @@ class _SettingsSheetState extends State<SettingsSheet> {
         listenable: Listenable.merge([store, developerMode, spaces, services?.changes]),
         builder: (context, _) {
           if (ghostPerf) Perf.count(widget.open ? 'settings.sheet.open' : 'settings.sheet.shut');
+          // Shut, it draws nothing, and nothing is worked out for it: this is built again at every change of any
+          // preference (a tab opened, a note filed, the row of open notes), and each time read every section's
+          // line and listed every setting the search can find, the cheat sheet's hundred marks among them.
+          if (!widget.open) return SettingsScreen(open: false, onClose: widget.onClose, sections: const <SettingsSection>[], goTo: _goTo, split: widget.split);
           final facts = SettingsFacts(
             prefs: store.value,
             wide: wide,
