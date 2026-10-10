@@ -4,7 +4,8 @@
 ///
 /// - **Drawn once.** A picture is kept by what decides it ([DiagramAsk.key]): in memory, so scrolling past a
 ///   diagram draws nothing, and in the app's cache folder (`<cache>/diagrams`), so a note opened again has its
-///   diagrams without a web view being asked. A diagram written wrong is kept too, in memory, as the page keeps it.
+///   diagrams without a web view being asked. A diagram written wrong is kept too, as the page keeps it, by what
+///   Mermaid said of it; one that could not be drawn for another reason is kept only while the app is open.
 /// - **One at a time.** Mermaid keeps its settings in one place, and the web view is one page: a render waits for
 ///   the one before it.
 /// - **Only what is still wanted.** Whoever asks says who they are (a `slot`: one drawn block). A block that asks
@@ -210,6 +211,9 @@ class DiagramStore {
           unawaited(_write(job.key, answer));
         case DiagramFailed():
           made = DiagramMistake(answer.said);
+          // Mermaid's own words for these words are the same tomorrow: kept, so a note with a diagram written wrong
+          // does not make a web view each time it is opened. What is not the person's mistake is asked again.
+          if (answer.said.isNotEmpty) unawaited(_write(job.key, answer));
       }
     } on Object {
       // The line is only a place in line: one diagram's failure must not stop the ones behind it.
@@ -259,7 +263,7 @@ class DiagramStore {
 
   static const List<int> _magic = <int>[0x47, 0x44, 0x47, 0x31]; // GDG1
 
-  Future<DiagramPicture?> _read(String key) async {
+  Future<DiagramDrawing?> _read(String key) async {
     final dir = await _dir();
     if (dir == null) return null;
     try {
@@ -272,6 +276,11 @@ class DiagramStore {
       final said = jsonDecode(utf8.decode(Uint8List.sublistView(bytes, 8, 8 + head))) as Map<String, Object?>;
       // Two keys with one name: not this picture.
       if (said['key'] != key) return null;
+      final failed = said['failed'];
+      if (failed is String) {
+        reads += 1;
+        return failed.isEmpty ? null : DiagramMistake(failed);
+      }
       double number(String name) => (said[name] as num).toDouble();
       final image = await _decodePng(Uint8List.sublistView(bytes, 8 + head));
       reads += 1;
@@ -288,18 +297,21 @@ class DiagramStore {
     }
   }
 
-  Future<void> _write(String key, DiagramDrawn drawn) async {
+  Future<void> _write(String key, DiagramAnswer answer) async {
     final dir = await _dir();
     if (dir == null) return;
     try {
       final head = utf8.encode(
-        jsonEncode(<String, Object?>{'key': key, 'bw': drawn.block.width, 'bh': drawn.block.height, 'x': drawn.at.left, 'y': drawn.at.top, 'w': drawn.at.width, 'h': drawn.at.height, 's': drawn.scale}),
+        jsonEncode(switch (answer) {
+          DiagramDrawn() => <String, Object?>{'key': key, 'bw': answer.block.width, 'bh': answer.block.height, 'x': answer.at.left, 'y': answer.at.top, 'w': answer.at.width, 'h': answer.at.height, 's': answer.scale},
+          DiagramFailed() => <String, Object?>{'key': key, 'failed': answer.said},
+        }),
       );
       final out = BytesBuilder(copy: false)
         ..add(_magic)
         ..add((ByteData(4)..setUint32(0, head.length)).buffer.asUint8List())
-        ..add(head)
-        ..add(drawn.png);
+        ..add(head);
+      if (answer is DiagramDrawn) out.add(answer.png);
       final path = '${dir.path}/${diagramFile(key)}';
       // Whole or not at all: a picture half written is never read.
       final part = File('$path.part');

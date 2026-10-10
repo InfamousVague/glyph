@@ -206,12 +206,26 @@ void main() {
       // And from then on it is in memory.
       expect(opened.held(askFor('graph kept')), isA<DiagramPicture>());
 
-      // A mistake is never written, and a file that is not a picture is not believed.
+      // A diagram written wrong is kept too, by what Mermaid said of it, and not asked about again the next launch;
+      // one that could not be drawn for a reason that is not the person's is never written.
       final wrong = opened.draw(askFor('graph wrong'), slot: 'b');
       await until(() => again.asked.length == 1);
-      again.fail(0, 'Parse error');
+      again.fail(0, 'Parse error on line 2:\n...A -->');
       await wrong;
-      expect(folder.listSync(recursive: true).whereType<File>().length, 1);
+      final nowhere = opened.draw(askFor('graph nowhere'), slot: 'c');
+      await until(() => again.asked.length == 2);
+      again.fail(1, '');
+      await nowhere;
+      await until(() => folder.listSync(recursive: true).whereType<File>().length == 2, what: 'the mistake was written');
+      final later = HeldBridge();
+      final reopened = DiagramStore(bridge: later, folder: () async => folder.path, decode: smallPicture);
+      expect(((await reopened.draw(askFor('graph wrong'), slot: 'a'))! as DiagramMistake).said, 'Parse error on line 2:\n...A -->');
+      expect(later.asked, isEmpty);
+      final asked = reopened.draw(askFor('graph nowhere'), slot: 'a');
+      await until(() => later.asked.length == 1, what: 'what could not be drawn is asked again');
+      later.finish(0);
+      await asked;
+      // A file that is not a picture is not believed.
       file.writeAsBytesSync(Uint8List.fromList(<int>[1, 2, 3]));
       final third = HeldBridge();
       final spoiled = DiagramStore(bridge: third, folder: () async => folder.path, decode: smallPicture);
