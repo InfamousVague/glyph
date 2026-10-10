@@ -115,6 +115,10 @@ void describeLine(RenderEditorLine line, SemanticsConfiguration config) {
 
   config
     ..isSemanticBoundary = true
+    // A widget in the line (a chip, a count, a picture) is a node of its own inside the line's, called by what it
+    // says of itself. Left to merge, whatever of them had no press of its own was folded into the line's node,
+    // its name run on after the line's words and nothing left to find it by.
+    ..explicitChildNodes = true
     ..textDirection = TextDirection.ltr;
 
   final level = headingLevelOf(projection.className, projection.source);
