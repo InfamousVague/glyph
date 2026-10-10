@@ -828,6 +828,11 @@ class _GhostRootState extends State<GhostRoot> {
         workspaces: _workspaces,
         trash: _trash,
         say: NoteActions.toaster(context),
+        // The ticks under the finger (`fireNativeHaptic`): a warning as a note goes to the Trash or for good, a
+        // success on pin, archive, restore and Undo. Read as each is felt, so the Haptics switch is followed.
+        haptic: ([kind = HapticKind.light]) {
+          if (mounted) HapticsProvider.of(context)(kind);
+        },
         // Deleted for good: its gist, its runs, its marks, its kept summary and the job to write one go with it.
         onForget: (id) => forgetKept(id, summaries: _voice?.summaries, places: _places),
         // A meeting's write-up stops as its note goes into the trash, and is asked for again as it comes out.

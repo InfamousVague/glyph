@@ -21,6 +21,7 @@ import 'package:ghost_md/notes/notes_drawer.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/root/voice_wiring.dart';
 import 'package:ghost_md/shell/app_shell.dart';
+import 'package:glacier/glacier.dart' show HapticKind, HapticsProvider;
 
 import '../support/render.dart';
 import 'part_of.dart';
@@ -162,6 +163,37 @@ void main() {
     sidebar(tester).onRestore!(library.noteOf(bare.id)!);
     await settle(tester, 3);
     expect(writtenUp.last, (bare.id, false));
+    await close(tester);
+  });
+
+  // Unwired 22 (docs/PARITY.md): the root's actions were given no haptic, so nothing was felt (useNoteActions.ts
+  // `fireNativeHaptic`: a warning into the Trash, a success on Undo, restore, pin and archive).
+  testWidgets('a note going to the Trash is felt as a warning, and its Undo, a pin and an archive as a success', (tester) async {
+    final felt = <HapticKind>[];
+    final library = SampleLibrary.seeded();
+    await pumpApp(
+      tester,
+      prefs: const Preferences(theme: 'light'),
+      home: HapticsProvider(
+        enabled: true,
+        impl: ([kind = HapticKind.light]) => felt.add(kind),
+        child: GhostRoot(launch: false, library: library, workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), clock: () => seedNow, stored: MemoryStored()),
+      ),
+    );
+    await settle(tester);
+    final note = library.value.first;
+    menu(tester).onDelete(note);
+    await settle(tester, 2);
+    expect(felt, [HapticKind.warning]);
+    await tester.tap(find.text('Undo'));
+    await settle(tester, 2);
+    expect(felt.last, HapticKind.success);
+    felt.clear();
+    menu(tester).onPin(note);
+    await settle(tester, 2);
+    menu(tester).onArchive(library.noteOf(note.id)!, true);
+    await settle(tester, 2);
+    expect(felt, [HapticKind.success, HapticKind.success]);
     await close(tester);
   });
 
