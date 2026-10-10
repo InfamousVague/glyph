@@ -2265,9 +2265,10 @@ class _GhostRootState extends State<GhostRoot> {
   Object _sidebarReads(AppShellState shell) => (shell.notes, shell.shown, _workspaces.value, _trashed, _canBrowse, _capture != null, _updatesAt);
 
   /// The home page. Kept under a note, the grid or an organization's page (lib/shell/app_shell.dart), where it is
-  /// asked nothing and builds nothing: it is asked once as it is come back to. On screen it is built again for the
-  /// notes it shows, its layout, the workspace looked at, a recording, its notices, the gists, and the
-  /// organizations with who is in them.
+  /// asked nothing and builds nothing: it is built once as it is come back to, whatever changed, since what it says
+  /// of time ("20 min ago") is read as it is built. On screen it is built again for the notes it shows, its
+  /// layout, the workspace looked at, a recording, its notices, the gists, and the organizations with who is in
+  /// them.
   Widget _home(BuildContext context, AppShellState shell) => _part(
         'home',
         asleep: shell.screen is! ScreenList,
@@ -2327,9 +2328,19 @@ class _GhostRootState extends State<GhostRoot> {
       onOrganization: services == null ? null : shell.openOrganization,
       onOrganizationSettings: services == null ? null : _organizationSettings,
       onNewOrganization: signedIn ? () => setState(() => _newOrganization = true) : null,
-      headerEdge: (context, edge, scroller) => WispEdge(under: edge.under, foot: true, child: scroller),
-      dockHalo: (context, it) => DockSmoke(behind: it.behind, dock: it.dock, alignment: it.alignment, padding: it.padding),
-      ghost: (context, it) => Ghost(
+      headerEdge: _headerEdge,
+      dockHalo: _dockHalo,
+      ghost: _homeGhost,
+    );
+  }
+
+  /// The art in the seams the home page leaves for it. Each answers from what it is handed and nothing else, and is
+  /// the same function every time the page is built: the page does no work for a seam that is the one it had.
+  static Widget _headerEdge(BuildContext context, HomeEdge edge, Widget scroller) => WispEdge(under: edge.under, foot: true, child: scroller);
+
+  static Widget _dockHalo(BuildContext context, HomeDock it) => DockSmoke(behind: it.behind, dock: it.dock, alignment: it.alignment, padding: it.padding);
+
+  static Widget _homeGhost(BuildContext context, HomeGhost it) => Ghost(
         scene: switch (it.scene) {
           HomeGhostScene.noNotes => GhostScene.noNotes,
           HomeGhostScene.emptyWorkspace => GhostScene.emptyWorkspace,
@@ -2337,9 +2348,7 @@ class _GhostRootState extends State<GhostRoot> {
         },
         size: it.lead ? GhostSize.lead : GhostSize.small,
         heightShare: it.heightShare,
-      ),
-    );
-  }
+      );
 
   Widget _atWorkPart(BuildContext context) {
     final noteAi = _noteAi, id = _noteAiId;

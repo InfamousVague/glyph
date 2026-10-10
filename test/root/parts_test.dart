@@ -88,7 +88,7 @@ void main() {
       tick.dispose();
     });
 
-    testWidgets('asleep is asked nothing and builds nothing, and is asked once as it wakes', (tester) async {
+    testWidgets('asleep is asked nothing and builds nothing, and is built once as it wakes, whatever it selects', (tester) async {
       final tick = RootTick();
       var a = 1, asked = 0, built = 0;
       Widget held({required bool asleep}) => Directionality(
@@ -120,6 +120,13 @@ void main() {
       await tester.pumpWidget(held(asleep: false));
       expect((asked, built), (before + 1, 2));
       expect(find.text('a 3'), findsOneWidget);
+      // Away with nothing changed, it is still built as it comes back: what it says of time is read as it is built.
+      await tester.pumpWidget(held(asleep: true));
+      await tester.pumpWidget(held(asleep: false));
+      expect(built, 3);
+      // And awake, held by something built again, it is not.
+      await tester.pumpWidget(held(asleep: false));
+      expect(built, 3);
       tick.dispose();
     });
 
@@ -230,6 +237,17 @@ void main() {
       expect(identical(home(tester), page), isFalse);
       expect(home(tester).layout.name, 'cards');
       expect(home(tester).notes.any((each) => each.body.startsWith('# Made while away')), isTrue);
+      // Away and back with nothing changed, it is built once all the same, for the times it says; and the seams the
+      // root hands it are the functions they were.
+      final back = home(tester);
+      shell.openNote(note.id);
+      await settle(tester);
+      shell.backToList();
+      await settle(tester);
+      expect(identical(home(tester), back), isFalse);
+      expect(identical(home(tester).headerEdge, back.headerEdge), isTrue);
+      expect(identical(home(tester).dockHalo, back.dockHalo), isTrue);
+      expect(identical(home(tester).ghost, back.ghost), isTrue);
       await close(tester);
     });
   });

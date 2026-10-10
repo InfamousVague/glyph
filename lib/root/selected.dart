@@ -44,7 +44,8 @@ class RootTick extends ChangeNotifier {
 /// the same when every field is.
 ///
 /// While [asleep] nothing is asked and nothing is built: the part is covered, and what it last drew stands until it
-/// is looked at again, when it is asked once.
+/// is looked at again, when it is built once whatever it selects: a page that was away says some things by when it
+/// is built (how long ago a note was written), and nothing it selects says that time has passed.
 class Selected<T> extends StatefulWidget {
   const Selected({super.key, required this.listenable, required this.select, required this.builder, this.asleep = false, this.name});
 
@@ -64,7 +65,8 @@ class _SelectedState<T> extends State<Selected<T>> {
   late T _drew;
   Widget? _child;
 
-  /// Something inherited changed since the child was built: it is built again whatever is selected.
+  /// Something inherited changed since the child was built, or the part has been asleep since: it is built again
+  /// whatever is selected.
   bool _stale = false;
   bool _waiting = false;
 
@@ -114,7 +116,10 @@ class _SelectedState<T> extends State<Selected<T>> {
   @override
   Widget build(BuildContext context) {
     final had = _child;
-    if (had != null && widget.asleep) return had;
+    if (had != null && widget.asleep) {
+      _stale = true;
+      return had;
+    }
     final now = widget.select();
     if (had != null && !_stale && now == _drew) return had;
     _stale = false;
