@@ -23,6 +23,7 @@ import 'package:ghost_md/editor/editor.dart';
 import 'package:ghost_md/editor/editor_widget.dart' show Editor;
 import 'package:ghost_md/editor/find_bar/find_bar.dart';
 import 'package:ghost_md/editor/items/items.dart' show FieldMenuHost;
+import 'package:ghost_md/editor/marks/marks.dart' show typing;
 import 'package:ghost_md/editor/plus/plus.dart' show PlusLayer, moreRows, readGates;
 import 'package:ghost_md/home/home_screen.dart';
 import 'package:ghost_md/live/presence.dart';
@@ -53,12 +54,12 @@ import 'part_of.dart';
 void main() {
   setUpAll(loadAppFonts);
 
-  Future<SampleLibrary> open(WidgetTester tester, {AccountServices? services, Size size = const Size(390, 844), LinkOpener? openLink, List<Seen> Function(String orgId)? presence}) async {
+  Future<SampleLibrary> open(WidgetTester tester, {AccountServices? services, Size size = const Size(390, 844), LinkOpener? openLink, List<Seen> Function(String orgId)? presence, Preferences prefs = const Preferences(theme: 'light')}) async {
     final library = SampleLibrary.seeded();
     await pumpApp(
       tester,
       size: size,
-      prefs: const Preferences(theme: 'light'),
+      prefs: prefs,
       // A memory of its own for each app opened: what one test kept on the device (a note's versions) is not there
       // for the next.
       home: GhostRoot(launch: false, library: library, workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), stored: MemoryStored(), clock: () => seedNow, services: services, openLink: openLink, presence: presence),
@@ -368,6 +369,19 @@ void main() {
       expect((controller.value?.id, controller.value?.x, controller.value?.y), (note.id, 120.0, 300.0));
       controller.close();
       await tester.pump();
+      await close(tester);
+    });
+
+    // Differs 10 (docs/PARITY.md): a note's editor always had typing's smoke, whatever Appearance › Motion › Ghostly
+    // typing said (NoteScreen.tsx `wispTyping={prefs.wisp}`, read as the editor is made).
+    testWidgets('lets what a hand takes out leave as smoke only with Ghostly typing on', (tester) async {
+      var library = await open(tester);
+      await openNote(tester, library.value.first.id);
+      expect(tester.state<NoteScreenState>(find.byType(NoteScreen)).view!.state.facet(typing), isTrue);
+      await close(tester);
+      library = await open(tester, prefs: const Preferences(theme: 'light', wisp: false));
+      await openNote(tester, library.value.first.id);
+      expect(tester.state<NoteScreenState>(find.byType(NoteScreen)).view!.state.facet(typing), isFalse);
       await close(tester);
     });
 

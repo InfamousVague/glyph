@@ -571,6 +571,9 @@ class NoteDeskState extends State<NoteDesk> {
   late final bool _still = context.tokens.reducedMotion;
   late final double _pace = _prefs.value.motionScale;
 
+  /// Appearance › Motion › Ghostly typing, as it stood when this note's editor was made.
+  late final bool _ghostly = _prefs.value.wisp;
+
   /// The inline formattings this note's editor parses and draws: the switched-on plugins', read as the editor is
   /// made, as the page's is (a plugin switched on or off is in the next note opened).
   late final List<GlyphFormat> _formats = noteFormats();
@@ -582,12 +585,14 @@ class NoteDeskState extends State<NoteDesk> {
     editorInput(assist: _prefs.value.assist),
     // Empty until the note is live: then the binding to its document, and the others' carets.
     liveBindingSlot(),
-    // The AI's arrivals bring the departures themselves: given twice, every ghost is drawn twice.
-    markExtensions(_formats, wispTyping: _ai == null),
+    // What the person takes out leaves as smoke only with Ghostly typing on, read as the editor is made
+    // (`wispTyping={prefs.wisp}`). The AI's arrivals bring the departures themselves: given twice, every ghost is
+    // drawn twice.
+    markExtensions(_formats, wispTyping: _ai == null && _ghostly),
     wispStill.of(_still),
     wispPace.of(_pace),
     // With no AI a note has no blanks, but for an iPhone's, which are drawn with no Fill (iphone_wiring.dart).
-    if (_ai != null) ...noteAiExtensions(_ai, still: _still) else ...iPhoneBlanks(noteId: () => widget.noteId, say: (message) => _toasts?.toast(message: Text(message)), still: _still),
+    if (_ai != null) ...noteAiExtensions(_ai, still: _still, wispTyping: _ghostly) else ...iPhoneBlanks(noteId: () => widget.noteId, say: (message) => _toasts?.toast(message: Text(message)), still: _still),
     itemExtensions(
       wiki: WikiOptions(known: (title) => _world.known(title), open: (title, [anchor]) => _world.open(title, anchor), body: (title) => _world.bodyOf?.call(title)),
       openHeading: true,

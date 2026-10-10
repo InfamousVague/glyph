@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/capture/ui/live_page.dart' show LivePage;
 import 'package:ghost_md/capture/engine.dart';
 import 'package:ghost_md/capture/place.dart';
 import 'package:ghost_md/capture/recorder.dart';
@@ -36,6 +37,19 @@ void main() {
   /// The card asking which note, whatever its heading says after these words.
   bool choiceStarting(Capture capture, String words) =>
       find.byWidgetPredicate((widget) => widget is NoteChoiceCard<Note> && widget.card.heading.startsWith(words)).evaluate().isNotEmpty;
+
+  // Differs 10 (docs/PARITY.md): Appearance › Motion › Ripples while recording did nothing: the recorder always
+  // handed its page the ripples (capture/LivePage.tsx `ripples={rippling ? ripples : undefined}`).
+  group('Ripples while recording', () {
+    testWidgets('send the voice through the page\'s words with the switch on, and not at all with it off', (tester) async {
+      final on = await recording(tester);
+      expect(tester.widget<LivePage>(find.byType(LivePage)).ripples, isNotNull);
+      await on.close();
+      final off = await recording(tester, first: (capture) => capture.prefs = capture.prefs.copyWith(ripples: false));
+      expect(tester.widget<LivePage>(find.byType(LivePage)).ripples, isNull);
+      await off.close();
+    });
+  });
 
   group('adding to a note as it is said', () {
     testWidgets('switches to House TODOs, writes the to-do into its list as it is said, and opens it at Done', (tester) async {

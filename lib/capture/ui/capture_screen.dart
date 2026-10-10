@@ -1676,7 +1676,8 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
         // note being continued shows none of its text.
         KeyedSubtree(
           child: LivePage(
-            ripples: _ripples,
+            // Appearance › Motion › Ripples while recording (`ripples={rippling ? ripples : undefined}`).
+            ripples: _r.preferences().ripples ? _ripples : null,
             // The page is remade when the note it shows changes, and when the recorder is up: "Start talking." after
             // "Starting…".
             key: ValueKey('page-${target?.id ?? _pendingTitle ?? 'new'}-$_moves-${meeting ? 'meeting' : 'take'}-${phase == Phase.starting ? 'starting' : 'up'}'),
