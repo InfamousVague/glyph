@@ -265,20 +265,63 @@ void main() {
       expect(core.asked('list_notes'), 2);
     });
 
-    test('follows every write, so the list is the library’s by the time the write is answered', () async {
-      final it = libraryOver();
+    test('is not what follows a write: the note the core answered is put in the list, which a read again finds as it left it', () async {
+      final core = FakeCore()
+        ..seed('old', '# Old', at: 10)
+        ..seed('mid', '# Mid', at: 20);
+      final it = libraryOver(core);
       await it.library.load();
-      final before = it.core.asked('list_notes');
+      final before = core.asked('list_notes');
+      // The list after each write is the list a read of the whole library answers: the same notes in the same
+      // order, and so the very same list, since a read that finds nothing new keeps what is held.
+      Future<void> same() async {
+        final held = it.library.value;
+        await it.library.refresh();
+        expect(ids(it.library.value), ids(held));
+        expect(identical(it.library.value, held), isTrue, reason: 'the write left the list as a read of the library has it');
+      }
+
+      core.now = 30;
       await it.library.createNote('# One', id: 'a');
-      expect(it.core.asked('list_notes'), before + 1);
-      await it.library.update('a', '# One, renamed', 1);
-      expect(it.core.asked('list_notes'), before + 2);
-      // The file was renamed with its title, and the list says where it is now.
-      expect(it.library.noteOf('a')!.path, 'Inbox/One, renamed.md');
-      await it.library.pin('a', pinned: true);
+      expect(ids(it.library.value), ['a', 'mid', 'old']);
+      await same();
+      core.now = 40;
+      await it.library.update('old', '# Old, renamed', 1);
+      // The file was renamed with its title, and the list says where it is now; the newest edit is first.
+      expect(it.library.noteOf('old')!.path, 'Inbox/Old, renamed.md');
+      expect(ids(it.library.value), ['old', 'a', 'mid']);
+      await same();
+      // A pin and an archive are not edits: the note keeps its place.
+      await it.library.pin('mid', pinned: true);
+      expect(ids(it.library.value), ['old', 'a', 'mid']);
+      await same();
       await it.library.archive('a', archived: true);
+      expect(ids(it.library.value), ['old', 'a', 'mid']);
+      await same();
+      await it.library.apply(const Note(id: 'theirs', body: '# Theirs', createdAt: 5, updatedAt: 25, revision: 3));
+      expect(ids(it.library.value), ['old', 'a', 'theirs', 'mid']);
+      await same();
       await it.library.destroy('a');
-      expect(it.core.asked('list_notes'), before + 5);
+      expect(ids(it.library.value), ['old', 'theirs', 'mid']);
+      await same();
+      // Every read of the list above was the test's own.
+      expect(core.asked('list_notes'), before + 6);
+    });
+
+    test('puts two notes of one moment in the core’s own order, by id', () async {
+      final core = FakeCore()
+        ..seed('b', '# B', at: 10)
+        ..seed('d', '# D', at: 10);
+      final it = libraryOver(core);
+      await it.library.load();
+      core.now = 10;
+      await it.library.createNote('# C', id: 'c');
+      await it.library.createNote('# A', id: 'a');
+      await it.library.createNote('# E', id: 'e');
+      expect(ids(it.library.value), ['a', 'b', 'c', 'd', 'e']);
+      final held = it.library.value;
+      await it.library.refresh();
+      expect(identical(it.library.value, held), isTrue);
     });
 
     test('is one read at a time, with one more for everyone who asked meanwhile', () async {
@@ -290,14 +333,136 @@ void main() {
       expect(core.asked('list_notes'), before + 2);
     });
 
-    test('tells a listener of a write that the list could not be read after, and keeps the note it was answered', () async {
-      final it = libraryOver();
+    test('follows a pin of a note that has gone, which answers nothing: the list is where it stops being', () async {
+      final core = FakeCore()..seed('a', '# A');
+      final it = libraryOver(core);
       await it.library.load();
-      await it.library.createNote('words', id: 'a');
-      it.core.fail('list_notes');
+      // Another process deleted it; the list here still holds it.
+      await core.invoke('delete_note', {'id': 'a'});
+      expect(ids(it.library.value), ['a']);
       await it.library.pin('a', pinned: true);
-      expect(it.library.noteOf('a')!.starred, isTrue);
+      expect(it.library.value, isEmpty);
+      // And where that read fails, it is said and the list stands.
+      core.seed('b', '# B');
+      await it.library.refresh();
+      await core.invoke('delete_note', {'id': 'b'});
+      core.fail('list_notes');
+      await it.library.pin('b', pinned: true);
+      expect(ids(it.library.value), ['b']);
       expect(it.said.last, contains('could not be read again'));
+    });
+  });
+
+  group('what a listener is told', () {
+    test('is one thing for one save', () async {
+      final core = FakeCore()
+        ..seed('a', '# A', at: 10)
+        ..seed('b', '# B', at: 20);
+      final it = libraryOver(core);
+      await it.library.load();
+      var told = 0;
+      it.library.addListener(() => told += 1);
+      core.now = 30;
+      await it.library.update('a', '# A, on', 1);
+      expect(told, 1);
+      await it.library.pin('a', pinned: true);
+      expect(told, 2);
+      await it.library.createNote('# New', id: 'n');
+      // Once as it is made here, before the core has answered, and once with the note as it was stored.
+      expect(told, 4);
+      await it.library.destroy('n');
+      expect(told, 5);
+    });
+
+    test('is nothing for a read that found the library as it was, and the list is the list it was', () async {
+      final core = FakeCore()
+        ..seed('a', '# A', at: 10)
+        ..seed('b', '# B', at: 20);
+      final it = libraryOver(core);
+      await it.library.load();
+      final held = it.library.value;
+      final revision = it.library.revision;
+      var told = 0;
+      it.library.addListener(() => told += 1);
+      await it.library.refresh();
+      await it.library.refresh();
+      expect(told, 0);
+      expect(identical(it.library.value, held), isTrue);
+      expect(it.library.revision, revision);
+      // A pin to what it already is changes nothing either.
+      await it.library.pin('a', pinned: false);
+      expect(told, 0);
+      expect(identical(it.library.value, held), isTrue);
+    });
+
+    test('keeps every note that did not change the object it was, across a save and across a read', () async {
+      final core = FakeCore()
+        ..seed('a', '# A', at: 10)
+        ..seed('b', '# B', at: 20)
+        ..seed('c', '# C', at: 30);
+      final it = libraryOver(core);
+      await it.library.load();
+      final a = it.library.noteOf('a')!, b = it.library.noteOf('b')!, c = it.library.noteOf('c')!;
+      final revision = it.library.revision;
+      core.now = 40;
+      await it.library.update('b', '# B, on', 1);
+      expect(identical(it.library.noteOf('a'), a), isTrue);
+      expect(identical(it.library.noteOf('c'), c), isTrue);
+      expect(identical(it.library.noteOf('b'), b), isFalse);
+      expect(it.library.revision, revision + 1);
+      // Another process wrote one note: a read again hands back that one new, and the rest as they were.
+      final on = it.library.noteOf('b')!;
+      core.writeBehind('c', '# C, written behind');
+      await it.library.refresh();
+      expect(identical(it.library.noteOf('a'), a), isTrue);
+      expect(identical(it.library.noteOf('b'), on), isTrue);
+      expect(it.library.noteOf('c')!.body, '# C, written behind');
+      expect(it.library.revision, revision + 2);
+    });
+
+    test('of one note is that note’s changes and no other’s', () async {
+      final core = FakeCore()
+        ..seed('a', '# A', at: 10)
+        ..seed('b', '# B', at: 20);
+      final it = libraryOver(core);
+      await it.library.load();
+      final watch = NoteWatch(it.library, 'a');
+      expect(watch.value!.body, '# A');
+      var told = 0;
+      void heard() => told += 1;
+      watch.addListener(heard);
+      core.now = 30;
+      await it.library.update('b', '# B, on', 1);
+      await it.library.pin('b', pinned: true);
+      await it.library.refresh();
+      expect(told, 0);
+      await it.library.update('a', '# A, on', 1);
+      expect(told, 1);
+      expect(watch.value!.body, '# A, on');
+      await it.library.destroy('a');
+      expect(told, 2);
+      expect(watch.value, isNull);
+      // Followed by nobody, it listens to nothing and still answers what the library holds.
+      watch.removeListener(heard);
+      await it.library.createNote('# A again', id: 'a');
+      expect(told, 2);
+      expect(watch.value!.body, '# A again');
+    });
+  });
+
+  group('two notes', () {
+    test('are the same where every field is, and not where one differs', () {
+      const one = Note(id: 'a', body: 'words', createdAt: 1, updatedAt: 2, starred: true, path: 'Inbox/a.md', revision: 3);
+      const same = Note(id: 'a', body: 'words', createdAt: 1, updatedAt: 2, starred: true, path: 'Inbox/a.md', revision: 3);
+      expect(one == same, isTrue);
+      expect(one.hashCode, same.hashCode);
+      expect(one == one.copyWith(body: 'other words'), isFalse);
+      expect(one == one.copyWith(revision: 4), isFalse);
+      expect(one == one.copyWith(starred: false), isFalse);
+      expect(one == one.copyWith(archivedAt: () => 9), isFalse);
+      expect(one == one.copyWith(path: () => 'Inbox/b.md'), isFalse);
+      const heard = Note(id: 'a', body: 'words', createdAt: 1, updatedAt: 2, starred: true, path: 'Inbox/a.md', revision: 3, segments: [Segment(startMs: 0, endMs: 5, text: 'words')]);
+      expect(one == heard, isFalse);
     });
   });
 

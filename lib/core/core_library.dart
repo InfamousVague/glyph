@@ -8,9 +8,17 @@
 /// `apply_command_mutation {request}`, `undo_command_mutation {mutationId}`.
 ///
 /// What differs:
-/// - **A write reads the list again by itself**, and a write's future completes once it has, where on the page each
-///   caller refreshes after its own (`announceNotesChanged`, or the hook's `refresh`). The note a command answers is
-///   put in the list at once, before that read, so a pin is seen on the next frame.
+/// - **A write is put in the list from the core's own answer**, and a write's future completes once it has been:
+///   the note `update_note`, `create_note`, a pin, an archive or `store_apply` answers is the note as the library
+///   now has it, so it takes its place among the others (newest edit first, the core's own order between two of one
+///   moment: by id) and the list is not read again for it. On the page each caller refreshes after its own write
+///   (`announceNotesChanged`, or the hook's `refresh`), and an open note's saves read nothing until it is left;
+///   here the whole library was read again after every one, every 400 ms of typing, and its listeners told twice.
+///   A command's write and its undo still read again: an undo can take a note out of the library and says only that
+///   it did.
+/// - **A listener is told once, and only of a change.** A note that is the same, field for field, after a read
+///   again is the object it was ([Note.==]), and the list itself is the list it was while no note in it is another:
+///   `identical` answers "did the notes change" and "did this note", and [revision] counts the times they did.
 /// - **A new note is in the list before the core has answered** ([create]), and a blank one stays in it: the core
 ///   holds a note with no words as a draft with no file and leaves it out of `list_notes`, and the page shows such a
 ///   note by handing it straight to the note screen. The shell here opens only what the list holds, so the drafts
@@ -29,6 +37,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import '../perf/frame_log.dart';
 import 'command_mutations.dart';
 import 'library.dart';
 import 'native/core.dart';
@@ -68,7 +77,8 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
   final Future<void> Function(Duration time) _wait;
   final void Function(String message) _log;
 
-  /// The notes as `list_notes` last answered, newest edit first.
+  /// The notes as `list_notes` last answered, newest edit first, and where two were written in one millisecond in
+  /// the core's order for them, by id (`ORDER BY modified_at DESC, id`, src-tauri/src/library/index.rs).
   List<Note> _listed = const [];
 
   /// Notes made here that the list has not answered yet: a draft with no file, or a note whose write is on its way.
@@ -79,6 +89,10 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
   final Set<String> _taken = {};
 
   List<Note> _value = const [];
+
+  /// [_value] by id, made the first time a note is asked for after the list changed.
+  Map<String, Note>? _index;
+  int _revision = 0;
   bool _loading = true;
   Object? _firstReadError;
   Future<void>? _loaded;
@@ -91,8 +105,14 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
 
   final ValueNotifier<int> _touched = ValueNotifier<int>(0);
 
+  /// Every note, drafts first. The same list object for as long as no note in it is another object, so
+  /// `identical(library.value, last)` is "nothing changed".
   @override
   List<Note> get value => _value;
+
+  /// How many times the notes have changed: one more whenever [value] is another list, and never for a read that
+  /// found the library as it was.
+  int get revision => _revision;
 
   @override
   bool get loading => _loading;
@@ -111,62 +131,111 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
     if (!_gone) _touched.value += 1;
   }
 
-  void _publish() {
+  /// The list put together again from what is held, and the listeners told: once, and only where a note in it is
+  /// another object than it was, or [told] says something else they read (whether the first read is over, why it
+  /// failed) is.
+  void _publish({bool told = false}) {
     if (_gone) return;
-    final listed = {for (final note in _listed) note.id};
-    _made.removeWhere((id, _) => listed.contains(id));
-    _value = List.unmodifiable([
+    if (_made.isNotEmpty) {
+      final listed = {for (final note in _listed) note.id};
+      _made.removeWhere((id, _) => listed.contains(id));
+    }
+    final next = <Note>[
       for (final note in _made.values.toList().reversed)
         if (!_taken.contains(note.id)) note,
       for (final note in _listed)
         if (!_taken.contains(note.id)) note,
-    ]);
+    ];
+    var moved = next.length != _value.length;
+    for (var i = 0; !moved && i < next.length; i += 1) {
+      moved = !identical(next[i], _value[i]);
+    }
+    if (moved) {
+      _value = List.unmodifiable(next);
+      _index = null;
+      _revision += 1;
+    }
+    if (!moved && !told) return;
+    if (ghostPerf) Perf.count('library.notify');
     notifyListeners();
   }
 
-  /// The note the core just answered, put where it belongs in the list before the list is read again.
+  /// Where [note] belongs among [notes]: before the first that is older, or as old with an id after its own.
+  static int _placeOf(List<Note> notes, Note note) {
+    for (var i = 0; i < notes.length; i += 1) {
+      final each = notes[i];
+      if (each.updatedAt < note.updatedAt || (each.updatedAt == note.updatedAt && each.id.compareTo(note.id) > 0)) return i;
+    }
+    return notes.length;
+  }
+
+  /// The note the core just answered, put where it belongs in the list, which is not read again for it.
   void _put(Note note) {
+    final at = _listed.indexWhere((each) => each.id == note.id);
     if (note.path == null) {
       // A draft: no file, so no list will answer it. One that had words and lost them all goes back to being one.
       _made[note.id] = note;
-      _listed = [
-        for (final each in _listed)
-          if (each.id != note.id) each,
-      ];
-    } else if (_made.containsKey(note.id)) {
-      _made[note.id] = note;
-    } else if (_listed.any((each) => each.id == note.id)) {
-      // What only `get_note` fills is left off, as the list leaves it.
-      final light = Note(
-        id: note.id,
-        body: note.body,
-        createdAt: note.createdAt,
-        updatedAt: note.updatedAt,
-        source: note.source,
-        sourceName: note.sourceName,
-        starred: note.starred,
-        archivedAt: note.archivedAt,
-        recordingMs: note.recordingMs,
-        formattedFor: note.formattedFor,
-        formattedModel: note.formattedModel,
-        path: note.path,
-        revision: note.revision,
-      );
-      _listed = byRecency([for (final each in _listed) each.id == note.id ? light : each]);
+      if (at >= 0) _listed = [..._listed]..removeAt(at);
     } else {
-      return;
+      _made.remove(note.id);
+      // What only `get_note` fills is left off, as the list leaves it.
+      final light = note.segments == null && note.formatted == null
+          ? note
+          : Note(
+              id: note.id,
+              body: note.body,
+              createdAt: note.createdAt,
+              updatedAt: note.updatedAt,
+              source: note.source,
+              sourceName: note.sourceName,
+              starred: note.starred,
+              archivedAt: note.archivedAt,
+              recordingMs: note.recordingMs,
+              formattedFor: note.formattedFor,
+              formattedModel: note.formattedModel,
+              path: note.path,
+              revision: note.revision,
+            );
+      if (at >= 0 && _listed[at] == light) {
+        // As it was: the object the listeners hold stays.
+      } else if (at >= 0 && _listed[at].updatedAt == light.updatedAt) {
+        // A pin, an archive: not an edit, and it keeps its place.
+        _listed = [..._listed]..[at] = light;
+      } else {
+        final next = [..._listed];
+        if (at >= 0) next.removeAt(at);
+        _listed = next..insert(_placeOf(next, light), light);
+      }
     }
     _publish();
   }
 
   /// `listNotes`: every note, newest edit first.
-  Future<List<Note>> _list() async => byRecency(notesFromJson(await _invoke('list_notes')));
+  Future<List<Note>> _list() async {
+    final began = ghostPerf ? Perf.now() : 0;
+    final listed = byRecency(notesFromJson(await _invoke('list_notes')));
+    if (ghostPerf) Perf.add('library.list', began);
+    return listed;
+  }
 
+  /// The list as it was just read. A note that reads the same as the one held is the one held, and the list held is
+  /// kept where every note is.
   void _take(List<Note> next) {
-    _listed = next;
+    final had = <String, Note>{for (final note in _listed) note.id: note};
+    var same = next.length == _listed.length;
+    final kept = <Note>[];
+    for (var i = 0; i < next.length; i += 1) {
+      final read = next[i];
+      final held = had[read.id];
+      final keep = held != null && held == read ? held : read;
+      if (same && !identical(keep, _listed[i])) same = false;
+      kept.add(keep);
+    }
+    if (!same) _listed = kept;
+    final told = _loading || _firstReadError != null;
     _loading = false;
     _firstReadError = null;
-    _publish();
+    _publish(told: told);
   }
 
   @override
@@ -233,12 +302,7 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
   }
 
   @override
-  Note? noteOf(String id) {
-    for (final note in _value) {
-      if (note.id == id) return note;
-    }
-    return null;
-  }
+  Note? noteOf(String id) => (_index ??= {for (final note in _value) note.id: note})[id];
 
   @override
   Future<Note?> get(String id) async => noteFromJson(await _invoke('get_note', {'id': id}));
@@ -272,9 +336,7 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
       rethrow;
     }
     _touch();
-    _made[made] = stored;
-    _publish();
-    await _quietly();
+    _put(stored);
     return stored;
   }
 
@@ -284,7 +346,6 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
     if (stored == null) throw noteChangedError();
     _touch();
     _put(stored);
-    await _quietly();
     return stored;
   }
 
@@ -336,8 +397,9 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
   Future<void> _flag(String command, Map<String, Object?> args) async {
     final stored = noteFromJson(await _invoke(command, args));
     _touch();
-    if (stored != null) _put(stored);
-    await _quietly();
+    // A note that has gone answers nothing: the list is read again, which is where it stops being in it.
+    if (stored == null) return _quietly();
+    _put(stored);
   }
 
   @override
@@ -352,12 +414,13 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
     _touch();
     _made.remove(id);
     _taken.remove(id);
-    _listed = [
-      for (final note in _listed)
-        if (note.id != id) note,
-    ];
+    if (_listed.any((note) => note.id == id)) {
+      _listed = [
+        for (final note in _listed)
+          if (note.id != id) note,
+      ];
+    }
     _publish();
-    await _quietly();
   }
 
   /// `applyNote`. Not [touched]: a note written as another device has it is not one changed here.
@@ -366,7 +429,6 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
     final stored = noteFromJson(await _invoke('store_apply', {'note': noteToJson(note)}));
     if (stored == null) throw const CoreError('the note was written, and the library did not say how');
     _put(stored);
-    await _quietly();
     return stored;
   }
 

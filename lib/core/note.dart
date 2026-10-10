@@ -95,4 +95,31 @@ class Note {
         path: path == null ? this.path : path(),
         revision: revision ?? this.revision,
       );
+
+  /// The same note, field for field: what the library asks of a note it has read again, to hand its listeners the
+  /// object they already hold where nothing in it moved (lib/core/core_library.dart). The cheap fields are asked
+  /// first and the words last, and two bodies of different lengths are told apart without being read.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Note &&
+          other.id == id &&
+          other.revision == revision &&
+          other.updatedAt == updatedAt &&
+          other.createdAt == createdAt &&
+          other.starred == starred &&
+          other.archivedAt == archivedAt &&
+          other.source == source &&
+          other.sourceName == sourceName &&
+          other.recordingMs == recordingMs &&
+          other.formattedFor == formattedFor &&
+          other.formattedModel == formattedModel &&
+          other.path == path &&
+          other.formatted == formatted &&
+          listEquals(other.segments, segments) &&
+          other.body == body;
+
+  /// Not the words: a hash is asked of a note far more often than two notes with one id are told apart.
+  @override
+  int get hashCode => Object.hash(id, revision, updatedAt, starred, archivedAt, path);
 }

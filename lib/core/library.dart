@@ -46,6 +46,11 @@ const String noteIdTaken = 'the note id already exists';
 
 /// The notes, and what the app does to them (`core/store.ts`). Listen to it: its value is every note the library
 /// holds, the newest edit first, and it tells its listeners when the notes or [loading] change.
+///
+/// What a listener can lean on to do no more than it must: the value is the same list object for as long as no note
+/// in it changed, and a note that did not change is the same [Note] object from one value to the next, so
+/// `identical` is the question to ask of either. A screen that shows one note listens to that note alone
+/// ([NoteWatch]).
 abstract class NoteLibrary implements ValueListenable<List<Note>> {
   /// Whether the notes have yet to be read for the first time (`useNotes().loading`).
   bool get loading;
@@ -111,6 +116,49 @@ abstract class NoteLibrary implements ValueListenable<List<Note>> {
 
   /// Puts back a note [delete] took, where it was.
   void restore(Note note);
+}
+
+/// One note of a library, for whatever shows one: told when that note is another object than it was (its words, its
+/// pin, where its file is) or has gone, and not when any other note changed. It listens to the library only while
+/// something listens to it, so one nobody follows costs nothing and needs no disposing.
+class NoteWatch extends ChangeNotifier implements ValueListenable<Note?> {
+  NoteWatch(this.library, this.id);
+
+  final NoteLibrary library;
+  final String id;
+  Note? _note;
+
+  /// The note as the library holds it now, or null where it holds none by that id.
+  @override
+  Note? get value => hasListeners ? _note : library.noteOf(id);
+
+  void _heard() {
+    final now = library.noteOf(id);
+    if (identical(now, _note)) return;
+    _note = now;
+    notifyListeners();
+  }
+
+  @override
+  void addListener(VoidCallback listener) {
+    if (!hasListeners) {
+      _note = library.noteOf(id);
+      library.addListener(_heard);
+    }
+    super.addListener(listener);
+  }
+
+  @override
+  void removeListener(VoidCallback listener) {
+    super.removeListener(listener);
+    if (!hasListeners) library.removeListener(_heard);
+  }
+
+  @override
+  void dispose() {
+    library.removeListener(_heard);
+    super.dispose();
+  }
 }
 
 /// The list as the list screen shows it: pinned notes first, each group newest edit first, archived notes left out
