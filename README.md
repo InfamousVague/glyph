@@ -893,10 +893,11 @@ recorder's screen that is on screen.
 - **The voice model's line** is above the notes while it is being fetched or has failed (`Notices`'
   `VoiceModelStatus`); the update's card and the invitation's are not given (`core/ota.ts`,
   `settings/InviteActions.tsx`).
-- **The side key and the launcher shortcut** are behind the build's own switch as on the web (`GHOST_ASSISTANT=1`,
-  `DeviceMeetingHost.assistantEnabled`): without it a launch is never a recording and the key's events are
-  dropped (`Voice.assistant`). With it the route starts a capture at launch and from the key, and a second press
-  stops it; that path is held by tests and was **not walked on a device** (no build with the assistant was made).
+- **The side key and the launcher shortcut** are on in every build, as they are in Ghost.md's own `main`, unless
+  the build turns them off (`GHOST_ASSISTANT=0`, `DeviceMeetingHost.assistantEnabled`; docs/PARITY.md, Differs 1):
+  the app is offered as a digital assistant and is one only once a person picks it in the phone's settings. With
+  them the route starts a capture at launch and from the key, and a second press stops it. Built without, a launch
+  is never a recording and the key's events are dropped (`Voice.assistant`).
 - **Other apps' sound in a meeting** is asked for where the switch is on and the phone can (`Voice.sound`); the
   screen-share consent was not walked.
 - **A take's own new note and a spoken entry are tagged** once the recorder has gone, quietly over a locked

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/account/ui_state.dart' show AccountServices;
 import 'package:ghost_md/capture/engine.dart';
 import 'package:ghost_md/capture/meeting_live.dart';
 import 'package:ghost_md/capture/recorder.dart';
@@ -25,10 +26,12 @@ import 'package:ghost_md/root/capture_route.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/root/voice_wiring.dart';
 import 'package:ghost_md/settings/settings_sheet.dart';
+import 'package:ghost_md/shell/account_gate.dart';
 import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/shell/screen.dart';
 import 'package:ghost_md/tapes/player.dart' show TapePlayer, markAudioRemoved;
 
+import '../account_ui/support.dart' show Device;
 import '../support/render.dart';
 import '../tapes/fake_player.dart';
 
@@ -70,8 +73,11 @@ class _Service implements MeetingService, MeetingHost {
   @override
   Future<SoundSupport?> meetingSound() async => sound;
 
+  /// What the phone answers about its lock.
+  bool lockedNow = false;
+
   @override
-  Future<bool> isLocked() async => false;
+  Future<bool> isLocked() async => lockedNow;
 
   @override
   Future<void> endCapture({required bool leave}) async {}
@@ -170,7 +176,7 @@ void main() {
     }
   }
 
-  Future<void> open(WidgetTester tester, {bool voice = true, bool assistant = false, String launch = '', bool canMeet = true, bool mac = false, TapePlayer? tapePlayer}) async {
+  Future<void> open(WidgetTester tester, {bool voice = true, bool assistant = false, String launch = '', bool canMeet = true, bool mac = false, TapePlayer? tapePlayer, AccountServices? services}) async {
     library = SampleLibrary.seeded();
     await pumpApp(
       tester,
@@ -184,6 +190,7 @@ void main() {
         untouched: UntouchedNotes(kept: MemoryStored()),
         voice: voice ? voiceFor(library, assistant: assistant, launch: launch, canMeet: canMeet, mac: mac) : null,
         tapePlayer: tapePlayer,
+        services: services,
       ),
     );
     await settle(tester, 3);
@@ -480,6 +487,49 @@ void main() {
       await open(tester, assistant: true, launch: 'capture');
       await until(tester, () => handlers != null, 'the capture did not start');
       expect((shellOf(tester).screen as ScreenCapture).fromAssistant, isTrue);
+      await close(tester);
+    });
+
+    testWidgets('that launched a signed-out app is not met by the way into an account: the recording comes first', (tester) async {
+      final device = await tester.runAsync(() => Device.make(signedIn: false));
+      await open(tester, assistant: true, launch: 'capture', services: device!.services);
+      await until(tester, () => handlers != null, 'the capture did not start');
+      expect(find.byType(AccountGate), findsNothing);
+      // Nor after the take: an open by the key never asks (shell/useAccountGate.ts), and the way in is Settings'.
+      await tester.tap(find.byKey(CaptureScreen.discardKey), warnIfMissed: false);
+      await until(tester, () => shellOf(tester).screen is! ScreenCapture, 'the capture did not end');
+      expect(find.byType(AccountGate), findsNothing);
+      await close(tester);
+    });
+
+    testWidgets('pressed while the way into an account is up records over it, and the way in is back when the take ends', (tester) async {
+      final device = await tester.runAsync(() => Device.make(signedIn: false));
+      await open(tester, assistant: true, services: device!.services);
+      await settle(tester, 3);
+      expect(find.byType(AccountGate), findsOneWidget, reason: 'a signed-out open by the icon asks first');
+      keys.add(null);
+      await until(tester, () => handlers != null, 'the capture did not start');
+      expect(shellOf(tester).screen, isA<ScreenCapture>());
+      expect(find.byType(AccountGate), findsNothing, reason: 'never drawn over a recorder (App.tsx: !isRecording(screen))');
+      await tester.tap(find.byKey(CaptureScreen.discardKey), warnIfMissed: false);
+      await until(tester, () => shellOf(tester).screen is! ScreenCapture, 'the capture did not end');
+      await settle(tester, 2);
+      expect(find.byType(AccountGate), findsOneWidget, reason: 'it was held back, not answered');
+      await close(tester);
+    });
+
+    testWidgets('a phone unlocked during a take is asked about its lock again, so the take ends as on an unlocked phone', (tester) async {
+      await open(tester, assistant: true);
+      final voice = tester.widget<GhostRoot>(find.byType(GhostRoot)).voice!;
+      service.lockedNow = true;
+      await tester.runAsync(voice.readLocked);
+      expect(voice.locked, isTrue);
+      // Unlocked by the person mid-take: the phone says so (MeetingBridge.kt `unlocked`), and nothing else does.
+      service.lockedNow = false;
+      await tester.runAsync(() => voice.phoneSaid('screenOff'));
+      expect(voice.locked, isTrue, reason: 'only its unlocking is about the lock');
+      await tester.runAsync(() => voice.phoneSaid('unlocked'));
+      expect(voice.locked, isFalse);
       await close(tester);
     });
   });

@@ -156,7 +156,8 @@ class VoiceMaking {
   /// Where a model is fetched from ([voiceMirrors]).
   final List<String>? mirrors;
 
-  /// Whether this build has the phone assistant and the side key at all (off unless built with GHOST_ASSISTANT=1).
+  /// Whether this build has the phone assistant and the side key at all (on, as Ghost.md's own, unless built with
+  /// GHOST_ASSISTANT=0).
   final bool assistant;
 
   /// What this launch was for, read once: "capture", "meeting" or "" (`takeCaptureLaunch`).
@@ -193,8 +194,9 @@ class Voice {
   /// The catalogue with what is on this phone, for Settings' AI page; null where there is no engine.
   final ai.ModelsController? models;
 
-  /// Whether this build has the phone assistant and the side key (`GHOST_ASSISTANT=1`): only then is a launch or a
-  /// key press ever a recording. Never an always-on microphone either way.
+  /// Whether this build has the phone assistant and the side key (every build but one made with
+  /// `GHOST_ASSISTANT=0`): only then is a launch or a key press ever a recording. Never an always-on microphone
+  /// either way.
   final bool assistant;
 
   /// What this launch was for: "capture", "meeting" or "".
@@ -230,6 +232,8 @@ class Voice {
   final Future<List<String>> Function(List<String> ids)? removeAudio;
 
   /// Whether the phone is locked, as last asked ([readLocked]): the recorder's screens ask at once and cannot wait.
+  /// Asked before a recorder is put up, and again when the phone says the answer changed under one ([phoneSaid]),
+  /// so each use reads what is true then, as the page's `isLocked()` did by asking the phone each time.
   bool locked = false;
 
   final void Function()? dispose_;
@@ -243,6 +247,13 @@ class Voice {
     } catch (_) {
       locked = false;
     }
+  }
+
+  /// What the phone said without being asked, where it is about the lock: `unlocked` is a person unlocking the
+  /// phone while a take runs (MeetingBridge.kt), the one moment [locked] goes stale under a recorder. A take begun
+  /// over the lock screen and unlocked before Done then ends on its note, not behind the lock.
+  Future<void> phoneSaid(String name) async {
+    if (name == 'unlocked') await readLocked();
   }
 
   /// As the app opens: the voice model's file is looked for (and fetched where this build has a mirror), the better
@@ -387,15 +398,19 @@ class Voice {
     final fixture = kDebugMode && ghostMicFixtureDefine ? File('${making.dataDir}/fixture.wav') : null;
     final keys = StreamController<void>.broadcast();
     final screenOff = <VoidCallback>{};
+    var made = false;
     final heard = host.events.listen((event) {
       switch (event.name) {
-        // Only a build with the assistant is ever asked for a capture by the phone.
+        // Only a build with the assistant is ever asked for a capture by the phone (all but one built without).
         case 'capture':
           if (making.assistant) keys.add(null);
         case 'screenOff':
           for (final listener in screenOff.toList()) {
             listener();
           }
+        default:
+          // Nothing of the lock is said before there is a recorder to have asked about it.
+          if (made) unawaited(voice.phoneSaid(event.name));
       }
     });
 
@@ -493,6 +508,7 @@ class Voice {
         unawaited(keys.close());
       },
     );
+    made = true;
     return voice;
   }
 }

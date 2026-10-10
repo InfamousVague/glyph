@@ -210,7 +210,8 @@ class DeviceMeetingHost implements MeetingHost {
   /// The capture is over: the lock-screen permission is taken back, and with [leave] the app steps behind the lock.
   Future<void> endCapture({required bool leave}) => channel.invokeMethod<void>('endCapture', {'leave': leave});
 
-  /// Whether this build has the phone assistant and the side key at all (off unless built with GHOST_ASSISTANT=1).
+  /// Whether this build has the phone assistant and the side key at all (on, as Ghost.md's own, unless built with
+  /// GHOST_ASSISTANT=0).
   Future<bool> assistantEnabled() async => await channel.invokeMethod<bool>('assistantEnabled') ?? false;
 
   /// Whether Ghost.md is the phone's digital assistant app.

@@ -12,7 +12,7 @@ import java.lang.ref.WeakReference
 
 class MainActivity : FlutterActivity() {
     companion object {
-        /** Sent by `GlyphSession` when the side key is held, and by the launcher shortcut (8F, off unless built on). */
+        /** Sent by `GlyphSession` when the side key is held, and by the launcher shortcut (8F). */
         const val ACTION_CAPTURE = "com.mattssoftware.glyph.CAPTURE"
         const val EXTRA_SOURCE = "com.mattssoftware.glyph.SOURCE"
 

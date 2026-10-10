@@ -64,10 +64,15 @@
         android:dataExtractionRules="@xml/ghost_data_extraction_rules">
         <!-- The backup rules keep the library's index (Library/.glyph/index.sqlite, a cache) out of a backup;
              the notes themselves go. res/xml/ghost_backup_rules.xml says why. -->
+        <!-- ONE WINDOW, singleTask as Ghost.md's own activity is (docs/PARITY.md, Differs 1): a link, the side key,
+             the launcher's shortcut or a notification's tap always reaches the one activity (onNewIntent) in the one
+             task, wherever it was sent from. It was singleTop, which makes a second activity, and with it a second
+             engine over the one core, when an intent arrives from another app's task without NEW_TASK. The empty
+             taskAffinity is Flutter's own, kept: no other app's activity can be put into this task. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
@@ -105,20 +110,21 @@
               the first (lib/app/ghost_app.dart drops them too, for an entry point that forgets this).
             -->
             <meta-data android:name="flutter_deeplinking_enabled" android:value="false" />
-            <!-- "Record note" on a long press of the icon: shown only with the assistant on (ghost_shortcuts.xml). -->
+            <!-- "Record note" on a long press of the icon (ghost_shortcuts.xml). -->
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="@xml/ghost_shortcuts" />
         </activity>
 
         <!--
-          8F, THE PHONE ASSISTANT AND THE SIDE KEY: ported from ../glyph and DISABLED unless the build turns it on
-          (`@bool/ghost_assistant`, false by default; android/app/build.gradle.kts says how), as the web app keeps
-          the phone assistant behind a developer flag. Four things hang on the one switch: this alias, which is the
-          activity's two capture doors (ASSIST for launchers and OEM builds that invoke the assistant by activity,
-          and the capture action the side key and the launcher shortcut send; DEFAULT is not optional, the role
-          controller matches with MATCH_DEFAULT_ONLY), and the three services below. Disabled, none of them exists
-          as far as the system is concerned: the app is not offered as a digital assistant and nothing can start a
+          8F, THE PHONE ASSISTANT AND THE SIDE KEY: ported from ../glyph and ENABLED, as Ghost.md's own manifest
+          has them (docs/PARITY.md, Differs 1), unless the build turns them off (`@bool/ghost_assistant`, true by
+          default; android/app/build.gradle.kts says how). Four things hang on the one switch: this alias, which is
+          the activity's two capture doors (ASSIST for launchers and OEM builds that invoke the assistant by
+          activity, and the capture action the side key and the launcher shortcut send; DEFAULT is not optional,
+          the role controller matches with MATCH_DEFAULT_ONLY), and the three services below. Enabled, the app is
+          OFFERED as a digital assistant and is not one until a person picks it in the phone's settings. Disabled,
+          none of them exists as far as the system is concerned: the app is not offered and nothing can start a
           capture from outside it.
         -->
         <activity-alias

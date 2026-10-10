@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Long-press the icon for "Record note": the same capture action the side key sends, so both land in the same
-  place. Shown only in a build with the assistant on (res/values/voice_assistant.xml); the package is filled in by
-  the build, since this app's id is not the Tauri app's.
+  Long-press the icon for "Record note": the fallback for anyone who has not made the app the digital assistant, and
+  the same capture action the side key sends, so both land in the same place. Shown unless the build turned the
+  assistant off (res/values/voice_assistant.xml); the package is this app's own id, not the Tauri app's.
 -->
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
     <shortcut

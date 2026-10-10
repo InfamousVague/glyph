@@ -5,20 +5,26 @@ plugins {
 }
 
 /*
- * THE PHONE ASSISTANT AND THE SIDE KEY (docs/STAGES_5_6_8_9.md, 8F) are in the app and OFF: the web app keeps the
- * phone assistant behind a developer flag, and here the flag is the build's. To turn it on, build with
+ * THE PHONE ASSISTANT AND THE SIDE KEY (docs/STAGES_5_6_8_9.md, 8F) are in the app and ON, as they are in Ghost.md's
+ * own `main` (docs/PARITY.md, Differs 1): its manifest declares the three services, ASSIST, the capture action and the
+ * launcher's "Record note" with no switch at all. (The developer flag this file once cited lives on a branch of
+ * ../glyph that was never merged, `voice/assistant-flag`.) So `@bool/ghost_assistant` is true: the three services
+ * (GlyphInteractionService, GlyphSessionService, GlyphRecognitionService) and the activity's capture doors are
+ * enabled in the manifest, the launcher's shortcut appears, and MeetingBridge.kt honours a capture launch.
  *
- *   GHOST_ASSISTANT=1 flutter build apk --debug ...          (or: flutter build apk ... -Pghost.assistant=true
- *                                                             through --android-project-arg=ghost.assistant=true)
+ * Installing changes nothing about which app the phone's assistant IS. The app is only offered: Settings > Apps >
+ * Default apps > Digital assistant app lists it beside the others, and until a person picks it there (and, on a
+ * Samsung, Settings > Advanced features > Side button > Long press > Digital assistant) the side key does what it
+ * did.
  *
- * which makes `@bool/ghost_assistant` true: the three services (GlyphInteractionService, GlyphSessionService,
- * GlyphRecognitionService) and the activity's capture doors are then enabled in the manifest, the launcher's
- * "Record note" shortcut appears, and MeetingBridge.kt honours a capture launch. Then, on the phone: Settings >
- * Apps > Default apps > Digital assistant app > Ghost Flutter, and on a Samsung, Settings > Advanced features >
- * Side button > Long press > Digital assistant. Read at configuration time, like the Tauri app's channel switch.
+ * To build WITHOUT them (the app is then not offered as an assistant, has no shortcut, and nothing outside it can
+ * start a capture):
+ *
+ *   GHOST_ASSISTANT=0 flutter build apk ...        (or: --android-project-arg=ghost.assistant=false)
+ *
+ * Read at configuration time, like the Tauri app's channel switch.
  */
-val ghostAssistant = !System.getenv("GHOST_ASSISTANT").isNullOrEmpty() && System.getenv("GHOST_ASSISTANT") != "0" ||
-    (project.findProperty("ghost.assistant") as String?) == "true"
+val ghostAssistant = System.getenv("GHOST_ASSISTANT") != "0" && (project.findProperty("ghost.assistant") as String?) != "false"
 
 /*
  * A BUILD MADE TO BE MEASURED (tool/perf.sh android, lib/perf/) fills its library with hundreds of made-up notes and

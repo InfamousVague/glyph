@@ -59,7 +59,10 @@ import java.util.concurrent.Executors
  *   sounding, stopped, failed, discarded, permission or open.
  * - `recordingDone`: JSON `{id, outcome}`, a write-up ended while the app was in front.
  * - `notified`: the notification prompt was answered. `capture`: a capture launch arrived while the app was open.
- *   `screenOff`: the screen went off during a dictation (the side key pressed to stop).
+ *   `screenOff`: the screen went off during a dictation (the side key pressed to stop). `unlocked`: the phone was
+ *   unlocked during a dictation. The Tauri page asked `isLocked()` at each use and was answered at once; a channel
+ *   answers a moment later, so the app keeps the last answer, and this tells it the one moment that answer goes
+ *   stale while a take runs (a take begun over the lock screen and unlocked ends as any other does).
  */
 class MeetingBridge(private val activity: Activity) {
   companion object {
@@ -345,7 +348,7 @@ class MeetingBridge(private val activity: Activity) {
     return true
   }
 
-  // ---- the capture launch and the lock screen (8F: only in a build with the assistant on) ------------------------
+  // ---- the capture launch and the lock screen (8F: in every build but one made with the assistant off) -----------
 
   private fun isCapture(intent: Intent?): Boolean = assistant && (intent?.action == MainActivity.ACTION_CAPTURE || intent?.action == Intent.ACTION_ASSIST)
 
@@ -375,10 +378,17 @@ class MeetingBridge(private val activity: Activity) {
     }
   }
 
-  /** The side key pressed during a dictation, seen the only way an app can see it: the screen going off. */
+  /**
+   * The side key pressed during a dictation, seen the only way an app can see it: the screen going off. And the
+   * phone unlocked during one (ACTION_USER_PRESENT, sent once the keyguard has gone): the app asks again whether
+   * it is locked.
+   */
   private val screenOff = object : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-      if (intent.action == Intent.ACTION_SCREEN_OFF) say("screenOff", null)
+      when (intent.action) {
+        Intent.ACTION_SCREEN_OFF -> say("screenOff", null)
+        Intent.ACTION_USER_PRESENT -> say("unlocked", null)
+      }
     }
   }
 
@@ -388,11 +398,12 @@ class MeetingBridge(private val activity: Activity) {
     capturing = on
     if (on) {
       activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+      val heard = IntentFilter(Intent.ACTION_SCREEN_OFF).apply { addAction(Intent.ACTION_USER_PRESENT) }
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        activity.registerReceiver(screenOff, IntentFilter(Intent.ACTION_SCREEN_OFF), Context.RECEIVER_NOT_EXPORTED)
+        activity.registerReceiver(screenOff, heard, Context.RECEIVER_NOT_EXPORTED)
       } else {
         @Suppress("UnspecifiedRegisterReceiverFlag")
-        activity.registerReceiver(screenOff, IntentFilter(Intent.ACTION_SCREEN_OFF))
+        activity.registerReceiver(screenOff, heard)
       }
     } else {
       activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

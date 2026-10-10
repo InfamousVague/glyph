@@ -15,7 +15,7 @@
 /// - **Use long tape**: a recorder's WAV pushed to `<dataDir>/long.wav` becomes the last tape, so its write-up lasts
 ///   long enough to swipe the app away under it.
 /// - **Allow notifications**, **Assistant?**: the notification prompt, and whether this build has the phone
-///   assistant at all (off unless built with GHOST_ASSISTANT=1).
+///   assistant at all (on unless built with GHOST_ASSISTANT=0).
 ///
 /// No always-on microphone: one is opened by a Dictate button or a meeting's start, and by nothing else here.
 /// Every line of the log is also printed as `[voice] …`, for `adb logcat -s flutter`.

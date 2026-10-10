@@ -2,8 +2,8 @@ package com.mattssoftware.glyph.capture
 
 // PORTED from ../glyph/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/capture/GlyphSessionService.kt, line for line, for the
 // Flutter app (docs/STAGES_5_6_8_9.md, stage 8). What differs: the activity launched is the Flutter one, and in the Flutter app this service is
-// DISABLED in the manifest unless the build turns the phone assistant on (res/values/voice_assistant.xml,
-// `ghost_assistant`; android/app/build.gradle.kts says how), as the web app keeps it behind a developer flag.
+// enabled in the manifest by a switch of the build's (res/values/voice_assistant.xml, `ghost_assistant`;
+// android/app/build.gradle.kts says how), on unless the build turns it off, where the Tauri app's has no switch.
 
 import android.content.Context
 import android.content.Intent

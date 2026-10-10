@@ -1117,7 +1117,10 @@ class _GhostRootState extends State<GhostRoot> {
       wired.live.presence.addListener(_presenceChanged);
     }
     if (!mounted) return;
-    setState(() => _gate = AccountGateState(services: services, kept: _stored)..addListener(_changed));
+    // Not on an open by the side key, whose person is already mid-sentence: the recording comes first, as it does
+    // for the guide (shell/useAccountGate.ts).
+    final byKey = (widget.voice?.assistant ?? widget.voiceMaking?.assistant ?? false) && (widget.voice?.launch ?? widget.voiceMaking?.launch) == 'capture';
+    setState(() => _gate = AccountGateState(services: services, launchedByKey: byKey, kept: _stored)..addListener(_changed));
   }
 
   void _toAccount() => setState(() {
@@ -1327,10 +1330,11 @@ class _GhostRootState extends State<GhostRoot> {
         if (_services case final services?) ...[
           _part('organization', () => (_organization, _accountAt, _syncAt), (context) => _organizationSheetPart(services)),
           _part('newOrganization', () => (_newOrganization, _accountAt, _syncAt), (context) => _newOrganizationPart(services)),
-          // The way in, the first thing on screen once, on an open that is signed out.
-          _part('gate', () => (_gate, _gate?.open ?? false, _accountAt, _syncAt), (context) {
+          // The way in, the first thing on screen once, on an open that is signed out. Never over a recorder
+          // (App.tsx: `accountGate.open && !isRecording(screen)`): it waits under one.
+          _part('gate', () => (_gate, _gate?.open ?? false, _shell.currentState?.screen.isRecording ?? false, _accountAt, _syncAt), (context) {
             final gate = _gate;
-            return gate != null && gate.open ? AccountGate(services: services, onDone: gate.close) : _nothing;
+            return gate != null && gate.open && !(_shell.currentState?.screen.isRecording ?? false) ? AccountGate(services: services, onDone: gate.close) : _nothing;
           }),
         ],
         // An invite link that opened the app, and a code held on this device from before, asked about once
