@@ -374,9 +374,17 @@ class _GhostRootState extends State<GhostRoot> {
     shell.openNote(noteId);
   }
 
-  /// An organization's settings, and the sheet a new one is named in.
-  ({String id, OrganizationFrom from})? _organization;
+  /// An organization's settings, and the sheet a new one is named in. Opened from Settings' own list or from the
+  /// organization's dashboard, which the sheet's head says; from anywhere else (the home filters, a folder's "…",
+  /// a workspace's sheet, All notes) it is opened from nowhere it goes back to.
+  ({String id, OrganizationFrom? from})? _organization;
   bool _newOrganization = false;
+
+  /// `openOrganizationSettings`: over whatever is up, the sidebar's card put away first.
+  void _openOrganizationSettings(String id, [OrganizationFrom? from]) {
+    _shell.currentState?.closeSidebar();
+    setState(() => _organization = (id: id, from: from));
+  }
 
   void _say(BuildContext context, String message) => GlacierToast.of(context).toast(message: Text(message));
 
@@ -1274,7 +1282,7 @@ class _GhostRootState extends State<GhostRoot> {
         _workspaces.chooseWorkspace(orgWorkspaceId(id));
         shell.backToList();
       },
-      onSettings: () => setState(() => _organization = (id: id, from: OrganizationFrom.dashboard)),
+      onSettings: () => _openOrganizationSettings(id, OrganizationFrom.dashboard),
       onOpenOrganization: shell.openOrganization,
       seen: _seenIn(id),
       onJumpTo: (noteId) => _jumpTo(shell, id, noteId),
@@ -1382,6 +1390,8 @@ class _GhostRootState extends State<GhostRoot> {
       onEmptyTrash: () => _actions.emptyTrash(_trashed),
       notesInWorkspace: _notesIn,
       onTrashNotes: _trashNotes,
+      // An organization's workspace's "…" is the organization's settings.
+      onOrganization: _services == null ? null : _openOrganizationSettings,
       emptyArt: const Ghost(scene: GhostScene.noNotes),
     );
   }
@@ -1417,7 +1427,7 @@ class _GhostRootState extends State<GhostRoot> {
 
   void _trashNotes(Iterable<String> ids) => ids.forEach(_trash.trashNote);
 
-  void _organizationSettings(String id) => setState(() => _organization = (id: id, from: OrganizationFrom.settings));
+  void _organizationSettings(String id) => _openOrganizationSettings(id, OrganizationFrom.settings);
 
   /// Everything the root puts on screen, made once: the shell, and over it Settings, the palette, a note's menu,
   /// the sheets, the walkthrough and the launch screen. Each is a part, built again when what it reads changed; one
@@ -1633,6 +1643,9 @@ class _GhostRootState extends State<GhostRoot> {
           onNoteMenu: (note, at) => _menu.open(note.id, at),
           notesInWorkspace: _notesIn,
           onTrashNotes: _trashNotes,
+          // An organization's pill opens its page; its sheet's row, its settings.
+          onOrganization: _services == null ? null : shell.openOrganization,
+          onOrganizationSettings: _services == null ? null : _openOrganizationSettings,
           wisp: preferences.value.wispEdge,
         ),
       ),
@@ -1674,6 +1687,7 @@ class _GhostRootState extends State<GhostRoot> {
           onEmptyTrash: () => _actions.emptyTrash(_trashed),
           notesInWorkspace: _notesIn,
           onTrashNotes: _trashNotes,
+          onOrganization: _services == null ? null : _openOrganizationSettings,
           emptyArt: const Ghost(scene: GhostScene.noNotes),
         ),
       ),
@@ -1986,6 +2000,7 @@ class _GhostRootState extends State<GhostRoot> {
       store: _workspaces,
       editing: sheet.editing,
       onClose: () => setState(() => _workspace = null),
+      onOrganization: _services == null ? null : _openOrganizationSettings,
       notesIn: _notesIn,
       onTrashNotes: _trashNotes,
     );
@@ -1999,7 +2014,8 @@ class _GhostRootState extends State<GhostRoot> {
       services: services,
       orgId: sheet.id,
       from: sheet.from,
-      landOnMembers: sheet.from != OrganizationFrom.dashboard,
+      // `landOnMembers={orgSettings.from === 'settings'}`: from anywhere else, its list of sections.
+      landOnMembers: sheet.from == OrganizationFrom.settings,
       onClose: () => setState(() => _organization = null),
       onNotes: () {
         setState(() => _organization = null);

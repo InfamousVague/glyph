@@ -16,16 +16,22 @@ import 'package:ghost_md/editor/find_bar/find_bar.dart';
 import 'package:ghost_md/editor/items/items.dart' show FieldMenuHost;
 import 'package:ghost_md/editor/plus/plus.dart' show PlusLayer, moreRows, readGates;
 import 'package:ghost_md/note/note_screen.dart';
+import 'package:ghost_md/notes/all_notes_screen.dart';
+import 'package:ghost_md/notes/note_tree.dart';
+import 'package:ghost_md/notes/notes_drawer.dart';
 import 'package:ghost_md/root/account_wiring.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/root/note_desk.dart';
 import 'package:ghost_md/shell/account_gate.dart';
+import 'package:ghost_md/settings/organization_sheet.dart';
 import 'package:ghost_md/shell/app_shell.dart';
+import 'package:ghost_md/shell/screen.dart';
 import 'package:ghost_md/sync/engine.dart';
 import 'package:ghost_md/sync/record.dart';
 
 import '../account_ui/support.dart' show Device;
 import '../support/render.dart';
+import 'part_of.dart';
 
 /// The app put together (lib/root): a note opens on the editor that is typed in, with every piece round it, and
 /// what is typed is saved to the library; the account is there only where the build was given one.
@@ -357,6 +363,50 @@ void main() {
       await tester.runAsync(() => versions.keepVersion(id, 'As it is.', now: 2000));
       final kept = (await tester.runAsync(() => versions.versionsOf(id)))!.versions;
       expect([for (final version in kept) version.by], ['matt', 'me']);
+      await close(tester);
+    });
+
+    // Unwired 13 (docs/PARITY.md): `onOrganization` was given to none of them, so an organization's workspace
+    // opened the plain workspace sheet, whose one row could not be pressed (App.tsx:1281-1282,1591,1666).
+    testWidgets('opens an organization from its workspace: the sidebar\'s "…" and All notes\' sheet its settings on their sections, All notes\' pill its page', (tester) async {
+      final device = await Device.make();
+      final id = (await tester.runAsync(() => device.orgs.createOrg('Ghost')))!.id;
+      await open(tester, services: device.services);
+      await tester.pump(const Duration(milliseconds: 200));
+      final shell = tester.state<AppShellState>(find.byType(AppShell));
+      OrganizationSheet? sheet() => tester.widgetList<OrganizationSheet>(find.byType(OrganizationSheet)).firstOrNull;
+
+      // The sidebar, as the root draws it floating and docked.
+      final drawer = partOf<NotesDrawer>(shell.context, tester.widget<AppShell>(find.byType(AppShell)).sidebarBuilder!(shell.context, shell, () {}));
+      final docked = partOf<NoteTree>(shell.context, tester.widget<AppShell>(find.byType(AppShell)).dockedSidebarBuilder!(shell.context, shell));
+      expect(drawer.onOrganization, isNotNull);
+      expect(docked.onOrganization, isNotNull);
+      drawer.onOrganization!(id);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect((sheet()?.orgId, sheet()?.from, sheet()?.landOnMembers), (id, null, false));
+      sheet()!.onClose();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(sheet(), isNull);
+
+      // All notes: the pill is the organization's page, the sheet's row its settings.
+      shell.showAllNotes();
+      await tester.pump(const Duration(milliseconds: 400));
+      final all = tester.widget<AllNotesScreen>(find.byType(AllNotesScreen));
+      all.onOrganizationSettings!(id);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect((sheet()?.orgId, sheet()?.from), (id, null));
+      sheet()!.onClose();
+      await tester.pump(const Duration(milliseconds: 400));
+      all.onOrganization!(id);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(shell.screen, isA<ScreenOrganization>().having((screen) => screen.orgId, 'orgId', id));
+      await close(tester);
+    });
+
+    testWidgets('offers none of it in a build with no account', (tester) async {
+      await open(tester);
+      final shell = tester.state<AppShellState>(find.byType(AppShell));
+      expect((partOf<NotesDrawer>(shell.context, tester.widget<AppShell>(find.byType(AppShell)).sidebarBuilder!(shell.context, shell, () {}))).onOrganization, isNull);
       await close(tester);
     });
 
