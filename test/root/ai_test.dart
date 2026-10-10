@@ -13,6 +13,7 @@ import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/editor/marks/marks.dart' show wispStill;
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
+import 'package:ghost_md/format/gist.dart' show forgetGistRunner;
 import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/root/voice_wiring.dart';
@@ -33,11 +34,11 @@ void main() {
 
   tearDown(() => useAiBackend(const NoAiBackend()));
 
-  Voice voiceFor(SampleLibrary notes, {required bool engine}) {
+  Voice voiceFor(SampleLibrary notes, {required bool engine, bool present = true}) {
     if (engine) {
       backend = FakeAiBackend(generation: 30)
         ..answers['ai_models'] = [
-          {'id': 'qwen3.5-2b', 'file': 'Qwen3.5-2B-Q4_K_M.gguf', 'bytes': 1280835840, 'present': true, 'path': '/models/q'},
+          {'id': 'qwen3.5-2b', 'file': 'Qwen3.5-2B-Q4_K_M.gguf', 'bytes': 1280835840, 'present': present, 'path': present ? '/models/q' : null},
         ]
         ..answers['ai_device'] = {'cores': 8, 'totalRamBytes': 8000000000};
       useAiBackend(backend);
@@ -55,7 +56,7 @@ void main() {
     );
   }
 
-  Future<SampleLibrary> open(WidgetTester tester, {required bool engine}) async {
+  Future<SampleLibrary> open(WidgetTester tester, {required bool engine, bool present = true}) async {
     final library = SampleLibrary.seeded();
     await pumpApp(
       tester,
@@ -66,7 +67,7 @@ void main() {
         workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())),
         clock: () => seedNow,
         stored: MemoryStored(),
-        voice: voiceFor(library, engine: engine),
+        voice: voiceFor(library, engine: engine, present: present),
       ),
     );
     for (var i = 0; i < 6; i++) {
@@ -95,6 +96,35 @@ void main() {
     // The gists' runner and a run's own waits are the app's, not a screen's: let them come due.
     await tester.pump(const Duration(seconds: 30));
   }
+
+  testWidgets('with no model on the phone the gists\' runner is shown nothing, and the home page\'s first cards once one is there', (tester) async {
+    forgetGistRunner();
+    await open(tester, engine: true, present: false);
+    // Shown notes owed a line and no model to write one, the runner asked the engine for its models every 800 ms
+    // and told the whole app twice each time, for as long as the app was open. Thirty seconds on, nothing has asked
+    // but the catalogue's own readings.
+    final before = backend.calls('ai_models').length;
+    for (var i = 0; i < 30; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 2)));
+      await tester.pump(const Duration(seconds: 1));
+    }
+    expect(backend.calls('ai_models').length, before, reason: 'the runner has nothing to ask about');
+    expect(backend.calls('ai_generate'), isEmpty);
+    // A model arrives (a download ended): the home page's cards are the runner's, and it writes for one.
+    backend.answers['ai_models'] = [
+      {'id': 'qwen3.5-2b', 'file': 'Qwen3.5-2B-Q4_K_M.gguf', 'bytes': 1280835840, 'present': true, 'path': '/models/q'},
+    ];
+    // The catalogue's answer comes outside the test's clock, and so does the runner's first wait (a second and a
+    // half) begun as it is heard.
+    await tester.runAsync(() async {
+      await tester.widget<GhostRoot>(find.byType(GhostRoot)).voice!.models!.refresh();
+      await Future<void>.delayed(const Duration(milliseconds: 1800));
+    });
+    await tester.pump(const Duration(seconds: 1));
+    expect(backend.calls('ai_models').length, greaterThan(before + 1), reason: 'the runner looked for the smallest model');
+    forgetGistRunner();
+    await close(tester);
+  });
 
   testWidgets('a note has the AI\'s layer over its page, its rows in More and its blanks drawn, where there is an engine', (tester) async {
     final library = await open(tester, engine: true);

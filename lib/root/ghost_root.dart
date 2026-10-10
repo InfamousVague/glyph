@@ -80,7 +80,7 @@ import '../diag/scene_bench.dart' show showSceneBench;
 import '../diag/wisp_bench.dart' show showWispBench;
 import '../editor/queries/queries.dart' show NoteChange;
 import '../format/device_facts.dart' show DeviceFactsController;
-import '../format/gist.dart' show Gists, gistVisible, gistsCameBack, pauseGists;
+import '../format/gist.dart' show Gists, gistFor, gistVisible, gistsCameBack, pauseGists;
 import '../guide/guide.dart';
 import '../guide/guide_state.dart';
 import '../guide/guidebook.dart';
@@ -1568,21 +1568,38 @@ class _GhostRootState extends State<GhostRoot> {
   /// runner is shown the page's first cards ([carded]) in place of the ones it had. Under a note neither page asks,
   /// and the runner goes on with the cards it was last shown, as the page's does. The map is read again after the
   /// runner has spoken, and is the same map while no line in it is another.
+  ///
+  /// **With no model on the phone the runner is shown nothing.** It has no way to write a line then, and shown
+  /// notes that are owed one it does not stop: every 800 ms it takes the first, says it has begun, finds there is no
+  /// model, says it has ended and waits to begin again, for as long as the app is open (lib/format/gist.dart
+  /// `_pump`; measured as two tellings of the whole app every turn, in every stretch of the walk, on a Mac and an
+  /// emulator that have no model). The lines already kept for the cards are still read and drawn, by the same
+  /// reading the runner's own map is made with (`gistFor`); and the cards are shown to it the moment a model is
+  /// there (`_modelsChanged`).
   Map<String, String> _gistsOn(Object by, List<Note> Function() carded) {
     final gists = _gists;
     if (gists == null) return const {};
-    if (by != _gistedBy) {
-      _gistedBy = by;
-      gists.show(carded());
+    final writes = presentIds(_voice?.models?.models ?? const []).isNotEmpty;
+    final asked = (by, writes);
+    if (asked != _gistedBy) {
+      _gistedBy = asked;
+      _gisted = carded();
+      gists.show(writes ? _gisted : const []);
       _gistsRead = false;
     }
     if (!_gistsRead) {
       _gistsRead = true;
-      final read = gists.value;
-      if (!mapEquals(read, _gistsNow)) _gistsNow = read;
+      final read = <String, String>{
+        for (final note in _gisted)
+          if (gistFor(note.id, note.body) case final String gist) note.id: gist,
+      };
+      if (!mapEquals(read, _gistsNow)) _gistsNow = Map.unmodifiable(read);
     }
     return _gistsNow;
   }
+
+  /// The cards the page on screen begins with: whose lines are read.
+  List<Note> _gisted = const [];
 
   /// The home page's: its first sixteen cards, as it lays out the notes it is handed today.
   Map<String, String> _homeGists(AppShellState shell) {
