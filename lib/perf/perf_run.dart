@@ -111,6 +111,8 @@ String benchScript(Size size, {Set<String>? only}) {
     ],
   };
   return [
+    // A first run on a phone opens on the welcome, over the app: skipped, or every touch of the walk lands on it.
+    'mark:_start', 'tapif:Skip', 'wait:1500',
     for (final part in parts.entries)
       if (only == null || only.contains(part.key)) ...part.value,
     'mark:end',

@@ -170,11 +170,13 @@ class PhoneTour {
       case 'swipe' || 'flick':
         final n = _numbers(arg);
         await _swipe(Offset(n[0], n[1]), Offset(n[2], n[3]), ms: n.length > 4 ? n[4].round() : 220, settle: name == 'swipe');
-      case 'taptext' || 'holdtext' || 'where':
+      case 'taptext' || 'holdtext' || 'where' || 'tapif':
         final at = _textAt(arg);
+        // `tapif` is for what may or may not be up (a first run's welcome and its Skip): not there is not a fault.
+        if (name == 'tapif' && at == null) return;
         _say('$name "$arg" -> ${at == null ? 'NOT FOUND' : _spot(at)}');
         if (at == null) return;
-        if (name == 'taptext') await _touch(at.center);
+        if (name == 'taptext' || name == 'tapif') await _touch(at.center);
         if (name == 'holdtext') await _touch(at.center, held: const Duration(milliseconds: 700));
       case 'seek':
         // The words brought onto the screen by the finger, a part of a page at a time, until they are there to be
