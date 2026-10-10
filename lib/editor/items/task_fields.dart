@@ -123,11 +123,14 @@ DecorationSet _decorate(EditorViewLike view, String today) {
 }
 
 class _TaskFields extends PluginValue {
-  _TaskFields(EditorViewLike view) : today = _today(view.state) {
+  _TaskFields(EditorViewLike view) : today = _today(view.state), _active = ActiveLines(view) {
     decorations = _decorate(view, today);
   }
 
   late DecorationSet decorations;
+
+  /// The lines the selection was on when the chips were last drawn: what a selection changes of them.
+  final ActiveLines _active;
 
   /// The day the chips count from: "Today" is tomorrow's "Yesterday", so a new day draws them again.
   String today;
@@ -141,7 +144,9 @@ class _TaskFields extends PluginValue {
     }
     final now = _today(update.state);
     final newDay = now != today;
-    if (newDay || update.docChanged || update.viewportChanged || update.selectionSet || update.focusChanged || !identical(syntaxTree(update.startState), syntaxTree(update.state))) {
+    // A selection that stays on its lines shows the same fields as written: nothing is read for it.
+    if (newDay || update.docChanged || update.viewportChanged || (update.selectionSet && _active.differ(update.view)) || update.focusChanged || !identical(syntaxTree(update.startState), syntaxTree(update.state))) {
+      _active.take(update.view);
       today = now;
       decorations = _decorate(update.view, now);
     }

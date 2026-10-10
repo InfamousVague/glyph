@@ -208,9 +208,12 @@ DecorationSet _decorate(EditorViewLike view) {
 
 /// Addresses shown short and marks as pills, drawn again whenever what they show may have moved.
 class _ShortLinks extends PluginValue {
-  _ShortLinks(EditorViewLike view) : decorations = _decorate(view);
+  _ShortLinks(EditorViewLike view) : decorations = _decorate(view), _active = ActiveLines(view);
 
   DecorationSet decorations;
+
+  /// The lines the selection was on when the links were last drawn: what a selection changes of them.
+  final ActiveLines _active;
 
   @override
   void update(ViewUpdate update) {
@@ -221,7 +224,9 @@ class _ShortLinks extends PluginValue {
     }
     // Details arrived from a plugin (items/mark_reads.dart): a mark it reads steps aside for its row.
     final arrived = update.transactions.any((tr) => tr.effects.any((effect) => effect.isOf(detailsArrived)));
-    if (arrived || update.docChanged || update.viewportChanged || update.selectionSet || update.focusChanged || !identical(syntaxTree(update.startState), syntaxTree(update.state))) {
+    // A selection that stays on its lines shows the same links whole: nothing is walked for it.
+    if (arrived || update.docChanged || update.viewportChanged || (update.selectionSet && _active.differ(update.view)) || update.focusChanged || !identical(syntaxTree(update.startState), syntaxTree(update.state))) {
+      _active.take(update.view);
       decorations = _decorate(update.view);
     }
   }

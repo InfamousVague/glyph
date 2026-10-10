@@ -107,3 +107,38 @@ Set<int> selectedLines(EditorState state) {
   }
   return lines;
 }
+
+/// The lines whose marks are shown as written because the selection is on them, in a view that is being typed in:
+/// what an extension that folds or replaces off the caret's lines was last drawn for, kept so a caret that moves
+/// along its line, which changes none of it, draws nothing again.
+class ActiveLines {
+  ActiveLines(EditorViewLike view) : _lines = _of(view);
+
+  List<int>? _lines;
+
+  static List<int>? _of(EditorViewLike view) {
+    final state = view.state;
+    if (!(state.facet(EditorViewLike.editable) && view.hasFocus)) return null;
+    final lines = <int>[];
+    for (final range in state.selection.ranges) {
+      lines
+        ..add(state.doc.lineAt(range.from).number)
+        ..add(state.doc.lineAt(range.to).number);
+    }
+    return lines;
+  }
+
+  /// Whether the view's lines now differ from the ones last [taken].
+  bool differ(EditorViewLike view) {
+    final now = _of(view), was = _lines;
+    if (now == null || was == null) return now != was;
+    if (now.length != was.length) return true;
+    for (var i = 0; i < now.length; i++) {
+      if (now[i] != was[i]) return true;
+    }
+    return false;
+  }
+
+  /// The view's lines as they are now are the ones drawn for.
+  void take(EditorViewLike view) => _lines = _of(view);
+}
