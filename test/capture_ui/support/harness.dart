@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show FileSystemException;
 import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
@@ -49,6 +50,15 @@ class MemoryNotes implements RecorderStore {
 
   int _now() => _clock += 1;
 
+  /// The next this many writes (a note made or changed, a command's change) fail, as a full disk does.
+  int failing = 0;
+
+  void _mayFail() {
+    if (failing <= 0) return;
+    failing -= 1;
+    throw const FileSystemException('No space left on device');
+  }
+
   @override
   String newNoteId() => 'n-test-${_ids += 1}';
 
@@ -76,7 +86,10 @@ class MemoryNotes implements RecorderStore {
   Future<Note?> getNote(String id) async => note(id);
 
   @override
-  Future<Note> createNote(String id, String body, [NoteSource source = NoteSource.editor]) async => create(id, body, source);
+  Future<Note> createNote(String id, String body, [NoteSource source = NoteSource.editor]) async {
+    _mayFail();
+    return create(id, body, source);
+  }
 
   /// `createNote`, at once, for a test setting up.
   Note create(String id, String body, [NoteSource source = NoteSource.editor]) {
@@ -92,6 +105,7 @@ class MemoryNotes implements RecorderStore {
 
   @override
   Future<Note> updateNote(String id, String body, int expectedRevision) async {
+    _mayFail();
     final at = _notes.indexWhere((note) => note.id == id);
     if (at < 0 || _notes[at].revision != expectedRevision) throw StateError('the note was deleted or changed');
     return _notes[at] = _with(_notes[at], body: body, updatedAt: _now(), revision: expectedRevision + 1);
@@ -99,6 +113,7 @@ class MemoryNotes implements RecorderStore {
 
   @override
   Future<CommandMutationResult> applyCommandMutation(CommandMutationRequest request) async {
+    _mayFail();
     final at = _notes.indexWhere((note) => note.id == request.noteId);
     final current = at < 0 ? null : _notes[at];
     final matches = request.beforeRevision == null

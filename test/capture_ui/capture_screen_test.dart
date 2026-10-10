@@ -3,6 +3,7 @@ import 'package:ghost_md/app/widgets.dart';
 import 'package:ghost_md/capture/place.dart';
 import 'package:ghost_md/capture/recorder.dart';
 import 'package:ghost_md/capture/ui/capture_screen.dart';
+import 'package:ghost_md/capture/ui/live_page.dart';
 
 import '../support/render.dart';
 import 'support/harness.dart';
@@ -41,6 +42,36 @@ void main() {
       await capture.close();
     });
 
+    testWidgets('keeps the words as a note of their own when the note cannot be saved at Done, and leaves', (tester) async {
+      final capture = Capture(tester)..stopSays('Weekend plans include packing sunscreen');
+      await capture.open();
+      await capture.say('Weekend plans include packing', 0);
+      // The disk refuses one write: the take's own note.
+      capture.notes.failing = 1;
+      final finished = await capture.doneAndFinished();
+      expect(capture.notes.all, hasLength(1));
+      expect(capture.notes.bodies.single, contains('sunscreen'));
+      expect(finished.note?.id, capture.notes.all.single.id);
+      await capture.close();
+    });
+    testWidgets('stays up with the words when nothing can be written at Done, says so, and Done tries again', (tester) async {
+      final capture = Capture(tester)..stopSays('Weekend plans include packing sunscreen');
+      await capture.open();
+      await capture.say('Weekend plans include packing', 0);
+      capture.notes.failing = 1000;
+      await capture.done();
+      await capture.until(() => find.textContaining('could not be saved').evaluate().isNotEmpty, reason: 'the recorder never said the save failed');
+      expect(capture.finished, isEmpty);
+      expect(capture.notes.all, isEmpty);
+      // The words are still on the page, and Done is not dead.
+      expect(tester.widget<LivePage>(find.byType(LivePage)).markdown, contains('Weekend plans include packing'));
+      capture.notes.failing = 0;
+      final finished = await capture.doneAndFinished();
+      expect(capture.notes.all, hasLength(1));
+      expect(capture.notes.bodies.single, contains('Weekend plans include packing'));
+      expect(finished.note?.id, capture.notes.all.single.id);
+      await capture.close();
+    });
     testWidgets('keeps a native-only terminal suffix when the stopped recording is an ordinary note', (tester) async {
       final capture = Capture(tester)..stopSays('Weekend plans include packing sunscreen');
       await capture.open();

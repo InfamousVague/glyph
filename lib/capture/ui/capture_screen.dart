@@ -285,6 +285,13 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
   bool _notesRead = false;
   int _tipTurn = 0;
   bool _finished = false;
+
+  /// Done could not keep the words anywhere ([_doneFailed]): the recorder stays up with them, says so, and Done tries
+  /// again. Until then, what Done had got to: the note it had saved before whatever failed ([_keptAtDone]), and the
+  /// take's sound as the stop left it ([_soundAtDone]).
+  bool _doneFailed = false;
+  Note? _keptAtDone;
+  ({String recordedAs, int? recordedMs, Note? ownTape})? _soundAtDone;
   _FinalCommand? _finalCommand;
 
   /// The live reader: each committed phrase read for a note named (live_route.dart).
@@ -999,9 +1006,67 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
   }
 
   /// Done: the take is stopped, read, written and handed back.
+  ///
+  /// Whatever fails on the way (a disk with no room, a library folder that has gone, a core that answers with an
+  /// error), the words are not lost and the recorder is not left dead: they are kept as a note of their own, and if
+  /// even that cannot be written the recorder stays up with them and Done tries again ([_doneFailed]). The original
+  /// has no such net: its `finish` is one promise, and a rejection in it leaves `finished` set and the page up for
+  /// good.
   Future<void> finish() async {
     if (_finished) return;
     _finished = true;
+    try {
+      if (_doneFailed) {
+        _session.setPhase(Phase.finishing);
+        await _keepWords();
+      } else {
+        await _finishTake();
+      }
+    } catch (failure) {
+      _r.warn?.call('[glyph] done failed: $failure');
+      try {
+        await _keepWords();
+      } catch (again) {
+        _r.warn?.call('[glyph] the words were not kept: $again');
+        _doneFailed = true;
+        _finished = false;
+        _session.setError('The note could not be saved. Tap Done to try again.');
+        _session.setPhase(Phase.failed);
+      }
+    }
+  }
+
+  /// What Done falls back to: the note it had already saved, opened; or the take's words as a note of their own. The
+  /// sound goes the way a take's does when its words end up elsewhere ([_letGo]). Throws when the words cannot be
+  /// written at all.
+  Future<void> _keepWords() async {
+    final locked = _locked;
+    var kept = _keptAtDone;
+    if (kept == null) {
+      var words = _take.markdown(titled: true);
+      // A meeting's transcript is not a take's: its phrases as they were heard.
+      if (words.trim().isEmpty) words = [for (final segment in _committed) segment.text].join(' ').trim();
+      if (words.trim().isNotEmpty) {
+        kept = await _r.store.createNote(_r.store.newNoteId(), words, NoteSource.capture);
+        _keptAtDone = kept;
+      }
+      final sound = _soundAtDone;
+      if (sound != null && sound.recordedAs != kept?.id) await _letGo(sound.recordedAs, sound.recordedMs, sound.ownTape);
+      // What a draft wrote mid-take is undone, as it is when a take keeps nothing: the words are in their own note
+      // now. Never after Done's own save, whose note the draft became.
+      try {
+        await _writer.undoDraft();
+      } catch (_) {
+        // The draft is the store's too; what was kept is kept.
+      }
+    }
+    _session.setError(null);
+    _r.host.endCapture(locked);
+    if (kept != null) await _said('That could not be saved where it was going, so the words are a note of their own.');
+    widget.onFinish(kept, locked);
+  }
+
+  Future<void> _finishTake() async {
     _r.host.setCapturing(false);
     _session.setPhase(Phase.finishing);
     _session.microphone?.stop();
@@ -1025,6 +1090,7 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
     } catch (failure) {
       _session.setError(_failureText(failure));
     }
+    _soundAtDone = (recordedAs: recordedAs, recordedMs: (session?.keepsAudio ?? false) ? stopped.recordedMs : null, ownTape: ownTape);
 
     // The stop's own result includes words whose phrase event was still in flight when `stop()` stopped listening:
     // compared with every phrase committed, commands and all, what it adds is read as one more phrase, so a command
@@ -1275,6 +1341,8 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
       saved = await _writer.queue(() async => _writer.persist(_writer.noteId, await _writer.compose(markdown), NoteSource.capture));
       base = aimed != null ? (await _writer.baseBody ?? aimed.body) : '';
     }
+    // From here the words are in the library: whatever fails after this opens that note ([_keepWords]).
+    _keptAtDone = saved;
 
     RefineJob? refineJob;
     final keptMs = stopped.recordedMs;
@@ -1717,7 +1785,8 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
                   children: [
                     AppPill(
                       key: CaptureScreen.doneKey,
-                      onPressed: phase == Phase.failed || busy ? null : () => unawaited(finish()),
+                      // A recorder that could not start has nothing to finish; one whose save failed tries again.
+                      onPressed: (phase == Phase.failed && !_doneFailed) || busy ? null : () => unawaited(finish()),
                       icon: const AppIcon(Lucide.square, size: 16),
                       child: const Text('Done'),
                     ),
