@@ -15,7 +15,6 @@ import 'package:glacier/glacier.dart';
 import '../../core/sums.dart';
 import '../editor.dart';
 import '../view/line.dart' show EditorRunScope;
-import '../view/lines.dart';
 import '../view/syntax_tree.dart';
 
 export '../../core/sums.dart' show answer, sumOnLine;
@@ -53,15 +52,20 @@ class AnswerWidget extends EditorWidget {
 
 final RegExp _notWords = RegExp(r'Code|FrontMatter|Comment|Math');
 
+/// The answer of each line that is a sum, kept for every line of a document (`LineFact`). A sum is written with
+/// an equals sign.
+final LineFact<String> _answers = LineFact<String>((text) => text.contains('=') ? sumOnLine(text)?.answer : null);
+
 DecorationSet _decorate(EditorViewLike view) {
   final builder = RangeSetBuilder<Decoration>();
+  final doc = view.state.doc;
   final tree = syntaxTree(view.state);
-  forEachVisibleLine(view, (line) {
-    final sum = sumOnLine(line.text);
-    if (sum == null) return;
-    if (_notWords.hasMatch(tree.resolveInner(line.from, 1).name)) return;
-    builder.add(line.to, line.to, Decoration.widget(widget: AnswerWidget(sum.answer), side: 1));
-  });
+  for (final range in view.visibleRanges) {
+    for (final line in _answers.between(doc, doc.lineAt(range.from).number, doc.lineAt(range.to).number)) {
+      if (_notWords.hasMatch(tree.resolveInner(line.from, 1).name)) continue;
+      builder.add(line.to, line.to, Decoration.widget(widget: AnswerWidget(line.fact), side: 1));
+    }
+  }
   return builder.finish();
 }
 

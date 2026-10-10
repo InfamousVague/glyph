@@ -32,7 +32,6 @@ import '../looks/look.dart';
 import '../looks/sheets.dart';
 import '../marks/run_paint.dart';
 import '../syntax/syntax.dart';
-import '../view/lines.dart';
 import '../view/syntax_tree.dart';
 import 'inline_box.dart';
 
@@ -76,15 +75,26 @@ String stepped(Counter counter, int step) {
   return '[$count/${counter.goal}]';
 }
 
+/// The counters on each line, counted from the line's start, kept for every line of a document (`LineFact`).
+final LineFact<List<Counter>> _counted = LineFact<List<Counter>>((text) {
+  if (!text.contains('[') || !text.contains('/')) return null;
+  final counters = countersIn(text);
+  return counters.isEmpty ? null : counters;
+});
+
 /// The counters on screen, leaving any in code, an address, front matter, HTML, a comment or maths as written.
 List<Counter> _visibleCounters(EditorViewLike view) {
   final out = <Counter>[];
+  final doc = view.state.doc;
   final tree = syntaxTree(view.state);
-  forEachVisibleLine(view, (line) {
-    for (final counter in countersIn(line.text, line.from)) {
-      if (!inQuietText(tree, counter.from)) out.add(counter);
+  for (final range in view.visibleRanges) {
+    for (final line in _counted.between(doc, doc.lineAt(range.from).number, doc.lineAt(range.to).number)) {
+      for (final counter in line.fact) {
+        final from = line.from + counter.from;
+        if (!inQuietText(tree, from)) out.add(Counter(from: from, to: line.from + counter.to, count: counter.count, goal: counter.goal));
+      }
     }
-  });
+  }
   return out;
 }
 

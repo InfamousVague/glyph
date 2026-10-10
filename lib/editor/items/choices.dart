@@ -18,7 +18,6 @@ import '../../core/item_syntax.dart';
 import '../editor.dart';
 import '../looks/look.dart';
 import '../looks/sheets.dart';
-import '../view/lines.dart';
 import 'box_taps.dart';
 
 class Choice {
@@ -101,12 +100,23 @@ Choice? _choiceUnder(EditorViewLike view, Offset at) {
 final Decoration _box = Decoration.mark(className: 'cm-choiceBox');
 final Decoration _boxPicked = Decoration.mark(className: 'cm-choiceBox cm-choicePicked');
 
+/// Where a line's round box is and whether it is picked, kept for every line of a document (`LineFact`). A choice
+/// is written with a bracket.
+final LineFact<({int at, bool picked})> _boxes = LineFact<({int at, bool picked})>((text) {
+  if (!text.contains('(')) return null;
+  final lead = listLead(text);
+  return lead == null || lead.picked == null ? null : (at: lead.boxAt, picked: lead.picked!);
+});
+
 DecorationSet _decorate(EditorViewLike view) {
   final builder = RangeSetBuilder<Decoration>();
-  forEachVisibleLine(view, (line) {
-    final choice = choiceOn(view.state.doc, line.number);
-    if (choice != null) builder.add(choice.from, choice.from + 3, choice.picked ? _boxPicked : _box);
-  });
+  final doc = view.state.doc;
+  for (final range in view.visibleRanges) {
+    for (final line in _boxes.between(doc, doc.lineAt(range.from).number, doc.lineAt(range.to).number)) {
+      final from = line.from + line.fact.at;
+      builder.add(from, from + 3, line.fact.picked ? _boxPicked : _box);
+    }
+  }
   return builder.finish();
 }
 

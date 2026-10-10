@@ -15,7 +15,6 @@ import '../looks/look.dart';
 import '../looks/sheets.dart';
 import '../marks/run_paint.dart';
 import '../syntax/syntax.dart';
-import '../view/lines.dart';
 import '../view/syntax_tree.dart';
 import 'inline_box.dart';
 
@@ -26,21 +25,33 @@ const double _pad = 0.3 * 0.92;
 final Decoration _padBefore = Decoration.widget(widget: const GapWidget(em: _pad), side: -1);
 final Decoration _padAfter = Decoration.widget(widget: const GapWidget(em: _pad), side: 1);
 
+/// The tags on each line, counted from the line's start, kept for every line of a document (`LineFact`): the lines
+/// on screen are not put to the pattern again on every letter.
+final LineFact<List<Tag>> _tagged = LineFact<List<Tag>>((text) {
+  if (!text.contains('#')) return null;
+  final tags = tagsIn(text);
+  return tags.isEmpty ? null : tags;
+});
+
 DecorationSet _decorate(EditorViewLike view) {
   final found = <Range<Decoration>>[];
+  final doc = view.state.doc;
   final tree = syntaxTree(view.state);
   // Nothing inside code, an address, front matter, HTML, a comment or maths is a tag.
-  forEachVisibleLine(view, (line) {
-    // A `#word` inside a blank's question is not a chip: the question reads as one quiet phrase.
-    final blanks = line.text.contains('{?') ? blankMatches(line.text, line.from) : const <Blank>[];
-    for (final tag in tagsIn(line.text, line.from)) {
-      if (inQuietText(tree, tag.from) || blanks.any((b) => tag.from > b.from && tag.from < b.to)) continue;
-      found
-        ..add(_padBefore.range(tag.from))
-        ..add(_chip.range(tag.from, tag.to))
-        ..add(_padAfter.range(tag.to));
+  for (final range in view.visibleRanges) {
+    for (final line in _tagged.between(doc, doc.lineAt(range.from).number, doc.lineAt(range.to).number)) {
+      // A `#word` inside a blank's question is not a chip: the question reads as one quiet phrase.
+      final blanks = line.text.contains('{?') ? blankMatches(line.text, line.from) : const <Blank>[];
+      for (final tag in line.fact) {
+        final from = line.from + tag.from, to = line.from + tag.to;
+        if (inQuietText(tree, from) || blanks.any((b) => from > b.from && from < b.to)) continue;
+        found
+          ..add(_padBefore.range(from))
+          ..add(_chip.range(from, to))
+          ..add(_padAfter.range(to));
+      }
     }
-  });
+  }
   return Decoration.set(found, true);
 }
 
