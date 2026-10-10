@@ -106,6 +106,20 @@ class DotsPainter extends CustomPainter {
 /// One line as the view holds it: the edge and its path.
 typedef DrawnLine = ({CanvasEdge edge, EdgePath path});
 
+/// The paths read from their strings so far. A line's curve and its heads are read back from the strings lines.dart
+/// writes (the web's own, character for character), and were read again at every paint of the canvas, of its map
+/// and at every press: the same string is the same path, so each is read once. A card carried makes new strings
+/// for the lines that end on it at every move, so the paths kept are let go of once they are many.
+final Map<String, ui.Path> _paths = <String, ui.Path>{};
+
+/// [d] as a path, read once. The path is shared: whoever is handed it draws it and changes nothing of it.
+ui.Path linePath(String d) {
+  final had = _paths[d];
+  if (had != null) return had;
+  if (_paths.length >= 512) _paths.clear();
+  return _paths[d] = svgPath(d);
+}
+
 /// The lines of a canvas in its edges' order (CanvasView.tsx `lines`).
 List<DrawnLine> drawnLines(Canvas canvas) {
   final paths = edgePaths(canvas);
@@ -118,7 +132,7 @@ List<DrawnLine> drawnLines(Canvas canvas) {
 /// The line a press at a point of the canvas is on, by id: the topmost within 12 of its curve (`.lineHit`).
 String? lineAt(List<DrawnLine> lines, double x, double y) {
   for (final line in lines.reversed) {
-    final path = svgPath(line.path.d);
+    final path = linePath(line.path.d);
     if (!path.getBounds().inflate(12).contains(Offset(x, y))) continue;
     for (final metric in path.computeMetrics()) {
       final steps = math.max(8, (metric.length / 6).ceil());
@@ -150,7 +164,7 @@ class LinesPainter extends CustomPainter {
       final paint = paintOf(line.edge.color);
       final color = isPicked ? t.color('app-ink') : (paint == null ? t.color('app-ink-3') : spaceColor(t, 'var(--app-space)', paint));
       canvas.drawPath(
-        svgPath(line.path.d),
+        linePath(line.path.d),
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = isPicked ? 3 : 2
@@ -158,8 +172,8 @@ class LinesPainter extends CustomPainter {
           ..color = color,
       );
       final fill = Paint()..color = color;
-      if (line.path.fromHead != null) canvas.drawPath(svgPath(line.path.fromHead!), fill);
-      if (line.path.toHead != null) canvas.drawPath(svgPath(line.path.toHead!), fill);
+      if (line.path.fromHead != null) canvas.drawPath(linePath(line.path.fromHead!), fill);
+      if (line.path.toHead != null) canvas.drawPath(linePath(line.path.toHead!), fill);
       if (line.edge.label == null || isPicked || line.path.lines.isEmpty) continue;
       // `.label`: 13px, medium, the muted text, centred on the point, a 6px stroke of the page behind it.
       final words = line.path.lines.join('\n');

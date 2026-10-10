@@ -22,6 +22,9 @@
 /// - A chart is its Mermaid fence as a code card until diagrams are drawn (docs/STAGE4.md); a film card's `videos`
 ///   mode is not taken.
 /// - `editedBy`, another member's ring and handle on a card they have open, is the team canvas's (piece 6G).
+/// - Each card is a layer of its own (a [RepaintBoundary] under its place in the world): the page gave each card
+///   its own compositing where it promoted one, and here it is what lets a pan or a pinch set the cards down again
+///   without drawing one of them, and a card carried or written in be drawn alone.
 library;
 
 import 'dart:io';
@@ -168,7 +171,7 @@ class CanvasCard {
       final name = groupNameBox(t, node, editable: editable, selected: selected);
       final line = t.len('glacier-hairline');
       return [
-        Placed(key: key, at: at, size: size, child: _Lift(lifted: lifted, child: _GroupBox(node: node, solid: editing))),
+        Placed(key: key, at: at, size: size, child: RepaintBoundary(child: _Lift(lifted: lifted, child: _GroupBox(node: node, solid: editing)))),
         if (editing && onName != null)
           Placed(
             key: ValueKey('name ${node.id}'),
@@ -181,7 +184,7 @@ class CanvasCard {
             key: ValueKey('name ${node.id}'),
             at: Offset(name.x, name.y),
             size: Size(name.width, name.height),
-            child: _GroupName(node: node, selected: selected, editable: editable),
+            child: RepaintBoundary(child: _GroupName(node: node, selected: selected, editable: editable)),
           ),
       ];
     }
@@ -190,9 +193,11 @@ class CanvasCard {
         key: key,
         at: at,
         size: size,
-        child: _Lift(
-          lifted: lifted,
-          child: _CardBox(node: node, lineFrom: lineFrom, table: !editing && node.type == NodeType.text && isOnlyTable(node.text), child: _content(context)),
+        child: RepaintBoundary(
+          child: _Lift(
+            lifted: lifted,
+            child: _CardBox(node: node, lineFrom: lineFrom, table: !editing && node.type == NodeType.text && isOnlyTable(node.text), child: _content(context)),
+          ),
         ),
       ),
     ];

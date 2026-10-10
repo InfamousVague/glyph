@@ -200,6 +200,33 @@ class _MinimapState extends State<Minimap> {
   }
 }
 
+/// What a card is on the map, worked out once for the card as it is and the tokens it is drawn with: its kind, its
+/// colours, and the bars its words make. The map is painted again at every move of the camera, and each paint read
+/// every card's words into bars and mixed every card's colours again.
+class _CardMark {
+  _CardMark(this.t, this.paint, this.kind, this.fill, this.stroke, this.ring);
+  final Tokens t;
+  final CardPaint? paint;
+  final String kind;
+  final Color? fill;
+  final Color stroke;
+
+  /// A link's ring.
+  final Color? ring;
+  List<MapBar>? bars;
+  Color? strong;
+  Color? weak;
+}
+
+final Expando<_CardMark> _cardMarks = Expando<_CardMark>('a card on the map');
+
+/// A group on the map: its paint (a preset's hue only), its wash, its line and its name's colour.
+typedef _GroupMark = ({Tokens t, CardPaint? paint, Color wash, Color line, Color name});
+final Expando<_GroupMark> _groupMarks = Expando<_GroupMark>('a group on the map');
+
+/// A line's colour on the map, by the edge and the tokens.
+final Expando<({Tokens t, Color color})> _lineMarks = Expando<({Tokens t, Color color})>('a line on the map');
+
 /// Everything on the canvas, in the canvas's own pixels under one transform: the groups under, then the lines,
 /// then the cards; then what the screen does not show, shaded, and the screen's box.
 class MapPainter extends CustomPainter {
@@ -237,17 +264,21 @@ class MapPainter extends CustomPainter {
     ctx.scale(scale);
     for (final n in canvas.nodes) {
       if (!n.isGroup) continue;
-      // A group wears a preset's hue; a hex is the cards' own, not the group's, on the map.
-      final paint = paintOf(n.color)?.hue == null ? null : paintOf(n.color);
+      var mark = _groupMarks[n];
+      if (mark == null || !identical(mark.t, t)) {
+        // A group wears a preset's hue; a hex is the cards' own, not the group's, on the map.
+        final paint = paintOf(n.color)?.hue == null ? null : paintOf(n.color);
+        mark = _groupMarks[n] = (t: t, paint: paint, wash: _mix('6%', paint), line: _mix('40%', paint), name: spaceOver(t, paint, 0.75, 'glacier-text-muted'));
+      }
       final box = RRect.fromRectAndRadius(Rect.fromLTWH(n.x, n.y, n.width, n.height), const Radius.circular(16));
-      ctx.drawRRect(box, Paint()..color = _mix('6%', paint));
-      _dashed(ctx, Path()..addRRect(box), _mix('40%', paint), hair, 3 * hair, 2 * hair);
+      ctx.drawRRect(box, Paint()..color = mark.wash);
+      _dashed(ctx, Path()..addRRect(box), mark.line, hair, 3 * hair, 2 * hair);
       final label = n.label;
       if (label != null && n.width / unit > 36) {
         drawn.name = label;
         final size = 7 * unit;
         final words = TextPainter(
-          text: TextSpan(text: label, style: pageText(t, size, weight: 'semibold', tracking: 0.02 * size, color: spaceOver(t, paint, 0.75, 'glacier-text-muted'))),
+          text: TextSpan(text: label, style: pageText(t, size, weight: 'semibold', tracking: 0.02 * size, color: mark.name)),
           textDirection: TextDirection.ltr,
           maxLines: 1,
         )..layout();
@@ -257,10 +288,12 @@ class MapPainter extends CustomPainter {
       }
     }
     for (final line in lines) {
-      final color = _mix('50%', paintOf(line.edge.color));
+      var worn = _lineMarks[line.edge];
+      if (worn == null || !identical(worn.t, t)) worn = _lineMarks[line.edge] = (t: t, color: _mix('50%', paintOf(line.edge.color)));
+      final color = worn.color;
       drawn.lines += 1;
       ctx.drawPath(
-        svgPath(line.path.d),
+        linePath(line.path.d),
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = hair
@@ -270,43 +303,52 @@ class MapPainter extends CustomPainter {
       for (final head in [line.path.fromHead, line.path.toHead]) {
         if (head == null) continue;
         drawn.heads += 1;
-        ctx.drawPath(svgPath(head), Paint()..color = color);
+        ctx.drawPath(linePath(head), Paint()..color = color);
       }
     }
     for (final n in canvas.nodes) {
       if (n.isGroup) continue;
-      final paint = paintOf(n.color);
-      final kind = mapKind(n);
+      var mark = _cardMarks[n];
+      if (mark == null || !identical(mark.t, t)) {
+        final paint = paintOf(n.color);
+        final kind = mapKind(n);
+        final (fill, stroke) = switch (kind) {
+          'note' => (spaceOver(t, paint, 0.06, 'glacier-bg'), _mix('60%', paint)),
+          'picture' => (spaceOver(t, paint, 0.45, 'glacier-bg'), _mix('42%', paint)),
+          'link' => (null, _mix('55%', paint)),
+          _ => (spaceOver(t, paint, 0.14, 'glacier-bg'), _mix('42%', paint)),
+        };
+        mark = _cardMarks[n] = _CardMark(t, paint, kind, fill, stroke, kind == 'link' ? _mix('70%', paint) : null);
+      }
+      final paint = mark.paint;
+      final kind = mark.kind;
+      final fill = mark.fill;
       final box = RRect.fromRectAndRadius(Rect.fromLTWH(n.x, n.y, n.width, n.height), const Radius.circular(12));
-      final (fill, stroke) = switch (kind) {
-        'note' => (spaceOver(t, paint, 0.06, 'glacier-bg'), _mix('60%', paint)),
-        'picture' => (spaceOver(t, paint, 0.45, 'glacier-bg'), _mix('42%', paint)),
-        'link' => (null, _mix('55%', paint)),
-        _ => (spaceOver(t, paint, 0.14, 'glacier-bg'), _mix('42%', paint)),
-      };
       if (fill != null) ctx.drawRRect(box, Paint()..color = fill);
       ctx.drawRRect(
         box,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = hair
-          ..color = stroke,
+          ..color = mark.stroke,
       );
-      final bars = !detail ? const <MapBar>[] : (n.type == NodeType.text ? wordBars(n.text, n.width, n.height) : (kind == 'note' ? noteBars(fileTitle(n.file), n.width, n.height) : const <MapBar>[]));
+      // The bars are a card's words and its size, which a card moved keeps: read once for the node as it is.
+      final bars = !detail ? const <MapBar>[] : (mark.bars ??= n.type == NodeType.text ? wordBars(n.text, n.width, n.height) : (kind == 'note' ? noteBars(fileTitle(n.file), n.width, n.height) : const <MapBar>[]));
       for (final bar in bars) {
         ctx.drawRRect(
           RRect.fromRectAndRadius(Rect.fromLTWH(n.x + bar.x, n.y + bar.y, bar.width, bar.height), Radius.circular(bar.height / 2)),
-          Paint()..color = _mix(bar.strong ? '82%' : '46%', paint),
+          Paint()..color = bar.strong ? (mark.strong ??= _mix('82%', paint)) : (mark.weak ??= _mix('46%', paint)),
         );
       }
-      if (kind == 'link') {
+      final ring = mark.ring;
+      if (ring != null) {
         ctx.drawCircle(
           Offset(n.x + n.width / 2, n.y + n.height / 2),
           math.min(14, n.height / 3),
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.25 * hair
-            ..color = _mix('70%', paint),
+            ..color = ring,
         );
       }
       drawn.cards.add((id: n.id, kind: kind, paint: paint, bars: [for (final bar in bars) bar.strong], ring: kind == 'link'));

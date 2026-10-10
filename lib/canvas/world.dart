@@ -7,6 +7,11 @@
 /// paints and when it is asked what is under a point: a pan or a pinch repaints it and lays nothing out, builds
 /// nothing, and no child is told. A child says where it goes with [Placed].
 ///
+/// What a pan paints is the places: a child that is a layer of its own (a card is, card.dart) is set down again
+/// where the camera now has it and is not drawn again, and one that scales with the canvas and is wholly off the
+/// screen is not set down at all ([RenderCanvasWorld.reach] is how far outside its box a child may draw: a lifted
+/// card's shadow, a ring round a card).
+///
 /// What differs from the web: the world there is an element of no size whose children overflow it; a render box
 /// that small would take no taps, so this one fills the canvas and answers for its children wherever they are.
 library;
@@ -81,6 +86,13 @@ class CanvasWorld extends MultiChildRenderObjectWidget {
 class RenderCanvasWorld extends RenderBox with ContainerRenderObjectMixin<RenderBox, WorldPlace>, RenderBoxContainerDefaultsMixin<RenderBox, WorldPlace> {
   RenderCanvasWorld(this._camera);
 
+  /// How far outside its own box a child that scales with the canvas may draw, in the canvas's pixels: a lifted
+  /// card's shadow (ten down, twenty-eight of blur) is the furthest.
+  static const double reach = 80;
+
+  /// How many children the last paint set down, for a test and for a measured build.
+  int debugPainted = 0;
+
   CanvasCamera _camera;
   CanvasCamera get camera => _camera;
   set camera(CanvasCamera value) {
@@ -147,14 +159,33 @@ class RenderCanvasWorld extends RenderBox with ContainerRenderObjectMixin<Render
   @override
   void applyPaintTransform(RenderBox child, Matrix4 transform) => transform.multiply(_matrixOf(child));
 
+  /// Whether any of [child] can be on the screen. Only a child with a box that scales with the canvas is ever left
+  /// out: one with no size draws where it likes (the lines), and one held to a size on the screen is the picked
+  /// card's, whose bar opens a row of colours beyond itself.
+  bool _shows(RenderBox child) {
+    final place = child.parentData! as WorldPlace;
+    if (place.fixed || child.size.isEmpty) return true;
+    final view = _camera.view;
+    final scale = view.scale;
+    final left = view.x + place.at.dx * scale + place.nudge.dx - (place.anchor.x + 1) / 2 * child.size.width * scale;
+    final top = view.y + place.at.dy * scale + place.nudge.dy - (place.anchor.y + 1) / 2 * child.size.height * scale;
+    final out = reach * scale;
+    return left - out < size.width && left + child.size.width * scale + out > 0 && top - out < size.height && top + child.size.height * scale + out > 0;
+  }
+
   @override
   void paint(PaintingContext context, Offset offset) {
+    var painted = 0;
     var child = firstChild;
     while (child != null) {
       final at = child;
-      context.pushTransform(needsCompositing, offset, _matrixOf(at), (context, offset) => context.paintChild(at, offset));
+      if (_shows(at)) {
+        painted += 1;
+        context.pushTransform(needsCompositing, offset, _matrixOf(at), (context, offset) => context.paintChild(at, offset));
+      }
       child = (child.parentData! as WorldPlace).nextSibling;
     }
+    debugPainted = painted;
   }
 
   @override

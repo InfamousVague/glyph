@@ -277,6 +277,49 @@ class CanvasViewState extends State<CanvasView> {
 
   void _felt() => (widget.felt ?? () => fireFelt('selection'))();
 
+  /// Each card as it was built last, and what it was built from: a card built again from the same of it is handed
+  /// back as it was, so a card carried, a card written in or a line picked builds that one card and no other, and
+  /// the note's screen building this again for a letter typed builds only the card it was typed in. The edits keep
+  /// every node they do not change as the very node it was (edits.dart), which is what is asked. A card that is a
+  /// note is drawn from that note too, so it is asked after each time: whether there is one, and its words.
+  final Map<String, ({CanvasNode node, int worn, Tokens tokens, PictureStore? pictures, bool known, String? words, List<Widget> drawn})> _cards = {};
+
+  List<Widget> _card(BuildContext context, Tokens t, CanvasNode node, {required bool editable}) {
+    final near = _made.contains(node.id), editing = _editing == node.id, lifted = _gestures.lifted == node.id;
+    final selected = editable && _chosen == node.id, lineFrom = _lining?.from == node.id;
+    final worn = (near ? 1 : 0) | (editable ? 2 : 0) | (editing ? 4 : 0) | (lifted ? 8 : 0) | (selected ? 16 : 0) | (lineFrom ? 32 : 0) | (widget.wiki == null ? 0 : 64);
+    final wiki = widget.wiki;
+    // What a note's card reads of the library (card.dart `_FileWords`).
+    var known = false;
+    String? words;
+    if (wiki != null && node.type == NodeType.file && !isImageFile(node.file)) {
+      final title = fileTitle(node.file);
+      known = wiki.known(title);
+      words = known ? wiki.body?.call(title) : null;
+    }
+    final had = _cards[node.id];
+    if (had != null && identical(had.node, node) && had.worn == worn && identical(had.tokens, t) && identical(had.pictures, widget.pictures) && had.known == known && identical(had.words, words)) {
+      return had.drawn;
+    }
+    if (ghostPerf) Perf.count('canvas.card.made');
+    final drawn = CanvasCard(
+      node: node,
+      wiki: widget.wiki,
+      pictures: widget.pictures,
+      near: near,
+      editable: editable,
+      editing: editing,
+      lifted: lifted,
+      selected: selected,
+      lineFrom: lineFrom,
+      onWrite: editable ? _writeCard : null,
+      onName: editable ? _nameGroup : null,
+      own: _own,
+    ).build(context);
+    _cards[node.id] = (node: node, worn: worn, tokens: t, pictures: widget.pictures, known: known, words: words, drawn: drawn);
+    return drawn;
+  }
+
   List<DrawnLine>? _lines;
   Canvas? _linesOf;
 
@@ -880,6 +923,11 @@ class CanvasViewState extends State<CanvasView> {
         _camera.resized(constraints.maxWidth, constraints.maxHeight);
         _takeNear();
         _below = _barBelow();
+        // A card that has left the canvas is kept no longer.
+        if (_cards.length > live.nodes.length) {
+          final there = {for (final node in live.nodes) node.id};
+          _cards.removeWhere((id, _) => !there.contains(id));
+        }
         final threads = widget.threads;
         final editedBy = widget.editedBy;
         if (_editing != _toldEditing) {
@@ -934,21 +982,7 @@ class CanvasViewState extends State<CanvasView> {
                     CanvasWorld(
                       camera: _camera,
                       children: [
-                        for (final node in live.nodes)
-                          ...CanvasCard(
-                            node: node,
-                            wiki: widget.wiki,
-                            pictures: widget.pictures,
-                            near: _made.contains(node.id),
-                            editable: editable,
-                            editing: _editing == node.id,
-                            lifted: _gestures.lifted == node.id,
-                            selected: editable && _chosen == node.id,
-                            lineFrom: _lining?.from == node.id,
-                            onWrite: editable ? _writeCard : null,
-                            onName: editable ? _nameGroup : null,
-                            own: _own,
-                          ).build(context),
+                        for (final node in live.nodes) ..._card(context, t, node, editable: editable),
                         // Another member writing in a card: a ring in their colour and their handle on its corner,
                         // scaled with the world as the card is (`.card[data-edited-by]`).
                         if (editedBy != null)
@@ -964,7 +998,8 @@ class CanvasViewState extends State<CanvasView> {
                           key: const ValueKey('lines'),
                           at: Offset.zero,
                           size: Size.zero,
-                          child: IgnorePointer(child: CustomPaint(painter: LinesPainter(lines: lined, picked: _picked, t: t))),
+                          // A layer of their own: a pan sets the lines down again and draws none of them.
+                          child: RepaintBoundary(child: IgnorePointer(child: CustomPaint(painter: LinesPainter(lines: lined, picked: _picked, t: t)))),
                         ),
                         ..._rounds(context),
                         // The picked line's words and its cross, over the line's middle, in the canvas's own pixels.
