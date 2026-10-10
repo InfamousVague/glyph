@@ -61,7 +61,9 @@ until mkdir "$lock" 2>/dev/null; do
     rmdir "$lock" 2>/dev/null || true
     continue
   fi
-  sleep 10
+  # Looked for every second: others look every half second or three, and a walk that looked every ten waited
+  # forty-five minutes behind them.
+  sleep 1
 done
 held=1
 echo $$ > "$lock/pid"
@@ -102,6 +104,7 @@ if [ "$what" = "android" ]; then
   adb -s "$device" shell am force-stop "$id" || true
   [ "${PERF_KEEP:-0}" = "1" ] || adb -s "$device" uninstall "$id" > /dev/null 2>&1 || true
   {
+    echo "# $(git rev-parse --short HEAD)$(git diff --quiet HEAD -- lib packages shaders 2>/dev/null || echo ' + uncommitted changes'), walked $(date '+%H:%M'), load $(sysctl -n vm.loadavg | tr -d '{}' | awk '{print $1}')"
     echo "# $(adb -s "$device" shell getprop ro.product.model 2>/dev/null | tr -d '\r'), frames by stretch (build and raster in ms: p50/p90/p99/max)"
     grep '\[perf\]' "$dir/run.log" | grep -v 'report' | sed 's/^.*\[perf\] //'
     grep -E 'FAILED|ERROR|NOT FOUND|NOTHING HOLDS' "$dir/run.log" | sed 's/^.*flutter *: //' || true
@@ -124,6 +127,7 @@ dart run tool/perf_cpu.dart "$dir/cache/perf" --top "${PERF_TOP:-30}" ${PERF_ONL
 status=$?
 set -e
 {
+  echo "# $(git rev-parse --short HEAD)$(git diff --quiet HEAD -- lib packages shaders 2>/dev/null || echo ' + uncommitted changes'), walked $(date '+%H:%M'), load $(sysctl -n vm.loadavg | tr -d '{}' | awk '{print $1}')"
   echo "# frames by stretch (build and raster in ms: p50/p90/p99/max)"
   grep '\[perf\]' "$dir/run.log" | grep -v 'report' | sed 's/^flutter: \[perf\] //'
   grep -E 'FAILED|ERROR|NOT FOUND|NOTHING HOLDS' "$dir/run.log" | sed 's/^flutter: //' || true
