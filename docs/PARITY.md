@@ -378,7 +378,7 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 | Spell-check underlines | editor/Editor.tsx:228 | — (editor/editor_widget.dart:27) | missing | |
 | A screen reader reads the note's words | the WebView's own | — (editor/editor_widget.dart:27,482) | missing | The editor has no semantics. |
 | Hardware keys: arrows, words, lines, select, move and copy lines, indent, undo and redo | editor/Editor.tsx:324 | editor/commands/commands.dart:1590-1645 | match | |
-| Ctrl-C or Ctrl-X with nothing selected takes the line | CodeMirror's own | editor/editor_widget.dart:412 | differs | Does nothing. |
+| Ctrl-C or Ctrl-X with nothing selected takes the line | CodeMirror's own | editor/input/clipboard.dart; editor/editor_widget.dart (`_copy`) | match | Since 2026-10-10: `copiedRange` and `doPaste` ported, so the line pasted back goes in as a line above the caret's. |
 | An address pasted over a selection makes a link | editor/language.ts:47 (`pasteURLAsLink`) | — | missing | |
 | Find and replace: Find, "n of m", previous, next, Replace, All, Done | editor/FindBar.tsx:60-131 | editor/find_bar/find_bar.dart:172-334 | match | |
 | No keyboard accessory bar | — | — | n/a | Neither has one on Android. |
@@ -1190,7 +1190,8 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
 30. **A note's menu opens on a long press**, which the original leaves to the swipe; the palette's Archive also
     closes the tab and its Pin gives no tick. Small, or a decision.
 31. **Typing**: the handles, the loupe and composing are the app's own and were never run with Samsung Keyboard;
-    Ctrl-C or Ctrl-X with nothing selected does nothing. Medium.
+    ~~Ctrl-C or Ctrl-X with nothing selected does nothing.~~ Medium. The keys are done 2026-10-10
+    (lib/editor/input/clipboard.dart); the handles, the loupe and composing with Samsung Keyboard are as they were.
 32. **Settings' small ends.** "Get a model" opens AI with nothing lit; Play the scene is not held off while a real
     run is on; no "Your tapes are being counted."; Test results says "No test report in this build." because none
     is built in. Small each; the report is medium, a build's tooling.

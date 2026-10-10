@@ -254,6 +254,78 @@ void main() {
     await finish(tester);
   });
 
+  // docs/PARITY.md, Differs 31. The page has this from CodeMirror (@codemirror/view input.ts `copiedRange`, the
+  // `copy`/`cut` handler, `doPaste`): with nothing selected a copy takes the caret's line.
+  testWidgets('Ctrl-C and Ctrl-X with nothing selected take the caret\'s line, and Ctrl-V puts it back as a line', (tester) async {
+    String? clipboard;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') clipboard = (call.arguments as Map)['text'] as String?;
+      if (call.method == 'Clipboard.getData') return <String, dynamic>{'text': clipboard};
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+    final rig = await pumpEditor(tester, 'one\ntwo words\nthree', caret: 7);
+    await chord(tester, [ctrl], LogicalKeyboardKey.keyC);
+    await tester.pump();
+    expect(clipboard, 'two words', reason: 'the line\'s words, without its break');
+    expect(rig.doc, 'one\ntwo words\nthree');
+    expect(rig.head, 7);
+    // Pasted with nothing selected, a line copied whole goes in above the caret's line, and the caret keeps its
+    // place in its own.
+    await chord(tester, [ctrl], LogicalKeyboardKey.keyV);
+    await tester.pump();
+    expect(rig.doc, 'one\ntwo words\ntwo words\nthree');
+    expect(rig.head, 17);
+    expect(rig.events.last, 'input.paste');
+    // The cut takes the line and its break.
+    await chord(tester, [ctrl], LogicalKeyboardKey.keyX);
+    await tester.pump();
+    expect(clipboard, 'two words');
+    expect(rig.doc, 'one\ntwo words\nthree');
+    expect(rig.events.last, 'delete.cut');
+    expect(rig.head, 14);
+    // The last line has no break after it to take.
+    await chord(tester, [ctrl], LogicalKeyboardKey.keyX);
+    await tester.pump();
+    expect(clipboard, 'three');
+    expect(rig.doc, 'one\ntwo words\n');
+    // An empty last line is still a line: the clipboard is given its nothing, and there is no break to take.
+    await chord(tester, [ctrl], LogicalKeyboardKey.keyX);
+    await tester.pump();
+    expect(clipboard, '');
+    expect(rig.doc, 'one\ntwo words\n');
+    await rig.place(0);
+    await chord(tester, [ctrl], LogicalKeyboardKey.keyX);
+    await tester.pump();
+    expect(clipboard, 'one');
+    expect(rig.doc, 'two words\n');
+    // A selection copied is not a line: pasted, it goes in at the caret.
+    await rig.place(0, 3);
+    await chord(tester, [ctrl], LogicalKeyboardKey.keyC);
+    await tester.pump();
+    expect(clipboard, 'two');
+    await rig.place(9);
+    await chord(tester, [ctrl], LogicalKeyboardKey.keyV);
+    await tester.pump();
+    expect(rig.doc, 'two wordstwo\n');
+    await finish(tester);
+  });
+
+  testWidgets('a note that cannot be changed gives its line to Ctrl-C and keeps it from Ctrl-X', (tester) async {
+    String? clipboard;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') clipboard = (call.arguments as Map)['text'] as String?;
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+    final rig = await pumpEditor(tester, 'one\ntwo', caret: 5, readOnly: true);
+    await chord(tester, [ctrl], LogicalKeyboardKey.keyX);
+    await tester.pump();
+    expect(clipboard, 'two');
+    expect(rig.doc, 'one\ntwo');
+    await finish(tester);
+  });
+
   testWidgets('a plugin\'s key handler is asked first, and a keymap of higher precedence before the defaults', (tester) async {
     final keys = <LogicalKeyboardKey>[];
     var swallow = false;

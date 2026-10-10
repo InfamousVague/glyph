@@ -60,6 +60,7 @@ import '../state/selection.dart';
 import '../state/state.dart';
 import '../view/editor_view.dart';
 import '../view/plugin.dart';
+import 'clipboard.dart';
 
 /// The keyboard's client for one [EditorView].
 class EditorIme with TextInputClient, DeltaTextInputClient {
@@ -559,7 +560,7 @@ class EditorIme with TextInputClient, DeltaTextInputClient {
     if (text.isEmpty || view.state.readOnly) return;
     if (onPaste?.call(text) ?? false) return;
     final state = view.state;
-    view.dispatch(state.updateAll(<TransactionSpec>[state.replaceSelection(text), const TransactionSpec(userEvent: 'input.paste', scrollIntoView: true)]));
+    view.dispatch(state.updateAll(<TransactionSpec>[pasteOf(state, text), const TransactionSpec(userEvent: 'input.paste', scrollIntoView: true)]));
   }
 
   @override

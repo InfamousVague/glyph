@@ -37,6 +37,7 @@ import 'package:flutter/widgets.dart';
 import 'commands/commands.dart';
 import 'commands/commands.dart' as commands show selectAll;
 import 'input/caret.dart';
+import 'input/clipboard.dart';
 import 'input/gestures.dart';
 import 'input/handles.dart';
 import 'input/ime.dart';
@@ -78,10 +79,10 @@ class EditorController {
   /// Takes the selection's handles away (a menu opening over them).
   void hideHandles() => _state?._handles.hide();
 
-  /// The selected text onto the clipboard. False when nothing is selected.
+  /// The selected text onto the clipboard; with nothing selected, the caret's line, as CodeMirror copies.
   Future<bool> copy() async => await _state?._copy(cut: false) ?? false;
 
-  /// The selected text onto the clipboard and out of the note.
+  /// The selected text onto the clipboard and out of the note; with nothing selected, the caret's whole line.
   Future<bool> cut() async => await _state?._copy(cut: true) ?? false;
 
   /// Puts `text` in at the selection as a paste (`input.paste`); the clipboard's words when null. False when
@@ -413,13 +414,14 @@ class _EditorState extends State<Editor> implements EditorGesturesHost, EditorHa
 
   // -- the clipboard -------------------------------------------------------------------------------------------------
 
+  /// CodeMirror's `copy` and `cut` (clipboard.dart): the selection, or with nothing selected the caret's line. The
+  /// cut is made at once, as the page's is in the event itself, and the clipboard is filled after.
   Future<bool> _copy({required bool cut}) async {
-    final state = view.state, sel = state.selection.main;
-    if (sel.empty) return false;
-    await Clipboard.setData(ClipboardData(text: state.sliceDoc(sel.from, sel.to)));
-    if (cut && !state.readOnly && mounted) {
-      view.dispatch(view.state.updateAll(<TransactionSpec>[view.state.replaceSelection(''), const TransactionSpec(userEvent: 'delete.cut', scrollIntoView: true)]));
-    }
+    final taken = copyOf(view.state, cut: cut);
+    final text = taken.text;
+    if (text == null) return false;
+    if (taken.cut != null) view.dispatch(taken.cut!);
+    await Clipboard.setData(ClipboardData(text: text));
     return true;
   }
 
