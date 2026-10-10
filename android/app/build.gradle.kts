@@ -20,6 +20,14 @@ plugins {
 val ghostAssistant = !System.getenv("GHOST_ASSISTANT").isNullOrEmpty() && System.getenv("GHOST_ASSISTANT") != "0" ||
     (project.findProperty("ghost.assistant") as String?) == "true"
 
+/*
+ * A BUILD MADE TO BE MEASURED (tool/perf.sh android, lib/perf/) fills its library with hundreds of made-up notes and
+ * walks itself, so it is never the app a person keeps their notes in: built with GHOST_PERF_ID=1 it is an app of its
+ * own beside the others, id and data (com.mattssoftware.glyph.flutter.perf, "Ghost Perf"), and lib/perf/perf_seed.dart
+ * fills no library but that one's.
+ */
+val ghostPerfId = !System.getenv("GHOST_PERF_ID").isNullOrEmpty() && System.getenv("GHOST_PERF_ID") != "0"
+
 android {
     namespace = "com.mattssoftware.ghost_md"
     compileSdk = flutter.compileSdkVersion
@@ -44,6 +52,8 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         resValue("bool", "ghost_assistant", ghostAssistant.toString())
+        if (ghostPerfId) applicationIdSuffix = ".perf"
+        manifestPlaceholders["ghostLabel"] = if (ghostPerfId) "Ghost Perf" else "Ghost Flutter"
     }
 
     buildFeatures {

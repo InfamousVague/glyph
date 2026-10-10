@@ -61,7 +61,8 @@ abstract final class PerfLaunch {
 /// The standard walk for a window [size] logical pixels: every touch is placed by the window, so the same walk
 /// runs on the Fold shut, the Fold open and a Mac's window. It is made of parts, each of which begins and ends on
 /// the home page, so one part can be walked alone ([only]: `home`, `note`, `board`, `canvas`, `notebook`,
-/// `settings`; `bench:note+settings` on the command line).
+/// `settings`; `bench:note+settings` on the command line). What a part opens is looked for first (`seek`, in a
+/// stretch that is not kept): a phone's home page has it a few screens down where a wide window shows it at once.
 String benchScript(Size size, {Set<String>? only}) {
   final x = (size.width / 2).round();
   final high = (size.height * 0.30).round(), low = (size.height * 0.72).round(), middle = (size.height * 0.5).round();
@@ -76,6 +77,7 @@ String benchScript(Size size, {Set<String>? only}) {
       'mark:home-drag', 'swipe:$x,$low,$x,$high,1400', 'swipe:$x,$high,$x,$low,1400',
     ],
     'note': [
+      'mark:_seek', 'seek:Bench long',
       'mark:note-open', 'taptext:Bench long', 'wait:2000',
       'mark:note-fling-down', flings(low, high, 4),
       'mark:note-fling-up', flings(high, low, 4),
@@ -84,16 +86,19 @@ String benchScript(Size size, {Set<String>? only}) {
       'mark:note-leave', 'unfocus', 'wait:400', 'taplabel:Home', 'wait:1500',
     ],
     'board': [
+      'mark:_seek', 'seek:Bench board',
       'mark:board-open', 'taptext:Bench board', 'wait:2000',
       'mark:board-fling', flings(low, high, 2), flings(high, low, 2),
       'mark:board-leave', 'taplabel:Home', 'wait:1500',
     ],
     'canvas': [
+      'mark:_seek', 'seek:Bench canvas',
       'mark:canvas-open', 'taptext:Bench canvas', 'wait:2000',
       'mark:canvas-drag', 'swipe:$x,$low,$x,$high,900', 'swipe:$x,$high,$x,$low,900',
       'mark:canvas-leave', 'taplabel:Home', 'wait:1500',
     ],
     'notebook': [
+      'mark:_seek', 'seek:Bench notebook',
       'mark:notebook-open', 'taptext:Bench notebook', 'wait:2000',
       'mark:notebook-fling', flings(low, high, 2), flings(high, low, 2),
       'mark:notebook-leave', 'taplabel:Home', 'wait:1500',
@@ -101,6 +106,7 @@ String benchScript(Size size, {Set<String>? only}) {
     'settings': [
       'mark:settings-open', 'taplabel:Settings', 'wait:1500',
       'mark:settings-fling', flings(low, high, 3), flings(high, low, 3),
+      'mark:_seek', 'seek:Appearance',
       'mark:settings-page', 'taptext:Appearance', 'wait:1500', flings(low, high, 3), flings(high, low, 3),
     ],
   };

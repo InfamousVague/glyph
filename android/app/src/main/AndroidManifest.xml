@@ -57,7 +57,7 @@
     <uses-feature android:name="android.hardware.location" android:required="false" />
 
     <application
-        android:label="Ghost Flutter"
+        android:label="${ghostLabel}"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:fullBackupContent="@xml/ghost_backup_rules"

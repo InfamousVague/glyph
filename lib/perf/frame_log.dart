@@ -164,13 +164,14 @@ class FrameLog {
   }
 
   /// Ends the stretch in hand and begins [name]. Waits first for the timings the engine has not handed over yet.
-  /// A stretch is kept and said to the log unless it is [quiet] and had no frames at all: the app was still.
+  /// A stretch is kept and said to the log unless it is [quiet] and had no frames at all: the app was still. One
+  /// whose name begins with `_` is never kept: the walk getting to where the next stretch begins (`_seek`).
   Future<FrameStats> mark(String name, {bool quiet = false}) async {
     final ended = Timeline.now;
     // A release build hears of its frames once a second.
     await Future<void>.delayed(Duration(milliseconds: kReleaseMode ? 1300 : 300));
     final stats = _stats(_name, _began, ended);
-    if (!quiet || stats.frames > 0) {
+    if (!_name.startsWith('_') && (!quiet || stats.frames > 0)) {
       stretches.add(stats);
       debugPrint('[perf] ${stats.said()}');
     }

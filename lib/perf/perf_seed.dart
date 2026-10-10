@@ -10,8 +10,12 @@
 /// (tool/perf.sh): never a library a person keeps.
 library;
 
+import 'dart:io';
+
 import '../core/native/core.dart';
+import '../core/native/device_paths.dart';
 import '../core/sample_library.dart';
+import 'perf_run.dart' show PerfLaunch;
 
 /// How many notes a measured build's library is brought up to (`--dart-define=GHOST_PERF_SEED=<n>`); 0 leaves the
 /// library as it is.
@@ -20,6 +24,7 @@ const int ghostPerfSeed = int.fromEnvironment('GHOST_PERF_SEED');
 /// Brings the library up to [want] notes, and answers how many it made. Asked again with the notes already there,
 /// it makes none.
 Future<int> seedPerfLibrary(CoreInvoke core, int want) async {
+  if (!await _measuredLibrary()) return 0;
   final listed = await core('list_notes');
   final have = listed is List ? listed.length : 0;
   if (have >= want) return 0;
@@ -51,6 +56,21 @@ Future<int> seedPerfLibrary(CoreInvoke core, int want) async {
     }
   }
   return made;
+}
+
+/// Whether the library this build has open is one made to be filled: a desktop build's only in the folder its
+/// environment names (`GHOST_PERF_DIR`, tool/perf.sh), a phone's only in the app whose id says it is the measured
+/// one (`….flutter.perf`, android/app/build.gradle.kts `GHOST_PERF_ID`). A measured build opened any other way, a
+/// double click on the Mac's profile app, the same apk under the app's own id, has a person's notes in front of it,
+/// and theirs is a library that syncs: it is left as it is.
+Future<bool> _measuredLibrary() async {
+  if (PerfLaunch.dirs() != null) return true;
+  if (!Platform.isAndroid) return false;
+  try {
+    return (await DevicePaths.find()).dataDir.contains('.flutter.perf');
+  } catch (_) {
+    return false;
+  }
 }
 
 /// [body] under [name]: its first heading, or its front matter's title, said again.

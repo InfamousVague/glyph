@@ -8,6 +8,13 @@
 #   tool/perf.sh mac 'wait:2000;mark:x;taptext:Bench long;wait:2000;mark:end'     a walk of your own
 #   PERF_TOP=50 PERF_ONLY=note-type tool/perf.sh mac note      more of the profile, for one stretch
 #   PERF_BUILD=0 tool/perf.sh mac note    walk the build that is there, without building again
+#   PERF_DEVICE=<adb serial> tool/perf.sh android [note+settings]
+#                                         the same walk on a phone or an emulator: frames by stretch, where the
+#                                         raster half is the phone's own GPU. The device is always named, never
+#                                         guessed: the walk takes its screen for as long as it lasts. It is an app
+#                                         of its own there (Ghost Perf, com.mattssoftware.glyph.flutter.perf), with
+#                                         its own made-up library, put on for the walk and taken off after
+#                                         (PERF_KEEP=1 leaves it). No CPU samples from a phone yet.
 #
 # The Mac's window opens for as long as the walk takes (the whole of it is about four minutes) and nothing is
 # clicked or typed outside it: the app is given its touches from inside. Its library is 350 made-up notes in
@@ -30,14 +37,57 @@ case "$walk" in
   *) walk="bench:$walk" ;;
 esac
 
-if [ "$what" != "mac" ]; then
-  echo "perf: only the Mac is walked from here so far (tool/perf.sh mac)" >&2
+if [ "$what" != "mac" ] && [ "$what" != "android" ]; then
+  echo "perf: tool/perf.sh mac [parts] or PERF_DEVICE=<adb serial> tool/perf.sh android [parts]" >&2
   exit 64
 fi
 
 lock=/tmp/ghost-flutter-build.lock
 until mkdir "$lock" 2>/dev/null; do sleep 10; done
 trap 'rmdir "$lock" 2>/dev/null || true' EXIT
+
+if [ "$what" = "android" ]; then
+  device="${PERF_DEVICE:?perf: name the device (PERF_DEVICE=<adb serial>); the walk takes its screen}"
+  case "$walk" in
+    *';'*|*','*) echo "perf: a phone walks the standard parts only (bench, or note+settings)" >&2; exit 64 ;;
+  esac
+  id=com.mattssoftware.glyph.flutter.perf
+  dir="$root/build/perf/android"
+  mkdir -p "$dir"
+  export JAVA_HOME="${JAVA_HOME:-/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home}"
+  export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+  if [ "${PERF_BUILD:-1}" != "0" ]; then
+    # The walk is compiled in: a phone's app has no environment to read it from.
+    GHOST_PERF_ID=1 flutter build apk --profile --no-pub --target-platform android-arm64 \
+      --dart-define=GHOST_PERF=true --dart-define=GHOST_PERF_SEED=350 "--dart-define=GHOST_PERF_TOUR=$walk" 2>&1 | tail -2
+    cp "$root/build/app/outputs/flutter-apk/app-profile.apk" "$dir/perf.apk"
+  fi
+  # The walk goes on with the lock let go only once the build is done: what it measures is the phone, not this Mac.
+  rmdir "$lock" 2>/dev/null || true
+  trap - EXIT
+  adb -s "$device" install -r "$dir/perf.apk" > "$dir/install.log" 2>&1 || { cat "$dir/install.log" >&2; exit 1; }
+  adb -s "$device" logcat -c
+  adb -s "$device" shell am start -n "$id/com.mattssoftware.ghost_md.MainActivity" > /dev/null
+  waited=0
+  until adb -s "$device" logcat -d -s flutter 2>/dev/null | grep -q '\[perf\] report end'; do
+    sleep 5
+    waited=$((waited + 5))
+    if [ "$waited" -ge "${PERF_WAIT:-600}" ]; then echo "perf: the walk did not end in ${PERF_WAIT:-600} s" >&2; break; fi
+    if [ $((waited % 30)) -eq 0 ] && ! adb -s "$device" shell pidof "$id" > /dev/null 2>&1; then echo "perf: the app is gone (it ended or was ended)" >&2; break; fi
+  done
+  adb -s "$device" logcat -d -s flutter > "$dir/run.log" 2>&1 || true
+  adb -s "$device" logcat -d -b crash > "$dir/crash.log" 2>&1 || true
+  adb -s "$device" shell am force-stop "$id" || true
+  [ "${PERF_KEEP:-0}" = "1" ] || adb -s "$device" uninstall "$id" > /dev/null 2>&1 || true
+  {
+    echo "# $(adb -s "$device" shell getprop ro.product.model 2>/dev/null | tr -d '\r'), frames by stretch (build and raster in ms: p50/p90/p99/max)"
+    grep '\[perf\]' "$dir/run.log" | grep -v 'report' | sed 's/^.*\[perf\] //'
+    grep -E 'FAILED|ERROR|NOT FOUND|NOTHING HOLDS' "$dir/run.log" | sed 's/^.*flutter *: //' || true
+    grep -c 'FATAL\|SIGSEGV' "$dir/crash.log" | sed 's/^/crash lines: /'
+  } > "$dir/last.txt"
+  cat "$dir/last.txt"
+  exit 0
+fi
 
 dir="$root/build/perf/mac"
 mkdir -p "$dir"

@@ -176,6 +176,22 @@ class PhoneTour {
         if (at == null) return;
         if (name == 'taptext') await _touch(at.center);
         if (name == 'holdtext') await _touch(at.center, held: const Duration(milliseconds: 700));
+      case 'seek':
+        // The words brought onto the screen by the finger, a part of a page at a time, until they are there to be
+        // tapped: a phone's home page has the note a wide window shows at once a few screens down, and a list that
+        // builds only what is near has not made it yet. Down first, then back up past where it began.
+        final view = WidgetsBinding.instance.platformDispatcher.views.first;
+        final size = view.physicalSize / view.devicePixelRatio;
+        final x = size.width / 2, high = size.height * 0.35, low = size.height * 0.70;
+        Rect? at;
+        for (var tries = 0; tries < 24; tries += 1) {
+          at = _textAt(arg);
+          if (at != null && at.center.dy > size.height * 0.18 && at.center.dy < size.height * 0.80) break;
+          final down = at == null ? tries < 8 : at.center.dy >= size.height * 0.80;
+          await _swipe(Offset(x, down ? low : high), Offset(x, down ? high : low), ms: 320, settle: true);
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+        }
+        _say('seek "$arg" -> ${at == null ? 'NOT FOUND' : _spot(at)}');
       case 'taplabel' || 'holdlabel':
         final at = _labelAt(arg);
         _say('$name "$arg" -> ${at == null ? 'NOT FOUND' : _spot(at)}');
