@@ -49,7 +49,7 @@ Each stage ends installed on the Fold. Sizes are the web app's non-test source t
 | 7 | Account and sync: keys, the sync engine, organizations and team notes, live typing, notifications, shared links | `core/sync`, `core/orgs`, `core/live`, `share/` | in the app 2026-10-08, **off unless the build is given `--dart-define=GHOST_API=http://…`** (`lib/root/account_wiring.dart`); walked on the emulator against the service run on this Mac (sign up, sync read back by a second device, an organization, a team note, a shared link); links that open the app are followed since 2026-10-09 (`lib/root/ghost_root.dart`, `lib/core/phone_links.dart`: a note, the notifications, an organization, an invitation asked about first, a shared link's copy); live typing since 2026-10-09 (`lib/live/`, `lib/root/account_wiring.dart`, `lib/root/note_desk.dart`): the relay, a team note's room with the others' carets, presence, the nudge, a note of the account's own, proven by two Dart devices and by the web app's own client under Node through the relay on this Mac, and **walked signed in on the emulator 2026-10-09** against the service on this Mac (the walk, the bugs it found and what it did not reach are under "What stage 7 left open"); the "Live typing" switch is the device's own flag since then. The phone's own notifications are not ported |
 | 8 | Voice and AI: the recorder, Whisper, meetings and their service, summaries, the language model, fills, the at-work scene | `capture/` (12k), `ai/` (6.5k), `tapes/`, `scene/`, Kotlin (6.5k) | Speak in the app 2026-10-09 (`lib/root/voice_wiring.dart`, `lib/root/capture_route.dart`, `lib/root/ghost_root.dart`): the dock's microphone, a note's own and a journal's spoken entry, the capture screen with its live page, the meeting service and its screen, the + sheet's Meeting, Settings' Recording and AI pages with their real rows; the summary queue, the review's gate and the write-up's configuration (lib/ai's), a spoken note's tape played by the phone, a landing's Undo; walked on an Android emulator; the AI in a note (`NoteAi`), the fills' queue, the gists and the scene since the third pass, run on the emulator with Qwen3.5 2B; **not yet on the Fold**; see "What stage 8 left open" |
 | 9 | The rest: backup, export, plugins, the Academy and the guide, diagnostics, updates | `plugins/`, `academy/`, `guide/`, `diag/` | 9A to 9C (the library's folder, backup, export) walked on the emulator 2026-10-09, and in Settings since (`lib/root/ghost_root.dart`); see "What stage 9A to 9C left open". The plugins (in Settings and in a note), the Academy, the walkthrough and the guide's notebook, link previews, Developer's benches and its resets are in the app 2026-10-09 (`lib/root/plugin_ground.dart`, `reset_wiring.dart`, `note_desk.dart`, `ghost_root.dart`); the app's own updates (9I: `lib/core/updates.dart`, `lib/root/update_wiring.dart`, `tool/release.md`) and the invitation's card are in the app 2026-10-09, the updates run on the emulator against a made-up release and **on in no build** until a key and a release address are chosen; a note's place, a picture from the phone, the phone's calendar for a date and a voice memo's player are in the app 2026-10-09 (`Position.kt`, `Pictures.kt`, `DayPick.kt`), walked on the emulator; a film picked, kept and played, and a picture pasted from the clipboard, since the same day (`Films.kt`, `FilmPlayer.kt`), walked there too; the phone's own update notifier is not ported, and what it needs is written down; see "What stage 9's other pieces left open" |
-| 10 | Platforms and release: the Fold's wide layouts, Mac, Windows, iPhone; signing; moving a library over from the Tauri app | `core/useWideScreen.ts`, `core/unfold.ts`, `aside/`, app.css `.app-split`, the hinge in `MainActivity.kt` | the Fold's wide layouts in the app 2026-10-09 and compared with the page side by side on an emulator at the unfolded size (1848 x 2448 at 420 dpi, a window of 704 x 933): the aside (`lib/aside/`), the docked sidebar and the aside kept to the device, the unfold and its hinge channel (`lib/core/unfold.dart`, `Hinge.kt`), a mouse's hover on a phone, a fold that keeps the screen it had (`lib/shell/app_shell.dart`); **not yet on the Fold**; see "What stage 10's wide layouts left open". Windows, signing and moving a library over are other hands' or not begun. The Mac app builds and runs 2026-10-09 (`macos/`, `tool/build-native.sh mac`): not sandboxed, its files in a folder of its own that is never the Tauri app's, `ghostmd://` claimed, the core bundled universal, the window under its title bar with the lights in the page's row, a menu bar and a desktop's keys, the Mac's half of the channels in Swift, drives and Eject as the Tauri app's, a take and a meeting recorded and transcribed on the fixture, and twenty pictures of it beside the page drawn in WebKit; not signed, not notarised; see "What the Mac app left open". The iPhone app builds and runs in the simulator 2026-10-09 (`ios/`, `tool/build-native.sh ios`): under its own id with its files in its own container, the core static and linked into the app without the engines, no recorder and no AI as the real iPhone app has none, the iPhone's half of the channels in Swift, a bar with Done on the keyboard, and walked from the guide to Settings in dark and light; not on a phone, not signed, nothing uploaded; see "What the iPhone app left open" |
+| 10 | Platforms and release: the Fold's wide layouts, Mac, Windows, iPhone; signing; moving a library over from the Tauri app | `core/useWideScreen.ts`, `core/unfold.ts`, `aside/`, app.css `.app-split`, the hinge in `MainActivity.kt` | the Fold's wide layouts in the app 2026-10-09 and compared with the page side by side on an emulator at the unfolded size (1848 x 2448 at 420 dpi, a window of 704 x 933): the aside (`lib/aside/`), the docked sidebar and the aside kept to the device, the unfold and its hinge channel (`lib/core/unfold.dart`, `Hinge.kt`), a mouse's hover on a phone, a fold that keeps the screen it had (`lib/shell/app_shell.dart`); a second leg the same day held the recorder, a notebook's index, a ticket's panel, the note's narrowest pane and the Fold on its side to the page, with the phone's insets and its lines in the phone's own pixels, and was cut short by a restart with the rest of the upright walk not done; **not yet on the Fold**; see "What stage 10's wide layouts left open". Windows, signing and moving a library over are other hands' or not begun. The Mac app builds and runs 2026-10-09 (`macos/`, `tool/build-native.sh mac`): not sandboxed, its files in a folder of its own that is never the Tauri app's, `ghostmd://` claimed, the core bundled universal, the window under its title bar with the lights in the page's row, a menu bar and a desktop's keys, the Mac's half of the channels in Swift, drives and Eject as the Tauri app's, a take and a meeting recorded and transcribed on the fixture, and twenty pictures of it beside the page drawn in WebKit; not signed, not notarised; see "What the Mac app left open". The iPhone app builds and runs in the simulator 2026-10-09 (`ios/`, `tool/build-native.sh ios`): under its own id with its files in its own container, the core static and linked into the app without the engines, no recorder and no AI as the real iPhone app has none, the iPhone's half of the channels in Swift, a bar with Done on the keyboard, and walked from the guide to Settings in dark and light; not on a phone, not signed, nothing uploaded; see "What the iPhone app left open" |
 
 The web app is about 110,000 lines of TypeScript, 21,500 of CSS, 27,000 of Rust and 6,500 of Kotlin, with 5,600
 tests. Parity is the bar for every stage; a stage is not done until its screens have been compared with the web app's
@@ -88,37 +88,132 @@ density left at 420, which is the Fold's; pictures in the session's scratchpad, 
   the inner display are what the page was tuned on; whether Flutter's surface is up in time to draw the first of
   them is unknown.
 
+A second leg, 2026-10-09, on the same emulator, upright, on its side (`wm size 2448x1848`, a window of 933 x 704)
+and at the cover's width. It was cut short by a restart of the Mac that night, and the walk is paused. Its pictures
+(`wide/21` to `44`) were in the session's scratchpad under `/private/tmp` with the first leg's and went with the
+restart: what each showed is said here, and what was measured is in the tests named.
+
+How the two were driven, for whoever goes on: the Tauri app through its WebView's devtools socket (`adb forward
+tcp:<port> localabstract:webview_devtools_remote_<pid>`, forwarded again whenever the app restarts: a button pressed
+by its label, `getBoundingClientRect` and `getComputedStyle` read, a Settings pane scrolled by its `scrollTop`), and
+this app by `uiautomator dump`, whose nodes are its semantics labels with their rectangles (a tap on a label's
+middle). Two Settings pages are brought to the same place by reading where this app shows a heading and scrolling
+the page's pane until its own is there. A fling does not stop where it is left: drag with `input motionevent`, the
+finger held still before it lifts.
+
+- **The phone's insets are whole CSS pixels, rounded up** (`packages/glacier/lib/src/tokens/theme.dart`), as a
+  WebView gives them to the page (Chromium's `adjustInsetForScale`): the emulator's status bar is 159 device pixels
+  unfolded (61px to the page, 60.57 here before), 128 at the cover's width (49) and 120 on its side (46). That was
+  the one device pixel by which everything under the bar stood high on every screen of the first leg.
+- **The recorder**, both apps recording silence (the Tauri app given the microphone with `pm grant`): the top
+  line, the empty page, the ghost, the hint and the card of things to say, upright, at the cover's width and on its
+  side. Its top line was never 19px off: the page's line is as tall as its word, an `.app-word` with the touch
+  target's least height, and the 19px was the failed take's line, which has no word, on the page as here. What was
+  off and is not now: the lines' heights (a line of things to say is 18.45px, the small capitals and headings a
+  line of `line-height: normal` in the phone's pixels; the card's foot stood five device pixels short), the hint
+  (the page says "Press the side key to stop" wherever its host can tell the screen went off, which the phone can
+  with or without the assistant; `lib/root/voice_wiring.dart`), and the Fold on its side, too short for the page,
+  the ghost and the hint over the card, where the page keeps the page the top line's room and lets the hint run
+  over the body's foot and this had the ghost under the top line's glass. Held by the page's rectangles read from
+  the Tauri app's WebView: `test/capture_ui/fixtures/rest-704x933.json` and `rest-933x704.json`.
+- **The meeting screen** matched, once both had been asked about notifications (the page's third line, "Let
+  Ghost.md tell you when it is written up", is there until they have): the cassette, the two lines, the buttons.
+- **A notebook's index under its words**: `:global(.app-split) .editor .cm-editor .cm-content { padding-block-end:
+  var(--glacier-space-8) }` has four classes to beat the theme's two, and so beats `.preface`'s and `.peek`'s
+  three: on the split layout every editor inside the panes keeps that room under its last line, a notebook's words
+  and a card's preview with them. That is the 37px, and a phone's width has none of it (looked at there too). The
+  panes wear the page's class (`GlacierScope(classes: {'app-split'})`, `lib/shell/app_shell.dart`) and
+  `LookEnv.splitRoom` is the rule; a note in the panes had kept the phone's 126px under its last line, and has
+  the 38 now. Held by `test/root/wide_test.dart`.
+- **A ticket's panel is as narrow as the page's and no narrower** (`lib/editor/tickets/ticket_panel.dart`): its
+  least is its narrowest content's, worked out as the page's comes out (the names' column and its gap, the values'
+  `minmax(0, 1fr)` being nothing when a grid is asked how narrow it can be; what it waits on, the title whole
+  because it is `nowrap` and the key at one letter because the editor's words break anywhere; the head; the foot),
+  where it was 300 for every ticket. In the 164px pane the Example project's third ticket is the page's 196.15,
+  its rows, its day beside its cross, its links and its Add where the page has them
+  (`test/editor/tickets/ticket_narrow_test.dart`). The row that ran over at 300 was a day's: a Row gave the chip
+  all the room and its cross 6.5px. A value too long for its column is cut with no ellipsis, as the page's chip
+  is, a flex row whose words `text-overflow` does not reach; a notebook's card cuts a page's name the same way.
+- **A page's bar in that pane** gives way as the page's does: the mark, the notebook's name and the count each
+  lose room in proportion to their width (`lib/book/book_nav.dart`, `test/book_ui/reference_test.dart`).
+- **What the page asks of the screen's pointer is asked of the screen**, not of what is plugged in
+  (`lib/shell/wide_screen.dart` `mousePointer`, `hoverPointer`). Asked of the Tauri app's own page on the
+  emulator, whose touch screens are styluses too: `(any-pointer: fine)` true, `(pointer: fine)` false, `(pointer:
+  coarse)` true, `(hover: hover)` false, `(any-hover: hover)` false. A page's two questions are about the primary
+  pointer, which Chromium on Android makes the coarse one while there is one. Three places here asked something
+  else and ask the platform now: a folder's More and a notification's cross waited to be pointed at while a mouse
+  was connected, the + in the gutter took its hover ink from any mouse, and a canvas's picked card had eight
+  handles after a mouse's press. What a mouse gets on a phone is what asks the event: an unguarded `:hover`, a
+  right-click's menu, a card dragged without being picked. **Not tried with a real mouse** (`adb emu event mouse`
+  was not to be used), so `(hover: hover)` with a mouse and nothing else was not asked.
+- **The lines of a line box are the phone's own pixels.** A face's ascent and descent are rounded to a device
+  pixel and half a line's leading floored to one: in the editor (`lib/editor/looks/look.dart` `_box`, held by the
+  page's content areas for the note's words and four sizes of heading, `test/editor/view/device_lines_test.dart`)
+  and in `ExactLines` for a line with a height of its own (`leadedBaseline`, Settings' title). `ExactLines` also
+  takes the exact line for a style the engine drew a pixel beside its rounding: the app's `pageText` says 20 for a
+  label the page makes 20.57 and whose rounding is 21, so no line was taken for exact and a sheet's rows with a
+  hint stood five device pixels short each. Seen after: a sheet's rows on the page's (the More sheet on its side);
+  a note's paragraphs a steady one device pixel high where they had drifted one to two; Settings' title one low
+  where it was two.
+- **On its side**, beside the page: a note, the sidebar docked beside it, a ticket with the aside, Settings, an
+  empty canvas, a notebook, a journal, home, the + sheet, the More sheet, the palette, the recorder. They matched
+  but for the bottom inset, what is said above, and three things that are not the layout's: this build's + sheet
+  has no "From a shared link" (no account), its cards carry a gist (it has a model), and the two apps' recent notes
+  are in another order.
+- **Upright, the rest, as far as it got:** the notifications card matched. All notes matched but for a notebook's
+  card (above). Settings' pages at their tops matched (Account, Organizations, Workspaces, Notifications, Library
+  folder, Backup, Export, Appearance, Recording, AI), and Appearance all the way down at the same scroll; what
+  differed was each app's own state (Notifications' "On this phone" card, About's updates, a model downloaded
+  here) and one thing that is the page's fault: the chosen interface-size card's label is drawn in the paper's
+  colour there, ink.css's rule for the segmented control's chosen label (`[role='radiogroup'] >
+  label[data-selected] > span:last-child`) reaching the card's, and cannot be read; here it is in ink, as the
+  card's own stylesheet says.
+
 Still open:
 
+- **Changed after the last build the emulator had, and so held by their tests and not seen beside the page:**
+  the recorder on its side (the page kept the top line's room), Settings' way back on the page's line, the
+  command palette's headings and rows on the page's lines (its seventh row stood two device pixels low), and a
+  notebook's card cutting a page's name with no ellipsis.
+- **A heading's words in a note** still stand off the page's on the Fold after the lines were put in the phone's
+  pixels: the note's name two device pixels low, a section three high, three hashes one low, the paragraphs one
+  high (the Fold on its side, "How to format a note"). The look's numbers are the page's, so what is left is in how
+  a line of several boxes is set (the dimmed marks, the count beside the name) and was not found.
+- **The recorder's chip and its confirm card were not seen beside the page**: they need words, and both apps
+  recorded silence. They are held by the page drawn in Chromium at 390 and 1200 only. The page speaks a script
+  with `?simulate` in its address, in the Tauri app too, and a debug build here plays `<dataDir>/fixture.wav` with
+  `GHOST_MIC_FIXTURE`; neither was used.
+- **Upright, not reached:** each top-bar style (Ledger was chosen in both and shot, and the pictures never
+  looked at; Masthead and Islands not chosen), a board, each query view, a ticket's panel at the whole width (seen
+  on its side, within two device pixels), a canvas with cards and its selection bar, the tape on a spoken note,
+  the Academy, the guide. Settings' Plugins page has no pair at its top, and the pages' feet were not all caught
+  at the same scroll.
+- **The first leg's pictures were not gone through one by one** for their one and two pixels: what was found on
+  the way is above. Known and left: a tab's name and a notebook row's title about a pixel low at the cover's
+  width, and a ticket's panel one device pixel longer than the page's.
+- **How the emulator was left** (`ghostflutter`, emulator-5584): `wm size 1848x2448` still set (`wm size reset`);
+  both apps' top bar on Ledger, where they had Classic; Sidebar on Docked, the columns hidden; the Tauri app given
+  the microphone and notifications by `pm grant`.
 - **The aside's version history** (`AsideHistory`, a desktop's: the page leaves it out on a phone, `!isMobile`).
   `AsidePanel` has the two tabs and takes the history as a widget; nothing gives it one, and the bar's History
   button still opens the More sheet's page. It wants the open note's live words and its restore from the note's
   desk, and is the Mac's to wire.
 - **The note between a docked sidebar and a docked aside** is 164px wide on the Fold (704 less 300 less 240), on
-  the page as here. The page lays its content out wider than that and the pane cuts it (a ticket's panel is 196px
-  in a 164px pane); here the pane is laid out at 164. The notebook's foot gives way there now, and a ticket's
-  panel, which drew an error box on the emulator, is laid out no narrower than 300 and cut by the pane
-  (`ticket_panel.dart`), but one of its rows still overflows by a few pixels at that width for a ticket with
-  every field: the panel wants going through at a small phone's width.
-- **The recorder and the meeting screen were not compared**: the Tauri app on the emulator has not been allowed
-  the microphone, and its prompt was left unanswered, so its recorder only said "Permission denied". The port's
-  recorder was seen at both sizes and through a fold (the count kept running); its top line stood about 19px
-  lower than the page's rule would put it (`.top`), which wants looking at beside the page recording.
+  the page as here, and its panel and its bar are the page's there now. Its own lines are not: the page lays the
+  whole note out as wide as the panel's least (244px for the third ticket) and the pane cuts it, and its editor
+  can be dragged sideways (`.cm-scroller { overflow: auto }`); here the lines wrap in the pane's 164 and nothing
+  moves sideways. The bar's two sides, whose columns are nothing at that width, draw nothing here, where the
+  page's are their padding with no arrow in it.
 - **The bottom inset.** The emulator's WebView (Chrome 133) gives the page no `safe-area-inset-bottom` under the
   gesture bar, so the page's dock, sheets and the guide's button sit 24px lower than the port's, which reads the
-  phone's own inset. The Fold's WebView is newer and may give the page the inset; not settled here.
-- **A notebook's index starts 37px higher than the page's** under its preface at this width. It was not asked
-  whether a phone's width has it too; it is the look-and-feel pass's.
-- **`(pointer: fine)` and `(hover: hover)` are still the platform** (`mousePointer`, `coarsePointer`): Chrome on a
-  phone answers by the touch screen whatever is plugged in, so the page's guarded rules (the bar's hover grounds,
-  the scrollbars, a fly-out submenu) stay a finger's with a mouse on the Fold, as here. Unguarded `:hover` rules
-  show under a mouse now. Not tried with a real mouse: `adb emu event mouse` was not to be used.
-- **Landscape** (2448 x 1848, a window of 933 x 704) is held by a test for the split and the fold; only the home
-  page was looked at beside the page there (four cards across in both). Straight after the turn the port's fourth
-  card was not yet drawn in one picture; it was there in the next.
+  phone's own inset. Its page is also taller than its window by a fraction (933.33px in 932.57 unfolded, 752 in
+  751.24 at the cover's width), which is two device pixels more on whatever stands on the page's foot. The Fold's
+  WebView is newer and may give the page the inset; not settled here.
 - **Pictures in other folders that fail at wide sizes on this Mac** (`test/sidebar` "wide", `test/note` "at 840")
   moved by a few pixels while the Mac's own work was in the tree (the bar's left edge and the status inset are a
-  Mac's there under a test run on one); they were not redrawn here.
+  Mac's there under a test run on one); they were not redrawn here. `test/editor/plus/plus_reference_test.dart`'s
+  fifty pictures failed by a hundredth of a percent each on 2026-10-09, with this leg's change to the + and
+  without it.
 
 ## What the Mac app left open
 
@@ -324,8 +419,15 @@ secrets are Keychain items under the service `com.mattssoftware.glyph.flutter.se
 - **An iPhone's page** (`lib/app/iphone_page.dart`): the phone's text size and Bold Text are left alone, as a web
   view leaves the page's px and rem; the keyboard has a bar with Done on it, in the page's paper, where WebKit lays
   its own accessory bar, and every screen is laid out above both (they all read `MediaQuery.viewInsets`); the
-  status bar's ink follows the page's shade; a selection has the phone's own handles, a bar and a knob, and a caret
-  has none (`GlacierTextSelectionControls`); success, warning and error are the phone's notification haptics.
+  status bar's ink follows the phone's light or dark, as the real app's does; a selection has the phone's own
+  handles, a bar and a knob in the caret's colour, and a caret has none (`GlacierTextSelectionControls`); success,
+  warning and error are the phone's notification haptics.
+- **How a page scrolls is said once** (`lib/core/page_scroll.dart`, put over the app in `lib/app/ghost_app.dart`):
+  an iPhone's rubber band and momentum, a Mac's, and a list that stops at its ends on Android, as each platform's
+  own engine scrolls the web app's page. No screen names its physics any more (Home, All notes, an organization's
+  page and its log, Settings, the guide, the + list, the band, a table, a board, a query, a card's words), and a
+  screen with a behaviour of its own extends the app's. A page under a pull to refresh holds its top for the pull
+  and stretches at its foot (`pullRestPhysics`). A board's lanes keep their own snap, and the tabs' row its coast.
 - **`ghostmd://` is claimed** in the Info.plist, as the real iPhone app claims it (`src-tauri/Info.ios.plist`), and
   a link is handed to the page through the scene (`GhostChannels` as a `FlutterSceneLifeCycleDelegate`). `glyph://`,
   which the real app keeps for a shortcut nothing answers, is not. An iPhone with both apps hands a link to
@@ -365,7 +467,11 @@ written, and the phone's picture menu; Settings' eight sections, Account with it
 Appearance to its end, About, Export, and a swipe across Settings going back; each channel asked something harmless
 (paths, a secret written, read and removed, a tape, the links, a reset, a refused scheme, and the absent ones
 saying they are absent). The wisp's smoke at a page's top and foot and the dotwork ghosts draw on Impeller over
-Metal; the faces are the app's own.
+Metal; the faces are the app's own. A second walk the same evening, in dark, saw what the first had not reached:
+Settings › About › Examples' canvas made and opened with its ten cards, the sidebar with Browse files among its
+tools, Settings › Plugins and Notion's own page, a `{?…}` blank drawn in a note with no Fill, the find bar resting
+on the keyboard's bar with its count, and a ticket's Due sheet with the phone's calendar opened from Pick a date.
+The pictures of both walks were the session's own and are not kept.
 
 **What a TestFlight or App Store build needs** (none of it done: nothing was signed with a distribution identity,
 uploaded, or asked of App Store Connect). The real app's own road is `../glyph/docs/store/APP_STORE.md` and
@@ -420,34 +526,52 @@ uploaded, or asked of App Store Connect). The real app's own road is `../glyph/d
   unseen.
 - **The system's own screens were shown and not pressed.** Nothing here sends a touch to UIKit: the picture menu
   was seen and its three choosers were not opened, so `PHPicker`'s file, a HEIC, a photo just taken and the Files
-  picker have not been through `PictureKeep` on an iPhone (it is the Mac's ImageIO code). The date sheet was not
-  reached in the walk. A `ghostmd://` link was not opened (the simulator asks before it hands one over), nor a
-  picture pasted (an iPhone asks before a paste is read).
-- **The keyboard is not WebKit's.** The real app's page is not resized for the keyboard on an iPhone: WebKit pans
-  it so the caret shows, and its dock and find bar stay where they were. Here the page is laid out above the
-  keyboard, which is the page's own rule and its Android half's. The bar is the app's drawing, without WebKit's two
-  arrows. Not compared with the real app, which was not run here. A hardware keyboard raises no bar.
-- **Scrolling.** A note rubber-bands at its ends, as Flutter gives an iPhone. Home, All notes, an organization's
-  page, Settings, the guide and the + list are pinned to stopping dead (`ClampingScrollPhysics`, written for
-  `overscroll-behavior: contain` as Android's WebView reads it), where WebKit rubber-bands a contained scroller;
-  each is one line, and home's meets the pull to refresh, which wants trying on a phone before it is changed.
-- **The status bar follows the page's theme**, so it can be read under Dark on a light phone. The real app's
-  follows the phone, the page never having told the window its theme.
-- **The handles are Flutter's copy of the phone's**, in the system's blue as a web view's are; the loupe over a
-  dragged handle is still the editor's own, not an iPhone's. The note's menu is the page's own band, as on the
-  page, never the system's callout.
-- **A canvas's card being written is not brought above the keyboard** (seen: the card half under the tools).
-- **`{?…}` blanks**: with no AI made, the editor has no blanks extension, so a blank is its own text; the page
-  draws the blank and only withholds its Fill. Not looked at.
-- **Browse files** is not drawn. The page draws it on an iPhone and its press fails silently.
-- **Seen in the walk and not an iPhone's alone, left for whose they are:** the palette shows `⌘N` and its keys'
-  footer on a phone; Settings › About › Examples' rows did nothing visible when pressed; a relaunch came up on
-  Home twice and on the open note once.
+  picker have not been through `PictureKeep` on an iPhone (it is the Mac's ImageIO code). The date sheet was
+  seen and no day was pressed in it. A `ghostmd://` link was not opened (the simulator asks before it hands one
+  over), nor a picture pasted (an iPhone asks before a paste is read).
+- **The keyboard is not WebKit's.** Read rule by rule in ../glyph: the page has no code of its own for an iPhone's
+  keyboard. What it has for any keyboard is `core/keyboard.ts` (up when the visual viewport is 150px shorter),
+  the caret kept in sight on a viewport's resize (`Editor.tsx`), the band and the + list placed inside the visual
+  viewport (`menuRoom.ts`, `PopMenu.tsx`, `AddList.tsx`), and a find bar and a dock fixed to the page's foot; the
+  port keeps each of those from `viewInsets`. What differs is the page's height: `#root` is `100dvh`, which an
+  iPhone's keyboard does not shorten, so the real app's page stays as tall as it was and WebKit pans it until
+  the caret shows, where the port lays the page out above the keyboard (the page's own stated rule, and its
+  Android half's), with the dock and the find bar riding it. WebKit's accessory bar is left as it comes (the
+  Tauri app gives wry no builder for it); the port's bar is the app's drawing of it, without its two arrows.
+  **None of this was compared with the real app, which was not run here**: where its find bar and dock end up
+  under WebKit's pan is not known. A hardware keyboard raises no bar.
+- **Scrolling was not seen stretching.** The rule is one now (above) and held by `test/core/page_scroll_test.dart`.
+  The app ran with it in the simulator (Home, Settings, Plugins, the sidebar, a note, the sheets), but a picture
+  is taken too late to catch a band, so neither the stretch nor the pull to refresh beside it has been seen: both
+  want a finger on a phone.
+  **The Mac changes with it and was not run:** Home, Settings and the rest stretch under a trackpad now, as a
+  note there already did, where they stopped dead before.
+- **The status bar follows the phone**, as the real app's does (the page never tells its window a theme), so
+  under Dark on a light phone its ink is dark on a dark page, there as here. Seen only with both dark.
+- **The handles are Flutter's copy of the phone's shapes, in the caret's colour** (`--glacier-accent-solid`, which
+  the page gives its editor as `caret-color`; WebKit tints an editable's selection with the caret's colour, as its
+  source is remembered, not as seen in the real app). Not looked at since they left the system's blue. The
+  selection itself is the page's `::selection` block, and whether WebKit on an iPhone draws that or its own tint
+  is not known. The loupe over a dragged handle is still the editor's own. The note's menu is the page's own
+  band, as on the page, never the system's callout.
+- **A canvas's card being written is not brought above the keyboard** (seen: the card half under the tools). A
+  camera moved up by what the card is short was written for it and taken out again unseen.
+- **`{?…}` blanks are drawn with no Fill**, as the page draws them on an iPhone (`iPhoneBlanks`). A tap on one
+  opens nothing, there being no AI's layer to draw its panel; what the page's tap does there was not compared.
+- **Browse files is drawn and its press opens nothing**, as on the page, where the press fails and nothing is
+  said (`lib/core/library_files.dart`).
+- **Seen in the walk and not an iPhone's alone:** Settings › About › Examples' four rows were dimmed and could
+  not be pressed **on every platform**, the root never having given them a press; they make their note and open
+  it now (`_openExample`, `test/root/examples_test.dart`), the sample note and the canvas without the picture the
+  page keeps for them. Left for whose they are: the palette shows `⌘N` and its keys' footer on a phone; a
+  relaunch came up on Home twice and on the open note once.
 - **The haptics cannot be felt in a simulator.** The typing tick is the phone's selection click, where the page
   asks for a soft impact, which Flutter does not have.
-- **Landscape, the iPhone Duo and an iPad** were not looked at; the app is an iPhone's alone.
-- **The Keychain's lines are written twice** until the Mac's target takes `apple/Keychain.swift` and
-  `apple/PictureKeep.swift` in place of the copies inside its `GhostChannels.swift`.
+- **Landscape, the phone's text size turned up, the iPhone Duo and an iPad** were not looked at. The text size is
+  told to be left alone (`iPhoneMedia`, held by a test); the app is an iPhone's alone.
+- **One Keychain and one picture file for both Apple targets** (`apple/`): the Mac's Runner compiles them too and
+  its own copies are gone. The Mac app was built with them and **not launched**, so a secret kept and read back by
+  that build has not been seen.
 - **Moving a library over from the real iPhone app** is item 1 above, or sync.
 
 ## What stage 9's other pieces left open
