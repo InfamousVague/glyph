@@ -44,6 +44,12 @@ import 'package:flutter/services.dart';
 import '../core/mac_app.dart';
 import 'audio.dart';
 
+/// What a recorder says when the microphone was not allowed: the WebView's own words for a `getUserMedia` it
+/// refused (`NotAllowedError: Permission denied`), which are what Ghost.md's recorder shows, since it shows whatever
+/// the start failed with (capture/useCaptureSession.ts `setError(failureText(failure))`; capture/microphone.test.ts
+/// refuses with exactly these). A meeting's refusal has a sentence of the app's own (`microphoneRefused`).
+const String microphoneDenied = 'Permission denied';
+
 /// The microphone was not allowed, or would not open. [message] is for the recorder to show.
 class MicrophoneRefused implements Exception {
   const MicrophoneRefused(this.message, {this.blocked = false});
@@ -96,7 +102,7 @@ class DeviceMic implements MicrophoneInput, LosableInput {
       var allowed = await permission();
       if (allowed == 'ask') allowed = await request();
       if (allowed != 'granted') {
-        throw MicrophoneRefused('Ghost.md needs the microphone to record.', blocked: allowed == 'blocked');
+        throw MicrophoneRefused(microphoneDenied, blocked: allowed == 'blocked');
       }
     }
     // Listening from before the device opens, so its first chunk is heard.

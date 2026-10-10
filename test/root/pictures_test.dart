@@ -18,6 +18,7 @@ import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/root/note_desk.dart';
 import 'package:ghost_md/shell/app_shell.dart';
+import 'package:glacier/glacier.dart' show GlacierToast;
 
 import '../support/render.dart';
 
@@ -31,7 +32,7 @@ void main() {
     return null;
   }
 
-  Future<SampleLibrary> open(WidgetTester tester, {String? picked, bool chooser = true}) async {
+  Future<SampleLibrary> open(WidgetTester tester, {String? picked, bool chooser = true, String? fails}) async {
     sent.clear();
     final library = SampleLibrary.seeded();
     await pumpApp(
@@ -44,7 +45,7 @@ void main() {
         stored: MemoryStored(),
         workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())),
         clock: () => seedNow,
-        picturePicker: chooser ? (adopt) => () async => picked == null ? null : adopt(picked) : null,
+        picturePicker: chooser ? (adopt) => () async => fails != null ? throw StateError(fails) : (picked == null ? null : adopt(picked)) : null,
         dayPicker: chooser ? (at, current) async => '2026-10-12' : null,
       ),
     );
@@ -90,6 +91,25 @@ void main() {
     expect(screen.view!.state.doc.toString(), contains('![](image/${kept.args['name']})'));
     undo(StateCommandTarget(screen.view!.state, (tr) => screen.view!.dispatch(tr)));
     expect(screen.view!.state.doc.toString(), before);
+    await close(tester);
+  });
+
+  // docs/PARITY.md, Differs 33. editor/useNotePictures.ts: "the line under the header that says when one did not
+  // come in ... the note's one place for a sentence about the note, said once and then out of the way" (SAID_MS).
+  testWidgets('a picture that did not come in says why in the note’s line under the header, for six seconds, and not in a toast', (tester) async {
+    final library = await open(tester, fails: 'That picture could not be read.');
+    final screen = await launchWeek(tester, library);
+    final before = screen.view!.state.doc.toString();
+    tester.widget<PlusLayer>(find.byType(PlusLayer)).config.onPicture!();
+    await settle(tester, 2);
+    final line = find.text('That picture could not be read.');
+    expect(line, findsOneWidget);
+    expect(find.ancestor(of: line, matching: find.byType(NoteScreen)), findsOneWidget, reason: 'on the note');
+    expect(find.byType(GlacierToast), findsNothing, reason: 'not a toast');
+    expect(tester.getRect(line).top, inInclusiveRange(40, 200), reason: 'under the header');
+    expect(screen.view!.state.doc.toString(), before);
+    await tester.pump(const Duration(milliseconds: 5800));
+    expect(line, findsNothing, reason: 'said once and then out of the way');
     await close(tester);
   });
 

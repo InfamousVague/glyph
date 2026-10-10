@@ -767,7 +767,7 @@ class NoteDeskState extends State<NoteDesk> {
   }
 
   /// The note as a plugin changes it: through the editor, so each change is one undo and saves like typing.
-  NoteEditing get _editing => noteEditing(widget.noteId, _view, () => _view?.state.doc.toString() ?? '', (message) => widget.say(message));
+  NoteEditing get _editing => noteEditing(widget.noteId, _view, () => _view?.state.doc.toString() ?? '', _sayOnNote);
 
   /// What the open note's queries read and do (shell/useQueries.ts): the library, a row opened, another note's
   /// to-do ticked or its field set, and a ticket typed at a lane's +.
@@ -1126,10 +1126,23 @@ class NoteDeskState extends State<NoteDesk> {
       : (NotePictures(view: () => _view, pick: _world.pickPicture, store: _world.pictures, onPlaced: () => _haptic?.call(HapticKind.light))..addListener(_pictureSaid));
   HapticFn? _haptic;
 
-  /// A picture that did not come in says why.
+  /// A picture that did not come in says why, on the note's line; and the line is cleared as the next is chosen.
   void _pictureSaid() {
-    final problem = _pictures?.problem;
-    if (problem != null && mounted) widget.say(problem);
+    if (mounted) _sayOnNote(_pictures?.problem);
+  }
+
+  /// The sentence on the note now (`useNotePictures`' `problem`, which is the page's `NoteEditing.say` too): the
+  /// note's one place for a sentence about the note, under its header, said once and then out of the way after
+  /// six seconds (`SAID_MS`). Why a picture or a film did not come in, and what a plugin has to say.
+  final ValueNotifier<String?> _problem = ValueNotifier<String?>(null);
+  Timer? _problemGoes;
+
+  void _sayOnNote(String? message) {
+    _problemGoes?.cancel();
+    _problemGoes = null;
+    final words = message == null || message.isEmpty ? null : message;
+    if (words != null) _problemGoes = Timer(saidFor, () => _sayOnNote(null));
+    _problem.value = words;
   }
 
   /// The clipboard as the phone's own reader has it, which copies a picture out for the note to adopt.
@@ -1191,6 +1204,8 @@ class NoteDeskState extends State<NoteDesk> {
     }
     _comments.removeListener(_redraw);
     _comments.dispose();
+    _problemGoes?.cancel();
+    _problem.dispose();
     _wears.dispose();
     _pictures?.removeListener(_pictureSaid);
     _pictures?.dispose();
@@ -1575,7 +1590,7 @@ class NoteDeskState extends State<NoteDesk> {
       quiet();
       if (!mounted) return;
       haptics(HapticKind.warning);
-      widget.say(failureWords(failure));
+      _sayOnNote(failureWords(failure));
     } finally {
       if (mounted && identical(_view, editor)) editor.dispatch(releaseSpot(editor.state, spot));
     }
@@ -1765,6 +1780,7 @@ class NoteDeskState extends State<NoteDesk> {
       around: _around,
       over: _over,
       headRoom: _ai == null ? null : _stripRoom,
+      problem: _problem,
     );
     final built = widget.builder(context, _buildEditor, seams);
     // The note's share link, from the bar's Share: the More sheet's rows in a window of their own (NoteScreen.tsx

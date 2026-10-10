@@ -17,6 +17,9 @@ import 'package:ghost_md/capture/engine.dart';
 /// The phone's half of `ghost_md/mic`, as a test drives it.
 class FakePhoneMic {
   final List<String> asked = [];
+
+  /// What the phone answers `permission` and `request` with.
+  String permission = 'granted', request = 'granted';
   MockStreamHandlerEventSink? sink;
 
   void install() {
@@ -24,7 +27,8 @@ class FakePhoneMic {
     messenger.setMockMethodCallHandler(DeviceMic.channel, (call) async {
       asked.add(call.method);
       return switch (call.method) {
-        'permission' => 'granted',
+        'permission' => permission,
+        'request' => request,
         'open' => {'sampleRate': 16000, 'direct': false},
         'close' => {'samples': 6400, 'pushed': 0, 'refused': 0},
         _ => null,
@@ -78,6 +82,24 @@ void main() {
       phone.sink?.success({'event': 'chunk', 'rms': 0.25, 'samples': 6400, 'pcm': Float32List(4).buffer.asUint8List()});
       await settle();
       expect(heard, [4]);
+    });
+
+    // docs/PARITY.md, Differs 33: the recorder's line for a refused microphone is the WebView's own, as Ghost.md's
+    // is (capture/useCaptureSession.ts shows what `getUserMedia` rejected with; capture/microphone.test.ts).
+    test('refused, says the page\'s own words, and whether the phone will ask again', () async {
+      phone
+        ..permission = 'ask'
+        ..request = 'denied';
+      await expectLater(
+        DeviceMic.openWith(const MicrophoneConstraints()),
+        throwsA(isA<MicrophoneRefused>().having((e) => e.message, 'message', 'Permission denied').having((e) => e.blocked, 'blocked', isFalse)),
+      );
+      expect(phone.asked, ['permission', 'request']);
+      phone.permission = 'blocked';
+      await expectLater(
+        DeviceMic.openWith(const MicrophoneConstraints()),
+        throwsA(isA<MicrophoneRefused>().having((e) => e.message, 'message', 'Permission denied').having((e) => e.blocked, 'blocked', isTrue)),
+      );
     });
 
     test('says "background" when the window went with a take open', () async {

@@ -249,7 +249,7 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 | Pinch to size the words, 0.7 to 2, kept | editor/pinchZoom.ts:14-106 | note/pinch_zoom.dart:22-39 | match | |
 | Pull down in a note to refresh | editor/NoteScreen.tsx:1258 | — | missing | A note's page has no pull to refresh in the port. |
 | While a tape plays, the transcript takes the page and the note waits under it | editor/NoteScreen.tsx:960-961,1341-1343 | note/note_screen.dart (`_listening`, `NoteSeams.transcript`); tapes/transcript_words.dart | match | Since 2026-10-10: the phrases are there only while the tape plays, in the words' place under a tape that stays, and everything the page asks `shown === 'raw'` of waits with the words. The words' own rise as they return is not drawn. |
-| A picture that did not come in says why in a line under the header | editor/NoteScreen.tsx:1251-1253 | root/note_desk.dart:817-820 | differs | A toast. |
+| A picture that did not come in says why in a line under the header | editor/NoteScreen.tsx:1251-1253 | root/note_desk.dart (`_sayOnNote`); note/note_screen.dart (`NoteSeams.problem`) | match | Since 2026-10-10 the note's line, for six seconds, for a film and a plugin's sentence too. On the page the line is the screen's first child in its column, which is behind the header's glass now that the header is a pane over the page (app.css `.app-headerPane`): the port draws it where the glass ends. |
 | A save refused for good | editor/useNoteSaving.ts:146-156 (silent) | note/note_screen.dart:341 | differs | Port-only line: "This note changed somewhere else. What you write here now is not being saved." |
 | A page renamed keeps its place in its notebooks and journals | editor/useNoteSaving.ts:121-127; book/followRename.ts:17 | book/follow_rename.dart:26 (not imported) | unwired | A renamed page drops out of its notebook's index. |
 | The note unfolds with the hinge on a folding phone | core/unfold.ts:122 | core/unfold.dart:50; note/note_screen.dart:353,1433 | match | Never seen move (README). |
@@ -535,7 +535,7 @@ WavSpool, the four recordings files) differs from the original's by three to eig
 | Stop when I go quiet (four seconds, once you have started) | capture/quiet.ts:12 | capture/quiet.dart:14-37 | match | |
 | The microphone opens first, and what it hears while the model loads is kept | capture/useCaptureSession.ts:75-131; capture/audio.ts | capture/capture_session.dart:139-213; android/…/glyph/capture/DictationMic.kt | match | Android's own recorder through Dart, where the page had the WebView's. |
 | Leaving the app in the middle of a take | the WebView keeps its microphone (not determined on a device) | android/…/ghost_md/MainActivity.kt:172-177; capture/device_mic.dart:183 | differs | The port closes the microphone at `onStop`, and nothing in the running app hears `closed`: by the code the rest of the take is not heard. Wants trying. |
-| The microphone refused | capture/useCaptureSession.ts:136-140 (the WebView's own words) | capture/device_mic.dart:84-88 | differs | "Ghost.md needs the microphone to record." |
+| The microphone refused | capture/useCaptureSession.ts:136-140 (the WebView's own words) | capture/device_mic.dart (`microphoneDenied`) | match | "Permission denied" since 2026-10-10, the WebView's words for a refused `getUserMedia` (capture/microphone.test.ts:157). |
 | The voice model fetched as the app opens; its line on home; Try again | capture/useVoiceModel.ts:56-62; notes/Notices.tsx:177-191 | capture/voice_model.dart:171-174; notes/notices.dart:561-580 | match | |
 | A download that failed is tried again each time you come back to the app | capture/useVoiceModel.ts:58-62 | capture/voice_model.dart:117,174 (`onVisible` never given) | unwired | Only Try again or a relaunch retries. |
 | Local only: "…so the voice model was not downloaded. Turn it off in Settings to get it." | capture/engine.ts:112 | capture/engine.dart:404-405 | match | |
@@ -1197,9 +1197,11 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
 32. **Settings' small ends.** "Get a model" opens AI with nothing lit; Play the scene is not held off while a real
     run is on; no "Your tapes are being counted."; Test results says "No test report in this build." because none
     is built in. Small each; the report is medium, a build's tooling.
-33. **Words that read otherwise**: a picture that did not come in is a toast, not a line under the header; a
-    refused microphone says "Ghost.md needs the microphone to record."; a save refused for good and an account key
-    that will not open have sentences only the port has. Small, or leave them.
+33. **Words that read otherwise**: ~~a picture that did not come in is a toast, not a line under the header; a
+    refused microphone says "Ghost.md needs the microphone to record."~~ (both done 2026-10-10); a save refused
+    for good and an account key that will not open have sentences only the port has. Those two are left: the page
+    says nothing at all of a save it has stopped making (it logs it), and shows WebCrypto's own failure for the
+    key, which in Chromium has no words. Small, and the owner's to decide.
 34. **The landing's Undo** does not take off a lone where-written tag when it empties the note. Small.
 35. **The starter sample note has no picture and the example canvas no picture card**; the minimap draws a picture
     card plain. Small. The pictures bundled.

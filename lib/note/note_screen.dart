@@ -47,6 +47,11 @@
 ///   has no such state, since it never opens one.
 /// - **A save refused for good** is said in the note's one line of problems (`.problem`), under the header, for as
 ///   long as the note is open; the page only logs it.
+/// - **The note's one line of problems** ([NoteSeams.problem]) is drawn where the header's glass ends. On the page
+///   it is the screen's first child in its column, which was under the header while the header was a strip; the
+///   header is a pane laid over the page now (app.css `.app-headerPane`, `position: absolute`), so the page's line
+///   is at the window's top behind the glass, where it cannot be read, and the page drops a line while it is said.
+///   Neither is carried: the sentence is where the page's own comment says it is, under the header.
 /// - The arrival (`noteRise`: the body rising 8px as it fades in) is drawn for the page as a whole.
 library;
 
@@ -145,6 +150,7 @@ class NoteSeams {
     this.over,
     this.around,
     this.headRoom,
+    this.problem,
   });
 
   /// Find and replace opened in the note with its first words (editor/FindBar.tsx, piece K).
@@ -249,6 +255,11 @@ class NoteSeams {
   /// editor/useStripRoom.ts): the AI's strip's height and 8 more while it is up, 0 once it is gone. The page starts
   /// that much lower, so the strip never sits over the tape or the note's first line.
   final ValueListenable<double>? headRoom;
+
+  /// The sentence on the note now, or null (editor/useNotePictures.ts `problem`): why a picture or a film did not
+  /// come in, or what a plugin had to say of the note. The note's one place for a sentence about the note
+  /// (`.problem`, `role="alert"`), said under the header and gone after six seconds, which is its holder's to count.
+  final ValueListenable<String?>? problem;
 
   /// What stands round the page that scrolls, and so hears its scrolling: the + and its list (editor/plus
   /// `PlusLayer`), a chip's menu, the band. Given the page, it answers the page inside them. The view is null until
@@ -1649,23 +1660,14 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
                     ),
                   ),
           ),
-          // The note's one line of problems.
-          if (_stopped)
+          // The note's one line of problems: the sentence said of the note now (`pictures.problem`), and under it
+          // in time a save refused for good.
+          if (_stopped || seams.problem != null)
             Positioned(
               top: headerHeight,
               left: 0,
               right: 0,
-              child: Semantics(
-                liveRegion: true,
-                child: ColoredBox(
-                  color: t.color('glacier-bg'),
-                  child: Padding(
-                    // `.problem { padding: var(--glacier-space-1) var(--app-gutter) 0; font-size: sm; color: var(--app-ink-3) }`
-                    padding: EdgeInsets.fromLTRB(gutter, t.space(1), gutter, t.space(1)),
-                    child: Text(saveStoppedWords, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
-                  ),
-                ),
-              ),
+              child: _ProblemLine(said: seams.problem, standing: _stopped ? saveStoppedWords : null, gutter: gutter),
             ),
           if (view != null && _words && seams.over != null) ...seams.over!(context, view),
           if (_settingsOpen) _settings(context),
@@ -1879,6 +1881,39 @@ class _BlankGhost extends StatelessWidget {
       builder: (context, child) => Positioned(top: top - (scroll.hasClients && scroll.position.hasPixels ? scroll.position.pixels : 0), left: 0, right: 0, child: child!),
       child: const IgnorePointer(child: Ghost(scene: GhostScene.newNote, align: GhostAlign.center)),
     );
+  }
+}
+
+/// `.problem`: the note's one line for a sentence about the note, `role="alert"`. [said] while there is one, else
+/// what is [standing].
+class _ProblemLine extends StatelessWidget {
+  const _ProblemLine({required this.said, required this.standing, required this.gutter});
+
+  final ValueListenable<String?>? said;
+  final String? standing;
+  final double gutter;
+
+  Widget _line(BuildContext context, String? words) {
+    if (words == null || words.isEmpty) return const SizedBox.shrink();
+    final t = context.tokens;
+    return Semantics(
+      liveRegion: true,
+      child: ColoredBox(
+        color: t.color('glacier-bg'),
+        child: Padding(
+          // `.problem { padding: var(--glacier-space-1) var(--app-gutter) 0; font-size: sm; color: var(--app-ink-3) }`
+          padding: EdgeInsets.fromLTRB(gutter, t.space(1), gutter, t.space(1)),
+          child: Text(words, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final said = this.said;
+    if (said == null) return _line(context, standing);
+    return ValueListenableBuilder<String?>(valueListenable: said, builder: (context, now, _) => _line(context, now == null || now.isEmpty ? standing : now));
   }
 }
 
