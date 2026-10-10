@@ -1,10 +1,13 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/ai/ai_changes.dart' show AiChange;
+import 'package:ghost_md/ai/marks.dart' show forgetMarks, saveMarks;
 import 'package:ghost_md/core/book.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/workspaces.dart';
+import 'package:ghost_md/format/gist.dart' show gistWorking;
 import 'package:ghost_md/home/home_parts.dart';
 import 'package:ghost_md/home/home_rows.dart';
 import 'package:ghost_md/home/marks.dart';
@@ -198,6 +201,57 @@ void main() {
   });
 
   group('a card', () {
+    // Unwired 17 (docs/PARITY.md): the corner was handed in and nobody handed it, so no card ever wore the ring or
+    // the dot (notes/NoteCard.tsx: `activeGist() === note.id`, else `hasMarks(note.id)`). The card reads both
+    // itself, and hears the runner at the card.
+    testWidgets('wears the AI in its corner by itself: the ring while its own line is written, the dot while changes are marked in it', (tester) async {
+      addTearDown(() {
+        gistWorking.value = null;
+        forgetMarks('b');
+      });
+      Widget cards() => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              NoteCard(key: const ValueKey('a'), note: makeNote('a', body: '# First\n\nWords.', updatedAt: seedNow), index: 0, onOpen: (_) {}, now: seedNow),
+              NoteCard(key: const ValueKey('b'), note: makeNote('b', body: '# Second\n\nWords.', updatedAt: seedNow), index: 1, onOpen: (_) {}, now: seedNow),
+            ],
+          );
+      Finder said(String label, String card) => find.descendant(of: find.byKey(ValueKey(card)), matching: find.byWidgetPredicate((w) => w is Semantics && w.properties.label == label));
+      const ring = "The AI is writing this note's line", dot = 'Changes from the AI are marked in this note';
+      await show(tester, cards());
+      expect(said(ring, 'a'), findsNothing);
+      expect(said(ring, 'b'), findsNothing);
+      expect(said(dot, 'a'), findsNothing);
+      expect(said(dot, 'b'), findsNothing);
+
+      // The runner starts on the first note's line: its card says so, and the other is left alone.
+      gistWorking.value = 'a';
+      await tester.pump();
+      expect(said(ring, 'a'), findsOneWidget);
+      expect(said(ring, 'b'), findsNothing);
+      gistWorking.value = 'b';
+      await tester.pump();
+      expect(said(ring, 'a'), findsNothing);
+      expect(said(ring, 'b'), findsOneWidget);
+      gistWorking.value = null;
+      await tester.pump();
+      expect(said(ring, 'a'), findsNothing);
+      expect(said(ring, 'b'), findsNothing);
+
+      // Changes the AI made are still marked in the second: the dot, the next time its card is drawn.
+      saveMarks('b', '# Second\n\nWords.', const [AiChange(id: 'c1', runId: 'r1', from: 2, to: 8, removed: '', block: false)]);
+      await show(tester, cards());
+      expect(said(dot, 'a'), findsNothing);
+      expect(said(dot, 'b'), findsOneWidget);
+      // And the ring over the dot, never both.
+      gistWorking.value = 'b';
+      await tester.pump();
+      expect(said(ring, 'b'), findsOneWidget);
+      expect(said(dot, 'b'), findsNothing);
+      await away(tester);
+    });
+
     testWidgets('of a journal says its entries by when each was written; of a recording, how long it runs', (tester) async {
       final journal = exampleJournal(DateTime.fromMillisecondsSinceEpoch(seedNow));
       final notes = [makeNote('j', body: journal.journal, updatedAt: seedNow), makeNote('e', body: journal.entry, createdAt: seedNow, updatedAt: seedNow)];

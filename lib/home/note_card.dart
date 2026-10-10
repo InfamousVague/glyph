@@ -10,7 +10,8 @@
 ///   which is why `dense` is carried though the home page never asks for it.
 /// - The preview is [NotePeek], drawn by hand until the editor is ported (see there).
 /// - The AI's word in the card's corner (a ring while it writes the note's line, a dot while its changes are still
-///   marked) waits for the AI's port: [working] and [marked] are its two states, handed in.
+///   marked) is read by the corner itself, which hears the gists' runner where the page's card is drawn again with
+///   its list ([_AiCorner]); a picture hands [working] and [marked] in.
 /// - Where a note was written (`core/geotag.ts`, the foot's third fragment) is not read yet.
 /// - A long press stands in for the web's context menu (`notes/noteMenu.ts`): [onMenu], where the caller has one.
 library;
@@ -21,10 +22,12 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../ai/marks.dart' show hasMarks;
 import '../core/book.dart';
 import '../core/note.dart';
 import '../core/note_facts.dart';
 import '../core/note_text.dart';
+import '../format/gist.dart' show gistWorking;
 import '../notes/swipe_row.dart';
 import '../notes/when.dart';
 import '../perf/frame_log.dart';
@@ -39,8 +42,8 @@ import 'note_peek.dart';
 typedef NoteSwipes = ({List<SwipeAction> start, List<SwipeAction> end, ValueChanged<String> onAction});
 
 /// A note as a card (`src/app/notes/NoteCard.tsx`, NoteCard.module.css). The preview is [NotePeek], drawn by hand
-/// until the editor is ported; the AI's corner mark is handed in ([working], [marked]); where a note was written is
-/// not read yet; a long press is [onMenu].
+/// until the editor is ported; the AI's corner mark is the card's own to read, unless handed in ([working],
+/// [marked]); where a note was written is not read yet; a long press is [onMenu].
 class NoteCard extends StatelessWidget {
   const NoteCard({
     super.key,
@@ -55,8 +58,8 @@ class NoteCard extends StatelessWidget {
     this.dense = false,
     this.fill = false,
     this.swipe,
-    this.working = false,
-    this.marked = false,
+    this.working,
+    this.marked,
     this.onMenu,
     this.since = Duration.zero,
     this.gistSince = Duration.zero,
@@ -95,11 +98,11 @@ class NoteCard extends StatelessWidget {
   final bool fill;
   final NoteSwipes? swipe;
 
-  /// The AI is writing this note's line.
-  final bool working;
-
-  /// Changes from the AI are still marked in this note.
-  final bool marked;
+  /// The AI is writing this note's line, and changes from the AI are still marked in this note: the card's corner
+  /// says one or the other. Left out, the card hears the gists' runner and reads the marks itself, as the page's
+  /// card does (`activeGist() === note.id`, `hasMarks(note.id)`); a picture hands them in.
+  final bool? working;
+  final bool? marked;
   final ValueChanged<String>? onMenu;
 
   @override
@@ -242,18 +245,11 @@ class NoteCard extends StatelessWidget {
                   ),
                 ),
                 // The AI's word in the card's corner: one or the other, never both, and nothing at all otherwise.
-                if (working || marked)
-                  PositionedDirectional(
-                    top: t.space(3) - pad + hairline,
-                    end: t.space(3) - pad + hairline,
-                    child: working
-                        ? Semantics(label: "The AI is writing this note's line", child: _Turning(child: HomeIcon(HomeGlyph.loader, size: 14, strokeWidth: 2.2, color: t.color('app-ink-3'))))
-                        : Semantics(
-                            label: 'Changes from the AI are marked in this note',
-                            image: true,
-                            child: Container(width: 7, height: 7, margin: const EdgeInsets.all(3), decoration: BoxDecoration(color: t.color('app-ink'), shape: BoxShape.circle)),
-                          ),
-                  ),
+                PositionedDirectional(
+                  top: t.space(3) - pad + hairline,
+                  end: t.space(3) - pad + hairline,
+                  child: _AiCorner(noteId: note.id, working: working, marked: marked),
+                ),
                 if (dense && (note.starred || note.archivedAt != null))
                   PositionedDirectional(
                     bottom: t.space(3) - pad,
@@ -311,6 +307,62 @@ class _Gist extends StatelessWidget {
         lineHeight: t.len('glacier-leading-sm') * sm,
         child: Text(words, maxLines: lines, overflow: TextOverflow.ellipsis, style: pageText(t, sm, color: t.color('app-ink-3'), height: t.len('glacier-leading-sm'))),
       ),
+    );
+  }
+}
+
+/// The AI's word in a card's corner (notes/NoteCard.tsx): the ring while the note's line is being written
+/// (format/gist.dart), else the dot while changes of the AI's are still marked in the note (ai/marks.dart). The
+/// corner hears the gists' runner itself and is drawn again only when its own note's line starts or ends: nothing
+/// above the card is told.
+class _AiCorner extends StatefulWidget {
+  const _AiCorner({required this.noteId, this.working, this.marked});
+
+  final String noteId;
+  final bool? working;
+  final bool? marked;
+
+  @override
+  State<_AiCorner> createState() => _AiCornerState();
+}
+
+class _AiCornerState extends State<_AiCorner> {
+  late bool _working = gistWorking.value == widget.noteId;
+
+  @override
+  void initState() {
+    super.initState();
+    gistWorking.addListener(_heard);
+  }
+
+  @override
+  void didUpdateWidget(_AiCorner old) {
+    super.didUpdateWidget(old);
+    if (old.noteId != widget.noteId) _working = gistWorking.value == widget.noteId;
+  }
+
+  @override
+  void dispose() {
+    gistWorking.removeListener(_heard);
+    super.dispose();
+  }
+
+  void _heard() {
+    final now = gistWorking.value == widget.noteId;
+    if (now != _working && mounted) setState(() => _working = now);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    if (widget.working ?? _working) {
+      return Semantics(label: "The AI is writing this note's line", child: _Turning(child: HomeIcon(HomeGlyph.loader, size: 14, strokeWidth: 2.2, color: t.color('app-ink-3'))));
+    }
+    if (!(widget.marked ?? hasMarks(widget.noteId))) return const SizedBox.shrink();
+    return Semantics(
+      label: 'Changes from the AI are marked in this note',
+      image: true,
+      child: Container(width: 7, height: 7, margin: const EdgeInsets.all(3), decoration: BoxDecoration(color: t.color('app-ink'), shape: BoxShape.circle)),
     );
   }
 }

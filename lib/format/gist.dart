@@ -105,7 +105,12 @@ final Map<String, ({String body, int hash})> _hashes = <String, ({String body, i
 final ExternalStore<int> _spoken = ExternalStore<int>(0);
 void _speak() => _spoken.update((n) => n + 1);
 final Set<String> _failed = <String>{};
-String? _active;
+
+/// The note whose line is being written, as its card hears it (home/note_card.dart): told only when it changes, so
+/// the cards of the notes that are not being worked on are left as they are drawn.
+final ValueNotifier<String?> gistWorking = ValueNotifier<String?>(null);
+String? get _active => gistWorking.value;
+set _active(String? id) => gistWorking.value = id;
 
 /// The generation in flight, so a pause can cancel it.
 Run? _activeRun;
