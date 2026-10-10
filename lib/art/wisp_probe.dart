@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show Directory, File, Platform;
 import 'dart:ui' as ui;
 
@@ -29,8 +30,7 @@ import '../perf/frame_log.dart' show ghostPerf;
 /// - `layers`: says, once a second while a view is drawn, what layers lie under it by kind (lib/art/wisp_strips.dart).
 /// - `render`: says, once a second while frames are drawn, what the whole window is made of that the engine draws
 ///   through a picture of its own: opacities, masks, backdrop filters, soft clips, and how many repaint boundaries.
-/// - `shots`: a picture of the window as the engine itself draws it, about every second and a half that frames are
-///   drawn, up to sixteen, in `shots-<the names asked>` of `GHOST_PERF_DIR`: for laying one drawing beside another
+/// - `shots`: a picture of the window as the engine itself draws it, every second and a half, up to sixteen, in `shots-<the names asked>` of `GHOST_PERF_DIR`: for laying one drawing beside another
 ///   on the engine a device runs, where a test's pictures are another engine's. Not for a walk that is timed.
 /// - `onebackdrop`: every backdrop filter in the window is given one key, as a `BackdropGroup` over the app would
 ///   give those made with `BackdropFilter.grouped`: what is behind them is read once for all of them.
@@ -81,30 +81,31 @@ abstract final class WispProbe {
     final root = Platform.environment['GHOST_PERF_DIR'];
     if (root == null || root.isEmpty) return;
     final dir = Directory('$root/shots-${(_asked.toList()..sort()).join('+')}');
-    var taken = 0, lastAt = 0, busy = false;
-    SchedulerBinding.instance.addPersistentFrameCallback((_) {
-      final now = DateTime.now().millisecondsSinceEpoch;
-      if (busy || taken >= 16 || now - lastAt < 1500) return;
-      lastAt = now;
+    var taken = 0, busy = false;
+    // By the clock and not by the frame: a page at rest draws no frames, and a page at rest is what two drawings
+    // are best laid side by side from.
+    Timer.periodic(const Duration(milliseconds: 1500), (timer) async {
+      if (busy) return;
+      if (taken >= 16) {
+        timer.cancel();
+        return;
+      }
       busy = true;
       final n = taken++;
-      // Once the frame is done: the layers are whole then, and the picture is of what was just drawn.
-      SchedulerBinding.instance.addPostFrameCallback((_) async {
-        try {
-          final view = RendererBinding.instance.renderViews.first;
-          // ignore: invalid_use_of_protected_member
-          final layer = view.layer! as OffsetLayer;
-          final image = await layer.toImage(Offset.zero & view.size, pixelRatio: view.flutterView.devicePixelRatio);
-          final png = await image.toByteData(format: ui.ImageByteFormat.png);
-          image.dispose();
-          dir.createSync(recursive: true);
-          File('${dir.path}/shot-${n.toString().padLeft(2, '0')}.png').writeAsBytesSync(png!.buffer.asUint8List());
-        } catch (failure) {
-          debugPrint('[perf] no picture: $failure');
-        } finally {
-          busy = false;
-        }
-      });
+      try {
+        final view = RendererBinding.instance.renderViews.first;
+        // ignore: invalid_use_of_protected_member
+        final layer = view.layer! as OffsetLayer;
+        final image = await layer.toImage(Offset.zero & view.size, pixelRatio: view.flutterView.devicePixelRatio);
+        final png = await image.toByteData(format: ui.ImageByteFormat.png);
+        image.dispose();
+        dir.createSync(recursive: true);
+        File('${dir.path}/shot-${n.toString().padLeft(2, '0')}.png').writeAsBytesSync(png!.buffer.asUint8List());
+      } catch (failure) {
+        debugPrint('[perf] no picture: $failure');
+      } finally {
+        busy = false;
+      }
     });
   }
 
