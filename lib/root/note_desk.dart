@@ -747,6 +747,17 @@ class NoteDeskState extends State<NoteDesk> {
     );
   }
 
+  /// The recording just removed, while its Undo still means something: let go when the note is spoken into or left
+  /// (`removed`, `forgetRemoved`).
+  Object? _removed;
+
+  /// Talk more into this note, from its tape's Add or its own mic (`speakHere`): a removed recording's Undo is
+  /// forgotten, and what is typed is saved, before the recorder is asked for.
+  void _beforeSpeak() {
+    _removed = null;
+    _flush?.call();
+  }
+
   /// The recording taken off the note, with an Undo that puts it back (`removeRecording`). The words stay: only
   /// the length and the phrases go, and the tape the note's voice memos play from is unnamed until the Undo.
   Future<void> _removeRecording() async {
@@ -761,9 +772,11 @@ class NoteDeskState extends State<NoteDesk> {
     final segments = full?.segments ?? tape.segments ?? const <Segment>[];
     final held = _world.tapes?.tapeId(id);
     _world.tapes?.setTapeId(id, null);
+    final removed = _removed = Object();
     try {
       await write(id, null, const <Segment>[]);
     } catch (failure) {
+      if (identical(_removed, removed)) _removed = null;
       _world.tapes?.setTapeId(id, held);
       widget.say('The recording couldn’t be removed: $failure');
       return;
@@ -775,6 +788,9 @@ class NoteDeskState extends State<NoteDesk> {
       action: GlacierToastAction(
         label: 'Undo',
         onPress: () {
+          // Spoken into since, or left: a new take replaced the removed recording's file, and the Undo is not true.
+          if (!identical(_removed, removed)) return;
+          _removed = null;
           _world.tapes?.setTapeId(id, held);
           unawaited(write(id, ms, segments).then<void>((_) {}, onError: (Object _) {}));
         },
@@ -1027,6 +1043,7 @@ class NoteDeskState extends State<NoteDesk> {
   @override
   void dispose() {
     _leaving = true;
+    _removed = null;
     _stopFind?.call();
     _world.holdNote?.call(widget.noteId, false);
     _live?.close();
@@ -1465,6 +1482,9 @@ class NoteDeskState extends State<NoteDesk> {
     final ai = _ai;
     final seams = NoteSeams(
       saving: (flush) => _flush = flush,
+      // A note that wears its tape is talked into from the tape's Add: its own mic steps out.
+      hasTape: () => (_tapeNow()?.length ?? 0) > 0 && _world.onSpeak != null,
+      beforeSpeak: _beforeSpeak,
       sync: _world.syncWithin,
       // The phone's write-up changed this note: its screen reads it again.
       recordingChanged: _world.onRecordingChanged == null
@@ -1546,7 +1566,12 @@ class NoteDeskState extends State<NoteDesk> {
                 note: tape.note,
                 title: widget.title.isEmpty ? 'Untitled' : widget.title,
                 tape: tape,
-                onSpeak: speak == null || widget.readOnly ? null : () => speak(widget.noteId),
+                onSpeak: speak == null || widget.readOnly
+                    ? null
+                    : () {
+                        _beforeSpeak();
+                        speak(widget.noteId);
+                      },
                 onRemove: () => unawaited(_removeRecording()),
                 hasMemos: hasClips(_view?.state.doc.toString() ?? ''),
                 queue: _tapeQueue(),

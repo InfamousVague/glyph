@@ -17,6 +17,7 @@ import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/untouched.dart';
 import 'package:ghost_md/core/workspaces.dart';
+import 'package:ghost_md/editor/editor.dart' show ChangeSpec, TransactionSpec;
 import 'package:ghost_md/editor/media/clip_refs.dart' show TapeIds;
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
 import 'package:ghost_md/home/home_screen.dart';
@@ -29,6 +30,7 @@ import 'package:ghost_md/settings/settings_sheet.dart';
 import 'package:ghost_md/shell/account_gate.dart';
 import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/shell/screen.dart';
+import 'package:ghost_md/tapes/note_tape.dart';
 import 'package:ghost_md/tapes/player.dart' show TapePlayer, markAudioRemoved;
 
 import '../account_ui/support.dart' show Device;
@@ -290,6 +292,58 @@ void main() {
       await until(tester, () => shellOf(tester).screen is ScreenNote, 'the capture did not finish');
       expect(shellOf(tester).shown, note.id);
       expect(library.noteOf(note.id)!.body, contains('long lens'));
+      await close(tester);
+    });
+  });
+
+  // Differs 11 (docs/PARITY.md): a note's own mic stayed when the note had a tape, and the tape's Add did not save
+  // what was typed first (NoteScreen.tsx `speakWords = tape.length > 0 || !speakHere ? null : …`, `speakHere`).
+  group('a note that wears its tape', () {
+    Future<Note> taped(WidgetTester tester) async {
+      final note = library.value.firstWhere((note) => noteTitle(note.body) == 'Packing');
+      await tester.runAsync(() => library.apply(Note(id: note.id, body: note.body, createdAt: note.createdAt, updatedAt: note.updatedAt, source: NoteSource.capture, recordingMs: 4000, segments: const [Segment(text: 'Bring the long lens', startMs: 0, endMs: 2000)], revision: note.revision)));
+      await settle(tester, 2);
+      return library.noteOf(note.id)!;
+    }
+
+    Future<void> more(WidgetTester tester) async {
+      await tester.tap(find.bySemanticsLabel('More for this note'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+
+    testWidgets('has no mic of its own in More: it is talked into from its tape\'s Add, where any other note has the mic', (tester) async {
+      await open(tester, tapePlayer: FakeTapePlayer(lengths: const {}));
+      final note = await taped(tester);
+      shellOf(tester).openNote(note.id);
+      await settle(tester);
+      expect(tester.widget<NoteTape>(find.byType(NoteTape, skipOffstage: false)).onSpeak, isNotNull);
+      await more(tester);
+      expect(find.text('Talk into this note'), findsNothing);
+      await tester.tapAt(const Offset(10, 60));
+      await settle(tester, 4);
+      shellOf(tester).openNote(library.value.firstWhere((note) => noteTitle(note.body) == 'Launch week').id);
+      await settle(tester);
+      await more(tester);
+      expect(find.text('Talk into this note'), findsOneWidget);
+      await tester.tapAt(const Offset(10, 60));
+      await settle(tester, 4);
+      await close(tester);
+    });
+
+    testWidgets('saves what is typed before its Add opens the recorder at it', (tester) async {
+      await open(tester, tapePlayer: FakeTapePlayer(lengths: const {}));
+      final note = await taped(tester);
+      shellOf(tester).openNote(note.id);
+      await settle(tester);
+      final view = tester.state<NoteScreenState>(find.byType(NoteScreen)).view!;
+      view.dispatch(TransactionSpec(changes: ChangeSpec(from: view.state.doc.length, insert: '\nTyped a moment before.\n'), userEvent: 'input.type'));
+      expect(library.noteOf(note.id)!.body, isNot(contains('Typed a moment before.')));
+      tester.widget<NoteTape>(find.byType(NoteTape, skipOffstage: false)).onSpeak!();
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 5)));
+      expect(library.noteOf(note.id)!.body, contains('Typed a moment before.'), reason: 'saved by the press, not by the debounce');
+      await until(tester, () => shellOf(tester).screen is ScreenCapture, 'the capture did not start');
+      expect((shellOf(tester).screen as ScreenCapture).noteId, note.id);
       await close(tester);
     });
   });

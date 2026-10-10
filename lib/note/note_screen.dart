@@ -127,6 +127,8 @@ class NoteSeams {
     this.head,
     this.tail,
     this.saving,
+    this.hasTape,
+    this.beforeSpeak,
     this.sync,
     this.recordingChanged,
     this.cheatSheet,
@@ -191,6 +193,13 @@ class NoteSeams {
   /// Handed the way to save what is typed now ([NoteScreenState.flush]) as the screen is made: the AI flushes
   /// before a run, so the run's Undo has the note as it was.
   final void Function(VoidCallback flush)? saving;
+
+  /// Whether the note wears its tape now (`tape.length > 0`): a spoken note is talked into from its tape's Add, so
+  /// the note's own mic is in neither the bar nor the More sheet. And what is told as the note's own mic is
+  /// pressed, before the recorder is asked for (`forgetRemoved`): a new take replaces a removed recording's file,
+  /// so its Undo would no longer be true.
+  final bool Function()? hasTape;
+  final VoidCallback? beforeSpeak;
 
   /// A sync, waited for a few seconds at most (core/sync/engine.ts `syncWithin`): what a pull down from the top of
   /// the note asks for between saving what is typed and reading the note again. Absent, as in a build with no
@@ -1191,11 +1200,13 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
   }
 
   void _speak() {
+    widget.seams.beforeSpeak?.call();
     flush();
     widget.onSpeak?.call(_id);
   }
 
-  String? get _speakWords => widget.onSpeak == null ? null : (_isJournal ? 'Speak an entry' : 'Talk into this note');
+  /// `tape.length > 0 || !speakHere ? null : …`: a note with a tape has its Add there, and no mic of its own.
+  String? get _speakWords => widget.onSpeak == null || (widget.seams.hasTape?.call() ?? false) ? null : (_isJournal ? 'Speak an entry' : 'Talk into this note');
 
   /// What comes out of More into the bar while there is room, in this order: Share, History, Comment, Bookmark,
   /// Pin/Unpin, Archive, Speak (`actions`). Each is there only where More would have it, and stays in More too.
