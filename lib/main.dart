@@ -29,6 +29,7 @@ import 'core/preferences.dart';
 import 'core/stored.dart';
 import 'core/stored_device.dart';
 import 'core/updates.dart';
+import 'diag/error_log.dart';
 import 'root/account_wiring.dart';
 import 'core/link_preview.dart' show linkPreviewFetch;
 import 'perf/frame_log.dart';
@@ -49,71 +50,29 @@ Future<void> main() async {
   GhostBinding.ensureInitialized();
   // A build made to be measured times its own start and every frame after (lib/perf); any other does none of it.
   PerfLaunch.begin();
+  // Every error nobody catches, from here on, is kept and said (lib/diag/error_log.dart), and in a debug build
+  // still written out in full.
+  installErrorLog();
   // The keyboard that was up when the app was left is up again when it is come back to (core/keep_keyboard.dart).
   KeepKeyboard.install();
   // Every date in the phone's own words and order, as the page's Intl writes them (core/locale_dates.dart).
   useLocaleOf(PlatformDispatcher.instance.locale.languageCode, PlatformDispatcher.instance.locale.countryCode);
-  // Edge to edge, as the web app's page is under Android's bars: the page pads itself by the safe areas.
-  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   // The Mac app's window (its menu bar, its three lights) and a desktop's keys: nothing on a phone.
   MacWindow.instance.attach();
   DesktopKeys.attach();
-  final sheet = await loadTokenSheet(more: appStyleSheets);
-  PerfLaunch.step('sheet');
-  // What this device chose and how it left things, before anything is drawn. Storage that will not answer is not
-  // waited for: the app opens on its defaults and remembers nothing this run.
-  try {
-    await preferences.load().timeout(const Duration(seconds: 2));
-    useStored(await DeviceStored.open().timeout(const Duration(seconds: 2)));
-  } catch (_) {
-    // Refused (core/stored.dart): a device that cannot remember, not an error.
-  }
-  // The plugins that ship, on the phone's own memory, secure store and network (lib/root/plugin_ground.dart):
-  // before the first screen, since Settings' rows, the editor's parser and the Academy's lessons read them.
-  installPlugins();
-  PerfLaunch.step('stored');
-  // The notes library: the web app's own Rust, asked across FFI (lib/core/native). A phone where it will not load
-  // still opens, on the invented library, rather than on nothing.
-  CoreInvoke? core;
-  GhostCore? whole;
-  AccountMaking? account;
-  VoiceMaking? voice;
-  try {
-    final native = await GhostCore.open();
-    final dirs = PerfLaunch.dirs() ?? await DevicePaths.find();
-    await native.init(dataDir: dirs.dataDir, cacheDir: dirs.cacheDir);
-    core = native.invoke;
-    whole = native;
-    PerfLaunch.step('core');
-    // A measured build's library is brought up to a real one's size before the app reads it (lib/perf/perf_seed.dart).
-    if (ghostPerf && ghostPerfSeed > 0) {
-      final made = await seedPerfLibrary(native.invoke, ghostPerfSeed);
-      if (made > 0) debugPrint('[perf] made $made notes for the walk; this start is not one to time');
-    }
-    // The account, only in a build told where its service is (`--dart-define=GHOST_API=http://…`), and never the
-    // real service from a debug build (docs/STAGE7.md). With none, nothing of the account is made at all.
-    final base = accountBase(ghostApiDefine);
-    if (base != null) {
-      account = AccountMaking(base: base, crypto: await CoreCrypto.withLane(native), dataDir: dirs.dataDir);
-      debugPrint('[ghost] this build has an account service: $base');
-    } else if (ghostApiDefine.isNotEmpty) {
-      debugPrint('[ghost] GHOST_API was refused: a development build never talks to the real service, and a base must be an http address.');
-    }
-    // Voice: the phone's meeting service attached and what this launch was for read, before the first frame. A
-    // model is only ever fetched from where this build was told (`--dart-define=GHOST_MODELS=http://…`), and never
-    // from the real mirrors by a build that is not a release. No microphone is opened here, or by anything but a
-    // recorder's screen. Not on an iPhone, which records nothing and runs no model, as the real iPhone app does
-    // not (lib/core/iphone_app.dart `recordsVoice`): its core is built without the engines, and nothing is made.
-    if (recordsVoice) {
-      try {
-        voice = await VoiceMaking.attach(native, dataDir: dirs.dataDir, mirrors: voiceMirrors(ghostModelsDefine)).timeout(const Duration(seconds: 3));
-      } catch (failure) {
-        debugPrint('[ghost] voice is off for this run: $failure');
-      }
-    }
-  } catch (failure) {
-    debugPrint('[ghost] the library would not open: $failure');
-  }
+  // Five things the first frame waits for, and none of them for another: begun together, so the start is as long
+  // as the slowest of them and not as all of them one after the other (the core alone is most of it).
+  final (_, sheet, _, opened, locator) = await (
+    // Edge to edge, as the web app's page is under Android's bars: the page pads itself by the safe areas.
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge),
+    _styled(),
+    _remembered(),
+    _opened(),
+    // Where the phone is, for a note keeping its place: asked only from a press, or for a new note with tagging on.
+    // The place's name is OpenStreetMap's, asked once as the app itself; so are a tagged note's tiles.
+    PhoneLocator().attach(),
+  ).wait;
+  final (:core, :whole, :account, :voice) = opened;
   // The app's updates, only in a build told where its own releases are (`--dart-define=GHOST_UPDATES=https://…`)
   // and never in a debug build (lib/core/updates.dart): with none, nothing is asked of anywhere. One for the
   // process, as the core is; it begins to look once the root is up.
@@ -129,9 +88,6 @@ Future<void> main() async {
   if (core != null && defaultTargetPlatform == TargetPlatform.android) {
     films = Films(device: PhoneFilmDevice(core), pick: phoneFilmPicker(core, kept: (video) => films?.kept(video)));
   }
-  // Where the phone is, for a note keeping its place: asked only from a press, or for a new note with tagging on.
-  // The place's name is OpenStreetMap's, asked once as the app itself; so are a tagged note's tiles.
-  final locator = await PhoneLocator().attach();
   PerfLaunch.step('runApp');
   final placeLookup = geocodePlace(geocodeFetcher(), lang: () => PlatformDispatcher.instance.locale.toLanguageTag());
   final mapTiles = MapTiles().builder;
@@ -148,6 +104,79 @@ Future<void> main() async {
   // And of the iPhone app, in its simulator (lib/shell/phone_tour.dart).
   unawaited(runPhoneTour());
 }
+
+/// The app's token sheet: the kit's and the app's own stylesheets, read and parsed.
+Future<TokenSheet> _styled() async {
+  final sheet = await loadTokenSheet(more: appStyleSheets);
+  PerfLaunch.step('sheet');
+  return sheet;
+}
+
+/// What this device chose and how it left things, before anything is drawn. Storage that will not answer is not
+/// waited for: the app opens on its defaults, and what was kept is read over them when it comes
+/// (lib/core/preferences.dart). Then the plugins that ship, on the phone's own memory, secure store and network
+/// (lib/root/plugin_ground.dart): before the first screen, since Settings' rows, the editor's parser and the
+/// Academy's lessons read them.
+Future<void> _remembered() async {
+  try {
+    await preferences.load().timeout(const Duration(seconds: 2));
+    useStored(await DeviceStored.open().timeout(const Duration(seconds: 2)));
+  } catch (_) {
+    // Refused (core/stored.dart): a device that cannot remember, not an error.
+  }
+  installPlugins();
+  PerfLaunch.step('stored');
+}
+
+/// The notes library and what is made over it: the web app's own Rust, asked across FFI (lib/core/native). A phone
+/// where it will not load still opens, on the invented library, rather than on nothing: then every part is null.
+Future<({CoreInvoke? core, GhostCore? whole, AccountMaking? account, VoiceMaking? voice})> _opened() async {
+  CoreInvoke? core;
+  GhostCore? whole;
+  AccountMaking? account;
+  VoiceMaking? voice;
+  try {
+    // The library's code and where this device keeps things: asked together.
+    final (native, dirs) = await (GhostCore.open(), _folders()).wait;
+    await native.init(dataDir: dirs.dataDir, cacheDir: dirs.cacheDir);
+    core = native.invoke;
+    whole = native;
+    PerfLaunch.step('core');
+    // A measured build's library is brought up to a real one's size before the app reads it (lib/perf/perf_seed.dart).
+    if (ghostPerf && ghostPerfSeed > 0) {
+      final made = await seedPerfLibrary(native.invoke, ghostPerfSeed);
+      if (made > 0) debugPrint('[perf] made $made notes for the walk; this start is not one to time');
+    }
+    // Voice: the phone's meeting service attached and what this launch was for read, before the first frame. A
+    // model is only ever fetched from where this build was told (`--dart-define=GHOST_MODELS=http://…`), and never
+    // from the real mirrors by a build that is not a release. No microphone is opened here, or by anything but a
+    // recorder's screen. Not on an iPhone, which records nothing and runs no model, as the real iPhone app does
+    // not (lib/core/iphone_app.dart `recordsVoice`): its core is built without the engines, and nothing is made.
+    // Begun before the account's crypto is waited for: neither needs the other.
+    final attaching = !recordsVoice
+        ? Future<VoiceMaking?>.value()
+        : VoiceMaking.attach(native, dataDir: dirs.dataDir, mirrors: voiceMirrors(ghostModelsDefine)).timeout(const Duration(seconds: 3)).then<VoiceMaking?>((made) => made, onError: (Object failure) {
+            debugPrint('[ghost] voice is off for this run: $failure');
+            return null;
+          });
+    // The account, only in a build told where its service is (`--dart-define=GHOST_API=http://…`), and never the
+    // real service from a debug build (docs/STAGE7.md). With none, nothing of the account is made at all.
+    final base = accountBase(ghostApiDefine);
+    if (base != null) {
+      account = AccountMaking(base: base, crypto: await CoreCrypto.withLane(native), dataDir: dirs.dataDir);
+      debugPrint('[ghost] this build has an account service: $base');
+    } else if (ghostApiDefine.isNotEmpty) {
+      debugPrint('[ghost] GHOST_API was refused: a development build never talks to the real service, and a base must be an http address.');
+    }
+    voice = await attaching;
+    PerfLaunch.step('voice');
+  } catch (failure) {
+    debugPrint('[ghost] the library would not open: $failure');
+  }
+  return (core: core, whole: whole, account: account, voice: voice);
+}
+
+Future<DevicePaths> _folders() async => PerfLaunch.dirs() ?? await DevicePaths.find();
 
 /// The app, built anew each time it is started over (Developer's resets, lib/core/reset.dart): what
 /// `window.location.reload()` was to the page. The core, the phone's halves and the links' channel are the
