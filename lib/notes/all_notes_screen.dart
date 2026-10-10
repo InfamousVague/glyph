@@ -204,15 +204,18 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
   final Map<int, Widget> _cardAt = <int, Widget>{};
   bool _keeping = false;
 
-  /// How many rows of other cards are given at once: every row down to the last that holds a card that was on the
-  /// page before this frame, by the name its arrival is kept under (its note's where cards are one to a row, its
-  /// place and its note's across a row); one row where no card was. The rows after are only now arriving, and are
-  /// given a frame apart. Nothing (0, all of them at once) where a card that was there stands past the rows that
-  /// would be given apart.
+  /// How many rows of other cards are given at once: every row down to the last that holds a card that is already
+  /// to be seen, by the name its arrival is kept under (its note's where cards are one to a row, its place and its
+  /// note's across a row); one row where no card is. A card is to be seen once it has waited its turn to arrive,
+  /// 40 ms for each card before it and 320 at the most (lib/home/note_card.dart): one that came to be on the page
+  /// a letter ago and is still waiting is no more seen than one that comes now. The rows after are given a frame
+  /// apart. Nothing (0, all of them at once) where a card to be seen stands past the rows that would be given
+  /// apart.
   int _rowsThere(List<Note> shown, int columns) {
     var last = -1;
     for (var i = shown.length - 1; i >= 0 && last < 0; i -= 1) {
-      if (_arrivals.since(columns > 1 ? '$i/${shown[i].id}' : shown[i].id) > Duration.zero) last = i;
+      final since = _arrivals.since(columns > 1 ? '$i/${shown[i].id}' : shown[i].id);
+      if (since > Duration(milliseconds: 40 * math.min(i, 8))) last = i;
     }
     if (last < 0) return 1;
     final rows = last ~/ columns + 1;
