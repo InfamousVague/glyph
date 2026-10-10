@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/editor/editor_widget.dart' show Editor;
 import 'package:ghost_md/editor/media/clip_refs.dart' show Clip;
 import 'package:ghost_md/editor/media/clips.dart' show clipPlayer, tapeSource;
 import 'package:ghost_md/academy/academy_screen.dart';
@@ -193,11 +194,11 @@ void main() {
 
   group('a spoken note', () {
     /// Packing, given a recording of four seconds and its two phrases.
-    Future<Note> tapedIn(WidgetTester tester, SampleLibrary library) async {
+    Future<Note> tapedIn(WidgetTester tester, SampleLibrary library, {String more = ''}) async {
       final note = library.value.firstWhere((note) => noteTitle(note.body) == 'Packing');
       final taped = Note(
         id: note.id,
-        body: note.body,
+        body: note.body + more,
         createdAt: note.createdAt,
         updatedAt: note.updatedAt,
         source: NoteSource.capture,
@@ -210,14 +211,14 @@ void main() {
       return library.noteOf(note.id)!;
     }
 
-    testWidgets('wears its tape at its top where there is a player to play it, and its phrases under its words', (tester) async {
+    testWidgets('wears its tape at its top where there is a player to play it, and no phrases while the tape is still', (tester) async {
       final player = FakeTapePlayer(lengths: const {});
       final library = await open(tester, tapePlayer: player);
       final taped = await tapedIn(tester, library);
       shellOf(tester).openNote(taped.id);
       await settle(tester);
       expect(find.byType(NoteTape, skipOffstage: false), findsOneWidget);
-      expect(find.byType(TranscriptWords, skipOffstage: false), findsOneWidget);
+      expect(find.byType(TranscriptWords, skipOffstage: false), findsNothing);
       expect(player.calls, isEmpty, reason: 'a tape nobody plays asks the phone for nothing');
       // A note that was not spoken has none.
       shellOf(tester).openNote(library.value.firstWhere((note) => noteTitle(note.body) == 'Launch week').id);
@@ -244,6 +245,57 @@ void main() {
       shellOf(tester).openNote(library.value.firstWhere((note) => noteTitle(note.body) == 'Launch week').id);
       await settle(tester);
       expect(tester.state<NoteScreenState>(find.byType(NoteScreen)).view!.state.facet(tapeSource).src, isNull);
+      await close(tester);
+    });
+
+    // docs/PARITY.md, Differs 8. NoteScreen.tsx: `shown = tape.length && tape.playing ? 'transcript' : 'raw'`. Playing
+    // takes the screen for the transcript, under a tape that stays; the note waits hidden under it, and is back
+    // where it was left when the tape stops.
+    testWidgets('while its tape plays the transcript has the page and the words wait hidden; stopped, the note is back, at its bookmark as when it opens', (tester) async {
+      final lengths = <String, int>{};
+      final player = FakeTapePlayer(lengths: lengths);
+      final library = await open(tester, tapePlayer: player);
+      final taped = await tapedIn(tester, library, more: [for (var i = 0; i < 80; i++) '\n\nline $i of a note long enough to scroll${i == 40 ? ' §§' : ''}'].join());
+      lengths[taped.id] = 4000;
+      shellOf(tester).openNote(taped.id);
+      await settle(tester);
+      final screen = tester.state<NoteScreenState>(find.byType(NoteScreen));
+      ScrollPosition page() => Scrollable.of(tester.element(find.byType(Editor, skipOffstage: false))).position;
+      expect(find.byType(Editor), findsOneWidget);
+      expect(find.byType(TranscriptWords, skipOffstage: false), findsNothing, reason: 'the phrases are not listed under the note');
+      // The note opened at its bookmark, far down; it is brought back up to its tape.
+      final marked = page().pixels;
+      expect(marked, greaterThan(400));
+      page().jumpTo(30);
+      await settle(tester, 8);
+
+      await tester.tap(find.bySemanticsLabel('Play the recording'));
+      await settle(tester, 2);
+      expect(find.byType(TranscriptWords), findsOneWidget);
+      expect(find.text('Bring the long lens'), findsOneWidget);
+      expect(find.byType(NoteTape), findsOneWidget, reason: 'the tape stays over the transcript');
+      expect(find.byType(Editor), findsNothing, reason: 'the words wait hidden');
+      expect(find.byType(Editor, skipOffstage: false), findsOneWidget, reason: 'and are still there');
+      expect(page().pixels, 0, reason: 'the page holds still under the transcript');
+      expect(page().physics, isA<NeverScrollableScrollPhysics>());
+      // The transcript fills the page under the tape, and scrolls inside itself.
+      final words = tester.getRect(find.byType(TranscriptWords));
+      expect(words.top, greaterThanOrEqualTo(tester.getRect(find.byType(NoteTape)).bottom - 0.5));
+      expect(words.bottom, inInclusiveRange(800, 844), reason: 'down to the foot of the page, less the phone\'s own inset');
+      // What the page offers only over the words is not offered over the transcript.
+      expect(screen.view!.hasFocus, isFalse);
+      // A phrase tapped takes the tape there.
+      await tester.tap(find.text('and the tripod'));
+      await tester.pump();
+      expect(player.calls, containsAllInOrder(<String>['load ${taped.id}', 'play', 'seek 2000']));
+
+      await tester.tap(find.bySemanticsLabel('Pause the recording'));
+      await settle(tester, 8);
+      expect(find.byType(TranscriptWords, skipOffstage: false), findsNothing);
+      expect(find.byType(Editor), findsOneWidget);
+      // `useNotePlace(..., shown === 'raw' && !at)` begins again as the words return: a bookmark wins, as at an opening.
+      expect(page().pixels, closeTo(marked, 2), reason: 'the note is back at its bookmark');
+      expect(page().physics, isNot(isA<NeverScrollableScrollPhysics>()));
       await close(tester);
     });
 

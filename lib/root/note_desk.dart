@@ -26,8 +26,8 @@
 ///   words wait to write the note while it is open, the editor being its one writer.
 ///
 /// - the tape at the top of a note that has a recording (lib/tapes/note_tape.dart), played by the app's one player,
-///   with Add (talk more into the note) and Remove with its Undo (`editor/useNoteTape.ts`), and the phrases as they
-///   were spoken under the words (lib/tapes/transcript_words.dart);
+///   with Add (talk more into the note) and Remove with its Undo (`editor/useNoteTape.ts`), and while it plays the
+///   phrases as they were spoken, in the words' place (lib/tapes/transcript_words.dart);
 ///
 /// - the AI in the open note (lib/ai/note_ai.dart `NoteAi`, one to a desk): its extensions among the editor's own
 ///   (the blanks and their Fill pill, the panel a tap on one opens, what it writes arriving out of smoke, the tracked
@@ -813,6 +813,12 @@ class NoteDeskState extends State<NoteDesk> {
   /// The note's tape, once it has a recording and there is a player to play it.
   tape_player.Tape? _tape;
 
+  /// `tape.length && tape.playing`: the tape is playing, so the transcript has the page.
+  bool get _listening {
+    final tape = _tape;
+    return tape != null && tape.length > 0 && tape.playing;
+  }
+
   tape_player.Tape? _tapeNow() {
     final player = _world.tapePlayer;
     final note = _world.noteById?.call(widget.noteId);
@@ -1392,7 +1398,8 @@ class NoteDeskState extends State<NoteDesk> {
       if (ai != null) Positioned.fill(child: NoteAiLayer(ai: ai, top: headerEnd, onRoom: _roomFor, deviceFacts: _aiWorld?.deviceFacts, canUndo: !widget.readOnly)),
       // The comments' sheet, while one is open: drawn over the window, taking no room here.
       ?_comments.sheet(context),
-      if (finding != null)
+      // `finding !== null && view && shown === 'raw'`: no find bar over the transcript.
+      if (finding != null && !_listening)
         Positioned(
           left: 0,
           right: 0,
@@ -1750,10 +1757,8 @@ class NoteDeskState extends State<NoteDesk> {
           LinkMarks(noteId: widget.noteId, onPress: openSettings),
         ];
       },
-      tail: (context) {
-        final tape = _tape;
-        return <Widget>[if (tape != null && tape.length > 0) TranscriptWords(tape: tape)];
-      },
+      // Playing takes the screen for the transcript; the note waits under it (NoteScreen.tsx `shown`).
+      transcript: _listening ? (context) => TranscriptWords(tape: _tape!) : null,
       mapCard: _world.tags != null ? _mapCard : null,
       book: _book,
       journal: _journal,

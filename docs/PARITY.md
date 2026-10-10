@@ -248,7 +248,7 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 | A note opens where it was left; a bookmark wins | editor/notePlace.ts:133-219 | note/note_place.dart:168-277 | match | |
 | Pinch to size the words, 0.7 to 2, kept | editor/pinchZoom.ts:14-106 | note/pinch_zoom.dart:22-39 | match | |
 | Pull down in a note to refresh | editor/NoteScreen.tsx:1258 | — | missing | A note's page has no pull to refresh in the port. |
-| While a tape plays, the transcript takes the page and the note waits under it | editor/NoteScreen.tsx:960-961,1341-1343 | note/note_screen.dart:1380-1381; tapes/transcript_words.dart | differs | The port lists the phrases under the note's words all the time. |
+| While a tape plays, the transcript takes the page and the note waits under it | editor/NoteScreen.tsx:960-961,1341-1343 | note/note_screen.dart (`_listening`, `NoteSeams.transcript`); tapes/transcript_words.dart | match | Since 2026-10-10: the phrases are there only while the tape plays, in the words' place under a tape that stays, and everything the page asks `shown === 'raw'` of waits with the words. The words' own rise as they return is not drawn. |
 | A picture that did not come in says why in a line under the header | editor/NoteScreen.tsx:1251-1253 | root/note_desk.dart:817-820 | differs | A toast. |
 | A save refused for good | editor/useNoteSaving.ts:146-156 (silent) | note/note_screen.dart:341 | differs | Port-only line: "This note changed somewhere else. What you write here now is not being saved." |
 | A page renamed keeps its place in its notebooks and journals | editor/useNoteSaving.ts:121-127; book/followRename.ts:17 | book/follow_rename.dart:26 (not imported) | unwired | A renamed page drops out of its notebook's index. |
@@ -606,7 +606,7 @@ WavSpool, the four recordings files) differs from the original's by three to eig
 | --- | --- | --- | --- | --- |
 | The tape at a spoken note's top: its label, the day, Play / Pause, the time, the reels | tapes/NoteTape.tsx:45-128; tapes/TapeArt.tsx:42-60 | tapes/note_tape.dart:36-321; tapes/tape_art.dart | match | Played by the phone's own player (android/…/ghost_md/TapePlayer.kt). |
 | Remove, with Undo; with voice memos it asks first, and Keep leaves it | tapes/NoteTape.tsx:136-156; editor/useNoteTape.ts:49-88 | tapes/note_tape.dart:164-178; root/note_desk.dart:670-701 | match | No warning tick. |
-| The phrases lit as they are heard; a tap takes the tape there | tapes/NoteTape.tsx:208-257 | tapes/transcript_words.dart | match | Where they are drawn differs: see the note's screen. |
+| The phrases lit as they are heard; a tap takes the tape there | tapes/NoteTape.tsx:208-257 | tapes/transcript_words.dart | match | |
 | Summarize on the tape; Replace for a summary you edited | tapes/NoteTape.tsx:157-195 | tapes/note_tape.dart:179-212; root/note_desk.dart:1307-1315 | match | |
 | The tape says Summarizing, "Needs a model.", "The summary didn't come.", "The summary comes after the better words." | tapes/NoteTape.tsx:86-103,165-170 | tapes/note_tape.dart:57-78,143-155 | unwired | `NoteTape.queue` is never given (root/note_desk.dart:1298-1316). |
 | "Summary is from before the last take." | tapes/NoteTape.tsx:101-102; editor/NoteScreen.tsx:1302 | tapes/note_tape.dart:153-154 (`summaryBehind`, ai/summary_keep.dart:83, has no caller) | unwired | |
@@ -1140,8 +1140,8 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
 7. **A note opened before the engine is up has no AI until it is reopened**, and no note has it in a run where
    voice did not attach within three seconds (lib/root/note_desk.dart:478-490; lib/main.dart:107-113). Small to
    medium. The desk's AI is `late final`.
-8. **While a tape plays the transcript does not take the page**: the port lists the phrases under the note all the
-   time. Medium. The note's screen.
+8. ~~**While a tape plays the transcript does not take the page**: the port lists the phrases under the note all the
+   time.~~ Done 2026-10-10 (lib/note/note_screen.dart `_listening`; held by test/root/rest_test.dart).
 9. **The names of months and days are always English**: due chips, the names under line 1, a journal's months,
    templates, the calendar, the +'s date row, a meeting's title, the audit log, version history, "Synced" after an
    hour, a blank's "Asked on" and its worked-out dates. Medium. One place (lib/core/locale_dates.dart), and it

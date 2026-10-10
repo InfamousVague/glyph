@@ -23,8 +23,8 @@
 /// - **What other pieces and stages own comes in through [NoteSeams]**, each nullable, each named for the web file
 ///   it ports: find, the bookmark, comments, sharing, the AI, plugins' links, the place and its map card, the
 ///   book's bar and foot, and the canvas, book and journal views, each drawn only where it is given (lib/root gives
-///   all three). The tape and its transcript, the AI's strip, the models' scene, live and team notes and pull to
-///   refresh are not drawn at all yet.
+///   all three). The tape is one of the rows of [NoteSeams.head], and its transcript [NoteSeams.transcript],
+///   which takes the page under the tape while the tape plays and is not there at all otherwise, as on the page.
 /// - **The blank page's names and template cards are a sliver under the editor**, where the page drew them in a
 ///   block after line 1 inside it (editor/nameChips.ts): a note with no words is its one empty line, so under the
 ///   editor is under that line, and the page scrolls them with it. They wait for what the page's waited for: the
@@ -127,7 +127,7 @@ class NoteSeams {
     this.linked,
     this.plugins,
     this.head,
-    this.tail,
+    this.transcript,
     this.saving,
     this.hasTape,
     this.beforeSpeak,
@@ -188,9 +188,10 @@ class NoteSeams {
   /// [openSettings], the note's More sheet.
   final List<Widget> Function(BuildContext context, VoidCallback openSettings)? head;
 
-  /// What follows a note's words on its page: the phrases of its recording as they were spoken
-  /// (tapes/NoteTape.tsx `TranscriptWords`).
-  final List<Widget> Function(BuildContext context)? tail;
+  /// The phrases of the note's recording as they were spoken (tapes/NoteTape.tsx `TranscriptWords`), given while
+  /// its tape plays and only then: playing takes the screen for the transcript, and the note waits under it
+  /// (NoteScreen.tsx `shown`). Null at every other time, and the note is its words.
+  final WidgetBuilder? transcript;
 
   /// Handed the way to save what is typed now ([NoteScreenState.flush]) as the screen is made: the AI flushes
   /// before a run, so the run's Undo has the note as it was.
@@ -473,12 +474,19 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
 
   /// Whether the editor is what is showing.
   bool get _words => !_drawing && !_paging;
+
+  /// NoteScreen.tsx `shown`: `'transcript'` while the note's tape plays, when the transcript has the page under
+  /// the tape and the words wait hidden; `'raw'` at every other time. What the page asks `shown === 'raw'` of
+  /// (the bookmark, find, a comment, the look, history, a board made of it, the view's switch, the pinch, the +
+  /// and the band, the map, the notebook's foot, and where the note was left) asks [_raw].
+  bool get _listening => widget.seams.transcript != null;
+  bool get _raw => !_listening;
   NoteKind get _kind => _isCanvas ? NoteKind.canvas : (_isBook ? NoteKind.book : NoteKind.words);
   bool get _onPage => _typed ? !_source : _prefs.value.noteView == 'formatted';
 
   /// Whether a + may show beside an empty line, which is also when a blank page offers its names
   /// (`plusAllowed`): the note is words being written.
-  bool get plusAllowed => !_typed && !widget.readOnly;
+  bool get plusAllowed => !_typed && !widget.readOnly && _raw;
 
   /// Whether the blank page offers names and templates (`offering`): a note made in this run, with no words.
   bool get offering => _fresh && _saving.blank && plusAllowed;
@@ -936,6 +944,38 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
   /// The phone's way back from the note, for whoever holds the back gesture: what is typed is saved first.
   void leave() => _back();
 
+  // ---- the transcript taking the page -------------------------------------------------------------------------------
+
+  @override
+  void didUpdateWidget(NoteScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final was = oldWidget.seams.transcript != null;
+    if (was != _listening) _listeningChanged();
+  }
+
+  /// The tape began to play, or stopped. `useNotePlace(note.id, page, view, shown === 'raw' && !at)`: where the
+  /// note was left is written as the words go behind the transcript, from the last scroll of the person's own, and
+  /// is gone back to as they return. The page under the transcript holds still at its top, and the editor, hidden,
+  /// has neither the focus nor the keyboard.
+  void _listeningChanged() {
+    final view = _view;
+    if (_listening) {
+      _keeper?.dispose();
+      _keeper = null;
+      // Not `jumpTo`: this is the build, and the page is laid out again for its new slivers anyway.
+      if (_scroll.hasClients) _scroll.position.correctPixels(0);
+      if (view != null && view.hasFocus) FocusManager.instance.primaryFocus?.unfocus();
+      return;
+    }
+    // After the frame: a page that may scroll again is given a new position by its scroll view, and the place is
+    // kept on that one.
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      final view = _view, at = widget.at;
+      if (!mounted || _listening || _keeper != null || view == null || !_scroll.hasClients || (at != null && at.isNotEmpty)) return;
+      _keeper = NotePlaceKeeper(noteId: _id, view: view, page: _scroll.position, places: NotePlaces(widget.device), writtenBookmark: widget.seams.writtenBookmark, lifecycle: widget.lifecycle);
+    });
+  }
+
   // ---- the editor arriving ------------------------------------------------------------------------------------------
 
   void _onView(EditorView view) {
@@ -1225,9 +1265,9 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     final speak = _speakWords;
     return [
       if (seams.onShare != null) ToolAction(id: 'share', label: 'Share', icon: Lucide.share2, onPress: seams.onShare!),
-      if (history) ToolAction(id: 'history', label: 'Version history', icon: Lucide.history, onPress: () => widget.onHistory != null ? widget.onHistory!() : _openSettings(NoteSettingsPage.history)),
-      if (seams.onComment != null && !_typed && view != null) ToolAction(id: 'comment', label: 'Comment', icon: Lucide.messageSquarePlus, onPress: () => seams.onComment!(view)),
-      if (mark != null) ToolAction(id: 'bookmark', label: mark.marked ? 'Move or remove the bookmark' : 'Bookmark this line', icon: mark.marked ? Lucide.bookmarkCheck : Lucide.bookmark, onPress: mark.onPress, on: mark.marked),
+      if (history && _raw) ToolAction(id: 'history', label: 'Version history', icon: Lucide.history, onPress: () => widget.onHistory != null ? widget.onHistory!() : _openSettings(NoteSettingsPage.history)),
+      if (seams.onComment != null && !_typed && view != null && _raw) ToolAction(id: 'comment', label: 'Comment', icon: Lucide.messageSquarePlus, onPress: () => seams.onComment!(view)),
+      if (mark != null && _raw) ToolAction(id: 'bookmark', label: mark.marked ? 'Move or remove the bookmark' : 'Bookmark this line', icon: mark.marked ? Lucide.bookmarkCheck : Lucide.bookmark, onPress: mark.onPress, on: mark.marked),
       if (!widget.readOnly) ...[
         ToolAction(id: 'pin', label: _pinned ? 'Unpin' : 'Pin to the top', icon: _pinned ? Lucide.pinOff : Lucide.pin, onPress: togglePin, on: _pinned),
         ToolAction(id: 'archive', label: 'Archive', icon: Lucide.archive, onPress: _archive),
@@ -1236,12 +1276,12 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     ];
   }
 
-  NoteToolsModel _model({bool more = true}) => NoteToolsModel(kind: _kind, page: _onPage, switchable: true, onSwitch: _switchView, onMore: _openMore, more: more, actions: _actions());
+  NoteToolsModel _model({bool more = true}) => NoteToolsModel(kind: _kind, page: _onPage, switchable: _raw, onSwitch: _switchView, onMore: _openMore, more: more, actions: _actions());
 
   /// The tools follow the screen: handed a new model after the frame, when what they draw has changed.
   void _syncTools({required bool more}) {
     final model = _model(more: more);
-    final key = '${model.kind.name}|${model.page}|${model.more}|${[for (final action in model.actions) '${action.id}:${action.label}:${action.on}'].join(',')}';
+    final key = '${model.kind.name}|${model.page}|${model.more}|${model.switchable}|${[for (final action in model.actions) '${action.id}:${action.label}:${action.on}'].join(',')}';
     if (key == _toolsKey) return;
     _toolsKey = key;
     SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -1260,7 +1300,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     _pinch.put(event.pointer, event.position);
     final view = _view;
     final mid = _pinch.middle;
-    if (!_pinch.pinching || mid == null || view == null || !_words) return;
+    if (!_pinch.pinching || mid == null || view == null || !_words || !_raw) return;
     final pos = view.posAtCoords(mid, precise: false);
     final at = pos == null ? null : view.coordsAtPos(pos);
     _pinching = (distance: _pinch.apart, zoom: _zoom.value, pos: at == null ? null : pos, y: at?.top ?? mid.dy);
@@ -1409,7 +1449,8 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       key: _page,
       controller: _scroll,
       // A canvas is not a column of words: it takes the whole page and moves under the fingers rather than scrolling.
-      physics: _drawing ? const NeverScrollableScrollPhysics() : _pagePhysics,
+      // Nor does the page move under the transcript, which scrolls inside itself under a tape that stays.
+      physics: _drawing || _listening ? const NeverScrollableScrollPhysics() : _pagePhysics,
       slivers: [
         // `padding-block-start: calc(var(--wisp-under) + … + var(--ai-strip-room, 0px))`
         SliverToBoxAdapter(child: SizedBox(height: padTop + (seams.headRoom?.value ?? 0))),
@@ -1420,7 +1461,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
         // Where it was written: the map at the top of the note, where the page scrolls with the words.
         if (_words && seams.head != null)
           for (final row in seams.head!(context, _openSettings)) SliverToBoxAdapter(child: row),
-        if ((tag ?? _leaving) != null && _words && seams.mapCard != null)
+        if ((tag ?? _leaving) != null && _words && _raw && seams.mapCard != null)
           SliverToBoxAdapter(
             child: _MapPlace(
               header: look == Look.map,
@@ -1438,7 +1479,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
               ),
             ),
           )
-        else if ((_hold != null || look == Look.map) && _words && seams.mapCard != null)
+        else if ((_hold != null || look == Look.map) && _words && _raw && seams.mapCard != null)
           // The box held for a new note's fix: the same box, empty, until the tag arrives in it or the note is left.
           // A map note's header is its shape, so it is drawn with no place too, saying why.
           SliverToBoxAdapter(
@@ -1457,8 +1498,20 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
         else if (!_words)
           _isJournal ? SliverToBoxAdapter(child: _view0(context)) : PageHead(height: padTop + (seams.headRoom?.value ?? 0), child: _view0(context)),
         // The editor stays mounted behind a canvas or an index, hidden, so its caret keeps its place.
-        SliverOffstage(offstage: !_words, sliver: widget.editorBuilder(context, spec)),
-        if (_words) ...[
+        // And behind the transcript while the tape plays (`hidden={shown !== 'raw' || drawing || paging}`).
+        SliverOffstage(offstage: !_words || _listening, sliver: widget.editorBuilder(context, spec)),
+        // `{shown === 'transcript' ? <div className={styles.body}><TranscriptWords tape={tape} /></div> : null}`:
+        // the rest of the page, `.body { flex: 1; min-block-size: 0; padding-block-end: var(--app-safe-bottom) }`,
+        // arriving as a body does (`noteRise`).
+        if (_listening)
+          SliverFillRemaining(
+            hasScrollBody: true,
+            child: Padding(
+              padding: EdgeInsets.only(bottom: t.len('app-safe-bottom')),
+              child: _BodyRise(child: seams.transcript!(context)),
+            ),
+          ),
+        if (_words && _raw) ...[
           // A new note's blank page: the names under its first line, the template cards under them, and the ghost
           // under those, in the page's flow so it is never behind them.
           if (offered != null)
@@ -1473,8 +1526,6 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
           // `.cm-content { padding-block-end: var(--glacier-space-24) }` (the split layout's `space-8`), taken from
           // the editor while the offers are drawn, and `.body { padding-block-end: var(--app-safe-bottom) }`.
           SliverToBoxAdapter(child: SizedBox(height: (offered != null ? LookEnv.roomUnder(t) : 0) + t.len('app-safe-bottom'))),
-          if (_words && seams.tail != null)
-            for (final row in seams.tail!(context)) SliverToBoxAdapter(child: row),
           if (book != null && seams.bookFoot != null) SliverToBoxAdapter(child: seams.bookFoot!(context, book)),
           // `.page[data-scrolls] > .body { flex: 1 0 auto }`: the editor is the rest of the page, and a tap there is a tap in it.
           SliverFillRemaining(
@@ -1485,13 +1536,14 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       ],
     );
 
-    final around = seams.around?.call(context, _words ? view : null, words) ?? words;
-    // A pull down from the page's top refreshes the note; not a canvas, which moves under the fingers. The page
+    final around = seams.around?.call(context, _words && _raw ? view : null, words) ?? words;
+    // A pull down from the page's top refreshes the note; not a canvas, which moves under the fingers, and not
+    // while its transcript has the page (`enabled={shown === 'raw' && !drawing}`). The page
     // itself is handed over as it is, so a pull draws the ring and moves the page and builds nothing of the note.
     final scroller = PullToRefresh(
       controller: _scroll,
       onRefresh: _pullNote,
-      enabled: !_drawing,
+      enabled: _raw && !_drawing,
       top: padTop + (seams.headRoom?.value ?? 0),
       builder: (context, pull) {
         _pulled = pull.physics is NeverScrollableScrollPhysics;
@@ -1613,19 +1665,19 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       onArchive: _archive,
       onDelete: _remove,
       marked: mark?.marked ?? false,
-      onBookmark: mark == null
+      onBookmark: mark == null || !_raw
           ? null
           : () {
               close();
               mark.onPress();
             },
-      onFind: seams.onFind == null || view == null
+      onFind: seams.onFind == null || view == null || !_raw
           ? null
           : () {
               close();
               seams.onFind!(view, '');
             },
-      onMakeBoard: !widget.readOnly && words && boardFrom(view?.state.doc.toString() ?? _saving.body) != null ? makeBoard : null,
+      onMakeBoard: !widget.readOnly && words && _raw && boardFrom(view?.state.doc.toString() ?? _saving.body) != null ? makeBoard : null,
       name: _typed && !widget.readOnly ? NoteName(value: _saving.title, onChange: renameHere, kind: _isCanvas ? 'canvas' : (_isJournal ? 'journal' : 'notebook')) : null,
       // A notebook kept as a journal, or a journal's template and place switch (docs/DESIGN.md §142).
       journal: _notebookRows
@@ -1648,20 +1700,20 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       ticketKey: _notebookRows && !_isJournal ? NoteTicketKey(value: frontMatterValue(_typedBody, 'key') ?? '', onChange: (typed) => _writeKeys((was) => withNotebookKey(was, typed))) : null,
       onSpeak: speak == null || widget.readOnly ? null : _speak,
       speakLabel: speak ?? 'Talk into this note',
-      look: !_typed && !widget.readOnly ? NoteLook(value: _look, canMap: _tag != null || _look == Look.map, onChange: chooseLook) : null,
+      look: !_typed && !widget.readOnly && _raw ? NoteLook(value: _look, canMap: _tag != null || _look == Look.map, onChange: chooseLook) : null,
       onAi: seams.onAi == null || view == null ? null : (kind, [instruction]) => seams.onAi!(view, kind, instruction),
       running: seams.aiRunning?.call(),
       // What Fill the blanks would take, read while the sheet is up (`settingsOpen && view ? fillPlanOf(view.state)`).
       blanks: view == null ? (count: 0, online: const <String>[]) : fillPlanOf(view.state),
-      onComment: seams.onComment == null || view == null || _typed ? null : () => seams.onComment!(view),
-      commentsSummary: seams.commentsSummary?.call(),
-      onCommentsList: seams.onCommentsList,
+      onComment: seams.onComment == null || view == null || _typed || !_raw ? null : () => seams.onComment!(view),
+      commentsSummary: _raw ? seams.commentsSummary?.call() : null,
+      onCommentsList: _raw ? seams.onCommentsList : null,
       sharing: seams.sharing?.call(context),
       sharingSection: seams.sharingSection?.call(context),
       linked: seams.linked?.call(context),
       plugins: view == null || widget.readOnly ? null : seams.plugins?.call(view),
       location: seams.location?.call(_tag) ?? _location(_prefs.value),
-      history: versions != null && !_isCanvas && !widget.readOnly
+      history: versions != null && !_isCanvas && !widget.readOnly && _raw
           ? NoteHistory(record: versions, keeps: _versioning?.keeps ?? versions.keepsVersions(_id), current: () => _view?.state.doc.toString() ?? _saving.body, onRestore: restoreVersion, onShareFile: seams.shareVersionsFile)
           : null,
       startAt: _settingsAt,
@@ -1683,6 +1735,54 @@ class _HeldUnderPull extends ScrollPhysics {
 
   @override
   double applyPhysicsToUserOffset(ScrollMetrics position, double offset) => held() ? 0 : super.applyPhysicsToUserOffset(position, offset);
+}
+
+/// `.body { animation: noteRise 320ms var(--glacier-ease-out) both; animation-delay: 90ms }`: a body put on the
+/// page rises 8px as it fades in, a beat after the tape. Still under reduced motion.
+class _BodyRise extends StatefulWidget {
+  const _BodyRise({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_BodyRise> createState() => _BodyRiseState();
+}
+
+class _BodyRiseState extends State<_BodyRise> with SingleTickerProviderStateMixin {
+  // The delay and the rise as one run: 90 ms of nothing, then 320 ms.
+  late final AnimationController _rise = AnimationController(vsync: this, duration: const Duration(milliseconds: 410));
+  bool _begun = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_begun) return;
+    _begun = true;
+    if (context.tokens.reducedMotion) {
+      _rise.value = 1;
+    } else {
+      _rise.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _rise.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ease = context.tokens.curve('glacier-ease-out');
+    return AnimatedBuilder(
+      animation: _rise,
+      builder: (context, child) {
+        final at = ease.transform(((_rise.value * 410 - 90) / 320).clamp(0.0, 1.0));
+        return Opacity(opacity: at, child: Transform.translate(offset: Offset(0, 8 * (1 - at)), child: child));
+      },
+      child: widget.child,
+    );
+  }
 }
 
 /// What a failed fix says (`NO_FIX`).
