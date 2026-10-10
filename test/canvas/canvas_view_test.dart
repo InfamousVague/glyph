@@ -8,6 +8,7 @@ import 'package:ghost_md/canvas/canvas_view.dart';
 import 'package:ghost_md/canvas/card.dart';
 import 'package:ghost_md/canvas/card_looks.dart';
 import 'package:ghost_md/canvas/json_canvas.dart';
+import 'package:ghost_md/canvas/minimap.dart';
 import 'package:ghost_md/canvas/paint.dart';
 import 'package:ghost_md/canvas/world.dart';
 import 'package:ghost_md/core/back.dart';
@@ -427,6 +428,23 @@ void main() {
       expect(find.descendant(of: find.byKey(const ValueKey('card mine')), matching: find.byType(Image)), findsOneWidget);
       expect(find.descendant(of: find.byKey(const ValueKey('card theirs')), matching: find.byType(Image)), findsNothing);
       expect(find.descendant(of: find.byKey(const ValueKey('card theirs')), matching: find.textContaining('vault')), findsOneWidget);
+      await shown.done();
+    });
+
+    // Differs 35 (docs/PARITY.md): the map drew one of Ghost.md's own pictures as the plain block a picture from
+    // elsewhere is, where the page's draws the picture in the card's box (Minimap.tsx `<image href={url} ... />`).
+    testWidgets('draws that picture on the minimap too, once it is decoded, and one from elsewhere as the block it was', (tester) async {
+      final shown = Shown(tester);
+      await shown.show(editable: false, canvas: pictures, pictures: MemoryPictureStore()..lend({'abc.jpg': pixel}));
+      expect(find.byKey(const ValueKey('map')), findsOneWidget);
+      // Decoded off the frame, and the map drawn again when it has been.
+      for (var i = 0; i < 40 && !(MapPainter.lastDrawn?.pictures.contains('mine') ?? false); i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 10)));
+        await tester.pump();
+      }
+      final drawn = MapPainter.lastDrawn!;
+      expect(drawn.cards.map((card) => (card.id, card.kind)), [('mine', 'picture'), ('theirs', 'picture')]);
+      expect(drawn.pictures, {'mine'});
       await shown.done();
     });
 

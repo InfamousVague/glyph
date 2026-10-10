@@ -1056,7 +1056,7 @@ class CanvasViewState extends State<CanvasView> {
                     Positioned(
                       right: t.space(3),
                       bottom: t.space(3),
-                      child: Minimap(canvas: live, lines: lined, camera: _camera, big: _mapBig, onBig: () => setState(() => _mapBig = true), own: _own),
+                      child: Minimap(canvas: live, lines: lined, camera: _camera, big: _mapBig, onBig: () => setState(() => _mapBig = true), own: _own, pictures: widget.pictures),
                     ),
                     if (_adding != null)
                       AddSheet(

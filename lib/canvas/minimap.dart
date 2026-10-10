@@ -12,19 +12,23 @@
 /// What differs from the web:
 /// - It is one painter that reads the camera as it paints, where the web drew an SVG again from the view copied
 ///   once a frame; [MapFrame] is the sum both do, kept apart so a press reads the same frame the paint drew.
-/// - One of Ghost.md's own pictures is drawn as the block a picture from elsewhere is: the picture itself on the
-///   map waits for a decoded image to draw.
+/// - One of Ghost.md's own pictures is decoded small for the map by the map itself, from where the cards draw
+///   theirs ([Minimap.pictures]), where the page handed an `<image>` the address; until it is, and for a picture
+///   from elsewhere, the card is the block it was.
 /// - Lines that stay a pixel wide whatever the map's size (`vector-effect: non-scaling-stroke`) are stroked at a
 ///   pixel over the map's scale.
 library;
 
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart' hide Canvas;
 import 'package:glacier/glacier.dart';
 
 import '../art/svg_path.dart';
+import '../core/images.dart';
 import '../sheet/css.dart';
 import 'camera.dart';
 import 'card_looks.dart';
@@ -89,9 +93,13 @@ class MapFrame {
 String mapKind(CanvasNode n) => n.type == NodeType.file ? (isImageFile(n.file) ? 'picture' : 'note') : n.type.name;
 
 class Minimap extends StatefulWidget {
-  const Minimap({super.key, required this.canvas, required this.lines, required this.camera, required this.big, required this.onBig, required this.own});
+  const Minimap({super.key, required this.canvas, required this.lines, required this.camera, required this.big, required this.onBig, required this.own, this.pictures});
 
   final Canvas canvas;
+
+  /// Where the canvas's own pictures are kept: the map draws a picture card's picture in it (`<image href={url}
+  /// preserveAspectRatio="xMidYMid slice">`). Without one, a picture card is drawn plain.
+  final PictureStore? pictures;
 
   /// The canvas's lines as the view draws them, so the map's are the same curves.
   final List<DrawnLine> lines;
@@ -109,6 +117,85 @@ class _MinimapState extends State<Minimap> {
   ({int pointer, Offset at, bool moved, bool wasBig})? _press;
 
   MapFrame? _frame() => MapFrame.of(widget.canvas, widget.camera.view, widget.camera.width, widget.camera.height);
+
+  /// The pictures the store has for the canvas's own picture cards, by card, decoded for the map: asked for as the
+  /// canvas or the store changes, never as the map is painted, and the map is drawn again when one arrives
+  /// (`pictures`, the page's list of `id\turl`).
+  final Map<String, _MapPicture> _pictures = <String, _MapPicture>{};
+  Map<String, ui.Image> _images = const <String, ui.Image>{};
+
+  @override
+  void initState() {
+    super.initState();
+    widget.pictures?.addListener(_look);
+    _look();
+  }
+
+  @override
+  void didUpdateWidget(Minimap old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.pictures, widget.pictures)) {
+      old.pictures?.removeListener(_look);
+      widget.pictures?.addListener(_look);
+    }
+    if (!identical(old.pictures, widget.pictures) || !identical(old.canvas, widget.canvas)) _look();
+  }
+
+  @override
+  void dispose() {
+    widget.pictures?.removeListener(_look);
+    for (final picture in _pictures.values) {
+      picture.stop();
+    }
+    _pictures.clear();
+    super.dispose();
+  }
+
+  void _look() {
+    final store = widget.pictures;
+    final wanted = <String>{};
+    var changed = false;
+    if (store != null) {
+      for (final n in widget.canvas.nodes) {
+        final own = ownPicture(n);
+        final picture = own == null ? null : store.pictureOf(own);
+        if (own == null || picture == null) continue;
+        wanted.add(n.id);
+        final had = _pictures[n.id];
+        if (had != null && had.name == own && had.version == picture.version) continue;
+        final was = had?.image != null;
+        had?.stop();
+        // One decoded before (the map made again, a card of the same picture) answers as it is asked for, before
+        // it is kept here: it is drawn with the rest, below.
+        final made = _pictures[n.id] = _MapPicture(own, picture, _arrived);
+        changed = changed || was || made.image != null;
+      }
+    }
+    for (final id in _pictures.keys.toList()) {
+      if (wanted.contains(id)) continue;
+      final gone = _pictures.remove(id)!;
+      changed = changed || gone.image != null;
+      gone.stop();
+    }
+    if (changed) _arrived();
+  }
+
+  /// A picture was decoded, or one drawn is no longer the card's: the map is drawn with what there is now.
+  void _arrived() {
+    if (!mounted) return;
+    final now = <String, ui.Image>{
+      for (final entry in _pictures.entries) entry.key: ?entry.value.image,
+    };
+    // Told as a frame is built where a picture was decoded already (the image cache answers at once).
+    if (WidgetsBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+      _images = now;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+      return;
+    }
+    setState(() => _images = now);
+  }
 
   /// The map's own box on the page, its line included, and how much of the page a pixel of it takes: the web's
   /// `getBoundingClientRect()` of the map, at the size it has now, mid-growth included.
@@ -163,7 +250,7 @@ class _MinimapState extends State<Minimap> {
         },
         onPointerCancel: (_) => _press = null,
         child: CustomPaint(
-          painter: MapPainter(canvas: widget.canvas, lines: widget.lines, camera: widget.camera, t: t),
+          painter: MapPainter(canvas: widget.canvas, lines: widget.lines, camera: widget.camera, t: t, images: _images),
           child: const SizedBox.expand(),
         ),
       ),
@@ -227,15 +314,64 @@ final Expando<_GroupMark> _groupMarks = Expando<_GroupMark>('a group on the map'
 /// A line's colour on the map, by the edge and the tokens.
 final Expando<({Tokens t, Color color})> _lineMarks = Expando<({Tokens t, Color color})>('a line on the map');
 
+/// One of the canvas's own pictures, being decoded for the map: no wider than the map is ever drawn, so a
+/// photograph costs the map a thumbnail's memory.
+class _MapPicture {
+  _MapPicture(this.name, Picture picture, VoidCallback arrived) : version = picture.version {
+    final bytes = picture.bytes;
+    final ImageProvider from = bytes != null ? MemoryImage(bytes) : FileImage(File(picture.path!));
+    _stream = ResizeImage(from, width: _decodedWidth).resolve(ImageConfiguration.empty);
+    _listener = ImageStreamListener(
+      (info, _) {
+        final before = _info;
+        _info = info;
+        if (before != null) SchedulerBinding.instance.addPostFrameCallback((_) => before.dispose());
+        // Not while it is being made: whoever makes it reads [image] then.
+        if (_asked) arrived();
+      },
+      onError: (Object _, StackTrace? _) {
+        // A file that is not a picture: the card stays the block it was.
+      },
+    );
+    _stream.addListener(_listener);
+    _asked = true;
+  }
+
+  bool _asked = false;
+
+  /// The map grown is 306 units wide, and a card is never the whole of it on a screen of three pixels to the unit.
+  static const int _decodedWidth = 256;
+
+  final String name;
+  final int version;
+  late final ImageStream _stream;
+  late final ImageStreamListener _listener;
+  ImageInfo? _info;
+
+  ui.Image? get image => _info?.image;
+
+  /// Let go. What was decoded is let go after the frame: the map's last drawing may still hold it until the map is
+  /// built again without it.
+  void stop() {
+    _stream.removeListener(_listener);
+    final info = _info;
+    _info = null;
+    if (info != null) SchedulerBinding.instance.addPostFrameCallback((_) => info.dispose());
+  }
+}
+
 /// Everything on the canvas, in the canvas's own pixels under one transform: the groups under, then the lines,
 /// then the cards; then what the screen does not show, shaded, and the screen's box.
 class MapPainter extends CustomPainter {
-  MapPainter({required this.canvas, required this.lines, required this.camera, required this.t}) : super(repaint: camera);
+  MapPainter({required this.canvas, required this.lines, required this.camera, required this.t, this.images = const <String, ui.Image>{}}) : super(repaint: camera);
 
   final Canvas canvas;
   final List<DrawnLine> lines;
   final CanvasCamera camera;
   final Tokens t;
+
+  /// The decoded pictures of the canvas's own picture cards, by card ([Minimap.pictures]).
+  final Map<String, ui.Image> images;
 
   /// What the last paint drew, for a test to read: each card's kind, hue and bars, the lines and heads, the name.
   static MapDrawn? lastDrawn;
@@ -332,6 +468,16 @@ class MapPainter extends CustomPainter {
           ..strokeWidth = hair
           ..color = mark.stroke,
       );
+      // The card's own picture, filling its box from the middle and cut to its corners (`preserveAspectRatio="xMidYMid
+      // slice"`, `clip-path` the box's own `rx`).
+      final image = images[n.id];
+      if (image != null) {
+        drawn.pictures.add(n.id);
+        ctx.save();
+        ctx.clipRRect(box);
+        paintImage(canvas: ctx, rect: box.outerRect, image: image, fit: BoxFit.cover, filterQuality: FilterQuality.medium);
+        ctx.restore();
+      }
       // The bars are a card's words and its size, which a card moved keeps: read once for the node as it is.
       final bars = !detail ? const <MapBar>[] : (mark.bars ??= n.type == NodeType.text ? wordBars(n.text, n.width, n.height) : (kind == 'note' ? noteBars(fileTitle(n.file), n.width, n.height) : const <MapBar>[]));
       for (final bar in bars) {
@@ -385,7 +531,7 @@ class MapPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(MapPainter old) => !identical(old.canvas, canvas) || !identical(old.lines, lines) || old.camera != camera || !identical(old.t, t);
+  bool shouldRepaint(MapPainter old) => !identical(old.canvas, canvas) || !identical(old.lines, lines) || old.camera != camera || !identical(old.t, t) || !identical(old.images, images);
 }
 
 /// What a paint of the map drew.
@@ -395,4 +541,7 @@ class MapDrawn {
   int heads = 0;
   String? name;
   Rect? seen;
+
+  /// The cards whose own picture was drawn in their box.
+  final Set<String> pictures = <String>{};
 }
