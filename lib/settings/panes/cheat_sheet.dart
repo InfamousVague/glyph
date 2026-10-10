@@ -67,21 +67,28 @@ class _CheatSheetState extends State<CheatSheet> {
   final Map<String, GlobalKey> _heads = {for (final group in markGroups) group.title: GlobalKey(debugLabel: 'marks ${group.title}')};
   final GlobalKey _sheet = GlobalKey(debugLabel: 'cheat sheet');
 
-  /// Whether every group is built: the first [_soon] with the page, and the rest a frame later. The sheet is a
-  /// hundred cards and more, and built whole its one frame was 22 ms on a Mac (measured, tool/perf.sh); the groups
-  /// past the second are under the window's foot.
-  bool _whole = markGroups.length <= _soon;
+  /// How many groups are built: the first [_soon] with the page, and [_soon] more each frame after. The sheet is
+  /// a hundred cards and more, and built whole its one frame was 22 ms on a Mac (measured, tool/perf.sh); the
+  /// groups past the second are under the window's foot.
+  int _built = _soon;
+  bool _waiting = false;
   static const int _soon = 2;
+
+  /// [_soon] more of the groups a frame from now.
+  void _more() {
+    if (_waiting) return;
+    _waiting = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _waiting = false;
+      if (mounted) setState(() => _built += _soon);
+    });
+  }
 
   @override
   void initState() {
     super.initState();
     _field.addListener(_changed);
     _focus.addListener(_changed);
-    if (_whole) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _whole = true);
-    });
   }
 
   void _changed() => setState(() {});
@@ -159,8 +166,9 @@ class _CheatSheetState extends State<CheatSheet> {
       ),
     );
 
+    if (_built < found.length) _more();
     final groups = <Widget>[
-      for (var g = 0; g < found.length && (_whole || g < _soon); g++)
+      for (var g = 0; g < found.length && g < _built; g++)
         Padding(
           key: ValueKey('group ${found[g].title}'),
           // `.group + .group { margin-block-start: var(--glacier-space-8) }`

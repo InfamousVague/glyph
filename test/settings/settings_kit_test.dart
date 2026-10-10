@@ -257,7 +257,7 @@ void main() {
       await endSettings(tester);
     });
 
-    testWidgets('builds a page’s first two cards with the page, and the rest the frame after', (tester) async {
+    testWidgets('builds a page’s first two cards with the page, and two more each frame after', (tester) async {
       // A page of many cards is not built whole in the frame it opens in: what is past its second card is under
       // the window's foot, or still waiting its turn to arrive.
       Widget page(List<String> names) => SettingsScreen(
@@ -283,6 +283,10 @@ void main() {
       expect(find.byType(PaneSection), findsNWidgets(PaneBody.soon));
       expect(find.text('Row Two'), findsOneWidget);
       expect(find.text('Row Three'), findsNothing);
+      await tester.pump();
+      expect(find.byType(PaneSection), findsNWidgets(4));
+      expect(find.text('Row Four'), findsOneWidget);
+      expect(find.text('Row Five'), findsNothing);
       await tester.pump();
       expect(find.byType(PaneSection), findsNWidgets(5));
       expect(find.text('Row Five'), findsOneWidget);

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -76,9 +77,13 @@ class SettingsFinder {
 /// `.settingsScreen__pane`: a section's page, for the parts of the kit drawn on it. The screen puts one over each
 /// page (settings_screen.dart); a pane drawn outside Settings does without, and its rows are plain.
 class SettingsPaneScope extends InheritedWidget {
-  const SettingsPaneScope({super.key, required this.finder, required super.child});
+  const SettingsPaneScope({super.key, required this.finder, this.whole = false, required super.child});
 
   final SettingsFinder finder;
+
+  /// Whether a setting on this page is being looked for (a search's hit, a link into Settings): the page is then
+  /// built whole in its first frame, where it otherwise builds its later cards in the frames after ([PaneBody]).
+  final bool whole;
 
   static SettingsPaneScope? maybeOf(BuildContext context) => context.dependOnInheritedWidgetOfExactType<SettingsPaneScope>();
 
@@ -90,16 +95,17 @@ class SettingsPaneScope extends InheritedWidget {
 /// between them. A section's page is one of these (it stands where a React pane returned a fragment), and it tells
 /// each child its place, which is what `.setk:nth-child(n)` reads to stagger the cards' arrival.
 ///
-/// What differs from the page: a pane's first [soon] children are built with the pane, and the rest a frame later.
-/// Appearance is thirteen cards of small drawings, and built whole its one frame was 24 ms on a Mac (measured,
-/// tool/perf.sh): the cards past the second are under the window's foot or still waiting their turn to arrive
-/// (each rises 40 ms after the one before it), so nothing that is seen comes later than it did.
+/// What differs from the page: a pane's first [soon] children are built with the pane, and [soon] more each frame
+/// after. Appearance is thirteen cards of small drawings, and built whole its one frame was 24 ms on a Mac
+/// (measured, tool/perf.sh), and 17 with all but two of them built in the second. Nothing that is seen comes later
+/// than it did: each card rises 40 ms after the one before it, and a card two frames on is built 17 ms after its
+/// neighbour.
 class PaneBody extends StatefulWidget {
   const PaneBody({super.key, required this.children});
 
   final List<Widget> children;
 
-  /// How many of a pane's children are built in its first frame.
+  /// How many of a pane's children are built in its first frame, and how many more in each frame after.
   static const int soon = 2;
 
   @override
@@ -107,14 +113,23 @@ class PaneBody extends StatefulWidget {
 }
 
 class _PaneBodyState extends State<PaneBody> {
-  late bool _whole = widget.children.length <= PaneBody.soon;
+  late int _built = math.min(widget.children.length, PaneBody.soon);
+  bool _waiting = false;
 
   @override
   void initState() {
     super.initState();
-    if (_whole) return;
+    // A page opened at one of its settings is built whole: the setting is looked for from its first frame.
+    if (context.getInheritedWidgetOfExactType<SettingsPaneScope>()?.whole ?? false) _built = widget.children.length;
+  }
+
+  /// [PaneBody.soon] more of the children a frame from now.
+  void _more() {
+    if (_waiting) return;
+    _waiting = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _whole = true);
+      _waiting = false;
+      if (mounted) setState(() => _built = math.min(widget.children.length, _built + PaneBody.soon));
     });
   }
 
@@ -122,7 +137,8 @@ class _PaneBodyState extends State<PaneBody> {
   Widget build(BuildContext context) {
     final gap = context.tokens.space(4);
     final children = widget.children;
-    final count = _whole ? children.length : PaneBody.soon;
+    final count = math.min(_built, children.length);
+    if (count < children.length) _more();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,

@@ -656,6 +656,8 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
         attrs: {'hue': settingsHueOf(shown)},
         child: SettingsPaneScope(
           finder: _finder,
+          // A setting on this page still to be found and lit: the page is built whole, so it is there to find.
+          whole: _target?.setting != null && _target!.id == shown.id && _shownTarget != _target!.nonce,
           child: Builder(
             // `useWispEdge(scroller, …)`, as the list: no header over the page, so it fades at its own top.
             builder: (context) => WispEdge(child: SingleChildScrollView(
