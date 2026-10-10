@@ -86,15 +86,18 @@ if [ "$what" = "android" ]; then
   drop_lock
   adb -s "$device" install -r "$dir/perf.apk" > "$dir/install.log" 2>&1 || { cat "$dir/install.log" >&2; exit 1; }
   adb -s "$device" logcat -c
+  # The app's words are kept as they are said: the phone's own log keeps only its last few hundred lines.
+  adb -s "$device" logcat -s flutter > "$dir/run.log" 2>&1 &
+  logging=$!
   adb -s "$device" shell am start -n "$id/com.mattssoftware.ghost_md.MainActivity" > /dev/null
   waited=0
-  until adb -s "$device" logcat -d -s flutter 2>/dev/null | grep -q '\[perf\] report end'; do
+  until grep -q '\[perf\] report end' "$dir/run.log" 2>/dev/null; do
     sleep 5
     waited=$((waited + 5))
     if [ "$waited" -ge "${PERF_WAIT:-600}" ]; then echo "perf: the walk did not end in ${PERF_WAIT:-600} s" >&2; break; fi
     if [ $((waited % 30)) -eq 0 ] && ! adb -s "$device" shell pidof "$id" > /dev/null 2>&1; then echo "perf: the app is gone (it ended or was ended)" >&2; break; fi
   done
-  adb -s "$device" logcat -d -s flutter > "$dir/run.log" 2>&1 || true
+  kill "$logging" 2>/dev/null || true
   adb -s "$device" logcat -d -b crash > "$dir/crash.log" 2>&1 || true
   adb -s "$device" shell am force-stop "$id" || true
   [ "${PERF_KEEP:-0}" = "1" ] || adb -s "$device" uninstall "$id" > /dev/null 2>&1 || true
@@ -102,7 +105,7 @@ if [ "$what" = "android" ]; then
     echo "# $(adb -s "$device" shell getprop ro.product.model 2>/dev/null | tr -d '\r'), frames by stretch (build and raster in ms: p50/p90/p99/max)"
     grep '\[perf\]' "$dir/run.log" | grep -v 'report' | sed 's/^.*\[perf\] //'
     grep -E 'FAILED|ERROR|NOT FOUND|NOTHING HOLDS' "$dir/run.log" | sed 's/^.*flutter *: //' || true
-    grep -c 'FATAL\|SIGSEGV' "$dir/crash.log" | sed 's/^/crash lines: /'
+    grep -c 'FATAL\|SIGSEGV' "$dir/crash.log" | sed 's/^/crash lines: /' || true
   } > "$dir/last.txt"
   cat "$dir/last.txt"
   exit 0
