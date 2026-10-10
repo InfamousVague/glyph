@@ -561,6 +561,40 @@ void main() {
       handle.dispose();
     });
 
+    // Missing 15 (docs/PARITY.md): the height line by the keyboard (boards/divider.ts `keydown`): an em up or down by
+    // the arrows, either end by Home and End, each written into the fence; and no other key is taken.
+    testWidgets('is stepped by the arrow keys and sent to either end by Home and End, once the keyboard has reached it', (tester) async {
+      final view = await pumpBoards(tester, sizedNote);
+      expect(docOf(view), contains('```board height=18\n'));
+      final line = Focus.of(tester.element(keyed('board-split')));
+      expect(line.debugLabel, 'Board height');
+      // Not until it has the focus: an arrow in the note is the caret's.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(docOf(view), contains('```board height=18\n'));
+      line.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+      expect(docOf(view), contains('```board height=19\n'));
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pump();
+      expect(docOf(view), contains('```board height=17\n'));
+      await tester.sendKeyEvent(LogicalKeyboardKey.home);
+      await tester.pump();
+      expect(docOf(view), contains('```board height=5\n'));
+      await tester.sendKeyEvent(LogicalKeyboardKey.end);
+      await tester.pump();
+      expect(docOf(view), contains('```board height=60\n'));
+      // At its end an arrow further writes nothing more, and a letter is not the line's.
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+      await tester.pump();
+      expect(docOf(view), contains('```board height=60\n'));
+      await rest(tester);
+    });
+
     testWidgets('goes back to the board’s own height on a double tap', (tester) async {
       final view = await pumpBoards(tester, sizedNote);
       final at = boxOf(tester, keyed('board-split')).center;
