@@ -1173,3 +1173,23 @@ tool/ios-tour.sh <udid> /tmp/shots 'wait:7000;shot:home'    # a debug build walk
 ```
 
 `tool/sync-design.sh` refreshes the stylesheets from `../glyph`; run the kit's tests after it.
+
+**The suite is `tool/check.sh`**: the kit, then every folder of `test/` in a run of its own, the analyzer (and that
+the last commit imports nothing git was never given), `test/e2e` and `test/live` against the service on this Mac, and
+cargo's tests. Every `flutter test` in it is `--concurrency=2`, one check runs at a time on the Mac and each run waits
+while the load is over 40; a failing test is named with the first line of why, and the exit is 1 if anything failed.
+
+```sh
+tool/check.sh                          # everything
+tool/check.sh --since <rev>            # the quick one: the kit and the folders that what changed since <rev> can reach, and the analyzer
+tool/check.sh --quick                  # the same for what is not committed yet (--since HEAD)
+tool/check.sh --since <rev> --list     # says what that would run and which changed file reaches each; runs nothing
+tool/check.sh app root editor          # those folders; also: kit, analyze, server, native, pictures
+tool/check.sh test test/root/root_test.dart    # one run of whatever is named, with the same limits and report
+```
+
+`--since` follows the tests' own imports and the paths they name, so a change in `lib/home` runs `test/home`,
+`test/root` and `test/diag` and a change to the token engine runs nearly everything; it does not start the service or
+cargo, and says so when what changed asks for them. The script's head says the rest: what `--since` cannot see, where
+each run's report is kept (`build/check/`), and why a stale picture is drawn again by its whole file and never by one
+test's name.
