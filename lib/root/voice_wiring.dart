@@ -55,6 +55,7 @@ import '../capture/spoken/inline.dart' show SpokenFormat;
 import '../capture/tips.dart' show Tip;
 import '../capture/core_system_sound.dart';
 import '../capture/system_sound.dart' show SoundSupport, SystemSound;
+import '../capture/voice_model.dart' show VoiceModel;
 import '../core/mac_app.dart';
 import '../core/library.dart';
 import '../core/note.dart';
@@ -326,6 +327,15 @@ class Voice {
     final live = host.hasMeetings ? MeetingLive(host: host, writeUpRunningNow: () => writingUp) : null;
     final unbind = live == null ? null : host.bind(live);
 
+    // Whoever asked to hear of the app coming back to the screen (the document's `visibilitychange`): the voice
+    // model's fetch, which is then tried again where it failed, the better words' queue and the summaries', which
+    // then look again. Told by the recorder, which the root feeds the app's lifecycle.
+    final visibleListeners = <VoidCallback>{};
+    VoidCallback onVisible(VoidCallback listener) {
+      visibleListeners.add(listener);
+      return () => visibleListeners.remove(listener);
+    }
+
     final refining = Refining(
       backend: capture,
       hasNativeGeneration: ai.hasNativeGeneration,
@@ -337,9 +347,9 @@ class Voice {
       keptText: keptText,
       summaryUnchanged: summaryUnchanged,
       writeUpRunning: () => live?.writeUpRunning() ?? false,
+      onVisible: onVisible,
     );
 
-    final visibleListeners = <VoidCallback>{};
     final summaries = Summaries(
       isTauri: () => ai.aiBackend.available,
       preferences: () => preferences.value,
@@ -387,10 +397,7 @@ class Voice {
       syncSettled: syncSettled ?? () async {},
       record: record ?? (_, _) async {},
       visible: () => host.visible,
-      onVisible: (listener) {
-        visibleListeners.add(listener);
-        return () => visibleListeners.remove(listener);
-      },
+      onVisible: onVisible,
       onNotesChanged: (listener) {
         voice._notesListeners.add(listener);
         return () => voice._notesListeners.remove(listener);
@@ -418,8 +425,12 @@ class Voice {
       }
     });
 
+    final transcriber = CaptureEngine(backend: capture, hasNativeGeneration: ai.hasNativeGeneration);
     final recorder = Recorder(
-      engine: CaptureEngine(backend: capture, hasNativeGeneration: ai.hasNativeGeneration),
+      engine: transcriber,
+      // The recorder's own, told of the app's return too: a download that failed is tried again each time
+      // (capture/useVoiceModel.ts).
+      voiceModel: VoiceModel(native: true, ensureModel: transcriber.ensureModel, onVisible: onVisible),
       store: store,
       host: RecorderHost(
         isLocked: () => voice.locked,
