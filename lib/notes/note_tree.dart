@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -228,8 +230,8 @@ class _NoteTreeState extends State<NoteTree> {
       );
       return CssFlow.block(
         key: ValueKey('note-row-${note.id}'),
-        // `.row { margin-block: 1px }`; `.tree[data-compact] .row { margin-block: 0 }`
-        margin: EdgeInsets.symmetric(vertical: compact ? 0 : 1),
+        // `.row { margin-block: 1px }`; `.tree[data-compact] .row { margin-block: 0 }`: kept by the list the row is
+        // in ([rowsOf]), which lays out only the rows near the screen and so cannot leave the margins to a flow.
         child: Listener(
           // A mouse's right-click only: on a phone the same gesture is a press and hold, which the lists use.
           onPointerDown: widget.onNoteMenu == null
@@ -301,54 +303,108 @@ class _NoteTreeState extends State<NoteTree> {
           children: children,
         );
 
-    Widget folder(String id, String name, int count, List<Note> children, {String? hue, Workspace? space, LucideIcon? icon}) {
+    // The list, top to bottom, as the blocks a page lays one under another: each a sliver, so only the rows near the
+    // screen are built. The margin between two blocks is the larger of the two that meet (`margin-block`
+    // collapsing, lib/sheet/flow.dart), which a flow works out as it lays its children out; here each block is
+    // told the room over it as it is added, by the same rule: [above] is its own top margin, and [pending] the
+    // bottom margin of the block before it.
+    final rowGap = compact ? 0.0 : 1.0;
+    final slivers = <Widget>[];
+    double? pending;
+    double over(double above) => pending == null ? above : math.max(pending!, above);
+
+    /// Notes' rows one under another, `margin-block` apart, the first [first] under what is over it.
+    Widget rowsOf(List<Note> notes, {required double first}) => SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, i) {
+              final top = i == 0 ? first : rowGap;
+              return top == 0 ? row(notes[i]) : Padding(padding: EdgeInsets.only(top: top), child: row(notes[i]));
+            },
+            childCount: notes.length,
+            addAutomaticKeepAlives: false,
+            // No layer of its own for a row: with one, the open note's row and a row whose preview opens with a
+            // heading are drawn heavier in the card's pictures (test/sidebar, up to 226 steps of 255 on their
+            // letters), and why was not found; without, every picture is byte for byte.
+            addRepaintBoundaries: false,
+            // The rows are said as they were: no place in a list is added to what a screen reader hears.
+            addSemanticIndexes: false,
+          ),
+        );
+
+    void folder(String id, String name, int count, List<Note> children, {String? hue, Workspace? space, LucideIcon? icon}) {
       final open = !_closed.contains(id);
       final org = space?.org;
-      return CssFlow(
-        key: ValueKey('folder-$id'),
-        // `.folder { margin-block: 1px }`
-        margin: const EdgeInsets.symmetric(vertical: 1),
-        collapse: true,
-        children: [
-          _FolderRow(
-            look: look,
-            open: open,
-            onToggle: () => _toggle(id),
-            lead: icon != null ? lucide(icon, size: 14, strokeWidth: 2.1, color: t.color('app-ink-3')) : _Hue(hue: hue ?? 'ink', em: look.folderSize),
-            org: org != null,
-            name: name,
-            count: count,
-            // A workspace's menu: its sheet, or for an organization's workspace the organization's own screen.
-            end: space == null
-                ? null
-                : (hovered) => _Small(
-                      look: look,
-                      hides: true,
-                      rowHovered: hovered,
-                      label: org != null ? '${space.name}, organization settings' : 'Rename, recolour or delete ${space.name}',
-                      icon: Lucide.ellipsis,
-                      iconSize: 16,
-                      stroke: 2.2,
-                      onPressed: () {
-                        if (org != null && widget.onOrganization != null) {
-                          widget.onOrganization!(org);
-                        } else {
-                          setState(() => _manage = _Manage(space));
-                        }
-                      },
-                    ),
+      // `.folder { margin-block: 1px }`
+      final gap = over(1);
+      final parts = <Widget>[
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.only(top: gap),
+            child: KeyedSubtree(
+              key: ValueKey('folder-row-$id'),
+              child: _FolderRow(
+                look: look,
+                open: open,
+                onToggle: () => _toggle(id),
+                lead: icon != null ? lucide(icon, size: 14, strokeWidth: 2.1, color: t.color('app-ink-3')) : _Hue(hue: hue ?? 'ink', em: look.folderSize),
+                org: org != null,
+                name: name,
+                count: count,
+                // A workspace's menu: its sheet, or for an organization's workspace the organization's own screen.
+                end: space == null
+                    ? null
+                    : (hovered) => _Small(
+                          look: look,
+                          hides: true,
+                          rowHovered: hovered,
+                          label: org != null ? '${space.name}, organization settings' : 'Rename, recolour or delete ${space.name}',
+                          icon: Lucide.ellipsis,
+                          iconSize: 16,
+                          stroke: 2.2,
+                          onPressed: () {
+                            if (org != null && widget.onOrganization != null) {
+                              widget.onOrganization!(org);
+                            } else {
+                              setState(() => _manage = _Manage(space));
+                            }
+                          },
+                        ),
+              ),
+            ),
           ),
-          if (open)
-            if (children.isNotEmpty)
-              inside([for (final note in children) row(note)])
-            else
-              CssFlow.block(
-                // `.emptyFolder { margin: 0.2em 0 0.4em 1.3em; font-size: calc(var(--glacier-font-size-xs) * var(--app-text-scale)); color: var(--app-ink-4) }`
-                margin: EdgeInsets.fromLTRB(1.3 * look.smallSize, 0.2 * look.smallSize, 0, 0.4 * look.smallSize),
+        ),
+      ];
+      // The folder's own bottom margin, or the larger of it and its last child's, which collapses through it.
+      pending = 1;
+      if (open) {
+        if (children.isNotEmpty) {
+          // `.inside`: a folder's notes sit in from its name, on a faint guide down the side - Obsidian's indent
+          // line. Its first row's margin collapses through its top, so the guide begins a row's margin under the
+          // folder's name, and runs to the last row's foot.
+          // `margin-inline-start: 0.95em; padding-inline-start: 0.35em; border-inline-start: 1px solid var(--app-rule)`
+          parts.add(
+            SliverPadding(
+              padding: EdgeInsets.only(left: 0.95 * look.em, top: rowGap),
+              sliver: _SliverGuide(
+                side: BorderSide(color: t.color('app-rule'), width: look.rule),
+                sliver: SliverPadding(padding: EdgeInsets.only(left: look.rule + 0.35 * look.em), sliver: rowsOf(children, first: 0)),
+              ),
+            ),
+          );
+        } else {
+          // `.emptyFolder { margin: 0.2em 0 0.4em 1.3em; font-size: calc(var(--glacier-font-size-xs) * var(--app-text-scale)); color: var(--app-ink-4) }`
+          parts.add(
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(1.3 * look.smallSize, 0.2 * look.smallSize, 0, 0),
                 child: Text('Nothing here yet.', style: pageText(t, look.smallSize, color: t.color('app-ink-4'))),
               ),
-        ],
-      );
+            ),
+          );
+          pending = math.max(1, 0.4 * look.smallSize);
+        }
+      }
+      slivers.add(SliverMainAxisGroup(key: ValueKey('folder-$id'), slivers: parts));
     }
 
     /*
@@ -433,34 +489,51 @@ class _NoteTreeState extends State<NoteTree> {
       return null;
     }
 
+    // The list as a sliver of the sidebar's scroller.
     final Widget list = nothing
         // `.empty { margin: var(--glacier-space-4) var(--glacier-space-2); color: var(--glacier-text-muted) }`
-        ? Padding(
-            padding: EdgeInsets.symmetric(vertical: t.space(4), horizontal: t.space(2)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // `.emptyArt { margin-block-end: var(--glacier-space-3) }`
-                if (widget.emptyArt != null) Padding(padding: EdgeInsets.only(bottom: t.space(3)), child: widget.emptyArt),
-                Text('No notes yet.', style: pageText(t, look.em, color: t.color('glacier-text-muted'))),
-              ],
+        ? SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: t.space(4), horizontal: t.space(2)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // `.emptyArt { margin-block-end: var(--glacier-space-3) }`
+                  if (widget.emptyArt != null) Padding(padding: EdgeInsets.only(bottom: t.space(3)), child: widget.emptyArt),
+                  Text('No notes yet.', style: pageText(t, look.em, color: t.color('glacier-text-muted'))),
+                ],
+              ),
             ),
           )
-        : Semantics(
-            // `<ul aria-label="Your notes">`
-            container: true,
-            explicitChildNodes: true,
-            label: 'Your notes',
-            child: CssFlow(
-              children: [
-                for (final f in tree.folders) folder(f.id, f.name, f.notes.length, f.notes, hue: f.hue, space: spaceOf(f.id)),
-                for (final note in tree.loose) row(note),
-                if (tree.archived.isNotEmpty) folder(archiveFolder, 'Archive', tree.archived.length, tree.archived, icon: Lucide.archive),
-                if (trashed.isNotEmpty) trashFolder(),
-              ],
-            ),
-          );
+        : () {
+            for (final f in tree.folders) {
+              folder(f.id, f.name, f.notes.length, f.notes, hue: f.hue, space: spaceOf(f.id));
+            }
+            if (tree.loose.isNotEmpty) {
+              slivers.add(rowsOf(tree.loose, first: over(rowGap)));
+              pending = rowGap;
+            }
+            if (tree.archived.isNotEmpty) folder(archiveFolder, 'Archive', tree.archived.length, tree.archived, icon: Lucide.archive);
+            if (trashed.isNotEmpty) {
+              // The trash is built whole, a flow of its own in a flow that keeps its margin (1px) clear above and
+              // below it: what is thrown away is few, and shut until it is opened.
+              final gap = over(1);
+              final trash = CssFlow(children: [trashFolder()]);
+              slivers.add(SliverToBoxAdapter(child: gap > 1 ? Padding(padding: EdgeInsets.only(top: gap - 1), child: trash) : trash));
+              pending = 0;
+            } else if ((pending ?? 0) > 0) {
+              // The last block's margin, under it.
+              slivers.add(SliverToBoxAdapter(child: SizedBox(height: pending)));
+            }
+            return SliverSemantics(
+              // `<ul aria-label="Your notes">`
+              container: true,
+              explicitChildNodes: true,
+              label: 'Your notes',
+              sliver: SliverMainAxisGroup(slivers: slivers),
+            );
+          }();
 
     // Lists of the tree's own: the ones handed over may be changed after.
     _made = (drawn: drawn, notes: List<Note>.of(widget.notes, growable: false), trashed: List<Note>.of(trashed, growable: false), tree: tree, list: list);
@@ -475,10 +548,14 @@ class _NoteTreeState extends State<NoteTree> {
     final every = [for (final folder in tree.folders) folder.id, if (tree.archived.isNotEmpty) archiveFolder];
     final allShut = every.isNotEmpty && every.every(_closed.contains);
 
-    final scroll = SingleChildScrollView(
-      // `.scroll { overflow-y: auto; overscroll-behavior: contain; padding: 0 var(--glacier-space-2) var(--glacier-space-4) }`
-      padding: EdgeInsets.fromLTRB(t.space(2), 0, t.space(2), t.space(4)),
-      child: list,
+    // Only the rows near the screen are built. In the card the scroller is as tall as its list, up to the room
+    // there is; docked, it fills its column.
+    final scroll = CustomScrollView(
+      shrinkWrap: popup,
+      slivers: [
+        // `.scroll { overflow-y: auto; overscroll-behavior: contain; padding: 0 var(--glacier-space-2) var(--glacier-space-4) }`
+        SliverPadding(padding: EdgeInsets.fromLTRB(t.space(2), 0, t.space(2), t.space(4)), sliver: list),
+      ],
     );
 
     final manage = _manage;
@@ -559,6 +636,65 @@ class _NoteTreeState extends State<NoteTree> {
         ),
       ),
     );
+  }
+}
+
+/// A folder's guide down the side of its notes (`.inside { border-inline-start }`), for notes that are a sliver:
+/// the line a box's left border was, drawn from the first row's top to the last row's foot whichever of them are
+/// built. Past the rows laid out so far it runs on to where the rest are counted to end, which is off the screen.
+class _SliverGuide extends SingleChildRenderObjectWidget {
+  const _SliverGuide({required this.side, required Widget sliver}) : super(child: sliver);
+
+  final BorderSide side;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderSliverGuide(side, createLocalImageConfiguration(context));
+
+  @override
+  void updateRenderObject(BuildContext context, covariant RenderObject renderObject) {
+    (renderObject as _RenderSliverGuide)
+      ..side = side
+      ..configuration = createLocalImageConfiguration(context);
+  }
+}
+
+class _RenderSliverGuide extends RenderProxySliver {
+  _RenderSliverGuide(this._side, this._configuration);
+
+  BorderSide _side;
+  set side(BorderSide value) {
+    if (value == _side) return;
+    _side = value;
+    _painter?.dispose();
+    _painter = null;
+    markNeedsPaint();
+  }
+
+  ImageConfiguration _configuration;
+  set configuration(ImageConfiguration value) {
+    if (value == _configuration) return;
+    _configuration = value;
+    markNeedsPaint();
+  }
+
+  BoxPainter? _painter;
+
+  @override
+  void dispose() {
+    _painter?.dispose();
+    _painter = null;
+    super.dispose();
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final sliver = child;
+    if (sliver == null || !sliver.geometry!.visible) return;
+    // The box the border was painted on: as wide as the rows' room, from where the first row begins (which may be
+    // above the screen) for as far as the rows go.
+    final painter = _painter ??= BoxDecoration(border: Border(left: _side)).createBoxPainter(markNeedsPaint);
+    painter.paint(context.canvas, Offset(offset.dx, offset.dy - constraints.scrollOffset), _configuration.copyWith(size: Size(constraints.crossAxisExtent, sliver.geometry!.scrollExtent)));
+    context.paintChild(sliver, offset);
   }
 }
 

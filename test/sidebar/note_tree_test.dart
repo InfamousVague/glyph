@@ -465,6 +465,32 @@ void main() {
   });
 
   group('what the tree builds, and when', () {
+    testWidgets('only the rows near the screen, in a folder and out of one, and the rest as they are scrolled to', (tester) async {
+      final work = spaces.addWorkspace('Work')!.id;
+      final notes = [for (var i = 0; i < 200; i += 1) makeNote('n$i', body: '# Note $i', updatedAt: 1000 - i)];
+      for (var i = 0; i < 100; i += 1) {
+        spaces.fileNote('n$i', work);
+      }
+      await show(tester, tree(notes: notes));
+      expect(find.text('Work'), findsOneWidget);
+      final built = rowKeys.evaluate().length;
+      expect(built, inInclusiveRange(10, 80), reason: 'a screen of rows and a little more, of two hundred');
+      expect(find.byKey(const ValueKey('note-row-n0')), findsOneWidget);
+      expect(find.byKey(const ValueKey('note-row-n199'), skipOffstage: false), findsNothing);
+      // Down the list: the folder's last row, the first loose one a row's margin under the folder, and the last.
+      final scroller = find.byType(Scrollable).first;
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('note-row-n100')), 400, scrollable: scroller);
+      await tester.pump();
+      // The folder's last row is just above the window now: there, and not on the screen.
+      final last = tester.getRect(find.byKey(const ValueKey('note-row-n99'), skipOffstage: false)), loose = tester.getRect(find.byKey(const ValueKey('note-row-n100')));
+      expect(loose.top, closeTo(last.bottom + 1, 0.01), reason: 'the folder’s margin and the row’s meet as one');
+      expect(loose.left, lessThan(last.left), reason: 'a loose row is not indented under the folder’s guide');
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('note-row-n199')), 400, scrollable: scroller);
+      expect(find.byKey(const ValueKey('note-row-n199')), findsOneWidget);
+      expect(rowKeys.evaluate().length, lessThan(80));
+      await away(tester);
+    });
+
     testWidgets('its list once for the same notes, whoever builds it again, and again for a note that changed', (tester) async {
       final notes = ValueNotifier<List<Note>>([for (var i = 0; i < 12; i += 1) makeNote('n$i', body: '# Note $i\n\nWords under it.', updatedAt: 100 - i)]);
       final opened = <String>[];

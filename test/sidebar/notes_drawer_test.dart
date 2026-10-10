@@ -339,6 +339,21 @@ void main() {
       await show(tester, closed: {}, trashOpen: true, onCommands: () {});
       Rect boxOf(String text) => tester.getRect(find.ancestor(of: find.text(text), matching: find.byType(Container)).first);
 
+      /// A folder's box as the page has it: its name's row and everything under it. The list lays a folder out as
+      /// its parts (its name, then its notes as a list that builds the rows near the screen), so the box is theirs
+      /// together.
+      Rect folderBox(String id) {
+        var box = tester.getRect(find.byKey(ValueKey('folder-row-$id')));
+        final under = find.descendant(
+          of: find.byKey(ValueKey('folder-$id')),
+          matching: find.byWidgetPredicate((w) => (w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('note-row-')) || (w is Text && w.data == 'Nothing here yet.')),
+        );
+        for (final part in under.evaluate()) {
+          box = box.expandToInclude(tester.getRect(find.byElementPredicate((e) => e == part)));
+        }
+        return box;
+      }
+
       near(tester.getRect(card), [13.39, 55.34, 320, 629.83], what: 'the card');
       // The tools: 32.13 square, 4.46 apart, the close at the far end.
       near(tester.getRect(button('New note')), [27.78, 65.27, 32.13, 32.13], what: 'New note');
@@ -365,13 +380,13 @@ void main() {
       near(tester.getRect(find.byKey(const ValueKey('kind-mark')).at(0)), [54.69, 139.05, 14, 14], what: 'its kind');
       near(tester.getRect(find.ancestor(of: find.text('Launch week'), matching: find.byType(CssLines))), [76.69, 137.75, 237.19, 16.61], what: 'its name');
       near(tester.getRect(find.byKey(const ValueKey('note-row-standup'))), [45.09, 159.47, 278.38, 26.83], what: 'Monday standup');
-      near(tester.getRect(find.byKey(const ValueKey('folder-work'))), [23.31, 107.31, 300.16, 78.98], what: 'the folder');
-      near(tester.getRect(find.byKey(const ValueKey('folder-home'))), [23.31, 187.3, 300.16, 52.16], what: 'Home');
+      near(folderBox('work'), [23.31, 107.31, 300.16, 78.98], what: 'the folder');
+      near(folderBox('home'), [23.31, 187.3, 300.16, 52.16], what: 'Home');
 
       // An empty folder, and an organization's.
-      near(tester.getRect(find.byKey(const ValueKey('folder-garden'))), [23.31, 240.45, 300.16, 39.33], what: 'Garden');
+      near(folderBox('garden'), [23.31, 240.45, 300.16, 39.33], what: 'Garden');
       near(tester.getRect(find.text('Nothing here yet.').at(0)), [36.33, 267.78, 287.14, 12], what: 'Nothing here yet');
-      near(tester.getRect(find.byKey(const ValueKey('folder-org-o1'))), [23.31, 283.78, 300.16, 39.33], what: 'Ghost');
+      near(folderBox('org-o1'), [23.31, 283.78, 300.16, 39.33], what: 'Ghost');
       // The mark is 10.84 square with 4.22 after it.
       near(tester.getRect(find.byType(OrgMark)), [60, 291.02, 10.84 + 4.22, 10.84], what: 'the mark');
       expect(tester.getRect(find.text('Ghost')).left, closeTo(80.48, 0.5));
@@ -385,7 +400,7 @@ void main() {
       near(tester.getRect(find.byKey(const ValueKey('note-row-blank'))), [23.31, 434.42, 300.16, 26.83], what: 'Untitled');
 
       // The archive, which has no More, and the trash, which has Empty.
-      near(tester.getRect(find.byKey(const ValueKey('folder-archive'))), [23.31, 462.25, 300.16, 51.45], what: 'the archive');
+      near(folderBox('archive'), [23.31, 462.25, 300.16, 51.45], what: 'the archive');
       near(tester.getRect(byLucide(Lucide.archive)), [47.95, 467.56, 14, 14], what: 'its mark');
       expect(tester.getRect(find.text('Archive')).left, closeTo(67.38, 0.5));
       near(tester.getRect(find.byKey(const ValueKey('note-row-old'))), [45.09, 486.88, 278.38, 26.83], what: 'Old plans');
@@ -480,7 +495,10 @@ void main() {
       // Rows are 1px apart, the margins of two meeting as one.
       final next = tester.getRect(find.byKey(const ValueKey('note-row-standup')));
       expect(next.top, closeTo(row.bottom + 1, 0.01));
-      // A canvas and a note with nothing in it draw nothing under their names.
+      // A canvas and a note with nothing in it draw nothing under their names. They are further down than the card
+      // is tall, and the list builds only the rows near the screen: the list is scrolled to them.
+      await tester.scrollUntilVisible(find.byKey(const ValueKey('note-row-blank')), 200, scrollable: find.descendant(of: card, matching: find.byType(Scrollable)));
+      await tester.pump();
       expect(find.descendant(of: find.byKey(const ValueKey('note-row-cabin')), matching: find.byType(NotePeek)), findsNothing);
       expect(tester.getRect(find.byKey(const ValueKey('note-row-blank'))).height, closeTo(16 + 16.61, 0.05));
       await away(tester);
