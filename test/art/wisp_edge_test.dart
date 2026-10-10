@@ -177,7 +177,9 @@ void main() {
       // The band at the view's top, its lip at the band's own depth: no header, and a phone with no status bar.
       expect(v.top('page')!.smoke.lipA, wispEdgeBand);
       expect(v.top('page')!.within.bottom, wispEdgeReach);
-      expect(v.top('page')!.rect, const Rect.fromLTRB(0, 0, 400, wispEdgeReach));
+      // The strip is the web filter's own subregion; drawn the quick way, what the smoke touches of it: three
+      // deviations of the band's ramp past the lip (test/art/wisp_quick_test.dart).
+      expect(v.top('page')!.rect, Rect.fromLTRB(0, 0, 400, wispQuick ? wispEdgeBand + 3 * wispEdgeSoft : wispEdgeReach));
       expect(v.top('page')!.smoke.bend, 24);
       expect(changes, [true]);
       await v.scroll(v.page, 0);
@@ -243,7 +245,7 @@ void main() {
       // The foot's lip above the view's bottom edge, lifted to where the words still are.
       expect(v.foot('page')!.smoke.lipB, 800 - wispEdgeFootLift - wispEdgeFootBand);
       expect(v.foot('page')!.smoke.bend, 23);
-      expect(v.foot('page')!.rect, const Rect.fromLTRB(0, 800 - wispEdgeFootLift - wispEdgeFootReach, 400, 800));
+      expect(v.foot('page')!.rect, Rect.fromLTRB(0, 800 - wispEdgeFootLift - (wispQuick ? wispEdgeFootBand + 3 * wispEdgeFootSoft : wispEdgeFootReach), 400, 800));
       // The last 32px dissolve under the smoke, and the top is crisp: nothing is going under the header yet.
       expect(v.foot('page')!.smoke.fade.at(800 - 16), closeTo(0.5, 1e-9));
       expect(v.foot('page')!.smoke.fade.at(0), 1);
