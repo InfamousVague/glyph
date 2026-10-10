@@ -1,0 +1,15 @@
+vb.net
+' comment
+Imports System
+Public Class Point
+    Inherits Base
+    Private ReadOnly _x As Double = 1.5
+    Public Property Name As String = "point"
+    Public Function Norm(ByVal scale As Integer) As Double
+        Dim total = _x * scale + &H1F
+        For i As Integer = 0 To 10 Step 2 : If i Mod 2 = 0 AndAlso Not False Then Continue For Else Exit For
+        Next
+        Try : Throw New Exception("no") : Catch ex As Exception : Finally : End Try
+        Return total
+    End Function
+End Class

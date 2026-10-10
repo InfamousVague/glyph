@@ -1,0 +1,18 @@
+toml
+# comment
+title = "TOML Example"
+[owner]
+name = 'Tom'
+dob = 1979-05-27T07:32:00-08:00
+enabled = true
+ratio = 1.5e3
+count = 0x1F
+"quoted key" = "value \n x"
+[database.servers]
+ports = [ 8001, 8001, 8002 ]
+inline = { x = 1, y = "two" }
+multi = """
+multi line"""
+[[products]]
+name = "Hammer"
+sku = 738594937

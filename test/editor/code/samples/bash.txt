@@ -1,0 +1,20 @@
+bash
+#!/usr/bin/env bash
+set -euo pipefail
+# comment
+NAME="world"; readonly COUNT=3
+declare -a items=(one "two three" 'four')
+function greet() {
+  local who="${1:-$NAME}" n=$((COUNT * 2 + 1))
+  echo "Hello, $who! ${#items[@]} items, $(date +%s) `uname`" >&2
+  return 0
+}
+for item in "${items[@]}"; do
+  if [[ -n "$item" && "$item" != four ]] || [ $# -gt 0 ]; then greet "$item"; elif test -f /etc/passwd; then continue; else break; fi
+done
+while read -r line; do case "$line" in a*|b) echo a ;; *) echo other ;; esac; done < <(ls -la | grep -v '^d' 2>/dev/null)
+cat <<EOF > out.txt
+heredoc $NAME
+EOF
+export PATH="$HOME/bin:$PATH"; cd /tmp && rm -rf ./x || exit 1
+until false; do sleep 1 & wait; done; echo $? $$ $! ~ {1..3} $'a\n'

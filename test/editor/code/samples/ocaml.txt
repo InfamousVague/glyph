@@ -1,0 +1,9 @@
+ocaml
+(* comment (* nested *) *)
+open Printf
+type shape = Circle of float | Rect of { w : float; h : float }
+module M = struct let pi = 3.14159 end
+let rec area = function Circle r when r > 0. -> M.pi *. r *. r | Rect { w; h } -> w *. h | _ -> failwith "no"
+let xs = List.map (fun x -> x * 2) [1; 2; 0x1F] |> List.filter (fun n -> n mod 2 = 0)
+let () = printf "sum %d %s %c\n" (List.fold_left ( + ) 0 xs) "str" 'c'; if true && not false then () else raise Not_found
+let f ?(opt = 1) ~label x = match x with Some v -> v + opt + label | None -> begin try 0 with _ -> 1 end

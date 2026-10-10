@@ -1,0 +1,35 @@
+ruby
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+require 'json'
+
+module Geo
+  PI = 3.14159
+  class Point < Base
+    include Comparable
+    attr_accessor :x, :y
+    @@count = 0
+    def initialize(x = 0, y: 1.5e3, **opts, &block)
+      @x, @y = x, y
+      @@count += 1
+      yield self if block_given?
+    end
+
+    def <=>(other) = norm <=> other.norm
+    def norm; Math.sqrt(@x**2 + @y**2); end
+    def self.origin() new(0, y: 0) end
+  end
+end
+
+points = [1, 2, 0xFF, 0b11, 1_000].map { |n| Geo::Point.new(n) }.select(&:x)
+hash = { name: "x #{points.size + 1}\n", 'k' => :sym, "s": nil, re: /ab+c/i, range: (1..10), w: %w[a b c] }
+text = <<~HEREDOC
+  heredoc #{hash[:name]}
+HEREDOC
+if points.empty? && !hash.nil? then puts 'none' elsif $global unless false; else begin raise ArgumentError, "bad" rescue => e; retry ensure nil end end
+case points.first when Geo::Point then true when nil, false then next else redo end
+lam = ->(a, b = 2) { a + b }; pr = proc { |x| x }; puts lam.(1), __FILE__, defined?(foo), 'a'.frozen? ? 1 : 2
+=begin
+block comment
+=end
+while x < 3 do x += 1 end until true; for i in 0...3 do end

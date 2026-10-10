@@ -1,0 +1,12 @@
+latex
+\documentclass[12pt]{article}
+\usepackage{amsmath}
+% comment
+\begin{document}
+\section{Title}
+Text with $x^2 + \frac{a}{b}$ inline and \textbf{bold} \emph{words}.
+\begin{equation}
+  E = mc^2 \label{eq:e}
+\end{equation}
+\[ \int_0^1 f(x)\,dx \]
+\end{document}

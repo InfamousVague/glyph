@@ -1,0 +1,26 @@
+js
+#!/usr/bin/env node
+// A comment, then a block one.
+/* block
+   comment */
+import { readFile as read } from 'node:fs/promises';
+export default async function load(path, { retries = 3, ...rest } = {}) {
+  const text = await read(path, 'utf8');
+  let count = 0x1f + 1_000n + .5e-3;
+  for (const [key, value] of Object.entries(rest)) {
+    if (key in cache && typeof value !== 'undefined') count += value?.length ?? 0;
+    else continue;
+  }
+  label: while (retries-- > 0) { break label; }
+  const re = /ab+c[\/\]]/gi, tpl = `sum ${count + 1} of ${rest.items.map((x) => x * 2)}`;
+  return new Loader(text, { count, tpl, re, [key]: null, done: true });
+}
+class Loader extends Base {
+  static #made = 0;
+  #secret = 1;
+  get size() { return this.#secret; }
+  async *walk() { yield* super.walk(); delete this.x; void 0; }
+  constructor(text, options) { super(); this.text = text; Loader.#made++; }
+}
+var legacy = function () { return arguments.length ? this : undefined; };
+try { throw new Error("no \n escape \u{1F600}"); } catch ({ message }) { console.log(message) } finally { debugger }

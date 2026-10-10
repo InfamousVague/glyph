@@ -1,0 +1,30 @@
+java
+package com.example.app;
+
+import java.util.*;
+import static java.lang.Math.max;
+
+/** Javadoc for {@code Shape}. */
+@FunctionalInterface
+public interface Shape<T extends Comparable<T>> { double area(); default String name() { return "shape"; } }
+
+public final class Circle extends Base implements Shape<Double>, Cloneable {
+    private static final double PI = 3.14159d;
+    protected int[] counts = new int[] {1, 2, 0x1F, 0b11, 1_000};
+    public Circle(final double r) throws IllegalArgumentException { super(r); this.r = r; }
+    @Override public double area() { return PI * r * r; }
+    // line comment
+    <U> List<? super U> map(Map<String, List<U>> in, char c) {
+        var out = new ArrayList<U>();
+        for (Map.Entry<String, List<U>> e : in.entrySet()) { if (e.getKey() instanceof String s && !s.isEmpty()) out.addAll(e.getValue()); }
+        Runnable run = () -> System.out.println("hi \"x\" " + 'c' + 1.5f + 10L + null + true);
+        switch (c) { case 'a' -> run.run(); default -> { break; } }
+        try (var in2 = open()) { throw new Exception(); } catch (Exception | Error ex) { assert false : "no"; } finally { }
+        synchronized (this) { do { i++; } while (i < 3); }
+        return out;
+    }
+    enum Kind { A, B; }
+    record Pair(int a, String b) { }
+    String text = """
+        block text""";
+}

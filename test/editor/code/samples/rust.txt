@@ -1,0 +1,32 @@
+rust
+//! Crate docs
+#![allow(dead_code)]
+use std::{collections::HashMap, fmt::{self, Display}};
+
+/// A point.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Point<T: Copy = f64> { pub x: T, y: T }
+
+pub(crate) trait Shape: Display + 'static { const SIDES: u32; fn area(&self) -> f64; }
+
+impl<'a, T> Point<T> where T: Copy + Into<f64> {
+    pub const fn new(x: T, y: T) -> Self { Self { x, y } }
+    fn dist(&self, other: &'a Point<T>) -> Option<f64> {
+        let dx: f64 = self.x.into() - other.x.into();
+        let mut total = dx * dx + 1e-3_f64 + 0xff as f64;
+        for (i, v) in [1u8, 2, 3].iter().enumerate() { total += *v as f64 * i as f64; }
+        match total { t if t > 0.0 => Some(t.sqrt()), _ => None }
+    }
+}
+
+async fn run() -> Result<(), Box<dyn std::error::Error>> {
+    let s = String::from("hi \"there\"\n"); let c = 'x'; let b = b"bytes"; let r = r#"raw "str""#;
+    let v = vec![1, 2, 3]; println!("{:?} {}", v, s.len());
+    let closure = |a: i32, b| -> i32 { a + b };
+    if let Some(x) = v.first() { return Err(format!("{x}").into()); }
+    loop { break; } while false {} unsafe { std::ptr::null::<u8>(); }
+    /* block /* nested */ comment */
+    Ok(())
+}
+macro_rules! square { ($x:expr) => { $x * $x }; }
+static GREETING: &str = "hi"; type Alias = HashMap<String, Vec<u8>>; enum E { A, B(i32), C { x: u8 } }

@@ -1,0 +1,18 @@
+sql
+-- comment
+/* block */
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name VARCHAR(40) NOT NULL DEFAULT 'anon',
+  score DECIMAL(10, 2) CHECK (score >= 0),
+  created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+INSERT INTO users (name, score) VALUES ('Sam O''Neil', 12.5), ("quoted", NULL);
+SELECT u.id, COUNT(*) AS n, MAX(o.total) "max", `back`
+FROM users u LEFT JOIN orders o ON o.user_id = u.id
+WHERE u.name LIKE 'S%' AND o.total BETWEEN 1 AND 1e3 OR u.id IN (1, 2, 3) AND NOT EXISTS (SELECT 1 FROM x)
+GROUP BY u.id HAVING n > 1 ORDER BY n DESC LIMIT 10 OFFSET 5;
+UPDATE users SET score = score * 1.1 WHERE id = ? AND name = :name AND x = $1 AND y = @var;
+WITH RECURSIVE t(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM t WHERE n < 10) SELECT * FROM t;
+BEGIN; DELETE FROM users WHERE TRUE; ROLLBACK; DROP INDEX idx; ALTER TABLE users ADD COLUMN x BOOLEAN;
+CASE WHEN a THEN 1 ELSE 0 END

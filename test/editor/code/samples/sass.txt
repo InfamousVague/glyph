@@ -1,0 +1,16 @@
+sass
+@use "sass:math"
+$gap: 4px !default
+// comment
+=card($radius: 2px)
+  border-radius: $radius
+  &:hover
+    color: darken(red, 10%)
+.note
+  +card(4px)
+  margin: math.div($gap, 2) #{$gap * 2}
+  .title &
+    top: 0
+@each $name, $colour in (a: red, b: #00f)
+  .t-#{$name}
+    color: $colour

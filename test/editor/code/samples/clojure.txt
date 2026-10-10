@@ -1,0 +1,11 @@
+clojure
+(ns app.core
+  (:require [clojure.string :as str]))
+; comment
+(defn greet
+  "Docstring"
+  [who & {:keys [loud] :or {loud false}}]
+  (let [msg (str "Hello, " who "!") n 0x1F r 1/2 f 1.5e3]
+    (if (and loud (not (nil? who))) (str/upper-case msg) msg)))
+(def xs [1 2 3 :kw ::ns/kw \c #"re+" #{1 2} '(quoted) @atom ^:meta {} nil true])
+(->> xs (filter number?) (map #(* % 2)) (reduce +))

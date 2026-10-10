@@ -1,0 +1,16 @@
+groovy
+package app
+import groovy.transform.*
+// comment
+@CompileStatic
+class Point implements Comparable<Point> {
+    final double x, y = 1.5e3
+    static int count = 0x1F
+    def norm() { Math.sqrt(x * x + y * y) }
+    String toString() { "(${x}, $y) ${'single'}" + /slashy/ + '''multi''' }
+}
+def xs = [1, 2, 3].collect { it * 2 }.findAll { n -> n % 2 == 0 }
+def map = [a: 1, 'b': null, (xs): true]
+if (xs && !map.isEmpty()) println xs?.size() ?: 0 else assert false : "no"
+for (i in 0..<3) { try { throw new Exception() } catch (e) { continue } finally { } }
+/* block */

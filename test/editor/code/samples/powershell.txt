@@ -1,0 +1,11 @@
+powershell
+# comment
+<# block #>
+param([string]$Name = "world", [switch]$Force)
+function Get-Greeting { [CmdletBinding()] param($who) return "Hello, $who! $($who.Length) $env:PATH" }
+$items = @(1, 2, 0xFF) | Where-Object { $_ -gt 1 -and $_ -ne $null } | ForEach-Object { $_ * 2 }
+if (-not $Force) { Write-Host 'single' -ForegroundColor Red } elseif ($true) { throw "no" } else { exit 1 }
+foreach ($i in $items) { try { [int]::Parse("x") } catch [System.Exception] { continue } finally { } }
+$hash = @{ a = 1; 'b' = $false }; $here = @"
+here $Name
+"@

@@ -1,0 +1,9 @@
+protobuf
+syntax = "proto3";
+package app.v1;
+import "google/protobuf/timestamp.proto";
+// comment
+message Point { double x = 1; repeated string tags = 2 [deprecated = true]; map<string, int32> m = 3; oneof kind { Kind k = 4; } }
+enum Kind { KIND_UNSPECIFIED = 0; KIND_A = 1; }
+service Geo { rpc Get (Point) returns (stream Point) {} }
+/* block */

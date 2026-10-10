@@ -1,0 +1,29 @@
+dart
+import 'dart:async';
+import 'package:flutter/widgets.dart' as w show Widget;
+
+/// Doc comment
+@immutable
+abstract class Shape<T extends num> implements Comparable<Shape<T>> {
+  const Shape(this.name, {required this.sides, int? extra}) : _extra = extra ?? 0;
+  final String name; final int sides; final int _extra;
+  static const double pi = 3.14159; late final List<T> items = <T>[];
+  double get area; set scale(double v) {}
+  factory Shape.unit() => throw UnimplementedError();
+  // comment
+  Future<int> load(Stream<T> source, [int retries = 3]) async {
+    var total = 0x1F + 1e3.toInt();
+    await for (final value in source) { if (value is int && value > 0) { total += value; } else { continue; } }
+    final text = 'sum $total of ${items.length}\n', raw = r'raw $x', multi = """
+multi "line" $total""";
+    switch (total) { case 1: break; default: return total ~/ 2; }
+    try { assert(total >= 0, 'neg'); } on FormatException catch (e, s) { rethrow; } finally { }
+    final f = (int a, {int b = 2}) => a + b; final sym = #symbol; var n = null as dynamic; n?.x ??= true;
+    yieldStar() sync* { yield* [1, 2]; }
+    return total;
+  }
+}
+enum Kind { a, b; const Kind(); }
+extension on String { bool get blank => trim().isEmpty; }
+mixin M on Object {} typedef Fn = void Function(int); /* block /* nested */ */
+void main() { for (var i = 0; i < 3; i++) { do { } while (false); } print(Kind.a); }

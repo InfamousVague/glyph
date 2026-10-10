@@ -1,0 +1,17 @@
+haskell
+{-# LANGUAGE OverloadedStrings #-}
+module Main (main, Shape(..)) where
+import qualified Data.Map as M
+-- comment
+{- block {- nested -} -}
+data Shape a = Circle Double | Rect { w, h :: a } deriving (Show, Eq)
+class Area s where area :: s -> Double
+instance Area (Shape Double) where
+  area (Circle r) = pi * r ^ 2
+  area Rect{..} = w * h
+main :: IO ()
+main = do
+  let xs = [1, 2 .. 10] :: [Int]; s = "str\n" ++ ['c']; n = 0x1F + 1.5e3
+  mapM_ (\x -> if x `mod` 2 == 0 then print x else return ()) xs
+  case M.lookup "k" m of { Just v | v > 0 -> pure (); _ -> error "no" }
+  where m = M.fromList [("k", 1)]

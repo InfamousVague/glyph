@@ -1,0 +1,29 @@
+cpp
+#include <vector>
+#pragma once
+namespace geo::detail {
+template <typename T, int N = 3>
+class Vec final : public Base<T>, private Mixin {
+public:
+    explicit Vec(std::initializer_list<T> xs) noexcept : data_{xs} {}
+    virtual ~Vec() override = default;
+    constexpr auto size() const -> std::size_t { return data_.size(); }
+    T& operator[](std::size_t i) { return data_[i]; }
+    template <class U> friend bool operator==(const Vec& a, const Vec<U, N>& b);
+    static inline int count = 0;
+private:
+    std::vector<T> data_;
+    mutable bool dirty_ = false;
+};
+}  // namespace
+using Str = std::string;
+enum class Kind : unsigned char { A, B };
+auto lambda = [&, x = 1](auto&& v) mutable -> decltype(auto) { return std::forward<decltype(v)>(v) + x; };
+int main() {
+    auto v = geo::detail::Vec<int>{1, 2, 3};
+    const char* raw = R"delim(raw "text")delim"; char16_t c = u'x'; auto s = "str\n"s; auto n = 1'000'000ULL + 0x1p3 + nullptr_t{};
+    for (auto& [k, val] : map) { if (val != nullptr && k > 0) [[likely]] { throw std::runtime_error("x"); } }
+    try { delete new int[3]; } catch (const std::exception& e) { static_assert(sizeof(int) == 4, "int"); }
+    co_await something(); this->x = true ? nullptr : false;
+    return 0;
+}

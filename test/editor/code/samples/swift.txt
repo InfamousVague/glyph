@@ -1,0 +1,33 @@
+swift
+import Foundation
+
+/// A point.
+@available(iOS 15, *)
+public struct Point<T: Numeric>: Equatable, CustomStringConvertible {
+    public var x: T, y: T
+    private(set) static var count = 0
+    var description: String { "(\(x), \(y))" }
+    init(x: T, y: T) { self.x = x; self.y = y; Point.count += 1 }
+    mutating func scale(by factor: T) -> Self { x *= factor; return self }
+}
+protocol Shape: AnyObject { associatedtype Unit; func area() async throws -> Double }
+final class Circle: NSObject, Shape {
+    typealias Unit = Double
+    let r: Double = 1.5e3; weak var owner: Circle?; lazy var cache = [String: [Int]]()
+    func area() async throws -> Double {
+        guard r > 0 else { throw ShapeError.bad(reason: "neg") }
+        let xs = [1, 2, 0xFF, 0b11, 1_000].map { $0 * 2 }.filter { n in n % 2 == 0 }
+        for (i, x) in xs.enumerated() where i != 0 { if let o = owner, x is Int { _ = o } else { continue } }
+        switch r { case 0...1: break; case let v where v > 10: fallthrough; default: defer { print("done") } }
+        // comment
+        /* block /* nested */ */
+        return await compute() ?? .pi * r * r
+    }
+}
+enum ShapeError: Error { case bad(reason: String), none }
+extension Int { var double: Int { self * 2 } }
+#if DEBUG
+let multi = """
+  text \(1 + 1)
+  """
+#endif

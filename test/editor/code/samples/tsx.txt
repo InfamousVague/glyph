@@ -1,0 +1,8 @@
+tsx
+import * as React from 'react';
+interface Props<T> { items: T[]; render: (item: T) => React.ReactNode }
+export function List<T,>({ items, render }: Props<T>): JSX.Element {
+  const first = items[0] as T;
+  return <ul>{items.map((item, i) => <li key={i}>{render(item)}</li>)}</ul>;
+}
+const x = <T extends object>(v: T) => v;

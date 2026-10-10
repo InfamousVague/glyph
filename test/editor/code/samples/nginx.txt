@@ -1,0 +1,12 @@
+nginx
+# comment
+user www-data;
+http {
+  include mime.types;
+  server {
+    listen 80 default_server;
+    server_name example.com *.example.com;
+    location ~* \.(png|jpg)$ { expires 30d; root /var/www; }
+    location / { proxy_pass http://127.0.0.1:8080; proxy_set_header Host $host; if ($request_method = POST) { return 405; } }
+  }
+}
