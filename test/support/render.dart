@@ -46,7 +46,8 @@ Future<void> loadAppFonts() async {
   final packages = (jsonDecode(File('.dart_tool/package_config.json').readAsStringSync()) as Map<String, dynamic>)['packages'] as List<dynamic>;
   for (final package in packages.cast<Map<String, dynamic>>()) {
     if (package['name'] != 'flutter_math_fork') continue;
-    var root = Uri.parse(package['rootUri'] as String).toFilePath();
+    // A package kept in the repository is named from the file that lists it; one from the cache, whole.
+    var root = File('.dart_tool/package_config.json').absolute.uri.resolve(package['rootUri'] as String).toFilePath();
     if (!root.endsWith('/')) root = '$root/';
     await pubspec('${root}pubspec.yaml', prefix: 'packages/flutter_math_fork/', root: root);
   }

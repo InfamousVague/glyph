@@ -9,8 +9,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # A formula drawn (lib/editor/maths): KaTeX's parser, layout and faces in Dart, Apache 2.0.
-  flutter_math_fork: ^0.7.4
+  # A formula drawn (lib/editor/maths): KaTeX's parser, layout and faces in Dart, Apache 2.0. The published
+  # 0.7.4 with the changes its README names, kept here because they are in its layout and its parser.
+  flutter_math_fork:
+    path: packages/flutter_math_fork
   flutter_svg: ^2.3.0
   glacier:
     path: packages/glacier
