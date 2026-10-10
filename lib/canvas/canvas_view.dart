@@ -53,6 +53,7 @@ import '../core/images.dart';
 import '../core/link_preview.dart' show LinkOpener;
 import '../core/preferences.dart';
 import '../editor/input/felt.dart' show fireFelt;
+import '../perf/frame_log.dart';
 import '../sheet/css.dart' show pageText;
 import 'add_sheet.dart';
 import 'camera.dart';
@@ -283,7 +284,9 @@ class CanvasViewState extends State<CanvasView> {
   List<DrawnLine> get lines {
     if (!identical(_linesOf, _live)) {
       _linesOf = _live;
+      final began = ghostPerf ? Perf.now() : 0;
       _lines = drawnLines(_live);
+      if (ghostPerf) Perf.add('canvas.lines', began);
     }
     return _lines!;
   }
@@ -860,6 +863,7 @@ class CanvasViewState extends State<CanvasView> {
 
   @override
   Widget build(BuildContext context) {
+    if (ghostPerf) Perf.count('canvas.build');
     final t = context.tokens;
     final live = _live;
     final editable = _editable;

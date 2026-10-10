@@ -45,6 +45,7 @@ import '../editor/view/column.dart';
 import '../editor/view/editor_view.dart';
 import '../editor/view/view_mode.dart';
 import '../home/note_peek.dart';
+import '../perf/frame_log.dart';
 import '../sheet/css.dart';
 import 'card_looks.dart';
 import 'geometry.dart';
@@ -158,6 +159,7 @@ class CanvasCard {
   final Widget Function(Widget child)? own;
 
   List<Widget> build(BuildContext context) {
+    if (ghostPerf) Perf.count('canvas.card');
     final t = context.tokens;
     final at = Offset(node.x, node.y);
     final size = Size(node.width, node.height);
@@ -499,7 +501,12 @@ class CardWords extends StatefulWidget {
 class _CardWordsState extends State<CardWords> {
   late EditorView _view = _make();
 
-  EditorView _make() => EditorView(
+  EditorView _make() {
+    if (ghostPerf) Perf.count('canvas.words.made');
+    return _made();
+  }
+
+  EditorView _made() => EditorView(
     wholeDocument: true,
     state: EditorState.create(doc: widget.markdown, extensions: noteExtensions(display: NoteView.formatted, readOnly: true, more: _drawnFrom(widget.pictures))),
   );
@@ -521,6 +528,7 @@ class _CardWordsState extends State<CardWords> {
 
   @override
   Widget build(BuildContext context) {
+    if (ghostPerf) Perf.count('canvas.words.build');
     final env = cardEnv(context.tokens, devicePixelRatio: MediaQuery.devicePixelRatioOf(context));
     return ExcludeSemantics(
       child: IgnorePointer(

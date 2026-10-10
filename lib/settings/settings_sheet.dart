@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import '../account/ui_state.dart';
 import '../core/preferences.dart';
 import '../core/workspaces.dart';
+import '../perf/frame_log.dart';
 import 'kit/settings_icons.dart';
 import 'panes/settings_host.dart';
 import 'settings_screen.dart';
@@ -200,6 +201,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
       child: ListenableBuilder(
         listenable: Listenable.merge([store, developerMode, spaces, services?.changes]),
         builder: (context, _) {
+          if (ghostPerf) Perf.count(widget.open ? 'settings.sheet.open' : 'settings.sheet.shut');
           final facts = SettingsFacts(
             prefs: store.value,
             wide: wide,

@@ -213,7 +213,9 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     }
     if (ghostPerf) Perf.count('allnotes.read');
     final inSpace = widget.workspaces.inWorkspace(notes, spaces.current?.id, (note) => note.id);
+    final began = ghostPerf ? Perf.now() : 0;
     final shown = browseNotes(inSpace, Browse(query: _query, sort: _sort, archived: _archived, tapes: _tapes));
+    if (ghostPerf) Perf.add('allnotes.browse', began);
     // A card one to a row is known by its note; across a row, by its place too (lib/home/note_card.dart
     // `SliverNoteCards`), and arrives again when that changes.
     _arrivals.keep([

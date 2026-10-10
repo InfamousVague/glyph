@@ -77,6 +77,7 @@ import '../editor/view/view_mode.dart';
 import '../note/byline.dart';
 import '../notes/note_templates.dart';
 import '../notes/ticket_mark.dart';
+import '../perf/frame_log.dart';
 import '../sheet/css.dart';
 import '../sheet/flow.dart';
 import 'book_spot.dart';
@@ -1050,6 +1051,7 @@ class BookViewState extends State<BookView> {
 
   @override
   Widget build(BuildContext context) {
+    if (ghostPerf) Perf.count('book.build');
     final t = context.tokens;
     final em = t.len('app-body');
     final chapters = _chapters;
@@ -1153,6 +1155,7 @@ class BookViewState extends State<BookView> {
           ),
           for (final (i, chapter) in chapters.indexed)
             () {
+              if (ghostPerf) Perf.count('book.read.page');
               final there = widget.known(chapter.title);
               final words = there ? widget.bodyOf?.call(chapter.title) : null;
               final canvas = words != null && isCanvasBody(words);
@@ -1293,6 +1296,7 @@ class BookViewState extends State<BookView> {
 
   /// One row of the index (`.row`): its grip, its number, the chapter and its tools.
   Widget _row(BuildContext context, Tokens t, double em, List<Chapter> chapters, List<String> numbers, int i, {bool ghost = false}) {
+    if (ghostPerf) Perf.count('book.row');
     final chapter = chapters[i];
     final body = widget.body;
     final readOnly = widget.readOnly;

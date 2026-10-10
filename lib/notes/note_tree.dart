@@ -213,6 +213,7 @@ class _NoteTreeState extends State<NoteTree> {
     final inBooks = bookIndex(widget.notes);
 
     Widget row(Note note) {
+      if (ghostPerf) Perf.count('tree.row');
       // The note's words are read once and kept (lib/core/note_facts.dart): nothing of its body is read here.
       final facts = NoteFacts.of(note);
       final title = facts.title;

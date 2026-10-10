@@ -9,6 +9,7 @@ import 'package:glacier/glacier.dart';
 
 import '../art/wisp_edge.dart';
 import '../core/back.dart';
+import '../perf/frame_log.dart';
 import '../shell/desktop/mac_drag_strip.dart';
 import '../shell/desktop/mac_lights.dart' show titlebarOverlay;
 import '../shell/wide_screen.dart' show mousePointer, splitFits;
@@ -705,6 +706,7 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
   }
 
   Widget _screen(BuildContext context, Tokens root) {
+    if (ghostPerf) Perf.count('settings.screen');
     final t = context.tokens;
     final split = _split;
     final sections = widget.sections;

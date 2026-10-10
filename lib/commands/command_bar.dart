@@ -5,6 +5,7 @@ import 'package:glacier/glacier.dart';
 
 import '../art/ghost.dart';
 import '../core/back.dart';
+import '../perf/frame_log.dart';
 import 'palette.dart';
 
 /// The command palette on screen: a port of the web app's `src/app/commands/CommandBar.tsx`, the kit's
@@ -114,8 +115,10 @@ class CommandBarState extends State<CommandBar> {
   @override
   Widget build(BuildContext context) {
     final t = GlacierTheme.of(context);
+    final began = ghostPerf ? Perf.now() : 0;
     // The list is rebuilt as the app changes under it: a note opened, a tab closed, a workspace chosen.
     final commands = _open ? paletteCommands(widget.world ?? widget.worldNow!(), widget.doing ?? widget.doingNow!(), _query) : const <PaletteCommand>[];
+    if (ghostPerf && _open) Perf.add('palette.commands', began);
     return OnBack(
       // Over everything else, so it closes first and the note behind it stays open.
       active: _open,
