@@ -224,8 +224,9 @@ class _CodeHighlighter extends PluginValue {
       return Decoration.none;
     }
     // A note with no fence and no `<` in it has nothing here, and is not walked.
-    final angles = _angleLines.of(state.doc);
-    if (angles.isEmpty && _fenceLines.nowhere(state.doc)) {
+    final doc = state.doc;
+    final noAngles = _angleLines.nowhere(doc);
+    if (noAngles && _fenceLines.nowhere(doc)) {
       _shown = const <(int, _Block)>[];
       _timer?.cancel();
       _timer = null;
@@ -236,6 +237,8 @@ class _CodeHighlighter extends PluginValue {
     final shown = <(int, _Block)>[];
     for (final range in view.visibleRanges) {
       final from = range.from, to = range.to;
+      // The lines on screen with a `<` on them: asked of the leaves the screen's lines are in, not of the note.
+      final angles = noAngles ? const <FactLine<bool>>[] : _angleLines.between(doc, doc.lineAt(from).number, doc.lineAt(to).number);
       tree.iterate(
         from: from,
         to: to,
