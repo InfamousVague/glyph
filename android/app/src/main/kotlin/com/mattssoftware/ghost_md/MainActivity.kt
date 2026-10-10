@@ -145,6 +145,8 @@ class MainActivity : FlutterActivity() {
         hinge.register(messenger)
         // A ```mermaid fence drawn as its diagram (DiagramRenderer.kt; lib/editor/diagrams/bridge.dart).
         diagrams = DiagramRenderer(this).also { it.register(messenger) }
+        // The bell's rows as the phone's own notifications (Notices.kt; lib/core/phone_notices.dart).
+        Notices(applicationContext).register(messenger)
     }
 
     override fun onNewIntent(intent: Intent) {

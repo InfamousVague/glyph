@@ -15,7 +15,9 @@
 /// connection to the relay beside the service, held only while a room is (an organization's own, once signed in and
 /// in one; a note's, while it is open), let go while the app is behind another, and what a note's desk opens a note
 /// through ([WiredAccount.noteLive]). The engine is told which notes are live with another device and tells an
-/// organization's other devices when it wrote.
+/// organization's other devices when it wrote. And the bell's rows as the phone's own notifications
+/// (lib/sync/phone.dart [PhoneNotices]): made here with the same base and nowhere else, so a build with no account
+/// service posts nothing and hands the phone's worker nothing.
 library;
 
 import 'dart:async';
@@ -31,6 +33,7 @@ import '../account/ui_state.dart';
 import '../core/native/core.dart';
 import '../core/native/files.dart';
 import '../core/note.dart';
+import '../core/phone_notices.dart';
 import '../core/preferences.dart';
 import '../core/stored.dart';
 import '../core/versions_store.dart';
@@ -45,6 +48,7 @@ import '../sync/device.dart';
 import '../sync/engine.dart';
 import '../sync/feed.dart';
 import '../sync/local.dart';
+import '../sync/phone.dart';
 import '../sync/record.dart';
 import '../team/crdt.dart';
 import '../team/doc.dart';
@@ -75,7 +79,7 @@ Future<List<String>?> noServiceWayIn({required String mode, required String hand
 /// What `main` hands the app for an account: where the service is, the crypto, and the app's data folder.
 @immutable
 class AccountMaking {
-  const AccountMaking({required this.base, required this.crypto, required this.dataDir, this.fetcher, this.secure, this.iterations = rounds});
+  const AccountMaking({required this.base, required this.crypto, required this.dataDir, this.fetcher, this.secure, this.iterations = rounds, this.notices});
 
   final String base;
   final CoreCrypto crypto;
@@ -87,6 +91,9 @@ class AccountMaking {
 
   /// PBKDF2's rounds; the real 600,000 unless a test says otherwise.
   final int iterations;
+
+  /// The phone, asked about its own notifications for the bell's rows; the device's unless a test says otherwise.
+  final NoticesHost? notices;
 }
 
 /// The team notes' documents, in the folder of whoever is signed in: signed out, there are none to read and
@@ -121,7 +128,7 @@ class _AccountDocs implements TeamDocStore {
 
 /// The account's objects for this device, and their bundle for the screens.
 class WiredAccount {
-  WiredAccount._(this.services, this.engine, this._docs, this.live, this.noteLive);
+  WiredAccount._(this.services, this.engine, this._docs, this.live, this.noteLive, this.phone);
 
   /// Makes everything over this device's own stores. [core] is the library's core; [touched] is told after this
   /// device changes a note and [refresh] reads the list again after a pass changed notes (`CoreLibrary`'s two);
@@ -191,6 +198,9 @@ class WiredAccount {
     final typing = ValueNotifier<bool>(live.enabled.value);
     typing.addListener(() => live.enabled.set(typing.value));
     live.enabled.addListener(() => typing.value = live.enabled.value);
+    // The bell's rows on the phone itself: posted while the app is behind another, and the worker's watch for
+    // while it is closed, against this build's own service and no other.
+    final phone = PhoneNotices(host: making.notices ?? const PhoneNoticesHost(), account: account, feed: feed, prefs: settings, base: making.base, kept: device);
     final services = AccountServices(
       account: account,
       engine: engine,
@@ -198,13 +208,14 @@ class WiredAccount {
       orgKeys: orgKeys,
       feed: feed,
       shares: shares,
+      phoneNotices: phone,
       listNotes: () async => shownNotes(),
       prefs: settings,
       workspaces: workspaces,
       liveTyping: typing,
       kept: device,
     );
-    return WiredAccount._(services, engine, docs, live, noteLive);
+    return WiredAccount._(services, engine, docs, live, noteLive, phone);
   }
 
   final AccountServices services;
@@ -214,6 +225,9 @@ class WiredAccount {
   /// Live sync, and the door a note's desk opens a note through.
   final LiveServices live;
   final NoteLive noteLive;
+
+  /// The phone's own notifications for what the feed brings.
+  final PhoneNotices phone;
   bool _started = false;
 
   /// What this device kept of an account, read without asking the service anything; then the sync for the life of
@@ -226,6 +240,8 @@ class WiredAccount {
     } catch (failure) {
       debugPrint('[ghost] the account kept on this device would not read: $failure');
     }
+    // Before the first pass, so the rows it brings are heard.
+    phone.start();
     engine.start();
     // The organizations' rooms, held from here on for as long as the account is in them.
     live.start(NudgeHooks(keys: engine.syncNotificationsNow, notes: engine.syncTeamsNow));
@@ -242,6 +258,7 @@ class WiredAccount {
 
   void dispose() {
     live.dispose();
+    phone.dispose();
     engine.dispose();
     unawaited(Future<void>.sync(_docs.forget).catchError((Object _) {}));
   }

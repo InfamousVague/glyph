@@ -125,6 +125,29 @@ void main() {
       expect(again.services.liveTyping.value, isTrue);
     });
 
+    test('the phone’s own notifications are made for the service the build was given, and handed to Settings', () {
+      final kept = MemoryStored();
+      Future<Object?> core(String command, [Map<String, Object?> args = const <String, Object?>{}]) async => null;
+      final wired = WiredAccount.make(
+        making: AccountMaking(base: 'http://127.0.0.1:9/api', crypto: CoreCrypto(core), dataDir: '/nowhere', fetcher: (_) async => throw StateError('nothing is asked'), secure: MemorySecureStore()),
+        core: core,
+        workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())),
+        versions: VersionsStore(core, kept: kept),
+        touched: null,
+        refresh: () {},
+        shownNotes: () => const [],
+        prefs: PreferencesStore()..startWithoutStorage(),
+        kept: kept,
+      );
+      addTearDown(wired.dispose);
+      // The worker is handed this address and no other: there is none built in (lib/sync/phone.dart).
+      expect(wired.phone.base, 'http://127.0.0.1:9/api');
+      expect(wired.services.phoneNotices, same(wired.phone));
+      // A build that is not a release is given no base for the real service, so nothing above is ever made for it.
+      expect(accountBase('https://ghostmarkdown.com/api', debug: true), isNull);
+      expect(accountBase('https://attack.fm/glyph/api', debug: true), isNull);
+    });
+
     test('a way in with no service says so', () async {
       await expectLater(noServiceWayIn(mode: 'in', handle: 'matt', password: 'correct horse'), throwsA(isA<SaidFailure>().having((f) => f.words, 'words', noServiceWords)));
     });

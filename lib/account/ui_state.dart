@@ -32,6 +32,7 @@ import '../orgs/orgs.dart';
 import '../share/share.dart';
 import '../sync/engine.dart';
 import '../sync/feed.dart';
+import '../sync/phone.dart';
 import 'account.dart';
 
 /// The words a failure is said in on a page (core/failure.ts `failureText`): an [ApiError]'s or a [ShareError]'s
@@ -70,6 +71,7 @@ class AccountServices {
     this.feed,
     this.shares,
     this.listNotes,
+    this.phoneNotices,
     PreferencesStore? prefs,
     WorkspaceStore? workspaces,
     ValueNotifier<bool>? liveTyping,
@@ -88,6 +90,10 @@ class AccountServices {
   final NotificationFeed? feed;
   final Shares? shares;
   final Future<List<Note>> Function()? listNotes;
+
+  /// The bell's rows as the phone's own notifications (lib/sync/phone.dart): Settings › Notifications › On this
+  /// phone. Null where nothing was made to post them.
+  final PhoneNotices? phoneNotices;
   final ValueNotifier<bool> liveTyping;
   final PreferencesStore? _prefs;
   final WorkspaceStore? _workspaces;
