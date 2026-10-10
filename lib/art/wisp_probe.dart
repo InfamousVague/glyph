@@ -34,8 +34,8 @@ import '../perf/frame_log.dart' show ghostPerf;
 ///   on the engine a device runs, where a test's pictures are another engine's. Not for a walk that is timed.
 /// - `onebackdrop`: every backdrop filter in the window is given one key, as a `BackdropGroup` over the app would
 ///   give those made with `BackdropFilter.grouped`: what is behind them is read once for all of them.
-/// - `spans`: says, each second that frames are drawn, what every frame waited between the end of its build and the
-///   start of its raster, beside its raster time, in tenths of a millisecond. The pictures a strip or a sheet of
+/// - `spans`: says, as frames are drawn, what every frame waited between the end of its build and the start of its
+///   raster, beside its raster time, in tenths of a millisecond. The pictures a strip or a sheet of
 ///   letters is drawn through are drawn by the engine in tasks of their own on the raster thread, before the
 ///   frame that uses them and outside its raster time: that wait is where they show.
 /// - `nobackdrop`: every backdrop filter in the window is switched off (the bars' glass, the dock's), and the log
@@ -64,19 +64,15 @@ abstract final class WispProbe {
 
   /// `spans`: each frame's wait between its build's end and its raster's start, and its raster, a line a second.
   static void _spans() {
-    final waiting = <String>[];
-    var saidAt = 0;
     SchedulerBinding.instance.addTimingsCallback((timings) {
-      for (final frame in timings) {
-        final wait = frame.timestampInMicroseconds(ui.FramePhase.rasterStart) - frame.timestampInMicroseconds(ui.FramePhase.buildFinish);
-        waiting.add('${(wait / 100).round()}/${(frame.rasterDuration.inMicroseconds / 100).round()}');
-      }
-      final now = DateTime.now().millisecondsSinceEpoch;
-      if (now - saidAt < 1000 || waiting.isEmpty) return;
-      saidAt = now;
+      if (timings.isEmpty) return;
+      // A line for each batch the engine hands over (ten a second in a profile build), so a line's own time on the
+      // log is near enough its frames' to say which stretch of a walk they were drawn in.
       // ignore: avoid_print
-      print('[spans] ${waiting.join(' ')}');
-      waiting.clear();
+      print('[spans] ${[
+        for (final frame in timings)
+          '${((frame.timestampInMicroseconds(ui.FramePhase.rasterStart) - frame.timestampInMicroseconds(ui.FramePhase.buildFinish)) / 100).round()}/${(frame.rasterDuration.inMicroseconds / 100).round()}',
+      ].join(' ')}');
     });
   }
 

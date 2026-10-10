@@ -624,8 +624,9 @@ extension on _EffectLetter {
       }
       // On paper: the letter set in the pale colour the sheen mixes it to.
       if (look.style.foreground != null) return false;
+      // As the sheen leaves it: the pale colour, through as much of the letter as the letter's own colour shows.
       final pale = Color.lerp(paper, look.color, 0.32)!;
-      LetterGlyph.of(text, styleOf(look).copyWith(color: pale)).painter.paint(canvas, Offset.zero);
+      LetterGlyph.of(text, styleOf(look).copyWith(color: pale.withValues(alpha: pale.a * look.color.a))).painter.paint(canvas, Offset.zero);
       return true;
     }
     return false;
