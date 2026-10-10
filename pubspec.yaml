@@ -40,6 +40,9 @@ flutter:
     # A ```mermaid fence drawn as its diagram (lib/editor/diagrams): Mermaid itself, the release ../glyph pins, with
     # its licence, and the page it draws on in a web view nobody sees. Brought here by tool/diagram_page.mjs.
     - assets/diagrams/
+    # The sample note's picture and the example canvas's picture card (lib/core/sample_library.dart): the web app's
+    # own, src/app/assets/sample-smoke.jpg, a photograph of smoke by Jocelyn Morales from Unsplash (Unsplash License).
+    - assets/sample/sample-smoke.jpg
   # The wisp (lib/art/): feTurbulence and feDisplacementMap as fragment shaders.
   shaders:
     - shaders/wisp_bend.frag

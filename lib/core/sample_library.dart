@@ -14,10 +14,12 @@
 ///   took, and [NoteLibrary.restore] puts it back, for the screens from before the trash was a preference.
 /// - seed.mjs pins its clock to ten on a Monday morning in London; [seedNow] is that wall clock on this device, so the
 ///   same notes fall in "Today" wherever the page is drawn.
-/// - The sample note is made without its picture, as the web makes it where a picture cannot be kept.
+/// - The sample note's picture is put in by whoever makes the note where pictures are kept ([sampleNoteWith], the
+///   web's `samplePicture`); [sampleNoteBody] is the note without it, as the web makes it where one cannot be.
 /// - The spoken notes' `segments` are left out, as seed.mjs's own iPhone library leaves them.
 library;
 
+import 'images.dart' show imageMarkdown;
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -677,8 +679,22 @@ Someday: venue
 - [ ] Find a venue for the party ^venue
 ''';
 
+/// The bundled photograph the sample note and the example canvas show (`assets/sample-smoke.jpg`): smoke, by Jocelyn
+/// Morales, from Unsplash under the Unsplash License. Kept among the library's pictures as the note is made, the way
+/// a pasted picture is, so the note holds a real `![…](image/…)` line and not a special case.
+const String sampleSmokeAsset = 'assets/sample/sample-smoke.jpg';
+
+/// The sample note's body, with the picture's section when there is a picture to show (`sampleNoteBody(image)`):
+/// [image] is its name among the library's pictures. Without one the note says nothing of a picture.
+String sampleNoteWith(String? image) {
+  if (image == null || image.isEmpty) return sampleNoteBody;
+  const after = '## Without typing';
+  final picture = '## Pictures\n\nPaste one, or press and hold and choose Add image. It sits under its own line, and the line stays:\n\n${imageMarkdown(image, 'A wisp of smoke, by Jocelyn Morales')}\n\n';
+  return sampleNoteBody.replaceFirst(after, '$picture$after');
+}
+
 /// The sample note (`core/sampleNote.ts` `sampleNoteBody(null)`): a short tutorial for formatting everything, one mark
-/// at a time, here without its picture.
+/// at a time, here without its picture ([sampleNoteWith] puts it in).
 const String sampleNoteBody = r'''
 # How to format a note
 

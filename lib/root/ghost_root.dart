@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show TargetPlatform, ValueListenable, defaultTargetPlatform, listEquals, mapEquals, setEquals;
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -54,6 +55,7 @@ import '../core/command_mutations.dart' show PendingCommandUndo;
 import '../core/core_library.dart';
 import '../core/export_all.dart' show ExportAll;
 import '../core/front_matter.dart' show frontMatterOffset;
+import '../core/ids.dart' show randomId;
 import '../core/images.dart';
 import '../core/iphone_app.dart';
 import '../core/kept_trash.dart';
@@ -1361,7 +1363,8 @@ class _GhostRootState extends State<GhostRoot> {
     seeded.mark();
     if (_library.value.isNotEmpty) return;
     for (final note in starterNotes(DateTime.now().millisecondsSinceEpoch)) {
-      await _library.createNote(note.body);
+      // The sample note, made last, with its picture (`addSampleNote`).
+      await _library.createNote(identical(note.body, sampleNoteBody) ? sampleNoteWith(await _samplePicture()) : note.body);
     }
   }
 
@@ -1943,9 +1946,10 @@ class _GhostRootState extends State<GhostRoot> {
             },
       onGuideBook: () => unawaited(_openGuideBook()),
       // Examples' four rows, which were drawn and could not be pressed: nothing had given them a press.
-      onSample: _openExample(() => sampleNoteBody),
+      // The sample note and the example canvas with their picture, where one can be kept.
+      onSample: _openExample(() async => sampleNoteWith(await _samplePicture())),
       onBoard: _openExample(() => boardNoteBody),
-      onCanvas: _openExample(sampleCanvasBody),
+      onCanvas: _openExample(() async => sampleCanvasBody(await _samplePicture())),
       onHowCanvas: _openExample(howCanvasBody),
     );
   }

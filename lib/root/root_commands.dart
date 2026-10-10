@@ -44,13 +44,29 @@ extension _RootCommands on _GhostRootState {
     }
   }
 
+  /// The bundled smoke photograph kept as a picture of this device's, answering its name; null where a picture
+  /// cannot be kept, and the sample is then made without one rather than not at all (core/seed.ts `samplePicture`).
+  /// Kept as it is: the page shrinks it first, and it is small already.
+  Future<String?> _samplePicture() async {
+    final pictures = _pictures;
+    if (pictures == null) return null;
+    try {
+      final data = await rootBundle.load(sampleSmokeAsset);
+      final name = '${randomId('img')}.jpg';
+      await pictures.keep(name, data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+      return name;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// One of Settings › About › Examples' notes made now and opened (App.tsx `openSample` over core/seed.ts's
   /// `addSampleNote`, `addBoardNote`, `addCanvasNote` and `addHowCanvas`): Settings goes, the note is written, and
   /// the app is on it. One that could not be written says so.
-  VoidCallback _openExample(String Function() body) => () => unawaited(() async {
+  VoidCallback _openExample(FutureOr<String> Function() body) => () => unawaited(() async {
         _closeSettings();
         try {
-          final note = await _library.createNote(body());
+          final note = await _library.createNote(await body());
           await _library.refresh();
           if (mounted) _afterFrame((shell) => shell.openNote(note.id));
         } catch (_) {
