@@ -9,6 +9,7 @@ import '../core/note.dart';
 import '../core/note_facts.dart';
 import '../core/stored.dart';
 import '../core/workspaces.dart' show Workspace, WorkspaceStore, Workspaces;
+import '../perf/frame_log.dart';
 import '../sheet/css.dart';
 import '../sheet/flow.dart';
 import 'book_place_mark.dart';
@@ -173,14 +174,38 @@ class _NoteTreeState extends State<NoteTree> {
 
   Widget _build(BuildContext context, Workspaces spaces) {
     final t = context.tokens;
+    if (ghostPerf) Perf.count('tree.build');
     final look = _Look(context, t);
-    final tree = noteTreeOf(widget.notes, spaces);
     final trashed = widget.trashed;
     final popup = widget.onClose != null;
     final compact = _compact;
+    final nothing = widget.notes.isEmpty && trashed.isEmpty;
 
-    final every = [for (final folder in tree.folders) folder.id, if (tree.archived.isNotEmpty) archiveFolder];
-    final allShut = every.isNotEmpty && every.every(_closed.contains);
+    // The list is kept from one build to the next, and made again only when something it draws changed: whoever
+    // builds the sidebar builds it often (a line the phone wrote under a title, a sync's word), and the list is
+    // every note there is.
+    final had = _made;
+    final drawn = (
+      spaces: spaces,
+      closed: _closed,
+      trashOpen: _trashOpen,
+      compact: compact,
+      asking: _asking,
+      active: widget.activeId,
+      tokens: t,
+      rule: look.rule,
+      hairline: look.hairline,
+      peek: widget.peek,
+      // What the rows are handed, a bit each: a callback left out is a button not drawn.
+      seams: (widget.onNoteMenu != null ? 1 : 0) | (widget.onOrganization != null ? 2 : 0) | (widget.onEmptyTrash != null ? 4 : 0) | (widget.onRestore != null ? 8 : 0) | (widget.onDestroy != null ? 16 : 0),
+      // The ghost over an empty list is made anew by whoever hands it over: asked about only while it is drawn.
+      art: nothing ? widget.emptyArt : null,
+    );
+    if (had != null && had.drawn == drawn && sameNotes(had.notes, widget.notes) && sameNotes(had.trashed, trashed)) {
+      return _framed(context, t, look, had.tree, had.list, popup: popup, compact: compact);
+    }
+    if (ghostPerf) Perf.count('tree.list');
+    final tree = noteTreeOf(widget.notes, spaces);
 
     /// Every page's book, for the rows' marks.
     final inBooks = bookIndex(widget.notes);
@@ -408,7 +433,6 @@ class _NoteTreeState extends State<NoteTree> {
       return null;
     }
 
-    final nothing = widget.notes.isEmpty && trashed.isEmpty;
     final Widget list = nothing
         // `.empty { margin: var(--glacier-space-4) var(--glacier-space-2); color: var(--glacier-text-muted) }`
         ? Padding(
@@ -437,6 +461,19 @@ class _NoteTreeState extends State<NoteTree> {
               ],
             ),
           );
+
+    // Lists of the tree's own: the ones handed over may be changed after.
+    _made = (drawn: drawn, notes: List<Note>.of(widget.notes, growable: false), trashed: List<Note>.of(trashed, growable: false), tree: tree, list: list);
+    return _framed(context, t, look, tree, list, popup: popup, compact: compact);
+  }
+
+  /// The list as it was made last, the tree it was made from, and everything it was made for.
+  ({Object drawn, List<Note> notes, List<Note> trashed, Tree tree, Widget list})? _made;
+
+  /// The sidebar round its [list]: the tools over it, the notices and the foot under it, and the workspace's sheet.
+  Widget _framed(BuildContext context, Tokens t, _Look look, Tree tree, Widget list, {required bool popup, required bool compact}) {
+    final every = [for (final folder in tree.folders) folder.id, if (tree.archived.isNotEmpty) archiveFolder];
+    final allShut = every.isNotEmpty && every.every(_closed.contains);
 
     final scroll = SingleChildScrollView(
       // `.scroll { overflow-y: auto; overscroll-behavior: contain; padding: 0 var(--glacier-space-2) var(--glacier-space-4) }`

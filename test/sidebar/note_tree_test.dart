@@ -463,4 +463,49 @@ void main() {
       await away(tester);
     });
   });
+
+  group('what the tree builds, and when', () {
+    testWidgets('its list once for the same notes, whoever builds it again, and again for a note that changed', (tester) async {
+      final notes = ValueNotifier<List<Note>>([for (var i = 0; i < 12; i += 1) makeNote('n$i', body: '# Note $i\n\nWords under it.', updatedAt: 100 - i)]);
+      final opened = <String>[];
+      await pumpPage(
+        tester,
+        BackScope(
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 320,
+              // New callbacks at every build, as whoever holds the sidebar hands them.
+              child: ValueListenableBuilder<List<Note>>(valueListenable: notes, builder: (context, notes, _) => tree(notes: notes, activeId: 'n1', onOpen: (id) => opened.add(id))),
+            ),
+          ),
+        ),
+        size: const Size(390, 844),
+      );
+      Widget row(String id) => tester.widget(find.byKey(ValueKey('note-row-$id')));
+      final first = row('n0');
+      // The same notes, in a new list: the rows are the ones it made.
+      notes.value = [...notes.value];
+      await tester.pump();
+      expect(identical(row('n0'), first), isTrue);
+      // Read again from the library: new notes that say what the old said.
+      notes.value = [for (final note in notes.value) note.copyWith()];
+      await tester.pump();
+      expect(identical(row('n0'), first), isTrue);
+      // A row still opens its note through whoever holds the tree now.
+      await tester.tap(find.text('Note 2'));
+      expect(opened, ['n2']);
+      // A note renamed: the list is made again, and says so.
+      notes.value = [for (final note in notes.value) note.id == 'n0' ? note.copyWith(body: '# Renamed') : note];
+      await tester.pump();
+      expect(identical(row('n0'), first), isFalse);
+      expect(find.text('Renamed'), findsOneWidget);
+      // And for names only, which is the tree's own to change.
+      final before = row('n3');
+      await tester.tap(button('Show names only'));
+      await tester.pump();
+      expect(identical(row('n3'), before), isFalse);
+      await away(tester);
+    });
+  });
 }
