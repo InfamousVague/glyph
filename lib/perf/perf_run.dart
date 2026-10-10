@@ -107,9 +107,10 @@ String benchScript(Size size, {Set<String>? only}) {
       'mark:note-open', 'taptext:Bench long', 'wait:2000',
       'mark:note-fling-down', flings(low, high, 4),
       'mark:note-fling-up', flings(high, low, 4),
-      // The caret goes into the note's first paragraph, by its words: a tap at mid-screen took whatever was there
-      // (a link once, and the stretch measured the page it opened).
-      'mark:note-type', 'tapline:A note is plain Markdown', 'wait:900', 'type:$words', 'wait:600',
+      // The caret goes into a paragraph of plain words, whichever is in sight (`tapline` with none named): a tap at
+      // mid-screen took whatever was there (a link once, and the stretch measured the page it opened), and a
+      // paragraph looked for by its words was not there once a walk before had typed into the middle of them.
+      'mark:note-type', 'tapline', 'wait:900', 'type:$words', 'wait:600',
       'mark:note-type-lines', 'enter', 'type:- one', 'enter', 'type:two', 'enter', 'type:three', 'enter', 'enter', 'type:$words', 'wait:1500',
       'mark:note-leave', 'unfocus', 'wait:400', 'taplabel:Home', 'wait:1500',
     ],

@@ -197,7 +197,12 @@ class PhoneTour {
           }
         }
         _say('tapline "$arg" -> ${at == null ? 'NOT FOUND' : _spot(at)}');
-        if (at == null) return;
+        if (at == null) {
+          // Nothing is typed anywhere else in its place: what follows says NOTHING HOLDS THE KEYBOARD.
+          FocusManager.instance.primaryFocus?.unfocus();
+          await _frames();
+          return;
+        }
         await _touch(Offset(at.left + at.width * 0.3, at.top + (at.height < 36 ? at.height / 2 : 14)));
       case 'seek':
         // The words brought onto the screen by the finger, a part of a page at a time, until they are there to be
@@ -373,14 +378,22 @@ class PhoneTour {
     return found;
   }
 
-  /// The first of the editor's lines in sight whose words hold [words].
+  /// The first of the editor's lines in sight whose words hold [words]; with no words, the first that is a
+  /// paragraph of plain ones (long, and nothing in it marked), wholly in the window: somewhere to put a caret and
+  /// type, wherever the note stands and whatever a walk before this one typed into it.
   Rect? _lineAt(String words) {
     Rect? found;
     void visit(Element element) {
       if (found != null || _unseen(element)) return;
       final render = element.renderObject;
-      if (element is RenderObjectElement && render is RenderEditorLine && render.spec.projection.display.contains(words)) {
-        found = _boxOf(render);
+      if (element is RenderObjectElement && render is RenderEditorLine) {
+        final projection = render.spec.projection;
+        if (words.isNotEmpty) {
+          if (projection.display.contains(words)) found = _boxOf(render);
+        } else if (projection.display.length >= 80 && projection.segments.every((segment) => segment.marks.isEmpty)) {
+          final box = _boxOf(render);
+          if (box != null && box.top >= _window.top + 120 && box.bottom <= _window.bottom - 120) found = box;
+        }
       }
       element.visitChildren(visit);
     }
@@ -460,7 +473,7 @@ class PhoneTour {
     EditableTextState? found = context.findAncestorStateOfType<EditableTextState>();
     if (found != null) return found;
     void visit(Element element) {
-      if (found != null) return;
+      if (found != null || _unseen(element)) return;
       if (element is StatefulElement && element.state is EditableTextState) {
         found = element.state as EditableTextState;
         return;

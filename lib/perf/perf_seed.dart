@@ -27,7 +27,6 @@ Future<int> seedPerfLibrary(CoreInvoke core, int want) async {
   if (!await _measuredLibrary()) return 0;
   final listed = await core('list_notes');
   final have = listed is List ? listed.length : 0;
-  if (have >= want) return 0;
   final examples = [...seedLibrary(null), ...starterNotes(DateTime.now().millisecondsSinceEpoch)];
   var made = 0;
   for (var i = have; i < want; i += 1) {
@@ -49,10 +48,16 @@ Future<int> seedPerfLibrary(CoreInvoke core, int want) async {
   };
   for (final entry in bench.entries) {
     try {
+      // One a walk before this one wrote in is put back as it was made: every walk types into the same note.
+      final kept = await core('get_note', {'id': entry.key});
+      if (kept is Map) {
+        if (kept['body'] != entry.value) await core('update_note', {'id': entry.key, 'body': entry.value, 'expectedRevision': kept['revision']});
+        continue;
+      }
       await core('create_note', {'id': entry.key, 'body': entry.value, 'source': 'editor'});
       made += 1;
     } on CoreError {
-      // There already.
+      // There already, or changed under this: left as it is.
     }
   }
   return made;
