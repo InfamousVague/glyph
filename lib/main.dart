@@ -35,6 +35,7 @@ import 'perf/frame_log.dart';
 import 'perf/perf_run.dart';
 import 'perf/perf_seed.dart';
 import 'root/ghost_root.dart';
+import 'root/opening.dart';
 import 'root/iphone_wiring.dart';
 import 'root/plugin_ground.dart';
 import 'root/voice_wiring.dart';
@@ -63,40 +64,59 @@ Future<void> main() async {
   // stylesheet is read or parsed here, which was the longest wait of a quiet start.
   final sheet = appTokenSheet();
   PerfLaunch.step('sheet');
-  // Four things the first frame waits for, and none of them for another: begun together, so the start is as long
-  // as the slowest of them and not as all of them one after the other.
-  final (_, _, opened, locator) = await (
+  // The library's core, begun now and not waited for: the first frame is the launch screen, which says "Opening
+  // your notes" while it opens, and the app is put under it as soon as it has (lib/root/opening.dart). It opens in
+  // an isolate of its own, so the launch screen's first frames are not held by it.
+  final opening = _opened();
+  // Three things the first frame does wait for, and none of them for another: begun together.
+  final (_, _, locator) = await (
     // Edge to edge, as the web app's page is under Android's bars: the page pads itself by the safe areas.
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge).whenComplete(() => PerfLaunch.step('chrome')),
     _remembered(),
-    _opened(),
     // Where the phone is, for a note keeping its place: asked only from a press, or for a new note with tagging on.
     // The place's name is OpenStreetMap's, asked once as the app itself; so are a tagged note's tiles.
     PhoneLocator().attach().whenComplete(() => PerfLaunch.step('located')),
   ).wait;
-  final (:core, :whole, :account, :voice) = opened;
   // The app's updates, only in a build told where its own releases are (`--dart-define=GHOST_UPDATES=https://…`)
   // and never in a debug build (lib/core/updates.dart): with none, nothing is asked of anywhere. One for the
-  // process, as the core is; it begins to look once the root is up.
-  final updates = core == null ? null : Updates.forBuild(invoke: core, localOnly: () => preferences.value.localOnly);
+  // process, as the core is, and made before the core has opened, since the launch screen asks it to look as it
+  // comes up: what it asks of the core (to read what it fetched) waits for the core. It begins its own rounds once
+  // the root is up.
+  final updates = Updates.forBuild(invoke: (command, [args = const {}]) async => ((await opening).core ?? _noCore)(command, args), localOnly: () => preferences.value.localOnly);
   if (updates != null) debugPrint('[ghost] this build looks for updates at ${updates.config.source}');
   // One PhoneLinks for the life of the app: it holds the channel the activity says `arrived` on.
   final links = PhoneLinks();
   // And one player of a note's recording, the phone's own.
   final tapes = PhoneTapePlayer();
-  // A film in a note: the phone's picker, the core that keeps it and the phone's player (Android only, as the
-  // page's was).
-  Films? films;
-  if (core != null && defaultTargetPlatform == TargetPlatform.android) {
-    films = Films(device: PhoneFilmDevice(core), pick: phoneFilmPicker(core, kept: (video) => films?.kept(video)));
-  }
   PerfLaunch.step('runApp');
   final placeLookup = geocodePlace(geocodeFetcher(), lang: () => PlatformDispatcher.instance.locale.toLanguageTag());
   final mapTiles = MapTiles().builder;
   runApp(GhostApp(
     sheet: sheet,
-    home: _Runs(
-      builder: (restart) => GhostRoot(core: core, native: whole, account: account, voiceMaking: voice, links: links, openLink: openLink, previewFetch: iPhoneLinkPreviews() ? linkPreviewFetch() : null, restart: restart, tapePlayer: tapes, updates: updates, locator: locator, placeLookup: placeLookup, mapTiles: mapTiles, picturePicker: phonePicturePicker, films: films, dayPicker: defaultTargetPlatform == TargetPlatform.android || runsAsIPhoneApp ? phoneDayPicker : null),
+    home: GhostOpening<_Opened>(
+      opened: opening,
+      updates: updates,
+      onStep: PerfLaunch.step,
+      builder: (context, opened, seat, restart) => GhostRoot(
+        core: opened.core,
+        native: opened.whole,
+        account: opened.account,
+        voiceMaking: opened.voice,
+        links: links,
+        openLink: openLink,
+        previewFetch: iPhoneLinkPreviews() ? linkPreviewFetch() : null,
+        restart: restart,
+        launchSeat: seat,
+        tapePlayer: tapes,
+        // With no core there is nothing to read an update with, and none is looked for.
+        updates: opened.core == null ? null : updates,
+        locator: locator,
+        placeLookup: placeLookup,
+        mapTiles: mapTiles,
+        picturePicker: phonePicturePicker,
+        films: opened.films,
+        dayPicker: defaultTargetPlatform == TargetPlatform.android || runsAsIPhoneApp ? phoneDayPicker : null,
+      ),
     ),
   ));
   // A measured build takes its walk (lib/perf/perf_run.dart).
@@ -123,13 +143,21 @@ Future<void> _remembered() async {
   PerfLaunch.step('stored');
 }
 
+/// What the app is made over, once it has opened.
+typedef _Opened = ({CoreInvoke? core, GhostCore? whole, AccountMaking? account, VoiceMaking? voice, Films? films});
+
+/// What is asked of a core that would not open answers.
+Future<Object?> _noCore(String command, [Map<String, Object?> args = const {}]) => Future<Object?>.error(const CoreError('Ghost.md\'s core would not open.'));
+
 /// The notes library and what is made over it: the web app's own Rust, asked across FFI (lib/core/native). A phone
 /// where it will not load still opens, on the invented library, rather than on nothing: then every part is null.
-Future<({CoreInvoke? core, GhostCore? whole, AccountMaking? account, VoiceMaking? voice})> _opened() async {
+/// It never fails: the app is put up when it completes.
+Future<_Opened> _opened() async {
   CoreInvoke? core;
   GhostCore? whole;
   AccountMaking? account;
   VoiceMaking? voice;
+  Films? films;
   try {
     // The library's code and where this device keeps things: asked together.
     final (native, dirs) = await (GhostCore.open(), _folders()).wait;
@@ -165,32 +193,21 @@ Future<({CoreInvoke? core, GhostCore? whole, AccountMaking? account, VoiceMaking
     }
     voice = await attaching;
     PerfLaunch.step('voice');
+    // A film in a note: the phone's picker, the core that keeps it and the phone's player (Android only, as the
+    // page's was).
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      final invoke = native.invoke;
+      Films? made;
+      films = made = Films(device: PhoneFilmDevice(invoke), pick: phoneFilmPicker(invoke, kept: (video) => made?.kept(video)));
+    }
   } catch (failure) {
     debugPrint('[ghost] the library would not open: $failure');
   }
-  return (core: core, whole: whole, account: account, voice: voice);
+  return (core: core, whole: whole, account: account, voice: voice, films: films);
 }
 
 Future<DevicePaths> _folders() async {
   final dirs = PerfLaunch.dirs() ?? await DevicePaths.find();
   PerfLaunch.step('paths');
   return dirs;
-}
-
-/// The app, built anew each time it is started over (Developer's resets, lib/core/reset.dart): what
-/// `window.location.reload()` was to the page. The core, the phone's halves and the links' channel are the
-/// process's and stay; everything the root made from them is made again, on a library that is empty.
-class _Runs extends StatefulWidget {
-  const _Runs({required this.builder});
-  final Widget Function(VoidCallback restart) builder;
-
-  @override
-  State<_Runs> createState() => _RunsState();
-}
-
-class _RunsState extends State<_Runs> {
-  int _run = 0;
-
-  @override
-  Widget build(BuildContext context) => KeyedSubtree(key: ValueKey<int>(_run), child: widget.builder(() => setState(() => _run += 1)));
 }

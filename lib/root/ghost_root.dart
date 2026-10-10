@@ -135,6 +135,7 @@ import 'desktop_wiring.dart';
 import 'gisted.dart';
 import 'library_reads.dart';
 import 'note_desk.dart';
+import 'opening.dart';
 import 'reset_wiring.dart';
 import 'scene_play.dart';
 import 'selected.dart';
@@ -179,7 +180,7 @@ part 'root_voice.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -200,6 +201,10 @@ class GhostRoot extends StatefulWidget {
 
   /// Whether the app opens behind its launch screen. A test's picture of a screen does not.
   final bool launch;
+
+  /// Where the root says what the launch screen reads of it, when that screen is drawn over the root by whoever
+  /// holds it and was up before there was a root (lib/root/opening.dart). Given, the root draws none of its own.
+  final LaunchSeat? launchSeat;
 
   /// Where this build's account service is, with the crypto to reach it (lib/root/account_wiring.dart). Absent,
   /// as in every build not given `GHOST_API`, there is no account at all. It needs the [core].
@@ -954,7 +959,12 @@ class _GhostRootState extends State<GhostRoot> {
   /// A note's menu, from a long press or a right-click on it in any list (notes/note_menu.dart).
   final NoteMenuController _menu = NoteMenuController();
 
-  late bool _launching = widget.launch;
+  late bool _launching = widget.launch && widget.launchSeat == null;
+
+  /// What the launch screen reads of the root, where it is drawn over it from outside (`GhostRoot.launchSeat`).
+  LaunchFacts _launchFacts() => (loading: !_read, notes: _shown.length, sync: launchSyncOf(_services?.engine?.status.value.phase), recording: _meetingRecording);
+
+  bool _meetingRecording() => _voice?.live?.state?.recording ?? false;
   bool get _read => !_library.loading;
   bool _settings = false;
 
@@ -1015,6 +1025,7 @@ class _GhostRootState extends State<GhostRoot> {
     _wired?.live.presence.removeListener(_presenceChanged);
     _wired?.dispose();
     _pictures?.dispose();
+    widget.launchSeat?.rise(_launchFacts);
     _made?.dispose();
     _menu.dispose();
     _tick.dispose();
@@ -1065,6 +1076,8 @@ class _GhostRootState extends State<GhostRoot> {
       ?..addListener(_updatesChanged)
       ..recording = (() => _voice?.live?.state?.recording ?? false)
       ..start();
+    // The launch screen over the root, where there is one, reads the root from here on.
+    widget.launchSeat?.sit(_launchFacts, _tick);
     _open();
     unawaited(_account());
     unawaited(_speakUp());
@@ -1866,7 +1879,7 @@ class _GhostRootState extends State<GhostRoot> {
       notes: _shown.length,
       updates: launchUpdatesOf(widget.updates),
       sync: launchSyncOf(_services?.engine?.status.value.phase),
-      recording: () => _voice?.live?.state?.recording ?? false,
+      recording: _meetingRecording,
       onDone: () => setState(() => _launching = false),
     );
   }
