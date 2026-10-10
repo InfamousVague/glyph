@@ -26,6 +26,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../perf/frame_log.dart';
 import 'looks/look.dart';
 import 'looks/peek_look.dart';
 import 'state/state.dart';
@@ -81,16 +82,51 @@ class MarkdownView extends StatefulWidget {
   State<MarkdownView> createState() => _MarkdownViewState();
 }
 
+/// The editor's state for each note drawn small lately: its Markdown read, and the extensions it is drawn with
+/// worked out.
+///
+/// A list of cards builds only the ones near the screen (lib/home/lazy_page.dart), so a card scrolled away and back
+/// is made again, and its preview with it: an editor's state for the same Markdown, the whole stack of extensions
+/// resolved and the syntax read again, each time. A state does not change (a preview takes no input, and a state
+/// is a value: a change makes another), so the one made for these words drawn this way does for every view of them,
+/// two at once as well. The view itself, whose plugins listen and keep clocks, is still made for each drawing and
+/// destroyed with it.
+///
+/// The [most] asked for last are kept.
+abstract final class _States {
+  static const int most = 160;
+
+  static final List<({EditorState state, String markdown, NoteView display, String? look, Iterable<InlineFormatSyntax> formats, List<Extension> extensions})> _kept = [];
+
+  /// The state for [of]'s Markdown drawn its way: the one kept, or made now and kept.
+  static EditorState of(MarkdownView of) {
+    // The last asked for is the likeliest asked for again: a row of cards scrolled just off the screen and back.
+    for (var i = _kept.length - 1; i >= 0; i -= 1) {
+      final kept = _kept[i];
+      if (kept.display == of.display && kept.look == of.look && identical(kept.formats, of.formats) && identical(kept.extensions, of.extensions) && kept.markdown == of.markdown) {
+        if (i != _kept.length - 1) {
+          _kept.removeAt(i);
+          _kept.add(kept);
+        }
+        if (ghostPerf) Perf.count('peek.kept');
+        return kept.state;
+      }
+    }
+    if (ghostPerf) Perf.count('peek.made');
+    final state = EditorState.create(
+      doc: of.markdown,
+      extensions: noteExtensions(formats: of.formats, display: of.display, readOnly: true, look: of.look, more: of.extensions),
+    );
+    _kept.add((state: state, markdown: of.markdown, display: of.display, look: of.look, formats: of.formats, extensions: of.extensions));
+    if (_kept.length > most) _kept.removeAt(0);
+    return state;
+  }
+}
+
 class _MarkdownViewState extends State<MarkdownView> {
   late EditorView _view = _make();
 
-  EditorView _make() => EditorView(
-    wholeDocument: true,
-    state: EditorState.create(
-      doc: widget.markdown,
-      extensions: noteExtensions(formats: widget.formats, display: widget.display, readOnly: true, look: widget.look, more: widget.extensions),
-    ),
-  );
+  EditorView _make() => EditorView(wholeDocument: true, state: _States.of(widget));
 
   @override
   void didUpdateWidget(MarkdownView oldWidget) {
@@ -176,6 +212,25 @@ class _RenderPeekClip extends RenderProxyBox {
     markNeedsLayout();
   }
 
+  /// The mask's layer and the clip's, kept from one paint to the next: a card is painted again for a pointer over
+  /// it or its own entrance, and a new layer each time is a new one for the engine to take up and the old to let go.
+  final LayerHandle<ShaderMaskLayer> _mask = LayerHandle<ShaderMaskLayer>();
+  final LayerHandle<ClipRectLayer> _clip = LayerHandle<ClipRectLayer>();
+
+  /// The fade's gradient, made once for a size and a fade.
+  Shader? _shader;
+  Size? _shaderSize;
+  double? _shaderFade;
+
+  @override
+  void dispose() {
+    _mask.layer = null;
+    _clip.layer = null;
+    _shader?.dispose();
+    _shader = null;
+    super.dispose();
+  }
+
   /// `scrollHeight > clientHeight + 1` (NotePeek.tsx `check`).
   bool get _clipped => child != null && child!.size.height > size.height + 1;
 
@@ -219,25 +274,34 @@ class _RenderPeekClip extends RenderProxyBox {
     if (inner == null) return;
     final bounds = offset & size;
     if (!_clipped) {
+      _mask.layer = null;
       if (inner.size.height > size.height) {
-        context.pushClipRect(needsCompositing, offset, Offset.zero & size, (context, offset) => context.paintChild(inner, offset));
+        _clip.layer = context.pushClipRect(needsCompositing, offset, Offset.zero & size, (context, offset) => context.paintChild(inner, offset), oldLayer: _clip.layer);
       } else {
+        _clip.layer = null;
         context.paintChild(inner, offset);
       }
       return;
     }
+    if (_shader == null || _shaderSize != size || _shaderFade != _fade) {
+      _shader?.dispose();
+      _shaderSize = size;
+      _shaderFade = _fade;
+      _shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: const <Color>[Color(0xFF000000), Color(0xFF000000), Color(0x00000000)],
+        stops: <double>[0, size.height == 0 ? 0 : ((size.height - _fade).clamp(0.0, size.height)) / size.height, 1],
+      ).createShader(Offset.zero & size);
+    }
     // A mask and never a painted shadow: the words themselves go to nothing over the last lines.
+    final mask = (_mask.layer ??= ShaderMaskLayer())
+      ..shader = _shader
+      ..maskRect = bounds
+      ..blendMode = BlendMode.dstIn;
     context.pushLayer(
-      ShaderMaskLayer()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: const <Color>[Color(0xFF000000), Color(0xFF000000), Color(0x00000000)],
-          stops: <double>[0, size.height == 0 ? 0 : ((size.height - _fade).clamp(0.0, size.height)) / size.height, 1],
-        ).createShader(Offset.zero & size)
-        ..maskRect = bounds
-        ..blendMode = BlendMode.dstIn,
-      (context, offset) => context.pushClipRect(true, offset, Offset.zero & size, (context, offset) => context.paintChild(inner, offset)),
+      mask,
+      (context, offset) => _clip.layer = context.pushClipRect(true, offset, Offset.zero & size, (context, offset) => context.paintChild(inner, offset), oldLayer: _clip.layer),
       offset,
     );
   }
