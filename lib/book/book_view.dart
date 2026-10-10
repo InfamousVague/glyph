@@ -63,7 +63,8 @@ import '../core/item_syntax.dart' show jsTrim;
 import '../core/library.dart';
 import '../core/note.dart';
 import '../core/note_text.dart' show noteTitle, sameTitle, titleKey, withoutFrontMatter;
-import '../core/properties.dart' show notebookKey, statusesOf, ticketOf, withProperty;
+import '../core/properties.dart' show Ticket, notebookKey, statusesOf, ticketOf, withProperty;
+import '../core/properties.dart' as properties show isTicket;
 import '../core/stored.dart';
 import '../editor/fields/field_picker.dart';
 import '../editor/fields/field_picks.dart';
@@ -762,6 +763,44 @@ class _BookWordsState extends State<BookWords> {
 
 enum _Adding { page, existing, ticket }
 
+/// One page of a notebook as its index and its read-through draw it ([BookViewState._pageOf]): whether there is a
+/// note by its title, and what that note's words say of it. Each answer is worked out the first time it is asked
+/// for and kept with the words it was read from.
+class _PageRead {
+  _PageRead({required this.there, required this.words, required this.notebook});
+
+  /// Whether a note by the page's title exists.
+  final bool there;
+
+  /// That note's words, where there is one.
+  final String? words;
+
+  /// The notebook's own words, whose workflow a page's status is placed in.
+  final String notebook;
+
+  /// Whether the page's words are a canvas's, whatever they are (the read-through's question).
+  late final bool isCanvas = words != null && isCanvasBody(words!);
+
+  /// Whether the page is a canvas with something in it (the index's question, `_isCanvas`).
+  late final bool canvas = words != null && words!.isNotEmpty && isCanvasBody(words!);
+
+  /// Whether the page is a ticket, for its status's button (`TicketStatusButton.has`).
+  late final bool isTicket = properties.isTicket(words ?? '');
+
+  /// The page's ticket in the notebook's workflow, for its mark (`TicketMark.has`, then the mark's own reading).
+  late final Ticket? ticket = ticketOf(words ?? '', statusesOf(notebook));
+
+  String? _untitled;
+  String? _untitledFor;
+
+  /// The page's words for reading straight through ([bodyWithoutTitle]), for the title its row gives it.
+  String untitled(String title) {
+    if (_untitled != null && _untitledFor == title) return _untitled!;
+    _untitledFor = title;
+    return _untitled = bodyWithoutTitle(words ?? '', title);
+  }
+}
+
 /// One way a page or a ticket can start, as Start with lists it: its name, and how it starts, on one line
 /// (`StartRow`).
 typedef _StartRow = ({String id, String name, String line});
@@ -955,6 +994,55 @@ class BookViewState extends State<BookView> {
     return found != null && found.isNotEmpty && isCanvasBody(found);
   }
 
+  /// What the index and the read-through draw of each page, by its title, read once for the page's words and the
+  /// notebook's as they are now. A build asked after every page's words several times over: whether it is a canvas,
+  /// whether it is a ticket, its ticket for the mark and again for the mark's own drawing, each of those reading
+  /// the notebook's statuses from its front matter, and its words less their title for reading straight through.
+  final Map<String, _PageRead> _pages = <String, _PageRead>{};
+
+  /// How many times a page's words have been taken for reading (any view's): once for a page as it is, however
+  /// often its index is built. For a test.
+  @visibleForTesting
+  static int debugPageReads = 0;
+
+  _PageRead _pageOf(String title) {
+    final there = widget.known(title);
+    final words = widget.bodyOf?.call(title);
+    final notebook = widget.body;
+    final had = _pages[title];
+    if (had != null && had.there == there && identical(had.words, words) && identical(had.notebook, notebook)) return had;
+    if (ghostPerf) Perf.count('book.page.read');
+    debugPageReads += 1;
+    // No more kept than the notebook has pages, and a few that were taken out or renamed.
+    if (_pages.length > _chapters.length + 64) _pages.clear();
+    return _pages[title] = _PageRead(there: there, words: words, notebook: notebook);
+  }
+
+  /// The notebook's own words round its index, its ticket key, and everyone who wrote it or a page of it: read once
+  /// for the notebook's words and its pages' as they are now.
+  ({String body, List<String?> pages, ({String before, String after}) words, String? key, List<String> authors})? _own;
+
+  ({String body, List<String?> pages, ({String before, String after}) words, String? key, List<String> authors}) _ownOf(List<Chapter> chapters) {
+    final body = widget.body;
+    final pages = [for (final chapter in chapters) widget.bodyOf?.call(chapter.title)];
+    final had = _own;
+    if (had != null && identical(had.body, body) && had.pages.length == pages.length) {
+      var same = true;
+      for (var i = 0; i < pages.length && same; i += 1) {
+        same = identical(had.pages[i], pages[i]);
+      }
+      if (same) return had;
+    }
+    return _own = (
+      body: body,
+      pages: pages,
+      words: bookWords(body),
+      key: notebookKey(body),
+      // Everyone who wrote the book: its own authors, then each chapter's, first met first.
+      authors: authorsAcross([body, for (final page in pages) page ?? '']),
+    );
+  }
+
   void _dropped(int from, int to) {
     if (from < 0 || from >= _chapters.length) return;
     widget.onChange(withChapterAt(widget.body, _chapters[from].title, to));
@@ -1061,12 +1149,16 @@ class BookViewState extends State<BookView> {
       // While a form is open, the back gesture (Escape on a desktop) closes it before it would leave the notebook.
       active: _adding != null && !_reading,
       onBack: _closeAdding,
-      child: DefaultTextStyle(
-        style: bookText(t, em),
-        child: Padding(
-          // `.book { padding: var(--glacier-space-4) var(--glacier-space-5) var(--glacier-space-8) }`
-          padding: EdgeInsets.fromLTRB(t.space(5), t.space(4), t.space(5), t.space(8)),
-          child: child,
+      // A layer of its own: the view is one box in the note's scroller, and without one every row of the index and
+      // every line of every page read straight through was drawn again at each frame of a scroll.
+      child: RepaintBoundary(
+        child: DefaultTextStyle(
+          style: bookText(t, em),
+          child: Padding(
+            // `.book { padding: var(--glacier-space-4) var(--glacier-space-5) var(--glacier-space-8) }`
+            padding: EdgeInsets.fromLTRB(t.space(5), t.space(4), t.space(5), t.space(8)),
+            child: child,
+          ),
         ),
       ),
     );
@@ -1156,13 +1248,17 @@ class BookViewState extends State<BookView> {
           for (final (i, chapter) in chapters.indexed)
             () {
               if (ghostPerf) Perf.count('book.read.page');
-              final there = widget.known(chapter.title);
-              final words = there ? widget.bodyOf?.call(chapter.title) : null;
-              final canvas = words != null && isCanvasBody(words);
+              final read = _pageOf(chapter.title);
+              final there = read.there;
+              final words = there ? read.words : null;
+              final canvas = words != null && read.isCanvas;
               return Semantics(
                 key: _sections[i],
                 container: true,
                 label: chapter.title,
+                // Not a layer of its own, where a row of the index is: a line of a page is set on a whole device
+                // pixel, and in a layer that began part-way down the book one line of the page's own pictures came
+                // out a device pixel lower (test/book_ui/reference_test.dart, reading straight through).
                 child: DecoratedBox(
                   decoration: BoxDecoration(border: Border(bottom: BorderSide(color: rule, width: line))),
                   child: Padding(
@@ -1214,7 +1310,7 @@ class BookViewState extends State<BookView> {
                         else if (canvas)
                           cssLines('A canvas: open it to see the cards.', bookText(t, em, color: muted))
                         else if (words != null)
-                          MarkdownView(key: ValueKey('book-read-body-$i'), markdown: bodyWithoutTitle(words, chapter.title), peek: false),
+                          MarkdownView(key: ValueKey('book-read-body-$i'), markdown: read.untitled(chapter.title), peek: false),
                       ],
                     ),
                   ),
@@ -1231,10 +1327,10 @@ class BookViewState extends State<BookView> {
   Widget _index(BuildContext context, Tokens t, double em, List<Chapter> chapters, List<String> numbers) {
     final body = widget.body;
     final readOnly = widget.readOnly;
-    final words = bookWords(body);
-    // Everyone who wrote the book: its own authors, then each chapter's, first met first.
-    final authors = authorsAcross([body, for (final c in chapters) widget.bodyOf?.call(c.title) ?? '']);
-    final ticketKey = notebookKey(body);
+    final own = _ownOf(chapters);
+    final words = own.words;
+    final authors = own.authors;
+    final ticketKey = own.key;
     final muted = t.color('glacier-text-muted');
     final statusOf = _statusOf;
 
@@ -1300,9 +1396,11 @@ class BookViewState extends State<BookView> {
     final chapter = chapters[i];
     final body = widget.body;
     final readOnly = widget.readOnly;
-    final there = widget.known(chapter.title);
-    final canvas = there && _isCanvas(chapter.title);
-    final page = widget.bodyOf?.call(chapter.title) ?? '';
+    final read = _pageOf(chapter.title);
+    final there = read.there;
+    final canvas = there && read.canvas;
+    final page = read.words ?? '';
+    final ticket = there && !canvas ? read.ticket : null;
     final muted = t.color('glacier-text-muted');
     final line = snapBorder(context, 1);
     final setStatus = widget.setStatus;
@@ -1336,9 +1434,9 @@ class BookViewState extends State<BookView> {
               ),
               // `.waiting { font-size: 0.75em; color: var(--glacier-text-muted) }`
               if (!there) cssLines('not written yet', bookText(t, 0.75 * em, color: muted), maxLines: 1, softWrap: false),
-              if (there && !canvas && TicketMark.has(page, notebook: body, keyOnly: keyOnly))
+              if (ticket != null && TicketMark.shows(ticket, keyOnly: keyOnly))
                 // The mark's line is the page's here, one and a half times its 11px, where a card's is `normal`.
-                SizedBox(key: ghost ? null : ValueKey('book-ticket-$i'), height: 1.5 * t.fontSize('xs'), child: Align(alignment: AlignmentDirectional.centerStart, widthFactor: 1, child: TicketMark(body: page, notebook: body, keyOnly: keyOnly))),
+                SizedBox(key: ghost ? null : ValueKey('book-ticket-$i'), height: 1.5 * t.fontSize('xs'), child: Align(alignment: AlignmentDirectional.centerStart, widthFactor: 1, child: TicketMark.of(ticket, keyOnly: keyOnly))),
             ],
           ),
         ),
@@ -1364,7 +1462,8 @@ class BookViewState extends State<BookView> {
           ),
         );
 
-    return ConstrainedBox(
+    // Each row a layer of its own: a pointer over a row draws that row again, not the index.
+    return RepaintBoundary(child: ConstrainedBox(
       // `min-block-size: 2.6em`, the line under the row inside it.
       constraints: BoxConstraints(minHeight: 2.6 * em),
       child: DecoratedBox(
@@ -1409,7 +1508,7 @@ class BookViewState extends State<BookView> {
                   mainAxisSize: MainAxisSize.min,
                   spacing: 2,
                   children: [
-                    if (there && !canvas && setStatus != null && TicketStatusButton.has(page))
+                    if (there && !canvas && setStatus != null && read.isTicket)
                       // As tall as the tools beside it: `.tools` is a flex row, and its children stretch.
                       SizedBox(height: toolSize, child: TicketStatusButton(key: ValueKey('book-status-$i'), body: page, notebook: body, onPress: () => setState(() => _statusOf = chapter.title))),
                     tool('Move ${chapter.title} up', Lucide.chevronUp, i == 0 ? null : () => widget.onChange(withChapterMoved(body, chapter.title, -1))),
@@ -1421,7 +1520,7 @@ class BookViewState extends State<BookView> {
           ),
         ),
       ),
-    );
+    ));
   }
 
   /// Under the index: the ways to add a page, or the form one of them opened.

@@ -309,6 +309,24 @@ void main() {
       await away(tester);
     });
 
+    testWidgets('reads each page’s words once, however often the index is built, and again when they change', (tester) async {
+      final pages = {...bodies};
+      await show(tester, body: keyed, title: 'Ghost.md', bodyOf: (title) => pages[title]);
+      expect(find.descendant(of: find.byKey(const ValueKey('book-row-0')), matching: find.textContaining('In progress')), findsWidgets);
+      final read = BookViewState.debugPageReads;
+      // Built again with the words it had, as the note's screen builds it at every change of its own.
+      await show(tester, body: keyed, title: 'Ghost.md', bodyOf: (title) => pages[title]);
+      await show(tester, body: keyed, title: 'Ghost.md', bodyOf: (title) => pages[title]);
+      expect(BookViewState.debugPageReads, read);
+      // One page's words changed: that page alone is read again, and its row says what it now says.
+      pages['Fix the login loop'] = pages['Fix the login loop']!.replaceFirst('In progress', 'Done');
+      await show(tester, body: keyed, title: 'Ghost.md', bodyOf: (title) => pages[title]);
+      expect(BookViewState.debugPageReads, read + 1);
+      expect(find.descendant(of: find.byKey(const ValueKey('book-row-0')), matching: find.textContaining('Done')), findsWidgets);
+      expect(find.descendant(of: find.byKey(const ValueKey('book-row-0')), matching: find.textContaining('In progress')), findsNothing);
+      await away(tester);
+    });
+
     testWidgets('says a page that is a ticket its key and status on its row, and nothing on a page of words', (tester) async {
       await show(tester, body: keyed, title: 'Ghost.md', bodyOf: (title) => bodies[title]);
       expect(find.descendant(of: find.byKey(const ValueKey('book-row-0')), matching: find.byType(TicketMark)), findsOneWidget);
