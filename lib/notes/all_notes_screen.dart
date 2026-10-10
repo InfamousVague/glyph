@@ -204,15 +204,19 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
   final Map<int, Widget> _cardAt = <int, Widget>{};
   bool _keeping = false;
 
-  /// Whether every card past the first row, as far as the rows are given one at a time, came to be on the page
-  /// this frame, by the name its arrival is kept under (its note's where cards are one to a row, its place and its
-  /// note's across a row).
-  bool _arriving(List<Note> shown, int columns) {
-    final end = math.min(shown.length, _rowsAhead * columns);
-    for (var i = columns; i < end; i += 1) {
-      if (_arrivals.since(columns > 1 ? '$i/${shown[i].id}' : shown[i].id) > Duration.zero) return false;
+  /// How many rows of other cards are given at once: every row down to the last that holds a card that was on the
+  /// page before this frame, by the name its arrival is kept under (its note's where cards are one to a row, its
+  /// place and its note's across a row); one row where no card was. The rows after are only now arriving, and are
+  /// given a frame apart. Nothing (0, all of them at once) where a card that was there stands past the rows that
+  /// would be given apart.
+  int _rowsThere(List<Note> shown, int columns) {
+    var last = -1;
+    for (var i = shown.length - 1; i >= 0 && last < 0; i -= 1) {
+      if (_arrivals.since(columns > 1 ? '$i/${shown[i].id}' : shown[i].id) > Duration.zero) last = i;
     }
-    return true;
+    if (last < 0) return 1;
+    final rows = last ~/ columns + 1;
+    return rows >= _rowsAhead ? 0 : rows;
   }
 
   /// One more row a frame from now, or all of them once [_rowsAhead] have been given.
@@ -369,17 +373,17 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     final minute = (now ?? DateTime.now().millisecondsSinceEpoch) ~/ 60000;
     final menu = widget.onNoteMenu != null;
     final columns = NoteCards.columnsFor(width, window, gap: t.space(3), least: t.lenOf('12rem'));
-    // Other notes to show: their cards are given a row at a time, from the first, where every card past the first
-    // row is only now arriving (the page opening, a search that leaves nothing where it was): a card that was on
-    // the page and stays where it stood would be gone for the frames before its row was given again. Nor where
-    // nothing arrives but is simply there (reduced motion), nor to a page that is scrolled down, which is as long
-    // as its rows and given one would be back at its top.
+    // Other notes to show: the rows whose cards are only now arriving are given a frame apart (all but the first
+    // as the page opens; after a letter typed, the rows under the last card that stayed where it stood). A card
+    // that was on the page is given with the page: taken away, it would be gone for the frames before its row was
+    // given again. Nor are rows given apart where nothing arrives but is simply there (reduced motion), nor to a
+    // page that is scrolled down, which is as long as its rows and given a few would be back at its top.
     if (cards == null || was == null || !_sameCards(was.read, read)) {
       final down = _scroller.hasClients && _scroller.position.hasPixels && _scroller.position.pixels > 0;
-      final whole = down || t.reducedMotion || !_arriving(shown, columns);
+      final there = down || t.reducedMotion ? 0 : _rowsThere(shown, columns);
       _cardAt.clear();
-      _keeping = !whole;
-      _rowsGiven = whole ? 0 : 1;
+      _keeping = there != 0;
+      _rowsGiven = there;
     }
     var given = _rowsGiven == 0 ? shown.length : math.min(shown.length, _rowsGiven * columns);
     if (given >= shown.length) {

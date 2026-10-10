@@ -511,6 +511,24 @@ void main() {
       await away(tester);
     });
 
+    testWidgets('after a letter, the rows whose cards stayed are there at once, and the rows under them a frame apart', (tester) async {
+      // Four across. The first eight notes and every odd one after have the word: typed, the first two rows are the
+      // cards they were, and from the ninth place on every card is another.
+      final notes = [for (var i = 0; i < 60; i += 1) makeNote('n$i', body: '# Note $i\n\n${i < 8 || i.isOdd ? 'kept' : 'gone'} words', updatedAt: 100000 - i)];
+      await show(tester, notes, size: const Size(1000, 800), split: true);
+      final stayed = tester.element(key('card-n0'));
+      await tester.enterText(find.byType(EditableText), 'kept');
+      await tester.pump();
+      expect(cards(tester), [for (var i = 0; i < 8; i += 1) 'n$i']);
+      expect(identical(tester.element(key('card-n0')), stayed), isTrue);
+      expect(find.text('34 of 60'), findsOneWidget);
+      await tester.pump();
+      expect(cards(tester), [for (var i = 0; i < 8; i += 1) 'n$i', 'n9', 'n11', 'n13', 'n15']);
+      await settle(tester);
+      expect(cards(tester).length, greaterThan(12));
+      await away(tester);
+    });
+
     testWidgets('a desktop’s scrollbar finds its room left for it: the cards are laid out once, and no card is made again when it comes', (tester) async {
       // Where there is a mouse a page with more than it shows gives its scrollbar twelve pixels, the frame after it
       // is first laid out, and the scrollbar is put round the page as another tree. The page leaves the room from
