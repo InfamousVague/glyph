@@ -1,14 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/ai/ai_strip.dart' show AiStrip;
 import 'package:ghost_md/plugins/claude/claude.dart' show claudeHandle;
 import 'package:ghost_md/ai/backend.dart';
 import 'package:ghost_md/ai/note_ai.dart';
+import 'package:ghost_md/ai/summaries.dart';
 import 'package:ghost_md/capture/engine.dart';
 import 'package:ghost_md/capture/recorder.dart';
 import 'package:ghost_md/commands/command_bar.dart';
 import 'package:ghost_md/commands/palette.dart';
 import 'package:ghost_md/editor/editor.dart' show ChangeSpec, TransactionSpec;
+import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/note_text.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
@@ -21,9 +25,12 @@ import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/root/voice_wiring.dart';
 import 'package:ghost_md/shell/app_shell.dart';
+import 'package:ghost_md/tapes/note_tape.dart';
+import 'package:ghost_md/tapes/player.dart' show TapePlayer;
 
 import '../ai/fake_backend.dart';
 import '../support/render.dart';
+import '../tapes/fake_player.dart';
 
 /// The AI in the app put together (lib/root): one `NoteAi` to an open note where there is an engine, with its
 /// extensions in the editor, its layer over the page, and a run from the More sheet; and none of it without one.
@@ -37,7 +44,7 @@ void main() {
 
   tearDown(() => useAiBackend(const NoAiBackend()));
 
-  Voice voiceFor(SampleLibrary notes, {required bool engine, bool present = true}) {
+  Voice voiceFor(SampleLibrary notes, {required bool engine, bool present = true, Summaries? summaries}) {
     if (engine) {
       backend = FakeAiBackend(generation: 30)
         ..answers['ai_models'] = [
@@ -56,11 +63,38 @@ void main() {
         setRecorderLive: (_) {},
       ),
       models: engine ? ModelsController() : null,
+      summaries: summaries,
     );
   }
 
-  Future<SampleLibrary> open(WidgetTester tester, {required bool engine, bool present = true}) async {
+  /// The summary queue over a library, with nothing of the phone behind it (lib/ai/summaries.dart).
+  Summaries summariesOver(SampleLibrary notes, Stored kept) => Summaries(
+        isTauri: () => true,
+        preferences: () => preferences.value,
+        stored: kept,
+        refineHeld: () => false,
+        refinePending: (_) => false,
+        onRefineHold: (_) => () {},
+        canNotifyNow: () => false,
+        recordingJobState: () async => const [],
+        takeRecordingResult: (_) async => null,
+        writeUpOnHost: (_, _) => false,
+        answerHost: (_, _) => () {},
+        getNote: notes.get,
+        updateNote: notes.update,
+        isTrashed: (_) => false,
+        syncNow: () async {},
+        syncSettled: () async {},
+        record: (_, _) async {},
+        visible: () => true,
+        onVisible: (_) => () {},
+        onNotesChanged: (_) => () {},
+        sendJobConfig: () async {},
+      );
+
+  Future<SampleLibrary> open(WidgetTester tester, {required bool engine, bool present = true, Summaries? Function(SampleLibrary notes, Stored kept)? summaries, TapePlayer? tapePlayer}) async {
     final library = SampleLibrary.seeded();
+    final kept = MemoryStored();
     await pumpApp(
       tester,
       prefs: const Preferences(theme: 'light'),
@@ -69,8 +103,9 @@ void main() {
         library: library,
         workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())),
         clock: () => seedNow,
-        stored: MemoryStored(),
-        voice: voiceFor(library, engine: engine, present: present),
+        stored: kept,
+        voice: voiceFor(library, engine: engine, present: present, summaries: summaries?.call(library, kept)),
+        tapePlayer: tapePlayer,
       ),
     );
     for (var i = 0; i < 6; i++) {
@@ -194,6 +229,48 @@ void main() {
     view.dispatch(TransactionSpec(changes: ChangeSpec(from: view.state.doc.length, insert: '\n\nThe capital of France is {?the capital of France}.'), userEvent: 'input.type'));
     await settle(tester, 8);
     expect(commands()['note:fill']?.descriptor.label, 'Fill the blanks');
+    await close(tester);
+  });
+
+  // Unwired 7 (docs/PARITY.md): `NoteTape` was never given its `queue`, nor `behind`, so the tape said nothing of
+  // its summary and Summarize stayed pressable in the middle of a run (tapes/NoteTape.tsx `useSummaries`,
+  // `useRefining`, `useRun`; NoteScreen.tsx `behind: summaryBehind(note.id, tape.length)`).
+  testWidgets('a spoken note\'s tape says what the queues say of its summary', (tester) async {
+    late Summaries queue;
+    final library = await open(tester, engine: true, summaries: (notes, kept) => queue = summariesOver(notes, kept), tapePlayer: FakeTapePlayer(lengths: const {}));
+    final note = library.value.firstWhere((note) => noteTitle(note.body) == 'Packing');
+    Note taped(int ms) => Note(id: note.id, body: library.noteOf(note.id)!.body, createdAt: note.createdAt, updatedAt: note.updatedAt, source: NoteSource.capture, recordingMs: ms, segments: const [Segment(text: 'Bring the long lens', startMs: 0, endMs: 2000)], revision: library.noteOf(note.id)!.revision);
+    await tester.runAsync(() => library.apply(taped(4000)));
+    await settle(tester, 2);
+    shellOf(tester).openNote(note.id);
+    await settle(tester);
+    NoteTape tape() => tester.widget<NoteTape>(find.byType(NoteTape, skipOffstage: false));
+    expect(tape().summary, isNotNull);
+    expect((tape().queue.summarizing, tape().queue.held), (false, false));
+    expect(find.text('Summarize', skipOffstage: false), findsOneWidget);
+
+    // Summarize pressed: queued, started in the open note, and the tape says so until the words come.
+    final words = Completer<Object?>();
+    backend.answers['ai_generate'] = (Object? args) => words.future;
+    tape().summary!.ask(false);
+    await settle(tester, 8);
+    expect(tape().queue.summarizing, isTrue);
+    expect(find.text('Summarizing', skipOffstage: false), findsOneWidget);
+    expect(find.text('Summarize', skipOffstage: false), findsNothing);
+    words.complete({'text': 'Pack the long lens.'});
+    await settle(tester, 12);
+    await tester.pump(const Duration(seconds: 2));
+    await settle(tester, 4);
+    expect(tape().queue.summarizing, isFalse);
+    expect(queue.useSummaries.value.pending, isEmpty);
+    expect(tape().summary!.behind, isFalse);
+    expect(find.text('Summary is from before the last take.', skipOffstage: false), findsNothing);
+
+    // A take added since: the tape has grown past what the summary was written for.
+    await tester.runAsync(() => library.apply(taped(9000)));
+    await settle(tester, 4);
+    expect(tape().summary!.behind, isTrue);
+    expect(find.text('Summary is from before the last take.', skipOffstage: false), findsOneWidget);
     await close(tester);
   });
 

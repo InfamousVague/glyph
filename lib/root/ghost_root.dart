@@ -716,6 +716,9 @@ class _GhostRootState extends State<GhostRoot> {
     dropRefine: (id, fromMs) => _voice?.recorder.refining?.dropRefine(id, fromMs),
     // A landing's Undo takes back what the recording wrote to other notes (`undoCommandMutation`).
     undoCommandMutation: _library.undoCommandMutation,
+    // What a note's tape says of its summary: the two queues, once voice has made them.
+    summaries: () => _voice?.summaries?.useSummaries,
+    refining: () => _voice?.recorder.refining?.refining,
   );
 
   /// A note's screen with its editor: one desk to an open note (lib/root/note_desk.dart). Built again when the

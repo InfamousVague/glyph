@@ -88,7 +88,10 @@ import '../ai/kinds.dart' show RunKind;
 import '../ai/note_ai.dart';
 import '../ai/note_review.dart' show ReviewHost;
 import '../ai/review.dart' show ReviewHandoff;
-import '../ai/summaries.dart' show SummaryStarter;
+import '../ai/runs.dart' show RunState, ended, useRun;
+import '../ai/summaries.dart' show SummariesState, SummaryStarter;
+import '../ai/summary_keep.dart' show summaryBehind;
+import '../capture/refine.dart' show RefineState;
 import '../capture/recorder.dart' show SpokenAsk;
 import '../format/device_facts.dart' show DeviceFacts;
 import '../live/editor_binding.dart' show liveBindingSlot;
@@ -265,6 +268,8 @@ class NoteDeskWorld {
     this.tags,
     this.forgetTag,
     this.undoCommandMutation,
+    this.summaries,
+    this.refining,
   });
 
   /// Every note's title, for the +'s A note.
@@ -382,6 +387,11 @@ class NoteDeskWorld {
   /// Takes back a write a recording made to another note, only while that note is exactly what the write left
   /// (`undoCommandMutation`, lib/core/library.dart). Absent, a landing's Undo leaves such a write and says so.
   final Future<CommandUndoResult> Function(String mutationId)? undoCommandMutation;
+
+  /// What the summary queue and the better words' queue say now (the page's `useSummaries()` and `useRefining()`),
+  /// asked as a tape is drawn: the tape reads them of its own note. Null where the build has neither.
+  final ValueListenable<SummariesState>? Function()? summaries;
+  final ValueListenable<RefineState>? Function()? refining;
 
   /// What the AI in a note stands on, asked as a desk is made: null where the build has no engine (a test, a
   /// picture, a launch before voice is made), and the desk then has no AI at all.
@@ -684,6 +694,37 @@ class NoteDeskState extends State<NoteDesk> {
     }
     if (!identical(tape.note, note)) tape.note = note;
     return tape;
+  }
+
+  /// This note's latest run (`useRun(note.id)`), and the two queues as the tape hears them: one listenable for as long
+  /// as the app's queues are the same ones, so the tape and nothing else is drawn again when they speak.
+  late final ValueListenable<RunState?> _run = useRun(widget.noteId);
+  ValueListenable<SummariesState>? _heardSummaries;
+  ValueListenable<RefineState>? _heardRefining;
+  Listenable? _tapeHears;
+
+  Listenable _queues() {
+    final summaries = _world.summaries?.call(), refining = _world.refining?.call();
+    final heard = _tapeHears;
+    if (heard != null && identical(summaries, _heardSummaries) && identical(refining, _heardRefining)) return heard;
+    _heardSummaries = summaries;
+    _heardRefining = refining;
+    return _tapeHears = Listenable.merge([summaries, refining, _run]);
+  }
+
+  /// What the queues say of this note (tapes/NoteTape.tsx): Summarizing, "Needs a model.", "The summary didn't
+  /// come.", "The summary comes after the better words."
+  TapeQueue _tapeQueue() {
+    final id = widget.noteId;
+    final summaries = _heardSummaries?.value;
+    final run = _run.value;
+    return TapeQueue(
+      pending: summaries?.pending.contains(id) ?? false,
+      needsModel: summaries?.needsModel.contains(id) ?? false,
+      failed: summaries?.failed.contains(id) ?? false,
+      refining: _heardRefining?.value.pending.contains(id) ?? false,
+      running: run != null && run.kind == RunKind.summarize && !ended(run),
+    );
   }
 
   /// The recording taken off the note, with an Undo that puts it back (`removeRecording`). The words stay: only
@@ -1001,8 +1042,17 @@ class NoteDeskState extends State<NoteDesk> {
     _bookmark = NoteBookmark(view: view, say: widget.say)..addListener(_redraw);
   }
 
+  /// Drawn again, after the frame where one is being built: the tape tells of its note while the note's screen is
+  /// laying its page out (a take added, the recording removed), and the desk is over that build, not under it.
   void _redraw() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+      return;
+    }
+    setState(() {});
   }
 
   void _openFind(EditorView view, String initial) {
@@ -1411,24 +1461,31 @@ class NoteDeskState extends State<NoteDesk> {
         return <Widget>[
           // Only a spoken note has a tape.
           if (tape != null && tape.length > 0)
-            NoteTape(
-              note: tape.note,
-              title: widget.title.isEmpty ? 'Untitled' : widget.title,
-              tape: tape,
-              onSpeak: speak == null || widget.readOnly ? null : () => speak(widget.noteId),
-              onRemove: () => unawaited(_removeRecording()),
-              hasMemos: hasClips(_view?.state.doc.toString() ?? ''),
-              // The recording's summary: queued from here, and landed in this editor as a run. Only where the AI
-              // can run.
-              summary: _ai != null && _ai.canSummarize && _aiWorld?.summarize != null
-                  ? TapeSummary(
-                      ask: (replace) {
-                        _flush?.call();
-                        _aiWorld!.summarize!(widget.noteId, replace);
-                      },
-                      edited: () => _aiWorld?.summaryEdited?.call(widget.noteId, _view?.state.doc.toString() ?? '') ?? false,
-                    )
-                  : null,
+            // The tape hears the queues itself, and is the one thing drawn again when they speak.
+            ListenableBuilder(
+              listenable: _queues(),
+              builder: (context, _) => NoteTape(
+                note: tape.note,
+                title: widget.title.isEmpty ? 'Untitled' : widget.title,
+                tape: tape,
+                onSpeak: speak == null || widget.readOnly ? null : () => speak(widget.noteId),
+                onRemove: () => unawaited(_removeRecording()),
+                hasMemos: hasClips(_view?.state.doc.toString() ?? ''),
+                queue: _tapeQueue(),
+                // The recording's summary: queued from here, and landed in this editor as a run. Only where the AI
+                // can run.
+                summary: _ai != null && _ai.canSummarize && _aiWorld?.summarize != null
+                    ? TapeSummary(
+                        ask: (replace) {
+                          _flush?.call();
+                          _aiWorld!.summarize!(widget.noteId, replace);
+                        },
+                        edited: () => _aiWorld?.summaryEdited?.call(widget.noteId, _view?.state.doc.toString() ?? '') ?? false,
+                        // A take added since the summary was written: "Summary is from before the last take."
+                        behind: summaryBehind(widget.noteId, tape.length),
+                      )
+                    : null,
+              ),
             ),
           LinkMarks(noteId: widget.noteId, onPress: openSettings),
         ];
