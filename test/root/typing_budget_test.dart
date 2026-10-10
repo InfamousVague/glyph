@@ -185,7 +185,7 @@ void main() {
 
       // THE CARET. Nothing of the note is read at all.
       expect(note.caret.strings, 0, reason: '$name: a caret makes no string of the note');
-      expect(note.caret.asked, lessThanOrEqualTo(1), reason: '$name: only the plugins\' offers ask for the note on a caret\'s move');
+      expect(note.caret.asked, 0, reason: '$name: nobody asks for the note as a string on a caret\'s move (the plugins\' offers are kept for the words they were read for)');
       expect(note.caret.reads, 0, reason: '$name: a caret reads no line for a fact');
       expect(note.caret.memos, 0, reason: '$name: and works nothing out from the note');
       expect(note.caret.lines, lessThanOrEqualTo(250), reason: '$name: a caret hands out the screen\'s lines at most');

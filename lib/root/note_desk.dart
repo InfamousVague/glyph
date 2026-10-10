@@ -652,6 +652,7 @@ class NoteDeskState extends State<NoteDesk> {
   void initState() {
     super.initState();
     _world.changes?.addListener(_libraryChanged);
+    plugins.addListener(_pluginsChanged);
     // While the note is open the better words wait to write it: the editor is its one writer.
     _world.holdNote?.call(widget.noteId, true);
     _land();
@@ -839,6 +840,21 @@ class NoteDeskState extends State<NoteDesk> {
     }
   }
 
+  /// A plugin was switched on or off: the words offered after the note's lines are asked for again, which the
+  /// editor otherwise keeps for the words they were read for (lib/editor/items/suggestions.dart). Told after the
+  /// frame where one is being built.
+  void _pluginsChanged() {
+    void tell() {
+      if (mounted) _view?.dispatch(TransactionSpec(effects: suggestionsStale.of(null)));
+    }
+
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.idle) {
+      tell();
+    } else {
+      SchedulerBinding.instance.addPostFrameCallback((_) => tell());
+    }
+  }
+
   /// The note's recording as the desk last drew it: its length and its phrases, which is all the tape reads of its
   /// note beside what never changes.
   ({int? ms, List<Segment>? segments})? _recording;
@@ -938,6 +954,7 @@ class NoteDeskState extends State<NoteDesk> {
     // Leaving the note takes its toast with it: an Undo for words no longer on screen would undo them unseen.
     if (_saidLanding) _toasts?.dismiss();
     _world.changes?.removeListener(_libraryChanged);
+    plugins.removeListener(_pluginsChanged);
     _bookmark?.dispose();
     _stripRoom.dispose();
     _band.dispose();

@@ -9,7 +9,8 @@
 /// offers it.
 ///
 /// The words come from `suggest(body)`, read on every change of the document (the plugins' answers are pure and
-/// cheap: a regex per line). The widget lives after the line's text as a decoration, so the note's own words are
+/// cheap: a regex per line), and kept while the document is the one they were read for: the page asked again on
+/// every move of the caret, which reads the note for each plugin to draw what was already drawn. The widget lives after the line's text as a decoration, so the note's own words are
 /// never touched and the swipe on the line (swipe_items.dart) still works.
 ///
 /// What differs:
@@ -197,6 +198,10 @@ class _Edge extends CustomPainter {
   bool shouldRepaint(_Edge old) => old.color != color || old.dashed != dashed;
 }
 
+/// What is offered may have changed with the words as they are (a plugin switched on or off, an account joined):
+/// the offers are asked for again and drawn.
+final StateEffectType<Null> suggestionsStale = StateEffect.define<Null>();
+
 class _Suggestions extends PluginValue {
   _Suggestions(this.view, this.suggest) {
     decorations = _build();
@@ -214,9 +219,19 @@ class _Suggestions extends PluginValue {
   @override
   void destroy() => _gone = true;
 
+  /// What the plugins offered for the document they were last asked about. A caret moved over the same words is
+  /// offered the same (`suggest` reads the note's words, a pattern to a line, for each plugin that is on): asked
+  /// again for other words, after anything told to the editor that is not a letter or a caret (an answer arriving,
+  /// a send begun or done, [suggestionsStale]), and when the editor is come back to.
+  Doc? _askedOf;
+  List<LineSuggestion> _offered = const <LineSuggestion>[];
+  bool _stale = true;
+
   @override
   void update(ViewUpdate update) {
-    final changed = update.transactions.any((tr) => tr.effects.any((effect) => effect.isOf(_busyChanged)));
+    final told = update.transactions.any((tr) => tr.effects.isNotEmpty);
+    if (told || update.focusChanged) _stale = true;
+    final changed = update.transactions.any((tr) => tr.effects.any((effect) => effect.isOf(_busyChanged) || effect.isOf(suggestionsStale)));
     if (update.docChanged || update.selectionSet || changed) decorations = _build();
   }
 
@@ -225,7 +240,12 @@ class _Suggestions extends PluginValue {
     final doc = state.doc;
     final caret = doc.lineAt(state.selection.main.head).number;
     final marks = <Range<Decoration>>[];
-    for (final suggestion in suggest(doc.toString())) {
+    if (_stale || !identical(doc, _askedOf)) {
+      _offered = suggest(doc.toString());
+      _askedOf = doc;
+      _stale = false;
+    }
+    for (final suggestion in _offered) {
       final held = _held == suggestion.line || _busy.contains(suggestion.line);
       if (suggestion.line < 1 || suggestion.line > doc.lines || (suggestion.line == caret && !held)) continue;
       final line = doc.line(suggestion.line);
