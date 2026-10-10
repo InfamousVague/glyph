@@ -271,6 +271,30 @@ void main() {
       await close(tester);
     });
 
+    // Unwired 3 (docs/PARITY.md): the shell was never told, so the bell had no dot (App.tsx `unread`).
+    testWidgets('puts the dot on the bell while something unread and wanted waits, and takes it off once read', (tester) async {
+      final device = await Device.make();
+      await open(tester, services: device.services);
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(tester.widget<AppShell>(find.byType(AppShell)).unread, isFalse);
+      device.service.notifies(kind: 'member-joined', from: 'sam', org: (id: 'o1', name: 'Ghost'), body: {'name': 'Ghost'});
+      await tester.runAsync(device.services.syncNotificationsNow);
+      await tester.pump();
+      expect(device.services.notifications, hasLength(1));
+      expect(tester.widget<AppShell>(find.byType(AppShell)).unread, isTrue);
+      // Settings › Notifications' Team switch off: unread still, and not wanted.
+      preferences.update((now) => now.copyWith(notifications: const NotificationPrefs(team: false)));
+      await tester.pump();
+      expect(tester.widget<AppShell>(find.byType(AppShell)).unread, isFalse);
+      preferences.update((now) => now.copyWith(notifications: const NotificationPrefs()));
+      await tester.pump();
+      expect(tester.widget<AppShell>(find.byType(AppShell)).unread, isTrue);
+      device.feed.markAllRead();
+      await tester.pump();
+      expect(tester.widget<AppShell>(find.byType(AppShell)).unread, isFalse);
+      await close(tester);
+    });
+
     testWidgets('gives a note its sharing and the shell its organizations, signed in', (tester) async {
       final device = await Device.make();
       final library = await open(tester, services: device.services);

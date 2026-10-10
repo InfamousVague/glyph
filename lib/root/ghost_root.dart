@@ -1479,8 +1479,25 @@ class _GhostRootState extends State<GhostRoot> {
       _voice?.live != null,
       readSidebarShown(_stored),
       readAsideShown(_stored),
+      _unread,
     );
   }
+
+  /// Whether something unread and wanted waits (`unreadNotifications`). The feed is counted again when the account
+  /// said something or Settings › Notifications' switches are others, and at no other time.
+  bool get _unread {
+    final prefs = preferences.value.notifications;
+    if (_unreadAt != _accountAt || !identical(prefs, _unreadFor)) {
+      _unreadAt = _accountAt;
+      _unreadFor = prefs;
+      _unreadNow = unreadNotifications(_services, prefs) > 0;
+    }
+    return _unreadNow;
+  }
+
+  int _unreadAt = -1;
+  NotificationPrefs? _unreadFor;
+  bool _unreadNow = false;
 
   Widget _shellPart(BuildContext context) {
     final prefs = preferences.value;
@@ -1520,6 +1537,8 @@ class _GhostRootState extends State<GhostRoot> {
       // The people icon with no organization joined, and the picker's last row: Settings › Organizations.
       onOrganizations: () => _openSettingsAt('organizations'),
       onNew: _plus,
+      // Whether the bell rings: something unread the person asked to see (`unreadCount`).
+      unread: _unread,
       onDeleteNote: _delete,
       onRefresh: _library.refresh,
       noteBuilder: _note,
