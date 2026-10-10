@@ -190,7 +190,7 @@ part 'root_voice.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.voiceLater});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -291,6 +291,10 @@ class GhostRoot extends StatefulWidget {
   /// The core and the phone's halves a [Voice] is made from (lib/root/voice_wiring.dart). Absent, as without a
   /// core, nothing records and Speak is offered nowhere. It needs the [core].
   final VoiceMaking? voiceMaking;
+
+  /// The same, where the phone had not attached it by the first frame: taken when it comes, and null if it never
+  /// does (lib/root/voice_wiring.dart `inTime`).
+  final Future<VoiceMaking?>? voiceLater;
 
   /// The records of the notes nobody has written in yet (core/untouched.dart); the app's own unless a test brings
   /// its own.
@@ -611,6 +615,11 @@ class _GhostRootState extends State<GhostRoot> {
   String? _noteAiId;
   NoteAi? _noteAi;
 
+  /// Told once the engine is up and a desk's AI can be made (lib/root/root_voice.dart `_aiUp`, `_aiWorld`): a note
+  /// opened before then takes its AI as it comes, where it had none until it was opened again. Heard by the open
+  /// note's desk and by nothing else.
+  final ValueNotifier<bool> _aiReady = ValueNotifier<bool>(false);
+
   /// A Speak button (`speak`): a capture into a new note, or the note its first command names.
   void _speak() => unawaited(_capture?.start(false));
 
@@ -774,6 +783,7 @@ class _GhostRootState extends State<GhostRoot> {
       _recordingHeard.add(listener);
       return () => _recordingHeard.remove(listener);
     },
+    aiReady: _aiReady,
     // A note pulled down from its top syncs before it is read again.
     syncWithin: () => _services?.engine?.syncWithin() ?? Future<void>.value(),
     // Version history's Share the versions file: copied as text on the phone, which is what its page does there.
@@ -1161,6 +1171,7 @@ class _GhostRootState extends State<GhostRoot> {
     _previews.dispose();
     _unwatchMeeting?.call();
     _unhearRecordings?.call();
+    _aiReady.dispose();
     _stopFills?.call();
     _guideModels?.dispose();
     _stopGistHold?.call();

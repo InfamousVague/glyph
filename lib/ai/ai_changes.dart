@@ -361,9 +361,15 @@ void revertChanges(StateCommandTarget view, List<String> ids) {
 
 /// The marks as they now are when a step from [start] to [now] changed them, and null when it did not: what the
 /// web's update listener asks before it tells the note (`AiChangesOptions.onMarks`).
+///
+/// An editor given the AI's fields after it was made (the engine came up with the note already open,
+/// lib/root/note_desk.dart) has no marks before the step that gave it them, which the page's editor always had:
+/// that step changed none.
 List<AiChange>? changedMarks(EditorState start, EditorState now) {
   final marks = now.field(aiChangesField);
-  return identical(marks, start.field(aiChangesField)) ? null : marks;
+  final before = start.fieldOrNull(aiChangesField);
+  if (before == null) return marks.isEmpty ? null : marks;
+  return identical(marks, before) ? null : marks;
 }
 
 /// The two fields, [aiChangesField] and [landingField]: the web's `aiChanges(options)` without what it draws.

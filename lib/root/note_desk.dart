@@ -262,6 +262,7 @@ class NoteDeskWorld {
     this.tapes,
     this.onSpeak,
     this.ai,
+    this.aiReady,
     this.pickPicture,
     this.films,
     this.dayPicker,
@@ -410,8 +411,13 @@ class NoteDeskWorld {
   final Future<void> Function()? syncWithin;
 
   /// What the AI in a note stands on, asked as a desk is made: null where the build has no engine (a test, a
-  /// picture, a launch before voice is made), and the desk then has no AI at all.
+  /// picture) and the desk then has no AI at all, and null before the engine is up, when the desk waits for
+  /// [aiReady] and takes its AI as it comes.
   final NoteAiWorld? Function()? ai;
+
+  /// Says that [ai] answers now, where it did not when a desk was made: a note opened before the engine was up (a
+  /// launch straight into a note, a slow phone) has its AI from then, in the editor it already has.
+  final Listenable? aiReady;
 }
 
 /// What a desk's [NoteAi] is given of the app (lib/ai/note_ai.dart's own list).
@@ -511,22 +517,78 @@ class NoteDeskState extends State<NoteDesk> {
   bool get finding => _finding != null;
 
   /// The AI in this note, where the app has an engine: made with the desk and let go with it.
-  late final NoteAiWorld? _aiWorld = _world.ai?.call();
-  late final NoteAi? _ai = _aiWorld == null
-      ? null
-      : (NoteAi(
-          noteId: widget.noteId,
-          flush: () => _flush?.call(),
-          body: () => _view?.state.doc.toString() ?? '',
-          wisp: () => _prefs.value.wisp,
-          toast: _aiToast,
-          onGetModel: _aiWorld.onGetModel,
-          availability: _aiWorld.availability,
-          reviewHost: _aiWorld.reviewHost,
-          openForSummaries: _aiWorld.openForSummaries,
-        )
-          ..addListener(_redraw)
-          ..addListener(_aiRan));
+  /// Made as the desk is where the engine is up by then, and as the engine comes up where it was not
+  /// ([_aiArrived]): the page's note always has its `useNoteAi`, whose model arrives when it does.
+  NoteAiWorld? _aiWorld;
+  NoteAi? _ai;
+
+  NoteAi _makeAi(NoteAiWorld world) => NoteAi(
+        noteId: widget.noteId,
+        flush: () => _flush?.call(),
+        body: () => _view?.state.doc.toString() ?? '',
+        wisp: () => _prefs.value.wisp,
+        toast: _aiToast,
+        onGetModel: world.onGetModel,
+        availability: world.availability,
+        reviewHost: world.reviewHost,
+        openForSummaries: world.openForSummaries,
+      )
+        ..addListener(_redraw)
+        ..addListener(_aiRan);
+
+  /// The AI's part of the editor, in a slot of its own so that it can be put in an editor that was made before
+  /// there was an engine: the blanks, the arrivals out of smoke and the tracked changes with an AI; without one,
+  /// what the person takes out still leaves as smoke (Ghostly typing), and an iPhone's blanks are drawn.
+  final Compartment _aiSlot = Compartment();
+
+  /// Whether the editor's extensions were made with the AI's in the slot; and, where they were not, the editor
+  /// the AI's have been put in since.
+  bool _aiFromStart = false;
+  EditorView? _aiIn;
+
+  Extension _aiAtStart() {
+    _aiFromStart = _ai != null;
+    return _aiPart();
+  }
+
+  /// An editor made before the engine was up has the AI's extensions put in it, once.
+  void _aiInto(EditorView view) {
+    if (_ai == null || _aiFromStart || identical(_aiIn, view)) return;
+    _aiIn = view;
+    view.dispatch(TransactionSpec(effects: _aiSlot.reconfigure(_aiPart())));
+  }
+
+  Extension _aiPart() {
+    final ai = _ai;
+    if (ai != null) return Extension.list(noteAiExtensions(ai, still: _still, wispTyping: _ghostly));
+    return Extension.list(<Extension>[
+      // What the person takes out leaves as smoke only with Ghostly typing on, read as the editor is made
+      // (`wispTyping={prefs.wisp}`). The AI's arrivals bring the departures themselves: given twice, every ghost is
+      // drawn twice.
+      if (_ghostly) wispDepartures(),
+      // With no AI a note has no blanks, but for an iPhone's, which are drawn with no Fill (iphone_wiring.dart).
+      ...iPhoneBlanks(noteId: () => widget.noteId, say: (message) => _toasts?.toast(message: Text(message)), still: _still),
+    ]);
+  }
+
+  /// The engine is up: this note has its AI from here, in the editor it has, with what was typed meanwhile and
+  /// what it was opened with (a spoken instruction, a review) run now.
+  void _aiArrived() {
+    if (_ai != null || !mounted || _leaving) return;
+    final world = _world.ai?.call();
+    if (world == null) return;
+    _world.aiReady?.removeListener(_aiArrived);
+    _aiWorld = world;
+    final ai = _ai = _makeAi(world);
+    final view = _view;
+    if (view != null) {
+      _aiInto(view);
+      ai.attach(view);
+    }
+    world.opened?.call(widget.noteId, ai);
+    _handed();
+    _redraw();
+  }
 
   /// The + looks again as a run starts and as it ends (`plusAllowed`, which reads `ai.runningKind`): asked at no
   /// other word of the AI's.
@@ -599,14 +661,12 @@ class NoteDeskState extends State<NoteDesk> {
     editorInput(assist: _prefs.value.assist),
     // Empty until the note is live: then the binding to its document, and the others' carets.
     liveBindingSlot(),
-    // What the person takes out leaves as smoke only with Ghostly typing on, read as the editor is made
-    // (`wispTyping={prefs.wisp}`). The AI's arrivals bring the departures themselves: given twice, every ghost is
-    // drawn twice.
-    markExtensions(_formats, wispTyping: _ai == null && _ghostly),
+    markExtensions(_formats),
     wispStill.of(_still),
     wispPace.of(_pace),
-    // With no AI a note has no blanks, but for an iPhone's, which are drawn with no Fill (iphone_wiring.dart).
-    if (_ai != null) ...noteAiExtensions(_ai, still: _still, wispTyping: _ghostly) else ...iPhoneBlanks(noteId: () => widget.noteId, say: (message) => _toasts?.toast(message: Text(message)), still: _still),
+    // The AI's own, or what a note without one has in their place; changed for the AI's when the engine comes up
+    // after the editor was made.
+    _aiSlot.of(_aiAtStart()),
     itemExtensions(
       wiki: WikiOptions(known: (title) => _world.known(title), open: (title, [anchor]) => _world.open(title, anchor), body: (title) => _world.bodyOf?.call(title)),
       openHeading: true,
@@ -710,6 +770,13 @@ class NoteDeskState extends State<NoteDesk> {
     // While the note is open the better words wait to write it: the editor is its one writer.
     _world.holdNote?.call(widget.noteId, true);
     _land();
+    if (_world.ai?.call() case final world?) {
+      _aiWorld = world;
+      _ai = _makeAi(world);
+    } else {
+      // No engine yet: the note takes its AI as one comes up.
+      _world.aiReady?.addListener(_aiArrived);
+    }
     _aiWorld?.opened?.call(widget.noteId, _ai);
     _handed();
     // A desktop's Command-F, and the Mac's Edit › Find: this note's find bar, with what is selected in it.
@@ -1088,6 +1155,7 @@ class NoteDeskState extends State<NoteDesk> {
     _removed = null;
     _stopFind?.call();
     _world.holdNote?.call(widget.noteId, false);
+    _world.aiReady?.removeListener(_aiArrived);
     _live?.close();
     if (_ai case final ai?) {
       _aiWorld?.opened?.call(widget.noteId, null);
@@ -1145,6 +1213,8 @@ class NoteDeskState extends State<NoteDesk> {
             // as the desk itself goes, when there is nothing left to draw.
             if (mounted && !_leaving) setState(() => _team = team);
           });
+    // An editor made before the engine was up and handed over after: the AI's extensions are put in it now.
+    _aiInto(view);
     _ai?.attach(view);
     _bookmark?.dispose();
     // The line being read is the caret's own where it is on screen, else the one at the top of the page
@@ -1634,7 +1704,7 @@ class NoteDeskState extends State<NoteDesk> {
                 queue: _tapeQueue(),
                 // The recording's summary: queued from here, and landed in this editor as a run. Only where the AI
                 // can run.
-                summary: _ai != null && _ai.canSummarize && _aiWorld?.summarize != null
+                summary: (_ai?.canSummarize ?? false) && _aiWorld?.summarize != null
                     ? TapeSummary(
                         ask: (replace) {
                           _flush?.call();

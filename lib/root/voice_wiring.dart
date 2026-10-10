@@ -171,6 +171,24 @@ Future<NotificationsAnswer> askToNotify(MeetingService? service, MeetingLive liv
 
 /// What `main` hands the root to make a [Voice] from: the core, and the phone's halves it attached before the first
 /// frame.
+/// What is being made, waited for [within] and no longer: the app's first frame does not wait on a phone that is
+/// slow to attach its half of voice. `now` is it where it came in time. Where it did not, `later` is it when it does
+/// come (null if it never does), so the run still has its recorder and its AI from then, where it had neither until
+/// the app was started again. One that fails, in time or after, is said by [failed] and is null: never an error
+/// nobody catches.
+Future<({T? now, Future<T?>? later})> inTime<T extends Object>(Future<T> making, {Duration within = const Duration(seconds: 3), void Function(Object failure)? failed}) async {
+  final made = making.then<T?>((made) => made, onError: (Object failure) {
+    failed?.call(failure);
+    return null;
+  });
+  var late = false;
+  final now = await made.timeout(within, onTimeout: () {
+    late = true;
+    return null;
+  });
+  return (now: now, later: late ? made : null);
+}
+
 class VoiceMaking {
   const VoiceMaking({required this.core, required this.host, required this.dataDir, this.mirrors, this.assistant = false, this.launch = ''});
 

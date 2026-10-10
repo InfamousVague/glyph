@@ -110,6 +110,7 @@ Future<void> main() async {
         native: opened.whole,
         account: opened.account,
         voiceMaking: opened.voice,
+        voiceLater: opened.voiceLater,
         links: links,
         openLink: openLink,
         previewFetch: iPhoneLinkPreviews() ? linkPreviewFetch() : null,
@@ -153,7 +154,7 @@ Future<void> _remembered() async {
 }
 
 /// What the app is made over, once it has opened.
-typedef _Opened = ({CoreInvoke? core, GhostCore? whole, AccountMaking? account, VoiceMaking? voice, Films? films});
+typedef _Opened = ({CoreInvoke? core, GhostCore? whole, AccountMaking? account, VoiceMaking? voice, Future<VoiceMaking?>? voiceLater, Films? films});
 
 /// What is asked of a core that would not open answers.
 Future<Object?> _noCore(String command, [Map<String, Object?> args = const {}]) => Future<Object?>.error(const CoreError('Ghost.md\'s core would not open.'));
@@ -167,6 +168,7 @@ Future<_Opened> _opened() async {
   AccountMaking? account;
   VoiceMaking? voice;
   Films? films;
+  Future<VoiceMaking?>? voiceLater;
   try {
     // The library's code and where this device keeps things: asked together.
     final (native, dirs) = await (GhostCore.open(), _folders()).wait;
@@ -184,13 +186,11 @@ Future<_Opened> _opened() async {
     // from the real mirrors by a build that is not a release. No microphone is opened here, or by anything but a
     // recorder's screen. Not on an iPhone, which records nothing and runs no model, as the real iPhone app does
     // not (lib/core/iphone_app.dart `recordsVoice`): its core is built without the engines, and nothing is made.
-    // Begun before the account's crypto is waited for: neither needs the other.
+    // Begun before the account's crypto is waited for: neither needs the other. Waited for three seconds and no
+    // longer: a phone slower than that opens without it, and has it when it comes (`voiceLater`).
     final attaching = !recordsVoice
-        ? Future<VoiceMaking?>.value()
-        : VoiceMaking.attach(native, dataDir: dirs.dataDir, mirrors: voiceMirrors(ghostModelsDefine)).timeout(const Duration(seconds: 3)).then<VoiceMaking?>((made) => made, onError: (Object failure) {
-            debugPrint('[ghost] voice is off for this run: $failure');
-            return null;
-          });
+        ? null
+        : inTime(VoiceMaking.attach(native, dataDir: dirs.dataDir, mirrors: voiceMirrors(ghostModelsDefine)), failed: (failure) => debugPrint('[ghost] voice is off for this run: $failure'));
     // The account, only in a build told where its service is (`--dart-define=GHOST_API=http://…`), and never the
     // real service from a debug build (docs/STAGE7.md). With none, nothing of the account is made at all.
     final base = accountBase(ghostApiDefine);
@@ -200,7 +200,10 @@ Future<_Opened> _opened() async {
     } else if (ghostApiDefine.isNotEmpty) {
       debugPrint('[ghost] GHOST_API was refused: a development build never talks to the real service, and a base must be an http address.');
     }
-    voice = await attaching;
+    final attached = await attaching;
+    voice = attached?.now;
+    voiceLater = attached?.later;
+    if (voiceLater != null) debugPrint('[ghost] voice was not attached in three seconds: the app opens without it, and takes it when it comes');
     PerfLaunch.step('voice');
     // A film in a note: the phone's picker, the core that keeps it and the phone's player (Android only, as the
     // page's was).
@@ -212,7 +215,7 @@ Future<_Opened> _opened() async {
   } catch (failure) {
     debugPrint('[ghost] the library would not open: $failure');
   }
-  return (core: core, whole: whole, account: account, voice: voice, films: films);
+  return (core: core, whole: whole, account: account, voice: voice, voiceLater: voiceLater, films: films);
 }
 
 Future<DevicePaths> _folders() async {

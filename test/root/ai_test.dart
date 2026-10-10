@@ -13,6 +13,7 @@ import 'package:ghost_md/commands/command_bar.dart';
 import 'package:ghost_md/commands/palette.dart';
 import 'package:ghost_md/art/lucide.g.dart';
 import 'package:ghost_md/editor/ai/fill_panel.dart';
+import 'package:ghost_md/ai/ai_changes.dart' show aiChangesField;
 import 'package:ghost_md/ai/kinds.dart' show RunKind;
 import 'package:ghost_md/editor/editor.dart' show ChangeSpec, EditorSelection, TransactionSpec;
 import 'package:ghost_md/editor/plus/plus.dart' show PlusLayer, PlusLook, plusViewOf;
@@ -53,13 +54,20 @@ void main() {
 
   tearDown(() => useAiBackend(const NoAiBackend()));
 
-  Voice voiceFor(SampleLibrary notes, {required bool engine, bool present = true, Summaries? summaries}) {
+  Voice voiceFor(SampleLibrary notes, {required bool engine, bool present = true, Summaries? summaries, Future<void>? engineAfter}) {
     if (engine) {
+      const device = {'cores': 8, 'totalRamBytes': 8000000000};
       backend = FakeAiBackend(generation: 30)
         ..answers['ai_models'] = [
           {'id': 'qwen3.5-2b', 'file': 'Qwen3.5-2B-Q4_K_M.gguf', 'bytes': 1280835840, 'present': present, 'path': present ? '/models/q' : null},
         ]
-        ..answers['ai_device'] = {'cores': 8, 'totalRamBytes': 8000000000};
+        // The phone says what it is when the test lets it: until then the app has no engine to give a note.
+        ..answers['ai_device'] = engineAfter == null
+            ? device
+            : () async {
+                await engineAfter;
+                return device;
+              };
       useAiBackend(backend);
     }
     return Voice(
@@ -107,7 +115,7 @@ void main() {
         sendJobConfig: () async {},
       );
 
-  Future<SampleLibrary> open(WidgetTester tester, {required bool engine, bool present = true, Summaries? Function(SampleLibrary notes, Stored kept)? summaries, TapePlayer? tapePlayer, Connection? connection}) async {
+  Future<SampleLibrary> open(WidgetTester tester, {required bool engine, bool present = true, Summaries? Function(SampleLibrary notes, Stored kept)? summaries, TapePlayer? tapePlayer, Connection? connection, Future<void>? engineAfter}) async {
     final library = SampleLibrary.seeded();
     final kept = MemoryStored();
     await pumpApp(
@@ -119,7 +127,7 @@ void main() {
         workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())),
         clock: () => seedNow,
         stored: kept,
-        voice: voiceFor(library, engine: engine, present: present, summaries: summaries?.call(library, kept)),
+        voice: voiceFor(library, engine: engine, present: present, summaries: summaries?.call(library, kept), engineAfter: engineAfter),
         tapePlayer: tapePlayer,
         connection: connection,
       ),
@@ -210,6 +218,42 @@ void main() {
     // Claude's page reads who is signed in from the app: nobody, in a build with no account.
     expect(claudeHandle, isNotNull);
     expect(claudeHandle!(), isNull);
+    await close(tester);
+  });
+
+  // Differs 7 (docs/PARITY.md): the desk's AI was made with the desk or never, so a note opened before the engine was
+  // up (a launch straight into a note, a slow phone) had no AI until it was opened again. The page's note always has
+  // its `useNoteAi`, and the model arrives when it does.
+  testWidgets('a note opened before the engine is up has its AI the moment it is, in the editor it already has', (tester) async {
+    final engineUp = Completer<void>();
+    final library = await open(tester, engine: true, engineAfter: engineUp.future);
+    final note = library.value.firstWhere((note) => noteTitle(note.body) == 'Packing');
+    shellOf(tester).openNote(note.id);
+    await settle(tester);
+    expect(find.byType(NoteAiLayer), findsNothing);
+    expect(tester.widget<NoteScreen>(find.byType(NoteScreen)).seams.onAi, isNull);
+    final view = tester.state<NoteScreenState>(find.byType(NoteScreen)).view!;
+    expect(view.state.fieldOrNull(aiChangesField), isNull);
+    // Typed meanwhile.
+    view.dispatch(TransactionSpec(changes: ChangeSpec(from: view.state.doc.length, insert: '\nTyped before the engine.'), userEvent: 'input.type'));
+    await tester.pump();
+
+    engineUp.complete();
+    await settle(tester);
+    // The same editor, with what was typed in it, and the AI's layer, rows and extensions now.
+    expect(find.byType(NoteAiLayer), findsOneWidget);
+    expect(identical(tester.state<NoteScreenState>(find.byType(NoteScreen)).view, view), isTrue);
+    expect(view.state.doc.toString(), endsWith('Typed before the engine.'));
+    final ai = tester.widget<NoteAiLayer>(find.byType(NoteAiLayer)).ai;
+    expect(identical(ai.view, view), isTrue);
+    expect(ai.noteId, note.id);
+    expect(view.state.fieldOrNull(aiChangesField), isNotNull);
+    // And a run asked for from the More sheet reaches the engine.
+    backend.script('A shorter Packing.');
+    tester.widget<NoteScreen>(find.byType(NoteScreen)).seams.onAi!(view, 'summarize');
+    await settle(tester, 8);
+    expect(backend.requests, isNotEmpty);
+    await tester.pump(const Duration(seconds: 2));
     await close(tester);
   });
 

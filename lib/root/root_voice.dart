@@ -14,7 +14,10 @@ extension _RootVoice on _GhostRootState {
   /// (lib/root/capture_route.dart), what it is listened to by, then the AI over it, then the launch a side key or
   /// a meeting already recording asked for.
   Future<void> _speakUp() async {
-    final making = widget.voiceMaking;
+    // The phone's half of voice, or, where it had not attached by the first frame, that half when it has
+    // (lib/main.dart): the recorder and the AI are made then, where the run had neither.
+    final making = widget.voiceMaking ?? (widget.voice == null ? await widget.voiceLater : null);
+    if (!mounted) return;
     final Voice? voice;
     try {
       voice = widget.voice ??
@@ -146,6 +149,7 @@ extension _RootVoice on _GhostRootState {
       _availability = availability;
       _deviceFacts = DeviceFactsController(cores: device?.cores, memoryGb: ram == null ? null : ram / 1e9);
     });
+    _aiReady.value = true;
     // The gists step aside for the recorder and a review, and are written only with the app on screen.
     _stopGistHold = voice.recorder.refining?.onRefineHold(pauseGists);
     gistVisible = () => WidgetsBinding.instance.lifecycleState == null || WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
