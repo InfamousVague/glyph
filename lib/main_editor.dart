@@ -10,7 +10,7 @@ import 'editor/state/state.dart';
 import 'editor/view/base.dart';
 import 'editor/view/editor_view.dart';
 import 'editor/view/plugin.dart';
-import 'main.dart' show appStyleSheets;
+import 'app/style_sheets.dart';
 
 /// The editor alone on a phone, with a long seeded note to type in: `flutter run -t lib/main_editor.dart`. A line
 /// over the note says what the input layer holds (the selection, the keyboard's window, how many values were

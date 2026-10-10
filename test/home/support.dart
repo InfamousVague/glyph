@@ -8,7 +8,7 @@ import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/home/home_layout.dart';
 import 'package:ghost_md/home/home_organizations.dart';
 import 'package:ghost_md/home/home_screen.dart';
-import 'package:ghost_md/main.dart';
+import 'package:ghost_md/app/style_sheets.dart';
 import 'package:ghost_md/shell/root_stamps.dart';
 import 'package:glacier/glacier.dart';
 

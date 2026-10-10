@@ -9,6 +9,7 @@ import 'package:glacier/glacier.dart';
 import 'account/crypto.dart';
 import 'app/front_frames.dart';
 import 'app/ghost_app.dart';
+import 'app/style_sheets.dart';
 import 'core/native/core.dart';
 import 'core/native/device_paths.dart';
 import 'core/native/ghost_core.dart';
@@ -39,10 +40,6 @@ import 'shell/desktop/mac_tour.dart';
 import 'shell/desktop/mac_window.dart';
 import 'shell/phone_tour.dart';
 import 'tapes/phone_player.dart';
-
-/// The stylesheets the token engine reads after the kit's own, in the order the web app's page loads them
-/// (tool/sync-design.sh copies them from ../glyph).
-const appStyleSheets = ['assets/css/ink.css', 'assets/css/app.css', 'assets/css/typefaces.css'];
 
 Future<void> main() async {
   // Flutter's binding, which draws nothing while Android is taking the app from the front (app/front_frames.dart).

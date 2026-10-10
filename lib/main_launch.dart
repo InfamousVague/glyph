@@ -7,7 +7,7 @@ import 'package:glacier/glacier.dart';
 import 'app/ghost_app.dart';
 import 'app/widgets.dart';
 import 'launch/launch_screen.dart';
-import 'main.dart' show appStyleSheets;
+import 'app/style_sheets.dart';
 
 /// The launch screen alone on a phone, to be judged there: `flutter run -t lib/main_launch.dart`. It opens as the app
 /// will (the notes read, a check that answers, a sync that finishes), hands over to a page with one button, and the

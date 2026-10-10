@@ -4,7 +4,7 @@ import 'package:glacier/glacier.dart';
 
 import 'app/ghost_app.dart';
 import 'gallery/kit_gallery.dart';
-import 'main.dart' show appStyleSheets;
+import 'app/style_sheets.dart';
 
 /// The kit's gallery alone on a phone (stage 1's screen): `flutter run -t lib/main_kit.dart`. The art's is
 /// lib/art/main.dart, the launch screen's lib/main_launch.dart.

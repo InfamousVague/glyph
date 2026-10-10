@@ -41,7 +41,7 @@ import 'core/open_link.dart';
 import 'core/phone_links.dart';
 import 'core/preferences.dart';
 import 'core/reset_native.dart';
-import 'main.dart' show appStyleSheets;
+import 'app/style_sheets.dart';
 import 'settings/kit/settings_icons.dart';
 import 'settings/panes/backup_pane.dart';
 import 'settings/panes/export_pane.dart';

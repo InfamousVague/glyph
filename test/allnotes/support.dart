@@ -5,7 +5,7 @@ import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/workspaces.dart';
-import 'package:ghost_md/main.dart';
+import 'package:ghost_md/app/style_sheets.dart';
 import 'package:ghost_md/notes/all_notes_screen.dart';
 import 'package:ghost_md/shell/root_stamps.dart';
 import 'package:glacier/glacier.dart';

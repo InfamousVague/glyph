@@ -5,7 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/ghost_app.dart';
 import 'package:ghost_md/app/preferences.dart';
-import 'package:ghost_md/main.dart';
+import 'package:ghost_md/app/style_sheets.dart';
 import 'package:glacier/glacier.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

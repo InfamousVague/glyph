@@ -20,7 +20,7 @@ import 'package:ghost_md/capture/ui/say_card.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/app/ghost_app.dart';
 import 'package:ghost_md/core/preferences.dart' show Preferences, preferences;
-import 'package:ghost_md/main.dart' show appStyleSheets;
+import 'package:ghost_md/app/style_sheets.dart';
 import 'package:glacier/glacier.dart' show debugFixturePixelRatio, loadTokenSheet;
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/editor/marks/wisp_motion.dart' show wispNow;

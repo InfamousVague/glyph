@@ -5,7 +5,7 @@ import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/tabs.dart';
 import 'package:ghost_md/core/workspaces.dart';
-import 'package:ghost_md/main.dart';
+import 'package:ghost_md/app/style_sheets.dart';
 import 'package:ghost_md/notes/note_tabs.dart';
 import 'package:ghost_md/shell/app_tab_bar.dart';
 import 'package:ghost_md/shell/header_pane.dart';
