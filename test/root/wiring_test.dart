@@ -22,11 +22,12 @@ import 'package:ghost_md/editor/band/band.dart' show ContextBand;
 import 'package:ghost_md/editor/editor.dart';
 import 'package:ghost_md/editor/editor_widget.dart' show Editor;
 import 'package:ghost_md/editor/find_bar/find_bar.dart';
-import 'package:ghost_md/editor/items/items.dart' show FieldMenuHost;
+import 'package:ghost_md/editor/items/items.dart' show FieldMenuHost, bookmarkLineIn, markedLine;
 import 'package:ghost_md/editor/marks/marks.dart' show typing;
 import 'package:ghost_md/editor/plus/plus.dart' show PlusLayer, moreRows, readGates;
 import 'package:ghost_md/home/home_screen.dart';
 import 'package:ghost_md/live/presence.dart';
+import 'package:ghost_md/note/note_place.dart' show placeOf;
 import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/notes/all_notes_screen.dart';
 import 'package:ghost_md/notes/note_menu.dart';
@@ -382,6 +383,48 @@ void main() {
       library = await open(tester, prefs: const Preferences(theme: 'light', wisp: false));
       await openNote(tester, library.value.first.id);
       expect(tester.state<NoteScreenState>(find.byType(NoteScreen)).view!.state.facet(typing), isFalse);
+      await close(tester);
+    });
+
+    // Differs 20 (docs/PARITY.md): with no caret on screen the bookmark went on line 1, where the page's goes on
+    // the line at the top of the page (editor/useBookmark.ts `caretPlace(view, scroller) ?? placeOf(view,
+    // scroller)`); and its button stayed lit after an undo took the bookmark out.
+    testWidgets('is bookmarked at the line being read, the top of the page where the caret is out of sight, and its button follows an undo', (tester) async {
+      final library = await open(tester);
+      final long = library.create('# A long read\n\n${[for (var i = 0; i < 120; i++) 'Line number $i of it.'].join('\n\n')}\n');
+      await tester.pump();
+      await openNote(tester, long.id);
+      final screen = tester.widget<NoteScreen>(find.byType(NoteScreen));
+      final view = tester.state<NoteScreenState>(find.byType(NoteScreen)).view!;
+      final page = tester.state<ScrollableState>(find.descendant(of: find.byType(NoteScreen), matching: find.byType(Scrollable)).first).position;
+      page.jumpTo(1500);
+      await tester.pump();
+      // The line at the top of the page, or the next with words on it where that one is the blank between two.
+      final top = markedLine(view.state, placeOf(view, page)!.pos);
+      expect(top, greaterThan(10));
+      expect(screen.seams.bookmark!(view, page).marked, isFalse);
+      screen.seams.bookmark!(view, page).onPress();
+      await tester.pump();
+      expect(bookmarkLineIn(view.state.doc.toString()), top, reason: 'the line at the top of the page, not line 1');
+      expect(screen.seams.bookmark!(view, page).marked, isTrue);
+      // Undone: the words have no bookmark, and the button says so.
+      undo(StateCommandTarget(view.state, (tr) => view.dispatch(tr)));
+      await tester.pump();
+      await tester.pump();
+      expect(bookmarkLineIn(view.state.doc.toString()), isNull);
+      expect(screen.seams.bookmark!(view, page).marked, isFalse);
+      // (The undo took the page to its caret, at the note's first line: back to where it was being read.)
+      page.jumpTo(1500);
+      await tester.pump();
+      // With the caret on a line in sight, that line is the one.
+      final seen = view.state.doc.line(top + 4);
+      expect(seen.text, startsWith('Line number'));
+      view.dispatch(TransactionSpec(selection: EditorSelection.single(seen.from + 2)));
+      await tester.pump();
+      screen.seams.bookmark!(view, page).onPress();
+      await tester.pump();
+      expect(bookmarkLineIn(view.state.doc.toString()), top + 4);
+      await tester.pump(const Duration(seconds: 6));
       await close(tester);
     });
 

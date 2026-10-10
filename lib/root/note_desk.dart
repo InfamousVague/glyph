@@ -147,6 +147,7 @@ import '../editor/view/editor_view.dart';
 import '../editor/view/text_panel.dart' show EditorTextPanels, TextPanel, textPanels;
 import '../note/note_editor.dart';
 import '../note/note_place.dart';
+import '../note/note_place.dart' as reading show caretPlace, placeOf;
 import '../note/note_screen.dart';
 import '../plugins/link_marks.dart';
 import '../note/note_settings.dart' show NotePlugins;
@@ -648,6 +649,16 @@ class NoteDeskState extends State<NoteDesk> {
     if (const PhoneSpellChecker().supported) spellCheck(),
     // A link a screen reader activates is opened as a tap on it is (lib/editor/semantics/line_semantics.dart).
     if (_world.openLink != null) semanticsOpenLink.of((url) => unawaited(_world.openLink!(url))),
+    // The bookmark's button follows the words where they changed under it and not by its own press: an undo, a
+    // redo, words from another device. Never a keystroke's, which would read the whole note for every letter.
+    EditorViewLike.updateListener.of((update) {
+      if (!update.docChanged || _bookmark == null) return;
+      if (!update.transactions.any((tr) => tr.isUserEvent('undo') || tr.isUserEvent('redo') || tr.annotation(Transaction.userEvent) == null)) return;
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _bookmark?.sync();
+      });
+      SchedulerBinding.instance.ensureVisualUpdate();
+    }),
   ];
 
   /// What plays a voice memo: the app's one player of a recording, where there is one.
@@ -1104,8 +1115,21 @@ class NoteDeskState extends State<NoteDesk> {
           });
     _ai?.attach(view);
     _bookmark?.dispose();
-    _bookmark = NoteBookmark(view: view, say: widget.say)..addListener(_redraw);
+    // The line being read is the caret's own where it is on screen, else the one at the top of the page
+    // (`caretPlace(view, scroller) ?? placeOf(view, scroller)`): a bookmark marks the words being read.
+    _bookmark = NoteBookmark(
+      view: view,
+      say: widget.say,
+      here: () {
+        final page = _page;
+        if (page == null || !page.hasPixels) return null;
+        return (reading.caretPlace(view, page) ?? reading.placeOf(view, page))?.pos;
+      },
+    )..addListener(_redraw);
   }
+
+  /// The note's page, as its screen last handed it over with the bookmark's asking.
+  ScrollPosition? _page;
 
   /// Drawn again, after the frame where one is being built: the tape tells of its note while the note's screen is
   /// laying its page out (a take added, the recording removed), and the desk is over that build, not under it.
@@ -1269,6 +1293,7 @@ class NoteDeskState extends State<NoteDesk> {
 
   ({bool marked, VoidCallback onPress}) _bookmarkOf(EditorView view, ScrollPosition page) {
     _adopt(view);
+    _page = page;
     final mark = _bookmark!;
     return (marked: mark.marked, onPress: mark.press);
   }

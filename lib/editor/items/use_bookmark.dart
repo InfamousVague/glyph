@@ -55,7 +55,9 @@ class NoteBookmark extends ChangeNotifier {
   /// The button's press.
   void press() {
     final state = view.state;
-    final at = here?.call() ?? (view.hasFocus ? state.selection.main.head : null);
+    // Where there is nobody to say where the page is being read (a test of the button alone), the caret's line
+    // while the editor has the focus.
+    final at = here != null ? here!() : (view.hasFocus ? state.selection.main.head : null);
     final current = bookmarkLineOf(state.doc);
     final kept = readKept?.call();
     final target = at != null ? markedLine(state, at) : (state.doc.length > 0 ? 1 : null);
