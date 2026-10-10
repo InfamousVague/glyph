@@ -50,6 +50,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/animation.dart' show Curves;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/painting.dart' hide Decoration;
 import 'package:flutter/scheduler.dart' show SchedulerBinding;
 
@@ -58,6 +59,7 @@ import '../../art/wisp_kept.dart';
 import '../../art/wisp_kit.dart';
 import '../../art/wisp_settings.dart';
 import '../../art/wisp_text.dart' show paintWispLetter;
+import '../../perf/frame_log.dart' show Perf, ghostPerf;
 import '../../plugins/marks.dart';
 import '../editor.dart';
 import '../looks/look.dart';
@@ -670,6 +672,10 @@ class _Above {
   final double strength;
 }
 
+/// How many times the effects' marks were made, and how many times the ones there were kept: for a test.
+@visibleForTesting
+int debugEffectsMade = 0, debugEffectsKept = 0;
+
 class _TextEffects extends PluginValue {
   _TextEffects(this.view, this.looks, this.marked) {
     _redraw(first: true);
@@ -706,35 +712,97 @@ class _TextEffects extends PluginValue {
   List<_Above> _above = const <_Above>[];
   bool _destroyed = false;
 
-  static final Map<String, Decoration> _made = <String, Decoration>{};
+  /// The stretches [decorations] and [letters] were made for, and whether they show [_above] as it now is.
+  List<EffectRange> _drawn = const <EffectRange>[];
+  bool _aboveDrawn = true;
+
+  /// A mark by what it says: its class and the four attributes any of these marks carries (`data-effect`, `style`,
+  /// `data-fx`, `data-text`). Looked up by those themselves, not by a string joined from them for each letter.
+  static final Map<(String, String?, String?, String?, String?), Decoration> _made = <(String, String?, String?, String?, String?), Decoration>{};
 
   static Decoration _mark(String className, Map<String, String> attributes) =>
-      _made['$className|${attributes.entries.map((e) => '${e.key}=${e.value}').join(';')}'] ??= Decoration.mark(className: className, attributes: attributes);
+      _made[(className, attributes['data-effect'], attributes['style'], attributes['data-fx'], attributes['data-text'])] ??= Decoration.mark(className: className, attributes: attributes);
 
   @override
   void update(ViewUpdate update) {
     final measured = update.transactions.any((tr) => tr.effects.any((effect) => _heatMeasured.cast(effect) != null));
-    if (update.docChanged) _above = const <_Above>[];
-    if (measured ||
+    if (!(measured ||
         update.docChanged ||
         update.viewportChanged ||
         update.selectionSet ||
         update.focusChanged ||
         update.geometryChanged ||
-        !identical(syntaxTree(update.state), syntaxTree(update.startState))) {
-      _redraw();
+        !identical(syntaxTree(update.state), syntaxTree(update.startState)))) {
+      return;
     }
+    ChangeDesc? changes;
+    if (update.docChanged) {
+      final changed = changes = update.changes;
+      // The text above heated words goes with a change that left it alone; one that touched it has it measured
+      // again, and until then there is no haze to draw.
+      if (_above.any((above) => changed.touchesRange(above.from, above.to) != Touch.none)) {
+        _above = const <_Above>[];
+        _aboveDrawn = false;
+      } else if (_above.isNotEmpty) {
+        _above = <_Above>[for (final above in _above) _Above(changed.mapPos(above.from, 1), changed.mapPos(above.to, -1), above.effect, above.strength)];
+      }
+    }
+    _redraw(changes: changes);
+  }
+
+  /// Whether the marks as they are, moved by [changes], are the marks [found] would be given: the same stretches
+  /// with the same effects, none of them touched by the change (a letter typed elsewhere in the note, the caret
+  /// moved outside them, the page scrolled with the same effects on it), over the same text above.
+  bool _stands(List<EffectRange> found, ChangeDesc? changes) {
+    if (!_aboveDrawn || found.length != _drawn.length) return false;
+    for (var i = 0; i < found.length; i++) {
+      final was = _drawn[i], now = found[i];
+      if (was.effect != now.effect) return false;
+      if (changes == null) {
+        if (was.from != now.from || was.to != now.to) return false;
+      } else {
+        if (changes.touchesRange(was.from, was.to) != Touch.none) return false;
+        if (changes.mapPos(was.from, 1) != now.from || changes.mapPos(was.to, -1) != now.to) return false;
+      }
+    }
+    return true;
   }
 
   @override
   void destroy() => _destroyed = true;
 
-  void _redraw({bool first = false}) {
+  /// Makes the marks for the view as it now is, or keeps the ones there are: [changes] is what the document
+  /// changed by since they were made, if it did.
+  ///
+  /// The stretches are found each time (a walk of the tree that goes only into lines with one of the effects'
+  /// delimiters): a change far off can still close a fence over an effect, and the caret lifts one by entering it.
+  /// What is not done each time is what they are then made into, a mark for every letter of every effect on
+  /// screen: with the Effects' lines of the sample note on screen that was 220 to 290 microseconds of every letter
+  /// typed anywhere in the note, and the haze over the text above was taken off and measured back on each one.
+  void _redraw({bool first = false, ChangeDesc? changes}) {
     final state = view.state;
     final ranges = view.visibleRanges;
     final atCaret = state.facet(EditorViewLike.editable) && view.hasFocus;
     final found = ranges.isEmpty ? const <EffectRange>[] : effectRanges(state, looks, ranges.first.from, ranges.last.to, atCaret, marked);
     if (found.isNotEmpty) _wantTables(atOnce: first);
+    if (!first && _stands(found, changes)) {
+      if (changes != null) {
+        decorations = decorations.map(changes);
+        letters = letters.map(changes);
+      }
+      _drawn = found;
+      debugEffectsKept += 1;
+      if (ghostPerf) Perf.count('effects.kept');
+      _measureAbove(<EffectRange>[
+        for (final stretch in found)
+          if (textEffectsByName[stretch.effect] is RisingEffect) stretch,
+      ]);
+      return;
+    }
+    debugEffectsMade += 1;
+    if (ghostPerf) Perf.count('effects.made');
+    _drawn = found;
+    _aboveDrawn = true;
     final marks = <({int from, int to, Decoration mark})>[];
     // What moves each letter, by where it starts.
     final cells = <int, ({int to, List<String> fx, List<String> names, int? delay})>{};
@@ -844,6 +912,7 @@ class _TextEffects extends PluginValue {
           }
           if (same) return;
           _above = next;
+          _aboveDrawn = false;
           // Not from inside the measure: on the next turn.
           Timer.run(() {
             if (!_destroyed) view.dispatch(TransactionSpec(effects: _heatMeasured.of(null)));

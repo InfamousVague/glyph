@@ -145,7 +145,10 @@ abstract final class WispProbe {
           // Which one it is, by where it stands: in the order they are painted.
           if (say && object.hasSize) {
             final at = object.localToGlobal(Offset.zero);
-            where.add('${object.size.width.round()}x${object.size.height.round()}@${at.dx.round()},${at.dy.round()}${object.backdropKey == null ? '' : ' grouped'}');
+            // Not while a page is turned to nothing on its way in or out: it stands nowhere then.
+            if (at.isFinite && object.size.isFinite) {
+              where.add('${object.size.width.round()}x${object.size.height.round()}@${at.dx.round()},${at.dy.round()}${object.backdropKey == null ? '' : ' grouped'}');
+            }
           }
         } else if (object is RenderRepaintBoundary) {
           count('boundary');
