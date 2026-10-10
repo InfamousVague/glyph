@@ -306,6 +306,10 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
   /// How many times any line was laid out, for a test to count.
   static int layouts = 0;
 
+  /// How many paragraphs of a line's words were made and laid out, for a test to count: one for a line, whether
+  /// its height was asked for before it was laid out or not.
+  static int paragraphs = 0;
+
   LineSpec _spec;
   LineSpec get spec => _spec;
   set spec(LineSpec value) {
@@ -390,6 +394,25 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
   List<_Raised> _raised = const <_Raised>[];
   double _laidOutWidth = -1;
   PlaceholderDimensions? _leadSize;
+
+  /// Whether [_paint] was made from the spec in force: it is made once for a spec, not at every layout and every
+  /// asking of a height.
+  bool _paintFits = false;
+
+  /// The words' paragraph a height was asked with before the line was laid out (a column of lines is measured for
+  /// its card's box, then laid out), the content width it was made at and how many lines it came to: taken by the
+  /// layout that follows, which made the same paragraph a second time.
+  TextPainter? _dry;
+  double _dryWidth = -1;
+  int _dryCount = 1;
+
+  PaintText _paintText() {
+    final had = _paint;
+    if (had != null && _paintFits) return had;
+    _paintFits = true;
+    return _paint = PaintText(_spec.projection.display, tabSize: _spec.look.tabSize, breaks: _spec.projection.hiddenBreaks);
+  }
+
   static const WidgetSpan _spacer = WidgetSpan(child: SizedBox.shrink(), alignment: ui.PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic);
 
   /// The visual lines of the last layout.
@@ -440,6 +463,10 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
     _words = _marker = _selected = null;
     _raised = const <_Raised>[];
     _laidOutWidth = -1;
+    _dry?.dispose();
+    _dry = null;
+    _dryWidth = -1;
+    _paintFits = false;
   }
 
   // -- layout ------------------------------------------------------------------------------------------------------
@@ -500,7 +527,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
     final width = _width(constraints);
     _contentLeft = look.marginStart + look.borderStart + look.paddingStart;
     _contentWidth = math.max(0, width - look.insetX);
-    final paint = _paint = PaintText(proj.display, tabSize: look.tabSize, breaks: proj.hiddenBreaks);
+    final paint = _paintText();
 
     // The inline widgets first: the paragraph needs their sizes.
     final sizes = <PlaceholderDimensions>[];
@@ -543,16 +570,29 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
       final over = _marker == null ? 0.0 : layoutUnitCeil(_marker!.width) - look.hang;
       _lead = over > 1 / 64 && paintLength > _split ? 1 : 0;
       _leadSize = _lead == 0 ? null : PlaceholderDimensions(size: Size(over, 0), alignment: ui.PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, baselineOffset: 0);
-      final words = _words = TextPainter(text: TextSpan(children: <InlineSpan>[if (_lead > 0) _spacer, ..._spans(paint, _split, paintLength)]), textDirection: TextDirection.ltr);
-      words.setPlaceholderDimensions(<PlaceholderDimensions>[
-        ?_leadSize,
-        for (var i = 0; i < sizes.length; i++)
-          if (widgetAt[i] >= _split) sizes[i],
-      ]);
-      // A sixty-fourth of room: a line that fits to the unit on the page fits here.
-      words.layout(maxWidth: math.max(1, _contentWidth + 1 / 64));
+      final dry = _dry;
+      if (dry != null && _dryWidth == _contentWidth && _lead == 0 && sizes.isEmpty) {
+        // The paragraph a height was asked with, at this width: the same words under the same looks, with no
+        // widget among them and no spacer before them, laid out in the same room.
+        _words = dry;
+        _dry = null;
+      } else {
+        assert(_counted());
+        if (ghostPerf) Perf.count('editor.lines.paragraphs');
+        final words = _words = TextPainter(text: TextSpan(children: <InlineSpan>[if (_lead > 0) _spacer, ..._spans(paint, _split, paintLength)]), textDirection: TextDirection.ltr);
+        words.setPlaceholderDimensions(<PlaceholderDimensions>[
+          ?_leadSize,
+          for (var i = 0; i < sizes.length; i++)
+            if (widgetAt[i] >= _split) sizes[i],
+        ]);
+        // A sixty-fourth of room: a line that fits to the unit on the page fits here.
+        words.layout(maxWidth: math.max(1, _contentWidth + 1 / 64));
+      }
       _laidOutWidth = _contentWidth;
     }
+    // One asked with at another width, or for a line with a widget on it, is no use to anyone now.
+    _dry?.dispose();
+    _dry = null;
     final words = _words!;
 
     // The paragraph's lines, and the page's line box for each.
@@ -662,7 +702,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
   @override
   double computeMaxIntrinsicWidth(double height) {
     final look = _spec.look;
-    final painter = TextPainter(text: TextSpan(children: _spans(PaintText(_spec.projection.display, tabSize: look.tabSize, breaks: _spec.projection.hiddenBreaks), 0, 1 << 30, placeholders: false)), textDirection: TextDirection.ltr)..layout();
+    final painter = TextPainter(text: TextSpan(children: _spans(_paintText(), 0, 1 << 30, placeholders: false)), textDirection: TextDirection.ltr)..layout();
     final width = painter.width + look.insetX;
     painter.dispose();
     return width;
@@ -674,15 +714,46 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
   @override
   double computeMaxIntrinsicHeight(double width) => _dryHeight(width);
 
+  static bool _counted() {
+    paragraphs += 1;
+    return true;
+  }
+
   double _dryHeight(double width) {
     // The words alone: an inline widget's height is not asked for outside a real layout.
     final look = _spec.look, proj = _spec.projection;
-    final paint = PaintText(proj.display, tabSize: look.tabSize, breaks: proj.hiddenBreaks);
-    final split = look.hang > 0 && _spec.hangChars > 0 ? paint.toPaint(proj.toDisplay(_spec.hangChars, -1)) : 0;
-    final painter = TextPainter(text: TextSpan(children: _spans(paint, split, paint.text.length, placeholders: false)), textDirection: TextDirection.ltr)
-      ..layout(maxWidth: math.max(1, width - look.insetX + 1 / 64));
-    final count = math.max(1, proj.display.isEmpty ? 1 : painter.computeLineMetrics().length);
-    painter.dispose();
+    final content = math.max(0.0, width - look.insetX);
+    var plain = true;
+    for (final segment in proj.segments) {
+      if (segment.kind == SegmentKind.widget) {
+        plain = false;
+        break;
+      }
+    }
+    int count;
+    if (plain && _words != null && _laidOutWidth == content && _lead == 0 && _lines.isNotEmpty) {
+      // Laid out at this width already: the words' paragraph is the one that would be made here.
+      count = _lines.length;
+    } else if (_dry != null && _dryWidth == content) {
+      count = _dryCount;
+    } else {
+      final paint = _paintText();
+      final split = look.hang > 0 && _spec.hangChars > 0 ? paint.toPaint(proj.toDisplay(_spec.hangChars, -1)) : 0;
+      assert(_counted());
+      if (ghostPerf) Perf.count('editor.lines.paragraphs');
+      final painter = TextPainter(text: TextSpan(children: _spans(paint, split, paint.text.length, placeholders: false)), textDirection: TextDirection.ltr)
+        ..layout(maxWidth: math.max(1, width - look.insetX + 1 / 64));
+      count = math.max(1, proj.display.isEmpty ? 1 : painter.computeLineMetrics().length);
+      if (plain) {
+        // Kept for the layout that follows a height asked for (`performLayout` takes it).
+        _dry?.dispose();
+        _dry = painter;
+        _dryWidth = content;
+        _dryCount = count;
+      } else {
+        painter.dispose();
+      }
+    }
     var above = look.base.above, below = look.base.below;
     for (var s = 0; s < proj.segments.length; s++) {
       if (proj.segments[s].kind == SegmentKind.hidden) continue;
