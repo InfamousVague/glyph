@@ -18,9 +18,11 @@ import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/workspaces.dart';
+import 'package:ghost_md/editor/band/band.dart' show ContextBand;
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
 import 'package:ghost_md/plugins/host.dart';
 import 'package:ghost_md/plugins/registry.dart';
+import 'package:ghost_md/plugins/types.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/root/note_desk.dart';
 import 'package:ghost_md/root/plugin_ground.dart';
@@ -304,6 +306,32 @@ void main() {
     tearDown(() {
       usePlugins(createRegistry(const []));
       usePluginGround(PluginGround());
+    });
+
+    // Unwired 16 (docs/PARITY.md): the band's send row was built nowhere, so a list item could be sent to a plugin
+    // only by its swipe or the quiet word (editor/NoteScreen.tsx:1465 `send={itemSend(note.id, editing)}`).
+    testWidgets('give the press-and-hold band its send row where one takes the note\'s items, and none where none does', (tester) async {
+      final library = await open(tester);
+      final packing = library.value.firstWhere((note) => noteTitle(note.body) == 'Packing');
+      final ran = <String>[];
+      usePlugins(createRegistry([
+        GlyphPlugin(
+          manifest: const PluginManifest(id: 'testboard', name: 'Testboard', description: 'Stands in.', version: '1', author: 'test', standard: true, permissions: [PluginPermission(Permission.notes, 'Sends items.')], storage: []),
+          icon: 'square-kanban',
+          itemAction: ItemAction(id: 'send', label: 'Send to Testboard', busyLabel: 'Sending…', available: (noteId) => noteId == packing.id, run: (text, editing) async => ran.add('${editing.noteId}: $text')),
+        ),
+      ], store: MemorySwitches()));
+      shellOf(tester).openNote(packing.id);
+      await settle(tester);
+      final send = tester.widget<ContextBand>(find.byType(ContextBand)).send;
+      expect(send?.label, 'Send to Testboard');
+      await tester.runAsync(() async => send!.run('Passports'));
+      expect(ran, ['${packing.id}: Passports']);
+      // A note no plugin takes the items of has no such row.
+      shellOf(tester).openNote(library.value.firstWhere((note) => noteTitle(note.body) == 'Launch week').id);
+      await settle(tester);
+      expect(tester.widget<ContextBand>(find.byType(ContextBand)).send, isNull);
+      await close(tester);
     });
 
     test('are the five that ship, over the ground they are given', () {

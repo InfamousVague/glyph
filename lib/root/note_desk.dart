@@ -1126,6 +1126,12 @@ class NoteDeskState extends State<NoteDesk> {
           controller: _band,
           say: widget.say,
           onFind: view == null ? null : (text) => _openFind(view, text),
+          // The same send a swipe on the item does, where a plugin takes this note's items (a Notion board, a GitHub
+          // issue).
+          send: switch (itemSend(widget.noteId, _editing)) {
+            final send? => band.BandSend(label: send.label, run: send.run),
+            _ => null,
+          },
           // Comment, on the selection the band was opened over or on the caret's line (ContextMenu.tsx).
           onComment: _comments.start,
           formats: bandFormats(),
