@@ -18,6 +18,8 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  # tool/perf_cpu.dart reads a profile build's CPU samples through the VM's own service.
+  vm_service: ^15.0.0
 
 flutter:
   uses-material-design: false

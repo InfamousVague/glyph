@@ -31,6 +31,9 @@ import 'core/stored_device.dart';
 import 'core/updates.dart';
 import 'root/account_wiring.dart';
 import 'core/link_preview.dart' show linkPreviewFetch;
+import 'perf/frame_log.dart';
+import 'perf/perf_run.dart';
+import 'perf/perf_seed.dart';
 import 'root/ghost_root.dart';
 import 'root/iphone_wiring.dart';
 import 'root/plugin_ground.dart';
@@ -44,6 +47,8 @@ import 'tapes/phone_player.dart';
 Future<void> main() async {
   // Flutter's binding, which draws nothing while Android is taking the app from the front (app/front_frames.dart).
   GhostBinding.ensureInitialized();
+  // A build made to be measured times its own start and every frame after (lib/perf); any other does none of it.
+  PerfLaunch.begin();
   // The keyboard that was up when the app was left is up again when it is come back to (core/keep_keyboard.dart).
   KeepKeyboard.install();
   // Every date in the phone's own words and order, as the page's Intl writes them (core/locale_dates.dart).
@@ -54,6 +59,7 @@ Future<void> main() async {
   MacWindow.instance.attach();
   DesktopKeys.attach();
   final sheet = await loadTokenSheet(more: appStyleSheets);
+  PerfLaunch.step('sheet');
   // What this device chose and how it left things, before anything is drawn. Storage that will not answer is not
   // waited for: the app opens on its defaults and remembers nothing this run.
   try {
@@ -65,6 +71,7 @@ Future<void> main() async {
   // The plugins that ship, on the phone's own memory, secure store and network (lib/root/plugin_ground.dart):
   // before the first screen, since Settings' rows, the editor's parser and the Academy's lessons read them.
   installPlugins();
+  PerfLaunch.step('stored');
   // The notes library: the web app's own Rust, asked across FFI (lib/core/native). A phone where it will not load
   // still opens, on the invented library, rather than on nothing.
   CoreInvoke? core;
@@ -73,10 +80,16 @@ Future<void> main() async {
   VoiceMaking? voice;
   try {
     final native = await GhostCore.open();
-    final dirs = await DevicePaths.find();
+    final dirs = PerfLaunch.dirs() ?? await DevicePaths.find();
     await native.init(dataDir: dirs.dataDir, cacheDir: dirs.cacheDir);
     core = native.invoke;
     whole = native;
+    PerfLaunch.step('core');
+    // A measured build's library is brought up to a real one's size before the app reads it (lib/perf/perf_seed.dart).
+    if (ghostPerf && ghostPerfSeed > 0) {
+      final made = await seedPerfLibrary(native.invoke, ghostPerfSeed);
+      if (made > 0) debugPrint('[perf] made $made notes for the walk; this start is not one to time');
+    }
     // The account, only in a build told where its service is (`--dart-define=GHOST_API=http://…`), and never the
     // real service from a debug build (docs/STAGE7.md). With none, nothing of the account is made at all.
     final base = accountBase(ghostApiDefine);
@@ -119,6 +132,7 @@ Future<void> main() async {
   // Where the phone is, for a note keeping its place: asked only from a press, or for a new note with tagging on.
   // The place's name is OpenStreetMap's, asked once as the app itself; so are a tagged note's tiles.
   final locator = await PhoneLocator().attach();
+  PerfLaunch.step('runApp');
   final placeLookup = geocodePlace(geocodeFetcher(), lang: () => PlatformDispatcher.instance.locale.toLanguageTag());
   final mapTiles = MapTiles().builder;
   runApp(GhostApp(
@@ -127,6 +141,8 @@ Future<void> main() async {
       builder: (restart) => GhostRoot(core: core, native: whole, account: account, voiceMaking: voice, links: links, openLink: openLink, previewFetch: iPhoneLinkPreviews() ? linkPreviewFetch() : null, restart: restart, tapePlayer: tapes, updates: updates, locator: locator, placeLookup: placeLookup, mapTiles: mapTiles, picturePicker: phonePicturePicker, films: films, dayPicker: defaultTargetPlatform == TargetPlatform.android || runsAsIPhoneApp ? phoneDayPicker : null),
     ),
   ));
+  // A measured build takes its walk (lib/perf/perf_run.dart).
+  unawaited(runPerf());
   // A debug build of the Mac app started with a script walks itself (lib/shell/desktop/mac_tour.dart).
   unawaited(runMacTour());
   // And of the iPhone app, in its simulator (lib/shell/phone_tour.dart).
