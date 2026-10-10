@@ -1253,7 +1253,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       // With the keyboard up there is no bar under the page to keep clear of (the keys are over it), as home has it:
       // kept, the card being written stood 84px too high and its bar went under the card, over the tools.
       return Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom > 0 ? 0 : context.tokens.len('app-safe-bottom')),
+        padding: EdgeInsets.only(bottom: _KeyboardUp.of(context) ? 0 : context.tokens.len('app-safe-bottom')),
         child: seams.canvas?.call(context, _typedBody, write) ?? const SizedBox.shrink(),
       );
     }
@@ -1264,7 +1264,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
   }
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(builder: (context, box) => _build(context, box.maxWidth));
+  Widget build(BuildContext context) => _KeyboardWatch(child: LayoutBuilder(builder: (context, box) => _build(context, box.maxWidth)));
 
   Widget _build(BuildContext context, double pageWidth) {
     final t = context.tokens;
@@ -1292,7 +1292,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     final book = widget.book;
 
     // The keyboard up is the page ready for words, and once ready it stays ready.
-    if (!_ready && MediaQuery.viewInsetsOf(context).bottom > 0) _ready = true;
+    if (!_ready && _KeyboardUp.of(context)) _ready = true;
     final offered = offersShown ? names : null;
     final cards = offered != null && cardsShown;
     _watchMinute(offering);
@@ -1420,8 +1420,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
               // canvas, which is not a page that scrolls off its foot.
               // The page ends where the keyboard begins, as the web's does (its activity lays the page out above the
               // keyboard): the line being typed can always be scrolled clear of it, and the foot's smoke rests on it.
-              child: Padding(
-                padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+              child: _AboveKeyboard(
                 child: WispEdge(
                   under: under,
                   foot: !_isCanvas,
@@ -1692,4 +1691,39 @@ class _NameChip extends StatelessWidget {
       },
     );
   }
+}
+
+/// Whether the keyboard is up, said to the note's screen as a yes or a no ([_KeyboardUp]). The screen asked the
+/// window for the keyboard's height itself, which is another number at every frame of the keyboard's rise and
+/// fall, and so was built again whole at each of them, a canvas and its cards with it; what it wants to know
+/// (whether to keep room for the phone's bar, whether the page is ready for words) changes twice a keyboard.
+class _KeyboardWatch extends StatelessWidget {
+  const _KeyboardWatch({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => _KeyboardUp(up: MediaQuery.viewInsetsOf(context).bottom > 0, child: child);
+}
+
+class _KeyboardUp extends InheritedWidget {
+  const _KeyboardUp({required this.up, required super.child});
+
+  final bool up;
+
+  static bool of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<_KeyboardUp>()?.up ?? false;
+
+  @override
+  bool updateShouldNotify(_KeyboardUp oldWidget) => oldWidget.up != up;
+}
+
+/// The page ending where the keyboard begins: the keyboard's height is asked here, where it is used, so its rise
+/// lays the page out again and builds nothing of the note's screen.
+class _AboveKeyboard extends StatelessWidget {
+  const _AboveKeyboard({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Padding(padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom), child: child);
 }

@@ -1097,9 +1097,16 @@ class NoteDeskState extends State<NoteDesk> {
         Positioned(
           left: 0,
           right: 0,
-          // On top of the keyboard: the page does not shorten for it, so the bar is lifted by what it covers.
-          bottom: MediaQuery.viewInsetsOf(context).bottom,
-          child: FindBar(key: ValueKey<int>(finding.nonce), view: view, initial: finding.initial, onClose: _closeFind),
+          bottom: 0,
+          // On top of the keyboard: the page does not shorten for it, so the bar is lifted by what it covers. How
+          // much that is is asked here, where it is used: asked with the screen's own context, as it was, the
+          // note's whole screen was built again at every frame of the keyboard's rise once find had been opened.
+          child: Builder(
+            builder: (context) => Padding(
+              padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+              child: FindBar(key: ValueKey<int>(finding.nonce), view: view, initial: finding.initial, onClose: _closeFind),
+            ),
+          ),
         ),
     ];
   }
