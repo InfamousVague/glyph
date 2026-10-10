@@ -49,12 +49,25 @@ class GhostApp extends StatefulWidget {
 }
 
 class _GhostAppState extends State<GhostApp> with WidgetsBindingObserver {
-  static final Listenable _choices = Listenable.merge([preferences, hapticsPref]);
+  /// What the app is dressed in, of everything the preferences hold: the page's attributes, its size and its pace.
+  /// A tab opened, a note filed or thrown away is a change to the preferences too, and none of the app's dress: the
+  /// whole app under the theme was built again for each.
+  static final ValueListenable<(Map<String, String>, double, String)> _worn = preferences.select(
+    (prefs) => (prefs.attrs, prefs.uiScale, prefs.motionSpeed),
+    same: (a, b) => a.$2 == b.$2 && a.$3 == b.$3 && mapEquals(a.$1, b.$1),
+  );
+  static final Listenable _choices = Listenable.merge([_worn, hapticsPref]);
 
   /// Taken, and nothing pushed (see the class's comment). This observer is added before the `WidgetsApp`'s own, so
   /// it is asked first.
   @override
   Future<bool> didPushRouteInformation(RouteInformation routeInformation) async => true;
+
+  /// The app is leaving the front: what was chosen and is waiting to be kept is kept now (lib/core/preferences.dart).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) preferences.flush();
+  }
 
   @override
   void dispose() {

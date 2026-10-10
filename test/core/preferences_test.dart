@@ -341,14 +341,70 @@ void main() {
       preferences.update((now) => now.copyWith(accent: 'teal', uiScale: 1.1));
       preferences.removeListener(listener);
       expect(told, 1);
-      await Future<void>.delayed(Duration.zero);
+      preferences.flush();
       final kept = (await SharedPreferences.getInstance()).getString('glyph-preferences')!;
       expect(jsonDecode(kept), {...(jsonDecode(web['defaults'] as String) as Map<String, dynamic>), 'accent': 'teal', 'uiScale': 1.1});
       // A fresh read of the store is what a launch does.
       preferences.value = preferences.value.copyWith(accent: 'ink');
       expect(preferences.value.accent, 'ink');
+      preferences.flush();
       preferences.reload();
       expect(preferences.value.accent, 'ink');
+    });
+
+    test('keeps a run of changes once, a moment after the first, and at once when asked', () async {
+      SharedPreferences.setMockInitialValues({});
+      final store = PreferencesStore(keepAfter: const Duration(milliseconds: 40));
+      await store.load();
+      final kept = await SharedPreferences.getInstance();
+      String? stored() => kept.getString('glyph-preferences');
+      store.update((now) => now.copyWith(accent: 'teal'));
+      store.update((now) => now.copyWith(openNotes: const ['a']));
+      store.update((now) => now.copyWith(openNotes: const ['a', 'b']));
+      // Nothing is written in the turn that made the change, nor the next.
+      expect(stored(), isNull);
+      await Future<void>.delayed(Duration.zero);
+      expect(stored(), isNull);
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      expect(jsonDecode(stored()!), allOf(containsPair('accent', 'teal'), containsPair('openNotes', ['a', 'b'])));
+      // Asked, it is kept now: the app asks as it is hidden.
+      store.update((now) => now.copyWith(accent: 'red'));
+      expect((jsonDecode(stored()!) as Map)['accent'], 'teal');
+      store.flush();
+      expect((jsonDecode(stored()!) as Map)['accent'], 'red');
+      // And a change let go by reading the store again is not kept after all.
+      store.update((now) => now.copyWith(accent: 'green'));
+      store.reload();
+      expect(store.value.accent, 'red');
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      expect((jsonDecode(stored()!) as Map)['accent'], 'red');
+    });
+
+    test('tells whoever listens to one preference of that one alone', () async {
+      SharedPreferences.setMockInitialValues({});
+      await preferences.load();
+      final localOnly = preferences.select((prefs) => prefs.localOnly);
+      final tabs = preferences.select<List<String>>((prefs) => prefs.openNotes);
+      var told = 0, tabbed = 0;
+      void heard() => told += 1;
+      void tab() => tabbed += 1;
+      localOnly.addListener(heard);
+      tabs.addListener(tab);
+      preferences.update((now) => now.copyWith(accent: 'teal'));
+      preferences.update((now) => now.copyWith(openNotes: const ['a']));
+      preferences.update((now) => now.copyWith(trash: const {'a': 5}));
+      expect((told, tabbed), (0, 1));
+      preferences.update((now) => now.copyWith(localOnly: true));
+      expect((told, tabbed), (1, 1));
+      expect(localOnly.value, isTrue);
+      preferences.update((now) => now.copyWith(localOnly: true, accent: 'red'));
+      expect(told, 1);
+      // Followed by nobody it listens to nothing, and still answers what is chosen now.
+      localOnly.removeListener(heard);
+      tabs.removeListener(tab);
+      preferences.update((now) => now.copyWith(localOnly: false));
+      expect(told, 1);
+      expect(localOnly.value, isFalse);
     });
 
     test('reads as the defaults when there is nothing, or nothing that is JSON', () async {
@@ -362,6 +418,67 @@ void main() {
       preferences.value = const Preferences(theme: 'dawn');
       await preferences.load();
       expect(preferences.value.theme, 'dawn');
+    });
+
+    test('never replaces what was kept with the defaults: a change made before storage answered is made over what it held', () async {
+      // A slow device: the app is drawn on the defaults and a tab is opened, a note thrown away and a theme chosen
+      // before what was kept has been read (lib/main.dart waits two seconds for it and goes on).
+      SharedPreferences.setMockInitialValues({
+        'glyph-preferences': jsonEncode({
+          'theme': 'ember',
+          'accent': 'amber',
+          'homeLayout': 'timeline',
+          'homeLayoutChosen': true,
+          'openNotes': ['kept'],
+          'workspaces': {
+            'list': [
+              {'id': 'w1', 'name': 'Home'},
+            ],
+            'notes': {'n1': 'w1', 'n2': 'w1'},
+          },
+          'trash': {'old': 10},
+        }),
+      });
+      final store = PreferencesStore(keepAfter: const Duration(milliseconds: 20));
+      final loading = store.load();
+      expect(store.loaded, isFalse);
+      store.update((now) => now.copyWith(openNotes: [...now.openNotes, 'new']));
+      store.update((now) => now.copyWith(trash: {...now.trash, 'thrown': 20}));
+      store.value = store.value.copyWith(density: 'compact');
+      // Meanwhile the choices stand over the defaults, for this run.
+      expect((store.value.theme, store.value.density), ('dark', 'compact'));
+      expect(store.value.openNotes, ['new']);
+      await loading;
+      // Read, what was kept is all there, with each change made over it.
+      expect(store.value.theme, 'ember');
+      expect(store.value.accent, 'amber');
+      expect(store.value.homeLayout, 'timeline');
+      expect(store.value.workspaces.notes, {'n1': 'w1', 'n2': 'w1'});
+      expect(store.value.openNotes, ['kept', 'new']);
+      expect(store.value.trash, {'old': 10, 'thrown': 20});
+      expect(store.value.density, 'compact');
+      // And that is what is kept: the stored workspaces, trash and theme were not written over.
+      store.flush();
+      final kept = jsonDecode((await SharedPreferences.getInstance()).getString('glyph-preferences')!) as Map<String, dynamic>;
+      expect(kept['theme'], 'ember');
+      expect(kept['workspaces'], {
+        'list': [
+          {'id': 'w1', 'name': 'Home'},
+        ],
+        'notes': {'n1': 'w1', 'n2': 'w1'},
+      });
+      expect(kept['trash'], {'old': 10, 'thrown': 20});
+      expect(kept['openNotes'], ['kept', 'new']);
+      expect(kept['density'], 'compact');
+    });
+
+    test('with nothing chosen meanwhile, reading what was kept writes nothing', () async {
+      SharedPreferences.setMockInitialValues({'glyph-preferences': '{"theme":"light"}'});
+      final store = PreferencesStore(keepAfter: Duration.zero);
+      await store.load();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      // To the letter: nothing rewrote it.
+      expect((await SharedPreferences.getInstance()).getString('glyph-preferences'), '{"theme":"light"}');
     });
 
     test('keeps the haptics switch as this device’s own, on or off, apart from the preferences', () async {

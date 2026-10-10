@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../perf/frame_log.dart';
 import 'tabs.dart' show TabGroups, mostTabs;
 
 export 'tabs.dart' show TabGroup, TabGroups, mostTabs;
@@ -825,8 +826,9 @@ class Preferences {
     };
   }
 
+  /// The same choices, all the way down: told by writing both out, which is why the same object is asked first.
   @override
-  bool operator ==(Object other) => other is Preferences && _same(toJson(), other.toJson());
+  bool operator ==(Object other) => identical(this, other) || other is Preferences && _same(toJson(), other.toJson());
 
   @override
   int get hashCode => Object.hash(theme, uiScale, accent, density, rounding, textSize, typeface, noteFace, motionSpeed, openNotes.length);
@@ -871,24 +873,45 @@ bool get isNativeMobile => !kIsWeb && (defaultTargetPlatform == TargetPlatform.a
 /// `applyPreferences` does to the page. [load] reads what was kept, before the first frame; until then, and where
 /// storage refuses, it holds the defaults, and a choice made is held for this run.
 ///
-/// What differs from the web original: the page's storage is synchronous and this one's is not, so there is a [load]
-/// to wait for; and nothing is "applied" on a change, since the theme rebuilds from the value.
+/// What differs from the web original:
+/// - The page's storage is synchronous and this one's is not, so there is a [load] to wait for; and nothing is
+///   "applied" on a change, since the theme rebuilds from the value.
+/// - **Nothing is kept before what was kept has been read.** The workspaces, the trash, the open tabs and every
+///   choice are one value under one key, and the app can be drawn before a slow device has answered (lib/main.dart
+///   waits two seconds and goes on). A change made meanwhile is a change to the defaults; written whole when storage
+///   answered, as it was, it replaced everything the person had with them. So a change made before the load has
+///   landed is made again over what was kept, once it is read, and that is what is kept: the page's own
+///   `setPreferences(partial)`, which was always the kept preferences with a part replaced.
+/// - **A change is kept a moment later, once** ([keepAfter]): every change encoded the whole of them and handed
+///   them to storage in the middle of whatever made it (a tab opened, a note filed), and ten notes filed were ten
+///   writes. [flush] keeps what is waiting now: the app asks as it is hidden.
+/// - **One preference can be listened to alone** ([select]): its listeners are told when it is another value and
+///   not when a tab was opened.
 class PreferencesStore extends ValueNotifier<Preferences> {
-  PreferencesStore() : super(Preferences.defaults);
+  PreferencesStore({this.keepAfter = const Duration(milliseconds: 150)}) : super(Preferences.defaults);
 
   /// The key the web app keeps its preferences under in localStorage (`STORAGE_KEY`).
   static const storageKey = 'glyph-preferences';
 
+  /// How long after a change the preferences are written, every change made meanwhile with it.
+  final Duration keepAfter;
+
   SharedPreferences? _kept;
   bool _loaded = false;
-  bool _touched = false;
   Future<void>? _loading;
+
+  /// The changes made before what was kept was read, in order: each is made again over what was kept.
+  final List<Preferences Function(Preferences kept)> _early = [];
+
+  /// The write that is waiting, and whether anything is.
+  Timer? _keeping;
+  bool _unkept = false;
 
   /// Whether [load] has finished, kept or refused.
   bool get loaded => _loaded;
 
-  /// Reads what is kept. Asked more than once, it reads once. A choice made before it finished is kept rather than
-  /// replaced by what was stored.
+  /// Reads what is kept. Asked more than once, it reads once. A choice made before it finished is made again over
+  /// what was stored, and kept.
   Future<void> load() => _loading ??= _load();
 
   Future<void> _load() async {
@@ -899,13 +922,21 @@ class PreferencesStore extends ValueNotifier<Preferences> {
       for (final flag in DeviceFlag._all) {
         flag._attach(kept);
       }
-      if (_touched) {
-        _write(value);
+      var read = _read();
+      if (_early.isEmpty) {
+        super.value = read;
       } else {
-        super.value = _read();
+        for (final change in _early) {
+          read = change(read);
+        }
+        _early.clear();
+        super.value = read;
+        _keepSoon();
       }
     } catch (_) {
-      // Storage that refuses is a device that cannot remember, not an error (core/stored.ts): the defaults stand.
+      // Storage that refuses is a device that cannot remember, not an error (core/stored.ts): the defaults stand,
+      // with whatever was chosen meanwhile.
+      _early.clear();
     }
     _loaded = true;
   }
@@ -921,24 +952,78 @@ class PreferencesStore extends ValueNotifier<Preferences> {
     }
   }
 
-  void _write(Preferences next) {
+  /// Whether what was kept has yet to be read: a change made now is a change to the defaults.
+  bool get _unread => !_loaded && _kept == null;
+
+  void _keepSoon() {
     // Not kept, the choice still applies for this run.
-    unawaited(_kept?.setString(storageKey, jsonEncode(next.toJson())).catchError((Object _) => false));
+    if (_kept == null) return;
+    _unkept = true;
+    _keeping ??= Timer(keepAfter, flush);
   }
 
-  /// Kept, then told to everyone following (`setPreferences`, given the whole next value).
+  /// Keeps what is waiting to be kept, now: as the app is hidden, and before whatever reads the stored preferences
+  /// itself.
+  void flush() {
+    _keeping?.cancel();
+    _keeping = null;
+    final kept = _kept;
+    if (kept == null || !_unkept) return;
+    _unkept = false;
+    final began = ghostPerf ? Perf.now() : 0;
+    unawaited(kept.setString(storageKey, jsonEncode(value.toJson())).catchError((Object _) => false));
+    if (ghostPerf) Perf.add('prefs.write', began);
+  }
+
+  /// [next] as a change to [was], made over [kept]: each of its top-level keys that is another value than [was]
+  /// had, and no other.
+  static Preferences _carried(Preferences was, Preferences next, Preferences kept) {
+    final before = was.toJson(), after = next.toJson(), over = kept.toJson();
+    var moved = false;
+    for (final key in {...before.keys, ...after.keys}) {
+      if (_same(before[key], after[key])) continue;
+      moved = true;
+      if (after.containsKey(key)) {
+        over[key] = after[key];
+      } else {
+        over.remove(key);
+      }
+    }
+    return moved ? Preferences.fromJson(jsonDecode(jsonEncode(over))) : kept;
+  }
+
+  /// Told to everyone following, then kept (`setPreferences`, given the whole next value). Before what was kept
+  /// has been read it is taken as the choices that differ from the ones now, which is what it can only be.
   @override
   set value(Preferences next) {
-    _touched = true;
-    _write(next);
+    final was = super.value;
+    if (identical(next, was)) return;
+    if (_unread) _early.add((kept) => _carried(was, next, kept));
     super.value = next;
+    _keepSoon();
   }
 
   /// `setPreferences(partial)`: the next preferences made from the ones now.
-  void update(Preferences Function(Preferences now) change) => value = change(value);
+  void update(Preferences Function(Preferences now) change) {
+    final was = super.value;
+    final next = change(was);
+    if (identical(next, was)) return;
+    if (_unread) _early.add(change);
+    super.value = next;
+    _keepSoon();
+  }
 
-  /// Reads the stored preferences again (`reloadPreferences`): after a reset, and in tests.
+  /// One preference, or a few, for whatever reads no others: told when what [pick] answers is another value, and
+  /// not for any other change. [same] says when two answers are one (a list or a map compared by what is in it);
+  /// left out, it is `==`. It listens to the preferences only while something listens to it.
+  ValueListenable<T> select<T>(T Function(Preferences prefs) pick, {bool Function(T a, T b)? same}) => _Picked<T>(this, pick, same);
+
+  /// Reads the stored preferences again (`reloadPreferences`): after a reset, and in tests. A change not yet kept
+  /// is let go: what is stored is what stands.
   void reload() {
+    _keeping?.cancel();
+    _keeping = null;
+    _unkept = false;
     super.value = _read();
   }
 
@@ -954,15 +1039,59 @@ class PreferencesStore extends ValueNotifier<Preferences> {
   /// Forgets what was loaded, for a test that starts another launch.
   @visibleForTesting
   void forget() {
+    _keeping?.cancel();
+    _keeping = null;
+    _unkept = false;
+    _early.clear();
     _kept = null;
     _loaded = false;
-    _touched = false;
     _loading = null;
     super.value = Preferences.defaults;
     DeviceFlag._storage = null;
     for (final flag in DeviceFlag._all) {
       flag._forget();
     }
+  }
+}
+
+/// What [PreferencesStore.select] answers.
+class _Picked<T> extends ChangeNotifier implements ValueListenable<T> {
+  _Picked(this._store, this._pick, this._same);
+
+  final PreferencesStore _store;
+  final T Function(Preferences prefs) _pick;
+  final bool Function(T a, T b)? _same;
+  late T _value;
+
+  @override
+  T get value => hasListeners ? _value : _pick(_store.value);
+
+  void _heard() {
+    final now = _pick(_store.value);
+    if (_same?.call(now, _value) ?? now == _value) return;
+    _value = now;
+    notifyListeners();
+  }
+
+  @override
+  void addListener(VoidCallback listener) {
+    if (!hasListeners) {
+      _value = _pick(_store.value);
+      _store.addListener(_heard);
+    }
+    super.addListener(listener);
+  }
+
+  @override
+  void removeListener(VoidCallback listener) {
+    super.removeListener(listener);
+    if (!hasListeners) _store.removeListener(_heard);
+  }
+
+  @override
+  void dispose() {
+    _store.removeListener(_heard);
+    super.dispose();
   }
 }
 
