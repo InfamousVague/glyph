@@ -1751,6 +1751,9 @@ class _GhostRootState extends State<GhostRoot> {
           _toAccount();
         }
 
+        // The empty card's ghost, with everything ticked (`Ghost scene="all-ticked" size="small"`).
+        const allRead = Ghost(scene: GhostScene.allTicked, size: GhostSize.small);
+
         if (services != null) {
           return FedNotificationsDrawer(
             services: services,
@@ -1761,9 +1764,10 @@ class _GhostRootState extends State<GhostRoot> {
               shell.openOrganization(id);
             },
             onAccount: account,
+            emptyArt: allRead,
           );
         }
-        return NotificationsDrawer(notifications: const [], prefs: preferences.value.notifications, signedIn: false, onClose: close, onOpenNote: openNote, onOpenOrganization: (_) => close(), onAccount: account);
+        return NotificationsDrawer(notifications: const [], prefs: preferences.value.notifications, signedIn: false, onClose: close, onOpenNote: openNote, onOpenOrganization: (_) => close(), onAccount: account, emptyArt: allRead);
       }),
     );
   }

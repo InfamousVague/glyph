@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/crypto.dart';
 import 'package:ghost_md/account/device_keys.dart';
 import 'package:ghost_md/account/ui_state.dart';
+import 'package:ghost_md/art/art.dart' show Ghost, GhostScene, GhostSize;
 import 'package:ghost_md/canvas/canvas_view.dart';
 import 'package:ghost_md/canvas/json_canvas.dart';
 import 'package:ghost_md/core/link_preview.dart' show LinkOpener;
@@ -26,6 +27,7 @@ import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/notes/all_notes_screen.dart';
 import 'package:ghost_md/notes/note_tree.dart';
 import 'package:ghost_md/notes/notes_drawer.dart';
+import 'package:ghost_md/notes/notifications_drawer.dart';
 import 'package:ghost_md/orgs/ui/organization_screen.dart';
 import 'package:ghost_md/root/account_wiring.dart';
 import 'package:ghost_md/root/ghost_root.dart';
@@ -580,6 +582,28 @@ void main() {
       sheet()!.onClose();
       await tester.pump(const Duration(milliseconds: 400));
       expect(shell.screen, isA<ScreenList>());
+      await close(tester);
+    });
+
+    // Unwired 24 (docs/PARITY.md): the bell's empty card was never given its ghost (notes/NotificationsDrawer.tsx
+    // `<Ghost scene="all-ticked" size="small" />`).
+    testWidgets('draws the ghost with everything ticked on the bell\'s empty card', (tester) async {
+      final device = await Device.make();
+      await open(tester, services: device.services);
+      await tester.pump(const Duration(milliseconds: 200));
+      tester.state<AppShellState>(find.byType(AppShell)).showNotifications();
+      await tester.pump(const Duration(milliseconds: 400));
+      final ghost = tester.widget<Ghost>(find.descendant(of: find.byType(NotificationsDrawer), matching: find.byType(Ghost)));
+      expect((ghost.scene, ghost.size), (GhostScene.allTicked, GhostSize.small));
+      await close(tester);
+      // A build with no account has no empty card to draw it on: its bell says where to sign in. Its drawer is given
+      // the ghost all the same, as the page's is whoever is signed in.
+      await open(tester);
+      tester.state<AppShellState>(find.byType(AppShell)).showNotifications();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.descendant(of: find.byType(NotificationsDrawer), matching: find.byType(Ghost)), findsNothing);
+      final given = tester.widget<NotificationsDrawer>(find.byType(NotificationsDrawer)).emptyArt;
+      expect(given, isA<Ghost>().having((ghost) => ghost.scene, 'scene', GhostScene.allTicked));
       await close(tester);
     });
 
