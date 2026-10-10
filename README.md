@@ -81,9 +81,14 @@ half of the channel to be looked at with no library under it.
   view being asked; a tap put the caret in the fence, a line typed there asked for nothing, and leaving it asked
   for one picture; two chart cards on a canvas; the Academy's lesson after Show me. A picture took 5 to 64 ms of
   the main thread in all, in strips of at most 160,000 pixels with the note's frames between them.
-- **Seen on the Mac** (a debug build of `lib/main_diagrams.dart`, 2026-10-10): the web view behind the app's view
-  drew all five and the mistake, as the pictures kept in the app's cache folder show. The iPhone's is the same
-  file (`apple/DiagramRenderer.swift`), compiled for it and never run: no iPhone build was made.
+- **Seen on the Mac** (a debug build of `lib/main_diagrams.dart` walking itself, 2026-10-10; `mac/fresh-a.png`,
+  `mac/web-a.png`, `mac/none-a.png` in the scratchpad): the web view behind the app's view drew the diagrams, in
+  Maple Mono at two pixels to the point and on nothing, and the window showed the note with them and nothing of
+  the web view; opened again it showed them from the folder, the one written wrong with its reason, with the web
+  view never made. One walk's pictures of the window were black, in a run where every
+  picture came from the folder and no web view was made, on a Mac nobody was at; the walks an hour and a half
+  later, with a web view made and with none, were not. The iPhone's is the same file
+  (`apple/DiagramRenderer.swift`), compiled for it and never run: no iPhone build was made.
 - **What differs from the page**, each said where it is written (`lib/editor/diagrams/diagrams.dart`,
   `store.dart`): a picture is a bitmap made for one width at the device's ratio, so a canvas zoomed in past its own
   size shows it soft, and a note at another width asks again once the width is still; a block whose words change
