@@ -104,9 +104,11 @@ NaryOperatorNode _parseNaryOperator(
   );
 }
 
-///This behavior is in accordance with UnicodeMath, and is different from KaTeX.
-///Math functions' default limits behavior is fixed on creation and will NOT
-///change form according to style.
+/// A named function with its scripts and what it is applied to.
+///
+/// Changed from 0.7.4 (README.md, 13): whether its scripts are limits now follows the style it is built in, as in
+/// KaTeX; it was fixed here as the formula was read ("in accordance with UnicodeMath, and … different from
+/// KaTeX", the package said).
 FunctionNode _parseMathFunction(
     GreenNode funcNameBase, TexParser parser, FunctionContext context,
     {bool defaultLimits = false}) {
@@ -117,7 +119,6 @@ FunctionNode _parseMathFunction(
           // .parseArgNode(mode: Mode.math, optional: false)
           ?.wrapWithEquationRow() ??
       EquationRowNode.empty();
-  final limits = scriptsResult.limits ?? defaultLimits;
   final base = funcNameBase.wrapWithEquationRow();
   if (scriptsResult.subscript == null && scriptsResult.superscript == null) {
     return FunctionNode(
@@ -125,34 +126,48 @@ FunctionNode _parseMathFunction(
       argument: arg,
     );
   }
-  if (limits) {
-    var functionName = base;
-    if (scriptsResult.subscript != null) {
-      functionName = UnderNode(
-        base: functionName,
-        below: scriptsResult.subscript!,
-      ).wrapWithEquationRow();
+  return FunctionNode(
+    functionName: _nameWithScripts(base, scriptsResult,
+            limitsInDisplay: defaultLimits)
+        .wrapWithEquationRow(),
+    argument: arg,
+  );
+}
+
+/// An operator's name with what was written under and over it.
+///
+/// Changed from 0.7.4 (README.md, 13): a name that takes limits (`\lim`, `\max`, `\operatorname*{…}`) takes them
+/// in display style only and scripts beside it otherwise, as KaTeX builds it (functions/op.js:
+/// `limits && style.size === DISPLAY`); `\limits` asks for them in any style and `\nolimits` in none. It was
+/// decided here, as the formula was read, always for limits.
+GreenNode _nameWithScripts(
+    EquationRowNode base, ScriptsParsingResults scripts,
+    {required bool limitsInDisplay}) {
+  GreenNode limits() {
+    var name = base;
+    if (scripts.subscript != null) {
+      name = UnderNode(base: name, below: scripts.subscript!)
+          .wrapWithEquationRow();
     }
-    if (scriptsResult.superscript != null) {
-      functionName = OverNode(
-        base: functionName,
-        above: scriptsResult.superscript!,
-      ).wrapWithEquationRow();
+    if (scripts.superscript != null) {
+      name = OverNode(base: name, above: scripts.superscript!)
+          .wrapWithEquationRow();
     }
-    return FunctionNode(
-      functionName: functionName.wrapWithEquationRow(),
-      argument: arg,
-    );
-  } else {
-    return FunctionNode(
-      functionName: MultiscriptsNode(
-        base: base,
-        sub: scriptsResult.subscript,
-        sup: scriptsResult.superscript,
-      ).wrapWithEquationRow(),
-      argument: arg,
-    );
+    return name;
   }
+
+  GreenNode beside() => MultiscriptsNode(
+        base: base,
+        sub: scripts.subscript,
+        sup: scripts.superscript,
+      );
+
+  if (scripts.limits == true) return limits();
+  if (scripts.limits == false || !limitsInDisplay) return beside();
+  return StyleLimitsNode(
+    limits: limits().wrapWithEquationRow(),
+    scripts: beside().wrapWithEquationRow(),
+  );
 }
 
 const singleCharBigOps = {

@@ -35,8 +35,13 @@ class AccentUnderNode extends SlotableNode<EquationRowNode> {
         baselineReferenceWidgetIndex: 0,
         children: <Widget>[
           VListElement(
-            trailingMargin:
-                label == '\u007e' ? 0.12.cssEm.toLpUnder(options) : 0.0,
+            // Changed from 0.7.4 (README.md, 4): an `\underbrace` (U+23DF) is a tenth of an em under what it
+            // is under, as KaTeX's functions/horizBrace.js sets it; it stood against it.
+            trailingMargin: label == '\u007e'
+                ? 0.12.cssEm.toLpUnder(options)
+                : label == '\u23df'
+                    ? 0.1.cssEm.toLpUnder(options)
+                    : 0.0,
             // Special case for \utilde
             child: baseResult.widget,
           ),
@@ -48,8 +53,12 @@ class AccentUnderNode extends SlotableNode<EquationRowNode> {
                   final defaultRuleThickness = options
                       .fontMetrics.defaultRuleThickness.cssEm
                       .toLpUnder(options);
+                  // Changed from 0.7.4 (README.md, 9): KaTeX's functions/underline.js ends its stack with a
+                  // kern of the rule's thickness under the rule, which is part of the depth.
                   return Padding(
-                    padding: EdgeInsets.only(top: 3 * defaultRuleThickness),
+                    padding: EdgeInsets.only(
+                        top: 3 * defaultRuleThickness,
+                        bottom: defaultRuleThickness),
                     child: Container(
                       width: constraints.minWidth,
                       height: defaultRuleThickness, // TODO minRuleThickness

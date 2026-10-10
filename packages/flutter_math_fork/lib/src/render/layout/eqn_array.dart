@@ -204,8 +204,10 @@ class RenderEqnArray extends RenderBox
           vPos - child.layoutHeight,
         );
       }
+      // Changed from 0.7.4 (README.md, 5): the jot is between rows, not under the last one, as KaTeX 0.16
+      // has it (environments/array.js: "adding \jot depth to each row except the last").
       vPos += math.max(layoutDepth, 0.3 * arrayskip) +
-          jotSize +
+          (index < childCount ? jotSize : 0.0) +
           rowSpacings[index - 1];
       if (!dry) {
         hlinePos.add(vPos);

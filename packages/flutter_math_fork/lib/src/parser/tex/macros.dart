@@ -111,6 +111,39 @@ const digitToNumber = {
 };
 
 // ignore: avoid_positional_boolean_parameters
+String _def(MacroContext context, bool global) {
+  final name = context.popToken().text;
+  if (RegExp(r'^(?:[\\{}$&#^_]|EOF)$').hasMatch(name)) {
+    throw ParseException('Expected a control sequence');
+  }
+  var numArgs = 0;
+  while (context.future().text != '{') {
+    var token = context.popToken();
+    if (token.text == '#') {
+      token = context.popToken();
+      numArgs++;
+      if (token.text != '$numArgs') {
+        throw ParseException('Invalid argument number "${token.text}"');
+      }
+    } else if (token.text == 'EOF') {
+      throw ParseException('Expected a macro definition');
+    } else {
+      throw ParseException(
+          'A macro with text between its parameters is not read');
+    }
+  }
+  final body = context.consumeArgs(1)[0];
+  context.macros.set(
+      name,
+      MacroDefinition.fromMacroExpansion(MacroExpansion(
+        tokens: body,
+        numArgs: numArgs,
+      )),
+      global: global);
+  return '';
+}
+
+// ignore: avoid_positional_boolean_parameters
 String newcommand(MacroContext context, bool existsOK, bool nonexistsOK) {
   var arg = context.consumeArgs(1)[0];
   if (arg.length != 1) {
@@ -350,6 +383,11 @@ final Map<String, MacroDefinition> builtinMacros = {
     return '\\@char{$number}';
   }),
 
+// Added to 0.7.4 (README.md, 8): `\def` and `\gdef`, as KaTeX's functions/def.js reads them where a macro
+// has no text between its parameters: a name, `#1#2…`, a body. (`\tag` is written with `\gdef`.)
+  '\\def': MacroDefinition.fromCtxString((context) => _def(context, false)),
+  '\\gdef': MacroDefinition.fromCtxString((context) => _def(context, true)),
+
 // \newcommand{\macro}[args]{definition}
 // \renewcommand{\macro}[args]{definition}
 // TODO: Optional arguments: \newcommand{\macro}[args][default]{definition}
@@ -512,6 +550,9 @@ final Map<String, MacroDefinition> builtinMacros = {
 // \def\implies{\DOTSB\;\Longrightarrow\;}
 // \def\impliedby{\DOTSB\;\Longleftarrow\;}
   '\\iff': MacroDefinition.fromString("\\DOTSB\\;\\Longleftrightarrow\\;"),
+  // Added to 0.7.4 (README.md, 15): two of KaTeX's own macros (macros.js) that were left out.
+  '\\mathstrut': MacroDefinition.fromString("\\vphantom{(}"),
+  '\\underbar': MacroDefinition.fromString("\\underline{\\text{#1}}"),
   '\\implies': MacroDefinition.fromString("\\DOTSB\\;\\Longrightarrow\\;"),
   '\\impliedby': MacroDefinition.fromString("\\DOTSB\\;\\Longleftarrow\\;"),
 

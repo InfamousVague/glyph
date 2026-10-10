@@ -51,17 +51,29 @@ const eqnArrayEntries = {
     numArgs: 0,
     handler: _casesHandler,
   ),
-  ['aligned']: EnvSpec(
+  // Added to 0.7.4 (README.md, 6): `align`, `gather`, `equation`, `split` and their starred forms, and
+  // `gathered`, read as KaTeX reads them less the equation's number, which KaTeX sets at the right of an
+  // unstarred one and this does not draw.
+  ['aligned', 'align', 'align*', 'split']: EnvSpec(
     numArgs: 0,
     handler: _alignedHandler,
   ),
-  // ['gathered']: EnvSpec(numArgs: 0, handler: _gatheredHandler),
-  ['alignedat']: EnvSpec(numArgs: 1, handler: _alignedAtHandler),
+  ['gathered', 'gather', 'gather*']: EnvSpec(
+    numArgs: 0,
+    handler: _gatheredHandler,
+  ),
+  ['equation', 'equation*']: EnvSpec(
+    numArgs: 0,
+    handler: _equationHandler,
+  ),
+  ['alignedat', 'alignat', 'alignat*']: EnvSpec(numArgs: 1, handler: _alignedAtHandler),
 };
 
 GreenNode _casesHandler(TexParser parser, EnvContext context) {
   final body = parseEqnArray(
     parser,
+    // Changed from 0.7.4 (README.md, 5): KaTeX sets `cases` with rows 1.2 apart (`arraystretch: 1.2`).
+    arrayStretch: 1.2,
     concatRow: (cells) {
       final children = [
         SpaceNode.alignerOrSpacer(),
@@ -114,7 +126,22 @@ GreenNode _alignedHandler(TexParser parser, EnvContext context) =>
       },
     );
 
-// GreenNode _gatheredHandler(TexParser parser, EnvContext context) {}
+/// Rows each centred, a jot between them: `gathered`.
+GreenNode _gatheredHandler(TexParser parser, EnvContext context) =>
+    parseEqnArray(
+      parser,
+      addJot: true,
+      concatRow: (cells) => EquationRowNode(
+          children: cells.expand((cell) => cell.children).toList()),
+    );
+
+/// One row, as it is: `equation`.
+GreenNode _equationHandler(TexParser parser, EnvContext context) =>
+    parseEqnArray(
+      parser,
+      concatRow: (cells) => EquationRowNode(
+          children: cells.expand((cell) => cell.children).toList()),
+    );
 
 GreenNode _alignedAtHandler(TexParser parser, EnvContext context) {
   final arg = parser.parseArgNode(mode: null, optional: false);
@@ -145,16 +172,20 @@ GreenNode _alignedAtHandler(TexParser parser, EnvContext context) {
 EquationArrayNode parseEqnArray(
   TexParser parser, {
   bool addJot = false,
+  double? arrayStretch,
   required EquationRowNode Function(List<EquationRowNode> cells) concatRow,
 }) {
+  final givenStretch = arrayStretch;
   // Parse body of array with \\ temporarily mapped to \cr
   parser.macroExpander.beginGroup();
   parser.macroExpander.macros.set('\\\\', MacroDefinition.fromString('\\cr'));
 
   // Get current arraystretch if it's not set by the environment
-  double? arrayStretch = 1.0;
+  arrayStretch = 1.0;
   // if (arrayStretch == null) {
-  final stretch = parser.macroExpander.expandMacroAsText('\\arraystretch');
+  final stretch = givenStretch != null
+      ? '$givenStretch'
+      : parser.macroExpander.expandMacroAsText('\\arraystretch');
   if (stretch == null) {
     // Default \arraystretch from lttab.dtx
     arrayStretch = 1.0;

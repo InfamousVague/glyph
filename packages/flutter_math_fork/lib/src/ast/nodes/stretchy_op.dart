@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../render/layout/layout_builder_baseline.dart';
@@ -42,16 +43,24 @@ class StretchyOpNode extends SlotableNode<EquationRowNode?> {
           if (above != null)
             Padding(
               padding: EdgeInsets.only(bottom: verticalPadding),
-              child: childBuildResults[0]!.widget,
+              // Changed from 0.7.4 (README.md, 12): KaTeX's functions/arrow.js sets what is over an arrow by
+              // its baseline, 2mu over the arrow, and lifts it by its depth only when that is more than a
+              // quarter of an em; this stacked the whole box, depth and all.
+              child: _OverArrow(
+                limit: 0.25.cssEm.toLpUnder(options),
+                child: childBuildResults[0]!.widget,
+              ),
             ),
           VListElement(
             // From katex.less/x-arrow-pad
             customCrossSize: (width) =>
                 BoxConstraints(minWidth: width + 1.0.cssEm.toLpUnder(options)),
             child: LayoutBuilderPreserveBaseline(
+              // Changed from 0.7.4 (README.md, 12): an arrow's middle is on the axis ("the point we want on
+              // the math axis is at 0.5 * arrowBody.height"); it was set at the x-height.
               builder: (context, constraints) => ShiftBaseline(
                 relativePos: 0.5,
-                offset: options.fontMetrics.xHeight.cssEm.toLpUnder(options),
+                offset: options.fontMetrics.axisHeight.cssEm.toLpUnder(options),
                 child: strechySvgSpan(
                   stretchyOpMapping[symbol] ?? symbol,
                   constraints.minWidth,
@@ -137,3 +146,51 @@ const stretchyOpMapping = {
   // '\\xrightequilibrium': '\u21cc', // Not a perfect match.
   // '\\xleftequilibrium': '\u21cb', // None better available.
 };
+
+/// What is over an arrow: as tall as it is above its baseline, and below it only when it hangs more than
+/// [limit] below.
+class _OverArrow extends SingleChildRenderObjectWidget {
+  const _OverArrow({required this.limit, required Widget child})
+      : super(child: child);
+
+  final double limit;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderOverArrow(limit);
+
+  @override
+  void updateRenderObject(
+          BuildContext context, _RenderOverArrow renderObject) =>
+      renderObject.limit = limit;
+}
+
+class _RenderOverArrow extends RenderShiftedBox {
+  _RenderOverArrow(this._limit) : super(null);
+
+  double _limit;
+  set limit(double value) {
+    if (value != _limit) {
+      _limit = value;
+      markNeedsLayout();
+    }
+  }
+
+  double _baseline = 0;
+
+  @override
+  void performLayout() {
+    final child = this.child!;
+    child.layout(constraints, parentUsesSize: true);
+    _baseline = child.getDistanceToBaseline(TextBaseline.alphabetic,
+            onlyReal: true) ??
+        child.size.height;
+    final depth = child.size.height - _baseline;
+    size = constraints.constrain(
+        Size(child.size.width, depth > _limit ? child.size.height : _baseline));
+    (child.parentData as BoxParentData).offset = Offset.zero;
+  }
+
+  @override
+  double? computeDistanceToActualBaseline(TextBaseline baseline) => _baseline;
+}

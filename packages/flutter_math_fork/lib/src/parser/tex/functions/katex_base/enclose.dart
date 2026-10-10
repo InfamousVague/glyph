@@ -84,21 +84,23 @@ GreenNode _fboxHandler(TexParser parser, FunctionContext context) {
 
 GreenNode _cancelHandler(TexParser parser, FunctionContext context) {
   final body = parser.parseArgNode(mode: null, optional: false)!;
+  // Changed from 0.7.4 (README.md, 11), to KaTeX's functions/enclose.js: a stroke through one character
+  // reaches a fifth of an em over and under it and no wider; through more it is as tall as they are and a
+  // fifth of an em wider each side; either way it adds nothing to the height (EnclosureNode). And the names:
+  // `\bcancel`'s and `\xcancel`'s were not the ones the node looks for, so neither was drawn at all.
+  final row = body.wrapWithEquationRow();
+  final single = row.children.length == 1 && row.children.first is SymbolNode;
   return EnclosureNode(
     notation: const {
       '\\cancel': ['updiagonalstrike'],
-      '\\bcancel': ['downdiagonalstrike'],
-      '\\xcancel': ['updiagonalstrike, downdiagonalstrike'],
+      '\\bcancel': ['downdiagnoalstrike'],
+      '\\xcancel': ['updiagonalstrike', 'downdiagnoalstrike'],
       '\\sout': ['horizontalstrike'],
     }[context.funcName]!,
     hasBorder: false,
-    base: body.wrapWithEquationRow(),
-    // KaTeX/src/functions/enclose.js line 59
-    // KaTeX will remove this padding if base is not single char. We won't, as
-    // MathJax neither.
-    verticalPadding: 0.2.cssEm,
+    base: row,
+    verticalPadding: single ? 0.2.cssEm : Measurement.zero,
     // katex.less/.cancel-pad
-    // KaTeX failed to apply this value, but we will, as MathJax had
-    horizontalPadding: 0.2.cssEm,
+    horizontalPadding: single ? Measurement.zero : 0.2.cssEm,
   );
 }

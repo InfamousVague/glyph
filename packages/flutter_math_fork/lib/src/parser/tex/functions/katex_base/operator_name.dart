@@ -31,8 +31,9 @@ GreenNode _operatorNameHandler(TexParser parser, FunctionContext context) {
   var name = parser.parseArgNode(mode: null, optional: false)!;
   final scripts =
       parser.parseScripts(allowLimits: context.funcName == '\\operatorname*');
-  final body = parser.parseGroup(context.funcName,
-          optional: false, greediness: 1, mode: null, consumeSpaces: true) ??
+  // Changed from 0.7.4 (README.md, 7): what follows is read as any atom is, as it is after `\sin`, where this
+  // asked for a group and could not read a space (`\operatorname{argmax}_\theta \, x`) after the name.
+  final body = parser.parseAtom(context.breakOnTokenText) ??
       EquationRowNode.empty();
 
   name = StyleNode(
@@ -43,26 +44,9 @@ GreenNode _operatorNameHandler(TexParser parser, FunctionContext context) {
   );
 
   if (!scripts.empty) {
-    if (scripts.limits == true) {
-      name = scripts.superscript != null
-          ? OverNode(
-              base: name.wrapWithEquationRow(),
-              above: scripts.superscript!,
-            )
-          : name;
-      name = scripts.subscript != null
-          ? UnderNode(
-              base: name.wrapWithEquationRow(),
-              below: scripts.subscript!,
-            )
-          : name;
-    } else {
-      name = MultiscriptsNode(
-        base: name.wrapWithEquationRow(),
-        sub: scripts.subscript,
-        sup: scripts.superscript,
-      );
-    }
+    // Changed from 0.7.4 (README.md, 13): the starred name takes limits in display style, as `\lim` does.
+    name = _nameWithScripts(name.wrapWithEquationRow(), scripts,
+        limitsInDisplay: context.funcName == '\\operatorname*');
   }
 
   return FunctionNode(

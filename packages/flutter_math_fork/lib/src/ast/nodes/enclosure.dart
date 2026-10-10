@@ -51,8 +51,12 @@ class EnclosureNode extends SlotableNode<EquationRowNode> {
       MathOptions options, List<BuildResult?> childBuildResults) {
     final horizontalPadding = this.horizontalPadding.toLpUnder(options);
     final verticalPadding = this.verticalPadding.toLpUnder(options);
+    // Changed from 0.7.4 (README.md, 11): a stroke through something is drawn over and under it and adds
+    // nothing to its height ("tests show that isn't how it actually works", KaTeX's functions/enclose.js).
+    final strike = !hasBorder && notation.isNotEmpty;
 
     Widget widget = Stack(
+      clipBehavior: strike ? Clip.none : Clip.hardEdge,
       children: <Widget>[
         Container(
           // color: backgroundcolor,
@@ -69,7 +73,7 @@ class EnclosureNode extends SlotableNode<EquationRowNode> {
               : null,
           child: Padding(
             padding: EdgeInsets.symmetric(
-              vertical: verticalPadding,
+              vertical: strike ? 0.0 : verticalPadding,
               horizontal: horizontalPadding,
             ),
             child: childBuildResults[0]!.widget,
@@ -79,8 +83,8 @@ class EnclosureNode extends SlotableNode<EquationRowNode> {
           Positioned(
             left: 0,
             right: 0,
-            top: 0,
-            bottom: 0,
+            top: strike ? -verticalPadding : 0,
+            bottom: strike ? -verticalPadding : 0,
             child: LayoutBuilder(
               builder: (context, constraints) => CustomPaint(
                 size: constraints.biggest,
@@ -99,8 +103,8 @@ class EnclosureNode extends SlotableNode<EquationRowNode> {
           Positioned(
             left: 0,
             right: 0,
-            top: 0,
-            bottom: 0,
+            top: strike ? -verticalPadding : 0,
+            bottom: strike ? -verticalPadding : 0,
             child: LayoutBuilder(
               builder: (context, constraints) => CustomPaint(
                 size: constraints.biggest,

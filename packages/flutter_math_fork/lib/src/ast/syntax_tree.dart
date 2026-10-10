@@ -439,6 +439,17 @@ class EquationRowNode extends ParentableNode<GreenNode>
   /// If non-null, the leftmost and rightmost [AtomType] will be overriden.
   final AtomType? overrideType;
 
+  /// For a piece of a row that `texBreak` cut: the kind of atom that stood before it in the row, and the kind
+  /// that stood after it. Null at the row's own ends.
+  ///
+  /// Added to 0.7.4 (README.md, 14). A piece was spaced as if it were a whole row: the operator it ends with
+  /// ("a +", cut before "b") was taken for a sign with nothing to its right and lost the space before it, and
+  /// the space after it, which lay between two pieces, was nobody's. With these a piece is spaced as it was in
+  /// the row, and keeps the space after its last atom (as each `.base` of KaTeX's markup keeps its own), so
+  /// the pieces set side by side are the row.
+  final AtomType? precededBy;
+  final AtomType? followedBy;
+
   @override
   final List<GreenNode> children;
 
@@ -460,6 +471,8 @@ class EquationRowNode extends ParentableNode<GreenNode>
   EquationRowNode({
     required this.children,
     this.overrideType,
+    this.precededBy,
+    this.followedBy,
   });
 
   factory EquationRowNode.empty() => EquationRowNode(children: []);
@@ -506,35 +519,17 @@ class EquationRowNode extends ParentableNode<GreenNode>
       },
       growable: false,
     );
-    _traverseNonSpaceNodes(childSpacingConfs, (prev, curr) {
-      if (prev?.rightType == AtomType.bin &&
-          const {
-            AtomType.rel,
-            AtomType.close,
-            AtomType.punct,
-            null,
-          }.contains(curr?.leftType)) {
-        prev!.rightType = AtomType.ord;
-        if (prev.leftType == AtomType.bin) {
-          prev.leftType = AtomType.ord;
-        }
-      } else if (curr?.leftType == AtomType.bin &&
-          const {
-            AtomType.bin,
-            AtomType.open,
-            AtomType.rel,
-            AtomType.op,
-            AtomType.punct,
-            null
-          }.contains(prev?.rightType)) {
-        curr!.leftType = AtomType.ord;
-        if (curr.rightType == AtomType.bin) {
-          curr.rightType = AtomType.ord;
-        }
-      }
-    });
+    // Changed from 0.7.4 (README.md, 14): a piece of a broken row sees its old neighbours.
+    final spacingConfs = <_NodeSpacingConf>[
+      if (precededBy != null)
+        _NodeSpacingConf(precededBy!, precededBy!, options, 0.0),
+      ...childSpacingConfs,
+      if (followedBy != null)
+        _NodeSpacingConf(followedBy!, followedBy!, options, 0.0),
+    ];
+    _traverseNonSpaceNodes(spacingConfs, _demoteLoneOperators);
 
-    _traverseNonSpaceNodes(childSpacingConfs, (prev, curr) {
+    _traverseNonSpaceNodes(spacingConfs, (prev, curr) {
       if (prev != null && curr != null) {
         prev.spacingAfter = getSpacingSize(
           prev.rightType,
@@ -677,7 +672,29 @@ class EquationRowNode extends ParentableNode<GreenNode>
       EquationRowNode(
         overrideType: overrideType ?? this.overrideType,
         children: children ?? this.children,
+        precededBy: precededBy,
+        followedBy: followedBy,
       );
+
+  /// The kinds of this row's atoms as the row spaces them, in the order of [flattenedChildList]: an operator
+  /// with nothing to operate on is an ordinary atom (TeX's rule; `buildWidget` applies it the same way). A
+  /// space has no kind and is null.
+  ///
+  /// Added to 0.7.4 (README.md, 14), for `texBreak` to tell a piece what its neighbours were.
+  List<(AtomType left, AtomType right)?> spacedTypes() {
+    final confs = [
+      for (final child in flattenedChildList)
+        _NodeSpacingConf(
+            child.leftType, child.rightType, MathOptions.textOptions, 0.0),
+    ];
+    _traverseNonSpaceNodes(confs, _demoteLoneOperators);
+    return [
+      for (final conf in confs)
+        conf.leftType == AtomType.spacing || conf.rightType == AtomType.spacing
+            ? null
+            : (conf.leftType, conf.rightType),
+    ];
+  }
 }
 
 mixin _ClipChildrenMixin on ParentableNode<GreenNode> {
@@ -856,6 +873,35 @@ class BuildResult {
     this.skew = 0.0,
     this.results,
   });
+}
+
+/// An operator between nothing and something, or something and nothing, is an ordinary atom.
+void _demoteLoneOperators(_NodeSpacingConf? prev, _NodeSpacingConf? curr) {
+  if (prev?.rightType == AtomType.bin &&
+      const {
+        AtomType.rel,
+        AtomType.close,
+        AtomType.punct,
+        null,
+      }.contains(curr?.leftType)) {
+    prev!.rightType = AtomType.ord;
+    if (prev.leftType == AtomType.bin) {
+      prev.leftType = AtomType.ord;
+    }
+  } else if (curr?.leftType == AtomType.bin &&
+      const {
+        AtomType.bin,
+        AtomType.open,
+        AtomType.rel,
+        AtomType.op,
+        AtomType.punct,
+        null
+      }.contains(prev?.rightType)) {
+    curr!.leftType = AtomType.ord;
+    if (curr.rightType == AtomType.bin) {
+      curr.rightType = AtomType.ord;
+    }
+  }
 }
 
 void _traverseNonSpaceNodes(

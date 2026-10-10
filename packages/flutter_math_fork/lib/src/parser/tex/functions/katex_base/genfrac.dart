@@ -135,6 +135,7 @@ GreenNode _internalFracHandler({
       body: [res.wrapWithEquationRow()],
       leftDelim: leftDelim,
       rightDelim: rightDelim,
+      genfracDelims: true,
     );
   }
   if (size != null) {

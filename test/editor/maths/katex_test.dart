@@ -1,8 +1,12 @@
 // The port's formulas against KaTeX's own, formula for formula: tool/maths_fixtures.mjs ran KaTeX 0.16 as
-// src/app/editor/mathsDrawn.ts runs it over thirty-four formulas, ordinary to hard, and wrote down whether each
-// could be read and, for the ones that could, how far its box reaches above and below its baseline, in ems of
-// the formula's own type (fixtures/katex.json). Here each is read and laid out by the port's reader
-// (flutter_math_fork, with KaTeX's own faces loaded) and measured the same way.
+// src/app/editor/mathsDrawn.ts runs it over thirty-four formulas, ordinary to hard, and over the pieces they are
+// made of one at a time, and wrote down whether each could be read and, for the ones that could, how far its box
+// reaches above and below its baseline, in ems of the formula's own type (fixtures/katex.json). Here each is
+// read and laid out by the port's reader (packages/flutter_math_fork, with KaTeX's own faces loaded) and
+// measured the same way.
+//
+// They agree, all of them, to a hundredth of an em. They did not with the package as published: its README
+// names the fifteen places it was changed, each found by a line of this test's output.
 //
 // There is no browser on either side, so widths and the look of a glyph are not compared: only what the two
 // layouts work out, which is where one would stand a fraction of a line off the other.
@@ -40,20 +44,23 @@ void main() {
 
   final fixture = jsonDecode(File('test/editor/maths/fixtures/katex.json').readAsStringSync()) as Map<String, dynamic>;
   final formulas = (fixture['formulas'] as List).cast<Map<String, dynamic>>();
+  final parts = (fixture['parts'] as List).cast<Map<String, dynamic>>();
+  final reach = (fixture['reach'] as List).cast<Map<String, dynamic>>();
 
-  testWidgets('${formulas.length} formulas: read where KaTeX ${fixture['katex']} reads them, and as tall', (tester) async {
+  /// For each formula of `list` that differs, how: `unread` (KaTeX reads it, the port does not), `read here
+  /// only`, or which of its height and depth is more than a hundredth of an em from KaTeX's. And the same in
+  /// words, to read, with the ones neither reads, which is agreeing.
+  Future<(Map<String, String>, List<String>)> compare(WidgetTester tester, List<Map<String, dynamic>> list) async {
     // An em of a hundred pixels: a hundredth of an em is a pixel.
     const em = 100.0;
-    // For each formula that differs, how: `unread` (KaTeX reads it, the port does not), `neither`, or which of
-    // its height and depth is more than a hundredth of an em from KaTeX's. And the same in words, to read.
     final differs = <String, String>{};
     final report = <String>[];
-    for (final formula in formulas) {
+    for (final formula in list) {
       final tex = formula['tex'] as String, display = formula['display'] as bool, ok = formula['ok'] as bool;
       final name = '${display ? r'$$' : r'$'} $tex';
       final read = formulaOf(tex, display);
       if (read.tree == null) {
-        differs[name] = ok ? 'unread' : 'neither';
+        if (ok) differs[name] = 'unread';
         report.add(ok ? '$name: not read here (${read.failed}), read by KaTeX' : '$name: read by neither; here "${read.failed}", KaTeX "${formula['error']}"');
         continue;
       }
@@ -69,11 +76,30 @@ void main() {
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: SingleChildScrollView(
-              child: _Probe(child: Math(ast: read.tree, options: optionsFor(display: display, size: em, color: const Color(0xff000000)))),
+              child: _Probe(
+                // A tagged formula is as tall as the taller of it and its tag, on one baseline.
+                child: read.tag == null
+                    ? Math(ast: read.tree, options: optionsFor(display: display, size: em, color: const Color(0xff000000)))
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: <Widget>[
+                          Math(ast: read.tree, options: optionsFor(display: display, size: em, color: const Color(0xff000000))),
+                          Math(ast: read.tag, options: optionsFor(display: display, size: em, color: const Color(0xff000000))),
+                        ],
+                      ),
+              ),
             ),
           ),
         ),
       );
+      final error = tester.takeException();
+      if (error != null) {
+        differs[name] = 'not laid out';
+        report.add('$name: not laid out here ($error)');
+        continue;
+      }
       final box = tester.renderObject<_RenderProbe>(find.byType(_Probe));
       final height = box.baseline / em, depth = (box.size.height - box.baseline) / em;
       final wantHeight = (formula['height'] as num).toDouble(), wantDepth = (formula['depth'] as num).toDouble();
@@ -83,43 +109,77 @@ void main() {
       ];
       if (off.isNotEmpty) {
         differs[name] = off.join(' ');
-        report.add('$name: height ${height.toStringAsFixed(2)} (KaTeX ${wantHeight.toStringAsFixed(2)}), depth ${depth.toStringAsFixed(2)} (KaTeX ${wantDepth.toStringAsFixed(2)})');
+        report.add('$name: height ${height.toStringAsFixed(4)} (KaTeX ${wantHeight.toStringAsFixed(4)}), depth ${depth.toStringAsFixed(4)} (KaTeX ${wantDepth.toStringAsFixed(4)})');
       }
     }
+    return (differs, report);
+  }
+
+  testWidgets('${formulas.length} formulas: read where KaTeX ${fixture['katex']} reads them, and as tall', (tester) async {
+    final (differs, report) = await compare(tester, formulas);
     // ignore: avoid_print
-    print('${formulas.length - differs.length} of ${formulas.length} as KaTeX has them; the others:\n${report.join('\n')}');
-    // What is known to differ, said here so that it is held: anything else is a failure, and so is one of these
-    // coming right without being taken off the list.
-    expect(differs, _known);
+    print('${formulas.length - differs.length} of ${formulas.length} as KaTeX has them\n${report.join('\n')}');
+    expect(differs, isEmpty);
+    // The four that are not formulas are read by neither, and the four the published package could not read
+    // are read: a name before a subscript and a space, `align`, `\tag`, `\def` and `\newcommand`.
+    expect(formulas.where((formula) => formula['ok'] == false).length, 4);
+    for (final tex in <String>[r'\mathbf{A}\mathrm{d}x + \operatorname{argmax}_\theta \, \hat{\theta}', r'\begin{align} a &= b \\ c &= d \end{align}', r'\cancel{x} + \tag{1}', r'\def\x{y}\x + \newcommand{\z}{w}\z']) {
+      expect(formulas.any((formula) => formula['tex'] == tex), isTrue, reason: tex);
+      expect(formulaOf(tex, tex.contains('align') || tex.contains('tag')).tree, isNotNull, reason: tex);
+    }
+  });
+
+  testWidgets('${parts.length} pieces of them, one at a time', (tester) async {
+    final (differs, report) = await compare(tester, parts);
+    // ignore: avoid_print
+    print('${parts.length - differs.length} of ${parts.length} pieces as KaTeX has them\n${report.join('\n')}');
+    expect(differs, isEmpty);
+  });
+
+  test('${reach.length} families of the commands KaTeX has: which of them the reader cannot read is this list', () {
+    final unread = <String>[
+      for (final formula in reach)
+        if (formula['ok'] == true && formulaOf(formula['tex'] as String, true).tree == null) formula['tex'] as String,
+    ];
+    // ignore: avoid_print
+    print('${reach.length - unread.length} of ${reach.length} families read; not:\n${unread.map((tex) => '$tex: ${formulaOf(tex, true).failed}').join('\n')}');
+    expect(reach.where((formula) => formula['ok'] != true), isEmpty, reason: 'each line is one KaTeX reads');
+    expect(unread, _unread);
   });
 }
 
-/// Where the port's reader is not KaTeX 0.16, formula by formula (the numbers are in the test's own output).
-///
-/// The first four are one fault: `flutter_math_fork` 0.7.4 reads a style's crampedness the wrong way round
-/// (`MathStyleExt.cramped` in its lib/src/ast/style.dart answers `index.isEven`, and the cramped styles are the
-/// odd ones), so a superscript is set at the height TeX gives one under a root or a fraction's bar, 0.074 em
-/// lower in a line of text, and an accent's own style is never cramped. The others are layouts the package has
-/// of its own (the rows of `cases` and `aligned`, `\binom`'s brackets, a brace's depth, an arrow's height), and
-/// four things it does not read: `\operatorname` before a subscript and a space, the `align` environment,
-/// `\tag`, and `\def` and `\newcommand`.
-const Map<String, String> _known = <String, String>{
-  r'$ x^2 + y': 'height',
-  r'$ E = mc^2': 'height',
-  r'$ \sqrt{x^2 + y^2}': 'depth',
-  r'$$ \int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}': 'height',
-  r'$$ \binom{n}{k} = \frac{n!}{k!(n-k)!}': 'height depth',
-  r'$$ \overline{z} + \underbrace{a + b}_{c}': 'depth',
-  r'$$ f(x) = \begin{cases} x^2 & x \ge 0 \\ -x & \text{otherwise} \end{cases}': 'height depth',
-  r'$$ \begin{aligned} a &= b + c \\ &= d \end{aligned}': 'height depth',
-  r'$$ \sqrt[3]{\frac{1}{1 + \frac{1}{x}}}': 'height',
-  r'$ \mathbf{A}\mathrm{d}x + \operatorname{argmax}_\theta \, \hat{\theta}': 'unread',
-  r'$$ \xrightarrow{f} \overbrace{1 + 2}^{3} \substack{a \\ b}': 'height',
-  r'$$ \begin{align} a &= b \\ c &= d \end{align}': 'unread',
-  r'$$ \cancel{x} + \tag{1}': 'unread',
-  r'$ \def\x{y}\x + \newcommand{\z}{w}\z': 'unread',
-  r'$ \frac{a': 'neither',
-  r'$ \unknowncommand{x}': 'neither',
-  r'$ x^': 'neither',
-  r'$$ \begin{matrix} a & b': 'neither',
-};
+/// What KaTeX reads and the port's reader does not, of the families in the fixture: a formula with one of these
+/// is shown as its source, in the error's ink. Held here so that the list is known, and so that one coming
+/// right is taken off it.
+const List<String> _unread = <String>[
+  // A box moved or measured otherwise: no height, set on the axis, a plain box, one of four by the style.
+  r'\smash{x}',
+  r'\vcenter{x}',
+  r'\hbox{x}',
+  r'\mathchoice{a}{b}{c}{d}',
+  // Two marks.
+  r'\phase{x}',
+  r'\angl{n}',
+  // What KaTeX itself draws only when told to trust the note (it is not): on the web the command's name in red.
+  r'\href{http://a.example}{x}',
+  r'\url{http://a.example}',
+  r'\includegraphics{a.png}',
+  r'\htmlClass{a}{x}',
+  // TeX's own ways of naming a thing, beside `\def` and `\newcommand`, which are read.
+  r'\let\a=b \a',
+  r'\global\def\a{b}\a',
+  r'\edef\a{b}\a',
+  r'\pmb{x}',
+  r'\Set{x | y}',
+  r'\set{x}',
+  // Something set over its neighbour, taking no room.
+  r'\mathclap{x}',
+  r'\mathllap{x}',
+  r'\mathrlap{x}',
+  r'\begin{matrix*}[r] a \\ b \end{matrix*}',
+  r'\begin{CD} A @>a>> B \end{CD}',
+  r'\varinjlim x',
+  r'\text{\aa \AA \ss \o \O \i \j}',
+  r'\llap{a} \rlap{b} \clap{c}',
+  r'\degree \copyright \textregistered \minuso',
+];

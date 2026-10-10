@@ -14,9 +14,12 @@ enum MathStyle {
   scriptscriptCramped,
 }
 
+// Changed from 0.7.4 (README.md, 1): `sup` before `sub`, the order of the first two rows of
+// `MathStyleExt._reduceTable`, which is read by a difference's index. In the other order a superscript was set
+// in the style of a subscript (cramped) and a subscript in a superscript's.
 enum MathStyleDiff {
-  sub,
   sup,
+  sub,
   fracNum,
   fracDen,
   cramp,
@@ -38,7 +41,9 @@ MathStyle? parseMathStyle(String string) => const {
 extension MathStyleExt on MathStyle {
   // MathStyle get pureStyle => MathStyle.values[(this.index / 2).floor()];
 
-  bool get cramped => this.index.isEven;
+  // Changed from 0.7.4 (README.md, 1): the cramped styles are the odd ones (`display, displayCramped, text,
+  // textCramped ...`); this answered `index.isEven`.
+  bool get cramped => this.index.isOdd;
   int get size => this.index ~/ 2;
 
   MathStyle reduce(MathStyleDiff? diff) => diff == null

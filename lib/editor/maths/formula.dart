@@ -16,11 +16,14 @@ import 'package:flutter_math_fork/tex.dart' show TexParser;
 
 /// What a formula is drawn as: its tree, or what is wrong with it.
 class Formula {
-  Formula._(this.tex, this.display, this.tree, this.failed);
+  Formula._(this.tex, this.display, this.tree, this.failed, [this.tag]);
 
   final String tex;
   final bool display;
   final SyntaxTree? tree;
+
+  /// What `\tag{…}` named the formula, to be set at the right of its line.
+  final SyntaxTree? tag;
 
   /// What the reader said, when it could not read the formula.
   final String? failed;
@@ -44,6 +47,9 @@ abstract final class MathsStats {
 /// The readings kept, by what each says and how it is set. More than one of the same where the same formula
 /// stands in more than one place at once: the reader's tree keeps the one drawing it built (and names its rows
 /// with keys only one place on screen may hold), so each place on screen needs a tree of its own.
+final RegExp _letterFirst = RegExp('^[A-Za-z]');
+final RegExp _controlWord = RegExp(r'\\[A-Za-z]+$');
+
 final Map<String, List<Formula>> _read = <String, List<Formula>>{};
 int _kept = 0;
 
@@ -51,7 +57,21 @@ Formula _parse(String tex, bool display) {
   MathsStats.read++;
   try {
     // `strict: 'ignore'`: what LaTeX would not take and KaTeX can is drawn without a word.
-    return Formula._(tex, display, SyntaxTree(greenRoot: TexParser(tex, TexParserSettings(displayMode: display, strict: Strict.ignore)).parse()), null);
+    final settings = TexParserSettings(displayMode: display, strict: Strict.ignore);
+    final parser = TexParser(tex, settings);
+    final root = SyntaxTree(greenRoot: parser.parse());
+    // KaTeX's parseTree: a `\tag` is kept by the parse (as the macro `\df@tag`) and set beside the formula
+    // when it is done; only a formula on lines of its own has the room.
+    final tagged = parser.macroExpander.expandMacro(r'\df@tag');
+    if (tagged == null) return Formula._(tex, display, root, null);
+    if (!display) return Formula._(tex, display, null, r'\tag works only in display equations');
+    final words = StringBuffer();
+    for (final token in tagged) {
+      // A control word and a letter after it are two things: kept apart as they were written.
+      if (words.isNotEmpty && _letterFirst.hasMatch(token.text) && _controlWord.hasMatch(words.toString())) words.write(' ');
+      words.write(token.text);
+    }
+    return Formula._(tex, display, root, null, SyntaxTree(greenRoot: TexParser(words.toString(), settings).parse()));
   } on ParseException catch (error) {
     return Formula._(tex, display, null, error.message);
   } on Object catch (error) {

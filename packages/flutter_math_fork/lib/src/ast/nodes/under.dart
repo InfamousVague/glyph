@@ -16,15 +16,37 @@ class UnderNode extends SlotableNode {
 
   /// Argumentn below the base.
   final EquationRowNode below;
+  /// Whether what is below is the label of an `\underbrace`: set a fifth of an em under the brace and no more.
+  ///
+  /// Added to 0.7.4 (README.md, 4), as [OverNode.braceLabel].
+  final bool braceLabel;
+
   UnderNode({
     required this.base,
     required this.below,
+    this.braceLabel = false,
   });
 
   // KaTeX's corresponding code is in /src/functions/utils/assembleSubSup.js
   @override
   BuildResult buildWidget(
       MathOptions options, List<BuildResult?> childBuildResults) {
+    if (braceLabel) {
+      return BuildResult(
+        italic: 0.0,
+        options: options,
+        widget: VList(
+          baselineReferenceWidgetIndex: 0,
+          children: <Widget>[
+            childBuildResults[0]!.widget,
+            Padding(
+              padding: EdgeInsets.only(top: 0.2.cssEm.toLpUnder(options)),
+              child: childBuildResults[1]!.widget,
+            ),
+          ],
+        ),
+      );
+    }
     final spacing = options.fontMetrics.bigOpSpacing5.cssEm.toLpUnder(options);
     return BuildResult(
       italic: 0.0,
@@ -86,5 +108,6 @@ class UnderNode extends SlotableNode {
       UnderNode(
         base: base ?? this.base,
         below: below ?? this.below,
+        braceLabel: braceLabel,
       );
 }

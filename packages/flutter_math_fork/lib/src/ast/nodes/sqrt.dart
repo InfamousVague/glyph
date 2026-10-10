@@ -222,12 +222,15 @@ class SqrtLayoutDelegate extends CustomLayoutDelegate<_SqrtPos> {
       }
     }
 
-    final bodyHeight = baseHeight + psi + ruleWidth;
-    final bodyDepth = surdSize.height - bodyHeight;
+    // Changed from 0.7.4 (README.md, 2): KaTeX sets a kern of the rule's own width above the root's rule
+    // (functions/sqrt.js, the last child of its vlist), which is part of the root's height: a root stood
+    // 0.04 em short without it.
+    final bodyHeight = baseHeight + psi + ruleWidth + ruleWidth;
+    final bodyDepth = surdSize.height + ruleWidth - bodyHeight;
     final indexShift = 0.6 * (bodyHeight - bodyDepth);
     final sqrtVerticalPos =
-        math.max(0.0, indexHeight + indexShift - baseHeight - psi - ruleWidth);
-    final height = sqrtVerticalPos + surdSize.height;
+        math.max(0.0, indexHeight + indexShift - bodyHeight);
+    final height = sqrtVerticalPos + surdSize.height + ruleWidth;
 
     // Position children
     if (!dry) {
@@ -238,7 +241,7 @@ class SqrtLayoutDelegate extends CustomLayoutDelegate<_SqrtPos> {
           sqrtHorizontalPos + advanceWidth, heightAboveBaseline - baseHeight);
       index?.offset = Offset(sqrtHorizontalPos - indexRightPadding - indexWidth,
           heightAboveBaseline - indexShift - indexHeight);
-      surd.offset = Offset(sqrtHorizontalPos, sqrtVerticalPos);
+      surd.offset = Offset(sqrtHorizontalPos, sqrtVerticalPos + ruleWidth);
     }
 
     return Size(width, height);

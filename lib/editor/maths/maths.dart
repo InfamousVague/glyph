@@ -234,7 +234,14 @@ class _DrawnMathsState extends State<DrawnMaths> {
       // broken where it may be if it will not fit, as its pieces wrap on the page.
       final options = optionsFor(display: display, size: size, color: ink);
       child = display || formula.parts.length < 2
-          ? _MathsLine(above: box.above, below: box.below, children: <Widget>[Math(ast: tree, options: options)])
+          ? _MathsLine(
+              above: box.above,
+              below: box.below,
+              // '.katex-display > .katex > .katex-html > .tag { position: absolute; right: 0 }': a formula's
+              // `\tag` at the right of its line, on the formula's baseline.
+              tagged: formula.tag != null,
+              children: <Widget>[Math(ast: tree, options: options), if (formula.tag != null) Math(ast: formula.tag, options: options)],
+            )
           : _InlineMaths(formula: formula, options: options, above: box.above, below: box.below);
     }
     if (display) {
@@ -255,7 +262,8 @@ class _DrawnMathsState extends State<DrawnMaths> {
                 scrollDirection: Axis.horizontal,
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minWidth: inner > 0 ? inner : 0),
-                  child: Center(widthFactor: 1, child: formulaBox),
+                  // A tagged formula takes the whole width itself, to put its tag at the far side of it.
+                  child: formula.tag != null ? formulaBox : Center(widthFactor: 1, child: formulaBox),
                 ),
               ),
             ),
@@ -330,21 +338,28 @@ class _InlineMathsState extends State<_InlineMaths> {
 /// A formula on its line: no shorter above or below its baseline than the boxes it is in ([_inlineBox]), however
 /// small it is; and, in pieces, broken onto another row of the same where the pieces do not fit the width.
 class _MathsLine extends MultiChildRenderObjectWidget {
-  const _MathsLine({required this.above, required this.below, this.onWide, required super.children});
+  const _MathsLine({required this.above, required this.below, this.onWide, this.tagged = false, required super.children});
 
   final double above, below;
+
+  /// Whether the last child is the formula's tag: set at the right of the width given, the formula in the
+  /// middle of it.
+  final bool tagged;
 
   /// Told the formula's width when it is one piece wider than its line.
   final void Function(double width)? onWide;
 
   @override
-  RenderObject createRenderObject(BuildContext context) => _RenderMathsLine(above, below)..onWide = onWide;
+  RenderObject createRenderObject(BuildContext context) => _RenderMathsLine(above, below)
+    ..onWide = onWide
+    ..tagged = tagged;
 
   @override
   void updateRenderObject(BuildContext context, _RenderMathsLine renderObject) => renderObject
     ..above = above
     ..below = below
-    ..onWide = onWide;
+    ..onWide = onWide
+    ..tagged = tagged;
 }
 
 class _MathsLineParentData extends ContainerBoxParentData<RenderBox> {}
@@ -368,6 +383,13 @@ class _RenderMathsLine extends RenderBox with ContainerRenderObjectMixin<RenderB
 
   void Function(double width)? onWide;
 
+  bool _tagged = false;
+  set tagged(bool value) {
+    if (value == _tagged) return;
+    _tagged = value;
+    markNeedsLayout();
+  }
+
   /// The first row's baseline, from the top.
   double _up = 0;
   bool _clipped = false;
@@ -386,6 +408,22 @@ class _RenderMathsLine extends RenderBox with ContainerRenderObjectMixin<RenderB
       child.layout(const BoxConstraints(), parentUsesSize: true);
       pieces.add(child);
       baselines.add(child.getDistanceToBaseline(TextBaseline.alphabetic, onlyReal: true) ?? child.size.height);
+    }
+    if (_tagged && pieces.length == 2) {
+      // The formula in the middle of the width, its tag at the right, both on one baseline.
+      final formula = pieces[0], tag = pieces[1];
+      var up = _above, down = _below;
+      for (var i = 0; i < 2; i++) {
+        if (baselines[i] > up) up = baselines[i];
+        if (pieces[i].size.height - baselines[i] > down) down = pieces[i].size.height - baselines[i];
+      }
+      final wide = constraints.minWidth > formula.size.width ? constraints.minWidth : formula.size.width;
+      (formula.parentData! as _MathsLineParentData).offset = Offset((wide - formula.size.width) / 2, up - baselines[0]);
+      (tag.parentData! as _MathsLineParentData).offset = Offset(wide - tag.size.width, up - baselines[1]);
+      _up = up;
+      _clipped = false;
+      size = constraints.constrain(Size(wide, up + down));
+      return;
     }
     var top = 0.0, width = 0.0;
     var first = true;

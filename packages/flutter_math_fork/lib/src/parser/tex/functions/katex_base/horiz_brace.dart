@@ -43,6 +43,7 @@ GreenNode _horizBraceHandler(TexParser parser, FunctionContext context) {
       res = OverNode(
         base: res.wrapWithEquationRow(),
         above: scripts.superscript!,
+        braceLabel: true,
       );
     }
     if (scripts.subscript != null) {
@@ -61,6 +62,7 @@ GreenNode _horizBraceHandler(TexParser parser, FunctionContext context) {
       res = UnderNode(
         base: res.wrapWithEquationRow(),
         below: scripts.subscript!,
+        braceLabel: true,
       );
     }
     if (scripts.superscript != null) {

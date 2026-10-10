@@ -15,6 +15,7 @@ import '../../../ast/nodes/space.dart';
 import '../../../ast/nodes/sqrt.dart';
 import '../../../ast/nodes/stretchy_op.dart';
 import '../../../ast/nodes/style.dart';
+import '../../../ast/nodes/style_limits.dart';
 import '../../../ast/nodes/symbol.dart';
 import '../../../ast/nodes/under.dart';
 import '../../../ast/options.dart';

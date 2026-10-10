@@ -74,17 +74,43 @@ extension EquationRowNodeTexStyleBreakExt on EquationRowNode {
       }
     }
 
+    // Changed from 0.7.4 (README.md, 14): each piece is told the kind of atom that stood before it and after it
+    // in the row, so that it is spaced as it was there and keeps the space after its last atom.
+    final types = spacedTypes();
+    AtomType? before(int index) {
+      for (var i = index - 1; i >= 0; i--) {
+        if (types[i] != null) return types[i]!.$2;
+      }
+      return null;
+    }
+
+    AtomType? after(int index) {
+      for (var i = index; i < types.length; i++) {
+        if (types[i] != null) return types[i]!.$1;
+      }
+      return null;
+    }
+
+    EquationRowNode piece(int from, int to, int firstChild, int endChild) {
+      final clipped = this.clipChildrenBetween(from, to);
+      return EquationRowNode(
+        children: clipped.children,
+        precededBy: before(firstChild),
+        followedBy: after(endChild),
+      );
+    }
+
     final res = <EquationRowNode>[];
     var pos = 1;
+    var firstChild = 0;
     for (var i = 0; i < breakIndices.length; i++) {
       final breakEnd = caretPositions[breakIndices[i] + 1];
-      res.add(this.clipChildrenBetween(pos, breakEnd).wrapWithEquationRow());
+      res.add(piece(pos, breakEnd, firstChild, breakIndices[i] + 1));
       pos = breakEnd;
+      firstChild = breakIndices[i] + 1;
     }
     if (pos != caretPositions.last) {
-      res.add(this
-          .clipChildrenBetween(pos, caretPositions.last)
-          .wrapWithEquationRow());
+      res.add(piece(pos, caretPositions.last, firstChild, types.length));
       penalties.add(10000);
     }
     return BreakResult<EquationRowNode>(

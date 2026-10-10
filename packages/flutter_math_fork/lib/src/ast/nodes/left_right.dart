@@ -13,6 +13,7 @@ import '../../render/symbols/make_symbol.dart';
 import '../options.dart';
 import '../size.dart';
 import '../spacing.dart';
+import '../style.dart';
 import '../syntax_tree.dart';
 import '../types.dart';
 
@@ -32,11 +33,19 @@ class LeftRightNode extends SlotableNode<EquationRowNode> {
   /// List of middle delimiter characters.
   final List<String?> middle;
 
+  /// Whether the delimiters are a binomial's: of the size the style gives a generalized fraction's, whatever is
+  /// between them.
+  ///
+  /// Added to 0.7.4 (README.md, 3). KaTeX sets `\binom`'s brackets at the face's `delim1` in display style and
+  /// `delim2` otherwise (functions/genfrac.js), not at the size `\left(` would find for what is inside.
+  final bool genfracDelims;
+
   LeftRightNode({
     required this.leftDelim,
     required this.rightDelim,
     required this.body,
     this.middle = const [],
+    this.genfracDelims = false,
   })  : assert(body.isNotEmpty),
         assert(middle.length == body.length - 1);
 
@@ -45,12 +54,31 @@ class LeftRightNode extends SlotableNode<EquationRowNode> {
       MathOptions options, List<BuildResult?> childBuildResults) {
     final numElements = 2 + body.length + middle.length;
     final a = options.fontMetrics.axisHeight.cssEm.toLpUnder(options);
+    final genfracSize = (options.style.size == MathStyle.display.size
+            ? options.fontMetrics.delim1
+            : options.style.size == MathStyle.scriptscript.size
+                ? options.havingStyle(MathStyle.script).fontMetrics.delim2
+                : options.fontMetrics.delim2)
+        .cssEm
+        .toLpUnder(options);
 
     final childWidgets = List.generate(numElements, (index) {
       if (index % 2 == 0) {
         // Delimiter
+        final delim = index == 0
+            ? leftDelim
+            : index == numElements - 1
+                ? rightDelim
+                : middle[index ~/ 2 - 1];
         return LineElement(
           customCrossSize: (height, depth) {
+            // Changed from 0.7.4 (README.md, 10): no delimiter is asked for no height.
+            if (delim == null) {
+              return const BoxConstraints();
+            }
+            if (genfracDelims) {
+              return BoxConstraints(minHeight: genfracSize);
+            }
             final delta = math.max(height - a, depth + a);
             final delimeterFullHeight = math.max(delta / 500 * delimiterFactor,
                 2 * delta - delimiterShorfall.toLpUnder(options));
@@ -63,11 +91,7 @@ class LeftRightNode extends SlotableNode<EquationRowNode> {
                   .toLpUnder(options),
           child: LayoutBuilderPreserveBaseline(
             builder: (context, constraints) => buildCustomSizedDelimWidget(
-              index == 0
-                  ? leftDelim
-                  : index == numElements - 1
-                      ? rightDelim
-                      : middle[index ~/ 2 - 1],
+              delim,
               constraints.minHeight,
               options,
             ),
@@ -117,6 +141,7 @@ class LeftRightNode extends SlotableNode<EquationRowNode> {
         rightDelim: rightDelim,
         body: newChildren,
         middle: middle,
+        genfracDelims: genfracDelims,
       );
 
   @override
@@ -172,14 +197,12 @@ const stackNeverDelimiters = {
 Widget buildCustomSizedDelimWidget(
     String? delim, double minDelimiterHeight, MathOptions options) {
   if (delim == null) {
-    final axisHeight = options.fontMetrics.xHeight.cssEm.toLpUnder(options);
-    return ShiftBaseline(
-      relativePos: 0.5,
-      offset: axisHeight,
-      child: Container(
-        height: minDelimiterHeight,
-        width: nullDelimiterSpace.toLpUnder(options),
-      ),
+    // Changed from 0.7.4 (README.md, 10): no delimiter is room and nothing else (KaTeX's
+    // `makeNullDelimiter`, an empty span). This was a box as tall as a delimiter would have been, set about
+    // the x-height and not the axis, and made `\left\{ … \right.` and `cases` taller than what was in them.
+    return SizedBox(
+      height: 0,
+      width: nullDelimiterSpace.toLpUnder(options),
     );
   }
 

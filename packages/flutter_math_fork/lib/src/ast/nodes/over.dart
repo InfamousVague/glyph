@@ -20,16 +20,38 @@ class OverNode extends SlotableNode<EquationRowNode> {
   /// Special flag for `\stackrel`
   final bool stackRel;
 
+  /// Whether what is above is the label of an `\overbrace`: set a fifth of an em over the brace and no more.
+  ///
+  /// Added to 0.7.4 (README.md, 4). KaTeX stacks a brace's label with a kern of 0.2 (functions/horizBrace.js);
+  /// the spacing of an operator's limit, which is what `\overset` wants, put it a tenth of an em higher.
+  final bool braceLabel;
+
   OverNode({
     required this.base,
     required this.above,
     this.stackRel = false,
+    this.braceLabel = false,
   });
 
   // KaTeX's corresponding code is in /src/functions/utils/assembleSubSup.js
   @override
   BuildResult buildWidget(
       MathOptions options, List<BuildResult?> childBuildResults) {
+    if (braceLabel) {
+      return BuildResult(
+        options: options,
+        widget: VList(
+          baselineReferenceWidgetIndex: 1,
+          children: <Widget>[
+            Padding(
+              padding: EdgeInsets.only(bottom: 0.2.cssEm.toLpUnder(options)),
+              child: childBuildResults[1]!.widget,
+            ),
+            childBuildResults[0]!.widget,
+          ],
+        ),
+      );
+    }
     final spacing = options.fontMetrics.bigOpSpacing5.cssEm.toLpUnder(options);
     return BuildResult(
       options: options,
@@ -97,5 +119,6 @@ class OverNode extends SlotableNode<EquationRowNode> {
         base: base ?? this.base,
         above: above ?? this.above,
         stackRel: stackRel ?? this.stackRel,
+        braceLabel: braceLabel,
       );
 }

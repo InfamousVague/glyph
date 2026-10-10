@@ -101,8 +101,11 @@ class AccentNode extends SlotableNode<EquationRowNode> {
             final defaultRuleThickness = options
                 .fontMetrics.defaultRuleThickness.cssEm
                 .toLpUnder(options);
+            // Changed from 0.7.4 (README.md, 9): KaTeX's functions/overline.js ends its stack with a kern of
+            // the rule's thickness over the rule, which is part of the height.
             return Padding(
-              padding: EdgeInsets.only(bottom: 3 * defaultRuleThickness),
+              padding: EdgeInsets.only(
+                  top: defaultRuleThickness, bottom: 3 * defaultRuleThickness),
               child: Container(
                 width: constraints.minWidth,
                 height: defaultRuleThickness, // TODO minRuleThickness
