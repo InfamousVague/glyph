@@ -26,33 +26,74 @@ void forEachVisibleLine(EditorViewLike view, void Function(Line line) visit) {
 /// A line that opens or closes fenced code: three backticks or three tildes.
 final RegExp _fence = RegExp(r'^\s*(```|~~~)');
 
+/// The marker of a line that opens or closes fenced code, kept for every line of a document (`LineFact`): a
+/// keystroke reads its own lines for one, not the note.
+final LineFact<String> fenceMarkers = LineFact<String>((text) {
+  // Most lines have neither run, and are not put to the pattern at all.
+  if (!text.contains('```') && !text.contains('~~~')) return null;
+  return _fence.firstMatch(text)?.group(1);
+});
+
+/// Where a document's fenced code is: its fences' own lines, and whether each leaves a fence open after it. A
+/// fence closes on the marker it opened with, so a `~~~` inside a ``` block is the block's words. Worked out from
+/// the fences' lines alone, which are few, once for each document.
+class DocFences {
+  DocFences._(this._lines, this._openAfter);
+
+  final List<int> _lines;
+  final List<bool> _openAfter;
+
+  static final DocMemo<DocFences> _memo = DocMemo<DocFences>((doc) {
+    final lines = <int>[];
+    final open = <bool>[];
+    String? fence;
+    for (final marker in fenceMarkers.of(doc)) {
+      fence = fence == null ? marker.fact : (fence == marker.fact ? null : fence);
+      lines.add(marker.number);
+      open.add(fence != null);
+    }
+    return DocFences._(lines, open);
+  });
+
+  /// The fences of [doc].
+  static DocFences of(Doc doc) => _memo.of(doc);
+
+  /// Whether the document has no fence at all.
+  bool get isEmpty => _lines.isEmpty;
+
+  /// Whether line [number] is fenced code, or a fence's own line.
+  bool covers(int number) {
+    // The last fence line at or before the line.
+    var lo = 0, hi = _lines.length;
+    while (lo < hi) {
+      final mid = (lo + hi) >> 1;
+      if (_lines[mid] <= number) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    if (lo == 0) return false;
+    return _lines[lo - 1] == number || _openAfter[lo - 1];
+  }
+}
+
 /// Calls `visit` with every line of `doc` outside fenced code, in order; the fence lines themselves are skipped
 /// too. A fence closes on the marker it opened with, so a `~~~` inside a ``` block is the block's words.
+///
+/// This walks the whole document: for something asked on every keystroke, a [LineFact] of what is looked for and
+/// [DocFences.covers] of the few lines that have it.
 void forEachDocLineOutsideFences(Doc doc, void Function(Line line) visit) {
-  String? fence;
+  final fences = DocFences.of(doc);
   for (var n = 1; n <= doc.lines; n += 1) {
-    final line = doc.line(n);
-    final marker = _fence.firstMatch(line.text)?.group(1);
-    if (marker != null) {
-      fence = fence == null ? marker : (fence == marker ? null : fence);
-      continue;
-    }
-    if (fence == null) visit(line);
+    if (fences.covers(n)) continue;
+    visit(doc.line(n));
   }
 }
 
 /// Whether line `number` of `doc` is fenced code, or a fence's own line: the lines [forEachDocLineOutsideFences]
 /// skips.
-bool docLineInFence(Doc doc, int number) {
-  String? fence;
-  final last = number < doc.lines ? number : doc.lines;
-  for (var n = 1; n <= last; n += 1) {
-    final marker = _fence.firstMatch(doc.line(n).text)?.group(1);
-    if (n == number) return fence != null || marker != null;
-    if (marker != null) fence = fence == null ? marker : (fence == marker ? null : fence);
-  }
-  return false;
-}
+bool docLineInFence(Doc doc, int number) => number <= doc.lines && DocFences.of(doc).covers(number);
 
 /// The numbers of the lines the selection touches, every range and every line between its ends.
 Set<int> selectedLines(EditorState state) {

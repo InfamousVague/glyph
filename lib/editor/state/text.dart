@@ -7,6 +7,15 @@
 ///
 /// The tree is CodeMirror's: leaves of at most 32 lines under nodes that keep themselves balanced, so replacing a
 /// word in a 400 kB note copies one leaf and the path to it, not the note.
+///
+/// What is here that CodeMirror's has not, because the web app's extensions read the whole note again on every
+/// keystroke (a regular expression over each line, once for each extension) and a phone has no time for that:
+/// - a document's string is made once ([Doc.toString] keeps it), however many ask;
+/// - [LineFact], something read from one line's words alone, is kept by the tree's own pieces: a change makes a new
+///   leaf and a new path to it, so only that leaf's lines are read again and every other piece answers from what it
+///   kept;
+/// - [DocMemo], something worked out from a whole document, is kept with the document it was worked out from;
+/// - [DocWork] counts, in a debug build, how much of a document was read: what a test holds a keystroke to.
 library;
 
 const int _branch = 32; // Tree.Branch
@@ -31,12 +40,14 @@ abstract class Doc {
   /// The line around `pos` (CodeMirror's `lineAt`).
   Line lineAt(int pos) {
     if (pos < 0 || pos > length) throw RangeError('Invalid position $pos in document of length $length');
+    assert(DocWork._line());
     return _lineInner(pos, false, 1, 0);
   }
 
   /// The line with the given number, counted from 1 (CodeMirror's `line`).
   Line line(int n) {
     if (n < 1 || n > lines) throw RangeError('Invalid line number $n in $lines-line document');
+    assert(DocWork._line());
     return _lineInner(n, true, 1, 0);
   }
 
@@ -108,9 +119,23 @@ abstract class Doc {
     return _LineCursor(inner);
   }
 
-  /// The whole text, lines joined by `\n`.
+  /// The whole text, lines joined by `\n`. Made once and kept: a document never changes.
   @override
-  String toString() => sliceString(0);
+  String toString() {
+    assert(DocWork._asked());
+    final kept = _whole;
+    if (kept != null) return kept;
+    assert(DocWork._string(length));
+    return _whole = sliceString(0);
+  }
+
+  String? _whole;
+
+  /// What the [LineFact]s have read of this piece, each in its own place.
+  List<Object?>? _facts;
+
+  /// What the [DocMemo]s have worked out from this piece as a whole document.
+  List<Object?>? _memos;
 
   /// The lines as a list (CodeMirror's `toJSON`), which [Doc.of] reads back.
   List<String> toJson() {
@@ -661,4 +686,272 @@ class Line {
 
   @override
   String toString() => 'Line($number, $from-$to)';
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// What is read from a document, kept with it
+// ---------------------------------------------------------------------------------------------------------------
+
+/// How much of documents was read, counted in a debug build only (every count is inside an `assert`, so a profile
+/// or a release build has none of it). A test puts them to zero, does one thing, and holds what was read to a
+/// number: a keystroke in a long note reads the lines it changed, not the note.
+abstract final class DocWork {
+  /// Lines handed out: [Doc.line] and [Doc.lineAt].
+  static int lines = 0;
+
+  /// Lines a [LineFact] read with its function.
+  static int reads = 0;
+
+  /// Whole documents made into a string, and how many characters that was.
+  static int strings = 0;
+  static int stringChars = 0;
+
+  /// How many times a whole document was asked for as a string, made or kept: each asker goes on to read all of
+  /// it, which no count here sees, so a test names the askers it allows.
+  static int asked = 0;
+
+  /// Set by a test to hear of each asking as it happens (to say who asked).
+  static void Function()? onAsked;
+
+  /// Whole documents a [DocMemo] worked something out from.
+  static int memos = 0;
+
+  static void reset() => lines = reads = strings = stringChars = asked = memos = 0;
+
+  static bool _line() {
+    lines += 1;
+    return true;
+  }
+
+  static bool _read() {
+    reads += 1;
+    return true;
+  }
+
+  static bool _asked() {
+    asked += 1;
+    onAsked?.call();
+    return true;
+  }
+
+  static bool _string(int chars) {
+    strings += 1;
+    stringChars += chars;
+    return true;
+  }
+
+  static bool _memo() {
+    memos += 1;
+    return true;
+  }
+}
+
+int _nextFact = 0;
+int _nextMemo = 0;
+
+Object? _keptIn(List<Object?>? kept, int id) => kept != null && id < kept.length ? kept[id] : null;
+
+List<Object?> _keepIn(List<Object?>? kept, int id, Object value) {
+  kept ??= <Object?>[];
+  while (kept.length <= id) {
+    kept.add(null);
+  }
+  kept[id] = value;
+  return kept;
+}
+
+/// A line that has a [LineFact]: where it is and what was read from it.
+class FactLine<T> {
+  const FactLine._(this.number, this.from, this.text, this.fact);
+
+  /// The line's number, counted from 1.
+  final int number;
+
+  /// Where the line starts.
+  final int from;
+
+  /// The line's words.
+  final String text;
+
+  /// What the fact's function read from them.
+  final T fact;
+
+  /// Where the line ends.
+  int get to => from + text.length;
+
+  @override
+  String toString() => 'FactLine($number, $from, $fact)';
+}
+
+class _LeafFacts {
+  const _LeafFacts(this.at, this.what);
+
+  /// Which of the leaf's lines have the fact, from 0, in order.
+  final List<int> at;
+  final List<Object> what;
+}
+
+/// Something read from one line's words alone (a film's reference, a fence's marker, an item's anchor), kept for
+/// every line of a document.
+///
+/// [read] must answer from the words it is given and nothing else: the answer is kept with the piece of the tree
+/// the line is in, and a document made by a change shares every piece the change did not touch, so asking a new
+/// document reads only the lines of the leaf that was made for it. Null is "this line has none", which is what most
+/// lines answer; what is not null should be small, and never changed.
+///
+/// One fact is made once, at the top of a file (`final LineFact<VideoLine> films = LineFact(videoOfLine)`), and
+/// asked of any document.
+class LineFact<T extends Object> {
+  LineFact(this.read) : _id = _nextFact++, _all = _nextMemo++;
+
+  /// Reads one line.
+  final T? Function(String text) read;
+
+  final int _id, _all;
+
+  /// Every line of [doc] that has the fact, in order. Not to be changed.
+  List<FactLine<T>> of(Doc doc) {
+    final kept = _keptIn(doc._memos, _all);
+    if (kept != null) return kept as List<FactLine<T>>;
+    final found = <FactLine<T>>[];
+    if (_count(doc) > 0) _collect(doc, 1, 0, 1, doc.lines, found);
+    doc._memos = _keepIn(doc._memos, _all, found);
+    return found;
+  }
+
+  /// Whether no line of [doc] has the fact.
+  bool nowhere(Doc doc) => _count(doc) == 0;
+
+  /// What line [number] of [doc] has, or null. Reads no more than that line's leaf.
+  T? at(Doc doc, int number) {
+    if (number < 1 || number > doc.lines) return null;
+    var node = doc;
+    var line = 1;
+    for (;;) {
+      final children = node.children;
+      if (children == null) break;
+      if (_keptIn(node._facts, _id) == 0) return null;
+      for (final child in children) {
+        if (line + child.lines > number) {
+          node = child;
+          break;
+        }
+        line += child.lines;
+      }
+    }
+    if (_count(node) == 0) return null;
+    final facts = _keptIn(node._facts, _id)! as _LeafFacts;
+    final index = number - line;
+    for (var i = 0; i < facts.at.length && facts.at[i] <= index; i++) {
+      if (facts.at[i] == index) return facts.what[i] as T;
+    }
+    return null;
+  }
+
+  /// The lines from number [first] to number [last], both included, that have the fact, in order. Reads no more
+  /// than the leaves those lines are in, so what asks only about the screen never reads the note.
+  List<FactLine<T>> between(Doc doc, int first, int last) {
+    final found = <FactLine<T>>[];
+    if (first < 1) first = 1;
+    if (last > doc.lines) last = doc.lines;
+    if (first > last) return found;
+    final all = _keptIn(doc._memos, _all);
+    if (all != null) {
+      // Already listed whole: the part of the list that is wanted.
+      final lines = all as List<FactLine<T>>;
+      var lo = 0, hi = lines.length;
+      while (lo < hi) {
+        final mid = (lo + hi) >> 1;
+        if (lines[mid].number < first) {
+          lo = mid + 1;
+        } else {
+          hi = mid;
+        }
+      }
+      for (; lo < lines.length && lines[lo].number <= last; lo++) {
+        found.add(lines[lo]);
+      }
+      return found;
+    }
+    _collect(doc, 1, 0, first, last, found);
+    return found;
+  }
+
+  /// How many lines of [node] have the fact: kept with the node once counted.
+  int _count(Doc node) {
+    final kept = _keptIn(node._facts, _id);
+    if (kept != null) return kept is int ? kept : (kept as _LeafFacts).at.length;
+    if (node is _TextLeaf) {
+      List<int>? at;
+      List<Object>? what;
+      final text = node.text;
+      for (var i = 0; i < text.length; i++) {
+        assert(DocWork._read());
+        final fact = read(text[i]);
+        if (fact == null) continue;
+        (at ??= <int>[]).add(i);
+        (what ??= <Object>[]).add(fact);
+      }
+      node._facts = _keepIn(node._facts, _id, at == null ? 0 : _LeafFacts(at, what!));
+      return at?.length ?? 0;
+    }
+    var count = 0;
+    for (final child in node.children!) {
+      count += _count(child);
+    }
+    node._facts = _keepIn(node._facts, _id, count);
+    return count;
+  }
+
+  /// Adds to [out] the lines of [node] between [first] and [last] that have the fact. [line] and [offset] are the
+  /// node's own first line and where it starts. A piece outside the range is passed over unread.
+  void _collect(Doc node, int line, int offset, int first, int last, List<FactLine<T>> out) {
+    if (node is _TextLeaf) {
+      if (_count(node) == 0) return;
+      final facts = _keptIn(node._facts, _id)! as _LeafFacts;
+      final text = node.text;
+      var i = 0, pos = offset;
+      for (var h = 0; h < facts.at.length; h++) {
+        final index = facts.at[h];
+        final number = line + index;
+        if (number > last) return;
+        if (number < first) continue;
+        for (; i < index; i++) {
+          pos += text[i].length + 1;
+        }
+        out.add(FactLine<T>._(number, pos, text[index], facts.what[h] as T));
+      }
+      return;
+    }
+    if (_keptIn(node._facts, _id) == 0) return;
+    for (final child in node.children!) {
+      final end = line + child.lines - 1;
+      if (line > last) return;
+      if (end >= first) _collect(child, line, offset, first, last, out);
+      line = end + 1;
+      offset += child.length + 1;
+    }
+  }
+}
+
+/// Something worked out from a whole document (its fences, its anchored items), kept with the document it was
+/// worked out from: asked again of the same document, by anyone, it is not worked out again. A document never
+/// changes, and every state whose document was not changed holds the same one, so this is "once per document
+/// version" for every extension that reads it.
+///
+/// [compute] must answer from the document alone. Made once, at the top of a file, and asked of any document.
+class DocMemo<T extends Object> {
+  DocMemo(this.compute) : _id = _nextMemo++;
+
+  final T Function(Doc doc) compute;
+  final int _id;
+
+  T of(Doc doc) {
+    final kept = _keptIn(doc._memos, _id);
+    if (kept != null) return kept as T;
+    assert(DocWork._memo());
+    final made = compute(doc);
+    doc._memos = _keepIn(doc._memos, _id, made);
+    return made;
+  }
 }
