@@ -130,9 +130,21 @@ Future<List<_Sample>> _collect(Directory dir, File reportFile) async {
     from = now;
   }
 
+  // The app says when to read: between two stretches of its walk, where the stop a read is (the VM writes the
+  // samples out on the app's own UI isolate) is measured as neither. A build from before it said so, or a stretch
+  // longer than the VM keeps samples for, is read anyway after a while.
+  final ask = File('${dir.path}/read');
+  var quiet = 0;
   while (!reportFile.existsSync()) {
-    await Future<void>.delayed(const Duration(seconds: 5));
-    await read();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    quiet += 50;
+    if (ask.existsSync() || quiet >= 25000) {
+      await read();
+      quiet = 0;
+      try {
+        if (ask.existsSync()) ask.deleteSync();
+      } catch (_) {}
+    }
   }
   await read();
   File('${dir.path}/samples.json').writeAsStringSync(jsonEncode({

@@ -105,7 +105,9 @@ String benchScript(Size size, {Set<String>? only}) {
       'mark:note-open', 'taptext:Bench long', 'wait:2000',
       'mark:note-fling-down', flings(low, high, 4),
       'mark:note-fling-up', flings(high, low, 4),
-      'mark:note-type', 'tap:$x,$middle', 'wait:900', 'type:$words', 'wait:600',
+      // The caret goes into the note's first paragraph, by its words: a tap at mid-screen took whatever was there
+      // (a link once, and the stretch measured the page it opened).
+      'mark:note-type', 'tapline:A note is plain Markdown', 'wait:900', 'type:$words', 'wait:600',
       'mark:note-type-lines', 'enter', 'type:- one', 'enter', 'type:two', 'enter', 'type:three', 'enter', 'enter', 'type:$words', 'wait:1500',
       'mark:note-leave', 'unfocus', 'wait:400', 'taplabel:Home', 'wait:1500',
     ],
@@ -233,7 +235,7 @@ Future<void> runPerf() async {
   try {
     dir = Directory('${(PerfLaunch.dirs() ?? await DevicePaths.find()).cacheDir}/perf');
     dir.createSync(recursive: true);
-    for (final old in ['report.json', 'done', 'vm.txt']) {
+    for (final old in ['report.json', 'done', 'vm.txt', 'read']) {
       final file = File('${dir.path}/$old');
       if (file.existsSync()) file.deleteSync();
     }
@@ -261,10 +263,30 @@ Future<void> runPerf() async {
     steps = <String>[];
   }
 
+  // The CPU's samples are handed over between stretches (tool/perf_cpu.dart, a desktop's walk): a read stops this
+  // isolate while the VM writes them out, and one that landed inside a stretch was that stretch's dropped frames
+  // and the top of its profile. The reader takes the file away when it has read.
+  final sampled = Platform.environment.containsKey('GHOST_PERF_HOLD');
+  Future<void> handOver() async {
+    if (!sampled) return;
+    final ask = File('${dir.path}/read');
+    try {
+      ask.writeAsStringSync('now\n', flush: true);
+    } catch (_) {
+      return;
+    }
+    for (var waited = 0; waited < 100 && ask.existsSync(); waited += 1) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    try {
+      if (ask.existsSync()) ask.deleteSync();
+    } catch (_) {}
+  }
+
   for (final step in tourSteps(script)) {
     if (step.name == 'mark') {
       await walk();
-      await log.mark(step.arg);
+      await log.mark(step.arg, between: handOver);
     } else if (_ownSteps.contains(step.name)) {
       await walk();
       await _ownStep(tour, step.name, step.arg);

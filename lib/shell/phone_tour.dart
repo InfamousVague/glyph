@@ -51,6 +51,7 @@ import '../core/iphone_app.dart';
 import '../core/native/device_paths.dart';
 import '../editor/editor_widget.dart';
 import '../editor/input/ime.dart';
+import '../editor/view/line.dart' show RenderEditorLine;
 
 /// Runs the script waiting in the app's cache folder, if this is a debug build of the iPhone app and there is
 /// one (tool/ios-tour.sh leaves it). The file is taken away as it is read, so the next start is an ordinary one.
@@ -178,6 +179,13 @@ class PhoneTour {
         if (at == null) return;
         if (name == 'taptext' || name == 'tapif') await _touch(at.center);
         if (name == 'holdtext') await _touch(at.center, held: const Duration(milliseconds: 700));
+      case 'tapline':
+        // A line of the note's own words: the editor draws its lines itself, so they are no texts to find. The tap
+        // lands a little way into the line's first row, among plain words.
+        final at = _lineAt(arg);
+        _say('tapline "$arg" -> ${at == null ? 'NOT FOUND' : _spot(at)}');
+        if (at == null) return;
+        await _touch(Offset(at.left + at.width * 0.3, at.top + (at.height < 36 ? at.height / 2 : 14)));
       case 'seek':
         // The words brought onto the screen by the finger, a part of a page at a time, until they are there to be
         // tapped: a phone's home page has the note a wide window shows at once a few screens down, and a list that
@@ -344,6 +352,22 @@ class PhoneTour {
       final render = element.renderObject;
       if (element is RenderObjectElement && render is RenderParagraph && render.text.toPlainText().contains(words)) {
         found = _boxOf(render) ?? found;
+      }
+      element.visitChildren(visit);
+    }
+
+    WidgetsBinding.instance.rootElement?.visitChildren(visit);
+    return found;
+  }
+
+  /// The first of the editor's lines in sight whose words hold [words].
+  Rect? _lineAt(String words) {
+    Rect? found;
+    void visit(Element element) {
+      if (found != null || _unseen(element)) return;
+      final render = element.renderObject;
+      if (element is RenderObjectElement && render is RenderEditorLine && render.spec.projection.display.contains(words)) {
+        found = _boxOf(render);
       }
       element.visitChildren(visit);
     }

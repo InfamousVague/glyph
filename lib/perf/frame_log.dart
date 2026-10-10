@@ -166,7 +166,10 @@ class FrameLog {
   /// Ends the stretch in hand and begins [name]. Waits first for the timings the engine has not handed over yet.
   /// A stretch is kept and said to the log unless it is [quiet] and had no frames at all: the app was still. One
   /// whose name begins with `_` is never kept: the walk getting to where the next stretch begins (`_seek`).
-  Future<FrameStats> mark(String name, {bool quiet = false}) async {
+  ///
+  /// [between] is waited for after the one stretch has ended and before the next begins: what must not be measured
+  /// as either (the CPU's samples being read, which stops this isolate while the VM writes them out).
+  Future<FrameStats> mark(String name, {bool quiet = false, Future<void> Function()? between}) async {
     final ended = Timeline.now;
     // A release build hears of its frames once a second.
     await Future<void>.delayed(Duration(milliseconds: kReleaseMode ? 1300 : 300));
@@ -175,6 +178,7 @@ class FrameLog {
       stretches.add(stats);
       debugPrint('[perf] ${stats.said()}');
     }
+    if (between != null) await between();
     _name = name;
     _began = Timeline.now;
     return stats;
