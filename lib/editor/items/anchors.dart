@@ -62,7 +62,7 @@ void goToLine(EditorViewLike view, int line) {
 /// A tap on `[[#^anchor]]`: the caret goes to the item it names.
 final Extension _refTaps = EditorViewLike.eventHandlers(
   EditorEventHandlers(
-    pointerDown: (event, view) {
+    mouseDown: (event, view) {
       final at = view.posAtCoords(event.position);
       if (at == null) return false;
       final line = view.state.doc.lineAt(at);

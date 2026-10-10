@@ -25,7 +25,7 @@ export '../commands/task_toggle.dart' show boxAt, toggleBox;
 
 final Extension _taskToggle = EditorViewLike.eventHandlers(
   EditorEventHandlers(
-    pointerDown: (event, view) {
+    mouseDown: (event, view) {
       if (!plainPress(event, view)) return false;
       final box = _boxUnder(view, event.position);
       if (box == null) return false;

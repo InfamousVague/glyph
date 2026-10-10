@@ -146,7 +146,7 @@ final Extension _wikiLinks = Extension.list(<Extension>[
     _WikiLinks.new,
     decorations: (value) => value.decorations,
     eventHandlers: EditorEventHandlers(
-      pointerDown: (event, view) {
+      mouseDown: (event, view) {
         final options = view.state.facet(wikiOptions);
         if (options == null) return false;
         final pos = view.posAtCoords(event.position);

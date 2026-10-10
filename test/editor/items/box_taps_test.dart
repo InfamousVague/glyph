@@ -1,7 +1,7 @@
 // A tap on a box in the words, through both boxes that answer one (lib/editor/items/box_taps.dart, with
 // task_toggle.dart and choices.dart): `src/app/editor/boxTaps.test.ts`, case for case.
 //
-// What is asked differently: the page's `mousedown` is the plugins' `pointerDown` called with a point of a view laid
+// What is asked differently: the page's `mousedown` is the plugins' `mouseDown` called with a point of a view laid
 // out on a grid, as the page's test laid jsdom out; a modifier held is a key of the hardware keyboard held down,
 // which is where `plainPress` reads them; "the other button" is a mouse's secondary button; and the round boxes
 // drawn are the `cm-choiceBox` marks. Nothing is left out.
@@ -45,7 +45,7 @@ EditorView open(String doc, List<Extension> extensions, [bool readOnly = false])
 
 /// A press at a point; true when a box took it, and so kept it from the editor.
 bool tap(EditorView on, double x, double y, {PointerDeviceKind kind = PointerDeviceKind.touch, int buttons = 0}) =>
-    on.eventHandlers.any((h) => h.pointerDown?.call(PointerDownEvent(position: Offset(x, y), kind: kind, buttons: buttons), on) ?? false);
+    on.eventHandlers.any((h) => h.mouseDown?.call(PointerDownEvent(position: Offset(x, y), kind: kind, buttons: buttons), on) ?? false);
 
 /// Each key that makes a press not a plain one.
 const Map<String, LogicalKeyboardKey> modifiers = <String, LogicalKeyboardKey>{

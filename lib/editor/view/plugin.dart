@@ -315,6 +315,7 @@ class EditorTap {
 class EditorEventHandlers {
   const EditorEventHandlers({
     this.pointerDown,
+    this.mouseDown,
     this.pointerMove,
     this.pointerUp,
     this.pointerCancel,
@@ -328,9 +329,15 @@ class EditorEventHandlers {
     this.paste,
   });
 
-  /// `pointerdown` / `mousedown` / `touchstart`. Returning true keeps the editor from moving the caret for this
-  /// pointer.
+  /// `pointerdown` / `touchstart`: the pointer as it lands, a finger's too. Returning true keeps the editor from
+  /// moving the caret for this pointer.
   final bool Function(PointerDownEvent event, EditorViewLike view)? pointerDown;
+
+  /// `mousedown`. A mouse's press is one as it lands. A finger's is not: a browser sends a touch its mouse events
+  /// (`mousedown`, `mouseup`, `click`, in that order) only once the finger has left a tap, one that neither moved
+  /// nor was held, so a scroll that begins on a link opens nothing and a press held asks for the menu alone. The
+  /// event is the pointer's landing either way. Returning true keeps the editor from moving the caret.
+  final bool Function(PointerDownEvent event, EditorViewLike view)? mouseDown;
 
   /// `pointermove`.
   final bool Function(PointerMoveEvent event, EditorViewLike view)? pointerMove;

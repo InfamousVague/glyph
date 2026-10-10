@@ -41,7 +41,7 @@ List<(String, String)> marked(EditorView view) {
 
 bool press(ToldView view, int pos) {
   view.lands = pos;
-  return view.eventHandlers.any((h) => h.pointerDown?.call(const PointerDownEvent(position: Offset(10, 10)), view) ?? false);
+  return view.eventHandlers.any((h) => h.mouseDown?.call(const PointerDownEvent(position: Offset(10, 10)), view) ?? false);
 }
 
 void main() {

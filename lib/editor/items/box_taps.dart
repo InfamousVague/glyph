@@ -4,7 +4,8 @@
 /// `src/app/editor/boxTaps.ts`.
 ///
 /// What differs: the page's `MouseEvent` is Flutter's pointer-down, whose modifier keys are the hardware
-/// keyboard's.
+/// keyboard's. It is handed over when the page would be sent its `mousedown` (`EditorEventHandlers.mouseDown`): a
+/// mouse's as it lands, a finger's when its tap has finished.
 library;
 
 import 'package:flutter/gestures.dart';

@@ -21,6 +21,11 @@
 /// - dragging on after a press was held extends the selection by words, as Android's own text does; the web's
 ///   WebView does the same under the page;
 /// - a touch drag that was not held scrolls the page: the scroll view's own recogniser wins it.
+///
+/// A plugin's `mousedown` (plugin.dart `EditorEventHandlers.mouseDown`: a `[[link]]`, a to-do's box, a choice, a
+/// footnote, a mark's note, an answer's panel) is asked when a browser would send one: at a mouse's press, and for a
+/// finger when its tap has finished, since a touch is sent its mouse events only after it lifts from a tap. So a
+/// finger that lands on a link and scrolls opens nothing, and one held there asks for the menu alone.
 library;
 
 import 'dart:async';
@@ -168,14 +173,19 @@ class EditorGestures {
     switch (event) {
       case PointerDownEvent():
         _kind = event.kind;
+        _landed = null;
         if (_handled((h) => h.pointerDown?.call(event, _view) ?? false)) return;
+        // A mouse's press is its `mousedown`. A finger's comes when its tap has finished ([_tapped]).
+        final mouse = event.kind == PointerDeviceKind.mouse;
+        if (mouse && _handled((h) => h.mouseDown?.call(event, _view) ?? false)) return;
         // A widget that keeps its pointers is left to itself.
         final hit = _view.hitAt(event.position);
         if (hit != null && hit.inside && ((hit.widget?.takesPointer(event) ?? false) || (hit.block?.takesPointer(event) ?? false))) return;
-        if (event.kind == PointerDeviceKind.mouse && event.buttons == kPrimaryMouseButton) {
+        if (mouse && event.buttons == kPrimaryMouseButton) {
           _shift = HardwareKeyboard.instance.isShiftPressed;
           _drag.addPointer(event);
         } else {
+          if (!mouse) _landed = event;
           _tap.addPointer(event);
           _long.addPointer(event);
         }
@@ -190,6 +200,9 @@ class EditorGestures {
   }
 
   // -- taps ---------------------------------------------------------------------------------------------------------
+
+  /// A finger's landing the editor joined, kept for the `mousedown` its finished tap is owed.
+  PointerDownEvent? _landed;
 
   int _count = 0;
   Offset _lastTap = Offset.zero;
@@ -231,6 +244,11 @@ class EditorGestures {
   }
 
   void _tapped(Offset global, PointerDeviceKind kind) {
+    // The `mousedown` of a finger's tap: the browser sends it now, the tap done, and never for a touch that
+    // became a scroll or was held (those never get here: the scroll view or the long press won the pointer).
+    final landed = _landed;
+    _landed = null;
+    if (landed != null && _handled((h) => h.mouseDown?.call(landed, _view) ?? false)) return;
     final count = _counted(global);
     final tap = _tapAt(global, kind);
     if (count == 2 && _handled((h) => h.doubleTap?.call(tap, _view) ?? false)) return;

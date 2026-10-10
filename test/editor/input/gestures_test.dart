@@ -9,6 +9,10 @@ import 'package:ghost_md/editor/editor.dart' hide Decoration;
 import 'package:ghost_md/editor/input/caret.dart';
 import 'package:ghost_md/editor/input/gestures.dart';
 import 'package:ghost_md/editor/input/handles.dart';
+import 'package:ghost_md/editor/items/choices.dart';
+import 'package:ghost_md/editor/items/counters.dart';
+import 'package:ghost_md/editor/items/task_toggle.dart';
+import 'package:ghost_md/editor/items/wiki_links.dart';
 import 'package:ghost_md/editor/view/decoration.dart' as cm;
 
 import '../../support/render.dart';
@@ -310,6 +314,117 @@ void main() {
     await tester.tapAt(rig.point(pos) + const Offset(1, 0));
     await tester.pump();
     expect(rig.head, pos);
+    await finish(tester);
+  });
+
+  // docs/PARITY.md, Differs 5. Ghost.md's links, boxes and choices answer `mousedown` (wikiLinks.ts:114,
+  // taskToggle.ts:47, choices.ts:122), and a phone's browser sends a touch its `mousedown` only when the finger has
+  // left a tap: not as it lands, not after a scroll, not after a hold.
+  testWidgets('a finger on a link, a box, a choice or a counter acts when its tap has finished, and never for a scroll or a hold', (tester) async {
+    final opened = <String>[];
+    final doc = <String>[
+      '# Title',
+      '',
+      'see [[Other note]] here',
+      '',
+      '- [ ] a to-do',
+      '',
+      '- ( ) tea',
+      '- ( ) coffee',
+      '',
+      '- Water [3/8]',
+      '',
+      for (var i = 0; i < 60; i++) 'line $i of a note long enough to scroll',
+    ].join('\n');
+    final rig = await pumpEditor(
+      tester,
+      doc,
+      focus: false,
+      more: [wikiLinks(WikiOptions(known: (_) => true, open: (title, [anchor]) => opened.add(title))), taskToggle(), choices(), counters()],
+    );
+    final link = rig.point(rig.at('Other note') + 3);
+    final box = rig.point(rig.at('[ ]') + 1);
+    final choice = rig.point(rig.at('( ) coffee') + 1);
+    final counter = rig.point(rig.at('[3/8]') + 2);
+    String line(String has) => doc.split('\n').indexWhere((l) => l.contains(has)) < 0 ? '' : rig.view.state.doc.line(doc.split('\n').indexWhere((l) => l.contains(has)) + 1).text;
+
+    // The finger lands and nothing has happened yet; it scrolls the note and lifts, and still nothing has.
+    for (final at in <Offset>[link, box, choice, counter]) {
+      final before = rig.scroll.offset;
+      final gesture = await tester.startGesture(at);
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(opened, isEmpty, reason: 'a landing is not a tap');
+      expect(rig.doc, doc, reason: 'a landing is not a tap');
+      await gesture.moveBy(const Offset(0, -30));
+      await gesture.moveBy(const Offset(0, -60));
+      await tester.pump();
+      expect(rig.scroll.offset, greaterThan(before), reason: 'the note scrolled under the finger');
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(opened, isEmpty, reason: 'a scroll that began on it is not a tap');
+      expect(rig.doc, doc, reason: 'a scroll that began on it is not a tap');
+      rig.scroll.jumpTo(0);
+      await tester.pump();
+    }
+    expect(rig.events, isEmpty);
+    expect(rig.head, 0);
+
+    // A press held on the link asks for the note's menu, and opens nothing when it lifts.
+    await hold(tester, link);
+    expect(opened, isEmpty);
+    expect(rig.held, hasLength(1));
+    rig.view.dispatch(TransactionSpec(selection: EditorSelection.single(0)));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    // A tap: each acts as the finger lifts, and the caret stays where it was.
+    var gesture = await tester.startGesture(link);
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(opened, isEmpty);
+    await gesture.up();
+    await tester.pump();
+    expect(opened, ['Other note']);
+    await tester.pump(const Duration(milliseconds: 400));
+
+    gesture = await tester.startGesture(box);
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(line('a to-do'), '- [ ] a to-do');
+    await gesture.up();
+    await tester.pump();
+    expect(line('a to-do'), '- [x] a to-do');
+    await tester.pump(const Duration(milliseconds: 400));
+
+    gesture = await tester.startGesture(choice);
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(line('coffee'), '- ( ) coffee');
+    await gesture.up();
+    await tester.pump();
+    expect(line('coffee'), '- (x) coffee');
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.tapAt(counter);
+    await tester.pump();
+    expect(line('Water'), '- Water [4/8]');
+    expect(rig.head, 0, reason: 'none of them moved the caret');
+    await finish(tester);
+  });
+
+  testWidgets('a mouse on a link or a box acts as it presses', (tester) async {
+    final opened = <String>[];
+    const doc = 'see [[Other note]] here\n\n- [ ] a to-do';
+    final rig = await pumpEditor(tester, doc, focus: false, more: [wikiLinks(WikiOptions(known: (_) => true, open: (title, [anchor]) => opened.add(title))), taskToggle()]);
+    var gesture = await tester.startGesture(rig.point(rig.at('Other note') + 3), kind: PointerDeviceKind.mouse);
+    await tester.pump();
+    expect(opened, ['Other note']);
+    await gesture.up();
+    await tester.pump();
+    expect(opened, ['Other note']);
+    gesture = await tester.startGesture(rig.point(rig.at('[ ]') + 1), kind: PointerDeviceKind.mouse);
+    await tester.pump();
+    expect(rig.doc, 'see [[Other note]] here\n\n- [x] a to-do');
+    await gesture.up();
+    await tester.pump();
+    expect(rig.doc, 'see [[Other note]] here\n\n- [x] a to-do');
+    expect(rig.head, 0);
     await finish(tester);
   });
 

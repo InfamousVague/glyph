@@ -162,7 +162,7 @@ void main() {
       view.at = at;
       var handled = false;
       for (final handlers in view.eventHandlers) {
-        handled = (handlers.pointerDown?.call(const PointerDownEvent(), view) ?? false) || handled;
+        handled = (handlers.mouseDown?.call(const PointerDownEvent(), view) ?? false) || handled;
       }
       return handled;
     }

@@ -148,7 +148,7 @@ final Extension _choices = Extension.list(<Extension>[
   baseTheme(_theme),
   EditorViewLike.eventHandlers(
     EditorEventHandlers(
-      pointerDown: (event, view) {
+      mouseDown: (event, view) {
         if (!plainPress(event, view)) return false;
         final choice = _choiceUnder(view, event.position);
         if (choice == null) return false;

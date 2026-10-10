@@ -87,7 +87,7 @@ void main() {
     /// A tap landing at `pos`.
     EditorView tapAt(int pos) {
       view.lands = pos;
-      view.eventHandlers.any((h) => h.pointerDown?.call(const PointerDownEvent(position: Offset(250, 50)), view) ?? false);
+      view.eventHandlers.any((h) => h.mouseDown?.call(const PointerDownEvent(position: Offset(250, 50)), view) ?? false);
       return view;
     }
 

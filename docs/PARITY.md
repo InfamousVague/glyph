@@ -321,7 +321,7 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 | A footnote's marker raised; a tap shows its words | editor/footnotes.ts:60-143 | editor/items/footnotes.dart:76-164 | match | |
 | `[[A note]]` opens it; a missing one is dashed and makes it | editor/wikiLinks.ts:29-126 | editor/items/wiki_links.dart:88-149 | match | |
 | `[[A#^anchor]]` and `[[#^anchor]]` | editor/wikiLinks.ts:42; editor/boards/anchors.ts:42 | editor/items/wiki_links.dart:56-68; editor/items/anchors.dart:57-70 | match | |
-| A tap acts on a completed tap, never on a scroll that began there | editor/wikiLinks.ts:114; editor/taskToggle.ts:47; editor/choices.ts:122 (`mousedown`) | editor/input/gestures.dart:171; editor/view/plugin.dart:331-333 (`pointerDown`) | differs | By the code a finger landing on a link, a box or a choice acts at once, even as a scroll begins. Wants trying on the Fold. |
+| A tap acts on a completed tap, never on a scroll that began there | editor/wikiLinks.ts:114; editor/taskToggle.ts:47; editor/choices.ts:122 (`mousedown`) | editor/input/gestures.dart (`_tapped`); editor/view/plugin.dart (`EditorEventHandlers.mouseDown`) | match | Since 2026-10-10: the seven `mousedown` handlers (a `[[link]]`, an item's anchor, a box, a choice, a footnote, a mark's note, an answer's panel) are asked at a mouse's press and, for a finger, when its tap has finished; a counter's press is dropped when the finger scrolls (`pointercancel`). |
 | The bookmark `§§`: a ribbon and a line down the edge | editor/bookmarkLine.ts:71-119 | editor/items/bookmark_line.dart:84-109 | differs | No edge line for a bookmark kept on the device, nor with the caret at the signs. |
 | Progress after a heading: "3 of 7", "All 7 done" | editor/headingProgress.ts:32-77 | editor/items/heading_progress.dart:58-138 | match | |
 | "A name" said in an open first heading | editor/openHeading.ts:24-93 | editor/items/open_heading.dart:28-110 | match | |
@@ -1131,8 +1131,9 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
 4. **Pull to refresh reads the library again and does not sync**, on home and All notes. Small.
    `SyncEngine.syncWithin` (lib/sync/engine.dart:450) has no caller; `onRefresh` at lib/root/ghost_root.dart:1771
    and 1829. The Guide's look for a copy added elsewhere goes without its sync for the same reason.
-5. **A finger landing on a link, a box or a choice acts at once**, where the original acts on a finished tap.
-   Medium. The editor's gestures; try it on the Fold first.
+5. ~~**A finger landing on a link, a box or a choice acts at once**, where the original acts on a finished tap.~~
+   Done 2026-10-10 (`EditorEventHandlers.mouseDown`, lib/editor/input/gestures.dart; held by
+   test/editor/input/gestures_test.dart).
 6. **Leaving the app in the middle of a take closes the microphone**
    (android/app/src/main/kotlin/com/mattssoftware/ghost_md/MainActivity.kt:172-177), and nothing hears that it closed. Medium. Try
    it first.

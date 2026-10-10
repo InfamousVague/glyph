@@ -17,13 +17,16 @@
 ///   starts the line with it: the gap is a thing of its own, and a line may break after it.
 /// - The page finds the chip under a press from the DOM (`closest('.cm-counter')`); here it is the counter whose
 ///   characters the press is on, its padding included.
+/// - A finger that lands on the chip and scrolls the note counts nothing: the page is sent `pointercancel` as the
+///   scroll begins, and here the press is dropped once the finger has moved a scroll's slop.
 /// - `.cm-counter * { color: inherit }` gives what is inside the chip the page's own ink, which is what a counter
 ///   inherits everywhere but in a heading.
 library;
 
 import 'dart:async';
-import 'dart:ui' show Offset;
+import 'dart:ui' show Offset, PointerDeviceKind;
 
+import 'package:flutter/gestures.dart' show computeHitSlop;
 import 'package:glacier/glacier.dart' show HapticKind, haptic;
 
 import '../../core/item_syntax.dart';
@@ -217,7 +220,7 @@ final Extension _themed = baseTheme(_theme);
 
 /// `[3/8]` counters: a tap adds one, a hold takes one away.
 Extension counters() {
-  ({int from, Timer timer, bool held})? press;
+  ({int from, Timer timer, bool held, Offset at, bool finger})? press;
 
   void change(EditorViewLike view, int from, int step) {
     final line = view.state.doc.lineAt(from);
@@ -244,11 +247,21 @@ Extension counters() {
           final timer = Timer(const Duration(milliseconds: _holdMs), () {
             final now = press;
             if (now == null) return;
-            press = (from: now.from, timer: now.timer, held: true);
+            press = (from: now.from, timer: now.timer, held: true, at: now.at, finger: now.finger);
             change(view, now.from, -1);
           });
-          press = (from: from, timer: timer, held: false);
+          press = (from: from, timer: timer, held: false, at: event.position, finger: event.kind != PointerDeviceKind.mouse);
           return true;
+        },
+        // The page is sent `pointercancel` when a finger that landed on the chip begins to scroll the note, and
+        // the press is forgotten: nothing is counted for a scroll. Flutter cancels no pointer for that, so the
+        // press goes when the finger has travelled as far as a scroll takes to begin.
+        pointerMove: (event, view) {
+          final now = press;
+          if (now == null || !now.finger || (event.position - now.at).distance <= computeHitSlop(event.kind, null)) return false;
+          now.timer.cancel();
+          press = null;
+          return false;
         },
         pointerUp: (event, view) {
           final now = press;

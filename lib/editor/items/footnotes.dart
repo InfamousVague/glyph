@@ -181,7 +181,7 @@ final ViewPlugin<_Footnotes> _plugin = ViewPlugin.define<_Footnotes>(
   _Footnotes.new,
   decorations: (value) => value.decorations,
   eventHandlers: EditorEventHandlers(
-    pointerDown: (event, view) {
+    mouseDown: (event, view) {
       final pos = view.posAtCoords(event.position);
       final notes = view.plugin(_plugin)?.notes;
       if (pos == null || notes == null) return false;

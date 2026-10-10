@@ -2,7 +2,7 @@
 // lib/editor/marks/mark_notes.dart.
 //
 // What is read differently: a `MarkNote`'s `words` and `brackets` are `wordsFrom`/`wordsTo` and
-// `bracketsFrom`/`bracketsTo`. The page's `mousedown` is the plugin's `pointerDown`, and its panel
+// `bracketsFrom`/`bracketsTo`. The page's `mousedown` is the plugin's `mouseDown`, and its panel
 // (`.cm-markNotePanel`, `aria-label`) is the view's text panel of that class and label
 // (lib/editor/view/text_panel.dart). As on the web, nothing is laid out, so where the tap lands is said by the test:
 // a view whose `posAtCoords` answers what it is told (the web's `vi.spyOn(view, 'posAtCoords')`).
@@ -117,7 +117,7 @@ void main() {
       final on = view ??= _TapView(state: EditorState.create(doc: line, extensions: noteExtensions(formats: marks, more: [markNotes(marks)])));
       on.at = pos;
       for (final handlers in on.eventHandlers) {
-        handlers.pointerDown?.call(const PointerDownEvent(position: Offset(45, 10)), on);
+        handlers.mouseDown?.call(const PointerDownEvent(position: Offset(45, 10)), on);
       }
       return on;
     }

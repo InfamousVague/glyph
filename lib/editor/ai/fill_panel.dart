@@ -351,7 +351,7 @@ class _Tapped extends PluginValue {
 final ViewPlugin<_Tapped> _tapped = ViewPlugin.fromClass<_Tapped>(
   (_) => _Tapped(),
   eventHandlers: EditorEventHandlers(
-    pointerDown: (event, view) {
+    mouseDown: (event, view) {
       // A press on the panel itself never reaches the editor: the panel lies over it.
       final pos = view.posAtCoords(event.position);
       final text = view.state.doc.toString();

@@ -47,7 +47,7 @@ final Expando<List<Transaction>> _heard = Expando<List<Transaction>>();
 bool press(EditorView view, int from, int to) {
   final start = view.coordsAtPos(from, 1)!, end = view.coordsAtPos(to, -1)!;
   final at = Offset((start.left + end.right) / 2, (start.top + start.bottom) / 2);
-  return view.eventHandlers.any((h) => h.pointerDown?.call(PointerDownEvent(position: at), view) ?? false);
+  return view.eventHandlers.any((h) => h.mouseDown?.call(PointerDownEvent(position: at), view) ?? false);
 }
 
 void main() {

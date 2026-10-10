@@ -10,7 +10,7 @@
 /// else. Nothing is stored anywhere but the note itself.
 ///
 /// What differs: the panel is `lib/editor/view/text_panel.dart`'s, which the note screen draws over the editor;
-/// the page's `mousedown` is the view's `pointerDown`, and as there it never takes the press, so the caret still
+/// the page's `mousedown` is the view's `mouseDown`, and as there it never takes the press, so the caret still
 /// goes where the finger went.
 library;
 
@@ -180,7 +180,7 @@ Extension markNotes(Iterable<GlyphFormat> formats) {
     (view) => _MarkNotes(view, pattern),
     decorations: (value) => value.decorations,
     eventHandlers: EditorEventHandlers(
-      pointerDown: (event, view) {
+      mouseDown: (event, view) {
         final pos = view.posAtCoords(event.position);
         final notes = view.plugin(plugin)?.notes;
         if (pos == null || notes == null) return false;

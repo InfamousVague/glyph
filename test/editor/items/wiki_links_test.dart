@@ -87,7 +87,7 @@ void main() {
   });
 
   group('a link that points inside a note', () {
-    bool press(EditorView view) => view.eventHandlers.any((h) => h.pointerDown?.call(const PointerDownEvent(position: Offset(10, 10)), view) ?? false);
+    bool press(EditorView view) => view.eventHandlers.any((h) => h.mouseDown?.call(const PointerDownEvent(position: Offset(10, 10)), view) ?? false);
 
     test('is not a wiki link at all when there is no title before the hash', () {
       // `[[#^ship-page]]` is a place in this note; editor/boards.ts draws those.
