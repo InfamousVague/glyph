@@ -23,6 +23,7 @@ import 'package:ghost_md/sheet/kit.dart';
 import 'package:glacier/glacier.dart';
 
 import '../core/make_note.dart';
+import '../support/editor_text.dart';
 import 'support.dart';
 
 /// The index view: the chapters as rows that open their notes, a chapter not written yet said so, the three edits
@@ -133,6 +134,31 @@ void main() {
       expect(opened, ['Trees']);
       expect(find.descendant(of: find.byKey(const ValueKey('book-row-2')), matching: find.text('Birds')), findsOneWidget);
       expect(find.descendant(of: find.byKey(const ValueKey('book-row-2')), matching: find.text('not written yet')), findsOneWidget);
+      await away(tester);
+    });
+
+    // Differs 21 (docs/PARITY.md): the notebook's own words took no taps, so a link in a preface did not open
+    // (book/BookView.tsx `BookWords`: `wiki={{ known, open }}`, "so a link in them opens").
+    testWidgets('opens a link between notes in the notebook\'s own words on a tap, and nothing on a tap beside it', (tester) async {
+      final opened = <String>[];
+      await show(
+        tester,
+        body: '---\ntitle: "Field guide"\nbook: true\n---\nStart with [[Trees]] and keep a list in [[Sightings]].\n\n1. [[Introduction]]\n2. [[Trees]]\n',
+        known: (title) => title != 'Sightings',
+        open: opened.add,
+      );
+      final preface = find.byKey(const ValueKey('book-words-before'));
+      expect(preface, findsOneWidget);
+      await tester.tapAt(editorTextRect(tester, 'Start with').center);
+      await tester.pump();
+      expect(opened, isEmpty, reason: 'the words beside a link are only read');
+      await tester.tapAt(editorTextRect(tester, 'Trees').center);
+      await tester.pump();
+      expect(opened, ['Trees']);
+      // One still to be written opens too, which is how it gets written.
+      await tester.tapAt(editorTextRect(tester, 'Sightings').center);
+      await tester.pump();
+      expect(opened, ['Trees', 'Sightings']);
       await away(tester);
     });
 

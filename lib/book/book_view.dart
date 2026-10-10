@@ -33,8 +33,9 @@
 /// - **`dark` is not taken**: the tokens the view is built under say which side of the theme it is on.
 /// - **`videos`** (whose film cards these are) is not taken: the film card is a later piece of the editor, and the
 ///   book's words are drawn by what the editor has.
-/// - **The book's own words take no taps** ([BookWords]): lib/editor/markdown_view.dart's column is drawn to be
-///   read, so a `[[link]]` in a preface does not open yet. On the page it does.
+/// - **The book's own words are a column drawn to be read** ([BookWords]), which takes no caret: a `[[link]]` in
+///   them is drawn as a link and opens on a tap, which the column is asked about where the page's editor heard it
+///   itself; nothing else in them is pressed.
 /// - **`readBar` is not `position: sticky`**: the view is one box in the note's scroll view, which is the note
 ///   screen's, so the way back to the index and the rail scroll away with the first chapter. The rail's tap scrolls
 ///   the page to its chapter all the same.
@@ -69,6 +70,7 @@ import '../core/properties.dart' as properties show isTicket;
 import '../core/stored.dart';
 import '../editor/fields/field_picker.dart';
 import '../editor/fields/field_picks.dart';
+import '../editor/items/wiki_links.dart' show WikiOptions, wikiLinks, wikiLinksIn;
 import '../editor/looks/look.dart';
 import '../editor/markdown_view.dart';
 import '../editor/state/state.dart';
@@ -702,9 +704,14 @@ class _RenderFlexWrap extends RenderBox with ContainerRenderObjectMixin<RenderBo
 /// (`BookWords`, `.preface`): none of the note's gutter, none of the room a note leaves over its first line and
 /// under its last, and in the muted ink.
 class BookWords extends StatefulWidget {
-  const BookWords({super.key, required this.words});
+  const BookWords({super.key, required this.words, this.known, this.open});
 
   final String words;
+
+  /// Whether a note by that title exists, and the way to it (`wiki={{ known, open }}`): given, a `[[link]]` in the
+  /// words is drawn as one, dashed for a note still to be written, and a tap on it opens the note.
+  final bool Function(String title)? known;
+  final ValueChanged<String>? open;
 
   @override
   State<BookWords> createState() => _BookWordsState();
@@ -713,15 +720,36 @@ class BookWords extends StatefulWidget {
 class _BookWordsState extends State<BookWords> {
   late EditorView _view = _make();
 
+  bool get _links => widget.known != null && widget.open != null;
+
   EditorView _make() => EditorView(
         wholeDocument: true,
-        state: EditorState.create(doc: widget.words, extensions: noteExtensions(display: NoteView.formatted, readOnly: true)),
+        state: EditorState.create(
+          doc: widget.words,
+          extensions: noteExtensions(
+            display: NoteView.formatted,
+            readOnly: true,
+            // Asked as each is drawn and as one is tapped, so the page's own answers are the ones in force.
+            more: <Extension>[if (_links) wikiLinks(WikiOptions(known: (title) => widget.known?.call(title) ?? false, open: (title, [anchor]) => widget.open?.call(title)))],
+          ),
+        ),
       );
+
+  /// A finished tap on the words: a link between notes under it opens (the editor's own `wikiLinks`, which hears the
+  /// press in an editor that takes one).
+  void _tapped(TapUpDetails details) {
+    final pos = _view.posAtCoords(details.globalPosition);
+    if (pos == null) return;
+    final line = _view.state.doc.lineAt(pos);
+    for (final link in wikiLinksIn(line.text, line.from)) {
+      if (pos >= link.from && pos <= link.to) return widget.open?.call(link.title);
+    }
+  }
 
   @override
   void didUpdateWidget(BookWords oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.words != widget.words) {
+    if (oldWidget.words != widget.words || (oldWidget.known != null && oldWidget.open != null) != _links) {
       _view.destroy();
       _view = _make();
     }
@@ -756,7 +784,11 @@ class _BookWordsState extends State<BookWords> {
     return CssFlow.block(
       // `margin-block: var(--glacier-space-2) var(--glacier-space-4)`
       margin: EdgeInsets.only(top: t.space(2), bottom: t.space(4)),
-      child: ExcludeSemantics(child: IgnorePointer(child: EditorColumn(view: _view, env: env))),
+      child: ExcludeSemantics(
+        child: _links
+            ? GestureDetector(behavior: HitTestBehavior.translucent, onTapUp: _tapped, child: IgnorePointer(child: EditorColumn(view: _view, env: env)))
+            : IgnorePointer(child: EditorColumn(view: _view, env: env)),
+      ),
     );
   }
 }
@@ -1588,7 +1620,7 @@ class BookViewState extends State<BookView> {
 
     final blocks = <Widget>[
       if (authors.isNotEmpty) NoteByline(authors: authors),
-      if (words.before.isNotEmpty) BookWords(key: const ValueKey('book-words-before'), words: words.before),
+      if (words.before.isNotEmpty) BookWords(key: const ValueKey('book-words-before'), words: words.before, known: widget.known, open: widget.open),
       if (chapters.isEmpty)
         CssFlow.block(
           // `.empty { margin: var(--glacier-space-3) 0; color: var(--glacier-text-muted) }`
@@ -1619,7 +1651,7 @@ class BookViewState extends State<BookView> {
             ),
           ),
         ),
-      if (words.after.isNotEmpty) BookWords(key: const ValueKey('book-words-after'), words: words.after),
+      if (words.after.isNotEmpty) BookWords(key: const ValueKey('book-words-after'), words: words.after, known: widget.known, open: widget.open),
       CssFlow.block(
         key: const ValueKey('book-adds'),
         // `.adds, .add { margin-block-start: var(--glacier-space-4) }`

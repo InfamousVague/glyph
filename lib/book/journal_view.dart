@@ -133,7 +133,7 @@ class _JournalViewState extends State<JournalView> {
                     },
                     onCancel: () => setState(() => _choosing = false),
                   ),
-                if (words.before.isNotEmpty) BookWords(words: words.before),
+                if (words.before.isNotEmpty) BookWords(words: words.before, known: widget.known, open: widget.open),
                 if (months.isEmpty && unwritten.isEmpty)
                   CssFlow.block(
                     // `.empty { margin-block: var(--glacier-space-3); color: var(--glacier-text-muted) }`
@@ -221,7 +221,7 @@ class _JournalViewState extends State<JournalView> {
                         ),
                     ],
                   ),
-                if (words.after.isNotEmpty) BookWords(words: words.after),
+                if (words.after.isNotEmpty) BookWords(words: words.after, known: widget.known, open: widget.open),
               ],
             );
           },
