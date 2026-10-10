@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/crypto.dart';
@@ -8,6 +9,7 @@ import 'package:ghost_md/canvas/json_canvas.dart';
 import 'package:ghost_md/core/link_preview.dart' show LinkOpener;
 import 'package:ghost_md/core/notifications.dart' show sentenceOf;
 import 'package:ghost_md/core/stored.dart';
+import 'package:ghost_md/core/versions_share.dart';
 import 'package:ghost_md/core/versions_store.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
@@ -51,7 +53,9 @@ void main() {
       tester,
       size: size,
       prefs: const Preferences(theme: 'light'),
-      home: GhostRoot(launch: false, library: library, workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), clock: () => seedNow, services: services, openLink: openLink, presence: presence),
+      // A memory of its own for each app opened: what one test kept on the device (a note's versions) is not there
+      // for the next.
+      home: GhostRoot(launch: false, library: library, workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), stored: MemoryStored(), clock: () => seedNow, services: services, openLink: openLink, presence: presence),
     );
     await tester.pump(const Duration(milliseconds: 100));
     return library;
@@ -293,6 +297,31 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       expect(leads(), isEmpty);
+      await close(tester);
+    });
+
+    // Unwired 20 (docs/PARITY.md): `NoteSeams.shareVersionsFile` was never given, so the history's row was off. On
+    // Android the page copies the file's text and says so (core/versions/share.ts: no share sheet in a WebView).
+    testWidgets('hands over its versions file from its history: copied as text on the phone, and said', (tester) async {
+      final copied = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.setData') copied.add((call.arguments as Map)['text'] as String);
+        return null;
+      });
+      addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
+      final library = await open(tester);
+      final note = library.value.first;
+      await openNote(tester, note.id);
+      final screen = tester.widget<NoteScreen>(find.byType(NoteScreen));
+      final share = screen.seams.shareVersionsFile;
+      expect(share, isNotNull);
+      expect(await tester.runAsync(() => share!(note.id, 'Packing')), 'This note has no versions yet.');
+      expect(copied, isEmpty);
+      await tester.runAsync(() => screen.versions!.keepVersion(note.id, 'As it was.', now: 1000));
+      expect(await tester.runAsync(() => share!(note.id, 'Packing')), 'This device can’t send a file, so the versions file is copied as text.');
+      expect(copied.single, contains('As it was.'));
+      expect(versionsFileName(' Trip: Lisbon / Porto? '), 'Trip  Lisbon   Porto.versions');
+      expect(versionsFileName(''), 'Untitled.versions');
       await close(tester);
     });
 

@@ -79,6 +79,7 @@ import '../core/trash.dart';
 import '../core/untouched.dart';
 import '../core/updates.dart';
 import '../core/versions_record.dart';
+import '../core/versions_share.dart';
 import '../core/versions_store.dart';
 import '../core/workspaces.dart';
 import '../diag/scene_bench.dart' show showSceneBench;
@@ -763,6 +764,8 @@ class _GhostRootState extends State<GhostRoot> {
       _recordingHeard.add(listener);
       return () => _recordingHeard.remove(listener);
     },
+    // Version history's Share the versions file: copied as text on the phone, which is what its page does there.
+    shareVersionsFile: (id, title) => shareVersionsFile(_versionsStore, id, title, files: _files),
   );
 
   /// Who hears that the phone's write-up changed a note (ai/summaries.dart `onRecordingChanged`): the open notes'

@@ -271,6 +271,7 @@ class NoteDeskWorld {
     this.summaries,
     this.refining,
     this.onRecordingChanged,
+    this.shareVersionsFile,
   });
 
   /// Every note's title, for the +'s A note.
@@ -397,6 +398,10 @@ class NoteDeskWorld {
   /// Hears that the phone's write-up changed a note, by its id (ai/summaries.dart `onRecordingChanged`), and answers
   /// the way to stop: the open note takes its transcript the moment it lands.
   final VoidCallback Function(void Function(String noteId) listener)? onRecordingChanged;
+
+  /// Hands a note's versions file to the person and answers what to say (lib/core/versions_share.dart); absent, the
+  /// history's row is off.
+  final Future<String?> Function(String noteId, String title)? shareVersionsFile;
 
   /// What the AI in a note stands on, asked as a desk is made: null where the build has no engine (a test, a
   /// picture, a launch before voice is made), and the desk then has no AI at all.
@@ -1445,6 +1450,7 @@ class NoteDeskState extends State<NoteDesk> {
       bookmark: _bookmarkOf,
       writtenBookmark: _writtenBookmark,
       cheatSheet: (context) => const CheatSheet(),
+      shareVersionsFile: _world.shareVersionsFile,
       // The bar's Share and the More sheet's Sharing are there signed in or out, as on the page (NoteScreen.tsx
       // `actions`, NoteSettings): without an account, or in a build with no service, the row says to sign in first.
       onShare: () => setState(() => _sharing = true),
