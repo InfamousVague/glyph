@@ -6,6 +6,9 @@ import 'package:ghost_md/ai/backend.dart';
 import 'package:ghost_md/ai/note_ai.dart';
 import 'package:ghost_md/capture/engine.dart';
 import 'package:ghost_md/capture/recorder.dart';
+import 'package:ghost_md/commands/command_bar.dart';
+import 'package:ghost_md/commands/palette.dart';
+import 'package:ghost_md/editor/editor.dart' show ChangeSpec, TransactionSpec;
 import 'package:ghost_md/core/note_text.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
@@ -156,6 +159,41 @@ void main() {
     // Claude's page reads who is signed in from the app: nobody, in a build with no account.
     expect(claudeHandle, isNotNull);
     expect(claudeHandle!(), isNull);
+    await close(tester);
+  });
+
+  // Unwired 5 (docs/PARITY.md): the palette's This note commands. `paletteDoingFor` was given no `setView` and no
+  // `noteAi`, and the world no count of blanks, so none of the five was ever offered (App.tsx `paletteDoing`).
+  testWidgets('the palette offers the open note its view and its runs, and Fill the blanks once it has one', (tester) async {
+    final library = await open(tester, engine: true);
+    final note = library.value.firstWhere((note) => noteTitle(note.body) == 'Packing');
+    shellOf(tester).openNote(note.id);
+    await settle(tester);
+    final bar = tester.widget<CommandBar>(find.byType(CommandBar));
+    Map<String, PaletteCommand> commands() => {for (final command in paletteCommands(bar.worldNow!(), bar.doingNow!())) command.descriptor.id: command};
+    final offered = commands();
+    expect([for (final id in offered.keys) if (id.startsWith('note:')) id].take(5), ['note:speak', 'note:view', 'note:fix', 'note:shape', 'note:continue']);
+    expect(offered['note:view']!.descriptor.label, 'Show it formatted');
+    expect(offered.containsKey('note:fill'), isFalse);
+
+    // Show it formatted is the preference the note's own switch writes.
+    offered['note:view']!.run();
+    await tester.pump();
+    expect(preferences.value.noteView, 'formatted');
+    expect(commands()['note:view']!.descriptor.label, 'Show the marks');
+
+    // A run goes through the note's screen, as a spoken instruction does, and reaches the engine.
+    backend.script('Packing, spelled right.');
+    offered['note:fix']!.run();
+    await settle(tester, 8);
+    expect(backend.requests, isNotEmpty);
+    await tester.pump(const Duration(seconds: 2));
+
+    // A blank typed in the note: counted half a second after the typing stops, and Fill the blanks is offered.
+    final view = tester.state<NoteScreenState>(find.byType(NoteScreen)).view!;
+    view.dispatch(TransactionSpec(changes: ChangeSpec(from: view.state.doc.length, insert: '\n\nThe capital of France is {?the capital of France}.'), userEvent: 'input.type'));
+    await settle(tester, 8);
+    expect(commands()['note:fill']?.descriptor.label, 'Fill the blanks');
     await close(tester);
   });
 

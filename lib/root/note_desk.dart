@@ -792,7 +792,13 @@ class NoteDeskState extends State<NoteDesk> {
   void didUpdateWidget(NoteDesk oldWidget) {
     super.didUpdateWidget(oldWidget);
     _land();
-    if (oldWidget.ask?.key != widget.ask?.key || oldWidget.review?.key != widget.review?.key) _handed();
+    // After the frame, as the page's effect is: a run started on a note already open (the palette's) tells the scene
+    // over the window, which may not be told while the tree is being built.
+    if (oldWidget.ask?.key != widget.ask?.key || oldWidget.review?.key != widget.review?.key) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _handed();
+      });
+    }
     if (identical(oldWidget.world.changes, _world.changes)) return;
     oldWidget.world.changes?.removeListener(_libraryChanged);
     _world.changes?.addListener(_libraryChanged);

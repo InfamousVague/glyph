@@ -27,6 +27,7 @@ import '../core/location.dart' show Locations, Locator, PlaceLookup;
 import '../core/films.dart' show Films;
 import '../core/phone_pictures.dart' show corePictureAdopter;
 import '../core/place_tags.dart';
+import '../editor/ai/blanks.dart' show openNoteBlanks;
 import '../editor/items/field_menu.dart' show DayPicker;
 import '../guide/guide_models.dart' show GuideModels, PhoneGuideModels;
 import '../editor/media/map_card.dart' show MapTilesBuilder;
@@ -39,6 +40,7 @@ import '../canvas/json_canvas.dart' show Canvas, canvasNoteBody;
 import '../canvas/sample_canvas.dart' show sampleCanvasBody;
 import '../capture/meeting_live.dart' show MeetingLive;
 import '../capture/place.dart' show Placing;
+import '../capture/recorder.dart' show SpokenAsk;
 import '../capture/ui/capture_screen.dart';
 import '../capture/ui/meeting_screen.dart';
 import '../capture/voice_model.dart';
@@ -1837,7 +1839,16 @@ class _GhostRootState extends State<GhostRoot> {
     final guide = _guide;
     return CommandBar.over(
       key: _commands,
-      world: () => paletteWorldFor(shell: _shell.currentState!, workspaces: _workspaces.value, prefs: preferences.value),
+      // The open note's blanks for Fill, as its editor counted them (lib/editor/ai/blanks.dart `openNoteBlanks`).
+      world: () => paletteWorldFor(
+        shell: _shell.currentState!,
+        workspaces: _workspaces.value,
+        prefs: preferences.value,
+        blanks: switch (openNoteBlanks.value) {
+          final counted? when counted.noteId == _shell.currentState!.shown => counted.count,
+          _ => 0,
+        },
+      ),
       doing: () => paletteDoingFor(
         shell: _shell.currentState!,
         library: _library,
@@ -1862,6 +1873,14 @@ class _GhostRootState extends State<GhostRoot> {
           _actions.archive(note, archived: true);
         },
         removeNote: _delete,
+        // Show it formatted, Show the marks: the preference every note's editor reads.
+        setView: (view) => preferences.update((now) => now.copyWith(noteView: view)),
+        // The note's runs from the palette go through its screen, as a spoken instruction does (`noteAi`).
+        noteAi: (id, kind) {
+          final shell = _shell.currentState;
+          final now = shell?.screen;
+          if (shell != null && now is ScreenNote && now.note.id == id) shell.show(now.asked(Keyed(SpokenAsk(kind: kind), DateTime.now().millisecondsSinceEpoch)));
+        },
         settings: _openSettings,
         settingsPage: _openSettingsAt,
       ),
