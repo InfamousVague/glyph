@@ -1,13 +1,12 @@
 import Foundation
 import Security
 
-/// The secure store over Apple's Keychain (lib/account/device_keys.dart `SecureStore`), for the iPhone app and
-/// written for the Mac's too: one generic password to a name, all under a service that is this app's bundle id, so
+/// The secure store over Apple's Keychain (lib/account/device_keys.dart `SecureStore`), for the Mac app and the
+/// iPhone app: one generic password to a name, all under a service that is this app's bundle id, so
 /// nothing of another app's is ever read, written or removed, the Tauri app's least of all.
 ///
-/// SHARED (apple/, README "Each channel, and its iPhone half"): compiled into ios/Runner. The Mac app still carries
-/// the enum this was taken from inside macos/Runner/GhostChannels.swift, word for word but the two `#if`s below;
-/// when that file is next at rest the Mac's copy goes and its target takes this file.
+/// ONE FILE FOR BOTH (apple/): the Mac's Runner and the iPhone's each compile this very file, by its path here.
+/// What differs is the two `#if`s below.
 ///
 /// On an iPhone a secret is kept for this device alone and read once the phone has been unlocked since it was
 /// started: never in an iCloud Keychain, never carried to another phone by a backup, as Android's Keystore holds

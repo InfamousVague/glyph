@@ -30,6 +30,8 @@
 		7A10000000000000000000B1 /* GhostChannels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A10000000000000000000A1 /* GhostChannels.swift */; };
 		7A10000000000000000000B2 /* FilesChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A10000000000000000000A2 /* FilesChannel.swift */; };
 		7A10000000000000000000B3 /* TapeChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A10000000000000000000A3 /* TapeChannel.swift */; };
+		6E05C0DE00000000000000B1 /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E05C0DE00000000000000A1 /* Keychain.swift */; };
+		6E05C0DE00000000000000B2 /* PictureKeep.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E05C0DE00000000000000A2 /* PictureKeep.swift */; };
 		7A10000000000000000000B4 /* MicChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A10000000000000000000A4 /* MicChannel.swift */; };
 		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
 /* End PBXBuildFile section */
@@ -78,6 +80,8 @@
 		7A10000000000000000000A1 /* GhostChannels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhostChannels.swift; sourceTree = "<group>"; };
 		7A10000000000000000000A2 /* FilesChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesChannel.swift; sourceTree = "<group>"; };
 		7A10000000000000000000A3 /* TapeChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapeChannel.swift; sourceTree = "<group>"; };
+		6E05C0DE00000000000000A1 /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Keychain.swift; path = ../apple/Keychain.swift; sourceTree = SOURCE_ROOT; };
+		6E05C0DE00000000000000A2 /* PictureKeep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PictureKeep.swift; path = ../apple/PictureKeep.swift; sourceTree = SOURCE_ROOT; };
 		7A10000000000000000000A4 /* MicChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicChannel.swift; sourceTree = "<group>"; };
 		33CEB47222A05771004F2AC0 /* Flutter-Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Flutter-Debug.xcconfig"; sourceTree = "<group>"; };
 		33CEB47422A05771004F2AC0 /* Flutter-Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Flutter-Release.xcconfig"; sourceTree = "<group>"; };
@@ -179,6 +183,8 @@
 				7A10000000000000000000A1 /* GhostChannels.swift */,
 				7A10000000000000000000A2 /* FilesChannel.swift */,
 				7A10000000000000000000A3 /* TapeChannel.swift */,
+				6E05C0DE00000000000000A1 /* Keychain.swift */,
+				6E05C0DE00000000000000A2 /* PictureKeep.swift */,
 				7A10000000000000000000A4 /* MicChannel.swift */,
 				33E51913231747F40026EE4D /* DebugProfile.entitlements */,
 				33E51914231749380026EE4D /* Release.entitlements */,
@@ -390,6 +396,8 @@
 				7A10000000000000000000B1 /* GhostChannels.swift in Sources */,
 				7A10000000000000000000B2 /* FilesChannel.swift in Sources */,
 				7A10000000000000000000B3 /* TapeChannel.swift in Sources */,
+				6E05C0DE00000000000000B1 /* Keychain.swift in Sources */,
+				6E05C0DE00000000000000B2 /* PictureKeep.swift in Sources */,
 				7A10000000000000000000B4 /* MicChannel.swift in Sources */,
 				33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */,
 				335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */,

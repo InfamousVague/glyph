@@ -8,9 +8,9 @@ import UniformTypeIdentifiers
 /// black as a JPEG) and written as a JPEG at 85 to `<cache>/picked/<uuid>.jpg`, where the core adopts it from
 /// (`sync_put_file_path`, lib/core/phone_pictures.dart).
 ///
-/// SHARED (apple/): compiled into ios/Runner, for the picture chooser and the clipboard there. The Mac app has
-/// these lines as `GhostChannels.keep` in macos/Runner/GhostChannels.swift, which they were taken from; ImageIO is
-/// the same on both, so when that file is next at rest its copy goes and its target takes this one.
+/// ONE FILE FOR BOTH (apple/): the Mac's Runner and the iPhone's each compile this very file, by its path here,
+/// for the picture chooser and the clipboard of each (`GhostChannels` in macos/Runner and in ios/Runner). ImageIO
+/// is the same on both.
 enum PictureKeep {
   /// The long side a picture is kept at: Pictures.kt's `MAX_PX`.
   static let longSide = 1600

@@ -153,8 +153,12 @@ final class GhostChannels: NSObject {
 
   // MARK: pictures
 
-  /// The long side a picture is kept at, and its quality: Pictures.kt's `MAX_PX` and 85.
-  private static let longSide = 1600
+  /// A picture made ready for a note in the app's cache, or nil where it cannot be read: shrunk, turned and laid
+  /// on paper by apple/PictureKeep.swift, the one file the Mac and the iPhone both keep a picture with.
+  private static func keep(_ source: CGImageSource) -> String? {
+    guard let dirs = dirs() else { return nil }
+    return PictureKeep.keep(source, cache: dirs.cache)
+  }
 
   /// The Mac's open panel for one picture, answered as the phone's chooser answers: `{path}` of a JPEG in the
   /// app's cache, shrunk and the right way up, `{cancelled: true}`, or an error with a sentence.
@@ -186,85 +190,5 @@ final class GhostChannels: NSObject {
     }
     if let text = board.string(forType: .string), !text.isEmpty { return ["text": text] }
     return [:]
-  }
-
-  /// A picture shrunk to [longSide], turned as its EXIF says, laid on paper (a transparent screenshot must not
-  /// turn black as a JPEG) and written to `<cache>/picked/<uuid>.jpg`. Answers the file's path.
-  private static func keep(_ source: CGImageSource) -> String? {
-    let options: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceCreateThumbnailWithTransform: true, kCGImageSourceThumbnailMaxPixelSize: longSide]
-    guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary), let dirs = dirs() else { return nil }
-    let width = image.width, height = image.height
-    guard width > 0, height > 0, let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
-    let all = CGRect(x: 0, y: 0, width: width, height: height)
-    context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
-    context.fill(all)
-    context.draw(image, in: all)
-    guard let flat = context.makeImage() else { return nil }
-    let folder = dirs.cache.appendingPathComponent("picked", isDirectory: true)
-    try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-    let out = folder.appendingPathComponent("\(UUID().uuidString.lowercased()).jpg")
-    guard let destination = CGImageDestinationCreateWithURL(out as CFURL, UTType.jpeg.identifier as CFString, 1, nil) else { return nil }
-    CGImageDestinationAddImage(destination, flat, [kCGImageDestinationLossyCompressionQuality: 0.85] as CFDictionary)
-    return CGImageDestinationFinalize(destination) ? out.path : nil
-  }
-}
-
-/// The secure store over the Mac's Keychain (lib/account/device_keys.dart `SecureStore`): one generic password to
-/// a name, all under a service that is this app's bundle id, so nothing of another app's is ever read, written or
-/// removed, the Tauri app's least of all.
-enum Keychain {
-  struct Failure: Error {
-    let status: OSStatus
-    var said: String {
-      let words = SecCopyErrorMessageString(status, nil) as String? ?? "error \(status)"
-      return "The Mac’s Keychain would not answer: \(words)"
-    }
-  }
-
-  static var service: String { "\(Bundle.main.bundleIdentifier ?? "ghost-flutter").secure" }
-
-  private static func query(_ name: String?) -> [CFString: Any] {
-    var query: [CFString: Any] = [kSecClass: kSecClassGenericPassword, kSecAttrService: service]
-    if let name = name { query[kSecAttrAccount] = name }
-    return query
-  }
-
-  static func read(_ name: String) -> Result<String?, Failure> {
-    var query = query(name)
-    query[kSecReturnData] = true
-    query[kSecMatchLimit] = kSecMatchLimitOne
-    var found: CFTypeRef?
-    let status = SecItemCopyMatching(query as CFDictionary, &found)
-    if status == errSecItemNotFound { return .success(nil) }
-    guard status == errSecSuccess, let data = found as? Data else { return .failure(Failure(status: status)) }
-    return .success(String(data: data, encoding: .utf8))
-  }
-
-  static func write(_ name: String, _ value: String) -> Failure? {
-    let data = Data(value.utf8)
-    let changed = SecItemUpdate(query(name) as CFDictionary, [kSecValueData: data] as CFDictionary)
-    if changed == errSecSuccess { return nil }
-    guard changed == errSecItemNotFound else { return Failure(status: changed) }
-    var item = query(name)
-    item[kSecValueData] = data
-    item[kSecAttrLabel] = "Ghost Flutter"
-    let added = SecItemAdd(item as CFDictionary, nil)
-    return added == errSecSuccess ? nil : Failure(status: added)
-  }
-
-  static func delete(_ name: String) -> Failure? {
-    let status = SecItemDelete(query(name) as CFDictionary)
-    return status == errSecSuccess || status == errSecItemNotFound ? nil : Failure(status: status)
-  }
-
-  /// Every secret this app keeps, gone. The Mac's file keychain removes one match a call, so it is asked until
-  /// there is none (and never more than a few hundred times).
-  static func clear() -> Bool {
-    for _ in 0..<512 {
-      let status = SecItemDelete(query(nil) as CFDictionary)
-      if status == errSecItemNotFound { return true }
-      if status != errSecSuccess { return false }
-    }
-    return false
   }
 }
