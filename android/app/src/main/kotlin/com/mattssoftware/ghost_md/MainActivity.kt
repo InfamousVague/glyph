@@ -80,6 +80,9 @@ class MainActivity : FlutterActivity() {
     /** The hinge's angle while the app is up, for a note's unfold (Hinge.kt; lib/core/unfold.dart). */
     private val hinge by lazy { Hinge(applicationContext) }
 
+    /** A note's diagrams, drawn by a web view nobody sees, let go with the activity (DiagramRenderer.kt). */
+    private var diagrams: DiagramRenderer? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Before super: a capture launch decides the window's lock-screen behaviour before the window is shown.
         meeting = MeetingBridge(this).also { it.onCreate(intent) }
@@ -140,6 +143,8 @@ class MainActivity : FlutterActivity() {
         DayPick(this).register(messenger)
         // A folding phone's hinge, as it opens (Hinge.kt; lib/core/unfold.dart).
         hinge.register(messenger)
+        // A ```mermaid fence drawn as its diagram (DiagramRenderer.kt; lib/editor/diagrams/bridge.dart).
+        diagrams = DiagramRenderer(this).also { it.register(messenger) }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -179,6 +184,7 @@ class MainActivity : FlutterActivity() {
     override fun onDestroy() {
         tape?.release()
         film?.release()
+        diagrams?.destroy()
         meeting?.onDestroy()
         super.onDestroy()
     }
