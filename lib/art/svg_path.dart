@@ -153,7 +153,28 @@ Path parseSvgPath(String d) {
   return path;
 }
 
-final Map<String, Path> _paths = {};
+final Map<String, Path> _paths = {}, _evenOdd = {};
 
-/// [parseSvgPath], kept: a drawing's path is made once however often it is drawn.
-Path svgPath(String d) => _paths[d] ??= parseSvgPath(d);
+/// No more paths than this are kept of either kind. The icons' own are a few hundred strings, there for good; a
+/// caller that writes a path out afresh for every place it draws (the canvas's map does, for the box it shows)
+/// would otherwise leave one here for every place it ever drew.
+const int _kept = 4096;
+
+/// [parseSvgPath], kept by its string: a drawing's path is made once however often it is drawn. With [evenOdd],
+/// the same path filled even-odd, kept too (a body with a hole in it, drawn at every paint, was a copy at every
+/// paint). The path is everyone's who asks for that string: it is drawn, and never changed.
+Path svgPath(String d, {bool evenOdd = false}) {
+  final store = evenOdd ? _evenOdd : _paths;
+  final had = store[d];
+  if (had != null) return had;
+  // Past the bound, the quarter kept longest goes: a string still drawn is parsed once more, and that is all.
+  if (store.length >= _kept) {
+    for (final old in store.keys.take(_kept ~/ 4).toList()) {
+      store.remove(old);
+    }
+  }
+  return store[d] = evenOdd ? (Path.from(svgPath(d))..fillType = PathFillType.evenOdd) : parseSvgPath(d);
+}
+
+/// How many paths are kept, plain and even-odd: for a test.
+int get debugSvgPathsKept => _paths.length + _evenOdd.length;

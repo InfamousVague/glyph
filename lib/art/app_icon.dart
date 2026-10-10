@@ -73,9 +73,9 @@ class DrawnIconPainter extends CustomPainter {
     final fill = Paint()
       ..style = PaintingStyle.fill
       ..color = color.withValues(alpha: color.a * iconWash);
+    // Each path from the store of them (svg_path.dart): parsed once for its string, and its even-odd self made once.
     for (final d in washed) {
-      final path = svgPath(d);
-      canvas.drawPath(evenOdd ? (Path.from(path)..fillType = PathFillType.evenOdd) : path, fill);
+      canvas.drawPath(svgPath(d, evenOdd: evenOdd), fill);
     }
     final stroke = Paint()
       ..style = PaintingStyle.stroke

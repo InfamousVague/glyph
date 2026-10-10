@@ -242,6 +242,43 @@ void main() {
     });
   });
 
+  group('a drawing\'s paths', () {
+    test('are parsed once for their string, their even-odd selves made once, and no more kept than the store holds', () {
+      const d = 'M2 2 L20 2 L20 20 L2 20 Z M8 8 L14 8 L14 14 L8 14 Z';
+      final plain = svgPath(d), holed = svgPath(d, evenOdd: true);
+      expect(identical(svgPath(d), plain), isTrue);
+      expect(identical(svgPath(d, evenOdd: true), holed), isTrue);
+      expect(identical(plain, holed), isFalse);
+      expect(plain.fillType, ui.PathFillType.nonZero);
+      expect(holed.fillType, ui.PathFillType.evenOdd);
+      // The hole: inside the inner square, the even-odd path is clear.
+      expect(plain.contains(const Offset(11, 11)), isTrue);
+      expect(holed.contains(const Offset(11, 11)), isFalse);
+      expect(holed.contains(const Offset(4, 4)), isTrue);
+
+      // A caller that writes a path out afresh for every place it draws: what is kept stops growing.
+      for (var i = 0; i < 6000; i++) {
+        svgPath('M$i 0 L${i + 1} 1');
+      }
+      expect(debugSvgPathsKept, lessThanOrEqualTo(2 * 4096));
+      // A path dropped on the way is parsed again and is the same shape.
+      expect(svgPath(d).getBounds(), plain.getBounds());
+    });
+
+    test('a painter says to paint again only when what it draws has changed', () {
+      const a = DrawnIconPainter(strokes: ['M0 0 L1 1'], washed: ['M0 0 L1 1'], color: Color(0xFF112233), strokeWidth: 2);
+      // The same icon built again: other lists, the same strings.
+      final again = DrawnIconPainter(strokes: ['M0 0 L1 1'.toString()], washed: [...a.washed], color: const Color(0xFF112233), strokeWidth: 2);
+      expect(again.shouldRepaint(a), isFalse);
+      expect(const DrawnIconPainter(strokes: ['M0 0 L1 1'], washed: ['M0 0 L1 1'], color: Color(0xFF112234), strokeWidth: 2).shouldRepaint(a), isTrue);
+      expect(const DrawnIconPainter(strokes: ['M0 0 L1 1'], washed: ['M0 0 L1 1'], color: Color(0xFF112233), strokeWidth: 2.1).shouldRepaint(a), isTrue);
+      expect(const DrawnIconPainter(strokes: ['M0 0 L2 2'], washed: ['M0 0 L1 1'], color: Color(0xFF112233), strokeWidth: 2).shouldRepaint(a), isTrue);
+      expect(const DrawnIconPainter(strokes: ['M0 0 L1 1'], washed: [], color: Color(0xFF112233), strokeWidth: 2).shouldRepaint(a), isTrue);
+      expect(const DrawnIconPainter(strokes: ['M0 0 L1 1'], washed: ['M0 0 L1 1'], color: Color(0xFF112233), strokeWidth: 2, evenOdd: true).shouldRepaint(a), isTrue);
+      expect(const DrawnIconPainter(strokes: ['M0 0 L1 1'], washed: ['M0 0 L1 1'], color: Color(0xFF112233), strokeWidth: 2, viewBox: 20).shouldRepaint(a), isTrue);
+    });
+  });
+
   group('the lid', () {
     test('lifts, hangs there a moment, and settles with a little bounce', () {
       expect(TipsShape.lidAt(0).move, Offset.zero);
