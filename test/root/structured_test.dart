@@ -182,7 +182,9 @@ void main() {
       expect(find.byType(CanvasView), findsOneWidget);
       final box = tester.getRect(find.byType(CanvasView));
       expect(box.width, 390);
-      expect(box.bottom, 844);
+      // `.body { padding-block-end: var(--app-safe-bottom) }`: it ends above the phone's own bar, the 20px
+      // [pumpApp] gives the screen, as the page's canvas body does.
+      expect(box.bottom, 844 - 20);
       expect(box.height, greaterThan(600));
       await close(tester);
     });
