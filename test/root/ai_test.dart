@@ -11,7 +11,10 @@ import 'package:ghost_md/capture/engine.dart';
 import 'package:ghost_md/capture/recorder.dart';
 import 'package:ghost_md/commands/command_bar.dart';
 import 'package:ghost_md/commands/palette.dart';
+import 'package:ghost_md/art/lucide.g.dart';
+import 'package:ghost_md/editor/ai/fill_panel.dart';
 import 'package:ghost_md/editor/editor.dart' show ChangeSpec, TransactionSpec;
+import 'package:ghost_md/editor/view/text_panel.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/phone_connection.dart' show Connection;
 import 'package:ghost_md/core/note_text.dart';
@@ -315,6 +318,31 @@ void main() {
     connection.listeners.single();
     await close(tester);
     expect(connection.listeners, isEmpty);
+  });
+
+  // Unwired 18 (docs/PARITY.md): `NoteAi.closePanels` had no caller, and nothing put away a mark's note or a
+  // footnote's words either: a panel stayed where it was opened while the note went by under it (fillPanel.ts and
+  // textPanel.ts `EditorView.domEventHandlers({ scroll })`).
+  testWidgets('an answer\'s panel, a mark\'s note and a footnote\'s words are put away when the note scrolls', (tester) async {
+    final library = await open(tester, engine: true);
+    final long = library.create('# A long note\n\n${[for (var i = 0; i < 120; i++) 'A line of it, number $i.'].join('\n\n')}\n');
+    await tester.pump();
+    shellOf(tester).openNote(long.id);
+    await settle(tester);
+    final view = tester.state<NoteScreenState>(find.byType(NoteScreen)).view!;
+    fillPanelOf(view).value = const ShownFillPanel(at: 2, content: PanelContent(icon: Lucide.globe, title: 'Paris', lines: ['Looked up.'], actions: []));
+    showTextPanel(view, 2, 'The words under it.', className: 'cm-footPanel', label: 'Footnote 1');
+    showTextPanel(view, 2, 'A note on a mark.', className: 'cm-markNotePanel', label: 'Note');
+    await tester.pump();
+    expect(fillPanelOf(view).value, isNotNull);
+    expect(textPanels(view).value, hasLength(2));
+    final page = tester.state<ScrollableState>(find.descendant(of: find.byType(NoteScreen), matching: find.byType(Scrollable)).first).position;
+    expect(page.maxScrollExtent, greaterThan(200));
+    page.jumpTo(120);
+    await tester.pump();
+    expect(fillPanelOf(view).value, isNull);
+    expect(textPanels(view).value, isEmpty);
+    await close(tester);
   });
 
   testWidgets('a note has none of it in an app with no engine', (tester) async {

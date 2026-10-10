@@ -144,7 +144,7 @@ import '../editor/spell/spell.dart' show PhoneSpellChecker, spellCheck;
 import '../editor/tables/tables.dart';
 import '../editor/tickets/tickets.dart';
 import '../editor/view/editor_view.dart';
-import '../editor/view/text_panel.dart' show EditorTextPanels;
+import '../editor/view/text_panel.dart' show EditorTextPanels, TextPanel, textPanels;
 import '../note/note_editor.dart';
 import '../note/note_place.dart';
 import '../note/note_screen.dart';
@@ -1141,10 +1141,22 @@ class NoteDeskState extends State<NoteDesk> {
           clipboard: const band.PhoneClipboard(),
           onPasteImage: _pictures?.pasteImage,
           boards: true,
-          child: page,
+          // The note's own scroll is heard here, where the page's editor heard its scroller.
+          child: NotificationListener<ScrollUpdateNotification>(onNotification: (scrolled) => _scrolled(view, scrolled), child: page),
         ),
       ),
     );
+  }
+
+  /// The note scrolled: an answer's panel, a mark's note and a footnote's words are put away (the page's
+  /// `EditorView.domEventHandlers({ scroll })` in fillPanel.ts and textPanel.ts). Only the page's own scroll: a
+  /// table or a board moved sideways inside it leaves them.
+  bool _scrolled(EditorView? view, ScrollUpdateNotification scrolled) {
+    if (view == null || scrolled.depth != 0 || scrolled.scrollDelta == 0) return false;
+    _ai?.closePanels();
+    final panels = textPanels(view);
+    if (panels.value.isNotEmpty) panels.value = const <TextPanel>[];
+    return false;
   }
 
   List<Widget> _over(BuildContext context, EditorView view) {
