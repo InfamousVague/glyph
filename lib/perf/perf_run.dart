@@ -118,7 +118,7 @@ String benchScript(Size size, {Set<String>? only}) {
       'mark:board-leave', 'taplabel:Home', 'wait:1500',
     ],
     'canvas': [
-      'mark:_seek', 'seek:Bench canvas',
+      'mark:_seek', 'reach:Bench canvas',
       'mark:canvas-open', 'taptext:Bench canvas', 'wait:2000',
       'mark:canvas-drag', 'swipe:$x,$low,$x,$high,900', 'swipe:$x,$high,$x,$low,900',
       // Two fingers apart and together again about the middle, then the buttons a wide window has, and the fit.
@@ -133,17 +133,17 @@ String benchScript(Size size, {Set<String>? only}) {
     ],
     'notebook': [
       // The notebook's pages are given notes that are written, once (a library made for the walk has none that are).
-      'mark:_seek', 'seek:Bench notebook', 'taptext:Bench notebook', 'wait:1500', 'fixture:chapters', 'taplabel:Home', 'wait:1200', 'seek:Bench notebook',
+      'mark:_seek', 'reach:Bench notebook', 'taptext:Bench notebook', 'wait:1500', 'fixture:chapters', 'taplabel:Home', 'wait:1200', 'reach:Bench notebook',
       'mark:notebook-open', 'taptext:Bench notebook', 'wait:2000',
       'mark:notebook-fling', flings(low, high, 2), flings(high, low, 2),
       // A page opened from the index, the next one from its bar, and back to the index by the bar.
       'mark:notebook-chapter', 'tapkey:book-chapter-4', 'wait:1800',
       'mark:notebook-next', 'tapkey:book-bar-next', 'wait:1800',
       'mark:notebook-back', 'tapkey:book-bar-book', 'wait:1800',
-      'mark:_seek', 'seek:Read straight through',
+      'mark:_seek', 'reach:Read straight through',
       'mark:notebook-read-open', 'taptext:Read straight through', 'wait:1800',
       'mark:notebook-read', flings(low, high, 4), flings(high, low, 4),
-      'mark:_seek', 'seek:Index',
+      'mark:_seek', 'reach:Index',
       'mark:notebook-index', 'tapkey:book-index', 'wait:1200',
       'mark:notebook-leave', 'taplabel:Home', 'wait:1500',
     ],
@@ -180,14 +180,14 @@ String benchScript(Size size, {Set<String>? only}) {
     'settings': [
       'mark:settings-open', 'taplabel:Settings', 'wait:1500',
       'mark:settings-fling', flings(low, high, 3), flings(high, low, 3),
-      'mark:_seek', 'seek:Appearance',
+      'mark:_seek', 'reach:Appearance',
       'mark:settings-page', 'taptext:Appearance', 'wait:1500', flings(low, high, 3), flings(high, low, 3),
       // Two pages more: About, and under it the cheat sheet, the page with the most rows. One page at a time, the
       // way to another is back through the list.
       // In two panes the sections are a column at the left, and About is under its foot: a finger down that column.
-      'mark:_seek', if (split) 'swipe:160,$low,160,$high,400;wait:300;swipe:160,$low,160,$high,400;wait:300' else 'back;wait:700;seek:About',
+      'mark:_seek', if (split) 'swipe:160,$low,160,$high,400;wait:300;swipe:160,$low,160,$high,400;wait:300' else 'back;wait:700;reach:About',
       'mark:settings-about', 'taptext:About', 'wait:1500',
-      'mark:_seek', 'seek:Cheat sheet',
+      'mark:_seek', 'reach:Cheat sheet',
       'mark:settings-cheatsheet', 'taptext:Cheat sheet', 'wait:1500', flings(low, high, 3), flings(high, low, 3),
       // Out the way a person came: the cheat sheet to About, (About to the list,) and out of Settings.
       'mark:settings-leave', 'back', 'wait:700', if (!split) 'back;wait:700', 'back', 'wait:1200',
@@ -344,12 +344,15 @@ bool _launching() {
 // ---- the walk's own steps ----------------------------------------------------------------------------------------
 
 /// The steps a walk has besides the tour's (lib/shell/phone_tour.dart).
-const Set<String> _ownSteps = {'back', 'tapkey', 'dragkey', 'pinch', 'fixture'};
+const Set<String> _ownSteps = {'back', 'reach', 'tapkey', 'dragkey', 'pinch', 'fixture'};
 
 /// One of the walk's own steps:
 ///
 /// - `back`: the system's back, as Android's gesture sends it; a desktop's Escape walks the same stack
 ///   (lib/core/back.dart).
+/// - `reach:<words>`: the tour's `seek`, unless the words are in the window already. A note that has been opened
+///   has a tab in the bar, which is where `taptext` then finds its name, and `seek` took a name that high for one
+///   to be scrolled down to: twenty-four pulls of the home page (each a pull to refresh) before every opening.
 /// - `tapkey:<key>`: a tap in the middle of what wears that key; `dragkey:<key>,<dx>,<dy>[,<ms>]`: a finger put
 ///   down there and moved by that much.
 /// - `pinch:<x>,<y>,<from>,<to>[,<ms>]`: two fingers either side of a point, from one distance apart to another.
@@ -359,6 +362,9 @@ Future<void> _ownStep(PhoneTour tour, String name, String arg) async {
     case 'back':
       ui.channelBuffers.push('flutter/navigation', const JSONMethodCodec().encodeMethodCall(const MethodCall('popRoute')), (_) {});
       await _frames();
+    case 'reach':
+      final at = _worded(arg);
+      if (at == null || !_window().contains(at.center)) await tour.run('seek:$arg');
     case 'tapkey':
       await _tapKey(tour, arg);
     case 'dragkey':
@@ -385,11 +391,33 @@ Future<void> _frames([int count = 2]) async {
   }
 }
 
+Rect _window() {
+  final view = WidgetsBinding.instance.platformDispatcher.views.first;
+  return Offset.zero & (view.physicalSize / view.devicePixelRatio);
+}
+
+/// Where the last text drawn that holds [words] is, as the tour's `taptext` finds it; null when none is drawn.
+Rect? _worded(String words) {
+  final window = _window();
+  Rect? found;
+  void visit(Element element) {
+    final render = element.renderObject;
+    if (element is RenderObjectElement && render is RenderOffstage && render.offstage) return;
+    if (element is RenderObjectElement && render is RenderParagraph && render.attached && render.hasSize && render.text.toPlainText().contains(words)) {
+      final box = MatrixUtils.transformRect(render.getTransformTo(null), Offset.zero & render.size);
+      if (box.width > 0 && box.height > 0 && window.overlaps(box)) found = box;
+    }
+    element.visitChildren(visit);
+  }
+
+  WidgetsBinding.instance.rootElement?.visitChildren(visit);
+  return found;
+}
+
 /// Where what wears the key [key] (a `ValueKey` of that string) is in the window, if it is drawn there. What is
 /// kept out of sight is not found, as the tour finds none of it.
 Rect? _keyed(String key) {
-  final view = WidgetsBinding.instance.platformDispatcher.views.first;
-  final window = Offset.zero & (view.physicalSize / view.devicePixelRatio);
+  final window = _window();
   Rect? found;
   void visit(Element element) {
     if (found != null) return;
@@ -501,19 +529,21 @@ Future<void> _benchChapters(PhoneTour tour) async {
       if (!chapters.any((chapter) => sameTitle(chapter.title, title))) title,
   ];
   if (missing.isEmpty) return;
-  await tour.run('seek:Add a note you have;taptext:Add a note you have;wait:500');
-  if (!await _tapKey(tour, 'book-find')) return;
-  var typed = 0, picked = 0;
+  // A page at a time: the picker opened, the page's whole title typed into its field, its row ticked, and Add. (Not
+  // every title into one opening of it: a field that has given up the keyboard to a row's press has no caret to
+  // take the last title out from, and the next was typed after it.)
+  var picked = 0;
   for (final title in missing) {
-    await tour.run('${typed > 0 ? 'backspace:$typed;' : ''}type:$title;wait:150');
-    typed = title.length;
-    if (await _tapKey(tour, 'book-pick:$title', quiet: true)) picked += 1;
+    await tour.run('seek:Add a note you have;taptext:Add a note you have;wait:400');
+    if (!await _tapKey(tour, 'book-find')) break;
+    await tour.run('wait:200;type:$title;wait:200');
+    if (await _tapKey(tour, 'book-pick:$title', quiet: true) && await _tapKey(tour, 'book-add-picked')) {
+      picked += 1;
+    } else {
+      await tour.run('taptext:Cancel');
+    }
+    await tour.run('unfocus;wait:400');
   }
-  await tour.run('unfocus;wait:200');
-  if (picked == 0 || !await _tapKey(tour, 'book-add-picked')) {
-    await tour.run('taptext:Cancel');
-  }
-  await tour.run('wait:800');
   debugPrint('[tour] fixture chapters: $picked pages added to the notebook');
 }
 
