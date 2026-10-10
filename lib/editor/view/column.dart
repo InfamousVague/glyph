@@ -30,7 +30,15 @@ class EditorColumn extends StatefulWidget {
 }
 
 class _EditorColumnState extends State<EditorColumn> {
+  /// What was last built, the look it was built with, and whether the view has said anything since. A column is
+  /// drawn inside things that build often (a card on the home page, a card being dragged across a canvas), and it
+  /// projected and resolved every one of its lines at each of those builds, though the view had not changed.
+  Widget? _built;
+  Look? _builtLook;
+  bool _stale = true;
+
   void _changed() {
+    _stale = true;
     if (mounted) setState(() {});
   }
 
@@ -46,6 +54,7 @@ class _EditorColumnState extends State<EditorColumn> {
     if (!identical(oldWidget.view, widget.view)) {
       oldWidget.view.removeListener(_changed);
       widget.view.addListener(_changed);
+      _stale = true;
     }
   }
 
@@ -62,11 +71,18 @@ class _EditorColumnState extends State<EditorColumn> {
     final env = widget.env ?? LookEnv.page(context.tokens, devicePixelRatio: MediaQuery.devicePixelRatioOf(context), meHue: widget.meHue, tabSize: view.state.tabSize);
     view.setEnv(env, more: widget.sheets);
     // Nothing follows lines by number here: the changes are taken so they do not pile up.
-    view.takeChanges();
-    view.takeDirty();
+    final changes = view.takeChanges();
+    final dirty = view.takeDirty();
+    final look = view.look!;
+    final built = _built;
+    // Nothing the view shows has changed since the lines were built, and the look is the one they were built
+    // with: the very widgets, which Flutter then leaves as they are.
+    if (built != null && !_stale && changes == null && dirty.isNone && identical(look, _builtLook)) return built;
+    _stale = false;
+    _builtLook = look;
     final doc = view.state.doc, blocks = view.blocks;
-    final top = view.look!.env.contentTop, bottom = view.look!.env.contentBottom;
-    return EditorViewScope(
+    final top = look.env.contentTop, bottom = look.env.contentBottom;
+    return _built = EditorViewScope(
       view: view,
       child: Padding(
         padding: EdgeInsets.only(top: top, bottom: bottom),

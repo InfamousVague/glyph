@@ -98,6 +98,9 @@ class DirtyLines {
 
   static const DirtyLines everywhere = DirtyLines._(true, <int>[]);
 
+  /// Whether nowhere may show something else.
+  bool get isNone => !all && _ranges.isEmpty;
+
   /// Whether a line from `from` to `to` may show something else.
   bool touches(int from, int to) {
     if (all) return true;
@@ -400,8 +403,18 @@ class EditorView extends EditorViewLike implements EditorLineHost {
             contentTop: env.contentTop,
             contentBottom: env.contentBottom,
           );
-    final next = Look(withAttrs, <LookSheet>[markdownLook, ..._state.facet(lookSheets).reversed, ..._moreSheets]);
-    if (_look != null && _look!.same(next)) return;
+    final sheets = <LookSheet>[markdownLook, ..._state.facet(lookSheets).reversed, ..._moreSheets];
+    // The look in force is asked whether it is this one before another is made: making one indexes every rule of
+    // every sheet, and whoever draws the view says its look at every build.
+    final has = _look;
+    if (has != null && has.env.key == withAttrs.key && has.sheets.length == sheets.length) {
+      var same = true;
+      for (var i = 0; same && i < sheets.length; i++) {
+        same = identical(has.sheets[i], sheets[i]);
+      }
+      if (same) return;
+    }
+    final next = Look(withAttrs, sheets);
     _look = next;
     _theme = GlyphTheme.of(withAttrs);
     _dirtyAll = true;
