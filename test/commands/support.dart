@@ -147,8 +147,13 @@ List<Line> lines(WidgetTester tester) {
   }
   for (final element in find.descendant(of: _list, matching: find.byType(ExcludeSemantics)).evaluate()) {
     final child = (element.widget as ExcludeSemantics).child;
-    if (child is! Padding || child.child is! Text) continue;
-    out.add((kind: 'head', text: (child.child! as Text).data!, rect: tester.getRect(find.byElementPredicate((e) => identical(e, element))), selected: false));
+    if (child is! Padding) continue;
+    // A heading's words are set on the page's own line (the kit's ExactLines round the Text), or are the Text itself
+    // where its style has no line of its own to be exact about.
+    final inner = child.child;
+    final words = inner is ExactLines ? inner.child : inner;
+    if (words is! Text) continue;
+    out.add((kind: 'head', text: words.data!, rect: tester.getRect(find.byElementPredicate((e) => identical(e, element))), selected: false));
   }
   out.sort((a, b) => a.rect.top.compareTo(b.rect.top));
   return out;
