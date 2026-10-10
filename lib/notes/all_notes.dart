@@ -15,6 +15,10 @@
 ///   so the names are compared as they are spelled, in lower case: the same order for plain letters and figures, not
 ///   for accents or for punctuation at the start of a name.
 /// - The order kept on the device is read from and written to a [Stored] handed in, the app's own unless given.
+/// - **What a search reads of a note is read once and kept** ([searchText]). The page, and `matches`, make it for
+///   every note at every letter typed: the body with its filled blanks taken out, its priorities named, all in
+///   lower case, which is every letter of the library copied three times a keystroke. What is found is the same
+///   (test/allnotes holds the kept reading to `matches`); a letter typed now only looks through what was kept.
 library;
 
 import 'package:flutter/foundation.dart';
@@ -23,6 +27,7 @@ import '../core/note.dart';
 import '../core/note_facts.dart';
 import '../core/note_text.dart';
 import '../core/stored.dart';
+import '../core/task_fields.dart' show FieldKind, fieldsIn;
 
 export '../core/note_text.dart' show hasTape, matches;
 
@@ -66,11 +71,45 @@ bool _untitled(Note note) => NoteFacts.of(note).title.trim().isEmpty;
 /// A title to sort by: the note's own, lower-cased.
 String _sortKey(Note note) => NoteFacts.of(note).title.trim().toLowerCase();
 
+final RegExp _spaces = RegExp(r'\s+');
+
+/// A priority's sign (lib/core/task_fields.dart): a note with none has no priority to name.
+final RegExp _prioritySign = RegExp('🔺|⏫|🔼|🔽|⏬', unicode: true);
+
+/// What a search looks through for each note, by the note's id, for the body it was read from.
+final Map<String, ({String body, String text})> _searched = <String, ({String body, String text})>{};
+
+/// What a search reads of [note], as `matches` makes it (lib/core/note_text.dart): its words with a filled blank's
+/// hidden bracket taken out, then its to-dos' priorities in words ("high priority"), in lower case. Read once for
+/// the body the note has now, and kept: at most one reading for each note there is.
+String searchText(Note note) {
+  final body = note.body;
+  final had = _searched[note.id];
+  if (had != null) {
+    if (identical(had.body, body)) return had.text;
+    if (had.body == body) {
+      // The same words in another string (the library read again): this one is the one asked about next.
+      _searched[note.id] = (body: body, text: had.text);
+      return had.text;
+    }
+  }
+  if (_searched.length >= 32768) _searched.clear();
+  final priorities = _prioritySign.hasMatch(body) ? fieldsIn(body).where((span) => span.kind == FieldKind.priority).map((span) => '${span.value} priority').join(' ') : '';
+  final text = '${plainFills(body)} $priorities'.toLowerCase();
+  _searched[note.id] = (body: body, text: text);
+  return text;
+}
+
+/// The words of a query as a search reads them: lower case, split at any run of white space.
+List<String> _wordsOf(String query) => query.isEmpty ? const <String>[] : query.toLowerCase().split(_spaces).where((word) => word.isNotEmpty).toList();
+
 /// The notes the page shows, in the order it shows them (`browseNotes`). The list given is not reordered.
 List<Note> browseNotes(Iterable<Note> notes, Browse browse) {
+  // The query's words once, not once a note; none asked for is every note, with nothing of any read.
+  final words = _wordsOf(browse.query);
   final shown = [
     for (final n in notes)
-      if ((browse.archived || n.archivedAt == null) && (!browse.tapes || hasTape(n)) && matches(n, browse.query)) n,
+      if ((browse.archived || n.archivedAt == null) && (!browse.tapes || hasTape(n)) && (words.isEmpty || words.every(searchText(n).contains))) n,
   ];
   // A merge sort, which is stable as the page's `Array.sort` is: two notes touched in the same moment keep the order
   // they were given in.

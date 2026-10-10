@@ -40,6 +40,44 @@ void main() {
       expect(matches(makeNote('a', body: '# Trip'), ''), isTrue);
       expect(matches(makeNote('a', body: '# Trip'), '   '), isTrue);
     });
+
+    test('the page finds what the rule finds, from the reading it keeps of each note', () {
+      // The page looks through a reading of each note made once and kept (`searchText`); the rule, `matches`, makes
+      // it anew each time it is asked. Whatever the note and whatever is typed, the two say the same.
+      const parts = [
+        '# Trip', 'Packing: tent, stove', '- [ ] Fix the login loop @sam ⏫ 📅 2026-10-03', '- [ ] Tidy up 🔽', '- [x] Done 🔺', 'Inline code `⏫` here',
+        'Flights on ??midweek??(Qwen3.5 4B from memory, 2026-09-28. Asked: what day / time?)', 'Weather: {?weather today}', 'A ??doubt??(check with Sam)',
+        '---', 'title: "A Named Note"', 'ÉCOLE İstanbul ǅ', '', '   ', '| a | b |', '```board', 'Mixed CASE Words', '🔼 alone', 'priority', '⏬',
+      ];
+      const queries = [
+        '', '   ', 'trip', 'TRIP packing', 'tent kettle', 'high', 'high priority', 'highest', 'low', 'lowest', 'medium priority', 'memory', 'asked', 'midweek', 'weather today',
+        'sam', 'sam 2026-10-03', 'école', 'istanbul', 'ǆ', 'named note', 'board', 'priority', 'a b', '⏫', '🔽', 'case  words', ' login ',
+      ];
+      var seed = 20261010;
+      int next(int below) {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed % below;
+      }
+
+      final notes = [
+        for (var n = 0; n < 400; n += 1)
+          makeNote('n$n', body: [for (var line = next(7); line >= 0; line -= 1) parts[next(parts.length)]].join('\n'), updatedAt: n),
+      ];
+      for (final query in queries) {
+        final rule = [
+          for (final note in notes)
+            if (matches(note, query)) note.id,
+        ]..sort();
+        expect(ids(browseNotes(notes, Browse(query: query)))..sort(), rule, reason: 'typed "$query"');
+      }
+      // A note changed is read again: the same id with other words is found by the new ones and not the old.
+      final was = makeNote('same', body: '# Kettle');
+      final now = makeNote('same', body: '# Stove');
+      expect(ids(browseNotes([was], const Browse(query: 'kettle'))), ['same']);
+      expect(ids(browseNotes([now], const Browse(query: 'kettle'))), isEmpty);
+      expect(ids(browseNotes([now], const Browse(query: 'stove'))), ['same']);
+      expect(searchText(now), '# stove ');
+    });
   });
 
   group('the order and the archive', () {
