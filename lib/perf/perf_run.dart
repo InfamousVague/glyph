@@ -17,14 +17,24 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' show Service;
 import 'dart:io';
+import 'dart:ui' as ui show channelBuffers;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../book/book_view.dart' show BookView;
+import '../core/book.dart' show chaptersOf;
 import '../core/native/device_paths.dart';
+import '../core/note_text.dart' show noteTitle, sameTitle;
+import '../core/sample_library.dart' show seedLibrary, starterNotes;
 import '../launch/launch_screen.dart';
 import '../shell/phone_tour.dart';
+import '../shell/wide_screen.dart' show mousePointer, splitFits;
 import 'frame_log.dart';
+import 'perf_seed.dart' show perfBody;
 
 /// The walk this build takes by itself, if any.
 const String ghostPerfTour = String.fromEnvironment('GHOST_PERF_TOUR');
@@ -61,12 +71,26 @@ abstract final class PerfLaunch {
 /// The standard walk for a window [size] logical pixels: every touch is placed by the window, so the same walk
 /// runs on the Fold shut, the Fold open and a Mac's window. It is made of parts, each of which begins and ends on
 /// the home page, so one part can be walked alone ([only]: `home`, `note`, `board`, `canvas`, `notebook`,
-/// `settings`; `bench:note+settings` on the command line). What a part opens is looked for first (`seek`, in a
-/// stretch that is not kept): a phone's home page has it a few screens down where a wide window shows it at once.
+/// `allnotes`, `sidebar`, `search`, `palette`, `settings`; `bench:note+settings` on the command line). What a part
+/// opens is looked for first (`seek`, in a stretch that is not kept): a phone's home page has it a few screens down
+/// where a wide window shows it at once.
+///
+/// Besides the tour's steps a walk has a few of its own ([_ownStep]): the system's `back`, a press or a drag on
+/// what wears a key (`tapkey`, `dragkey`: a canvas's card and a note's lines are not words the tour can find), two
+/// fingers (`pinch`), and `fixture:chapters`, which gives the notebook pages that are written.
 String benchScript(Size size, {Set<String>? only}) {
   final x = (size.width / 2).round();
   final high = (size.height * 0.30).round(), low = (size.height * 0.72).round(), middle = (size.height * 0.5).round();
   String flings(int from, int to, int times) => [for (var i = 0; i < times; i += 1) 'flick:$x,$from,$x,$to,140;wait:1100'].join(';');
+  // The notes' card hangs at the window's left, twenty rems wide: a finger down its middle.
+  const card = 172;
+  String cardFlings(int from, int to, int times) => [for (var i = 0; i < times; i += 1) 'flick:$card,$from,$card,$to,140;wait:1100'].join(';');
+  // Settings in two panes, its sections always beside the page, or one page at a time (lib/settings/settings_screen.dart).
+  final split = splitFits(size, mouse: mousePointer);
+  // A canvas's zoom buttons are a wide window's (lib/canvas/canvas_view.dart `_tools`).
+  final zooms = size.width > 600;
+  // What is written into a canvas's card, and taken out again letter by letter.
+  const more = ' and the cat, who has not been asked about either.';
   const words = 'The quick brown fox jumps over the lazy dog, and then the dog, who was not as lazy as all that, gets up and has a word with the fox. ';
   final parts = <String, List<String>>{
     'home': [
@@ -95,19 +119,76 @@ String benchScript(Size size, {Set<String>? only}) {
       'mark:_seek', 'seek:Bench canvas',
       'mark:canvas-open', 'taptext:Bench canvas', 'wait:2000',
       'mark:canvas-drag', 'swipe:$x,$low,$x,$high,900', 'swipe:$x,$high,$x,$low,900',
-      'mark:canvas-leave', 'taplabel:Home', 'wait:1500',
+      // Two fingers apart and together again about the middle, then the buttons a wide window has, and the fit.
+      'mark:canvas-zoom', 'pinch:$x,$middle,120,300,900', 'pinch:$x,$middle,300,120,900',
+      if (zooms) 'taplabel:Zoom in;wait:300;taplabel:Zoom in;wait:300;taplabel:Zoom out;wait:300;taplabel:Zoom out;wait:300',
+      'taplabel:Fit the whole canvas', 'wait:600',
+      // A card picked, then carried by the finger that picked it, and back.
+      'mark:canvas-card', 'tapkey:card sam', 'wait:400', 'dragkey:card sam,140,90,900', 'wait:300', 'dragkey:card sam,-140,-90,900', 'wait:400',
+      // The picked card tapped again is open to be written in.
+      'mark:canvas-write', 'tapkey:card sam', 'wait:900', 'type:$more', 'wait:600', 'backspace:${more.length}', 'wait:400',
+      'mark:canvas-leave', 'unfocus', 'taplabel:Home', 'wait:1500',
     ],
     'notebook': [
-      'mark:_seek', 'seek:Bench notebook',
+      // The notebook's pages are given notes that are written, once (a library made for the walk has none that are).
+      'mark:_seek', 'seek:Bench notebook', 'taptext:Bench notebook', 'wait:1500', 'fixture:chapters', 'taplabel:Home', 'wait:1200', 'seek:Bench notebook',
       'mark:notebook-open', 'taptext:Bench notebook', 'wait:2000',
       'mark:notebook-fling', flings(low, high, 2), flings(high, low, 2),
+      // A page opened from the index, the next one from its bar, and back to the index by the bar.
+      'mark:notebook-chapter', 'tapkey:book-chapter-4', 'wait:1800',
+      'mark:notebook-next', 'tapkey:book-bar-next', 'wait:1800',
+      'mark:notebook-back', 'tapkey:book-bar-book', 'wait:1800',
+      'mark:_seek', 'seek:Read straight through',
+      'mark:notebook-read-open', 'taptext:Read straight through', 'wait:1800',
+      'mark:notebook-read', flings(low, high, 4), flings(high, low, 4),
+      'mark:_seek', 'seek:Index',
+      'mark:notebook-index', 'tapkey:book-index', 'wait:1200',
       'mark:notebook-leave', 'taplabel:Home', 'wait:1500',
+    ],
+    'allnotes': [
+      // By the palette, as a person on any page gets there: the home page's own way is at its foot.
+      'mark:_seek', 'taplabel:Search and commands', 'wait:900', 'type:All notes', 'wait:500',
+      'mark:allnotes-open', 'enter', 'wait:2000',
+      'mark:allnotes-fling', flings(low, high, 4), flings(high, low, 4),
+      'mark:allnotes-search', 'taplabel:Search your notes', 'wait:600', 'type:fox', 'wait:900',
+      'mark:allnotes-clear', 'taplabel:Clear the search', 'wait:900',
+      'mark:allnotes-leave', 'unfocus', 'taplabel:Back to home', 'wait:1500',
+    ],
+    'sidebar': [
+      'mark:sidebar-open', 'taplabel:All your notes', 'wait:1500',
+      'mark:sidebar-fling', cardFlings(low, high, 3), cardFlings(high, low, 3),
+      // Names only and back: every row made again, as a folder shut or opened makes them (the walk's library has
+      // no workspace, so no folder).
+      'mark:sidebar-names', 'taplabel:Show names only', 'wait:1200', cardFlings(low, high, 1), cardFlings(high, low, 1), 'taplabel:Show each note drawn small', 'wait:1200',
+      'mark:sidebar-close', 'back', 'wait:1000',
+    ],
+    'search': [
+      'mark:search-open', 'taplabel:Search and commands', 'wait:1200',
+      // A note's name a letter at a time, the notes found under it at each.
+      'mark:search-type', 'type:bench canvas', 'wait:600',
+      'mark:search-pick', 'enter', 'wait:1800',
+      'mark:search-leave', 'taplabel:Home', 'wait:1500',
+    ],
+    'palette': [
+      'mark:palette-open', 'taplabel:Search and commands', 'wait:1200',
+      // A command typed, taken back, and something nothing answers to.
+      'mark:palette-type', 'type:theme', 'wait:500', 'backspace:5', 'wait:400', 'type:zzqq', 'wait:600',
+      'mark:palette-close', 'back', 'wait:1000',
     ],
     'settings': [
       'mark:settings-open', 'taplabel:Settings', 'wait:1500',
       'mark:settings-fling', flings(low, high, 3), flings(high, low, 3),
       'mark:_seek', 'seek:Appearance',
       'mark:settings-page', 'taptext:Appearance', 'wait:1500', flings(low, high, 3), flings(high, low, 3),
+      // Two pages more: About, and under it the cheat sheet, the page with the most rows. One page at a time, the
+      // way to another is back through the list.
+      // In two panes the sections are a column at the left, and About is under its foot: a finger down that column.
+      'mark:_seek', if (split) 'swipe:160,$low,160,$high,400;wait:300;swipe:160,$low,160,$high,400;wait:300' else 'back;wait:700;seek:About',
+      'mark:settings-about', 'taptext:About', 'wait:1500',
+      'mark:_seek', 'seek:Cheat sheet',
+      'mark:settings-cheatsheet', 'taptext:Cheat sheet', 'wait:1500', flings(low, high, 3), flings(high, low, 3),
+      // Out the way a person came: the cheat sheet to About, (About to the list,) and out of Settings.
+      'mark:settings-leave', 'back', 'wait:700', if (!split) 'back;wait:700', 'back', 'wait:1200',
     ],
   };
   return [
@@ -184,6 +265,9 @@ Future<void> runPerf() async {
     if (step.name == 'mark') {
       await walk();
       await log.mark(step.arg);
+    } else if (_ownSteps.contains(step.name)) {
+      await walk();
+      await _ownStep(tour, step.name, step.arg);
     } else {
       steps.add(step.arg.isEmpty ? step.name : '${step.name}:${step.arg}');
     }
@@ -234,3 +318,180 @@ bool _launching() {
   WidgetsBinding.instance.rootElement?.visitChildren(visit);
   return found;
 }
+
+// ---- the walk's own steps ----------------------------------------------------------------------------------------
+
+/// The steps a walk has besides the tour's (lib/shell/phone_tour.dart).
+const Set<String> _ownSteps = {'back', 'tapkey', 'dragkey', 'pinch', 'fixture'};
+
+/// One of the walk's own steps:
+///
+/// - `back`: the system's back, as Android's gesture sends it; a desktop's Escape walks the same stack
+///   (lib/core/back.dart).
+/// - `tapkey:<key>`: a tap in the middle of what wears that key; `dragkey:<key>,<dx>,<dy>[,<ms>]`: a finger put
+///   down there and moved by that much.
+/// - `pinch:<x>,<y>,<from>,<to>[,<ms>]`: two fingers either side of a point, from one distance apart to another.
+/// - `fixture:chapters`: [_benchChapters].
+Future<void> _ownStep(PhoneTour tour, String name, String arg) async {
+  switch (name) {
+    case 'back':
+      ui.channelBuffers.push('flutter/navigation', const JSONMethodCodec().encodeMethodCall(const MethodCall('popRoute')), (_) {});
+      await _frames();
+    case 'tapkey':
+      await _tapKey(tour, arg);
+    case 'dragkey':
+      final parts = arg.split(',');
+      final by = [for (final part in parts.skip(parts.length > 3 ? parts.length - 3 : 1)) double.parse(part.trim())];
+      final key = parts.take(parts.length - by.length).join(',');
+      final at = _keyed(key);
+      debugPrint('[tour] dragkey "$key" -> ${at == null ? 'NOT FOUND' : '${at.center.dx.round()},${at.center.dy.round()}'}');
+      if (at == null) return;
+      final from = at.center;
+      await tour.run('swipe:${from.dx.round()},${from.dy.round()},${(from.dx + by[0]).round()},${(from.dy + by[1]).round()},${by.length > 2 ? by[2].round() : 600}');
+    case 'pinch':
+      final n = [for (final part in arg.split(',')) double.parse(part.trim())];
+      await _pinch(Offset(n[0], n[1]), n[2], n[3], ms: n.length > 4 ? n[4].round() : 600);
+    case 'fixture':
+      if (arg == 'chapters') await _benchChapters(tour);
+  }
+}
+
+Future<void> _frames([int count = 2]) async {
+  for (var i = 0; i < count; i += 1) {
+    WidgetsBinding.instance.scheduleFrame();
+    await WidgetsBinding.instance.endOfFrame;
+  }
+}
+
+/// Where what wears the key [key] (a `ValueKey` of that string) is in the window, if it is drawn there. What is
+/// kept out of sight is not found, as the tour finds none of it.
+Rect? _keyed(String key) {
+  final view = WidgetsBinding.instance.platformDispatcher.views.first;
+  final window = Offset.zero & (view.physicalSize / view.devicePixelRatio);
+  Rect? found;
+  void visit(Element element) {
+    if (found != null) return;
+    final render = element.renderObject;
+    if (element is RenderObjectElement && render is RenderOffstage && render.offstage) return;
+    final worn = element.widget.key;
+    if (worn is ValueKey<String> && worn.value == key && render is RenderBox && render.attached && render.hasSize) {
+      final box = MatrixUtils.transformRect(render.getTransformTo(null), Offset.zero & render.size);
+      if (box.width > 0 && box.height > 0 && window.overlaps(box)) {
+        found = box;
+        return;
+      }
+    }
+    element.visitChildren(visit);
+  }
+
+  WidgetsBinding.instance.rootElement?.visitChildren(visit);
+  return found;
+}
+
+Future<bool> _tapKey(PhoneTour tour, String key, {bool quiet = false}) async {
+  final at = _keyed(key);
+  if (at == null) {
+    if (!quiet) debugPrint('[tour] tapkey "$key" -> NOT FOUND');
+    return false;
+  }
+  await tour.run('tap:${at.center.dx.round()},${at.center.dy.round()}');
+  return true;
+}
+
+int _finger = 9800;
+
+/// Two fingers either side of [about], [from] apart, moved until they are [to] apart, and lifted.
+Future<void> _pinch(Offset about, double from, double to, {required int ms}) async {
+  final a = _finger += 1, b = _finger += 1;
+  final clock = Stopwatch()..start();
+  Offset left(double apart) => about - Offset(apart / 2, 0);
+  Offset right(double apart) => about + Offset(apart / 2, 0);
+  final binding = GestureBinding.instance;
+  binding.handlePointerEvent(PointerAddedEvent(pointer: a, position: left(from), timeStamp: clock.elapsed));
+  binding.handlePointerEvent(PointerDownEvent(pointer: a, position: left(from), timeStamp: clock.elapsed));
+  binding.handlePointerEvent(PointerAddedEvent(pointer: b, position: right(from), timeStamp: clock.elapsed));
+  binding.handlePointerEvent(PointerDownEvent(pointer: b, position: right(from), timeStamp: clock.elapsed));
+  final steps = (ms / 16).ceil().clamp(4, 120);
+  var was = from;
+  for (var i = 1; i <= steps; i += 1) {
+    final apart = from + (to - from) * i / steps;
+    await Future<void>.delayed(const Duration(milliseconds: 16));
+    binding.handlePointerEvent(PointerMoveEvent(pointer: a, position: left(apart), delta: left(apart) - left(was), timeStamp: clock.elapsed));
+    binding.handlePointerEvent(PointerMoveEvent(pointer: b, position: right(apart), delta: right(apart) - right(was), timeStamp: clock.elapsed));
+    was = apart;
+  }
+  await Future<void>.delayed(const Duration(milliseconds: 120));
+  binding.handlePointerEvent(PointerUpEvent(pointer: a, position: left(to), timeStamp: clock.elapsed));
+  binding.handlePointerEvent(PointerRemovedEvent(pointer: a, position: left(to), timeStamp: clock.elapsed));
+  binding.handlePointerEvent(PointerUpEvent(pointer: b, position: right(to), timeStamp: clock.elapsed));
+  binding.handlePointerEvent(PointerRemovedEvent(pointer: b, position: right(to), timeStamp: clock.elapsed));
+  await _frames();
+  debugPrint('[tour] pinch ${about.dx.round()},${about.dy.round()} ${from.round()} -> ${to.round()}');
+}
+
+/// How many written pages the walk's notebook is given.
+const int _benchPages = 16;
+
+/// The made-up notes the walk's notebook takes for its pages: notes of words (tickets first, half of them), among
+/// the older ones, which stand far down the home page where no other part of the walk goes. By the seed's own rule
+/// (lib/perf/perf_seed.dart), so they are the same notes in every library made for a walk.
+List<String> _benchPageTitles() {
+  final examples = [...seedLibrary(null), ...starterNotes(0)];
+  final tickets = <String>[], others = <String>[];
+  for (var i = 20; i < 150; i += 1) {
+    final body = perfBody(examples[i % examples.length].body, i);
+    // Not a canvas, a notebook or a journal, and not a journal's entry, which is named by the minute it was made.
+    if (body.contains('"nodes"') || body.contains('book: true') || body.contains('\ndate: ')) continue;
+    final title = noteTitle(body);
+    // Plain letters only: the title is typed into the picker and taken out again a key at a time.
+    if (title.isEmpty || title.contains(';') || title.codeUnits.any((unit) => unit > 126)) continue;
+    (body.contains('type: ticket') ? tickets : others).add(title);
+  }
+  final some = tickets.take(_benchPages ~/ 2).toList();
+  return [...some, ...others.take(_benchPages - some.length)];
+}
+
+/// Gives the notebook on screen pages that are written, through its own picker (Add a note you have), unless it
+/// has them: a library made for the walk names every note with its number, so the pages its notebooks list are
+/// notes nobody wrote, and an index of three rows that say so, with nothing to read straight through, is no
+/// notebook to measure. Done once for a library; after that it finds the pages there and touches nothing.
+Future<void> _benchChapters(PhoneTour tour) async {
+  String? body;
+  void visit(Element element) {
+    if (body != null) return;
+    final widget = element.widget;
+    if (widget is BookView) {
+      body = widget.body;
+      return;
+    }
+    element.visitChildren(visit);
+  }
+
+  WidgetsBinding.instance.rootElement?.visitChildren(visit);
+  final index = body;
+  if (index == null) {
+    debugPrint('[tour] fixture chapters: NOT FOUND, no notebook on screen');
+    return;
+  }
+  final chapters = chaptersOf(index);
+  final missing = [
+    for (final title in _benchPageTitles())
+      if (!chapters.any((chapter) => sameTitle(chapter.title, title))) title,
+  ];
+  if (missing.isEmpty) return;
+  await tour.run('seek:Add a note you have;taptext:Add a note you have;wait:500');
+  if (!await _tapKey(tour, 'book-find')) return;
+  var typed = 0, picked = 0;
+  for (final title in missing) {
+    await tour.run('${typed > 0 ? 'backspace:$typed;' : ''}type:$title;wait:150');
+    typed = title.length;
+    if (await _tapKey(tour, 'book-pick:$title', quiet: true)) picked += 1;
+  }
+  await tour.run('unfocus;wait:200');
+  if (picked == 0 || !await _tapKey(tour, 'book-add-picked')) {
+    await tour.run('taptext:Cancel');
+  }
+  await tour.run('wait:800');
+  debugPrint('[tour] fixture chapters: $picked pages added to the notebook');
+}
+
