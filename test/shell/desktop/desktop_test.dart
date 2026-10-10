@@ -292,6 +292,40 @@ void main() {
       expect(tester.getSize(find.byKey(const ValueKey('content'))).width, 400);
     });
 
+    testWidgets('keeps the view it is put round: the same view, not one made again, when it comes to have more than it shows and when it no longer has', (tester) async {
+      // A view that keeps something of its own, to tell the view that was from one made again.
+      Widget kept(double content) => Directionality(
+            textDirection: TextDirection.ltr,
+            child: GlacierTheme(
+              sheet: TokenSheet.parse(':root { --app-ink: #ffffff; }'),
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  width: 400,
+                  height: 300,
+                  child: DesktopScrollbar(under: 60, mouse: true, child: SingleChildScrollView(child: SizedBox(key: const ValueKey('content'), height: content, child: const SizedBox.expand()))),
+                ),
+              ),
+            ),
+          );
+      await tester.pumpWidget(kept(900));
+      // The first frame: nothing has said yet that the view has more than it shows.
+      expect(tester.getSize(find.byKey(const ValueKey('content'))).width, 400);
+      final made = tester.state<ScrollableState>(find.byType(Scrollable));
+      final box = tester.renderObject(find.byKey(const ValueKey('content')));
+      await tester.pump();
+      await tester.pump();
+      expect(tester.getSize(find.byKey(const ValueKey('content'))).width, 400 - desktopScrollbarWidth);
+      expect(identical(tester.state<ScrollableState>(find.byType(Scrollable)), made), isTrue, reason: 'the scroller is the one that was made');
+      expect(identical(tester.renderObject(find.byKey(const ValueKey('content'))), box), isTrue);
+      // And back, when what it holds comes to fit.
+      await tester.pumpWidget(kept(200));
+      await tester.pump();
+      await tester.pump();
+      expect(tester.getSize(find.byKey(const ValueKey('content'))).width, 400);
+      expect(identical(tester.state<ScrollableState>(find.byType(Scrollable)), made), isTrue);
+    });
+
     testWidgets('is nothing with no header, and nothing under a finger', (tester) async {
       await tester.pumpWidget(view(under: 0, content: 900));
       await tester.pump();

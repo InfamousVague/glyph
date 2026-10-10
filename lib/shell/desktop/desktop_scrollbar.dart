@@ -100,9 +100,14 @@ class _DesktopScrollbarState extends State<DesktopScrollbar> {
         child: Padding(padding: EdgeInsets.only(right: overflows ? desktopScrollbarWidth : 0), child: widget.child),
       ),
     );
-    if (!overflows) return listening;
+    // The view stands at one place in the tree whether or not it has more than it shows: it was this widget's own
+    // child until it overflowed and a stack's first child after, and a child that changes its place is taken out of
+    // the tree and made again, every row and card of the page, the frame after the page was first laid out (and
+    // again each time a search took a page under a screen and back). With nothing to scroll the stack holds the
+    // view alone and hands it the room it was handed, so the view is laid out as it was.
     return LayoutBuilder(
       builder: (context, constraints) {
+        if (!overflows) return Stack(fit: StackFit.passthrough, children: [listening]);
         final track = math.max(0.0, constraints.maxHeight - widget.under);
         final thumb = desktopThumb(track: track, viewport: _viewport, max: _max, pixels: _pixels);
         final ink = t.colorOf('color-mix(in oklch, var(--app-ink) ${_hover || _dragFrom != null ? 40 : 22}%, transparent)');
