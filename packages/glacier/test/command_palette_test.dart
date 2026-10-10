@@ -252,6 +252,33 @@ void main() {
       expect(find.text('VIEW'), findsNothing);
     });
 
+    testWidgets('a row still offered after a letter is the row it was, and two rows of one id each have their own', (tester) async {
+      final rig = Rig(open: true);
+      await pumpKit(tester, rig.build());
+      await tester.pumpAndSettle();
+      // "Open…" is offered for nothing typed, for "o" and for "open": one row through all three, wherever it stands.
+      Element row(String label) => tester.element(rowOf(label));
+      final open = row('Open…');
+      await tester.enterText(field, 'o');
+      await tester.pump();
+      expect(identical(row('Open…'), open), isTrue);
+      await tester.enterText(field, 'open');
+      await tester.pump();
+      expect(identical(row('Open…'), open), isTrue);
+      // Typed away and back, it is a row made again: nothing is kept for a command that is not offered.
+      await tester.enterText(field, 'dark');
+      await tester.pump();
+      await tester.enterText(field, 'open');
+      await tester.pump();
+      expect(identical(row('Open…'), open), isFalse);
+      // Two commands of one id are two rows, and no key is worn twice.
+      rig.set(() => rig.items = const [CommandDescriptor(id: 'same', label: 'One'), CommandDescriptor(id: 'same', label: 'Two'), CommandDescriptor(id: 'other', label: 'Three')]);
+      await tester.enterText(field, '');
+      await tester.pump();
+      expect(shown(tester), ['One', 'Two', 'Three']);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('marks what answered the query, and leads with the keyword where only a keyword did', (tester) async {
       final rig = Rig(open: true);
       await pumpKit(tester, rig.build());

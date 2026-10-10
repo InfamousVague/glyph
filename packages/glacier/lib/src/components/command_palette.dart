@@ -216,6 +216,11 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
   List<CommandMatch<CommandDescriptor>> _matches = const [];
   List<CommandGroup<CommandDescriptor>> _groups = const [];
   List<GlobalKey> _rows = const [];
+
+  /// Each row's key by the command it is, so a row still offered after a letter is the row it was: a key made anew
+  /// for every row at every letter took every row out of the tree and made it again, its words laid out from
+  /// nothing, whether or not the letter had changed it.
+  Map<String, GlobalKey> _keyOf = const {};
   int _cursor = -1;
 
   FocusNode? _opener;
@@ -271,7 +276,14 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
   void _rematch() {
     _matches = matchCommands(widget.commands, _query);
     _groups = groupCommands(_matches);
-    _rows = List.generate(_matches.length, (_) => GlobalKey());
+    final had = _keyOf;
+    final next = <String, GlobalKey>{};
+    _rows = [
+      for (final match in _matches)
+        // Two rows of one id cannot wear one key: the second has a key of its own, kept for nothing.
+        next.containsKey(match.item.id) ? GlobalKey() : (next[match.item.id] = had[match.item.id] ?? GlobalKey()),
+    ];
+    _keyOf = next;
     _cursor = firstCommandCursor(_matches);
   }
 
