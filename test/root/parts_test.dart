@@ -227,7 +227,7 @@ void main() {
       await tester.pump();
       // Shut, the menu is not built again for a note made.
       expect(identical(tester.widget<NoteMenuHost>(find.byType(NoteMenuHost)), menu), isTrue);
-      home(tester).onNoteMenu!(made.id);
+      home(tester).onNoteMenu!(made.id, Offset.zero);
       await settle(tester, 4);
       expect(tester.widget<NoteMenuHost>(find.byType(NoteMenuHost)).notes.any((each) => each.id == made.id), isTrue);
       expect(find.text('Made a moment ago'), findsWidgets);

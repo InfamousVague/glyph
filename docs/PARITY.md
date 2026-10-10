@@ -116,7 +116,7 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 | A row: kind mark, name, how it starts, pages / cards / entries counted, a tape's length, "Recording now", when | home/HomeScreen.tsx:328-389 | home/home_rows.dart:99,170-218 | match | |
 | A pinned line wears its workspace's pill | home/HomeScreen.tsx:395-420 | home/home_rows.dart:309-340 | match | |
 | Swipe a card, row or line: right to pin, left to archive, further to delete, each with Undo | notes/swipe.ts; notes/SwipeRow.tsx:57; App.tsx:1314-1322 | notes/swipe_row.dart:43; core/swipe.dart; root/ghost_root.dart:1825-1828 | match | |
-| A note's menu (Open, Add a comment, Pin, Archive, Delete) on a mouse's right-click | notes/noteMenu.ts:37-47; notes/NoteMenu.tsx:33 | notes/note_menu.dart:76; home/note_card.dart:114; root/ghost_root.dart:1830,2024-2040 | differs | The port also opens it on a finger's long press, at the middle of the screen. The original leaves a press and hold to the swipe (notes/noteMenu.ts:9-11). |
+| A note's menu (Open, Add a comment, Pin, Archive, Delete) on a mouse's right-click | notes/noteMenu.ts:37-47; notes/NoteMenu.tsx:33 | notes/note_menu.dart:76; home/note_card.dart:114; root/ghost_root.dart:1830,2024-2040 | match | Since 2026-10-10 a mouse's right-click only, at the pointer, on home's cards, rows and lines too (lib/notes/note_menu.dart `NoteMenuArea`); a finger's long press asks for nothing. |
 | Notice: an invitation waiting, with Accept and Decline | notes/Notices.tsx:146; home/HomeScreen.tsx:217 | notes/notices.dart:483; root/update_wiring.dart:105-134; root/ghost_root.dart:567 | match | |
 | Notice: the voice model coming down, or failed with Try again | notes/Notices.tsx:175; home/HomeScreen.tsx:218 | notes/notices.dart:548; root/ghost_root.dart:559-568 | match | |
 | Notice: an update ready (Reload / Install, progress, "didn't install") | notes/Notices.tsx:27; home/HomeScreen.tsx:216 | notes/notices.dart:96-108; root/ghost_root.dart:566 | differs | Never drawn: no build has an updater. Reload can never apply. |
@@ -181,7 +181,7 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 | A press on an organization's pill or its sheet's row opens the organization | notes/AllNotesScreen.tsx:130,192; App.tsx:1281-1282 | notes/all_notes_screen.dart:239,414 | unwired | `onOrganization` and `onOrganizationSettings` are not passed (root/ghost_root.dart:1849-1866). |
 | Empty and nothing-found states with the ghost | notes/AllNotesScreen.tsx:166-180 | notes/all_notes_screen.dart:293-301 | match | |
 | Pull to refresh | notes/AllNotesScreen.tsx:191 | notes/all_notes_screen.dart:366 | differs | No sync, as on home. |
-| A long press or right-click opens the note's menu | notes/NoteCard.tsx; notes/noteMenu.ts | root/ghost_root.dart:1862 | differs | As on home: the port adds the long press. |
+| A right-click opens the note's menu | notes/NoteCard.tsx; notes/noteMenu.ts | notes/note_menu.dart (`NoteMenuArea`); home/note_card.dart | match | Since 2026-10-10: no long press, as on home. |
 
 ## 7. The + sheet
 
@@ -788,8 +788,8 @@ commands/palette.dart:266-378): they are the same. What differs is which doings 
 | This note: Show it formatted / Show the marks | commands/palette.ts:156-159 | commands/palette.dart:282-286 | unwired | `setView` is never passed to `paletteDoingFor`, so the command is not offered. |
 | This note: Fix spelling, Make a list, Continue | commands/palette.ts:161-165; App.tsx:1450-1452 | commands/palette.dart:288-292 | unwired | `noteAi` is never passed. |
 | This note: Fill the blanks | commands/palette.ts:166; App.tsx:1368,1382 | commands/palette.dart:293 | unwired | Neither `noteAi` nor the open note's count of blanks is passed. |
-| This note: Pin it to the top / Unpin it from the top | commands/palette.ts:168 | commands/palette.dart:295; commands/app_commands.dart:155 | differs | Asks the library directly, so no "pinned" haptic; the original goes through its note actions. |
-| This note: Archive this note | commands/palette.ts:169; App.tsx:1444-1447 | commands/palette.dart:296; root/ghost_root.dart:2010-2015 | differs | The port also closes the note's tab; the original leaves it open. |
+| This note: Pin it to the top / Unpin it from the top | commands/palette.ts:168 | commands/palette.dart:295; commands/app_commands.dart:155 | match | Since 2026-10-10 through the root's note actions (root/ghost_root.dart `_commandsPart`); the tick itself is Unwired 22's `NoteActions.haptic`. |
+| This note: Archive this note | commands/palette.ts:169; App.tsx:1444-1447 | commands/palette.dart:296; root/ghost_root.dart:2010-2015 | match | Since 2026-10-10 the tab stays. |
 | This note: Delete this note; Close the {name} tab | commands/palette.ts:170-171 | commands/palette.dart:297-298 | match | |
 | This note: File it in {workspace}; Take it out of its workspace | commands/palette.ts:172-178 | commands/palette.dart:299-305 | match | |
 | This note: Put this tab in a new group / in {group}; Take this tab out of its group | commands/palette.ts:180-195 | commands/palette.dart:306-322 | match | |
@@ -1187,8 +1187,9 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
 28. **The AI's changes**: words taken out inside a line are one unbroken box; the + is not held back while the AI
     writes. Small.
 29. ~~Heat and Frost are drawn another way.~~ Done 2026-10-10 (fa793ec, e946375): drawn as the page draws them and held to Chromium's pictures; pairs in build/smoke-compare/effects/.
-30. **A note's menu opens on a long press**, which the original leaves to the swipe; the palette's Archive also
-    closes the tab and its Pin gives no tick. Small, or a decision.
+30. ~~**A note's menu opens on a long press**, which the original leaves to the swipe; the palette's Archive also
+    closes the tab and its Pin gives no tick.~~ Done 2026-10-10: the menu is a mouse's right-click alone, the
+    palette's Archive leaves the tab, and its Pin is the note actions' (whose tick is Unwired 22).
 31. **Typing**: the handles, the loupe and composing are the app's own and were never run with Samsung Keyboard;
     ~~Ctrl-C or Ctrl-X with nothing selected does nothing.~~ Medium. The keys are done 2026-10-10
     (lib/editor/input/clipboard.dart); the handles, the loupe and composing with Samsung Keyboard are as they were.

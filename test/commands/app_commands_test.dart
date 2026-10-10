@@ -133,6 +133,30 @@ void main() {
     await away(tester);
   });
 
+  // docs/PARITY.md, Differs 30: App.tsx's `pin` and `archive` are its note actions', which the root hands in.
+  testWidgets('Pin and Archive are the root’s own where it hands them in, and the library’s otherwise', (tester) async {
+    await app(tester);
+    await choose(tester, 'groc', 'Open Groceries');
+    final said = <String>[];
+    final theirs = paletteDoingFor(
+      shell: shell(),
+      library: library,
+      workspaces: workspaces,
+      newNote: () {},
+      removeNote: (_) {},
+      settings: () {},
+      pin: (id, pinned) => said.add('pin $id $pinned'),
+      archive: (id) => said.add('archive $id'),
+    );
+    for (final command in paletteCommands(world(), theirs)) {
+      if (command.descriptor.id == 'note:pin' || command.descriptor.id == 'note:archive') command.run();
+    }
+    expect(said, ['pin groceries true', 'archive groceries']);
+    expect(library.noteOf('groceries')!.starred, isFalse);
+    expect(library.noteOf('groceries')!.archivedAt, isNull);
+    await away(tester);
+  });
+
   testWidgets('goes home, to All notes, back, and to another tab; closes a tab; deletes the note', (tester) async {
     await app(tester);
     await choose(tester, 'groc', 'Open Groceries');

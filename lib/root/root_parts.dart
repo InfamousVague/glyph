@@ -385,7 +385,7 @@ extension _RootParts on _GhostRootState {
         _actions.swipe(note, action);
       },
       onRefresh: _pullRefresh,
-      onNoteMenu: (id) => _menu.open(id, MediaQuery.sizeOf(context).center(Offset.zero)),
+      onNoteMenu: _menu.open,
       onManageWorkspace: (workspace) => _told(() => _workspace = (editing: workspace)),
       organizations: homeOrganizations(services, here: {for (final row in services?.joined ?? const <OrgRow>[]) row.id: _seenIn(row.id)}),
       orgNews: homeOrgNews(services, chosenOrg),
@@ -500,11 +500,15 @@ extension _RootParts on _GhostRootState {
           final shell = _shell.currentState;
           if (note != null && shell != null) shell.openNote(whereLeft(note, _shown, shell.shown, on: _stored).id);
         },
+        // App.tsx `archive: (id) => actions.archive(note, true)` and `pin: (id) => actions.pin(note)`: the note's
+        // tab stays, and a pin gives the tick an archive gives.
         archive: (id) {
           final note = _library.noteOf(id);
-          if (note == null) return;
-          _shell.currentState?.dropTab(id);
-          _actions.archive(note, archived: true);
+          if (note != null) _actions.archive(note, archived: true);
+        },
+        pin: (id, _) {
+          final note = _library.noteOf(id);
+          if (note != null) _actions.pin(note);
         },
         removeNote: _delete,
         // Show it formatted, Show the marks: the preference every note's editor reads.

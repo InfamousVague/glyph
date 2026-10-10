@@ -20,8 +20,8 @@
 /// - **The order words are a Chromium page's**, the Fold's own WebView: a `<button>` there has one pixel of padding
 ///   above and below its word, so a word is 20px tall at the phone's size. WebKit gives a button two above and three
 ///   below, and the same line is 23px on an iPhone. Measured in both; see test/allnotes.
-/// - A note's menu (`notes/noteMenu.ts`) opens on a mouse's right-click, as on the page, and on a long press too,
-///   which is how lib/home/note_card.dart offers it: [AllNotesScreen.onNoteMenu] is told which note and where.
+/// - A note's menu (`notes/noteMenu.ts`) opens on a mouse's right-click, as on the page, and never on a finger's
+///   long press: [AllNotesScreen.onNoteMenu] is told which note and where.
 /// - The cards' AI corner mark and where a note was written are the card's own gaps (see lib/home/note_card.dart).
 /// - The glide back to the top borrows more room than the page did (lib/core/glide_to_top.dart).
 /// - The smoke under the bar is [WispEdge], asked for with [AllNotesScreen.wisp] (the `wispEdge` preference); the
@@ -31,7 +31,6 @@ library;
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -157,9 +156,6 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
 
   /// The workspace's sheet: shut, a new one, or one to change.
   ({Workspace? editing})? _manage;
-
-  /// Where the pointer last went down on a card, for a menu a long press asks for.
-  Offset _pressedAt = Offset.zero;
 
   /// The page under its bar, by a key of its own: a desktop's scrollbar is put round it as a different tree once
   /// the page is known to have more than it shows (lib/shell/desktop/desktop_scrollbar.dart), and without a key
@@ -432,21 +428,13 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
             entries: read.journals[note.id],
             dense: true,
             fill: fill,
-            onMenu: made.menu ? (_) => widget.onNoteMenu?.call(note, _pressedAt) : null,
+            onMenu: made.menu ? (_, at) => widget.onNoteMenu?.call(note, at) : null,
             since: _arrivals.since(fill ? '$i/${note.id}' : note.id),
             gistSince: _gistArrivals.since(note.id),
           );
       // The first screens of cards say what each note is about: each reads its own line.
-      final Widget drawn = i < allNotesGisted ? Gisted(gists: _gists, id: note.id, builder: (context, gist) => card(gist)) : card(null);
-      if (!made.menu) return drawn;
-      // The right-click a card answers: the note's menu at the pointer (notes/noteMenu.ts).
-      return Listener(
-        onPointerDown: (event) {
-          _pressedAt = event.position;
-          if (event.kind == PointerDeviceKind.mouse && event.buttons == kSecondaryMouseButton) widget.onNoteMenu?.call(note, event.position);
-        },
-        child: drawn,
-      );
+      // The right-click a card answers is the card's own (lib/notes/note_menu.dart `NoteMenuArea`).
+      return i < allNotesGisted ? Gisted(gists: _gists, id: note.id, builder: (context, gist) => card(gist)) : card(null);
     }
 
     return _cards = SliverSemantics(

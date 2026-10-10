@@ -64,7 +64,7 @@ class LibraryHome extends StatelessWidget {
   final VoidCallback? onNewOrganization;
   final ValueChanged<String>? onOrganization;
   final ValueChanged<String>? onOrganizationSettings;
-  final ValueChanged<String>? onNoteMenu;
+  final void Function(String id, Offset at)? onNoteMenu;
   final List<HomeOrg> organizations;
   final int Function()? clock;
   final HomeEdgeBuilder? headerEdge;

@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -747,19 +748,26 @@ void main() {
   });
 
   group('what leaves the page', () {
-    testWidgets('a card, a row and a line open their note; the foot opens All notes; a long press asks for the menu', (tester) async {
+    // The menu is a mouse's right-click and no finger's (docs/PARITY.md, Differs 30; notes/noteMenu.ts `byMouse`).
+    testWidgets('a card, a row and a line open their note; the foot opens All notes; a mouse’s right-click asks for the menu and a long press does not', (tester) async {
       final it = seeded();
       await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
       await settle(tester);
       await tester.tap(key('line-weekend'));
       await tester.tap(key('card-prd11'));
       await tester.longPress(key('card-standup'));
+      await tester.longPress(key('line-weekend'));
       await settle(tester);
+      for (final on in ['card-standup', 'line-weekend']) {
+        final mouse = await tester.startGesture(tester.getCenter(key(on)), kind: PointerDeviceKind.mouse, buttons: kSecondaryMouseButton);
+        await mouse.up();
+        await settle(tester);
+      }
       await bring(tester, key('row-sprint'));
       await tester.tap(key('row-sprint'));
       await bring(tester, find.text('All notes · 20'));
       await tester.tap(find.text('All notes · 20'));
-      expect(it.asked.said, ['open weekend', 'open prd11', 'menu standup', 'open sprint', 'all notes']);
+      expect(it.asked.said, ['open weekend', 'open prd11', 'menu standup', 'menu weekend', 'open sprint', 'all notes']);
       await settle(tester);
       await away(tester);
     });

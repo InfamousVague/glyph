@@ -29,7 +29,7 @@
 /// - Another workspace, filter or layout glides the page back to its top, as on the web, but from wherever the new,
 ///   shorter page left it: the web first gives the page room at its foot to hold its place (`core/glideToTop.ts`).
 /// - An organization's events dock beside the notes on a wide page, but do not stick as the page scrolls.
-/// - A note's long press is [onNoteMenu], where the web opened its context menu.
+/// - A mouse's right-click on a note is [onNoteMenu], told where the pointer was, as the web's context menu.
 /// - **Only what is near the screen is built** (lib/home/lazy_page.dart): the page is a `CustomScrollView`, each
 ///   section's notes a sliver that builds its rows as they are scrolled to, where the web has every row in the
 ///   document. Where things stand is the same; how far the page scrolls is known as far as it has been laid out.
@@ -224,7 +224,7 @@ class HomeScreen extends StatefulWidget {
   final ValueChanged<String>? onOrganizationSettings;
 
   /// A note pressed and held: its menu.
-  final ValueChanged<String>? onNoteMenu;
+  final void Function(String id, Offset at)? onNoteMenu;
 
   /// The organizations this account has joined, and who is in each now.
   final List<HomeOrg> organizations;
@@ -436,7 +436,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // What the page's widgets call, whoever handed the page its callbacks at the build they were made in: the widgets
   // are kept from one build to the next, and the callbacks are made anew at each.
   void _open(String id) => widget.onOpen(id);
-  void _menu(String id) => widget.onNoteMenu?.call(id);
+  void _menu(String id, Offset at) => widget.onNoteMenu?.call(id, at);
   void _new() => widget.onNew();
   void _capture() => widget.onCapture?.call();
   void _search() => widget.onSearch?.call();

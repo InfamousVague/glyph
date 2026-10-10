@@ -12,9 +12,9 @@
 /// holds it to half the window's height, so a right-click near the foot turns it upward whole.
 ///
 /// What differs:
-/// - **Who opens it.** On the page only a mouse's right-click does ([byMouse]): a press and hold belongs to a
-///   card's swipe and a tab's drag. The Flutter cards offer it on a long press too (lib/home/note_card.dart
-///   `onMenu`), which has no drag to fight here; whoever lists the note calls [NoteMenuController.open] either way.
+/// - **Who opens it.** A mouse's right-click and nothing else, as on the page ([byMouse], [NoteMenuArea]): a press
+///   and hold is a finger's, and belongs to a card's swipe and a tab's drag. Whoever lists the note calls
+///   [NoteMenuController.open].
 /// - The store is a [NoteMenuController] handed to the host and to whoever opens it, where the page's was a module
 ///   of its own (`useNoteMenu`, `openNoteMenu`, `closeNoteMenu`, `noteMenuNow`).
 /// - The mark the page hung the menu from (`[data-pop-point]`) and the portal to the body are not needed: the kit's
@@ -69,6 +69,28 @@ class NoteMenuController extends ValueNotifier<NoteMenuAt?> {
 bool byMouse(PointerDeviceKind? kind, {bool? fine}) {
   if (kind != null) return kind == PointerDeviceKind.mouse;
   return fine ?? !coarsePointer;
+}
+
+/// The right-click a note's card, row or line answers (`onNoteContextMenu`): [onMenu] is told where the pointer
+/// was, for a mouse's other button only. A finger's press and hold asks for nothing here, however long: on the
+/// page that event is left to the lists' own gestures. Without [onMenu] this is its child and no more.
+class NoteMenuArea extends StatelessWidget {
+  const NoteMenuArea({super.key, required this.onMenu, required this.child});
+
+  final ValueChanged<Offset>? onMenu;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final onMenu = this.onMenu;
+    if (onMenu == null) return child;
+    return Listener(
+      onPointerDown: (event) {
+        if (byMouse(event.kind) && event.buttons == kSecondaryMouseButton) onMenu(event.position);
+      },
+      child: child,
+    );
+  }
 }
 
 /// The note's menu, drawn while the [controller] has one open (`NoteMenuHost`). Nothing for a note no longer in

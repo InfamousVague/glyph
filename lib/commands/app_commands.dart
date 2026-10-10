@@ -12,8 +12,9 @@
 /// - The note on screen is read fresh from the library by its id (its pin, its title), where the page read the
 ///   copy its screen held.
 /// - The notes are put in the web store's order here, newest-changed first ([paletteNotes]).
-/// - Archiving from here says nothing: the page's toast with its Undo is `useNoteActions`', which is not ported.
-///   Pass [paletteDoingFor] an `archive` of the root's own once it is.
+/// - Pinning and archiving are the root's note actions (`actions.pin`, `actions.archive` in App.tsx: the tick, the
+///   toast with its Undo), handed in as `pin` and `archive`; without them the library is asked and nothing is said.
+///   Neither closes the note's tab, as on the page.
 /// - A note's title and whether it is a journal are asked of what is kept of its words (lib/core/note_facts.dart),
 ///   and the journals are kept for the list they were found in: the palette asks for its world at every letter
 ///   typed, and each time read every note's front matter for the journals and the open notes' titles again.
@@ -123,6 +124,7 @@ PaletteDoing paletteDoingFor({
   void Function(String section)? settingsPage,
   VoidCallback? cheatSheet,
   void Function(String id)? archive,
+  void Function(String id, bool pinned)? pin,
   void Function(String view)? setView,
   void Function(String id)? openNoteWhereLeft,
   VoidCallback? newNotebook,
@@ -159,7 +161,7 @@ PaletteDoing paletteDoingFor({
     fileNote: workspaces.fileNote,
     setView: setView,
     setTheme: (theme) => store.update((now) => themeChoice(theme, now)),
-    pin: (id, pinned) => library.pin(id, pinned: pinned),
+    pin: pin ?? (id, pinned) => library.pin(id, pinned: pinned),
     archive: archive ?? (id) => library.archive(id, archived: true),
     remove: removeNote,
     noteAi: noteAi,

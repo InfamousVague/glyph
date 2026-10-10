@@ -108,7 +108,7 @@ class _HomeState extends State<Home> {
         onManageWorkspace: (which) => asked.add(which == null ? 'new workspace' : 'edit ${which.name}'),
         onNewOrganization: widget.organizations == null ? null : () => asked.add('new organization'),
         onOrganization: widget.organizations == null ? null : (id) => asked.add('organization $id'),
-        onNoteMenu: (id) => asked.add('menu $id'),
+        onNoteMenu: (id, at) => asked.add('menu $id'),
         organizations: widget.organizations ?? const [],
         ghost: widget.ghost,
         headerEdge: widget.headerEdge,

@@ -288,7 +288,9 @@ void main() {
   });
 
   group('a note’s menu and the pull', () {
-    testWidgets('is asked for by a mouse’s right-click and by a long press, for the card it was on', (tester) async {
+    // docs/PARITY.md, Differs 30: a mouse's right-click only (notes/noteMenu.ts `byMouse`). A finger's press and
+    // hold is the lists' own, and asks for no menu however long it is held.
+    testWidgets('is asked for by a mouse’s right-click, for the card it was on, and never by a finger’s long press', (tester) async {
       final asked = Asked();
       await show(tester, [makeNote('a', body: '# Apples', updatedAt: 2), makeNote('b', body: '# Bread', updatedAt: 1)], asked: asked);
       final mouse = await tester.startGesture(tester.getCenter(key('card-b')), kind: PointerDeviceKind.mouse, buttons: kSecondaryMouseButton);
@@ -297,7 +299,7 @@ void main() {
       expect(asked.said, ['menu b']);
       await tester.longPress(key('card-a'));
       await tester.pump();
-      expect(asked.said, ['menu b', 'menu a']);
+      expect(asked.said, ['menu b']);
       await away(tester);
     });
 

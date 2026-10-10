@@ -13,7 +13,8 @@
 ///   marked) is read by the corner itself, which hears the gists' runner where the page's card is drawn again with
 ///   its list ([_AiCorner]); a picture hands [working] and [marked] in.
 /// - Where a note was written (`core/geotag.ts`, the foot's third fragment) is not read yet.
-/// - A long press stands in for the web's context menu (`notes/noteMenu.ts`): [onMenu], where the caller has one.
+/// - A mouse's right-click is [onMenu], told where the pointer was (`notes/noteMenu.ts` `onNoteContextMenu`), where
+///   the caller has one. A long press asks for nothing, as on the page.
 library;
 
 import 'dart:math' as math;
@@ -28,6 +29,7 @@ import '../core/note.dart';
 import '../core/note_facts.dart';
 import '../core/note_text.dart';
 import '../format/gist.dart' show gistWorking;
+import '../notes/note_menu.dart' show NoteMenuArea;
 import '../notes/swipe_row.dart';
 import '../notes/when.dart';
 import '../perf/frame_log.dart';
@@ -43,7 +45,7 @@ typedef NoteSwipes = ({List<SwipeAction> start, List<SwipeAction> end, ValueChan
 
 /// A note as a card (`src/app/notes/NoteCard.tsx`, NoteCard.module.css). The preview is [NotePeek], drawn by hand
 /// until the editor is ported; the AI's corner mark is the card's own to read, unless handed in ([working],
-/// [marked]); where a note was written is not read yet; a long press is [onMenu].
+/// [marked]); where a note was written is not read yet; a mouse's right-click is [onMenu].
 class NoteCard extends StatelessWidget {
   const NoteCard({
     super.key,
@@ -103,7 +105,7 @@ class NoteCard extends StatelessWidget {
   /// card does (`activeGist() === note.id`, `hasMarks(note.id)`); a picture hands them in.
   final bool? working;
   final bool? marked;
-  final ValueChanged<String>? onMenu;
+  final void Function(String id, Offset at)? onMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -130,7 +132,6 @@ class NoteCard extends StatelessWidget {
 
     Widget card = GlacierPressable(
       onPressed: () => onOpen(note.id),
-      onLongPress: onMenu == null ? null : () => onMenu!(note.id),
       haptic: HapticKind.light,
       semanticLabel: _said(title, book: book, journal: journal),
       excludeSemantics: false,
@@ -272,6 +273,7 @@ class NoteCard extends StatelessWidget {
 
     final swipe = this.swipe;
     if (swipe != null) card = SwipeRow(start: swipe.start, end: swipe.end, onAction: swipe.onAction, radius: t.radius('lg'), child: card);
+    if (onMenu != null) card = NoteMenuArea(onMenu: (at) => onMenu!(note.id, at), child: card);
     // Arriving one after another, a beat apart: `animation: arrive 360ms ... both; animation-delay: calc(var(--i) * 40ms)`.
     return Arrive(duration: const Duration(milliseconds: 360), delay: Duration(milliseconds: 40 * math.min(index, 8)), since: since, rise: 6, child: card);
   }

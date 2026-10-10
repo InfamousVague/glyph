@@ -4,7 +4,7 @@
 /// it is in, the workspace it is filed in, and when). Ports of `HomeRow`, `HomeLine`, `KindMark` and `TapeWords` in
 /// `src/app/home/HomeScreen.tsx`, with their rules in HomeLayouts.module.css (`.row`, `.line` and their parts).
 ///
-/// What differs: a long press stands in for the web's context menu (`notes/noteMenu.ts`), where the caller has one.
+/// A mouse's right-click asks for the note's menu (`notes/noteMenu.ts`), where the caller has one.
 library;
 
 import 'dart:math' as math;
@@ -15,6 +15,7 @@ import 'package:glacier/glacier.dart';
 import '../core/note.dart';
 import '../core/note_facts.dart';
 import '../core/workspaces.dart';
+import '../notes/note_menu.dart' show NoteMenuArea;
 import '../notes/swipe_row.dart';
 import '../notes/when.dart';
 import '../perf/frame_log.dart';
@@ -116,8 +117,8 @@ Widget _swiped(NoteSwipes? swipe, {bool compact = false, required Widget child})
 Widget _arriving(int index, Duration since, Widget child) =>
     Arrive(duration: const Duration(milliseconds: 300), delay: Duration(milliseconds: 25 * math.min(index, 12)), since: since, rise: 4, child: child);
 
-/// A note on one row (`HomeRow` in `src/app/home/HomeScreen.tsx`, HomeLayouts.module.css `.row`). A long press is
-/// [onMenu], where the web opened its context menu.
+/// A note on one row (`HomeRow` in `src/app/home/HomeScreen.tsx`, HomeLayouts.module.css `.row`). A mouse's
+/// right-click is [onMenu], where the web opened its context menu.
 class HomeRow extends StatelessWidget {
   const HomeRow({
     super.key,
@@ -159,7 +160,7 @@ class HomeRow extends StatelessWidget {
   /// The meeting being recorded now is this note.
   final bool live;
   final NoteSwipes? swipe;
-  final ValueChanged<String>? onMenu;
+  final void Function(String id, Offset at)? onMenu;
 
   static String _counted(int n, String one, String many) => n == 1 ? '1 $one' : '$n $many';
 
@@ -195,7 +196,6 @@ class HomeRow extends StatelessWidget {
 
     final row = GlacierPressable(
       onPressed: () => onOpen(note.id),
-      onLongPress: onMenu == null ? null : () => onMenu!(note.id),
       semanticLabel: said,
       builder: (context, state) => GlacierFocusRing(
         visible: state.focused,
@@ -278,13 +278,13 @@ class HomeRow extends StatelessWidget {
         ),
       ),
     );
-    return _arriving(index, since, _swiped(swipe, child: row));
+    return _arriving(index, since, NoteMenuArea(onMenu: onMenu == null ? null : (at) => onMenu!(note.id, at), child: _swiped(swipe, child: row)));
   }
 }
 
 /// A note on one short line (`HomeLine` in `src/app/home/HomeScreen.tsx`, HomeLayouts.module.css `.line`): no pin,
 /// since the list is the pinned ones, and no line of how it starts. Its parts give way as the page's `flex-shrink`
-/// has them ([ShrinkRow]). A long press is [onMenu].
+/// has them ([ShrinkRow]). A mouse's right-click is [onMenu].
 class HomeLine extends StatelessWidget {
   const HomeLine({
     super.key,
@@ -319,7 +319,7 @@ class HomeLine extends StatelessWidget {
 
   /// The workspace the note is filed in, for its pill; null while the page is filtered to one.
   final Workspace? space;
-  final ValueChanged<String>? onMenu;
+  final void Function(String id, Offset at)? onMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -336,7 +336,6 @@ class HomeLine extends StatelessWidget {
 
     final line = GlacierPressable(
       onPressed: () => onOpen(note.id),
-      onLongPress: onMenu == null ? null : () => onMenu!(note.id),
       semanticLabel: said,
       builder: (context, state) => GlacierFocusRing(
         visible: state.focused,
@@ -385,7 +384,7 @@ class HomeLine extends StatelessWidget {
         ),
       ),
     );
-    return _arriving(index, since, _swiped(swipe, compact: true, child: line));
+    return _arriving(index, since, NoteMenuArea(onMenu: onMenu == null ? null : (at) => onMenu!(note.id, at), child: _swiped(swipe, compact: true, child: line)));
   }
 }
 
