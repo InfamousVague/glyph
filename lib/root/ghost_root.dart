@@ -1,7 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
-import 'package:flutter/scheduler.dart';
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, listEquals, mapEquals, setEquals;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -113,6 +112,7 @@ import '../live/presence.dart' show Seen;
 import '../orgs/types.dart' show OrgRow;
 import '../orgs/ui/organization_log.dart';
 import '../orgs/ui/organization_screen.dart';
+import '../perf/frame_log.dart';
 import '../plugins/claude/claude.dart' show claudeHandle;
 import '../plugins/registry.dart' show plugins;
 import '../settings/organization_sheet.dart';
@@ -135,6 +135,7 @@ import 'library_reads.dart';
 import 'note_desk.dart';
 import 'reset_wiring.dart';
 import 'scene_play.dart';
+import 'selected.dart';
 import 'take_back.dart';
 import 'iphone_wiring.dart';
 import 'update_wiring.dart';
@@ -322,16 +323,14 @@ class _GhostRootState extends State<GhostRoot> {
           OrgPresence(client: '${seen.client}', handle: seen.handle, hue: seen.hue, editingNote: seen.at?.note, editingTitle: seen.at?.title),
       ];
 
-  /// Someone came, went, or opened another note: the home page's cards and the organization's rows say so. A
-  /// team's note says it has been left as its desk is let go, which is while the tree is being built or taken
-  /// down: drawn after that frame, where asking at once threw inside the desk's `dispose` and left its listeners
-  /// behind (seen on the emulator, on leaving a team's note).
+  /// Someone came, went, or opened another note: the home page's cards and the organization's rows say so, and
+  /// nothing else is drawn again for it. A team's note says it has been left as its desk is let go, which is while
+  /// the tree is being built or taken down: a part told then is drawn after that frame (lib/root/selected.dart),
+  /// where asking at once threw inside the desk's `dispose` and left its listeners behind (seen on the emulator, on
+  /// leaving a team's note).
   void _presenceChanged() {
-    if (!mounted) return;
-    if (SchedulerBinding.instance.schedulerPhase != SchedulerPhase.persistentCallbacks) return setState(() {});
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() {});
-    });
+    _presenceAt += 1;
+    _tick.tell();
   }
 
   /// A note opened where a member is editing it: at their caret, where the room has one.
@@ -504,9 +503,10 @@ class _GhostRootState extends State<GhostRoot> {
     _unwatchMeeting = voice.live?.subscribe(_voiceChanged);
     voice.live?.canNotify.addListener(_voiceChanged);
     voice.live?.canNotifyNow();
-    models?.addListener(_voiceChanged);
-    // The voice model's fetch, for the line above the notes.
-    recorder.voiceModel.addListener(_voiceChanged);
+    models?.addListener(_modelsChanged);
+    // The voice model's fetch, for the line above the notes: the line follows its fetch by itself, and the home
+    // page is drawn again only when there is a line where there was none (`_voiceModelLine`).
+    recorder.voiceModel.addListener(_tick.tell);
     _voiceLife = AppLifecycleListener(onStateChange: (state) {
       recorder.lifecycle(state);
       if (state == AppLifecycleState.resumed) {
@@ -530,25 +530,61 @@ class _GhostRootState extends State<GhostRoot> {
         );
       },
     );
-    if (mounted) setState(() {});
+    // Voice has started: what it can do here (a meeting, the computer's sound) is read again.
+    _voiceChanged();
     // The launch, once the notes are read: the side key's capture in a build with the assistant, or the meeting
     // already being recorded.
     await _notesRead.future;
     if (mounted) capture.boot();
   }
 
-  /// The meeting's state, whether the phone may notify, the models or the screen changed: drawn again, after the
-  /// frame where one is being built.
+  /// The meeting's state, whether the phone may notify or whether the AI can run here changed: the parts that read
+  /// voice are told (the home page's recording, Settings' rows, the + sheet's meeting), after the frame where one
+  /// is being built (lib/root/selected.dart).
   void _voiceChanged() {
-    if (!mounted) return;
-    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() {});
-      });
-    } else {
-      setState(() {});
-    }
+    _voiceAt += 1;
+    _tick.tell();
   }
+
+  /// The models on this phone, or one's fetch: Settings' AI page and the walkthrough's model page.
+  void _modelsChanged() {
+    _modelsAt += 1;
+    _tick.tell();
+  }
+
+  /// The app's updates: the notice above the notes and in the sidebar, About's rows, the launch screen's line.
+  void _updatesChanged() {
+    _updatesAt += 1;
+    _tick.tell();
+  }
+
+  /// The AI of the note on screen, or its review's stage: the scene over the window.
+  void _aiChanged() {
+    _aiAt += 1;
+    _tick.tell();
+  }
+
+  /// The gists' runner spoke: read again by whoever shows them, and drawn again only if a line is another
+  /// (`_gistsShown`). It speaks twice a turn whether or not it wrote anything.
+  void _gistsChanged() {
+    _gistsRead = false;
+    _tick.tell();
+  }
+
+  /// The voice model's fetch as its line says it.
+  static notices.VoiceModel _voiceModelState(VoiceModel? model) => switch (model?.state) {
+        VoiceModelStateDownloading(:final received, :final total) => notices.VoiceModelDownloading(received: received, total: total),
+        VoiceModelStateFailed(:final message) => notices.VoiceModelFailed(message),
+        _ => const notices.VoiceModelQuiet(),
+      };
+
+  /// Whether the voice model has a line above the notes, and which: nothing, its fetch, or why it failed. The
+  /// fetch's progress is the line's own to follow.
+  Object? get _voiceModelLine => switch (_voice?.recorder.voiceModel.state) {
+        VoiceModelStateDownloading() => true,
+        VoiceModelStateFailed(:final message) => message,
+        _ => null,
+      };
 
   /// What is waiting on the person, above the notes (notes/Notices.tsx), in the page's order: a new version of the
   /// app (lib/root/update_wiring.dart, from [GhostRoot.updates]), an invitation to an organization where the build
@@ -557,15 +593,11 @@ class _GhostRootState extends State<GhostRoot> {
     final updates = widget.updates;
     final services = _services;
     final model = _voice?.recorder.voiceModel;
-    final state = switch (model?.state) {
-      VoiceModelStateDownloading(:final received, :final total) => notices.VoiceModelDownloading(received: received, total: total),
-      VoiceModelStateFailed(:final message) => notices.VoiceModelFailed(message),
-      _ => const notices.VoiceModelQuiet(),
-    };
     return [
       if (updates != null && updates.apk is! ApkPhaseNone) notices.UpdateNotice(updates: updateCardOf(updates)),
       if (services != null) InviteWaiting(services: services, onOpen: (id) => _shell.currentState?.openOrganization(id)),
-      if (model != null && state is! notices.VoiceModelQuiet) notices.VoiceModelStatus(state: state, onRetry: model.retry),
+      if (model != null && _voiceModelLine != null)
+        ListenableBuilder(listenable: model, builder: (context, _) => notices.VoiceModelStatus(state: _voiceModelState(model), onRetry: model.retry)),
     ];
   }
 
@@ -629,8 +661,9 @@ class _GhostRootState extends State<GhostRoot> {
     _stopGistHold = voice.recorder.refining?.onRefineHold(pauseGists);
     gistVisible = () => WidgetsBinding.instance.lifecycleState == null || WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
     _gists = Gists()
-      ..addListener(_voiceChanged)
+      ..addListener(_gistsChanged)
       ..show(_shown);
+    _gistsChanged();
     // The fills' queue: a press run to its end and landed, in the open note or a closed one.
     _stopFills = startFills(
       (said) {
@@ -694,13 +727,13 @@ class _GhostRootState extends State<GhostRoot> {
       },
       opened: (id, ai) {
         if (ai == null && _noteAiId != id) return;
-        _noteAi?.removeListener(_voiceChanged);
-        _noteAi?.reviewStage.removeListener(_voiceChanged);
+        _noteAi?.removeListener(_aiChanged);
+        _noteAi?.reviewStage.removeListener(_aiChanged);
         _noteAiId = ai == null ? null : id;
         _noteAi = ai;
-        ai?.addListener(_voiceChanged);
-        ai?.reviewStage.addListener(_voiceChanged);
-        _voiceChanged();
+        ai?.addListener(_aiChanged);
+        ai?.reviewStage.addListener(_aiChanged);
+        _aiChanged();
       },
     );
   }
@@ -803,8 +836,11 @@ class _GhostRootState extends State<GhostRoot> {
   /// phone is asked the first time a sidebar is built, and the tool is there once it has said it can.
   late final LibraryFiles _files = LibraryFiles();
   VoidCallback? get _browseFiles => _files.offered(() {
-        if (mounted) setState(() {});
+        if (mounted) setState(() => _canBrowse = true);
       });
+
+  /// Whether the phone has said it can show the folder: what a sidebar is drawn again for.
+  bool _canBrowse = false;
 
   /// Which tapes' audio is on this device (lib/settings/tapes_here.dart): each tape's file is asked through the
   /// player as Settings' Tapes card is put up, as the page's card asked the `rec` scheme (`headStatus`).
@@ -839,9 +875,7 @@ class _GhostRootState extends State<GhostRoot> {
     final models = voice.models;
     final present = models == null ? const <String>{} : presentIds(models.models).toSet();
     final download = models?.download;
-    // Only the tapes whose audio is here: not one the row removed, nor one whose file says it is elsewhere.
-    final taped = _tapes.here(_library.value);
-    final old = [for (final note in oldTapes(taped, DateTime.now().millisecondsSinceEpoch)) note.id];
+    final (:bytes, :old) = _tapeFacts;
     final remove = voice.removeAudio;
     final service = voice.service;
     final live = voice.live;
@@ -883,20 +917,40 @@ class _GhostRootState extends State<GhostRoot> {
             },
       meetingSound: voice.sound?.supported ?? false,
       meetingSoundWhy: voice.sound?.reason,
-      tapes: tapeBytes(taped),
+      tapes: bytes,
       oldTapes: old.length,
       onCountTapes: () => unawaited(_tapes.ask(_library.value).then<void>((_) {
-        if (mounted) setState(() {});
+        if (mounted) setState(() => _tapesAt += 1);
       })),
       onRemoveOldAudio: remove == null
           ? null
           : () async {
               final removed = await remove(old);
+              _tapesAt += 1;
               _changed();
               return removed.length;
             },
     );
   }
+
+  /// The room the tapes on this device take, and the old ones among them: only the tapes whose audio is here, not
+  /// one the row removed nor one whose file says it is elsewhere. Read once per change to the notes or to what is
+  /// known of the tapes, and the same answer while the room and the old ones are the same: Settings is handed it
+  /// open or shut, and is not built again for a save that touched no tape.
+  ({int bytes, List<String> old}) get _tapeFacts {
+    final all = _library.value;
+    if (identical(all, _tapedOf) && _tapesAt == _tapedAt) return _taped;
+    _tapedOf = all;
+    _tapedAt = _tapesAt;
+    final taped = _tapes.here(all);
+    final old = [for (final note in oldTapes(taped, DateTime.now().millisecondsSinceEpoch)) note.id];
+    final bytes = tapeBytes(taped);
+    return bytes == _taped.bytes && listEquals(old, _taped.old) ? _taped : _taped = (bytes: bytes, old: old);
+  }
+
+  List<Note>? _tapedOf;
+  int _tapedAt = -1;
+  ({int bytes, List<String> old}) _taped = (bytes: 0, old: const []);
 
   /// The walkthrough (shell/useGuide.ts): open by itself on the first launch that is not the side key's capture,
   /// and from Settings and the palette after. Made as the root is, the device's memory having been read by then.
@@ -1334,8 +1388,18 @@ class _GhostRootState extends State<GhostRoot> {
     undoCommandMutation: _library.undoCommandMutation,
   );
 
-  /// A note's screen with its editor: one desk to an open note (lib/root/note_desk.dart).
-  Widget _note(BuildContext context, AppShellState shell, ScreenNote screen) => NoteDesk(
+  /// A note's screen with its editor: one desk to an open note (lib/root/note_desk.dart). Built again when the
+  /// screen is another (the note, what it was opened with), and when what it reads of the app is: the notes (the
+  /// titles that are taken, its place in its notebook, your templates), the trash, the workspaces, the preferences
+  /// and the account. Not for a keystroke, the home page's news or a runner's turn.
+  Widget _note(BuildContext context, AppShellState shell, ScreenNote screen) => Selected(
+        listenable: _tick,
+        name: 'note',
+        select: () => (screen, _library.value, _trash.isTrashed(screen.note.id), _workspaces.value, _prefsAt, _capture != null, _accountAt),
+        builder: (context, _) => _desked(context, shell, screen),
+      );
+
+  Widget _desked(BuildContext context, AppShellState shell, ScreenNote screen) => NoteDesk(
         key: ValueKey('desk:${screen.note.id}'),
         noteId: screen.note.id,
         title: noteTitle(screen.note.body),
@@ -1379,31 +1443,146 @@ class _GhostRootState extends State<GhostRoot> {
         onTrashed: (note) => _places?.setPendingTag(note.id, null),
       )..addListener(_changed);
 
+  /// The note actions (a delete waiting on its Undo), the walkthrough or the way into an account changed.
   void _changed() {
     _reads.changed();
     _gists?.show(_shown);
+    _gistsRead = false;
     // The notes changed: a meeting's note may have been written by the service, and a write-up's result may wait.
     _voice?.notesChanged();
-    if (mounted) setState(() {});
+    _tick.tell();
   }
 
-  List<Note> get _shown => [
-        for (final note in outOfTrash(_library.value, _trash.value))
-          if (!(_made?.hidden.contains(note.id) ?? false)) note,
-      ];
-  List<Note> get _trashed => inTrash(_library.value, _trash.value);
+  // ---- what changed, and who is told (lib/root/selected.dart) ---------------------------------------------------
 
-  /// The notes made in this run that have no file yet (`CoreLibrary.isDraft`): the core leaves them out of its list.
+  /// Told by everything the root is told by. Each part of the app the root puts on screen listens to it and asks,
+  /// each time, whether what it reads is another value: the part that reads it is built again, and no other.
+  final RootTick _tick = RootTick();
+
+  /// The root draws nothing that changes: what it puts on screen is made once ([_whole]) and each part of it is
+  /// built again by itself. So a change to what the root holds (a sheet opened, voice made) is not a build of the
+  /// root, which would build nothing: the parts are told, and the ones that read it draw it.
+  @override
+  void setState(VoidCallback fn) {
+    fn();
+    _tick.tell();
+    // A frame follows, as one followed every setState: what waits for the next frame (`_afterFrame`) is not left
+    // waiting where no part had anything to draw.
+    if (mounted) WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  /// What has no one value to compare is counted, and a part that reads it selects its count: the account (who is
+  /// signed in, the organizations, the feed, the shares), where the sync stands, who is in an organization's notes,
+  /// voice (a meeting's state, whether the phone may notify, whether the AI can run), the models and their
+  /// fetches, the app's updates, the AI of the note on screen, and what is known of the tapes on this device.
+  int _accountAt = 0, _syncAt = 0, _presenceAt = 0, _voiceAt = 0, _modelsAt = 0, _updatesAt = 0, _aiAt = 0, _tapesAt = 0;
+
+  /// Any preference at all, for the two parts that hand the whole of them on (a note's desk, the palette): the
+  /// others select the fields they read. Counted, not compared: two sets of preferences are told apart by writing
+  /// both out.
+  int _prefsAt = 0;
+
+  void _prefsChanged() {
+    _prefsAt += 1;
+    _tick.tell();
+  }
+
+  void _accountChanged() {
+    _accountAt += 1;
+    _tick.tell();
+  }
+
+  /// Where the sync stands changes twice for every save it sends: it is the launch screen's line and the account's
+  /// own sheets', and no screen of notes reads it.
+  void _syncChanged() {
+    _syncAt += 1;
+    _tick.tell();
+  }
+
+  /// What the account is listened to by, less where its sync stands (`AccountServices.changes` is all of them).
+  static List<Listenable?> _accountSays(AccountServices services) => [services.account, services.orgs, services.orgKeys, services.feed, services.shares, services.liveTyping];
+
+  /// The notes every screen shows: none in the Trash, none a pending delete is holding back. The same list for as
+  /// long as the library's, the trash and what is held back are the same, and while the notes in it are.
+  List<Note> get _shown {
+    final all = _library.value;
+    final held = _trash.value;
+    final hidden = _made?.hidden ?? const <String>{};
+    if (identical(all, _shownOf) && identical(held, _shownLess) && identical(hidden, _shownHid)) return _shownNow;
+    _shownOf = all;
+    _shownLess = held;
+    _shownHid = hidden;
+    final next = [
+      for (final note in outOfTrash(all, held))
+        if (!hidden.contains(note.id)) note,
+    ];
+    var same = next.length == _shownNow.length;
+    for (var i = 0; same && i < next.length; i += 1) {
+      same = identical(next[i], _shownNow[i]);
+    }
+    return same ? _shownNow : _shownNow = List.unmodifiable(next);
+  }
+
+  List<Note>? _shownOf;
+  TrashHeld? _shownLess;
+  Set<String>? _shownHid;
+  List<Note> _shownNow = const [];
+
+  /// The notes in the Trash, read once per change to the notes or to the trash.
+  List<Note> get _trashed {
+    final all = _library.value;
+    final held = _trash.value;
+    if (identical(all, _trashedOf) && identical(held, _trashedIn)) return _trashedNow;
+    _trashedOf = all;
+    _trashedIn = held;
+    return _trashedNow = inTrash(all, held);
+  }
+
+  List<Note>? _trashedOf;
+  TrashHeld? _trashedIn;
+  List<Note> _trashedNow = const [];
+
+  /// The notes made in this run that have no file yet (`CoreLibrary.isDraft`): the core leaves them out of its
+  /// list. Read once per change to the notes, and the same set while the same notes are drafts.
   Set<String> get _drafts {
     final library = _library;
     if (library is! CoreLibrary) return const {};
-    return {
-      for (final note in library.value)
+    final all = library.value;
+    if (identical(all, _draftsOf)) return _draftsNow;
+    _draftsOf = all;
+    final next = {
+      for (final note in all)
         if (library.isDraft(note.id)) note.id,
     };
+    return setEquals(next, _draftsNow) ? _draftsNow : _draftsNow = next;
   }
+
+  List<Note>? _draftsOf;
+  Set<String> _draftsNow = const {};
+
+  /// Each note's gist, for the home page and All notes: read again after the runner has spoken, and the same map
+  /// while no line in it is another.
+  Map<String, String> get _gistsShown {
+    final gists = _gists;
+    if (gists == null) return const {};
+    if (!_gistsRead) {
+      _gistsRead = true;
+      final read = gists.value;
+      if (!mapEquals(read, _gistsNow)) _gistsNow = read;
+    }
+    return _gistsNow;
+  }
+
+  Map<String, String> _gistsNow = const {};
+  bool _gistsRead = true;
+
+  /// The note of the meeting being recorded now. As last known: asking the service afresh tells its listeners.
+  String? get _recordingNow {
+    final meeting = _voice?.live?.state;
+    return (meeting?.recording ?? false) ? meeting?.noteId : null;
+  }
+
   late final Stored _stored = widget.stored ?? stored;
-  late final Listenable _all = Listenable.merge([_library, _workspaces, _trash, preferences, _services?.changes]);
 
   final GlobalKey<AppShellState> _shell = GlobalKey<AppShellState>();
   final GlobalKey<CommandBarState> _commands = GlobalKey<CommandBarState>();
@@ -1437,7 +1616,7 @@ class _GhostRootState extends State<GhostRoot> {
     preferences.removeListener(_localOnlyMoved);
     _guide?.removeListener(_changed);
     // The updates are the process's, as the core is: let go of, never disposed.
-    widget.updates?.removeListener(_voiceChanged);
+    widget.updates?.removeListener(_updatesChanged);
     if (widget.guide == null) _guide?.dispose();
     _stopLinks?.call();
     _previews.dispose();
@@ -1445,25 +1624,39 @@ class _GhostRootState extends State<GhostRoot> {
     _stopFills?.call();
     _guideModels?.dispose();
     _stopGistHold?.call();
-    _gists?.removeListener(_voiceChanged);
+    _gists?.removeListener(_gistsChanged);
     _gists?.dispose();
     _availability?.removeListener(_voiceChanged);
     _availability?.dispose();
     _deviceFacts?.dispose();
     _voice?.live?.canNotify.removeListener(_voiceChanged);
-    _voice?.models?.removeListener(_voiceChanged);
-    _voice?.recorder.voiceModel.removeListener(_voiceChanged);
+    _voice?.models?.removeListener(_modelsChanged);
+    _voice?.recorder.voiceModel.removeListener(_tick.tell);
+    _noteAi?.removeListener(_aiChanged);
+    _noteAi?.reviewStage.removeListener(_aiChanged);
     _voiceLife?.dispose();
     _capture?.dispose();
     // A voice a test brought is the test's to let go.
     if (widget.voice == null) _voice?.dispose();
     _libraryChanges.removeListener(_reads.changed);
+    _library.removeListener(_tick.tell);
+    _workspaces.removeListener(_tick.tell);
+    _trash.removeListener(_tick.tell);
+    preferences.removeListener(_prefsChanged);
+    final services = _services;
+    if (services != null) {
+      for (final says in _accountSays(services)) {
+        says?.removeListener(_accountChanged);
+      }
+      services.engine?.status.removeListener(_syncChanged);
+    }
     _life?.dispose();
     _gate?.dispose();
     _wired?.live.presence.removeListener(_presenceChanged);
     _wired?.dispose();
     _pictures?.dispose();
     _made?.dispose();
+    _tick.dispose();
     super.dispose();
   }
 
@@ -1480,9 +1673,22 @@ class _GhostRootState extends State<GhostRoot> {
     claudeHandle = () => _services?.session?.handle;
     _guide?.addListener(_changed);
     _libraryChanges.addListener(_reads.changed);
+    // What the parts on screen read, each told as it changes (lib/root/selected.dart): after the reads above have
+    // been told, so a part built again reads the library as it now is.
+    _library.addListener(_tick.tell);
+    _workspaces.addListener(_tick.tell);
+    _trash.addListener(_tick.tell);
+    preferences.addListener(_prefsChanged);
+    final services = _services;
+    if (services != null) {
+      for (final says in _accountSays(services)) {
+        says?.addListener(_accountChanged);
+      }
+      services.engine?.status.addListener(_syncChanged);
+    }
     // The updates: drawn again as they change, not while a meeting records, and looked for from now (`useUpdates`).
     widget.updates
-      ?..addListener(_voiceChanged)
+      ?..addListener(_updatesChanged)
       ..recording = (() => _voice?.live?.state?.recording ?? false)
       ..start();
     _open();
@@ -1546,7 +1752,16 @@ class _GhostRootState extends State<GhostRoot> {
     if (named != note.body) unawaited(_library.save(id, named).then<void>((_) {}, onError: (Object _) {}));
   }
 
-  Widget _organizationPage(BuildContext context, AppShellState shell, ScreenOrganization screen) {
+  /// An organization's dashboard or its log: built again with the notes, the account and its sync, who is in its
+  /// notes, and the smoke's switch.
+  Widget _organizationPage(BuildContext context, AppShellState shell, ScreenOrganization screen) => Selected(
+        listenable: _tick,
+        name: 'organization',
+        select: () => (screen.orgId, screen.page, shell.notes, _workspaces.value, _accountAt, _syncAt, _presenceAt, preferences.value.wispEdge),
+        builder: (context, _) => _organizationPageOf(context, shell, screen),
+      );
+
+  Widget _organizationPageOf(BuildContext context, AppShellState shell, ScreenOrganization screen) {
     final id = screen.orgId;
     final wisp = preferences.value.wispEdge;
     if (screen.page == OrganizationPage.log) {
@@ -1689,469 +1904,624 @@ class _GhostRootState extends State<GhostRoot> {
             },
       onSettings: () {
         onClose?.call();
-        setState(() => _settings = true);
+        _openSettings();
       },
       trashed: _trashed,
       onRestore: _actions.restore,
       onDestroy: _actions.destroy,
       onEmptyTrash: () => _actions.emptyTrash(_trashed),
       notesInWorkspace: _notesIn,
-      onTrashNotes: (ids) => ids.forEach(_trash.trashNote),
+      onTrashNotes: _trashNotes,
       emptyArt: const Ghost(scene: GhostScene.noNotes),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    if (ghostPerf) Perf.count('root.build');
     // A note drawn small anywhere under here (a card on the home page, a row of the sidebar) draws its pictures and
     // a film's still from the app's own (lib/home/note_peek.dart).
-    return PeekPictures(store: _pictures, child: _built(context));
+    return PeekPictures(store: _pictures, child: _whole);
   }
 
-  Widget _built(BuildContext context) {
-    return ListenableBuilder(
-      listenable: _all,
-      builder: (context, _) {
-        final prefs = preferences.value;
-        final services = _services;
-        final signedIn = services?.signedIn ?? false;
-        final gate = _gate;
-        final voice = _voice;
-        final capture = _capture;
-        final guide = _guide;
-        final recordingScreen = _shell.currentState?.screen.isRecording ?? false;
-        // As last known: asking the service afresh tells its listeners, and this is a build.
-        final meetingNow = voice?.live?.state;
-        final recordingNow = (meetingNow?.recording ?? false) ? meetingNow?.noteId : null;
-        // The organization the home page is filtered to, for its news.
-        final chosen = _workspaces.value.current?.id;
-        String? chosenOrg;
-        for (final org in services?.joined ?? const []) {
-          if (orgWorkspaceId(org.id) == chosen) chosenOrg = org.id;
-        }
-        return AccountScope(
-          services: services,
-          child: Stack(
-          fit: StackFit.expand,
-          children: [
-            AppShell(
-              key: _shell,
-              sheet: widget.sheet ?? context.tokens.sheet,
-              notes: _shown,
-              // A note with no words yet is its own screen's alone, as on the page, whose list never holds it.
-              drafts: _drafts,
-              topBar: TopBarStyle.parse(prefs.topBar),
-              sidebarStyle: prefs.sidebarStyle == 'docked' ? SidebarStyle.docked : SidebarStyle.popover,
-              workspaces: _workspaces.value,
-              organizations: signedIn ? services!.joined : const [],
-              organizationBuilder: services == null ? null : _organizationPage,
-              onRenameNote: _rename,
-              openNotes: prefs.openNotes,
-              tabGroups: prefs.tabGroups,
-              // The screen and the tabs are what an entry is left by.
-              onOpenNotesChanged: (open) {
-                preferences.update((now) => now.copyWith(openNotes: open));
-                _left();
-              },
-              // And the walkthrough steps aside for a recorder, so the root is drawn again with the screen.
-              onScreenChanged: (_) {
-                _left();
-                _voiceChanged();
-              },
-              untouchedEntryOf: (id) => _untouched.recordOf(id)?.journalId,
-              onTabGroupsChanged: (groups) => preferences.update((now) => now.copyWith(tabGroups: groups)),
-              onSettings: () => setState(() => _settings = true),
-              // The people icon with no organization joined, and the picker's last row: Settings › Organizations.
-              onOrganizations: () => setState(() {
-                _settings = true;
-                _settingsPage = SettingsTarget('organizations', nonce: DateTime.now().microsecondsSinceEpoch);
-              }),
-              onNew: _plus,
-              onDeleteNote: _delete,
-              onRefresh: () => _library.refresh(),
-              noteBuilder: _note,
-              // The recorder, the whole window: a fresh mount for each capture, keyed by the shell.
-              captureBuilder: voice == null || capture == null
-                  ? null
-                  : (context, shell, screen) => CaptureScreen(
-                        recorder: voice.recorder,
-                        fromAssistant: screen.fromAssistant,
-                        stopRequests: screen.stop,
-                        noteId: screen.noteId,
-                        placing: screen.placing is Placing ? screen.placing as Placing : null,
-                        meeting: screen.meeting,
-                        onMeeting: voice.canMeet ? () => unawaited(capture.meeting(false)) : null,
-                        onFinish: (note, locked, {review, ask, landing}) => unawaited(capture.finished(note, locked, review: review, ask: ask, landing: landing)),
-                      ),
-              // Ghost.md Academy, the whole window: out by its arrow, and its contents' way to the cheat sheet.
-              academyBuilder: (context, shell) => AcademyScreen(
-                onDone: shell.backToList,
-                onCheatSheet: () {
-                  shell.backToList();
-                  setState(() {
-                    _settings = true;
-                    _settingsPage = SettingsTarget('cheatsheet', nonce: DateTime.now().microsecondsSinceEpoch);
-                  });
-                },
-              ),
-              meetingBuilder: voice == null || capture == null || voice.live == null
-                  ? null
-                  : (context, shell, screen) => MeetingScreen(
-                        noteId: screen.noteId,
-                        fromAssistant: screen.fromAssistant,
-                        onLeave: capture.leftMeeting,
-                        live: voice.live!,
-                        host: _meetingHost(voice, voice.live!),
-                      ),
-              homeBuilder: (context, shell) => HomeScreen(
-                notes: shell.notes,
-                loading: !_read,
-                workspaces: _workspaces,
-                layout: homeLayoutOf(prefs.homeLayout),
-                onOpen: (id) => _openFromHome(shell, id),
-                onNew: _plus,
-                // The dock's microphone, and the note of the meeting being recorded now.
-                onCapture: capture == null ? null : _speak,
-                recording: recordingNow,
-                // `isAndroid ? 'Write it, or hold the side key and say it.'`: the page says the side key on any Android
-                // phone, whether or not this build answers it, and the empty page's words are held to the page's.
-                sideKey: defaultTargetPlatform == TargetPlatform.android,
-                notices: _notices(),
-                gists: _gists?.value ?? const {},
-                clock: widget.clock,
-                onAllNotes: shell.showAllNotes,
-                onSearch: _search,
-                // `tabs.drop(note.id)` before an archive or a delete (App.tsx `onSwipe`): the swiped note's tab goes too.
-                onSwipe: (note, action) {
-                  if (action.name != 'pin') _shell.currentState?.dropTab(note.id);
-                  _actions.swipe(note, action);
-                },
-                onRefresh: _library.refresh,
-                onNoteMenu: (id) => _menu.open(id, MediaQuery.sizeOf(context).center(Offset.zero)),
-                onManageWorkspace: (workspace) => setState(() => _workspace = (editing: workspace)),
-                organizations: homeOrganizations(services, here: {for (final row in services?.joined ?? const <OrgRow>[]) row.id: _seenIn(row.id)}),
-                orgNews: homeOrgNews(services, chosenOrg),
-                onOrganization: services == null ? null : shell.openOrganization,
-                onOrganizationSettings: services == null ? null : (id) => setState(() => _organization = (id: id, from: OrganizationFrom.settings)),
-                onNewOrganization: signedIn ? () => setState(() => _newOrganization = true) : null,
-                headerEdge: (context, edge, scroller) => WispEdge(under: edge.under, foot: true, child: scroller),
-                dockHalo: (context, it) => DockSmoke(behind: it.behind, dock: it.dock, alignment: it.alignment, padding: it.padding),
-                ghost: (context, it) => Ghost(
-                  scene: switch (it.scene) {
-                    HomeGhostScene.noNotes => GhostScene.noNotes,
-                    HomeGhostScene.emptyWorkspace => GhostScene.emptyWorkspace,
-                    HomeGhostScene.searchNothing => GhostScene.searchNothing,
-                  },
-                  size: it.lead ? GhostSize.lead : GhostSize.small,
-                  heightShare: it.heightShare,
-                ),
-              ),
-              allNotesBuilder: (context, shell, screen) => AllNotesScreen(
-                // The empty page's hint, as home's: the side key on any Android phone (AllNotesScreen.tsx `isAndroid`).
-                sideKey: defaultTargetPlatform == TargetPlatform.android,
-                notes: shell.notes,
-                loading: !_read,
-                workspaces: _workspaces,
-                stored: _stored,
-                tapes: screen.tapes,
-                gists: _gists?.value ?? const {},
-                clock: widget.clock,
-                onOpen: (id) => _openWhereLeft(shell, id),
-                onBack: shell.backToList,
-                onRefresh: _library.refresh,
-                onNoteMenu: (note, at) => _menu.open(note.id, at),
-                notesInWorkspace: _notesIn,
-                onTrashNotes: (ids) => ids.forEach(_trash.trashNote),
-                wisp: prefs.wispEdge,
-              ),
-              sidebarBuilder: (context, shell, close) => NotesDrawer(
-                open: true,
-                notes: shell.notes,
-                activeId: shell.shown,
-                workspaces: _workspaces,
-                stored: _stored,
-                onOpen: (id) {
-                  close();
-                  _openWhereLeft(shell, id);
-                },
-                onNew: () {
-                  close();
-                  _plus();
-                },
-                onClose: close,
-                onCommands: _search,
-                onBrowseFiles: _browseFiles,
-                // `notices={split ? notices : undefined}`: a phone has its home page for them.
-                notices: splitFits(MediaQuery.sizeOf(context), mouse: mousePointer) ? _sidebarNotices() : const [],
-                onSpeak: capture == null
-                    ? null
-                    : () {
-                        close();
-                        _speak();
-                      },
-                onSettings: () {
-                  close();
-                  setState(() => _settings = true);
-                },
-                trashed: _trashed,
-                onRestore: _actions.restore,
-                onDestroy: _actions.destroy,
-                onEmptyTrash: () => _actions.emptyTrash(_trashed),
-                notesInWorkspace: _notesIn,
-                onTrashNotes: (ids) => ids.forEach(_trash.trashNote),
-                emptyArt: const Ghost(scene: GhostScene.noNotes),
-              ),
-              dockedSidebarBuilder: (context, shell) => _tree(shell),
-              // The docked sidebar and the aside, shown or hidden as this device left them (core/useWideScreen.ts
-              // `readSidebarShown`, aside/aside.ts `readAsideShown`).
-              sidebarShown: readSidebarShown(_stored),
-              onSidebarShownChanged: (shown) => writeSidebarShown(shown, _stored),
-              asideShown: readAsideShown(_stored),
-              onAsideShownChanged: (shown) => writeAsideShown(shown, _stored),
-              // The open note's book or run of chapters, beside it (aside/aside_panel.dart). The version history's
-              // tab is a desktop's (`asideHistory`), and waits for one.
-              asideBuilder: (context, shell) {
-                final content = _asideOf(shell);
-                return content == null ? null : AsidePanel(content: content, stored: _stored, onOpen: shell.openNoteWithin, onOpenTitle: _openTitleWithin);
-              },
-              asideCardBuilder: (context, shell, close) =>
-                  AsideCard(content: _asideOf(shell), stored: _stored, onOpen: shell.openNoteWithin, onOpenTitle: _openTitleWithin, onClose: close),
-              notificationsBuilder: (context, shell, close) {
-                void openNote(String id, String? at) {
-                  close();
-                  // A note Claude edited opens at its first changed line; any other where it was left.
-                  if (at == null) return _openWhereLeft(shell, id);
-                  shell.openNote(id, at: at);
-                }
+  /// A part of what is on screen: built when [select] answers another value than it drew, and at no other time
+  /// (lib/root/selected.dart).
+  Widget _part<T>(String name, T Function() select, WidgetBuilder builder, {bool asleep = false}) =>
+      Selected<T>(listenable: _tick, name: name, asleep: asleep, select: select, builder: (context, _) => builder(context));
 
-                void account() {
-                  close();
-                  _toAccount();
-                }
+  static const Widget _nothing = SizedBox.shrink();
 
-                if (services != null) {
-                  return FedNotificationsDrawer(
-                    services: services,
-                    onClose: close,
-                    onOpenNote: openNote,
-                    onOpenOrganization: (id) {
-                      close();
-                      shell.openOrganization(id);
-                    },
-                    onAccount: account,
-                  );
-                }
-                return NotificationsDrawer(notifications: const [], prefs: prefs.notifications, signedIn: false, onClose: close, onOpenNote: openNote, onOpenOrganization: (_) => close(), onAccount: account);
-              },
-            ),
-            // The phone at work, over the app, while a review is on the note being read (lib/scene/at_work.dart).
-            if (_noteAi case final noteAi? when _noteAiId != null)
-              AtWork(
-                noteId: _noteAiId!,
-                opening: noteAi.reviewKey,
-                heard: noteAi.handoff?.heard ?? '',
-                body: _library.noteOf(_noteAiId!)?.body ?? '',
-                hasJob: noteAi.handoff?.job != null,
-                stage: noteAi.reviewStage.value,
-                refining: voice?.recorder.refining?.refining,
-                summaryDue: voice?.summaries?.pendingFor(_noteAiId!),
-              ),
-            SettingsSheet(
-              open: _settings,
-              toPage: _settingsPage,
-              onClose: () => setState(() => _settings = false),
-              workspaces: _workspaces,
-              notesInWorkspace: _notesIn,
-              onTrashNotes: (ids) => ids.forEach(_trash.trashNote),
-              // About's Updates rows, in a build that looks for any (lib/root/update_wiring.dart).
-              // An iPhone has no update client: About says whose its updates are (iphone_wiring.dart).
-              updates: widget.updates == null ? appStoreUpdates() : settingsUpdatesOf(widget.updates!),
-              // A build with no service says so where a way in is pressed; one with an account takes it from the scope.
-              features: _features(services),
-              onOrganization: services == null ? null : (id) => setState(() => _organization = (id: id, from: OrganizationFrom.settings)),
-              onOpenLink: widget.openLink == null ? null : (url) => unawaited(widget.openLink!(url)),
-              onAcademy: () {
-                setState(() => _settings = false);
-                _shell.currentState?.show(const Screen.academy());
-              },
-              onGuide: guide == null
-                  ? null
-                  : () {
-                      setState(() => _settings = false);
-                      guide.show(0);
-                    },
-              onGuideBook: () => unawaited(_openGuideBook()),
-              // Examples' four rows, which were drawn and could not be pressed: nothing had given them a press.
-              onSample: _openExample(() => sampleNoteBody),
-              onBoard: _openExample(() => boardNoteBody),
-              onCanvas: _openExample(sampleCanvasBody),
-              onHowCanvas: _openExample(howCanvasBody),
-            ),
-            CommandBar.over(
-              key: _commands,
-              world: () => paletteWorldFor(shell: _shell.currentState!, workspaces: _workspaces.value, prefs: preferences.value),
-              doing: () => paletteDoingFor(
-                shell: _shell.currentState!,
-                library: _library,
-                workspaces: _workspaces,
-                newNote: _new,
-                newNotebook: () => _newBook(NewBookKind.notebook),
-                newJournal: () => _newBook(NewBookKind.journal),
-                newEntry: (id) => unawaited(_newEntry(id)),
-                academy: () => _shell.currentState?.show(const Screen.academy()),
-                guide: guide == null ? null : () => guide.show(0),
-                speak: _capture == null ? null : _speak,
-                speakInto: _capture == null ? null : (id) => unawaited(_speakInto(id)),
-                openNoteWhereLeft: (id) {
-                  final note = _library.noteOf(id);
-                  final shell = _shell.currentState;
-                  if (note != null && shell != null) shell.openNote(whereLeft(note, _shown, shell.shown, on: _stored).id);
-                },
-                archive: (id) {
-                  final note = _library.noteOf(id);
-                  if (note == null) return;
-                  _shell.currentState?.dropTab(id);
-                  _actions.archive(note, archived: true);
-                },
-                removeNote: _delete,
-                settings: () => setState(() => _settings = true),
-                settingsPage: (id) => setState(() {
-                  _settings = true;
-                  _settingsPage = SettingsTarget(id, nonce: DateTime.now().microsecondsSinceEpoch);
-                }),
-              ),
-            ),
-            NoteMenuHost(
-              controller: _menu,
-              notes: _shown,
-              onOpen: (note) {
-                final shell = _shell.currentState;
-                if (shell != null) _openWhereLeft(shell, note.id);
-              },
-              // The note itself, with a comment started on its first line once its editor is there
-              // (core/comments/ask.ts).
-              onComment: (note) {
-                commentAsks.ask(note.id);
-                _shell.currentState?.openNote(note.id);
-              },
-              onPin: _actions.pin,
-              onArchive: (note, archived) => _actions.archive(note, archived: archived),
-              onDelete: (note) => _delete(note.id),
-            ),
-            // What the + makes (notes/NewSheet.tsx). The rows read where to make it as they are pressed, since the
-            // sheet closes first.
-            Builder(builder: (context) {
-              final into = _newInto;
-              return NewSheet(
-                open: _newSheet,
-                onClose: () => setState(() {
-                  _newSheet = false;
-                  _newInto = null;
-                }),
-                onNote: () => _new(into),
-                onCanvas: () => _newCanvas(into),
-                onBook: () => _newBook(NewBookKind.notebook, into),
-                // A journal's entry is the account's own, and is not offered from an organization's +.
-                entry: into != null || !_newSheet ? null : _entryRow(),
-                // A shared link's copy is read from the account's service: not offered in a build with none.
-                onFromLink: into != null || services?.shares == null ? null : _forkFromLink,
-                // A meeting is the account's own too, and is offered only where one can be recorded.
-                onMeeting: into == null && capture != null && (voice?.canMeet ?? false) ? () => unawaited(capture.meeting(false)) : null,
-                sound: into == null && capture != null && (voice?.canMeet ?? false) && (voice?.sound?.supported ?? false)
-                    ? NewSheetSound(
-                        // The page's words for it on this platform (`meetingSoundWords`): other apps' sound on
-                        // Android, the computer's own on a Mac.
-                        label: voice?.recorder.systemSound?.meetingSoundWords().label ?? 'Include sound from other apps',
-                        hint: voice?.recorder.systemSound?.meetingSoundWords().hint ??
-                            'Android lets Ghost.md hear media and games, never calls. It asks to share your screen each time; only the sound is kept.',
-                        on: prefs.meetingSound,
-                        onToggle: () => preferences.update((now) => now.copyWith(meetingSound: !now.meetingSound)),
-                      )
-                    : null,
-              );
-            }),
-            NewBookSheet(
-              open: _bookSheet != null,
-              kind: _bookSheet ?? NewBookKind.notebook,
-              onClose: () => setState(() => _bookSheet = null),
-              titles: _bookSheet == null ? const [] : _pageTitles(books: false),
-              isCanvas: (title) => isCanvasBody(_reads.titled(title)?.body ?? ''),
-              onCreate: (title, pages) => _showMade(bookNoteBody(title, pages), into: _bookInto),
-              onCreateJournal: (title, template, place) => _showMade(journal.journalNoteBody(title, template, place)),
-              // A journal's "With where you are": the prompt from the press that turned it on, and why it cannot.
-              device: _places == null
-                  ? const EntryPlaceDevice()
-                  : EntryPlaceDevice(cannot: () => _places.locations.cannotLocate, refused: _places.autoTagRefusal, allowWhere: _places.allowLocationWhere(), ask: _places.askFromPress),
-            ),
-            if (_workspace case final sheet?)
-              WorkspaceManageSheet(
-                store: _workspaces,
-                editing: sheet.editing,
-                onClose: () => setState(() => _workspace = null),
-                notesIn: _notesIn,
-                onTrashNotes: (ids) => ids.forEach(_trash.trashNote),
-              ),
-            if (services != null) ...[
-              if (_organization case final sheet? when services.orgs != null)
-                OrganizationSheet(
-                  key: ValueKey('organization-sheet:${sheet.id}'),
-                  services: services,
-                  orgId: sheet.id,
-                  from: sheet.from,
-                  landOnMembers: sheet.from != OrganizationFrom.dashboard,
-                  onClose: () => setState(() => _organization = null),
-                  onNotes: () {
-                    setState(() => _organization = null);
-                    _workspaces.chooseWorkspace(orgWorkspaceId(sheet.id));
-                    _shell.currentState?.backToList();
-                  },
-                ),
-              NewOrganizationSheet(
-                services: services,
-                open: _newOrganization,
-                onClose: () => setState(() => _newOrganization = false),
-                onMade: (id) {
-                  setState(() => _newOrganization = false);
-                  _shell.currentState?.openOrganization(id);
-                },
-              ),
-              // The way in, the first thing on screen once, on an open that is signed out.
-              if (gate != null && gate.open) AccountGate(services: services, onDone: gate.close),
-            ],
-            // An invite link that opened the app, and a code held on this device from before, asked about once
-            // someone is signed in: nothing is joined until the person says so. Held back while the way into an
-            // account is up at launch.
-            JoinInvites(
-              services: services,
-              request: _joinRequest,
-              hold: services != null && (gate?.open ?? true),
-              onOpen: (id) => _shell.currentState?.openOrganization(id),
-              onAccount: _toAccount,
-            ),
-            // The walkthrough, over everything but the way into an account, and never over a recorder: it is taken
-            // away while a capture is on screen and comes back, at its page, when the capture ends.
-            if (guide != null && guide.open && !(gate?.open ?? false) && !recordingScreen)
-              Guide(
-                index: guide.page,
-                tooSoon: guide.tooSoon,
-                onIndex: guide.turn,
-                recordsVoice: capture != null,
-                models: _modelsForGuide,
-                onClose: () {
-                  guide.close();
-                  // The list underneath loaded while the guide was up; ask again now it shows.
-                  unawaited(_library.refresh().catchError((Object _) {}));
-                },
-                onAcademy: () {
-                  guide.close();
-                  _shell.currentState?.show(const Screen.academy());
-                },
-              ),
-            if (_launching) LaunchScreen(loading: !_read, notes: _shown.length, updates: launchUpdatesOf(widget.updates), sync: launchSyncOf(_services?.engine?.status.value.phase), recording: () => voice?.live?.state?.recording ?? false, onDone: () => setState(() => _launching = false)),
-          ],
+  void _openSettings() => setState(() => _settings = true);
+
+  void _openSettingsAt(String page) => setState(() {
+        _settings = true;
+        _settingsPage = SettingsTarget(page, nonce: DateTime.now().microsecondsSinceEpoch);
+      });
+
+  void _closeSettings() => setState(() => _settings = false);
+
+  void _trashNotes(Iterable<String> ids) => ids.forEach(_trash.trashNote);
+
+  void _organizationSettings(String id) => setState(() => _organization = (id: id, from: OrganizationFrom.settings));
+
+  /// Everything the root puts on screen, made once: the shell, and over it Settings, the palette, a note's menu,
+  /// the sheets, the walkthrough and the launch screen. Each is a part, built again when what it reads changed; one
+  /// that is not there (a sheet that is shut, the launch screen once the app is open) is nothing, in its place.
+  late final Widget _whole = AccountScope(
+    services: _services,
+    child: Stack(
+      fit: StackFit.expand,
+      children: [
+        _part('shell', _shellReads, _shellPart),
+        // The phone at work, over the app, while a review is on the note being read (lib/scene/at_work.dart).
+        _part('atWork', () {
+          final ai = _noteAi, id = _noteAiId;
+          return ai == null || id == null ? null : (ai, id, _aiAt, _library.noteOf(id), _voice);
+        }, _atWorkPart),
+        // Settings is handed what its pages read whether it is open or shut (the models, the tapes' room, the
+        // updates), so it is built again as those change; never for a runner's turn or the home page's news.
+        _part('settings', () => (_settings, _settingsPage, _voice, _voiceAt, _modelsAt, _updatesAt, _voice == null ? null : _tapeFacts, preferences.value.formatModel), _settingsPart),
+        _part('commands', () => (_library.value, _workspaces.value, _prefsAt, _capture != null), _commandsPart),
+        _part('noteMenu', () => _shown, _noteMenuPart),
+        // What the + makes (notes/NewSheet.tsx). The rows read where to make it as they are pressed, since the
+        // sheet closes first.
+        _part(
+          'newSheet',
+          () => _newSheet ? (_newInto, _shown, _shell.currentState?.shown, _capture != null, _voiceAt, preferences.value.meetingSound) : null,
+          _newSheetPart,
+        ),
+        _part('newBook', () => _bookSheet == null ? null : (_bookSheet, _bookInto, _shown), _newBookPart),
+        _part('workspace', () => _workspace, _workspacePart),
+        if (_services case final services?) ...[
+          _part('organization', () => (_organization, _accountAt, _syncAt), (context) => _organizationSheetPart(services)),
+          _part('newOrganization', () => (_newOrganization, _accountAt, _syncAt), (context) => _newOrganizationPart(services)),
+          // The way in, the first thing on screen once, on an open that is signed out.
+          _part('gate', () => (_gate, _gate?.open ?? false, _accountAt, _syncAt), (context) {
+            final gate = _gate;
+            return gate != null && gate.open ? AccountGate(services: services, onDone: gate.close) : _nothing;
+          }),
+        ],
+        // An invite link that opened the app, and a code held on this device from before, asked about once
+        // someone is signed in: nothing is joined until the person says so. Held back while the way into an
+        // account is up at launch.
+        _part(
+          'join',
+          () => (_joinRequest, _gate?.open, _accountAt, _syncAt),
+          (context) => JoinInvites(
+            services: _services,
+            request: _joinRequest,
+            hold: _services != null && (_gate?.open ?? true),
+            onOpen: (id) => _shell.currentState?.openOrganization(id),
+            onAccount: _toAccount,
           ),
-        );
+        ),
+        // The walkthrough, over everything but the way into an account, and never over a recorder: it is taken
+        // away while a capture is on screen and comes back, at its page, when the capture ends.
+        _part('guide', () {
+          final guide = _guide;
+          if (guide == null || !guide.open || (_gate?.open ?? false) || (_shell.currentState?.screen.isRecording ?? false)) return null;
+          return (guide.page, guide.tooSoon, _capture != null, _modelsForGuide);
+        }, _guidePart),
+        _part('launch', () => _launching ? (!_read, _shown.length, _updatesAt, _syncAt, _voice) : null, _launchPart),
+      ],
+    ),
+  );
+
+  /// What the shell is handed: built again when one of these is another, and for nothing else. The screens it
+  /// holds are parts of their own.
+  Object _shellReads() {
+    final prefs = preferences.value;
+    return (
+      _shown,
+      _drafts,
+      prefs.topBar,
+      prefs.sidebarStyle,
+      _workspaces.value,
+      // Who is signed in and the organizations joined.
+      _accountAt,
+      prefs.openNotes,
+      prefs.tabGroups,
+      // Whether there is a recorder, and a meeting's service, to put on screen.
+      _voice != null && _capture != null,
+      _voice?.live != null,
+      readSidebarShown(_stored),
+      readAsideShown(_stored),
+    );
+  }
+
+  Widget _shellPart(BuildContext context) {
+    final prefs = preferences.value;
+    final services = _services;
+    final signedIn = services?.signedIn ?? false;
+    final voice = _voice;
+    final capture = _capture;
+    return AppShell(
+      key: _shell,
+      sheet: widget.sheet ?? context.tokens.sheet,
+      notes: _shown,
+      // A note with no words yet is its own screen's alone, as on the page, whose list never holds it.
+      drafts: _drafts,
+      topBar: TopBarStyle.parse(prefs.topBar),
+      sidebarStyle: prefs.sidebarStyle == 'docked' ? SidebarStyle.docked : SidebarStyle.popover,
+      workspaces: _workspaces.value,
+      organizations: signedIn ? services!.joined : const [],
+      organizationBuilder: services == null ? null : _organizationPage,
+      onRenameNote: _rename,
+      openNotes: prefs.openNotes,
+      tabGroups: prefs.tabGroups,
+      // The screen and the tabs are what an entry is left by.
+      onOpenNotesChanged: (open) {
+        preferences.update((now) => now.copyWith(openNotes: open));
+        _left();
       },
+      // And the walkthrough steps aside for a recorder, so the parts that read the screen are told.
+      onScreenChanged: (_) {
+        _left();
+        _tick.tell();
+      },
+      untouchedEntryOf: (id) => _untouched.recordOf(id)?.journalId,
+      onTabGroupsChanged: (groups) => preferences.update((now) => now.copyWith(tabGroups: groups)),
+      onSettings: _openSettings,
+      // The people icon with no organization joined, and the picker's last row: Settings › Organizations.
+      onOrganizations: () => _openSettingsAt('organizations'),
+      onNew: _plus,
+      onDeleteNote: _delete,
+      onRefresh: _library.refresh,
+      noteBuilder: _note,
+      // The recorder, the whole window: a fresh mount for each capture, keyed by the shell.
+      captureBuilder: voice == null || capture == null
+          ? null
+          : (context, shell, screen) => _part(
+                'capture',
+                () => (screen, _voiceAt),
+                (context) => CaptureScreen(
+                  recorder: voice.recorder,
+                  fromAssistant: screen.fromAssistant,
+                  stopRequests: screen.stop,
+                  noteId: screen.noteId,
+                  placing: screen.placing is Placing ? screen.placing as Placing : null,
+                  meeting: screen.meeting,
+                  onMeeting: voice.canMeet ? () => unawaited(capture.meeting(false)) : null,
+                  onFinish: (note, locked, {review, ask, landing}) => unawaited(capture.finished(note, locked, review: review, ask: ask, landing: landing)),
+                ),
+              ),
+      // Ghost.md Academy, the whole window: out by its arrow, and its contents' way to the cheat sheet.
+      academyBuilder: (context, shell) => _part(
+        'academy',
+        () => shell,
+        (context) => AcademyScreen(
+          onDone: shell.backToList,
+          onCheatSheet: () {
+            shell.backToList();
+            _openSettingsAt('cheatsheet');
+          },
+        ),
+      ),
+      meetingBuilder: voice == null || capture == null || voice.live == null
+          ? null
+          : (context, shell, screen) => _part(
+                'meeting',
+                () => (screen, _voiceAt),
+                (context) => MeetingScreen(
+                  noteId: screen.noteId,
+                  fromAssistant: screen.fromAssistant,
+                  onLeave: capture.leftMeeting,
+                  live: voice.live!,
+                  host: _meetingHost(voice, voice.live!),
+                ),
+              ),
+      homeBuilder: _home,
+      allNotesBuilder: (context, shell, screen) => _part(
+        'allNotes',
+        () => (shell.notes, !_read, screen.tapes, _workspaces.value, _gistsShown, preferences.value.wispEdge),
+        (context) => AllNotesScreen(
+          // The empty page's hint, as home's: the side key on any Android phone (AllNotesScreen.tsx `isAndroid`).
+          sideKey: defaultTargetPlatform == TargetPlatform.android,
+          notes: shell.notes,
+          loading: !_read,
+          workspaces: _workspaces,
+          stored: _stored,
+          tapes: screen.tapes,
+          gists: _gistsShown,
+          clock: widget.clock,
+          onOpen: (id) => _openWhereLeft(shell, id),
+          onBack: shell.backToList,
+          onRefresh: _library.refresh,
+          onNoteMenu: (note, at) => _menu.open(note.id, at),
+          notesInWorkspace: _notesIn,
+          onTrashNotes: _trashNotes,
+          wisp: preferences.value.wispEdge,
+        ),
+      ),
+      sidebarBuilder: (context, shell, close) => _part(
+        'sidebar',
+        () => _sidebarReads(shell),
+        (context) => NotesDrawer(
+          open: true,
+          notes: shell.notes,
+          activeId: shell.shown,
+          workspaces: _workspaces,
+          stored: _stored,
+          onOpen: (id) {
+            close();
+            _openWhereLeft(shell, id);
+          },
+          onNew: () {
+            close();
+            _plus();
+          },
+          onClose: close,
+          onCommands: _search,
+          onBrowseFiles: _browseFiles,
+          // `notices={split ? notices : undefined}`: a phone has its home page for them.
+          notices: splitFits(MediaQuery.sizeOf(context), mouse: mousePointer) ? _sidebarNotices() : const [],
+          onSpeak: _capture == null
+              ? null
+              : () {
+                  close();
+                  _speak();
+                },
+          onSettings: () {
+            close();
+            _openSettings();
+          },
+          trashed: _trashed,
+          onRestore: _actions.restore,
+          onDestroy: _actions.destroy,
+          onEmptyTrash: () => _actions.emptyTrash(_trashed),
+          notesInWorkspace: _notesIn,
+          onTrashNotes: _trashNotes,
+          emptyArt: const Ghost(scene: GhostScene.noNotes),
+        ),
+      ),
+      dockedSidebarBuilder: (context, shell) => _part('tree', () => _sidebarReads(shell), (context) => _tree(shell)),
+      // The docked sidebar and the aside, shown or hidden as this device left them (core/useWideScreen.ts
+      // `readSidebarShown`, aside/aside.ts `readAsideShown`).
+      sidebarShown: readSidebarShown(_stored),
+      onSidebarShownChanged: (shown) => writeSidebarShown(shown, _stored),
+      asideShown: readAsideShown(_stored),
+      onAsideShownChanged: (shown) => writeAsideShown(shown, _stored),
+      // The open note's book or run of chapters, beside it (aside/aside_panel.dart). The version history's
+      // tab is a desktop's (`asideHistory`), and waits for one.
+      asideBuilder: (context, shell) {
+        final content = _asideOf(shell);
+        return content == null ? null : AsidePanel(content: content, stored: _stored, onOpen: shell.openNoteWithin, onOpenTitle: _openTitleWithin);
+      },
+      asideCardBuilder: (context, shell, close) => AsideCard(content: _asideOf(shell), stored: _stored, onOpen: shell.openNoteWithin, onOpenTitle: _openTitleWithin, onClose: close),
+      notificationsBuilder: (context, shell, close) => _part('notifications', () => (preferences.value.notifications, _accountAt, _syncAt), (context) {
+        void openNote(String id, String? at) {
+          close();
+          // A note Claude edited opens at its first changed line; any other where it was left.
+          if (at == null) return _openWhereLeft(shell, id);
+          shell.openNote(id, at: at);
+        }
+
+        void account() {
+          close();
+          _toAccount();
+        }
+
+        if (services != null) {
+          return FedNotificationsDrawer(
+            services: services,
+            onClose: close,
+            onOpenNote: openNote,
+            onOpenOrganization: (id) {
+              close();
+              shell.openOrganization(id);
+            },
+            onAccount: account,
+          );
+        }
+        return NotificationsDrawer(notifications: const [], prefs: preferences.value.notifications, signedIn: false, onClose: close, onOpenNote: openNote, onOpenOrganization: (_) => close(), onAccount: account);
+      }),
+    );
+  }
+
+  /// What either sidebar reads: the notes and the one on screen, the workspaces, the trash, whether there is a
+  /// folder to browse and a recorder to speak to, and the update a wide window's sidebar carries.
+  Object _sidebarReads(AppShellState shell) => (shell.notes, shell.shown, _workspaces.value, _trashed, _canBrowse, _capture != null, _updatesAt);
+
+  /// The home page. Kept under a note, the grid or an organization's page (lib/shell/app_shell.dart), where it is
+  /// asked nothing and builds nothing: it is asked once as it is come back to. On screen it is built again for the
+  /// notes it shows, its layout, the workspace looked at, a recording, its notices, the gists, and the
+  /// organizations with who is in them.
+  Widget _home(BuildContext context, AppShellState shell) => _part(
+        'home',
+        asleep: shell.screen is! ScreenList,
+        () => (
+          shell.notes,
+          !_read,
+          preferences.value.homeLayout,
+          _workspaces.value.current?.id,
+          _capture != null,
+          _recordingNow,
+          _updatesAt,
+          _voiceModelLine,
+          _gistsShown,
+          _accountAt,
+          _presenceAt,
+        ),
+        (context) => _homePage(context, shell),
+      );
+
+  Widget _homePage(BuildContext context, AppShellState shell) {
+    final services = _services;
+    final signedIn = services?.signedIn ?? false;
+    // The organization the home page is filtered to, for its news.
+    final chosen = _workspaces.value.current?.id;
+    String? chosenOrg;
+    for (final org in services?.joined ?? const <OrgRow>[]) {
+      if (orgWorkspaceId(org.id) == chosen) chosenOrg = org.id;
+    }
+    return HomeScreen(
+      notes: shell.notes,
+      loading: !_read,
+      workspaces: _workspaces,
+      layout: homeLayoutOf(preferences.value.homeLayout),
+      onOpen: (id) => _openFromHome(shell, id),
+      onNew: _plus,
+      // The dock's microphone, and the note of the meeting being recorded now.
+      onCapture: _capture == null ? null : _speak,
+      recording: _recordingNow,
+      // `isAndroid ? 'Write it, or hold the side key and say it.'`: the page says the side key on any Android
+      // phone, whether or not this build answers it, and the empty page's words are held to the page's.
+      sideKey: defaultTargetPlatform == TargetPlatform.android,
+      notices: _notices(),
+      gists: _gistsShown,
+      clock: widget.clock,
+      onAllNotes: shell.showAllNotes,
+      onSearch: _search,
+      // `tabs.drop(note.id)` before an archive or a delete (App.tsx `onSwipe`): the swiped note's tab goes too.
+      onSwipe: (note, action) {
+        if (action.name != 'pin') _shell.currentState?.dropTab(note.id);
+        _actions.swipe(note, action);
+      },
+      onRefresh: _library.refresh,
+      onNoteMenu: (id) => _menu.open(id, MediaQuery.sizeOf(context).center(Offset.zero)),
+      onManageWorkspace: (workspace) => setState(() => _workspace = (editing: workspace)),
+      organizations: homeOrganizations(services, here: {for (final row in services?.joined ?? const <OrgRow>[]) row.id: _seenIn(row.id)}),
+      orgNews: homeOrgNews(services, chosenOrg),
+      onOrganization: services == null ? null : shell.openOrganization,
+      onOrganizationSettings: services == null ? null : _organizationSettings,
+      onNewOrganization: signedIn ? () => setState(() => _newOrganization = true) : null,
+      headerEdge: (context, edge, scroller) => WispEdge(under: edge.under, foot: true, child: scroller),
+      dockHalo: (context, it) => DockSmoke(behind: it.behind, dock: it.dock, alignment: it.alignment, padding: it.padding),
+      ghost: (context, it) => Ghost(
+        scene: switch (it.scene) {
+          HomeGhostScene.noNotes => GhostScene.noNotes,
+          HomeGhostScene.emptyWorkspace => GhostScene.emptyWorkspace,
+          HomeGhostScene.searchNothing => GhostScene.searchNothing,
+        },
+        size: it.lead ? GhostSize.lead : GhostSize.small,
+        heightShare: it.heightShare,
+      ),
+    );
+  }
+
+  Widget _atWorkPart(BuildContext context) {
+    final noteAi = _noteAi, id = _noteAiId;
+    if (noteAi == null || id == null) return _nothing;
+    final voice = _voice;
+    return AtWork(
+      noteId: id,
+      opening: noteAi.reviewKey,
+      heard: noteAi.handoff?.heard ?? '',
+      body: _library.noteOf(id)?.body ?? '',
+      hasJob: noteAi.handoff?.job != null,
+      stage: noteAi.reviewStage.value,
+      refining: voice?.recorder.refining?.refining,
+      summaryDue: voice?.summaries?.pendingFor(id),
+    );
+  }
+
+  Widget _settingsPart(BuildContext context) {
+    final services = _services;
+    final guide = _guide;
+    return SettingsSheet(
+      open: _settings,
+      toPage: _settingsPage,
+      onClose: _closeSettings,
+      workspaces: _workspaces,
+      notesInWorkspace: _notesIn,
+      onTrashNotes: _trashNotes,
+      // About's Updates rows, in a build that looks for any (lib/root/update_wiring.dart).
+      // An iPhone has no update client: About says whose its updates are (iphone_wiring.dart).
+      updates: widget.updates == null ? appStoreUpdates() : settingsUpdatesOf(widget.updates!),
+      // A build with no service says so where a way in is pressed; one with an account takes it from the scope.
+      features: _features(services),
+      onOrganization: services == null ? null : _organizationSettings,
+      onOpenLink: widget.openLink == null ? null : (url) => unawaited(widget.openLink!(url)),
+      onAcademy: () {
+        _closeSettings();
+        _shell.currentState?.show(const Screen.academy());
+      },
+      onGuide: guide == null
+          ? null
+          : () {
+              _closeSettings();
+              guide.show(0);
+            },
+      onGuideBook: () => unawaited(_openGuideBook()),
+      // Examples' four rows, which were drawn and could not be pressed: nothing had given them a press.
+      onSample: _openExample(() => sampleNoteBody),
+      onBoard: _openExample(() => boardNoteBody),
+      onCanvas: _openExample(sampleCanvasBody),
+      onHowCanvas: _openExample(howCanvasBody),
+    );
+  }
+
+  Widget _commandsPart(BuildContext context) {
+    final guide = _guide;
+    return CommandBar.over(
+      key: _commands,
+      world: () => paletteWorldFor(shell: _shell.currentState!, workspaces: _workspaces.value, prefs: preferences.value),
+      doing: () => paletteDoingFor(
+        shell: _shell.currentState!,
+        library: _library,
+        workspaces: _workspaces,
+        newNote: _new,
+        newNotebook: () => _newBook(NewBookKind.notebook),
+        newJournal: () => _newBook(NewBookKind.journal),
+        newEntry: (id) => unawaited(_newEntry(id)),
+        academy: () => _shell.currentState?.show(const Screen.academy()),
+        guide: guide == null ? null : () => guide.show(0),
+        speak: _capture == null ? null : _speak,
+        speakInto: _capture == null ? null : (id) => unawaited(_speakInto(id)),
+        openNoteWhereLeft: (id) {
+          final note = _library.noteOf(id);
+          final shell = _shell.currentState;
+          if (note != null && shell != null) shell.openNote(whereLeft(note, _shown, shell.shown, on: _stored).id);
+        },
+        archive: (id) {
+          final note = _library.noteOf(id);
+          if (note == null) return;
+          _shell.currentState?.dropTab(id);
+          _actions.archive(note, archived: true);
+        },
+        removeNote: _delete,
+        settings: _openSettings,
+        settingsPage: _openSettingsAt,
+      ),
+    );
+  }
+
+  Widget _noteMenuPart(BuildContext context) => NoteMenuHost(
+        controller: _menu,
+        notes: _shown,
+        onOpen: (note) {
+          final shell = _shell.currentState;
+          if (shell != null) _openWhereLeft(shell, note.id);
+        },
+        // The note itself, with a comment started on its first line once its editor is there
+        // (core/comments/ask.ts).
+        onComment: (note) {
+          commentAsks.ask(note.id);
+          _shell.currentState?.openNote(note.id);
+        },
+        onPin: _actions.pin,
+        onArchive: (note, archived) => _actions.archive(note, archived: archived),
+        onDelete: (note) => _delete(note.id),
+      );
+
+  Widget _newSheetPart(BuildContext context) {
+    final services = _services;
+    final voice = _voice;
+    final capture = _capture;
+    final into = _newInto;
+    return NewSheet(
+      open: _newSheet,
+      onClose: () => setState(() {
+        _newSheet = false;
+        _newInto = null;
+      }),
+      onNote: () => _new(into),
+      onCanvas: () => _newCanvas(into),
+      onBook: () => _newBook(NewBookKind.notebook, into),
+      // A journal's entry is the account's own, and is not offered from an organization's +.
+      entry: into != null || !_newSheet ? null : _entryRow(),
+      // A shared link's copy is read from the account's service: not offered in a build with none.
+      onFromLink: into != null || services?.shares == null ? null : _forkFromLink,
+      // A meeting is the account's own too, and is offered only where one can be recorded.
+      onMeeting: into == null && capture != null && (voice?.canMeet ?? false) ? () => unawaited(capture.meeting(false)) : null,
+      sound: into == null && capture != null && (voice?.canMeet ?? false) && (voice?.sound?.supported ?? false)
+          ? NewSheetSound(
+              // The page's words for it on this platform (`meetingSoundWords`): other apps' sound on
+              // Android, the computer's own on a Mac.
+              label: voice?.recorder.systemSound?.meetingSoundWords().label ?? 'Include sound from other apps',
+              hint: voice?.recorder.systemSound?.meetingSoundWords().hint ??
+                  'Android lets Ghost.md hear media and games, never calls. It asks to share your screen each time; only the sound is kept.',
+              on: preferences.value.meetingSound,
+              onToggle: () => preferences.update((now) => now.copyWith(meetingSound: !now.meetingSound)),
+            )
+          : null,
+    );
+  }
+
+  Widget _newBookPart(BuildContext context) => NewBookSheet(
+        open: _bookSheet != null,
+        kind: _bookSheet ?? NewBookKind.notebook,
+        onClose: () => setState(() => _bookSheet = null),
+        titles: _bookSheet == null ? const [] : _pageTitles(books: false),
+        isCanvas: (title) => isCanvasBody(_reads.titled(title)?.body ?? ''),
+        onCreate: (title, pages) => _showMade(bookNoteBody(title, pages), into: _bookInto),
+        onCreateJournal: (title, template, place) => _showMade(journal.journalNoteBody(title, template, place)),
+        // A journal's "With where you are": the prompt from the press that turned it on, and why it cannot.
+        device: _places == null
+            ? const EntryPlaceDevice()
+            : EntryPlaceDevice(cannot: () => _places.locations.cannotLocate, refused: _places.autoTagRefusal, allowWhere: _places.allowLocationWhere(), ask: _places.askFromPress),
+      );
+
+  Widget _workspacePart(BuildContext context) {
+    final sheet = _workspace;
+    if (sheet == null) return _nothing;
+    return WorkspaceManageSheet(
+      store: _workspaces,
+      editing: sheet.editing,
+      onClose: () => setState(() => _workspace = null),
+      notesIn: _notesIn,
+      onTrashNotes: _trashNotes,
+    );
+  }
+
+  Widget _organizationSheetPart(AccountServices services) {
+    final sheet = _organization;
+    if (sheet == null || services.orgs == null) return _nothing;
+    return OrganizationSheet(
+      key: ValueKey('organization-sheet:${sheet.id}'),
+      services: services,
+      orgId: sheet.id,
+      from: sheet.from,
+      landOnMembers: sheet.from != OrganizationFrom.dashboard,
+      onClose: () => setState(() => _organization = null),
+      onNotes: () {
+        setState(() => _organization = null);
+        _workspaces.chooseWorkspace(orgWorkspaceId(sheet.id));
+        _shell.currentState?.backToList();
+      },
+    );
+  }
+
+  Widget _newOrganizationPart(AccountServices services) => NewOrganizationSheet(
+        services: services,
+        open: _newOrganization,
+        onClose: () => setState(() => _newOrganization = false),
+        onMade: (id) {
+          setState(() => _newOrganization = false);
+          _shell.currentState?.openOrganization(id);
+        },
+      );
+
+  Widget _guidePart(BuildContext context) {
+    final guide = _guide;
+    if (guide == null || !guide.open || (_gate?.open ?? false) || (_shell.currentState?.screen.isRecording ?? false)) return _nothing;
+    return Guide(
+      index: guide.page,
+      tooSoon: guide.tooSoon,
+      onIndex: guide.turn,
+      recordsVoice: _capture != null,
+      models: _modelsForGuide,
+      onClose: () {
+        guide.close();
+        // The list underneath loaded while the guide was up; ask again now it shows.
+        unawaited(_library.refresh().catchError((Object _) {}));
+      },
+      onAcademy: () {
+        guide.close();
+        _shell.currentState?.show(const Screen.academy());
+      },
+    );
+  }
+
+  Widget _launchPart(BuildContext context) {
+    if (!_launching) return _nothing;
+    return LaunchScreen(
+      loading: !_read,
+      notes: _shown.length,
+      updates: launchUpdatesOf(widget.updates),
+      sync: launchSyncOf(_services?.engine?.status.value.phase),
+      recording: () => _voice?.live?.state?.recording ?? false,
+      onDone: () => setState(() => _launching = false),
     );
   }
 }
