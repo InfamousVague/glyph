@@ -29,12 +29,21 @@ void main() {
 
   group('the notes’ folder', () {
     test('is not offered where there is no folder to show', () async {
-      // The page's browser. Here: an iPhone, and a desktop this build has no way to show a folder on.
-      for (final platform in [TargetPlatform.iOS, TargetPlatform.macOS, TargetPlatform.windows, TargetPlatform.linux]) {
+      // The page's browser. Here: a desktop this build has no way to show a folder on.
+      for (final platform in [TargetPlatform.macOS, TargetPlatform.windows, TargetPlatform.linux]) {
         final files = LibraryFiles(platform: platform);
         expect(await files.canBrowse(), isFalse, reason: '$platform');
         await expectLater(files.browse(), throwsStateError);
       }
+      expect(asked, isEmpty);
+    });
+
+    test('is drawn on an iPhone as the page draws it there, and its press opens nothing', () async {
+      // The real iPhone app's binary is new enough for the page to offer the tool, and has nothing to open the
+      // folder with: the press fails and nothing is said (NoteTree.tsx). No phone half is asked.
+      final files = LibraryFiles(platform: TargetPlatform.iOS);
+      expect(await files.canBrowse(), isTrue);
+      await expectLater(files.browse(), throwsStateError);
       expect(asked, isEmpty);
     });
 

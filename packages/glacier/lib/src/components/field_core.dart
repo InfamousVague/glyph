@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:flutter/cupertino.dart' show CupertinoTextSelectionControls;
+import 'package:flutter/cupertino.dart' show CupertinoTextSelectionControls, CupertinoTheme, CupertinoThemeData;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -749,10 +749,11 @@ class GlacierTextSelectionControls extends TextSelectionControls with TextSelect
 
   static const double _size = 22;
 
-  /// An iPhone's own: a bar the line's height with a knob on it at each end of a selection, in the phone's tint,
-  /// and nothing under a caret. They are the system's over the real app's page (a web view draws its text's
-  /// handles itself, and the page styles none), so here they are Flutter's copy of the system's and [color] is
-  /// not asked.
+  /// An iPhone's own: a bar the line's height with a knob on it at each end of a selection, and nothing under a
+  /// caret. They are the system's over the real app's page, which a web view tints with the caret's colour where
+  /// the words can be edited (WebKit's interaction tint follows `caret-color`, as its source is remembered and
+  /// not as seen beside the real app; the page gives its editor `var(--glacier-accent-solid)`, glyphTheme.ts). So
+  /// they are Flutter's copy of the system's shapes, in [color].
   static final TextSelectionControls _iPhone = CupertinoTextSelectionControls();
   static bool get _onIPhone => defaultTargetPlatform == TargetPlatform.iOS;
 
@@ -761,7 +762,12 @@ class GlacierTextSelectionControls extends TextSelectionControls with TextSelect
 
   @override
   Widget buildHandle(BuildContext context, TextSelectionHandleType type, double textLineHeight, [VoidCallback? onTap]) {
-    if (_onIPhone) return _iPhone.buildHandle(context, type, textLineHeight, onTap);
+    if (_onIPhone) {
+      return CupertinoTheme(
+        data: CupertinoThemeData(selectionHandleColor: color),
+        child: Builder(builder: (context) => _iPhone.buildHandle(context, type, textLineHeight, onTap)),
+      );
+    }
     final handle = SizedBox.square(
       dimension: _size,
       child: CustomPaint(

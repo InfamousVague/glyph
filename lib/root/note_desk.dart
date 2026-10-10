@@ -549,7 +549,8 @@ class NoteDeskState extends State<NoteDesk> {
     markExtensions(_formats, wispTyping: _ai == null),
     wispStill.of(_still),
     wispPace.of(_pace),
-    if (_ai != null) ...noteAiExtensions(_ai, still: _still),
+    // With no AI a note has no blanks, but for an iPhone's, which are drawn with no Fill (iphone_wiring.dart).
+    if (_ai != null) ...noteAiExtensions(_ai, still: _still) else ...iPhoneBlanks(noteId: () => widget.noteId, say: (message) => _toasts?.toast(message: Text(message)), still: _still),
     itemExtensions(
       wiki: WikiOptions(known: (title) => _world.known(title), open: (title, [anchor]) => _world.open(title, anchor), body: (title) => _world.bodyOf?.call(title)),
       openHeading: true,

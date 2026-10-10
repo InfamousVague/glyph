@@ -43,8 +43,14 @@ class LibraryFiles {
 
   bool get _phone => (_platform ?? defaultTargetPlatform) == TargetPlatform.android;
 
+  /// The real iPhone app draws the tool and its press does nothing: `canBrowseFiles` answers by the binary's
+  /// generation where there is no `GlyphHost`, an iPhone's binary is new enough, and `library_reveal` then has
+  /// nothing to open there (NoteTree.tsx logs the failure and says nothing). Kept as the page has it.
+  bool get _iPhone => (_platform ?? defaultTargetPlatform) == TargetPlatform.iOS;
+
   /// Whether this device can show the notes' folder (`canBrowseFiles`).
   Future<bool> canBrowse() async {
+    if (_iPhone) return true;
     if (!_phone) return _reveal != null;
     try {
       return await _channel.invokeMethod<bool>('canBrowseFiles') ?? false;
@@ -57,6 +63,7 @@ class LibraryFiles {
 
   /// Shows the notes' folder: the Files app on the phone, Finder on a Mac (`browseFiles`).
   Future<void> browse() async {
+    if (_iPhone) throw StateError('An iPhone has no way to show the notes’ folder.');
     if (_phone) {
       await _channel.invokeMethod<void>('browseFiles');
       return;

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/editor/ai/blanks.dart' show blankHooks, editorBlanks;
 import 'package:ghost_md/editor/state/state.dart';
 import 'package:ghost_md/editor/view/editor_view.dart';
 import 'package:ghost_md/root/iphone_wiring.dart';
@@ -44,5 +45,22 @@ void main() {
     // Anywhere else a desk with no AI draws no rows.
     expect(iPhoneAiRows(said.add, platform: TargetPlatform.android), isNull);
     expect(iPhoneAiRows(said.add, platform: TargetPlatform.macOS), isNull);
+  });
+
+  test('a note’s blanks are drawn on an iPhone with no Fill, and nowhere else are they this file’s', () {
+    final said = <String>[];
+    final extensions = iPhoneBlanks(noteId: () => 'a-note', say: said.add, platform: TargetPlatform.iOS);
+    expect(extensions, isNotEmpty);
+    final state = EditorState.create(doc: 'The capital of France is {?what is the capital of France}.', extensions: Extension.list(extensions));
+    // The blank is known to the editor, which is what draws it as one.
+    expect(editorBlanks(state), hasLength(1));
+    final hooks = state.facet(blankHooks)!;
+    // No Fill pill; a press that would fill says why not.
+    expect(hooks.canFill(), isFalse);
+    hooks.fill(const []);
+    expect(said, ['The AI is not on iOS yet.']);
+    // A note with an AI brings its own blanks, and a note without one has none: nothing from here.
+    expect(iPhoneBlanks(noteId: () => 'a-note', say: said.add, platform: TargetPlatform.android), isEmpty);
+    expect(iPhoneBlanks(noteId: () => 'a-note', say: said.add, platform: TargetPlatform.macOS), isEmpty);
   });
 }
