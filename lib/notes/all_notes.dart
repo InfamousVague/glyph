@@ -20,6 +20,7 @@ library;
 import 'package:flutter/foundation.dart';
 
 import '../core/note.dart';
+import '../core/note_facts.dart';
 import '../core/note_text.dart';
 import '../core/stored.dart';
 
@@ -60,10 +61,10 @@ class Browse {
 }
 
 /// Words that count as having no title, so a note with none sorts after the named ones.
-bool _untitled(Note note) => noteTitle(note.body).trim().isEmpty;
+bool _untitled(Note note) => NoteFacts.of(note).title.trim().isEmpty;
 
 /// A title to sort by: the note's own, lower-cased.
-String _sortKey(Note note) => noteTitle(note.body).trim().toLowerCase();
+String _sortKey(Note note) => NoteFacts.of(note).title.trim().toLowerCase();
 
 /// The notes the page shows, in the order it shows them (`browseNotes`). The list given is not reordered.
 List<Note> browseNotes(Iterable<Note> notes, Browse browse) {

@@ -287,11 +287,20 @@ class PhoneTour {
     return box.width > 0 && box.height > 0 && _window.overlaps(box) ? box : null;
   }
 
+  /// Whether what is under [element] is kept out of sight: built and laid out, and neither drawn nor pressed, as
+  /// the shell keeps the home page under an open note (lib/shell/app_shell.dart). Its words and its controls are
+  /// not there to be touched: found, a tap on "Home" landed on the kept page's own header, not on the bar's.
+  bool _unseen(Element element) {
+    final render = element.renderObject;
+    return element is RenderObjectElement && render is RenderOffstage && render.offstage;
+  }
+
   /// Every text drawn in the window, top to bottom.
   List<(String, Rect)> _texts() {
     final found = <(String, Rect)>[];
     void visit(Element element) {
       final render = element.renderObject;
+      if (_unseen(element)) return;
       if (element is RenderObjectElement && render is RenderParagraph) {
         final box = _boxOf(render);
         final words = render.text.toPlainText();
@@ -309,6 +318,7 @@ class PhoneTour {
   List<(String, Rect)> _labels() {
     final found = <(String, Rect)>[];
     void visit(Element element) {
+      if (_unseen(element)) return;
       final widget = element.widget;
       String? label;
       if (widget is GlacierPressable) label = widget.semanticLabel;
@@ -330,6 +340,7 @@ class PhoneTour {
   Rect? _textAt(String words) {
     Rect? found;
     void visit(Element element) {
+      if (_unseen(element)) return;
       final render = element.renderObject;
       if (element is RenderObjectElement && render is RenderParagraph && render.text.toPlainText().contains(words)) {
         found = _boxOf(render) ?? found;

@@ -42,9 +42,29 @@ if [ "$what" != "mac" ] && [ "$what" != "android" ]; then
   exit 64
 fi
 
+# The lock says who holds it, so one left by a walk that was ended is taken over and not waited on for ever (a lock
+# made by a plain mkdir elsewhere names no one, and is waited for).
 lock=/tmp/ghost-flutter-build.lock
-until mkdir "$lock" 2>/dev/null; do sleep 10; done
-trap 'rmdir "$lock" 2>/dev/null || true' EXIT
+held=0
+drop_lock() {
+  [ "$held" = 1 ] || return 0
+  held=0
+  rm -f "$lock/pid"
+  rmdir "$lock" 2>/dev/null || true
+}
+trap drop_lock EXIT
+trap 'exit 130' INT TERM HUP
+until mkdir "$lock" 2>/dev/null; do
+  holder="$(cat "$lock/pid" 2>/dev/null || true)"
+  if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then
+    rm -f "$lock/pid"
+    rmdir "$lock" 2>/dev/null || true
+    continue
+  fi
+  sleep 10
+done
+held=1
+echo $$ > "$lock/pid"
 
 if [ "$what" = "android" ]; then
   device="${PERF_DEVICE:?perf: name the device (PERF_DEVICE=<adb serial>); the walk takes its screen}"
@@ -62,9 +82,8 @@ if [ "$what" = "android" ]; then
       --dart-define=GHOST_PERF=true --dart-define=GHOST_PERF_SEED=350 "--dart-define=GHOST_PERF_TOUR=$walk" 2>&1 | tail -2
     cp "$root/build/app/outputs/flutter-apk/app-profile.apk" "$dir/perf.apk"
   fi
-  # The walk goes on with the lock let go only once the build is done: what it measures is the phone, not this Mac.
-  rmdir "$lock" 2>/dev/null || true
-  trap - EXIT
+  # The lock is let go once the build is done: what the walk measures is the phone, not this Mac.
+  drop_lock
   adb -s "$device" install -r "$dir/perf.apk" > "$dir/install.log" 2>&1 || { cat "$dir/install.log" >&2; exit 1; }
   adb -s "$device" logcat -c
   adb -s "$device" shell am start -n "$id/com.mattssoftware.ghost_md.MainActivity" > /dev/null
