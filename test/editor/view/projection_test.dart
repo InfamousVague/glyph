@@ -138,7 +138,7 @@ void main() {
       expect(PaintText('a/b').text, 'a/${wordJoiner}b');
       // Where something hidden stands the page has an image either side of an empty element, and a line may break
       // there whatever the pair: "`code`." ends a line after code on the page, though `e.` never breaks.
-      expect(PaintText('code.').text, 'code${wordJoiner}.');
+      expect(PaintText('code.').text, 'code$wordJoiner.');
       final marked = PaintText('for code. Say', breaks: {4, 8});
       expect(marked.text, 'for\u00A0\u200Bcode\u200B.\u00A0\u200BSay');
       expect(marked.toDisplay(marked.toPaint(8)), 8);
