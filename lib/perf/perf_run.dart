@@ -437,8 +437,9 @@ Rect? _worded(String words) {
 }
 
 /// Where what wears the key [key] (a `ValueKey` of that string) is in the window, if it is drawn there. What is
-/// kept out of sight is not found, as the tour finds none of it.
-Rect? _keyed(String key) {
+/// kept out of sight is not found, as the tour finds none of it. [anywhere] finds it past the window's edges too,
+/// for bringing it in.
+Rect? _keyed(String key, {bool anywhere = false}) {
   final window = _window();
   Rect? found;
   void visit(Element element) {
@@ -448,7 +449,7 @@ Rect? _keyed(String key) {
     final worn = element.widget.key;
     if (worn is ValueKey<String> && worn.value == key && render is RenderBox && render.attached && render.hasSize) {
       final box = MatrixUtils.transformRect(render.getTransformTo(null), Offset.zero & render.size);
-      if (box.width > 0 && box.height > 0 && window.overlaps(box)) {
+      if (box.width > 0 && box.height > 0 && (anywhere || window.overlaps(box))) {
         found = box;
         return;
       }
@@ -460,9 +461,19 @@ Rect? _keyed(String key) {
   return found;
 }
 
+/// A tap in the middle of what wears [key]. Its middle is brought into the window first, by the finger, a part of
+/// a page at a time: a thing half over the window's foot is found there, and a tap on its middle lands on nothing.
 Future<bool> _tapKey(PhoneTour tour, String key, {bool quiet = false}) async {
-  final at = _keyed(key);
-  if (at == null) {
+  final window = _window();
+  bool reachable(Rect at) => at.center.dy > window.height * 0.1 && at.center.dy < window.height * 0.9;
+  var at = _keyed(key, anywhere: true);
+  for (var tries = 0; tries < 12 && at != null && !reachable(at); tries += 1) {
+    final x = (window.width / 2).round(), high = (window.height * 0.35).round(), low = (window.height * 0.65).round();
+    final down = at.center.dy >= window.height * 0.9;
+    await tour.run('swipe:$x,${down ? low : high},$x,${down ? high : low},320;wait:200');
+    at = _keyed(key, anywhere: true);
+  }
+  if (at == null || !reachable(at)) {
     if (!quiet) debugPrint('[tour] tapkey "$key" -> NOT FOUND');
     return false;
   }
@@ -556,15 +567,22 @@ Future<void> _benchChapters(PhoneTour tour) async {
   // take the last title out from, and the next was typed after it.)
   var picked = 0;
   for (final title in missing) {
-    await tour.run('seek:Add a note you have;taptext:Add a note you have;wait:400');
+    // A picker left open by a walk that was cut short is the picker.
+    if (_keyed('book-find', anywhere: true) == null && !await _tapKey(tour, 'book-add-existing')) break;
+    await tour.run('wait:400');
     if (!await _tapKey(tour, 'book-find')) break;
     await tour.run('wait:200;type:$title;wait:200');
     if (await _tapKey(tour, 'book-pick:$title', quiet: true) && await _tapKey(tour, 'book-add-picked')) {
       picked += 1;
+      await tour.run('unfocus;wait:400');
     } else {
-      await tour.run('taptext:Cancel');
+      // Not offered: the picker is put away (its foot brought into the window first, by its Add, which adds
+      // nothing with nothing ticked), and the next page tried; a picker that will not go is given up on.
+      await tour.run('unfocus;wait:200');
+      await _tapKey(tour, 'book-add-picked', quiet: true);
+      if (_keyed('book-find', anywhere: true) != null) await tour.run('taptext:Cancel;wait:300');
+      if (_keyed('book-find', anywhere: true) != null) break;
     }
-    await tour.run('unfocus;wait:400');
   }
   debugPrint('[tour] fixture chapters: $picked pages added to the notebook');
 }
