@@ -57,7 +57,9 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        resValue("bool", "ghost_assistant", ghostAssistant.toString())
+        // Never a build made to be measured: an app that fills its library and walks itself is not one to offer as
+        // the phone's assistant, and the launcher's shortcut names the real app's id.
+        resValue("bool", "ghost_assistant", (ghostAssistant && !ghostPerfId).toString())
         if (ghostPerfId) applicationIdSuffix = ".perf"
         manifestPlaceholders["ghostLabel"] = if (ghostPerfId) "Ghost Perf" else "Ghost Flutter"
     }
