@@ -870,7 +870,11 @@ class RenderWispText extends RenderBox {
 /// letter's own corner. [glyph] is the letter as a picture lying over [glyphRect]; [box] is the letter's box, which
 /// the filter's region is measured from (three widths to its left, one and a half heights above, seven widths by
 /// four heights in all); [smoke] is flat, with the run's bend and blur.
-void paintWispLetter(Canvas canvas, {required WispKit kit, required ui.Image table, required ui.Image glyph, required Rect glyphRect, required Size box, required WispSmoke smoke, double opacity = 1}) {
+///
+/// [at] is where the letter's corner is on its page, for a filter whose noise is the page's and not the letter's own
+/// (words arriving in a ripple, a line under heat: neighbours then bend together); left out, each letter has its
+/// own cloud, laid from its own corner.
+void paintWispLetter(Canvas canvas, {required WispKit kit, required ui.Image table, required ui.Image glyph, required Rect glyphRect, required Size box, required WispSmoke smoke, double opacity = 1, Offset at = Offset.zero}) {
   if (ghostPerf) Perf.count('wisp.letters');
   if (WispProbe.has('noletter')) {
     // Measuring only: the letter as it is, at the smoke's opacity.
@@ -878,13 +882,13 @@ void paintWispLetter(Canvas canvas, {required WispKit kit, required ui.Image tab
     return;
   }
   // From the sheet of every letter in smoke, where it holds this one (lib/art/wisp_letters.dart).
-  if (wispQuick && WispLetterSheet.instance.paint(canvas, kit: kit, table: table, glyph: glyph, glyphRect: glyphRect, box: box, smoke: smoke, opacity: opacity)) return;
+  if (wispQuick && WispLetterSheet.instance.paint(canvas, kit: kit, table: table, glyph: glyph, glyphRect: glyphRect, box: box, smoke: smoke, opacity: opacity, at: at)) return;
   final region = Rect.fromLTWH(-3 * box.width, -1.5 * box.height, 7 * box.width, 4 * box.height);
   final paint = Paint()..color = Color.fromRGBO(0, 0, 0, opacity.clamp(0.0, 1.0));
   if (smoke.blur >= 0.05) paint.imageFilter = ui.ImageFilter.blur(sigmaX: smoke.blur, sigmaY: smoke.blur, tileMode: TileMode.decal);
   canvas.saveLayer(region.inflate(smoke.blur * 3), paint);
   canvas.translate(region.left, region.top);
-  final shader = kit.bend(source: glyph, sourceRect: glyphRect, origin: region.topLeft, smoke: smoke, table: table);
+  final shader = kit.bend(source: glyph, sourceRect: glyphRect.shift(at), origin: at + region.topLeft, smoke: smoke, table: table);
   canvas.drawRect(Offset.zero & region.size, Paint()..shader = shader);
   canvas.restore();
 }

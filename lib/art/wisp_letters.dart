@@ -54,7 +54,7 @@ class WispLetterSheet {
 
   /// Lays the letter down from the sheet if it is there, and answers whether it was. Either way the letter is
   /// remembered for the sheet drawn when this frame is done. The canvas has the letter's corner at its origin.
-  bool paint(Canvas canvas, {required WispKit kit, required ui.Image table, required ui.Image glyph, required Rect glyphRect, required Size box, required WispSmoke smoke, required double opacity}) {
+  bool paint(Canvas canvas, {required WispKit kit, required ui.Image table, required ui.Image glyph, required Rect glyphRect, required Size box, required WispSmoke smoke, required double opacity, Offset at = Offset.zero}) {
     // Only a frame's own painting is remembered and laid down: there is no frame to follow one drawn outside it.
     if (glyphRect.isEmpty || SchedulerBinding.instance.schedulerPhase != SchedulerPhase.persistentCallbacks) return false;
     // The screen's pixels to one of the letter's: its picture was made at them.
@@ -65,7 +65,7 @@ class WispLetterSheet {
       _frame = now;
     }
     final flows = _frame - _frameBefore <= _flowing;
-    final key = _Letter(glyph, glyphRect, box, smoke.seed);
+    final key = _Letter(glyph, glyphRect, box, smoke.seed, at);
     final had = _asked[key];
     if (_asked.containsKey(key)) {
       // Asked twice in one frame with two smokes: two letters of one shape, each in its own. Neither is the sheet's.
@@ -74,7 +74,7 @@ class WispLetterSheet {
         _asked[key] = null;
       }
     } else if (_asked.length < _most) {
-      _asked[key] = _Ask(glyph.clone(), glyphRect, box, smoke, table, ratio);
+      _asked[key] = _Ask(glyph.clone(), glyphRect, box, smoke, table, ratio, at);
     }
     if (!_scheduled) {
       _scheduled = true;
@@ -160,8 +160,8 @@ class WispLetterSheet {
       canvas.translate(region.left - place.over.left, region.top - place.over.top);
       final shader = kit.bend(
         source: ask.glyph,
-        sourceRect: ask.glyphRect,
-        origin: region.topLeft,
+        sourceRect: ask.glyphRect.shift(ask.at),
+        origin: ask.at + region.topLeft,
         smoke: ask.smoke,
         table: ask.table,
         spread: place.step > 1 ? Offset(place.texel / 4, place.texel / 4) : Offset.zero,
@@ -220,25 +220,27 @@ class WispLetterSheet {
   }
 }
 
-/// A letter as the sheet knows it: its picture (the very one, not one like it), where that lies, its box, and
-/// which noise bends it.
+/// A letter as the sheet knows it: its picture (the very one, not one like it), where that lies, its box, which
+/// noise bends it, and where on its page the noise is laid from (nowhere: from the letter's own corner).
 @immutable
 class _Letter {
-  const _Letter(this.glyph, this.glyphRect, this.box, this.seed);
+  const _Letter(this.glyph, this.glyphRect, this.box, this.seed, this.at);
   final ui.Image glyph;
   final Rect glyphRect;
   final Size box;
   final int seed;
+  final Offset at;
 
   @override
-  bool operator ==(Object other) => other is _Letter && identical(other.glyph, glyph) && other.glyphRect == glyphRect && other.box == box && other.seed == seed;
+  bool operator ==(Object other) =>
+      other is _Letter && identical(other.glyph, glyph) && other.glyphRect == glyphRect && other.box == box && other.seed == seed && other.at == at;
 
   @override
-  int get hashCode => Object.hash(identityHashCode(glyph), glyphRect, box, seed);
+  int get hashCode => Object.hash(identityHashCode(glyph), glyphRect, box, seed, at);
 }
 
 class _Ask {
-  _Ask(this.glyph, this.glyphRect, this.box, this.smoke, this.table, this.ratio);
+  _Ask(this.glyph, this.glyphRect, this.box, this.smoke, this.table, this.ratio, this.at);
 
   /// A hold of its own on the letter's picture, kept until the sheet is drawn.
   final ui.Image glyph;
@@ -247,6 +249,7 @@ class _Ask {
   final WispSmoke smoke;
   final ui.Image table;
   final double ratio;
+  final Offset at;
 }
 
 class _Place {
