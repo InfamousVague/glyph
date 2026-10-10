@@ -32,6 +32,12 @@ import '../perf/frame_log.dart' show ghostPerf;
 /// - `shots`: a picture of the window as the engine itself draws it, about every second and a half that frames are
 ///   drawn, up to sixteen, in `shots-<the names asked>` of `GHOST_PERF_DIR`: for laying one drawing beside another
 ///   on the engine a device runs, where a test's pictures are another engine's. Not for a walk that is timed.
+/// - `onebackdrop`: every backdrop filter in the window is given one key, as a `BackdropGroup` over the app would
+///   give those made with `BackdropFilter.grouped`: what is behind them is read once for all of them.
+/// - `spans`: says, each second that frames are drawn, what every frame waited between the end of its build and the
+///   start of its raster, beside its raster time, in tenths of a millisecond. The pictures a strip or a sheet of
+///   letters is drawn through are drawn by the engine in tasks of their own on the raster thread, before the
+///   frame that uses them and outside its raster time: that wait is where they show.
 /// - `nobackdrop`: every backdrop filter in the window is switched off (the bars' glass, the dock's), and the log
 ///   says how often a rebuild switched one back on, since a frame it was on for is a frame that paid for it.
 ///
@@ -55,6 +61,24 @@ abstract final class WispProbe {
   }
 
   static bool has(String name) => ghostPerf && _asked.contains(name);
+
+  /// `spans`: each frame's wait between its build's end and its raster's start, and its raster, a line a second.
+  static void _spans() {
+    final waiting = <String>[];
+    var saidAt = 0;
+    SchedulerBinding.instance.addTimingsCallback((timings) {
+      for (final frame in timings) {
+        final wait = frame.timestampInMicroseconds(ui.FramePhase.rasterStart) - frame.timestampInMicroseconds(ui.FramePhase.buildFinish);
+        waiting.add('${(wait / 100).round()}/${(frame.rasterDuration.inMicroseconds / 100).round()}');
+      }
+      final now = DateTime.now().millisecondsSinceEpoch;
+      if (now - saidAt < 1000 || waiting.isEmpty) return;
+      saidAt = now;
+      // ignore: avoid_print
+      print('[spans] ${waiting.join(' ')}');
+      waiting.clear();
+    });
+  }
 
   /// `shots`: the window's own layers drawn to a picture by the engine, now and then while frames are drawn.
   static void _shoot() {
@@ -94,9 +118,11 @@ abstract final class WispProbe {
   static void watch() {
     if (!ghostPerf || _watching) return;
     _watching = true;
-    final census = _asked.contains('render'), bare = _asked.contains('nobackdrop');
+    final census = _asked.contains('render'), bare = _asked.contains('nobackdrop'), one = _asked.contains('onebackdrop');
     if (_asked.contains('shots')) _shoot();
-    if (!census && !bare) return;
+    if (_asked.contains('spans')) _spans();
+    if (!census && !bare && !one) return;
+    final shared = BackdropKey();
     var frames = 0, saidAt = 0, switchedOff = 0, backOn = 0;
     final seen = Expando<bool>();
     SchedulerBinding.instance.addPersistentFrameCallback((_) {
@@ -104,7 +130,7 @@ abstract final class WispProbe {
       final now = DateTime.now().millisecondsSinceEpoch;
       final say = now - saidAt >= 1000;
       // The census once a second; the switching off every frame, since a rebuild may undo it at any one.
-      if (!bare && !say) return;
+      if (!bare && !one && !say) return;
       final kinds = <String, int>{};
       final where = <String>[];
       var all = 0;
@@ -112,6 +138,7 @@ abstract final class WispProbe {
       void visit(RenderObject object) {
         all += 1;
         if (object is RenderBackdropFilter) {
+          if (one && !identical(object.backdropKey, shared)) object.backdropKey = shared;
           if (bare && object.enabled) {
             if (seen[object] ?? false) backOn += 1;
             seen[object] = true;

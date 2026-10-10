@@ -39,6 +39,8 @@ import 'package:flutter/widgets.dart' hide Decoration;
 
 import '../../art/turbulence.dart';
 import '../../art/wisp_kit.dart';
+import '../../art/wisp_settings.dart';
+import '../../art/wisp_text.dart' show paintWispLetter;
 import '../editor.dart';
 import '../looks/look.dart';
 import '../marks/run_paint.dart';
@@ -121,7 +123,16 @@ Rect _regionOf(Size box) => Rect.fromLTWH(-3 * box.width, -1.5 * box.height, 7 *
 /// `source`, lying over `sourceRect` of the letter's own space, thrown about by the noise of `smoke` and blurred,
 /// drawn with the letter's corner at the canvas's origin. `at` is where that corner is on the page: the field is the
 /// page's, not the letter's, so neighbours bend together.
+///
+/// Where a build says so ([wispArrivalsQuick]) this is the wisp's own letter (lib/art/wisp_text.dart
+/// `paintWispLetter`, the same layer and bend when a letter is drawn by itself), which while frames follow one
+/// another comes off the one sheet every letter in smoke is drawn on (lib/art/wisp_letters.dart), where each
+/// arriving letter is a layer and a blur of its own on every frame of its arrival.
 void _through(Canvas canvas, WispKit kit, ui.Image table, ui.Image source, Rect sourceRect, Size box, Offset at, WispSmoke smoke, double opacity) {
+  if (wispArrivalsQuick) {
+    paintWispLetter(canvas, kit: kit, table: table, glyph: source, glyphRect: sourceRect, box: box, smoke: smoke, opacity: opacity, at: at);
+    return;
+  }
   final region = _regionOf(box);
   final paint = Paint()..color = Color.fromRGBO(0, 0, 0, opacity.clamp(0.0, 1.0));
   if (smoke.blur >= 0.05) paint.imageFilter = ui.ImageFilter.blur(sigmaX: smoke.blur, sigmaY: smoke.blur, tileMode: TileMode.decal);

@@ -57,6 +57,11 @@ abstract class PaintLayer {
 
   /// Whether the layer changes with [MarkClock].
   bool get moves => false;
+
+  /// How long a moving layer shows one thing, in seconds: its line is painted again no oftener ([markMotion]). The
+  /// screen's own rate unless the layer says slower: a smoke that poses itself thirty times a second is the same
+  /// picture for two frames of sixty, and painting its line for the second repaints the page for nothing.
+  double get step => 1 / 60;
 }
 
 /// The painter of a run with marks on it: its layers, outermost first.
@@ -69,6 +74,9 @@ class MarkPaint extends RunPainter {
   static MarkPaint add(RunPainter? current, PaintLayer layer) => MarkPaint(<PaintLayer>[if (current is MarkPaint) ...current.layers, layer]);
 
   bool get moves => layers.any((layer) => layer.moves);
+
+  /// The shortest any of its moving layers shows one thing.
+  double get step => layers.fold(double.infinity, (least, layer) => layer.moves && layer.step < least ? layer.step : least);
 
   @override
   bool get drawsWords => !layers.any((layer) => layer.replacesWords);
@@ -105,13 +113,20 @@ class _Motion extends PluginValue {
   /// (`STEP_MS`) by the time it reads.
   static const double _step = 1 / 60;
 
-  List<RenderObject> _moving() {
+  /// The lines that hold a moving mark, each with the shortest any of its marks shows one thing.
+  List<(RenderObject, double)> _moving() {
     final own = view;
-    if (own is! EditorView) return const <RenderObject>[];
-    return <RenderObject>[
-      for (final line in own.lines)
-        if (line.spec.runs.any((run) => run.painter is MarkPaint && (run.painter! as MarkPaint).moves)) line,
-    ];
+    if (own is! EditorView) return const <(RenderObject, double)>[];
+    final found = <(RenderObject, double)>[];
+    for (final line in own.lines) {
+      var step = double.infinity;
+      for (final run in line.spec.runs) {
+        final painter = run.painter;
+        if (painter is MarkPaint && painter.moves && painter.step < step) step = painter.step;
+      }
+      if (step.isFinite) found.add((line, step));
+    }
+    return found;
   }
 
   void _check() {
@@ -133,6 +148,7 @@ class _Motion extends PluginValue {
   void _tick(Duration elapsed) {
     final now = SchedulerBinding.instance.currentFrameTimeStamp.inMicroseconds / 1e6;
     if (now - _last < _step - 0.002) return;
+    final before = _last;
     _last = now;
     MarkClock._now = now;
     final moving = _moving();
@@ -141,8 +157,9 @@ class _Motion extends PluginValue {
       _ticker = null;
       return;
     }
-    for (final line in moving) {
-      line.markNeedsPaint();
+    for (final (line, step) in moving) {
+      // A line whose marks all step slower than the screen is painted when one of their steps has gone by.
+      if (step <= _step + 1e-9 || before < 0 || (now / step).floor() != (before / step).floor()) line.markNeedsPaint();
     }
   }
 

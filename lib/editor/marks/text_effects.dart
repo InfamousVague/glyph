@@ -51,9 +51,13 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/animation.dart' show Curves;
 import 'package:flutter/painting.dart' hide Decoration;
+import 'package:flutter/scheduler.dart' show SchedulerBinding;
 
 import '../../art/turbulence.dart';
+import '../../art/wisp_kept.dart';
 import '../../art/wisp_kit.dart';
+import '../../art/wisp_settings.dart';
+import '../../art/wisp_text.dart' show paintWispLetter;
 import '../../plugins/marks.dart';
 import '../editor.dart';
 import '../looks/look.dart';
@@ -417,6 +421,9 @@ class _EffectLetter extends LetterLayer {
     final wave = _of('wave');
     if (wave != null && !still) canvas.translate(0, waveLift(now, wave.round()) * em);
 
+    // While frames follow one another, a letter with one effect on it is laid down from what is kept of it.
+    if (wispQuick && WispFlow.now && _fromKept(canvas, glyph, look, now)) return;
+
     // A haunting: the whole letter, glint and rime and all, faded and softened.
     final haunt = _of('haunt');
     var layered = false;
@@ -492,7 +499,21 @@ class _EffectLetter extends LetterLayer {
     final paint = Paint();
     // A sheen over the frost is the sheen: the letter is one flat colour either way.
     if (frost || sheen != null) paint.colorFilter = sheen ?? _cold;
-    if (filter != null && kit != null && table != null) {
+    if (filter != null && kit != null && table != null && paint.colorFilter == null) {
+      // The heat alone: the wisp's own letter, its field laid from the page (lib/art/wisp_text.dart), which while
+      // frames follow one another comes off the one sheet every letter in smoke is drawn on, and is otherwise the
+      // layer and the blur below, line for line.
+      paintWispLetter(
+        canvas,
+        kit: kit,
+        table: table,
+        glyph: glyph.image(),
+        glyphRect: glyph.imageRect,
+        box: box,
+        smoke: WispSmoke.flat(seed: filter.seed, frequency: filter.frequency, bend: filter.bend, blur: filter.blur),
+        at: at,
+      );
+    } else if (filter != null && kit != null && table != null) {
       if (filter.blur >= 0.05) paint.imageFilter = ui.ImageFilter.blur(sigmaX: filter.blur, sigmaY: filter.blur, tileMode: TileMode.decal);
       final image = glyph.image();
       canvas.saveLayer(region.inflate(filter.blur * 3), paint);
@@ -518,6 +539,103 @@ class _EffectLetter extends LetterLayer {
     }
     if (layered) canvas.restore();
   }
+}
+
+/// What an effect's letter is laid down from while frames follow one another (lib/art/wisp_kept.dart), for the
+/// effects that were a layer and a blur for every letter on every frame and are the same picture from one frame to
+/// the next, or one of a few:
+///
+/// - **A haunting** alone is the letter under a blur that comes and goes with it, and faded. The blur is kept at
+///   steps of an eighth of one of the screen's pixels (a dozen or two pictures a letter, made over its first turn
+///   and there for every turn after), and the fade is how much of the kept picture is laid. A letter not yet
+///   blurred by a sixteenth of a pixel is all but whole (99 parts in 100), and is drawn as itself.
+/// - **A shimmer's glint** on a dark page is two blurred copies of the letter under it, the same two whenever it
+///   glints: kept once, with the letter drawn over as text. On paper the glint is the letter gone pale, which is
+///   the letter set in the paler colour and no layer at all.
+///
+/// Answers whether it drew the letter. A letter with more than one effect on it, a frost, a heat (which has the
+/// sheet, in [drawLetter]) and reduced motion are drawn as they always were.
+extension on _EffectLetter {
+  bool _fromKept(Canvas canvas, LetterGlyph glyph, RunLook look, double now) {
+    if (still) return false;
+    final haunt = _of('haunt'), shimmer = _of('shimmer');
+    final glint = shimmer == null ? 0.0 : shimmerGlint(now, shimmer.round());
+    for (final one in fx) {
+      if (one.name == 'frost' || one.name == 'heat' || one.name == 'haze') return false;
+    }
+    if (haunt != null && glint > 0) return false;
+    final em = look.fontSize;
+    final ratio = _screenRatio();
+    // The letter's ink, with room for what overhangs its box.
+    final pad = (glyph.painter.preferredLineHeight * 0.3).ceilToDouble();
+    final ink = Rect.fromLTWH(-pad, -pad, glyph.painter.width + 2 * pad, glyph.painter.height + 2 * pad);
+
+    if (haunt != null) {
+      final gone = hauntFade(now, haunt.round());
+      final blur = 0.05 * em * gone;
+      final step = (blur * ratio * 8).round();
+      if (step == 0) {
+        glyph.painter.paint(canvas, Offset.zero);
+        return true;
+      }
+      final soft = step / (ratio * 8);
+      final over = ink.inflate(soft * 3 + 1);
+      WispKept.paint(
+        canvas,
+        (glyph, 'haunt', step),
+        over: over,
+        ratio: ratio,
+        // Hardly blurred at the turn's ends, among letters that are not blurred at all.
+        sharp: true,
+        opacity: 1 - 0.7 * gone,
+        draw: (into) {
+          into.saveLayer(over, Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: soft, sigmaY: soft, tileMode: TileMode.decal));
+          glyph.painter.paint(into, Offset.zero);
+          into.restore();
+        },
+      );
+      return true;
+    }
+
+    if (glint > 0) {
+      if (dark) {
+        // The glint is there or not: the two glows at their whole strength, as [drawLetter] lays them.
+        final over = ink.inflate(0.9 * em + 1);
+        WispKept.paint(
+          canvas,
+          (glyph, 'glow'),
+          over: over,
+          ratio: ratio,
+          draw: (into) {
+            for (final (radius, share) in const <(double, double)>[(0.6, 0.55), (0.28, 1.0)]) {
+              into.saveLayer(
+                over,
+                Paint()
+                  ..color = Color.fromRGBO(0, 0, 0, share)
+                  ..imageFilter = ui.ImageFilter.blur(sigmaX: radius * em / 2, sigmaY: radius * em / 2, tileMode: TileMode.decal),
+              );
+              glyph.painter.paint(into, Offset.zero);
+              into.restore();
+            }
+          },
+        );
+        glyph.painter.paint(canvas, Offset.zero);
+        return true;
+      }
+      // On paper: the letter set in the pale colour the sheen mixes it to.
+      if (look.style.foreground != null) return false;
+      final pale = Color.lerp(paper, look.color, 0.32)!;
+      LetterGlyph.of(text, styleOf(look).copyWith(color: pale)).painter.paint(canvas, Offset.zero);
+      return true;
+    }
+    return false;
+  }
+}
+
+/// The screen's pixels to a logical one, as the frame is drawn.
+double _screenRatio() {
+  final views = SchedulerBinding.instance.platformDispatcher.views;
+  return views.isEmpty ? 1.0 : views.first.devicePixelRatio;
 }
 
 // ---- the stylesheet ----------------------------------------------------------------------------------------------
