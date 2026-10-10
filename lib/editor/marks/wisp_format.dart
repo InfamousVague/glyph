@@ -22,7 +22,6 @@
 ///   pose's softness and fade: it hides the word as surely, without the bend.
 library;
 
-import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -37,6 +36,7 @@ import '../looks/sheets.dart';
 import '../view/editor_view.dart';
 import '../view/syntax_tree.dart';
 import 'run_paint.dart';
+import 'wisp_tables.dart';
 
 /// A letter to smoke.
 typedef SmokeLetter = ({int from, int to});
@@ -214,23 +214,29 @@ final Extension _themed = baseTheme(_theme);
 
 class _WispFormat extends PluginValue {
   _WispFormat(this.view, this.names) {
-    _redraw();
-    // The shaders and each slot's noise, off the first frame; the letters are their own blur until then.
-    unawaited(
-      WispKit.load(seeds: <int>[for (var i = 0; i < smokePool; i++) smokeSeed(i)]).then((_) {
-        final own = view;
-        if (_gone || own is! EditorView) return;
-        for (final line in own.lines) {
-          line.markNeedsPaint();
-        }
-      }, onError: (Object _) {}),
-    );
+    _redraw(first: true);
   }
 
   final EditorViewLike view;
   final Map<String, int> names;
   DecorationSet decorations = Decoration.none;
   bool _gone = false;
+
+  /// The shaders and each slot's noise, off the first frame; the letters are their own blur until then. Asked for
+  /// when the note first shows a smoked letter (wisp_tables.dart).
+  final WispTables _tables = WispTables(<int>[for (var i = 0; i < smokePool; i++) smokeSeed(i)]);
+
+  void _wantTables({required bool atOnce}) => _tables.want(
+    atOnce: atOnce,
+    gone: () => _gone,
+    ready: () {
+      final own = view;
+      if (own is! EditorView) return;
+      for (final line in own.lines) {
+        line.markNeedsPaint();
+      }
+    },
+  );
 
   @override
   void destroy() => _gone = true;
@@ -242,7 +248,7 @@ class _WispFormat extends PluginValue {
     }
   }
 
-  void _redraw() {
+  void _redraw({bool first = false}) {
     final ranges = view.visibleRanges;
     if (ranges.isEmpty) {
       decorations = Decoration.none;
@@ -252,6 +258,7 @@ class _WispFormat extends PluginValue {
     final clear = state.facet(EditorViewLike.editable) && view.hasFocus;
     final from = ranges.first.from, to = ranges.last.to;
     final letters = <SmokeLetter>[...smokeLetters(state, names, from, to, clear), ...spoilerLineLetters(state, from, to, clear)]..sort((a, b) => a.from - b.from);
+    if (letters.isNotEmpty) _wantTables(atOnce: first);
     final builder = RangeSetBuilder<Decoration>();
     var i = 0, before = -1;
     for (final letter in letters) {

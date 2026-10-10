@@ -61,6 +61,7 @@ import '../looks/sheets.dart';
 import '../view/editor_view.dart';
 import '../view/syntax_tree.dart';
 import 'run_paint.dart';
+import 'wisp_tables.dart';
 
 /// An effect the editor can draw.
 sealed class TextEffect {
@@ -549,21 +550,26 @@ class _Above {
 
 class _TextEffects extends PluginValue {
   _TextEffects(this.view, this.looks) {
-    _redraw();
-    // The heat's seeds, off the first frame.
-    unawaited(
-      WispKit.load(seeds: const <int>[7, 8, 9, 10, 11, 12]).then((_) {
-        final own = view;
-        if (_destroyed || own is! EditorView) return;
-        for (final line in own.lines) {
-          line.markNeedsPaint();
-        }
-      }, onError: (Object _) {}),
-    );
+    _redraw(first: true);
   }
 
   final EditorViewLike view;
   final Map<String, EffectLookSpec> looks;
+
+  /// The heat's seeds, off the first frame: asked for when the note first shows an effect (wisp_tables.dart).
+  final WispTables _tables = WispTables(const <int>[7, 8, 9, 10, 11, 12]);
+
+  void _wantTables({required bool atOnce}) => _tables.want(
+    atOnce: atOnce,
+    gone: () => _destroyed,
+    ready: () {
+      final own = view;
+      if (own is! EditorView) return;
+      for (final line in own.lines) {
+        line.markNeedsPaint();
+      }
+    },
+  );
 
   /// The page's own marks: heated words, frosted words, the text above.
   DecorationSet decorations = Decoration.none;
@@ -598,11 +604,12 @@ class _TextEffects extends PluginValue {
   @override
   void destroy() => _destroyed = true;
 
-  void _redraw() {
+  void _redraw({bool first = false}) {
     final state = view.state;
     final ranges = view.visibleRanges;
     final atCaret = state.facet(EditorViewLike.editable) && view.hasFocus;
     final found = ranges.isEmpty ? const <EffectRange>[] : effectRanges(state, looks, ranges.first.from, ranges.last.to, atCaret);
+    if (found.isNotEmpty) _wantTables(atOnce: first);
     final marks = <({int from, int to, Decoration mark})>[];
     // What moves each letter, by where it starts.
     final cells = <int, ({int to, List<String> fx, List<String> names, int? delay})>{};
