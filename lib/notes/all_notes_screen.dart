@@ -251,6 +251,36 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     super.initState();
     widget.workspaces.addListener(_redraw);
     _focus.addListener(_redraw);
+    _focus.addListener(_readAhead);
+  }
+
+  bool _readingAhead = false;
+
+  /// What the search reads of each note ([searchText]) made as the field takes the keyboard, a millisecond and a
+  /// half of it after each frame, so the first letter typed finds it made: it made every note's in its own frame
+  /// (measured on a Mac over 354 notes: 7.9 ms, where a letter after it took 0.3).
+  void _readAhead() {
+    if (!_focus.hasFocus || _readingAhead) return;
+    _readingAhead = true;
+    var at = 0;
+    void some(Duration _) {
+      if (!mounted) return;
+      final notes = widget.notes;
+      final clock = Stopwatch()..start();
+      while (at < notes.length && clock.elapsedMicroseconds < 1500) {
+        searchText(notes[at]);
+        at += 1;
+      }
+      if (at >= notes.length) {
+        _readingAhead = false;
+        return;
+      }
+      WidgetsBinding.instance
+        ..addPostFrameCallback(some)
+        ..scheduleFrame();
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback(some);
   }
 
   @override
@@ -266,6 +296,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
   void dispose() {
     widget.workspaces.removeListener(_redraw);
     _focus.removeListener(_redraw);
+    _focus.removeListener(_readAhead);
     _glide.dispose();
     _scroller.dispose();
     _field.dispose();
