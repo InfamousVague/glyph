@@ -266,7 +266,11 @@ void main() {
         final key = await crypto.unwrap(one['wrapped'] as String, derived.wrapKey);
         expect(await crypto.open(key, note['blob'] as String, note['context'] as String), note['value']);
       }
-    }, skip: skip);
+      // Two derivations through the Mac's debug library: 1.9 s each on a quiet Mac, 5.2 s with its load at 25 (the
+      // loop is the crate's own, unoptimised; only the hashing under it is built optimised, native/Cargo.toml), and
+      // past the default thirty seconds between them at a load of 200, where this timed out. So it has the time a
+      // debug build needs on a busy Mac; a quiet one is done in its four seconds all the same.
+    }, skip: skip, timeout: const Timeout(Duration(minutes: 5)));
 
     test('every blob opens in its context, by the key the web sealed it with', () async {
       final pair = (web['pair'] as Map).cast<String, Object?>(), org = (web['org'] as Map).cast<String, Object?>();
