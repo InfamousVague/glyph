@@ -163,6 +163,11 @@ class _SmokeLetter extends LetterLayer {
   @override
   bool get moves => !still;
 
+  /// Smoke is posed anew every 33 ms and no sooner: a line with nothing else moving on it is painted again at that
+  /// pace, not at the screen's sixty (or a hundred and twenty) a second for the same picture twice (or four times).
+  @override
+  double get step => smokeStepMs / 1000;
+
   @override
   void drawLetter(Canvas canvas, LetterGlyph glyph, Offset at, Size box, RunLook look) {
     // The page's loop poses its filters every 33 ms.
