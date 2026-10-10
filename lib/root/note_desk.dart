@@ -976,6 +976,34 @@ class NoteDeskState extends State<NoteDesk> {
     if (problem != null && mounted) widget.say(problem);
   }
 
+  /// The clipboard as the phone's own reader has it, which copies a picture out for the note to adopt.
+  static const band.BandClipboard _clipboard = band.PhoneClipboard();
+
+  /// A paste from the keyboard (Ctrl-V) with a picture on the clipboard (editor/images.ts `pasteImages`): the picture
+  /// is taken out of the paste, kept, and put in at the caret the way the band's Paste puts one, and words in the
+  /// same paste are dropped. True when the paste was a picture's, or one that could not be read, which is said;
+  /// false leaves the paste to the editor as words.
+  Future<bool> _pastePicture() async {
+    final pictures = _pictures;
+    if (pictures == null) return false;
+    final band.ClipRead read;
+    try {
+      read = await _clipboard.read();
+    } catch (_) {
+      return false;
+    }
+    if (!mounted) return true;
+    final path = read.clip.path;
+    if (path != null) {
+      await pictures.pasteImage(path);
+      return true;
+    }
+    final error = read.clip.error;
+    if (error == null) return false;
+    widget.say(error);
+    return true;
+  }
+
   /// A + may show: a note of words that can be written, with find put away.
   bool _plusAllowed() {
     final view = _view;
@@ -1095,6 +1123,8 @@ class NoteDeskState extends State<NoteDesk> {
           fill: false,
           // A press held: the note's own menu over the caret, in place of the phone's.
           onHold: (held) => _band.open(band.Held(x: held.x, y: held.y, from: held.from, to: held.to)),
+          // A keyboard's paste with a picture on the clipboard: the picture, kept and put in at the caret.
+          pastePicture: _pictures == null ? null : _pastePicture,
         ),
       );
 
@@ -1143,7 +1173,7 @@ class NoteDeskState extends State<NoteDesk> {
           fields: bandFields,
           onAddImage: _pictures?.addPhoto,
           // The phone's own reader, which copies a picture out of the clipboard for the note to adopt.
-          clipboard: const band.PhoneClipboard(),
+          clipboard: _clipboard,
           onPasteImage: _pictures?.pasteImage,
           boards: true,
           // The note's own scroll is heard here, where the page's editor heard its scroller.

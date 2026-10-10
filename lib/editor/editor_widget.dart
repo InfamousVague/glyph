@@ -106,6 +106,7 @@ class Editor extends StatefulWidget {
     this.sheets = const <LookSheet>[],
     this.meHue,
     this.onHold,
+    this.pastePicture,
     this.footClear = 0,
     this.headerInset = 0,
     this.fill = true,
@@ -129,6 +130,11 @@ class Editor extends StatefulWidget {
 
   /// The note's menu is asked for (pressAndHold.ts): a press held, or the other mouse button.
   final void Function(Held held)? onHold;
+
+  /// A paste asked for with no words of its own (a keyboard's Ctrl-V, the selection's own Paste): asked first, and
+  /// true when it took the paste, since a picture on the clipboard is what was meant whatever words came with it
+  /// (editor/images.ts `pasteImages`). The host reads the clipboard's picture; absent, a paste is words alone.
+  final Future<bool> Function()? pastePicture;
 
   /// The page's foot the caret is kept clear of when it is scrolled into view, in pixels (Editor.tsx `footClear`).
   final double footClear;
@@ -418,6 +424,11 @@ class _EditorState extends State<Editor> implements EditorGesturesHost, EditorHa
   }
 
   Future<bool> _paste(String? text) async {
+    if (text == null && !view.state.readOnly) {
+      final picture = widget.pastePicture;
+      if (picture != null && await picture()) return true;
+      if (!mounted) return false;
+    }
     final words = text ?? (await Clipboard.getData(Clipboard.kTextPlain))?.text;
     if (words == null || words.isEmpty || !mounted) return false;
     _ime.paste(words);
