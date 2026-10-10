@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import '../../core/backup.dart' show Backups;
@@ -202,7 +204,7 @@ class SettingsFeatures {
   final bool canNotifyMeetings;
 
   /// Asks the phone to allow them; answers false when the phone refuses outright.
-  final bool Function()? onAllowMeetingNotices;
+  final FutureOr<bool> Function()? onAllowMeetingNotices;
 
   /// Whether this device's own sound can go into a meeting, and why not when it cannot.
   final bool meetingSound;

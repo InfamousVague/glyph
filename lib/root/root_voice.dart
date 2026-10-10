@@ -280,16 +280,9 @@ extension _RootVoice on _GhostRootState {
       endCapture: (leave) => quietly(service?.endCapture(leave: leave)),
       stopMeeting: () => quietly(service?.stopMeeting()),
       discardMeeting: () => quietly(service?.discardMeeting()),
-      // The phone answers a moment later than the screen asks: allowed where it already may, else asked, and the
-      // phone's own answer is told to the screen as the prompt's is (`MeetingLive.notified`).
-      requestNotifications: () {
-        if (live.canNotifyNow()) return NotificationsAnswer.allowed;
-        if (service == null) return NotificationsAnswer.blocked;
-        unawaited(service.requestNotifications().then<void>((answer) {
-          if (answer != 'asked') live.notified();
-        }, onError: (Object _) => live.notified()));
-        return NotificationsAnswer.asked;
-      },
+      // The phone's own answer (`ghost_md/meeting` `requestNotifications`: allowed, asked or blocked), which the
+      // screen waits for: a phone that blocks notifications outright showed no prompt, and is not marked as asked.
+      requestNotifications: () => askToNotify(service, live),
       deleteNote: _library.destroy,
       dropSummary: (id) => voice.summaries?.dropSummary(id),
       forgetMeeting: (id) => preferences.update((now) => now.copyWith(meetings: {...now.meetings}..remove(id))),
@@ -356,15 +349,8 @@ extension _RootVoice on _GhostRootState {
       onRemoveModel: models == null ? null : (id) => unawaited(models.remove(id)),
       meetings: service != null && voice.canMeet,
       canNotifyMeetings: live?.canNotify.value ?? false,
-      onAllowMeetingNotices: service == null || live == null
-          ? null
-          : () {
-              unawaited(service.requestNotifications().then<void>((_) {
-                live.notified();
-                live.canNotifyNow();
-              }, onError: (Object _) {}));
-              return true;
-            },
+      // False where the phone blocks it, which Settings then says: no dialog changes that.
+      onAllowMeetingNotices: service == null || live == null ? null : () async => await askToNotify(service, live) != NotificationsAnswer.blocked,
       meetingSound: voice.sound?.supported ?? false,
       meetingSoundWhy: voice.sound?.reason,
       tapes: bytes,

@@ -589,6 +589,16 @@ void main() {
   });
 
   group('Settings', () {
+    // Differs 16 (docs/PARITY.md): Settings' Allow always answered yes, so a phone that blocks notifications could
+    // never be said to (settings/RecordingPane.tsx `if (requestNotifications() === 'blocked') setBlocked(true)`).
+    testWidgets('is told the phone\'s own answer when it asks to notify of a meeting written up: blocked is no', (tester) async {
+      await open(tester);
+      final allow = tester.widget<SettingsSheet>(find.byType(SettingsSheet)).features.onAllowMeetingNotices!;
+      // The phone here blocks it outright (the service this file plays answers `blocked`).
+      expect(await tester.runAsync(() async => allow()), isFalse);
+      await close(tester);
+    });
+
     testWidgets('is told the room the tapes take from their lengths, and the Meetings card where the phone has the service', (tester) async {
       await open(tester);
       final features = tester.widget<SettingsSheet>(find.byType(SettingsSheet)).features;

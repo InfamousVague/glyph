@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -179,7 +181,15 @@ class _RecordingPaneState extends State<RecordingPane> {
                         ? null
                         : RowAction(
                             onPress: () {
-                              if (allow != null && !allow()) setState(() => _blocked = true);
+                              if (allow == null) return;
+                              void answered(bool asked) {
+                                if (!asked && mounted) setState(() => _blocked = true);
+                              }
+
+                              // `if (requestNotifications() === 'blocked') setBlocked(true)`, once the phone has said.
+                              final said = allow();
+                              if (said is bool) return answered(said);
+                              unawaited(said.then<void>(answered, onError: (Object _) => answered(false)));
                             },
                             disabled: allow == null,
                             child: const Text('Allow'),

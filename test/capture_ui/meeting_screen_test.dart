@@ -9,6 +9,8 @@
 /// twelve and a half minutes in.
 library;
 
+import 'dart:async';
+
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
@@ -44,6 +46,9 @@ class Service implements MeetingHost {
   bool notify = false;
   int asked = 0;
   NotificationsAnswer answer = NotificationsAnswer.asked;
+
+  /// The phone's answer where it comes a moment after it was asked, as its channel's does.
+  Future<NotificationsAnswer>? later;
   List<String> deleted = [];
   List<String> forgotten = [];
   List<String> dropped = [];
@@ -99,7 +104,7 @@ void main() {
         requestNotifications: () {
           service.calls.add('requestNotifications');
           service.asked += 1;
-          return service.answer;
+          return service.later ?? service.answer;
         },
         deleteNote: (id) async {
           service.calls.add('deleteNote');
@@ -279,6 +284,42 @@ void main() {
       await tester.pump();
       expect(saying('Notifications are off'), findsNothing);
       expect(saying('Let Ghost.md tell you'), findsNothing);
+      await unmount(tester);
+    });
+
+    // Differs 16 (docs/PARITY.md): the phone's channel answers a moment after it is asked, and the port marked the
+    // meeting as asked before it had: a phone that blocks the prompt outright was remembered as asked, and said
+    // nothing until a `notified` that never came.
+    testWidgets('waits for the phone\'s own answer: blocked a moment later is said as blocked, and a prompt that went up is remembered as asked', (tester) async {
+      final answer = Completer<NotificationsAnswer>();
+      service.later = answer.future;
+      await screen(tester);
+      await tester.tap(find.text('Allow'));
+      await tester.pump();
+      // Asked of the phone, and nothing changed until it says: the offer stands.
+      expect(service.asked, 1);
+      expect(saying('Let Ghost.md tell you when it is written up.'), findsOneWidget);
+      expect(saying('Notifications are off'), findsNothing);
+      answer.complete(NotificationsAnswer.blocked);
+      await tester.pump();
+      await tester.pump();
+      expect(saying('Notifications are off for Ghost.md, so stop it here.'), findsOneWidget);
+      expect(find.text('Allow'), findsNothing);
+      await unmount(tester);
+      // Not remembered as asked: no prompt was ever shown, so the next meeting offers again.
+      service.later = Future<NotificationsAnswer>.value(NotificationsAnswer.asked);
+      await screen(tester);
+      expect(saying('Let Ghost.md tell you when it is written up.'), findsOneWidget);
+      await tester.tap(find.text('Allow'));
+      await tester.pump();
+      await tester.pump();
+      // The prompt is up: the offer goes, and nothing is said until it is answered.
+      expect(saying('Let Ghost.md tell you'), findsNothing);
+      expect(saying('Notifications are off'), findsNothing);
+      await unmount(tester);
+      service.later = null;
+      await screen(tester);
+      expect(saying('Let Ghost.md tell you'), findsNothing, reason: 'asked on an earlier meeting');
       await unmount(tester);
     });
 

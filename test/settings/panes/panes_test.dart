@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -404,6 +406,23 @@ void main() {
       expect(preferences.value.writeUp, 'charging');
       await tapOn(tester, inRow('Write up straight away', find.byType(GlacierSwitch)));
       expect(preferences.value.writeUp, 'now');
+      await endSettings(tester);
+
+      // Differs 16 (docs/PARITY.md): the phone's answer comes a moment after it is asked; blocked is said then, and
+      // a prompt that went up says nothing.
+      final phone = Completer<bool>();
+      await openPane(tester, 'recording', size: const Size(390, 1800), features: SettingsFeatures(meetings: true, onAllowMeetingNotices: () => phone.future));
+      await tapOn(tester, find.text('Allow'));
+      expect(hintOf(tester, 'Tell me when a meeting is written up'), 'A notification, with the first line of the summary once the phone is unlocked.');
+      phone.complete(false);
+      await tester.pump();
+      await tester.pump();
+      expect(hintOf(tester, 'Tell me when a meeting is written up'), 'Notifications are off for Ghost.md in the phone’s settings.');
+      await endSettings(tester);
+      await openPane(tester, 'recording', size: const Size(390, 1800), features: SettingsFeatures(meetings: true, onAllowMeetingNotices: () async => true));
+      await tapOn(tester, find.text('Allow'));
+      await tester.pump();
+      expect(hintOf(tester, 'Tell me when a meeting is written up'), 'A notification, with the first line of the summary once the phone is unlocked.');
       await endSettings(tester);
 
       await openPane(tester, 'recording', size: const Size(390, 1800), features: const SettingsFeatures(meetings: true, meetingSound: true, canNotifyMeetings: true));

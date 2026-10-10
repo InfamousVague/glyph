@@ -85,8 +85,10 @@ class MeetingScreenHost {
   /// The service stops and deletes the WAV; the note is the app's to delete (`discardMeetingOnHost`).
   final VoidCallback discardMeeting;
 
-  /// Ask to be allowed to notify (`requestNotifications`).
-  final NotificationsAnswer Function() requestNotifications;
+  /// Ask to be allowed to notify (`requestNotifications`): the phone's own answer. The page's bridge answered at
+  /// once; the phone's channel answers a moment later, so the answer may be one to wait for, and the screen says
+  /// nothing of the asking until it has it.
+  final FutureOr<NotificationsAnswer> Function() requestNotifications;
 
   /// The notes store's `deleteNote`; a failure is let go, as on the web.
   final Future<void> Function(String noteId) deleteNote;
@@ -199,16 +201,23 @@ class _MeetingScreenState extends State<MeetingScreen> {
   }
 
   void _allow() {
+    void answered(NotificationsAnswer answer) {
+      if (!mounted) return;
+      setState(() {
+        if (answer == NotificationsAnswer.blocked) {
+          _blocked = true;
+        } else {
+          widget.host._asked.mark();
+          _askedNow = true;
+        }
+      });
+      widget.live.canNotifyNow();
+    }
+
+    // Marked as asked only once the phone has said it asked: a phone that blocks it outright never showed a prompt.
     final answer = widget.host.requestNotifications();
-    setState(() {
-      if (answer == NotificationsAnswer.blocked) {
-        _blocked = true;
-      } else {
-        widget.host._asked.mark();
-        _askedNow = true;
-      }
-    });
-    widget.live.canNotifyNow();
+    if (answer is NotificationsAnswer) return answered(answer);
+    unawaited(answer.then<void>(answered, onError: (Object _) => answered(NotificationsAnswer.blocked)));
   }
 
   @override

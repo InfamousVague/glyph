@@ -49,6 +49,7 @@ import '../capture/meeting.dart' show canRecordMeeting;
 import '../capture/meeting_host.dart';
 import '../capture/meeting_live.dart';
 import '../capture/native_backend.dart';
+import '../capture/ui/meeting_screen.dart' show NotificationsAnswer;
 import '../capture/recorder.dart';
 import '../capture/refine.dart';
 import '../capture/spoken/inline.dart' show SpokenFormat;
@@ -143,6 +144,29 @@ class DeviceMeetingService implements MeetingService {
 
   @override
   Future<void> endCapture({required bool leave}) => host.endCapture(leave: leave);
+}
+
+/// Asks the phone to let Ghost.md notify, and answers what it said (`core/host.ts` `requestNotifications`): allowed
+/// where it already may; asked, where Android's prompt is now up (its answer arrives as the `notified` event,
+/// [MeetingLive.notified]); blocked where no prompt can change it (refused twice, or turned off in the phone's
+/// settings), which is also the answer of a phone with no service to ask and of one that would not say. The one
+/// way the app asks: the meeting screen's Allow and Settings › Recording's, over [MeetingService.requestNotifications]
+/// (android/…/ghost_md/MeetingBridge.kt). Whether it may notify is read again after, as the page reads it.
+Future<NotificationsAnswer> askToNotify(MeetingService? service, MeetingLive live) async {
+  if (live.canNotifyNow()) return NotificationsAnswer.allowed;
+  if (service == null) return NotificationsAnswer.blocked;
+  NotificationsAnswer answer;
+  try {
+    answer = switch (await service.requestNotifications()) {
+      'allowed' => NotificationsAnswer.allowed,
+      'asked' => NotificationsAnswer.asked,
+      _ => NotificationsAnswer.blocked,
+    };
+  } catch (_) {
+    answer = NotificationsAnswer.blocked;
+  }
+  live.canNotifyNow();
+  return answer;
 }
 
 /// What `main` hands the root to make a [Voice] from: the core, and the phone's halves it attached before the first
