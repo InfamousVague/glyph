@@ -144,6 +144,7 @@ import 'update_wiring.dart';
 import 'voice_wiring.dart';
 
 part 'root_commands.dart';
+part 'root_voice.dart';
 
 /// The app, put together: what the web app's `App.tsx` does once its screens exist. The launch screen over the
 /// shell (lib/shell/app_shell.dart); in the shell the home page, the notes' sidebar as a card or docked, and the
@@ -278,7 +279,8 @@ class GhostRoot extends StatefulWidget {
 /// The root's state is one class in more than one file, by what each part of it is for. Here: what the app is made
 /// of (the library, the trash, the workspaces, the account, voice and what each is listened to by), which sheet is
 /// open, and what is put on screen. What it does to the library, the making, opening, writing and renaming of
-/// notes, is lib/root/root_commands.dart.
+/// notes, is lib/root/root_commands.dart; voice and the AI, made after the first frame, and what the recorder's
+/// and Settings' screens ask of them, lib/root/root_voice.dart.
 class _GhostRootState extends State<GhostRoot> {
   late final bool _real = widget.core != null && widget.library == null;
   late final NoteLibrary _library = widget.library ?? (_real ? CoreLibrary(widget.core!) : SampleLibrary.seeded(now: DateTime.now().millisecondsSinceEpoch));
@@ -446,109 +448,6 @@ class _GhostRootState extends State<GhostRoot> {
   AppLifecycleListener? _voiceLife;
   final Completer<void> _notesRead = Completer<void>();
 
-  Future<void> _speakUp() async {
-    final making = widget.voiceMaking;
-    final Voice? voice;
-    try {
-      voice = widget.voice ??
-          (making != null && _real
-              ? await Voice.make(
-                  making,
-                  library: _library,
-                  kept: _stored,
-                  published: (id) => _services?.shares?.linkFor(id) != null,
-                  isTrashed: _trash.isTrashed,
-                  syncNow: _services?.engine?.syncNow,
-                  syncSettled: _services?.engine?.syncSettled,
-                )
-              : null);
-    } catch (failure) {
-      debugPrint('[ghost] voice could not be made: $failure');
-      return;
-    }
-    if (voice == null) return;
-    if (!mounted) return voice.dispose();
-    final models = voice.models;
-    final recorder = voice.recorder;
-    final capture = CaptureRoute(
-      voice: voice,
-      world: CaptureRouteWorld(
-        screen: () => _shell.currentState?.screen ?? const Screen.list(),
-        setScreen: (next) => _shell.currentState?.show(next),
-        refresh: _library.refresh,
-        flushDeletes: () => _made?.flushDeletes() ?? Future<void>.value(),
-        clearStage: () {
-          FocusManager.instance.primaryFocus?.unfocus();
-          _guide?.hide();
-          if (mounted) {
-            setState(() {
-              _settings = false;
-              _newSheet = false;
-              _bookSheet = null;
-            });
-          }
-        },
-        say: (message) {
-          if (mounted) _say(context, message);
-        },
-        getNote: _library.get,
-        createNote: (body, {required source}) => _library.createNote(body, source: source),
-        deleteNote: _library.destroy,
-        fileNewNote: _workspaces.fileNewNote,
-        untouched: _untouched,
-        tooSoon: () => _guide?.onReadingPage() ?? false,
-        sayTooSoon: () => _guide?.sayTooSoon(),
-        // Once the note's screen is up and watches its tag, so the tag goes through its editor and not under it.
-        tagNew: _places == null
-            ? null
-            : (id, {required reviewing, required quiet}) => WidgetsBinding.instance.addPostFrameCallback((_) {
-                  unawaited(_places.tagNewNotesIfWanted([id], (reviewing: reviewing), quiet: quiet, introduce: _introduceLocation));
-                }),
-      ),
-    );
-    setState(() {
-      _voice = voice;
-      _capture = capture;
-    });
-    // The meeting's state, for the row that says "Recording now", and the models, for Settings' AI page.
-    _unwatchMeeting = voice.live?.subscribe(_voiceChanged);
-    voice.live?.canNotify.addListener(_voiceChanged);
-    voice.live?.canNotifyNow();
-    models?.addListener(_modelsChanged);
-    // The voice model's fetch, for the line above the notes: the line follows its fetch by itself, and the home
-    // page is drawn again only when there is a line where there was none (`_voiceModelLine`).
-    recorder.voiceModel.addListener(_tick.tell);
-    _voiceLife = AppLifecycleListener(onStateChange: (state) {
-      recorder.lifecycle(state);
-      if (state == AppLifecycleState.resumed) {
-        unawaited(models?.refresh());
-        gistsCameBack();
-      }
-    });
-    await _aiUp(voice);
-    await voice.start(
-      // A better-words pass landed: a tag that waited for it may land too.
-      notesChanged: () {
-        unawaited(_library.refresh().catchError((Object _) {}));
-        _settleTags();
-      },
-      // A summary landed with the app on screen: said, with the way to the note.
-      summarized: (done) {
-        if (!mounted) return;
-        GlacierToast.of(context).toast(
-          message: const Text('Summarized'),
-          action: GlacierToastAction(label: 'Open', onPress: () => _shell.currentState?.openNote(done.id)),
-        );
-      },
-    );
-    // Voice has started: what it can do here (a meeting, the computer's sound) is read again.
-    _voiceChanged();
-    // The launch, once the notes are read: the side key's capture in a build with the assistant, or the meeting
-    // already being recorded.
-    await _notesRead.future;
-    if (mounted) capture.boot();
-  }
-
   /// The meeting's state, whether the phone may notify or whether the AI can run here changed: the parts that read
   /// voice are told (the home page's recording, Settings' rows, the + sheet's meeting), after the frame where one
   /// is being built (lib/root/selected.dart).
@@ -656,167 +555,8 @@ class _GhostRootState extends State<GhostRoot> {
   String? _noteAiId;
   NoteAi? _noteAi;
 
-  Future<void> _aiUp(Voice voice) async {
-    if (!engine.aiBackend.available || voice.models == null) return;
-    // Who signs a note beside the AI.
-    ai_start.noteOwner = () => _services?.session?.handle;
-    final availability = AvailabilityController(models: voice.models)..addListener(_voiceChanged);
-    final device = await engine.readDevice();
-    if (!mounted) return availability.dispose();
-    final ram = device?.totalRamBytes;
-    setState(() {
-      _availability = availability;
-      _deviceFacts = DeviceFactsController(cores: device?.cores, memoryGb: ram == null ? null : ram / 1e9);
-    });
-    // The gists step aside for the recorder and a review, and are written only with the app on screen.
-    _stopGistHold = voice.recorder.refining?.onRefineHold(pauseGists);
-    gistVisible = () => WidgetsBinding.instance.lifecycleState == null || WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
-    // The runner is shown the cards of the page on screen as that page is drawn (`_gistsOn`), and no other notes.
-    _gists = Gists()..addListener(_gistsChanged);
-    _gistedBy = null;
-    _gistsChanged();
-    // The fills' queue: a press run to its end and landed, in the open note or a closed one.
-    _stopFills = startFills(
-      (said) {
-        if (!mounted) return;
-        final action = said.action;
-        GlacierToast.of(context).toast(
-          message: Text(said.message),
-          duration: said.duration == null ? null : Duration(milliseconds: said.duration!),
-          action: action == null ? null : GlacierToastAction(label: action.label, onPress: action.onPress),
-        );
-      },
-      (id) => _shell.currentState?.openNote(id),
-      getNote: _library.get,
-      // A write another writer won says so in the queue's own words.
-      updateNote: (id, body, expectedRevision) async {
-        final now = await _library.get(id);
-        if (now == null) throw StateError('The note was deleted.');
-        if (now.revision != expectedRevision) throw StateError('The note changed: its revision is another.');
-        return _library.update(id, body, expectedRevision);
-      },
-      syncNow: _services?.engine?.syncNow,
-      visible: () => WidgetsBinding.instance.lifecycleState == null || WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed,
-    );
-  }
-
-  /// What a desk's AI stands on (lib/root/note_desk.dart `NoteAiWorld`); null until there is an engine.
-  NoteAiWorld? _aiWorld() {
-    final availability = _availability;
-    final voice = _voice;
-    if (availability == null || voice == null) return null;
-    final refining = voice.recorder.refining;
-    final summaries = voice.summaries;
-    return NoteAiWorld(
-      availability: availability,
-      deviceFacts: _deviceFacts,
-      reviewHost: refining == null
-          ? null
-          : ReviewHost(
-              getNote: _library.get,
-              listNotes: () async => _library.value,
-              updateNote: (id, body, expectedRevision) async {
-                await _library.update(id, body, expectedRevision);
-              },
-              enqueueRefine: refining.enqueueRefine,
-              holdRefining: refining.holdRefining,
-              keepBetterPhrases: refining.keepBetterPhrases,
-              listenAgain: refining.listenAgain,
-            ),
-      openForSummaries: summaries?.openForSummaries,
-      onGetModel: () => setState(() {
-        _settings = true;
-        _settingsPage = SettingsTarget('ai', nonce: DateTime.now().microsecondsSinceEpoch);
-      }),
-      // The tape's real kind: a meeting's write-up for a meeting, a recording's otherwise.
-      summarize: summaries == null
-          ? null
-          : (id, replace) => summaries.enqueueSummary(id, preferences.value.meetings.containsKey(id) ? SummaryKind.meeting : SummaryKind.recording, replace: replace),
-      summaryEdited: (id, body) {
-        final section = summarySection(body, keptText(id));
-        return section != null && !summaryUnchanged(id, section.text);
-      },
-      opened: (id, ai) {
-        if (ai == null && _noteAiId != id) return;
-        _noteAi?.removeListener(_aiChanged);
-        _noteAi?.reviewStage.removeListener(_aiChanged);
-        _noteAiId = ai == null ? null : id;
-        _noteAi = ai;
-        ai?.addListener(_aiChanged);
-        ai?.reviewStage.addListener(_aiChanged);
-        _aiChanged();
-      },
-    );
-  }
-
   /// A Speak button (`speak`): a capture into a new note, or the note its first command names.
   void _speak() => unawaited(_capture?.start(false));
-
-  /// A note's own Speak (`speakInto`). A journal's is a new entry said aloud. An entry nobody has written in is
-  /// spoken into where its template was left open: the line it was left open with is taken off and put back before
-  /// the words, so it still starts with its time; said nothing, the entry is put back as it was made. Any other
-  /// note is spoken into as any note is.
-  Future<void> _speakInto(String id) async {
-    final capture = _capture;
-    if (capture == null) return;
-    final note = _library.noteOf(id) ?? await _library.get(id).catchError((Object _) => null);
-    if (note != null && isJournalBody(note.body)) return _newEntry(id, null, true);
-    final fresh = _untouched.recordOf(id)?.journalId != null ? await _library.get(id).catchError((Object _) => null) : null;
-    // A meeting holds the microphone: the capture opens the meeting instead, and the entry is left as it was made.
-    if (fresh == null ||
-        !_untouched.isUntouched(id, fresh.body, recordingMs: fresh.recordingMs, starred: fresh.starred, archivedAt: fresh.archivedAt) ||
-        (_voice?.live?.meetingStateNow()?.recording ?? false)) {
-      return capture.start(false, noteId: id);
-    }
-    final head = fresh.body.substring(0, frontMatterOffset(fresh.body));
-    final filled = fresh.body.substring(head.length);
-    final (:base, :placing) = openEnd(filled);
-    if (base != filled) {
-      await _library.update(id, '$head$base', fresh.revision).then<void>((_) {}, onError: (Object _) {});
-      _untouched.setWords(id, base);
-    }
-    await capture.start(
-      false,
-      noteId: id,
-      entry: EntryAim(
-        id: id,
-        placing: placing,
-        nothing: () async {
-          final now = await _library.get(id).catchError((Object _) => null);
-          if (now == null) return const Screen.list();
-          if (base == filled) return ScreenNote(now);
-          final back = await _library.update(id, '$head$filled', now.revision).catchError((Object _) => now);
-          _untouched.setWords(id, filled);
-          return ScreenNote(back);
-        },
-      ),
-    );
-  }
-
-  /// What the meeting's screen asks of the phone and the app (lib/capture/ui/meeting_screen.dart).
-  MeetingScreenHost _meetingHost(Voice voice, MeetingLive live) {
-    final service = voice.service;
-    void quietly(Future<void>? asked) => unawaited(asked?.then<void>((_) {}, onError: (Object _) {}));
-    return MeetingScreenHost(
-      isLocked: () => voice.locked,
-      endCapture: (leave) => quietly(service?.endCapture(leave: leave)),
-      stopMeeting: () => quietly(service?.stopMeeting()),
-      discardMeeting: () => quietly(service?.discardMeeting()),
-      // The phone answers a moment later than the screen asks: allowed where it already may, else asked, and the
-      // phone's own answer is told to the screen as the prompt's is (`MeetingLive.notified`).
-      requestNotifications: () {
-        if (live.canNotifyNow()) return NotificationsAnswer.allowed;
-        if (service == null) return NotificationsAnswer.blocked;
-        unawaited(service.requestNotifications().then<void>((answer) {
-          if (answer != 'asked') live.notified();
-        }, onError: (Object _) => live.notified()));
-        return NotificationsAnswer.asked;
-      },
-      deleteNote: _library.destroy,
-      dropSummary: (id) => voice.summaries?.dropSummary(id),
-      forgetMeeting: (id) => preferences.update((now) => now.copyWith(meetings: {...now.meetings}..remove(id))),
-    );
-  }
 
   /// Settings' three pages over the core and the phone's pickers: where the library is and the calls that move it,
   /// the drives a backup goes to, and everything as one zip. Made once, where the build has the whole core.
@@ -840,93 +580,6 @@ class _GhostRootState extends State<GhostRoot> {
   /// Which tapes' audio is on this device (lib/settings/tapes_here.dart): each tape's file is asked through the
   /// player as Settings' Tapes card is put up, as the page's card asked the `rec` scheme (`headStatus`).
   late final TapesHere _tapes = TapesHere(widget.tapePlayer?.onDevice);
-
-  /// What Settings' Recording and AI pages ask of voice (settings/RecordingPane.tsx, AiPane.tsx): the models on
-  /// this phone with Get and Remove, the Meetings card where the phone has the service, and the room the tapes
-  /// on this device take, said from their lengths (settings/tapes.ts: 16 kHz, 16-bit, mono is 32 bytes a
-  /// millisecond).
-  SettingsFeatures _features(AccountServices? services) {
-    final voice = _voice;
-    final wayIn = services == null ? noServiceWayIn : null;
-    // Developer's two benches, over everything (diag/WispBench.tsx, diag/SceneBench.tsx).
-    void smoke() => unawaited(showWispBench(context));
-    void scene(String readings) => unawaited(showSceneBench(context, readings, scene: scenePlay));
-    // Starting over (lib/core/reset.dart over lib/root/reset_wiring.dart): only where the app can be built anew.
-    final restart = widget.restart;
-    final reset = restart == null
-        ? null
-        : ({required bool models}) => resetLocalData(
-              resetGroundFor(
-                invoke: _real ? widget.core : null,
-                services: _services,
-                recordingNow: () => _voice?.live?.state?.recording ?? false,
-                kept: () => _stored,
-                restart: restart,
-                teamDocsIn: widget.account?.dataDir,
-              ),
-              models: models,
-            );
-    if (voice == null) return SettingsFeatures(onWayIn: wayIn, onSmokeBench: smoke, onPlayScene: scene, onReset: reset, libraryFolder: _libraryFolder, backup: _backups, export: _export, places: _places);
-    final models = voice.models;
-    final present = models == null ? const <String>{} : presentIds(models.models).toSet();
-    final download = models?.download;
-    final (:bytes, :old) = _tapeFacts;
-    final remove = voice.removeAudio;
-    final service = voice.service;
-    final live = voice.live;
-    return SettingsFeatures(
-      onWayIn: wayIn,
-      onSmokeBench: smoke,
-      onPlayScene: scene,
-      onReset: reset,
-      libraryFolder: _libraryFolder,
-      backup: _backups,
-      export: _export,
-      places: _places,
-      models: models == null
-          ? null
-          : SettingsModelsState(
-              present: present,
-              running: modelFor(present, preferences.value.formatModel),
-              downloading: download?.id,
-              received: download?.received ?? 0,
-              total: download?.total ?? 0,
-              problem: models.problem,
-              cannotRun: {
-                for (final id in present)
-                  if (cannotRun(id)) id,
-              },
-            ),
-      onGetModel: models == null ? null : (id) => unawaited(models.fetch(id)),
-      onRemoveModel: models == null ? null : (id) => unawaited(models.remove(id)),
-      meetings: service != null && voice.canMeet,
-      canNotifyMeetings: live?.canNotify.value ?? false,
-      onAllowMeetingNotices: service == null || live == null
-          ? null
-          : () {
-              unawaited(service.requestNotifications().then<void>((_) {
-                live.notified();
-                live.canNotifyNow();
-              }, onError: (Object _) {}));
-              return true;
-            },
-      meetingSound: voice.sound?.supported ?? false,
-      meetingSoundWhy: voice.sound?.reason,
-      tapes: bytes,
-      oldTapes: old.length,
-      onCountTapes: () => unawaited(_tapes.ask(_library.value).then<void>((_) {
-        if (mounted) setState(() => _tapesAt += 1);
-      })),
-      onRemoveOldAudio: remove == null
-          ? null
-          : () async {
-              final removed = await remove(old);
-              _tapesAt += 1;
-              _changed();
-              return removed.length;
-            },
-    );
-  }
 
   /// The room the tapes on this device take, and the old ones among them: only the tapes whose audio is here, not
   /// one the row removed nor one whose file says it is elsewhere. Read once per change to the notes or to what is
@@ -1611,7 +1264,8 @@ class _GhostRootState extends State<GhostRoot> {
   static const Widget _nothing = SizedBox.shrink();
 
   /// A change to what the root holds, and the parts told: for the root's code in its other files
-  /// (lib/root/root_commands.dart), since `setState` is the framework's to call from the class itself.
+  /// (lib/root/root_commands.dart, root_voice.dart), since `setState` is the framework's to call from the class
+  /// itself.
   void _told(VoidCallback change) => setState(change);
 
   void _openSettings() => setState(() => _settings = true);
