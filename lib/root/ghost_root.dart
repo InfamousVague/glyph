@@ -300,7 +300,8 @@ class _GhostRootState extends State<GhostRoot> {
           ? WorkspaceStore(storage: _keptSpaces, trash: _trash, onFiled: NoteFolders(_library).fileNotesInFolder)
           : WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces()), trash: _trash));
   late final VersionsStore _versionsStore = VersionsStore(widget.core, kept: _stored);
-  late final VersionsRecord _versions = VersionsRecord(store: _versionsStore, preferences: preferences, workspaces: _workspaces);
+  // Who keeps a version here: the account's handle, read as each is kept (core/versions/record.ts `keeper`).
+  late final VersionsRecord _versions = VersionsRecord(store: _versionsStore, preferences: preferences, workspaces: _workspaces, keeper: () => _services?.session?.handle);
 
   /// The kept pictures, where there is a core to keep them.
   late final CorePictureStore? _pictures = widget.core == null ? null : CorePictureStore(CoreFiles(widget.core!), adopter: corePictureAdopter(CoreFiles(widget.core!)));

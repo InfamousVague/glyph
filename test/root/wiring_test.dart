@@ -295,6 +295,23 @@ void main() {
       await close(tester);
     });
 
+    // Unwired 4 (docs/PARITY.md): every version was written by "me", so the history and an organization's audit
+    // log said "You" for everyone (core/versions/record.ts `keeper`).
+    testWidgets('signs a version kept here with the account\'s handle, and "me" with nobody signed in', (tester) async {
+      final device = await Device.make();
+      final library = await open(tester, services: device.services);
+      await tester.pump(const Duration(milliseconds: 200));
+      final id = library.value.first.id;
+      await openNote(tester, id);
+      final versions = tester.widget<NoteScreen>(find.byType(NoteScreen)).versions!;
+      await tester.runAsync(() => versions.keepVersion(id, 'As it was.', now: 1000));
+      await tester.runAsync(device.account.signOut);
+      await tester.runAsync(() => versions.keepVersion(id, 'As it is.', now: 2000));
+      final kept = (await tester.runAsync(() => versions.versionsOf(id)))!.versions;
+      expect([for (final version in kept) version.by], ['matt', 'me']);
+      await close(tester);
+    });
+
     testWidgets('gives a note its sharing and the shell its organizations, signed in', (tester) async {
       final device = await Device.make();
       final library = await open(tester, services: device.services);
