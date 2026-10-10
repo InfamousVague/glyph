@@ -274,12 +274,24 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
   /// Reads the notes again; an error is the caller's, as the page's `refresh` rejects.
   @override
   Future<void> refresh() {
+    if (ghostPerf) Perf.count('library.refresh by ${_asker()}');
     final reading = _reading;
     if (reading != null) {
       _readAgain = true;
       return reading;
     }
     return _reading = _read().whenComplete(() => _reading = null);
+  }
+
+  /// Who asked for the list to be read again, for a measured build's counts: the first function on the stack that
+  /// is not the library's own.
+  static String _asker() {
+    for (final line in StackTrace.current.toString().split('\n').skip(1)) {
+      if (line.contains('core_library.dart') || line.contains('<asynchronous suspension>') || line.trim().isEmpty) continue;
+      final frame = RegExp(r'^#\d+\s+(.+?) \(').firstMatch(line);
+      return frame?.group(1) ?? line.trim();
+    }
+    return 'nobody on the stack';
   }
 
   Future<void> _read() async {
