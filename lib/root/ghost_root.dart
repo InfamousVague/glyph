@@ -91,6 +91,7 @@ import '../launch/launch_screen.dart';
 import '../note/note_builder.dart';
 import '../note/open_screen.dart';
 import '../note/note_screen.dart' show withFrontMatterTitle;
+import '../notes/all_notes.dart' show readSort;
 import '../notes/all_notes_screen.dart';
 import '../notes/new_sheet.dart';
 import '../notes/note_actions.dart';
@@ -131,6 +132,7 @@ import '../tapes/player.dart' show TapePlayer;
 import 'account_wiring.dart';
 import 'capture_route.dart';
 import 'desktop_wiring.dart';
+import 'gisted.dart';
 import 'library_reads.dart';
 import 'note_desk.dart';
 import 'reset_wiring.dart';
@@ -660,9 +662,9 @@ class _GhostRootState extends State<GhostRoot> {
     // The gists step aside for the recorder and a review, and are written only with the app on screen.
     _stopGistHold = voice.recorder.refining?.onRefineHold(pauseGists);
     gistVisible = () => WidgetsBinding.instance.lifecycleState == null || WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
-    _gists = Gists()
-      ..addListener(_gistsChanged)
-      ..show(_shown);
+    // The runner is shown the cards of the page on screen as that page is drawn (`_gistsOn`), and no other notes.
+    _gists = Gists()..addListener(_gistsChanged);
+    _gistedBy = null;
     _gistsChanged();
     // The fills' queue: a press run to its end and landed, in the open note or a closed one.
     _stopFills = startFills(
@@ -1446,8 +1448,6 @@ class _GhostRootState extends State<GhostRoot> {
   /// The note actions (a delete waiting on its Undo), the walkthrough or the way into an account changed.
   void _changed() {
     _reads.changed();
-    _gists?.show(_shown);
-    _gistsRead = false;
     // The notes changed: a meeting's note may have been written by the service, and a write-up's result may wait.
     _voice?.notesChanged();
     _tick.tell();
@@ -1560,11 +1560,19 @@ class _GhostRootState extends State<GhostRoot> {
   List<Note>? _draftsOf;
   Set<String> _draftsNow = const {};
 
-  /// Each note's gist, for the home page and All notes: read again after the runner has spoken, and the same map
-  /// while no line in it is another.
-  Map<String, String> get _gistsShown {
+  /// Each note's gist for the page on screen, which is the only page the runner works for (`useGists(carded)`,
+  /// lib/root/gisted.dart). [by] says which page it is and what it was laid out from: where that is another, the
+  /// runner is shown the page's first cards ([carded]) in place of the ones it had. Under a note neither page asks,
+  /// and the runner goes on with the cards it was last shown, as the page's does. The map is read again after the
+  /// runner has spoken, and is the same map while no line in it is another.
+  Map<String, String> _gistsOn(Object by, List<Note> Function() carded) {
     final gists = _gists;
     if (gists == null) return const {};
+    if (by != _gistedBy) {
+      _gistedBy = by;
+      gists.show(carded());
+      _gistsRead = false;
+    }
     if (!_gistsRead) {
       _gistsRead = true;
       final read = gists.value;
@@ -1573,6 +1581,22 @@ class _GhostRootState extends State<GhostRoot> {
     return _gistsNow;
   }
 
+  /// The home page's: its first sixteen cards, as it lays out the notes it is handed today.
+  Map<String, String> _homeGists(AppShellState shell) {
+    final notes = shell.notes;
+    final layout = homeLayoutOf(preferences.value.homeLayout);
+    final now = widget.clock?.call() ?? DateTime.now().millisecondsSinceEpoch;
+    return _gistsOn(('home', notes, _workspaces.value, layout, DateTime.fromMillisecondsSinceEpoch(now).day), () => homeCarded(notes, _workspaces, layout, now));
+  }
+
+  /// All notes': its first twenty-four, in the order it was left in.
+  Map<String, String> _allNotesGists(AppShellState shell, bool tapes) {
+    final notes = shell.notes;
+    final sort = readSort(_stored);
+    return _gistsOn(('notes', notes, _workspaces.value, sort, tapes), () => allNotesCarded(notes, _workspaces, sort: sort, tapes: tapes));
+  }
+
+  Object? _gistedBy;
   Map<String, String> _gistsNow = const {};
   bool _gistsRead = true;
 
@@ -2113,7 +2137,7 @@ class _GhostRootState extends State<GhostRoot> {
       homeBuilder: _home,
       allNotesBuilder: (context, shell, screen) => _part(
         'allNotes',
-        () => (shell.notes, !_read, screen.tapes, _workspaces.value, _gistsShown, preferences.value.wispEdge),
+        () => (shell.notes, !_read, screen.tapes, _workspaces.value, _allNotesGists(shell, screen.tapes), preferences.value.wispEdge),
         (context) => AllNotesScreen(
           // The empty page's hint, as home's: the side key on any Android phone (AllNotesScreen.tsx `isAndroid`).
           sideKey: defaultTargetPlatform == TargetPlatform.android,
@@ -2122,7 +2146,7 @@ class _GhostRootState extends State<GhostRoot> {
           workspaces: _workspaces,
           stored: _stored,
           tapes: screen.tapes,
-          gists: _gistsShown,
+          gists: _allNotesGists(shell, screen.tapes),
           clock: widget.clock,
           onOpen: (id) => _openWhereLeft(shell, id),
           onBack: shell.backToList,
@@ -2238,7 +2262,7 @@ class _GhostRootState extends State<GhostRoot> {
           _recordingNow,
           _updatesAt,
           _voiceModelLine,
-          _gistsShown,
+          _homeGists(shell),
           _accountAt,
           _presenceAt,
         ),
@@ -2268,7 +2292,7 @@ class _GhostRootState extends State<GhostRoot> {
       // phone, whether or not this build answers it, and the empty page's words are held to the page's.
       sideKey: defaultTargetPlatform == TargetPlatform.android,
       notices: _notices(),
-      gists: _gistsShown,
+      gists: _homeGists(shell),
       clock: widget.clock,
       onAllNotes: shell.showAllNotes,
       onSearch: _search,
