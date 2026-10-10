@@ -361,6 +361,31 @@ class RangeSet<T extends RangeValue> {
     if (textDiff.empty && textDiff.length == 0) _compare(sideA, 0, sideB, 0, 0, comparator);
   }
 
+  /// [compare], for the stretch `from`-`to` of the new document alone: what differs outside it is not looked for.
+  /// Not CodeMirror's: its view compares the whole of every set on each update, which a set kept for the whole
+  /// note (every anchor, every link) makes as long as the note; the view here draws a screen of lines and asks
+  /// only about those.
+  static void compareIn<T extends RangeValue>(List<RangeSet<T>> oldSets, List<RangeSet<T>> newSets, ChangeDesc textDiff, RangeComparator<T> comparator, int from, int to) {
+    final a = <RangeSet<T>>[
+      for (final set in oldSets)
+        if (!set.isEmpty) set,
+    ];
+    final b = <RangeSet<T>>[
+      for (final set in newSets)
+        if (!set.isEmpty) set,
+    ];
+    if (a.isEmpty && b.isEmpty) return;
+    final sharedChunks = _findSharedChunks(a, b, textDiff);
+    final sideA = _SpanCursor<T>(a, sharedChunks, -1);
+    final sideB = _SpanCursor<T>(b, sharedChunks, -1);
+    textDiff.iterGaps((fromA, fromB, length) {
+      final start = fromB < from ? from : fromB, end = fromB + length > to ? to : fromB + length;
+      if (end < start) return;
+      _compare(sideA, fromA + (start - fromB), sideB, start, end - start, comparator);
+    });
+    if (textDiff.empty && textDiff.length == 0) _compare(sideA, 0, sideB, 0, 0, comparator);
+  }
+
   /// Whether two collections of sets hold the same ranges between `from` and `to`.
   static bool eq<T extends RangeValue>(List<RangeSet<T>> oldSets, List<RangeSet<T>> newSets, [int from = 0, int? to]) {
     to ??= _far - 1;

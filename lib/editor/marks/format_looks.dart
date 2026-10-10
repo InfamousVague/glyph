@@ -32,6 +32,7 @@ import '../editor.dart';
 import '../looks/look.dart';
 import '../looks/sheets.dart';
 import '../syntax/tree.dart' show SyntaxNode;
+import '../view/line_facts.dart';
 import '../view/syntax_tree.dart';
 import 'run_paint.dart';
 
@@ -81,14 +82,19 @@ bool underCover(SyntaxNode node, List<String> covering) {
 /// The styled stretches in `from`-`to`: the words of every node in `looks`, delimiters aside, and not a lifting
 /// look's node the selection touches while `atCaret`. A look's words inside another look's are listed after it, in
 /// document order; none inside a look that hides its words, unless it is lifted.
-List<Styled> styledRanges(EditorState state, Map<String, StyleLookSpec> looks, int from, int to, [bool atCaret = false]) {
+///
+/// With `marked` (the lines that have one of the looks' delimiters, `delimitedLines`), the walk goes only into what
+/// touches such a line: a node of a look starts with its delimiter, so nothing else holds one. A node that starts
+/// before `from` is always gone into.
+List<Styled> styledRanges(EditorState state, Map<String, StyleLookSpec> looks, int from, int to, [bool atCaret = false, LineFact<bool>? marked]) {
   final found = <Styled>[];
+  final holds = marked == null ? null : touching(marked.between(state.doc, state.doc.lineAt(from).number, state.doc.lineAt(to).number));
   syntaxTree(state).iterate(
     from: from,
     to: to,
     enter: (node) {
       final look = looks[node.name];
-      if (look == null) return null;
+      if (look == null) return holds == null || node.from < from || holds(node.from, node.to) ? null : false;
       // Lifted: the words are drawn as they are, and so is any look inside them.
       if (look.clearAtCaret && atCaret && state.selection.ranges.any((r) => r.to >= node.from && r.from <= node.to)) return null;
       final a = node.from + look.length, b = node.to - look.length;
@@ -152,28 +158,31 @@ Iterable<Range<Decoration>> _pieces(EditorState state, Styled styled) sync* {
   yield _markFor(styled.css, 'end').range(styled.to - last, styled.to);
 }
 
-DecorationSet _build(EditorViewLike view, Map<String, StyleLookSpec> looks) {
+DecorationSet _build(EditorViewLike view, Map<String, StyleLookSpec> looks, [LineFact<bool>? marked]) {
   final ranges = view.visibleRanges;
   if (ranges.isEmpty) return Decoration.none;
   final atCaret = view.state.facet(EditorViewLike.editable) && view.hasFocus;
   final found = <Range<Decoration>>[
-    for (final styled in styledRanges(view.state, looks, ranges.first.from, ranges.last.to, atCaret)) ..._pieces(view.state, styled),
+    for (final styled in styledRanges(view.state, looks, ranges.first.from, ranges.last.to, atCaret, marked)) ..._pieces(view.state, styled),
   ];
   return Decoration.set(found, true);
 }
 
 class _FormatLooks extends PluginValue {
-  _FormatLooks(EditorViewLike view, this.looks, this.lifts) : decorations = _build(view, looks);
+  _FormatLooks(EditorViewLike view, this.looks, this.lifts, this.marked) : decorations = _build(view, looks, marked);
 
   final Map<String, StyleLookSpec> looks;
   final bool lifts;
+
+  /// The lines with one of the looks' delimiters: where the tree is walked.
+  final LineFact<bool>? marked;
   DecorationSet decorations;
 
   @override
   void update(ViewUpdate update) {
     final moved = lifts && (update.selectionSet || update.focusChanged);
     if (moved || update.docChanged || update.viewportChanged || !identical(syntaxTree(update.state), syntaxTree(update.startState))) {
-      decorations = _build(update.view, looks);
+      decorations = _build(update.view, looks, marked);
     }
   }
 }
@@ -313,11 +322,15 @@ Extension formatLooks(Iterable<GlyphFormat> formats) {
   final looks = styleLooksOf(formats);
   if (looks.isEmpty) return const Extension.list(<Extension>[]);
   final lifts = looks.values.any((look) => look.clearAtCaret);
+  final marked = delimitedLines(<GlyphFormat>[
+    for (final format in formats)
+      if (format.look is StyleLook) format,
+  ]);
   return Extension.list(<Extension>[
     for (final entry in looks.entries)
       if (entry.value.clearAtCaret) coveringLooks.of(entry.key),
     // The look's span sits inside the highlighter's, so it takes the size of the words it is on.
-    Prec.highest(ViewPlugin.define<_FormatLooks>((view) => _FormatLooks(view, looks, lifts), decorations: (value) => value.decorations)),
+    Prec.highest(ViewPlugin.define<_FormatLooks>((view) => _FormatLooks(view, looks, lifts, marked), decorations: (value) => value.decorations)),
     _themed,
   ]);
 }

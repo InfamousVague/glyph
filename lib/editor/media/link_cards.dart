@@ -36,7 +36,6 @@ import '../../core/link_preview.dart';
 import '../editor.dart';
 import '../looks/look.dart';
 import '../view/editor_view.dart';
-import '../view/line_facts.dart';
 import '../view/lines.dart';
 import 'images.dart' show gutterOf;
 import 'inline_box.dart';
@@ -70,15 +69,26 @@ typedef LinkRead = bool Function(String text, String url);
 
 /// The link a line is, or null when the line is anything more or less than one link.
 LinkLine? linkLine(String text, {LinkRead? reads}) {
+  final link = _onlyLinkOn(text);
+  if (link == null) return null;
+  // A link a plugin reads has its own row under the line (editor/linkedRows.ts).
+  if (reads != null && reads(text, link.url)) return null;
+  return link;
+}
+
+/// The link a line is and nothing more, whoever reads it.
+LinkLine? _onlyLinkOn(String text) {
   final found = _onlyLink.firstMatch(text);
   if (found == null) return null;
   final url = (found.group(1) ?? found.group(3) ?? '').replaceFirst(_trailing, '');
   if (url.isEmpty) return null;
-  // A link a plugin reads has its own row under the line (editor/linkedRows.ts).
-  if (reads != null && reads(text, url)) return null;
   final words = jsTrim(found.group(2) ?? '');
   return LinkLine(url, words.isEmpty ? null : words);
 }
+
+/// The link each line is alone, kept for every line of a document (`LineFact`): whether a plugin reads it is asked
+/// each time, since that changes, but the line is put to the pattern once.
+final LineFact<LinkLine> _lone = LineFact<LinkLine>((text) => text.contains('http') ? _onlyLinkOn(text) : null);
 
 /// What the cards are told by whoever makes the editor.
 class LinkCardSeams {
@@ -270,16 +280,18 @@ DecorationSet _decorate(EditorState state) {
   final builder = RangeSetBuilder<Decoration>();
   final seams = state.facet(_seams);
   if (!(seams.enabled?.call() ?? true)) return builder.finish();
-  // Only a line with an address in it can be a link's, and the tree keeps which those are
-  // (lib/editor/view/line_facts.dart); whether a plugin reads one is asked each time, since that changes.
-  final lines = webAddressFacts.of(state.doc);
+  // The lines that are a link alone are the tree's own keeping; whether a plugin reads one is asked each time.
+  final lines = _lone.of(state.doc);
   if (lines.isEmpty) return builder.finish();
   // A link in fenced code is code, and gets no card.
   final fences = DocFences.of(state.doc);
+  final reads = seams.reads;
   for (final line in lines) {
     if (fences.covers(line.number)) continue;
-    final link = linkLine(line.text, reads: seams.reads);
-    if (link != null) builder.add(line.to, line.to, Decoration.widget(widget: LinkCardWidget(link.url, link.words, seams.previewer), block: true, side: 1));
+    final link = line.fact;
+    // A link a plugin reads has its own row under the line (editor/linkedRows.ts).
+    if (reads != null && reads(line.text, link.url)) continue;
+    builder.add(line.to, line.to, Decoration.widget(widget: LinkCardWidget(link.url, link.words, seams.previewer), block: true, side: 1));
   }
   return builder.finish();
 }

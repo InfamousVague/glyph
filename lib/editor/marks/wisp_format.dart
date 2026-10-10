@@ -34,6 +34,7 @@ import '../editor.dart';
 import '../looks/look.dart';
 import '../looks/sheets.dart';
 import '../view/editor_view.dart';
+import '../view/line_facts.dart';
 import '../view/syntax_tree.dart';
 import 'run_paint.dart';
 import 'wisp_tables.dart';
@@ -53,14 +54,18 @@ final RegExp _space = RegExp(r'\s');
 
 /// The letters to smoke in `from`-`to`: every letter, spaces aside, of each node whose name is in `names` (mapped
 /// to its delimiter's length), except a node the selection touches while `clearAtCaret`.
-List<SmokeLetter> smokeLetters(EditorState state, Map<String, int> names, int from, int to, bool clearAtCaret) {
+///
+/// With `marked` (the lines that have one of the names' delimiters, `delimitedLines`), the walk goes only into what
+/// touches such a line.
+List<SmokeLetter> smokeLetters(EditorState state, Map<String, int> names, int from, int to, bool clearAtCaret, [LineFact<bool>? marked]) {
   final letters = <SmokeLetter>[];
+  final holds = marked == null ? null : touching(marked.between(state.doc, state.doc.lineAt(from).number, state.doc.lineAt(to).number));
   syntaxTree(state).iterate(
     from: from,
     to: to,
     enter: (node) {
       final length = names[node.name];
-      if (length == null) return null;
+      if (length == null) return holds == null || node.from < from || holds(node.from, node.to) ? null : false;
       if (clearAtCaret && state.selection.ranges.any((r) => r.to >= node.from && r.from <= node.to)) return false;
       final a = node.from + length, b = node.to - length;
       if (b <= a) return false;
@@ -85,20 +90,20 @@ final RegExp _spoilerLine = RegExp(r'^(\s{0,3}>\|\s?)');
 List<SmokeLetter> spoilerLineLetters(EditorState state, int from, int to, bool clearAtCaret) {
   final doc = state.doc;
   final letters = <SmokeLetter>[];
-  var n = doc.lineAt(from).number;
-  final last = doc.lineAt(to).number;
-  while (n <= last) {
-    if (!_spoilerLine.hasMatch(doc.line(n).text)) {
-      n += 1;
-      continue;
-    }
+  final first = doc.lineAt(from).number, last = doc.lineAt(to).number;
+  // The spoiler lines among the ones asked about, from what the tree keeps of them: every line on screen was put
+  // to the pattern on every letter and every move of the caret.
+  var done = 0;
+  for (final found in _spoilers.between(doc, first, last)) {
+    final n = found.number;
+    if (n <= done) continue;
     // The whole block, even where it runs past the range, so a block half on screen still clears as one.
     var start = n;
-    while (start > 1 && _spoilerLine.hasMatch(doc.line(start - 1).text)) {
+    while (start > 1 && _spoilers.at(doc, start - 1) != null) {
       start -= 1;
     }
     var end = n;
-    while (end < doc.lines && _spoilerLine.hasMatch(doc.line(end + 1).text)) {
+    while (end < doc.lines && _spoilers.at(doc, end + 1) != null) {
       end += 1;
     }
     final blockFrom = doc.line(start).from, blockTo = doc.line(end).to;
@@ -115,10 +120,13 @@ List<SmokeLetter> spoilerLineLetters(EditorState state, int from, int to, bool c
         }
       }
     }
-    n = end + 1;
+    done = end;
   }
   return letters;
 }
+
+/// A spoiler line, kept for every line of a document (`LineFact`). It is written with `>|`.
+final LineFact<bool> _spoilers = LineFact<bool>((text) => text.contains('>|') && _spoilerLine.hasMatch(text) ? true : null);
 
 /// One smoke at a moment: what `pose(t)` writes into a slot's filter.
 class SmokePose {
@@ -213,12 +221,15 @@ final LookSheet _theme = LookSheet('editor/wispFormat.ts', <LookRule>[
 final Extension _themed = baseTheme(_theme);
 
 class _WispFormat extends PluginValue {
-  _WispFormat(this.view, this.names) {
+  _WispFormat(this.view, this.names, this.marked) {
     _redraw(first: true);
   }
 
   final EditorViewLike view;
   final Map<String, int> names;
+
+  /// The lines with one of the smoked marks' delimiters: where the tree is walked.
+  final LineFact<bool>? marked;
   DecorationSet decorations = Decoration.none;
   bool _gone = false;
 
@@ -257,7 +268,7 @@ class _WispFormat extends PluginValue {
     final state = view.state;
     final clear = state.facet(EditorViewLike.editable) && view.hasFocus;
     final from = ranges.first.from, to = ranges.last.to;
-    final letters = <SmokeLetter>[...smokeLetters(state, names, from, to, clear), ...spoilerLineLetters(state, from, to, clear)]..sort((a, b) => a.from - b.from);
+    final letters = <SmokeLetter>[...smokeLetters(state, names, from, to, clear, marked), ...spoilerLineLetters(state, from, to, clear)]..sort((a, b) => a.from - b.from);
     if (letters.isNotEmpty) _wantTables(atOnce: first);
     final builder = RangeSetBuilder<Decoration>();
     var i = 0, before = -1;
@@ -278,9 +289,13 @@ Extension wispFormat(Iterable<GlyphFormat> formats) {
       if (format.look is WispLook) format.name: format.delimiter.length,
   };
   if (names.isEmpty) return const Extension.list(<Extension>[]);
+  final marked = delimitedLines(<GlyphFormat>[
+    for (final format in formats)
+      if (format.look is WispLook) format,
+  ]);
   return Extension.list(<Extension>[
     // Inside the highlighter's spans, as the style looks are, so a letter's painter is the one its run carries.
-    Prec.highest(ViewPlugin.define<_WispFormat>((view) => _WispFormat(view, names), decorations: (value) => value.decorations)),
+    Prec.highest(ViewPlugin.define<_WispFormat>((view) => _WispFormat(view, names, marked), decorations: (value) => value.decorations)),
     _themed,
     markMotion,
   ]);

@@ -17,6 +17,7 @@ import '../../core/item_syntax.dart' show anchorSpan;
 import '../../core/place_refs.dart' show PlaceLine, placeOfLine;
 import '../../core/video_refs.dart' show VideoLine, videoOfLine;
 import '../state/text.dart';
+import '../syntax/language.dart' show InlineFormatSyntax, markdownLanguage;
 
 /// The film a line is (`videoOfLine`).
 final LineFact<VideoLine> filmFacts = LineFact<VideoLine>(videoOfLine);
@@ -56,9 +57,6 @@ final LineFact<List<ItemRef>> itemRefFacts = LineFact<List<ItemRef>>((text) {
 /// A line with a link to a web address in it: the only lines an item's mark, or a link a plugin reads, can be on.
 /// Which of them a plugin reads is asked of the plugins each time, since that changes; this is only where to look.
 final LineFact<bool> webLinkFacts = LineFact<bool>((text) => text.contains('](http') ? true : null);
-
-/// A line with a web address anywhere in it: the only lines that can be a link's alone (media/link_cards.dart).
-final LineFact<bool> webAddressFacts = LineFact<bool>((text) => text.contains('http') ? true : null);
 
 /// A line with a voice memo's mark in it (media/clips.dart).
 final LineFact<bool> tapeFacts = LineFact<bool>((text) => text.contains('](tape:') ? true : null);
@@ -138,3 +136,40 @@ Board? boardOf(Doc doc, int line) {
   }
   return null;
 }
+
+final Map<String, LineFact<bool>> _delimited = <String, LineFact<bool>>{};
+
+/// The lines with one of these formats' delimiters in them: the only lines a node of one of the formats can start
+/// on, so a walk of the tree for such nodes need go only into what touches one of them ([touching]). One keeping
+/// for each set of delimiters. Null where a format is named as one of Markdown's own nodes, which are written in
+/// other ways: nothing can then be said from the delimiters.
+LineFact<bool>? delimitedLines(Iterable<InlineFormatSyntax> formats) {
+  final delimiters = <String>{};
+  for (final format in formats) {
+    if (format.delimiter.isEmpty || markdownLanguage.nodeTypes.any((type) => type.name == format.name)) return null;
+    delimiters.add(format.delimiter);
+  }
+  if (delimiters.isEmpty) return null;
+  final all = delimiters.toList()..sort();
+  return _delimited[all.join('\u0000')] ??= LineFact<bool>((text) {
+    for (final delimiter in all) {
+      if (text.contains(delimiter)) return true;
+    }
+    return null;
+  });
+}
+
+/// Whether a stretch of the document touches one of `lines`, which are in order: for a walk of the tree that need
+/// only go into the nodes that do.
+bool Function(int from, int to) touching<T>(List<FactLine<T>> lines) => (from, to) {
+  var low = 0, high = lines.length;
+  while (low < high) {
+    final mid = (low + high) >> 1;
+    if (lines[mid].to < from) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+  return low < lines.length && lines[low].from <= to;
+};

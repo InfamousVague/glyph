@@ -59,6 +59,7 @@ import '../editor.dart';
 import '../looks/look.dart';
 import '../looks/sheets.dart';
 import '../view/editor_view.dart';
+import '../view/line_facts.dart';
 import '../view/syntax_tree.dart';
 import 'run_paint.dart';
 import 'wisp_tables.dart';
@@ -121,14 +122,16 @@ typedef EffectRange = ({int from, int to, String effect});
 /// The stretches to draw an effect on in `from`-`to`: the words of every node in `looks`, delimiters aside, except
 /// a node the selection touches while `atCaret`, which is an editable view with the focus. Nested effects are each
 /// a stretch, outer first.
-List<EffectRange> effectRanges(EditorState state, Map<String, EffectLookSpec> looks, int from, int to, bool atCaret) {
+List<EffectRange> effectRanges(EditorState state, Map<String, EffectLookSpec> looks, int from, int to, bool atCaret, [LineFact<bool>? marked]) {
   final found = <EffectRange>[];
+  // With `marked` (the lines that have one of the effects' delimiters), only what touches such a line is gone into.
+  final holds = marked == null ? null : touching(marked.between(state.doc, state.doc.lineAt(from).number, state.doc.lineAt(to).number));
   syntaxTree(state).iterate(
     from: from,
     to: to,
     enter: (node) {
       final look = looks[node.name];
-      if (look == null) return null;
+      if (look == null) return holds == null || node.from < from || holds(node.from, node.to) ? null : false;
       final a = node.from + look.length, b = node.to - look.length;
       if (b <= a) return false;
       if (atCaret && state.selection.ranges.any((r) => r.to >= node.from && r.from <= node.to)) return false;
@@ -549,12 +552,15 @@ class _Above {
 }
 
 class _TextEffects extends PluginValue {
-  _TextEffects(this.view, this.looks) {
+  _TextEffects(this.view, this.looks, this.marked) {
     _redraw(first: true);
   }
 
   final EditorViewLike view;
   final Map<String, EffectLookSpec> looks;
+
+  /// The lines with one of the effects' delimiters: where the tree is walked.
+  final LineFact<bool>? marked;
 
   /// The heat's seeds, off the first frame: asked for when the note first shows an effect (wisp_tables.dart).
   final WispTables _tables = WispTables(const <int>[7, 8, 9, 10, 11, 12]);
@@ -608,7 +614,7 @@ class _TextEffects extends PluginValue {
     final state = view.state;
     final ranges = view.visibleRanges;
     final atCaret = state.facet(EditorViewLike.editable) && view.hasFocus;
-    final found = ranges.isEmpty ? const <EffectRange>[] : effectRanges(state, looks, ranges.first.from, ranges.last.to, atCaret);
+    final found = ranges.isEmpty ? const <EffectRange>[] : effectRanges(state, looks, ranges.first.from, ranges.last.to, atCaret, marked);
     if (found.isNotEmpty) _wantTables(atOnce: first);
     final marks = <({int from, int to, Decoration mark})>[];
     // What moves each letter, by where it starts.
@@ -739,9 +745,13 @@ Map<String, EffectLookSpec> effectLooksOf(Iterable<GlyphFormat> formats) => <Str
 Extension textEffects(Iterable<GlyphFormat> formats) {
   final looks = effectLooksOf(formats);
   if (looks.isEmpty) return const Extension.list(<Extension>[]);
+  final marked = delimitedLines(<GlyphFormat>[
+    for (final format in formats)
+      if (looks.containsKey(format.name)) format,
+  ]);
   return Extension.list(<Extension>[
     ViewPlugin.define<_TextEffects>(
-      (view) => _TextEffects(view, looks),
+      (view) => _TextEffects(view, looks, marked),
       decorations: (value) => value.decorations,
       // The letters' marks inside every other, so a letter's painter is the one its run carries.
       provide: (plugin) => Prec.highest(EditorViewLike.decorations.of((EditorViewLike view) => view.plugin(plugin)?.letters ?? Decoration.none)),

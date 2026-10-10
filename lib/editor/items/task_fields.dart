@@ -90,7 +90,18 @@ bool _finished(String text, List<FieldSpan> spans) => taskBox(text)?.done == tru
 
 /// A line with one of the fields' signs in it, kept for every line of a document (`LineFact`): the lines on screen
 /// are not put to the pattern again on every letter and every move of the caret.
-final LineFact<bool> _signed = LineFact<bool>((text) => _signs.hasMatch(text) ? true : null);
+final LineFact<bool> _signed = LineFact<bool>((text) => _maySign(text) && _signs.hasMatch(text) ? true : null);
+
+/// Whether a line could have one of the signs: an `@`, a colon, or a letter past the Latin ones, where every sign
+/// but those two is. A line of plain words has none, and is not put to the pattern, which is slow where patterns
+/// are not compiled (a phone): 160 microseconds of each letter typed on the Mac went to it.
+bool _maySign(String text) {
+  for (var i = 0; i < text.length; i += 1) {
+    final unit = text.codeUnitAt(i);
+    if (unit == 0x40 || unit == 0x3a || unit >= 0x2000) return true;
+  }
+  return false;
+}
 
 DecorationSet _decorate(EditorViewLike view, String today) {
   final builder = RangeSetBuilder<Decoration>();

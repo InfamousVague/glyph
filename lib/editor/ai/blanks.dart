@@ -191,11 +191,55 @@ final StateField<Map<String, BlankRange>> blanksField = StateField.define<Map<St
   },
 );
 
+/// Where a document's front matter ends, read from its first four thousand letters once for each document: every
+/// blank asked, on every letter and every move of the caret.
+final DocMemo<int> _frontEnd = DocMemo<int>((doc) => frontMatterOffset(doc.sliceString(0, math.min(doc.length, 4000))));
+
+/// The pattern's matches on each line, counted from the line's start, kept for every line of a document
+/// (`LineFact`). A blank is on one line (its question has no line break in it, and what may not stand before or
+/// after it is not a line's break), so the note's matches are its lines' matches.
+/// A line with `{?` in it.
+final LineFact<bool> _braced = LineFact<bool>((text) => text.contains('{?') ? true : null);
+
+final LineFact<List<Blank>> _onLine = LineFact<List<Blank>>((text) {
+  if (!text.contains('{?')) return null;
+  final found = blankMatches(text);
+  return found.isEmpty ? null : found;
+});
+
+/// `blankMatches(doc.toString())`, from the lines the tree keeps and once for each document.
+final DocMemo<List<Blank>> _matches = DocMemo<List<Blank>>(
+  (doc) => List<Blank>.unmodifiable(<Blank>[
+    for (final line in _onLine.of(doc))
+      for (final blank in line.fact) Blank(from: line.from + blank.from, to: line.from + blank.to, question: blank.question),
+  ]),
+);
+
+/// The matches that sit in words the editor draws, for a state's document as its tree reads it: worked out once
+/// for each tree, where the whole note was put to the pattern and every match asked of the tree on every letter
+/// and every move of the caret.
+final Expando<({Tree tree, List<Blank> blanks})> _drawnFor = Expando<({Tree tree, List<Blank> blanks})>('blanks in words');
+
+List<Blank> _inWordsOf(EditorState state, Tree tree) {
+  final matches = _matches.of(state.doc);
+  if (matches.isEmpty) return matches;
+  // Kept with the document, for the tree that read it (a state with no parser has the one empty tree for every
+  // document, so the tree alone would not tell two notes apart).
+  final kept = _drawnFor[state.doc];
+  if (kept != null && identical(kept.tree, tree)) return kept.blanks;
+  final blanks = List<Blank>.unmodifiable(<Blank>[
+    for (final blank in matches)
+      if (_inWords(state, blank.from, tree)) blank,
+  ]);
+  _drawnFor[state.doc] = (tree: tree, blanks: blanks);
+  return blanks;
+}
+
 /// Whether a blank starting at `from` sits in words the editor draws: not front matter (the parser makes no node
 /// for it, editor/view/extended.dart draws it by its own rule), code, a comment, an address or maths.
 bool _inWords(EditorState state, int from, [Tree? tree]) {
   final doc = state.doc;
-  if (from < frontMatterOffset(state.sliceDoc(0, math.min(doc.length, 4000)))) return false;
+  if (from < _frontEnd.of(doc)) return false;
   if (inQuietText(tree ?? syntaxTree(state), from)) return false;
   final line = doc.lineAt(from);
   if (wikiLinkPattern.allMatches(line.text).any((m) => from >= line.from + m.start && from < line.from + m.end)) return false;
@@ -208,13 +252,8 @@ bool _inWords(EditorState state, int from, [Tree? tree]) {
 /// tree it was made with, so a parse cut short at its making (a long note, or a busy phone) would leave a fence's
 /// blank as words.
 List<Blank> editorBlanks(EditorState state, [bool whole = true]) {
-  final text = state.doc.toString();
-  if (!text.contains('{?')) return const <Blank>[];
-  final tree = syntaxTree(state);
-  return <Blank>[
-    for (final blank in blankMatches(text))
-      if (_inWords(state, blank.from, tree)) blank,
-  ];
+  if (_matches.of(state.doc).isEmpty) return const <Blank>[];
+  return _inWordsOf(state, syntaxTree(state));
 }
 
 /// A blank's identity among `all`: its question and its order among blanks with that question.
@@ -811,8 +850,9 @@ class _Pill {
 /// answer that changes each minute is on screen: the minute timer runs only then.
 _Drawn _draw(EditorViewLike view, bool idle) {
   final state = view.state;
+  // A note with no `{?` in it has no blank: asked of the lines the tree keeps, not of the note's whole words.
+  if (_braced.nowhere(state.doc)) return (decorations: Decoration.none, minutely: false);
   final text = state.doc.toString();
-  if (!text.contains('{?')) return (decorations: Decoration.none, minutely: false);
   final hooks = state.facet(blankHooks);
   final noteId = hooks?.noteId();
   final formatted = state.facet(formattedView);
@@ -820,10 +860,7 @@ _Drawn _draw(EditorViewLike view, bool idle) {
   final caretLines = view.hasFocus ? selectedLines(state) : const <int>{};
   final editable = state.facet(EditorViewLike.editable);
   final tree = syntaxTree(state);
-  final all = <Blank>[
-    for (final blank in blankMatches(text))
-      if (_inWords(state, blank.from, tree)) blank,
-  ];
+  final all = _inWordsOf(state, tree);
   final options = _laneOptions(hooks);
   final marks = <Range<Decoration>>[];
   final pills = <int, _Pill>{};
@@ -976,7 +1013,7 @@ class _Blanks extends PluginValue {
       final state = view.state;
       final text = state.doc.toString();
       final options = _laneOptions(hooks);
-      final count = text.contains('{?') ? blankMatches(text).where((b) => _inWords(state, b.from) && fillable(laneOf(b, text, options))).length : 0;
+      final count = _braced.nowhere(state.doc) ? 0 : _inWordsOf(state, syntaxTree(state)).where((b) => fillable(laneOf(b, text, options))).length;
       final was = openNoteBlanks.value;
       if (was == null || was.noteId != hooks.noteId() || was.count != count) openNoteBlanks.value = (noteId: hooks.noteId(), count: count);
     });
@@ -1098,11 +1135,7 @@ BlankCell? drawCell(EditorViewLike view, String raw, int at, String Function(Str
   final state = view.state;
   final hooks = state.facet(blankHooks);
   final text = state.doc.toString();
-  final tree = syntaxTree(state);
-  final all = <Blank>[
-    for (final blank in blankMatches(text))
-      if (_inWords(state, blank.from, tree)) blank,
-  ];
+  final all = _inWordsOf(state, syntaxTree(state));
   final options = _laneOptions(hooks);
   final noteId = hooks?.noteId();
   final pieces = <({int from, int to, CellPiece piece})>[];
@@ -1245,11 +1278,7 @@ Widget? tablePill(EditorViewLike view, int from, int to) {
   final hooks = state.facet(blankHooks);
   if (hooks == null || !hooks.canFill() || !state.facet(EditorViewLike.editable)) return null;
   final text = state.doc.toString();
-  final tree = syntaxTree(state);
-  final all = <Blank>[
-    for (final blank in blankMatches(text))
-      if (_inWords(state, blank.from, tree)) blank,
-  ];
+  final all = _inWordsOf(state, syntaxTree(state));
   final mine = all.where((b) => b.from >= from && b.to <= to).toList();
   if (mine.isEmpty) return null;
   final options = _laneOptions(hooks);

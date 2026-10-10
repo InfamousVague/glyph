@@ -305,16 +305,43 @@ class EditorView extends EditorViewLike implements EditorLineHost {
         _addDirty(range.fromB, range.toB);
       }
     }
+    // Only where lines are built: what differs elsewhere is nothing anyone keeps.
+    final built = _builtStretch();
+    if (built == null) return;
     var same = true;
     for (var i = 0; same && i < before.length; i++) {
       same = identical(before[i], _decorations[i]);
     }
-    if (!same || update.docChanged) RangeSet.compare<Decoration>(before, _decorations, update.changes, _Differ<Decoration>(_addDirty));
+    if (!same || update.docChanged) RangeSet.compareIn<Decoration>(before, _decorations, update.changes, _Differ<Decoration>(_addDirty), built.$1, built.$2);
     same = true;
     for (var i = 0; same && i < atomic.length; i++) {
       same = identical(atomicBefore[i], atomic[i]);
     }
-    if (!same || update.docChanged) RangeSet.compare<RangeValue>(atomicBefore, atomic, update.changes, _Differ<RangeValue>(_addDirty));
+    if (!same || update.docChanged) RangeSet.compareIn<RangeValue>(atomicBefore, atomic, update.changes, _Differ<RangeValue>(_addDirty), built.$1, built.$2);
+  }
+
+  /// The stretch of the document, as it is now, that the built lines and block widgets stand on; null with nothing
+  /// built. Each knows where it stood when the lines were last built, and [_unsynced] is every change since.
+  (int, int)? _builtStretch() {
+    var low = -1, high = -1;
+    for (final line in _lines) {
+      if (!line.attached) continue;
+      if (low < 0 || line.from < low) low = line.from;
+      if (line.to > high) high = line.to;
+    }
+    for (final block in _blockBoxes) {
+      if (!block.attached) continue;
+      if (low < 0 || block.spec.from < low) low = block.spec.from;
+      if (block.spec.to > high) high = block.spec.to;
+    }
+    if (low < 0) return null;
+    final moved = _unsynced;
+    if (moved != null) {
+      low = moved.mapPos(low > moved.length ? moved.length : low, -1);
+      high = moved.mapPos(high > moved.length ? moved.length : high, 1);
+    }
+    final length = _state.doc.length;
+    return (low > length ? length : low, high > length ? length : high);
   }
 
   /// Where lines may show something else since this was last asked; whoever keeps the lines built asks, builds
