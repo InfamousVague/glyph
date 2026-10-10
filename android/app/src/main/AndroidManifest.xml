@@ -110,10 +110,12 @@
               the first (lib/app/ghost_app.dart drops them too, for an entry point that forgets this).
             -->
             <meta-data android:name="flutter_deeplinking_enabled" android:value="false" />
-            <!-- "Record note" on a long press of the icon (ghost_shortcuts.xml). -->
+            <!-- "Record note" on a long press of the icon (ghost_shortcuts.xml), or nothing in a build made without
+                 the assistant (ghost_no_shortcuts.xml): the build says which, since a shortcut's own `enabled` cannot
+                 be asked of a resource. -->
             <meta-data
                 android:name="android.app.shortcuts"
-                android:resource="@xml/ghost_shortcuts" />
+                android:resource="${ghostShortcuts}" />
         </activity>
 
         <!--

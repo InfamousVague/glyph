@@ -4,8 +4,8 @@
   Ghost.md's own (docs/PARITY.md, Differs 1). The switch itself, `ghost_assistant`, is made by
   android/app/build.gradle.kts (a `resValue`, true unless the build is asked otherwise: GHOST_ASSISTANT=0 in the
   environment, or `-Pghost.assistant=false`), which says how. It is read by the manifest (the three services and
-  the activity's alias are `android:enabled="@bool/ghost_assistant"`), by the launcher shortcut
-  (res/xml/ghost_shortcuts.xml) and by MeetingBridge.kt (a capture launch is ignored without it).
+  the activity's alias are `android:enabled="@bool/ghost_assistant"`) and by MeetingBridge.kt (a capture launch is
+  ignored without it); the launcher shortcut goes with it by the file the manifest names (res/xml/ghost_shortcuts.xml).
 -->
 <resources>
     <string name="ghost_capture_short">Record note</string>
