@@ -228,7 +228,8 @@ void main() {
       const canvas = '---\ntitle: "Plan"\n---\n{"nodes":[{"id":"a","type":"text","text":"hi","x":0,"y":0,"width":100,"height":50}],"edges":[]}';
       // The three views that take the page are the app's to give (lib/root/note_desk.dart): handed the body.
       Widget Function(BuildContext, String, ValueChanged<String>) drawn(String what) => (context, body, onChange) => SizedBox(height: 40, child: Text('$what of ${body.length}'));
-      final views = NoteSeams(canvas: drawn('canvas'), book: drawn('notebook'), journal: drawn('journal'));
+      // A notebook's view is a sliver of the page, where the other two are boxes.
+      final views = NoteSeams(canvas: drawn('canvas'), book: (context, body, onChange) => SliverToBoxAdapter(child: drawn('notebook')(context, body, onChange)), journal: drawn('journal'));
       await pumpNote(tester, world, await seeded(tester, world, canvas), seams: views);
       expect(find.text('canvas of ${canvas.length}'), findsOneWidget);
       await tester.tap(find.bySemanticsLabel('Showing the canvas. Show its JSON.'));

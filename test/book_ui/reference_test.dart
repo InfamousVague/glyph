@@ -42,8 +42,9 @@ void main() {
   /// their own, for a thing measured from something other than the view.
   // Every rectangle of a page is asked before any is refused, so one run says all that is off.
   final misses = <String>[];
-  void held(WidgetTester tester, Measured web, String name, int at, Finder finder, {Offset from = Offset.zero, Offset webFrom = Offset.zero, double by = 0.5}) {
-    final got = tester.getRect(finder).shift(-from);
+  // [rect] is given for what has no box of its own to ask: the notebook's view, a sliver of the page (`bookRect`).
+  void held(WidgetTester tester, Measured web, String name, int at, Finder finder, {Offset from = Offset.zero, Offset webFrom = Offset.zero, double by = 0.5, Rect? rect}) {
+    final got = (rect ?? tester.getRect(finder)).shift(-from);
     final want = web.rect(name, at);
     final wanted = [want[0] - webFrom.dx, want[1] - webFrom.dy, want[2], want[3]];
     final has = [got.left, got.top, got.width, got.height];
@@ -65,7 +66,7 @@ void main() {
     testWidgets('at a phone’s width, to half a pixel', (tester) async {
       await pumpView(tester, fieldGuide());
       final web = Measured.load('index-390');
-      held(tester, web, 'book', 0, find.byType(BookView));
+      held(tester, web, 'book', 0, find.byType(BookView), rect: bookRect(tester));
       held(tester, web, 'preface', 0, find.byKey(const ValueKey('book-words-before')));
       held(tester, web, 'preface', 1, find.byKey(const ValueKey('book-words-after')));
       for (var i = 0; i < 5; i += 1) {
@@ -160,7 +161,7 @@ void main() {
       }
       held(tester, web, 'readNote', 0, find.text('Not written yet.'));
       held(tester, web, 'readNote', 1, find.text('A canvas: open it to see the cards.'));
-      held(tester, web, 'book', 0, find.byType(BookView));
+      held(tester, web, 'book', 0, find.byType(BookView), rect: bookRect(tester));
       await done(tester);
     });
 
@@ -479,7 +480,7 @@ void main() {
       });
     }
     testWidgets('the index and a journal on a wide window', (tester) async {
-      await pumpView(tester, Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [fieldGuide(), diary()]), size: const Size(1280, 1500));
+      await pumpSlivers(tester, [fieldGuide(), SliverToBoxAdapter(child: diary())], size: const Size(1280, 1500));
       await shot(tester, 'wide-1280-light');
     });
   });

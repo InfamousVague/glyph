@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/rendering.dart' show RenderAbstractViewport, RenderSliver;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/book/book_view.dart';
 import 'package:ghost_md/core/back.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/note_text.dart' show noteTitle, sameTitle;
@@ -98,20 +100,34 @@ class Measured {
 }
 
 /// [child] at the top of a page that scrolls, on the page's paper, under the app's theme: the note's page, as far
-/// as a notebook's view knows of it.
-Future<void> pumpView(WidgetTester tester, Widget child, {Size size = const Size(390, 844), String theme = 'light', ScrollController? scroll}) => pumpPage(
+/// as a notebook's view knows of it. A notebook's view is a sliver of that page, as the note's page has it
+/// (lib/note/note_screen.dart); anything else is a box in it.
+Future<void> pumpView(WidgetTester tester, Widget child, {Size size = const Size(390, 844), String theme = 'light', ScrollController? scroll}) => child is BookView
+    ? pumpSlivers(tester, [child], size: size, theme: theme, scroll: scroll)
+    : _pumpPaper(tester, SingleChildScrollView(controller: scroll, child: child), size: size, theme: theme);
+
+/// The page with [slivers] down it, a notebook's view among them.
+Future<void> pumpSlivers(WidgetTester tester, List<Widget> slivers, {Size size = const Size(390, 844), String theme = 'light', ScrollController? scroll}) =>
+    _pumpPaper(tester, CustomScrollView(controller: scroll, slivers: slivers), size: size, theme: theme);
+
+Future<void> _pumpPaper(WidgetTester tester, Widget page, {required Size size, required String theme}) => pumpPage(
       tester,
       BackScope(
         child: Builder(
-          builder: (context) => ColoredBox(
-            color: context.tokens.color('glacier-bg'),
-            child: SingleChildScrollView(controller: scroll, child: child),
-          ),
+          builder: (context) => ColoredBox(color: context.tokens.color('glacier-bg'), child: page),
         ),
       ),
       size: size,
       theme: theme,
     );
+
+/// The rectangle of a notebook's view on the screen, as the box it was: its corner, the page's width, and as tall
+/// as all of it is (a sliver has no box; what it has is how far it scrolls).
+Rect bookRect(WidgetTester tester) {
+  final sliver = tester.renderObject<RenderSliver>(find.byType(BookView));
+  final corner = (RenderAbstractViewport.of(sliver) as RenderBox).localToGlobal(Offset.zero);
+  return Rect.fromLTWH(corner.dx, corner.dy - sliver.constraints.scrollOffset, sliver.constraints.crossAxisExtent, sliver.geometry!.scrollExtent);
+}
 
 /// The rectangle of what [finder] finds, on the screen.
 Rect rectOf(WidgetTester tester, Finder finder) => tester.getRect(finder);

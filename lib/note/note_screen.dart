@@ -203,6 +203,8 @@ class NoteSeams {
   /// book/BookView.tsx and book/JournalView.tsx (stage 5). Each is handed the body and writes the note through
   /// `onChange`, as typing does.
   final Widget Function(BuildContext context, String body, ValueChanged<String> onChange)? canvas;
+
+  /// The notebook's view is a sliver of the note's page, where the other two are boxes.
   final Widget Function(BuildContext context, String body, ValueChanged<String> onChange)? book;
   final Widget Function(BuildContext context, String body, ValueChanged<String> onChange)? journal;
 
@@ -1260,7 +1262,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     if (_isJournal) {
       return seams.journal?.call(context, _typedBody, write) ?? const SizedBox.shrink();
     }
-    return seams.book?.call(context, _typedBody, write) ?? const SizedBox.shrink();
+    return seams.book?.call(context, _typedBody, write) ?? const SliverToBoxAdapter(child: SizedBox.shrink());
   }
 
   @override
@@ -1359,7 +1361,9 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
               child: MapPicture(size: look == Look.map ? MapSize.header : MapSize.card, why: _hold == Held.waiting ? null : (prefs.localOnly ? 'Local only is on.' : 'No place yet.')),
             ),
           ),
-        if (_drawing) SliverFillRemaining(hasScrollBody: true, child: _view0(context)) else if (!_words) SliverToBoxAdapter(child: _view0(context)),
+        // A canvas fills what is left of the page; a journal is one box of it; a notebook's view is slivers of its own
+        // (lib/book/book_view.dart), so reading its pages straight through lays out what is near the window.
+        if (_drawing) SliverFillRemaining(hasScrollBody: true, child: _view0(context)) else if (!_words) _isJournal ? SliverToBoxAdapter(child: _view0(context)) : _view0(context),
         // The editor stays mounted behind a canvas or an index, hidden, so its caret keeps its place.
         SliverOffstage(offstage: !_words, sliver: widget.editorBuilder(context, spec)),
         if (_words) ...[

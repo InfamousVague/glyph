@@ -1,3 +1,6 @@
+import 'dart:ui' as ui;
+
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +16,7 @@ import 'package:ghost_md/core/book.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/editor/fields/field_picker.dart';
 import 'package:ghost_md/editor/markdown_view.dart';
+import 'package:ghost_md/editor/view/line.dart' show EditorLine;
 import 'package:ghost_md/notes/note_templates.dart';
 import 'package:ghost_md/notes/ticket_mark.dart';
 import 'package:ghost_md/sheet/kit.dart';
@@ -37,9 +41,45 @@ List<String?> rows(WidgetTester tester) => [
 
 String canvasBody(String title) => json_canvas.canvasNoteBody(title, json_canvas.Canvas(nodes: const [], edges: const []));
 
+/// A page of about thirty thousand letters, of the kinds of line a page has: headings, paragraphs that wrap by
+/// different amounts, and lists.
+String longWords() {
+  final out = StringBuffer();
+  for (var i = 0; i < 120; i += 1) {
+    if (i % 12 == 0) out.writeln('## Part ${i ~/ 12 + 1}\n');
+    if (i % 5 == 3) {
+      out.writeln('- one thing\n- another, longer than the first by a good many words, so that it wraps at a phone’s width\n');
+    } else {
+      out.writeln('Paragraph $i of the long page. ${List.filled(3 + i % 7, 'The path runs north from the harbour and bends.').join(' ')}\n');
+    }
+  }
+  return out.toString();
+}
+
+/// The screen as it is drawn, pixel for pixel.
+Future<({int width, int height, Uint8List data})> _picture(WidgetTester tester) async {
+  final boundary = tester.allRenderObjects.whereType<RenderRepaintBoundary>().first;
+  return (await tester.runAsync(() async {
+    final image = await boundary.toImage(pixelRatio: tester.view.devicePixelRatio);
+    final data = await image.toByteData(format: ui.ImageByteFormat.rawStraightRgba);
+    return (width: image.width, height: image.height, data: data!.buffer.asUint8List());
+  }))!;
+}
+
+/// How many of the two pictures' pixels differ.
+int _differing(({int width, int height, Uint8List data}) a, ({int width, int height, Uint8List data}) b) {
+  if (a.width != b.width || a.height != b.height) return a.width * a.height;
+  var count = 0;
+  for (var i = 0; i < a.data.length; i += 4) {
+    if (a.data[i] != b.data[i] || a.data[i + 1] != b.data[i + 1] || a.data[i + 2] != b.data[i + 2] || a.data[i + 3] != b.data[i + 3]) count += 1;
+  }
+  return count;
+}
+
 void main() {
   setUpAll(loadAppFonts);
   setUp(() => useStored(MemoryStored()));
+  tearDown(() => BookViewState.longPage = 1500);
 
   Future<void> show(
     WidgetTester tester, {
@@ -431,6 +471,117 @@ void main() {
       handle.dispose();
       await press(tester, 'Index');
       expect(rows(tester), ['Introduction', 'Trees, a canvas', 'Birds, not written yet']);
+      await away(tester);
+    });
+  });
+
+  group('a long page read straight through', () {
+    const titles = ['Long one', 'After', 'Last'];
+    final bodies = {
+      'Long one': '# Long one\n\n${longWords()}',
+      'After': '# After\n\n${List.filled(40, 'Words.').join('\n\n')}',
+      'Last': '# Last\n\n${List.filled(40, 'Words.').join('\n\n')}',
+    };
+    final long = bookNoteBody('Long', titles);
+
+    Future<void> read(WidgetTester tester, {ScrollController? scroll, String? spot}) async {
+      await show(tester, body: long, title: 'Long', bodyOf: (t) => bodies[t], scroll: scroll, spot: spot);
+      if (spot == null) await press(tester, 'Read straight through');
+      // Every page is there: the rest follow the first frame's.
+      for (var i = 0; i < 6; i += 1) {
+        await tester.pump();
+      }
+    }
+
+    /// How many of the long page's lines are built.
+    int lines(WidgetTester tester) => find.descendant(of: find.byKey(const ValueKey('book-read-body-0')), matching: find.byType(EditorLine), skipOffstage: false).evaluate().length;
+
+    testWidgets('lays out the lines near the window and not the page, and is drawn as the page drawn whole is', (tester) async {
+      final scroll = ScrollController();
+      addTearDown(scroll.dispose);
+      // Whole: a box, every line of it built and laid out with the view.
+      BookViewState.longPage = 1 << 30;
+      await read(tester, scroll: scroll);
+      expect(tester.widget<MarkdownView>(find.byKey(const ValueKey('book-read-body-0'))).markdown, startsWith('## Part 1'));
+      final every = lines(tester);
+      expect(every, greaterThan(100));
+      final whole = await _picture(tester);
+      // Down the page by whole pixels, in steps short enough that every line above the window has been in it.
+      for (final at in [300.0, 600.0]) {
+        scroll.jumpTo(at);
+        await tester.pump();
+      }
+      final wholeDown = await _picture(tester);
+      await away(tester);
+
+      // As it is: the long page's lines a sliver of the note's page.
+      BookViewState.longPage = 1500;
+      await read(tester, scroll: scroll);
+      expect(find.byKey(const ValueKey('book-read-body-0')), findsOneWidget);
+      expect(tester.widget(find.byKey(const ValueKey('book-read-body-0'))), isNot(isA<MarkdownView>()));
+      // A window of 844 and what the page keeps ready under it: a few paragraphs of a hundred and more.
+      expect(lines(tester), lessThan(every ~/ 4));
+      expect(lines(tester), greaterThan(3));
+      expect(_differing(await _picture(tester), whole), 0);
+      // The title over it opens the page, as a short page's does; the lines say nothing to a screen reader.
+      final handle = tester.ensureSemantics();
+      await tester.pump();
+      expect(find.bySemanticsLabel(RegExp('Paragraph')), findsNothing);
+      expect(button('Open Long one'), findsOneWidget);
+      handle.dispose();
+      for (final at in [300.0, 600.0]) {
+        scroll.jumpTo(at);
+        await tester.pump();
+      }
+      expect(lines(tester), lessThan(every ~/ 4));
+      expect(_differing(await _picture(tester), wholeDown), 0);
+      await away(tester);
+    });
+
+    testWidgets('goes to the page after it from the rail and arrives at its top, though how far that is was a guess', (tester) async {
+      final scroll = ScrollController();
+      addTearDown(scroll.dispose);
+      await read(tester, scroll: scroll);
+      // Where the page after the long one is reckoned to be before the long one's lines have been laid out.
+      // (Its title stands `var(--glacier-space-6)`, 26.77px, under the section's top.)
+      final title = tester.renderObject<RenderBox>(find.byKey(const ValueKey('book-read-title-1'), skipOffstage: false));
+      double reckoned() => RenderAbstractViewport.of(title).getOffsetToReveal(title, 0).offset - 26.77;
+      final guess = reckoned();
+      await tester.tap(find.byKey(const ValueKey('book-rail-1')));
+      await tester.pump();
+      for (var i = 0; i < 12; i += 1) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      // The guess was off by more than a line, so a scroll that stopped where it was first sent would be seen to.
+      expect((reckoned() - guess).abs(), greaterThan(20));
+      expect(scroll.offset, closeTo(reckoned(), 0.5));
+      expect(tester.getTopLeft(find.byKey(const ValueKey('book-read-title-1'))).dy, closeTo(26.77, 0.5));
+      await away(tester);
+    });
+
+    testWidgets('is drawn whole where the book was left in it, and the book left after it opens at its place', (tester) async {
+      final scroll = ScrollController();
+      addTearDown(scroll.dispose);
+      writeBookSpot('book', const ReadingSpot('Long one', 3000));
+      await read(tester, scroll: scroll, spot: 'book');
+      await tester.pump(const Duration(milliseconds: 150));
+      // The line it was left at is where it was measured to be: every line above it laid out.
+      expect(find.byKey(const ValueKey('book-read-body-0')), findsOneWidget);
+      expect(tester.widget(find.byKey(const ValueKey('book-read-body-0'))), isA<MarkdownView>());
+      expect(tester.getTopLeft(find.byKey(const ValueKey('book-read-title-0'))).dy, closeTo(-3000 + 26.77, 0.5));
+      await away(tester);
+
+      // Left in the page after the long one: that page's top is under the window's foot when the view opens, and
+      // the long page over it is not laid out.
+      useStored(MemoryStored());
+      writeBookSpot('book', const ReadingSpot('After', 120));
+      await read(tester, scroll: scroll, spot: 'book');
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(tester.widget(find.byKey(const ValueKey('book-read-body-0'), skipOffstage: false)), isNot(isA<MarkdownView>()));
+      expect(tester.getTopLeft(find.byKey(const ValueKey('book-read-title-1'))).dy, closeTo(-120 + 26.77, 0.5));
+      final was = scroll.offset;
+      await tester.pump(const Duration(milliseconds: 150));
+      expect(scroll.offset, was);
       await away(tester);
     });
   });

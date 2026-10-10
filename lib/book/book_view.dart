@@ -47,6 +47,7 @@ library;
 
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart' show PointerSignalEvent;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -74,6 +75,7 @@ import '../editor/state/state.dart';
 import '../editor/view/base.dart';
 import '../editor/view/column.dart';
 import '../editor/view/editor_view.dart';
+import '../editor/view/sliver.dart';
 import '../editor/view/view_mode.dart';
 import '../note/byline.dart';
 import '../notes/note_templates.dart';
@@ -968,18 +970,28 @@ class BookViewState extends State<BookView> {
     if (!mounted) return null;
     final page = Scrollable.maybeOf(context)?.context.findRenderObject();
     if (page is! RenderBox || !page.attached) return null;
+    final pageTop = page.localToGlobal(Offset.zero).dy;
+    final pixels = Scrollable.of(context).position.pixels;
     final tops = <double>[];
     for (final key in _sections) {
       final box = key.currentContext?.findRenderObject();
       if (box is! RenderBox || !box.attached || !box.hasSize) break;
-      tops.add(box.localToGlobal(Offset.zero).dy);
+      // Where the page would have to be scrolled to for the section to be at its top, less where it is: a sliver
+      // under the window's foot is not placed (every one of them is where the last one in sight ends), so where
+      // its box says it is on the screen is not where it would be.
+      final viewport = RenderAbstractViewport.maybeOf(box);
+      tops.add(viewport == null ? box.localToGlobal(Offset.zero).dy : pageTop + viewport.getOffsetToReveal(box, 0).offset - pixels);
     }
-    return (pageTop: page.localToGlobal(Offset.zero).dy, sectionTops: tops);
+    return (pageTop: pageTop, sectionTops: tops);
   }
 
   @override
   void dispose() {
     _watch?.dispose();
+    for (final each in _lazy.values) {
+      each.view.destroy();
+    }
+    _lazy.clear();
     _drag.dispose();
     _draft.dispose();
     _filter.dispose();
@@ -1055,6 +1067,7 @@ class BookViewState extends State<BookView> {
       _reading = on;
       _readTo = 0;
     });
+    if (!on) _keepLazy(const <String>{});
     _syncWatch();
   }
 
@@ -1065,13 +1078,25 @@ class BookViewState extends State<BookView> {
   /// letters: one frame of 213 ms): what is under the window's foot is now made while the top is read.
   int _readTo = 0;
 
-  /// How many pages the next frame adds: twice as many after a frame that was quick, one after a slow one.
-  int _readStep = 1;
+  /// How much the next frame adds, in letters to lay out ([_readCost]): twice as much after a frame that was quick,
+  /// half after a slow one. It was a number of pages, twice as many after a quick frame and eight at the most, and
+  /// eight pages of a thousand letters each were one frame of 40 ms after four short ones had been quick.
+  int _readStep = _readFirst;
   bool _readWaiting = false;
   final Stopwatch _readClock = Stopwatch();
+  static const int _readLeast = 500, _readFirst = 1500, _readMost = 12000;
 
   /// About a screenful of a page's words, in letters: the pages built with the view reach this many between them.
   static const int _readSoon = 2000;
+
+  /// What a page costs the frame it is added in, in letters to lay out: a short page's own, and a tenth of a long
+  /// one's, whose lines wait until they are near the screen and whose words are only read.
+  int _readCost(String title) {
+    final read = _pageOf(title);
+    if (!read.there || read.words == null || read.isCanvas) return 50;
+    final letters = read.untitled(title).length;
+    return 50 + (letters >= longPage ? letters ~/ 10 : letters);
+  }
 
   /// The pages built in this build of the read-through; the rest are asked for a frame from now.
   int _readSoFar(List<Chapter> chapters) {
@@ -1085,7 +1110,7 @@ class BookViewState extends State<BookView> {
         first += 1;
       }
       _readTo = math.max(first, at + 1);
-      _readStep = 1;
+      _readStep = _readFirst;
     }
     if (_readTo >= count) return count;
     if (!_readWaiting) {
@@ -1096,13 +1121,90 @@ class BookViewState extends State<BookView> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _readWaiting = false;
         if (!mounted || !_reading) return;
-        // What this frame's pages took, the rest of the frame with them: under a third of a frame, and the next
-        // frame takes twice as many.
-        _readStep = _readClock.elapsedMicroseconds < 6000 ? math.min(_readStep * 2, 8) : 1;
-        setState(() => _readTo = math.min(_chapters.length, _readTo + _readStep));
+        // What this frame's pages took, the rest of the frame with them: under a fifth of a frame and the next takes
+        // twice as much, over half of one and it takes half.
+        final took = _readClock.elapsedMicroseconds;
+        if (took < 3000) {
+          _readStep = math.min(_readStep * 2, _readMost);
+        } else if (took > 8000) {
+          _readStep = math.max(_readStep ~/ 2, _readLeast);
+        }
+        final pages = _chapters;
+        var to = _readTo, cost = 0;
+        while (to < pages.length && (to == _readTo || cost < _readStep)) {
+          cost += _readCost(pages[to].title);
+          to += 1;
+        }
+        setState(() => _readTo = to);
       });
     }
     return _readTo;
+  }
+
+  /// A page of this many letters or more is long, and read straight through its lines are a sliver of the note's
+  /// page (`EditorSliver`), built and laid out where they are near the screen as a note's own are. A shorter page is
+  /// a box, whole: about a screenful of words at the most, and nothing to gain.
+  @visibleForTesting
+  static int longPage = 1500;
+
+  bool _isLong(_PageRead read, String title) => read.untitled(title).length >= longPage;
+
+  /// The editor's view of each long page being read, by the page's title, for the words it was made for.
+  final Map<String, ({String words, EditorView view})> _lazy = <String, ({String words, EditorView view})>{};
+
+  EditorView _lazyView(String title, String words) {
+    final had = _lazy[title];
+    if (had != null && identical(had.words, words)) return had.view;
+    if (had != null) _letGo([had.view]);
+    final view = EditorView(state: EditorState.create(doc: words, extensions: noteExtensions(display: NoteView.formatted, readOnly: true)));
+    _lazy[title] = (words: words, view: view);
+    return view;
+  }
+
+  /// The views of pages no longer read as long ones are let go.
+  void _keepLazy(Set<String> titles) {
+    if (_lazy.length == titles.length) return;
+    final gone = [for (final title in _lazy.keys) if (!titles.contains(title)) title];
+    _letGo([for (final title in gone) _lazy.remove(title)!.view]);
+  }
+
+  /// Destroyed once the frame is over: the lines drawn from a view are still in the tree until this build is done.
+  void _letGo(List<EditorView> views) {
+    if (views.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final view in views) {
+        view.destroy();
+      }
+    });
+  }
+
+  /// Scrolls the page until [at] is at its top, as `scrollIntoView({ block: 'start' })` does. Where the way there
+  /// crosses a long page, how far it is was reckoned from lines not yet laid out (the editor's estimate of their
+  /// height), and the page arrives a little off: it is set right once it has arrived, unless the person has moved
+  /// it meanwhile.
+  Future<void> _goTo(BuildContext at, Duration duration) async {
+    final position = Scrollable.maybeOf(at)?.position;
+    if (position == null) return;
+    double? target() {
+      final box = at.mounted ? at.findRenderObject() : null;
+      if (box == null || !box.attached) return null;
+      final offset = RenderAbstractViewport.maybeOf(box)?.getOffsetToReveal(box, 0).offset;
+      return offset?.clamp(position.minScrollExtent, position.maxScrollExtent).toDouble();
+    }
+
+    var aimed = target();
+    await Scrollable.ensureVisible(at, alignment: 0, duration: duration, curve: Curves.easeOut);
+    if (_lazy.isEmpty) return;
+    for (var pass = 0; pass < 3; pass += 1) {
+      // Somewhere other than where it was sent: the person's doing, and theirs to keep.
+      if (!mounted || !_reading || aimed == null || (position.pixels - aimed).abs() > 1) return;
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted || !_reading || (position.pixels - aimed).abs() > 1) return;
+      final now = target();
+      if (now == null || (now - position.pixels).abs() < 0.5) return;
+      position.jumpTo(now);
+      aimed = now;
+    }
   }
 
   /// The chapter named in the form, into the index, then opened: as a page of words, or made as an empty canvas.
@@ -1192,29 +1294,31 @@ class BookViewState extends State<BookView> {
     final em = t.len('app-body');
     final chapters = _chapters;
     final numbers = numbered(chapters);
-    final child = _reading ? _readThrough(context, t, em, chapters, numbers) : _index(context, t, em, chapters, numbers);
+    // `.book { padding: var(--glacier-space-4) var(--glacier-space-5) var(--glacier-space-8) }`
+    final padding = EdgeInsets.fromLTRB(t.space(5), t.space(4), t.space(5), t.space(8));
     return OnBack(
       // While a form is open, the back gesture (Escape on a desktop) closes it before it would leave the notebook.
       active: _adding != null && !_reading,
       onBack: _closeAdding,
-      // A layer of its own: the view is one box in the note's scroller, and without one every row of the index and
-      // every line of every page read straight through was drawn again at each frame of a scroll.
-      child: RepaintBoundary(
-        child: DefaultTextStyle(
-          style: bookText(t, em),
-          child: Padding(
-            // `.book { padding: var(--glacier-space-4) var(--glacier-space-5) var(--glacier-space-8) }`
-            padding: EdgeInsets.fromLTRB(t.space(5), t.space(4), t.space(5), t.space(8)),
-            child: child,
-          ),
-        ),
+      child: DefaultTextStyle(
+        style: bookText(t, em),
+        // A sliver of the note's page (lib/note/note_screen.dart `seams.book`). Reading straight through, a long
+        // page's lines are a sliver of their own, so the page lays out those near its window and not the page. The
+        // index is one box.
+        child: _reading
+            ? _readThrough(context, t, em, chapters, numbers, padding)
+            : SliverToBoxAdapter(
+                // A layer of its own: the index is one box in the note's scroller, and without one every row of it
+                // was drawn again at each frame of a scroll.
+                child: RepaintBoundary(child: Padding(padding: padding, child: _index(context, t, em, chapters, numbers))),
+              ),
       ),
     );
   }
 
   // ---- reading straight through ----
 
-  Widget _readThrough(BuildContext context, Tokens t, double em, List<Chapter> chapters, List<String> numbers) {
+  Widget _readThrough(BuildContext context, Tokens t, double em, List<Chapter> chapters, List<String> numbers, EdgeInsets padding) {
     while (_sections.length < chapters.length) {
       _sections.add(GlobalKey(debugLabel: 'book-chapter-${_sections.length}'));
     }
@@ -1241,144 +1345,233 @@ class BookViewState extends State<BookView> {
       }
       _watch?.touched();
       // `scrollIntoView({ behavior: 'smooth', block: 'start' })`
-      Scrollable.ensureVisible(at, alignment: 0, duration: t.reducedMotion ? Duration.zero : const Duration(milliseconds: 300), curve: Curves.easeOut);
+      _goTo(at, t.reducedMotion ? Duration.zero : const Duration(milliseconds: 300));
     }
 
-    return Listener(
-      key: const ValueKey('book-reading'),
-      onPointerDown: (_) => _watch?.touched(),
-      onPointerSignal: (_) => _watch?.touched(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // The way back, and the chapters as a rail: a tap scrolls to that one.
-          DecoratedBox(
-            decoration: BoxDecoration(color: t.color('glacier-bg'), border: Border(bottom: BorderSide(color: rule, width: line))),
-            child: Padding(
-              // `padding-block: var(--glacier-space-2)`, the line under it inside the box.
-              padding: EdgeInsets.only(top: t.space(2), bottom: t.space(2) + line),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                spacing: t.space(2),
-                children: [
-                  BookAction(key: const ValueKey('book-index'), icon: Lucide.list, label: 'Index', onPressed: () => _setReading(false)),
-                  Semantics(
-                    container: true,
-                    label: 'Pages',
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        spacing: t.space(1),
-                        children: [
-                          for (final (i, chapter) in chapters.indexed)
-                            GlacierPressable(
-                              key: ValueKey('book-rail-$i'),
-                              semanticLabel: '${numbers[i]} ${chapter.title}',
-                              excludeSemantics: true,
-                              onPressed: () => scrollTo(i),
-                              builder: (context, state) => Opacity(
-                                // `.railItem[data-depth='1'] { opacity: 0.85 }`
-                                opacity: chapter.depth == 1 ? 0.85 : 1,
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(border: Border.all(color: rule, width: line), borderRadius: BorderRadius.circular(999), color: state.hovered ? _ink(t, 0.06) : null),
-                                  child: Padding(
-                                    // `padding: 0.3em 0.7em`
-                                    padding: EdgeInsets.symmetric(vertical: 0.3 * railEm + line, horizontal: 0.7 * railEm + line),
-                                    child: cssLines(
-                                      '${numbers[i]} ${chapter.title}',
-                                      bookText(t, railEm, color: state.hovered ? t.color('glacier-text') : muted).copyWith(fontFeatures: const <FontFeature>[FontFeature.tabularFigures()]),
-                                      maxLines: 1,
-                                      softWrap: false,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          for (final (i, chapter) in chapters.indexed.take(soFar))
-            () {
-              if (ghostPerf) Perf.count('book.read.page');
-              final read = _pageOf(chapter.title);
-              final there = read.there;
-              final words = there ? read.words : null;
-              final canvas = words != null && read.isCanvas;
-              return Semantics(
-                key: _sections[i],
-                container: true,
-                label: chapter.title,
-                // Not a layer of its own, where a row of the index is: a line of a page is set on a whole device
-                // pixel, and in a layer that began part-way down the book one line of the page's own pictures came
-                // out a device pixel lower (test/book_ui/reference_test.dart, reading straight through).
-                child: DecoratedBox(
-                  decoration: BoxDecoration(border: Border(bottom: BorderSide(color: rule, width: line))),
-                  child: Padding(
-                    // `.chapterRead { padding-block: var(--glacier-space-6) var(--glacier-space-4) }`, and
-                    // `[data-depth='1'] { padding-inline-start: 1.6em }`.
-                    padding: EdgeInsets.fromLTRB(chapter.depth == 1 ? 1.6 * em : 0, t.space(6), 0, t.space(4) + line),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // `.readTitle { margin: 0 0 var(--glacier-space-3); font-size: 1.3em; font-weight: semibold }`. Its
-                        // `letter-spacing: -0.01em` stops at the button inside it, whose own is the browser's `normal`.
-                        Padding(
-                          padding: EdgeInsets.only(bottom: t.space(3)),
-                          child: Align(
-                            alignment: AlignmentDirectional.centerStart,
-                            child: Transform.translate(
-                              // `margin-inline-start: -0.2em`
-                              offset: Offset(-0.2 * titleEm, 0),
-                              child: GlacierPressable(
-                                key: ValueKey('book-read-title-$i'),
-                                semanticLabel: 'Open ${chapter.title}',
-                                excludeSemantics: true,
-                                onPressed: () => widget.open(chapter.title),
-                                builder: (context, state) => DecoratedBox(
-                                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(t.radius('sm')), color: state.hovered ? _ink(t, 0.06) : null),
-                                  child: Padding(
-                                    // `padding: 0.1em 0.2em`
-                                    padding: EdgeInsets.symmetric(vertical: 0.1 * titleEm, horizontal: 0.2 * titleEm),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      crossAxisAlignment: CrossAxisAlignment.center,
-                                      children: [
-                                        cssLines(numbers[i], bookText(t, titleEm, weight: 'semibold', color: muted).copyWith(fontFeatures: const <FontFeature>[FontFeature.tabularFigures()]), maxLines: 1, softWrap: false),
-                                        // `gap: 0.5em`
-                                        SizedBox(width: 0.5 * titleEm),
-                                        Flexible(child: cssLines(chapter.title, bookText(t, titleEm, weight: 'semibold'))),
-                                        if (canvas) CanvasMark(em: titleEm),
-                                      ],
-                                    ),
-                                  ),
-                                ),
+    // A press or a wheel anywhere over the read-through is the person's (`BookSpotWatch.touched`). The pieces are
+    // slivers of the note's page, with no one box round them all to hear it, so each hears it for itself.
+    void touched() => _watch?.touched();
+    Widget heard(Widget child) => Listener(onPointerDown: (_) => touched(), onPointerSignal: (_) => touched(), child: child);
+
+    // The way back, and the chapters as a rail: a tap scrolls to that one.
+    final Widget bar = DecoratedBox(
+      decoration: BoxDecoration(color: t.color('glacier-bg'), border: Border(bottom: BorderSide(color: rule, width: line))),
+      child: Padding(
+        // `padding-block: var(--glacier-space-2)`, the line under it inside the box.
+        padding: EdgeInsets.only(top: t.space(2), bottom: t.space(2) + line),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          spacing: t.space(2),
+          children: [
+            BookAction(key: const ValueKey('book-index'), icon: Lucide.list, label: 'Index', onPressed: () => _setReading(false)),
+            Semantics(
+              container: true,
+              label: 'Pages',
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  spacing: t.space(1),
+                  children: [
+                    for (final (i, chapter) in chapters.indexed)
+                      GlacierPressable(
+                        key: ValueKey('book-rail-$i'),
+                        semanticLabel: '${numbers[i]} ${chapter.title}',
+                        excludeSemantics: true,
+                        onPressed: () => scrollTo(i),
+                        builder: (context, state) => Opacity(
+                          // `.railItem[data-depth='1'] { opacity: 0.85 }`
+                          opacity: chapter.depth == 1 ? 0.85 : 1,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(border: Border.all(color: rule, width: line), borderRadius: BorderRadius.circular(999), color: state.hovered ? _ink(t, 0.06) : null),
+                            child: Padding(
+                              // `padding: 0.3em 0.7em`
+                              padding: EdgeInsets.symmetric(vertical: 0.3 * railEm + line, horizontal: 0.7 * railEm + line),
+                              child: cssLines(
+                                '${numbers[i]} ${chapter.title}',
+                                bookText(t, railEm, color: state.hovered ? t.color('glacier-text') : muted).copyWith(fontFeatures: const <FontFeature>[FontFeature.tabularFigures()]),
+                                maxLines: 1,
+                                softWrap: false,
                               ),
                             ),
                           ),
                         ),
-                        if (!there)
-                          cssLines('Not written yet.', bookText(t, em, color: muted))
-                        else if (canvas)
-                          cssLines('A canvas: open it to see the cards.', bookText(t, em, color: muted))
-                        else if (words != null)
-                          MarkdownView(key: ValueKey('book-read-body-$i'), markdown: read.untitled(chapter.title), peek: false),
-                      ],
-                    ),
-                  ),
+                      ),
+                  ],
                 ),
-              );
-            }(),
-        ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
+
+    // A page's title, which opens it.
+    Widget titleOf(int i, Chapter chapter, bool canvas) {
+      // `.readTitle { margin: 0 0 var(--glacier-space-3); font-size: 1.3em; font-weight: semibold }`. Its
+      // `letter-spacing: -0.01em` stops at the button inside it, whose own is the browser's `normal`.
+      return Padding(
+        padding: EdgeInsets.only(bottom: t.space(3)),
+        child: Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: Transform.translate(
+            // `margin-inline-start: -0.2em`
+            offset: Offset(-0.2 * titleEm, 0),
+            child: GlacierPressable(
+              key: ValueKey('book-read-title-$i'),
+              semanticLabel: 'Open ${chapter.title}',
+              excludeSemantics: true,
+              onPressed: () => widget.open(chapter.title),
+              builder: (context, state) => DecoratedBox(
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(t.radius('sm')), color: state.hovered ? _ink(t, 0.06) : null),
+                child: Padding(
+                  // `padding: 0.1em 0.2em`
+                  padding: EdgeInsets.symmetric(vertical: 0.1 * titleEm, horizontal: 0.2 * titleEm),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      cssLines(numbers[i], bookText(t, titleEm, weight: 'semibold', color: muted).copyWith(fontFeatures: const <FontFeature>[FontFeature.tabularFigures()]), maxLines: 1, softWrap: false),
+                      // `gap: 0.5em`
+                      SizedBox(width: 0.5 * titleEm),
+                      Flexible(child: cssLines(chapter.title, bookText(t, titleEm, weight: 'semibold'))),
+                      if (canvas) CanvasMark(em: titleEm),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final ratio = MediaQuery.devicePixelRatioOf(context);
+    final left = _left;
+    // `.book { padding: var(--glacier-space-4) var(--glacier-space-5) var(--glacier-space-8) }`: the sides beside
+    // every piece, the top over the first and the foot under the last.
+    final side = padding.left, top = padding.top, foot = padding.bottom;
+    final border = BoxDecoration(border: Border(bottom: BorderSide(color: rule, width: line)));
+
+    // The pieces of the page, one after another. A run is everything between two long pages, in one box as the
+    // whole read-through was: the bar and every short page of a notebook with no long one. A long page is three
+    // pieces: its title, its lines (a sliver, built and laid out where they are near the screen as the note's own
+    // page has a note's), and the foot of its section.
+    final pieces = <Widget>[];
+    var run = <Widget>[bar];
+    var runKey = 'bar';
+    void endRun({required bool last}) {
+      if (run.isEmpty) {
+        // The book ends at a long page's foot: the book's own foot is under it.
+        if (last) pieces.add(SliverToBoxAdapter(key: const ValueKey('book-read-end'), child: SizedBox(height: foot)));
+        return;
+      }
+      final first = pieces.isEmpty;
+      pieces.add(
+        SliverToBoxAdapter(
+          key: ValueKey('book-read-run-$runKey'),
+          // A layer of its own: a run is one box in the note's scroller, and without one every line of every page
+          // in it was drawn again at each frame of a scroll.
+          child: RepaintBoundary(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(side, first ? top : 0, side, last ? foot : 0),
+              child: Listener(
+                key: first ? const ValueKey('book-reading') : null,
+                onPointerDown: (_) => touched(),
+                onPointerSignal: (_) => touched(),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: run),
+              ),
+            ),
+          ),
+        ),
+      );
+      run = <Widget>[];
+    }
+
+    final lazy = <String>{};
+    for (final (i, chapter) in chapters.indexed.take(soFar)) {
+      if (ghostPerf) Perf.count('book.read.page');
+      final read = _pageOf(chapter.title);
+      final there = read.there;
+      final words = there ? read.words : null;
+      final canvas = words != null && read.isCanvas;
+      // `[data-depth='1'] { padding-inline-start: 1.6em }`
+      final inset = chapter.depth == 1 ? 1.6 * em : 0.0;
+      // The page the book was left in is drawn whole, so the line it was left at is where it was measured to be.
+      if (words != null && !canvas && _isLong(read, chapter.title) && !lazy.contains(chapter.title) && !(left != null && sameTitle(chapter.title, left.title))) {
+        endRun(last: false);
+        runKey = '${i + 1}';
+        lazy.add(chapter.title);
+        final view = _lazyView(chapter.title, read.untitled(chapter.title));
+        pieces
+          ..add(
+            SliverToBoxAdapter(
+              key: ValueKey('book-read-head-$i'),
+              child: heard(
+                Semantics(
+                  key: _sections[i],
+                  container: true,
+                  label: chapter.title,
+                  // `.chapterRead`'s padding over its title, as a short page's box has it.
+                  child: Padding(padding: EdgeInsets.fromLTRB(side + inset, t.space(6), side, 0), child: titleOf(i, chapter, canvas)),
+                ),
+              ),
+            ),
+          )
+          ..add(
+            _ReadLines(
+              key: ValueKey('book-read-body-$i'),
+              onTouch: touched,
+              sliver: SliverPadding(
+                padding: EdgeInsets.only(left: side + inset, right: side),
+                sliver: EditorSliver(view: view, env: LookEnv.page(t, devicePixelRatio: ratio, tabSize: view.state.tabSize)),
+              ),
+            ),
+          )
+          ..add(
+            SliverToBoxAdapter(
+              key: ValueKey('book-read-foot-$i'),
+              // `.chapterRead`'s padding under its words, and the line under the section.
+              child: heard(Padding(padding: EdgeInsets.symmetric(horizontal: side), child: DecoratedBox(decoration: border, child: SizedBox(height: t.space(4) + line)))),
+            ),
+          );
+        continue;
+      }
+      run.add(
+        Semantics(
+          key: _sections[i],
+          container: true,
+          label: chapter.title,
+          // Not a layer of its own, where a row of the index is: a line of a page is set on a whole device
+          // pixel, and in a layer that began part-way down the book one line of the page's own pictures came
+          // out a device pixel lower (test/book_ui/reference_test.dart, reading straight through).
+          child: DecoratedBox(
+            decoration: border,
+            child: Padding(
+              // `.chapterRead { padding-block: var(--glacier-space-6) var(--glacier-space-4) }`, and
+              // `[data-depth='1'] { padding-inline-start: 1.6em }`.
+              padding: EdgeInsets.fromLTRB(inset, t.space(6), 0, t.space(4) + line),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  titleOf(i, chapter, canvas),
+                  if (!there)
+                    cssLines('Not written yet.', bookText(t, em, color: muted))
+                  else if (canvas)
+                    cssLines('A canvas: open it to see the cards.', bookText(t, em, color: muted))
+                  else if (words != null)
+                    MarkdownView(key: ValueKey('book-read-body-$i'), markdown: read.untitled(chapter.title), peek: false),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    endRun(last: true);
+    _keepLazy(lazy);
+    return SliverMainAxisGroup(slivers: pieces);
   }
 
   // ---- the index ----
@@ -1912,4 +2105,40 @@ class BookPages {
     await library.save(found.id, next);
     await library.refresh().catchError((Object _) {});
   }
+}
+
+
+/// A long page's lines, read straight through: drawn, and neither touched nor read out, as a short page's are
+/// (`MarkdownView`: `pointer-events: none`, `aria-hidden`). A press or a wheel over them is told to [onTouch] and
+/// goes no further, as the box round a short page's lines takes it.
+class _ReadLines extends SingleChildRenderObjectWidget {
+  const _ReadLines({super.key, required this.onTouch, required Widget sliver}) : super(child: sliver);
+
+  final VoidCallback onTouch;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderReadLines(onTouch);
+
+  @override
+  void updateRenderObject(BuildContext context, covariant _RenderReadLines renderObject) => renderObject.onTouch = onTouch;
+}
+
+class _RenderReadLines extends RenderProxySliver {
+  _RenderReadLines(this.onTouch);
+
+  VoidCallback onTouch;
+
+  @override
+  bool hitTestChildren(SliverHitTestResult result, {required double mainAxisPosition, required double crossAxisPosition}) => false;
+
+  @override
+  bool hitTestSelf({required double mainAxisPosition, required double crossAxisPosition}) => true;
+
+  @override
+  void handleEvent(PointerEvent event, SliverHitTestEntry entry) {
+    if (event is PointerDownEvent || event is PointerSignalEvent) onTouch();
+  }
+
+  @override
+  void visitChildrenForSemantics(RenderObjectVisitor visitor) {}
 }
