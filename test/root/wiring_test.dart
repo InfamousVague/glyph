@@ -25,6 +25,7 @@ import 'package:ghost_md/home/home_screen.dart';
 import 'package:ghost_md/live/presence.dart';
 import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/notes/all_notes_screen.dart';
+import 'package:ghost_md/notes/note_menu.dart';
 import 'package:ghost_md/notes/note_tree.dart';
 import 'package:ghost_md/notes/notes_drawer.dart';
 import 'package:ghost_md/notes/notifications_drawer.dart';
@@ -345,6 +346,25 @@ void main() {
       view.dispatch(TransactionSpec(selection: EditorSelection.single(first, first + 5)));
       expect(await desk.editor.paste('twice'), isTrue);
       expect(view.state.doc.toString(), '# Trip\n\nRead the [guide](https://example.com/guide) twice.\n');
+      await close(tester);
+    });
+
+    // Unwired 25 (docs/PARITY.md): the sidebar was never given `onNoteMenu`, so a mouse's right-click on a row
+    // opened nothing (notes/NoteTree.tsx `onNoteContextMenu`).
+    testWidgets('has its menu on a right-click of its row in the sidebar, where the pointer is', (tester) async {
+      final library = await open(tester);
+      final shell = tester.state<AppShellState>(find.byType(AppShell));
+      final drawer = partOf<NotesDrawer>(shell.context, tester.widget<AppShell>(find.byType(AppShell)).sidebarBuilder!(shell.context, shell, () {}));
+      final docked = partOf<NoteTree>(shell.context, tester.widget<AppShell>(find.byType(AppShell)).dockedSidebarBuilder!(shell.context, shell));
+      expect(drawer.onNoteMenu, isNotNull);
+      expect(docked.onNoteMenu, isNotNull);
+      final controller = tester.widget<NoteMenuHost>(find.byType(NoteMenuHost)).controller;
+      expect(controller.value, isNull);
+      final note = library.value.first;
+      docked.onNoteMenu!(note.id, const Offset(120, 300));
+      expect((controller.value?.id, controller.value?.x, controller.value?.y), (note.id, 120.0, 300.0));
+      controller.close();
+      await tester.pump();
       await close(tester);
     });
 

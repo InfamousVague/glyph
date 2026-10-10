@@ -1425,6 +1425,8 @@ class _GhostRootState extends State<GhostRoot> {
       onTrashNotes: _trashNotes,
       // An organization's workspace's "…" is the organization's settings.
       onOrganization: _services == null ? null : _openOrganizationSettings,
+      // A mouse's right-click on a row: the note's menu, where the pointer is.
+      onNoteMenu: _menu.open,
       emptyArt: const Ghost(scene: GhostScene.noNotes),
     );
   }
@@ -1721,6 +1723,7 @@ class _GhostRootState extends State<GhostRoot> {
           notesInWorkspace: _notesIn,
           onTrashNotes: _trashNotes,
           onOrganization: _services == null ? null : _openOrganizationSettings,
+          onNoteMenu: _menu.open,
           emptyArt: const Ghost(scene: GhostScene.noNotes),
         ),
       ),
