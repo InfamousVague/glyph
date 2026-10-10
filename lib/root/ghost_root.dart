@@ -19,6 +19,7 @@ import '../ai/summary_text.dart' show summarySection;
 import '../ai/support/runnable.dart' show cannotRun;
 import '../art/art.dart';
 import '../book/book_spot.dart' show whereLeft;
+import '../book/chapter_number.dart' show chapterOf;
 import '../book/entry_starts.dart' show pageBody;
 import '../book/journal.dart' as journal;
 import '../book/template_picker.dart' show EntryPlaceDevice;
@@ -61,6 +62,7 @@ import '../core/native/core.dart';
 import '../core/native/files.dart';
 import '../core/native/ghost_core.dart' show GhostCore;
 import '../core/note.dart';
+import '../core/note_facts.dart' show NoteFacts;
 import '../core/note_folders.dart';
 import '../core/note_text.dart';
 import '../core/preferences.dart';
@@ -712,15 +714,17 @@ class _GhostRootState extends State<GhostRoot> {
   );
 
   /// A note's screen with its editor: one desk to an open note (lib/root/note_desk.dart). Built again when the
-  /// screen is another (the note, what it was opened with), and when what it reads of the app is: the notes, every
-  /// one for the titles that are taken and the ones a screen shows for its place in its notebook and your templates
-  /// (so a notebook thrown away takes its bar off the page being read at once, not when its Undo runs out), the
-  /// trash, the workspaces, the preferences and the account. Not for a keystroke, the home page's news or a
-  /// runner's turn.
+  /// screen is another (the note, what it was opened with), and when what it reads of the app is: the other notes
+  /// (the titles that are taken, its place in its notebook, your templates; so a notebook thrown away takes its bar
+  /// off the page being read at once, not when its Undo runs out), the trash, the workspaces, the preferences and
+  /// the account. Not for a keystroke, the home page's news or a runner's turn; and **not for the note's own
+  /// save**, of which the screen it is handed here shows nothing: it is built from the note as it was opened
+  /// (`screen.note`, as the page's is), every other note's title, and its notebook's index, and what its editor
+  /// holds, its saving and its pin are its own to follow (`_notesBut`).
   Widget _note(BuildContext context, AppShellState shell, ScreenNote screen) => Selected(
         listenable: _tick,
         name: 'note',
-        select: () => (screen, _library.value, _shown, _trash.isTrashed(screen.note.id), _workspaces.value, _prefsAt, _capture != null, _accountAt),
+        select: () => (screen, _notesBut(screen.note.id), _trash.value, _made?.hidden, _workspaces.value, _prefsAt, _capture != null, _accountAt),
         builder: (context, _) => _desked(context, shell, screen),
       );
 
@@ -850,6 +854,88 @@ class _GhostRootState extends State<GhostRoot> {
   TrashHeld? _shownLess;
   Set<String>? _shownHid;
   List<Note> _shownNow = const [];
+
+  /// Whether [now] is [was] but for the note [id], which is in both: every other note the same object as it was
+  /// and in the order it was. An open note saved is this: it is another object, at the head of the list now.
+  static bool _sameButFor(List<Note> was, List<Note> now, String id) {
+    if (was.length != now.length) return false;
+    var i = 0, j = 0, found = 0;
+    while (i < was.length || j < now.length) {
+      if (i < was.length && was[i].id == id) {
+        i += 1;
+        found |= 1;
+      } else if (j < now.length && now[j].id == id) {
+        j += 1;
+        found |= 2;
+      } else if (i < was.length && j < now.length && identical(was[i], now[j])) {
+        i += 1;
+        j += 1;
+      } else {
+        return false;
+      }
+    }
+    return found == 3;
+  }
+
+  /// A number that is another whenever any note but [id] changed, came or went, and the same through a change to
+  /// [id] alone: what the screen of the note [id] reads of the library.
+  int _notesBut(String id) {
+    final all = _library.value;
+    final was = _butOf;
+    if (id != _butFor || was == null) {
+      _butFor = id;
+      _butAt += 1;
+    } else if (!identical(all, was) && !_sameButFor(was, all, id)) {
+      _butAt += 1;
+    }
+    _butOf = all;
+    return _butAt;
+  }
+
+  String? _butFor;
+  List<Note>? _butOf;
+  int _butAt = 0;
+
+  /// The notes the shell was last built with, and what it drew of the one on screen: its title, and whether it is
+  /// a canvas or a notebook (a tab's name, and whether its menu offers Rename). Read from the note as that build
+  /// had it, the first time a change is measured against it.
+  List<Note> _shellNotes = const [];
+  ({List<Note> of, String id, String title, bool named})? _shellDrew;
+
+  ({List<Note> of, String id, String title, bool named})? _drewOf(List<Note> built, String id) {
+    final had = _shellDrew;
+    if (had != null && identical(had.of, built) && had.id == id) return had;
+    for (final note in built) {
+      if (note.id != id) continue;
+      // Read and not kept: the reading kept for this note is of its words as they are now.
+      final facts = NoteFacts.read(note.body);
+      return _shellDrew = (of: built, id: id, title: facts.title, named: facts.isBook || facts.isCanvas);
+    }
+    return _shellDrew = null;
+  }
+
+  /// The notes as the shell is to draw them: the ones a screen shows, but the list it was last built with while
+  /// that differs only by the note on screen, saved, and the shell draws nothing of the difference. Its tab says
+  /// the title its editor has (lib/core/live_titles.dart), so a save that leaves the title and the kind of note as
+  /// they were changes no tab; and with no index beside the note (it is no notebook, no page of one, no numbered
+  /// chapter) the aside has nothing to read of it. The shell is handed the notes as they now are all the same,
+  /// without a build ([AppShellState.takeNotes]): what its screens list, and a note it is asked to open, are never
+  /// behind. The page's own list is not read again for an editor's save at all.
+  List<Note> get _shellDraws {
+    final shown = _shown;
+    final built = _shellNotes;
+    if (identical(shown, built)) return built;
+    final shell = _shell.currentState;
+    final on = shell?.shown;
+    if (shell == null || on == null || _asideFor != on || _aside != null || !_sameButFor(built, shown, on)) return shown;
+    final drew = _drewOf(built, on);
+    final now = _library.noteOf(on);
+    if (drew == null || now == null || drew.named || chapterOf(drew.title) != null) return shown;
+    final facts = NoteFacts.of(now);
+    if (facts.title != drew.title || facts.isBook || facts.isCanvas) return shown;
+    shell.takeNotes(shown);
+    return built;
+  }
 
   /// The notes in the Trash, read once per change to the notes or to the trash.
   List<Note> get _trashed {
@@ -1027,6 +1113,7 @@ class _GhostRootState extends State<GhostRoot> {
     _pictures?.dispose();
     widget.launchSeat?.rise(_launchFacts);
     _made?.dispose();
+    _menu.removeListener(_tick.tell);
     _menu.dispose();
     _tick.dispose();
     // What the root made that is listened to from outside it, or listens: let go, so a root started over (a reset)
@@ -1061,6 +1148,8 @@ class _GhostRootState extends State<GhostRoot> {
     // What the parts on screen read, each told as it changes (lib/root/selected.dart): after the reads above have
     // been told, so a part built again reads the library as it now is.
     _library.addListener(_tick.tell);
+    // A note's menu opening: its part is built with the notes as they are now, before the menu looks its note up.
+    _menu.addListener(_tick.tell);
     _workspaces.addListener(_tick.tell);
     _trash.addListener(_tick.tell);
     preferences.addListener(_prefsChanged);
@@ -1309,15 +1398,21 @@ class _GhostRootState extends State<GhostRoot> {
       children: [
         _part('shell', _shellReads, _shellPart),
         // The phone at work, over the app, while a review is on the note being read (lib/scene/at_work.dart).
+        // It reads the note's words only while a review is on it: with none the scene is not up, and a save of the
+        // note is nothing to it.
         _part('atWork', () {
           final ai = _noteAi, id = _noteAiId;
-          return ai == null || id == null ? null : (ai, id, _aiAt, _library.noteOf(id), _voice);
+          if (ai == null || id == null) return null;
+          final reviewing = ai.reviewKey != null || ai.reviewStage.value != null;
+          return (ai, id, _aiAt, reviewing ? _library.noteOf(id) : null, _voice);
         }, _atWorkPart),
         // Settings is handed what its pages read whether it is open or shut (the models, the tapes' room, the
         // updates), so it is built again as those change; never for a runner's turn or the home page's news.
         _part('settings', () => (_settings, _settingsPage, _voice, _voiceAt, _modelsAt, _updatesAt, _voice == null ? null : _tapeFacts, preferences.value.formatModel), _settingsPart),
-        _part('commands', () => (_library.value, _workspaces.value, _prefsAt, _capture != null), _commandsPart),
-        _part('noteMenu', () => _shown, _noteMenuPart),
+        // The palette's commands and a note's menu are made from the notes while each is open; shut, neither
+        // draws anything, and each is built with the notes as they are the moment it opens.
+        _part('commands', () => ((_commands.currentState?.isOpen ?? false) ? _library.value : null, _workspaces.value, _prefsAt, _capture != null), _commandsPart),
+        _part('noteMenu', () => _menu.value == null ? null : _shown, _noteMenuPart),
         // What the + makes (notes/NewSheet.tsx). The rows read where to make it as they are pressed, since the
         // sheet closes first.
         _part(
@@ -1368,7 +1463,7 @@ class _GhostRootState extends State<GhostRoot> {
   Object _shellReads() {
     final prefs = preferences.value;
     return (
-      _shown,
+      _shellDraws,
       _drafts,
       prefs.topBar,
       prefs.sidebarStyle,
@@ -1391,10 +1486,12 @@ class _GhostRootState extends State<GhostRoot> {
     final signedIn = services?.signedIn ?? false;
     final voice = _voice;
     final capture = _capture;
+    // What the shell draws from here on, for the next change to be measured against (`_shellDraws`).
+    final shown = _shellNotes = _shown;
     return AppShell(
       key: _shell,
       sheet: widget.sheet ?? context.tokens.sheet,
-      notes: _shown,
+      notes: shown,
       // A note with no words yet is its own screen's alone, as on the page, whose list never holds it.
       drafts: _drafts,
       topBar: TopBarStyle.parse(prefs.topBar),

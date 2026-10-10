@@ -8,6 +8,10 @@
 // scrolled, searched and with nothing arriving, which the page never does.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/aside/aside.dart' show asideContent;
+import 'package:ghost_md/book/chapter_number.dart' show chapterOf;
+import 'package:ghost_md/canvas/json_canvas.dart' show isCanvasBody;
+import 'package:ghost_md/core/note_text.dart' show noteTitle;
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/workspaces.dart';
@@ -15,6 +19,9 @@ import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
 import 'package:ghost_md/home/home_parts.dart' show Arrive;
 import 'package:ghost_md/home/home_screen.dart';
 import 'package:ghost_md/note/note_screen.dart';
+import 'package:ghost_md/notes/note_menu.dart' show NoteMenuHost;
+import 'package:ghost_md/root/note_desk.dart' show NoteDesk;
+import 'package:ghost_md/shell/screen.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/root/selected.dart';
 import 'package:ghost_md/settings/settings_sheet.dart';
@@ -167,6 +174,63 @@ void main() {
       await tester.pump();
       expect(identical(home(tester), listed), isFalse);
       expect(home(tester).notes.any((note) => note.body.startsWith('# A new one')), isTrue);
+      await close(tester);
+    });
+
+    testWidgets('builds neither the shell nor the note\'s desk for the note\'s own save, and both for another note\'s', (tester) async {
+      final library = await open(tester);
+      final shell = tester.state<AppShellState>(find.byType(AppShell));
+      AppShell shellWidget() => tester.widget<AppShell>(find.byType(AppShell));
+      NoteDesk desk() => tester.widget<NoteDesk>(find.byType(NoteDesk));
+      // A note of plain words: no notebook, no page of one, no numbered chapter, so nothing stands beside it.
+      final note = library.value.firstWhere((each) => each.body.trim().isNotEmpty && asideContent(library.value, each) == null && !isCanvasBody(each.body) && chapterOf(noteTitle(each.body)) == null);
+      final other = library.value.firstWhere((each) => each.id != note.id && each.body.trim().isNotEmpty);
+      shell.openNote(note.id);
+      await settle(tester);
+      final built = shellWidget();
+      final desked = desk();
+      // Saved, as its editor saves it a moment after the typing stops: its words are others, its title the same.
+      var saved = await library.update(note.id, '${note.body}\n\nMore words.', note.revision);
+      await tester.pump();
+      saved = await library.update(note.id, '${saved.body}\n\nAnd more.', saved.revision);
+      await tester.pump();
+      expect(identical(shellWidget(), built), isTrue, reason: 'the shell draws nothing of the save');
+      expect(identical(desk(), desked), isTrue, reason: 'nor does the screen the note was opened with');
+      // And yet the shell is not behind: what its screens list, and what it opens by an id, is the note as saved.
+      expect(shell.notes.firstWhere((each) => each.id == note.id).body, endsWith('And more.'));
+      shell.openNote(note.id);
+      expect((shell.screen as ScreenNote).note.body, endsWith('And more.'));
+      await settle(tester, 2);
+      final again = shellWidget();
+      // Its first line changed: its tab's name is the shell's to draw.
+      saved = await library.update(note.id, '# Another name altogether\n\n${saved.body}', saved.revision);
+      await tester.pump();
+      expect(identical(shellWidget(), again), isFalse, reason: 'a title is a tab\'s name');
+      // Another note saved (a sync, a query's tick): the titles that are taken and the lists are other.
+      final renamed = shellWidget();
+      final before = desk();
+      await library.update(other.id, '# Changed elsewhere\n\n${other.body}', other.revision);
+      await tester.pump();
+      expect(identical(shellWidget(), renamed), isFalse);
+      expect(identical(desk(), before), isFalse);
+      // Left, the home page lists the note as it was last saved.
+      shell.backToList();
+      await settle(tester);
+      expect(home(tester).notes.firstWhere((each) => each.id == note.id).body, startsWith('# Another name altogether'));
+      await close(tester);
+    });
+
+    testWidgets('a note\'s menu and the palette are made with the notes as they are when each opens', (tester) async {
+      final library = await open(tester);
+      final menu = tester.widget<NoteMenuHost>(find.byType(NoteMenuHost));
+      final made = library.create('# Made a moment ago\n\nwords');
+      await tester.pump();
+      // Shut, the menu is not built again for a note made.
+      expect(identical(tester.widget<NoteMenuHost>(find.byType(NoteMenuHost)), menu), isTrue);
+      home(tester).onNoteMenu!(made.id);
+      await settle(tester, 4);
+      expect(tester.widget<NoteMenuHost>(find.byType(NoteMenuHost)).notes.any((each) => each.id == made.id), isTrue);
+      expect(find.text('Made a moment ago'), findsWidgets);
       await close(tester);
     });
 

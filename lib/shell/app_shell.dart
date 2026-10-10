@@ -259,7 +259,25 @@ class AppShellState extends State<AppShell> {
   late VisibleNotes _seen = _see();
 
   /// The notes every screen is handed: none held back by a pending delete, none in the trash, and no draft.
-  VisibleNotes _see() => visibleNotes(widget.notes, hidden: widget.drafts.isEmpty ? widget.hidden : {...widget.hidden, ...widget.drafts}, trash: widget.trash);
+  VisibleNotes _see() => visibleNotes(_library, hidden: widget.drafts.isEmpty ? widget.hidden : {...widget.hidden, ...widget.drafts}, trash: widget.trash);
+
+  /// The library as the store has it now: the shell's own, or a newer one it was handed between two builds
+  /// ([takeNotes]).
+  List<Note> get _library => _taken ?? widget.notes;
+  List<Note>? _taken;
+
+  /// The library as the store has it now, taken without a build: for a change the shell draws nothing of. An open
+  /// note saved changes none of what the shell draws (its tab says the title its editor has, lib/core/live_titles.dart;
+  /// the page's own list is not read again for an editor's save at all), and building the bar, the panes and the
+  /// aside again for each save was a frame's work every time the typing paused. What the shell is asked afterwards
+  /// (the notes its screens list, a note opened by its id, the tabs at its next build) answers from these.
+  void takeNotes(List<Note> notes) {
+    if (identical(notes, _library)) return;
+    _taken = notes;
+    _seen = _see();
+    _tabs.update(shown: shown, notes: notes, live: _seen.live);
+    _walk.live = _seen.live;
+  }
 
   bool _drawer = false;
   bool _notificationsOpen = false;
@@ -304,6 +322,8 @@ class AppShellState extends State<AppShell> {
   void didUpdateWidget(AppShell oldWidget) {
     super.didUpdateWidget(oldWidget);
     final old = oldWidget;
+    // A library handed over by a build is the newest there is: what was taken between builds gives way to it.
+    if (!identical(old.notes, widget.notes)) _taken = null;
     if (!identical(old.notes, widget.notes) || !identical(old.hidden, widget.hidden) || !identical(old.trash, widget.trash) || !setEquals(old.drafts, widget.drafts)) {
       _seen = _see();
     }
@@ -327,7 +347,7 @@ class AppShellState extends State<AppShell> {
 
   /// What follows from the screen and the library: a note shown is a note open, and arriving somewhere is recorded.
   void _sync() {
-    _tabs.update(shown: shown, notes: widget.notes, live: _seen.live);
+    _tabs.update(shown: shown, notes: _library, live: _seen.live);
     _walk.live = _seen.live;
     _walk.arrive(_screen.place);
   }
@@ -343,7 +363,7 @@ class AppShellState extends State<AppShell> {
   }
 
   Note? _noteOf(String id) {
-    for (final note in widget.notes) {
+    for (final note in _library) {
       if (note.id == id) return note;
     }
     return null;
